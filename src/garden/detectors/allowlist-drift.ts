@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 
-import { isMicroChoreAllowed } from '../../noldor/allowlist.js';
-import { readRolloutMarker } from '../../noldor/rollout-marker.js';
-import { parseTrailers } from '../../noldor/trailers.js';
+import { isMicroChoreAllowed } from '../../core/allowlist.js';
+import { readRolloutMarker } from '../../core/rollout-marker.js';
+import { parseTrailers } from '../../core/trailers.js';
 
 export interface AllowlistDriftFinding {
   readonly sha: string;

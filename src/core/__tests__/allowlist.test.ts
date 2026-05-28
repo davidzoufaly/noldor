@@ -82,7 +82,7 @@ describe('isReleaseSweepAllowed', () => {
   });
 
   it('rejects source code', () => {
-    expect(isReleaseSweepAllowed(['packages/noldor/src/noldor/session.ts'])).toBe(false);
+    expect(isReleaseSweepAllowed(['packages/noldor/src/core/session.ts'])).toBe(false);
     expect(isReleaseSweepAllowed(['packages/engine/src/foo.ts'])).toBe(false);
     expect(isReleaseSweepAllowed(['apps/web/src/main.tsx'])).toBe(false);
   });

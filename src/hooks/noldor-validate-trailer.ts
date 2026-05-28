@@ -4,10 +4,10 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync, appendFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
-import { parseTrailers } from '../noldor/trailers';
-import { PATHS } from '../noldor/session';
-import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../noldor/allowlist';
-import { readRolloutMarker, isPostRollout } from '../noldor/rollout-marker';
+import { parseTrailers } from '../core/trailers';
+import { PATHS } from '../core/session';
+import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
+import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
 
 export interface ValidationResult {
   ok: boolean;

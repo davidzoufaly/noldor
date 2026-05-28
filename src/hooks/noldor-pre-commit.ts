@@ -1,9 +1,9 @@
 // scripts/hooks/noldor-pre-commit.ts
 // pre-commit stage: enforces micro-chore allowlist and hard-wall post-rollout session requirement.
 import { spawnSync } from 'node:child_process';
-import { readSession } from '../noldor/session';
-import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../noldor/allowlist';
-import { readRolloutMarker, isPostRollout } from '../noldor/rollout-marker';
+import { readSession } from '../core/session';
+import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
+import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
 
 export interface PreCommitResult {
   ok: boolean;

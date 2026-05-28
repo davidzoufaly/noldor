@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { parseTrailers } from '../../noldor/trailers.js';
+import { parseTrailers } from '../../core/trailers.js';
 
 /** Repo-relative path of the SDD report — used by the drift filter below. */
 const SDD_REPORT_PATH = 'docs/sdd-report.md';

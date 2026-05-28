@@ -3,7 +3,7 @@
 // NOTE: This hook intentionally has NO soft-mode gate — injecting trailers pre-rollout is
 // harmless (nobody validates them yet) and useful post-rollout.
 import { spawnSync } from 'node:child_process';
-import { readSession } from '../noldor/session';
+import { readSession } from '../core/session';
 
 export function injectTrailers(opts: { messageFile: string; cwd: string }): void {
   const session = readSession(opts.cwd);

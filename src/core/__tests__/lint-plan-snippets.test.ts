@@ -172,7 +172,7 @@ describe('CLI', () => {
         [
           'exec',
           'tsx',
-          join(rootDir, 'packages/noldor/src/noldor/lint-plan-snippets.ts'),
+          join(rootDir, 'packages/noldor/src/core/lint-plan-snippets.ts'),
           artifact,
           ...extraArgs,
         ],

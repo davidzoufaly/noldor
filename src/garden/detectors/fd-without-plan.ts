@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 
 import { FeatureFrontmatterSchema } from '../../features/feature-schema.js';
-import { isPostRollout } from '../../noldor/rollout-marker.js';
+import { isPostRollout } from '../../core/rollout-marker.js';
 
 export interface FdWithoutPlanFinding {
   readonly slug: string;

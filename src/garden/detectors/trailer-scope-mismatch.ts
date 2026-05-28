@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 
-import { readRolloutMarker } from '../../noldor/rollout-marker.js';
-import { parseTrailers } from '../../noldor/trailers.js';
+import { readRolloutMarker } from '../../core/rollout-marker.js';
+import { parseTrailers } from '../../core/trailers.js';
 
 const SUBJECT_RE = /^(?:\w+)(?:\((?<scope>[^)]+)\))?(?:!)?:/;
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readSession, writeSession } from '../../noldor/session';
+import { readSession, writeSession } from '../../core/session';
 import { withReleaseSession } from '../release-session';
 
 describe('withReleaseSession', () => {

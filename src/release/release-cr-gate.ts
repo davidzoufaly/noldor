@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { isMicroChoreAllowed } from '../noldor/allowlist.js';
+import { isMicroChoreAllowed } from '../core/allowlist.js';
 
 export interface CrGateOffender {
   sha: string;

@@ -1,6 +1,6 @@
 // scripts/hooks/noldor-pre-edit-guard.ts
-import { readSession } from '../noldor/session';
-import { readRolloutMarker } from '../noldor/rollout-marker';
+import { readSession } from '../core/session';
+import { readRolloutMarker } from '../core/rollout-marker';
 
 export interface PreEditResult {
   ok: boolean;

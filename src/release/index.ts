@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 
 import { ensureGardenFresh } from '../garden/garden-receipt.js';
 import { autoStampOnCleanDetect } from './auto-restamp.js';
-import { fillAllNoldorMarkers } from '../noldor/release-markers.js';
+import { fillAllNoldorMarkers } from '../core/release-markers.js';
 import { classifyCommits, deriveBumpLevel, readCommitsSince } from './release-commits.js';
 import { checkCrGate } from './release-cr-gate.js';
 import { generateFdChangelogs } from './release-fd-changelog.js';

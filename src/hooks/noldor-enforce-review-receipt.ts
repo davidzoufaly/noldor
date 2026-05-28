@@ -2,8 +2,8 @@
 // pre-push stage: verifies that the tip commit carries a review-receipt trailer matching HEAD^{tree}.
 // Accepts either Noldor-Reviewed (legacy single-reviewer) or Noldor-Reviewed-Subagent (multi-reviewer gate Step 4).
 import { spawnSync } from 'node:child_process';
-import { parseTrailers } from '../noldor/trailers';
-import { readRolloutMarker, isPostRollout } from '../noldor/rollout-marker';
+import { parseTrailers } from '../core/trailers';
+import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
 
 export interface EnforceResult {
   ok: boolean;

@@ -79,10 +79,10 @@ export const MANIFEST: Record<string, Group> = {
   validate: {
     desc: 'Validators (noldor config + skill catalog + scope)',
     subs: {
-      noldor: { src: 'noldor/validate-noldor.ts', desc: 'Validate Noldor invariants' },
+      noldor: { src: 'core/validate-noldor.ts', desc: 'Validate Noldor invariants' },
       'noldor-config': { src: 'validate/noldor-config.ts', desc: 'Validate .noldor/config.json' },
-      'noldor-scope': { src: 'noldor/validate-noldor-scope.ts', desc: 'Validate commit scope' },
-      'skill-catalog': { src: 'noldor/validate-skill-catalog.ts', desc: 'Validate skill catalog' },
+      'noldor-scope': { src: 'core/validate-noldor-scope.ts', desc: 'Validate commit scope' },
+      'skill-catalog': { src: 'core/validate-skill-catalog.ts', desc: 'Validate skill catalog' },
       features: { src: 'features/validate-features.ts', desc: 'Validate feature MDs' },
       milestones: { src: 'milestones/validate-milestones.ts', desc: 'Validate milestones' },
       triage: { src: 'triage/validate-triage.ts', desc: 'Validate triage docs' },
@@ -169,18 +169,18 @@ export const MANIFEST: Record<string, Group> = {
   noldor: {
     desc: 'Noldor utilities (changelog, session marker, etc.)',
     subs: {
-      changelog: { src: 'noldor/changelog.ts', desc: 'Generate changelog' },
+      changelog: { src: 'core/changelog.ts', desc: 'Generate changelog' },
       'bump-session-marker': {
-        src: 'noldor/bump-session-marker.ts',
+        src: 'core/bump-session-marker.ts',
         desc: 'Bump session markerVersion',
       },
-      'set-autonomous': { src: 'noldor/set-autonomous.ts', desc: 'Mark session autonomous' },
+      'set-autonomous': { src: 'core/set-autonomous.ts', desc: 'Mark session autonomous' },
       'lint-plan-snippets': {
-        src: 'noldor/lint-plan-snippets.ts',
+        src: 'core/lint-plan-snippets.ts',
         desc: 'Lint code snippets in plans',
       },
       'rename-plan-only-tier': {
-        src: 'noldor/rename-plan-only-tier.ts',
+        src: 'core/rename-plan-only-tier.ts',
         desc: 'Rename plan-only tier docs',
       },
     },
@@ -188,19 +188,19 @@ export const MANIFEST: Record<string, Group> = {
   'next-priority': {
     desc: 'Next-priority pickup',
     subs: {
-      '': { src: 'noldor/next-priority.ts', desc: 'Print top priority' },
+      '': { src: 'core/next-priority.ts', desc: 'Print top priority' },
     },
   },
   'pr-flow': {
     desc: 'PR flow (push + create + auto-merge + poll)',
     subs: {
-      '': { src: 'noldor/pr-flow-cli.ts', desc: 'Run pr-flow' },
+      '': { src: 'core/pr-flow-cli.ts', desc: 'Run pr-flow' },
     },
   },
   changelog: {
     desc: 'Generate changelog (hoisted)',
     subs: {
-      '': { src: 'noldor/changelog.ts', desc: 'Generate changelog' },
+      '': { src: 'core/changelog.ts', desc: 'Generate changelog' },
     },
   },
   init: {
