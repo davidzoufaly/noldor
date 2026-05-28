@@ -1,0 +1,10 @@
+{
+  "lane": "standalone",
+  "artifact": "docs/superpowers/specs/x.md",
+  "kind": "spec",
+  "slug": "x",
+  "blockers": [],
+  "suggestions": [],
+  "summary": "standalone-claude running",
+  "startedAt": "2026-05-25T00:00:00.000Z"
+}

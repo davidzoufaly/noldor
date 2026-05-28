@@ -1,0 +1,72 @@
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../lanes/manual.js', () => ({
+  runManual: vi.fn(async () => ({ lane: 'manual', sinkPath: 'm', ok: true })),
+}));
+vi.mock('../lanes/codex.js', () => ({
+  runCodex: vi.fn(async () => ({ lane: 'codex', sinkPath: 'c', ok: true })),
+  codexSupportsBaseSha: vi.fn(async () => true),
+}));
+vi.mock('../lanes/subagent.js', () => ({
+  runSubagent: vi.fn(async () => ({ lane: 'subagent', sinkPath: 's', ok: true })),
+}));
+vi.mock('../lanes/standalone.js', () => ({
+  runStandalone: vi.fn(async () => ({ lane: 'standalone', sinkPath: 'so', ok: true })),
+  claudeSupportsMaxThinking: vi.fn(async () => false),
+  multiterminalDepDone: vi.fn(async () => true),
+}));
+
+import { run } from '../orchestrate.js';
+
+let root: string;
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'delta-'));
+  await mkdir(join(root, '.noldor', 'cr'), { recursive: true });
+});
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true });
+});
+
+describe('delta short-circuit', () => {
+  it('writes synthetic OK for ALL lanes when empty diff (including standalone)', async () => {
+    const r = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['manual', 'subagent', 'standalone'],
+        baseSha: 'b',
+        fullReview: false,
+        autonomous: false,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(r.syntheticOks.toSorted()).toEqual(['manual', 'standalone', 'subagent']);
+    const { runStandalone } = await import('../lanes/standalone.js');
+    expect(runStandalone).not.toHaveBeenCalled();
+    const manualJson = JSON.parse(
+      await readFile(join(root, '.noldor', 'cr', 'x-spec-manual.json'), 'utf8'),
+    );
+    expect(manualJson.summary).toBe('no changes since prior run');
+  });
+  it('--full-review bypasses delta', async () => {
+    const r = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['manual'],
+        baseSha: 'b',
+        fullReview: true,
+        autonomous: false,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(r.syntheticOks).toEqual([]);
+  });
+});

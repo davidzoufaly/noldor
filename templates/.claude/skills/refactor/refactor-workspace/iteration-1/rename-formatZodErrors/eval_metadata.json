@@ -1,0 +1,37 @@
+{
+  "eval_id": 0,
+  "eval_name": "rename-formatZodErrors",
+  "prompt": "Refactor the `formatZodErrors` function in the format package — rename it to `formatValidationErrors` across the entire codebase and update all consumers",
+  "assertions": [
+    {
+      "id": "no-old-references",
+      "text": "No remaining references to formatZodErrors in the codebase (excluding report/docs)"
+    },
+    { "id": "typecheck-passes", "text": "pnpm typecheck passes after the refactoring" },
+    { "id": "tests-pass", "text": "pnpm test passes after the refactoring" },
+    {
+      "id": "report-has-changed-files-table",
+      "text": "Report contains a table listing changed files with change type and line counts"
+    },
+    {
+      "id": "report-has-diffs",
+      "text": "Report contains diff blocks showing before/after for each changed file"
+    },
+    {
+      "id": "report-has-rationale",
+      "text": "Each changed file has a specific rationale explaining why it changed"
+    },
+    {
+      "id": "report-has-verification-table",
+      "text": "Report contains before/after verification table showing typecheck and test results"
+    },
+    {
+      "id": "report-has-import-impact",
+      "text": "Report lists which consumers import the changed export"
+    },
+    {
+      "id": "report-has-commit-message",
+      "text": "Report includes a draft conventional commit message"
+    }
+  ]
+}

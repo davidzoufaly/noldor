@@ -1,0 +1,30 @@
+{
+  "eval_id": 1,
+  "eval_name": "split-serialize",
+  "prompt": "The serialize.ts file in format package has both serialize and deserialize logic. Split it into separate serialize.ts and deserialize.ts modules, update the barrel export in index.ts",
+  "assertions": [
+    {
+      "id": "deserialize-file-exists",
+      "text": "A new deserialize.ts file was created in the format package"
+    },
+    {
+      "id": "serialize-no-deserialize",
+      "text": "serialize.ts no longer contains deserialize function definitions"
+    },
+    {
+      "id": "barrel-updated",
+      "text": "index.ts re-exports from both serialize.ts and deserialize.ts"
+    },
+    { "id": "typecheck-passes", "text": "pnpm typecheck passes after the refactoring" },
+    { "id": "tests-pass", "text": "pnpm test passes after the refactoring" },
+    {
+      "id": "report-has-changed-files-table",
+      "text": "Report contains a table listing changed files with added/modified markers"
+    },
+    { "id": "report-has-breaking-changes", "text": "Report includes a breaking changes section" },
+    {
+      "id": "report-has-complexity-delta",
+      "text": "Report includes before/after complexity comparison"
+    }
+  ]
+}

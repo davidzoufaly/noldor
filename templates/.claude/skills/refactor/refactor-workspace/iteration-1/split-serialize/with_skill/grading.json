@@ -1,0 +1,47 @@
+{
+  "eval_id": 1,
+  "eval_name": "split-serialize",
+  "run_type": "with_skill",
+  "expectations": [
+    {
+      "text": "A new deserialize.ts file was created in the format package",
+      "passed": true,
+      "evidence": "Changed Files table shows 'packages/format/src/deserialize.ts | added | +40'."
+    },
+    {
+      "text": "serialize.ts no longer contains deserialize function definitions",
+      "passed": true,
+      "evidence": "Diff shows deserializeNode and deserialize removed from serialize.ts. Rationale confirms 'File now contains only serialization logic'."
+    },
+    {
+      "text": "index.ts re-exports from both serialize.ts and deserialize.ts",
+      "passed": true,
+      "evidence": "Diff shows barrel updated: serialize from serialize.js, deserialize from deserialize.js."
+    },
+    {
+      "text": "pnpm typecheck passes after the refactoring",
+      "passed": true,
+      "evidence": "Verification table: TypeScript 7/7 pass before and after."
+    },
+    {
+      "text": "pnpm test passes after the refactoring",
+      "passed": true,
+      "evidence": "Verification table: all suites pass (57+33+3+5 tests)."
+    },
+    {
+      "text": "Report contains a table listing changed files with added/modified markers",
+      "passed": true,
+      "evidence": "Changed Files table with 4 rows, 'added' and 'modified' change types clearly marked."
+    },
+    {
+      "text": "Report includes a breaking changes section",
+      "passed": true,
+      "evidence": "Breaking Changes section: 'No breaking changes. All public API preserved.'"
+    },
+    {
+      "text": "Report includes before/after complexity comparison",
+      "passed": true,
+      "evidence": "Complexity Delta table with 8 metrics including lines, functions, exported symbols, cross-concern coupling."
+    }
+  ]
+}

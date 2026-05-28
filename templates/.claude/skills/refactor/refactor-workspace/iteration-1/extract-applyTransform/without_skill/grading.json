@@ -1,0 +1,42 @@
+{
+  "eval_id": 2,
+  "eval_name": "extract-applyTransform",
+  "run_type": "without_skill",
+  "expectations": [
+    {
+      "text": "At least 2 new focused functions were extracted from applyTransform",
+      "passed": true,
+      "evidence": "3 new functions: applyRotation, applyTranslation, isZeroVec3."
+    },
+    {
+      "text": "pnpm typecheck passes after the refactoring",
+      "passed": true,
+      "evidence": "Report: 'All 7 tasks pass'."
+    },
+    {
+      "text": "pnpm test passes after the refactoring",
+      "passed": true,
+      "evidence": "Report: 'All 102 tests pass. Engine transform tests went from 4 to 8.'"
+    },
+    {
+      "text": "Report contains diff blocks for changed files",
+      "passed": false,
+      "evidence": "No diffs shown. Changes described as prose list."
+    },
+    {
+      "text": "Each extraction has a specific rationale explaining why",
+      "passed": false,
+      "evidence": "No per-function rationale. General description of what was done but not why each piece was extracted."
+    },
+    {
+      "text": "Report shows max function length decreased",
+      "passed": false,
+      "evidence": "No complexity metrics. No before/after comparison."
+    },
+    {
+      "text": "Report includes a dead code check section",
+      "passed": false,
+      "evidence": "No dead code section."
+    }
+  ]
+}

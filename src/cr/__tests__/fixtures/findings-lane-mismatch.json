@@ -1,0 +1,11 @@
+{
+  "lane": "codex",
+  "artifact": "docs/superpowers/specs/x.md",
+  "kind": "spec",
+  "slug": "x",
+  "blockers": [],
+  "suggestions": [],
+  "summary": "lane mismatch",
+  "startedAt": "2026-05-25T00:00:00.000Z",
+  "finishedAt": "2026-05-25T00:00:01.000Z"
+}

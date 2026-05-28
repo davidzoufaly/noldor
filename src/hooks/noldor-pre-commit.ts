@@ -1,0 +1,75 @@
+// scripts/hooks/noldor-pre-commit.ts
+// pre-commit stage: enforces micro-chore allowlist and hard-wall post-rollout session requirement.
+import { spawnSync } from 'node:child_process';
+import { readSession } from '../noldor/session';
+import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../noldor/allowlist';
+import { readRolloutMarker, isPostRollout } from '../noldor/rollout-marker';
+
+export interface PreCommitResult {
+  ok: boolean;
+  reason?: string;
+}
+
+function getStagedPaths(cwd: string): string[] {
+  const r = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd, encoding: 'utf8' });
+  return (r.stdout ?? '').split('\n').filter(Boolean);
+}
+
+export function runPreCommit(opts: { cwd: string }): PreCommitResult {
+  // Always check session first (before rollout gate) so micro-chore session enforcement
+  // works even pre-rollout (belt-and-suspenders for the session itself).
+  const session = readSession(opts.cwd);
+  const staged = getStagedPaths(opts.cwd);
+
+  if (session?.path === 'micro-chore') {
+    if (!isMicroChoreAllowed(staged)) {
+      return {
+        ok: false,
+        reason: `micro-chore diff includes files outside allowlist: ${staged.join(', ')}`,
+      };
+    }
+    return { ok: true };
+  }
+
+  if (session?.path === 'release-sweep') {
+    if (!isReleaseSweepAllowed(staged)) {
+      return {
+        ok: false,
+        reason: `release-sweep diff includes files outside allowlist: ${staged.join(', ')}`,
+      };
+    }
+    return { ok: true };
+  }
+
+  // For non-micro-chore / non-release-sweep sessions (or no session), enforce hard wall only post-rollout.
+  const marker = readRolloutMarker(opts.cwd);
+  if (!marker) return { ok: true }; // soft mode: no rollout marker yet
+
+  let head: string;
+  try {
+    const r = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: opts.cwd, encoding: 'utf8' });
+    if (r.status !== 0 || !r.stdout.trim()) return { ok: true }; // empty repo
+    head = r.stdout.trim();
+  } catch {
+    return { ok: true };
+  }
+  if (!isPostRollout(head, opts.cwd)) return { ok: true }; // pre-rollout: soft mode
+
+  if (!session) {
+    return {
+      ok: false,
+      reason: `No /gate session. Run /gate before committing: ${staged.join(', ')}`,
+    };
+  }
+
+  // Any other session (fast-track, specs-only-*, full-*) — no diff-level check at this stage.
+  return { ok: true };
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const r = runPreCommit({ cwd: process.cwd() });
+  if (!r.ok) {
+    console.error(`Noldor gate: ${r.reason}`);
+    process.exit(1);
+  }
+}

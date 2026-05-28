@@ -1,0 +1,9 @@
+import { describe, it, expect } from 'vitest';
+
+// @tests: sample-feature
+
+describe('tagged', () => {
+  it('runs', () => {
+    expect(true).toBe(true);
+  });
+});

@@ -1,0 +1,52 @@
+{
+  "eval_id": 0,
+  "eval_name": "rename-formatZodErrors",
+  "run_type": "without_skill",
+  "expectations": [
+    {
+      "text": "No remaining references to formatZodErrors in the codebase (excluding report/docs)",
+      "passed": false,
+      "evidence": "Only renamed in validate.ts (3 occurrences). Missed 3 occurrences in docs/superpowers/plans/2026-04-14-plan1-monorepo-format.md."
+    },
+    {
+      "text": "pnpm typecheck passes after the refactoring",
+      "passed": true,
+      "evidence": "Report states all 4 packages pass typecheck."
+    },
+    {
+      "text": "pnpm test passes after the refactoring",
+      "passed": true,
+      "evidence": "Report states all 98 tests pass."
+    },
+    {
+      "text": "Report contains a table listing changed files with change type and line counts",
+      "passed": false,
+      "evidence": "No structured table. Just inline text: 'File changed: packages/format/src/validate.ts — 3 occurrences replaced'."
+    },
+    {
+      "text": "Report contains diff blocks showing before/after for each changed file",
+      "passed": false,
+      "evidence": "No diffs shown. Just a description of what was replaced."
+    },
+    {
+      "text": "Each changed file has a specific rationale explaining why it changed",
+      "passed": false,
+      "evidence": "No rationale section. Just states what was done, not why."
+    },
+    {
+      "text": "Report contains before/after verification table showing typecheck and test results",
+      "passed": false,
+      "evidence": "Verification mentioned as bullet points, not a structured before/after table."
+    },
+    {
+      "text": "Report lists which consumers import the changed export",
+      "passed": false,
+      "evidence": "Mentions 'No other packages import or reference it' but no structured import impact analysis."
+    },
+    {
+      "text": "Report includes a draft conventional commit message",
+      "passed": false,
+      "evidence": "No commit message suggested."
+    }
+  ]
+}

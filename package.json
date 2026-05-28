@@ -1,0 +1,50 @@
+{
+  "name": "noldor",
+  "version": "0.0.0",
+  "private": false,
+  "bin": {
+    "noldor": "./bin/noldor.mjs"
+  },
+  "files": [
+    "dist",
+    "src",
+    "bin",
+    "templates"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./templates/*": "./templates/*"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.4.3",
+    "dependency-cruiser": "^16.10.0",
+    "gray-matter": "^4.0.3",
+    "highlight.js": "^11.10.0",
+    "marked": "^18.0.3",
+    "marked-highlight": "^2.2.1",
+    "minimatch": "^10.2.5",
+    "semver": "^7.7.4",
+    "tsx": "^4.21.0",
+    "yaml": "^2.8.3",
+    "zod": "^3.24.0",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/semver": "^7.7.1",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}

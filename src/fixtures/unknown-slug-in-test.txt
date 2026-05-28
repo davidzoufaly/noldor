@@ -1,0 +1,3 @@
+// @tests: not-a-real-feature-slug
+import { describe } from 'vitest';
+describe('x', () => {});

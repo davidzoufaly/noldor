@@ -1,0 +1,14 @@
+{
+  "lane": "subagent",
+  "artifact": "docs/superpowers/specs/x.md",
+  "kind": "spec",
+  "slug": "x",
+  "blockers": [
+    { "file": "docs/superpowers/specs/x.md", "severity": "high", "message": "missing type" }
+  ],
+  "suggestions": [],
+  "summary": "subagent: 1 critical",
+  "notes": ["Strengths: clear summary"],
+  "startedAt": "2026-05-25T00:00:00.000Z",
+  "finishedAt": "2026-05-25T00:00:05.000Z"
+}
