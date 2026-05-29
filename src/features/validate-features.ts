@@ -6,6 +6,7 @@ import matter from 'gray-matter';
 import { FeatureFrontmatterSchema, type FeatureFrontmatter } from './feature-schema.js';
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
+import { loadConsumerConfig } from '../core/consumer-config.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
 export interface FileError {
@@ -110,16 +111,19 @@ export function extractCodePackages(codePaths: readonly string[]): Set<string> {
 
 /**
  * Normalize a `packages` frontmatter entry to its short package name so
- * `format`, `@charuy/format`, and `packages/format` all compare equal.
- * `apps/<name>` collapses to `<name>`.
+ * `format`, `<packagePrefix>format`, and `packages/format` all compare equal.
+ * `apps/<name>` collapses to `<name>`. Reads `packagePrefix` and `appPathPrefix`
+ * from the consumer config at `process.cwd()`.
  *
  * @param decl - Raw declared package value
  * @returns Short-name form
  */
 export function normalizeDeclaredPackage(decl: string): string {
-  if (decl.startsWith('@charuy/')) return decl.slice('@charuy/'.length);
+  const { packagePrefix, appPathPrefix } = loadConsumerConfig();
+  const appsRootPrefix = appPathPrefix.split('/')[0] + '/';
+  if (decl.startsWith(packagePrefix)) return decl.slice(packagePrefix.length);
   if (decl.startsWith('packages/')) return decl.slice('packages/'.length);
-  if (decl.startsWith('apps/')) return decl.slice('apps/'.length);
+  if (decl.startsWith(appsRootPrefix)) return decl.slice(appsRootPrefix.length);
   return decl;
 }
 

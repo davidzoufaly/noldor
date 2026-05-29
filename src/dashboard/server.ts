@@ -1,11 +1,12 @@
 import { readFile as readFileAsync } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { resolve as resolvePath, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { handleDemote, handleMove, handlePromote } from './api/blocks.js';
 import {
-  BACKLOG_PATH,
-  ROADMAP_PATH,
+  getBacklogPath,
+  getRoadmapPath,
   loadActiveMilestone,
   loadBacklogWithHash,
   loadCounts,
@@ -23,6 +24,7 @@ import {
   loadVision,
   loadWipAge,
   loadWorktreeHealth,
+  setDocRootsOverride,
 } from './data.js';
 import { renderLayout } from './layout.js';
 import {
@@ -47,6 +49,21 @@ import {
 
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+
+export interface CliArgs {
+  /** Undefined when --port absent — caller falls back to env PORT or default 4321. */
+  port: number | undefined;
+  /** Undefined when --docs absent — caller falls back to process.cwd(). */
+  docsPath: string | undefined;
+}
+
+export function parseCliArgs(argv: string[]): CliArgs {
+  const portIdx = argv.indexOf('--port');
+  const docsIdx = argv.indexOf('--docs');
+  const port = portIdx >= 0 ? Number(argv[portIdx + 1]) : undefined;
+  const docsPath = docsIdx >= 0 ? argv[docsIdx + 1] : undefined;
+  return { port, docsPath };
+}
 
 interface RouteResult {
   status: number;
@@ -218,7 +235,7 @@ function handleApiMove(): (
     }
     const ifMatch = (req.headers['if-match'] as string | undefined) ?? undefined;
     const result = await handleMove({
-      path: ROADMAP_PATH,
+      path: getRoadmapPath(),
       ifMatch,
       body: (body ?? {}) as { slug?: unknown; targetIndex?: unknown },
     });
@@ -233,8 +250,8 @@ async function handleApiPromote(
 ): Promise<RouteResult> {
   const ifMatch = (req.headers['if-match'] as string | undefined) ?? undefined;
   const result = await handlePromote({
-    roadmapPath: ROADMAP_PATH,
-    backlogPath: BACKLOG_PATH,
+    roadmapPath: getRoadmapPath(),
+    backlogPath: getBacklogPath(),
     ifMatch,
     slug: pathParams.slug,
   });
@@ -248,8 +265,8 @@ async function handleApiDemote(
 ): Promise<RouteResult> {
   const ifMatch = (req.headers['if-match'] as string | undefined) ?? undefined;
   const result = await handleDemote({
-    roadmapPath: ROADMAP_PATH,
-    backlogPath: BACKLOG_PATH,
+    roadmapPath: getRoadmapPath(),
+    backlogPath: getBacklogPath(),
     ifMatch,
     slug: pathParams.slug,
   });
@@ -257,12 +274,12 @@ async function handleApiDemote(
 }
 
 /**
- * Root directory for `/static/<file>` responses. Resolved at module load —
- * `process.cwd()` is the repo root when launched via `pnpm dashboard`, so
- * the served files come from the committed build output of `drag.ts` and
- * any future client assets in `scripts/dashboard/static/dist/`.
+ * Root directory for `/static/<file>` responses. Resolved at module load
+ * relative to this file's location, not process.cwd(), so the dashboard
+ * serves the assets shipped inside the noldor package regardless of where
+ * the dashboard process was launched from.
  */
-const STATIC_ROOT = resolvePath('scripts/dashboard/static/dist');
+const STATIC_ROOT = fileURLToPath(new URL('./static/dist', import.meta.url));
 
 /**
  * Reject any `/static/<anything>` request whose filename portion did not
@@ -683,7 +700,9 @@ export async function startServer(
 }
 
 async function main(): Promise<void> {
-  const { baseUrl } = await startServer();
+  const { port, docsPath } = parseCliArgs(process.argv.slice(2));
+  setDocRootsOverride(docsPath);
+  const { baseUrl } = await startServer({ port });
   console.log(`dashboard → ${baseUrl}`);
   process.on('SIGINT', () => process.exit(0));
 }

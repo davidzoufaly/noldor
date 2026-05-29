@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { FeatureRecord, Gap } from './sdd-report.js';
+import { loadConsumerConfig } from '../core/consumer-config.js';
 
 /**
  * Parsed graphify graph payload. Only the fields this module relies on
@@ -96,19 +97,28 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
  * build-output paths.
  */
 function newestMtimeInRoots(roots: string[]): number | null {
+  const { samplesPath } = loadConsumerConfig();
   let newest: number | null = null;
   for (const root of roots) {
     if (!existsSync(root)) continue;
-    walkSync(root, (path, mtime) => {
-      if (newest === null || mtime > newest) newest = mtime;
-    });
+    walkSync(
+      root,
+      (path, mtime) => {
+        if (newest === null || mtime > newest) newest = mtime;
+      },
+      samplesPath,
+    );
   }
   return newest;
 }
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git']);
 
-function walkSync(dir: string, visit: (path: string, mtime: number) => void): void {
+function walkSync(
+  dir: string,
+  visit: (path: string, mtime: number) => void,
+  samplesPath: string,
+): void {
   let entries;
   try {
     entries = readdirSync(dir);
@@ -119,7 +129,7 @@ function walkSync(dir: string, visit: (path: string, mtime: number) => void): vo
     if (name.startsWith('.')) continue;
     if (SKIP_DIRS.has(name)) continue;
     const full = join(dir, name);
-    if (isIgnoredFreshnessPath(full)) continue;
+    if (isIgnoredFreshnessPath(full, samplesPath)) continue;
     let st;
     try {
       st = statSync(full);
@@ -127,20 +137,20 @@ function walkSync(dir: string, visit: (path: string, mtime: number) => void): vo
       continue;
     }
     if (st.isDirectory()) {
-      walkSync(full, visit);
+      walkSync(full, visit, samplesPath);
     } else {
       visit(full, st.mtimeMs);
     }
   }
 }
 
-function isIgnoredFreshnessPath(path: string): boolean {
+function isIgnoredFreshnessPath(path: string, samplesPath: string): boolean {
   const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '');
   return (
-    normalized === 'apps/web/public/samples' ||
-    normalized.endsWith('/apps/web/public/samples') ||
-    normalized.startsWith('apps/web/public/samples/') ||
-    normalized.includes('/apps/web/public/samples/')
+    normalized === samplesPath ||
+    normalized.endsWith(`/${samplesPath}`) ||
+    normalized.startsWith(`${samplesPath}/`) ||
+    normalized.includes(`/${samplesPath}/`)
   );
 }
 

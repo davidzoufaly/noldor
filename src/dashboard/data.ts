@@ -15,6 +15,7 @@ import { CATEGORIES, FeatureFrontmatterSchema } from '../features/feature-schema
 import { areaToCategory } from '../lib/area-category.js';
 import { loadMilestoneBySlug } from '../milestones/lib.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
+import { loadDocRoots } from '../core/doc-roots.js';
 import {
   collectGaps,
   listPlans,
@@ -61,14 +62,42 @@ import type { Warning } from '../worktrees/worktree-status.js';
 
 const execFileAsync = promisify(execFile);
 
-export const ROADMAP_PATH = join(process.cwd(), 'docs', 'roadmap.md');
-export const BACKLOG_PATH = join(process.cwd(), 'docs', 'backlog.md');
-const VISION_PATH = join(process.cwd(), 'docs', 'vision.md');
-const RELEASE_NOTES_PATH = join(process.cwd(), 'docs', 'release-notes.md');
-const FEATURES_DIR = join(process.cwd(), 'docs', 'features');
-const SKILLS_DIR = join(process.cwd(), '.claude', 'skills');
-const SCRIPTS_DIR = join(process.cwd(), 'scripts');
-const NOLDOR_DIR = join(process.cwd(), 'docs', 'noldor');
+let docRootsOverride: string | undefined;
+
+export function setDocRootsOverride(path: string | undefined): void {
+  docRootsOverride = path;
+}
+
+export function getDocRoot(): string {
+  return docRootsOverride ?? process.cwd();
+}
+
+export function getRoadmapPath(): string {
+  return loadDocRoots(getDocRoot()).roadmap;
+}
+export function getBacklogPath(): string {
+  return loadDocRoots(getDocRoot()).backlog;
+}
+export function getVisionPath(): string {
+  return loadDocRoots(getDocRoot()).vision;
+}
+export function getReleaseNotesPath(): string {
+  // not in DocRoots; build manually
+  return join(getDocRoot(), 'docs', 'release-notes.md');
+}
+export function getFeaturesDir(): string {
+  return loadDocRoots(getDocRoot()).features;
+}
+export function getSkillsDir(): string {
+  // not under docs/; keep cwd-relative but use override-aware root
+  return join(getDocRoot(), '.claude', 'skills');
+}
+export function getScriptsDir(): string {
+  return join(getDocRoot(), 'scripts');
+}
+export function getNoldorDir(): string {
+  return join(getDocRoot(), 'docs', 'noldor');
+}
 
 // Reading-flow order from docs/noldor/README.md route table.
 // Pages with a `noldor-page` frontmatter slug not listed here fall
@@ -303,7 +332,7 @@ function sha256Hex(buf: Buffer | string): string {
  * If-Match precondition checks.
  */
 export async function loadRoadmapWithHash(): Promise<LoadedRoadmap> {
-  const raw = await readFile(ROADMAP_PATH, 'utf8');
+  const raw = await readFile(getRoadmapPath(), 'utf8');
   return { entries: parseRoadmapFromString(raw), rawHash: sha256Hex(raw) };
 }
 
@@ -337,7 +366,7 @@ export function parseBacklogFromString(raw: string): BacklogEntry[] {
  * rawHash: sha256('') }` so callers can still compute a combined etag.
  */
 export async function loadBacklogWithHash(): Promise<LoadedBacklog> {
-  const raw = await readFile(BACKLOG_PATH, 'utf8').catch(() => '');
+  const raw = await readFile(getBacklogPath(), 'utf8').catch(() => '');
   return { entries: parseBacklogFromString(raw), rawHash: sha256Hex(raw) };
 }
 
@@ -347,12 +376,13 @@ export async function loadBacklogWithHash(): Promise<LoadedBacklog> {
  * @returns Array of feature records sorted by slug
  */
 export async function loadFeatures(): Promise<FeatureRecord[]> {
-  const entries = await readdir(FEATURES_DIR);
+  const featuresDir = getFeaturesDir();
+  const entries = await readdir(featuresDir);
   const mdFiles = entries.filter((e) => e.endsWith('.md'));
   const records = await Promise.all(
     mdFiles.map(async (file) => {
       const slug = file.replace(/\.md$/, '');
-      const raw = await readFile(join(FEATURES_DIR, file), 'utf8');
+      const raw = await readFile(join(featuresDir, file), 'utf8');
       const parsed = matter(raw);
       const frontmatter = FeatureFrontmatterSchema.parse(parsed.data);
       return { slug, frontmatter, bodyMarkdown: parsed.content };
@@ -629,7 +659,7 @@ export interface Vision {
  * @returns Vision frontmatter + rendered HTML body
  */
 export async function loadVision(): Promise<Vision> {
-  const raw = await readFile(VISION_PATH, 'utf8');
+  const raw = await readFile(getVisionPath(), 'utf8');
   const parsed = matter(raw);
   const frontmatter = visionFrontmatterSchema.parse(parsed.data);
   const bodyHtml = await renderMarkdown(parsed.content);
@@ -668,7 +698,7 @@ export interface ReleaseNotes {
  * @returns Rendered release-notes body
  */
 export async function loadReleaseNotes(): Promise<ReleaseNotes> {
-  const raw = await readFile(RELEASE_NOTES_PATH, 'utf8');
+  const raw = await readFile(getReleaseNotesPath(), 'utf8');
   return { bodyHtml: await renderMarkdown(raw) };
 }
 
@@ -688,12 +718,13 @@ export interface FrameworkPage {
  * @returns Framework pages in reading-flow order
  */
 export async function loadFrameworkPages(): Promise<FrameworkPage[]> {
-  const entries = await readdir(NOLDOR_DIR);
+  const noldorDir = getNoldorDir();
+  const entries = await readdir(noldorDir);
   const mds = entries.filter((e) => e.endsWith('.md') && e !== 'README.md');
   const pages = await Promise.all(
     mds.map(async (file) => {
       const slug = file.replace(/\.md$/, '');
-      const filePath = join(NOLDOR_DIR, file);
+      const filePath = join(noldorDir, file);
       const raw = await readFile(filePath, 'utf8');
       const parsed = matter(raw);
       const titleMatch = /^# (.+)$/m.exec(parsed.content);
@@ -741,7 +772,7 @@ export interface UserDocsCategoryData {
  * @returns Diátaxis categories with their parsed docs
  */
 export async function loadUserDocs(): Promise<UserDocsCategoryData[]> {
-  const base = join(process.cwd(), 'docs', 'user');
+  const base = join(getDocRoot(), 'docs', 'user');
   const result: UserDocsCategoryData[] = [];
   for (const category of USER_DOCS_CATEGORIES) {
     const dir = join(base, category);
@@ -975,7 +1006,7 @@ export async function loadCounts(): Promise<DashboardCounts> {
     parseRoadmap(),
     loadBacklog(),
     loadGaps(),
-    countMatching(SKILLS_DIR, /SKILL\.md$/, true),
+    countMatching(getSkillsDir(), /SKILL\.md$/, true),
     countScriptFiles(),
   ]);
 
@@ -1015,7 +1046,7 @@ async function countMatching(dir: string, pattern: RegExp, recurse: boolean): Pr
 }
 
 async function countScriptFiles(): Promise<number> {
-  const entries = await readdir(SCRIPTS_DIR, { withFileTypes: true, recursive: true });
+  const entries = await readdir(getScriptsDir(), { withFileTypes: true, recursive: true });
   return entries.filter(
     (e) =>
       e.isFile() &&

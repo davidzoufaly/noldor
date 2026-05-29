@@ -12,6 +12,35 @@ function setupRepo(): string {
   execSync('git config user.email t@t.t', { cwd: dir });
   execSync('git config user.name t', { cwd: dir });
   mkdirSync(join(dir, '.noldor'));
+  // Scaffold a minimal consumer config so loadConsumerConfig() in
+  // isReleaseAutomationFile resolves. Test-only fixture — real shape
+  // lives in the consumer repo's `.noldor/config.json`.
+  writeFileSync(
+    join(dir, '.noldor', 'config.json'),
+    JSON.stringify({
+      consumer: {
+        name: 'test',
+        repoUrl: 'https://github.com/test/test',
+        lockstepPackages: [
+          'package.json',
+          'apps/web/package.json',
+          'packages/format/package.json',
+          'packages/engine/package.json',
+          'packages/viewport/package.json',
+          'packages/test-fixtures/package.json',
+          'packages/examples/package.json',
+        ],
+        scanPaths: [],
+        boundaries: [],
+        deprecatedPackages: [],
+        e2ePrefix: 'apps/web/e2e/',
+        samplesPath: 'apps/web/public/samples',
+        packagePrefix: '@test/',
+        pnpmStderrPrefix: 'test@',
+        appPathPrefix: 'apps/web/',
+      },
+    }),
+  );
   return dir;
 }
 

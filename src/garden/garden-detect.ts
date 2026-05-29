@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { loadDocRoots } from '../core/doc-roots.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
 import { INVARIANTS } from './garden-invariants.js';
 import { makeInvariants, runInvariants } from '../invariants/index.js';
@@ -62,7 +63,7 @@ export function planSlugFromFilename(filename: string): string | null {
 }
 
 async function loadFeatureBySlug(repo: string, slug: string): Promise<FeatureFrontmatter | null> {
-  const path = join(repo, 'docs/features', `${slug}.md`);
+  const path = join(loadDocRoots(repo).features, `${slug}.md`);
   try {
     const raw = await readFile(path, 'utf8');
     const parsed = matter(raw);
@@ -89,7 +90,7 @@ export async function detectStalePlans(
   repo: string,
   staleDays = STALE_DAYS_DEFAULT,
 ): Promise<StalePlan[]> {
-  const plansDir = join(repo, 'docs/superpowers/plans');
+  const plansDir = loadDocRoots(repo).plans;
   let entries: string[];
   try {
     entries = await readdir(plansDir);
@@ -110,6 +111,7 @@ export async function detectStalePlans(
     }
 
     const fullPath = join(plansDir, entry);
+    // Presentation string — relative path shown in garden output, not used for IO.
     const relPath = join('docs/superpowers/plans', entry);
     const feature = await loadFeatureBySlug(repo, slug);
 
@@ -195,7 +197,7 @@ export async function detectStaleSpecs(
   repo: string,
   staleDays = STALE_DAYS_DEFAULT,
 ): Promise<StaleSpec[]> {
-  const specsDir = join(repo, 'docs/superpowers/specs');
+  const specsDir = loadDocRoots(repo).specs;
   let entries: string[];
   try {
     entries = await readdir(specsDir);
@@ -216,6 +218,7 @@ export async function detectStaleSpecs(
     }
 
     const fullPath = join(specsDir, entry);
+    // Presentation string — relative path shown in garden output, not used for IO.
     const relPath = join('docs/superpowers/specs', entry);
     const feature = await loadFeatureBySlug(repo, slug);
 
@@ -264,7 +267,7 @@ export interface UnusedBacklog {
  */
 async function listFeatureSlugs(repo: string): Promise<Set<string>> {
   try {
-    const entries = await readdir(join(repo, 'docs/features'));
+    const entries = await readdir(loadDocRoots(repo).features);
     return new Set(entries.filter((e) => e.endsWith('.md')).map((e) => e.replace(/\.md$/, '')));
   } catch {
     return new Set();
@@ -288,7 +291,7 @@ export async function detectUnusedBacklog(
   repo: string,
   staleDays = UNUSED_BACKLOG_DAYS_DEFAULT,
 ): Promise<UnusedBacklog[]> {
-  const backlogPath = join(repo, 'docs/backlog.md');
+  const backlogPath = loadDocRoots(repo).backlog;
   let raw: string;
   try {
     raw = await readFile(backlogPath, 'utf8');

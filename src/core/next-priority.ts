@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { loadDocRoots } from './doc-roots.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 
@@ -169,7 +170,7 @@ function findMilestoneMatch(
  * @param cwd - Repo root. Tests use a tmpdir; the CLI uses `process.cwd()`.
  */
 export function loadInProgressFds(cwd: string): InProgressFd[] {
-  const dir = join(cwd, 'docs/features');
+  const dir = loadDocRoots(cwd).features;
   if (!existsSync(dir)) return [];
   const out: InProgressFd[] = [];
   for (const filename of readdirSync(dir)) {
@@ -194,14 +195,14 @@ export function loadInProgressFds(cwd: string): InProgressFd[] {
  * @param cwd - Repo root.
  */
 export function loadMilestoneGate(cwd: string): string {
-  const visionPath = join(cwd, 'docs/vision.md');
+  const visionPath = loadDocRoots(cwd).vision;
   if (!existsSync(visionPath)) return '';
   const visionFm = matter(readFileSync(visionPath, 'utf8')).data as {
     'current-milestone'?: string;
   };
   const slug = visionFm['current-milestone'];
   if (slug === undefined || slug === '') return '';
-  const milestonePath = join(cwd, 'docs/milestones', `${slug}.md`);
+  const milestonePath = join(loadDocRoots(cwd).milestones, `${slug}.md`);
   if (!existsSync(milestonePath)) return '';
   const body = matter(readFileSync(milestonePath, 'utf8')).content;
   const match = body.match(/##\s+Gate\s*\n+([\s\S]*?)(?=\n##\s|$)/);
@@ -221,10 +222,10 @@ async function main(): Promise<void> {
       'warning: --write-pending is deprecated and ignored (the pending-priority file was removed; /gate reads top-of-roadmap directly).\n',
     );
   }
-  const roadmapRaw = await readFile('docs/roadmap.md', 'utf8').catch(() => '');
+  const cwd = process.cwd();
+  const roadmapRaw = await readFile(loadDocRoots(cwd).roadmap, 'utf8').catch(() => '');
 
   if (argv.has('--suggestions')) {
-    const cwd = process.cwd();
     const inProgressFds = loadInProgressFds(cwd);
     const milestoneGate = loadMilestoneGate(cwd);
     const suggestions = getSuggestions(roadmapRaw, { inProgressFds, milestoneGate });

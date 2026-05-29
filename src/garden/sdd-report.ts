@@ -9,6 +9,9 @@ import { extractTags } from '../sync/sync-test-links.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
 import { extractUntriagedBullets } from '../triage/triage-list-untriaged.js';
 
+import { loadConsumerConfig } from '../core/consumer-config.js';
+import { loadDocRoots } from '../core/doc-roots.js';
+
 import { commitOnlyTouchesReport } from './detectors/override-audit.js';
 import {
   buildFileToFdsMap,
@@ -470,7 +473,6 @@ export function detectUntaggedTests(
 }
 
 const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx)$/;
-const E2E_PREFIX = 'apps/web/e2e/';
 
 /**
  * Flag test files whose `// @tests:` tag list is incomplete given the FDs
@@ -501,6 +503,7 @@ export function detectMissingCoTags(
   if (!loadResult.ok) return [loadResult.gap];
 
   const { graph } = loadResult;
+  const { e2ePrefix } = loadConsumerConfig();
   const fileToFds = buildFileToFdsMap(features);
   const declaredByPath = new Map<string, string[]>();
   for (const { content, path } of testInputs) declaredByPath.set(path, extractTags(content));
@@ -508,7 +511,7 @@ export function detectMissingCoTags(
   const gaps: Gap[] = [];
   for (const node of graph.nodes) {
     const sf = node.source_file;
-    if (!sf || !TEST_FILE_RE.test(sf) || sf.startsWith(E2E_PREFIX)) continue;
+    if (!sf || !TEST_FILE_RE.test(sf) || sf.startsWith(e2ePrefix)) continue;
     if (node.source_location !== 'L1') continue; // only file-level node, not inner symbols
 
     const expectedFds = getImportOwnersForTest(node.id, graph, fileToFds);
@@ -549,12 +552,14 @@ export function detectUntaggedDocs(inputs: { path: string; content: string }[]):
  * the README table, OR a row in the README table whose package directory no
  * longer exists.
  *
- * @param actualPackages - List of `@charuy/<name>` package names found on disk
+ * @param actualPackages - List of consumer-prefixed package names found on disk
  * @param readmeContent - Raw `README.md` body to scan
  * @returns One gap per missing row + one per stale row
  */
 export function detectReadmePackageDrift(actualPackages: string[], readmeContent: string): Gap[] {
-  const tableRe = /\|\s*`(@charuy\/[a-z0-9-]+)`\s*\|/gi;
+  const { packagePrefix, deprecatedPackages } = loadConsumerConfig();
+  const escapedPrefix = packagePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tableRe = new RegExp(`\\|\\s*\`(${escapedPrefix}[a-z0-9-]+)\`\\s*\\|`, 'gi');
   const listed = new Set<string>();
   let m: RegExpExecArray | null;
   while ((m = tableRe.exec(readmeContent)) !== null) {
@@ -562,10 +567,9 @@ export function detectReadmePackageDrift(actualPackages: string[], readmeContent
   }
 
   const actual = new Set(actualPackages);
+  const deprecated = new Set(deprecatedPackages);
   const missingFromReadme = [...actual].filter((p) => !listed.has(p)).toSorted();
-  const staleInReadme = [...listed]
-    .filter((p) => !actual.has(p) && p !== '@charuy/agent-api')
-    .toSorted();
+  const staleInReadme = [...listed].filter((p) => !actual.has(p) && !deprecated.has(p)).toSorted();
 
   const gaps: Gap[] = [];
   for (const p of missingFromReadme) {
@@ -1083,12 +1087,12 @@ export function resolveReportOutPath(argv: string[], env: NodeJS.ProcessEnv): st
 }
 
 async function main(): Promise<void> {
-  const features = await loadSddFeatures('docs/features');
+  const features = await loadSddFeatures(loadDocRoots().features);
   const ideasMd = await readFile('ideas.md', 'utf8').catch(() => '');
-  const backlogRaw = await readFile('docs/backlog.md', 'utf8').catch(() => '');
+  const backlogRaw = await readFile(loadDocRoots().backlog, 'utf8').catch(() => '');
   const backlog = parseBacklog(backlogRaw);
-  const specPaths = await listSpecs('docs/superpowers/specs');
-  const planPaths = await listPlans('docs/superpowers/plans');
+  const specPaths = await listSpecs(loadDocRoots().specs);
+  const planPaths = await listPlans(loadDocRoots().plans);
 
   const allRepoPaths: string[] = [];
   await walkRepo('packages', allRepoPaths);

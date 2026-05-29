@@ -8,6 +8,7 @@ import { parseTrailers } from '../core/trailers';
 import { PATHS } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
+import { loadConsumerConfig } from '../core/consumer-config';
 
 export interface ValidationResult {
   ok: boolean;
@@ -20,26 +21,21 @@ export interface ValidateOptions {
 }
 
 const RELEASE_SUBJECT_RE = /^chore\(release\): v\d+\.\d+\.\d+$/;
-const RELEASE_PACKAGE_FILES = new Set([
-  'package.json',
-  'apps/web/package.json',
-  'packages/format/package.json',
-  'packages/engine/package.json',
-  'packages/viewport/package.json',
-  'packages/test-fixtures/package.json',
-  'packages/examples/package.json',
-]);
+
+function getReleasePackageFiles(cwd: string): Set<string> {
+  return new Set(loadConsumerConfig(cwd).lockstepPackages);
+}
 
 function getStagedPaths(cwd: string): string[] {
   const r = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd, encoding: 'utf8' });
   return (r.stdout ?? '').split('\n').filter(Boolean);
 }
 
-function isReleaseAutomationFile(file: string): boolean {
+function isReleaseAutomationFile(file: string, cwd: string): boolean {
   return (
     file === 'CHANGELOG.md' ||
     file === 'docs/release-notes.md' ||
-    RELEASE_PACKAGE_FILES.has(file) ||
+    getReleasePackageFiles(cwd).has(file) ||
     (file.startsWith('docs/features/') && file.endsWith('.md')) ||
     (file.startsWith('docs/noldor/') && file.endsWith('.md'))
   );
@@ -55,7 +51,7 @@ function validateReleaseAutomation(opts: ValidateOptions): ValidationResult {
   }
 
   const staged = getStagedPaths(opts.cwd);
-  const disallowed = staged.filter((file) => !isReleaseAutomationFile(file));
+  const disallowed = staged.filter((file) => !isReleaseAutomationFile(file, opts.cwd));
   if (staged.length === 0 || disallowed.length > 0) {
     return {
       ok: false,

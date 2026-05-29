@@ -3,44 +3,17 @@ import { join } from 'node:path';
 
 import { cruise } from 'dependency-cruiser';
 
+import { loadConsumerConfig } from '../core/consumer-config.js';
 import type { Invariant, InvariantResult, InvariantViolation } from './types.js';
 
-const SCAN_PATHS = [
-  'packages/engine/src',
-  'packages/format/src',
-  'packages/viewport/src',
-  'apps/web/src',
-] as const;
-
-const FORBIDDEN_RULES = [
-  {
-    from: { path: '^packages/engine/src' },
-    name: 'engine-no-viewport',
-    severity: 'error' as const,
-    to: { path: '^packages/viewport/' },
-  },
-  {
-    from: { path: '^packages/engine/src' },
-    name: 'engine-no-web',
-    severity: 'error' as const,
-    to: { path: '^apps/web/' },
-  },
-  {
-    from: { path: '^packages/viewport/src' },
-    name: 'viewport-no-web',
-    severity: 'error' as const,
-    to: { path: '^apps/web/' },
-  },
-  {
-    from: { path: '^packages/format/src' },
-    name: 'format-no-non-format',
-    severity: 'error' as const,
-    to: { path: '^(packages/(?!format(?:/|$))|apps/)' },
-  },
-] as const;
+// SCAN_PATHS + FORBIDDEN_RULES removed — sourced from consumer config.
 
 /**
  * Build the boundaries invariant plugin.
+ *
+ * Reads `scanPaths` + `boundaries` from `.noldor/config.json` consumer block.
+ * `boundaries` follows dependency-cruiser's forbidden-rule shape
+ * (`{name, severity, from: {path}, to: {path}}` with regex strings).
  *
  * @param repoRoot - Absolute path to repo root (symlinks resolved via `realpath`
  *   internally so that `dependency-cruiser` path patterns match correctly).
@@ -53,13 +26,11 @@ export function makeBoundariesInvariant(repoRoot: string): Invariant {
     name: 'boundaries',
     async run(): Promise<InvariantResult> {
       const start = Date.now();
-
-      // Resolve symlinks so dep-cruiser relative paths are anchored correctly.
+      const { scanPaths, boundaries } = loadConsumerConfig(repoRoot);
       const realRoot = await realpath(repoRoot);
 
-      // Only scan paths that actually exist (partial repos in tests are fine).
       const existingRelPaths: string[] = [];
-      for (const relPath of SCAN_PATHS) {
+      for (const relPath of scanPaths) {
         try {
           await access(join(realRoot, relPath));
           existingRelPaths.push(relPath);
@@ -72,14 +43,10 @@ export function makeBoundariesInvariant(repoRoot: string): Invariant {
         return { invariant: 'boundaries', violations: [], durationMs: Date.now() - start };
       }
 
-      // dependency-cruiser programmatic API:
-      //   - `baseDir` anchors relative source/resolved paths for rule matching
-      //   - `validate: true` must be explicit (default is false)
-      //   - `ruleSet.forbidden` is the correct nesting (top-level `forbidden` is silently ignored)
       const result = await cruise(existingRelPaths, {
         baseDir: realRoot,
         validate: true,
-        ruleSet: { forbidden: [...FORBIDDEN_RULES] },
+        ruleSet: { forbidden: [...boundaries] },
         doNotFollow: { path: 'node_modules' },
         exclude: { path: '__tests__|\\.test\\.ts$' },
         tsPreCompilationDeps: true,
@@ -111,19 +78,12 @@ export function makeBoundariesInvariant(repoRoot: string): Invariant {
         }
       }
 
-      return {
-        invariant: 'boundaries',
-        violations,
-        durationMs: Date.now() - start,
-      };
+      return { invariant: 'boundaries', violations, durationMs: Date.now() - start };
     },
   };
 }
 
 /**
  * Default boundaries invariant instance using `process.cwd()` as repo root.
- *
- * @remarks
- * Used by the invariants runner when scanning the real repo.
  */
 export const boundaries: Invariant = makeBoundariesInvariant(process.cwd());

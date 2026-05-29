@@ -16,6 +16,8 @@ import matter from 'gray-matter';
 
 import { isInfraFile, loadSddFeatures, walkRepo } from '../garden/sdd-report.js';
 
+import { loadConsumerConfig } from '../core/consumer-config.js';
+
 import type { FeatureFrontmatter } from './feature-schema.js';
 
 /**
@@ -49,6 +51,7 @@ export type ResolverInput = {
  * @returns Candidate matches; `[]` when no package match found
  */
 export function resolveByPath({ filePath, features }: ResolverInput): CandidateMatch[] {
+  const { appPathPrefix } = loadConsumerConfig();
   const segments = filePath.split('/');
   const pkgIdx = segments.indexOf('packages');
   const pkg = pkgIdx >= 0 ? segments[pkgIdx + 1] : undefined;
@@ -56,7 +59,7 @@ export function resolveByPath({ filePath, features }: ResolverInput): CandidateM
   let candidates: ResolverInput['features'];
   if (pkg) {
     candidates = features.filter((f) => f.frontmatter.packages.includes(pkg));
-  } else if (filePath.startsWith('apps/web/')) {
+  } else if (filePath.startsWith(appPathPrefix)) {
     candidates = features.filter(
       (f) =>
         f.frontmatter.packages.includes('web') ||

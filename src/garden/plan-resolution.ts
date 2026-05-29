@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { loadDocRoots } from '../core/doc-roots.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
 import type { FeatureFrontmatter } from '../features/feature-schema.js';
 
@@ -37,7 +38,7 @@ export async function resolveByLinksPlan(
 ): Promise<ResolvedOwner | null> {
   const readdir = opts.readdir ?? ((p) => fsReaddir(p));
   const readFile = opts.readFile ?? ((p, e) => fsReadFile(p, e));
-  const featuresDir = join(opts.repo, 'docs/features');
+  const featuresDir = loadDocRoots(opts.repo).features;
   let entries: string[];
   try {
     entries = await readdir(featuresDir);

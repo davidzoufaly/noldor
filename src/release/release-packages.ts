@@ -1,6 +1,8 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
+import { loadConsumerConfig } from '../core/consumer-config.js';
+
 /**
  * Rewrite a package.json's `version` field, preserving whitespace and
  * trailing-newline conventions. Pure string operation (no JSON.stringify
@@ -15,21 +17,6 @@ export function bumpPackageJson(raw: string, newVersion: string): string {
 }
 
 /**
- * The lockstep set: every package.json that must move together at release.
- * Kept explicit (not auto-discovered) so release touches exactly these files.
- * Adding a new package to the monorepo = add its path here.
- */
-const LOCKSTEP_PACKAGES = [
-  'package.json',
-  'apps/web/package.json',
-  'packages/format/package.json',
-  'packages/engine/package.json',
-  'packages/viewport/package.json',
-  'packages/test-fixtures/package.json',
-  'packages/examples/package.json',
-] as const;
-
-/**
  * Apply {@link bumpPackageJson} to every file in the lockstep set, writing
  * back in place.
  *
@@ -37,8 +24,9 @@ const LOCKSTEP_PACKAGES = [
  * @returns Paths that were rewritten (omits files that already match)
  */
 export async function bumpAllPackages(newVersion: string): Promise<string[]> {
+  const { lockstepPackages } = loadConsumerConfig();
   const touched: string[] = [];
-  for (const path of LOCKSTEP_PACKAGES) {
+  for (const path of lockstepPackages) {
     const raw = await readFile(path, 'utf8');
     const out = bumpPackageJson(raw, newVersion);
     if (out !== raw) {

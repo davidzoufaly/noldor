@@ -6,12 +6,48 @@ import { join } from 'node:path';
 
 import { makeBoundariesInvariant } from '../../invariants/boundaries.js';
 
+const TEST_CONFIG = {
+  consumer: {
+    name: 'test',
+    repoUrl: 'https://github.com/test/test',
+    lockstepPackages: ['package.json'],
+    scanPaths: [
+      'packages/engine/src',
+      'packages/format/src',
+      'packages/test-fixtures/src',
+      'apps/web/src',
+    ],
+    boundaries: [
+      {
+        name: 'engine-no-web',
+        severity: 'error',
+        from: { path: '^packages/engine/src' },
+        to: { path: '^apps/web/' },
+      },
+      {
+        name: 'format-no-non-format',
+        severity: 'error',
+        from: { path: '^packages/format/src' },
+        to: { path: '^(packages/(?!format(?:/|$))|apps/)' },
+      },
+    ],
+    deprecatedPackages: [],
+    e2ePrefix: 'e2e/',
+    samplesPath: 'samples',
+    packagePrefix: '@test/',
+    pnpmStderrPrefix: 'test@',
+    appPathPrefix: 'apps/web/',
+  },
+};
+
 async function makeRepo() {
   const root = await mkdtemp(join(tmpdir(), 'inv-bnd-'));
   await mkdir(join(root, 'packages/engine/src'), { recursive: true });
   await mkdir(join(root, 'packages/format/src'), { recursive: true });
   await mkdir(join(root, 'packages/test-fixtures/src'), { recursive: true });
   await mkdir(join(root, 'apps/web/src'), { recursive: true });
+  await mkdir(join(root, '.noldor'), { recursive: true });
+  await writeFile(join(root, '.noldor/config.json'), JSON.stringify(TEST_CONFIG));
   return root;
 }
 

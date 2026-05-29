@@ -163,6 +163,27 @@ describe(loadFreshGraphOrWarn, () => {
       const newer = new Date(Date.now() + 60_000);
       utimesSync(generatedFile, newer, newer);
 
+      // Scaffold minimal consumer config so loadConsumerConfig() resolves
+      // when cwd is switched to the temp dir.
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor', 'config.json'),
+        JSON.stringify({
+          consumer: {
+            name: 'test',
+            repoUrl: 'https://example.com',
+            lockstepPackages: ['package.json'],
+            scanPaths: [],
+            boundaries: [],
+            deprecatedPackages: [],
+            e2ePrefix: 'apps/web/e2e/',
+            samplesPath: 'apps/web/public/samples',
+            packagePrefix: '@test/',
+            pnpmStderrPrefix: 'test@',
+            appPathPrefix: 'apps/web/',
+          },
+        }),
+      );
       const previousCwd = process.cwd();
       process.chdir(dir);
       try {

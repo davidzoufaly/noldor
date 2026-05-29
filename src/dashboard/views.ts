@@ -1,5 +1,6 @@
 import { describeWarning, renderMarkdown } from './data.js';
 import { escapeHtml } from './layout.js';
+import { loadConsumerConfig } from '../core/consumer-config.js';
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
 import type { Gap } from '../garden/sdd-report.js';
@@ -22,7 +23,13 @@ import type {
   WorktreeHealth,
 } from './data.js';
 
-const GITHUB_REPO = process.env.GITHUB_REPO ?? 'davidzoufaly/charuy';
+function deriveRepoSlug(repoUrl: string): string {
+  // 'https://github.com/owner/repo' -> 'owner/repo'
+  const m = repoUrl.match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/);
+  return m?.[1] ?? 'unknown/unknown';
+}
+
+const GITHUB_REPO = process.env.GITHUB_REPO ?? deriveRepoSlug(loadConsumerConfig().repoUrl);
 
 /**
  * Parse a comma-separated multi-select URL param.

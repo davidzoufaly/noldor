@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
+import { loadConsumerConfig } from '../core/consumer-config.js';
 import { ensureGardenFresh } from '../garden/garden-receipt.js';
 import { autoStampOnCleanDetect } from './auto-restamp.js';
 import { fillAllNoldorMarkers } from '../core/release-markers.js';
@@ -20,16 +21,6 @@ import { withReleaseSession } from './release-session.js';
 import { applyBump, findPreviousTag, getRepoUrl } from './release-version.js';
 
 const execFileP = promisify(execFile);
-
-const LOCKSTEP_PACKAGES = [
-  'package.json',
-  'apps/web/package.json',
-  'packages/format/package.json',
-  'packages/engine/package.json',
-  'packages/viewport/package.json',
-  'packages/test-fixtures/package.json',
-  'packages/examples/package.json',
-] as const;
 
 async function run(
   cmd: string,
@@ -122,6 +113,7 @@ async function extractLatestReleaseNotes(): Promise<string> {
 
 async function main(): Promise<void> {
   await withReleaseSession(process.cwd(), async () => {
+    const { lockstepPackages, name: cfgName } = loadConsumerConfig();
     await ensureCleanTreeOnMain();
     await ensureGhAvailable();
     await ensureGraphFresh();
@@ -254,7 +246,7 @@ async function main(): Promise<void> {
       'docs/release-notes.md',
       'docs/features',
       'docs/noldor',
-      ...LOCKSTEP_PACKAGES,
+      ...lockstepPackages,
     ]);
     await run('git', ['commit', '-m', `chore(release): v${newVersion}`]);
     await run('git', ['tag', '-a', `v${newVersion}`, '-m', `v${newVersion}`]);
@@ -266,7 +258,7 @@ async function main(): Promise<void> {
     console.log('Pushed commit + tag.');
 
     const notesBody = await extractLatestReleaseNotes();
-    const notesTmp = `/tmp/charuy-release-notes-v${newVersion}.md`;
+    const notesTmp = `/tmp/${cfgName}-release-notes-v${newVersion}.md`;
     await writeFile(notesTmp, notesBody, 'utf8');
     await run('gh', [
       'release',
