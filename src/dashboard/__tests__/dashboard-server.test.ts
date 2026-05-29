@@ -35,10 +35,10 @@ describe('dashboard server', () => {
     expect(body).toContain('<title>');
   });
 
-  it('GET /features returns 200 with the project-tracking-dashboard slug', async () => {
+  it('GET /features returns 200 with the boolean-operations slug', async () => {
     const res = await fetch(`${baseUrl}/features`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain('project-tracking-dashboard');
+    expect(await res.text()).toContain('boolean-operations');
   });
 
   it('GET /features?phase=in-progress filters', async () => {
@@ -48,17 +48,17 @@ describe('dashboard server', () => {
     expect(body).toContain('in-progress');
   });
 
-  it('GET /features/project-tracking-dashboard renders the drill-down', async () => {
-    const res = await fetch(`${baseUrl}/features/project-tracking-dashboard`);
+  it('GET /features/boolean-operations renders the drill-down', async () => {
+    const res = await fetch(`${baseUrl}/features/boolean-operations`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain('Project Tracking Dashboard');
+    expect(await res.text()).toContain('Boolean Operations');
   });
 
   it('GET /features/<slug> injects live changelog: Unreleased and per-version commits', async () => {
-    const res = await fetch(`${baseUrl}/features/project-tracking-dashboard`);
+    const res = await fetch(`${baseUrl}/features/boolean-operations`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    // 42+ commits in repo on this slug spread across v0.2.0 and v0.3.0 →
+    // boolean-operations has feat(engine:boolean-operations) commit in v0.4.0 →
     // at least one version heading and one commit link must render.
     expect(body).toContain('<h2');
     expect(body).toMatch(/<h3[^>]*>(Unreleased|0\.\d+\.\d+)/);

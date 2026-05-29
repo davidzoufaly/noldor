@@ -1,0 +1,575 @@
+# Roadmap
+
+### Noldor Framework
+
+#### Historical Gate-Compliance Debt Backfill
+
+- area: tooling
+- type: chore
+- since: 2026-05-17
+- size: M
+- impact: med
+- parent: noldor
+
+`pnpm garden:detect --gate-compliance` blocks release on 72 historical `trailerScopeMismatch` entries + 12 `overrideAudit` WARN entries inherited from pre-gate-rollout commits. Operator must skip via `RELEASE_SKIP_GATE_COMPLIANCE=1` (12 prior overrides in `.noldor/overrides.log` document this as the established release-blocker pattern), but the escape hatch leaks: each release adds another "release-sweep blocker - gate-compliance escape hatch" override entry, growing the WARN count and re-blocking subsequent releases in a positive-feedback loop. Discovered 2026-05-17 during v0.5.1 release sweep when the audit count had grown to 12. Two parts: (a) one-time backfill — retro-amend or land an audited "framework rollout backfill" commit that adds the missing `Noldor-FD:` slug trailer to each of the 72 historical commits so they validate against the current scope rule; (b) cap the override-audit feedback loop — `scripts/garden/detectors/override-audit.ts` should already skip `release-automation` commits (it does, per :102), but does NOT skip release-sweep blocker overrides recorded against the release-sweep commit itself; widen the skip rule, or have the release script auto-stamp a `Noldor-Path-Override: gate-compliance-escape (release)` trailer that audit ignores. Until shipped, every release requires the escape hatch + the override count grows linearly. Touches: `scripts/garden/detectors/override-audit.ts`, `.noldor/overrides.log` (one-time backfill), `scripts/release/index.ts`.
+
+#### End-of-Flow Ergonomics
+
+- area: tooling
+- type: feat
+- since: 2026-05-16
+- size: M
+- impact: high
+- parent: noldor
+
+Two end-of-flow ergonomics for the post-merge handoff in `/gate` Step 4 / `pr-flow.openAndAutoMerge`. (a) **Auto-remove worktree without prompting** — already nominally codified (Step 4 invokes `ExitWorktree` native tool with `action: 'remove'`, and `worktree-discipline.md` says "skip the 4-option menu, don't ask first"), but audit the actual end-to-end path for any remaining interactive blockers: `ExitWorktree`'s own confirmation, residual `AskUserQuestion` prompts in `gate/SKILL.md` end-of-flow, `superpowers:finishing-a-development-branch` invocations elsewhere. Goal: zero prompts between "PR merged" and "next-priority handoff". (b) **PR auto-merge polling streams status into chat** — today `openAndAutoMerge` polls `gh pr view --json mergedAt,state` for up to 10min (20min if `BEHIND`) with no operator visibility into healthy progress. Print one status line per poll cycle (suggest every 30-60s): `Auto-merge: state=<state>, behind=<n>, elapsed=<m>s`. Lets the operator distinguish "polling healthy, waiting on checks" from "hung / network dropped". Touches: `scripts/noldor/pr-flow.ts`, `.claude/skills/gate/SKILL.md`, `docs/noldor/pr-flow.md`.
+
+#### Drop Manual Feature MD Update Step
+
+- area: tooling
+- type: refactor
+- since: 2026-05-16
+- size: S
+- impact: med
+- parent: noldor
+
+Remove the `## After every feature, update the feature MD` rule from `docs/noldor/workflow.md` (lines 30-32). The rule says the operator must flip `phase` to `done` and update Summary / User Story / Usage in the shipping commit. Already obsolete: `/draft-feature-md --refresh` rewrites User Story + Usage from spec + code + tests automatically, `pnpm release` owns `introduced` / `updated`, and the `phase: done` flip belongs in `/gate` end-of-flow rather than as a human checklist item. Audit `/gate` Step 4 to ensure `/draft-feature-md --refresh` is invoked before the ship commit (today it isn't — the rule lives only in workflow.md prose, no enforcement). Touches: `docs/noldor/workflow.md`, `.claude/skills/gate/SKILL.md`. Possible drift: `.claude/skills/promote/SKILL.md:139` ("Reminder: edit parent FD body sections … per CLAUDE.md 'after every feature, update the feature MD' rule") needs the dangling reference removed.
+
+#### Graphify `plan-of` edges + nodes for plans/specs
+
+- area: tooling
+- type: feat
+- since: 2026-05-17
+- size: M
+- impact: med
+- parent: graphify
+
+Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superpowers/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `scripts/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it). Touches: `scripts/graphify/**`, `scripts/garden/garden-detect.ts`, `scripts/garden/plan-resolution.ts`.
+
+#### Release Script `sdd:report` Skip-If-Only-Count-Line-Changed
+
+- area: tooling
+- type: feat
+- since: 2026-05-17
+- size: S
+- impact: high
+- parent: noldor
+
+`scripts/release/index.ts:139-146` runs `pnpm sdd:report --release` and aborts when `docs/sdd-report.md` is dirty. But `sdd:report` is not idempotent: the `Review-skip count (last 30 days)` line increments by 1 per commit on the active branch (each sweep commit lacks `Noldor-Reviewed` and counts as a review-skip). Even when `/release-sweep` step 5.5 pre-emptively commits the regen, the release-time re-run always produces a +1 diff and aborts. Discovered 2026-05-17 during `release-sweep-process-hardening` part 2 plan execution (idempotency verification failed). Two fix candidates: (a) release-script treats "only the review-skip count line changed" as clean and proceeds; (b) `sdd:report` gains a flag to exclude in-flight branch commits from the count. Until shipped, the release operator hits a single sdd:report-driven retry on the first `pnpm release` after sweep PR merge. Touches: `scripts/release/index.ts`, `scripts/garden/sdd-report.ts`.
+
+#### Phase Validator Allow `phase=in-progress + introduced`
+
+- area: tooling
+- type: fix
+- since: 2026-05-15
+- size: XS
+- impact: high
+- parent: noldor
+
+`scripts/features/feature-schema.ts:58-65` rejects `phase=in-progress` + `introduced` set, but the attach-revert lifecycle (per `framework-pr-flow-agent-auto-merge` spec) deliberately puts shipped FDs in exactly that state — `release-markers.ts:fillMarkers` auto-restores `phase: done` at the next `pnpm release` only when it sees `phase: in-progress` + `introduced` already set + a changelog block. The schema rule directly contradicts the auto-restore contract. Discovered 2026-05-15 attempting `specs-only-attach` on `docs/features/noldor.md` (shipped FD, `introduced: 0.4.0`) — the gate skill's phase-revert commit fails `validate:features`. Fix: scope the schema rule to exclude the attach-revert state. Options: (a) drop the rule outright (it's a hint, not a hard invariant — release-markers already restores the correct state); (b) refine to only fire when no `Noldor-FD:` trailer + no `specs-only-attach` / `full-attach` session marker is present; (c) replace the rule with a warning. Without this fix, attach-revert on any shipped FD is impossible — and shipped FDs are the most common attach target.
+
+#### Codex CR Plan-Review Mode
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- size: S
+- impact: high
+- promoted: 2026-05-11 (from backlog)
+
+`pnpm cr:codex` reviews code diffs today (`<sha>`, `<from>..<to>`, `--paths`, `--working`). Add a `--plan <path>` (and `--spec <path>`) mode that takes a markdown plan/spec and runs codex with plan-review semantics — flag missing edge cases, unclear acceptance criteria, signature inconsistencies, placeholder content. The gate-flow Step 2.5 (review handoff after spec/plan) currently relies on operators invoking `--paths <artifact>` which applies code-review heuristics; a dedicated plan/spec mode would give sharper feedback. Trigger: when operators hitting the Step 2.5 pause want codex review and the `--paths` workaround proves too noisy.
+
+- merged 2026-05-23: scoped to the codex lane of a broader multi-reviewer specs/plan CR gate — see [[specs-cr-gate-multi-reviewer]].
+
+#### Fix Multiterminal-Development Flow Bug
+
+- area: tooling
+- type: fix
+- since: 2026-05-23
+- size: S
+- impact: med
+- recovered: 2026-05-23
+
+Existing multiterminal-development flow has a reproducible bug, discovered while scoping [[specs-cr-gate-multi-reviewer]]. Reproduce, root-cause, fix — blocks delivery of [[specs-cr-gate-multi-reviewer]].
+
+#### Bootstrap-Immunity for Self-Gating Features
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: M
+- impact: high
+- parent: noldor
+
+When a feature adds a new release-time gate, the feature's own implementation commits cannot satisfy that gate (the enforcement code didn't exist when they were authored). Hit live during automated-cr-pipeline: the new `release-cr-gate.ts` requires `Noldor-Reviewed-Codex` on every code-touching commit in the release range, but none of the 22 feature-branch commits have it because `pnpm cr:codex` was added by those very commits. Operator currently must hand-add `Noldor-CR-Override-Codex: bootstrap` to each commit before next release, or extend the gate to skip pre-feature SHAs. Framework-level fix: when a gate-introducing FD is detected (graph annotation? FD frontmatter `introduces-gate: <name>`?), `/gate` end-of-flow auto-injects matching `Noldor-<gate>-Override: bootstrap — feature added the gate that would block its own commits` on every commit on the worktree branch. Audited by `/garden`'s override detectors so it can't be silently abused on non-bootstrap work.
+
+- v0.4.0 release shipped with `RELEASE_SKIP_CR_GATE=1` bypass for the same reason — 34 commits in `v0.3.0..v0.4.0` predate the CR pipeline. Retire the env-var bypass next cycle once bootstrap-immunity lands so v0.5.0 doesn't ship the escape hatch as routine. Track via a `chore` to verify `pnpm release` succeeds without the flag.
+
+#### `pnpm release --resume`
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- size: M
+- impact: high
+- parent: noldor
+
+`pnpm release` is not idempotent when the final `git commit` step fails. v0.4.0 release hit this when the release commit's pre-commit hook rejected the diff (micro-chore session active): all package.json bumps, CHANGELOG entry, release-notes entry, FD `introduced:` markers were already written + staged, but the commit failed. Re-running the script would derive a new (wrong) version. Manual recovery required (`git reset`, fix root cause, re-run). Fix: either (a) `pnpm release --resume` flag that skips precondition + version-derive and goes straight to commit-tag-push when staged files match the in-progress release shape, or (b) wrap the file-mutation phase in a temp staging area committed atomically only after precondition success — so a failed commit leaves an empty tree.
+
+- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
+
+#### Dynamic FD ↔ File Pointers via Frontmatter
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: L
+- impact: high
+- parent: noldor
+
+Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
+
+#### Triage→Now Direct Shortcut
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: XS
+- impact: med
+- parent: noldor
+
+Before the flat-priority restructure, `docs/noldor/triage.md` said `## Now` was reserved for `/promote`, so when an operator picked "now" during triage the flow forced a two-step seam (triage→Next, then `/promote slug`). Hit during automated-cr-pipeline triage — operator picked "now" intent and the controller had to manually chain. Add a `target: now` triage option that auto-chains to `/promote <slug>` (or to `/gate` if appropriate). Reduces one workflow seam on the path most-used flows take. Either feature in `/triage` skill or document the chained `/triage <slug> --then-promote` invocation.
+
+#### Subagent Reviewer Verify-Before-Flag Protocol
+
+- area: tooling
+- type: refactor
+- since: 2026-05-10
+- size: XS
+- impact: med
+- parent: noldor
+
+The final whole-branch reviewer for automated-cr-pipeline flagged "`pnpm validate:features` will hard-fail because new test files lack `// @tests:` tag" as a blocking issue — but the validator only checks the tag when the test file is referenced from `links.tests`. The reviewer reached the right conclusion (fix the tag + populate links.tests) for the wrong reason. Reviewer prompts in `superpowers:subagent-driven-development` should say "before flagging a blocking issue, run the failure command (`pnpm validate:features`, `pnpm typecheck`, etc.) and quote the actual error". Cheap, prevents controller having to spot-check every reviewer claim.
+
+#### Dashboard Backlog Age Buckets
+
+- area: tooling
+- type: feat
+- since: 2026-05-04
+- size: S
+- impact: med
+- parent: project-tracking-dashboard
+
+On `/backlog`, bucket entries by their `since:` field (0-30d / 30-90d / 90d+). Old entries are signal — promote, demote, or delete. No git needed; pure frontmatter math.
+
+#### Dashboard Graphify Health Snapshot
+
+- area: tooling
+- type: feat
+- since: 2026-05-04
+- size: S
+- impact: med
+- parent: project-tracking-dashboard
+
+Read `graphify-out/GRAPH_REPORT.md` per request, surface god-node count, low-cohesion communities, dead-export count. Snapshot metric — labelled with the timestamp of the last `/graphify` run. Gates the pre-release sweep in one glance.
+
+#### Dashboard Test Pyramid Page
+
+- area: tooling
+- type: feat
+- since: 2026-05-04
+- size: S
+- impact: med
+- parent: project-tracking-dashboard
+
+Per-package counts of unit tests (`__tests__/*.test.ts`), component tests, e2e (`apps/web/e2e/scenarios/`), and smoke tests (`@smoke` tag). Test-to-code ratio per package. Catches packages that are shipping logic without tests.
+
+#### Dashboard Skills Browser Page
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- size: S
+- impact: med
+- parent: project-tracking-dashboard
+
+Dashboard `/skills` route — list + detail view for the 8 project-local skills under `.claude/skills/<name>/SKILL.md`. List page pulls trigger + one-line description from each SKILL.md's frontmatter (`name`, `description`); clicking a row opens the rendered SKILL.md body for the full step-by-step. Pairs with existing `/features` and `/docs` dashboard surfaces — the skills counter on `/` (`scripts/dashboard/views.ts:97`) currently has no destination to click into. Cross-link `docs/noldor/skill-catalog.md` block per skill so the dashboard reflects both source-of-truths (SKILL.md = execution, catalog = operator summary). Trigger: surfaced 2026-05-12 right after the flat → subdirectory migration registered the skills with the Skill tool — the counter on KPIs is now actionable but un-browseable.
+
+#### Implementer Subagent Scope-Guard Template
+
+- area: tooling
+- type: refactor
+- since: 2026-05-10
+- size: S
+- impact: med
+- parent: noldor
+
+`superpowers:subagent-driven-development`'s `implementer-prompt.md` should explicitly say "ONLY edit the files listed in the Files: section. If a hook forces unrelated edits (oxfmt drift, sdd-report regen), stop and report `DONE_WITH_CONCERNS` instead of bundling them into the commit." During automated-cr-pipeline, multiple implementer subagents bundled unrelated formatter fixes for spec/plan/feature-MD files into their task commit because lefthook required it. Acceptable in practice but blurs commit scope and makes `git log` per-task harder to read. Stricter prompt + a hook flag like `LEFTHOOK_AUTOFIX=warn` (advise, don't auto-fix) would let the bundled edits be a separate explicit cleanup commit.
+
+#### Multi-Line Trailer Value Detection
+
+- area: tooling
+- type: fix
+- since: 2026-05-11
+- size: S
+- impact: med
+- parent: noldor
+
+`git interpret-trailers --parse` silently drops trailers whose value wraps to a continuation line without leading whitespace. Hit during v0.4.0 release: two commits with multi-line `Noldor-Path-Override:` values passed `commit-msg` gate (validate-trailer didn't see the override) but pushed through enforce-review-receipt only because they ALSO didn't see the trailer → fell through to "no path" branch. Subtle. Fix candidates: (a) `parseTrailers` raw-grep fallback for `^Noldor-`-prefixed lines that interpret-trailers missed; (b) `prepare-commit-msg` warning when a multi-line trailer value is detected; (c) commit-msg pre-validation that rejects multi-line trailer-key values outright. Pick whichever doesn't break existing well-formed commits.
+
+- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
+
+#### FD Complexity-Tier Field
+
+- area: tooling
+- type: feat
+- since: 2026-05-06
+- size: M
+- impact: med
+
+The `Features without spec` SDD detector flags every FD with empty `links.spec`, but the framework explicitly permits spec-less FDs in three of four complexity tiers (`skip-brainstorm`, `attach-to-parent`, and the no-MD chore — the last doesn't even produce an FD). Today three FDs are flagged as a "gap" purely because the detector has no signal for which tier the work shipped under. Proposal: add a `tier: <brainstorm-first | skip-brainstorm | attach-to-parent>` field to FD frontmatter, written by `/promote` (and required by `/new-feature`). The `Features without spec` detector then only flags `tier: brainstorm-first` FDs missing `links.spec`. Open design questions for brainstorm: (a) backfill rules for ~30 existing FDs — has-spec → `brainstorm-first`, has-`parent` → `attach-to-parent`, else → `skip-brainstorm`?; (b) is `tier` advisory or does `/promote` block save without it?; (c) does `tier: brainstorm-first` enforce `links.spec` non-empty at FD save time, or only at release?; (d) dashboard surface — per-tier pie / counts on `/features` so we see how often each path actually gets used. Trigger: live now — dashboard noise from the false-positive gap, plus the tier verdict already exists conceptually in CLAUDE.md so making it explicit unlocks per-tier metrics.
+
+#### `staleSpecs` Spec-Without-FD Archive Candidate
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- size: S
+- impact: med
+- parent: doc-gardening-skill
+
+The `staleSpecs` detector in `scripts/garden/garden-detect.ts` flags specs only when a matching FD exists with `phase: done`. Framework-infra specs that never spawned a single FD (e.g. `engine-design.md`, `tvar-platform-design.md`, `viewport-render-only-design.md`, `versioning-design.md`, `testing-strategy-design.md`) sit in active `docs/superpowers/specs/` forever — invisible to the detector. v0.4.0 garden pass had to manually identify + archive 17 such specs. Fix: extend the detector to also flag specs that (a) have no matching FD AND (b) are older than N days (e.g. 30) AND (c) have no FD currently referencing them via `spec:` link, surfacing them as archive candidates in `/garden`'s manual sweep section.
+
+- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
+
+#### SDD Detector 5 — Idea-Merge Semantic Similarity
+
+- area: tooling
+- type: feat
+- since: 2026-05-07
+- size: M
+- impact: med
+
+Standalone graphify enhancement (not in the substrate family). When `/triage` proposes targets for ideas in `ideas.md`, compute semantic similarity between idea text and existing FD names + community labels via graphify; surface top-3 `merge:<slug>` candidates ranked by similarity. Reduces hand-judgment burden in `/triage` and biases toward merging into existing host FDs (per CLAUDE.md `/triage` rubric). Trigger: when next batch of ideas accumulates and triage feels noisy.
+
+- Strengthen merge-first behavior — `/triage` should propose merging into existing roadmap/backlog blocks before suggesting new entries, with the candidate-host list surfaced explicitly in the confirmation table (today the bias is implicit).
+
+#### Runtime Architecture Invariant Expansion
+
+- area: tooling
+- type: chore
+- since: 2026-05-05
+- size: M
+- impact: med
+
+Extend architecture invariants beyond package direction checks to catch runtime-boundary drift: production app imports from `@charuy/test-fixtures`, package consumers bypassing public `src/index.ts` exports, debug-only modules included in public builds, and agent API modules importing UI components directly. Add these as advisory `/garden` findings first, then promote the highest-signal ones to `pnpm check:invariants` once false positives are burned down.
+
+#### Framework Auto-Split Suggestion for Big Features and Plans
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: M
+- impact: med
+- parent: noldor
+
+When a feature or plan grows past size thresholds, the framework should suggest a split rather than letting work calcify around an oversized FD or unwieldy plan. Heuristics: word count, scope-bullet count, file-touch breadth (from `links.code`), or for plans the row count. The suggestion surfaces in `/promote` (feature) and `superpowers:writing-plans` (plan) before the operator commits to the path. Today the operator is on their own to spot oversized scope.
+
+- Plan threshold — suggest split when a plan exceeds ~1000 rows (one part = ~1000 rows). Use this as the initial heuristic and tune with experience.
+
+#### Framework Milestones Support (POC / MVP / 1.0.0)
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: M
+- impact: med
+- parent: noldor
+
+Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
+
+- Optional, not mandatory — apps can grow organically without a milestone plan; the framework should not force the abstraction. When milestones are declared, the rest of the wiring activates; otherwise the field stays absent and detectors stay silent.
+
+#### Per-Task Dev Environment Bootstrap
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: L
+- impact: med
+- parent: parallel-worktree-workflow
+
+Extend the worktree workflow with full per-task environment scaffolding: open IDE on the worktree folder/file, spawn a new terminal per task (already done), boot an internal web server scoped to the task's port, and start a local Charuy app instance per task. Today only the terminal spawn is automated; IDE focus and per-task app instances are manual. Goal: a single command takes an operator from "branch checked out" to "fully usable dev surface" without manual port-juggling. Pairs with the worktree port-per-tree convention from `docs/noldor/worktree-discipline.md`.
+
+#### Make Noldor Agent-Agnostic
+
+- area: tooling
+- type: refactor
+- since: 2026-05-10
+- size: XL
+- impact: med
+- parent: noldor
+
+Noldor today assumes Claude Code as the operating agent (skill names, hook patterns, transcript layout). Lift the assumptions so Codex, Gemini, or other agents can drive the same framework with equivalent gates. Concrete asks: (1) abstract skill invocation (`Skill` tool vs `activate_skill` vs raw markdown read), (2) abstract hook triggers (the `lefthook` pre-commit chain works for all, but the auto-gate behavior is Claude-only), (3) document the agent-equivalence matrix in `docs/noldor/`. Trigger: when a second agent adopts Noldor in earnest (today's automated-cr-pipeline already runs Codex as a reviewer; controller is still Claude).
+
+- triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
+
+#### Hot Zones Lines-Changed Metric
+
+- area: tooling
+- type: feat
+- since: 2026-05-04
+- size: XS
+- impact: low
+- parent: dashboard-hot-zones-page
+
+Augment `/hot-zones` rows with insertion + deletion line counts via `git log --shortstat`. Touch count (current v1) answers "how often", lines changed answers "how much" — together they distinguish files that get tweaked often from files that get rewritten often. Trigger when touch-count alone proves too coarse to pick refactor targets.
+
+#### Hot Zones JSON Endpoint
+
+- area: tooling
+- type: feat
+- since: 2026-05-04
+- size: XS
+- impact: low
+- parent: dashboard-hot-zones-page
+
+`/hot-zones?format=json` returning the `HotZoneRow[]` array as `application/json`. Lets agents skip HTML parsing. Trigger when an agent workflow actually wants the data programmatically.
+
+#### Sort Features by Last-Updated (Git)
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: XS
+- impact: low
+- parent: project-tracking-dashboard
+
+Add a "last updated" sort option to the dashboard's `/features` listing, sourced from `git log -1 --format=%cI -- docs/features/<slug>.md`. Today the list is alphabetical or by phase. A recency sort surfaces the actively-edited FDs and de-emphasizes stale ones. Trigger: when the FD count grows large enough that "what changed recently" stops being obvious from the alphabetical list.
+
+#### Extract requireFreshGraph helper
+
+- area: tooling
+- type: refactor
+- since: 2026-05-07
+- size: XS
+- impact: low
+
+When a 2nd graph-consuming SDD detector lands, extract the inline staleness check from the 13th detector into a shared helper under `scripts/graphify/`. Premature today (1 consumer). Trigger: arrival of the 2nd consumer.
+
+#### SDD Graphify-Lift Audit (theoretical substrate scan)
+
+- area: tooling
+- type: docs
+- since: 2026-05-07
+- size: XS
+- impact: low
+
+Reference table — which of the 12 pre-existing SDD detectors gain real signal from graphify data, ordered by lift strength (the 13th, co-tag, has shipped). Used to decide which detectors to fold into the graphify-augmented family beyond the initial 13th.
+
+| #   | Detector                           | Lift       | Augmentation                                                                                           |
+| --- | ---------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ |
+| 1   | Done features without tests        | Weak       | Per-FD coverage % from import edges; sharper than "tests array empty".                                 |
+| 2   | Done features without docs         | Medium     | Community-based doc co-tag suggestion.                                                                 |
+| 3   | Features without spec              | None       | Pure metadata.                                                                                         |
+| 4   | Done features missing `introduced` | None       | Pure metadata.                                                                                         |
+| 5   | Untriaged ideas                    | **Strong** | Semantic-similarity match idea text vs FD names → propose auto-`merge:<slug>` for `/triage`.           |
+| 6   | Stale backlog                      | None       | Pure age check.                                                                                        |
+| 7   | Specs without FD reference         | Medium     | Spec content vs FD community match.                                                                    |
+| 8   | Plans without matching spec        | None       | Pure filename match.                                                                                   |
+| 9   | Code orphans                       | **Strong** | Suggest probable owner FD via file's community membership (instead of just listing as orphan).         |
+| 10  | Untagged tests                     | **Strong** | Auto-suggest `@tests:` slug from imports + `links.code`. Same engine as 13th, runs on absent-tag case. |
+| 11  | Untagged docs                      | Medium     | Community-driven `@feature:` slug suggestion.                                                          |
+| 12  | README package drift               | None       | Pure FS check.                                                                                         |
+
+Strong-lift family: 9, 10, 13. Same "path → FD" substrate, same staleness gate. Standalone strong-lift: 5 (idea-merge suggestions, touches `/triage`). Medium-lift candidates (2, 7, 11) only worth chasing if false-negatives accumulate.
+
+#### Stand-Alone Worktree Conflict Pre-Flight
+
+- area: tooling
+- type: feat
+- since: 2026-05-04
+- size: S
+- impact: low
+
+Dedicated `pnpm worktree:conflicts` script that intersects file-touch sets across active worktrees and optionally cross-references graphify community membership for richer conflict scoring. Initial release of `parallel-worktree-workflow` folds a basic file-overlap warning into `pnpm worktree:status` display; this richer stand-alone tool is deferred until the basic version proves insufficient. Trigger: running 3+ trees regularly and finding the inline warning too coarse.
+
+#### Auto-Promotion of Stale Ideas
+
+- area: tooling
+- type: feat
+- since: 2026-04-28
+- size: S
+- impact: low
+
+Backlog entries past the stale threshold auto-demote phase to `later` (or get rejected with a marker). Demoted from roadmap 2026-05-04 — manual `/triage` is sufficient until the backlog grows past human grep capacity.
+
+- triage 2026-05-11: demote candidate — block was already demoted but lingered in the former `## Next` section. Move back to `docs/backlog.md`.
+
+#### E2E Tests Referenced by Multiple FDs
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: S
+- impact: low
+- parent: noldor
+
+Allow E2E test files to be referenced by multiple FDs (one E2E covers several features). Today `links.tests` is per-FD and the `@tests:` tag in test files is single-slug. Extend the schema so an E2E can declare `@tests: <slug-a>, <slug-b>, <slug-c>` and `links.tests` resolves the many-to-many fan-out. Garden detectors (untagged tests, untagged docs) need updating to handle the multi-slug case. Trigger: when the first E2E that legitimately covers 3+ features ships and the operator wants the link cardinality reflected accurately.
+
+#### Noldor Section-Age Staleness Detector
+
+- area: tooling
+- type: feat
+- since: 2026-05-08
+- size: M
+- impact: low
+- parent: noldor
+
+Was originally Detector 14 in the Noldor extraction spec (`docs/superpowers/specs/2026-05-08-noldor-framework-extraction-design.md`); deferred during review because the value depends on actual drift accumulating, and the section-boundary detection is fiddly (header renames break the heuristic). Trigger: revisit if Detectors 14 (stub regrowth) + 15 (rule contradiction) prove insufficient — i.e. if framework drift slips past both gates and shows up as user-reported confusion or `/garden` blind spots. Implementation sketch: parse CLAUDE.md / README headers, run `git log -L /^## <Section>/,/^## /` per section, compare last-touched dates between CLAUDE.md side and `noldor/<page>.md` side, flag >30 day gaps in either direction.
+
+#### Dashboard Reference API Subtree
+
+- area: tooling
+- type: feat
+- since: 2026-05-09
+- size: M
+- impact: low
+- parent: project-tracking-dashboard
+
+Render `docs/user/reference/api/` (typedoc-generated `engine` + `format` API trees) as nested dashboard pages. Deferred from the v1 doc-surface pass because the typedoc tree has its own deep-nesting + cross-link conventions that don't cleanly fit the flat `/docs/<category>/<slug>` route shape used for top-level user docs. Approach options at trigger time: (a) mount typedoc HTML output directly under `/docs/reference/api/*` as static-file pass-through; (b) parse the markdown subtree recursively into a tree-shaped surface keyed by module path. Trigger when an agent or user actually hits the API reference often enough that its absence from the dashboard is friction.
+
+#### Real-Codex Integration Smoke Test
+
+- area: tooling
+- type: test
+- since: 2026-05-10
+- size: M
+- impact: low
+- parent: noldor
+
+`scripts/cr/__tests__/codex.test.ts` mocks the `Spawn` function, so all CI runs of `pnpm cr:codex` validate the wiring without ever invoking the real `codex` binary. The first real-codex run will surface integration bugs the mocked tests can't catch (codex CLI flag drift, JSON schema variance, stdin-pipe encoding edge cases). Add a manual / opt-in smoke test (`pnpm cr:codex --dry-run` against a fixture worktree, gated behind `CHARUY_RUN_REAL_CODEX=1`) plus a documented operator-side pre-release dogfood step in `docs/noldor/cr-pipeline.md`. Trigger: when codex CLI grows a stable `cr --json` subcommand (currently absent).
+
+#### Framework Script + Test Migration Cleanup
+
+- area: tooling
+- type: chore
+- since: 2026-05-10
+- size: M
+- impact: low
+- parent: noldor
+
+Audit `scripts/` and the framework's test corpus to identify scripts/tests that were only needed during migration (FD frontmatter shape changes, gate path additions, garden detector rollouts) and can now be deleted. Conversely, identify gaps where shipped framework features lack test coverage. The migration-only scripts add maintenance load; the gaps add risk. One-pass sweep — possibly a `/garden` detector that flags scripts referenced only in commits with `chore(framework):` or `refactor:` migration messages and not in any current pipeline.
+
+#### Drop Branched Worktrees — Single Dev Branch Workflow
+
+- area: tooling
+- type: refactor
+- since: 2026-05-10
+- size: L
+- impact: low
+- parent: noldor
+
+Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-discipline.md`). Today every active task lives in its own branch worktree. The proposal: collapse to a single shared dev branch — still in worktrees for parallelism, but not separate branches — with all task work landing on one rolling branch and merging to main on release. Trade-off: simpler integration story (no per-task rebase, fewer divergent histories) at the cost of losing the per-task isolation that lets `/gate` and `/promote` reason about scope. Trigger: when per-branch overhead (rebase storms, cross-branch lint regen, merge order ambiguity) outweighs the isolation benefit.
+
+#### Dashboard Auto-Start on Project Load
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- parent: project-tracking-dashboard
+- size: S
+- impact: med
+
+Boot the project-tracking dashboard server automatically when the project is loaded (IDE open, worktree spawn, or `pnpm dev`-equivalent entry point), so the operator never has to remember to start it as a separate step. Today the dashboard is a manual `pnpm` invocation in a side terminal; friction compounds across worktrees. Pairs with the per-task dev environment bootstrap entry — could share the same launcher path.
+
+#### Specs-Only Path: Print Detailed Plan Summary to Operator
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- parent: noldor
+- size: S
+- impact: high
+
+When the gate flow picks a specs-only path (`specs-only-new` / `specs-only-attach`) and the spec is skipped, the framework should print a detailed summary of the plan to the operator at handoff — scope bullets, files touched, acceptance criteria, deferred risks — instead of the current minimal "plan written, proceed?" prompt. Specs-only is the path most likely to mask scope drift because there's no spec to anchor against; surfacing the plan's contents at the gate boundary gives the operator a real review surface before subagent dispatch. Trigger: live now — observed during the specs-only-attach flow that the operator is expected to open the plan file to verify it.
+
+#### Dashboard: Filter Features Missing `introduced`
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- parent: project-tracking-dashboard
+- size: XS
+- impact: low
+
+Add a filter (or default-on flag column) on the dashboard's `/features` listing for FDs whose frontmatter is missing the `introduced:` version field. The SDD detector already flags this server-side, but operators want a one-click view on the dashboard to spot done features that shipped without an `introduced:` marker (release-notes drift, version-attribution gaps). Trigger: live now — surfaced during recent dashboard browsing; missing-`introduced` features are otherwise invisible until release-time SDD report.
+
+#### Pre-commit Hook Honors `Noldor-Path-Override`
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- size: S
+- impact: high
+- parent: noldor
+
+`lefthook` pre-commit reads `.noldor/session.json` only and never inspects the pending commit message, so the documented `Noldor-Path-Override:` trailer releases the commit-msg layer (scope + trailer validators) but pre-commit gate blocks first. Hit live during the 2026-05-12 roadmap-priority follow-up: code edits with a `fast-track` intent got stopped because the session was still `micro-chore` from the prior triage commit, and the override trailer was invisible to the pre-commit script. Fix candidates: (a) read `QUICKFORGE_PATH_OVERRIDE` env var in `scripts/hooks/noldor-pre-commit.ts` and short-circuit the allowlist check with an audit-log entry to `.noldor/overrides.log`; (b) introduce a `.noldor/override` marker file with the same semantics + auto-delete after one commit; (c) make the pre-commit hook peek at `.git/COMMIT_EDITMSG` when it exists (best-effort; not all flows write it pre-commit). Pick whichever audits cleanly via `/garden` override detectors so the escape stays visible.
+
+#### Session Marker Auto-Expire
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- size: S
+- impact: med
+- parent: noldor
+
+`.noldor/session.json` persists indefinitely between gate flows. Yesterday's `micro-chore` session lingered into the next day's code-editing work and silently blocked at pre-commit allowlist check — recovery required either manual session rewrite or a fresh `/gate` invocation. Add expiry semantics: if `startedAt` is older than N hours (default 24h?), pre-commit treats the session as stale and prompts `Run /gate again` rather than enforcing the stale allowlist. Complementary tweak: on successful commit, auto-clear session when `path = micro-chore` (one-and-done semantics) while leaving `fast-track` / `plan-*` / `full-*` intact since those imply ongoing multi-commit work. Pairs with the pre-commit-override entry — both target the same friction surface (gate state outliving its intent).
+
+#### Scope Sibling Trailer for Doc-Sync Commits
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- size: M
+- impact: med
+- parent: noldor
+
+`scripts/noldor/validate-noldor-scope.ts` rejects multi-scope commits, so one logically-coherent change (feat in `scripts/triage/`, tests in `scripts/triage/__tests__/`, sibling doc syncs in `docs/noldor/triage.md` and `docs/features/<slug>.md`) must split into separate commits per scope. Mechanically correct, but the same logical change becomes 3 entries in `git log` and 3× the gate dance (session, hook, trailer). 2026-05-12 roadmap-priority follow-up hit this — `feat(scripts:roadmap-priority-ordering)` + `docs(noldor:triage)` + `docs(features:roadmap-priority-ordering)` split forced. Proposal: introduce a `Noldor-Sibling-Scope: <scope-list>` trailer that lets the validator accept files mapping to listed sibling scopes, keeping the work as one atomic commit. Alternative: validator auto-detects "doc-sync-for-this-feat" patterns (FD doc + framework page in same commit as the code) and waives the split heuristically. Either way: a single commit makes the change easier to revert + easier to read in `git log` + cheaper to author.
+
+#### Stable Entry IDs for Roadmap + Backlog
+
+- area: tooling
+- type: feat
+- since: 2026-05-22
+- size: M
+- impact: med
+- parent: noldor
+
+Every roadmap and backlog entry is identified today by its kebab-slug derived from the heading. Slugs are rename-fragile — renaming an entry breaks every `deps:`, `parent:`, commit trailer, and dashboard link that targets it; moving an entry between roadmap ↔ backlog preserves the slug but loses heading-evolution traceability. Introduce a stable short ID minted at first triage and never rewritten: e.g. `R-0042` for roadmap and `B-0042` for backlog, or a single `Q-0042` namespace that survives cross-file moves. The ID becomes the canonical reference for `blocked-by:` / `parent:` / commit trailers / dashboard links / garden detectors. Slug stays a human-readable alias that can be rewritten without breakage. Counter persists in `.noldor/id-counter.json`; `/triage` and `/new-feature` mint IDs at creation. Migration: one-sweep backfill across existing ~80 backlog + ~60 roadmap entries. Touches: `docs/roadmap.md` + `docs/backlog.md` preambles, `.claude/skills/triage/SKILL.md`, `scripts/triage/score.ts`, `scripts/validate/validate-triage.ts`, `docs/noldor/triage.md`, `docs/noldor/feature-md-schema.md`.
+
+#### First-Class `blocked-by` Field
+
+- area: tooling
+- type: refactor
+- since: 2026-05-22
+- size: S
+- impact: med
+- deps: stable-entry-ids-for-roadmap-backlog
+- parent: noldor
+
+`docs/noldor/triage.md:64` describes a `deps:` bullet (comma-separated kebab slugs) that `scripts/triage/score.ts` reads for dependency-weight scoring, but the field is silently optional in v1, undocumented in both `docs/roadmap.md` and `docs/backlog.md` preambles, and unused across every current entry. Promote it to a first-class `blocked-by:` field — name matches GitHub-issue + Jira convention and reads better in prose than `deps`. Document it in both file preambles, surface it on the dashboard as a dependency graph view, validate that each referenced ID exists, and have `/garden` flag circular chains. Accept `deps:` ↔ `blocked-by:` as aliases during a migration window, then deprecate `deps:`. Blocked by Stable Entry IDs — `blocked-by:` references should target stable IDs, not rename-fragile slugs. Touches: `docs/roadmap.md` + `docs/backlog.md` preambles, `.claude/skills/triage/SKILL.md`, `scripts/validate/validate-triage.ts`, `scripts/garden/detectors/*` (new circular-blocked-by detector), `docs/noldor/triage.md`.
+
+### Mark FD phase=done in feature PR (not at release)
+
+- area: tooling
+- type: feat
+- since: 2026-05-23
+- size: S
+- impact: med
+- parent: noldor
+
+Today FDs stay `phase: in-progress` from feature-branch creation through merge until `pnpm release` flips them to `phase: done` via `release-markers.ts:fillMarkers`. Result: `main` carries shipped-but-still-`in-progress` FDs for the entire window between feature-merge and the next release cut. Want: the phase-flip `in-progress → done` happens in the last commit on the feature branch **before merge** and lands on `main` as part of the feature's PR. If the feature is later reopened (attach-revert flow), flip back to `in-progress` per existing `framework-pr-flow-agent-auto-merge` asymmetric state-machine — release-time `fillMarkers` then becomes a no-op for done features and only fills `introduced` markers on FDs whose phase was already done. Trigger: live now — surfaced 2026-05-23 during release sweep when several recently-merged features remained `in-progress` on `main` until release. Heavily overlaps with roadmap entry "Drop Manual Feature MD Update Step" which already proposes flipping phase=done at `/gate` end-of-flow — merge candidate. Touches: `.claude/skills/gate/SKILL.md` Step 4, `scripts/release/release-markers.ts`, `docs/noldor/workflow.md`.
+
+- triage 2026-05-23: round-tripped roadmap → backlog → roadmap same day. First demoted as vague (`ship-plans-specs-via-fast-track`), then UC clarified, then re-promoted with current slug + scope. Original `ideas.md:43` marker references the old slug for traceability.

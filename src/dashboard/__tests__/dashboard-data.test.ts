@@ -188,10 +188,10 @@ describe('loadFeatures', () => {
 
 describe('loadFeatureDetail', () => {
   it('returns frontmatter + bodyMarkdown + bodyHtml + changelog for a known feature', async () => {
-    const detail = await loadFeatureDetail('project-tracking-dashboard');
+    const detail = await loadFeatureDetail('boolean-operations');
     expect(detail).not.toBeNull();
     if (detail === null) return;
-    expect(detail.slug).toBe('project-tracking-dashboard');
+    expect(detail.slug).toBe('boolean-operations');
     expect(detail.bodyMarkdown.length).toBeGreaterThan(0);
     expect(detail.bodyHtml.length).toBeGreaterThan(0);
     expect(detail.bodyHtml).toContain('<');

@@ -1,0 +1,65 @@
+---
+area: tooling
+category: Tooling
+deps: []
+links:
+  code:
+    - .claude/skills/promote/SKILL.md
+    - .claude/skills/triage/SKILL.md
+    - docs/roadmap.md
+    - scripts/dashboard/data.ts
+    - scripts/triage/validate-triage.ts
+    - scripts/utils/parse-blocks.ts
+  tests: []
+name: Replace Roadmap Buckets with Flat Priority Order
+packages:
+  - scripts
+phase: done
+noldor-tier: specs-only
+introduced: 0.5.0
+---
+
+## Summary
+
+Drop the `## Now / ## Next / ## Later` section split from `docs/roadmap.md` in favor of a single flat priority-ordered list. File order = priority already lives in `docs/noldor/triage.md:38`; the remaining buckets are vestigial — `## Now` is empty (the `/promote` skill suspended Now-entry creation per step 8 pending this restructure), and the Next/Later split duplicates milestone semantics that `vision.md`'s current-milestone field already carries. In-progress work is discoverable via `phase: in-progress` in FD frontmatter; milestone bucketing belongs in a future `milestone:` FD field (see `Framework Milestones Support` entry below).
+
+## User Story
+
+As an operator triaging work, I want a single priority-ordered list in `docs/roadmap.md` so that reordering and adding entries is a simple line move — no judgment call about which bucket they belong in. The previous `## Now / ## Next / ## Later` split duplicated milestone semantics (the active milestone in `vision.md` already carries that distinction) and the `## Now` section was empty-by-policy after FD `phase: in-progress` became the canonical in-progress tracker.
+
+## Usage
+
+Operators interact with the roadmap exactly as before — add entries via `/triage`, promote via `/promote`, view via the dashboard. The visible differences:
+
+- `docs/roadmap.md` opens as a single flat list under category headings, no section split.
+- `/triage` proposes a position (`top` / `after:<slug>` / `bottom`) instead of a bucket.
+- The dashboard's overview "In progress" widget reads from FD `phase: in-progress` instead of `roadmap.now`.
+- Validation surfaces duplicate-name errors file-wide instead of per-section.
+
+No new agent API. Pure surface-level cleanup of an existing structure.
+
+## PRs
+
+<!-- @prs-since-last-release: replace-roadmap-buckets-with-flat-priority-order -->
+
+## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+This release consolidates the dashboard roadmap around a flat, priority-ordered schema: the roadmap table was refactored to a flat priority-ordered layout with follow-up polish and an in-progress overview, the schema itself was flattened, parseRoadmap was flattened, the phase=next filter was dropped, the dashboard's direct-H3 assertion was removed, and file-wide roadmap dedup was applied.
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`.claude/skills/promote/SKILL.md`](../../.claude/skills/promote/SKILL.md)
+  - [`.claude/skills/triage/SKILL.md`](../../.claude/skills/triage/SKILL.md)
+  - [`docs/roadmap.md`](../../docs/roadmap.md)
+  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
+  - [`scripts/triage/validate-triage.ts`](../../scripts/triage/validate-triage.ts)
+  - [`scripts/utils/parse-blocks.ts`](../../scripts/utils/parse-blocks.ts)
+
+<!-- /generated: resources -->
