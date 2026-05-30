@@ -17,13 +17,12 @@ links:
     - scripts/sync/sync-fd-resources.ts
     - scripts/triage/triage-list-untriaged.ts
   tests:
-    - packages/noldor/src/garden/__tests__/garden-detect.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
   docs: []
 introduced: 0.1.0
 updated: 0.5.0
 noldor-tier: full
 ---
-
 ## Summary
 
 A `/garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`scripts/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.

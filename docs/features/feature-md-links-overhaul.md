@@ -18,21 +18,20 @@ links:
     - scripts/sync/sync-spec-links.ts
     - scripts/sync/sync-test-links.ts
   tests:
-    - packages/noldor/src/checks/__tests__/check-feature-slug-scope.test.ts
-    - packages/noldor/src/features/__tests__/feature-schema.test.ts
-    - packages/noldor/src/features/__tests__/fill-links-code-gaps.test.ts
-    - packages/noldor/src/features/__tests__/migrate-features.test.ts
-    - packages/noldor/src/features/__tests__/validate-features.test.ts
-    - packages/noldor/src/garden/__tests__/sdd-report.test.ts
-    - packages/noldor/src/core/__tests__/extract-touches.test.ts
-    - packages/noldor/src/release/__tests__/release-fd-commits.test.ts
+    - src/checks/__tests__/check-feature-slug-scope.test.ts
+    - src/core/__tests__/extract-touches.test.ts
+    - src/features/__tests__/feature-schema.test.ts
+    - src/features/__tests__/fill-links-code-gaps.test.ts
+    - src/features/__tests__/migrate-features.test.ts
+    - src/features/__tests__/validate-features.test.ts
+    - src/garden/__tests__/sdd-report.test.ts
+    - src/release/__tests__/release-fd-commits.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-05-05-feature-md-links-overhaul-design.md
 introduced: 0.3.0
 noldor-tier: full
 updated: 0.4.0
 ---
-
 ## Summary
 
 Cleans up the `links.*` fields on feature MDs so `pnpm sdd:report` produces actionable signal instead of 90+ lines of noise. Five coupled changes shipped:

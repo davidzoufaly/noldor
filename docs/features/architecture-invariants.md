@@ -18,17 +18,16 @@ links:
     - scripts/invariants/rule-conflicts.ts
     - scripts/invariants/types.ts
   tests:
-    - packages/noldor/src/checks/__tests__/check-invariants.test.ts
-    - packages/noldor/src/checks/__tests__/invariants-boundaries.test.ts
-    - packages/noldor/src/checks/__tests__/invariants-keyboard-binding.test.ts
-    - packages/noldor/src/checks/__tests__/invariants-public-api-tsdoc.test.ts
-    - packages/noldor/src/checks/__tests__/invariants-rule-conflicts.test.ts
-    - packages/noldor/src/garden/__tests__/garden-detect.test.ts
+    - src/checks/__tests__/check-invariants.test.ts
+    - src/checks/__tests__/invariants-boundaries.test.ts
+    - src/checks/__tests__/invariants-keyboard-binding.test.ts
+    - src/checks/__tests__/invariants-public-api-tsdoc.test.ts
+    - src/checks/__tests__/invariants-rule-conflicts.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
 introduced: 0.1.0
 updated: 0.3.0
 noldor-tier: full
 ---
-
 ## Summary
 
 Four commit-blocking architecture invariants enforced at pre-commit, with advisory mirror in `/garden`:

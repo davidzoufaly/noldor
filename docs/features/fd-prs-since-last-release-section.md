@@ -10,9 +10,9 @@ links:
   spec: >-
     docs/superpowers/specs/archive/2026-05-22-fd-prs-since-last-release-section-design.md
   tests:
-    - packages/noldor/src/features/__tests__/migrate-fd-commits-to-prs.test.ts
-    - packages/noldor/src/release/__tests__/fd-prs-since-tag.test.ts
-    - packages/noldor/src/release/__tests__/release-noise-types.test.ts
+    - src/features/__tests__/migrate-fd-commits-to-prs.test.ts
+    - src/release/__tests__/fd-prs-since-tag.test.ts
+    - src/release/__tests__/release-noise-types.test.ts
 name: FD PRs Since Last Release Section
 packages:
   - scripts
@@ -20,7 +20,6 @@ phase: done
 noldor-tier: full
 introduced: 0.6.0
 ---
-
 ## Summary
 
 Replaces the dead `## Commits` block in the feature MD scaffold with a live `## PRs` section. A new `<!-- @prs-since-last-release: <slug> -->` marker is expanded at dashboard render time into a bullet list of PRs that touched the FD since the last semver tag — hidden when zero PRs are in flight.

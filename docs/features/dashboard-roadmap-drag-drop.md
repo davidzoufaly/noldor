@@ -19,11 +19,10 @@ links:
   spec: >-
     docs/superpowers/specs/archive/2026-05-14-dashboard-roadmap-drag-drop-design.md
   tests:
-    - packages/noldor/src/dashboard/__tests__/api-blocks.test.ts
-    - packages/noldor/src/dashboard/__tests__/dashboard-data.test.ts
-    - >-
-      packages/noldor/src/dashboard/__tests__/dashboard-layout-body-styles.test.ts
-    - packages/noldor/src/dashboard/__tests__/dashboard-server.test.ts
+    - src/dashboard/__tests__/api-blocks.test.ts
+    - src/dashboard/__tests__/dashboard-data.test.ts
+    - src/dashboard/__tests__/dashboard-layout-body-styles.test.ts
+    - src/dashboard/__tests__/dashboard-server.test.ts
 name: Dashboard Roadmap & Backlog Drag-and-Drop
 packages:
   - scripts
@@ -31,7 +30,6 @@ phase: done
 noldor-tier: full
 introduced: 0.5.0
 ---
-
 ## Summary
 
 Drag-and-drop UI on the dashboard's `/roadmap` and `/backlog` pages, plus per-row "Promote ↑" / "Demote ↓" buttons for cross-section moves. Sits on top of the shipped Path 1 schema (file-order = priority); does NOT introduce an explicit `- priority: <int>` bullet — the explicit-field path was considered and dropped in brainstorming. Dashboard server gains its first write surface: POST endpoints that rewrite `docs/roadmap.md` / `docs/backlog.md` with per-file atomic tmp+rename writes, protected by ETag / If-Match concurrency. Drag is enabled only when the table renders in source-file order (no filters, no non-priority sort); filtered/sorted views show dimmed handles with a tooltip pointing at the activation rule. Trigger: hand-editing priorities in markdown is the friction point most worth automating now.

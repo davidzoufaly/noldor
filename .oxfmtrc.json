@@ -7,5 +7,5 @@
   "trailingComma": "all",
   "arrowParens": "always",
   "endOfLine": "lf",
-  "ignorePatterns": ["dist/**", "node_modules/**", "**/*.pen"]
+  "ignorePatterns": ["dist/**", "node_modules/**", "**/*.pen", "**/*.md"]
 }

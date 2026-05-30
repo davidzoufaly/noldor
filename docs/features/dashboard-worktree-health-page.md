@@ -14,13 +14,12 @@ links:
     - scripts/dashboard/layout.ts
     - scripts/worktrees/worktree-status.ts
   tests:
-    - packages/noldor/src/dashboard/__tests__/dashboard-worktrees.test.ts
+    - src/dashboard/__tests__/dashboard-worktrees.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-05-04-dashboard-worktree-health-page-design.md
 introduced: 0.3.0
 noldor-tier: full
 ---
-
 ## Summary
 
 Surface `pnpm worktree:status` output as a page — tree path, branch, port, drift, dirty, file-overlap warnings. Critical now that parallel-worktree-workflow shipped; running the script is fine, viewing it in-browser alongside the rest of project state is better.

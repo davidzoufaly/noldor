@@ -25,36 +25,34 @@ links:
     - scripts/garden/detectors/override-audit.ts
     - scripts/garden/sdd-report.ts
   tests:
-    - packages/noldor/src/cr/__tests__/amend-receipt.test.ts
-    - packages/noldor/src/cr/__tests__/cli-args.test.ts
-    - packages/noldor/src/cr/__tests__/codex.test.ts
-    - packages/noldor/src/cr/__tests__/context.test.ts
-    - packages/noldor/src/cr/__tests__/findings-schema.test.ts
-    - packages/noldor/src/cr/__tests__/run-codex.test.ts
-    - packages/noldor/src/cr/__tests__/schema-parity.test.ts
-    - packages/noldor/src/cr/__tests__/sidecar.test.ts
-    - packages/noldor/src/garden/__tests__/garden-detect.test.ts
-    - packages/noldor/src/garden/__tests__/garden-receipt.test.ts
-    - packages/noldor/src/garden/detectors/__tests__/allowlist-drift.test.ts
-    - >-
-      packages/noldor/src/garden/detectors/__tests__/codex-cr-override-audit.test.ts
-    - packages/noldor/src/garden/detectors/__tests__/fd-without-plan.test.ts
-    - packages/noldor/src/garden/detectors/__tests__/override-audit.test.ts
-    - packages/noldor/src/garden/detectors/__tests__/plan-without-fd.test.ts
-    - packages/noldor/src/garden/detectors/__tests__/tier-mismatch.test.ts
-    - >-
-      packages/noldor/src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
-    - packages/noldor/src/hooks/__tests__/noldor-validate-trailer.test.ts
-    - packages/noldor/src/core/__tests__/changelog.test.ts
-    - packages/noldor/src/core/__tests__/lint-plan-snippets.test.ts
-    - packages/noldor/src/core/__tests__/phase-flip-done.test.ts
-    - packages/noldor/src/core/__tests__/release-markers.test.ts
-    - packages/noldor/src/core/__tests__/rename-plan-only-tier.test.ts
-    - packages/noldor/src/core/__tests__/validate-noldor-scope.test.ts
-    - packages/noldor/src/core/__tests__/validate-noldor.test.ts
-    - packages/noldor/src/core/__tests__/validate-skill-catalog.test.ts
-    - packages/noldor/src/release/__tests__/release-cr-gate-e2e.test.ts
-    - packages/noldor/src/release/__tests__/release-cr-gate.test.ts
+    - src/core/__tests__/changelog.test.ts
+    - src/core/__tests__/lint-plan-snippets.test.ts
+    - src/core/__tests__/phase-flip-done.test.ts
+    - src/core/__tests__/release-markers.test.ts
+    - src/core/__tests__/rename-plan-only-tier.test.ts
+    - src/core/__tests__/validate-noldor-scope.test.ts
+    - src/core/__tests__/validate-noldor.test.ts
+    - src/core/__tests__/validate-skill-catalog.test.ts
+    - src/cr/__tests__/amend-receipt.test.ts
+    - src/cr/__tests__/cli-args.test.ts
+    - src/cr/__tests__/codex.test.ts
+    - src/cr/__tests__/context.test.ts
+    - src/cr/__tests__/findings-schema.test.ts
+    - src/cr/__tests__/run-codex.test.ts
+    - src/cr/__tests__/schema-parity.test.ts
+    - src/cr/__tests__/sidecar.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
+    - src/garden/__tests__/garden-receipt.test.ts
+    - src/garden/detectors/__tests__/allowlist-drift.test.ts
+    - src/garden/detectors/__tests__/codex-cr-override-audit.test.ts
+    - src/garden/detectors/__tests__/fd-without-plan.test.ts
+    - src/garden/detectors/__tests__/override-audit.test.ts
+    - src/garden/detectors/__tests__/plan-without-fd.test.ts
+    - src/garden/detectors/__tests__/tier-mismatch.test.ts
+    - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
+    - src/hooks/__tests__/noldor-validate-trailer.test.ts
+    - src/release/__tests__/release-cr-gate-e2e.test.ts
+    - src/release/__tests__/release-cr-gate.test.ts
   docs:
     - docs/noldor/README.md
     - docs/noldor/lifecycle.md
@@ -78,7 +76,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
