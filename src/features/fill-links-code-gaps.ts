@@ -39,6 +39,8 @@ export type CandidateMatch = {
 export type ResolverInput = {
   filePath: string;
   features: { slug: string; frontmatter: FeatureFrontmatter }[];
+  /** Override the consumer config's `appPathPrefix` (defaults to loadConsumerConfig). */
+  appPathPrefix?: string;
 };
 
 /**
@@ -50,8 +52,11 @@ export type ResolverInput = {
  * @param input - The file to attribute and the FD universe
  * @returns Candidate matches; `[]` when no package match found
  */
-export function resolveByPath({ filePath, features }: ResolverInput): CandidateMatch[] {
-  const { appPathPrefix } = loadConsumerConfig();
+export function resolveByPath({
+  filePath,
+  features,
+  appPathPrefix = loadConsumerConfig().appPathPrefix,
+}: ResolverInput): CandidateMatch[] {
   const segments = filePath.split('/');
   const pkgIdx = segments.indexOf('packages');
   const pkg = pkgIdx >= 0 ? segments[pkgIdx + 1] : undefined;

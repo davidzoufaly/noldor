@@ -36,9 +36,11 @@ describe('noldor CLI', () => {
     expect(out).toContain('sdd-report');
   });
 
-  it('leaf command dispatches with no subcommand (doctor stub)', () => {
+  it('leaf command dispatches with no subcommand (doctor)', () => {
+    // doctor is a real leaf command now (template-sync check); assert it
+    // dispatches and reports sync status rather than the old stub message.
     const out = run(['doctor']);
-    expect(out).toContain('not implemented yet');
+    expect(out).toContain('in sync');
   });
 
   it('leaf command dispatches with flag in sub slot (init --update stub)', () => {

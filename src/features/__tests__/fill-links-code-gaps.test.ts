@@ -90,6 +90,7 @@ describe('resolveByPath', () => {
     const result = resolveByPath({
       filePath: 'apps/web/src/components/scene-tree/TreeNode.tsx',
       features,
+      appPathPrefix: 'apps/web',
     });
     expect(result.length).toBeGreaterThanOrEqual(1);
     expect(result.some((m) => m.fdSlug === 'scene-tree-panel')).toBe(true);
@@ -109,6 +110,7 @@ describe('resolveByPath', () => {
     const result = resolveByPath({
       filePath: 'apps/web/src/file/import-charuy.ts',
       features: [...features, crossArea],
+      appPathPrefix: 'apps/web',
     });
     expect(result.some((m) => m.fdSlug === 'export-import-charuy-file')).toBe(true);
   });
@@ -135,7 +137,7 @@ describe('resolveByPath', () => {
       },
     };
     const result = resolveByPath({
-      filePath: 'packages/noldor/src/release/release-notes.ts',
+      filePath: 'scripts/release/release-notes.ts',
       features: [scriptFd, releaseFd],
     });
     expect(result.length).toBeGreaterThanOrEqual(1);
