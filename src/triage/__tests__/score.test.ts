@@ -107,14 +107,14 @@ describe(resolveIsShipped, () => {
 });
 
 describe('score.ts CLI', () => {
-  // packages/noldor/src/triage/__tests__/score.test.ts → repo root (four levels up)
+  // src/triage/__tests__/score.test.ts → repo root (four levels up)
   const repoRoot = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 
   it('prints 150 for M / high / med / no deps', () => {
-    const out = execSync(
-      'pnpm tsx packages/noldor/src/triage/score.ts --size=M --impact=high --confidence=med',
-      { cwd: repoRoot, encoding: 'utf8' },
-    );
+    const out = execSync('pnpm tsx src/triage/score.ts --size=M --impact=high --confidence=med', {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
     expect(out.trim()).toBe('150');
   });
 
@@ -122,11 +122,11 @@ describe('score.ts CLI', () => {
     // `noldor` FD exists with phase: done — so a dep on it is shipped (factor 1).
     // A non-existent slug stays unshipped — penalizes the score.
     const shipped = execSync(
-      'pnpm tsx packages/noldor/src/triage/score.ts --size=M --impact=high --confidence=med --deps=noldor',
+      'pnpm tsx src/triage/score.ts --size=M --impact=high --confidence=med --deps=noldor',
       { cwd: repoRoot, encoding: 'utf8' },
     ).trim();
     const unshipped = execSync(
-      'pnpm tsx packages/noldor/src/triage/score.ts --size=M --impact=high --confidence=med --deps=does-not-exist-anywhere',
+      'pnpm tsx src/triage/score.ts --size=M --impact=high --confidence=med --deps=does-not-exist-anywhere',
       { cwd: repoRoot, encoding: 'utf8' },
     ).trim();
     expect(Number(shipped)).toBe(150);
@@ -137,7 +137,7 @@ describe('score.ts CLI', () => {
     let exitCode = 0;
     let stderr = '';
     try {
-      execSync('pnpm tsx packages/noldor/src/triage/score.ts --size=HUGE --impact=high', {
+      execSync('pnpm tsx src/triage/score.ts --size=HUGE --impact=high', {
         cwd: repoRoot,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -155,7 +155,7 @@ describe('score.ts CLI', () => {
   it('exits with code 2 when --impact is missing', () => {
     let exitCode = 0;
     try {
-      execSync('pnpm tsx packages/noldor/src/triage/score.ts --size=M', {
+      execSync('pnpm tsx src/triage/score.ts --size=M', {
         cwd: repoRoot,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],

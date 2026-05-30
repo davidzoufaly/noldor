@@ -10,6 +10,8 @@ import { parseBacklog } from '../utils/parse-blocks.js';
 import { extractUntriagedBullets } from '../triage/triage-list-untriaged.js';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
+
+import type { ConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
 import { commitOnlyTouchesReport } from './detectors/override-audit.js';
@@ -558,8 +560,12 @@ export function detectUntaggedDocs(inputs: { path: string; content: string }[]):
  * @param readmeContent - Raw `README.md` body to scan
  * @returns One gap per missing row + one per stale row
  */
-export function detectReadmePackageDrift(actualPackages: string[], readmeContent: string): Gap[] {
-  const { packagePrefix, deprecatedPackages } = loadConsumerConfig();
+export function detectReadmePackageDrift(
+  actualPackages: string[],
+  readmeContent: string,
+  config: Pick<ConsumerConfig, 'packagePrefix' | 'deprecatedPackages'> = loadConsumerConfig(),
+): Gap[] {
+  const { packagePrefix, deprecatedPackages } = config;
   const escapedPrefix = packagePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const tableRe = new RegExp(`\\|\\s*\`(${escapedPrefix}[a-z0-9-]+)\`\\s*\\|`, 'gi');
   const listed = new Set<string>();
