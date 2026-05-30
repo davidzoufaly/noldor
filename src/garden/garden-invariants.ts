@@ -41,9 +41,9 @@ export const INVARIANTS: readonly Invariant[] = [
   },
   {
     docA: 'docs/noldor/workflow.md',
-    docB: 'docs/superpowers/specs/archive/2026-04-23-feature-md-framework-design.md',
+    docB: 'docs/noldor/feature-md-schema.md',
     message:
-      'docs/noldor/workflow.md and the feature-md-framework spec must agree on the canonical feature MD path pattern `docs/features/<slug>.md`.',
+      'docs/noldor/workflow.md and docs/noldor/feature-md-schema.md must agree on the canonical feature MD path pattern `docs/features/<slug>.md`.',
     name: 'feature MD schema location',
     patternA: /docs\/features\/<slug>\.md/,
     patternB: /docs\/features\/<slug>\.md/,

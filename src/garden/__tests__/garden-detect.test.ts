@@ -430,10 +430,10 @@ describe(detectContradictions, () => {
     const { fileURLToPath } = await import('node:url');
     const { existsSync, readFileSync } = await import('node:fs');
     const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
-    if (!existsSync(join(repoRoot, 'pnpm-workspace.yaml'))) {
+    if (!existsSync(join(repoRoot, '.noldor/config.json'))) {
       throw new Error(`Smoke test could not anchor repo root at ${repoRoot}`);
     }
-    expect(readFileSync(join(repoRoot, '.claude/CLAUDE.md'), 'utf8').length).toBeGreaterThan(0);
+    expect(readFileSync(join(repoRoot, 'package.json'), 'utf8').length).toBeGreaterThan(0);
 
     const result = await detectContradictions(repoRoot);
     expect(result).toStrictEqual([]);

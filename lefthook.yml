@@ -1,0 +1,5 @@
+# Root lefthook config. Extends the Noldor framework hook block, which wires
+# the full pre-commit / commit-msg / pre-push gate (see lefthook/noldor.yml).
+# Project-specific hooks may be appended below the extends.
+extends:
+  - ./lefthook/noldor.yml
