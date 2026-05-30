@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.turbo/
+coverage/
+
+# Per-user local inbox (mirrors Charuy root)
+docs/ideas.md

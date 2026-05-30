@@ -64,12 +64,25 @@ export function validateFeatureSlugScope(
   return { success: true };
 }
 
-export async function loadKnownSlugs(featuresDir = 'docs/features'): Promise<Set<string>> {
-  const entries = await readdir(featuresDir, { withFileTypes: true });
+export async function loadKnownSlugs(...featuresDirs: string[]): Promise<Set<string>> {
+  // Default: scan both Charuy product features and packages/noldor/ framework
+  // features (Phase B of framework-doc-extraction split them across two dirs).
+  // Phase C eventually retargets each side independently; for now the
+  // commit-msg scope check accepts slugs from either tree.
+  const dirs =
+    featuresDirs.length > 0 ? featuresDirs : ['docs/features', 'packages/noldor/docs/features'];
   const slugs = new Set<string>();
-  for (const entry of entries) {
-    if (entry.isFile() && entry.name.endsWith('.md')) {
-      slugs.add(entry.name.replace(/\.md$/, ''));
+  for (const featuresDir of dirs) {
+    let entries;
+    try {
+      entries = await readdir(featuresDir, { withFileTypes: true });
+    } catch {
+      continue; // missing dir is OK — single-side setups remain supported
+    }
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        slugs.add(entry.name.replace(/\.md$/, ''));
+      }
     }
   }
   return slugs;
