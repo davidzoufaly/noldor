@@ -24,6 +24,8 @@
   },
   "scripts": {
     "build": "tsc",
+    "noldor": "node bin/noldor.mjs",
+    "dashboard": "node bin/noldor.mjs dashboard server",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .turbo",

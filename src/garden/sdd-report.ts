@@ -20,6 +20,8 @@ import {
   loadFreshGraphOrWarn,
 } from './graph-fd-lookup.js';
 
+import type { Dirent } from 'node:fs';
+
 import type { GraphifyGraph } from './graph-fd-lookup.js';
 
 import type { FeatureFrontmatter } from '../features/feature-schema.js';
@@ -607,7 +609,15 @@ const EXCLUDED_WALK_DIRS = new Set([
  * @returns Resolves once the walk completes; results are appended to `out`.
  */
 export async function walkRepo(dir: string, out: string[]): Promise<void> {
-  const entries = await readdir(dir, { withFileTypes: true });
+  let entries: Dirent[];
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    // A missing top-level scan dir (e.g. no `packages/`/`apps/` in a
+    // single-package consumer) contributes no paths rather than throwing.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
   for (const entry of entries) {
     const { name } = entry;
     if (name.startsWith('.') && name !== '.github') {

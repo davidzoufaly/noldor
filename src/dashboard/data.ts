@@ -698,7 +698,11 @@ export interface ReleaseNotes {
  * @returns Rendered release-notes body
  */
 export async function loadReleaseNotes(): Promise<ReleaseNotes> {
-  const raw = await readFile(getReleaseNotesPath(), 'utf8');
+  // Absent until the first release runs — the release script generates
+  // `docs/release-notes.md`. Degrade to a placeholder rather than 500.
+  const raw = await readFile(getReleaseNotesPath(), 'utf8').catch(
+    () => '_No release notes yet — generated on the first release._',
+  );
   return { bodyHtml: await renderMarkdown(raw) };
 }
 

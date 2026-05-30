@@ -1,0 +1,15 @@
+{
+  "consumer": {
+    "name": "noldor",
+    "repoUrl": "https://github.com/davidzoufaly/noldor",
+    "lockstepPackages": ["noldor"],
+    "scanPaths": ["src"],
+    "boundaries": [],
+    "deprecatedPackages": [],
+    "e2ePrefix": "e2e/",
+    "samplesPath": "samples",
+    "packagePrefix": "@noldor/",
+    "pnpmStderrPrefix": "noldor",
+    "appPathPrefix": "src"
+  }
+}
