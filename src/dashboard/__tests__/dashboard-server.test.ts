@@ -35,10 +35,10 @@ describe('dashboard server', () => {
     expect(body).toContain('<title>');
   });
 
-  it('GET /features returns 200 with the boolean-operations slug', async () => {
+  it('GET /features returns 200 with a known feature slug', async () => {
     const res = await fetch(`${baseUrl}/features`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain('boolean-operations');
+    expect(await res.text()).toContain('framework-doc-extraction');
   });
 
   it('GET /features?phase=in-progress filters', async () => {
@@ -48,18 +48,18 @@ describe('dashboard server', () => {
     expect(body).toContain('in-progress');
   });
 
-  it('GET /features/boolean-operations renders the drill-down', async () => {
-    const res = await fetch(`${baseUrl}/features/boolean-operations`);
+  it('GET /features/framework-doc-extraction renders the drill-down', async () => {
+    const res = await fetch(`${baseUrl}/features/framework-doc-extraction`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain('Boolean Operations');
+    expect(await res.text()).toContain('Framework Doc Extraction');
   });
 
   it('GET /features/<slug> injects live changelog: Unreleased and per-version commits', async () => {
-    const res = await fetch(`${baseUrl}/features/boolean-operations`);
+    const res = await fetch(`${baseUrl}/features/framework-doc-extraction`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    // boolean-operations has feat(engine:boolean-operations) commit in v0.4.0 →
-    // at least one version heading and one commit link must render.
+    // framework-doc-extraction carries docs(features:framework-doc-extraction)
+    // commits → at least one version heading and one commit link must render.
     expect(body).toContain('<h2');
     expect(body).toMatch(/<h3[^>]*>(Unreleased|0\.\d+\.\d+)/);
     expect(body).toMatch(/href="https:\/\/github\.com\/[^"]+\/commit\/[a-f0-9]+"/);
@@ -141,15 +141,20 @@ describe('dashboard server', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
     const body = await res.text();
-    expect(body).toContain('<h1>Vision</h1>');
+    expect(body).toMatch(/Vision<\/h1>/);
     expect(body).toContain('North Star');
   });
 
-  it('GET / renders the milestone banner from vision frontmatter', async () => {
+  it('GET / omits the milestone banner when vision sets no current-milestone', async () => {
+    // noldor's docs/vision.md has no `current-milestone:` frontmatter, so the
+    // banner renders empty (renderMilestoneBanner returns '' for an unset slug).
+    // renderMilestoneBanner's populated-banner path is unit-tested separately.
     const res = await fetch(`${baseUrl}/`);
     const body = await res.text();
-    expect(body).toContain('milestone-banner');
-    expect(body).toContain('Current milestone');
+    // The `.milestone-banner` class is always in the stylesheet; assert on the
+    // banner's rendered text, which only appears when a milestone is set.
+    expect(body).not.toContain('Current milestone');
+    expect(body).not.toContain('<aside class="milestone-banner">');
     expect(body).toContain('href="/vision"');
   });
 
