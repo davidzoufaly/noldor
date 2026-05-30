@@ -3,19 +3,19 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  spec: docs/superpowers/specs/2026-05-28-framework-doc-extraction-design.md
+  spec: docs/superpowers/specs/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md
   code: []
   tests: []
 name: Framework Doc Extraction
 packages:
   - noldor
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 
 ## Summary
 
-<!-- TODO 1-3 sentences. What the feature is. -->
+Extracted the Noldor framework from the Charuy monorepo into its own standalone repository (`github.com/davidzoufaly/noldor`), preserving per-file git history via `git filter-repo`. Charuy now consumes Noldor as a `file:../noldor` sibling dependency, and all framework artifacts (FDs, roadmap, backlog, plans, specs, vision) live in this repo's `docs/`. Delivered across Phase A (de-Charuy-fication of the runtime), Phase B (doc staging), and Phase C (extract + retarget).
 
 ## User Story
 
