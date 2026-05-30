@@ -1,6 +1,10 @@
 // @tests: project-tracking-dashboard
 
-import { describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   loadFrameworkPage,
@@ -8,6 +12,7 @@ import {
   loadUserDoc,
   loadUserDocs,
   rewriteDocLinks,
+  setDocRootsOverride,
 } from '../data.js';
 import {
   renderFrameworkIndex,
@@ -23,7 +28,7 @@ describe('loadFrameworkPages', () => {
     const slugs = pages.map((p) => p.slug);
     expect(slugs).toContain('lifecycle');
     expect(slugs).toContain('complexity-gating');
-    expect(slugs).toContain('engineering-principles');
+    expect(slugs).toContain('testing-principles');
     expect(slugs).not.toContain('README');
   });
 
@@ -156,123 +161,159 @@ describe('renderFrameworkPage', () => {
   });
 });
 
-describe('loadUserDocs', () => {
-  it('returns the four Diátaxis categories in canonical order', async () => {
-    const docs = await loadUserDocs();
-    expect(docs.map((c) => c.category)).toEqual([
-      'tutorials',
-      'how-to',
-      'reference',
-      'explanation',
-    ]);
+// The user-docs surface reads docs/user/<category>/*.md from the doc root.
+// noldor authors no user docs yet, so these tests run against a temp fixture
+// tree via setDocRootsOverride rather than live repo content.
+describe('user docs surface (fixture)', () => {
+  let fixtureRoot: string;
+  beforeAll(async () => {
+    fixtureRoot = await mkdtemp(join(tmpdir(), 'docsurf-'));
+    const base = join(fixtureRoot, 'docs', 'user');
+    await mkdir(join(base, 'tutorials'), { recursive: true });
+    await mkdir(join(base, 'how-to'), { recursive: true });
+    await mkdir(join(base, 'reference', 'api'), { recursive: true });
+    await mkdir(join(base, 'explanation'), { recursive: true });
+    await writeFile(
+      join(base, 'tutorials', 'your-first-shape.md'),
+      '# Your First Shape\n\nFollow [auto-save](../../features/auto-save.md) to persist work.\n',
+    );
+    await writeFile(
+      join(base, 'tutorials', 'export-for-3d-printing.md'),
+      '# Export for 3D Printing\n\nbody\n',
+    );
+    await writeFile(join(base, 'how-to', 'index.md'), '# How-to\n\ngenerated index\n');
+    await writeFile(
+      join(base, 'how-to', 'save-and-load-a-scene.md'),
+      '# Save and Load a Scene\n\nbody\n',
+    );
+    await writeFile(join(base, 'reference', 'cli.md'), '# CLI Reference\n\nbody\n');
+    await writeFile(join(base, 'reference', 'api', 'generated.md'), '# Generated API\n\nbody\n');
+    await writeFile(join(base, 'explanation', 'architecture.md'), '# Architecture\n\nbody\n');
+    setDocRootsOverride(fixtureRoot);
+  });
+  afterAll(async () => {
+    setDocRootsOverride(undefined);
+    await rm(fixtureRoot, { force: true, recursive: true });
   });
 
-  it('includes top-level .md files per category', async () => {
-    const docs = await loadUserDocs();
-    const tutorials = docs.find((c) => c.category === 'tutorials')!;
-    const slugs = tutorials.docs.map((d) => d.slug);
-    expect(slugs).toContain('your-first-shape');
-    expect(slugs).toContain('export-for-3d-printing');
+  describe('loadUserDocs', () => {
+    it('returns the four Diátaxis categories in canonical order', async () => {
+      const docs = await loadUserDocs();
+      expect(docs.map((c) => c.category)).toEqual([
+        'tutorials',
+        'how-to',
+        'reference',
+        'explanation',
+      ]);
+    });
+
+    it('includes top-level .md files per category', async () => {
+      const docs = await loadUserDocs();
+      const tutorials = docs.find((c) => c.category === 'tutorials')!;
+      const slugs = tutorials.docs.map((d) => d.slug);
+      expect(slugs).toContain('your-first-shape');
+      expect(slugs).toContain('export-for-3d-printing');
+    });
+
+    it('filters out generated index.md files (e.g. how-to/index.md)', async () => {
+      const docs = await loadUserDocs();
+      const howTo = docs.find((c) => c.category === 'how-to')!;
+      expect(howTo.docs.map((d) => d.slug)).not.toContain('index');
+    });
+
+    it('excludes the reference/api/ typedoc subtree', async () => {
+      const docs = await loadUserDocs();
+      const reference = docs.find((c) => c.category === 'reference')!;
+      const slugs = reference.docs.map((d) => d.slug);
+      expect(slugs).not.toContain('api');
+      expect(slugs.every((s) => !s.startsWith('api/'))).toBe(true);
+    });
+
+    it('exposes title from each doc’s first H1', async () => {
+      const docs = await loadUserDocs();
+      const tutorials = docs.find((c) => c.category === 'tutorials')!;
+      const yfs = tutorials.docs.find((d) => d.slug === 'your-first-shape');
+      expect(yfs?.title).toBe('Your First Shape');
+    });
   });
 
-  it('filters out generated index.md files (e.g. how-to/index.md)', async () => {
-    const docs = await loadUserDocs();
-    const howTo = docs.find((c) => c.category === 'how-to')!;
-    expect(howTo.docs.map((d) => d.slug)).not.toContain('index');
+  describe('renderUserDocsIndex', () => {
+    it('renders all categories as grouped sections with per-category counts', async () => {
+      const all = await loadUserDocs();
+      const html = renderUserDocsIndex(all, { category: '' });
+      expect(html).toContain('<h1>Docs</h1>');
+      // Filter form is rendered.
+      expect(html).toContain('<form class="filters"');
+      expect(html).toContain('name="category"');
+      // Each non-empty category becomes a `<h2>Category (N)</h2>` section.
+      for (const c of all.filter((cat) => cat.docs.length > 0)) {
+        expect(html).toContain(`<h2>${c.category} (${c.docs.length})</h2>`);
+      }
+      // Doc links go directly to /docs/<category>/<slug>, not the old per-category index.
+      const tutorials = all.find((c) => c.category === 'tutorials');
+      if (tutorials && tutorials.docs.length > 0) {
+        const slug = tutorials.docs[0].slug;
+        expect(html).toContain(`href="/docs/tutorials/${slug}"`);
+      }
+    });
+
+    it('filters to the selected category when filters.category is set', async () => {
+      const all = await loadUserDocs();
+      const html = renderUserDocsIndex(all, { category: 'tutorials' });
+      expect(html).toContain('<h2>tutorials (');
+      // Other categories must not render headings when filtered out.
+      expect(html).not.toContain('<h2>how-to (');
+      expect(html).not.toContain('<h2>reference (');
+      expect(html).not.toContain('<h2>explanation (');
+    });
+
+    it('renders the empty state when filter matches no docs', async () => {
+      const all = await loadUserDocs();
+      const html = renderUserDocsIndex(all, { category: 'does-not-exist' });
+      expect(html).toContain('class="empty"');
+      expect(html).toContain('No matching docs.');
+    });
+
+    it('keeps the selected option marked as selected in the dropdown', async () => {
+      const all = await loadUserDocs();
+      const html = renderUserDocsIndex(all, { category: 'how-to' });
+      expect(html).toContain('value="how-to" selected');
+    });
   });
 
-  it('excludes the reference/api/ typedoc subtree', async () => {
-    const docs = await loadUserDocs();
-    const reference = docs.find((c) => c.category === 'reference')!;
-    const slugs = reference.docs.map((d) => d.slug);
-    expect(slugs).not.toContain('api');
-    expect(slugs.every((s) => !s.startsWith('api/'))).toBe(true);
+  describe('loadUserDoc', () => {
+    it('returns null for unknown category', async () => {
+      expect(await loadUserDoc('not-a-category', 'whatever')).toBeNull();
+    });
+
+    it('returns null for unknown slug within a known category', async () => {
+      expect(await loadUserDoc('tutorials', 'not-a-doc')).toBeNull();
+    });
+
+    it('returns rendered HTML body for a known doc', async () => {
+      const doc = await loadUserDoc('tutorials', 'your-first-shape');
+      expect(doc).not.toBeNull();
+      expect(doc!.bodyHtml).toContain('<h1');
+    });
+
+    it('rewrites internal cross-corpus links to /features routes', async () => {
+      // your-first-shape.md links to ../../features/<slug>.md repeatedly
+      const doc = await loadUserDoc('tutorials', 'your-first-shape');
+      expect(doc!.bodyHtml).toMatch(/href="\/features\/[a-z0-9-]+/);
+    });
   });
 
-  it('exposes title from each doc’s first H1', async () => {
-    const docs = await loadUserDocs();
-    const tutorials = docs.find((c) => c.category === 'tutorials')!;
-    const yfs = tutorials.docs.find((d) => d.slug === 'your-first-shape');
-    expect(yfs?.title).toBe('Your First Shape');
-  });
-});
+  describe('renderUserDoc', () => {
+    it('wraps body in .body class for markdown styling', async () => {
+      const doc = await loadUserDoc('tutorials', 'your-first-shape');
+      expect(renderUserDoc('tutorials', doc!)).toContain('class="body"');
+    });
 
-describe('renderUserDocsIndex', () => {
-  it('renders all categories as grouped sections with per-category counts', async () => {
-    const all = await loadUserDocs();
-    const html = renderUserDocsIndex(all, { category: '' });
-    expect(html).toContain('<h1>Docs</h1>');
-    // Filter form is rendered.
-    expect(html).toContain('<form class="filters"');
-    expect(html).toContain('name="category"');
-    // Each non-empty category becomes a `<h2>Category (N)</h2>` section.
-    for (const c of all.filter((cat) => cat.docs.length > 0)) {
-      expect(html).toContain(`<h2>${c.category} (${c.docs.length})</h2>`);
-    }
-    // Doc links go directly to /docs/<category>/<slug>, not the old per-category index.
-    const tutorials = all.find((c) => c.category === 'tutorials');
-    if (tutorials && tutorials.docs.length > 0) {
-      const slug = tutorials.docs[0].slug;
-      expect(html).toContain(`href="/docs/tutorials/${slug}"`);
-    }
-  });
-
-  it('filters to the selected category when filters.category is set', async () => {
-    const all = await loadUserDocs();
-    const html = renderUserDocsIndex(all, { category: 'tutorials' });
-    expect(html).toContain('<h2>tutorials (');
-    // Other categories must not render headings when filtered out.
-    expect(html).not.toContain('<h2>how-to (');
-    expect(html).not.toContain('<h2>reference (');
-    expect(html).not.toContain('<h2>explanation (');
-  });
-
-  it('renders the empty state when filter matches no docs', async () => {
-    const all = await loadUserDocs();
-    const html = renderUserDocsIndex(all, { category: 'does-not-exist' });
-    expect(html).toContain('class="empty"');
-    expect(html).toContain('No matching docs.');
-  });
-
-  it('keeps the selected option marked as selected in the dropdown', async () => {
-    const all = await loadUserDocs();
-    const html = renderUserDocsIndex(all, { category: 'how-to' });
-    expect(html).toContain('value="how-to" selected');
-  });
-});
-
-describe('loadUserDoc', () => {
-  it('returns null for unknown category', async () => {
-    expect(await loadUserDoc('not-a-category', 'whatever')).toBeNull();
-  });
-
-  it('returns null for unknown slug within a known category', async () => {
-    expect(await loadUserDoc('tutorials', 'not-a-doc')).toBeNull();
-  });
-
-  it('returns rendered HTML body for a known doc', async () => {
-    const doc = await loadUserDoc('tutorials', 'your-first-shape');
-    expect(doc).not.toBeNull();
-    expect(doc!.bodyHtml).toContain('<h1');
-  });
-
-  it('rewrites internal cross-corpus links to /features routes', async () => {
-    // your-first-shape.md links to ../../features/<slug>.md repeatedly
-    const doc = await loadUserDoc('tutorials', 'your-first-shape');
-    expect(doc!.bodyHtml).toMatch(/href="\/features\/[a-z0-9-]+/);
-  });
-});
-
-describe('renderUserDoc', () => {
-  it('wraps body in .body class for markdown styling', async () => {
-    const doc = await loadUserDoc('tutorials', 'your-first-shape');
-    expect(renderUserDoc('tutorials', doc!)).toContain('class="body"');
-  });
-
-  it('shows back link to the docs index', async () => {
-    const doc = await loadUserDoc('tutorials', 'your-first-shape');
-    const html = renderUserDoc('tutorials', doc!);
-    expect(html).toContain('href="/docs"');
+    it('shows back link to the docs index', async () => {
+      const doc = await loadUserDoc('tutorials', 'your-first-shape');
+      const html = renderUserDoc('tutorials', doc!);
+      expect(html).toContain('href="/docs"');
+    });
   });
 });
 
