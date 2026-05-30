@@ -13,27 +13,23 @@ import {
 // @tests: feature-md-links-overhaul
 describe(validateFiles, () => {
   it('returns no errors for a valid fixture', async () => {
-    const errors = await validateFiles(['packages/noldor/src/fixtures/feature-valid.md']);
+    const errors = await validateFiles(['src/fixtures/feature-valid.md']);
     expect(errors).toStrictEqual([]);
   });
 
   it('accepts done without introduced (release script will fill it)', async () => {
-    const errors = await validateFiles([
-      'packages/noldor/src/fixtures/feature-invalid-no-introduced.md',
-    ]);
+    const errors = await validateFiles(['src/fixtures/feature-invalid-no-introduced.md']);
     expect(errors).toStrictEqual([]);
   });
 
   it('flags invalid phase value', async () => {
-    const errors = await validateFiles([
-      'packages/noldor/src/fixtures/feature-invalid-bad-phase.md',
-    ]);
+    const errors = await validateFiles(['src/fixtures/feature-invalid-bad-phase.md']);
     expect(errors).toHaveLength(1);
     expect(errors[0].issues.some((m) => m.includes('phase'))).toBeTruthy();
   });
 
   it('flags slug mismatch with filename', async () => {
-    const errors = await validateFiles(['packages/noldor/src/fixtures/feature-valid.md']);
+    const errors = await validateFiles(['src/fixtures/feature-valid.md']);
     // Valid fixture has name "Sample Feature"; slug derived from filename
     // "feature-valid" doesn't match expected slugification "sample-feature".
     // Validator should treat filename as canonical and NOT require slug field
@@ -45,62 +41,52 @@ describe(validateFiles, () => {
 
 describe(validateTaggedSlugs, () => {
   it('flags @tests: tags referencing unknown feature slugs', async () => {
-    const errors = await validateTaggedSlugs([
-      'packages/noldor/src/fixtures/unknown-slug-in-test.txt',
-    ]);
+    const errors = await validateTaggedSlugs(['src/fixtures/unknown-slug-in-test.txt']);
     expect(errors).toHaveLength(1);
     expect(errors[0].issues.some((m) => m.includes('not-a-real-feature-slug'))).toBeTruthy();
   });
 
   it('returns no errors for a file with no @tests tag', async () => {
-    const errors = await validateTaggedSlugs(['packages/noldor/src/fixtures/feature-valid.md']);
+    const errors = await validateTaggedSlugs(['src/fixtures/feature-valid.md']);
     expect(errors).toStrictEqual([]);
   });
 });
 
 describe(validateTestTagPresence, () => {
   it('flags test files missing the @tests tag', async () => {
-    const errors = await validateTestTagPresence([
-      'packages/noldor/src/fixtures/test-without-tag.txt',
-    ]);
+    const errors = await validateTestTagPresence(['src/fixtures/test-without-tag.txt']);
     expect(errors).toHaveLength(1);
     expect(errors[0].issues[0]).toContain('@tests:');
   });
 
   it('returns no errors for a tagged test file', async () => {
-    const errors = await validateTestTagPresence([
-      'packages/noldor/src/fixtures/test-with-tag.txt',
-    ]);
+    const errors = await validateTestTagPresence(['src/fixtures/test-with-tag.txt']);
     expect(errors).toStrictEqual([]);
   });
 });
 
 describe(validateDocTagPresence, () => {
   it('flags docs missing the @feature tag', async () => {
-    const errors = await validateDocTagPresence([
-      'packages/noldor/src/fixtures/doc-without-tag.md',
-    ]);
+    const errors = await validateDocTagPresence(['src/fixtures/doc-without-tag.md']);
     expect(errors).toHaveLength(1);
     expect(errors[0].issues[0]).toContain('@feature:');
   });
 
   it('returns no errors for a tagged doc', async () => {
-    const errors = await validateDocTagPresence(['packages/noldor/src/fixtures/doc-with-tag.md']);
+    const errors = await validateDocTagPresence(['src/fixtures/doc-with-tag.md']);
     expect(errors).toStrictEqual([]);
   });
 });
 
 describe(validateDocFeatureSlugs, () => {
   it('flags @feature: tags referencing unknown feature slugs', async () => {
-    const errors = await validateDocFeatureSlugs([
-      'packages/noldor/src/fixtures/unknown-feature-slug.md',
-    ]);
+    const errors = await validateDocFeatureSlugs(['src/fixtures/unknown-feature-slug.md']);
     expect(errors).toHaveLength(1);
     expect(errors[0].issues.some((m) => m.includes('not-a-real-feature-slug'))).toBeTruthy();
   });
 
   it('returns no errors for a doc with no @feature: tag', async () => {
-    const errors = await validateDocFeatureSlugs(['packages/noldor/src/fixtures/feature-valid.md']);
+    const errors = await validateDocFeatureSlugs(['src/fixtures/feature-valid.md']);
     expect(errors).toStrictEqual([]);
   });
 });
@@ -118,7 +104,7 @@ describe(extractCodePackages, () => {
   it('ignores apps/, scripts/, and other path roots', () => {
     const result = extractCodePackages([
       'apps/web/src/foo.ts',
-      'packages/noldor/src/dashboard/views.ts',
+      'src/dashboard/views.ts',
       'docs/foo.md',
     ]);
     expect(result.size).toBe(0);
@@ -126,19 +112,17 @@ describe(extractCodePackages, () => {
 });
 
 describe(normalizeDeclaredPackage, () => {
-  it('strips @charuy/, packages/, and apps/ prefixes', () => {
-    expect(normalizeDeclaredPackage('@charuy/format')).toBe('format');
+  it('strips the package prefix, packages/, and the app-path prefix', () => {
+    expect(normalizeDeclaredPackage('@noldor/format')).toBe('format');
     expect(normalizeDeclaredPackage('packages/format')).toBe('format');
-    expect(normalizeDeclaredPackage('apps/web')).toBe('web');
+    expect(normalizeDeclaredPackage('src/web')).toBe('web');
     expect(normalizeDeclaredPackage('format')).toBe('format');
   });
 });
 
 describe(validatePackagesField, () => {
   it('flags FDs whose links.code references packages missing from packages frontmatter', async () => {
-    const errors = await validatePackagesField([
-      'packages/noldor/src/fixtures/feature-packages-mismatch.md',
-    ]);
+    const errors = await validatePackagesField(['src/fixtures/feature-packages-mismatch.md']);
     expect(errors).toHaveLength(1);
     const issues = errors[0].issues.join(' | ');
     expect(issues).toContain('sample-scenes');
@@ -146,7 +130,7 @@ describe(validatePackagesField, () => {
   });
 
   it('returns no errors for a valid fixture', async () => {
-    const errors = await validatePackagesField(['packages/noldor/src/fixtures/feature-valid.md']);
+    const errors = await validatePackagesField(['src/fixtures/feature-valid.md']);
     expect(errors).toStrictEqual([]);
   });
 });

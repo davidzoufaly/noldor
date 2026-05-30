@@ -26,12 +26,12 @@ describe(slugifyHeading, () => {
 
 describe(checkLinks, () => {
   it('returns no errors for the good fixture', async () => {
-    const errors = await checkLinks(['packages/noldor/src/fixtures/docs-check/good.md']);
+    const errors = await checkLinks(['src/fixtures/docs-check/good.md']);
     expect(errors).toStrictEqual([]);
   });
 
   it('flags missing files and missing anchors', async () => {
-    const errors = await checkLinks(['packages/noldor/src/fixtures/docs-check/broken.md']);
+    const errors = await checkLinks(['src/fixtures/docs-check/broken.md']);
     expect(errors).toHaveLength(1);
     expect(errors[0].file).toContain('broken.md');
     expect(errors[0].issues.some((i) => i.includes('does-not-exist.md'))).toBeTruthy();
