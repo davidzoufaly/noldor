@@ -1,0 +1,52 @@
+{
+  "eval_id": 0,
+  "eval_name": "rename-formatZodErrors",
+  "run_type": "with_skill",
+  "expectations": [
+    {
+      "text": "No remaining references to formatZodErrors in the codebase (excluding report/docs)",
+      "passed": true,
+      "evidence": "Agent used replace_all on validate.ts (3 occurrences) and also found+updated 3 occurrences in plan document. Grep confirmed zero remaining references."
+    },
+    {
+      "text": "pnpm typecheck passes after the refactoring",
+      "passed": true,
+      "evidence": "Report shows TypeScript 7/7 pass before and after."
+    },
+    {
+      "text": "pnpm test passes after the refactoring",
+      "passed": true,
+      "evidence": "Report shows 8/8 test tasks pass before and after."
+    },
+    {
+      "text": "Report contains a table listing changed files with change type and line counts",
+      "passed": true,
+      "evidence": "Changed Files table present with File, Change Type, Lines +/- columns. Lists validate.ts and plan doc."
+    },
+    {
+      "text": "Report contains diff blocks showing before/after for each changed file",
+      "passed": true,
+      "evidence": "Two diff blocks present — one for validate.ts, one for plan doc. Show exact line changes."
+    },
+    {
+      "text": "Each changed file has a specific rationale explaining why it changed",
+      "passed": true,
+      "evidence": "validate.ts rationale: 'name leaked an implementation detail (Zod)'. Plan doc rationale: 'Updated to stay consistent with the source code'."
+    },
+    {
+      "text": "Report contains before/after verification table showing typecheck and test results",
+      "passed": true,
+      "evidence": "Verification table with Before/After/Status columns covering TypeScript and all test suites."
+    },
+    {
+      "text": "Report lists which consumers import the changed export",
+      "passed": true,
+      "evidence": "Import Impact table present. Correctly identifies function as module-private with no external consumers."
+    },
+    {
+      "text": "Report includes a draft conventional commit message",
+      "passed": true,
+      "evidence": "Suggested Commit section with 'refactor(format): rename formatZodErrors to formatValidationErrors' and body explaining why."
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+# Noldor framework hook block. The consumer's root `lefthook.yml` extends this
+# file via `extends: ./lefthook/noldor.yml` and may append project-specific
+# hooks. All `run:` lines invoke the `pnpm noldor <group> <subcommand>` CLI
+# surface (see `packages/noldor/src/cli/manifest.ts`).
+
+pre-commit:
+  jobs:
+    - name: sync
+      group:
+        parallel: true
+        jobs:
+          - name: test-links
+            glob: '**/*.test.ts'
+            run: pnpm noldor sync test-links
+            stage_fixed: true
+          - name: doc-links
+            glob: 'docs/**/*.md'
+            run: pnpm noldor sync doc-links
+            stage_fixed: true
+          - name: spec-links
+            glob: 'docs/superpowers/specs/**/*.md'
+            run: pnpm noldor sync spec-links
+            stage_fixed: true
+    - name: fd-resources
+      glob: 'docs/features/**/*.md'
+      run: pnpm noldor sync fd-resources && pnpm fmt
+      stage_fixed: true
+    - name: code-links-auto-high
+      glob: 'docs/features/**/*.md'
+      run: pnpm noldor features fill-links-code-gaps --auto-high && pnpm noldor sync fd-resources && pnpm fmt
+      stage_fixed: true
+    - name: noldor-pre-commit
+      run: pnpm noldor hooks pre-commit
+    - name: validate
+      group:
+        parallel: true
+        jobs:
+          - name: features
+            run: pnpm noldor validate features
+          - name: invariants
+            run: pnpm noldor checks invariants
+          - name: lint
+            glob: '*.{ts,tsx,js,jsx,mjs,cjs}'
+            run: pnpm lint
+          - name: fmt
+            glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml}'
+            run: pnpm --silent fmt:check {staged_files}
+          - name: shared-files
+            run: pnpm noldor checks shared-files
+          - name: noldor
+            glob: 'docs/noldor/**/*.md'
+            run: pnpm noldor validate noldor
+          - name: skill-catalog
+            glob: '{.claude/skills/**/*,docs/noldor/skill-catalog.md}'
+            run: pnpm noldor validate skill-catalog
+          - name: triage
+            glob: 'docs/{roadmap,backlog}.md'
+            run: pnpm noldor triage validate
+          - name: milestones
+            glob: '{docs/milestones/**/*.md,docs/vision.md}'
+            run: pnpm noldor milestones validate
+
+prepare-commit-msg:
+  jobs:
+    - name: noldor-inject-trailers
+      run: pnpm noldor hooks inject-trailers {1}
+
+commit-msg:
+  jobs:
+    - name: noldor-scope
+      run: pnpm noldor validate noldor-scope {1}
+    - name: feature-slug-scope
+      run: pnpm noldor validate feature-slug-scope {1}
+    - name: noldor-validate-trailer
+      run: pnpm noldor hooks validate-trailer {1}
+
+pre-push:
+  jobs:
+    - name: noldor-enforce-review-receipt
+      run: pnpm noldor hooks enforce-review-receipt
+    - name: noldor-pre-push
+      use_stdin: true
+      run: pnpm noldor hooks pre-push {1}
