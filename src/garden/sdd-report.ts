@@ -10,6 +10,8 @@ import { parseBacklog } from '../utils/parse-blocks.js';
 import { extractUntriagedBullets } from '../triage/triage-list-untriaged.js';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
+
+import type { ConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
 import { commitOnlyTouchesReport } from './detectors/override-audit.js';
@@ -19,6 +21,8 @@ import {
   getImportOwnersForTest,
   loadFreshGraphOrWarn,
 } from './graph-fd-lookup.js';
+
+import type { Dirent } from 'node:fs';
 
 import type { GraphifyGraph } from './graph-fd-lookup.js';
 
@@ -556,8 +560,12 @@ export function detectUntaggedDocs(inputs: { path: string; content: string }[]):
  * @param readmeContent - Raw `README.md` body to scan
  * @returns One gap per missing row + one per stale row
  */
-export function detectReadmePackageDrift(actualPackages: string[], readmeContent: string): Gap[] {
-  const { packagePrefix, deprecatedPackages } = loadConsumerConfig();
+export function detectReadmePackageDrift(
+  actualPackages: string[],
+  readmeContent: string,
+  config: Pick<ConsumerConfig, 'packagePrefix' | 'deprecatedPackages'> = loadConsumerConfig(),
+): Gap[] {
+  const { packagePrefix, deprecatedPackages } = config;
   const escapedPrefix = packagePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const tableRe = new RegExp(`\\|\\s*\`(${escapedPrefix}[a-z0-9-]+)\`\\s*\\|`, 'gi');
   const listed = new Set<string>();
@@ -607,7 +615,15 @@ const EXCLUDED_WALK_DIRS = new Set([
  * @returns Resolves once the walk completes; results are appended to `out`.
  */
 export async function walkRepo(dir: string, out: string[]): Promise<void> {
-  const entries = await readdir(dir, { withFileTypes: true });
+  let entries: Dirent[];
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    // A missing top-level scan dir (e.g. no `packages/`/`apps/` in a
+    // single-package consumer) contributes no paths rather than throwing.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
   for (const entry of entries) {
     const { name } = entry;
     if (name.startsWith('.') && name !== '.github') {

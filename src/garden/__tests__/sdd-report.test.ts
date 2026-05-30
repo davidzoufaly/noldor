@@ -476,7 +476,7 @@ describe(detectUntaggedTests, () => {
     const gaps = detectUntaggedTests([
       {
         content: 'import x;\n',
-        path: 'packages/noldor/src/docs/__tests__/docs-api.test.ts',
+        path: 'scripts/migration/__tests__/classify.test.ts',
       },
     ]);
     expect(gaps).toStrictEqual([]);
@@ -612,6 +612,8 @@ describe('grandfathering of pre-MVP features', () => {
 });
 
 describe(detectReadmePackageDrift, () => {
+  // Hermetic config so the test does not depend on the live consumer config.
+  const cfg = { packagePrefix: '@charuy/', deprecatedPackages: ['@charuy/agent-api'] };
   const readmeWithFour = `## Architecture
 ### Packages
 
@@ -630,19 +632,19 @@ describe(detectReadmePackageDrift, () => {
       '@charuy/viewport',
       '@charuy/test-fixtures',
     ];
-    const gaps = detectReadmePackageDrift(actual, readmeWithFour);
+    const gaps = detectReadmePackageDrift(actual, readmeWithFour, cfg);
     expect(gaps.map((g) => g.itemId)).toStrictEqual(['@charuy/test-fixtures']);
   });
 
   it('flags README rows whose package directory does not exist', () => {
     const actual = ['@charuy/format', '@charuy/engine'];
-    const gaps = detectReadmePackageDrift(actual, readmeWithFour);
+    const gaps = detectReadmePackageDrift(actual, readmeWithFour, cfg);
     expect(gaps.map((g) => g.itemId)).toStrictEqual(['@charuy/viewport']);
   });
 
   it('treats @charuy/agent-api as allowed-planned even if absent from disk', () => {
     const actual = ['@charuy/format', '@charuy/engine', '@charuy/viewport'];
-    const gaps = detectReadmePackageDrift(actual, readmeWithFour);
+    const gaps = detectReadmePackageDrift(actual, readmeWithFour, cfg);
     expect(gaps).toStrictEqual([]);
   });
 
@@ -654,14 +656,14 @@ describe(detectReadmePackageDrift, () => {
 | \`@charuy/format\` | x | Done |
 | \`@charuy/engine\` | x | Done |
 `;
-    const gaps = detectReadmePackageDrift(['@charuy/format', '@charuy/engine'], readme);
+    const gaps = detectReadmePackageDrift(['@charuy/format', '@charuy/engine'], readme, cfg);
     expect(gaps).toStrictEqual([]);
   });
 });
 
 describe('sdd:report --json', () => {
   it('emits a JSON array of {category, itemId, message} on stdout', () => {
-    const out = execSync('tsx packages/noldor/src/garden/sdd-report.ts --json', {
+    const out = execSync('tsx src/garden/sdd-report.ts --json', {
       cwd: process.cwd(),
       encoding: 'utf8',
     });
@@ -697,7 +699,7 @@ describe('sdd:report markdown output', () => {
   });
 
   it('writes oxfmt-compliant markdown (no extra fmt pass needed)', () => {
-    execSync(`tsx packages/noldor/src/garden/sdd-report.ts --out ${outPath}`, {
+    execSync(`tsx src/garden/sdd-report.ts --out ${outPath}`, {
       cwd: process.cwd(),
       encoding: 'utf8',
     });
@@ -709,7 +711,7 @@ describe('sdd:report markdown output', () => {
   });
 
   it('omits Gate compliance section by default (review-skip counter only shipped at release)', () => {
-    execSync(`tsx packages/noldor/src/garden/sdd-report.ts --out ${outPath}`, {
+    execSync(`tsx src/garden/sdd-report.ts --out ${outPath}`, {
       cwd: process.cwd(),
       encoding: 'utf8',
     });
@@ -720,7 +722,7 @@ describe('sdd:report markdown output', () => {
   });
 
   it('includes Gate compliance section when --release flag is passed', () => {
-    execSync(`tsx packages/noldor/src/garden/sdd-report.ts --release --out ${outPath}`, {
+    execSync(`tsx src/garden/sdd-report.ts --release --out ${outPath}`, {
       cwd: process.cwd(),
       encoding: 'utf8',
     });

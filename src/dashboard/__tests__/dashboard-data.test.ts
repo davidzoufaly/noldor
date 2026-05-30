@@ -110,11 +110,11 @@ describe('parseRoadmap', () => {
     }
   });
 
-  it('captures magic-link entry by name', async () => {
+  it('captures entries with non-empty name and area fields', async () => {
     const result = await parseRoadmap();
-    const magicLink = result.find((e) => e.name === 'Email Magic-Link Auth');
-    expect(magicLink).toBeDefined();
-    expect(magicLink?.area).toBe('web');
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.every((e) => typeof e.name === 'string' && e.name.length > 0)).toBe(true);
+    expect(result.every((e) => typeof e.area === 'string' && e.area.length > 0)).toBe(true);
   });
 
   it('captures type field on at least one entry', async () => {
@@ -188,10 +188,10 @@ describe('loadFeatures', () => {
 
 describe('loadFeatureDetail', () => {
   it('returns frontmatter + bodyMarkdown + bodyHtml + changelog for a known feature', async () => {
-    const detail = await loadFeatureDetail('boolean-operations');
+    const detail = await loadFeatureDetail('framework-doc-extraction');
     expect(detail).not.toBeNull();
     if (detail === null) return;
-    expect(detail.slug).toBe('boolean-operations');
+    expect(detail.slug).toBe('framework-doc-extraction');
     expect(detail.bodyMarkdown.length).toBeGreaterThan(0);
     expect(detail.bodyHtml.length).toBeGreaterThan(0);
     expect(detail.bodyHtml).toContain('<');

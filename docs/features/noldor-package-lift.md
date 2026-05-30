@@ -5,8 +5,8 @@ deps: []
 links:
   code: []
   tests:
-    - packages/noldor/src/cli/__tests__/cli.test.ts
-    - packages/noldor/src/templates/__tests__/templates.test.ts
+    - src/cli/__tests__/cli.test.ts
+    - src/templates/__tests__/templates.test.ts
   spec: docs/superpowers/specs/2026-05-26-noldor-package-lift-design.md
   plan: docs/superpowers/plans/2026-05-26-noldor-package-lift.md
 name: Noldor Package Lift
@@ -16,7 +16,6 @@ packages:
 phase: done
 noldor-tier: full
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->

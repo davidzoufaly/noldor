@@ -11,10 +11,10 @@ links:
     - scripts/dashboard/views.ts
     - scripts/lib/area-category.ts
   tests:
-    - packages/noldor/src/dashboard/__tests__/dashboard-data.test.ts
-    - packages/noldor/src/dashboard/__tests__/dashboard-views.test.ts
-    - packages/noldor/src/dashboard/__tests__/edge-scroll.test.ts
-    - packages/noldor/src/lib/__tests__/area-category.test.ts
+    - src/dashboard/__tests__/dashboard-data.test.ts
+    - src/dashboard/__tests__/dashboard-views.test.ts
+    - src/dashboard/__tests__/edge-scroll.test.ts
+    - src/lib/__tests__/area-category.test.ts
 name: Dashboard Roadmap/Backlog View Polish
 packages:
   - scripts
@@ -22,7 +22,6 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.1
 ---
-
 ## Summary
 
 Bundle of five polish items on the dashboard `/roadmap` and `/backlog` surfaces — surfacing size + impact columns, surfacing category on backlog, auto-scrolling during drag-and-drop, truncating long descriptions with click-to-expand, and unifying filter apply-on-change vs apply-button behavior.

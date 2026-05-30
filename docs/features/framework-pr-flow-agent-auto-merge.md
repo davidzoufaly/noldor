@@ -18,14 +18,12 @@ links:
   spec: >-
     docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md
   tests:
-    - packages/noldor/src/core/__tests__/phase-revert.test.ts
-    - >-
-      packages/noldor/src/release/__tests__/release-fd-changelog-in-progress.test.ts
-    - >-
-      packages/noldor/src/release/__tests__/release-fd-changelog-initial-release.test.ts
-    - packages/noldor/src/release/__tests__/release-find-first-pr-commit.test.ts
-    - packages/noldor/src/release/__tests__/release-markers-auto-restore.test.ts
-    - packages/noldor/src/release/__tests__/release-pr-bullets.test.ts
+    - src/core/__tests__/phase-revert.test.ts
+    - src/release/__tests__/release-fd-changelog-in-progress.test.ts
+    - src/release/__tests__/release-fd-changelog-initial-release.test.ts
+    - src/release/__tests__/release-find-first-pr-commit.test.ts
+    - src/release/__tests__/release-markers-auto-restore.test.ts
+    - src/release/__tests__/release-pr-bullets.test.ts
 name: Framework PR Flow + Agent Auto-Merge
 packages:
   - scripts
@@ -33,7 +31,6 @@ phase: done
 noldor-tier: full
 introduced: 0.5.1
 ---
-
 ## Summary
 
 Add first-class PR support to Noldor: feature work on a worktree branch lands via PR rather than direct merge to main. Agent-side question: can the controlling agent open the PR, run the CR pipeline (Claude + Codex), and auto-merge once green? Today merge is a manual operator step. Encode the GitHub PR flow in the framework (separate from `/gate`'s commit gating) and explore agent permissions for `gh pr create` + `gh pr merge --auto`. Pairs with the existing CR pipeline — review gate becomes the merge gate.

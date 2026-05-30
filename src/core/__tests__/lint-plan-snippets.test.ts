@@ -169,13 +169,7 @@ describe('CLI', () => {
     try {
       const stdout = execFileSync(
         'pnpm',
-        [
-          'exec',
-          'tsx',
-          join(rootDir, 'packages/noldor/src/core/lint-plan-snippets.ts'),
-          artifact,
-          ...extraArgs,
-        ],
+        ['exec', 'tsx', join(rootDir, 'src/core/lint-plan-snippets.ts'), artifact, ...extraArgs],
         {
           encoding: 'utf8',
           cwd: rootDir,

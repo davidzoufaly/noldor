@@ -43,13 +43,23 @@ export function parseSubagentMarkdown(md: string): ParsedMarkdown | null {
   if (!sMatch || !iMatch || !aMatch) return null;
 
   const bucket = (label: string): string[] => {
-    const re = new RegExp(`^${label}:\\s*\\n?((?:\\s*-\\s+.+\\n?)*)`, 'im');
+    // Two shapes seen in real subagent output: a same-line item
+    // (`Critical: - foo`, whose bullet dash normalization has already stripped
+    // into the value) and/or `- foo` bullets on the following lines.
+    const re = new RegExp(`^${label}:[^\\S\\n]*(.*)\\n?((?:\\s*-\\s+.+\\n?)*)`, 'im');
     const m = iMatch[1].match(re);
-    if (!m || !m[1]) return [];
-    return m[1]
-      .split(/\n/)
-      .map((l) => l.replace(/^\s*-\s+/, '').trim())
-      .filter(Boolean);
+    if (!m) return [];
+    const items: string[] = [];
+    if (m[1]?.trim()) items.push(m[1].trim());
+    if (m[2]) {
+      items.push(
+        ...m[2]
+          .split(/\n/)
+          .map((l) => l.replace(/^\s*-\s+/, '').trim())
+          .filter(Boolean),
+      );
+    }
+    return items;
   };
 
   return {

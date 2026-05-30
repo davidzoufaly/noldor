@@ -13,13 +13,12 @@ links:
     - scripts/dashboard/server.ts
     - scripts/dashboard/views.ts
   tests:
-    - packages/noldor/src/dashboard/__tests__/dashboard-data.test.ts
-    - packages/noldor/src/dashboard/__tests__/dashboard-server.test.ts
-    - packages/noldor/src/dashboard/__tests__/dashboard-views.test.ts
+    - src/dashboard/__tests__/dashboard-data.test.ts
+    - src/dashboard/__tests__/dashboard-server.test.ts
+    - src/dashboard/__tests__/dashboard-views.test.ts
 introduced: 0.3.0
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 For each `phase: in-progress` feature, compute days since the feature MD was first committed via `git log --diff-filter=A --format=%ct -- docs/features/<slug>.md`. Bucket each row as `fresh` (<7d), `aging` (7-13d), or `stale` (≥14d). Catches stalled work — `phase: in-progress` in FD frontmatter is the canonical signal (the roadmap carries no in-progress tracker; the `## Now / ## Next / ## Later` section split was retired 2026-05-13 in favor of a flat priority list).
