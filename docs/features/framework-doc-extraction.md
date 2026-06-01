@@ -3,7 +3,8 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  spec: docs/superpowers/specs/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md
+  spec: >-
+    docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md
   code: []
   tests: []
 name: Framework Doc Extraction
@@ -44,3 +45,11 @@ As a Noldor framework maintainer, I want framework artifacts (FDs, roadmap, back
 <!-- @prs-since-last-release: framework-doc-extraction -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md`](../../docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md)
+
+<!-- /generated: resources -->

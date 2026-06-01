@@ -43,3 +43,16 @@ _none_ — invoked as a CLI build step.
 ## Changelog
 
 <!-- generated: resources -->
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`src/docs/docs-howto.ts`](../../src/docs/docs-howto.ts)
+  - [`src/docs/howto-schema.ts`](../../src/docs/howto-schema.ts)
+- **Tests:**
+  - [`src/docs/__tests__/docs-howto.test.ts`](../../src/docs/__tests__/docs-howto.test.ts)
+  - [`src/docs/__tests__/howto-schema.test.ts`](../../src/docs/__tests__/howto-schema.test.ts)
+
+<!-- /generated: resources -->

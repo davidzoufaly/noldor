@@ -28,6 +28,7 @@ introduced: 0.1.0
 updated: 0.3.0
 noldor-tier: full
 ---
+
 ## Summary
 
 Four commit-blocking architecture invariants enforced at pre-commit, with advisory mirror in `/garden`:
@@ -76,12 +77,12 @@ Opting out of `keyboard-binding` for a passive UI feature: add `<!-- keyboard: n
   - [`scripts/invariants/rule-conflicts.ts`](../../scripts/invariants/rule-conflicts.ts)
   - [`scripts/invariants/types.ts`](../../scripts/invariants/types.ts)
 - **Tests:**
-  - [`scripts/checks/__tests__/check-invariants.test.ts`](../../scripts/checks/__tests__/check-invariants.test.ts)
-  - [`scripts/garden/__tests__/garden-detect.test.ts`](../../scripts/garden/__tests__/garden-detect.test.ts)
-  - [`scripts/checks/__tests__/invariants-boundaries.test.ts`](../../scripts/checks/__tests__/invariants-boundaries.test.ts)
-  - [`scripts/checks/__tests__/invariants-keyboard-binding.test.ts`](../../scripts/checks/__tests__/invariants-keyboard-binding.test.ts)
-  - [`scripts/checks/__tests__/invariants-public-api-tsdoc.test.ts`](../../scripts/checks/__tests__/invariants-public-api-tsdoc.test.ts)
-  - [`scripts/checks/__tests__/invariants-rule-conflicts.test.ts`](../../scripts/checks/__tests__/invariants-rule-conflicts.test.ts)
+  - [`src/checks/__tests__/check-invariants.test.ts`](../../src/checks/__tests__/check-invariants.test.ts)
+  - [`src/checks/__tests__/invariants-boundaries.test.ts`](../../src/checks/__tests__/invariants-boundaries.test.ts)
+  - [`src/checks/__tests__/invariants-keyboard-binding.test.ts`](../../src/checks/__tests__/invariants-keyboard-binding.test.ts)
+  - [`src/checks/__tests__/invariants-public-api-tsdoc.test.ts`](../../src/checks/__tests__/invariants-public-api-tsdoc.test.ts)
+  - [`src/checks/__tests__/invariants-rule-conflicts.test.ts`](../../src/checks/__tests__/invariants-rule-conflicts.test.ts)
+  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
 
 <!-- /generated: resources -->
 
