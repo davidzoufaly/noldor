@@ -43,6 +43,14 @@ export const MANIFEST: Record<string, Group> = {
       validate: { src: 'triage/validate-triage.ts', desc: 'Validate triage docs' },
     },
   },
+  rules: {
+    desc: 'Engineering rule store: resolve / list / validate',
+    subs: {
+      resolve: { src: 'rules/cli-resolve.ts', desc: 'Resolve rules for --file / --stage (JSON)' },
+      list: { src: 'rules/cli-list.ts', desc: 'List all rules in the store' },
+      validate: { src: 'rules/cli-validate.ts', desc: 'Validate the rule store' },
+    },
+  },
   features: {
     desc: 'Feature MD validators + migrations',
     subs: {
