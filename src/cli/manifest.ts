@@ -138,6 +138,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'checks/check-feature-slug-scope.ts',
         desc: 'Validate commit scope vs feature slugs',
       },
+      'template-sync': {
+        src: 'checks/check-template-sync.ts',
+        desc: 'Block templated files drifting from their templates/ copy',
+      },
     },
   },
   graphify: {

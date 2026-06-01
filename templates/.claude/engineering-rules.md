@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Engineering Principles
 
-Non-negotiable principles for all code written in a Noldor repo. Aligned with `tsconfig.base.json` (ES2023, strict, ESM) and `.oxlintrc.json` (correctness/suspicious/perf as error). When in doubt, lean toward _less_ code.
+Non-negotiable principles for all code written in a Noldor repo. Aligned with `tsconfig.json` (ES2023, strict, ESM) and `.oxlintrc.json` (correctness/suspicious/perf as error). When in doubt, lean toward _less_ code.
 
 ## Commands (executable enforcement)
 
