@@ -5,6 +5,33 @@ import { parseTrailers } from '../../core/trailers.js';
 
 const SUBJECT_RE = /^(?:\w+)(?:\((?<scope>[^)]+)\))?(?:!)?:/;
 
+/**
+ * Return the set of root commit SHAs (commits with no parents). A repo created
+ * by squash-importing external history has a genesis commit that may carry
+ * legacy Noldor trailers whose scope predates the gate flow — it can never be
+ * retroactively given a conforming scope. Skip such commits in the scan.
+ *
+ * @param cwd - Repository root.
+ * @returns Set of root commit SHAs; empty on git failure.
+ */
+function rootCommitShas(cwd: string): Set<string> {
+  try {
+    const raw = execFileSync('git', ['rev-list', '--max-parents=0', 'HEAD'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return new Set(
+      raw
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
 export interface TrailerScopeMismatchFinding {
   readonly sha: string;
   readonly subject: string;
@@ -28,6 +55,7 @@ export async function detectTrailerScopeMismatch(opts: {
   const { cwd } = opts;
   const marker = readRolloutMarker(cwd);
   const range = marker ? [`${marker}..HEAD`] : ['HEAD'];
+  const rootShas = rootCommitShas(cwd);
 
   let raw: string;
   try {
@@ -52,6 +80,8 @@ export async function detectTrailerScopeMismatch(opts: {
     if (secondNull === -1) continue;
 
     const sha = trimmed.slice(0, firstNull).trim();
+    // Genesis import commits predate the gate flow — skip (see rootCommitShas).
+    if (rootShas.has(sha)) continue;
     const subject = trimmed.slice(firstNull + 1, secondNull).trim();
     const body = trimmed.slice(secondNull + 1);
 
