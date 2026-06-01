@@ -2,7 +2,7 @@
   "consumer": {
     "name": "noldor",
     "repoUrl": "https://github.com/davidzoufaly/noldor",
-    "lockstepPackages": ["noldor"],
+    "lockstepPackages": ["package.json"],
     "scanPaths": ["src"],
     "boundaries": [],
     "deprecatedPackages": [],
