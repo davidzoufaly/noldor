@@ -20,6 +20,7 @@ phase: done
 noldor-tier: full
 introduced: 0.6.0
 ---
+
 ## Summary
 
 Replaces the dead `## Commits` block in the feature MD scaffold with a live `## PRs` section. A new `<!-- @prs-since-last-release: <slug> -->` marker is expanded at dashboard render time into a bullet list of PRs that touched the FD since the last semver tag — hidden when zero PRs are in flight.
@@ -60,8 +61,8 @@ _none for v1_ — the marker is a doc-side convention expanded by the dashboard'
   - [`scripts/release/fd-prs-since-tag.ts`](../../scripts/release/fd-prs-since-tag.ts)
   - [`scripts/release/release-noise-types.ts`](../../scripts/release/release-noise-types.ts)
 - **Tests:**
-  - [`scripts/features/__tests__/migrate-fd-commits-to-prs.test.ts`](../../scripts/features/__tests__/migrate-fd-commits-to-prs.test.ts)
-  - [`scripts/release/__tests__/fd-prs-since-tag.test.ts`](../../scripts/release/__tests__/fd-prs-since-tag.test.ts)
-  - [`scripts/release/__tests__/release-noise-types.test.ts`](../../scripts/release/__tests__/release-noise-types.test.ts)
+  - [`src/features/__tests__/migrate-fd-commits-to-prs.test.ts`](../../src/features/__tests__/migrate-fd-commits-to-prs.test.ts)
+  - [`src/release/__tests__/fd-prs-since-tag.test.ts`](../../src/release/__tests__/fd-prs-since-tag.test.ts)
+  - [`src/release/__tests__/release-noise-types.test.ts`](../../src/release/__tests__/release-noise-types.test.ts)
 
 <!-- /generated: resources -->

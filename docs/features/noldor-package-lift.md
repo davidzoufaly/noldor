@@ -7,7 +7,7 @@ links:
   tests:
     - src/cli/__tests__/cli.test.ts
     - src/templates/__tests__/templates.test.ts
-  spec: docs/superpowers/specs/2026-05-26-noldor-package-lift-design.md
+  spec: docs/superpowers/specs/archive/2026-05-26-noldor-package-lift-design.md
   plan: docs/superpowers/plans/2026-05-26-noldor-package-lift.md
 name: Noldor Package Lift
 packages:
@@ -16,6 +16,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
@@ -49,3 +50,16 @@ the product, and any other repo can adopt it through `noldor init`.
 <!-- @prs-since-last-release: noldor-package-lift -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-05-26-noldor-package-lift-design.md`](../../docs/superpowers/specs/archive/2026-05-26-noldor-package-lift-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-05-26-noldor-package-lift.md`](../../docs/superpowers/plans/2026-05-26-noldor-package-lift.md)
+- **Tests:**
+  - [`src/cli/__tests__/cli.test.ts`](../../src/cli/__tests__/cli.test.ts)
+  - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
+
+<!-- /generated: resources -->

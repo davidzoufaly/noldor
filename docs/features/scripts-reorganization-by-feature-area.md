@@ -15,6 +15,7 @@ links:
 introduced: 0.3.0
 noldor-tier: full
 ---
+
 ## Summary
 
 Reorganized `scripts/` from a flat ~50-file directory into per-feature subdirectories: `release/`, `sync/`, `docs/`, `checks/`, `garden/`, `triage/`, `features/`, `worktrees/`, `graphify/`, `utils/`, `samples/` plus the existing `dashboard/`. Tests moved alongside source (`<group>/__tests__/`). The orchestrator `scripts/release.ts` became `scripts/release/index.ts`. All `package.json` script paths and FD MD `links.code` references updated. Lefthook config unchanged because it routes through `package.json` scripts.
@@ -37,7 +38,7 @@ The reorganization is structural — no end-user surface. Internal tools and pnp
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-05-06-scripts-reorganization-by-feature-area-design.md`](../../docs/superpowers/specs/archive/2026-05-06-scripts-reorganization-by-feature-area-design.md)
 - **Tests:**
-  - [`scripts/triage/__tests__/triage-list-untriaged.test.ts`](../../scripts/triage/__tests__/triage-list-untriaged.test.ts)
+  - [`src/triage/__tests__/triage-list-untriaged.test.ts`](../../src/triage/__tests__/triage-list-untriaged.test.ts)
 
 <!-- /generated: resources -->
 

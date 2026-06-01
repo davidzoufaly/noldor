@@ -26,6 +26,7 @@ links:
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 Per-feature changelog now splits across two surfaces with no duplication. The FD body's `## Changelog` section holds only `### <version> > #### Summary` blocks (polished prose, written once at release time and rarely re-edited). The dashboard FD detail page injects everything else live: an `### Unreleased > #### Commits` block at the top, plus a `#### Commits` subsection under each released version, all sourced from a scope-filtered `git log` on every page render. `### Unreleased` is never written to FD bodies; `#### Commits` is never written either.
@@ -71,10 +72,10 @@ As a developer or agent reading an FD detail page, I want to see every commit at
   - [`scripts/release/release-fd-commits.ts`](../../scripts/release/release-fd-commits.ts)
   - [`scripts/release/release-notes.ts`](../../scripts/release/release-notes.ts)
 - **Tests:**
-  - [`scripts/dashboard/__tests__/dashboard-data.test.ts`](../../scripts/dashboard/__tests__/dashboard-data.test.ts)
-  - [`scripts/features/__tests__/migrate-changelog-unreleased.test.ts`](../../scripts/features/__tests__/migrate-changelog-unreleased.test.ts)
-  - [`scripts/release/__tests__/llm-polish-summary.test.ts`](../../scripts/release/__tests__/llm-polish-summary.test.ts)
-  - [`scripts/release/__tests__/release-fd-changelog.test.ts`](../../scripts/release/__tests__/release-fd-changelog.test.ts)
+  - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
+  - [`src/features/__tests__/migrate-changelog-unreleased.test.ts`](../../src/features/__tests__/migrate-changelog-unreleased.test.ts)
+  - [`src/release/__tests__/llm-polish-summary.test.ts`](../../src/release/__tests__/llm-polish-summary.test.ts)
+  - [`src/release/__tests__/release-fd-changelog.test.ts`](../../src/release/__tests__/release-fd-changelog.test.ts)
 
 <!-- /generated: resources -->
 

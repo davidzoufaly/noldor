@@ -19,6 +19,7 @@ links:
 introduced: 0.3.0
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 Surface `docs/vision.md` in the project-tracking dashboard. The `/` overview now opens with a milestone banner pulling `current-milestone` + `goal` from vision frontmatter (with a `read vision →` link) so every other panel renders against the strategic frame. A new `/vision` page renders the full vision body — frontmatter table on top, rendered markdown below — using the same per-request file-read + `marked` render path as the feature drill-down. Nav gains a `Vision` link between Overview and Roadmap.
@@ -54,9 +55,9 @@ As a maintainer (human or agent), I want the dashboard to open with the current 
   - [`scripts/dashboard/server.ts`](../../scripts/dashboard/server.ts)
   - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
 - **Tests:**
-  - [`scripts/dashboard/__tests__/dashboard-data.test.ts`](../../scripts/dashboard/__tests__/dashboard-data.test.ts)
-  - [`scripts/dashboard/__tests__/dashboard-server.test.ts`](../../scripts/dashboard/__tests__/dashboard-server.test.ts)
-  - [`scripts/dashboard/__tests__/dashboard-views.test.ts`](../../scripts/dashboard/__tests__/dashboard-views.test.ts)
+  - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
+  - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)
+  - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
 
 <!-- /generated: resources -->
 

@@ -31,6 +31,7 @@ phase: done
 noldor-tier: full
 introduced: 0.5.1
 ---
+
 ## Summary
 
 Add first-class PR support to Noldor: feature work on a worktree branch lands via PR rather than direct merge to main. Agent-side question: can the controlling agent open the PR, run the CR pipeline (Claude + Codex), and auto-merge once green? Today merge is a manual operator step. Encode the GitHub PR flow in the framework (separate from `/gate`'s commit gating) and explore agent permissions for `gh pr create` + `gh pr merge --auto`. Pairs with the existing CR pipeline — review gate becomes the merge gate.
@@ -146,11 +147,11 @@ This release fixes composeBody's Feature MD link falling through to session.pare
   - [`scripts/release/release-pr-bullets.ts`](../../scripts/release/release-pr-bullets.ts)
   - [`scripts/release/release-find-first-pr-commit.ts`](../../scripts/release/release-find-first-pr-commit.ts)
 - **Tests:**
-  - [`scripts/noldor/__tests__/phase-revert.test.ts`](../../scripts/noldor/__tests__/phase-revert.test.ts)
-  - [`scripts/release/__tests__/release-fd-changelog-in-progress.test.ts`](../../scripts/release/__tests__/release-fd-changelog-in-progress.test.ts)
-  - [`scripts/release/__tests__/release-fd-changelog-initial-release.test.ts`](../../scripts/release/__tests__/release-fd-changelog-initial-release.test.ts)
-  - [`scripts/release/__tests__/release-find-first-pr-commit.test.ts`](../../scripts/release/__tests__/release-find-first-pr-commit.test.ts)
-  - [`scripts/release/__tests__/release-markers-auto-restore.test.ts`](../../scripts/release/__tests__/release-markers-auto-restore.test.ts)
-  - [`scripts/release/__tests__/release-pr-bullets.test.ts`](../../scripts/release/__tests__/release-pr-bullets.test.ts)
+  - [`src/core/__tests__/phase-revert.test.ts`](../../src/core/__tests__/phase-revert.test.ts)
+  - [`src/release/__tests__/release-fd-changelog-in-progress.test.ts`](../../src/release/__tests__/release-fd-changelog-in-progress.test.ts)
+  - [`src/release/__tests__/release-fd-changelog-initial-release.test.ts`](../../src/release/__tests__/release-fd-changelog-initial-release.test.ts)
+  - [`src/release/__tests__/release-find-first-pr-commit.test.ts`](../../src/release/__tests__/release-find-first-pr-commit.test.ts)
+  - [`src/release/__tests__/release-markers-auto-restore.test.ts`](../../src/release/__tests__/release-markers-auto-restore.test.ts)
+  - [`src/release/__tests__/release-pr-bullets.test.ts`](../../src/release/__tests__/release-pr-bullets.test.ts)
 
 <!-- /generated: resources -->

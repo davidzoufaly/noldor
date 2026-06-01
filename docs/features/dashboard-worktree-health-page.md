@@ -20,6 +20,7 @@ links:
 introduced: 0.3.0
 noldor-tier: full
 ---
+
 ## Summary
 
 Surface `pnpm worktree:status` output as a page — tree path, branch, port, drift, dirty, file-overlap warnings. Critical now that parallel-worktree-workflow shipped; running the script is fine, viewing it in-browser alongside the rest of project state is better.
@@ -59,7 +60,7 @@ As a developer working in a parallel-worktree workflow, I want to view live work
   - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
   - [`scripts/worktrees/worktree-status.ts`](../../scripts/worktrees/worktree-status.ts)
 - **Tests:**
-  - [`scripts/dashboard/__tests__/dashboard-worktrees.test.ts`](../../scripts/dashboard/__tests__/dashboard-worktrees.test.ts)
+  - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
 
 <!-- /generated: resources -->
 
