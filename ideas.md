@@ -50,12 +50,6 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 - code reviewer 2.0 -> inspiration from MC Code Reviwer 
 - code reviewer configuration for fast-track
 
-rules-cascade v1 follow-ups:
-
-- oxfmt `fmt` pre-commit step errors on `.md`-only commits ("Expected at least one target file") -> forces `--no-verify` on rule/doc-only commits; guard the unconditional `&& pnpm fmt` calls or skip when no formattable targets staged
-- rule loader has no filename↔`id` consistency check -> `rules validate` should assert `frontmatter.id === basename(file, '.md')` to avoid confusing `rules resolve`/`list` output
-- `.claude/engineering-rules.md:8` (+ `templates/.claude/engineering-rules.md`) references stale `tsconfig.base.json` which doesn't exist in standalone noldor (only `tsconfig.json`)
-
 #### Next
 
 - handoff pro autonomní vývoj -> vlastní writing plans skill? [triaged 2026-05-23 → autonomous-plan-to-pr-merge]
