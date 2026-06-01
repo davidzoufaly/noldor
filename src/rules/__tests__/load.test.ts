@@ -20,35 +20,63 @@ const RULE_B = `---\nid: rule-b\n---\nStage-agnostic guidance.\n`;
 describe('loadRulesFromDir', () => {
   it('loads + normalizes all rule files', () => {
     const dir = makeRulesDir({ 'rule-a.md': RULE_A, 'rule-b.md': RULE_B });
-    const { rules, errors } = loadRulesFromDir(dir);
-    rmSync(dir, { recursive: true, force: true });
-    expect(errors).toEqual([]);
-    expect(rules.map((r) => r.id).sort()).toEqual(['rule-a', 'rule-b']);
-    expect(rules.find((r) => r.id === 'rule-a')?.appliesTo).toEqual(['src/**/*.ts']);
-    expect(rules.find((r) => r.id === 'rule-b')?.body).toBe('Stage-agnostic guidance.');
+    try {
+      const { rules, errors } = loadRulesFromDir(dir);
+      expect(errors).toEqual([]);
+      expect(rules.map((r) => r.id).sort()).toEqual(['rule-a', 'rule-b']);
+      expect(rules.find((r) => r.id === 'rule-a')?.appliesTo).toEqual(['src/**/*.ts']);
+      expect(rules.find((r) => r.id === 'rule-b')?.body).toBe('Stage-agnostic guidance.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('reports duplicate ids as errors, not throws', () => {
     const dir = makeRulesDir({ 'one.md': RULE_A, 'two.md': RULE_A });
-    const { rules, errors } = loadRulesFromDir(dir);
-    rmSync(dir, { recursive: true, force: true });
-    expect(rules).toHaveLength(1);
-    expect(errors.some((e) => e.includes('duplicate id'))).toBe(true);
+    try {
+      const { rules, errors } = loadRulesFromDir(dir);
+      expect(rules).toHaveLength(1);
+      expect(errors.some((e) => e.includes('duplicate id'))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('reports malformed frontmatter and skips the file', () => {
     const dir = makeRulesDir({ 'bad.md': `---\nid: Bad Id\n---\nx\n`, 'ok.md': RULE_B });
-    const { rules, errors } = loadRulesFromDir(dir);
-    rmSync(dir, { recursive: true, force: true });
-    expect(rules.map((r) => r.id)).toEqual(['rule-b']);
-    expect(errors.some((e) => e.includes('bad.md'))).toBe(true);
+    try {
+      const { rules, errors } = loadRulesFromDir(dir);
+      expect(rules.map((r) => r.id)).toEqual(['rule-b']);
+      expect(errors.some((e) => e.includes('bad.md'))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not throw on an unreadable entry and collects an error', () => {
+    const dir = makeRulesDir({ 'rule-b.md': RULE_B });
+    // A subdirectory ending in .md makes readFileSync throw EISDIR.
+    mkdirSync(join(dir, '.noldor', 'rules', 'weird.md'));
+    try {
+      let result!: ReturnType<typeof loadRulesFromDir>;
+      expect(() => {
+        result = loadRulesFromDir(dir);
+      }).not.toThrow();
+      expect(result.rules.map((r) => r.id)).toEqual(['rule-b']);
+      expect(result.errors.some((e) => e.includes('weird.md'))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('returns empty for a missing rules dir', () => {
     const dir = mkdtempSync(join(tmpdir(), 'noldor-norules-'));
-    const { rules, errors } = loadRulesFromDir(dir);
-    rmSync(dir, { recursive: true, force: true });
-    expect(rules).toEqual([]);
-    expect(errors).toEqual([]);
+    try {
+      const { rules, errors } = loadRulesFromDir(dir);
+      expect(rules).toEqual([]);
+      expect(errors).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

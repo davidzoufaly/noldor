@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
+import { ZodError } from 'zod';
 import { RuleFrontmatterSchema, frontmatterToRule, type Rule } from './types.js';
 
 export interface LoadResult {
@@ -21,14 +22,20 @@ export function loadRulesFromDir(cwd: string = process.cwd()): LoadResult {
   for (const name of readdirSync(dir)
     .filter((f) => f.endsWith('.md'))
     .sort()) {
-    const raw = readFileSync(join(dir, name), 'utf8');
     let parsedFm: Rule;
     try {
+      const raw = readFileSync(join(dir, name), 'utf8');
       const { data, content } = matter(raw);
       const fm = RuleFrontmatterSchema.parse(data);
       parsedFm = frontmatterToRule(fm, content);
     } catch (err) {
-      errors.push(`${name}: ${err instanceof Error ? err.message : String(err)}`);
+      const message =
+        err instanceof ZodError
+          ? err.issues.map((i) => i.message).join('; ')
+          : err instanceof Error
+            ? err.message
+            : String(err);
+      errors.push(`${name}: ${message}`);
       continue;
     }
     if (seen.has(parsedFm.id)) {
