@@ -62,6 +62,8 @@ pre-commit:
           - name: rules
             glob: '.noldor/rules/**/*.md'
             run: pnpm noldor rules validate
+          - name: template-sync
+            run: pnpm noldor checks template-sync {staged_files}
 
 prepare-commit-msg:
   jobs:
@@ -84,3 +86,5 @@ pre-push:
     - name: noldor-pre-push
       use_stdin: true
       run: pnpm noldor hooks pre-push {1}
+    - name: template-sync
+      run: pnpm noldor checks template-sync
