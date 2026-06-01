@@ -37,7 +37,7 @@ flowchart TD
     ParentFD -->|"full-attach"| Spec
     Spec -->|"full-*"| Plan["🛠 docs/superpowers/plans/<br/>(superpowers:writing-plans)"]
 
-    Plan --> Code["💻 packages/ · apps/ · scripts/<br/>links.code (packages + apps)"]
+    Plan --> Code["💻 configured scanPaths<br/>links.code"]
     Plan --> Tests["🧪 *.test.ts<br/>// @tests: &lt;slug&gt;<br/>links.tests"]
     Plan --> Docs["📚 docs/user/tutorials/<br/>docs/user/explanation/<br/>&lt;!-- @feature: &lt;slug&gt; --&gt;<br/>links.docs"]
 
@@ -63,11 +63,11 @@ The six gate paths map onto the diagram above. Every change picks exactly one pa
 
 Every commit on paths 2–6 carries `Noldor-Path: <path>` and `Noldor-Reviewed: <tree-hash>` trailers. The pre-push hook validates the review receipt against `HEAD^{tree}`.
 
-Charuy ships trunk-based: commits land directly on `main`. The pre-commit hook is the gate (`validate:features`, `sync:*`, `check:invariants`, `check:shared-files`, `hook:noldor:pre-commit`). No PR review stage.
+Commits land on `main` either directly (trunk-based) or via short-lived PR branches with agent auto-merge — the consumer chooses; see [`pr-flow.md`](pr-flow.md). Either way the pre-commit hook is the gate (`noldor validate features`, `noldor sync *`, `noldor checks invariants`, `noldor checks shared-files`, `noldor hooks pre-commit`).
 
 ## End-of-flow handoff
 
-After `superpowers:finishing-a-development-branch` returns (`/gate` Step 4 complete), `/gate` Step 5 runs `pnpm noldor next-priority` to check whether the priority queue in `docs/roadmap.md` (file order = priority) is empty. The session does NOT auto-continue into the next feature — by policy, the operator runs `/clear` and re-enters `/gate`, which reads top-of-roadmap directly at Step 0 and surfaces it. Fresh context per feature prevents drift toward narrow / partial deliveries that miss the prior entry's full intent (see `scripts/noldor/next-priority.ts` for the parser and `.claude/skills/gate/SKILL.md` Step 0 + Step 5 for the orchestration).
+After `superpowers:finishing-a-development-branch` returns (`/gate` Step 4 complete), `/gate` Step 5 runs `pnpm noldor next-priority` to check whether the priority queue in `docs/roadmap.md` (file order = priority) is empty. The session does NOT auto-continue into the next feature — by policy, the operator runs `/clear` and re-enters `/gate`, which reads top-of-roadmap directly at Step 0 and surfaces it. Fresh context per feature prevents drift toward narrow / partial deliveries that miss the prior entry's full intent (see `src/noldor/next-priority.ts` for the parser and `.claude/skills/gate/SKILL.md` Step 0 + Step 5 for the orchestration).
 
 ## Stage map
 

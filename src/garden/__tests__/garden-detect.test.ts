@@ -63,8 +63,8 @@ body
 name: Tooltips
 phase: done
 area: ui
-category: Editor
-packages: ['@charuy/web']
+category: Tooling
+packages: ['@acme/web']
 'noldor-tier': specs-only
 links:
   code: []
@@ -97,8 +97,8 @@ body
 name: Tooltips
 phase: in-progress
 area: ui
-category: Editor
-packages: ['@charuy/web']
+category: Tooling
+packages: ['@acme/web']
 'noldor-tier': specs-only
 links:
   code: []
@@ -125,7 +125,7 @@ body
 name: Architecture Invariants
 phase: done
 area: tooling
-category: Editor
+category: Tooling
 packages: ['tooling']
 'noldor-tier': specs-only
 links:
@@ -190,8 +190,8 @@ describe('detectStalePlans (secondary: age + no feature)', () => {
 name: Active
 phase: in-progress
 area: ui
-category: Editor
-packages: ['@charuy/web']
+category: Tooling
+packages: ['@acme/web']
 'noldor-tier': specs-only
 links:
   code: []
@@ -283,8 +283,8 @@ Description text.
 name: Tooltips
 phase: in-progress
 area: ui
-category: Editor
-packages: ['@charuy/web']
+category: Tooling
+packages: ['@acme/web']
 'noldor-tier': specs-only
 links:
   code: []
@@ -325,7 +325,7 @@ Description text.
 name: It's Complicated
 phase: in-progress
 area: tooling
-category: Editor
+category: Tooling
 packages: ['scripts']
 'noldor-tier': specs-only
 links:
@@ -475,7 +475,7 @@ describe(detectInvariants, () => {
 name: Passive UI
 phase: done
 area: web
-category: Editor
+category: Tooling
 packages: ['web']
 'noldor-tier': specs-only
 links:
@@ -493,7 +493,7 @@ No opt-out here.
 name: Keyboard Shortcuts
 phase: done
 area: web
-category: Editor
+category: Tooling
 packages: ['web']
 'noldor-tier': specs-only
 links:
@@ -582,8 +582,8 @@ describe('detectStaleSpecs (primary: feature done)', () => {
 name: Tooltips
 phase: done
 area: ui
-category: Editor
-packages: ['@charuy/web']
+category: Tooling
+packages: ['@acme/web']
 'noldor-tier': specs-only
 links:
   code: []
@@ -616,8 +616,8 @@ body
 name: Tooltips
 phase: in-progress
 area: ui
-category: Editor
-packages: ['@charuy/web']
+category: Tooling
+packages: ['@acme/web']
 'noldor-tier': specs-only
 links:
   code: []

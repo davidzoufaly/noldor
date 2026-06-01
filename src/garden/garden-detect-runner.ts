@@ -1,7 +1,9 @@
 import { spawnSync as nodeSpawnSync } from 'node:child_process';
 
+import { noldorCliCommand } from '../core/noldor-cli.js';
+
 /**
- * A single finding flagged by `garden:detect`. The `kind` discriminates
+ * A single finding flagged by `garden detect`. The `kind` discriminates
  * which detector produced it (e.g. `stale-plan`, `sdd-gap`,
  * `contradiction`); remaining fields are pass-through from the source
  * detector and not interpreted here.
@@ -52,16 +54,16 @@ interface ParsedGardenJson {
 }
 
 /**
- * Extract the JSON object emitted by `pnpm garden:detect --json` from the
- * pnpm-wrapped stdout. Pnpm prefixes stdout with banner lines:
+ * Extract the JSON object emitted by `noldor garden detect --json` from
+ * stdout. The CLI may print banner/log lines before the JSON:
  *
- *     > charuy@ garden:detect /path
- *     > tsx scripts/garden/garden-detect.ts "--json"
+ *     > noldor garden detect --json
+ *     > tsx src/garden/garden-detect.ts "--json"
  *     {...JSON...}
  *
  * Scan stdout from the end and return the LAST line that starts with `{`.
  * Mirrors the same pattern used by `loadSddGaps` in
- * `scripts/garden/garden-detect.ts:582-594` for `pnpm sdd:report --json`.
+ * `src/garden/garden-detect.ts` for `noldor garden sdd-report --json`.
  */
 function extractJsonLine(stdout: string): string | null {
   return (
@@ -99,7 +101,8 @@ export async function runGardenDetectViaCli(
   opts: GardenDetectRunOptions,
 ): Promise<GardenDetectRunResult> {
   const spawn = opts.spawnSync ?? nodeSpawnSync;
-  const r = spawn('pnpm', ['garden:detect', '--json'], {
+  const [cmd, cmdArgs] = noldorCliCommand(['garden', 'detect', '--json']);
+  const r = spawn(cmd, cmdArgs, {
     cwd: opts.cwd,
     encoding: 'utf8',
   });

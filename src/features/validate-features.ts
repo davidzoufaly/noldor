@@ -6,7 +6,7 @@ import matter from 'gray-matter';
 import { FeatureFrontmatterSchema, type FeatureFrontmatter } from './feature-schema.js';
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
-import { loadConsumerConfig } from '../core/consumer-config.js';
+import { loadConsumerConfig, loadCategories } from '../core/consumer-config.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
 export interface FileError {
@@ -65,6 +65,7 @@ const TEST_WALK_ROOTS = ['apps', 'packages'];
 /** Validate feature MD frontmatter for the given files; returns one FileError per failing file. */
 export async function validateFiles(paths: string[]): Promise<FileError[]> {
   const errors: FileError[] = [];
+  const categories = loadCategories();
 
   for (const path of paths) {
     const raw = await readFile(path, 'utf8');
@@ -79,6 +80,15 @@ export async function validateFiles(paths: string[]): Promise<FileError[]> {
     } else {
       // If frontmatter is valid, run additional checks
       const slug = basename(path, '.md');
+      // Category must be one the consumer has declared. Unknown categories are
+      // the self-evolving hook: `/triage` + `/promote` propose new categories
+      // to the operator and append them to `.noldor/config.json`.
+      if (!categories.includes(result.data.category)) {
+        fileErrors.push(
+          `category: "${result.data.category}" is not a configured category. ` +
+            `Add it to .noldor/config.json (consumer.categories) or pick one of: ${categories.join(', ')}.`,
+        );
+      }
       const tierErrors = validateTierVsSpec(result.data, slug);
       fileErrors.push(...tierErrors);
     }

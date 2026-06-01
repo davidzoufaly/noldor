@@ -18,6 +18,7 @@ import { detectTrailerScopeMismatch } from './detectors/trailer-scope-mismatch.j
 import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
 import { resolveByLinksPlan } from './plan-resolution.js';
+import { noldorCliCommand } from '../core/noldor-cli.js';
 
 import type { FeatureFrontmatter } from '../features/feature-schema.js';
 import type { Invariant } from './garden-invariants.js';
@@ -583,13 +584,14 @@ function isSddGap(value: unknown): value is SddGap {
 }
 
 function loadSddGaps(repo: string): SddGap[] {
-  const stdout = execFileSync('pnpm', ['sdd:report', '--json'], {
+  const [cmd, args] = noldorCliCommand(['garden', 'sdd-report', '--json']);
+  const stdout = execFileSync(cmd, args, {
     cwd: repo,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
   });
-  // Pnpm prefixes lines like "> charuy@ sdd:report ..."; isolate the JSON line.
-  // Today sdd:report emits exactly one `[…]` line; if it ever pretty-prints or
+  // Isolate the JSON line: the CLI may emit log lines before the report.
+  // Today sdd-report emits exactly one `[…]` line; if it ever pretty-prints or
   // Adds debug stdout, this scan still picks the LAST `[`-line.
   const jsonLine = stdout
     .split('\n')

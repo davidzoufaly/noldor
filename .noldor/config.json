@@ -10,6 +10,15 @@
     "samplesPath": "samples",
     "packagePrefix": "@noldor/",
     "pnpmStderrPrefix": "noldor",
-    "appPathPrefix": "src"
+    "appPathPrefix": "src",
+    "categories": ["Core", "Tooling", "Other"],
+    "areaCategories": {
+      "core": "Core",
+      "tooling": "Tooling",
+      "docs": "Tooling",
+      "testing": "Tooling",
+      "cross-cutting": "Tooling",
+      "release": "Tooling"
+    }
   }
 }

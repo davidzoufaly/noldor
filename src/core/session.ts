@@ -24,6 +24,7 @@ export const SessionMarkerSchema = z
     enhancement: z.string().min(1).optional(),
     startedAt: z.string().min(1),
     autonomous: z.boolean().optional(),
+    injectedRules: z.array(z.string().min(1)).optional(),
     markerVersion: z.literal(2).optional(),
   })
   .strict()

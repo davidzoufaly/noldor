@@ -5,42 +5,23 @@ import { describe, expect, it } from 'vitest';
 import { areaToCategory } from '../area-category.js';
 
 describe('areaToCategory', () => {
-  // Source of truth for the area→category mapping lives in
-  // packages/noldor/src/lib/area-category.ts; tests pin every documented area so a
-  // future edit can't silently drift away from the promote skill prompt.
-  it('maps engine and format to Modeling', () => {
-    expect(areaToCategory('engine')).toBe('Modeling');
-    expect(areaToCategory('format')).toBe('Modeling');
+  // The area→category map is consumer-owned (`.noldor/config.json` →
+  // areaCategories). Tests pass an explicit map so they don't depend on the
+  // repo's live config, and pin the `Other` fallback contract.
+  it('maps an area to its configured category', () => {
+    const map = { tooling: 'Tooling', core: 'Core', docs: 'Tooling' };
+    expect(areaToCategory('tooling', map)).toBe('Tooling');
+    expect(areaToCategory('core', map)).toBe('Core');
+    expect(areaToCategory('docs', map)).toBe('Tooling');
   });
 
-  it('maps viewport, web, and ui to Editor', () => {
-    expect(areaToCategory('viewport')).toBe('Editor');
-    expect(areaToCategory('web')).toBe('Editor');
-    expect(areaToCategory('ui')).toBe('Editor');
+  it('falls back to Other for unmapped areas', () => {
+    const map = { tooling: 'Tooling' };
+    expect(areaToCategory('quux', map)).toBe('Other');
+    expect(areaToCategory('', map)).toBe('Other');
   });
 
-  it('maps agent-api to Agents', () => {
-    expect(areaToCategory('agent-api')).toBe('Agents');
-  });
-
-  it('maps branding, business, and release to Distribution', () => {
-    expect(areaToCategory('branding')).toBe('Distribution');
-    expect(areaToCategory('business')).toBe('Distribution');
-    expect(areaToCategory('release')).toBe('Distribution');
-  });
-
-  it('maps docs to Docs', () => {
-    expect(areaToCategory('docs')).toBe('Docs');
-  });
-
-  it('maps tooling, testing, and cross-cutting to Tooling', () => {
-    expect(areaToCategory('tooling')).toBe('Tooling');
-    expect(areaToCategory('testing')).toBe('Tooling');
-    expect(areaToCategory('cross-cutting')).toBe('Tooling');
-  });
-
-  it('falls back to Other for unknown areas', () => {
-    expect(areaToCategory('quux')).toBe('Other');
-    expect(areaToCategory('')).toBe('Other');
+  it('falls back to Other when the map is empty', () => {
+    expect(areaToCategory('anything', {})).toBe('Other');
   });
 });

@@ -37,17 +37,17 @@ verdict + finding loop), `codex` (`pnpm noldor cr codex` wrapper), `subagent`
 (iTerm2-spawned headless Claude). Each lane writes its findings to
 `.noldor/cr/<slug>-<kind>-<lane>.json` where `kind` is `spec | plan |
 code` and `lane` is the lane name. Sinks are atomic — every writer
-calls `writeJsonAtomic` from `scripts/cr/atomic-write.ts` (temp file +
+calls `writeJsonAtomic` from `src/cr/atomic-write.ts` (temp file +
 `fs.rename`) so concurrent lanes never tear a partial JSON. Schemas
-live in `scripts/cr/findings-schema.ts`; `laneFindingsSchema` validates
+live in `src/cr/findings-schema.ts`; `laneFindingsSchema` validates
 every sink on aggregate, and corrupt or mismatched files are surfaced
-as synthetic blockers via `scripts/cr/aggregate.ts`. The aggregate step
+as synthetic blockers via `src/cr/aggregate.ts`. The aggregate step
 collects all four sinks for the active kind and gates progress on a
 clean union of blockers.
 
 ### Artifact kind semantics
 
-The orchestrator's `--kind` flag accepts `spec`, `plan`, or `code` (see `scripts/cr/findings-schema.ts:artifactKindSchema`). Path-to-kind mapping at `/gate` Step 2.5:
+The orchestrator's `--kind` flag accepts `spec`, `plan`, or `code` (see `src/cr/findings-schema.ts:artifactKindSchema`). Path-to-kind mapping at `/gate` Step 2.5:
 
 | Path                | Step 2.5 invocations                    |
 | ------------------- | --------------------------------------- |
@@ -72,7 +72,7 @@ dispatcher (see below).
 
 ## Config-driven defaults
 
-`.noldor/config.json` (loaded by `scripts/cr/config.ts`) holds the
+`.noldor/config.json` (loaded by `src/cr/config.ts`) holds the
 lane defaults and autonomous-mode toggles:
 
 ```json
@@ -94,13 +94,13 @@ Precedence at orchestrate time: CLI `--lanes <list>` wins, otherwise
 config defaults apply when `autonomous.skipLanePicker: true`,
 otherwise the interactive picker prompts the operator. The schema is
 validated by `pnpm noldor validate noldor-config` (Zod loader in
-`scripts/cr/config.ts`); validation also runs at the top of
-`scripts/cr/orchestrate.ts` so a malformed config fails fast.
+`src/cr/config.ts`); validation also runs at the top of
+`src/cr/orchestrate.ts` so a malformed config fails fast.
 
 ## Delta re-review
 
 The orchestrator records the commit SHA at which findings were last
-aggregated (`baseSha`) in the sink. On re-run, `scripts/cr/
+aggregated (`baseSha`) in the sink. On re-run, `src/cr/
 orchestrate.ts` diffs `baseSha..headSha`; an empty diff means no code
 moved, so all configured lanes get a synthetic OK record (lane =
 `delta-short-circuit`) without spawning reviewers. This is the
@@ -113,7 +113,7 @@ run.
 ## Escalation
 
 When aggregate surfaces a blocker, control passes to
-`scripts/cr/escalate.ts` (CLI: `pnpm noldor cr escalate`). In autonomous
+`src/cr/escalate.ts` (CLI: `pnpm noldor cr escalate`). In autonomous
 mode the dispatcher honors `autonomous.onFailure`: `prompt` (fall
 through to interactive), `spawn-deep-review` (auto-dispatch the
 standalone deep-review lane), or `abort` (exit non-zero, leave plan
@@ -126,7 +126,7 @@ appends that file's contents under the `## Findings to address`
 heading in the plan MD, then deletes the side-channel file on a
 clean exit so stale context never leaks into a future loop. Exit
 codes from `pnpm noldor cr escalate` encode the chosen outcome (see
-`scripts/cr/escalate-cli.ts`).
+`src/cr/escalate-cli.ts`).
 
 ## JSON contract
 

@@ -448,7 +448,7 @@ Render `docs/user/reference/api/` (typedoc-generated `engine` + `format` API tre
 - impact: low
 - parent: noldor
 
-`scripts/cr/__tests__/codex.test.ts` mocks the `Spawn` function, so all CI runs of `pnpm cr:codex` validate the wiring without ever invoking the real `codex` binary. The first real-codex run will surface integration bugs the mocked tests can't catch (codex CLI flag drift, JSON schema variance, stdin-pipe encoding edge cases). Add a manual / opt-in smoke test (`pnpm cr:codex --dry-run` against a fixture worktree, gated behind `CHARUY_RUN_REAL_CODEX=1`) plus a documented operator-side pre-release dogfood step in `docs/noldor/cr-pipeline.md`. Trigger: when codex CLI grows a stable `cr --json` subcommand (currently absent).
+`scripts/cr/__tests__/codex.test.ts` mocks the `Spawn` function, so all CI runs of `pnpm cr:codex` validate the wiring without ever invoking the real `codex` binary. The first real-codex run will surface integration bugs the mocked tests can't catch (codex CLI flag drift, JSON schema variance, stdin-pipe encoding edge cases). Add a manual / opt-in smoke test (`pnpm cr:codex --dry-run` against a fixture worktree, gated behind `NOLDOR_RUN_REAL_CODEX=1`) plus a documented operator-side pre-release dogfood step in `docs/noldor/cr-pipeline.md`. Trigger: when codex CLI grows a stable `cr --json` subcommand (currently absent).
 
 #### Framework Script + Test Migration Cleanup
 

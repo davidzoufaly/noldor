@@ -6,7 +6,7 @@ function c(subject: string, sha: string, pr?: number): Commit {
   return { body: '', prNumber: pr, sha, subject };
 }
 
-const REPO = 'https://github.com/davidzoufaly/charuy';
+const REPO = 'https://github.com/davidzoufaly/acme';
 
 describe(renderChangelogEntry, () => {
   it('groups features / fixes / other with linked commits and PR numbers', () => {

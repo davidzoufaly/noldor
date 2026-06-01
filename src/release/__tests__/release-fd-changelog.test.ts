@@ -177,7 +177,7 @@ const FD_BASE = [
   '---',
   'name: Foo',
   'phase: done',
-  'category: Editor',
+  'category: Tooling',
   'area: foo',
   'packages:',
   '  - web',

@@ -67,9 +67,9 @@ Formula: `score = round(100 × (impact × confidence × dependency_factor) / eff
 
 Example — `size: M, impact: high, confidence: med, deps: []` → `round(100 × 4 × 0.75 × 1 / 2) = 150`.
 
-The score is **derived**, not persisted. `/triage` recomputes on every run from the bullet fields, so a tuning of the formula in `scripts/triage/score.ts` takes effect without rewriting any markdown. The score column in the confirmation table guides the operator's insert-position pick (`top` / `after:<slug>` / `bottom`); the operator can override.
+The score is **derived**, not persisted. `/triage` recomputes on every run from the bullet fields, so a tuning of the formula in `src/triage/score.ts` takes effect without rewriting any markdown. The score column in the confirmation table guides the operator's insert-position pick (`top` / `after:<slug>` / `bottom`); the operator can override.
 
-Dependency-weight reads the `- deps:` bullet (comma-separated kebab slugs). For each listed slug, the resolver in `scripts/triage/score.ts` calls `resolveIsShipped`, which returns true iff `docs/features/<slug>.md` exists AND its frontmatter `phase` field reads exactly `done`. Every other state — file missing, file present with `phase: in-progress`, slug only in roadmap, slug only in backlog, unknown slug — counts as unshipped. Items with multiple unshipped blockers are discounted proportionally.
+Dependency-weight reads the `- deps:` bullet (comma-separated kebab slugs). For each listed slug, the resolver in `src/triage/score.ts` calls `resolveIsShipped`, which returns true iff `docs/features/<slug>.md` exists AND its frontmatter `phase` field reads exactly `done`. Every other state — file missing, file present with `phase: in-progress`, slug only in roadmap, slug only in backlog, unknown slug — counts as unshipped. Items with multiple unshipped blockers are discounted proportionally.
 
 Backwards compatibility: entries without `- confidence:` default to `med`. Entries without `- deps:` default to no discount. `validate:triage` does not warn or error on either missing field in v1 — backfill is gradual.
 

@@ -30,7 +30,7 @@ export function evaluate(
   env: Record<string, string | undefined>,
 ): EvalResult {
   if (!repoRoot.includes('/.worktrees/')) return { blocked: [], reason: 'main' };
-  if (env.CHARUY_ALLOW_SHARED === '1') return { blocked: [], reason: 'override' };
+  if (env.NOLDOR_ALLOW_SHARED === '1') return { blocked: [], reason: 'override' };
 
   const blocked = staged.filter((path) =>
     BLOCK_LIST.some((entry) => (typeof entry === 'string' ? entry === path : entry.test(path))),
@@ -59,7 +59,7 @@ export function main(): number {
   if (result.reason === 'block') {
     process.stderr.write(
       `Shared root file(s) edited from feature worktree:\n  ${result.blocked.join('\n  ')}\n` +
-        `Move these edits to the main worktree, or set CHARUY_ALLOW_SHARED=1 to override.\n`,
+        `Move these edits to the main worktree, or set NOLDOR_ALLOW_SHARED=1 to override.\n`,
     );
     return 1;
   }

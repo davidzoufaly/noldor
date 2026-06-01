@@ -19,7 +19,7 @@ Periodic audit that detects framework drift: features without tests, plans witho
 | `SDD_STALE_DAYS=120 pnpm noldor garden sdd-report` | Override the 90-day default for the stale-backlog detector                                                  |
 | `pnpm noldor validate skill-catalog`               | **Hard pre-commit gate** for the `.claude/skills/` ↔ `skill-catalog.md` 1:1 contract; missing/orphan = fail |
 
-`pnpm release` regenerates `docs/sdd-report.md` as a precondition (commits the snapshot for trend visibility). Pre-commit does NOT run the report — too slow once features grow. The script is the source of truth — when this page disagrees with [`scripts/garden/garden-detect.ts`](../../scripts/garden/garden-detect.ts), the script wins.
+`pnpm release` regenerates `docs/sdd-report.md` as a precondition (commits the snapshot for trend visibility). Pre-commit does NOT run the report — too slow once features grow. The script is the source of truth — when this page disagrees with [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts), the script wins.
 
 ## Detectors
 
@@ -33,7 +33,7 @@ Periodic audit that detects framework drift: features without tests, plans witho
 | 6   | Stale backlog entries                 | `docs/backlog.md` blocks with `since > 90d` and no matching feature MD                                                                                              | Drop, age out, or promote                                                                                  |
 | 7   | Spec files not referenced             | `docs/superpowers/specs/*.md` not pointed at by any FD `links.spec`                                                                                                 | Link the spec or archive it                                                                                |
 | 8   | Plan files without matching spec      | Plan filename slug has no spec sibling                                                                                                                              | Author the spec or rename the plan                                                                         |
-| 9   | Code files not referenced             | Source file under `packages/`, `apps/`, or `scripts/` with no FD owner (after `pnpm noldor features fill-links-code-gaps --auto-high` resolves unambiguous matches) | Run interactive `pnpm noldor features fill-links-code-gaps` via `/garden` step 7.5                         |
+| 9   | Code files not referenced             | Source file under the configured `scanPaths` with no FD owner (after `pnpm noldor features fill-links-code-gaps --auto-high` resolves unambiguous matches) | Run interactive `pnpm noldor features fill-links-code-gaps` via `/garden` step 7.5                         |
 | 10  | Tests without `@tests:` tag           | Test file missing `// @tests: <slug>` directive                                                                                                                     | Add the tag (`pnpm noldor validate features` hard-fails this in pre-commit)                                |
 | 11  | Tutorials without `@feature:` tag     | Tutorial/explanation MD missing `<!-- @feature: <slug> -->`                                                                                                         | Add the tag                                                                                                |
 | 12  | README architecture drift             | Workspace package added/removed without README table sync                                                                                                           | Hand-edit README architecture/packages section                                                             |
@@ -47,7 +47,7 @@ Periodic audit that detects framework drift: features without tests, plans witho
 
 `/garden` adds 4 doc-maintenance signals on top (not in `pnpm noldor garden sdd-report`): stale plans (move to `docs/superpowers/plans/archive/` once matching feature is `done`), stale specs (same trigger, `docs/superpowers/specs/archive/`), unused backlog entries (drop or merge), and a deterministic-seed rule-contradiction sweep with an LLM false-positive filter.
 
-When a spec is moved into `archive/` (whether via `/garden` or a hand-run `git mv`), `pnpm noldor sync fd-resources` auto-rewrites every FD's `links.spec` frontmatter path to the archive variant on the next regen-chain pass. The rewrite is conservative — only fires when the current path is missing on disk AND `<dirname>/archive/<basename>` exists — and idempotent, so running the sync twice produces no diff. See `scripts/sync/sync-fd-resources.ts` (`resolveSpecPath`).
+When a spec is moved into `archive/` (whether via `/garden` or a hand-run `git mv`), `pnpm noldor sync fd-resources` auto-rewrites every FD's `links.spec` frontmatter path to the archive variant on the next regen-chain pass. The rewrite is conservative — only fires when the current path is missing on disk AND `<dirname>/archive/<basename>` exists — and idempotent, so running the sync twice produces no diff. See `src/sync/sync-fd-resources.ts` (`resolveSpecPath`).
 
 ## Gate compliance
 
@@ -77,15 +77,15 @@ When a spec is moved into `archive/` (whether via `/garden` or a hand-run `git m
 | `## Testing` (framework half) | [`testing-principles.md`](testing-principles.md)                                                |
 | `## Graphify`                 | [`graph-integration.md`](graph-integration.md)                                                  |
 
-**Source-of-truth ↔ page drift** (Detector 15) — defined in [`scripts/garden/garden-detect.ts`](../../scripts/garden/garden-detect.ts) `SOURCE_DRIFT_PAIRS`. Pure-data check (`git log -n 1 --format=%cI -- <path>`); no AST parsing.
+**Source-of-truth ↔ page drift** (Detector 15) — defined in [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts) `SOURCE_DRIFT_PAIRS`. Pure-data check (`git log -n 1 --format=%cI -- <path>`); no AST parsing.
 
 | Source                               | Page                                           |
 | ------------------------------------ | ---------------------------------------------- |
-| `scripts/features/feature-schema.ts` | [`feature-md-schema.md`](feature-md-schema.md) |
+| `src/features/feature-schema.ts` | [`feature-md-schema.md`](feature-md-schema.md) |
 | `.claude/skills/`                    | [`skill-catalog.md`](skill-catalog.md)         |
 | `lefthook.yml` + `package.json`      | [`script-catalog.md`](script-catalog.md)       |
-| `scripts/release/`                   | [`versioning.md`](versioning.md)               |
-| `scripts/garden/`                    | [`garden-and-drift.md`](garden-and-drift.md)   |
+| `src/release/`                   | [`versioning.md`](versioning.md)               |
+| `src/garden/`                    | [`garden-and-drift.md`](garden-and-drift.md)   |
 
 ## Sentinels — opt out of FD detectors
 
@@ -97,7 +97,7 @@ The detectors that scan FD frontmatter (Detectors 1, 2, 19) accept the literal s
 
 ## Exemptions
 
-`category: Tooling` auto-exempts user-facing detectors (Detector 2 silently skips Tooling features). Exact rules live in [`scripts/garden/garden-detect.ts`](../../scripts/garden/garden-detect.ts) — script wins on disagreement.
+`category: Tooling` auto-exempts user-facing detectors (Detector 2 silently skips Tooling features). Exact rules live in [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts) — script wins on disagreement.
 
 ## Audit-only — never blocks
 

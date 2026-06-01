@@ -600,18 +600,18 @@ describe('renderBacklog', () => {
           name: 'Web Entry',
           slug: 'web-entry',
           area: 'web',
-          category: 'Editor',
+          category: 'Tooling',
           description: 'd',
         },
         {
           name: 'Engine Entry',
           slug: 'engine-entry',
           area: 'engine',
-          category: 'Modeling',
+          category: 'Core',
           description: 'd',
         },
       ],
-      { area: '', type: '', category: 'Editor', size: [], impact: [], sort: '' },
+      { area: '', type: '', category: 'Tooling', size: [], impact: [], sort: '' },
     );
     expect(html).toContain('Web Entry');
     expect(html).not.toContain('Engine Entry');
@@ -1437,7 +1437,7 @@ describe('renderBacklog description clamp', () => {
           name: 'Backlog Entry',
           slug: 'backlog-entry',
           area: 'web',
-          category: 'Editor',
+          category: 'Tooling',
           description: 'A longer description with **markdown** formatting.',
         },
       ],

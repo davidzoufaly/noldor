@@ -30,7 +30,7 @@ introduced: 0.4.0
 
 Per-feature changelog now splits across two surfaces with no duplication. The FD body's `## Changelog` section holds only `### <version> > #### Summary` blocks (polished prose, written once at release time and rarely re-edited). The dashboard FD detail page injects everything else live: an `### Unreleased > #### Commits` block at the top, plus a `#### Commits` subsection under each released version, all sourced from a scope-filtered `git log` on every page render. `### Unreleased` is never written to FD bodies; `#### Commits` is never written either.
 
-At release time, `pnpm release` calls `polishSummary(commits)` to rewrite the filtered commit subjects as a single readable paragraph via `claude -p`, with a deterministic `joinSubjectsDeterministic` fallback under `CHARUY_NO_LLM=1` or subprocess failure. The operator no longer stages release prose ahead of time — auto-polish is the source of truth, and post-release Summary edits land in the FD body directly.
+At release time, `pnpm release` calls `polishSummary(commits)` to rewrite the filtered commit subjects as a single readable paragraph via `claude -p`, with a deterministic `joinSubjectsDeterministic` fallback under `NOLDOR_NO_LLM=1` or subprocess failure. The operator no longer stages release prose ahead of time — auto-polish is the source of truth, and post-release Summary edits land in the FD body directly.
 
 ## User Story
 
@@ -46,7 +46,7 @@ As a developer or agent reading an FD detail page, I want to see every commit at
 
 **Authoring Summary copy.** Don't. Run `pnpm release` and let `polishSummary` author it. To override the auto-polished prose post-release, edit the relevant `### <version> > #### Summary` in the FD body and commit — it surfaces on `/release-notes` and `/features/<slug>` immediately.
 
-**Forcing offline mode.** Set `CHARUY_NO_LLM=1` in the environment when running release scripts to skip the `claude -p` subprocess and use the deterministic subject-join fallback. Useful in CI or when working offline.
+**Forcing offline mode.** Set `NOLDOR_NO_LLM=1` in the environment when running release scripts to skip the `claude -p` subprocess and use the deterministic subject-join fallback. Useful in CI or when working offline.
 
 **Migrating an existing FD.** Already done for all 48 FDs that existed at adoption time. For new FDs, scaffold without `### Unreleased` — leave `## Changelog` empty until first release, when `pnpm release` populates `### <version> > #### Summary`.
 

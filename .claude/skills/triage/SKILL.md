@@ -35,7 +35,7 @@ In-progress work (FDs with `phase: in-progress`) is tracked via FD frontmatter, 
    - On a **new entry**, propose:
      - **slug** — kebab-case derived from the bullet text (lowercase, replace spaces/slashes with hyphens, strip non-alphanumerics, max 60 chars)
      - **name** — human-readable (capitalize meaningful words from the bullet text)
-     - **area** — match an existing feature/backlog/roadmap `area`; invent only when nothing fits
+     - **area** — match an existing feature/backlog/roadmap `area`; invent only when nothing fits. When inventing a new `area`, check `consumer.areaCategories` in `.noldor/config.json`: if the new area maps to no existing release-notes **category** (and none of `consumer.categories` fits its functional domain), surface a proposed new category to the operator in the confirmation table. On approval, append it to `consumer.categories` + add the `areaCategories[area]` mapping. This is how the project's taxonomy grows as new domains appear — categories are a functional axis, never duplicating commit types (`feat`/`fix`/`docs`). Never add a category silently.
      - **type** — one of `feat | fix | refactor | chore | docs | perf | test` (see Type rubric below)
      - **target** — `roadmap` (with a position annotation: `top`, `after:<slug>`, or `bottom`) or `backlog`
      - **since** — today's date in `YYYY-MM-DD`
@@ -111,11 +111,9 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
 
 ## Area rubric
 
-Read the bullet for keywords matching existing feature `area` values. Default to one of:
+`area` is a free-form, project-specific slug — there is no fixed enum. Derive the set empirically: read the `- area:` bullets already present across `docs/features/*.md`, `docs/roadmap.md`, and `docs/backlog.md` (step 2 enumerates these) and reuse an existing area when the bullet's subject matches one.
 
-- `format`, `engine`, `viewport`, `ui`, `web`, `agent-api`, `history`, `persistence`, `export`, `modeling`, `tooling`, `branding`, `business`, `release`, `docs`, `testing`, `process`, `cross-cutting`
-
-If the bullet defies all, invent a new area name and surface it in the table for user review.
+If the bullet defies every existing area, invent a new area slug and surface it in the table for user review. New areas may also imply a new release-notes category — see the `area` bullet under step 4.
 
 ## Type rubric
 

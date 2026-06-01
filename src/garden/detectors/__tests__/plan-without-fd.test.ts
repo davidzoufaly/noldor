@@ -16,7 +16,7 @@ introduced: 1.0.0
 area: test
 category: Tooling
 packages:
-  - '@charuy/web'
+  - '@acme/web'
 links:
   code: []
   tests: []
@@ -31,7 +31,7 @@ phase: in-progress
 area: test
 category: Tooling
 packages:
-  - '@charuy/web'
+  - '@acme/web'
 links:
   code: []
   tests: []

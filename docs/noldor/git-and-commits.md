@@ -12,10 +12,10 @@ introduced: 0.4.0
 - Use the slug form whenever the commit maps cleanly to one feature MD. Cross-cutting commits drop the slug.
 - The slug after `:` MUST resolve to an existing `docs/features/<slug>.md`. The `feature-slug-scope` commit-msg hook enforces this.
 
-## Trunk-based — commit straight to main
+## Integration — direct-to-main or PR flow
 
-- Charuy ships trunk-based. Every commit lands on `main`. **No PRs, no review branches, no merge commits.**
-- Worktrees use short-lived branches (`feat/<slug>`, `fix/<slug>`) that fast-forward into `main` once tests pass — see [`worktree-discipline.md`](worktree-discipline.md).
+- The consumer chooses the integration model. **Trunk-based**: every commit lands directly on `main`, no PRs. **PR flow**: short-lived branches open a PR with agent auto-merge — see [`pr-flow.md`](pr-flow.md). The hook stack is the gate in both models.
+- Worktrees use short-lived branches (`feat/<slug>`, `fix/<slug>`) that integrate into `main` once tests pass — see [`worktree-discipline.md`](worktree-discipline.md).
 
 ## Commit gates (pre-commit, not PR review)
 
@@ -49,7 +49,7 @@ Commit-msg hook also enforces `validate:feature-slug-scope` and `validate:noldor
 
 ## Gate trailers
 
-Every commit on paths 2–6 (post-rollout) must carry `Noldor-*` trailers. The `commit-msg` hook (`scripts/hooks/noldor-validate-trailer.ts`) validates them.
+Every commit on paths 2–6 (post-rollout) must carry `Noldor-*` trailers. The `commit-msg` hook (`src/hooks/noldor-validate-trailer.ts`) validates them.
 
 ### Trailer schema
 
@@ -96,8 +96,8 @@ Noldor-Reviewed: 7f3e2a1b9c8d4e5f6a7b8c9d0e1f2a3b4c5d6e7f
 
 ### Auto-injection
 
-The `prepare-commit-msg` hook (`scripts/hooks/noldor-inject-trailers.ts`) reads `.noldor/session.json` and injects `Noldor-Path` and `Noldor-FD` automatically. Authors don't type them by hand when going through `/gate`.
+The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.noldor/session.json` and injects `Noldor-Path` and `Noldor-FD` automatically. Authors don't type them by hand when going through `/gate`.
 
 ### Pre-push hook
 
-`scripts/hooks/noldor-enforce-review-receipt.ts` validates `Noldor-Reviewed: <tree-hash>` against `git rev-parse HEAD^{tree}`. If new code was committed after the review receipt, the tree hash mismatches and the push is rejected — re-run review.
+`src/hooks/noldor-enforce-review-receipt.ts` validates `Noldor-Reviewed: <tree-hash>` against `git rev-parse HEAD^{tree}`. If new code was committed after the review receipt, the tree hash mismatches and the push is rejected — re-run review.

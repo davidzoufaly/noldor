@@ -3,7 +3,7 @@ import { howtoFrontmatterSchema } from '../howto-schema.js';
 
 describe('howtoFrontmatterSchema', () => {
   const base = {
-    category: 'Modeling' as const,
+    category: 'Core' as const,
     title: 'How to combine shapes with booleans',
   };
 
@@ -21,8 +21,14 @@ describe('howtoFrontmatterSchema', () => {
     expect(howtoFrontmatterSchema.safeParse(bad).success).toBeFalsy();
   });
 
-  it('rejects category outside the enum', () => {
-    const bad = { ...base, category: 'Frontend' as unknown as 'Modeling' };
+  it('accepts any non-empty category string (membership enforced where the index is generated)', () => {
+    expect(
+      howtoFrontmatterSchema.safeParse({ ...base, category: 'Frontend' }).success,
+    ).toBeTruthy();
+  });
+
+  it('rejects an empty category', () => {
+    const bad = { ...base, category: '' };
     expect(howtoFrontmatterSchema.safeParse(bad).success).toBeFalsy();
   });
 
@@ -43,16 +49,8 @@ describe('howtoFrontmatterSchema', () => {
     expect(howtoFrontmatterSchema.safeParse(bad).success).toBeFalsy();
   });
 
-  it('accepts every category in the enum', () => {
-    for (const category of [
-      'Modeling',
-      'Editor',
-      'Agents',
-      'Distribution',
-      'Docs',
-      'Tooling',
-      'Other',
-    ] as const) {
+  it('accepts arbitrary project categories', () => {
+    for (const category of ['Core', 'Tooling', 'Other', 'Editor', 'Billing'] as const) {
       expect(howtoFrontmatterSchema.safeParse({ ...base, category }).success).toBeTruthy();
     }
   });

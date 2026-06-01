@@ -15,6 +15,17 @@ export const BoundaryRuleSchema = z
   })
   .strict();
 
+/**
+ * Functional release-notes categories seeded into a fresh consumer. These are
+ * a DOMAIN axis, deliberately orthogonal to Conventional-Commit types
+ * (`feat`/`fix`/`docs`/…) — those classify a change's KIND and already drive
+ * the CHANGELOG grouping + bump level. Categories classify which part of the
+ * project a feature belongs to. The set is intentionally minimal; projects
+ * grow it via `/triage` + `/promote` (which propose new categories to the
+ * operator and append them to `.noldor/config.json` on approval).
+ */
+export const DEFAULT_CATEGORIES = ['Core', 'Tooling', 'Other'] as const;
+
 export const ConsumerConfigSchema = z
   .object({
     name: z.string().min(1),
@@ -28,6 +39,13 @@ export const ConsumerConfigSchema = z
     packagePrefix: z.string(),
     pnpmStderrPrefix: z.string(),
     appPathPrefix: z.string(),
+    /** Release-notes categories. Grows over a project's life (see `/triage`). */
+    categories: z
+      .array(z.string().min(1))
+      .min(1)
+      .default([...DEFAULT_CATEGORIES]),
+    /** Maps an FD `area` slug to its release-notes category. Unmapped → `Other`. */
+    areaCategories: z.record(z.string(), z.string()).default({}),
   })
   .strict();
 
@@ -71,4 +89,27 @@ export function loadConsumerConfig(cwd: string = process.cwd()): ConsumerConfig 
     );
   }
   return ConsumerConfigSchema.parse(raw.consumer);
+}
+
+/**
+ * The consumer's release-notes categories, or {@link DEFAULT_CATEGORIES} when
+ * no config is present (bootstrap / unit-test cwd). Tolerant by design so
+ * category-iterating code (release notes, dashboard, docs index) never throws
+ * just because a config hasn't been scaffolded yet.
+ */
+export function loadCategories(cwd: string = process.cwd()): string[] {
+  try {
+    return loadConsumerConfig(cwd).categories;
+  } catch {
+    return [...DEFAULT_CATEGORIES];
+  }
+}
+
+/** The consumer's `area` → category map (empty when no config). */
+export function loadAreaCategories(cwd: string = process.cwd()): Record<string, string> {
+  try {
+    return loadConsumerConfig(cwd).areaCategories;
+  } catch {
+    return {};
+  }
 }

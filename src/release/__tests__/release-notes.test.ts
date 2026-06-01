@@ -5,7 +5,7 @@ describe(renderReleaseNotesEntry, () => {
   it('groups features by category and renders feature page link', async () => {
     const features: ReleaseNotesFeature[] = [
       {
-        category: 'Modeling',
+        category: 'Core',
         kind: 'introduced',
         name: '3MF Export',
         changelogBlock: null,
@@ -14,7 +14,7 @@ describe(renderReleaseNotesEntry, () => {
           '3MF format export for richer 3D print metadata — embeds color, units, and assembly structure that plain STL discards.',
       },
       {
-        category: 'Editor',
+        category: 'Tooling',
         kind: 'introduced',
         name: 'Adaptive Grid',
         changelogBlock: null,
@@ -30,15 +30,15 @@ describe(renderReleaseNotesEntry, () => {
     });
 
     expect(entry).toContain('## v0.2.0 — 2026-05-12');
-    expect(entry).toContain('### Modeling');
-    expect(entry).toContain('### Editor');
+    expect(entry).toContain('### Core');
+    expect(entry).toContain('### Tooling');
     expect(entry).toContain('#### 3MF Export');
     expect(entry).toContain('3MF format export for richer 3D print metadata');
     expect(entry).toContain('[Feature page](/features/3mf-export)');
     expect(entry).not.toMatch(/github\.com/);
     expect(entry).toContain('#### Adaptive Grid');
     expect(entry).toContain('Density changes with zoom.');
-    expect(entry.indexOf('### Modeling')).toBeLessThan(entry.indexOf('### Editor'));
+    expect(entry.indexOf('### Core')).toBeLessThan(entry.indexOf('### Tooling'));
   });
 
   it('marks updated features with a tag', async () => {
@@ -46,7 +46,7 @@ describe(renderReleaseNotesEntry, () => {
       date: '2026-05-20',
       features: [
         {
-          category: 'Editor',
+          category: 'Tooling',
           slug: 'undo-redo',
           name: 'Undo/Redo',
           summaryFirstParagraph: 'Snapshot-based undo/redo.',
@@ -80,7 +80,7 @@ describe('renderReleaseNotesEntry — updated entries fall back to FD Summary, n
         {
           slug: 'foo',
           name: 'Foo',
-          category: 'Editor',
+          category: 'Tooling',
           summaryFirstParagraph: 'FD-level summary that the changelog Summary should override.',
           kind: 'updated',
           changelogBlock:
@@ -102,7 +102,7 @@ describe('renderReleaseNotesEntry — updated entries fall back to FD Summary, n
         {
           slug: 'foo',
           name: 'Foo',
-          category: 'Editor',
+          category: 'Tooling',
           summaryFirstParagraph: 'FD-level summary as the fallback.',
           kind: 'updated',
           changelogBlock:
@@ -123,7 +123,7 @@ describe('renderReleaseNotesEntry — updated entries fall back to FD Summary, n
         {
           slug: 'foo',
           name: 'Foo',
-          category: 'Editor',
+          category: 'Tooling',
           summaryFirstParagraph: 'Initial feature description.',
           kind: 'introduced',
           changelogBlock: null,
@@ -162,7 +162,7 @@ describe('renderReleaseNotesEntry — updated entries fall back to FD Summary, n
         {
           slug: 'foo',
           name: 'Foo',
-          category: 'Editor',
+          category: 'Tooling',
           summaryFirstParagraph: 'FD-level summary.',
           kind: 'introduced',
           changelogBlock:
@@ -182,7 +182,7 @@ describe('renderReleaseNotesEntry — updated entries fall back to FD Summary, n
         {
           slug: 'bar',
           name: 'Bar',
-          category: 'Editor',
+          category: 'Tooling',
           summaryFirstParagraph: 'FD-level summary as the fallback.',
           kind: 'introduced',
           changelogBlock: '### 0.4.0\n\n#### PRs\n\n- feat: thing',

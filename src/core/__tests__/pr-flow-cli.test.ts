@@ -138,20 +138,20 @@ describe('parseCrTrailersFromLog', () => {
 
 describe('normalizeRepoUrl', () => {
   it('strips .git from https URL', () => {
-    expect(normalizeRepoUrl('https://github.com/davidzoufaly/charuy.git')).toBe(
-      'https://github.com/davidzoufaly/charuy',
+    expect(normalizeRepoUrl('https://github.com/davidzoufaly/acme.git')).toBe(
+      'https://github.com/davidzoufaly/acme',
     );
   });
 
   it('converts SSH form to HTTPS', () => {
-    expect(normalizeRepoUrl('git@github.com:davidzoufaly/charuy.git')).toBe(
-      'https://github.com/davidzoufaly/charuy',
+    expect(normalizeRepoUrl('git@github.com:davidzoufaly/acme.git')).toBe(
+      'https://github.com/davidzoufaly/acme',
     );
   });
 
   it('returns https URL unchanged when no .git suffix', () => {
-    expect(normalizeRepoUrl('https://github.com/davidzoufaly/charuy')).toBe(
-      'https://github.com/davidzoufaly/charuy',
+    expect(normalizeRepoUrl('https://github.com/davidzoufaly/acme')).toBe(
+      'https://github.com/davidzoufaly/acme',
     );
   });
 });

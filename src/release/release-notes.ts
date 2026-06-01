@@ -3,7 +3,8 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { CATEGORIES, FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { loadCategories } from '../core/consumer-config.js';
 import { EMPTY_SUMMARY_PLACEHOLDER } from './release-fd-changelog.js';
 
 import type { Category } from '../features/feature-schema.js';
@@ -52,7 +53,7 @@ export async function renderReleaseNotesEntry(input: ReleaseNotesInput): Promise
     return lines.join('\n');
   }
 
-  for (const category of CATEGORIES) {
+  for (const category of loadCategories()) {
     const inCat = input.features.filter((f) => f.category === category);
     if (inCat.length === 0) {
       continue;

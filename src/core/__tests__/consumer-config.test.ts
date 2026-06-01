@@ -19,7 +19,7 @@ describe('loadConsumerConfig', () => {
   it('returns parsed consumer block when present', () => {
     const dir = makeTmpRepo({
       consumer: {
-        name: 'charuy',
+        name: 'acme',
         repoUrl: 'https://github.com/x/y',
         lockstepPackages: ['apps/web/package.json'],
         scanPaths: ['apps/web/src'],
@@ -27,16 +27,16 @@ describe('loadConsumerConfig', () => {
         deprecatedPackages: [],
         e2ePrefix: 'apps/web/e2e/',
         samplesPath: 'apps/web/public/samples',
-        packagePrefix: '@charuy/',
-        pnpmStderrPrefix: 'charuy@',
+        packagePrefix: '@acme/',
+        pnpmStderrPrefix: 'acme@',
         appPathPrefix: 'apps/web/',
       },
     });
     try {
       const cfg = loadConsumerConfig(dir);
-      expect(cfg.name).toBe('charuy');
+      expect(cfg.name).toBe('acme');
       expect(cfg.lockstepPackages).toEqual(['apps/web/package.json']);
-      expect(cfg.packagePrefix).toBe('@charuy/');
+      expect(cfg.packagePrefix).toBe('@acme/');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -5,21 +5,13 @@ const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 const semver = z.string().regex(SEMVER_RE, 'Expected semver (major.minor.patch)');
 
 /**
- * User-facing release-notes category. Coarser than the internal `area`
- * taxonomy; used to group features in `docs/release-notes.md`.
+ * User-facing release-notes category — a free-form string validated against
+ * the consumer's configured set (`.noldor/config.json` → `categories`) by
+ * `validate-features`, NOT pinned to a hardcoded enum here. This keeps the
+ * taxonomy consumer-owned and growable (see `/triage`, `/promote`). Coarser
+ * than the internal `area`; used to group features in `docs/release-notes.md`.
  */
-export const CATEGORIES = [
-  'Modeling',
-  'Editor',
-  'Agents',
-  'Distribution',
-  'Docs',
-  'Tooling',
-  'Other',
-] as const;
-
-/** One of the user-facing release-notes categories. */
-export type Category = (typeof CATEGORIES)[number];
+export type Category = string;
 
 const LinksSchema = z
   .object({
@@ -46,7 +38,7 @@ const LinksSchema = z
 export const FeatureFrontmatterSchema = z
   .object({
     area: z.string().min(1),
-    category: z.enum(CATEGORIES),
+    category: z.string().min(1),
     deps: z.array(z.string().min(1)).default([]),
     introduced: semver.optional(),
     links: LinksSchema,

@@ -108,7 +108,7 @@ describe('rewriteDocLinks', () => {
 
   it('rewrites absolute github.com blob URLs to /features/<slug> (Feature page links in release-notes.md)', () => {
     const html =
-      '<a href="https://github.com/davidzoufaly/charuy/blob/main/docs/features/auto-save.md">Feature page</a>';
+      '<a href="https://github.com/davidzoufaly/acme/blob/main/docs/features/auto-save.md">Feature page</a>';
     // sourceDir doesn't matter for absolute URLs — the rewrite is pure pattern match.
     expect(rewriteDocLinks(html, '')).toContain('href="/features/auto-save"');
     expect(rewriteDocLinks(html, '')).not.toContain('github.com');
@@ -116,13 +116,13 @@ describe('rewriteDocLinks', () => {
 
   it('preserves anchors on rewritten github URLs', () => {
     const html =
-      '<a href="https://github.com/davidzoufaly/charuy/blob/main/docs/features/auto-save.md#agent-api">api</a>';
+      '<a href="https://github.com/davidzoufaly/acme/blob/main/docs/features/auto-save.md#agent-api">api</a>';
     expect(rewriteDocLinks(html, '')).toContain('href="/features/auto-save#agent-api"');
   });
 
   it('passes through github URLs that do not target docs/features/<slug>.md', () => {
     const html =
-      '<a href="https://github.com/davidzoufaly/charuy/blob/main/README.md">repo readme</a>';
+      '<a href="https://github.com/davidzoufaly/acme/blob/main/README.md">repo readme</a>';
     expect(rewriteDocLinks(html, '')).toBe(html);
   });
 });

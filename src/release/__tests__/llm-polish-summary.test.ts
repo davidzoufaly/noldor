@@ -42,15 +42,15 @@ describe('polishSummary', () => {
     expect(out).toBe('One. Two.');
   });
 
-  it('uses deterministic fallback when CHARUY_NO_LLM=1', async () => {
-    const original = process.env.CHARUY_NO_LLM;
-    process.env.CHARUY_NO_LLM = '1';
+  it('uses deterministic fallback when NOLDOR_NO_LLM=1', async () => {
+    const original = process.env.NOLDOR_NO_LLM;
+    process.env.NOLDOR_NO_LLM = '1';
     try {
       const out = await polishSummary([makeCommit('a', 'feat', 'one')]);
       expect(out).toBe('One.');
     } finally {
-      if (original === undefined) delete process.env.CHARUY_NO_LLM;
-      else process.env.CHARUY_NO_LLM = original;
+      if (original === undefined) delete process.env.NOLDOR_NO_LLM;
+      else process.env.NOLDOR_NO_LLM = original;
     }
   });
 

@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Feature MD Schema
 
-Every user-visible capability in the project is tracked as one feature MD (FD) under `docs/features/`. This page describes the frontmatter contract, body structure, and links shape. The single source of truth for the schema is the Zod definition in [`scripts/features/feature-schema.ts`](../../scripts/features/feature-schema.ts) — when this page disagrees with that file, the Zod schema wins.
+Every user-visible capability in the project is tracked as one feature MD (FD) under `docs/features/`. This page describes the frontmatter contract, body structure, and links shape. The single source of truth for the schema is the Zod definition in [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts) — when this page disagrees with that file, the Zod schema wins.
 
 ## Commands
 
@@ -77,7 +77,7 @@ Attach history is reconstructed from trailers, not from the parent FD's frontmat
 
 ## category — drives release-notes grouping
 
-Per the Workflow rules: every new feature MD requires a `category` field — one of `Modeling | Editor | Agents | Distribution | Docs | Tooling | Other`. Drives release-notes grouping. `/promote` prompts for this; `/new-feature` requires it.
+Per the Workflow rules: every new feature MD requires a `category` field — one of the categories configured in `.noldor/config.json` (`consumer.categories`; default `Core | Tooling | Other`). Drives release-notes grouping. `/promote` prompts for this; `/new-feature` requires it.
 
 This is coarser than the internal `area` taxonomy. `area` can be free-form (`history`, `viewport`, `persistence`); `category` is the closed enum above.
 
@@ -121,7 +121,7 @@ That's it — no `#### Commits` subsection, no `### Unreleased`. Both have moved
 `pnpm release`:
 
 1. Walks every `done`-phase FD; runs `commitsForFeature(slug, prevTag, HEAD)` to get the qualifying set (noise types `chore`/`docs`/`test`/`style`/`ci`/`build` filtered out).
-2. For each FD with non-zero commits, calls `polishSummary(commits)` — `claude -p` rewrites the filtered subjects as a single readable paragraph (deterministic fallback under `CHARUY_NO_LLM=1` or subprocess failure).
+2. For each FD with non-zero commits, calls `polishSummary(commits)` — `claude -p` rewrites the filtered subjects as a single readable paragraph (deterministic fallback under `NOLDOR_NO_LLM=1` or subprocess failure).
 3. Prepends `### <new-version> > #### Summary` to the FD's `## Changelog` section.
 
 The operator no longer stages release-notes copy ahead of time. To override the auto-polished Summary post-release, edit the FD body's `### <version> > #### Summary` block by hand and commit (it will surface on `/release-notes` and `/features/<slug>` directly).
@@ -148,7 +148,7 @@ A page-by-page reference of every detector and its sentinel is in [`garden-and-d
 
 ## Validation
 
-`pnpm noldor validate features` enforces the schema across every `docs/features/*.md`. It runs via the lefthook pre-commit `validate.features` job, so schema drift fails the commit. The script lives at [`scripts/features/validate-features.ts`](../../scripts/features/validate-features.ts) and additionally cross-checks:
+`pnpm noldor validate features` enforces the schema across every `docs/features/*.md`. It runs via the lefthook pre-commit `validate.features` job, so schema drift fails the commit. The script lives at [`src/features/validate-features.ts`](../../src/features/validate-features.ts) and additionally cross-checks:
 
 - Every `packages/<name>` reference in `links.code` must appear in the `packages` frontmatter array (`validatePackagesField`).
 - Every slug in a `<!-- @feature: <slug> -->` doc tag must correspond to an existing `docs/features/<slug>.md` (`validateDocFeatureSlugs`).

@@ -5,10 +5,10 @@ introduced: 0.4.0
 
 # Versioning
 
-Charuy follows [semantic versioning](https://semver.org/) across the monorepo.
-All packages (`@charuy/format`, `@charuy/engine`, `@charuy/viewport`,
-`@charuy/test-fixtures`) and the web app ship in **lockstep** — a single
-version advances every release.
+The consumer repo follows [semantic versioning](https://semver.org/). Every
+package listed in the consumer config's `lockstepPackages` (plus the app, if
+any) ships in **lockstep** — a single version advances every release. A
+single-package repo simply lists one package; a monorepo lists several.
 
 ## Conventional Commits → bump level
 
@@ -35,7 +35,7 @@ Before invoking `pnpm release` for any minor or major bump, run
    low-cohesion communities, dead exports flagged by the audit.
 3. README drift check.
 4. `/graphify` + `pnpm toon` again — capture the post-refactor graph.
-5. **Drift pre-empt** (step 5.5) — `pnpm docs:build` + `pnpm noldor garden sdd-report --release`. Commit any drift on the sweep branch. The release script's existing dirty-tree checks (`scripts/release/index.ts:132-138` and `:140-146`) then no-op when the sweep already committed the regen output. See [release-sweep-process-hardening](../features/release-sweep-process-hardening.md) §3.1.
+5. **Drift pre-empt** (step 5.5) — `pnpm docs:build` + `pnpm noldor garden sdd-report --release`. Commit any drift on the sweep branch. The release script's existing dirty-tree checks (`src/release/index.ts:132-138` and `:140-146`) then no-op when the sweep already committed the regen output. See [release-sweep-process-hardening](../features/release-sweep-process-hardening.md) §3.1.
 6. Single `chore(release): pre-release graphify + refactor sweep` commit (plus any drift-pre-empt commits from step 5).
 7. `pnpm verify` final gate, then explicit `release now` confirmation.
 
@@ -50,30 +50,27 @@ skip the sweep; minor and major bumps MUST NOT.
 `pnpm release` orchestrates:
 
 1. **Preconditions** — on `main`, clean tree, synced with `origin`, `gh` CLI
-   available, graph fresh (`ensureGraphFresh`), garden fresh
-   (`ensureGardenFresh` — `.noldor/garden-receipt` must postdate the
-   latest commit under `apps/ packages/ scripts/`; stamped by
-   `pnpm noldor garden receipt` at the end of every `/garden` flow). Bypass with
+   available, graph fresh (`ensureGraphFresh` — **optional**: skipped when the
+   consumer tracks no `graphify-out/graph.json`; otherwise the graph must
+   postdate the latest commit under the configured `scanPaths`), garden fresh
+   (`ensureGardenFresh` — `.noldor/garden-receipt` must postdate the latest
+   commit under the configured `scanPaths`; stamped by `pnpm noldor garden
+   receipt` at the end of every `/garden` flow). Bypass with
    `RELEASE_SKIP_GARDEN_GATE=1 pnpm release` for bootstrap commits that
    predate this gate's existence — same escape-hatch discipline as the
-   other `RELEASE_SKIP_*` env vars. All of the following must pass:
+   other `RELEASE_SKIP_*` env vars. The following must pass:
+
+   **Framework checks (always run, via the `noldor` CLI):**
    - `pnpm noldor garden detect --gate-compliance` — zero override-tier-mismatch
      findings required; aborts if any gate-compliance findings exist.
      Bypass with `RELEASE_SKIP_GATE_COMPLIANCE=1 pnpm release` when a
      release cycle ends with known scope-vs-FD-slug drift that can't be
      fixed without rewriting public history. The bypass is loud (printed
      in release output) and is intended as an escape hatch, not the norm.
-   - `pnpm typecheck`
-   - `pnpm test`
-   - `pnpm test:smoke`
-   - `pnpm test:e2e`
-   - `pnpm docs:build` — and `docs/user/` must have no resulting diff (any
-     un-committed regenerated docs aborts)
    - `pnpm noldor garden sdd-report --release` — and `docs/sdd-report.md` must have no
      resulting diff (un-committed report regen aborts). The `--release`
      flag includes the Gate compliance section (tier distribution,
      override usage, review-skip counter).
-   - `pnpm build`
    - `pnpm noldor validate features`
    - `checkCrGate(prev-tag..HEAD)` — every code-touching commit must
      carry tree-matched `Noldor-Reviewed` AND
@@ -83,6 +80,14 @@ skip the sweep; minor and major bumps MUST NOT.
      release where the CR pipeline itself was added during the cycle and
      pre-cycle commits never had a chance to carry the trailers. Same
      escape-hatch discipline as `RELEASE_SKIP_GATE_COMPLIANCE`.
+
+   **Consumer quality gates (run only if declared in the consumer's
+   `package.json`; a repo without one skips it loudly):** `pnpm typecheck`,
+   `pnpm test`, `pnpm test:smoke`, `pnpm test:e2e`, `pnpm build`, and
+   `pnpm docs:build` (when present, `docs/user/` must have no resulting diff —
+   un-committed regenerated docs abort). This is what keeps the pipeline
+   portable: a single-package repo with only `typecheck`/`test`/`build` runs
+   exactly those; a monorepo that defines smoke/e2e/docs:build runs them too.
 2. **Derive new version** — find previous `v*` tag, scan commits, apply bump.
 3. **Generate per-FD changelogs.** For each FD with at least one
    `<package>:<slug>` (or `Noldor-FD:` trailer) commit in the release
@@ -139,24 +144,6 @@ The release script. Authors never set these fields manually. Normal flow:
 
 This keeps authoring simple — no predicting the next version number — and
 gives the release script a single job.
-
-## Product version vs scene format version
-
-Charuy has **two orthogonal semver axes**:
-
-- **Product version** — the `version` field in all `package.json` files; the
-  `v<x.y.z>` git tag; what's in `CHANGELOG.md`. Bumps per the rules above.
-- **Scene format version** — the `charuy` field in the scene JSON envelope,
-  managed inside `@charuy/format`. Bumps only when the persisted-scene schema
-  changes.
-
-A product-version bump does NOT imply a scene-format bump, and vice versa.
-
-| Scene format change                                 | Action                                                                                                |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Purely additive (new optional field, new node type) | Bump scene format minor, no migration                                                                 |
-| Backward-incompatible rename or removal             | Bump scene format major, add explicit migration in `@charuy/format`, tests for before/after hydration |
-| Wire-format change (serialization layout)           | Treat as major; affects `deserialize`                                                                 |
 
 ## Extension points (deferred)
 

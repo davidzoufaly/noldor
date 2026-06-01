@@ -5,7 +5,7 @@ import type { Howto } from '../docs-howto.js';
 
 function baseHowto(overrides: Partial<Howto>): Howto {
   return {
-    frontmatter: { category: 'Modeling', title: 'How to combine shapes' },
+    frontmatter: { category: 'Core', title: 'How to combine shapes' },
     oneLiner: '',
     slug: 'combine-shapes',
     ...overrides,
@@ -19,39 +19,36 @@ describe(renderHowToIndex, () => {
     expect(md).toContain('# How-to Guides');
   });
 
-  it('groups how-tos by category in canonical order', () => {
+  it('groups how-tos by category in configured order', () => {
+    // Default categories order: Core, Tooling, Other.
     const md = renderHowToIndex([
       baseHowto({
-        frontmatter: { category: 'Distribution', title: 'How to export STL' },
-        slug: 'export-stl',
+        frontmatter: { category: 'Other', title: 'How to export data' },
+        slug: 'export-data',
       }),
       baseHowto({
-        frontmatter: { category: 'Modeling', title: 'How to combine shapes' },
+        frontmatter: { category: 'Core', title: 'How to combine shapes' },
         slug: 'combine-shapes',
       }),
       baseHowto({
-        frontmatter: { category: 'Agents', title: 'How to drive Charuy' },
-        slug: 'drive-charuy',
+        frontmatter: { category: 'Tooling', title: 'How to run the linter' },
+        slug: 'run-linter',
       }),
     ]);
-    const modelingIdx = md.indexOf('## Modeling');
-    const agentsIdx = md.indexOf('## Agents');
-    const distributionIdx = md.indexOf('## Distribution');
-    expect(modelingIdx).toBeGreaterThan(-1);
-    expect(modelingIdx).toBeLessThan(agentsIdx);
-    expect(agentsIdx).toBeLessThan(distributionIdx);
+    const coreIdx = md.indexOf('## Core');
+    const toolingIdx = md.indexOf('## Tooling');
+    const otherIdx = md.indexOf('## Other');
+    expect(coreIdx).toBeGreaterThan(-1);
+    expect(coreIdx).toBeLessThan(toolingIdx);
+    expect(toolingIdx).toBeLessThan(otherIdx);
   });
 
   it('drops empty categories', () => {
     const md = renderHowToIndex([
       baseHowto({
-        frontmatter: { category: 'Modeling', title: 'How to combine shapes' },
+        frontmatter: { category: 'Core', title: 'How to combine shapes' },
       }),
     ]);
-    expect(md).not.toContain('## Editor');
-    expect(md).not.toContain('## Agents');
-    expect(md).not.toContain('## Distribution');
-    expect(md).not.toContain('## Docs');
     expect(md).not.toContain('## Tooling');
     expect(md).not.toContain('## Other');
   });
@@ -59,11 +56,11 @@ describe(renderHowToIndex, () => {
   it('sorts guides alphabetically within a category by title', () => {
     const md = renderHowToIndex([
       baseHowto({
-        frontmatter: { category: 'Modeling', title: 'How to taper a cone' },
+        frontmatter: { category: 'Core', title: 'How to taper a cone' },
         slug: 'taper-cone',
       }),
       baseHowto({
-        frontmatter: { category: 'Modeling', title: 'How to combine shapes' },
+        frontmatter: { category: 'Core', title: 'How to combine shapes' },
         slug: 'combine-shapes',
       }),
     ]);

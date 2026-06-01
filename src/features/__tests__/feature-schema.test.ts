@@ -2,7 +2,7 @@ import { FeatureFrontmatterSchema } from '../feature-schema.js';
 
 const base = {
   area: 'history',
-  category: 'Editor' as const,
+  category: 'Core' as const,
   introduced: '0.1.0',
   links: {
     code: ['packages/web/src/history/'],
@@ -87,8 +87,14 @@ describe('FeatureFrontmatterSchema', () => {
     expect(FeatureFrontmatterSchema.safeParse(bad).success).toBeFalsy();
   });
 
-  it('rejects category outside the enum', () => {
-    const bad = { ...base, category: 'Frontend' as unknown as 'Editor' };
+  it('accepts any non-empty category string (membership enforced by validate-features, not the schema)', () => {
+    expect(
+      FeatureFrontmatterSchema.safeParse({ ...base, category: 'Frontend' }).success,
+    ).toBeTruthy();
+  });
+
+  it('rejects an empty category', () => {
+    const bad = { ...base, category: '' };
     expect(FeatureFrontmatterSchema.safeParse(bad).success).toBeFalsy();
   });
 
