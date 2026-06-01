@@ -14,8 +14,8 @@ packages:
   - noldor
 phase: done
 noldor-tier: specs-only
+introduced: 0.2.0
 ---
-
 ## Summary
 
 Generates `docs/user/how-to/index.md` from the frontmatter of every how-to MD under `docs/user/how-to/`. Each how-to declares validated frontmatter (`howtoFrontmatterSchema` — `category` constrained to the shared `CATEGORIES` enum); the pipeline parses them, groups by category, and renders an index whose bullets pair each guide's title with its first body paragraph as a one-liner. Run via `pnpm noldor docs howto`. Empty input degrades to a `_No how-to guides yet._` placeholder rather than an empty file.

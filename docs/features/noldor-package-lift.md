@@ -15,8 +15,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.2.0
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
@@ -50,6 +50,16 @@ the product, and any other repo can adopt it through `noldor init`.
 <!-- @prs-since-last-release: noldor-package-lift -->
 
 ## Changelog
+
+### Initial Release (v0.2.0)
+
+#### Summary
+
+The framework is now lifted into a dedicated `packages/noldor` workspace package (#53).
+
+#### PRs
+
+- #53: lift framework into packages/noldor workspace package ([link](https://github.com/davidzoufaly/noldor/pull/53))
 
 <!-- generated: resources -->
 
