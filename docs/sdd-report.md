@@ -28,7 +28,7 @@ No overrides in the last 30 days.
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 8
+Gated commits missing `Noldor-Reviewed` trailer: 9
 
 ## Gap details
 
