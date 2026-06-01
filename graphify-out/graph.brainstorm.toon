@@ -1,0 +1,3594 @@
+# Domain Knowledge Graph — Brainstorm Context
+# Generated from graph.json (1035 nodes, 2316 edges)
+
+directed: false
+
+## community 0 (78 nodes) — sdd-report.ts · compareSemver() · isLinkEnforced()
+nodes:
+  applyProposal(),features/fill-links-code-gaps.ts,0
+  backupFeatures(),features/fill-links-code-gaps.ts,0
+  buildFileToFdsMap(),garden/graph-fd-lookup.ts,0
+  buildGateComplianceSection(),garden/sdd-report.ts,0
+  collectGaps(),garden/sdd-report.ts,0
+  collectTaggedSpecs(),sync/sync-spec-links.ts,0
+  commit(),garden/__tests__/sdd-report.test.ts,0
+  commitTouchingPaths(),garden/__tests__/sdd-report.test.ts,0
+  compareSemver(),garden/sdd-report.ts,0
+  detectCodeOrphans(),garden/sdd-report.ts,0
+  detectDoneFeaturesMissingCode(),garden/sdd-report.ts,0
+  detectDoneFeaturesMissingIntroduced(),garden/sdd-report.ts,0
+  detectDoneFeaturesWithoutDocs(),garden/sdd-report.ts,0
+  detectDoneFeaturesWithoutTests(),garden/sdd-report.ts,0
+  detectFeaturesWithoutSpec(),garden/sdd-report.ts,0
+  detectMissingCoTags(),garden/sdd-report.ts,0
+  detectPlansWithoutSpec(),garden/sdd-report.ts,0
+  detectReadmePackageDrift(),garden/sdd-report.ts,0
+  detectSpecsWithoutFeatures(),garden/sdd-report.ts,0
+  detectStaleBacklog(),garden/sdd-report.ts,0
+  detectUntaggedDocs(),garden/sdd-report.ts,0
+  detectUntaggedTests(),garden/sdd-report.ts,0
+  detectUntriagedIdeas(),garden/sdd-report.ts,0
+  extractPlanSlug(),garden/sdd-report.ts,0
+  extractSpecSlug(),garden/sdd-report.ts,0
+  extractSummary(),features/fill-links-code-gaps.ts,0
+  extractUntriagedBullets(),triage/triage-list-untriaged.ts,0
+  feature-schema.test.ts,features/__tests__/feature-schema.test.ts,0
+  feature-schema.ts,features/feature-schema.ts,0
+  feature(),garden/__tests__/graph-fd-lookup.test.ts,0
+  feature(),garden/__tests__/sdd-report.test.ts,0
+  fill-links-code-gaps.test.ts,features/__tests__/fill-links-code-gaps.test.ts,0
+  fill-links-code-gaps.ts,features/fill-links-code-gaps.ts,0
+  generateProposal(),features/fill-links-code-gaps.ts,0
+  getCommunityOwners(),garden/graph-fd-lookup.ts,0
+  getFdOwnersForFile(),garden/graph-fd-lookup.ts,0
+  getImportOwnersForTest(),garden/graph-fd-lookup.ts,0
+  graph-fd-lookup.test.ts,garden/__tests__/graph-fd-lookup.test.ts,0
+  graph-fd-lookup.ts,garden/graph-fd-lookup.ts,0
+  groupByCategory(),garden/sdd-report.ts,0
+  isCoveredByAncestorDir(),garden/sdd-report.ts,0
+  isIgnoredFreshnessPath(),garden/graph-fd-lookup.ts,0
+  isInfraFile(),garden/sdd-report.ts,0
+  isLinkEnforced(),garden/sdd-report.ts,0
+  listPlans(),garden/sdd-report.ts,0
+  listSpecs(),garden/sdd-report.ts,0
+  loadFreshGraphOrWarn(),garden/graph-fd-lookup.ts,0
+  loadSddFeatures(),garden/sdd-report.ts,0
+  loadSddInput(),dashboard/data.ts,0
+  main(),garden/sdd-report.ts,0
+  main(),features/fill-links-code-gaps.ts,0
+  main(),triage/triage-list-untriaged.ts,0
+  main(),sync/sync-spec-links.ts,0
+  makeFm(),garden/__tests__/sdd-report.test.ts,0
+  makeGitRepo(),garden/__tests__/sdd-report.test.ts,0
+  newestMtimeInRoots(),garden/graph-fd-lookup.ts,0
+  parseBacklog(),utils/parse-blocks.ts,0
+  parseLlmResponse(),features/fill-links-code-gaps.ts,0
+  parseProposal(),features/fill-links-code-gaps.ts,0
+  readTextFiles(),garden/sdd-report.ts,0
+  renderReportMd(),garden/sdd-report.ts,0
+  renderStdout(),garden/sdd-report.ts,0
+  resolveByLlm(),features/fill-links-code-gaps.ts,0
+  resolveByPath(),features/fill-links-code-gaps.ts,0
+  resolveReportOutPath(),garden/sdd-report.ts,0
+  runAutoHigh(),features/fill-links-code-gaps.ts,0
+  sdd-report.test.ts,garden/__tests__/sdd-report.test.ts,0
+  sdd-report.ts,garden/sdd-report.ts,0
+  sync-spec-links.test.ts,sync/__tests__/sync-spec-links.test.ts,0
+  sync-spec-links.ts,sync/sync-spec-links.ts,0
+  triage-list-untriaged.test.ts,triage/__tests__/triage-list-untriaged.test.ts,0
+  triage-list-untriaged.ts,triage/triage-list-untriaged.ts,0
+  updateFeatureMd(),sync/sync-spec-links.ts,0
+  walkRepo(),garden/sdd-report.ts,0
+  walkSync(),garden/graph-fd-lookup.ts,0
+  withGraphTmp(),garden/__tests__/sdd-report.test.ts,0
+  withTmp(),garden/__tests__/graph-fd-lookup.test.ts,0
+  writeFreshGraph(),garden/__tests__/sdd-report.test.ts,0
+edges:
+  sdd-report.ts --imports_from-- feature-schema.ts
+  sdd-report.ts --imports-- parseBacklog()
+  sdd-report.ts --imports_from-- triage-list-untriaged.ts
+  sdd-report.ts --imports-- extractUntriagedBullets()
+  graph-fd-lookup.ts --imports_from-- sdd-report.ts
+  sdd-report.ts --imports-- buildFileToFdsMap()
+  sdd-report.ts --imports-- getCommunityOwners()
+  sdd-report.ts --imports-- getImportOwnersForTest()
+  sdd-report.ts --imports-- loadFreshGraphOrWarn()
+  sdd-report.ts --contains-- compareSemver()
+  sdd-report.ts --contains-- isLinkEnforced()
+  sdd-report.ts --contains-- detectDoneFeaturesWithoutTests()
+  sdd-report.ts --contains-- detectDoneFeaturesWithoutDocs()
+  sdd-report.ts --contains-- detectDoneFeaturesMissingCode()
+  sdd-report.ts --contains-- detectFeaturesWithoutSpec()
+  sdd-report.ts --contains-- detectDoneFeaturesMissingIntroduced()
+  sdd-report.ts --contains-- detectUntriagedIdeas()
+  sdd-report.ts --contains-- detectStaleBacklog()
+  sdd-report.ts --contains-- detectSpecsWithoutFeatures()
+  sdd-report.ts --contains-- isInfraFile()
+  sdd-report.ts --contains-- isCoveredByAncestorDir()
+  sdd-report.ts --contains-- detectCodeOrphans()
+  sdd-report.ts --contains-- detectUntaggedTests()
+  sdd-report.ts --contains-- detectMissingCoTags()
+  sdd-report.ts --contains-- detectUntaggedDocs()
+  sdd-report.ts --contains-- detectReadmePackageDrift()
+  sdd-report.ts --contains-- walkRepo()
+  sdd-report.ts --contains-- loadSddFeatures()
+  sdd-report.ts --contains-- listSpecs()
+  sdd-report.ts --contains-- listPlans()
+  sdd-report.ts --contains-- extractSpecSlug()
+  sdd-report.ts --contains-- extractPlanSlug()
+  sdd-report.ts --contains-- detectPlansWithoutSpec()
+  sdd-report.ts --contains-- readTextFiles()
+  sdd-report.ts --contains-- collectGaps()
+  sdd-report.ts --contains-- buildGateComplianceSection()
+  sdd-report.ts --contains-- groupByCategory()
+  sdd-report.ts --contains-- renderStdout()
+  sdd-report.ts --contains-- renderReportMd()
+  sdd-report.ts --contains-- resolveReportOutPath()
+  sdd-report.ts --contains-- main()
+  graph-fd-lookup.test.ts --imports_from-- sdd-report.ts
+  sdd-report.test.ts --imports_from-- sdd-report.ts
+  fill-links-code-gaps.ts --imports_from-- sdd-report.ts
+  sync-spec-links.ts --imports_from-- sdd-report.ts
+  isLinkEnforced() --calls-- compareSemver()
+  sdd-report.test.ts --imports-- compareSemver()
+  sdd-report.test.ts --imports-- isLinkEnforced()
+  collectGaps() --calls-- detectDoneFeaturesWithoutTests()
+  sdd-report.test.ts --imports-- detectDoneFeaturesWithoutTests()
+  collectGaps() --calls-- detectDoneFeaturesWithoutDocs()
+  sdd-report.test.ts --imports-- detectDoneFeaturesWithoutDocs()
+  collectGaps() --calls-- detectDoneFeaturesMissingCode()
+  sdd-report.test.ts --imports-- detectDoneFeaturesMissingCode()
+  collectGaps() --calls-- detectFeaturesWithoutSpec()
+  sdd-report.test.ts --imports-- detectFeaturesWithoutSpec()
+  collectGaps() --calls-- detectDoneFeaturesMissingIntroduced()
+  sdd-report.test.ts --imports-- detectDoneFeaturesMissingIntroduced()
+  collectGaps() --calls-- detectUntriagedIdeas()
+  sdd-report.test.ts --imports-- detectUntriagedIdeas()
+  detectUntriagedIdeas() --calls-- extractUntriagedBullets()
+  collectGaps() --calls-- detectStaleBacklog()
+  sdd-report.test.ts --imports-- detectStaleBacklog()
+  collectGaps() --calls-- detectSpecsWithoutFeatures()
+  sdd-report.test.ts --imports-- detectSpecsWithoutFeatures()
+  sdd-report.test.ts --imports-- isInfraFile()
+  fill-links-code-gaps.ts --imports-- isInfraFile()
+  collectGaps() --calls-- detectCodeOrphans()
+  sdd-report.test.ts --imports-- detectCodeOrphans()
+  detectCodeOrphans() --calls-- loadFreshGraphOrWarn()
+  detectCodeOrphans() --calls-- buildFileToFdsMap()
+  collectGaps() --calls-- detectUntaggedTests()
+  sdd-report.test.ts --imports-- detectUntaggedTests()
+  detectUntaggedTests() --calls-- loadFreshGraphOrWarn()
+  detectUntaggedTests() --calls-- buildFileToFdsMap()
+  collectGaps() --calls-- detectMissingCoTags()
+  sdd-report.test.ts --imports-- detectMissingCoTags()
+  detectMissingCoTags() --calls-- loadFreshGraphOrWarn()
+  detectMissingCoTags() --calls-- buildFileToFdsMap()
+  detectMissingCoTags() --calls-- getImportOwnersForTest()
+  collectGaps() --calls-- detectUntaggedDocs()
+  sdd-report.test.ts --imports-- detectUntaggedDocs()
+  collectGaps() --calls-- detectReadmePackageDrift()
+  sdd-report.test.ts --imports-- detectReadmePackageDrift()
+  main() --calls-- walkRepo()
+  fill-links-code-gaps.ts --imports-- walkRepo()
+  main() --calls-- walkRepo()
+  runAutoHigh() --calls-- walkRepo()
+  loadSddInput() --calls-- walkRepo()
+  main() --calls-- loadSddFeatures()
+  fill-links-code-gaps.ts --imports-- loadSddFeatures()
+  main() --calls-- loadSddFeatures()
+  runAutoHigh() --calls-- loadSddFeatures()
+  loadSddInput() --calls-- loadSddFeatures()
+  main() --calls-- listSpecs()
+  loadSddInput() --calls-- listSpecs()
+  main() --calls-- listPlans()
+  loadSddInput() --calls-- listPlans()
+  sdd-report.test.ts --imports-- extractSpecSlug()
+  sync-spec-links.ts --imports-- extractSpecSlug()
+  collectTaggedSpecs() --calls-- extractSpecSlug()
+  detectPlansWithoutSpec() --calls-- extractPlanSlug()
+  sdd-report.test.ts --imports-- extractPlanSlug()
+  collectGaps() --calls-- detectPlansWithoutSpec()
+  sdd-report.test.ts --imports-- detectPlansWithoutSpec()
+  main() --calls-- readTextFiles()
+  loadSddInput() --calls-- readTextFiles()
+  main() --calls-- collectGaps()
+  main() --calls-- buildGateComplianceSection()
+  sdd-report.test.ts --imports-- buildGateComplianceSection()
+  main() --calls-- groupByCategory()
+  main() --calls-- renderStdout()
+  main() --calls-- renderReportMd()
+  main() --calls-- resolveReportOutPath()
+  sdd-report.test.ts --imports-- resolveReportOutPath()
+  main() --calls-- parseBacklog()
+  main() --calls-- extractUntriagedBullets()
+  graph-fd-lookup.ts --contains-- loadFreshGraphOrWarn()
+  graph-fd-lookup.ts --contains-- newestMtimeInRoots()
+  graph-fd-lookup.ts --contains-- walkSync()
+  graph-fd-lookup.ts --contains-- isIgnoredFreshnessPath()
+  graph-fd-lookup.ts --contains-- buildFileToFdsMap()
+  graph-fd-lookup.ts --contains-- getFdOwnersForFile()
+  graph-fd-lookup.ts --contains-- getImportOwnersForTest()
+  graph-fd-lookup.ts --contains-- getCommunityOwners()
+  graph-fd-lookup.test.ts --imports_from-- graph-fd-lookup.ts
+  loadFreshGraphOrWarn() --calls-- newestMtimeInRoots()
+  graph-fd-lookup.test.ts --imports-- loadFreshGraphOrWarn()
+  newestMtimeInRoots() --calls-- walkSync()
+  walkSync() --calls-- isIgnoredFreshnessPath()
+  graph-fd-lookup.test.ts --imports-- buildFileToFdsMap()
+  getImportOwnersForTest() --calls-- getFdOwnersForFile()
+  getCommunityOwners() --calls-- getFdOwnersForFile()
+  graph-fd-lookup.test.ts --imports-- getFdOwnersForFile()
+  graph-fd-lookup.test.ts --imports-- getImportOwnersForTest()
+  graph-fd-lookup.test.ts --imports-- getCommunityOwners()
+  graph-fd-lookup.test.ts --imports_from-- feature-schema.ts
+  graph-fd-lookup.test.ts --contains-- feature()
+  graph-fd-lookup.test.ts --contains-- withTmp()
+  sdd-report.test.ts --imports_from-- feature-schema.ts
+  sdd-report.test.ts --contains-- makeFm()
+  sdd-report.test.ts --contains-- feature()
+  sdd-report.test.ts --contains-- withGraphTmp()
+  sdd-report.test.ts --contains-- writeFreshGraph()
+  sdd-report.test.ts --contains-- makeGitRepo()
+  sdd-report.test.ts --contains-- commit()
+  sdd-report.test.ts --contains-- commitTouchingPaths()
+  feature() --calls-- makeFm()
+  fill-links-code-gaps.ts --imports_from-- feature-schema.ts
+  feature-schema.test.ts --imports_from-- feature-schema.ts
+  fill-links-code-gaps.test.ts --imports_from-- feature-schema.ts
+  fill-links-code-gaps.ts --contains-- resolveByPath()
+  fill-links-code-gaps.ts --contains-- parseLlmResponse()
+  fill-links-code-gaps.ts --contains-- resolveByLlm()
+  fill-links-code-gaps.ts --contains-- generateProposal()
+  fill-links-code-gaps.ts --contains-- parseProposal()
+  fill-links-code-gaps.ts --contains-- applyProposal()
+  fill-links-code-gaps.ts --contains-- backupFeatures()
+  fill-links-code-gaps.ts --contains-- extractSummary()
+  fill-links-code-gaps.ts --contains-- main()
+  fill-links-code-gaps.ts --contains-- runAutoHigh()
+  fill-links-code-gaps.test.ts --imports_from-- fill-links-code-gaps.ts
+  main() --calls-- resolveByPath()
+  runAutoHigh() --calls-- resolveByPath()
+  fill-links-code-gaps.test.ts --imports-- resolveByPath()
+  resolveByLlm() --calls-- parseLlmResponse()
+  fill-links-code-gaps.test.ts --imports-- parseLlmResponse()
+  main() --calls-- resolveByLlm()
+  main() --calls-- generateProposal()
+  fill-links-code-gaps.test.ts --imports-- generateProposal()
+  main() --calls-- parseProposal()
+  fill-links-code-gaps.test.ts --imports-- parseProposal()
+  main() --calls-- applyProposal()
+  runAutoHigh() --calls-- applyProposal()
+  main() --calls-- backupFeatures()
+  fill-links-code-gaps.test.ts --imports-- backupFeatures()
+  main() --calls-- extractSummary()
+  main() --calls-- runAutoHigh()
+  loadSddInput() --calls-- parseBacklog()
+  triage-list-untriaged.ts --contains-- extractUntriagedBullets()
+  triage-list-untriaged.ts --contains-- main()
+  triage-list-untriaged.test.ts --imports_from-- triage-list-untriaged.ts
+  main() --calls-- extractUntriagedBullets()
+  triage-list-untriaged.test.ts --imports-- extractUntriagedBullets()
+  sync-spec-links.ts --contains-- collectTaggedSpecs()
+  sync-spec-links.ts --contains-- updateFeatureMd()
+  sync-spec-links.ts --contains-- main()
+  sync-spec-links.test.ts --imports_from-- sync-spec-links.ts
+  main() --calls-- collectTaggedSpecs()
+  sync-spec-links.test.ts --imports-- collectTaggedSpecs()
+  main() --calls-- updateFeatureMd()
+  sync-spec-links.test.ts --imports-- updateFeatureMd()
+
+## community 1 (77 nodes) — lanes
+nodes:
+  amend-receipt.test.ts,cr/__tests__/amend-receipt.test.ts,1
+  amend-receipt.ts,cr/amend-receipt.ts,1
+  amendSubagentReceipt(),cr/amend-receipt.ts,1
+  atomic-write.test.ts,cr/__tests__/atomic-write.test.ts,1
+  atomic-write.ts,cr/atomic-write.ts,1
+  baseInput(),cr/__tests__/lanes/codex.test.ts,1
+  buildPrompt(),cr/lanes/subagent-dispatch.ts,1
+  claudeSupportsMaxThinking(),cr/lanes/standalone.ts,1
+  codex.test.ts,cr/__tests__/lanes/codex.test.ts,1
+  codex.ts,cr/lanes/codex.ts,1
+  codexSupportsBaseSha(),cr/lanes/codex.ts,1
+  config.test.ts,cr/__tests__/config.test.ts,1
+  config.ts,cr/config.ts,1
+  delta.test.ts,cr/__tests__/delta.test.ts,1
+  dispatcher(),cr/lanes/subagent-dispatch.ts,1
+  dispatchSubagent(),cr/lanes/subagent-dispatch.ts,1
+  escalate-cli.ts,cr/escalate-cli.ts,1
+  escalate.test.ts,cr/__tests__/escalate.test.ts,1
+  escalate.ts,cr/escalate.ts,1
+  escalate(),cr/escalate.ts,1
+  exec(),cr/lanes/codex.ts,1
+  execAsync(),cr/orchestrate.ts,1
+  execAsync(),cr/lanes/standalone.ts,1
+  findings-schema.test.ts,cr/__tests__/findings-schema.test.ts,1
+  findings-schema.ts,cr/findings-schema.ts,1
+  guardLaneOverwrite(),cr/orchestrate.ts,1
+  guardStandaloneInProgress(),cr/orchestrate.ts,1
+  in-progress-guard.test.ts,cr/__tests__/in-progress-guard.test.ts,1
+  input(),cr/__tests__/lanes/standalone.test.ts,1
+  input(),cr/__tests__/lanes/manual.test.ts,1
+  input(),cr/__tests__/lanes/subagent.test.ts,1
+  isEmptyDiffDefault(),cr/orchestrate.ts,1
+  lane-types.ts,cr/lane-types.ts,1
+  lastMsg(),cr/__tests__/amend-receipt.test.ts,1
+  loadConfig(),cr/config.ts,1
+  main(),validate/noldor-config.ts,1
+  main(),cr/escalate-cli.ts,1
+  makeRepo(),cr/__tests__/amend-receipt.test.ts,1
+  manual.test.ts,cr/__tests__/lanes/manual.test.ts,1
+  manual.ts,cr/lanes/manual.ts,1
+  multiterminalDepDone(),cr/lanes/standalone.ts,1
+  noldor-config.ts,validate/noldor-config.ts,1
+  orchestrate-args.ts,cr/orchestrate-args.ts,1
+  orchestrate.integration.test.ts,cr/__tests__/orchestrate.integration.test.ts,1
+  orchestrate.test.ts,cr/__tests__/orchestrate.test.ts,1
+  orchestrate.ts,cr/orchestrate.ts,1
+  osascriptSpawn(),cr/lanes/standalone.ts,1
+  overwrite-guard.test.ts,cr/__tests__/overwrite-guard.test.ts,1
+  parseArgs(),cr/orchestrate-args.ts,1
+  parseSubagentMarkdown(),cr/lanes/subagent.ts,1
+  prompt-stdin.test.ts,cr/__tests__/prompt-stdin.test.ts,1
+  prompt-stdin.ts,cr/prompt-stdin.ts,1
+  promptSelect(),cr/prompt-stdin.ts,1
+  promptText(),cr/prompt-stdin.ts,1
+  read-fd-summary.test.ts,cr/__tests__/read-fd-summary.test.ts,1
+  read-fd-summary.ts,cr/read-fd-summary.ts,1
+  readFdSummary(),cr/read-fd-summary.ts,1
+  resolveLanes(),cr/orchestrate.ts,1
+  run(),cr/orchestrate.ts,1
+  runCodex(),cr/lanes/codex.ts,1
+  runManual(),cr/lanes/manual.ts,1
+  runStandalone(),cr/lanes/standalone.ts,1
+  runSubagent(),cr/lanes/subagent.ts,1
+  setDispatcher(),cr/lanes/subagent-dispatch.ts,1
+  spawnDeepReview(),cr/escalate.ts,1
+  standalone.test.ts,cr/__tests__/lanes/standalone.test.ts,1
+  standalone.ts,cr/lanes/standalone.ts,1
+  stripDecorations(),cr/lanes/subagent.ts,1
+  subagent-dispatch.ts,cr/lanes/subagent-dispatch.ts,1
+  subagent.test.ts,cr/__tests__/lanes/subagent.test.ts,1
+  subagent.ts,cr/lanes/subagent.ts,1
+  templateSha(),cr/lanes/standalone.ts,1
+  writeContext(),cr/escalate.ts,1
+  writeJsonAtomic(),cr/atomic-write.ts,1
+  writePrior(),cr/__tests__/overwrite-guard.test.ts,1
+  writeStub(),cr/__tests__/in-progress-guard.test.ts,1
+  writeSyntheticOk(),cr/orchestrate.ts,1
+edges:
+  noldor-config.ts --imports_from-- config.ts
+  noldor-config.ts --imports-- loadConfig()
+  noldor-config.ts --contains-- main()
+  main() --calls-- loadConfig()
+  escalate.ts --imports_from-- lane-types.ts
+  escalate.ts --imports_from-- standalone.ts
+  escalate.ts --imports-- runStandalone()
+  escalate.ts --imports_from-- prompt-stdin.ts
+  escalate.ts --imports-- promptSelect()
+  escalate.ts --contains-- writeContext()
+  escalate.ts --contains-- spawnDeepReview()
+  escalate.ts --contains-- escalate()
+  escalate-cli.ts --imports_from-- escalate.ts
+  escalate.test.ts --imports_from-- escalate.ts
+  escalate() --calls-- writeContext()
+  escalate() --calls-- spawnDeepReview()
+  spawnDeepReview() --calls-- runStandalone()
+  escalate-cli.ts --imports-- escalate()
+  escalate.test.ts --imports-- escalate()
+  escalate() --calls-- promptSelect()
+  main() --calls-- escalate()
+  orchestrate.ts --imports_from-- findings-schema.ts
+  orchestrate-args.ts --imports_from-- findings-schema.ts
+  config.ts --imports_from-- findings-schema.ts
+  lane-types.ts --imports_from-- findings-schema.ts
+  manual.ts --imports_from-- findings-schema.ts
+  codex.ts --imports_from-- findings-schema.ts
+  subagent.ts --imports_from-- findings-schema.ts
+  standalone.ts --imports_from-- findings-schema.ts
+  findings-schema.test.ts --imports_from-- findings-schema.ts
+  escalate-cli.ts --imports_from-- config.ts
+  escalate-cli.ts --imports-- loadConfig()
+  escalate-cli.ts --contains-- main()
+  main() --calls-- loadConfig()
+  orchestrate.ts --imports_from-- atomic-write.ts
+  orchestrate.ts --imports-- writeJsonAtomic()
+  orchestrate.ts --imports_from-- config.ts
+  orchestrate.ts --imports-- loadConfig()
+  orchestrate.ts --imports_from-- lane-types.ts
+  orchestrate.ts --imports_from-- orchestrate-args.ts
+  orchestrate.ts --imports_from-- manual.ts
+  orchestrate.ts --imports-- runManual()
+  orchestrate.ts --imports_from-- codex.ts
+  orchestrate.ts --imports-- codexSupportsBaseSha()
+  orchestrate.ts --imports-- runCodex()
+  orchestrate.ts --imports_from-- subagent.ts
+  orchestrate.ts --imports-- runSubagent()
+  orchestrate.ts --imports_from-- standalone.ts
+  orchestrate.ts --imports-- multiterminalDepDone()
+  orchestrate.ts --imports-- runStandalone()
+  orchestrate.ts --imports_from-- prompt-stdin.ts
+  orchestrate.ts --imports-- promptSelect()
+  orchestrate.ts --imports_from-- amend-receipt.ts
+  orchestrate.ts --imports-- amendSubagentReceipt()
+  orchestrate.ts --contains-- execAsync()
+  orchestrate.ts --contains-- resolveLanes()
+  orchestrate.ts --contains-- isEmptyDiffDefault()
+  orchestrate.ts --contains-- writeSyntheticOk()
+  orchestrate.ts --contains-- guardLaneOverwrite()
+  orchestrate.ts --contains-- guardStandaloneInProgress()
+  orchestrate.ts --contains-- run()
+  overwrite-guard.test.ts --imports_from-- orchestrate.ts
+  orchestrate.integration.test.ts --imports_from-- orchestrate.ts
+  delta.test.ts --imports_from-- orchestrate.ts
+  in-progress-guard.test.ts --imports_from-- orchestrate.ts
+  orchestrate.test.ts --imports_from-- orchestrate.ts
+  isEmptyDiffDefault() --calls-- execAsync()
+  run() --calls-- execAsync()
+  run() --calls-- resolveLanes()
+  orchestrate.test.ts --imports-- resolveLanes()
+  run() --calls-- writeSyntheticOk()
+  writeSyntheticOk() --calls-- writeJsonAtomic()
+  run() --calls-- guardLaneOverwrite()
+  overwrite-guard.test.ts --imports-- guardLaneOverwrite()
+  guardLaneOverwrite() --calls-- promptSelect()
+  run() --calls-- guardStandaloneInProgress()
+  in-progress-guard.test.ts --imports-- guardStandaloneInProgress()
+  guardStandaloneInProgress() --calls-- promptSelect()
+  orchestrate.integration.test.ts --imports-- run()
+  delta.test.ts --imports-- run()
+  orchestrate.test.ts --imports-- run()
+  run() --calls-- loadConfig()
+  run() --calls-- multiterminalDepDone()
+  run() --calls-- runStandalone()
+  run() --calls-- codexSupportsBaseSha()
+  run() --calls-- amendSubagentReceipt()
+  amend-receipt.ts --contains-- amendSubagentReceipt()
+  amend-receipt.test.ts --imports_from-- amend-receipt.ts
+  amend-receipt.test.ts --imports-- amendSubagentReceipt()
+  atomic-write.ts --contains-- writeJsonAtomic()
+  manual.ts --imports_from-- atomic-write.ts
+  codex.ts --imports_from-- atomic-write.ts
+  subagent.ts --imports_from-- atomic-write.ts
+  standalone.ts --imports_from-- atomic-write.ts
+  atomic-write.test.ts --imports_from-- atomic-write.ts
+  manual.ts --imports-- writeJsonAtomic()
+  codex.ts --imports-- writeJsonAtomic()
+  subagent.ts --imports-- writeJsonAtomic()
+  standalone.ts --imports-- writeJsonAtomic()
+  atomic-write.test.ts --imports-- writeJsonAtomic()
+  runManual() --calls-- writeJsonAtomic()
+  runCodex() --calls-- writeJsonAtomic()
+  runSubagent() --calls-- writeJsonAtomic()
+  runStandalone() --calls-- writeJsonAtomic()
+  orchestrate-args.ts --contains-- parseArgs()
+  prompt-stdin.ts --contains-- promptText()
+  prompt-stdin.ts --contains-- promptSelect()
+  manual.ts --imports_from-- prompt-stdin.ts
+  prompt-stdin.test.ts --imports_from-- prompt-stdin.ts
+  manual.ts --imports-- promptText()
+  prompt-stdin.test.ts --imports-- promptText()
+  runManual() --calls-- promptText()
+  manual.ts --imports-- promptSelect()
+  prompt-stdin.test.ts --imports-- promptSelect()
+  runManual() --calls-- promptSelect()
+  config.ts --contains-- loadConfig()
+  config.test.ts --imports_from-- config.ts
+  config.test.ts --imports-- loadConfig()
+  manual.ts --imports_from-- lane-types.ts
+  codex.ts --imports_from-- lane-types.ts
+  subagent.ts --imports_from-- lane-types.ts
+  standalone.ts --imports_from-- lane-types.ts
+  standalone.test.ts --imports_from-- lane-types.ts
+  manual.test.ts --imports_from-- lane-types.ts
+  subagent.test.ts --imports_from-- lane-types.ts
+  codex.test.ts --imports_from-- lane-types.ts
+  read-fd-summary.ts --contains-- readFdSummary()
+  subagent.ts --imports_from-- read-fd-summary.ts
+  read-fd-summary.test.ts --imports_from-- read-fd-summary.ts
+  subagent.ts --imports-- readFdSummary()
+  read-fd-summary.test.ts --imports-- readFdSummary()
+  runSubagent() --calls-- readFdSummary()
+  subagent-dispatch.ts --contains-- buildPrompt()
+  subagent-dispatch.ts --contains-- dispatcher()
+  subagent-dispatch.ts --contains-- setDispatcher()
+  subagent-dispatch.ts --contains-- dispatchSubagent()
+  subagent.ts --imports_from-- subagent-dispatch.ts
+  subagent.test.ts --imports_from-- subagent-dispatch.ts
+  dispatchSubagent() --calls-- dispatcher()
+  subagent.test.ts --imports-- setDispatcher()
+  subagent.ts --imports-- dispatchSubagent()
+  runSubagent() --calls-- dispatchSubagent()
+  manual.ts --contains-- runManual()
+  manual.test.ts --imports_from-- manual.ts
+  manual.test.ts --imports-- runManual()
+  codex.ts --contains-- exec()
+  codex.ts --contains-- codexSupportsBaseSha()
+  codex.ts --contains-- runCodex()
+  codex.test.ts --imports_from-- codex.ts
+  codexSupportsBaseSha() --calls-- exec()
+  runCodex() --calls-- exec()
+  codex.test.ts --imports-- runCodex()
+  subagent.ts --contains-- stripDecorations()
+  subagent.ts --contains-- parseSubagentMarkdown()
+  subagent.ts --contains-- runSubagent()
+  subagent.test.ts --imports_from-- subagent.ts
+  runSubagent() --calls-- parseSubagentMarkdown()
+  subagent.test.ts --imports-- runSubagent()
+  standalone.ts --contains-- execAsync()
+  standalone.ts --contains-- claudeSupportsMaxThinking()
+  standalone.ts --contains-- multiterminalDepDone()
+  standalone.ts --contains-- templateSha()
+  standalone.ts --contains-- osascriptSpawn()
+  standalone.ts --contains-- runStandalone()
+  standalone.test.ts --imports_from-- standalone.ts
+  claudeSupportsMaxThinking() --calls-- execAsync()
+  osascriptSpawn() --calls-- execAsync()
+  runStandalone() --calls-- claudeSupportsMaxThinking()
+  standalone.test.ts --imports-- claudeSupportsMaxThinking()
+  standalone.test.ts --imports-- multiterminalDepDone()
+  runStandalone() --calls-- templateSha()
+  runStandalone() --calls-- osascriptSpawn()
+  standalone.test.ts --imports-- runStandalone()
+  overwrite-guard.test.ts --contains-- writePrior()
+  amend-receipt.test.ts --contains-- makeRepo()
+  amend-receipt.test.ts --contains-- lastMsg()
+  in-progress-guard.test.ts --contains-- writeStub()
+  standalone.test.ts --contains-- input()
+  manual.test.ts --contains-- input()
+  subagent.test.ts --contains-- input()
+  codex.test.ts --contains-- baseInput()
+
+## community 2 (74 nodes) — allowlist.ts · isMicroChoreAllowed() · isReleaseSweepAllowed()
+nodes:
+  addCommit(),garden/detectors/__tests__/trailer-scope-mismatch.test.ts,2
+  addCommit(),garden/detectors/__tests__/allowlist-drift.test.ts,2
+  allowlist-drift.test.ts,garden/detectors/__tests__/allowlist-drift.test.ts,2
+  allowlist-drift.ts,garden/detectors/allowlist-drift.ts,2
+  allowlist.test.ts,core/__tests__/allowlist.test.ts,2
+  allowlist.ts,core/allowlist.ts,2
+  appendToMessage(),core/trailers.ts,2
+  buildSuggestion(),core/validate-noldor-scope.ts,2
+  checkCrGate(),release/release-cr-gate.ts,2
+  commit(),release/__tests__/release-cr-gate-e2e.test.ts,2
+  commitAll(),garden/detectors/__tests__/fd-without-plan.test.ts,2
+  detectFdWithoutPlan(),garden/detectors/fd-without-plan.ts,2
+  enforceReviewReceipt(),hooks/noldor-enforce-review-receipt.ts,2
+  fd-without-plan.test.ts,garden/detectors/__tests__/fd-without-plan.test.ts,2
+  fd-without-plan.ts,garden/detectors/fd-without-plan.ts,2
+  findCreationSha(),garden/detectors/fd-without-plan.ts,2
+  formatReason(),release/release-cr-gate.ts,2
+  formatTrailers(),core/trailers.ts,2
+  getReleasePackageFiles(),hooks/noldor-validate-trailer.ts,2
+  getStagedPaths(),hooks/noldor-validate-trailer.ts,2
+  getStagedPaths(),hooks/noldor-pre-commit.ts,2
+  git(),release/__tests__/release-cr-gate-e2e.test.ts,2
+  gitAdd(),garden/detectors/__tests__/fd-without-plan.test.ts,2
+  gitCommit(),garden/detectors/__tests__/fd-without-plan.test.ts,2
+  hasPlan(),garden/detectors/fd-without-plan.ts,2
+  initRepo(),release/__tests__/release-cr-gate-e2e.test.ts,2
+  isMicroChoreAllowed(),core/allowlist.ts,2
+  isPostRollout(),core/rollout-marker.ts,2
+  isReleaseAutomationFile(),hooks/noldor-validate-trailer.ts,2
+  isReleaseSweepAllowed(),core/allowlist.ts,2
+  loadKnownSlugs(),core/validate-noldor-scope.ts,2
+  loadStagedFiles(),core/validate-noldor-scope.ts,2
+  main(),core/validate-noldor-scope.ts,2
+  makeGitFake(),release/__tests__/release-cr-gate.test.ts,2
+  makeInProgressFd(),garden/detectors/__tests__/fd-without-plan.test.ts,2
+  makeRepo(),garden/detectors/__tests__/trailer-scope-mismatch.test.ts,2
+  makeRepo(),garden/detectors/__tests__/allowlist-drift.test.ts,2
+  makeRepoSync(),garden/detectors/__tests__/fd-without-plan.test.ts,2
+  noldor-enforce-review-receipt.test.ts,hooks/__tests__/noldor-enforce-review-receipt.test.ts,2
+  noldor-enforce-review-receipt.ts,hooks/noldor-enforce-review-receipt.ts,2
+  noldor-pre-commit.test.ts,hooks/__tests__/noldor-pre-commit.test.ts,2
+  noldor-pre-commit.ts,hooks/noldor-pre-commit.ts,2
+  noldor-pre-edit-guard.test.ts,hooks/__tests__/noldor-pre-edit-guard.test.ts,2
+  noldor-pre-edit-guard.ts,hooks/noldor-pre-edit-guard.ts,2
+  noldor-validate-trailer.test.ts,hooks/__tests__/noldor-validate-trailer.test.ts,2
+  noldor-validate-trailer.ts,hooks/noldor-validate-trailer.ts,2
+  parseTrailers(),core/trailers.ts,2
+  parseTrailers(),release/release-cr-gate.ts,2
+  pathToSlug(),core/validate-noldor-scope.ts,2
+  readRolloutMarker(),core/rollout-marker.ts,2
+  release-cr-gate-e2e.test.ts,release/__tests__/release-cr-gate-e2e.test.ts,2
+  release-cr-gate.test.ts,release/__tests__/release-cr-gate.test.ts,2
+  release-cr-gate.ts,release/release-cr-gate.ts,2
+  renderAffected(),core/validate-noldor-scope.ts,2
+  repoWithPostRolloutCommit(),hooks/__tests__/noldor-enforce-review-receipt.test.ts,2
+  rollout-marker.test.ts,core/__tests__/rollout-marker.test.ts,2
+  rollout-marker.ts,core/rollout-marker.ts,2
+  runPreCommit(),hooks/noldor-pre-commit.ts,2
+  runPreEditGuard(),hooks/noldor-pre-edit-guard.ts,2
+  setupPostRollout(),hooks/__tests__/noldor-validate-trailer.test.ts,2
+  setupRepo(),hooks/__tests__/noldor-pre-commit.test.ts,2
+  setupRepo(),hooks/__tests__/noldor-validate-trailer.test.ts,2
+  setupRepo(),hooks/__tests__/noldor-pre-edit-guard.test.ts,2
+  tagBase(),release/__tests__/release-cr-gate-e2e.test.ts,2
+  trailer-scope-mismatch.test.ts,garden/detectors/__tests__/trailer-scope-mismatch.test.ts,2
+  trailer-scope-mismatch.ts,garden/detectors/trailer-scope-mismatch.ts,2
+  trailers.test.ts,core/__tests__/trailers.test.ts,2
+  trailers.ts,core/trailers.ts,2
+  trailers(),release/__tests__/release-cr-gate.test.ts,2
+  validate-noldor-scope.test.ts,core/__tests__/validate-noldor-scope.test.ts,2
+  validate-noldor-scope.ts,core/validate-noldor-scope.ts,2
+  validateReleaseAutomation(),hooks/noldor-validate-trailer.ts,2
+  validateScope(),core/validate-noldor-scope.ts,2
+  validateTrailer(),hooks/noldor-validate-trailer.ts,2
+edges:
+  allowlist.ts --contains-- isMicroChoreAllowed()
+  allowlist.ts --contains-- isReleaseSweepAllowed()
+  allowlist.test.ts --imports_from-- allowlist.ts
+  allowlist-drift.ts --imports_from-- allowlist.ts
+  release-cr-gate.ts --imports_from-- allowlist.ts
+  noldor-validate-trailer.ts --imports_from-- allowlist.ts
+  noldor-pre-commit.ts --imports_from-- allowlist.ts
+  allowlist.test.ts --imports-- isMicroChoreAllowed()
+  allowlist-drift.ts --imports-- isMicroChoreAllowed()
+  release-cr-gate.ts --imports-- isMicroChoreAllowed()
+  noldor-validate-trailer.ts --imports-- isMicroChoreAllowed()
+  noldor-pre-commit.ts --imports-- isMicroChoreAllowed()
+  checkCrGate() --calls-- isMicroChoreAllowed()
+  validateTrailer() --calls-- isMicroChoreAllowed()
+  runPreCommit() --calls-- isMicroChoreAllowed()
+  allowlist.test.ts --imports-- isReleaseSweepAllowed()
+  noldor-validate-trailer.ts --imports-- isReleaseSweepAllowed()
+  noldor-pre-commit.ts --imports-- isReleaseSweepAllowed()
+  validateTrailer() --calls-- isReleaseSweepAllowed()
+  runPreCommit() --calls-- isReleaseSweepAllowed()
+  validate-noldor-scope.ts --imports_from-- trailers.ts
+  validate-noldor-scope.ts --imports-- parseTrailers()
+  validate-noldor-scope.ts --contains-- pathToSlug()
+  validate-noldor-scope.ts --contains-- buildSuggestion()
+  validate-noldor-scope.ts --contains-- renderAffected()
+  validate-noldor-scope.ts --contains-- validateScope()
+  validate-noldor-scope.ts --contains-- loadKnownSlugs()
+  validate-noldor-scope.ts --contains-- loadStagedFiles()
+  validate-noldor-scope.ts --contains-- main()
+  validate-noldor-scope.test.ts --imports_from-- validate-noldor-scope.ts
+  validateScope() --calls-- buildSuggestion()
+  validateScope() --calls-- renderAffected()
+  main() --calls-- validateScope()
+  validate-noldor-scope.test.ts --imports-- validateScope()
+  main() --calls-- loadKnownSlugs()
+  main() --calls-- loadStagedFiles()
+  rollout-marker.ts --contains-- readRolloutMarker()
+  rollout-marker.ts --contains-- isPostRollout()
+  rollout-marker.test.ts --imports_from-- rollout-marker.ts
+  fd-without-plan.ts --imports_from-- rollout-marker.ts
+  trailer-scope-mismatch.ts --imports_from-- rollout-marker.ts
+  allowlist-drift.ts --imports_from-- rollout-marker.ts
+  noldor-enforce-review-receipt.ts --imports_from-- rollout-marker.ts
+  noldor-validate-trailer.ts --imports_from-- rollout-marker.ts
+  noldor-pre-edit-guard.ts --imports_from-- rollout-marker.ts
+  noldor-pre-commit.ts --imports_from-- rollout-marker.ts
+  isPostRollout() --calls-- readRolloutMarker()
+  rollout-marker.test.ts --imports-- readRolloutMarker()
+  trailer-scope-mismatch.ts --imports-- readRolloutMarker()
+  allowlist-drift.ts --imports-- readRolloutMarker()
+  noldor-enforce-review-receipt.ts --imports-- readRolloutMarker()
+  noldor-validate-trailer.ts --imports-- readRolloutMarker()
+  noldor-pre-edit-guard.ts --imports-- readRolloutMarker()
+  noldor-pre-commit.ts --imports-- readRolloutMarker()
+  enforceReviewReceipt() --calls-- readRolloutMarker()
+  validateTrailer() --calls-- readRolloutMarker()
+  runPreEditGuard() --calls-- readRolloutMarker()
+  runPreCommit() --calls-- readRolloutMarker()
+  rollout-marker.test.ts --imports-- isPostRollout()
+  fd-without-plan.ts --imports-- isPostRollout()
+  noldor-enforce-review-receipt.ts --imports-- isPostRollout()
+  noldor-validate-trailer.ts --imports-- isPostRollout()
+  noldor-pre-commit.ts --imports-- isPostRollout()
+  detectFdWithoutPlan() --calls-- isPostRollout()
+  enforceReviewReceipt() --calls-- isPostRollout()
+  validateTrailer() --calls-- isPostRollout()
+  runPreCommit() --calls-- isPostRollout()
+  trailers.ts --contains-- parseTrailers()
+  trailers.ts --contains-- formatTrailers()
+  trailers.ts --contains-- appendToMessage()
+  trailers.test.ts --imports_from-- trailers.ts
+  trailer-scope-mismatch.ts --imports_from-- trailers.ts
+  allowlist-drift.ts --imports_from-- trailers.ts
+  noldor-enforce-review-receipt.ts --imports_from-- trailers.ts
+  noldor-validate-trailer.ts --imports_from-- trailers.ts
+  trailers.test.ts --imports-- parseTrailers()
+  trailer-scope-mismatch.ts --imports-- parseTrailers()
+  allowlist-drift.ts --imports-- parseTrailers()
+  noldor-enforce-review-receipt.ts --imports-- parseTrailers()
+  noldor-validate-trailer.ts --imports-- parseTrailers()
+  trailers.test.ts --imports-- formatTrailers()
+  trailers.test.ts --imports-- appendToMessage()
+  fd-without-plan.ts --contains-- findCreationSha()
+  fd-without-plan.ts --contains-- hasPlan()
+  fd-without-plan.ts --contains-- detectFdWithoutPlan()
+  fd-without-plan.test.ts --imports_from-- fd-without-plan.ts
+  detectFdWithoutPlan() --calls-- findCreationSha()
+  detectFdWithoutPlan() --calls-- hasPlan()
+  fd-without-plan.test.ts --imports-- detectFdWithoutPlan()
+  trailer-scope-mismatch.test.ts --imports_from-- trailer-scope-mismatch.ts
+  allowlist-drift.test.ts --imports_from-- allowlist-drift.ts
+  fd-without-plan.test.ts --contains-- makeRepoSync()
+  fd-without-plan.test.ts --contains-- gitAdd()
+  fd-without-plan.test.ts --contains-- gitCommit()
+  fd-without-plan.test.ts --contains-- commitAll()
+  fd-without-plan.test.ts --contains-- makeInProgressFd()
+  trailer-scope-mismatch.test.ts --contains-- makeRepo()
+  trailer-scope-mismatch.test.ts --contains-- addCommit()
+  allowlist-drift.test.ts --contains-- makeRepo()
+  allowlist-drift.test.ts --contains-- addCommit()
+  release-cr-gate.ts --contains-- checkCrGate()
+  release-cr-gate.ts --contains-- formatReason()
+  release-cr-gate.ts --contains-- parseTrailers()
+  release-cr-gate-e2e.test.ts --imports_from-- release-cr-gate.ts
+  release-cr-gate.test.ts --imports_from-- release-cr-gate.ts
+  checkCrGate() --calls-- parseTrailers()
+  checkCrGate() --calls-- formatReason()
+  release-cr-gate-e2e.test.ts --imports-- checkCrGate()
+  release-cr-gate.test.ts --imports-- checkCrGate()
+  release-cr-gate-e2e.test.ts --contains-- git()
+  release-cr-gate-e2e.test.ts --contains-- initRepo()
+  release-cr-gate-e2e.test.ts --contains-- tagBase()
+  release-cr-gate-e2e.test.ts --contains-- commit()
+  initRepo() --calls-- git()
+  tagBase() --calls-- git()
+  commit() --calls-- git()
+  release-cr-gate.test.ts --contains-- makeGitFake()
+  release-cr-gate.test.ts --contains-- trailers()
+  noldor-enforce-review-receipt.ts --contains-- enforceReviewReceipt()
+  noldor-enforce-review-receipt.test.ts --imports_from-- noldor-enforce-review-receipt.ts
+  noldor-enforce-review-receipt.test.ts --imports-- enforceReviewReceipt()
+  noldor-validate-trailer.ts --contains-- getReleasePackageFiles()
+  noldor-validate-trailer.ts --contains-- getStagedPaths()
+  noldor-validate-trailer.ts --contains-- isReleaseAutomationFile()
+  noldor-validate-trailer.ts --contains-- validateReleaseAutomation()
+  noldor-validate-trailer.ts --contains-- validateTrailer()
+  noldor-validate-trailer.test.ts --imports_from-- noldor-validate-trailer.ts
+  isReleaseAutomationFile() --calls-- getReleasePackageFiles()
+  validateReleaseAutomation() --calls-- getStagedPaths()
+  validateTrailer() --calls-- validateReleaseAutomation()
+  noldor-validate-trailer.test.ts --imports-- validateTrailer()
+  noldor-pre-edit-guard.ts --contains-- runPreEditGuard()
+  noldor-pre-edit-guard.test.ts --imports_from-- noldor-pre-edit-guard.ts
+  noldor-pre-edit-guard.test.ts --imports-- runPreEditGuard()
+  noldor-pre-commit.ts --contains-- getStagedPaths()
+  noldor-pre-commit.ts --contains-- runPreCommit()
+  noldor-pre-commit.test.ts --imports_from-- noldor-pre-commit.ts
+  runPreCommit() --calls-- getStagedPaths()
+  noldor-pre-commit.test.ts --imports-- runPreCommit()
+  noldor-enforce-review-receipt.test.ts --contains-- repoWithPostRolloutCommit()
+  noldor-pre-commit.test.ts --contains-- setupRepo()
+  noldor-validate-trailer.test.ts --contains-- setupRepo()
+  noldor-validate-trailer.test.ts --contains-- setupPostRollout()
+  noldor-pre-edit-guard.test.ts --contains-- setupRepo()
+
+## community 3 (64 nodes) — next-priority.ts · getTopPriorityNext() · formatEntry()
+nodes:
+  addCommit(),garden/detectors/__tests__/override-audit.test.ts,3
+  auditCodexCrOverrides(),garden/detectors/codex-cr-override-audit.ts,3
+  auditOverrides(),garden/detectors/override-audit.ts,3
+  auditOverrideTrailers(),garden/detectors/override-audit.ts,3
+  auditReleasePushes(),garden/detectors/override-audit.ts,3
+  classifyOverrideTrailer(),garden/detectors/override-audit.ts,3
+  codex-cr-override-audit.test.ts,garden/detectors/__tests__/codex-cr-override-audit.test.ts,3
+  codex-cr-override-audit.ts,garden/detectors/codex-cr-override-audit.ts,3
+  commitOnlyTouchesReport(),garden/detectors/override-audit.ts,3
+  commitTouchingPaths(),garden/detectors/__tests__/override-audit.test.ts,3
+  detectAll(),garden/garden-detect.ts,3
+  detectAllowlistDrift(),garden/detectors/allowlist-drift.ts,3
+  detectContradictions(),garden/garden-detect.ts,3
+  detectGateCompliance(),garden/garden-detect.ts,3
+  detectInvariants(),garden/garden-detect.ts,3
+  detectPlanWithoutFd(),garden/detectors/plan-without-fd.ts,3
+  detectSourceDrift(),garden/garden-detect.ts,3
+  detectStalePlans(),garden/garden-detect.ts,3
+  detectStaleSpecs(),garden/garden-detect.ts,3
+  detectTierMismatch(),garden/detectors/tier-mismatch.ts,3
+  detectTrailerScopeMismatch(),garden/detectors/trailer-scope-mismatch.ts,3
+  detectUnusedBacklog(),garden/garden-detect.ts,3
+  doc-roots.test.ts,core/__tests__/doc-roots.test.ts,3
+  doc-roots.ts,core/doc-roots.ts,3
+  findMilestoneMatch(),core/next-priority.ts,3
+  formatEntry(),core/next-priority.ts,3
+  garden-detect.test.ts,garden/__tests__/garden-detect.test.ts,3
+  garden-detect.ts,garden/garden-detect.ts,3
+  garden-invariants.ts,garden/garden-invariants.ts,3
+  getSuggestions(),core/next-priority.ts,3
+  getTopPriorityNext(),core/next-priority.ts,3
+  hasBlockingFindings(),garden/garden-detect.ts,3
+  iso(),garden/detectors/__tests__/codex-cr-override-audit.test.ts,3
+  isSddGap(),garden/garden-detect.ts,3
+  isWritePendingDeprecated(),core/next-priority.ts,3
+  lastCommitISO(),garden/garden-detect.ts,3
+  listFeatureSlugs(),garden/garden-detect.ts,3
+  loadDocRoots(),core/doc-roots.ts,3
+  loadFeatureBySlug(),garden/garden-detect.ts,3
+  loadInProgressFds(),core/next-priority.ts,3
+  loadMilestoneGate(),core/next-priority.ts,3
+  loadSddGaps(),garden/garden-detect.ts,3
+  main(),core/next-priority.ts,3
+  makeRepo(),garden/__tests__/garden-detect.test.ts,3
+  makeRepo(),garden/detectors/__tests__/tier-mismatch.test.ts,3
+  makeRepo(),garden/detectors/__tests__/override-audit.test.ts,3
+  makeRepo(),garden/detectors/__tests__/codex-cr-override-audit.test.ts,3
+  makeRepo(),garden/detectors/__tests__/plan-without-fd.test.ts,3
+  next-priority.test.ts,core/__tests__/next-priority.test.ts,3
+  next-priority.ts,core/next-priority.ts,3
+  override-audit.test.ts,garden/detectors/__tests__/override-audit.test.ts,3
+  override-audit.ts,garden/detectors/override-audit.ts,3
+  plan-resolution.test.ts,garden/__tests__/plan-resolution.test.ts,3
+  plan-resolution.ts,garden/plan-resolution.ts,3
+  plan-without-fd.test.ts,garden/detectors/__tests__/plan-without-fd.test.ts,3
+  plan-without-fd.ts,garden/detectors/plan-without-fd.ts,3
+  planSlug(),garden/detectors/plan-without-fd.ts,3
+  planSlugFromFilename(),garden/garden-detect.ts,3
+  readDocOrNull(),garden/garden-detect.ts,3
+  resolveByLinksPlan(),garden/plan-resolution.ts,3
+  shouldFlagSourceDrift(),garden/garden-detect.ts,3
+  specSlugFromFilename(),garden/garden-detect.ts,3
+  tier-mismatch.test.ts,garden/detectors/__tests__/tier-mismatch.test.ts,3
+  tier-mismatch.ts,garden/detectors/tier-mismatch.ts,3
+edges:
+  next-priority.ts --imports_from-- doc-roots.ts
+  next-priority.ts --imports-- loadDocRoots()
+  next-priority.ts --contains-- getTopPriorityNext()
+  next-priority.ts --contains-- formatEntry()
+  next-priority.ts --contains-- isWritePendingDeprecated()
+  next-priority.ts --contains-- getSuggestions()
+  next-priority.ts --contains-- findMilestoneMatch()
+  next-priority.ts --contains-- loadInProgressFds()
+  next-priority.ts --contains-- loadMilestoneGate()
+  next-priority.ts --contains-- main()
+  next-priority.test.ts --imports_from-- next-priority.ts
+  main() --calls-- getTopPriorityNext()
+  next-priority.test.ts --imports-- getTopPriorityNext()
+  main() --calls-- formatEntry()
+  main() --calls-- isWritePendingDeprecated()
+  next-priority.test.ts --imports-- isWritePendingDeprecated()
+  getSuggestions() --calls-- findMilestoneMatch()
+  main() --calls-- getSuggestions()
+  next-priority.test.ts --imports-- getSuggestions()
+  main() --calls-- loadInProgressFds()
+  next-priority.test.ts --imports-- loadInProgressFds()
+  loadInProgressFds() --calls-- loadDocRoots()
+  main() --calls-- loadMilestoneGate()
+  next-priority.test.ts --imports-- loadMilestoneGate()
+  loadMilestoneGate() --calls-- loadDocRoots()
+  main() --calls-- loadDocRoots()
+  doc-roots.ts --contains-- loadDocRoots()
+  doc-roots.test.ts --imports_from-- doc-roots.ts
+  garden-detect.ts --imports_from-- doc-roots.ts
+  plan-resolution.ts --imports_from-- doc-roots.ts
+  doc-roots.test.ts --imports-- loadDocRoots()
+  garden-detect.ts --imports-- loadDocRoots()
+  plan-resolution.ts --imports-- loadDocRoots()
+  loadFeatureBySlug() --calls-- loadDocRoots()
+  detectStalePlans() --calls-- loadDocRoots()
+  detectStaleSpecs() --calls-- loadDocRoots()
+  listFeatureSlugs() --calls-- loadDocRoots()
+  detectUnusedBacklog() --calls-- loadDocRoots()
+  resolveByLinksPlan() --calls-- loadDocRoots()
+  garden-detect.ts --imports_from-- garden-invariants.ts
+  garden-detect.ts --imports_from-- override-audit.ts
+  garden-detect.ts --imports-- auditOverrides()
+  garden-detect.ts --imports_from-- codex-cr-override-audit.ts
+  garden-detect.ts --imports-- auditCodexCrOverrides()
+  garden-detect.ts --imports_from-- tier-mismatch.ts
+  garden-detect.ts --imports-- detectTierMismatch()
+  garden-detect.ts --imports-- detectAllowlistDrift()
+  garden-detect.ts --imports-- detectTrailerScopeMismatch()
+  garden-detect.ts --imports_from-- plan-without-fd.ts
+  garden-detect.ts --imports-- detectPlanWithoutFd()
+  garden-detect.ts --imports_from-- plan-resolution.ts
+  garden-detect.ts --imports-- resolveByLinksPlan()
+  garden-detect.ts --contains-- planSlugFromFilename()
+  garden-detect.ts --contains-- loadFeatureBySlug()
+  garden-detect.ts --contains-- detectStalePlans()
+  garden-detect.ts --contains-- specSlugFromFilename()
+  garden-detect.ts --contains-- detectStaleSpecs()
+  garden-detect.ts --contains-- listFeatureSlugs()
+  garden-detect.ts --contains-- detectUnusedBacklog()
+  garden-detect.ts --contains-- readDocOrNull()
+  garden-detect.ts --contains-- detectContradictions()
+  garden-detect.ts --contains-- shouldFlagSourceDrift()
+  garden-detect.ts --contains-- lastCommitISO()
+  garden-detect.ts --contains-- detectSourceDrift()
+  garden-detect.ts --contains-- detectGateCompliance()
+  garden-detect.ts --contains-- isSddGap()
+  garden-detect.ts --contains-- loadSddGaps()
+  garden-detect.ts --contains-- detectInvariants()
+  garden-detect.ts --contains-- detectAll()
+  garden-detect.ts --contains-- hasBlockingFindings()
+  garden-detect.test.ts --imports_from-- garden-detect.ts
+  detectStalePlans() --calls-- planSlugFromFilename()
+  detectStalePlans() --calls-- loadFeatureBySlug()
+  detectStaleSpecs() --calls-- loadFeatureBySlug()
+  detectAll() --calls-- detectStalePlans()
+  garden-detect.test.ts --imports-- detectStalePlans()
+  detectStalePlans() --calls-- resolveByLinksPlan()
+  detectStaleSpecs() --calls-- specSlugFromFilename()
+  garden-detect.test.ts --imports-- specSlugFromFilename()
+  detectAll() --calls-- detectStaleSpecs()
+  garden-detect.test.ts --imports-- detectStaleSpecs()
+  detectUnusedBacklog() --calls-- listFeatureSlugs()
+  detectAll() --calls-- detectUnusedBacklog()
+  garden-detect.test.ts --imports-- detectUnusedBacklog()
+  detectContradictions() --calls-- readDocOrNull()
+  detectAll() --calls-- detectContradictions()
+  garden-detect.test.ts --imports-- detectContradictions()
+  detectSourceDrift() --calls-- shouldFlagSourceDrift()
+  garden-detect.test.ts --imports-- shouldFlagSourceDrift()
+  detectSourceDrift() --calls-- lastCommitISO()
+  detectAll() --calls-- detectSourceDrift()
+  detectGateCompliance() --calls-- detectTierMismatch()
+  detectGateCompliance() --calls-- detectAllowlistDrift()
+  detectGateCompliance() --calls-- detectTrailerScopeMismatch()
+  detectGateCompliance() --calls-- detectPlanWithoutFd()
+  detectGateCompliance() --calls-- auditOverrides()
+  detectGateCompliance() --calls-- auditCodexCrOverrides()
+  detectAll() --calls-- loadSddGaps()
+  detectAll() --calls-- detectInvariants()
+  garden-detect.test.ts --imports-- detectInvariants()
+  detectAll() --calls-- detectTierMismatch()
+  detectAll() --calls-- detectAllowlistDrift()
+  detectAll() --calls-- detectTrailerScopeMismatch()
+  detectAll() --calls-- detectPlanWithoutFd()
+  detectAll() --calls-- auditOverrides()
+  detectAll() --calls-- auditCodexCrOverrides()
+  garden-detect.test.ts --imports-- hasBlockingFindings()
+  garden-detect.test.ts --imports_from-- garden-invariants.ts
+  plan-resolution.ts --contains-- resolveByLinksPlan()
+  plan-resolution.test.ts --imports_from-- plan-resolution.ts
+  plan-resolution.test.ts --imports-- resolveByLinksPlan()
+  garden-detect.test.ts --contains-- makeRepo()
+  tier-mismatch.ts --contains-- detectTierMismatch()
+  tier-mismatch.test.ts --imports_from-- tier-mismatch.ts
+  tier-mismatch.test.ts --imports-- detectTierMismatch()
+  codex-cr-override-audit.ts --contains-- auditCodexCrOverrides()
+  codex-cr-override-audit.test.ts --imports_from-- codex-cr-override-audit.ts
+  codex-cr-override-audit.test.ts --imports-- auditCodexCrOverrides()
+  override-audit.ts --contains-- commitOnlyTouchesReport()
+  override-audit.ts --contains-- auditOverrides()
+  override-audit.ts --contains-- classifyOverrideTrailer()
+  override-audit.ts --contains-- auditOverrideTrailers()
+  override-audit.ts --contains-- auditReleasePushes()
+  override-audit.test.ts --imports_from-- override-audit.ts
+  auditOverrides() --calls-- commitOnlyTouchesReport()
+  override-audit.test.ts --imports-- auditOverrides()
+  auditOverrideTrailers() --calls-- classifyOverrideTrailer()
+  override-audit.test.ts --imports-- auditOverrideTrailers()
+  override-audit.test.ts --imports-- auditReleasePushes()
+  plan-without-fd.ts --contains-- planSlug()
+  plan-without-fd.ts --contains-- detectPlanWithoutFd()
+  plan-without-fd.test.ts --imports_from-- plan-without-fd.ts
+  detectPlanWithoutFd() --calls-- planSlug()
+  plan-without-fd.test.ts --imports-- detectPlanWithoutFd()
+  tier-mismatch.test.ts --contains-- makeRepo()
+  override-audit.test.ts --contains-- makeRepo()
+  override-audit.test.ts --contains-- addCommit()
+  override-audit.test.ts --contains-- commitTouchingPaths()
+  codex-cr-override-audit.test.ts --contains-- makeRepo()
+  codex-cr-override-audit.test.ts --contains-- iso()
+  plan-without-fd.test.ts --contains-- makeRepo()
+
+## community 4 (54 nodes) — release-fd-commits.ts · parseCommitLine() · gitLogShas()
+nodes:
+  applyBump(),release/release-version.ts,4
+  buildPrompt(),release/llm-polish-summary.ts,4
+  commit(),release/__tests__/release-find-first-pr-commit.test.ts,4
+  commit(),release/__tests__/release-fd-changelog-initial-release.test.ts,4
+  commit(),release/__tests__/fd-prs-since-tag.test.ts,4
+  commit(),release/__tests__/release-pr-bullets.test.ts,4
+  commit(),release/__tests__/release-fd-changelog-in-progress.test.ts,4
+  commit(),release/__tests__/release-fd-commits.test.ts,4
+  commitInRepo(),release/__tests__/release-fd-changelog.test.ts,4
+  commitsForFeature(),release/release-fd-commits.ts,4
+  dashboard-render-markdown.test.ts,dashboard/__tests__/dashboard-render-markdown.test.ts,4
+  escapeForRegex(),release/release-fd-commits.ts,4
+  exec(),release/__tests__/release-find-first-pr-commit.test.ts,4
+  exec(),release/__tests__/release-fd-changelog-initial-release.test.ts,4
+  extractUnreleasedSummary(),release/release-fd-changelog.ts,4
+  fd-prs-since-tag.test.ts,release/__tests__/fd-prs-since-tag.test.ts,4
+  fd-prs-since-tag.ts,release/fd-prs-since-tag.ts,4
+  findFirstPrCommit(),release/release-find-first-pr-commit.ts,4
+  findPreviousTag(),release/release-version.ts,4
+  generateFdChangelogs(),release/release-fd-changelog.ts,4
+  git(),release/__tests__/fd-prs-since-tag.test.ts,4
+  git(),release/__tests__/release-fd-commits.test.ts,4
+  gitInRepo(),release/__tests__/release-fd-changelog.test.ts,4
+  gitLogShas(),release/release-fd-commits.ts,4
+  joinSubjectsDeterministic(),release/llm-polish-summary.ts,4
+  llm-polish-summary.test.ts,release/__tests__/llm-polish-summary.test.ts,4
+  llm-polish-summary.ts,release/llm-polish-summary.ts,4
+  loadCommit(),release/release-fd-commits.ts,4
+  makeCommit(),release/__tests__/llm-polish-summary.test.ts,4
+  parseCommitLine(),release/release-fd-commits.ts,4
+  polishSummary(),release/llm-polish-summary.ts,4
+  prependChangelogBlock(),release/release-fd-changelog.ts,4
+  prsSinceLastTag(),release/fd-prs-since-tag.ts,4
+  rangeForRefs(),release/release-fd-commits.ts,4
+  release-fd-changelog-in-progress.test.ts,release/__tests__/release-fd-changelog-in-progress.test.ts,4
+  release-fd-changelog-initial-release.test.ts,release/__tests__/release-fd-changelog-initial-release.test.ts,4
+  release-fd-changelog.test.ts,release/__tests__/release-fd-changelog.test.ts,4
+  release-fd-changelog.ts,release/release-fd-changelog.ts,4
+  release-fd-commits.test.ts,release/__tests__/release-fd-commits.test.ts,4
+  release-fd-commits.ts,release/release-fd-commits.ts,4
+  release-find-first-pr-commit.test.ts,release/__tests__/release-find-first-pr-commit.test.ts,4
+  release-find-first-pr-commit.ts,release/release-find-first-pr-commit.ts,4
+  release-noise-types.test.ts,release/__tests__/release-noise-types.test.ts,4
+  release-noise-types.ts,release/release-noise-types.ts,4
+  release-pr-bullets.test.ts,release/__tests__/release-pr-bullets.test.ts,4
+  release-pr-bullets.ts,release/release-pr-bullets.ts,4
+  release-version.test.ts,release/__tests__/release-version.test.ts,4
+  release-version.ts,release/release-version.ts,4
+  renderInitialReleaseBlock(),release/release-fd-changelog.ts,4
+  renderPerReleaseBlock(),release/release-fd-changelog.ts,4
+  renderPrBullets(),release/release-pr-bullets.ts,4
+  runClaudePolish(),release/llm-polish-summary.ts,4
+  stripBang(),release/release-noise-types.ts,4
+  stripUnreleasedBlock(),release/release-fd-changelog.ts,4
+edges:
+  release-fd-commits.ts --contains-- parseCommitLine()
+  release-fd-commits.ts --contains-- gitLogShas()
+  release-fd-commits.ts --contains-- commitsForFeature()
+  release-fd-commits.ts --contains-- loadCommit()
+  release-fd-commits.ts --contains-- escapeForRegex()
+  release-fd-commits.ts --contains-- rangeForRefs()
+  release-fd-changelog.ts --imports_from-- release-fd-commits.ts
+  fd-prs-since-tag.ts --imports_from-- release-fd-commits.ts
+  release-pr-bullets.ts --imports_from-- release-fd-commits.ts
+  release-find-first-pr-commit.ts --imports_from-- release-fd-commits.ts
+  llm-polish-summary.ts --imports_from-- release-fd-commits.ts
+  llm-polish-summary.test.ts --imports_from-- release-fd-commits.ts
+  release-pr-bullets.test.ts --imports_from-- release-fd-commits.ts
+  release-fd-changelog-in-progress.test.ts --imports_from-- release-fd-commits.ts
+  release-fd-commits.test.ts --imports_from-- release-fd-commits.ts
+  loadCommit() --calls-- parseCommitLine()
+  release-fd-commits.test.ts --imports-- parseCommitLine()
+  gitLogShas() --calls-- rangeForRefs()
+  commitsForFeature() --calls-- gitLogShas()
+  commitsForFeature() --calls-- escapeForRegex()
+  commitsForFeature() --calls-- loadCommit()
+  release-fd-changelog.ts --imports-- commitsForFeature()
+  fd-prs-since-tag.ts --imports-- commitsForFeature()
+  release-find-first-pr-commit.ts --imports-- commitsForFeature()
+  release-fd-commits.test.ts --imports-- commitsForFeature()
+  renderInitialReleaseBlock() --calls-- commitsForFeature()
+  generateFdChangelogs() --calls-- commitsForFeature()
+  prsSinceLastTag() --calls-- commitsForFeature()
+  findFirstPrCommit() --calls-- commitsForFeature()
+  release-fd-changelog.ts --imports_from-- release-noise-types.ts
+  release-fd-changelog.ts --imports-- stripBang()
+  release-fd-changelog.ts --imports_from-- llm-polish-summary.ts
+  release-fd-changelog.ts --imports-- polishSummary()
+  release-fd-changelog.ts --imports_from-- release-find-first-pr-commit.ts
+  release-fd-changelog.ts --imports-- findFirstPrCommit()
+  release-fd-changelog.ts --imports_from-- release-pr-bullets.ts
+  release-fd-changelog.ts --imports-- renderPrBullets()
+  release-fd-changelog.ts --contains-- renderPerReleaseBlock()
+  release-fd-changelog.ts --contains-- renderInitialReleaseBlock()
+  release-fd-changelog.ts --contains-- generateFdChangelogs()
+  release-fd-changelog.ts --contains-- extractUnreleasedSummary()
+  release-fd-changelog.ts --contains-- prependChangelogBlock()
+  release-fd-changelog.ts --contains-- stripUnreleasedBlock()
+  release-fd-changelog.test.ts --imports_from-- release-fd-changelog.ts
+  release-fd-changelog-initial-release.test.ts --imports_from-- release-fd-changelog.ts
+  release-fd-changelog-in-progress.test.ts --imports_from-- release-fd-changelog.ts
+  generateFdChangelogs() --calls-- renderPerReleaseBlock()
+  release-fd-changelog-in-progress.test.ts --imports-- renderPerReleaseBlock()
+  renderPerReleaseBlock() --calls-- polishSummary()
+  renderPerReleaseBlock() --calls-- renderPrBullets()
+  generateFdChangelogs() --calls-- renderInitialReleaseBlock()
+  release-fd-changelog-initial-release.test.ts --imports-- renderInitialReleaseBlock()
+  renderInitialReleaseBlock() --calls-- findFirstPrCommit()
+  renderInitialReleaseBlock() --calls-- polishSummary()
+  renderInitialReleaseBlock() --calls-- renderPrBullets()
+  generateFdChangelogs() --calls-- prependChangelogBlock()
+  release-fd-changelog.test.ts --imports-- generateFdChangelogs()
+  release-fd-changelog.test.ts --imports-- extractUnreleasedSummary()
+  prependChangelogBlock() --calls-- stripUnreleasedBlock()
+  release-fd-changelog.test.ts --imports-- prependChangelogBlock()
+  fd-prs-since-tag.ts --imports_from-- release-noise-types.ts
+  fd-prs-since-tag.ts --imports-- stripBang()
+  fd-prs-since-tag.ts --imports_from-- release-pr-bullets.ts
+  fd-prs-since-tag.ts --imports_from-- release-version.ts
+  fd-prs-since-tag.ts --imports-- findPreviousTag()
+  fd-prs-since-tag.ts --contains-- prsSinceLastTag()
+  fd-prs-since-tag.test.ts --imports_from-- fd-prs-since-tag.ts
+  dashboard-render-markdown.test.ts --imports_from-- fd-prs-since-tag.ts
+  fd-prs-since-tag.test.ts --imports-- prsSinceLastTag()
+  prsSinceLastTag() --calls-- findPreviousTag()
+  release-pr-bullets.ts --contains-- renderPrBullets()
+  release-pr-bullets.test.ts --imports_from-- release-pr-bullets.ts
+  release-pr-bullets.test.ts --imports-- renderPrBullets()
+  release-version.ts --contains-- applyBump()
+  release-version.ts --contains-- findPreviousTag()
+  release-version.test.ts --imports_from-- release-version.ts
+  release-version.test.ts --imports-- applyBump()
+  release-noise-types.ts --contains-- stripBang()
+  release-noise-types.test.ts --imports_from-- release-noise-types.ts
+  release-noise-types.test.ts --imports-- stripBang()
+  release-find-first-pr-commit.ts --contains-- findFirstPrCommit()
+  release-find-first-pr-commit.test.ts --imports_from-- release-find-first-pr-commit.ts
+  release-find-first-pr-commit.test.ts --imports-- findFirstPrCommit()
+  llm-polish-summary.ts --contains-- polishSummary()
+  llm-polish-summary.ts --contains-- joinSubjectsDeterministic()
+  llm-polish-summary.ts --contains-- runClaudePolish()
+  llm-polish-summary.ts --contains-- buildPrompt()
+  llm-polish-summary.test.ts --imports_from-- llm-polish-summary.ts
+  polishSummary() --calls-- joinSubjectsDeterministic()
+  llm-polish-summary.test.ts --imports-- polishSummary()
+  llm-polish-summary.test.ts --imports-- joinSubjectsDeterministic()
+  runClaudePolish() --calls-- buildPrompt()
+  release-find-first-pr-commit.test.ts --contains-- exec()
+  release-find-first-pr-commit.test.ts --contains-- commit()
+  commit() --calls-- exec()
+  release-fd-changelog.test.ts --contains-- gitInRepo()
+  release-fd-changelog.test.ts --contains-- commitInRepo()
+  commitInRepo() --calls-- gitInRepo()
+  llm-polish-summary.test.ts --contains-- makeCommit()
+  release-fd-changelog-initial-release.test.ts --contains-- exec()
+  release-fd-changelog-initial-release.test.ts --contains-- commit()
+  commit() --calls-- exec()
+  fd-prs-since-tag.test.ts --contains-- git()
+  fd-prs-since-tag.test.ts --contains-- commit()
+  commit() --calls-- git()
+  release-pr-bullets.test.ts --contains-- commit()
+  release-fd-changelog-in-progress.test.ts --contains-- commit()
+  release-fd-commits.test.ts --contains-- git()
+  release-fd-commits.test.ts --contains-- commit()
+  commit() --calls-- git()
+
+## community 5 (44 nodes) — pr-flow-cli.ts · pickMostRecentByDatePrefix() · parseCrTrailersFromLog()
+nodes:
+  .constructor(),core/pr-flow.ts,5
+  .constructor(),core/pr-flow.ts,5
+  .constructor(),core/pr-flow.ts,5
+  clearSession(),core/session.ts,5
+  composeBody(),core/pr-flow.ts,5
+  composeTitle(),core/pr-flow.ts,5
+  cr-retry.test.ts,core/__tests__/cr-retry.test.ts,5
+  cr-retry.ts,core/cr-retry.ts,5
+  discoverAddedFiles(),core/pr-flow-cli.ts,5
+  execGit(),core/pr-flow-cli.ts,5
+  GhPreflightError,core/pr-flow.ts,5
+  injectTrailers(),hooks/noldor-inject-trailers.ts,5
+  loadFdSummary(),core/pr-flow-cli.ts,5
+  main(),release/index.ts,5
+  MergeTimeoutError,core/pr-flow.ts,5
+  nodeSpawn(),core/pr-flow-cli.ts,5
+  noldor-inject-trailers.test.ts,hooks/__tests__/noldor-inject-trailers.test.ts,5
+  noldor-inject-trailers.ts,hooks/noldor-inject-trailers.ts,5
+  normalizeRepoUrl(),core/pr-flow-cli.ts,5
+  openAndAutoMerge(),core/pr-flow.ts,5
+  parseCrTrailersFromLog(),core/pr-flow-cli.ts,5
+  pickMostRecentByDatePrefix(),core/pr-flow-cli.ts,5
+  pollAutoMerge(),core/pr-flow.ts,5
+  pr-flow-cli.test.ts,core/__tests__/pr-flow-cli.test.ts,5
+  pr-flow-cli.ts,core/pr-flow-cli.ts,5
+  pr-flow.test.ts,core/__tests__/pr-flow.test.ts,5
+  pr-flow.ts,core/pr-flow.ts,5
+  PrClosedWithoutMergeError,core/pr-flow.ts,5
+  preflightGh(),core/pr-flow.ts,5
+  readSession(),core/session.ts,5
+  release-session.test.ts,release/__tests__/release-session.test.ts,5
+  release-session.ts,release/release-session.ts,5
+  renderCrTable(),core/pr-flow.ts,5
+  renderLinksSection(),core/pr-flow.ts,5
+  runCli(),core/pr-flow-cli.ts,5
+  runCrRetryLoop(),core/cr-retry.ts,5
+  session-injected.test.ts,core/rules/__tests__/session-injected.test.ts,5
+  session.test.ts,core/__tests__/session.test.ts,5
+  session.ts,core/session.ts,5
+  set-autonomous.ts,core/set-autonomous.ts,5
+  setAutonomous(),core/session.ts,5
+  shouldPromptForPrApproval(),core/pr-flow-cli.ts,5
+  withReleaseSession(),release/release-session.ts,5
+  writeSession(),core/session.ts,5
+edges:
+  pr-flow-cli.ts --imports_from-- session.ts
+  pr-flow-cli.ts --imports-- readSession()
+  pr-flow-cli.ts --imports_from-- pr-flow.ts
+  pr-flow-cli.ts --imports-- openAndAutoMerge()
+  pr-flow-cli.ts --contains-- pickMostRecentByDatePrefix()
+  pr-flow-cli.ts --contains-- parseCrTrailersFromLog()
+  pr-flow-cli.ts --contains-- normalizeRepoUrl()
+  pr-flow-cli.ts --contains-- execGit()
+  pr-flow-cli.ts --contains-- loadFdSummary()
+  pr-flow-cli.ts --contains-- discoverAddedFiles()
+  pr-flow-cli.ts --contains-- shouldPromptForPrApproval()
+  pr-flow-cli.ts --contains-- nodeSpawn()
+  pr-flow-cli.ts --contains-- runCli()
+  pr-flow-cli.test.ts --imports_from-- pr-flow-cli.ts
+  runCli() --calls-- pickMostRecentByDatePrefix()
+  pr-flow-cli.test.ts --imports-- pickMostRecentByDatePrefix()
+  runCli() --calls-- parseCrTrailersFromLog()
+  pr-flow-cli.test.ts --imports-- parseCrTrailersFromLog()
+  runCli() --calls-- normalizeRepoUrl()
+  pr-flow-cli.test.ts --imports-- normalizeRepoUrl()
+  discoverAddedFiles() --calls-- execGit()
+  runCli() --calls-- execGit()
+  runCli() --calls-- loadFdSummary()
+  runCli() --calls-- discoverAddedFiles()
+  runCli() --calls-- shouldPromptForPrApproval()
+  pr-flow-cli.test.ts --imports-- shouldPromptForPrApproval()
+  runCli() --calls-- nodeSpawn()
+  runCli() --calls-- openAndAutoMerge()
+  pr-flow.ts --imports_from-- session.ts
+  pr-flow.ts --contains-- composeTitle()
+  pr-flow.ts --contains-- renderCrTable()
+  pr-flow.ts --contains-- renderLinksSection()
+  pr-flow.ts --contains-- composeBody()
+  pr-flow.ts --contains-- GhPreflightError
+  pr-flow.ts --contains-- MergeTimeoutError
+  pr-flow.ts --contains-- PrClosedWithoutMergeError
+  pr-flow.ts --contains-- preflightGh()
+  pr-flow.ts --contains-- pollAutoMerge()
+  pr-flow.ts --contains-- openAndAutoMerge()
+  cr-retry.ts --imports_from-- pr-flow.ts
+  pr-flow.test.ts --imports_from-- pr-flow.ts
+  openAndAutoMerge() --calls-- composeTitle()
+  pr-flow.test.ts --imports-- composeTitle()
+  composeBody() --calls-- renderCrTable()
+  composeBody() --calls-- renderLinksSection()
+  openAndAutoMerge() --calls-- composeBody()
+  pr-flow.test.ts --imports-- composeBody()
+  GhPreflightError --method-- .constructor()
+  pr-flow.test.ts --imports-- GhPreflightError
+  MergeTimeoutError --method-- .constructor()
+  pr-flow.test.ts --imports-- MergeTimeoutError
+  PrClosedWithoutMergeError --method-- .constructor()
+  pr-flow.test.ts --imports-- PrClosedWithoutMergeError
+  openAndAutoMerge() --calls-- preflightGh()
+  pr-flow.test.ts --imports-- preflightGh()
+  openAndAutoMerge() --calls-- pollAutoMerge()
+  pr-flow.test.ts --imports-- pollAutoMerge()
+  pr-flow.test.ts --imports-- openAndAutoMerge()
+  cr-retry.ts --contains-- runCrRetryLoop()
+  cr-retry.test.ts --imports_from-- cr-retry.ts
+  cr-retry.test.ts --imports-- runCrRetryLoop()
+  set-autonomous.ts --imports_from-- session.ts
+  set-autonomous.ts --imports-- setAutonomous()
+  session.ts --contains-- readSession()
+  session.ts --contains-- writeSession()
+  session.ts --contains-- clearSession()
+  session.ts --contains-- setAutonomous()
+  session.test.ts --imports_from-- session.ts
+  session-injected.test.ts --imports_from-- session.ts
+  release-session.ts --imports_from-- session.ts
+  release-session.test.ts --imports_from-- session.ts
+  noldor-inject-trailers.ts --imports_from-- session.ts
+  setAutonomous() --calls-- readSession()
+  session.test.ts --imports-- readSession()
+  release-session.ts --imports-- readSession()
+  release-session.test.ts --imports-- readSession()
+  noldor-inject-trailers.ts --imports-- readSession()
+  setAutonomous() --calls-- writeSession()
+  session.test.ts --imports-- writeSession()
+  release-session.ts --imports-- writeSession()
+  release-session.test.ts --imports-- writeSession()
+  withReleaseSession() --calls-- writeSession()
+  session.test.ts --imports-- clearSession()
+  release-session.ts --imports-- clearSession()
+  withReleaseSession() --calls-- clearSession()
+  session.test.ts --imports-- setAutonomous()
+  main() --calls-- withReleaseSession()
+  release-session.ts --contains-- withReleaseSession()
+  release-session.test.ts --imports_from-- release-session.ts
+  release-session.test.ts --imports-- withReleaseSession()
+  noldor-inject-trailers.ts --contains-- injectTrailers()
+  noldor-inject-trailers.test.ts --imports_from-- noldor-inject-trailers.ts
+  noldor-inject-trailers.test.ts --imports-- injectTrailers()
+
+## community 6 (36 nodes) — check-invariants.ts · runAll() · formatResults()
+nodes:
+  boundaries.ts,invariants/boundaries.ts,6
+  check-invariants.test.ts,checks/__tests__/check-invariants.test.ts,6
+  check-invariants.ts,checks/check-invariants.ts,6
+  collectReExports(),invariants/public-api-tsdoc.ts,6
+  createSourceFile(),invariants/public-api-tsdoc.ts,6
+  findDeclaration(),invariants/public-api-tsdoc.ts,6
+  findIndexFiles(),invariants/public-api-tsdoc.ts,6
+  formatInvariantError(),invariants/index.ts,6
+  formatResults(),checks/check-invariants.ts,6
+  hasTsdoc(),invariants/public-api-tsdoc.ts,6
+  index.ts,invariants/index.ts,6
+  invariants-boundaries.test.ts,checks/__tests__/invariants-boundaries.test.ts,6
+  invariants-keyboard-binding.test.ts,checks/__tests__/invariants-keyboard-binding.test.ts,6
+  invariants-public-api-tsdoc.test.ts,checks/__tests__/invariants-public-api-tsdoc.test.ts,6
+  invariants-rule-conflicts.test.ts,checks/__tests__/invariants-rule-conflicts.test.ts,6
+  isInternal(),invariants/public-api-tsdoc.ts,6
+  keyboard-binding.ts,invariants/keyboard-binding.ts,6
+  listUiFeatures(),invariants/keyboard-binding.ts,6
+  makeBoundariesInvariant(),invariants/boundaries.ts,6
+  makeInvariants(),invariants/index.ts,6
+  makeKeyboardBindingInvariant(),invariants/keyboard-binding.ts,6
+  makePublicApiTsdocInvariant(),invariants/public-api-tsdoc.ts,6
+  makeRepo(),checks/__tests__/invariants-keyboard-binding.test.ts,6
+  makeRepo(),checks/__tests__/invariants-boundaries.test.ts,6
+  makeRepo(),checks/__tests__/invariants-public-api-tsdoc.test.ts,6
+  makeRepo(),checks/__tests__/invariants-rule-conflicts.test.ts,6
+  makeRuleConflictsInvariant(),invariants/rule-conflicts.ts,6
+  printResults(),checks/check-invariants.ts,6
+  public-api-tsdoc.ts,invariants/public-api-tsdoc.ts,6
+  readResolvedSourceFile(),invariants/public-api-tsdoc.ts,6
+  rule-conflicts.ts,invariants/rule-conflicts.ts,6
+  runAll(),checks/check-invariants.ts,6
+  runInvariants(),invariants/index.ts,6
+  runInvariantSafely(),invariants/index.ts,6
+  types.ts,invariants/types.ts,6
+  writeFeature(),checks/__tests__/invariants-keyboard-binding.test.ts,6
+edges:
+  check-invariants.ts --imports_from-- index.ts
+  check-invariants.ts --imports-- runInvariants()
+  check-invariants.ts --imports_from-- types.ts
+  check-invariants.ts --contains-- runAll()
+  check-invariants.ts --contains-- formatResults()
+  check-invariants.ts --contains-- printResults()
+  check-invariants.test.ts --imports_from-- check-invariants.ts
+  check-invariants.test.ts --imports-- runAll()
+  runAll() --calls-- runInvariants()
+  printResults() --calls-- formatResults()
+  check-invariants.test.ts --imports-- formatResults()
+  check-invariants.test.ts --imports_from-- types.ts
+  invariants-keyboard-binding.test.ts --imports_from-- keyboard-binding.ts
+  invariants-keyboard-binding.test.ts --imports-- makeKeyboardBindingInvariant()
+  invariants-keyboard-binding.test.ts --contains-- makeRepo()
+  invariants-keyboard-binding.test.ts --contains-- writeFeature()
+  invariants-boundaries.test.ts --imports_from-- boundaries.ts
+  invariants-boundaries.test.ts --imports-- makeBoundariesInvariant()
+  invariants-boundaries.test.ts --contains-- makeRepo()
+  invariants-public-api-tsdoc.test.ts --imports_from-- public-api-tsdoc.ts
+  invariants-public-api-tsdoc.test.ts --imports-- makePublicApiTsdocInvariant()
+  invariants-public-api-tsdoc.test.ts --contains-- makeRepo()
+  invariants-rule-conflicts.test.ts --imports_from-- rule-conflicts.ts
+  invariants-rule-conflicts.test.ts --imports-- makeRuleConflictsInvariant()
+  invariants-rule-conflicts.test.ts --contains-- makeRepo()
+  rule-conflicts.ts --imports_from-- types.ts
+  rule-conflicts.ts --contains-- makeRuleConflictsInvariant()
+  index.ts --imports_from-- rule-conflicts.ts
+  index.ts --imports-- makeRuleConflictsInvariant()
+  makeInvariants() --calls-- makeRuleConflictsInvariant()
+  boundaries.ts --imports_from-- types.ts
+  index.ts --imports_from-- types.ts
+  public-api-tsdoc.ts --imports_from-- types.ts
+  keyboard-binding.ts --imports_from-- types.ts
+  boundaries.ts --contains-- makeBoundariesInvariant()
+  index.ts --imports_from-- boundaries.ts
+  index.ts --imports-- makeBoundariesInvariant()
+  makeInvariants() --calls-- makeBoundariesInvariant()
+  index.ts --imports_from-- keyboard-binding.ts
+  index.ts --imports-- makeKeyboardBindingInvariant()
+  index.ts --imports_from-- public-api-tsdoc.ts
+  index.ts --imports-- makePublicApiTsdocInvariant()
+  index.ts --contains-- makeInvariants()
+  index.ts --contains-- formatInvariantError()
+  index.ts --contains-- runInvariantSafely()
+  index.ts --contains-- runInvariants()
+  makeInvariants() --calls-- makeKeyboardBindingInvariant()
+  makeInvariants() --calls-- makePublicApiTsdocInvariant()
+  runInvariantSafely() --calls-- formatInvariantError()
+  public-api-tsdoc.ts --contains-- findIndexFiles()
+  public-api-tsdoc.ts --contains-- hasTsdoc()
+  public-api-tsdoc.ts --contains-- isInternal()
+  public-api-tsdoc.ts --contains-- collectReExports()
+  public-api-tsdoc.ts --contains-- readResolvedSourceFile()
+  public-api-tsdoc.ts --contains-- createSourceFile()
+  public-api-tsdoc.ts --contains-- findDeclaration()
+  public-api-tsdoc.ts --contains-- makePublicApiTsdocInvariant()
+  keyboard-binding.ts --contains-- listUiFeatures()
+  keyboard-binding.ts --contains-- makeKeyboardBindingInvariant()
+
+## community 7 (35 nodes) — write-blocks.ts · scanBlocks() · findBlockBySlug()
+nodes:
+  api-blocks.test.ts,dashboard/__tests__/api-blocks.test.ts,7
+  atomic.ts,dashboard/api/atomic.ts,7
+  atomicWriteFile(),dashboard/api/atomic.ts,7
+  blocks.ts,dashboard/api/blocks.ts,7
+  collapseConsecutiveBlanks(),utils/write-blocks.ts,7
+  createSlugTracker(),utils/parse-blocks.ts,7
+  crossSection(),dashboard/api/blocks.ts,7
+  extractLines(),utils/write-blocks.ts,7
+  findBlockBySlug(),utils/write-blocks.ts,7
+  handleDemote(),dashboard/api/blocks.ts,7
+  handleMove(),dashboard/api/blocks.ts,7
+  handlePromote(),dashboard/api/blocks.ts,7
+  insertBlock(),utils/write-blocks.ts,7
+  main(),triage/validate-triage.ts,7
+  moveBlock(),utils/write-blocks.ts,7
+  parse-blocks.test.ts,utils/__tests__/parse-blocks.test.ts,7
+  parse-blocks.ts,utils/parse-blocks.ts,7
+  parseArgv(),triage/validate-triage.ts,7
+  parseBlockBody(),utils/parse-blocks.ts,7
+  parseEntries(),utils/parse-blocks.ts,7
+  parseRoadmap(),utils/parse-blocks.ts,7
+  pushIssues(),triage/validate-triage.ts,7
+  removeBlock(),utils/write-blocks.ts,7
+  scanBlocks(),utils/write-blocks.ts,7
+  sha256(),dashboard/api/blocks.ts,7
+  slugify.test.ts,utils/__tests__/slugify.test.ts,7
+  slugify.ts,utils/slugify.ts,7
+  slugify(),utils/slugify.ts,7
+  trimTrailingBlankLines(),utils/write-blocks.ts,7
+  validate-triage.test.ts,triage/__tests__/validate-triage.test.ts,7
+  validate-triage.ts,triage/validate-triage.ts,7
+  validateTriageInputs(),triage/validate-triage.ts,7
+  warnOnce(),utils/parse-blocks.ts,7
+  write-blocks.test.ts,utils/__tests__/write-blocks.test.ts,7
+  write-blocks.ts,utils/write-blocks.ts,7
+edges:
+  write-blocks.ts --imports_from-- slugify.ts
+  write-blocks.ts --imports-- slugify()
+  write-blocks.ts --contains-- scanBlocks()
+  write-blocks.ts --contains-- findBlockBySlug()
+  write-blocks.ts --contains-- extractLines()
+  write-blocks.ts --contains-- trimTrailingBlankLines()
+  write-blocks.ts --contains-- moveBlock()
+  write-blocks.ts --contains-- collapseConsecutiveBlanks()
+  write-blocks.ts --contains-- removeBlock()
+  write-blocks.ts --contains-- insertBlock()
+  write-blocks.test.ts --imports_from-- write-blocks.ts
+  blocks.ts --imports_from-- write-blocks.ts
+  moveBlock() --calls-- scanBlocks()
+  removeBlock() --calls-- scanBlocks()
+  insertBlock() --calls-- scanBlocks()
+  scanBlocks() --calls-- slugify()
+  moveBlock() --calls-- findBlockBySlug()
+  removeBlock() --calls-- findBlockBySlug()
+  moveBlock() --calls-- extractLines()
+  removeBlock() --calls-- extractLines()
+  moveBlock() --calls-- trimTrailingBlankLines()
+  removeBlock() --calls-- trimTrailingBlankLines()
+  moveBlock() --calls-- collapseConsecutiveBlanks()
+  write-blocks.test.ts --imports-- moveBlock()
+  blocks.ts --imports-- moveBlock()
+  handleMove() --calls-- moveBlock()
+  removeBlock() --calls-- collapseConsecutiveBlanks()
+  insertBlock() --calls-- collapseConsecutiveBlanks()
+  write-blocks.test.ts --imports-- removeBlock()
+  blocks.ts --imports-- removeBlock()
+  crossSection() --calls-- removeBlock()
+  write-blocks.test.ts --imports-- insertBlock()
+  blocks.ts --imports-- insertBlock()
+  crossSection() --calls-- insertBlock()
+  parse-blocks.ts --imports_from-- slugify.ts
+  parse-blocks.ts --imports-- slugify()
+  parse-blocks.ts --contains-- warnOnce()
+  parse-blocks.ts --contains-- createSlugTracker()
+  parse-blocks.ts --contains-- parseRoadmap()
+  parse-blocks.ts --contains-- parseBlockBody()
+  parse-blocks.ts --contains-- parseEntries()
+  parse-blocks.test.ts --imports_from-- parse-blocks.ts
+  validate-triage.ts --imports_from-- parse-blocks.ts
+  parseRoadmap() --calls-- createSlugTracker()
+  parseEntries() --calls-- createSlugTracker()
+  parse-blocks.test.ts --imports-- parseRoadmap()
+  validate-triage.ts --imports-- parseRoadmap()
+  slugify.ts --contains-- slugify()
+  parse-blocks.test.ts --imports_from-- slugify.ts
+  slugify.test.ts --imports_from-- slugify.ts
+  parse-blocks.test.ts --imports-- slugify()
+  slugify.test.ts --imports-- slugify()
+  validate-triage.ts --contains-- validateTriageInputs()
+  validate-triage.ts --contains-- pushIssues()
+  validate-triage.ts --contains-- parseArgv()
+  validate-triage.ts --contains-- main()
+  validate-triage.test.ts --imports_from-- validate-triage.ts
+  validateTriageInputs() --calls-- pushIssues()
+  main() --calls-- validateTriageInputs()
+  validate-triage.test.ts --imports-- validateTriageInputs()
+  main() --calls-- parseArgv()
+  api-blocks.test.ts --imports_from-- atomic.ts
+  api-blocks.test.ts --imports-- atomicWriteFile()
+  api-blocks.test.ts --imports_from-- blocks.ts
+  api-blocks.test.ts --imports-- handleDemote()
+  api-blocks.test.ts --imports-- handleMove()
+  api-blocks.test.ts --imports-- handlePromote()
+  atomic.ts --contains-- atomicWriteFile()
+  blocks.ts --imports_from-- atomic.ts
+  blocks.ts --imports-- atomicWriteFile()
+  handleMove() --calls-- atomicWriteFile()
+  crossSection() --calls-- atomicWriteFile()
+  blocks.ts --contains-- sha256()
+  blocks.ts --contains-- handleMove()
+  blocks.ts --contains-- handlePromote()
+  blocks.ts --contains-- handleDemote()
+  blocks.ts --contains-- crossSection()
+  handleMove() --calls-- sha256()
+  crossSection() --calls-- sha256()
+  handlePromote() --calls-- crossSection()
+  handleDemote() --calls-- crossSection()
+
+## community 8 (35 nodes) — setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
+nodes:
+  dashboard-server.test.ts,dashboard/__tests__/dashboard-server.test.ts,8
+  dashboard-worktrees.test.ts,dashboard/__tests__/dashboard-worktrees.test.ts,8
+  getBacklogPath(),dashboard/data.ts,8
+  getRoadmapPath(),dashboard/data.ts,8
+  handle(),dashboard/server.ts,8
+  handleApiDemote(),dashboard/server.ts,8
+  handleApiMove(),dashboard/server.ts,8
+  handleApiPromote(),dashboard/server.ts,8
+  handleFeatures(),dashboard/server.ts,8
+  handleHotZones(),dashboard/server.ts,8
+  handleStatic(),dashboard/server.ts,8
+  handleStaticInvalid(),dashboard/server.ts,8
+  handleVelocity(),dashboard/server.ts,8
+  handleWipAge(),dashboard/server.ts,8
+  handleWorktrees(),dashboard/server.ts,8
+  jsonResult(),dashboard/server.ts,8
+  loadFeatures(),dashboard/data.ts,8
+  loadHotZones(),dashboard/data.ts,8
+  loadVelocity(),dashboard/data.ts,8
+  loadWipAge(),dashboard/data.ts,8
+  loadWorktreeHealth(),dashboard/data.ts,8
+  main(),dashboard/server.ts,8
+  matchRoute(),dashboard/server.ts,8
+  parseCliArgs(),dashboard/server.ts,8
+  readJsonBody(),dashboard/server.ts,8
+  renderFeatures(),dashboard/views.ts,8
+  renderHotZones(),dashboard/views.ts,8
+  renderVelocity(),dashboard/views.ts,8
+  renderWipAge(),dashboard/views.ts,8
+  renderWorktrees(),dashboard/views.ts,8
+  server-cli.test.ts,dashboard/__tests__/server-cli.test.ts,8
+  server.ts,dashboard/server.ts,8
+  setDocRootsOverride(),dashboard/data.ts,8
+  startServer(),dashboard/server.ts,8
+  tryGit(),dashboard/data.ts,8
+edges:
+  server.ts --imports-- setDocRootsOverride()
+  main() --calls-- setDocRootsOverride()
+  server.ts --imports-- getRoadmapPath()
+  handleApiPromote() --calls-- getRoadmapPath()
+  handleApiDemote() --calls-- getRoadmapPath()
+  server.ts --imports-- getBacklogPath()
+  handleApiPromote() --calls-- getBacklogPath()
+  handleApiDemote() --calls-- getBacklogPath()
+  loadHotZones() --calls-- loadFeatures()
+  loadWipAge() --calls-- loadFeatures()
+  loadWorktreeHealth() --calls-- loadFeatures()
+  server.ts --imports-- loadFeatures()
+  handleFeatures() --calls-- loadFeatures()
+  loadVelocity() --calls-- tryGit()
+  loadHotZones() --calls-- tryGit()
+  loadWipAge() --calls-- tryGit()
+  server.ts --imports-- loadVelocity()
+  handleVelocity() --calls-- loadVelocity()
+  server.ts --imports-- loadHotZones()
+  handleHotZones() --calls-- loadHotZones()
+  server.ts --imports-- loadWipAge()
+  handleWipAge() --calls-- loadWipAge()
+  server.ts --imports-- loadWorktreeHealth()
+  dashboard-worktrees.test.ts --imports-- loadWorktreeHealth()
+  handleWorktrees() --calls-- loadWorktreeHealth()
+  server.ts --imports-- renderFeatures()
+  handleFeatures() --calls-- renderFeatures()
+  server.ts --imports-- renderVelocity()
+  handleVelocity() --calls-- renderVelocity()
+  server.ts --imports-- renderHotZones()
+  handleHotZones() --calls-- renderHotZones()
+  server.ts --imports-- renderWorktrees()
+  dashboard-worktrees.test.ts --imports-- renderWorktrees()
+  handleWorktrees() --calls-- renderWorktrees()
+  server.ts --imports-- renderWipAge()
+  handleWipAge() --calls-- renderWipAge()
+  server.ts --contains-- parseCliArgs()
+  server.ts --contains-- matchRoute()
+  server.ts --contains-- readJsonBody()
+  server.ts --contains-- jsonResult()
+  server.ts --contains-- handleApiMove()
+  server.ts --contains-- handleApiPromote()
+  server.ts --contains-- handleApiDemote()
+  server.ts --contains-- handleStaticInvalid()
+  server.ts --contains-- handleStatic()
+  server.ts --contains-- handleFeatures()
+  server.ts --contains-- handleVelocity()
+  server.ts --contains-- handleHotZones()
+  server.ts --contains-- handleWipAge()
+  server.ts --contains-- handleWorktrees()
+  server.ts --contains-- handle()
+  server.ts --contains-- startServer()
+  server.ts --contains-- main()
+  dashboard-worktrees.test.ts --imports_from-- server.ts
+  dashboard-server.test.ts --imports_from-- server.ts
+  server-cli.test.ts --imports_from-- server.ts
+  main() --calls-- parseCliArgs()
+  server-cli.test.ts --imports-- parseCliArgs()
+  matchRoute() --calls-- handleApiMove()
+  handle() --calls-- matchRoute()
+  handleApiPromote() --calls-- jsonResult()
+  handleApiDemote() --calls-- jsonResult()
+  main() --calls-- startServer()
+  dashboard-worktrees.test.ts --imports-- startServer()
+  dashboard-server.test.ts --imports-- startServer()
+
+## community 9 (34 nodes) — context.ts · buildContext() · diffArgs()
+nodes:
+  buildContext(),cr/context.ts,9
+  cli-args.test.ts,cr/__tests__/cli-args.test.ts,9
+  cli-args.ts,cr/cli-args.ts,9
+  codex.test.ts,cr/__tests__/codex.test.ts,9
+  codex.ts,cr/codex.ts,9
+  context.test.ts,cr/__tests__/context.test.ts,9
+  context.ts,cr/context.ts,9
+  defaultSpawn(),cr/codex.ts,9
+  diffArgs(),cr/context.ts,9
+  fakeGit(),cr/__tests__/context.test.ts,9
+  filenameSelector(),cr/codex.ts,9
+  formatPrompt(),cr/run-codex.ts,9
+  hashPaths(),cr/codex.ts,9
+  isGateLane(),cr/codex.ts,9
+  makeRepo(),cr/__tests__/codex.test.ts,9
+  parseCliArgs(),cr/cli-args.ts,9
+  printFindings(),cr/codex.ts,9
+  readFeatureMd(),cr/codex.ts,9
+  readIfExists(),cr/codex.ts,9
+  readSession(),cr/codex.ts,9
+  readSidecar(),cr/sidecar.ts,9
+  refForLane(),cr/codex.ts,9
+  refMsgPath(),cr/codex.ts,9
+  run-codex.test.ts,cr/__tests__/run-codex.test.ts,9
+  run-codex.ts,cr/run-codex.ts,9
+  runCli(),cr/codex.ts,9
+  runCodex(),cr/run-codex.ts,9
+  schema-parity.test.ts,cr/__tests__/schema-parity.test.ts,9
+  sh(),cr/codex.ts,9
+  sidecar.test.ts,cr/__tests__/sidecar.test.ts,9
+  sidecar.ts,cr/sidecar.ts,9
+  sidecarFilename(),cr/sidecar.ts,9
+  synthBlocker(),cr/run-codex.ts,9
+  writeSidecar(),cr/sidecar.ts,9
+edges:
+  context.ts --contains-- buildContext()
+  context.ts --contains-- diffArgs()
+  cli-args.ts --imports_from-- context.ts
+  codex.ts --imports_from-- context.ts
+  context.test.ts --imports_from-- context.ts
+  buildContext() --calls-- diffArgs()
+  codex.ts --imports-- buildContext()
+  context.test.ts --imports-- buildContext()
+  runCli() --calls-- buildContext()
+  cli-args.ts --contains-- parseCliArgs()
+  codex.ts --imports_from-- cli-args.ts
+  cli-args.test.ts --imports_from-- cli-args.ts
+  codex.ts --imports-- parseCliArgs()
+  cli-args.test.ts --imports-- parseCliArgs()
+  run-codex.ts --imports_from-- sidecar.ts
+  run-codex.ts --contains-- runCodex()
+  run-codex.ts --contains-- formatPrompt()
+  run-codex.ts --contains-- synthBlocker()
+  codex.ts --imports_from-- run-codex.ts
+  run-codex.test.ts --imports_from-- run-codex.ts
+  runCodex() --calls-- formatPrompt()
+  runCodex() --calls-- synthBlocker()
+  codex.ts --imports-- runCodex()
+  run-codex.test.ts --imports-- runCodex()
+  codex.ts --imports_from-- sidecar.ts
+  codex.ts --imports-- sidecarFilename()
+  codex.ts --imports-- writeSidecar()
+  codex.ts --contains-- runCli()
+  codex.ts --contains-- isGateLane()
+  codex.ts --contains-- refForLane()
+  codex.ts --contains-- filenameSelector()
+  codex.ts --contains-- hashPaths()
+  codex.ts --contains-- readFeatureMd()
+  codex.ts --contains-- readSession()
+  codex.ts --contains-- readIfExists()
+  codex.ts --contains-- sh()
+  codex.ts --contains-- refMsgPath()
+  codex.ts --contains-- printFindings()
+  codex.ts --contains-- defaultSpawn()
+  codex.test.ts --imports_from-- codex.ts
+  runCli() --calls-- sh()
+  runCli() --calls-- refForLane()
+  runCli() --calls-- isGateLane()
+  runCli() --calls-- readFeatureMd()
+  runCli() --calls-- readIfExists()
+  runCli() --calls-- filenameSelector()
+  runCli() --calls-- printFindings()
+  runCli() --calls-- refMsgPath()
+  codex.test.ts --imports-- runCli()
+  runCli() --calls-- sidecarFilename()
+  runCli() --calls-- writeSidecar()
+  filenameSelector() --calls-- hashPaths()
+  readFeatureMd() --calls-- readSession()
+  readFeatureMd() --calls-- readIfExists()
+  refMsgPath() --calls-- sh()
+  sidecar.ts --contains-- sidecarFilename()
+  sidecar.ts --contains-- writeSidecar()
+  sidecar.ts --contains-- readSidecar()
+  sidecar.test.ts --imports_from-- sidecar.ts
+  schema-parity.test.ts --imports_from-- sidecar.ts
+  sidecar.test.ts --imports-- sidecarFilename()
+  sidecar.test.ts --imports-- writeSidecar()
+  sidecar.test.ts --imports-- readSidecar()
+  context.test.ts --contains-- fakeGit()
+  codex.test.ts --contains-- makeRepo()
+
+## community 10 (34 nodes) — stage.ts · pathToStage() · stage.test.ts
+nodes:
+  cli-cores.ts,rules/cli-cores.ts,10
+  cli-list.ts,rules/cli-list.ts,10
+  cli-resolve.ts,rules/cli-resolve.ts,10
+  cli-validate.ts,rules/cli-validate.ts,10
+  cli.test.ts,rules/__tests__/cli.test.ts,10
+  dirStamp(),rules/index-cache.ts,10
+  fileMatches(),rules/resolve.ts,10
+  frontmatterToRule(),rules/types.ts,10
+  getRules(),rules/index-cache.ts,10
+  index-cache.test.ts,rules/__tests__/index-cache.test.ts,10
+  index-cache.ts,rules/index-cache.ts,10
+  load.test.ts,rules/__tests__/load.test.ts,10
+  load.ts,rules/load.ts,10
+  loadRulesFromDir(),rules/load.ts,10
+  main(),rules/cli-list.ts,10
+  main(),rules/cli-resolve.ts,10
+  main(),rules/cli-validate.ts,10
+  makeRulesDir(),rules/__tests__/load.test.ts,10
+  pathToStage(),core/rules/stage.ts,10
+  repo(),rules/__tests__/cli.test.ts,10
+  repoWith(),rules/__tests__/index-cache.test.ts,10
+  resolve.test.ts,rules/__tests__/resolve.test.ts,10
+  resolve.ts,rules/resolve.ts,10
+  resolveRules(),rules/resolve.ts,10
+  rule(),rules/__tests__/resolve.test.ts,10
+  runList(),rules/cli-cores.ts,10
+  runResolve(),rules/cli-cores.ts,10
+  runValidate(),rules/cli-cores.ts,10
+  specificity(),rules/resolve.ts,10
+  stage.test.ts,core/rules/__tests__/stage.test.ts,10
+  stage.ts,core/rules/stage.ts,10
+  stageMatches(),rules/resolve.ts,10
+  types.test.ts,rules/__tests__/types.test.ts,10
+  types.ts,rules/types.ts,10
+edges:
+  stage.ts --contains-- pathToStage()
+  stage.test.ts --imports_from-- stage.ts
+  cli-resolve.ts --imports_from-- stage.ts
+  types.ts --imports_from-- stage.ts
+  resolve.ts --imports_from-- stage.ts
+  stage.test.ts --imports-- pathToStage()
+  cli-list.ts --imports_from-- cli-cores.ts
+  cli-list.ts --imports-- runList()
+  cli-list.ts --contains-- main()
+  main() --calls-- runList()
+  load.ts --imports_from-- types.ts
+  load.ts --imports-- frontmatterToRule()
+  load.ts --contains-- loadRulesFromDir()
+  cli-cores.ts --imports_from-- load.ts
+  index-cache.ts --imports_from-- load.ts
+  load.test.ts --imports_from-- load.ts
+  cli-cores.ts --imports-- loadRulesFromDir()
+  index-cache.ts --imports-- loadRulesFromDir()
+  load.test.ts --imports-- loadRulesFromDir()
+  loadRulesFromDir() --calls-- frontmatterToRule()
+  runValidate() --calls-- loadRulesFromDir()
+  getRules() --calls-- loadRulesFromDir()
+  cli-resolve.ts --imports_from-- cli-cores.ts
+  cli-resolve.ts --imports-- runResolve()
+  cli-resolve.ts --contains-- main()
+  main() --calls-- runResolve()
+  cli-cores.ts --imports_from-- index-cache.ts
+  cli-cores.ts --imports-- getRules()
+  cli-cores.ts --imports_from-- resolve.ts
+  cli-cores.ts --imports-- resolveRules()
+  cli-cores.ts --imports_from-- types.ts
+  cli-cores.ts --contains-- runResolve()
+  cli-cores.ts --contains-- runList()
+  cli-cores.ts --contains-- runValidate()
+  cli-validate.ts --imports_from-- cli-cores.ts
+  cli.test.ts --imports_from-- cli-cores.ts
+  cli.test.ts --imports-- runResolve()
+  runResolve() --calls-- resolveRules()
+  runResolve() --calls-- getRules()
+  runList() --calls-- getRules()
+  cli-validate.ts --imports-- runValidate()
+  cli.test.ts --imports-- runValidate()
+  main() --calls-- runValidate()
+  cli-validate.ts --contains-- main()
+  types.ts --contains-- frontmatterToRule()
+  index-cache.ts --imports_from-- types.ts
+  resolve.ts --imports_from-- types.ts
+  types.test.ts --imports_from-- types.ts
+  resolve.test.ts --imports_from-- types.ts
+  types.test.ts --imports-- frontmatterToRule()
+  index-cache.ts --contains-- dirStamp()
+  index-cache.ts --contains-- getRules()
+  index-cache.test.ts --imports_from-- index-cache.ts
+  getRules() --calls-- dirStamp()
+  index-cache.test.ts --imports-- getRules()
+  resolve.ts --contains-- specificity()
+  resolve.ts --contains-- stageMatches()
+  resolve.ts --contains-- fileMatches()
+  resolve.ts --contains-- resolveRules()
+  resolve.test.ts --imports_from-- resolve.ts
+  resolve.test.ts --imports-- resolveRules()
+  load.test.ts --contains-- makeRulesDir()
+  resolve.test.ts --contains-- rule()
+  index-cache.test.ts --contains-- repoWith()
+  cli.test.ts --contains-- repo()
+
+## community 11 (31 nodes) — getRepoUrl() · data.ts · highlight()
+nodes:
+  codePathOwnsFile(),dashboard/data.ts,11
+  countScriptFiles(),dashboard/data.ts,11
+  dashboard-mermaid.test.ts,dashboard/__tests__/dashboard-mermaid.test.ts,11
+  data.ts,dashboard/data.ts,11
+  decodeHtmlEntities(),dashboard/data.ts,11
+  getDocRoot(),dashboard/data.ts,11
+  getFeaturesDir(),dashboard/data.ts,11
+  getNoldorDir(),dashboard/data.ts,11
+  getReleaseNotesPath(),dashboard/data.ts,11
+  getRepoUrl(),release/release-version.ts,11
+  getScriptsDir(),dashboard/data.ts,11
+  getSkillsDir(),dashboard/data.ts,11
+  getVisionPath(),dashboard/data.ts,11
+  git(),dashboard/data.ts,11
+  handleOverview(),dashboard/server.ts,11
+  highlight(),dashboard/data.ts,11
+  listVersionTags(),dashboard/data.ts,11
+  loadActiveMilestone(),dashboard/data.ts,11
+  loadFdChangelog(),dashboard/data.ts,11
+  loadFeatureDetail(),dashboard/data.ts,11
+  loadReleaseNotes(),dashboard/data.ts,11
+  loadVision(),dashboard/data.ts,11
+  mergeChangelogIntoBody(),dashboard/data.ts,11
+  parseStaticVersionBlocks(),dashboard/data.ts,11
+  renderCommitList(),dashboard/data.ts,11
+  renderMarkdown(),dashboard/data.ts,11
+  renderPrSection(),dashboard/data.ts,11
+  renderToHtml(),dashboard/data.ts,11
+  renderUnreleasedBlock(),dashboard/data.ts,11
+  renderVersionBlock(),dashboard/data.ts,11
+  rewriteRelativeLinksToVscode(),dashboard/data.ts,11
+edges:
+  data.ts --imports-- getRepoUrl()
+  renderMarkdown() --calls-- getRepoUrl()
+  loadFeatureDetail() --calls-- getRepoUrl()
+  data.ts --contains-- highlight()
+  data.ts --contains-- getDocRoot()
+  data.ts --contains-- getVisionPath()
+  data.ts --contains-- getReleaseNotesPath()
+  data.ts --contains-- getFeaturesDir()
+  data.ts --contains-- getSkillsDir()
+  data.ts --contains-- getScriptsDir()
+  data.ts --contains-- getNoldorDir()
+  data.ts --contains-- decodeHtmlEntities()
+  data.ts --contains-- renderToHtml()
+  data.ts --contains-- renderPrSection()
+  data.ts --contains-- renderMarkdown()
+  data.ts --contains-- listVersionTags()
+  data.ts --contains-- loadFdChangelog()
+  data.ts --contains-- mergeChangelogIntoBody()
+  data.ts --contains-- parseStaticVersionBlocks()
+  data.ts --contains-- renderUnreleasedBlock()
+  data.ts --contains-- renderVersionBlock()
+  data.ts --contains-- renderCommitList()
+  data.ts --contains-- loadFeatureDetail()
+  data.ts --contains-- rewriteRelativeLinksToVscode()
+  data.ts --contains-- loadVision()
+  data.ts --contains-- loadActiveMilestone()
+  data.ts --contains-- loadReleaseNotes()
+  data.ts --contains-- countScriptFiles()
+  data.ts --contains-- git()
+  data.ts --contains-- codePathOwnsFile()
+  dashboard-mermaid.test.ts --imports_from-- data.ts
+  getVisionPath() --calls-- getDocRoot()
+  getReleaseNotesPath() --calls-- getDocRoot()
+  getFeaturesDir() --calls-- getDocRoot()
+  getSkillsDir() --calls-- getDocRoot()
+  getScriptsDir() --calls-- getDocRoot()
+  getNoldorDir() --calls-- getDocRoot()
+  loadVision() --calls-- getVisionPath()
+  loadReleaseNotes() --calls-- getReleaseNotesPath()
+  countScriptFiles() --calls-- getScriptsDir()
+  renderMarkdown() --calls-- renderToHtml()
+  renderMarkdown() --calls-- renderPrSection()
+  loadFeatureDetail() --calls-- renderMarkdown()
+  loadVision() --calls-- renderMarkdown()
+  loadActiveMilestone() --calls-- renderMarkdown()
+  loadReleaseNotes() --calls-- renderMarkdown()
+  dashboard-mermaid.test.ts --imports-- renderMarkdown()
+  loadFdChangelog() --calls-- listVersionTags()
+  loadFeatureDetail() --calls-- loadFdChangelog()
+  mergeChangelogIntoBody() --calls-- parseStaticVersionBlocks()
+  mergeChangelogIntoBody() --calls-- renderUnreleasedBlock()
+  mergeChangelogIntoBody() --calls-- renderVersionBlock()
+  loadFeatureDetail() --calls-- mergeChangelogIntoBody()
+  renderUnreleasedBlock() --calls-- renderCommitList()
+  renderVersionBlock() --calls-- renderCommitList()
+  loadFeatureDetail() --calls-- rewriteRelativeLinksToVscode()
+  handleOverview() --calls-- loadVision()
+  handleOverview() --calls-- loadActiveMilestone()
+
+## community 12 (30 nodes) — validate-features.ts · walkDir() · collectTestFiles()
+nodes:
+  buildSlugToDocsMap(),sync/sync-doc-links.ts,12
+  buildSlugToTestsMap(),sync/sync-test-links.ts,12
+  collectTaggedDocs(),sync/sync-doc-links.ts,12
+  collectTaggedTests(),sync/sync-test-links.ts,12
+  collectTestFiles(),features/validate-features.ts,12
+  extractCodePackages(),features/validate-features.ts,12
+  extractFeatureTags(),sync/sync-doc-links.ts,12
+  extractTags(),sync/sync-test-links.ts,12
+  listMd(),sync/sync-doc-links.ts,12
+  main(),features/validate-features.ts,12
+  main(),sync/sync-doc-links.ts,12
+  main(),sync/sync-test-links.ts,12
+  normalizeDeclaredPackage(),features/validate-features.ts,12
+  sync-doc-links.test.ts,sync/__tests__/sync-doc-links.test.ts,12
+  sync-doc-links.ts,sync/sync-doc-links.ts,12
+  sync-test-links.test.ts,sync/__tests__/sync-test-links.test.ts,12
+  sync-test-links.ts,sync/sync-test-links.ts,12
+  updateFeatureMd(),sync/sync-doc-links.ts,12
+  updateFeatureMd(),sync/sync-test-links.ts,12
+  validate-features.test.ts,features/__tests__/validate-features.test.ts,12
+  validate-features.ts,features/validate-features.ts,12
+  validateDocFeatureSlugs(),features/validate-features.ts,12
+  validateDocTagPresence(),features/validate-features.ts,12
+  validateFiles(),features/validate-features.ts,12
+  validatePackagesField(),features/validate-features.ts,12
+  validateTaggedSlugs(),features/validate-features.ts,12
+  validateTestTagPresence(),features/validate-features.ts,12
+  validateTierVsSpec(),features/validate-features.ts,12
+  walkDir(),features/validate-features.ts,12
+  walkTests(),sync/sync-test-links.ts,12
+edges:
+  validate-features.ts --imports_from-- sync-doc-links.ts
+  validate-features.ts --imports-- extractFeatureTags()
+  validate-features.ts --imports_from-- sync-test-links.ts
+  validate-features.ts --imports-- extractTags()
+  validate-features.ts --contains-- walkDir()
+  validate-features.ts --contains-- collectTestFiles()
+  validate-features.ts --contains-- validateFiles()
+  validate-features.ts --contains-- extractCodePackages()
+  validate-features.ts --contains-- normalizeDeclaredPackage()
+  validate-features.ts --contains-- validatePackagesField()
+  validate-features.ts --contains-- validateDocFeatureSlugs()
+  validate-features.ts --contains-- validateTestTagPresence()
+  validate-features.ts --contains-- validateDocTagPresence()
+  validate-features.ts --contains-- validateTierVsSpec()
+  validate-features.ts --contains-- validateTaggedSlugs()
+  validate-features.ts --contains-- main()
+  validate-features.test.ts --imports_from-- validate-features.ts
+  main() --calls-- walkDir()
+  main() --calls-- collectTestFiles()
+  validateFiles() --calls-- validateTierVsSpec()
+  main() --calls-- validateFiles()
+  validate-features.test.ts --imports-- validateFiles()
+  validatePackagesField() --calls-- extractCodePackages()
+  validate-features.test.ts --imports-- extractCodePackages()
+  validate-features.test.ts --imports-- normalizeDeclaredPackage()
+  main() --calls-- validatePackagesField()
+  validate-features.test.ts --imports-- validatePackagesField()
+  main() --calls-- validateDocFeatureSlugs()
+  validate-features.test.ts --imports-- validateDocFeatureSlugs()
+  validateDocFeatureSlugs() --calls-- extractFeatureTags()
+  main() --calls-- validateTestTagPresence()
+  validate-features.test.ts --imports-- validateTestTagPresence()
+  main() --calls-- validateDocTagPresence()
+  validate-features.test.ts --imports-- validateDocTagPresence()
+  validate-features.test.ts --imports-- validateTierVsSpec()
+  main() --calls-- validateTaggedSlugs()
+  validate-features.test.ts --imports-- validateTaggedSlugs()
+  validateTaggedSlugs() --calls-- extractTags()
+  sync-doc-links.ts --contains-- extractFeatureTags()
+  sync-doc-links.ts --contains-- buildSlugToDocsMap()
+  sync-doc-links.ts --contains-- listMd()
+  sync-doc-links.ts --contains-- collectTaggedDocs()
+  sync-doc-links.ts --contains-- updateFeatureMd()
+  sync-doc-links.ts --contains-- main()
+  sync-doc-links.test.ts --imports_from-- sync-doc-links.ts
+  collectTaggedDocs() --calls-- extractFeatureTags()
+  sync-doc-links.test.ts --imports-- extractFeatureTags()
+  main() --calls-- buildSlugToDocsMap()
+  sync-doc-links.test.ts --imports-- buildSlugToDocsMap()
+  collectTaggedDocs() --calls-- listMd()
+  main() --calls-- collectTaggedDocs()
+  main() --calls-- updateFeatureMd()
+  sync-test-links.ts --contains-- extractTags()
+  sync-test-links.ts --contains-- buildSlugToTestsMap()
+  sync-test-links.ts --contains-- walkTests()
+  sync-test-links.ts --contains-- collectTaggedTests()
+  sync-test-links.ts --contains-- updateFeatureMd()
+  sync-test-links.ts --contains-- main()
+  sync-test-links.test.ts --imports_from-- sync-test-links.ts
+  collectTaggedTests() --calls-- extractTags()
+  sync-test-links.test.ts --imports-- extractTags()
+  main() --calls-- buildSlugToTestsMap()
+  sync-test-links.test.ts --imports-- buildSlugToTestsMap()
+  collectTaggedTests() --calls-- walkTests()
+  main() --calls-- collectTaggedTests()
+  main() --calls-- updateFeatureMd()
+
+## community 13 (27 nodes) — walkTokens() · views.ts · deriveRepoSlug()
+nodes:
+  cmpOrdinal(),dashboard/views.ts,13
+  cmpStr(),dashboard/views.ts,13
+  cmpString(),dashboard/views.ts,13
+  cmpUndefLast(),dashboard/views.ts,13
+  dashboard-views.test.ts,dashboard/__tests__/dashboard-views.test.ts,13
+  deriveRepoSlug(),dashboard/views.ts,13
+  escapeHtml(),dashboard/layout.ts,13
+  filterFormHasSubmitButton(),dashboard/__tests__/dashboard-views.test.ts,13
+  handleFeatureDetail(),dashboard/server.ts,13
+  handleVision(),dashboard/server.ts,13
+  ordinalOf(),dashboard/views.ts,13
+  plainTextPreview(),dashboard/views.ts,13
+  renderBacklog(),dashboard/views.ts,13
+  renderChipRow(),dashboard/views.ts,13
+  renderCounter(),dashboard/views.ts,13
+  renderDescription(),dashboard/views.ts,13
+  renderFeatureDetail(),dashboard/views.ts,13
+  renderMilestoneBanner(),dashboard/views.ts,13
+  renderOverview(),dashboard/views.ts,13
+  renderRoadmap(),dashboard/views.ts,13
+  renderRoadmapRows(),dashboard/views.ts,13
+  renderVision(),dashboard/views.ts,13
+  selectsInFiltersForm(),dashboard/__tests__/dashboard-views.test.ts,13
+  sortEntries(),dashboard/views.ts,13
+  toggleMultiParam(),dashboard/views.ts,13
+  views.ts,dashboard/views.ts,13
+  walkTokens(),dashboard/data.ts,13
+edges:
+  walkTokens() --calls-- escapeHtml()
+  views.ts --imports-- escapeHtml()
+  views.ts --contains-- deriveRepoSlug()
+  views.ts --contains-- toggleMultiParam()
+  views.ts --contains-- renderChipRow()
+  views.ts --contains-- cmpUndefLast()
+  views.ts --contains-- ordinalOf()
+  views.ts --contains-- cmpOrdinal()
+  views.ts --contains-- cmpString()
+  views.ts --contains-- sortEntries()
+  views.ts --contains-- renderDescription()
+  views.ts --contains-- plainTextPreview()
+  views.ts --contains-- renderCounter()
+  views.ts --contains-- cmpStr()
+  views.ts --contains-- renderMilestoneBanner()
+  views.ts --contains-- renderOverview()
+  views.ts --contains-- renderVision()
+  views.ts --contains-- renderRoadmapRows()
+  views.ts --contains-- renderRoadmap()
+  views.ts --contains-- renderBacklog()
+  views.ts --contains-- renderFeatureDetail()
+  dashboard-views.test.ts --imports_from-- views.ts
+  dashboard-views.test.ts --imports-- toggleMultiParam()
+  renderRoadmap() --calls-- renderChipRow()
+  renderBacklog() --calls-- renderChipRow()
+  dashboard-views.test.ts --imports-- renderChipRow()
+  renderChipRow() --calls-- escapeHtml()
+  renderRoadmap() --calls-- sortEntries()
+  renderBacklog() --calls-- sortEntries()
+  dashboard-views.test.ts --imports-- sortEntries()
+  dashboard-views.test.ts --imports-- plainTextPreview()
+  renderOverview() --calls-- renderCounter()
+  renderOverview() --calls-- renderMilestoneBanner()
+  dashboard-views.test.ts --imports-- renderMilestoneBanner()
+  renderMilestoneBanner() --calls-- escapeHtml()
+  dashboard-views.test.ts --imports-- renderOverview()
+  dashboard-views.test.ts --imports-- renderVision()
+  handleVision() --calls-- renderVision()
+  renderRoadmap() --calls-- renderRoadmapRows()
+  dashboard-views.test.ts --imports-- renderRoadmap()
+  renderRoadmap() --calls-- escapeHtml()
+  dashboard-views.test.ts --imports-- renderBacklog()
+  renderBacklog() --calls-- escapeHtml()
+  dashboard-views.test.ts --imports-- renderFeatureDetail()
+  renderFeatureDetail() --calls-- escapeHtml()
+  handleFeatureDetail() --calls-- renderFeatureDetail()
+  dashboard-views.test.ts --imports-- escapeHtml()
+  dashboard-views.test.ts --contains-- selectsInFiltersForm()
+  dashboard-views.test.ts --contains-- filterFormHasSubmitButton()
+
+## community 14 (21 nodes) — cli.ts · fmtGroup() · usage()
+nodes:
+  activateMilestone(),milestones/lib.ts,14
+  cli.ts,milestones/cli.ts,14
+  draftMilestone(),milestones/lib.ts,14
+  fmtGroup(),milestones/cli.ts,14
+  lib.test.ts,milestones/__tests__/lib.test.ts,14
+  lib.ts,milestones/lib.ts,14
+  listMilestones(),milestones/lib.ts,14
+  loadMilestoneBySlug(),milestones/lib.ts,14
+  loadMilestones(),milestones/lib.ts,14
+  preflightActivate(),milestones/lib.ts,14
+  readMilestone(),milestones/lib.ts,14
+  serializeMilestone(),milestones/lib.ts,14
+  setFrontmatterField(),milestones/lib.ts,14
+  usage(),milestones/cli.ts,14
+  validate-milestones.test.ts,milestones/__tests__/validate-milestones.test.ts,14
+  validate-milestones.ts,milestones/validate-milestones.ts,14
+  validateMilestones(),milestones/validate-milestones.ts,14
+  visionAt(),milestones/__tests__/lib.test.ts,14
+  writeVision(),milestones/__tests__/validate-milestones.test.ts,14
+  writeVision(),milestones/__tests__/lib.test.ts,14
+  yamlScalar(),milestones/lib.ts,14
+edges:
+  cli.ts --imports_from-- lib.ts
+  cli.ts --imports-- draftMilestone()
+  cli.ts --imports-- activateMilestone()
+  cli.ts --imports-- listMilestones()
+  cli.ts --contains-- fmtGroup()
+  cli.ts --contains-- usage()
+  validate-milestones.ts --imports_from-- lib.ts
+  validate-milestones.ts --contains-- validateMilestones()
+  validate-milestones.test.ts --imports_from-- validate-milestones.ts
+  validate-milestones.test.ts --imports-- validateMilestones()
+  lib.ts --contains-- yamlScalar()
+  lib.ts --contains-- readMilestone()
+  lib.ts --contains-- loadMilestones()
+  lib.ts --contains-- loadMilestoneBySlug()
+  lib.ts --contains-- draftMilestone()
+  lib.ts --contains-- preflightActivate()
+  lib.ts --contains-- setFrontmatterField()
+  lib.ts --contains-- serializeMilestone()
+  lib.ts --contains-- activateMilestone()
+  lib.ts --contains-- listMilestones()
+  lib.test.ts --imports_from-- lib.ts
+  draftMilestone() --calls-- yamlScalar()
+  serializeMilestone() --calls-- yamlScalar()
+  loadMilestoneBySlug() --calls-- readMilestone()
+  preflightActivate() --calls-- readMilestone()
+  lib.test.ts --imports-- readMilestone()
+  preflightActivate() --calls-- loadMilestones()
+  listMilestones() --calls-- loadMilestones()
+  lib.test.ts --imports-- loadMilestones()
+  lib.test.ts --imports-- loadMilestoneBySlug()
+  lib.test.ts --imports-- draftMilestone()
+  activateMilestone() --calls-- preflightActivate()
+  activateMilestone() --calls-- setFrontmatterField()
+  activateMilestone() --calls-- serializeMilestone()
+  lib.test.ts --imports-- activateMilestone()
+  lib.test.ts --imports-- listMilestones()
+  validate-milestones.test.ts --contains-- writeVision()
+  lib.test.ts --contains-- visionAt()
+  lib.test.ts --contains-- writeVision()
+
+## community 15 (20 nodes) — parseRoadmapFromString() · parseRoadmap() · sha256Hex()
+nodes:
+  countMatching(),dashboard/data.ts,15
+  dashboard-data.test.ts,dashboard/__tests__/dashboard-data.test.ts,15
+  featureSlugsForCodePath(),dashboard/data.ts,15
+  fixtureCommit(),dashboard/__tests__/dashboard-data.test.ts,15
+  fixtureGit(),dashboard/__tests__/dashboard-data.test.ts,15
+  handleBacklog(),dashboard/server.ts,15
+  handleGaps(),dashboard/server.ts,15
+  handleRoadmap(),dashboard/server.ts,15
+  loadBacklog(),dashboard/data.ts,15
+  loadBacklogWithHash(),dashboard/data.ts,15
+  loadCounts(),dashboard/data.ts,15
+  loadGaps(),dashboard/data.ts,15
+  loadRoadmapWithHash(),dashboard/data.ts,15
+  makeCommit(),dashboard/__tests__/dashboard-data.test.ts,15
+  parseBacklogFromString(),dashboard/data.ts,15
+  parseMultiParam(),dashboard/views.ts,15
+  parseRoadmap(),dashboard/data.ts,15
+  parseRoadmapFromString(),dashboard/data.ts,15
+  renderGaps(),dashboard/views.ts,15
+  sha256Hex(),dashboard/data.ts,15
+edges:
+  loadRoadmapWithHash() --calls-- parseRoadmapFromString()
+  dashboard-data.test.ts --imports-- parseRoadmapFromString()
+  parseRoadmap() --calls-- loadRoadmapWithHash()
+  loadCounts() --calls-- parseRoadmap()
+  dashboard-data.test.ts --imports-- parseRoadmap()
+  loadRoadmapWithHash() --calls-- sha256Hex()
+  loadBacklogWithHash() --calls-- sha256Hex()
+  dashboard-data.test.ts --imports-- loadRoadmapWithHash()
+  handleRoadmap() --calls-- loadRoadmapWithHash()
+  handleBacklog() --calls-- loadRoadmapWithHash()
+  loadBacklogWithHash() --calls-- parseBacklogFromString()
+  dashboard-data.test.ts --imports-- parseBacklogFromString()
+  loadBacklog() --calls-- loadBacklogWithHash()
+  dashboard-data.test.ts --imports-- loadBacklogWithHash()
+  handleRoadmap() --calls-- loadBacklogWithHash()
+  handleBacklog() --calls-- loadBacklogWithHash()
+  loadCounts() --calls-- loadBacklog()
+  dashboard-data.test.ts --imports-- loadBacklog()
+  loadCounts() --calls-- loadGaps()
+  dashboard-data.test.ts --imports-- loadGaps()
+  handleGaps() --calls-- loadGaps()
+  loadCounts() --calls-- countMatching()
+  dashboard-data.test.ts --imports-- loadCounts()
+  dashboard-data.test.ts --imports-- featureSlugsForCodePath()
+  handleRoadmap() --calls-- parseMultiParam()
+  handleBacklog() --calls-- parseMultiParam()
+  handleGaps() --calls-- renderGaps()
+  dashboard-data.test.ts --contains-- fixtureGit()
+  dashboard-data.test.ts --contains-- fixtureCommit()
+  dashboard-data.test.ts --contains-- makeCommit()
+  fixtureCommit() --calls-- fixtureGit()
+
+## community 16 (18 nodes) — check-template-sync.ts · checkTemplateSync() · resolveChangedFiles()
+nodes:
+  adoptTemplate(),templates/copy.ts,16
+  check-template-sync.test.ts,checks/__tests__/check-template-sync.test.ts,16
+  check-template-sync.ts,checks/check-template-sync.ts,16
+  checkTemplateSync(),checks/check-template-sync.ts,16
+  computeDrift(),templates/diff.ts,16
+  copy.ts,templates/copy.ts,16
+  copyTemplate(),templates/copy.ts,16
+  diff.ts,templates/diff.ts,16
+  doctor.ts,cli/commands/doctor.ts,16
+  init.ts,cli/commands/init.ts,16
+  main(),checks/check-template-sync.ts,16
+  makeRoots(),checks/__tests__/check-template-sync.test.ts,16
+  manifest.ts,templates/manifest.ts,16
+  resolveChangedFiles(),checks/check-template-sync.ts,16
+  sha256(),templates/diff.ts,16
+  sha256(),templates/copy.ts,16
+  templateFiles(),templates/manifest.ts,16
+  templates.test.ts,templates/__tests__/templates.test.ts,16
+edges:
+  check-template-sync.ts --imports_from-- diff.ts
+  check-template-sync.ts --imports-- computeDrift()
+  check-template-sync.ts --imports_from-- manifest.ts
+  check-template-sync.ts --imports-- templateFiles()
+  check-template-sync.ts --contains-- checkTemplateSync()
+  check-template-sync.ts --contains-- resolveChangedFiles()
+  check-template-sync.ts --contains-- main()
+  check-template-sync.test.ts --imports_from-- check-template-sync.ts
+  main() --calls-- checkTemplateSync()
+  check-template-sync.test.ts --imports-- checkTemplateSync()
+  checkTemplateSync() --calls-- templateFiles()
+  checkTemplateSync() --calls-- computeDrift()
+  main() --calls-- resolveChangedFiles()
+  check-template-sync.test.ts --contains-- makeRoots()
+  doctor.ts --imports_from-- manifest.ts
+  doctor.ts --imports-- templateFiles()
+  doctor.ts --imports_from-- diff.ts
+  doctor.ts --imports-- computeDrift()
+  init.ts --imports_from-- manifest.ts
+  init.ts --imports-- templateFiles()
+  init.ts --imports_from-- copy.ts
+  init.ts --imports-- copyTemplate()
+  init.ts --imports-- adoptTemplate()
+  diff.ts --contains-- sha256()
+  diff.ts --contains-- computeDrift()
+  templates.test.ts --imports_from-- diff.ts
+  templates.test.ts --imports-- computeDrift()
+  copy.ts --contains-- sha256()
+  copy.ts --contains-- copyTemplate()
+  copy.ts --contains-- adoptTemplate()
+  templates.test.ts --imports_from-- copy.ts
+  templates.test.ts --imports-- copyTemplate()
+  templates.test.ts --imports-- adoptTemplate()
+  manifest.ts --contains-- templateFiles()
+
+## community 17 (17 nodes) — release-markers.ts · fillNoldorMarker() · fillAllNoldorMarkers()
+nodes:
+  consumerScripts(),release/index.ts,17
+  ensureCleanTreeOnMain(),release/index.ts,17
+  ensureGhAvailable(),release/index.ts,17
+  ensureGraphFresh(),release/index.ts,17
+  extractLatestReleaseNotes(),release/index.ts,17
+  fillAllNoldorMarkers(),core/release-markers.ts,17
+  fillNoldorMarker(),core/release-markers.ts,17
+  index.ts,release/index.ts,17
+  noldor-cli.ts,core/noldor-cli.ts,17
+  noldorCliCommand(),core/noldor-cli.ts,17
+  release-markers.test.ts,core/__tests__/release-markers.test.ts,17
+  release-markers.ts,core/release-markers.ts,17
+  run(),release/index.ts,17
+  runCheck(),release/index.ts,17
+  runCliCheck(),release/index.ts,17
+  runOptionalCheck(),release/index.ts,17
+  todayIso(),release/index.ts,17
+edges:
+  release-markers.ts --contains-- fillNoldorMarker()
+  release-markers.ts --contains-- fillAllNoldorMarkers()
+  release-markers.test.ts --imports_from-- release-markers.ts
+  index.ts --imports_from-- release-markers.ts
+  fillAllNoldorMarkers() --calls-- fillNoldorMarker()
+  release-markers.test.ts --imports-- fillNoldorMarker()
+  index.ts --imports-- fillAllNoldorMarkers()
+  noldor-cli.ts --contains-- noldorCliCommand()
+  index.ts --imports_from-- noldor-cli.ts
+  index.ts --imports-- noldorCliCommand()
+  runCliCheck() --calls-- noldorCliCommand()
+  index.ts --contains-- run()
+  index.ts --contains-- ensureCleanTreeOnMain()
+  index.ts --contains-- ensureGhAvailable()
+  index.ts --contains-- ensureGraphFresh()
+  index.ts --contains-- runCheck()
+  index.ts --contains-- consumerScripts()
+  index.ts --contains-- runOptionalCheck()
+  index.ts --contains-- runCliCheck()
+  index.ts --contains-- todayIso()
+  index.ts --contains-- extractLatestReleaseNotes()
+  ensureCleanTreeOnMain() --calls-- run()
+  ensureGhAvailable() --calls-- run()
+  ensureGraphFresh() --calls-- run()
+  runCheck() --calls-- run()
+  runCliCheck() --calls-- run()
+  runOptionalCheck() --calls-- runCheck()
+
+## community 18 (17 nodes) — graph-to-toon.ts · hyperedgeMembers() · shortenPath()
+nodes:
+  buildIdToLabel(),graphify/graph-to-toon.ts,18
+  buildNodeCommunityMap(),graphify/graph-to-toon.ts,18
+  classifyEdges(),graphify/graph-to-toon.ts,18
+  deriveCommunityLabel(),graphify/graph-to-toon.ts,18
+  deriveCommunityLabels(),graphify/graph-to-toon.ts,18
+  extractConceptsAndRationales(),graphify/graph-to-toon.ts,18
+  extractPackages(),graphify/graph-to-toon.ts,18
+  formatCrossEdgeLine(),graphify/graph-to-toon.ts,18
+  formatEdgeLine(),graphify/graph-to-toon.ts,18
+  graph-to-toon.ts,graphify/graph-to-toon.ts,18
+  groupByCommunity(),graphify/graph-to-toon.ts,18
+  hyperedgeMembers(),graphify/graph-to-toon.ts,18
+  main(),graphify/graph-to-toon.ts,18
+  shortenPath(),graphify/graph-to-toon.ts,18
+  writeAndLog(),graphify/graph-to-toon.ts,18
+  writeBrainstormSummary(),graphify/graph-to-toon.ts,18
+  writeBrainstormToon(),graphify/graph-to-toon.ts,18
+edges:
+  graph-to-toon.ts --contains-- hyperedgeMembers()
+  graph-to-toon.ts --contains-- shortenPath()
+  graph-to-toon.ts --contains-- writeAndLog()
+  graph-to-toon.ts --contains-- groupByCommunity()
+  graph-to-toon.ts --contains-- buildIdToLabel()
+  graph-to-toon.ts --contains-- buildNodeCommunityMap()
+  graph-to-toon.ts --contains-- deriveCommunityLabel()
+  graph-to-toon.ts --contains-- deriveCommunityLabels()
+  graph-to-toon.ts --contains-- classifyEdges()
+  graph-to-toon.ts --contains-- formatEdgeLine()
+  graph-to-toon.ts --contains-- formatCrossEdgeLine()
+  graph-to-toon.ts --contains-- writeBrainstormToon()
+  graph-to-toon.ts --contains-- extractPackages()
+  graph-to-toon.ts --contains-- extractConceptsAndRationales()
+  graph-to-toon.ts --contains-- writeBrainstormSummary()
+  graph-to-toon.ts --contains-- main()
+  writeBrainstormToon() --calls-- hyperedgeMembers()
+  writeBrainstormSummary() --calls-- hyperedgeMembers()
+  writeBrainstormToon() --calls-- shortenPath()
+  writeBrainstormToon() --calls-- writeAndLog()
+  writeBrainstormSummary() --calls-- writeAndLog()
+  writeBrainstormToon() --calls-- groupByCommunity()
+  writeBrainstormSummary() --calls-- groupByCommunity()
+  main() --calls-- groupByCommunity()
+  main() --calls-- buildIdToLabel()
+  writeBrainstormToon() --calls-- buildNodeCommunityMap()
+  writeBrainstormSummary() --calls-- buildNodeCommunityMap()
+  deriveCommunityLabels() --calls-- deriveCommunityLabel()
+  main() --calls-- deriveCommunityLabels()
+  writeBrainstormToon() --calls-- classifyEdges()
+  writeBrainstormSummary() --calls-- classifyEdges()
+  writeBrainstormToon() --calls-- formatEdgeLine()
+  writeBrainstormToon() --calls-- formatCrossEdgeLine()
+  writeBrainstormSummary() --calls-- formatCrossEdgeLine()
+  main() --calls-- writeBrainstormToon()
+  writeBrainstormSummary() --calls-- extractPackages()
+  writeBrainstormSummary() --calls-- extractConceptsAndRationales()
+  main() --calls-- writeBrainstormSummary()
+
+## community 19 (16 nodes) — edge-scroll.test.ts · drag.ts · edgeScrollVelocity()
+nodes:
+  combinedEtag(),dashboard/static/drag.ts,19
+  ctxFromTable(),dashboard/static/drag.ts,19
+  drag.ts,dashboard/static/drag.ts,19
+  edge-scroll.test.ts,dashboard/__tests__/edge-scroll.test.ts,19
+  edgeScrollVelocity(),dashboard/static/drag.ts,19
+  init(),dashboard/static/drag.ts,19
+  sendButton(),dashboard/static/drag.ts,19
+  sendMove(),dashboard/static/drag.ts,19
+  shouldInsertBefore(),dashboard/static/drag.ts,19
+  startScrollLoop(),dashboard/static/drag.ts,19
+  stopScrollLoop(),dashboard/static/drag.ts,19
+  syncOverflow(),dashboard/static/drag.ts,19
+  wireButtons(),dashboard/static/drag.ts,19
+  wireDescriptionOverflow(),dashboard/static/drag.ts,19
+  wireDescriptionToggles(),dashboard/static/drag.ts,19
+  wireDrag(),dashboard/static/drag.ts,19
+edges:
+  edge-scroll.test.ts --imports_from-- drag.ts
+  edge-scroll.test.ts --imports-- edgeScrollVelocity()
+  edge-scroll.test.ts --imports-- shouldInsertBefore()
+  drag.ts --contains-- edgeScrollVelocity()
+  drag.ts --contains-- shouldInsertBefore()
+  drag.ts --contains-- ctxFromTable()
+  drag.ts --contains-- combinedEtag()
+  drag.ts --contains-- startScrollLoop()
+  drag.ts --contains-- stopScrollLoop()
+  drag.ts --contains-- wireDrag()
+  drag.ts --contains-- sendMove()
+  drag.ts --contains-- wireButtons()
+  drag.ts --contains-- wireDescriptionToggles()
+  drag.ts --contains-- syncOverflow()
+  drag.ts --contains-- wireDescriptionOverflow()
+  drag.ts --contains-- sendButton()
+  drag.ts --contains-- init()
+  init() --calls-- wireButtons()
+  init() --calls-- wireDescriptionToggles()
+  init() --calls-- wireDescriptionOverflow()
+
+## community 20 (15 nodes) — lint-plan-snippets.ts · parseOpenFence() · isCloseFence()
+nodes:
+  admitsLiteralHyphen(),core/lint-plan-snippets.ts,20
+  extractFencedBlocks(),core/lint-plan-snippets.ts,20
+  findMessageFlag(),core/lint-plan-snippets.ts,20
+  formatFindingHuman(),core/lint-plan-snippets.ts,20
+  isCloseFence(),core/lint-plan-snippets.ts,20
+  isGitCommitLine(),core/lint-plan-snippets.ts,20
+  lineContainsFlag(),core/lint-plan-snippets.ts,20
+  lint-plan-snippets.test.ts,core/__tests__/lint-plan-snippets.test.ts,20
+  lint-plan-snippets.ts,core/lint-plan-snippets.ts,20
+  lintSnippets(),core/lint-plan-snippets.ts,20
+  main(),core/lint-plan-snippets.ts,20
+  parseOpenFence(),core/lint-plan-snippets.ts,20
+  r1Lint(),core/lint-plan-snippets.ts,20
+  r2Lint(),core/lint-plan-snippets.ts,20
+  runCli(),core/__tests__/lint-plan-snippets.test.ts,20
+edges:
+  lint-plan-snippets.ts --contains-- parseOpenFence()
+  lint-plan-snippets.ts --contains-- isCloseFence()
+  lint-plan-snippets.ts --contains-- extractFencedBlocks()
+  lint-plan-snippets.ts --contains-- admitsLiteralHyphen()
+  lint-plan-snippets.ts --contains-- r1Lint()
+  lint-plan-snippets.ts --contains-- lineContainsFlag()
+  lint-plan-snippets.ts --contains-- findMessageFlag()
+  lint-plan-snippets.ts --contains-- isGitCommitLine()
+  lint-plan-snippets.ts --contains-- r2Lint()
+  lint-plan-snippets.ts --contains-- lintSnippets()
+  lint-plan-snippets.ts --contains-- formatFindingHuman()
+  lint-plan-snippets.ts --contains-- main()
+  lint-plan-snippets.test.ts --imports_from-- lint-plan-snippets.ts
+  extractFencedBlocks() --calls-- parseOpenFence()
+  extractFencedBlocks() --calls-- isCloseFence()
+  lintSnippets() --calls-- extractFencedBlocks()
+  lint-plan-snippets.test.ts --imports-- extractFencedBlocks()
+  r1Lint() --calls-- admitsLiteralHyphen()
+  lintSnippets() --calls-- r1Lint()
+  findMessageFlag() --calls-- lineContainsFlag()
+  r2Lint() --calls-- lineContainsFlag()
+  r2Lint() --calls-- findMessageFlag()
+  r2Lint() --calls-- isGitCommitLine()
+  lintSnippets() --calls-- r2Lint()
+  main() --calls-- lintSnippets()
+  lint-plan-snippets.test.ts --imports-- lintSnippets()
+  main() --calls-- formatFindingHuman()
+  lint-plan-snippets.test.ts --contains-- runCli()
+
+## community 21 (15 nodes) — consumer-config.ts · loadConsumerConfig() · loadAreaCategories()
+nodes:
+  area-category.test.ts,lib/__tests__/area-category.test.ts,21
+  area-category.ts,lib/area-category.ts,21
+  areaToCategory(),lib/area-category.ts,21
+  bumpAllPackages(),release/release-packages.ts,21
+  bumpPackageJson(),release/release-packages.ts,21
+  consumer-config.test.ts,core/__tests__/consumer-config.test.ts,21
+  consumer-config.ts,core/consumer-config.ts,21
+  loadAreaCategories(),core/consumer-config.ts,21
+  loadConsumerConfig(),core/consumer-config.ts,21
+  main(),release/release-packages.ts,21
+  makeTmpRepo(),core/__tests__/consumer-config.test.ts,21
+  release-config-flow.test.ts,release/__tests__/release-config-flow.test.ts,21
+  release-dry-run.ts,release/release-dry-run.ts,21
+  release-packages.test.ts,release/__tests__/release-packages.test.ts,21
+  release-packages.ts,release/release-packages.ts,21
+edges:
+  consumer-config.ts --contains-- loadConsumerConfig()
+  consumer-config.ts --contains-- loadAreaCategories()
+  consumer-config.test.ts --imports_from-- consumer-config.ts
+  release-packages.ts --imports_from-- consumer-config.ts
+  release-dry-run.ts --imports_from-- consumer-config.ts
+  release-config-flow.test.ts --imports_from-- consumer-config.ts
+  area-category.ts --imports_from-- consumer-config.ts
+  loadAreaCategories() --calls-- loadConsumerConfig()
+  consumer-config.test.ts --imports-- loadConsumerConfig()
+  release-packages.ts --imports-- loadConsumerConfig()
+  release-dry-run.ts --imports-- loadConsumerConfig()
+  release-config-flow.test.ts --imports-- loadConsumerConfig()
+  bumpAllPackages() --calls-- loadConsumerConfig()
+  area-category.ts --imports-- loadAreaCategories()
+  consumer-config.test.ts --contains-- makeTmpRepo()
+  release-packages.ts --contains-- bumpPackageJson()
+  release-packages.ts --contains-- bumpAllPackages()
+  release-packages.ts --contains-- main()
+  release-packages.test.ts --imports_from-- release-packages.ts
+  bumpAllPackages() --calls-- bumpPackageJson()
+  release-packages.test.ts --imports-- bumpPackageJson()
+  main() --calls-- bumpAllPackages()
+  area-category.ts --contains-- areaToCategory()
+  area-category.test.ts --imports_from-- area-category.ts
+  area-category.test.ts --imports-- areaToCategory()
+
+## community 22 (15 nodes) — worktree-status.ts · parseWorktreeList() · gitOrEmpty()
+nodes:
+  allocatePorts(),worktrees/worktree-status.ts,22
+  computeWarnings(),worktrees/worktree-status.ts,22
+  describeWarning(),worktrees/worktree-status.ts,22
+  detectFileOverlap(),worktrees/worktree-status.ts,22
+  emptyStats(),worktrees/worktree-status.ts,22
+  emptyStats(),worktrees/__tests__/worktree-status.test.ts,22
+  formatStatus(),worktrees/worktree-status.ts,22
+  gatherStats(),worktrees/worktree-status.ts,22
+  gitOrEmpty(),worktrees/worktree-status.ts,22
+  main(),worktrees/worktree-status.ts,22
+  makeRepo(),worktrees/__tests__/worktree-status.test.ts,22
+  parseWorktreeList(),worktrees/worktree-status.ts,22
+  readPort(),worktrees/worktree-status.ts,22
+  worktree-status.test.ts,worktrees/__tests__/worktree-status.test.ts,22
+  worktree-status.ts,worktrees/worktree-status.ts,22
+edges:
+  worktree-status.ts --contains-- parseWorktreeList()
+  worktree-status.ts --contains-- gitOrEmpty()
+  worktree-status.ts --contains-- gatherStats()
+  worktree-status.ts --contains-- readPort()
+  worktree-status.ts --contains-- allocatePorts()
+  worktree-status.ts --contains-- computeWarnings()
+  worktree-status.ts --contains-- detectFileOverlap()
+  worktree-status.ts --contains-- formatStatus()
+  worktree-status.ts --contains-- describeWarning()
+  worktree-status.ts --contains-- main()
+  worktree-status.ts --contains-- emptyStats()
+  worktree-status.test.ts --imports_from-- worktree-status.ts
+  main() --calls-- parseWorktreeList()
+  worktree-status.test.ts --imports-- parseWorktreeList()
+  gatherStats() --calls-- gitOrEmpty()
+  main() --calls-- gatherStats()
+  worktree-status.test.ts --imports-- gatherStats()
+  worktree-status.test.ts --imports-- readPort()
+  main() --calls-- allocatePorts()
+  worktree-status.test.ts --imports-- allocatePorts()
+  computeWarnings() --calls-- detectFileOverlap()
+  main() --calls-- computeWarnings()
+  worktree-status.test.ts --imports-- computeWarnings()
+  worktree-status.test.ts --imports-- detectFileOverlap()
+  formatStatus() --calls-- describeWarning()
+  main() --calls-- formatStatus()
+  worktree-status.test.ts --imports-- formatStatus()
+  worktree-status.test.ts --contains-- makeRepo()
+  worktree-status.test.ts --contains-- emptyStats()
+
+## community 23 (14 nodes) — rewriteDocLinks() · loadFrameworkPages() · loadUserDocs()
+nodes:
+  dashboard-doc-surfaces.test.ts,dashboard/__tests__/dashboard-doc-surfaces.test.ts,23
+  handleFrameworkIndex(),dashboard/server.ts,23
+  handleFrameworkPage(),dashboard/server.ts,23
+  handleUserDoc(),dashboard/server.ts,23
+  handleUserDocsIndex(),dashboard/server.ts,23
+  loadFrameworkPage(),dashboard/data.ts,23
+  loadFrameworkPages(),dashboard/data.ts,23
+  loadUserDoc(),dashboard/data.ts,23
+  loadUserDocs(),dashboard/data.ts,23
+  renderFrameworkIndex(),dashboard/views.ts,23
+  renderFrameworkPage(),dashboard/views.ts,23
+  renderUserDoc(),dashboard/views.ts,23
+  renderUserDocsIndex(),dashboard/views.ts,23
+  rewriteDocLinks(),dashboard/data.ts,23
+edges:
+  loadUserDoc() --calls-- rewriteDocLinks()
+  loadFrameworkPage() --calls-- rewriteDocLinks()
+  dashboard-doc-surfaces.test.ts --imports-- rewriteDocLinks()
+  loadFrameworkPage() --calls-- loadFrameworkPages()
+  dashboard-doc-surfaces.test.ts --imports-- loadFrameworkPages()
+  handleFrameworkIndex() --calls-- loadFrameworkPages()
+  loadUserDoc() --calls-- loadUserDocs()
+  dashboard-doc-surfaces.test.ts --imports-- loadUserDocs()
+  handleUserDocsIndex() --calls-- loadUserDocs()
+  dashboard-doc-surfaces.test.ts --imports-- loadUserDoc()
+  handleUserDoc() --calls-- loadUserDoc()
+  dashboard-doc-surfaces.test.ts --imports-- loadFrameworkPage()
+  handleFrameworkPage() --calls-- loadFrameworkPage()
+  dashboard-doc-surfaces.test.ts --imports-- renderFrameworkIndex()
+  handleFrameworkIndex() --calls-- renderFrameworkIndex()
+  dashboard-doc-surfaces.test.ts --imports-- renderFrameworkPage()
+  handleFrameworkPage() --calls-- renderFrameworkPage()
+  dashboard-doc-surfaces.test.ts --imports-- renderUserDocsIndex()
+  handleUserDocsIndex() --calls-- renderUserDocsIndex()
+  dashboard-doc-surfaces.test.ts --imports-- renderUserDoc()
+  handleUserDoc() --calls-- renderUserDoc()
+
+## community 24 (11 nodes) — filename.ts · inferLaneFromFilename() · aggregate-cli.ts
+nodes:
+  aggregate-cli.ts,cr/aggregate-cli.ts,24
+  aggregate.test.ts,cr/__tests__/aggregate.test.ts,24
+  aggregate.ts,cr/aggregate.ts,24
+  aggregate(),cr/aggregate.ts,24
+  copy(),cr/__tests__/aggregate.test.ts,24
+  filename.test.ts,cr/__tests__/filename.test.ts,24
+  filename.ts,cr/filename.ts,24
+  inferLaneFromFilename(),cr/filename.ts,24
+  main(),cr/aggregate-cli.ts,24
+  parseArgs(),cr/aggregate-cli.ts,24
+  templateShaFor(),cr/aggregate.ts,24
+edges:
+  filename.ts --contains-- inferLaneFromFilename()
+  aggregate.ts --imports_from-- filename.ts
+  filename.test.ts --imports_from-- filename.ts
+  aggregate.ts --imports-- inferLaneFromFilename()
+  filename.test.ts --imports-- inferLaneFromFilename()
+  aggregate() --calls-- inferLaneFromFilename()
+  aggregate-cli.ts --imports_from-- aggregate.ts
+  aggregate-cli.ts --imports-- aggregate()
+  aggregate-cli.ts --contains-- parseArgs()
+  aggregate-cli.ts --contains-- main()
+  main() --calls-- parseArgs()
+  main() --calls-- aggregate()
+  aggregate.ts --contains-- aggregate()
+  aggregate.ts --contains-- templateShaFor()
+  aggregate.test.ts --imports_from-- aggregate.ts
+  aggregate() --calls-- templateShaFor()
+  aggregate.test.ts --imports-- aggregate()
+  aggregate.test.ts --contains-- copy()
+
+## community 25 (11 nodes) — garden-receipt.ts · readGardenReceipt() · writeGardenReceipt()
+nodes:
+  auto-restamp.test.ts,release/__tests__/auto-restamp.test.ts,25
+  auto-restamp.ts,release/auto-restamp.ts,25
+  autoStampOnCleanDetect(),release/auto-restamp.ts,25
+  defaultStamp(),release/auto-restamp.ts,25
+  ensureGardenFresh(),garden/garden-receipt.ts,25
+  evaluateGardenFreshness(),garden/garden-receipt.ts,25
+  garden-receipt.test.ts,garden/__tests__/garden-receipt.test.ts,25
+  garden-receipt.ts,garden/garden-receipt.ts,25
+  main(),garden/garden-receipt.ts,25
+  readGardenReceipt(),garden/garden-receipt.ts,25
+  writeGardenReceipt(),garden/garden-receipt.ts,25
+edges:
+  garden-receipt.ts --contains-- readGardenReceipt()
+  garden-receipt.ts --contains-- writeGardenReceipt()
+  garden-receipt.ts --contains-- evaluateGardenFreshness()
+  garden-receipt.ts --contains-- ensureGardenFresh()
+  garden-receipt.ts --contains-- main()
+  garden-receipt.test.ts --imports_from-- garden-receipt.ts
+  auto-restamp.ts --imports_from-- garden-receipt.ts
+  ensureGardenFresh() --calls-- readGardenReceipt()
+  garden-receipt.test.ts --imports-- readGardenReceipt()
+  main() --calls-- writeGardenReceipt()
+  garden-receipt.test.ts --imports-- writeGardenReceipt()
+  auto-restamp.ts --imports-- writeGardenReceipt()
+  defaultStamp() --calls-- writeGardenReceipt()
+  ensureGardenFresh() --calls-- evaluateGardenFreshness()
+  garden-receipt.test.ts --imports-- evaluateGardenFreshness()
+  garden-receipt.test.ts --imports-- ensureGardenFresh()
+  auto-restamp.ts --contains-- defaultStamp()
+  auto-restamp.ts --contains-- autoStampOnCleanDetect()
+  auto-restamp.test.ts --imports_from-- auto-restamp.ts
+  auto-restamp.test.ts --imports-- autoStampOnCleanDetect()
+
+## community 26 (10 nodes) — loadCategories() · howto-schema.ts · docs-howto.ts
+nodes:
+  baseHowto(),__tests__/docs-howto.test.ts,26
+  docs-howto.test.ts,__tests__/docs-howto.test.ts,26
+  docs-howto.ts,docs-howto.ts,26
+  firstParagraph(),docs-howto.ts,26
+  howto-schema.test.ts,__tests__/howto-schema.test.ts,26
+  howto-schema.ts,howto-schema.ts,26
+  loadCategories(),core/consumer-config.ts,26
+  loadHowtos(),docs-howto.ts,26
+  main(),docs-howto.ts,26
+  renderHowToIndex(),docs-howto.ts,26
+edges:
+  docs-howto.ts --imports-- loadCategories()
+  renderHowToIndex() --calls-- loadCategories()
+  docs-howto.ts --imports_from-- howto-schema.ts
+  howto-schema.test.ts --imports_from-- howto-schema.ts
+  docs-howto.ts --contains-- renderHowToIndex()
+  docs-howto.ts --contains-- firstParagraph()
+  docs-howto.ts --contains-- loadHowtos()
+  docs-howto.ts --contains-- main()
+  docs-howto.test.ts --imports_from-- docs-howto.ts
+  main() --calls-- renderHowToIndex()
+  docs-howto.test.ts --imports-- renderHowToIndex()
+  loadHowtos() --calls-- firstParagraph()
+  main() --calls-- loadHowtos()
+  docs-howto.test.ts --contains-- baseHowto()
+
+## community 27 (10 nodes) — docs-check.ts · stripCodeRegions() · extractLinks()
+nodes:
+  checkLinks(),docs-check.ts,27
+  docs-check.test.ts,__tests__/docs-check.test.ts,27
+  docs-check.ts,docs-check.ts,27
+  extractHeadings(),docs-check.ts,27
+  extractLinks(),docs-check.ts,27
+  fileExists(),docs-check.ts,27
+  main(),docs-check.ts,27
+  slugifyHeading(),docs-check.ts,27
+  stripCodeRegions(),docs-check.ts,27
+  walkMd(),docs-check.ts,27
+edges:
+  docs-check.ts --contains-- stripCodeRegions()
+  docs-check.ts --contains-- extractLinks()
+  docs-check.ts --contains-- slugifyHeading()
+  docs-check.ts --contains-- extractHeadings()
+  docs-check.ts --contains-- checkLinks()
+  docs-check.ts --contains-- walkMd()
+  docs-check.ts --contains-- fileExists()
+  docs-check.ts --contains-- main()
+  docs-check.test.ts --imports_from-- docs-check.ts
+  extractLinks() --calls-- stripCodeRegions()
+  checkLinks() --calls-- extractLinks()
+  docs-check.test.ts --imports-- extractLinks()
+  extractHeadings() --calls-- slugifyHeading()
+  docs-check.test.ts --imports-- slugifyHeading()
+  checkLinks() --calls-- extractHeadings()
+  main() --calls-- checkLinks()
+  docs-check.test.ts --imports-- checkLinks()
+  main() --calls-- walkMd()
+  main() --calls-- fileExists()
+
+## community 28 (10 nodes) — sync-fd-resources.ts · resolveSpecPath() · buildResourcesBlock()
+nodes:
+  appendList(),sync/sync-fd-resources.ts,28
+  applyBlock(),sync/sync-fd-resources.ts,28
+  buildResourcesBlock(),sync/sync-fd-resources.ts,28
+  existsNone(),sync/__tests__/sync-fd-resources.test.ts,28
+  existsOnly(),sync/__tests__/sync-fd-resources.test.ts,28
+  main(),sync/sync-fd-resources.ts,28
+  resolveSpecPath(),sync/sync-fd-resources.ts,28
+  sync-fd-resources.test.ts,sync/__tests__/sync-fd-resources.test.ts,28
+  sync-fd-resources.ts,sync/sync-fd-resources.ts,28
+  syncFile(),sync/sync-fd-resources.ts,28
+edges:
+  sync-fd-resources.ts --contains-- resolveSpecPath()
+  sync-fd-resources.ts --contains-- buildResourcesBlock()
+  sync-fd-resources.ts --contains-- appendList()
+  sync-fd-resources.ts --contains-- applyBlock()
+  sync-fd-resources.ts --contains-- syncFile()
+  sync-fd-resources.ts --contains-- main()
+  sync-fd-resources.test.ts --imports_from-- sync-fd-resources.ts
+  syncFile() --calls-- resolveSpecPath()
+  sync-fd-resources.test.ts --imports-- resolveSpecPath()
+  buildResourcesBlock() --calls-- appendList()
+  syncFile() --calls-- buildResourcesBlock()
+  sync-fd-resources.test.ts --imports-- buildResourcesBlock()
+  syncFile() --calls-- applyBlock()
+  sync-fd-resources.test.ts --imports-- applyBlock()
+  main() --calls-- syncFile()
+  sync-fd-resources.test.ts --imports-- syncFile()
+  sync-fd-resources.test.ts --contains-- existsNone()
+  sync-fd-resources.test.ts --contains-- existsOnly()
+
+## community 29 (9 nodes) — release-commits.ts · classifyCommit() · isBreaking()
+nodes:
+  classifyCommit(),release/release-commits.ts,29
+  classifyCommits(),release/release-commits.ts,29
+  commit(),release/__tests__/release-commits.test.ts,29
+  deriveBumpLevel(),release/release-commits.ts,29
+  isBreaking(),release/release-commits.ts,29
+  readCommitsSince(),release/release-commits.ts,29
+  refExists(),release/release-commits.ts,29
+  release-commits.test.ts,release/__tests__/release-commits.test.ts,29
+  release-commits.ts,release/release-commits.ts,29
+edges:
+  release-commits.ts --contains-- classifyCommit()
+  release-commits.ts --contains-- isBreaking()
+  release-commits.ts --contains-- deriveBumpLevel()
+  release-commits.ts --contains-- classifyCommits()
+  release-commits.ts --contains-- refExists()
+  release-commits.ts --contains-- readCommitsSince()
+  release-commits.test.ts --imports_from-- release-commits.ts
+  classifyCommits() --calls-- classifyCommit()
+  release-commits.test.ts --imports-- classifyCommit()
+  release-commits.test.ts --imports-- deriveBumpLevel()
+  release-commits.test.ts --imports-- classifyCommits()
+  readCommitsSince() --calls-- refExists()
+  release-commits.test.ts --contains-- commit()
+
+## community 30 (9 nodes) — renderReleaseNotes() · layout.ts · renderLayout()
+nodes:
+  dashboard-layout-body-styles.test.ts,dashboard/__tests__/dashboard-layout-body-styles.test.ts,30
+  dashboard-layout-style-polish.test.ts,dashboard/__tests__/dashboard-layout-style-polish.test.ts,30
+  dashboard-release-notes.test.ts,dashboard/__tests__/dashboard-release-notes.test.ts,30
+  handleReleaseNotes(),dashboard/server.ts,30
+  layout.ts,dashboard/layout.ts,30
+  renderLayout(),dashboard/layout.ts,30
+  renderReleaseNotes(),dashboard/views.ts,30
+  shell(),dashboard/__tests__/dashboard-layout-style-polish.test.ts,30
+  shell(),dashboard/__tests__/dashboard-layout-body-styles.test.ts,30
+edges:
+  dashboard-release-notes.test.ts --imports-- renderReleaseNotes()
+  handleReleaseNotes() --calls-- renderReleaseNotes()
+  layout.ts --contains-- renderLayout()
+  dashboard-layout-style-polish.test.ts --imports_from-- layout.ts
+  dashboard-release-notes.test.ts --imports_from-- layout.ts
+  dashboard-layout-body-styles.test.ts --imports_from-- layout.ts
+  dashboard-layout-style-polish.test.ts --imports-- renderLayout()
+  dashboard-release-notes.test.ts --imports-- renderLayout()
+  dashboard-layout-body-styles.test.ts --imports-- renderLayout()
+  shell() --calls-- renderLayout()
+  shell() --calls-- renderLayout()
+  dashboard-layout-style-polish.test.ts --contains-- shell()
+  dashboard-layout-body-styles.test.ts --contains-- shell()
+
+## community 31 (8 nodes) — migrate-features.ts · areaFromPackage() · yamlToFeatureMd()
+nodes:
+  areaFromPackage(),features/migrate-features.ts,31
+  inferTier(),features/migrate-features.ts,31
+  main(),features/migrate-features.ts,31
+  migrate-features.test.ts,features/__tests__/migrate-features.test.ts,31
+  migrate-features.ts,features/migrate-features.ts,31
+  walkFeaturesDir(),features/migrate-features.ts,31
+  yamlToBacklogBlock(),features/migrate-features.ts,31
+  yamlToFeatureMd(),features/migrate-features.ts,31
+edges:
+  migrate-features.ts --contains-- areaFromPackage()
+  migrate-features.ts --contains-- yamlToFeatureMd()
+  migrate-features.ts --contains-- yamlToBacklogBlock()
+  migrate-features.ts --contains-- inferTier()
+  migrate-features.ts --contains-- walkFeaturesDir()
+  migrate-features.ts --contains-- main()
+  migrate-features.test.ts --imports_from-- migrate-features.ts
+  yamlToFeatureMd() --calls-- areaFromPackage()
+  yamlToBacklogBlock() --calls-- areaFromPackage()
+  migrate-features.test.ts --imports-- areaFromPackage()
+  migrate-features.test.ts --imports-- yamlToFeatureMd()
+  migrate-features.test.ts --imports-- yamlToBacklogBlock()
+  main() --calls-- inferTier()
+  migrate-features.test.ts --imports-- inferTier()
+  main() --calls-- walkFeaturesDir()
+
+## community 32 (8 nodes) — migrate-changelog-unreleased.ts · migrateChangelogContent() · parseChangelogSection()
+nodes:
+  main(),features/migrate-changelog-unreleased.ts,32
+  migrate-changelog-unreleased.test.ts,features/__tests__/migrate-changelog-unreleased.test.ts,32
+  migrate-changelog-unreleased.ts,features/migrate-changelog-unreleased.ts,32
+  migrateChangelogContent(),features/migrate-changelog-unreleased.ts,32
+  migrateFeaturesDir(),features/migrate-changelog-unreleased.ts,32
+  parseChangelogSection(),features/migrate-changelog-unreleased.ts,32
+  renderSection(),features/migrate-changelog-unreleased.ts,32
+  stripCommitsSubsection(),features/migrate-changelog-unreleased.ts,32
+edges:
+  migrate-changelog-unreleased.ts --contains-- migrateChangelogContent()
+  migrate-changelog-unreleased.ts --contains-- parseChangelogSection()
+  migrate-changelog-unreleased.ts --contains-- stripCommitsSubsection()
+  migrate-changelog-unreleased.ts --contains-- renderSection()
+  migrate-changelog-unreleased.ts --contains-- migrateFeaturesDir()
+  migrate-changelog-unreleased.ts --contains-- main()
+  migrate-changelog-unreleased.test.ts --imports_from-- migrate-changelog-unreleased.ts
+  migrateChangelogContent() --calls-- parseChangelogSection()
+  migrateChangelogContent() --calls-- renderSection()
+  migrateFeaturesDir() --calls-- migrateChangelogContent()
+  migrate-changelog-unreleased.test.ts --imports-- migrateChangelogContent()
+  main() --calls-- migrateFeaturesDir()
+
+## community 33 (7 nodes) — changelog.ts · parseScope() · filterCommitsForPage()
+nodes:
+  changelog.test.ts,core/__tests__/changelog.test.ts,33
+  changelog.ts,core/changelog.ts,33
+  filterCommitsForPage(),core/changelog.ts,33
+  listPageSlugs(),core/changelog.ts,33
+  loadCommits(),core/changelog.ts,33
+  main(),core/changelog.ts,33
+  parseScope(),core/changelog.ts,33
+edges:
+  changelog.ts --contains-- parseScope()
+  changelog.ts --contains-- filterCommitsForPage()
+  changelog.ts --contains-- loadCommits()
+  changelog.ts --contains-- main()
+  changelog.ts --contains-- listPageSlugs()
+  changelog.test.ts --imports_from-- changelog.ts
+  changelog.test.ts --imports-- parseScope()
+  main() --calls-- filterCommitsForPage()
+  changelog.test.ts --imports-- filterCommitsForPage()
+  main() --calls-- loadCommits()
+  main() --calls-- listPageSlugs()
+
+## community 34 (7 nodes) — release-markers.ts · fillMarkers() · fillAllMarkers()
+nodes:
+  fillAllMarkers(),release/release-markers.ts,34
+  fillMarkers(),release/release-markers.ts,34
+  fm(),release/__tests__/release-markers-auto-restore.test.ts,34
+  main(),release/release-markers.ts,34
+  release-markers-auto-restore.test.ts,release/__tests__/release-markers-auto-restore.test.ts,34
+  release-markers.test.ts,release/__tests__/release-markers.test.ts,34
+  release-markers.ts,release/release-markers.ts,34
+edges:
+  release-markers.ts --contains-- fillMarkers()
+  release-markers.ts --contains-- fillAllMarkers()
+  release-markers.ts --contains-- main()
+  release-markers-auto-restore.test.ts --imports_from-- release-markers.ts
+  release-markers.test.ts --imports_from-- release-markers.ts
+  fillAllMarkers() --calls-- fillMarkers()
+  release-markers-auto-restore.test.ts --imports-- fillMarkers()
+  release-markers.test.ts --imports-- fillMarkers()
+  main() --calls-- fillAllMarkers()
+  release-markers-auto-restore.test.ts --contains-- fm()
+
+## community 35 (7 nodes) — release-notes.ts · renderReleaseNotesEntry() · prependToReleaseNotes()
+nodes:
+  collectFeaturesForRelease(),release/release-notes.ts,35
+  extractChangelogSummary(),release/release-notes.ts,35
+  extractFirstParagraph(),release/release-notes.ts,35
+  prependToReleaseNotes(),release/release-notes.ts,35
+  release-notes.test.ts,release/__tests__/release-notes.test.ts,35
+  release-notes.ts,release/release-notes.ts,35
+  renderReleaseNotesEntry(),release/release-notes.ts,35
+edges:
+  release-notes.ts --contains-- renderReleaseNotesEntry()
+  release-notes.ts --contains-- prependToReleaseNotes()
+  release-notes.ts --contains-- extractChangelogSummary()
+  release-notes.ts --contains-- extractFirstParagraph()
+  release-notes.ts --contains-- collectFeaturesForRelease()
+  release-notes.test.ts --imports_from-- release-notes.ts
+  renderReleaseNotesEntry() --calls-- extractChangelogSummary()
+  release-notes.test.ts --imports-- renderReleaseNotesEntry()
+  release-notes.test.ts --imports-- prependToReleaseNotes()
+  collectFeaturesForRelease() --calls-- extractFirstParagraph()
+
+## community 36 (7 nodes) — noldor-pre-push.ts · pushesMain() · evaluatePrePush()
+nodes:
+  evaluatePrePush(),hooks/noldor-pre-push.ts,36
+  main(),hooks/noldor-pre-push.ts,36
+  noldor-pre-push.test.ts,hooks/__tests__/noldor-pre-push.test.ts,36
+  noldor-pre-push.ts,hooks/noldor-pre-push.ts,36
+  pushesMain(),hooks/noldor-pre-push.ts,36
+  readStdinWithTimeout(),hooks/noldor-pre-push.ts,36
+  recordReleasePush(),hooks/noldor-pre-push.ts,36
+edges:
+  noldor-pre-push.ts --contains-- pushesMain()
+  noldor-pre-push.ts --contains-- evaluatePrePush()
+  noldor-pre-push.ts --contains-- recordReleasePush()
+  noldor-pre-push.ts --contains-- main()
+  noldor-pre-push.ts --contains-- readStdinWithTimeout()
+  noldor-pre-push.test.ts --imports_from-- noldor-pre-push.ts
+  evaluatePrePush() --calls-- pushesMain()
+  main() --calls-- evaluatePrePush()
+  noldor-pre-push.test.ts --imports-- evaluatePrePush()
+  main() --calls-- recordReleasePush()
+  noldor-pre-push.test.ts --imports-- recordReleasePush()
+  main() --calls-- readStdinWithTimeout()
+  noldor-pre-push.test.ts --imports-- readStdinWithTimeout()
+
+## community 37 (7 nodes) — launch-worktrees.ts · parseWorktrees() · main()
+nodes:
+  escapeShell(),worktrees/launch-worktrees.ts,37
+  launch-worktrees.test.ts,worktrees/__tests__/launch-worktrees.test.ts,37
+  launch-worktrees.ts,worktrees/launch-worktrees.ts,37
+  main(),worktrees/launch-worktrees.ts,37
+  parseWorktrees(),worktrees/launch-worktrees.ts,37
+  renderPrompt(),worktrees/launch-worktrees.ts,37
+  resolveMainWorktreePath(),worktrees/launch-worktrees.ts,37
+edges:
+  launch-worktrees.ts --contains-- parseWorktrees()
+  launch-worktrees.ts --contains-- main()
+  launch-worktrees.ts --contains-- resolveMainWorktreePath()
+  launch-worktrees.ts --contains-- renderPrompt()
+  launch-worktrees.ts --contains-- escapeShell()
+  launch-worktrees.test.ts --imports_from-- launch-worktrees.ts
+  main() --calls-- parseWorktrees()
+  resolveMainWorktreePath() --calls-- parseWorktrees()
+  main() --calls-- resolveMainWorktreePath()
+  main() --calls-- renderPrompt()
+  main() --calls-- escapeShell()
+  launch-worktrees.test.ts --imports-- resolveMainWorktreePath()
+
+## community 38 (6 nodes) — validate-skill-catalog.ts · diffSkillSets() · parseCatalogSlugs()
+nodes:
+  diffSkillSets(),core/validate-skill-catalog.ts,38
+  loadSkillSlugs(),core/validate-skill-catalog.ts,38
+  main(),core/validate-skill-catalog.ts,38
+  parseCatalogSlugs(),core/validate-skill-catalog.ts,38
+  validate-skill-catalog.test.ts,core/__tests__/validate-skill-catalog.test.ts,38
+  validate-skill-catalog.ts,core/validate-skill-catalog.ts,38
+edges:
+  validate-skill-catalog.ts --contains-- diffSkillSets()
+  validate-skill-catalog.ts --contains-- parseCatalogSlugs()
+  validate-skill-catalog.ts --contains-- loadSkillSlugs()
+  validate-skill-catalog.ts --contains-- main()
+  validate-skill-catalog.test.ts --imports_from-- validate-skill-catalog.ts
+  main() --calls-- diffSkillSets()
+  validate-skill-catalog.test.ts --imports-- diffSkillSets()
+  main() --calls-- parseCatalogSlugs()
+  validate-skill-catalog.test.ts --imports-- parseCatalogSlugs()
+  main() --calls-- loadSkillSlugs()
+
+## community 39 (6 nodes) — migrate-fd-commits-to-prs.ts · migrateFd() · findLineStartingWith()
+nodes:
+  extractLegacyBlock(),features/migrate-fd-commits-to-prs.ts,39
+  findLineStartingWith(),features/migrate-fd-commits-to-prs.ts,39
+  main(),features/migrate-fd-commits-to-prs.ts,39
+  migrate-fd-commits-to-prs.test.ts,features/__tests__/migrate-fd-commits-to-prs.test.ts,39
+  migrate-fd-commits-to-prs.ts,features/migrate-fd-commits-to-prs.ts,39
+  migrateFd(),features/migrate-fd-commits-to-prs.ts,39
+edges:
+  migrate-fd-commits-to-prs.ts --contains-- migrateFd()
+  migrate-fd-commits-to-prs.ts --contains-- findLineStartingWith()
+  migrate-fd-commits-to-prs.ts --contains-- extractLegacyBlock()
+  migrate-fd-commits-to-prs.ts --contains-- main()
+  migrate-fd-commits-to-prs.test.ts --imports_from-- migrate-fd-commits-to-prs.ts
+  migrateFd() --calls-- findLineStartingWith()
+  migrateFd() --calls-- extractLegacyBlock()
+  main() --calls-- migrateFd()
+  migrate-fd-commits-to-prs.test.ts --imports-- migrateFd()
+
+## community 40 (6 nodes) — release-changelog.ts · renderCommit() · renderChangelogEntry()
+nodes:
+  c(),release/__tests__/release-changelog.test.ts,40
+  prependToChangelog(),release/release-changelog.ts,40
+  release-changelog.test.ts,release/__tests__/release-changelog.test.ts,40
+  release-changelog.ts,release/release-changelog.ts,40
+  renderChangelogEntry(),release/release-changelog.ts,40
+  renderCommit(),release/release-changelog.ts,40
+edges:
+  release-changelog.ts --contains-- renderCommit()
+  release-changelog.ts --contains-- renderChangelogEntry()
+  release-changelog.ts --contains-- prependToChangelog()
+  release-changelog.test.ts --imports_from-- release-changelog.ts
+  renderChangelogEntry() --calls-- renderCommit()
+  release-changelog.test.ts --imports-- renderChangelogEntry()
+  release-changelog.test.ts --imports-- prependToChangelog()
+  release-changelog.test.ts --contains-- c()
+
+## community 41 (6 nodes) — garden-detect-runner.ts · extractJsonLine() · runGardenDetectViaCli()
+nodes:
+  emptyGarden(),garden/__tests__/garden-detect-runner.test.ts,41
+  extractJsonLine(),garden/garden-detect-runner.ts,41
+  garden-detect-runner.test.ts,garden/__tests__/garden-detect-runner.test.ts,41
+  garden-detect-runner.ts,garden/garden-detect-runner.ts,41
+  pnpmStdout(),garden/__tests__/garden-detect-runner.test.ts,41
+  runGardenDetectViaCli(),garden/garden-detect-runner.ts,41
+edges:
+  garden-detect-runner.ts --contains-- extractJsonLine()
+  garden-detect-runner.ts --contains-- runGardenDetectViaCli()
+  garden-detect-runner.test.ts --imports_from-- garden-detect-runner.ts
+  runGardenDetectViaCli() --calls-- extractJsonLine()
+  garden-detect-runner.test.ts --imports-- runGardenDetectViaCli()
+  garden-detect-runner.test.ts --contains-- pnpmStdout()
+  garden-detect-runner.test.ts --contains-- emptyGarden()
+
+## community 42 (6 nodes) — docs-transclude.ts · transcludeMarkers() · loadExamples()
+nodes:
+  docs-transclude.test.ts,__tests__/docs-transclude.test.ts,42
+  docs-transclude.ts,docs-transclude.ts,42
+  loadExamples(),docs-transclude.ts,42
+  main(),docs-transclude.ts,42
+  processTutorialDir(),docs-transclude.ts,42
+  transcludeMarkers(),docs-transclude.ts,42
+edges:
+  docs-transclude.ts --contains-- transcludeMarkers()
+  docs-transclude.ts --contains-- loadExamples()
+  docs-transclude.ts --contains-- processTutorialDir()
+  docs-transclude.ts --contains-- main()
+  docs-transclude.test.ts --imports_from-- docs-transclude.ts
+  processTutorialDir() --calls-- transcludeMarkers()
+  docs-transclude.test.ts --imports-- transcludeMarkers()
+  main() --calls-- loadExamples()
+  main() --calls-- processTutorialDir()
+
+## community 43 (6 nodes) — docs-api.ts · addGeneratedHeader() · walkMd()
+nodes:
+  addGeneratedHeader(),docs-api.ts,43
+  annotateAll(),docs-api.ts,43
+  docs-api.test.ts,__tests__/docs-api.test.ts,43
+  docs-api.ts,docs-api.ts,43
+  main(),docs-api.ts,43
+  walkMd(),docs-api.ts,43
+edges:
+  docs-api.ts --contains-- addGeneratedHeader()
+  docs-api.ts --contains-- walkMd()
+  docs-api.ts --contains-- annotateAll()
+  docs-api.ts --contains-- main()
+  docs-api.test.ts --imports_from-- docs-api.ts
+  annotateAll() --calls-- addGeneratedHeader()
+  docs-api.test.ts --imports-- addGeneratedHeader()
+  annotateAll() --calls-- walkMd()
+  main() --calls-- annotateAll()
+
+## community 44 (6 nodes) — help.ts · printHelp() · manifest.ts
+nodes:
+  dispatch(),cli/index.ts,44
+  help.ts,cli/help.ts,44
+  index.ts,cli/index.ts,44
+  main(),cli/index.ts,44
+  manifest.ts,cli/manifest.ts,44
+  printHelp(),cli/help.ts,44
+edges:
+  help.ts --imports_from-- manifest.ts
+  help.ts --contains-- printHelp()
+  index.ts --imports_from-- help.ts
+  index.ts --imports-- printHelp()
+  main() --calls-- printHelp()
+  index.ts --imports_from-- manifest.ts
+  index.ts --contains-- dispatch()
+  index.ts --contains-- main()
+  main() --calls-- dispatch()
+
+## community 45 (5 nodes) — extract-touches.ts · looksLikePath() · normalizePath()
+nodes:
+  extract-touches.test.ts,core/__tests__/extract-touches.test.ts,45
+  extract-touches.ts,core/extract-touches.ts,45
+  extractTouches(),core/extract-touches.ts,45
+  looksLikePath(),core/extract-touches.ts,45
+  normalizePath(),core/extract-touches.ts,45
+edges:
+  extract-touches.ts --contains-- looksLikePath()
+  extract-touches.ts --contains-- normalizePath()
+  extract-touches.ts --contains-- extractTouches()
+  extract-touches.test.ts --imports_from-- extract-touches.ts
+  extractTouches() --calls-- looksLikePath()
+  extractTouches() --calls-- normalizePath()
+  extract-touches.test.ts --imports-- extractTouches()
+
+## community 46 (5 nodes) — rename-plan-only-tier.ts · renamePlanOnlyTier() · collectFiles()
+nodes:
+  collectFiles(),core/rename-plan-only-tier.ts,46
+  main(),core/rename-plan-only-tier.ts,46
+  rename-plan-only-tier.test.ts,core/__tests__/rename-plan-only-tier.test.ts,46
+  rename-plan-only-tier.ts,core/rename-plan-only-tier.ts,46
+  renamePlanOnlyTier(),core/rename-plan-only-tier.ts,46
+edges:
+  rename-plan-only-tier.ts --contains-- renamePlanOnlyTier()
+  rename-plan-only-tier.ts --contains-- collectFiles()
+  rename-plan-only-tier.ts --contains-- main()
+  rename-plan-only-tier.test.ts --imports_from-- rename-plan-only-tier.ts
+  main() --calls-- renamePlanOnlyTier()
+  rename-plan-only-tier.test.ts --imports-- renamePlanOnlyTier()
+  main() --calls-- collectFiles()
+
+## community 47 (5 nodes) — check-feature-slug-scope.ts · validateFeatureSlugScope() · loadKnownSlugs()
+nodes:
+  check-feature-slug-scope.test.ts,checks/__tests__/check-feature-slug-scope.test.ts,47
+  check-feature-slug-scope.ts,checks/check-feature-slug-scope.ts,47
+  loadKnownSlugs(),checks/check-feature-slug-scope.ts,47
+  main(),checks/check-feature-slug-scope.ts,47
+  validateFeatureSlugScope(),checks/check-feature-slug-scope.ts,47
+edges:
+  check-feature-slug-scope.ts --contains-- validateFeatureSlugScope()
+  check-feature-slug-scope.ts --contains-- loadKnownSlugs()
+  check-feature-slug-scope.ts --contains-- main()
+  check-feature-slug-scope.test.ts --imports_from-- check-feature-slug-scope.ts
+  main() --calls-- validateFeatureSlugScope()
+  check-feature-slug-scope.test.ts --imports-- validateFeatureSlugScope()
+  main() --calls-- loadKnownSlugs()
+
+## community 48 (5 nodes) — score.ts · scoreEntry() · resolveIsShipped()
+nodes:
+  main(),triage/score.ts,48
+  resolveIsShipped(),triage/score.ts,48
+  score.test.ts,triage/__tests__/score.test.ts,48
+  score.ts,triage/score.ts,48
+  scoreEntry(),triage/score.ts,48
+edges:
+  score.ts --contains-- scoreEntry()
+  score.ts --contains-- resolveIsShipped()
+  score.ts --contains-- main()
+  score.test.ts --imports_from-- score.ts
+  main() --calls-- scoreEntry()
+  score.test.ts --imports-- scoreEntry()
+  main() --calls-- resolveIsShipped()
+  score.test.ts --imports-- resolveIsShipped()
+
+## community 49 (5 nodes) — agent-rules-guard.ts · runAgentRulesGuard() · safeJsonParse()
+nodes:
+  agent-rules-guard.test.ts,hooks/__tests__/agent-rules-guard.test.ts,49
+  agent-rules-guard.ts,hooks/agent-rules-guard.ts,49
+  hookInput(),hooks/__tests__/agent-rules-guard.test.ts,49
+  runAgentRulesGuard(),hooks/agent-rules-guard.ts,49
+  safeJsonParse(),hooks/agent-rules-guard.ts,49
+edges:
+  agent-rules-guard.ts --contains-- runAgentRulesGuard()
+  agent-rules-guard.ts --contains-- safeJsonParse()
+  agent-rules-guard.test.ts --imports_from-- agent-rules-guard.ts
+  runAgentRulesGuard() --calls-- safeJsonParse()
+  agent-rules-guard.test.ts --imports-- runAgentRulesGuard()
+  agent-rules-guard.test.ts --contains-- hookInput()
+
+## community 50 (4 nodes) — phase-flip-done.ts · flipPhaseToDone() · phase-flip-done.test.ts
+nodes:
+  flipPhaseToDone(),core/phase-flip-done.ts,50
+  fm(),core/__tests__/phase-flip-done.test.ts,50
+  phase-flip-done.test.ts,core/__tests__/phase-flip-done.test.ts,50
+  phase-flip-done.ts,core/phase-flip-done.ts,50
+edges:
+  phase-flip-done.ts --contains-- flipPhaseToDone()
+  phase-flip-done.test.ts --imports_from-- phase-flip-done.ts
+  phase-flip-done.test.ts --imports-- flipPhaseToDone()
+  phase-flip-done.test.ts --contains-- fm()
+
+## community 51 (4 nodes) — phase-revert.ts · revertPhaseForAttach() · phase-revert.test.ts
+nodes:
+  fm(),core/__tests__/phase-revert.test.ts,51
+  phase-revert.test.ts,core/__tests__/phase-revert.test.ts,51
+  phase-revert.ts,core/phase-revert.ts,51
+  revertPhaseForAttach(),core/phase-revert.ts,51
+edges:
+  phase-revert.ts --contains-- revertPhaseForAttach()
+  phase-revert.test.ts --imports_from-- phase-revert.ts
+  phase-revert.test.ts --imports-- revertPhaseForAttach()
+  phase-revert.test.ts --contains-- fm()
+
+## community 52 (4 nodes) — validate-noldor.ts · validateNoldorPage() · main()
+nodes:
+  main(),core/validate-noldor.ts,52
+  validate-noldor.test.ts,core/__tests__/validate-noldor.test.ts,52
+  validate-noldor.ts,core/validate-noldor.ts,52
+  validateNoldorPage(),core/validate-noldor.ts,52
+edges:
+  validate-noldor.ts --contains-- validateNoldorPage()
+  validate-noldor.ts --contains-- main()
+  validate-noldor.test.ts --imports_from-- validate-noldor.ts
+  main() --calls-- validateNoldorPage()
+  validate-noldor.test.ts --imports-- validateNoldorPage()
+
+## community 53 (4 nodes) — check-shared-files.ts · evaluate() · main()
+nodes:
+  check-shared-files.test.ts,checks/__tests__/check-shared-files.test.ts,53
+  check-shared-files.ts,checks/check-shared-files.ts,53
+  evaluate(),checks/check-shared-files.ts,53
+  main(),checks/check-shared-files.ts,53
+edges:
+  check-shared-files.ts --contains-- evaluate()
+  check-shared-files.ts --contains-- main()
+  check-shared-files.test.ts --imports_from-- check-shared-files.ts
+  main() --calls-- evaluate()
+  check-shared-files.test.ts --imports-- evaluate()
+
+## community 54 (3 nodes) — branch-protection.ts · checkBranchProtection() · branch-protection.test.ts
+nodes:
+  branch-protection.test.ts,garden/detectors/__tests__/branch-protection.test.ts,54
+  branch-protection.ts,garden/detectors/branch-protection.ts,54
+  checkBranchProtection(),garden/detectors/branch-protection.ts,54
+edges:
+  branch-protection.ts --contains-- checkBranchProtection()
+  branch-protection.test.ts --imports_from-- branch-protection.ts
+  branch-protection.test.ts --imports-- checkBranchProtection()
+
+## community 55 (2 nodes) — bump-session-marker.ts · bumpSessionMarker()
+nodes:
+  bump-session-marker.ts,core/bump-session-marker.ts,55
+  bumpSessionMarker(),core/bump-session-marker.ts,55
+edges:
+  bump-session-marker.ts --contains-- bumpSessionMarker()
+
+## community 56 (2 nodes) — cli.test.ts · run()
+nodes:
+  cli.test.ts,cli/__tests__/cli.test.ts,56
+  run(),cli/__tests__/cli.test.ts,56
+edges:
+  cli.test.ts --contains-- run()
+
+## community 57 (1 nodes) — index.ts
+nodes:
+  index.ts,index.ts,57
+
+## community 58 (1 nodes) — aggregate.cli.test.ts
+nodes:
+  aggregate.cli.test.ts,cr/__tests__/aggregate.cli.test.ts,58
+
+## community 59 (1 nodes) — server-static.test.ts
+nodes:
+  server-static.test.ts,dashboard/__tests__/server-static.test.ts,59
+
+## cross-community edges
+  pr-flow-cli.ts [c5] --imports_from-- config.ts [c1]
+  pr-flow-cli.ts [c5] --imports-- loadConfig() [c1]
+  pr-flow-cli.ts [c5] --imports_from-- prompt-stdin.ts [c1]
+  pr-flow-cli.ts [c5] --imports-- promptSelect() [c1]
+  runCli() [c5] --calls-- loadConfig() [c1]
+  runCli() [c5] --calls-- promptSelect() [c1]
+  detectAllowlistDrift() [c3] --calls-- isMicroChoreAllowed() [c2]
+  garden-detect-runner.ts [c41] --imports_from-- noldor-cli.ts [c17]
+  garden-detect.ts [c3] --imports_from-- noldor-cli.ts [c17]
+  garden-detect-runner.ts [c41] --imports-- noldorCliCommand() [c17]
+  garden-detect.ts [c3] --imports-- noldorCliCommand() [c17]
+  runGardenDetectViaCli() [c41] --calls-- noldorCliCommand() [c17]
+  loadSddGaps() [c3] --calls-- noldorCliCommand() [c17]
+  detectTrailerScopeMismatch() [c3] --calls-- readRolloutMarker() [c2]
+  detectAllowlistDrift() [c3] --calls-- readRolloutMarker() [c2]
+  override-audit.ts [c3] --imports_from-- trailers.ts [c2]
+  override-audit.ts [c3] --imports-- parseTrailers() [c2]
+  consumer-config.ts [c21] --contains-- loadCategories() [c26]
+  sdd-report.ts [c0] --imports_from-- consumer-config.ts [c21]
+  graph-fd-lookup.ts [c0] --imports_from-- consumer-config.ts [c21]
+  fill-links-code-gaps.ts [c0] --imports_from-- consumer-config.ts [c21]
+  validate-features.ts [c12] --imports_from-- consumer-config.ts [c21]
+  boundaries.ts [c6] --imports_from-- consumer-config.ts [c21]
+  release-notes.ts [c35] --imports_from-- consumer-config.ts [c21]
+  index.ts [c17] --imports_from-- consumer-config.ts [c21]
+  docs-howto.ts [c26] --imports_from-- consumer-config.ts [c21]
+  data.ts [c11] --imports_from-- consumer-config.ts [c21]
+  views.ts [c13] --imports_from-- consumer-config.ts [c21]
+  noldor-validate-trailer.ts [c2] --imports_from-- consumer-config.ts [c21]
+  loadCategories() [c26] --calls-- loadConsumerConfig() [c21]
+  sdd-report.ts [c0] --imports-- loadConsumerConfig() [c21]
+  graph-fd-lookup.ts [c0] --imports-- loadConsumerConfig() [c21]
+  fill-links-code-gaps.ts [c0] --imports-- loadConsumerConfig() [c21]
+  validate-features.ts [c12] --imports-- loadConsumerConfig() [c21]
+  boundaries.ts [c6] --imports-- loadConsumerConfig() [c21]
+  index.ts [c17] --imports-- loadConsumerConfig() [c21]
+  views.ts [c13] --imports-- loadConsumerConfig() [c21]
+  noldor-validate-trailer.ts [c2] --imports-- loadConsumerConfig() [c21]
+  detectMissingCoTags() [c0] --calls-- loadConsumerConfig() [c21]
+  newestMtimeInRoots() [c0] --calls-- loadConsumerConfig() [c21]
+  normalizeDeclaredPackage() [c12] --calls-- loadConsumerConfig() [c21]
+  getReleasePackageFiles() [c2] --calls-- loadConsumerConfig() [c21]
+  validate-features.ts [c12] --imports-- loadCategories() [c26]
+  release-notes.ts [c35] --imports-- loadCategories() [c26]
+  data.ts [c11] --imports-- loadCategories() [c26]
+  validateFiles() [c12] --calls-- loadCategories() [c26]
+  renderReleaseNotesEntry() [c35] --calls-- loadCategories() [c26]
+  loadCounts() [c15] --calls-- loadCategories() [c26]
+  stage.ts [c10] --imports_from-- session.ts [c5]
+  noldor-validate-trailer.ts [c2] --imports_from-- session.ts [c5]
+  noldor-pre-edit-guard.ts [c2] --imports_from-- session.ts [c5]
+  noldor-pre-commit.ts [c2] --imports_from-- session.ts [c5]
+  noldor-pre-edit-guard.ts [c2] --imports-- readSession() [c5]
+  noldor-pre-commit.ts [c2] --imports-- readSession() [c5]
+  next-priority.ts [c3] --imports_from-- feature-schema.ts [c0]
+  next-priority.ts [c3] --imports_from-- parse-blocks.ts [c7]
+  next-priority.ts [c3] --imports-- parseRoadmap() [c7]
+  sdd-report.ts [c0] --imports_from-- doc-roots.ts [c3]
+  data.ts [c11] --imports_from-- doc-roots.ts [c3]
+  sdd-report.ts [c0] --imports-- loadDocRoots() [c3]
+  data.ts [c11] --imports-- loadDocRoots() [c3]
+  main() [c0] --calls-- loadDocRoots() [c3]
+  getRoadmapPath() [c8] --calls-- loadDocRoots() [c3]
+  getBacklogPath() [c8] --calls-- loadDocRoots() [c3]
+  getVisionPath() [c11] --calls-- loadDocRoots() [c3]
+  getFeaturesDir() [c11] --calls-- loadDocRoots() [c3]
+  index.ts [c17] --imports_from-- garden-receipt.ts [c25]
+  index.ts [c17] --imports-- ensureGardenFresh() [c25]
+  auto-restamp.ts [c25] --imports_from-- garden-detect-runner.ts [c41]
+  auto-restamp.ts [c25] --imports-- runGardenDetectViaCli() [c41]
+  sdd-report.ts [c0] --imports_from-- sync-test-links.ts [c12]
+  sdd-report.ts [c0] --imports-- extractTags() [c12]
+  sdd-report.ts [c0] --imports_from-- parse-blocks.ts [c7]
+  sdd-report.ts [c0] --imports_from-- override-audit.ts [c3]
+  sdd-report.ts [c0] --imports-- commitOnlyTouchesReport() [c3]
+  data.ts [c11] --imports_from-- sdd-report.ts [c0]
+  views.ts [c13] --imports_from-- sdd-report.ts [c0]
+  detectMissingCoTags() [c0] --calls-- extractTags() [c12]
+  data.ts [c11] --imports-- walkRepo() [c0]
+  data.ts [c11] --imports-- loadSddFeatures() [c0]
+  data.ts [c11] --imports-- listSpecs() [c0]
+  data.ts [c11] --imports-- listPlans() [c0]
+  data.ts [c11] --imports-- readTextFiles() [c0]
+  data.ts [c11] --imports-- collectGaps() [c0]
+  loadGaps() [c15] --calls-- collectGaps() [c0]
+  buildGateComplianceSection() [c0] --calls-- commitOnlyTouchesReport() [c3]
+  garden-detect.ts [c3] --imports_from-- feature-schema.ts [c0]
+  garden-detect.ts [c3] --imports_from-- index.ts [c6]
+  garden-detect.ts [c3] --imports-- makeInvariants() [c6]
+  garden-detect.ts [c3] --imports-- runInvariants() [c6]
+  garden-detect.ts [c3] --imports_from-- parse-blocks.ts [c7]
+  garden-detect.ts [c3] --imports-- parseBacklog() [c0]
+  garden-detect.ts [c3] --imports_from-- slugify.ts [c7]
+  garden-detect.ts [c3] --imports-- slugify() [c7]
+  garden-detect.ts [c3] --imports_from-- allowlist-drift.ts [c2]
+  garden-detect.ts [c3] --imports_from-- trailer-scope-mismatch.ts [c2]
+  garden-detect.ts [c3] --imports_from-- fd-without-plan.ts [c2]
+  garden-detect.ts [c3] --imports-- detectFdWithoutPlan() [c2]
+  garden-detect.ts [c3] --imports_from-- types.ts [c6]
+  detectUnusedBacklog() [c3] --calls-- parseBacklog() [c0]
+  detectUnusedBacklog() [c3] --calls-- slugify() [c7]
+  detectGateCompliance() [c3] --calls-- detectFdWithoutPlan() [c2]
+  detectInvariants() [c3] --calls-- runInvariants() [c6]
+  detectAll() [c3] --calls-- detectFdWithoutPlan() [c2]
+  rule-conflicts.ts [c6] --imports_from-- garden-invariants.ts [c3]
+  plan-resolution.ts [c3] --imports_from-- feature-schema.ts [c0]
+  garden-detect.test.ts [c3] --imports_from-- types.ts [c6]
+  sdd-report.test.ts [c0] --imports_from-- parse-blocks.ts [c7]
+  tier-mismatch.ts [c3] --imports_from-- feature-schema.ts [c0]
+  fd-without-plan.ts [c2] --imports_from-- feature-schema.ts [c0]
+  trailer-scope-mismatch.ts [c2] --contains-- detectTrailerScopeMismatch() [c3]
+  trailer-scope-mismatch.test.ts [c2] --imports-- detectTrailerScopeMismatch() [c3]
+  allowlist-drift.ts [c2] --contains-- detectAllowlistDrift() [c3]
+  allowlist-drift.test.ts [c2] --imports-- detectAllowlistDrift() [c3]
+  filename.ts [c24] --imports_from-- findings-schema.ts [c1]
+  aggregate-cli.ts [c24] --imports_from-- findings-schema.ts [c1]
+  aggregate.ts [c24] --imports_from-- findings-schema.ts [c1]
+  validate-features.ts [c12] --imports_from-- feature-schema.ts [c0]
+  release-notes.ts [c35] --imports_from-- feature-schema.ts [c0]
+  docs-howto.ts [c26] --imports_from-- feature-schema.ts [c0]
+  data.ts [c11] --imports_from-- feature-schema.ts [c0]
+  area-category.ts [c21] --imports_from-- feature-schema.ts [c0]
+  parse-blocks.ts [c7] --contains-- parseBacklog() [c0]
+  data.ts [c11] --imports_from-- parse-blocks.ts [c7]
+  views.ts [c13] --imports_from-- parse-blocks.ts [c7]
+  parseBacklog() [c0] --calls-- parseEntries() [c7]
+  parse-blocks.test.ts [c7] --imports-- parseBacklog() [c0]
+  validate-triage.ts [c7] --imports-- parseBacklog() [c0]
+  data.ts [c11] --imports-- parseBacklog() [c0]
+  validateTriageInputs() [c7] --calls-- parseBacklog() [c0]
+  parseBacklogFromString() [c15] --calls-- parseBacklog() [c0]
+  data.ts [c11] --imports-- parseRoadmap() [c7]
+  index.ts [c17] --imports_from-- release-markers.ts [c34]
+  index.ts [c17] --imports-- fillAllMarkers() [c34]
+  data.ts [c11] --imports_from-- release-fd-commits.ts [c4]
+  dashboard-data.test.ts [c15] --imports_from-- release-fd-commits.ts [c4]
+  data.ts [c11] --imports-- commitsForFeature() [c4]
+  loadFdChangelog() [c11] --calls-- commitsForFeature() [c4]
+  index.ts [c17] --imports_from-- release-packages.ts [c21]
+  index.ts [c17] --imports-- bumpAllPackages() [c21]
+  release-dry-run.ts [c21] --imports_from-- release-fd-changelog.ts [c4]
+  release-dry-run.ts [c21] --imports-- generateFdChangelogs() [c4]
+  release-notes.ts [c35] --imports_from-- release-fd-changelog.ts [c4]
+  index.ts [c17] --imports_from-- release-fd-changelog.ts [c4]
+  index.ts [c17] --imports-- generateFdChangelogs() [c4]
+  index.ts [c17] --imports_from-- release-notes.ts [c35]
+  index.ts [c17] --imports-- renderReleaseNotesEntry() [c35]
+  index.ts [c17] --imports-- prependToReleaseNotes() [c35]
+  index.ts [c17] --imports-- collectFeaturesForRelease() [c35]
+  data.ts [c11] --imports_from-- fd-prs-since-tag.ts [c4]
+  data.ts [c11] --imports-- prsSinceLastTag() [c4]
+  renderMarkdown() [c11] --calls-- prsSinceLastTag() [c4]
+  release-changelog.ts [c40] --imports_from-- release-commits.ts [c29]
+  index.ts [c17] --imports_from-- release-changelog.ts [c40]
+  index.ts [c17] --imports-- renderChangelogEntry() [c40]
+  index.ts [c17] --imports-- prependToChangelog() [c40]
+  release-version.ts [c4] --imports_from-- release-commits.ts [c29]
+  release-version.ts [c4] --contains-- getRepoUrl() [c11]
+  index.ts [c17] --imports_from-- release-version.ts [c4]
+  data.ts [c11] --imports_from-- release-version.ts [c4]
+  index.ts [c17] --imports-- applyBump() [c4]
+  index.ts [c17] --imports-- getRepoUrl() [c11]
+  index.ts [c17] --imports-- findPreviousTag() [c4]
+  index.ts [c17] --imports_from-- release-commits.ts [c29]
+  release-changelog.test.ts [c40] --imports_from-- release-commits.ts [c29]
+  index.ts [c17] --imports-- deriveBumpLevel() [c29]
+  index.ts [c17] --imports-- classifyCommits() [c29]
+  index.ts [c17] --imports-- readCommitsSince() [c29]
+  index.ts [c17] --imports_from-- auto-restamp.ts [c25]
+  index.ts [c17] --imports-- autoStampOnCleanDetect() [c25]
+  index.ts [c17] --imports_from-- release-cr-gate.ts [c2]
+  index.ts [c17] --imports-- checkCrGate() [c2]
+  index.ts [c17] --imports_from-- release-session.ts [c5]
+  index.ts [c17] --imports-- withReleaseSession() [c5]
+  index.ts [c17] --contains-- main() [c5]
+  data.ts [c11] --imports_from-- layout.ts [c30]
+  data.ts [c11] --imports-- escapeHtml() [c13]
+  data.ts [c11] --imports_from-- area-category.ts [c21]
+  data.ts [c11] --imports-- areaToCategory() [c21]
+  data.ts [c11] --imports_from-- lib.ts [c14]
+  data.ts [c11] --imports-- loadMilestoneBySlug() [c14]
+  data.ts [c11] --imports_from-- worktree-status.ts [c22]
+  data.ts [c11] --imports-- computeWarnings() [c22]
+  data.ts [c11] --imports-- describeWarning() [c22]
+  data.ts [c11] --imports-- gatherStats() [c22]
+  data.ts [c11] --imports-- parseWorktreeList() [c22]
+  data.ts [c11] --imports-- readPort() [c22]
+  data.ts [c11] --contains-- walkTokens() [c13]
+  data.ts [c11] --contains-- setDocRootsOverride() [c8]
+  data.ts [c11] --contains-- getRoadmapPath() [c8]
+  data.ts [c11] --contains-- getBacklogPath() [c8]
+  data.ts [c11] --contains-- parseRoadmapFromString() [c15]
+  data.ts [c11] --contains-- parseRoadmap() [c15]
+  data.ts [c11] --contains-- sha256Hex() [c15]
+  data.ts [c11] --contains-- loadRoadmapWithHash() [c15]
+  data.ts [c11] --contains-- parseBacklogFromString() [c15]
+  data.ts [c11] --contains-- loadBacklogWithHash() [c15]
+  data.ts [c11] --contains-- loadFeatures() [c8]
+  data.ts [c11] --contains-- rewriteDocLinks() [c23]
+  data.ts [c11] --contains-- loadFrameworkPages() [c23]
+  data.ts [c11] --contains-- loadUserDocs() [c23]
+  data.ts [c11] --contains-- loadUserDoc() [c23]
+  data.ts [c11] --contains-- loadFrameworkPage() [c23]
+  data.ts [c11] --contains-- loadBacklog() [c15]
+  data.ts [c11] --contains-- loadGaps() [c15]
+  data.ts [c11] --contains-- loadSddInput() [c0]
+  data.ts [c11] --contains-- loadCounts() [c15]
+  data.ts [c11] --contains-- countMatching() [c15]
+  data.ts [c11] --contains-- tryGit() [c8]
+  data.ts [c11] --contains-- loadVelocity() [c8]
+  data.ts [c11] --contains-- loadHotZones() [c8]
+  data.ts [c11] --contains-- featureSlugsForCodePath() [c15]
+  data.ts [c11] --contains-- loadWipAge() [c8]
+  data.ts [c11] --contains-- loadWorktreeHealth() [c8]
+  views.ts [c13] --imports_from-- data.ts [c11]
+  server.ts [c8] --imports_from-- data.ts [c11]
+  dashboard-views.test.ts [c13] --imports_from-- data.ts [c11]
+  dashboard-worktrees.test.ts [c8] --imports_from-- data.ts [c11]
+  dashboard-release-notes.test.ts [c30] --imports_from-- data.ts [c11]
+  dashboard-render-markdown.test.ts [c4] --imports_from-- data.ts [c11]
+  dashboard-doc-surfaces.test.ts [c23] --imports_from-- data.ts [c11]
+  dashboard-data.test.ts [c15] --imports_from-- data.ts [c11]
+  dashboard-doc-surfaces.test.ts [c23] --imports-- setDocRootsOverride() [c8]
+  getRoadmapPath() [c8] --calls-- getDocRoot() [c11]
+  getBacklogPath() [c8] --calls-- getDocRoot() [c11]
+  loadUserDocs() [c23] --calls-- getDocRoot() [c11]
+  loadRoadmapWithHash() [c15] --calls-- getRoadmapPath() [c8]
+  loadBacklogWithHash() [c15] --calls-- getBacklogPath() [c8]
+  loadFeatures() [c8] --calls-- getFeaturesDir() [c11]
+  loadCounts() [c15] --calls-- getSkillsDir() [c11]
+  loadFrameworkPages() [c23] --calls-- getNoldorDir() [c11]
+  loadUserDoc() [c23] --calls-- renderMarkdown() [c11]
+  loadFrameworkPage() [c23] --calls-- renderMarkdown() [c11]
+  views.ts [c13] --imports-- renderMarkdown() [c11]
+  dashboard-render-markdown.test.ts [c4] --imports-- renderMarkdown() [c11]
+  renderDescription() [c13] --calls-- renderMarkdown() [c11]
+  server.ts [c8] --imports-- loadRoadmapWithHash() [c15]
+  parseBacklogFromString() [c15] --calls-- areaToCategory() [c21]
+  server.ts [c8] --imports-- loadBacklogWithHash() [c15]
+  loadFeatureDetail() [c11] --calls-- loadFeatures() [c8]
+  loadCounts() [c15] --calls-- loadFeatures() [c8]
+  dashboard-data.test.ts [c15] --imports-- loadFeatures() [c8]
+  handleOverview() [c11] --calls-- loadFeatures() [c8]
+  dashboard-data.test.ts [c15] --imports-- loadFdChangelog() [c11]
+  dashboard-data.test.ts [c15] --imports-- mergeChangelogIntoBody() [c11]
+  server.ts [c8] --imports-- loadFeatureDetail() [c11]
+  dashboard-data.test.ts [c15] --imports-- loadFeatureDetail() [c11]
+  handleFeatureDetail() [c13] --calls-- loadFeatureDetail() [c11]
+  server.ts [c8] --imports-- loadVision() [c11]
+  dashboard-data.test.ts [c15] --imports-- loadVision() [c11]
+  handleVision() [c13] --calls-- loadVision() [c11]
+  server.ts [c8] --imports-- loadActiveMilestone() [c11]
+  loadActiveMilestone() [c11] --calls-- loadMilestoneBySlug() [c14]
+  handleVision() [c13] --calls-- loadActiveMilestone() [c11]
+  server.ts [c8] --imports-- loadReleaseNotes() [c11]
+  dashboard-release-notes.test.ts [c30] --imports-- loadReleaseNotes() [c11]
+  handleReleaseNotes() [c30] --calls-- loadReleaseNotes() [c11]
+  server.ts [c8] --imports-- loadFrameworkPages() [c23]
+  server.ts [c8] --imports-- loadUserDocs() [c23]
+  server.ts [c8] --imports-- loadUserDoc() [c23]
+  server.ts [c8] --imports-- loadFrameworkPage() [c23]
+  loadGaps() [c15] --calls-- loadSddInput() [c0]
+  server.ts [c8] --imports-- loadGaps() [c15]
+  loadCounts() [c15] --calls-- countScriptFiles() [c11]
+  server.ts [c8] --imports-- loadCounts() [c15]
+  handleOverview() [c11] --calls-- loadCounts() [c15]
+  dashboard-data.test.ts [c15] --imports-- loadVelocity() [c8]
+  handleOverview() [c11] --calls-- loadVelocity() [c8]
+  dashboard-data.test.ts [c15] --imports-- loadHotZones() [c8]
+  dashboard-data.test.ts [c15] --imports-- loadWipAge() [c8]
+  handleOverview() [c11] --calls-- loadWipAge() [c8]
+  loadWorktreeHealth() [c8] --calls-- parseWorktreeList() [c22]
+  loadWorktreeHealth() [c8] --calls-- computeWarnings() [c22]
+  handleOverview() [c11] --calls-- loadWorktreeHealth() [c8]
+  views.ts [c13] --imports_from-- layout.ts [c30]
+  views.ts [c13] --contains-- parseMultiParam() [c15]
+  views.ts [c13] --contains-- renderReleaseNotes() [c30]
+  views.ts [c13] --contains-- renderFrameworkIndex() [c23]
+  views.ts [c13] --contains-- renderFrameworkPage() [c23]
+  views.ts [c13] --contains-- renderUserDocsIndex() [c23]
+  views.ts [c13] --contains-- renderUserDoc() [c23]
+  views.ts [c13] --contains-- renderFeatures() [c8]
+  views.ts [c13] --contains-- renderGaps() [c15]
+  views.ts [c13] --contains-- renderVelocity() [c8]
+  views.ts [c13] --contains-- renderHotZones() [c8]
+  views.ts [c13] --contains-- renderWorktrees() [c8]
+  views.ts [c13] --contains-- renderWipAge() [c8]
+  server.ts [c8] --imports_from-- views.ts [c13]
+  dashboard-worktrees.test.ts [c8] --imports_from-- views.ts [c13]
+  dashboard-release-notes.test.ts [c30] --imports_from-- views.ts [c13]
+  dashboard-doc-surfaces.test.ts [c23] --imports_from-- views.ts [c13]
+  server.ts [c8] --imports-- parseMultiParam() [c15]
+  dashboard-views.test.ts [c13] --imports-- parseMultiParam() [c15]
+  server.ts [c8] --imports-- renderOverview() [c13]
+  handleOverview() [c11] --calls-- renderOverview() [c13]
+  server.ts [c8] --imports-- renderVision() [c13]
+  server.ts [c8] --imports-- renderReleaseNotes() [c30]
+  server.ts [c8] --imports-- renderFrameworkIndex() [c23]
+  server.ts [c8] --imports-- renderFrameworkPage() [c23]
+  renderFrameworkPage() [c23] --calls-- escapeHtml() [c13]
+  server.ts [c8] --imports-- renderUserDocsIndex() [c23]
+  server.ts [c8] --imports-- renderUserDoc() [c23]
+  renderUserDoc() [c23] --calls-- escapeHtml() [c13]
+  server.ts [c8] --imports-- renderRoadmap() [c13]
+  handleRoadmap() [c15] --calls-- renderRoadmap() [c13]
+  server.ts [c8] --imports-- renderBacklog() [c13]
+  handleBacklog() [c15] --calls-- renderBacklog() [c13]
+  dashboard-views.test.ts [c13] --imports-- renderFeatures() [c8]
+  server.ts [c8] --imports-- renderGaps() [c15]
+  dashboard-views.test.ts [c13] --imports-- renderGaps() [c15]
+  dashboard-views.test.ts [c13] --imports-- renderVelocity() [c8]
+  server.ts [c8] --imports-- renderFeatureDetail() [c13]
+  dashboard-views.test.ts [c13] --imports-- renderHotZones() [c8]
+  dashboard-views.test.ts [c13] --imports-- renderWipAge() [c8]
+  layout.ts [c30] --contains-- escapeHtml() [c13]
+  server.ts [c8] --imports_from-- layout.ts [c30]
+  dashboard-views.test.ts [c13] --imports_from-- layout.ts [c30]
+  renderLayout() [c30] --calls-- escapeHtml() [c13]
+  server.ts [c8] --imports-- renderLayout() [c30]
+  dashboard-views.test.ts [c13] --imports-- renderLayout() [c30]
+  handle() [c8] --calls-- renderLayout() [c30]
+  server.ts [c8] --imports_from-- blocks.ts [c7]
+  server.ts [c8] --imports-- handleDemote() [c7]
+  server.ts [c8] --imports-- handleMove() [c7]
+  server.ts [c8] --imports-- handlePromote() [c7]
+  server.ts [c8] --contains-- handleOverview() [c11]
+  server.ts [c8] --contains-- handleVision() [c13]
+  server.ts [c8] --contains-- handleFrameworkIndex() [c23]
+  server.ts [c8] --contains-- handleFrameworkPage() [c23]
+  server.ts [c8] --contains-- handleUserDocsIndex() [c23]
+  server.ts [c8] --contains-- handleReleaseNotes() [c30]
+  server.ts [c8] --contains-- handleUserDoc() [c23]
+  server.ts [c8] --contains-- handleRoadmap() [c15]
+  server.ts [c8] --contains-- handleBacklog() [c15]
+  server.ts [c8] --contains-- handleFeatureDetail() [c13]
+  server.ts [c8] --contains-- handleGaps() [c15]
+  handleApiPromote() [c8] --calls-- handlePromote() [c7]
+  handleApiDemote() [c8] --calls-- handleDemote() [c7]

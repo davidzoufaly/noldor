@@ -1,0 +1,53 @@
+# Domain Knowledge Graph — Summary
+# 1035 nodes, 2316 edges, 60 communities
+
+directed: false
+
+## community index (top 20 by size)
+  c0 (78): sdd-report.ts · compareSemver() · isLinkEnforced()
+  c1 (77): lanes
+  c2 (74): allowlist.ts · isMicroChoreAllowed() · isReleaseSweepAllowed()
+  c3 (64): next-priority.ts · getTopPriorityNext() · formatEntry()
+  c4 (54): release-fd-commits.ts · parseCommitLine() · gitLogShas()
+  c5 (44): pr-flow-cli.ts · pickMostRecentByDatePrefix() · parseCrTrailersFromLog()
+  c6 (36): check-invariants.ts · runAll() · formatResults()
+  c7 (35): write-blocks.ts · scanBlocks() · findBlockBySlug()
+  c8 (35): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
+  c10 (34): stage.ts · pathToStage() · stage.test.ts
+  c9 (34): context.ts · buildContext() · diffArgs()
+  c11 (31): getRepoUrl() · data.ts · highlight()
+  c12 (30): validate-features.ts · walkDir() · collectTestFiles()
+  c13 (27): walkTokens() · views.ts · deriveRepoSlug()
+  c14 (21): cli.ts · fmtGroup() · usage()
+  c15 (20): parseRoadmapFromString() · parseRoadmap() · sha256Hex()
+  c16 (18): check-template-sync.ts · checkTemplateSync() · resolveChangedFiles()
+  c17 (17): release-markers.ts · fillNoldorMarker() · fillAllNoldorMarkers()
+  c18 (17): graph-to-toon.ts · hyperedgeMembers() · shortenPath()
+  c19 (16): edge-scroll.test.ts · drag.ts · edgeScrollVelocity()
+
+## cross-community edges (top 25)
+  pr-flow-cli.ts [c5] --imports_from-- config.ts [c1]
+  pr-flow-cli.ts [c5] --imports-- loadConfig() [c1]
+  pr-flow-cli.ts [c5] --imports_from-- prompt-stdin.ts [c1]
+  pr-flow-cli.ts [c5] --imports-- promptSelect() [c1]
+  runCli() [c5] --calls-- loadConfig() [c1]
+  runCli() [c5] --calls-- promptSelect() [c1]
+  detectAllowlistDrift() [c3] --calls-- isMicroChoreAllowed() [c2]
+  garden-detect-runner.ts [c41] --imports_from-- noldor-cli.ts [c17]
+  garden-detect.ts [c3] --imports_from-- noldor-cli.ts [c17]
+  garden-detect-runner.ts [c41] --imports-- noldorCliCommand() [c17]
+  garden-detect.ts [c3] --imports-- noldorCliCommand() [c17]
+  runGardenDetectViaCli() [c41] --calls-- noldorCliCommand() [c17]
+  loadSddGaps() [c3] --calls-- noldorCliCommand() [c17]
+  detectTrailerScopeMismatch() [c3] --calls-- readRolloutMarker() [c2]
+  detectAllowlistDrift() [c3] --calls-- readRolloutMarker() [c2]
+  override-audit.ts [c3] --imports_from-- trailers.ts [c2]
+  override-audit.ts [c3] --imports-- parseTrailers() [c2]
+  consumer-config.ts [c21] --contains-- loadCategories() [c26]
+  sdd-report.ts [c0] --imports_from-- consumer-config.ts [c21]
+  graph-fd-lookup.ts [c0] --imports_from-- consumer-config.ts [c21]
+  fill-links-code-gaps.ts [c0] --imports_from-- consumer-config.ts [c21]
+  validate-features.ts [c12] --imports_from-- consumer-config.ts [c21]
+  boundaries.ts [c6] --imports_from-- consumer-config.ts [c21]
+  release-notes.ts [c35] --imports_from-- consumer-config.ts [c21]
+  index.ts [c17] --imports_from-- consumer-config.ts [c21]
