@@ -51,6 +51,7 @@ describe('detectTrailerScopeMismatch', () => {
   });
 
   it('flags a commit where scope does not contain the FD slug', async () => {
+    addCommit(repo, 'chore: genesis'); // root commit is skipped; flag a later one
     addCommit(repo, 'feat(other-feature): unrelated commit\n\nNoldor-FD: my-feature');
 
     const findings = await detectTrailerScopeMismatch({ cwd: repo });
@@ -61,11 +62,21 @@ describe('detectTrailerScopeMismatch', () => {
   });
 
   it('flags a commit with no scope when FD trailer is present', async () => {
+    addCommit(repo, 'chore: genesis'); // root commit is skipped; flag a later one
     addCommit(repo, 'feat: no scope commit\n\nNoldor-FD: my-feature');
 
     const findings = await detectTrailerScopeMismatch({ cwd: repo });
     expect(findings).toHaveLength(1);
     expect(findings[0]!.scope).toBeNull();
+  });
+
+  it('skips the root (genesis import) commit even when its scope mismatches its FD trailer', async () => {
+    // Mirrors the standalone-repo genesis: the first commit squash-imports
+    // external history and carries a legacy scope that can never conform.
+    addCommit(repo, 'feat(noldor): lift framework\n\nNoldor-FD: noldor-package-lift');
+
+    const findings = await detectTrailerScopeMismatch({ cwd: repo });
+    expect(findings).toHaveLength(0);
   });
 
   it('ignores commits with no Noldor-FD trailer', async () => {
