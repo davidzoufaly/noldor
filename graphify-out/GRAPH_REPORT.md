@@ -1,10 +1,10 @@
 # Graph Report - src  (2026-06-01)
 
 ## Corpus Check
-- Large corpus: 318 files · ~155,421 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- Large corpus: 318 files · ~155,445 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
 
 ## Summary
-- 1036 nodes · 2318 edges · 53 communities (47 shown, 6 thin omitted)
+- 1036 nodes · 2318 edges · 52 communities (46 shown, 6 thin omitted)
 - Extraction: 90% EXTRACTED · 10% INFERRED · 0% AMBIGUOUS · INFERRED: 224 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -16,6 +16,7 @@
 - [[_COMMUNITY_garden|garden]]
 - [[_COMMUNITY_release|release]]
 - [[_COMMUNITY_core|core]]
+- [[_COMMUNITY_dashboard|dashboard]]
 - [[_COMMUNITY_invariants|invariants]]
 - [[_COMMUNITY_utils|utils]]
 - [[_COMMUNITY_cr|cr]]
@@ -23,22 +24,20 @@
 - [[_COMMUNITY_dashboard|dashboard]]
 - [[_COMMUNITY_sync|sync]]
 - [[_COMMUNITY_dashboard|dashboard]]
-- [[_COMMUNITY_dashboard|dashboard]]
 - [[_COMMUNITY_milestones|milestones]]
 - [[_COMMUNITY_templates|templates]]
 - [[_COMMUNITY_graphify|graphify]]
 - [[_COMMUNITY_dashboardstatic|dashboard/static]]
 - [[_COMMUNITY_core|core]]
-- [[_COMMUNITY_dashboard|dashboard]]
 - [[_COMMUNITY_worktrees|worktrees]]
 - [[_COMMUNITY_dashboard|dashboard]]
 - [[_COMMUNITY_cr|cr]]
+- [[_COMMUNITY_dashboard|dashboard]]
 - [[_COMMUNITY_docs|docs]]
-- [[_COMMUNITY_dashboard|dashboard]]
 - [[_COMMUNITY_sync|sync]]
-- [[_COMMUNITY_features|features]]
-- [[_COMMUNITY_features|features]]
 - [[_COMMUNITY_dashboard|dashboard]]
+- [[_COMMUNITY_features|features]]
+- [[_COMMUNITY_features|features]]
 - [[_COMMUNITY_core|core]]
 - [[_COMMUNITY_hooks|hooks]]
 - [[_COMMUNITY_worktrees|worktrees]]
@@ -82,7 +81,7 @@
 - `normalizeDeclaredPackage()` --calls--> `loadConsumerConfig()`  [INFERRED]
   features/validate-features.ts → core/consumer-config.ts
 
-## Communities (53 total, 6 thin omitted)
+## Communities (52 total, 6 thin omitted)
 
 ### Community 0 - "garden"
 Cohesion: 0.06
@@ -112,37 +111,37 @@ Nodes (29): buildPrompt(), joinSubjectsDeterministic(), polishSummary(), runClau
 Cohesion: 0.1
 Nodes (27): runCrRetryLoop(), discoverAddedFiles(), execGit(), loadFdSummary(), nodeSpawn(), normalizeRepoUrl(), parseCrTrailersFromLog(), pickMostRecentByDatePrefix() (+19 more)
 
-### Community 7 - "invariants"
+### Community 7 - "dashboard"
+Cohesion: 0.09
+Nodes (34): countMatching(), countScriptFiles(), featureSlugsForCodePath(), getScriptsDir(), getSkillsDir(), listVersionTags(), loadBacklog(), loadBacklogWithHash() (+26 more)
+
+### Community 8 - "invariants"
 Cohesion: 0.09
 Nodes (11): formatResults(), printResults(), runAll(), makeBoundariesInvariant(), formatInvariantError(), makeInvariants(), runInvariants(), runInvariantSafely() (+3 more)
 
-### Community 8 - "utils"
+### Community 9 - "utils"
 Cohesion: 0.14
 Nodes (22): atomicWriteFile(), crossSection(), handleDemote(), handleMove(), handlePromote(), sha256(), main(), parseArgv() (+14 more)
 
-### Community 9 - "cr"
+### Community 10 - "cr"
 Cohesion: 0.12
 Nodes (20): parseCliArgs(), filenameSelector(), hashPaths(), isGateLane(), printFindings(), readFeatureMd(), readIfExists(), readSession() (+12 more)
 
-### Community 10 - "rules"
+### Community 11 - "rules"
 Cohesion: 0.12
 Nodes (12): runList(), runResolve(), runValidate(), main(), main(), main(), dirStamp(), getRules() (+4 more)
 
-### Community 11 - "dashboard"
-Cohesion: 0.12
-Nodes (26): countMatching(), countScriptFiles(), getDocRoot(), getFeaturesDir(), getNoldorDir(), getReleaseNotesPath(), getScriptsDir(), getSkillsDir() (+18 more)
+### Community 12 - "dashboard"
+Cohesion: 0.13
+Nodes (21): escapeHtml(), handleBacklog(), handleRoadmap(), parseMultiParam(), plainTextPreview(), renderBacklog(), renderChipRow(), renderCounter() (+13 more)
 
-### Community 12 - "sync"
+### Community 13 - "sync"
 Cohesion: 0.15
 Nodes (24): collectTestFiles(), extractCodePackages(), main(), normalizeDeclaredPackage(), validateDocFeatureSlugs(), validateDocTagPresence(), validateFiles(), validatePackagesField() (+16 more)
 
-### Community 13 - "dashboard"
-Cohesion: 0.12
-Nodes (20): walkTokens(), escapeHtml(), handleFeatureDetail(), handleFeatures(), handleHotZones(), handleWipAge(), plainTextPreview(), renderBacklog() (+12 more)
-
 ### Community 14 - "dashboard"
 Cohesion: 0.13
-Nodes (21): getBacklogPath(), getRoadmapPath(), loadActiveMilestone(), loadGaps(), loadWorktreeHealth(), setDocRootsOverride(), handle(), handleApiDemote() (+13 more)
+Nodes (23): loadActiveMilestone(), loadFeatures(), loadHotZones(), loadVelocity(), loadVision(), loadWipAge(), loadWorktreeHealth(), setDocRootsOverride() (+15 more)
 
 ### Community 15 - "milestones"
 Cohesion: 0.19
@@ -164,33 +163,33 @@ Nodes (6): edgeScrollVelocity(), init(), shouldInsertBefore(), wireButtons(), wi
 Cohesion: 0.27
 Nodes (12): admitsLiteralHyphen(), extractFencedBlocks(), findMessageFlag(), formatFindingHuman(), isCloseFence(), isGitCommitLine(), lineContainsFlag(), lintSnippets() (+4 more)
 
-### Community 20 - "dashboard"
-Cohesion: 0.22
-Nodes (13): featureSlugsForCodePath(), loadBacklog(), loadBacklogWithHash(), loadRoadmapWithHash(), parseBacklogFromString(), parseRoadmap(), parseRoadmapFromString(), sha256Hex() (+5 more)
-
-### Community 21 - "worktrees"
+### Community 20 - "worktrees"
 Cohesion: 0.28
 Nodes (10): allocatePorts(), computeWarnings(), describeWarning(), detectFileOverlap(), formatStatus(), gatherStats(), gitOrEmpty(), main() (+2 more)
 
-### Community 22 - "dashboard"
+### Community 21 - "dashboard"
 Cohesion: 0.23
 Nodes (13): loadFrameworkPage(), loadFrameworkPages(), loadUserDoc(), loadUserDocs(), rewriteDocLinks(), handleFrameworkIndex(), handleFrameworkPage(), handleUserDoc() (+5 more)
 
-### Community 23 - "cr"
+### Community 22 - "cr"
 Cohesion: 0.33
 Nodes (5): aggregate(), main(), parseArgs(), templateShaFor(), inferLaneFromFilename()
+
+### Community 23 - "dashboard"
+Cohesion: 0.29
+Nodes (7): getReleaseNotesPath(), loadReleaseNotes(), renderLayout(), handleReleaseNotes(), renderReleaseNotes(), shell(), shell()
 
 ### Community 24 - "docs"
 Cohesion: 0.42
 Nodes (8): checkLinks(), extractHeadings(), extractLinks(), fileExists(), main(), slugifyHeading(), stripCodeRegions(), walkMd()
 
-### Community 25 - "dashboard"
-Cohesion: 0.33
-Nodes (6): loadReleaseNotes(), renderLayout(), handleReleaseNotes(), renderReleaseNotes(), shell(), shell()
-
-### Community 26 - "sync"
+### Community 25 - "sync"
 Cohesion: 0.4
 Nodes (6): appendList(), applyBlock(), buildResourcesBlock(), main(), resolveSpecPath(), syncFile()
+
+### Community 26 - "dashboard"
+Cohesion: 0.31
+Nodes (9): getBacklogPath(), getDocRoot(), getFeaturesDir(), getNoldorDir(), getRoadmapPath(), getVisionPath(), handleApiDemote(), handleApiPromote() (+1 more)
 
 ### Community 27 - "features"
 Cohesion: 0.54
@@ -200,55 +199,51 @@ Nodes (6): areaFromPackage(), inferTier(), main(), walkFeaturesDir(), yamlToBack
 Cohesion: 0.43
 Nodes (5): main(), migrateChangelogContent(), migrateFeaturesDir(), parseChangelogSection(), renderSection()
 
-### Community 29 - "dashboard"
-Cohesion: 0.36
-Nodes (8): loadFeatures(), loadHotZones(), loadVelocity(), loadWipAge(), tryGit(), handleOverview(), handleVelocity(), renderVelocity()
-
-### Community 30 - "core"
+### Community 29 - "core"
 Cohesion: 0.52
 Nodes (5): filterCommitsForPage(), listPageSlugs(), loadCommits(), main(), parseScope()
 
-### Community 31 - "hooks"
+### Community 30 - "hooks"
 Cohesion: 0.62
 Nodes (5): evaluatePrePush(), main(), pushesMain(), readStdinWithTimeout(), recordReleasePush()
 
-### Community 32 - "worktrees"
+### Community 31 - "worktrees"
 Cohesion: 0.57
 Nodes (5): escapeShell(), main(), parseWorktrees(), renderPrompt(), resolveMainWorktreePath()
 
-### Community 33 - "core"
+### Community 32 - "core"
 Cohesion: 0.67
 Nodes (4): diffSkillSets(), loadSkillSlugs(), main(), parseCatalogSlugs()
 
-### Community 34 - "features"
+### Community 33 - "features"
 Cohesion: 0.6
 Nodes (4): extractLegacyBlock(), findLineStartingWith(), main(), migrateFd()
 
-### Community 35 - "docs"
+### Community 34 - "docs"
 Cohesion: 0.6
 Nodes (4): addGeneratedHeader(), annotateAll(), main(), walkMd()
 
-### Community 36 - "docs"
+### Community 35 - "docs"
 Cohesion: 0.6
 Nodes (4): loadExamples(), main(), processTutorialDir(), transcludeMarkers()
 
-### Community 37 - "cli"
+### Community 36 - "cli"
 Cohesion: 0.6
 Nodes (3): printHelp(), dispatch(), main()
 
-### Community 38 - "core"
+### Community 37 - "core"
 Cohesion: 0.7
 Nodes (3): extractTouches(), looksLikePath(), normalizePath()
 
-### Community 39 - "core"
+### Community 38 - "core"
 Cohesion: 0.7
 Nodes (3): collectFiles(), main(), renamePlanOnlyTier()
 
-### Community 40 - "checks"
+### Community 39 - "checks"
 Cohesion: 0.7
 Nodes (3): loadKnownSlugs(), main(), validateFeatureSlugScope()
 
-### Community 41 - "triage"
+### Community 40 - "triage"
 Cohesion: 0.8
 Nodes (3): main(), resolveIsShipped(), scoreEntry()
 
@@ -258,7 +253,7 @@ Nodes (3): main(), resolveIsShipped(), scoreEntry()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `loadConsumerConfig()` connect `garden` to `release`, `core`, `invariants`, `sync`, `dashboard`?**
+- **Why does `loadConsumerConfig()` connect `garden` to `release`, `core`, `invariants`, `dashboard`, `sync`?**
   _High betweenness centrality (0.070) - this node is a cross-community bridge._
 - **Why does `promptSelect()` connect `cr` to `core`?**
   _High betweenness centrality (0.031) - this node is a cross-community bridge._

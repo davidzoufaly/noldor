@@ -1,5 +1,5 @@
 # Domain Knowledge Graph — Summary
-# 1036 nodes, 2318 edges, 53 communities
+# 1036 nodes, 2318 edges, 52 communities
 
 directed: false
 
@@ -11,14 +11,14 @@ directed: false
   c4 (62): next-priority.ts · getTopPriorityNext() · formatEntry()
   c5 (48): release-fd-commits.ts · parseCommitLine() · gitLogShas()
   c6 (44): pr-flow-cli.ts · pickMostRecentByDatePrefix() · parseCrTrailersFromLog()
-  c7 (36): check-invariants.ts · runAll() · formatResults()
-  c8 (35): write-blocks.ts · scanBlocks() · findBlockBySlug()
-  c10 (34): stage.ts · pathToStage() · stage.test.ts
-  c9 (34): context.ts · buildContext() · diffArgs()
-  c11 (33): prsSinceLastTag() · getRepoUrl() · data.ts
-  c12 (30): validate-features.ts · walkDir() · collectTestFiles()
-  c13 (30): walkTokens() · views.ts · deriveRepoSlug()
-  c14 (28): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
+  c7 (43): prsSinceLastTag() · getRepoUrl() · data.ts
+  c8 (36): check-invariants.ts · runAll() · formatResults()
+  c9 (35): write-blocks.ts · scanBlocks() · findBlockBySlug()
+  c11 (34): stage.ts · pathToStage() · stage.test.ts
+  c10 (34): context.ts · buildContext() · diffArgs()
+  c12 (31): views.ts · deriveRepoSlug() · parseMultiParam()
+  c13 (30): validate-features.ts · walkDir() · collectTestFiles()
+  c14 (30): setDocRootsOverride() · loadFeatures() · loadVision()
   c15 (21): cli.ts · fmtGroup() · usage()
   c16 (18): check-template-sync.ts · checkTemplateSync() · resolveChangedFiles()
   c17 (17): graph-to-toon.ts · hyperedgeMembers() · shortenPath()
@@ -38,16 +38,16 @@ directed: false
   override-audit.ts [c4] --imports_from-- trailers.ts [c2]
   override-audit.ts [c4] --imports-- parseTrailers() [c2]
   consumer-config.ts [c0] --contains-- loadCategories() [c1]
-  validate-features.ts [c12] --imports_from-- consumer-config.ts [c0]
-  boundaries.ts [c7] --imports_from-- consumer-config.ts [c0]
+  validate-features.ts [c13] --imports_from-- consumer-config.ts [c0]
+  boundaries.ts [c8] --imports_from-- consumer-config.ts [c0]
   release-packages.ts [c1] --imports_from-- consumer-config.ts [c0]
   release-notes.ts [c1] --imports_from-- consumer-config.ts [c0]
   index.ts [c1] --imports_from-- consumer-config.ts [c0]
   docs-howto.ts [c1] --imports_from-- consumer-config.ts [c0]
-  data.ts [c11] --imports_from-- consumer-config.ts [c0]
-  views.ts [c13] --imports_from-- consumer-config.ts [c0]
+  data.ts [c7] --imports_from-- consumer-config.ts [c0]
+  views.ts [c12] --imports_from-- consumer-config.ts [c0]
   noldor-validate-trailer.ts [c2] --imports_from-- consumer-config.ts [c0]
   loadCategories() [c1] --calls-- loadConsumerConfig() [c0]
-  validate-features.ts [c12] --imports-- loadConsumerConfig() [c0]
-  boundaries.ts [c7] --imports-- loadConsumerConfig() [c0]
+  validate-features.ts [c13] --imports-- loadConsumerConfig() [c0]
+  boundaries.ts [c8] --imports-- loadConsumerConfig() [c0]
   release-packages.ts [c1] --imports-- loadConsumerConfig() [c0]
