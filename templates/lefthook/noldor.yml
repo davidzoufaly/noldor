@@ -59,6 +59,9 @@ pre-commit:
           - name: milestones
             glob: '{docs/milestones/**/*.md,docs/vision.md}'
             run: pnpm noldor milestones validate
+          - name: rules
+            glob: '.noldor/rules/**/*.md'
+            run: pnpm noldor rules validate
 
 prepare-commit-msg:
   jobs:
