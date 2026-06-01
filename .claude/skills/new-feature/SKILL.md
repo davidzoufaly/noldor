@@ -14,9 +14,9 @@ fields interactively or accepts them inline.
 
 - **slug** (required) — kebab-case filename stem, e.g. `cloud-sync`.
 - **name** (required) — human-readable, e.g. `Cloud Sync`.
-- **area** (required) — internal taxonomy, e.g. `persistence`, `engine`, `web`.
-- **category** (required) — user-facing release-notes bucket. One of `Modeling | Editor | Agents | Distribution | Docs | Tooling | Other`.
-- **packages** (required) — array of monorepo package names, e.g. `[web]`.
+- **area** (required) — internal taxonomy slug, free-form and project-specific (e.g. `core`, `tooling`, `docs`). Reuse an existing area from `docs/features/*.md` where one fits.
+- **category** (required) — user-facing release-notes bucket. Must be one of `consumer.categories` in `.noldor/config.json` (functional-domain axis, NOT a commit type). If none fits, propose a new one to the operator and append it to the config first (`validate:features` rejects unconfigured categories). Suggest a default via `consumer.areaCategories[area]`.
+- **packages** (required) — array of package names from `consumer.lockstepPackages` (a single-package repo lists its one package).
 - **deps** (optional) — array of prereq feature slugs.
 - **--tier** (required) — `specs-only` or `full`. Records the FD's creation depth. Set automatically by `/gate`; prompted interactively when invoked directly.
 
@@ -29,7 +29,7 @@ fields interactively or accepts them inline.
 ```markdown
 ---
 area: <area>
-category: <Modeling | Editor | Agents | Distribution | Docs | Tooling | Other>
+category: <one of consumer.categories>
 deps: []
 links:
   code: []

@@ -37,9 +37,9 @@ This page collects the framework's documentation rules: feature-doc / test-tag c
 
 - **Every test file must carry `// @tests: <feature-slug>[, <feature-slug>]` as its first non-import line.** `pnpm noldor sync test-links` populates feature MD `links.tests` from these tags. `pnpm noldor validate features` rejects unknown slugs. Both run in the pre-commit hook.
 
-## Tutorial code blocks transclude from `packages/examples/`
+## Tutorial code blocks transclude from a tested examples source
 
-- **Tutorial code blocks transclude from `packages/examples/`** — never inline. Examples are unit-tested. Use `<!-- example:start <name> -->` ... `<!-- example:end -->` markers; `pnpm noldor docs transclude` syncs the body. Editing inside the marker body is wasted work — it gets overwritten on next `pnpm docs:build`.
+- **Tutorial code blocks transclude from a unit-tested examples location** (wherever the consumer keeps runnable examples) — never inline. Use `<!-- example:start <name> -->` ... `<!-- example:end -->` markers; `pnpm noldor docs transclude` syncs the body. Editing inside the marker body is wasted work — it gets overwritten on next `pnpm docs:build`.
 
 ## Generated docs — do not hand-edit
 

@@ -613,37 +613,32 @@ describe('grandfathering of pre-MVP features', () => {
 
 describe(detectReadmePackageDrift, () => {
   // Hermetic config so the test does not depend on the live consumer config.
-  const cfg = { packagePrefix: '@charuy/', deprecatedPackages: ['@charuy/agent-api'] };
+  const cfg = { packagePrefix: '@acme/', deprecatedPackages: ['@acme/agent-api'] };
   const readmeWithFour = `## Architecture
 ### Packages
 
 | Package | Purpose | Status |
 |---------|---------|--------|
-| \`@charuy/format\` | x | Done |
-| \`@charuy/engine\` | x | Done |
-| \`@charuy/viewport\` | x | Done |
-| \`@charuy/agent-api\` | y | Planned |
+| \`@acme/format\` | x | Done |
+| \`@acme/engine\` | x | Done |
+| \`@acme/viewport\` | x | Done |
+| \`@acme/agent-api\` | y | Planned |
 `;
 
   it('flags packages on disk missing from README table', () => {
-    const actual = [
-      '@charuy/format',
-      '@charuy/engine',
-      '@charuy/viewport',
-      '@charuy/test-fixtures',
-    ];
+    const actual = ['@acme/format', '@acme/engine', '@acme/viewport', '@acme/test-fixtures'];
     const gaps = detectReadmePackageDrift(actual, readmeWithFour, cfg);
-    expect(gaps.map((g) => g.itemId)).toStrictEqual(['@charuy/test-fixtures']);
+    expect(gaps.map((g) => g.itemId)).toStrictEqual(['@acme/test-fixtures']);
   });
 
   it('flags README rows whose package directory does not exist', () => {
-    const actual = ['@charuy/format', '@charuy/engine'];
+    const actual = ['@acme/format', '@acme/engine'];
     const gaps = detectReadmePackageDrift(actual, readmeWithFour, cfg);
-    expect(gaps.map((g) => g.itemId)).toStrictEqual(['@charuy/viewport']);
+    expect(gaps.map((g) => g.itemId)).toStrictEqual(['@acme/viewport']);
   });
 
-  it('treats @charuy/agent-api as allowed-planned even if absent from disk', () => {
-    const actual = ['@charuy/format', '@charuy/engine', '@charuy/viewport'];
+  it('treats @acme/agent-api as allowed-planned even if absent from disk', () => {
+    const actual = ['@acme/format', '@acme/engine', '@acme/viewport'];
     const gaps = detectReadmePackageDrift(actual, readmeWithFour, cfg);
     expect(gaps).toStrictEqual([]);
   });
@@ -653,10 +648,10 @@ describe(detectReadmePackageDrift, () => {
 
 | Package | Purpose | Status |
 |---------|---------|--------|
-| \`@charuy/format\` | x | Done |
-| \`@charuy/engine\` | x | Done |
+| \`@acme/format\` | x | Done |
+| \`@acme/engine\` | x | Done |
 `;
-    const gaps = detectReadmePackageDrift(['@charuy/format', '@charuy/engine'], readme, cfg);
+    const gaps = detectReadmePackageDrift(['@acme/format', '@acme/engine'], readme, cfg);
     expect(gaps).toStrictEqual([]);
   });
 });
@@ -737,8 +732,8 @@ describe(resolveReportOutPath, () => {
     expect(resolveReportOutPath(['--out', '/tmp/x.md'], {})).toBe('/tmp/x.md');
   });
 
-  it('falls back to CHARUY_SDD_REPORT_OUT when --out is absent', () => {
-    expect(resolveReportOutPath([], { CHARUY_SDD_REPORT_OUT: '/tmp/y.md' })).toBe('/tmp/y.md');
+  it('falls back to NOLDOR_SDD_REPORT_OUT when --out is absent', () => {
+    expect(resolveReportOutPath([], { NOLDOR_SDD_REPORT_OUT: '/tmp/y.md' })).toBe('/tmp/y.md');
   });
 
   it('defaults to docs/sdd-report.md when no override is supplied', () => {
@@ -748,7 +743,7 @@ describe(resolveReportOutPath, () => {
   it('prefers --out over the env var when both are present', () => {
     expect(
       resolveReportOutPath(['--out', '/tmp/flag.md'], {
-        CHARUY_SDD_REPORT_OUT: '/tmp/env.md',
+        NOLDOR_SDD_REPORT_OUT: '/tmp/env.md',
       }),
     ).toBe('/tmp/flag.md');
   });
@@ -791,7 +786,7 @@ describe('isInfraFile', () => {
 function makeFm(slug: string, code: string[]): FeatureFrontmatter {
   return {
     area: 'engine',
-    category: 'Modeling',
+    category: 'Core',
     deps: [],
     links: { code, docs: [], spec: 's', tests: [] },
     name: slug,

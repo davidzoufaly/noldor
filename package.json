@@ -32,6 +32,9 @@
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
+    "verify": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test",
+    "toon": "node bin/noldor.mjs graphify graph-to-toon",
+    "release": "node bin/noldor.mjs release run",
     "clean": "rm -rf dist .turbo",
     "prepare": "tsc",
     "postinstall": "lefthook install"

@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
+import { noldorCliCommand } from '../core/noldor-cli.js';
 import { ensureGardenFresh } from '../garden/garden-receipt.js';
 import { autoStampOnCleanDetect } from './auto-restamp.js';
 import { fillAllNoldorMarkers } from '../core/release-markers.js';
@@ -63,37 +64,67 @@ async function ensureGhAvailable(): Promise<void> {
   }
 }
 
-async function ensureGraphFresh(): Promise<void> {
+/**
+ * Knowledge-graph freshness gate. Graphify is OPTIONAL — a consumer that does
+ * not track `graphify-out/graph.json` skips the check entirely. When a graph
+ * IS tracked, it must postdate the latest commit under the configured
+ * `scanPaths` (the SDD detectors read the graph; a stale graph ships degraded
+ * meta-gaps in the report).
+ */
+async function ensureGraphFresh(scanPaths: string[]): Promise<void> {
   const graphTs = await run('git', ['log', '-1', '--format=%ct', '--', 'graphify-out/graph.json']);
   if (graphTs.length === 0) {
-    throw new Error(
-      'graphify-out/graph.json has no git history. Run the pre-release sweep: /graphify → pnpm toon → /refactor → /graphify → pnpm toon, then commit.',
-    );
+    console.log('→ graph freshness (skipped — no graphify-out/graph.json tracked)');
+    return;
   }
-  // Match the SDD detectors' src roots (`packages`, `apps`, `scripts`) — see
-  // `scripts/garden/sdd-report.ts` `ReportInput.graphSrcRoots`. A
-  // `scripts/`-only change still invalidates the import graph that
-  // detectors 9/10/13 rely on; without this check the release would ship
-  // with stale graph + degraded-mode meta-gaps in the report.
-  const srcTs = await run('git', [
-    'log',
-    '-1',
-    '--format=%ct',
-    '--',
-    'apps/',
-    'packages/',
-    'scripts/',
-  ]);
+  if (scanPaths.length === 0) return;
+  const srcTs = await run('git', ['log', '-1', '--format=%ct', '--', ...scanPaths]);
   if (srcTs.length > 0 && Number(srcTs) > Number(graphTs)) {
     throw new Error(
-      'Knowledge graph is stale: src files were committed after graphify-out/graph.json. ' +
-        'Run the pre-release sweep before releasing: /graphify → pnpm toon → /refactor against ' +
-        'graphify-out/GRAPH_REPORT.md → /graphify → pnpm toon again, then commit and re-run pnpm release.',
+      'Knowledge graph is stale: source files were committed after graphify-out/graph.json. ' +
+        'Regenerate the graph (/graphify) and commit it before releasing.',
     );
   }
 }
 
 async function runCheck(label: string, cmd: string, args: string[]): Promise<void> {
+  console.log(`→ ${label}`);
+  await run(cmd, args);
+}
+
+/** Load the consumer's package.json `scripts` map (empty if none). */
+async function consumerScripts(): Promise<Record<string, string>> {
+  try {
+    const pkg = JSON.parse(await readFile('package.json', 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    return pkg.scripts ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Run `pnpm <name> [...args]` only if the consumer declares that script.
+ * Keeps the pipeline consumer-agnostic: a repo with `test:e2e` runs it; a
+ * single-package repo without one skips it loudly. Returns whether it ran.
+ */
+async function runOptionalCheck(
+  scripts: Record<string, string>,
+  name: string,
+  args: string[] = [],
+): Promise<boolean> {
+  if (!scripts[name]) {
+    console.log(`→ pnpm ${name} (skipped — not declared in package.json)`);
+    return false;
+  }
+  await runCheck(`pnpm ${name}`, 'pnpm', [name, ...args]);
+  return true;
+}
+
+/** Run a framework check through the noldor CLI (always available). */
+async function runCliCheck(label: string, cliArgs: string[]): Promise<void> {
+  const [cmd, args] = noldorCliCommand(cliArgs);
   console.log(`→ ${label}`);
   await run(cmd, args);
 }
@@ -113,42 +144,49 @@ async function extractLatestReleaseNotes(): Promise<string> {
 
 async function main(): Promise<void> {
   await withReleaseSession(process.cwd(), async () => {
-    const { lockstepPackages, name: cfgName } = loadConsumerConfig();
+    const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
     await ensureCleanTreeOnMain();
     await ensureGhAvailable();
-    await ensureGraphFresh();
+    await ensureGraphFresh(scanPaths);
     await autoStampOnCleanDetect({ cwd: process.cwd() });
     ensureGardenFresh();
 
-    await runCheck('pnpm typecheck', 'pnpm', ['typecheck']);
-    await runCheck('pnpm test', 'pnpm', ['test']);
-    await runCheck('pnpm test:smoke', 'pnpm', ['test:smoke']);
-    await runCheck('pnpm test:e2e', 'pnpm', ['test:e2e']);
-    await runCheck('pnpm docs:build', 'pnpm', ['docs:build']);
-    const dirtyDocs = await run('git', ['status', '--porcelain', 'docs/user/']);
-    if (dirtyDocs.length > 0) {
-      throw new Error(
-        'docs/user/ has uncommitted changes after pnpm docs:build. ' +
-          'Commit the regenerated docs before releasing.',
-      );
+    // Consumer-defined quality gates run only when declared — keeps the
+    // pipeline portable across single-package and monorepo consumers.
+    const scripts = await consumerScripts();
+    await runOptionalCheck(scripts, 'typecheck');
+    await runOptionalCheck(scripts, 'test');
+    await runOptionalCheck(scripts, 'test:smoke');
+    await runOptionalCheck(scripts, 'test:e2e');
+    const builtDocs = await runOptionalCheck(scripts, 'docs:build');
+    if (builtDocs) {
+      const dirtyDocs = await run('git', ['status', '--porcelain', 'docs/user/']);
+      if (dirtyDocs.length > 0) {
+        throw new Error(
+          'docs/user/ has uncommitted changes after pnpm docs:build. ' +
+            'Commit the regenerated docs before releasing.',
+        );
+      }
     }
-    await runCheck('pnpm sdd:report --release', 'pnpm', ['sdd:report', '--release']);
+    // Framework checks always run via the noldor CLI.
+    await runCliCheck('noldor garden sdd-report --release', ['garden', 'sdd-report', '--release']);
     const dirtyReport = await run('git', ['status', '--porcelain', 'docs/sdd-report.md']);
     if (dirtyReport.length > 0) {
       throw new Error(
-        'docs/sdd-report.md has uncommitted changes after pnpm sdd:report. ' +
+        'docs/sdd-report.md has uncommitted changes after sdd-report regen. ' +
           'Commit the regenerated report before releasing.',
       );
     }
-    await runCheck('pnpm build', 'pnpm', ['build']);
-    await runCheck('pnpm validate:features', 'pnpm', ['validate:features']);
+    await runOptionalCheck(scripts, 'build');
+    await runCliCheck('noldor validate features', ['validate', 'features']);
     if (process.env.RELEASE_SKIP_GATE_COMPLIANCE === '1') {
       console.log(
-        '→ pnpm garden:detect --gate-compliance (SKIPPED via RELEASE_SKIP_GATE_COMPLIANCE=1)',
+        '→ noldor garden detect --gate-compliance (SKIPPED via RELEASE_SKIP_GATE_COMPLIANCE=1)',
       );
     } else {
-      await runCheck('pnpm garden:detect --gate-compliance', 'pnpm', [
-        'garden:detect',
+      await runCliCheck('noldor garden detect --gate-compliance', [
+        'garden',
+        'detect',
         '--gate-compliance',
       ]);
     }
@@ -185,6 +223,14 @@ async function main(): Promise<void> {
     const newVersion = applyBump(previousVersion, bumpLevel);
     console.log(`New version: v${newVersion}`);
 
+    if (process.env.NOLDOR_RELEASE_DRY_RUN === '1') {
+      console.log(
+        `\n[dry-run] Preconditions + checks passed. Would bump ${previousTag} → v${newVersion} ` +
+          `from ${commits.length} commit(s). No files written, no tag, no push.`,
+      );
+      return;
+    }
+
     const releaseDate = todayIso();
     const repoUrl = await getRepoUrl();
 
@@ -206,7 +252,7 @@ async function main(): Promise<void> {
       for (const p of noldorTouched) console.log(`  ${p}`);
     }
 
-    await runCheck('pnpm validate:features (post-marker-fill)', 'pnpm', ['validate:features']);
+    await runCliCheck('noldor validate features (post-marker-fill)', ['validate', 'features']);
 
     const packagesTouched = await bumpAllPackages(newVersion);
     console.log(`Bumped ${packagesTouched.length} package.json(s).`);
@@ -238,7 +284,7 @@ async function main(): Promise<void> {
     );
     console.log('Wrote docs/release-notes.md entry.');
 
-    await runCheck('pnpm fmt (post-write)', 'pnpm', ['fmt']);
+    await runOptionalCheck(scripts, 'fmt');
 
     await run('git', [
       'add',

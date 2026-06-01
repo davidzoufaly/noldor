@@ -149,20 +149,10 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   const slug = t['Noldor-FD'];
   if (!slug) return { ok: false, reason: 'Missing Noldor-FD trailer (paths 3–6)' };
 
-  // FDs may live in Charuy product docs (docs/features/) OR framework docs
-  // (packages/noldor/docs/features/) after the framework-doc-extraction
-  // Phase B migration. Try product first (most consumers), fall back to
-  // framework. Phase C eventually retargets every consumer through
-  // loadDocRoots(), but the hook runs pre-commit so a self-contained
-  // two-path lookup keeps the bootstrap simple.
-  const productFdPath = join(opts.cwd, 'docs', 'features', `${slug}.md`);
-  const frameworkFdPath = join(opts.cwd, 'packages', 'noldor', 'docs', 'features', `${slug}.md`);
-  const fdPath = existsSync(productFdPath)
-    ? productFdPath
-    : existsSync(frameworkFdPath)
-      ? frameworkFdPath
-      : null;
-  if (fdPath === null) return { ok: false, reason: `FD does not exist: ${slug}` };
+  // FDs live in the consumer's feature-MD directory. The hook runs pre-commit,
+  // so it resolves the path directly rather than through loadDocRoots().
+  const fdPath = join(opts.cwd, 'docs', 'features', `${slug}.md`);
+  if (!existsSync(fdPath)) return { ok: false, reason: `FD does not exist: ${slug}` };
 
   const fd = matter(readFileSync(fdPath, 'utf8'));
   const tier = (fd.data['noldor-tier'] as string) ?? null;
@@ -209,22 +199,15 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
         reason: `${path} requires Noldor-Enhancement trailer (session marker's enhancement field). Re-run /gate to scaffold the marker.`,
       };
     }
-    // Spec may live in Charuy product specs OR framework specs after Phase B
-    // migration. Check both locations.
     const expectedSuffix = `-${slug}-${enhancement}-design.md`;
-    const productSpecsDir = join(opts.cwd, 'docs', 'superpowers', 'specs');
-    const frameworkSpecsDir = join(opts.cwd, 'packages', 'noldor', 'docs', 'superpowers', 'specs');
-    const candidates: string[] = [];
-    if (existsSync(productSpecsDir)) {
-      candidates.push(...readdirSync(productSpecsDir).filter((f) => f.endsWith(expectedSuffix)));
-    }
-    if (existsSync(frameworkSpecsDir)) {
-      candidates.push(...readdirSync(frameworkSpecsDir).filter((f) => f.endsWith(expectedSuffix)));
-    }
+    const specsDir = join(opts.cwd, 'docs', 'superpowers', 'specs');
+    const candidates = existsSync(specsDir)
+      ? readdirSync(specsDir).filter((f) => f.endsWith(expectedSuffix))
+      : [];
     if (candidates.length === 0) {
       return {
         ok: false,
-        reason: `${path} requires a spec file at docs/superpowers/specs/<date>${expectedSuffix} or packages/noldor/docs/superpowers/specs/<date>${expectedSuffix}`,
+        reason: `${path} requires a spec file at docs/superpowers/specs/<date>${expectedSuffix}`,
       };
     }
   }

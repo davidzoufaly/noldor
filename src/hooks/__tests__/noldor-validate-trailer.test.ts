@@ -195,7 +195,7 @@ describe('validateTrailer', () => {
     mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
     writeFileSync(
       join(dir, 'docs', 'features', 'foo.md'),
-      `---\nname: Foo\nphase: in-progress\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      `---\nname: Foo\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
     );
     mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
     writeFileSync(join(dir, 'docs', 'superpowers', 'specs', '2026-05-25-foo-design.md'), '# spec');
@@ -218,7 +218,7 @@ describe('validateTrailer', () => {
     mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
     writeFileSync(
       join(dir, 'docs', 'features', 'foo.md'),
-      `---\nname: Foo\nphase: in-progress\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      `---\nname: Foo\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
     );
     const r = validateTrailer({
       message:
@@ -240,7 +240,7 @@ describe('validateTrailer', () => {
     mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
     writeFileSync(
       join(dir, 'docs', 'features', 'parent.md'),
-      `---\nname: Parent\nphase: done\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      `---\nname: Parent\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
     );
     // Without Noldor-Enhancement trailer — should fail
     const r0 = validateTrailer({
@@ -380,7 +380,7 @@ describe('validateTrailer', () => {
       mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
       writeFileSync(
         join(dir, 'docs', 'features', 'parent.md'),
-        `---\nname: Parent\nphase: in-progress\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+        `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
       const r = validateTrailer({
         cwd: dir,
@@ -396,7 +396,7 @@ describe('validateTrailer', () => {
       mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
       writeFileSync(
         join(dir, 'docs', 'features', 'parent.md'),
-        `---\nname: Parent\nphase: in-progress\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+        `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
       const r = validateTrailer({
         cwd: dir,
@@ -412,7 +412,7 @@ describe('validateTrailer', () => {
       mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
       writeFileSync(
         join(dir, 'docs', 'features', 'foo.md'),
-        `---\nname: Foo\nphase: in-progress\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+        `---\nname: Foo\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
       const r = validateTrailer({
         cwd: dir,
@@ -428,7 +428,7 @@ describe('validateTrailer', () => {
       mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
       writeFileSync(
         join(dir, 'docs', 'features', 'parent.md'),
-        `---\nname: Parent\nphase: in-progress\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+        `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
       const r = validateTrailer({
         cwd: dir,
@@ -455,7 +455,7 @@ describe('validateTrailer', () => {
       mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
       writeFileSync(
         join(dir, 'docs', 'features', 'parent.md'),
-        `---\nname: Parent\nphase: in-progress\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+        `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
       mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
       writeFileSync(
@@ -477,7 +477,7 @@ describe('validateTrailer', () => {
       mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
       writeFileSync(
         join(dir, 'docs', 'features', 'parent.md'),
-        `---\nname: Parent\nphase: in-progress\ncategory: Editor\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+        `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
       mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
       writeFileSync(

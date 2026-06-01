@@ -11,7 +11,8 @@ import { markedHighlight } from 'marked-highlight';
 import { z } from 'zod';
 
 import { escapeHtml } from './layout.js';
-import { CATEGORIES, FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { loadCategories } from '../core/consumer-config.js';
 import { areaToCategory } from '../lib/area-category.js';
 import { loadMilestoneBySlug } from '../milestones/lib.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
@@ -1017,7 +1018,7 @@ export async function loadCounts(): Promise<DashboardCounts> {
   const byPhase = { done: 0, 'in-progress': 0 } as Record<'done' | 'in-progress', number>;
   const byCategory: Record<string, number> = {};
   const byArea: Record<string, number> = {};
-  for (const c of CATEGORIES) byCategory[c] = 0;
+  for (const c of loadCategories()) byCategory[c] = 0;
   for (const f of features) {
     byPhase[f.frontmatter.phase] += 1;
     byCategory[f.frontmatter.category] = (byCategory[f.frontmatter.category] ?? 0) + 1;

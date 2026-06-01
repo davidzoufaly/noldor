@@ -65,12 +65,9 @@ export function validateFeatureSlugScope(
 }
 
 export async function loadKnownSlugs(...featuresDirs: string[]): Promise<Set<string>> {
-  // Default: scan both Charuy product features and packages/noldor/ framework
-  // features (Phase B of framework-doc-extraction split them across two dirs).
-  // Phase C eventually retargets each side independently; for now the
-  // commit-msg scope check accepts slugs from either tree.
-  const dirs =
-    featuresDirs.length > 0 ? featuresDirs : ['docs/features', 'packages/noldor/docs/features'];
+  // Default: scan the consumer's feature-MD directory. Callers may pass extra
+  // dirs (e.g. a monorepo that keeps FDs under more than one path).
+  const dirs = featuresDirs.length > 0 ? featuresDirs : ['docs/features'];
   const slugs = new Set<string>();
   for (const featuresDir of dirs) {
     let entries;

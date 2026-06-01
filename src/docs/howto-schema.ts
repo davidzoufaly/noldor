@@ -1,22 +1,21 @@
 import { z } from 'zod';
 
-import { CATEGORIES } from '../features/feature-schema.js';
-
 /**
  * How-to MD frontmatter schema.
  *
- * Used by `scripts/docs-howto.ts` to validate hand-written how-to guides
+ * Used by `src/docs/docs-howto.ts` to validate hand-written how-to guides
  * under `docs/user/how-to/` before generating the index.
  *
  * `title` enforces the Diátaxis "How to <goal>" naming convention so the
  * index reads as a list of user goals, not feature names.
  *
- * `category` reuses the user-facing release-notes enum so how-to grouping
- * matches the rest of the project taxonomy.
+ * `category` is a free-form string matching the project's release-notes
+ * taxonomy; membership in the configured set is enforced where the index is
+ * generated, not pinned to a hardcoded enum here.
  */
 export const howtoFrontmatterSchema = z
   .object({
-    category: z.enum(CATEGORIES),
+    category: z.string().min(1),
     title: z
       .string()
       .min(1)

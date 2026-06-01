@@ -21,7 +21,7 @@ import type { FeatureFrontmatter } from '../../features/feature-schema.js';
 
 const baseFm: FeatureFrontmatter = {
   area: 'engine',
-  category: 'Modeling',
+  category: 'Core',
   deps: [],
   links: { code: [], docs: [], spec: 'x', tests: [] },
   name: 'Stub',
@@ -137,7 +137,7 @@ describe(loadFreshGraphOrWarn, () => {
       const graphTime = new Date(Date.now() - 60_000);
       utimesSync(graphPath, graphTime, graphTime);
 
-      const generatedFile = join(generatedDir, 'scene.charuy');
+      const generatedFile = join(generatedDir, 'scene.acme');
       writeFileSync(generatedFile, '{}');
       const newer = new Date(Date.now() + 60_000);
       utimesSync(generatedFile, newer, newer);
@@ -158,7 +158,7 @@ describe(loadFreshGraphOrWarn, () => {
       const graphTime = new Date(Date.now() - 60_000);
       utimesSync(graphPath, graphTime, graphTime);
 
-      const generatedFile = join(generatedDir, 'scene.charuy');
+      const generatedFile = join(generatedDir, 'scene.acme');
       writeFileSync(generatedFile, '{}');
       const newer = new Date(Date.now() + 60_000);
       utimesSync(generatedFile, newer, newer);

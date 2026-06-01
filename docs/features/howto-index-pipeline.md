@@ -1,6 +1,6 @@
 ---
 area: tooling
-category: Docs
+category: Tooling
 deps: []
 links:
   code:

@@ -18,7 +18,7 @@ import type { FeatureFrontmatter } from '../feature-schema.js';
 type FeatureRow = { slug: string; frontmatter: FeatureFrontmatter };
 
 const fmBase: Omit<FeatureFrontmatter, 'name' | 'area' | 'packages'> = {
-  category: 'Modeling',
+  category: 'Core',
   deps: [],
   links: { code: [], docs: [], tests: [] },
   phase: 'done',
@@ -44,7 +44,7 @@ const features: FeatureRow[] = [
     frontmatter: {
       ...fmBase,
       area: 'web',
-      category: 'Editor',
+      category: 'Tooling',
       name: 'Scene Tree Panel',
       packages: ['apps-web'],
     },
@@ -98,21 +98,21 @@ describe('resolveByPath', () => {
 
   it('matches cross-area FDs via packages.includes("web") for apps/web/ paths', () => {
     const crossArea: FeatureRow = {
-      slug: 'export-import-charuy-file',
+      slug: 'export-import-acme-file',
       frontmatter: {
         ...fmBase,
         area: 'format',
-        category: 'Distribution',
-        name: 'Export / Import .charuy File',
+        category: 'Other',
+        name: 'Export / Import .acme File',
         packages: ['format', 'web'],
       },
     };
     const result = resolveByPath({
-      filePath: 'apps/web/src/file/import-charuy.ts',
+      filePath: 'apps/web/src/file/import-acme.ts',
       features: [...features, crossArea],
       appPathPrefix: 'apps/web',
     });
-    expect(result.some((m) => m.fdSlug === 'export-import-charuy-file')).toBe(true);
+    expect(result.some((m) => m.fdSlug === 'export-import-acme-file')).toBe(true);
   });
 
   it('matches scripts/ paths via packages.includes("scripts") + area-group fallback', () => {

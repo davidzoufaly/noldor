@@ -20,7 +20,7 @@ export type PolishRunner = (commits: FeatureCommit[]) => Promise<string>;
  * Modes:
  *
  * - `commits.length === 0` → `''`. Caller should skip the version block.
- * - `options.offline === true` or `process.env.CHARUY_NO_LLM === '1'` →
+ * - `options.offline === true` or `process.env.NOLDOR_NO_LLM === '1'` →
  *   {@link joinSubjectsDeterministic} (no network, no subprocess).
  * - default → invoke the runner (defaults to `claude -p`); on any failure,
  *   fall back to {@link joinSubjectsDeterministic}.
@@ -34,7 +34,7 @@ export async function polishSummary(
   options: { offline?: boolean; runner?: PolishRunner } = {},
 ): Promise<string> {
   if (commits.length === 0) return '';
-  if (options.offline === true || process.env.CHARUY_NO_LLM === '1') {
+  if (options.offline === true || process.env.NOLDOR_NO_LLM === '1') {
     return joinSubjectsDeterministic(commits);
   }
   const runner = options.runner ?? runClaudePolish;

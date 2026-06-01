@@ -1084,7 +1084,7 @@ function renderReportMd(
 
 /**
  * Resolve the report output path. Priority: `--out <path>` CLI flag, then
- * `CHARUY_SDD_REPORT_OUT` env var, then the canonical `docs/sdd-report.md`.
+ * `NOLDOR_SDD_REPORT_OUT` env var, then the canonical `docs/sdd-report.md`.
  * The env-var escape is what lets the test suite run the CLI against a
  * temp file without mutating the live working tree.
  */
@@ -1097,7 +1097,7 @@ export function resolveReportOutPath(argv: string[], env: NodeJS.ProcessEnv): st
     // file literally named `--release`.
     if (next && !next.startsWith('--')) return next;
   }
-  const fromEnv = env.CHARUY_SDD_REPORT_OUT;
+  const fromEnv = env.NOLDOR_SDD_REPORT_OUT;
   if (fromEnv && fromEnv.length > 0) return fromEnv;
   return 'docs/sdd-report.md';
 }

@@ -60,26 +60,28 @@ describe('parseBacklogFromString category derivation', () => {
   // derived category on each parsed entry so the view layer can render
   // a Category column + filter without duplicating the lookup table.
   it('stamps a derived Category on every parsed backlog entry', () => {
-    const raw = `### Foo Web Thing
+    // Derivation uses the consumer's configured `areaCategories` map
+    // (.noldor/config.json). noldor maps `tooling`→Tooling, `core`→Core.
+    const raw = `### Foo Tooling Thing
 
-- area: web
+- area: tooling
 - type: feat
 
 Body.
 
-### Bar Engine Thing
+### Bar Core Thing
 
-- area: engine
+- area: core
 - type: feat
 
 Body.
 `;
     const entries = parseBacklogFromString(raw);
     expect(entries).toHaveLength(2);
-    const fooWeb = entries.find((e) => e.name === 'Foo Web Thing');
-    const barEngine = entries.find((e) => e.name === 'Bar Engine Thing');
-    expect(fooWeb?.category).toBe('Editor');
-    expect(barEngine?.category).toBe('Modeling');
+    const fooTooling = entries.find((e) => e.name === 'Foo Tooling Thing');
+    const barCore = entries.find((e) => e.name === 'Bar Core Thing');
+    expect(fooTooling?.category).toBe('Tooling');
+    expect(barCore?.category).toBe('Core');
   });
 
   it('falls back to Other for unknown areas', () => {
@@ -357,7 +359,7 @@ describe('loadHotZones', () => {
         bodyMarkdown: '',
         frontmatter: {
           area: 'web',
-          category: 'Editor',
+          category: 'Tooling',
           deps: [],
           links: {
             code: ['packages/sample-scenes', 'apps/web/src/components/gallery/'],

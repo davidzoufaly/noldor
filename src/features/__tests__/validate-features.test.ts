@@ -139,7 +139,7 @@ describe(validateTierVsSpec, () => {
   it('flags FD with tier=full but no links.spec', () => {
     const fd = {
       area: 'test',
-      category: 'Modeling' as const,
+      category: 'Core' as const,
       deps: [],
       links: { code: [], tests: [], docs: [] },
       name: 'Test',
@@ -155,7 +155,7 @@ describe(validateTierVsSpec, () => {
   it('returns no errors for specs-only tier', () => {
     const fd = {
       area: 'test',
-      category: 'Modeling' as const,
+      category: 'Core' as const,
       deps: [],
       links: { code: [], tests: [], docs: [] },
       name: 'Test',
@@ -170,7 +170,7 @@ describe(validateTierVsSpec, () => {
   it('returns no errors for full tier with links.spec present', () => {
     const fd = {
       area: 'test',
-      category: 'Modeling' as const,
+      category: 'Core' as const,
       deps: [],
       links: { code: [], tests: [], docs: [], spec: 'docs/specs/test-feature.md' },
       name: 'Test',

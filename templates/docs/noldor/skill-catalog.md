@@ -49,12 +49,12 @@ Noldor ships 9 user-invocable skills, each owned by a single concern. This page 
 - **Trigger:** `/milestone <sub-command> [args]`. Sub-commands: `draft`, `activate`, `edit`, `list`.
 - **Inputs:** sub-command name; `slug` (kebab-case codename) for `activate` + `edit`, optional for `draft` (skill proposes one when omitted); optional `description` one-liner for `draft`.
 - **Outputs:** `draft` scaffolds `docs/milestones/<slug>.md` with `status: draft` + body stubs. `activate` flips previous active to `shipped`, target to `active`, and updates `docs/vision.md` `current-milestone:`; preflights all state before any write so partial failures leave the filesystem unchanged. `edit` opens the file for body edits (never mutates `name` / `status`). `list` prints all milestones grouped by status. Never commits.
-- **When to use:** managing strategic gates decoupled from semver. Milestones are optional; framework validates green without any active milestone. Use `draft` when starting to scope a new gate, `activate` once the definition is locked, `edit` for iterative refinement of gate/success-criteria/out-of-scope, `list` for inspection. Backed by `tsx scripts/milestones/cli.ts`.
+- **When to use:** managing strategic gates decoupled from semver. Milestones are optional; framework validates green without any active milestone. Use `draft` when starting to scope a new gate, `activate` once the definition is locked, `edit` for iterative refinement of gate/success-criteria/out-of-scope, `list` for inspection. Backed by `tsx src/milestones/cli.ts`.
 
 ## /new-feature
 
 - **Trigger:** `/new-feature`. Manual at work-start when the feature is not in roadmap or backlog.
-- **Inputs:** `slug` (kebab-case), `name` (human-readable), `area`, `category` (Modeling | Editor | Agents | Distribution | Docs | Tooling | Other), `packages` (array, non-empty), `deps` (optional).
+- **Inputs:** `slug` (kebab-case), `name` (human-readable), `area`, `category` (one of `consumer.categories`), `packages` (array, non-empty), `deps` (optional).
 - **Outputs:** `docs/features/<slug>.md` scaffolded with `phase: in-progress` and `<!-- TODO -->` body stubs; `pnpm noldor validate features` run to confirm schema. Never commits.
 - **When to use:** starting work on a feature that is not in `docs/roadmap.md` or `docs/backlog.md` — urgent work, matured spike, or bug-fix-became-feature. For promoting a backlog/roadmap entry, use `/promote` instead.
 

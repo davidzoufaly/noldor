@@ -12,8 +12,8 @@ Every gate path lands `main` only via a GitHub PR opened by the controlling agen
 ```
 gate end-of-flow (any path)
   ├─ Claude review (superpowers:requesting-code-review) — address inline, no retry cap
-  ├─ codex CR retry loop (scripts/noldor/cr-retry.ts) — up to 3 retries
-  ├─ pnpm noldor pr-flow → openAndAutoMerge (scripts/noldor/pr-flow-cli.ts → pr-flow.ts):
+  ├─ codex CR retry loop (src/noldor/cr-retry.ts) — up to 3 retries
+  ├─ pnpm noldor pr-flow → openAndAutoMerge (src/noldor/pr-flow-cli.ts → pr-flow.ts):
   │    1. preflight: gh --version + gh auth status
   │    2. git push --force-with-lease --set-upstream origin <branch>
   │    3. gh pr create --base main --head <branch> --title <…> --body <…>
@@ -55,7 +55,7 @@ If `git push` does **not** emit `Counting objects` or `To https://…` within ~2
 1. **Check the pre-push hook script.** Look for `await readStdin()`, `await process.stdin`, or any network call. These patterns can hang under lefthook orchestration.
 2. **Check `lefthook.yml`.** If `pre-push:` has any job that reads stdin, it MUST have `use_stdin: true` (default is `false` — lefthook does not proxy git's stdin to child jobs by default). Confirmed via `node_modules/lefthook/schema.json` (job-level `use_stdin: boolean`).
 3. **Bypass lefthook to confirm.** `LEFTHOOK=0 git push` — if push completes in <5 sec, the hang is in a hook (not network).
-4. **Read the hook output.** If the `noldor-pre-push` hook exits with `stdin read timed out after 5s` (or `stdin emitted an error before end-of-input`), the seatbelt in [`scripts/hooks/noldor-pre-push.ts:readStdinWithTimeout`](../../scripts/hooks/noldor-pre-push.ts) fired. Re-confirm `use_stdin: true` on the offending job before pushing again.
+4. **Read the hook output.** If the `noldor-pre-push` hook exits with `stdin read timed out after 5s` (or `stdin emitted an error before end-of-input`), the seatbelt in [`src/hooks/noldor-pre-push.ts:readStdinWithTimeout`](../../src/hooks/noldor-pre-push.ts) fired. Re-confirm `use_stdin: true` on the offending job before pushing again.
 
 The 20-second operator threshold (step 1) and the 5-second hook seatbelt are independent guards: the seatbelt forces a fast hook exit even when the operator is not paying attention; the 20s threshold catches network-level hangs that the seatbelt cannot see (it only protects against stdin-coupled hangs). If you observe a 5-15 second hang followed by a hook timeout error, that's the seatbelt working as designed.
 
@@ -63,7 +63,7 @@ Each blind retry forks another zombie hook chain and amplifies wasted time. The 
 
 ### `pnpm noldor pr-flow` recovery — when the CLI itself is broken
 
-The `/gate` Step 4 path invokes `pnpm noldor pr-flow`. If the CLI exits non-zero for a reason unrelated to the pre-push hook (e.g. a regression in [`scripts/noldor/pr-flow-cli.ts`](../../scripts/noldor/pr-flow-cli.ts), an upstream `gh` change, a malformed FD that `loadFdSummary` can't parse), fall back to the manual three-step ship — the same one the framework used pre-CLI:
+The `/gate` Step 4 path invokes `pnpm noldor pr-flow`. If the CLI exits non-zero for a reason unrelated to the pre-push hook (e.g. a regression in [`src/noldor/pr-flow-cli.ts`](../../src/noldor/pr-flow-cli.ts), an upstream `gh` change, a malformed FD that `loadFdSummary` can't parse), fall back to the manual three-step ship — the same one the framework used pre-CLI:
 
 ```bash
 git push --force-with-lease --set-upstream origin "$(git rev-parse --abbrev-ref HEAD)"

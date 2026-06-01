@@ -54,7 +54,7 @@ contract.
 
 Detectors that need to map a code file to its owning FD use the path → FD
 lookup substrate at
-[`../../scripts/garden/graph-fd-lookup.ts`](../../scripts/garden/graph-fd-lookup.ts).
+[`../../src/garden/graph-fd-lookup.ts`](../../src/garden/graph-fd-lookup.ts).
 Three exports cover the pattern:
 
 - **`loadFreshGraphOrWarn(graphPath, srcRoots)`** — load `graph.json`
@@ -98,4 +98,4 @@ Path normalization (cross-package edge accuracy, no double-counted edges)
 requires graphify ≥ 0.4.20. The bug was fixed upstream in commit
 `a507c97` (`fix #414 JS imports_from path normalisation`); lower versions
 emit edges keyed by inconsistent paths and silently break the substrate.
-Pin the version in adopting repos (Charuy is currently on v0.7.8+).
+Pin the version in adopting repos (use ≥ v0.7.8, the release that includes this fix).

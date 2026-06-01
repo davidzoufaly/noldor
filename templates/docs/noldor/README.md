@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Noldor
 
-Noldor is the dev-loop framework that ships embedded in this repo: complexity-gated feature pipeline, worktree discipline, /promote /triage /garden skills, SDD audit, graphify integration. The pages in this folder are the single source of truth for framework rules — CLAUDE.md and README.md hold only Charuy product-specific overlays.
+Noldor is the dev-loop framework that ships embedded in this repo: complexity-gated feature pipeline, worktree discipline, /promote /triage /garden skills, SDD audit, graphify integration. The pages in this folder are the single source of truth for framework rules — the consumer repo's CLAUDE.md and README.md hold only project-specific overlays.
 
 ## When to read
 

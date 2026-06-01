@@ -16,7 +16,7 @@ const baseInput: PrFlowInput = {
   cwd: '/tmp/wt',
   branch: 'worktree-test-feature',
   base: 'main',
-  repoUrl: 'https://github.com/davidzoufaly/charuy',
+  repoUrl: 'https://github.com/davidzoufaly/acme',
   session: {
     path: 'full-new',
     slug: 'test-feature',
@@ -69,7 +69,7 @@ describe('composeBody', () => {
     expect(body).toContain('## Links');
     expect(body).toContain('docs/features/test-feature.md');
     expect(body).toContain(
-      'https://github.com/davidzoufaly/charuy/blob/abc123/docs/features/test-feature.md',
+      'https://github.com/davidzoufaly/acme/blob/abc123/docs/features/test-feature.md',
     );
     expect(body).toContain('docs/superpowers/specs/2026-05-15-test-feature-design.md');
     expect(body).toContain('docs/superpowers/plans/2026-05-15-test-feature.md');
@@ -120,7 +120,7 @@ describe('composeBody', () => {
     const body = composeBody(input);
     expect(body).toContain('docs/features/existing-feature.md');
     expect(body).toContain(
-      'https://github.com/davidzoufaly/charuy/blob/abc123/docs/features/existing-feature.md',
+      'https://github.com/davidzoufaly/acme/blob/abc123/docs/features/existing-feature.md',
     );
     expect(body).not.toContain('docs/features/unknown.md');
     // Scope block still reports `Slug: —` (no new slug) and `Parent FD: existing-feature`.
@@ -174,7 +174,7 @@ describe('composeBody — release-sweep template', () => {
     cwd: '/tmp/repo',
     branch: 'release-sweep/1747465320',
     base: 'main',
-    repoUrl: 'https://github.com/davidzoufaly/charuy',
+    repoUrl: 'https://github.com/davidzoufaly/acme',
     session: { path: 'release-sweep', startedAt: '2026-05-17T08:00:00.000Z' },
     fd: null,
     specPath: null,
@@ -336,7 +336,7 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'Logged in', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
-        return { stdout: 'https://github.com/davidzoufaly/charuy/pull/42', exitCode: 0 };
+        return { stdout: 'https://github.com/davidzoufaly/acme/pull/42', exitCode: 0 };
       }
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge')
         return { stdout: '', exitCode: 0 };
@@ -349,7 +349,7 @@ describe('openAndAutoMerge', () => {
       return { stdout: '', exitCode: 1 };
     });
     const result = await openAndAutoMerge({ ...baseInput, spawn });
-    expect(result.prUrl).toBe('https://github.com/davidzoufaly/charuy/pull/42');
+    expect(result.prUrl).toBe('https://github.com/davidzoufaly/acme/pull/42');
     expect(result.prNumber).toBe(42);
     expect(result.mergedAt).toBe('2026-05-15T10:01:00Z');
     expect(calls.map((c) => `${c.cmd} ${c.args[0]}`)).toEqual([
@@ -378,7 +378,7 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'Logged in', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
-        return { stdout: 'https://github.com/davidzoufaly/charuy/pull/77', exitCode: 0 };
+        return { stdout: 'https://github.com/davidzoufaly/acme/pull/77', exitCode: 0 };
       }
       // First merge attempt (auto) fails — repo doesn't have auto-merge enabled.
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge' && args.includes('--auto')) {
@@ -420,7 +420,7 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'Logged in', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
-        return { stdout: 'https://github.com/davidzoufaly/charuy/pull/88', exitCode: 0 };
+        return { stdout: 'https://github.com/davidzoufaly/acme/pull/88', exitCode: 0 };
       }
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge' && args.includes('--auto')) {
         return { stdout: '', exitCode: 1 };
@@ -449,7 +449,7 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'Logged in', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
-        return { stdout: 'https://github.com/davidzoufaly/charuy/pull/99', exitCode: 0 };
+        return { stdout: 'https://github.com/davidzoufaly/acme/pull/99', exitCode: 0 };
       }
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge') {
         return { stdout: '', exitCode: 1 };

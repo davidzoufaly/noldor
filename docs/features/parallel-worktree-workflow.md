@@ -36,7 +36,7 @@ As a solo developer running multiple features in parallel via git worktrees, I w
 1. From any worktree (main or `.worktrees/<name>`), run `pnpm worktree:status`.
 2. Output prints a table (path, branch, port, ahead/behind main, dirty count, last commit) plus warnings: cap exceeded (>3 active feature worktrees), drift (>=12 commits behind main), stale dirty changes (>1h), cross-tree file overlap, orphan worktree (branch deleted).
 3. Any feature worktree missing `PORT=` in its `.env.local` is auto-assigned the lowest free integer in `5174-5179`. Main worktree implicitly holds Vite default `5173`.
-4. Inside `.worktrees/<name>`, commits touching shared root files (`CLAUDE.md`, `.claude/engineering-rules.md`, `pnpm-lock.yaml`, `package.json`, `.claude/skills/**`, `.claude/commands/**`) are blocked by lefthook pre-commit. Move the edit to the main worktree, or override with `CHARUY_ALLOW_SHARED=1`.
+4. Inside `.worktrees/<name>`, commits touching shared root files (`CLAUDE.md`, `.claude/engineering-rules.md`, `pnpm-lock.yaml`, `package.json`, `.claude/skills/**`, `.claude/commands/**`) are blocked by lefthook pre-commit. Move the edit to the main worktree, or override with `NOLDOR_ALLOW_SHARED=1`.
 
 **Keyboard shortcut**
 

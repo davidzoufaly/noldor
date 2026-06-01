@@ -19,7 +19,7 @@ phase: in-progress
 area: test
 category: Tooling
 packages:
-  - '@charuy/web'
+  - '@acme/web'
 links:
   code: []
   tests: []
@@ -45,7 +45,7 @@ describe('detectTierMismatch', () => {
         'phase: in-progress',
         'area: test',
         'category: Tooling',
-        "packages:\n  - '@charuy/web'",
+        "packages:\n  - '@acme/web'",
         'noldor-tier: full',
         'links:',
         '  code: []',

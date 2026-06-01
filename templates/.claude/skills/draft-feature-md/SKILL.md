@@ -57,7 +57,7 @@ When the agent invoking this skill produces the draft itself (no separate API ca
 - **Usage prompt:** Write the feature MD `## Usage` section with these subsections in order, each only included if applicable to this feature:
   - `**UI**` — numbered steps for the human flow (open menu, click button, etc.). Imperative, present-tense.
   - `**Keyboard shortcut**` — single bullet: chord + 1-line rationale, OR `_none for v1_` with the conflict that blocked binding (e.g., macOS Option+G types ©).
-  - `**Agent API**` — one bullet per `window.charuy.*` method exposed.
+  - `**Agent/Programmatic API**` — one bullet per public method or endpoint the feature exposes for agents/scripts (if any).
     Match what the spec promised at `--from-spec` time; match what shipped at `--refresh` time. No rationale or non-goals — those belong in the spec.
 
 ## Rules

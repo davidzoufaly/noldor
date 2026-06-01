@@ -1,11 +1,11 @@
 ---
 name: refactor
-description: Guides structured refactoring of the Charuy codebase with full traceability. Produces a report showing changed files, diffs, rationale, test/typecheck results, import impact, breaking changes, dead code, and complexity delta. Use when user says "refactor", "clean up", "restructure", "simplify module", "extract function", "rename across codebase", "reduce complexity", "split this file", or invokes /refactor. Also use when the user identifies code smells, asks to improve code organization, or wants to consolidate duplicate logic — even if they don't say "refactor" explicitly.
+description: Guides structured refactoring of the codebase with full traceability. Produces a report showing changed files, diffs, rationale, test/typecheck results, import impact, breaking changes, dead code, and complexity delta. Use when user says "refactor", "clean up", "restructure", "simplify module", "extract function", "rename across codebase", "reduce complexity", "split this file", or invokes /refactor. Also use when the user identifies code smells, asks to improve code organization, or wants to consolidate duplicate logic — even if they don't say "refactor" explicitly.
 ---
 
 # Refactor
 
-Structured refactoring workflow for the Charuy monorepo. Every refactoring produces a traceable report so the user sees exactly what changed, why, and whether anything broke.
+Structured refactoring workflow for the consumer codebase. Every refactoring produces a traceable report so the user sees exactly what changed, why, and whether anything broke.
 
 ## Why this workflow exists
 

@@ -3,7 +3,7 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { CATEGORIES } from '../features/feature-schema.js';
+import { loadCategories } from '../core/consumer-config.js';
 import { howtoFrontmatterSchema } from './howto-schema.js';
 
 import type { Category } from '../features/feature-schema.js';
@@ -32,7 +32,7 @@ export function renderHowToIndex(howtos: Howto[]): string {
     '<!-- generated: do-not-edit -->',
     '# How-to Guides',
     '',
-    'Each guide shows how to accomplish one task in Charuy. Tutorials live in',
+    'Each guide shows how to accomplish one task. Tutorials live in',
     '`../tutorials/`; conceptual background in `../explanation/`; API and format',
     'reference in `../reference/`.',
     '',
@@ -50,7 +50,7 @@ export function renderHowToIndex(howtos: Howto[]): string {
     byCategory.set(h.frontmatter.category, list);
   }
 
-  for (const category of CATEGORIES) {
+  for (const category of loadCategories()) {
     const items = byCategory.get(category);
     if (!items || items.length === 0) {
       continue;

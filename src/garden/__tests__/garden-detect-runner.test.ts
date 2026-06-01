@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runGardenDetectViaCli } from '../garden-detect-runner';
 
-// Helper: simulate pnpm-wrapped stdout (banner + JSON line)
+// Helper: simulate CLI stdout that may carry banner/log lines before the JSON.
 function pnpmStdout(json: object): string {
   return [
-    '> charuy@ garden:detect /tmp/repo',
-    '> tsx packages/noldor/src/garden/garden-detect.ts "--json"',
+    '> noldor garden detect --json',
+    '> tsx src/garden/garden-detect.ts "--json"',
     '',
     JSON.stringify(json),
   ].join('\n');
@@ -105,8 +105,7 @@ describe('runGardenDetectViaCli', () => {
   it('returns non-zero exitCode when stdout has no JSON line (banner only)', async () => {
     const spawnMock = vi.fn().mockReturnValue({
       status: 0,
-      stdout:
-        '> charuy@ garden:detect /tmp/repo\n> tsx packages/noldor/src/garden/garden-detect.ts "--json"\n',
+      stdout: '> noldor garden detect --json\n> tsx src/garden/garden-detect.ts "--json"\n',
       stderr: '',
     });
     const r = await runGardenDetectViaCli({ cwd: '/tmp/repo', spawnSync: spawnMock as never });
@@ -117,7 +116,7 @@ describe('runGardenDetectViaCli', () => {
   it('returns non-zero exitCode when stdout JSON line is malformed', async () => {
     const spawnMock = vi.fn().mockReturnValue({
       status: 0,
-      stdout: '> charuy@ garden:detect /tmp/repo\n{ broken json\n',
+      stdout: '> noldor garden detect --json\n{ broken json\n',
       stderr: '',
     });
     const r = await runGardenDetectViaCli({ cwd: '/tmp/repo', spawnSync: spawnMock as never });

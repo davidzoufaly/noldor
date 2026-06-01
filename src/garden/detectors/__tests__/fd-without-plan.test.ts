@@ -41,7 +41,7 @@ introduced: 1.0.0
 area: test
 category: Tooling
 packages:
-  - '@charuy/web'
+  - '@acme/web'
 'noldor-tier': specs-only
 links:
   code: []
@@ -58,7 +58,7 @@ phase: in-progress
 area: test
 category: Tooling
 packages:
-  - '@charuy/web'
+  - '@acme/web'
 'noldor-tier': specs-only
 links:
   code: []

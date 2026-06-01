@@ -9,8 +9,8 @@ describe('check-shared-files / evaluate', () => {
     expect(evaluate(['CLAUDE.md'], '/repo', {})).toEqual({ blocked: [], reason: 'main' });
   });
 
-  it('returns reason="override" when CHARUY_ALLOW_SHARED=1', () => {
-    expect(evaluate(['CLAUDE.md'], '/repo/.worktrees/foo', { CHARUY_ALLOW_SHARED: '1' })).toEqual({
+  it('returns reason="override" when NOLDOR_ALLOW_SHARED=1', () => {
+    expect(evaluate(['CLAUDE.md'], '/repo/.worktrees/foo', { NOLDOR_ALLOW_SHARED: '1' })).toEqual({
       blocked: [],
       reason: 'override',
     });
