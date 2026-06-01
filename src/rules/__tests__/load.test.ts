@@ -31,19 +31,32 @@ describe('loadRulesFromDir', () => {
     }
   });
 
-  it('reports duplicate ids as errors, not throws', () => {
+  it('reports filename/id mismatch and skips the file', () => {
+    // RULE_A declares `id: rule-a`; neither filename matches it.
     const dir = makeRulesDir({ 'one.md': RULE_A, 'two.md': RULE_A });
     try {
       const { rules, errors } = loadRulesFromDir(dir);
-      expect(rules).toHaveLength(1);
-      expect(errors.some((e) => e.includes('duplicate id'))).toBe(true);
+      expect(rules).toEqual([]);
+      expect(errors).toHaveLength(2);
+      expect(errors.every((e) => e.includes('must match filename'))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts a rule whose id equals its filename', () => {
+    const dir = makeRulesDir({ 'rule-a.md': RULE_A });
+    try {
+      const { rules, errors } = loadRulesFromDir(dir);
+      expect(errors).toEqual([]);
+      expect(rules.map((r) => r.id)).toEqual(['rule-a']);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
   it('reports malformed frontmatter and skips the file', () => {
-    const dir = makeRulesDir({ 'bad.md': `---\nid: Bad Id\n---\nx\n`, 'ok.md': RULE_B });
+    const dir = makeRulesDir({ 'bad.md': `---\nid: Bad Id\n---\nx\n`, 'rule-b.md': RULE_B });
     try {
       const { rules, errors } = loadRulesFromDir(dir);
       expect(rules.map((r) => r.id)).toEqual(['rule-b']);

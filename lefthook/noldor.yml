@@ -43,7 +43,9 @@ pre-commit:
             glob: '*.{ts,tsx,js,jsx,mjs,cjs}'
             run: pnpm lint
           - name: fmt
-            glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml}'
+            # No `md`: oxfmt ignores **/*.md (.oxfmtrc.json), so a markdown-only
+            # commit would pass it nothing → "Expected at least one target file" → exit 1.
+            glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,yml,yaml}'
             run: pnpm --silent fmt:check {staged_files}
           - name: shared-files
             run: pnpm noldor checks shared-files

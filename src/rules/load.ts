@@ -16,7 +16,6 @@ export function loadRulesFromDir(cwd: string = process.cwd()): LoadResult {
   const errors: string[] = [];
   if (!existsSync(dir)) return { rules: [], errors };
 
-  const seen = new Set<string>();
   const rules: Rule[] = [];
 
   for (const name of readdirSync(dir)
@@ -38,11 +37,15 @@ export function loadRulesFromDir(cwd: string = process.cwd()): LoadResult {
       errors.push(`${name}: ${message}`);
       continue;
     }
-    if (seen.has(parsedFm.id)) {
-      errors.push(`${name}: duplicate id '${parsedFm.id}'`);
+    // The filename is the canonical id: `rules resolve`/`list` key off the id, so a
+    // drifting `id:` frontmatter produces output that doesn't match the file on disk.
+    // Enforcing equality also makes duplicate ids structurally impossible (filenames
+    // within a dir are unique), so no separate dup check is needed.
+    const expectedId = name.slice(0, -'.md'.length);
+    if (parsedFm.id !== expectedId) {
+      errors.push(`${name}: id '${parsedFm.id}' must match filename (expected id '${expectedId}')`);
       continue;
     }
-    seen.add(parsedFm.id);
     rules.push(parsedFm);
   }
 
