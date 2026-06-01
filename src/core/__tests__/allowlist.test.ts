@@ -34,6 +34,15 @@ describe('micro-chore allowlist', () => {
   it('rejects lefthook.yml + code file (tainted)', () => {
     expect(isMicroChoreAllowed(['lefthook.yml', 'packages/web/src/foo.ts'])).toBe(false);
   });
+  it('accepts .gitignore alone', () => {
+    expect(isMicroChoreAllowed(['.gitignore'])).toBe(true);
+  });
+  it('accepts .gitignore mixed with docs markdown', () => {
+    expect(isMicroChoreAllowed(['.gitignore', 'docs/foo.md'])).toBe(true);
+  });
+  it('rejects .gitignore + code file (tainted)', () => {
+    expect(isMicroChoreAllowed(['.gitignore', 'packages/web/src/foo.ts'])).toBe(false);
+  });
 });
 
 describe('isReleaseSweepAllowed', () => {

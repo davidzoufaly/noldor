@@ -5,6 +5,7 @@ export const MICRO_CHORE_GLOBS = [
   '.claude/**',
   '*.md', // root-level markdown only
   'lefthook.yml', // framework hook config — single-line hook edits land via micro-chore
+  '.gitignore', // ignore-policy edits (e.g. operator-local marker files) land via micro-chore
 ] as const;
 
 /**
