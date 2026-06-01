@@ -9,3 +9,10 @@ docs/ideas.md
 
 # Generated rule index
 .noldor/.rules-index.json
+
+# Operator-local session + gate state (per-machine, never committed)
+.noldor/session.json
+.noldor/garden-receipt
+
+# Machine-local graphify interpreter path (resolved per-run)
+graphify-out/.graphify_python
