@@ -13,7 +13,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 - Total features: 30
 - Untriaged ideas: 16
 - Backlog entries: 3
-- Gap categories with issues: 6 / 14
+- Gap categories with issues: 5 / 14
 
 ## Gate compliance
 
@@ -28,7 +28,7 @@ No overrides in the last 30 days.
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 6
+Gated commits missing `Noldor-Reviewed` trailer: 8
 
 ## Gap details
 
@@ -65,12 +65,6 @@ Gated commits missing `Noldor-Reviewed` trailer: 6
 - `ideas.md:56` — still does it make sense to introduce SQL into a framework?
 - `ideas.md:57` — get rid of superpowers -> and disable them + other skills
 - `ideas.md:58` — framework should consist of mini skills supported by scripts and hooks, only little markdown files (supportive) -> framework docs should be there for me and other contributors not for a agent to use it
-
-### Plans without matching spec
-
-- `docs/superpowers/plans/2026-05-28-framework-doc-extraction-phase-0.md` — docs/superpowers/plans/2026-05-28-framework-doc-extraction-phase-0.md has slug "framework-doc-extraction-phase-0" with no matching spec under docs/superpowers/specs/
-- `docs/superpowers/plans/2026-05-29-framework-doc-extraction-repo-extraction-rev2-phase-a.md` — docs/superpowers/plans/2026-05-29-framework-doc-extraction-repo-extraction-rev2-phase-a.md has slug "framework-doc-extraction-repo-extraction-rev2-phase-a" with no matching spec under docs/superpowers/specs/
-- `docs/superpowers/plans/2026-06-01-rules-cascade-v1-substrate.md` — docs/superpowers/plans/2026-06-01-rules-cascade-v1-substrate.md has slug "rules-cascade-v1-substrate" with no matching spec under docs/superpowers/specs/
 
 ### Code files not referenced by any feature
 
