@@ -61,7 +61,7 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
 Scaffolding line is path-specific (consult `docs/noldor/complexity-gating.md` path matrix). Commitment label: `fast-track` = fast; `specs-only-*` = medium; `full-*` = heavy. The pause exists to give the operator a beat to abort before the heavy scaffolding starts — `full-new` in particular kicks off `/promote` + worktree + spec brainstorm in sequence and is expensive to abort mid-flight.
 
 2. **Path-specific scaffold:**
-   - `micro-chore`: Confirm diff scope (pre-commit allowlist enforces, see [`src/core/allowlist.ts`](../../../src/core/allowlist.ts)). Write session marker `{ path: 'micro-chore' }`. No worktree — edits land on local `main`. Commit. After commit, gate scaffolds the temp-branch handoff so Step 4 can deliver the change via PR:
+   - `micro-chore`: Confirm diff scope (pre-commit allowlist enforces, see [`src/core/allowlist.ts`](../../../src/core/allowlist.ts)). Write session marker `{ path: 'micro-chore', startedAt }` (the `startedAt` timestamp is required by the schema and drives the 24h staleness expiry — see the Noldor FD Usage "Session-marker expiry"). No worktree — edits land on local `main`. Commit. After commit, gate scaffolds the temp-branch handoff so Step 4 can deliver the change via PR:
      1. `branch=micro/$(date -u +%s)` — epoch seconds, unique + sortable.
      2. `git branch $branch HEAD` — point temp branch at the new commit.
      3. `git reset --hard origin/main` — rewind local main (keeps the PR shape: temp branch is the only commit ahead of `origin/main`).
