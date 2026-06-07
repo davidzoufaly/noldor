@@ -150,7 +150,7 @@ This pause is the cheapest place to catch architectural drift, missing edge case
   - **New-FD paths** (`specs-only-new`, `full-new`): target = `slug`; full `links.code` / `links.tests`; both sections. Invoke `/draft-feature-md <slug> --refresh` (add `--yes` in autonomous mode).
   - **Attach paths** (`specs-only-attach`, `full-attach`): target = `parent`; scoped + Usage-only so a small enhancement can't rewrite the parent FD's story. Changed files = `git diff --name-only origin/main...HEAD` filtered to `/draft-feature-md`'s source-extension allowlist, excluding the target FD file and anything under `docs/superpowers/`. **If that filter yields zero files, skip the refresh entirely** (treat as no-op — do *not* invoke `/draft-feature-md`, which aborts on empty scope; this also keeps the autonomous `--yes` pipeline from halting). Otherwise **join the surviving paths with commas** (the `git diff` output is newline-separated; `--scope` wants comma-separated) and invoke `/draft-feature-md <parent> --refresh --scope <comma-joined paths> --usage-only` (add `--yes` in autonomous mode).
   - **Fast-track / micro-chore:** skip (no FD).
-  `/draft-feature-md` never stages or commits — the flip step below commits the refreshed body together with `phase: done`. In autonomous mode `--yes` runs it non-interactively (no prompt) and the refreshed FD is reviewed by the code-stage CR below.
+  `/draft-feature-md` never stages or commits — the flip step below commits the refreshed body together with `phase: done`. In autonomous mode `--yes` runs it non-interactively (no prompt). Because the flip commits the refreshed FD onto the branch, it rides the `origin/main..HEAD` diff that the code-stage CR reviews below (that step passes `--base-sha origin/main`) — that is the mechanism behind "reviewed by the code-stage CR".
 
 - **Flip FD `phase: in-progress → done`** for all FD-carrying paths (`specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`). Read `slug` (new-FD paths) or `parent` (attach paths) from `.noldor/session.json`. Apply `flipPhaseToDone` from `src/core/phase-flip-done.ts` to `docs/features/<slug>.md`. If the file changed, commit:
 
@@ -175,8 +175,10 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 - **Code-stage orchestrate.** Run the worktree-code lane (default `subagent`; config `crLanes.code` can override, e.g. `['subagent', 'codex']` to opt codex back in):
 
   ```
-  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes subagent
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes subagent --base-sha origin/main
   ```
+
+  `<code-paths>` is a representative changed path used only for labeling; the subagent lane actually reviews the **`BASE_SHA..HEAD` diff range**, so pass `--base-sha origin/main` to cover the whole feature diff — which **includes the refreshed `docs/features/<slug>.md`** from the first bullet. That range membership is what delivers the "refreshed FD is reviewed by the code-stage CR" guarantee. Omitting `--base-sha` defaults the lane to `HEAD~1..HEAD` (last commit only — usually not what you want at end-of-flow). On attach paths pass the **parent** slug for `--slug` (the lane reads `docs/features/<slug>.md` as FD context, and attach has no child FD).
 
   **Autonomous mode:** add `--autonomous` and omit `--lanes` (orchestrate reads `crLanes.code` from `.noldor/config.json`). The `--autonomous` flag also suppresses the overwrite-guard prompts and the standalone-in-progress prompt, so re-runs over prior sinks don't pause.
 
