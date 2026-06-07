@@ -12,10 +12,10 @@ introduced: 0.4.0
 | `git worktree add .worktrees/<name> -b feat/<name>` | Create a new worktree from main. Run from main.                                                             |
 | `pnpm noldor worktrees status`                      | Print per-tree table (path, branch, port, ahead/behind, dirty, last commit). Warn on cap / drift / overlap. |
 | `pnpm noldor worktrees launch`                      | Spawn one iTerm2 window per non-main worktree, each running `claude` with the launch-prompt template.       |
-| `git worktree remove [--force] .worktrees/<name>`   | Remove a worktree after merge. Pair with `git branch -d feat/<name>`.                                       |
+| `git worktree remove [--force] .worktrees/<name>`   | Remove a worktree after merge. Pair with `git branch -D feat/<name>` (force: squash-merge leaves the branch's commits non-ancestor of main, so `-d` rejects). |
 | `NOLDOR_ALLOW_SHARED=1 git commit ...`              | Override `check:shared-files` block when intentionally editing a shared root file from a worktree.          |
 
-**Finish sequence (autonomous, no prompt):** tests pass → fast-forward into `main` → `git push origin main` → `git worktree remove` → `git branch -d`.
+**Finish sequence (autonomous, no prompt):** tests pass → fast-forward into `main` → `git push origin main` → `git worktree remove` → `git branch -D`.
 
 ## Always work in a worktree
 
@@ -56,4 +56,4 @@ See [release-sweep-process-hardening](../features/release-sweep-process-hardenin
 
 ## Finishing a worktree
 
-- **Finishing a worktree** — once tests pass, run the full sequence without asking: fast-forward merge into `main` → `git push origin main` → `git worktree remove [--force] .worktrees/<name>` → `git branch -d feat/<name>`. Skip the 4-option menu. Don't ask first — the user prefers autonomous finish; verify tests as the gate, not a prompt
+- **Finishing a worktree** — once tests pass, run the full sequence without asking: fast-forward merge into `main` → `git push origin main` → `git worktree remove [--force] .worktrees/<name>` → `git branch -D feat/<name>`. Skip the 4-option menu. Don't ask first — the user prefers autonomous finish; verify tests as the gate, not a prompt
