@@ -1,6 +1,6 @@
 ---
 name: Noldor Framework
-phase: done
+phase: in-progress
 area: docs
 category: Tooling
 packages:
@@ -24,6 +24,9 @@ links:
     - scripts/garden/detectors/codex-cr-override-audit.ts
     - scripts/garden/detectors/override-audit.ts
     - scripts/garden/sdd-report.ts
+    - scripts/noldor/pr-flow.ts
+    - .claude/skills/gate/SKILL.md
+    - docs/noldor/pr-flow.md
   tests:
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts
@@ -76,7 +79,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
