@@ -186,6 +186,7 @@ export async function runCli(cwd: string): Promise<number> {
     headSha,
     firstCommitSubject,
     spawn: nodeSpawn(),
+    onStatus: (line) => process.stderr.write(line + '\n'),
   });
 
   process.stdout.write(`PR merged: ${result.prUrl} at ${result.mergedAt}\n`);
