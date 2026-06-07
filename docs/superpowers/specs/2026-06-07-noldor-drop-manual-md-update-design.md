@@ -114,10 +114,13 @@ is included in the diff the code-stage CR reviews:
   `mark phase=done + refresh Usage` on attach paths (Usage-only); drop the `+ refresh …`
   suffix entirely when `--refresh` produced no change. All trailers unchanged.
 - Autonomous mode: the new action emits no `AskUserQuestion`; it relies on `--yes`.
-- **Incidental fix (same file).** `gate/SKILL.md:94,149,151` still reference the moved
-  path `scripts/noldor/phase-flip-done.ts`; correct them to `src/core/phase-flip-done.ts`
-  (`workflow.md:32` already uses the correct path). The `rule-conflicts` invariant does
-  not catch a moved-file path, so this is a manual fix folded into this edit.
+- **Incidental fix (same file).** `gate/SKILL.md` carries **12 stale `scripts/noldor/*.ts`
+  path references** (the code moved to `src/core/`); correct all of them to `src/core/*.ts`
+  — `allowlist`, `session`, `phase-revert`, `phase-flip-done` (×3), `pr-flow`,
+  `pr-flow-cli` (×2), `cr-retry`. The inline tsx commands at L84/L145 are broken as
+  written (ENOENT — hit live this session). `workflow.md:32` already uses the correct
+  path. The `rule-conflicts` invariant does not catch a moved-file path, so this is a
+  manual sweep folded into this edit.
 
 The `--refresh` write itself never commits (skill rule); the commit is the existing
 `phase-flip-done` step. If `--refresh` produced no change, behavior is identical to
