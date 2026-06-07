@@ -3,11 +3,20 @@
 // uses this to skip its dirty-report abort when the regen's sole change is that
 // rolling counter, which bumps by 1 per in-flight branch commit.
 
-/** Matches the exact line emitted by `sdd-report.ts` for the review-skip count. */
-const COUNT_LINE_RE = /^Gated commits missing `Noldor-Reviewed` trailer: \d+$/m;
+import { REVIEW_SKIP_COUNT_PREFIX } from '../garden/sdd-report-format.js';
+
+/** Escapes regex metacharacters so a literal string can anchor a RegExp. */
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Matches the review-skip count line emitted by `sdd-report.ts`, anchored to the
+ * shared {@link REVIEW_SKIP_COUNT_PREFIX} so the matcher cannot desync from the
+ * emitter.
+ */
+const COUNT_LINE_RE = new RegExp(`^${escapeRegExp(REVIEW_SKIP_COUNT_PREFIX)}\\d+$`, 'm');
 
 /** Stable placeholder both sides collapse to before comparison. */
-const MASK = 'Gated commits missing `Noldor-Reviewed` trailer: <count>';
+const MASK = `${REVIEW_SKIP_COUNT_PREFIX}<count>`;
 
 /**
  * Returns `true` when `head` and `working` are identical, or differ *only* in

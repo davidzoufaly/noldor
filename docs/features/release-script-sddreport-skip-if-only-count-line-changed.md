@@ -7,6 +7,7 @@ links:
     - src/release/index.ts
     - src/release/sdd-report-diff.ts
     - src/garden/sdd-report.ts
+    - src/garden/sdd-report-format.ts
   tests:
     - src/release/__tests__/sdd-report-diff.test.ts
 name: 'Release Script `sdd:report` Skip-If-Only-Count-Line-Changed'

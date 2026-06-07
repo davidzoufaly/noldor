@@ -15,6 +15,7 @@ import type { ConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
 import { commitOnlyTouchesReport } from './detectors/override-audit.js';
+import { reviewSkipCountLine } from './sdd-report-format.js';
 import {
   buildFileToFdsMap,
   getCommunityOwners,
@@ -1060,9 +1061,7 @@ function renderReportMd(
     lines.push('');
     lines.push('### Review-skip count (last 30 days)');
     lines.push('');
-    lines.push(
-      `Gated commits missing \`Noldor-Reviewed\` trailer: ${gateCompliance.reviewSkipCount}`,
-    );
+    lines.push(reviewSkipCountLine(gateCompliance.reviewSkipCount));
     lines.push('');
   }
 
