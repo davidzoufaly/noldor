@@ -96,15 +96,23 @@ to the non-cr `autonomous` block)
 
 **`src/hooks/noldor-pre-commit.ts`**
 
-- `runPreCommit` opts gain `nowMs?: number` and `ttlHours?: number`, both
-  **optional with defaults** (`nowMs ??= Date.now()`,
-  `ttlHours ??= DEFAULT_SESSION_TTL_HOURS`, imported from `cr/config.ts` — a
-  hook→cr edge, which is fine since the hook is the top layer). Optional keeps
-  the ~15 existing `runPreCommit({ cwd })` call sites in
-  `noldor-pre-commit.test.ts` compiling unchanged; new staleness tests inject
-  explicit `nowMs`/`ttlHours`. The default `Date.now()` is evaluated only when
-  the arg is omitted, so injected calls stay deterministic and the function
-  stays effectively pure for tests.
+- `runPreCommit` opts gain **required** `nowMs: number` and `ttlHours: number`.
+  Required — not optional-with-defaults — so there is a **single source of
+  truth**: defaults are applied once at the entrypoint boundary, and the
+  function itself stays pure (no `Date.now()`, no `DEFAULT_SESSION_TTL_HOURS`
+  fallback hiding a missed wiring).
+  - **Test-call-site churn (required, not optional):** all 15 existing
+    `runPreCommit({ cwd })` calls in `noldor-pre-commit.test.ts` must add
+    `nowMs` + `ttlHours`. This is deliberate, not avoidable by defaulting: the
+    three `release-sweep` fixtures (lines ~100/114/193) use
+    `startedAt: '2026-05-17T08:00:00.000Z'`, which is >24h before any real
+    `Date.now()` — a `Date.now()` default would make them read **stale** and
+    flip their expected `ok:true` / allowlist-reason assertions to the stale
+    reason, silently breaking the suite. Each existing call injects a fixed
+    `nowMs` within `ttlHours` of its fixture's `startedAt` (e.g.
+    `Date.parse('2026-05-17T09:00:00.000Z')` for the release-sweep cases) and a
+    `ttlHours` of 24, preserving today's pass/fail expectations. (Micro-chore
+    fixtures use `startedAt: 'x'` → `NaN`-guarded → any `nowMs` is safe.)
 - The staleness check is placed **inside** the `micro-chore` and `release-sweep`
   branches, as the first line of each, before the allowlist call — so it
   pre-empts the silent allowlist rejection and inherits each branch's existing
@@ -155,10 +163,11 @@ to the non-cr `autonomous` block)
     if (session.path === 'micro-chore') clearSession(cwd);
   }
   ```
-- Call it in `runCli` immediately after `openAndAutoMerge` resolves and before
-  `return 0` — i.e. once the PR is confirmed merged. The session survives through
-  the whole pr-flow (which reads it to derive `PrFlowInput`) and is cleared only
-  after the micro-chore has shipped.
+- Call it in `runCli` after the existing
+  `process.stdout.write(\`PR merged: ...\`)` line (`pr-flow-cli.ts:192`) and
+  before `return 0` — i.e. once the PR is confirmed merged and reported. The
+  session survives through the whole pr-flow (which reads it to derive
+  `PrFlowInput`) and is cleared only after the micro-chore has shipped.
 
 This mirrors the cleanup worktree paths already get and closes the lingering
 gap at its source. The Part 1 staleness expiry remains the safety net for any
@@ -193,6 +202,8 @@ one main-repo path that flows through `pr-flow-cli`.
 - **`resolveSessionTtlHours`** (`src/cr/__tests__/config.test.ts`):
   - config with `gate.sessionTtlHours: 6` → `6`.
   - config without `gate` block → `24`.
+  - config with `gate.sessionTtlHours: 0` (or negative) → schema parse throws
+    (the `.positive()` constraint), confirming bad config is rejected at parse.
   - `loadConfigSync` on a malformed config file → throws (strict, unchanged);
     a separate assertion that the hook entrypoint's try/catch yields `24` is
     covered by the `runPreCommit` wiring (resolution is fail-open at the call
@@ -205,6 +216,7 @@ one main-repo path that flows through `pr-flow-cli`.
 
 - `src/core/session.ts` — `isSessionStale`, `STALE_ELIGIBLE_PATHS`.
 - `src/cr/config.ts` — `DEFAULT_SESSION_TTL_HOURS`, `gate` schema block, `resolveSessionTtlHours`, `loadConfigSync`.
-- `src/hooks/noldor-pre-commit.ts` — staleness gate inside the micro-chore / release-sweep branches + fail-open entrypoint wiring.
+- `src/hooks/noldor-pre-commit.ts` — staleness gate inside the micro-chore / release-sweep branches + fail-open entrypoint wiring. Adds an import of `DEFAULT_SESSION_TTL_HOURS` / `resolveSessionTtlHours` / `loadConfigSync` from `cr/config.ts` (top-layer hook→cr edge) and `isSessionStale` from `core/session.ts`; `join` from `node:path` is already imported (line 5) — no new path import.
+- `src/hooks/__tests__/noldor-pre-commit.test.ts` — inject `nowMs`/`ttlHours` into all 15 existing `runPreCommit` calls (see Part 1 churn note) + new staleness cases.
 - `src/core/pr-flow-cli.ts` — `clearMicroChoreSession` + post-merge call.
 - Test files as listed above.
