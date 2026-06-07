@@ -35,10 +35,16 @@ Two root causes:
 
 ## Non-Goals
 
-- Expiry for `full-*` / `specs-only-*` sessions. These are designed for
-  multi-day, multi-commit feature work; a 24h hard block mid-feature would be a
-  false alarm. `/gate --resume <slug>` already re-stamps such a marker when
-  needed.
+- Expiry for paths **without an allowlist branch** in `noldor-pre-commit.ts`
+  (`fast-track`, `specs-only-*`, `full-*`, `release-automation`). The silent
+  failure this feature fixes is specific to the allowlist branches: a stale
+  session there *enforces a cold allowlist* and rejects a commit opaquely. Paths
+  with no allowlist branch fall through to `return { ok: true }` (or the
+  post-rollout hard-wall, which already names "Run /gate") — a lingering session
+  there never silently blocks, so it has nothing to expire. Adding them would be
+  scope creep with no failure mode behind it. (`fast-track` / `specs-only-*` /
+  `full-*` are additionally worktree-backed and self-clear via `ExitWorktree`;
+  `release-automation` has no allowlist enforcement at all.)
 - A git `post-commit` hook for the auto-clear. The micro-chore PR flow
   (`pr-flow-cli`) reads the session **after** the commit; clearing at
   post-commit time would break it.
@@ -47,16 +53,19 @@ Two root causes:
 
 ### Part 1 — Staleness expiry (primary)
 
-Staleness applies only to **short-intent** paths: `micro-chore` and
-`fast-track`. Both are "should be quick" flows where a multi-day age signals the
-operator's intent has gone cold. Time-based staleness is distinct from
-completion-based clearing (Part 2): a 2-day-old `fast-track` *is* cold even if it
-has only one commit, whereas a 2-day-old `full-*` feature session is normal.
+Staleness applies to exactly the paths that **own an allowlist branch** in
+`noldor-pre-commit.ts`: `micro-chore` and `release-sweep`. These are the only
+paths where a stale session causes the reported failure — they enforce a
+per-path allowlist on the staged diff, so a session that has outlived its intent
+silently rejects a commit. Both also live in the main repo with no worktree to
+clear them, so they linger across days. Every other path (`fast-track`,
+`specs-only-*`, `full-*`, `release-automation`) has no allowlist branch and
+returns `ok:true` (or hits the existing post-rollout hard-wall, which already
+names `/gate`) — there is no silent-block to expire (see Non-Goals).
 
 **`src/core/session.ts`**
 
-- `export const DEFAULT_SESSION_TTL_HOURS = 24`
-- `const STALE_ELIGIBLE_PATHS: ReadonlySet<Path> = new Set(['micro-chore', 'fast-track'])`
+- `const STALE_ELIGIBLE_PATHS: ReadonlySet<Path> = new Set(['micro-chore', 'release-sweep'])`
 - `export function isSessionStale(session: SessionMarker, nowMs: number, ttlHours: number): boolean`
   - Returns `false` immediately when `session.path ∉ STALE_ELIGIBLE_PATHS`.
   - Parses `startedAt` via `Date.parse`. If `NaN` (unparseable) → returns
@@ -64,44 +73,59 @@ has only one commit, whereas a 2-day-old `full-*` feature session is normal.
   - Returns `nowMs - parsedMs > ttlHours * 3_600_000`. Strict `>`: a session
     exactly at the boundary is still fresh.
 
-Pure function — no clock, no filesystem. The caller injects `nowMs` and
-`ttlHours`, keeping it fully unit-testable.
+Pure function — no clock, no filesystem, **no cr import**. The caller injects
+`nowMs` and `ttlHours`, keeping it fully unit-testable. The default-hours
+constant lives in `cr/config.ts` (below), not here, so `session.ts` keeps its
+only-`fs`/`zod` dependency footprint and there is no `core → cr` edge.
 
 **`src/cr/config.ts`** (the canonical `.noldor/config.json` schema — already home
 to the non-cr `autonomous` block)
 
+- `export const DEFAULT_SESSION_TTL_HOURS = 24`
 - Extend `noldorConfigSchema` with an optional block:
   `gate: z.object({ sessionTtlHours: z.number().positive() }).optional()`
 - `export function resolveSessionTtlHours(config: NoldorConfig | null): number`
   — returns `config?.gate?.sessionTtlHours ?? DEFAULT_SESSION_TTL_HOURS`.
 - `export function loadConfigSync(path?: string): NoldorConfig | null` — a
-  synchronous sibling of the existing async `loadConfig`, needed because the
-  pre-commit hook entrypoint cannot `await`. Reads the file with `readFileSync`,
-  parses against `noldorConfigSchema`, returns `null` on missing file (matching
-  `loadConfig`'s missing-file behavior).
+  synchronous sibling of the async `loadConfig`. Reads with `readFileSync`,
+  returns `null` on `ENOENT`, parses against `noldorConfigSchema` (mirrors
+  `loadConfig` exactly, including rethrowing a malformed-config parse error).
+  This module-level strictness is preserved; **fail-open is applied at the hook
+  call site**, not here, so non-hook callers still get strict validation.
 
 **`src/hooks/noldor-pre-commit.ts`**
 
 - `runPreCommit` opts gain `nowMs: number` and `ttlHours: number` (the function
   stays pure — no `Date.now()` / config read inside it).
-- After `readSession` resolves a non-null session and **before** the
-  `micro-chore` / `release-sweep` branches:
+- The staleness check is placed **inside** the `micro-chore` and `release-sweep`
+  branches, as the first line of each, before the allowlist call — so it
+  pre-empts the silent allowlist rejection and inherits each branch's existing
+  pre-rollout-hard position (no behavior change for any other path, and no new
+  pre-rollout regression — both branches already return before the rollout gate):
   ```
-  if (session && isSessionStale(session, opts.nowMs, opts.ttlHours)) {
-    return {
-      ok: false,
-      reason: `session stale: '${session.path}' started ${session.startedAt} ` +
-              `(older than ${opts.ttlHours}h). Run /gate again to refresh.`,
-    };
+  if (session?.path === 'micro-chore') {
+    if (isSessionStale(session, opts.nowMs, opts.ttlHours)) return staleResult(session, opts.ttlHours);
+    if (!isMicroChoreAllowed(staged)) return { ok: false, reason: `micro-chore diff ...` };
+    return { ok: true };
+  }
+  if (session?.path === 'release-sweep') {
+    if (isSessionStale(session, opts.nowMs, opts.ttlHours)) return staleResult(session, opts.ttlHours);
+    if (!isReleaseSweepAllowed(staged)) return { ok: false, reason: `release-sweep diff ...` };
+    return { ok: true };
   }
   ```
-  Because `isSessionStale` returns `false` for non-eligible paths, `full-*` /
-  `specs-only-*` are untouched.
+  where `staleResult` returns `{ ok: false, reason: "session stale: '<path>'
+  started <startedAt> (older than <ttlHours>h). Run /gate again to refresh." }`.
 - The existing `NOLDOR_PATH_OVERRIDE` check already short-circuits at the top of
-  `runPreCommit`, so an override bypasses the staleness check for free —
-  consistent with override semantics at every other layer.
-- The `import.meta.url` entrypoint resolves the inputs:
-  `ttlHours = resolveSessionTtlHours(loadConfigSync())`, `nowMs = Date.now()`.
+  `runPreCommit`, so an override bypasses staleness for free — consistent with
+  override semantics at every other layer.
+- The `import.meta.url` entrypoint resolves the inputs **fail-open**: a thrown
+  config error must never block a commit, since the hook gates every commit.
+  ```
+  let ttlHours = DEFAULT_SESSION_TTL_HOURS;
+  try { ttlHours = resolveSessionTtlHours(loadConfigSync()); } catch { /* fail-open */ }
+  const nowMs = Date.now();
+  ```
 
 ### Part 2 — Micro-chore auto-clear (complementary)
 
@@ -128,8 +152,9 @@ allowlist.
 
 - **`isSessionStale`** (`src/core/__tests__/session.test.ts`):
   - micro-chore fresh (1h) → `false`; micro-chore stale (25h) → `true`.
-  - fast-track stale (25h) → `true`.
-  - full-* stale (25h) → `false`; specs-only-* stale (25h) → `false`.
+  - release-sweep stale (25h) → `true`.
+  - fast-track stale (25h) → `false`; full-* stale (25h) → `false`;
+    specs-only-* stale (25h) → `false`; release-automation stale (25h) → `false`.
   - unparseable `startedAt` → `false`.
   - exactly at boundary (`nowMs - parsed === ttlHours*3.6e6`) → `false`.
 - **`runPreCommit`** (`src/hooks/__tests__/noldor-pre-commit.test.ts`):
@@ -137,19 +162,25 @@ allowlist.
     reason).
   - fresh micro-chore with files outside allowlist → existing allowlist reason
     (staleness did not pre-empt it).
+  - stale release-sweep → `ok:false` stale reason.
   - `NOLDOR_PATH_OVERRIDE` set + stale session → `ok:true` (override wins).
-  - stale fast-track → `ok:false` stale reason.
+  - stale fast-track → unaffected (no allowlist branch; returns `ok:true` via the
+    existing fall-through / post-rollout path) — confirms the eligibility scope.
 - **`resolveSessionTtlHours`** (`src/cr/__tests__/config.test.ts`):
   - config with `gate.sessionTtlHours: 6` → `6`.
   - config without `gate` block → `24`.
-- **`clearMicroChoreSession`** (`src/core/__tests__/pr-flow-cli.test.ts` or
-  session test): micro-chore session → `clearSession` invoked (marker file
-  removed); non-micro-chore session → marker untouched.
+  - `loadConfigSync` on a malformed config file → throws (strict, unchanged);
+    a separate assertion that the hook entrypoint's try/catch yields `24` is
+    covered by the `runPreCommit` wiring (resolution is fail-open at the call
+    site, not in `loadConfigSync`).
+- **`clearMicroChoreSession`** (`src/core/__tests__/pr-flow-cli.test.ts`):
+  micro-chore session → `clearSession` invoked (marker file removed);
+  non-micro-chore session → marker untouched.
 
 ## Files Touched
 
-- `src/core/session.ts` — `isSessionStale`, `DEFAULT_SESSION_TTL_HOURS`, `STALE_ELIGIBLE_PATHS`.
-- `src/cr/config.ts` — `gate` schema block, `resolveSessionTtlHours`, `loadConfigSync`.
-- `src/hooks/noldor-pre-commit.ts` — staleness gate + entrypoint wiring.
+- `src/core/session.ts` — `isSessionStale`, `STALE_ELIGIBLE_PATHS`.
+- `src/cr/config.ts` — `DEFAULT_SESSION_TTL_HOURS`, `gate` schema block, `resolveSessionTtlHours`, `loadConfigSync`.
+- `src/hooks/noldor-pre-commit.ts` — staleness gate inside the micro-chore / release-sweep branches + fail-open entrypoint wiring.
 - `src/core/pr-flow-cli.ts` — `clearMicroChoreSession` + post-merge call.
 - Test files as listed above.
