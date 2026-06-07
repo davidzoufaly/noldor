@@ -9,8 +9,6 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 ## Priority
 
-- CR flow + Codex fix -> release -> move to standalone repo -> hardening
-
 ## Not groomed
 
 ## Verticals
@@ -32,32 +30,38 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 - milestones to dashboard web
 - where are milestones documented?
 - is gate function properly documented
+- roadmap nové akce -> top and bottom
 - add "remove" button from backlog and roadmap to action column rename it to "actions"
-- is scaleforge docs up-to-date?
-- test cr codex
-- do not stop after development of plan ends [triaged 2026-05-23 → autonomous-plan-to-pr-merge]
-- CR gate at Specs/plan level — multi-reviewer (manual + codex + claude-in-terminal-subagent + claude-standalone-spawned-terminal); reuse multiterminal-dev flow but fix its current bug [triaged 2026-05-23 → specs-cr-gate-multi-reviewer]
-- after writing-plans confirm, flow must be autonomous through to PR merge [triaged 2026-05-23 → autonomous-plan-to-pr-merge]
-
-^^^
-
-- paraler development
-- top ten items roadmap / backlog items noldor
 
 ^^^^
 
-- move it to standalone repo -> package
 - code reviewer 2.0 -> inspiration from MC Code Reviwer 
 - code reviewer configuration for fast-track
 
+release hardening (found shipping v0.2.0, 2026-06-01):
+- codex CR gate unsatisfiable — 18 commits since v0.1.0 lack codex receipts; release needs RELEASE_SKIP_CR_GATE=1 until codex CR operationalized or pre-v0.1.0 grandfathered
+- graphify writes cache to src/graphify-out/ when scanned on src -> breaks fmt:check every run (had to mv to /tmp 3x); make it write under graphify-out/ or exclude from fmt
+- GARDEN_SRC_PATHS = apps/packages/scripts/ (not src/) -> garden-receipt freshness doesn't track this repo's source; mirror scanPaths
+- every src-touching fast-track re-stales the graph (scanPaths=src) -> forces a graph-refresh sweep before each release; consider auto-regen in release or relax freshness for test-only diffs
+- pnpm toon script omits required graph.json arg (bare `pnpm toon` fails; src/garden/graph-fd-lookup.ts tells users to run it)
+- README Status section stale -> claims pre-extract, lives in Charuy monorepo; we're standalone now
+- graphify-out/graph.html oxfmt churn ~41k lines/sweep -> gitignore graph.html or exclude from fmt
+- .noldor/release-pushes.log not gitignored (operator-local release audit, like garden-receipt)
+- sdd-report review-skip count non-idempotent: bumps per fast-track commit, re-fires release gate once (roadmap: skip-if-only-count-line-changed)
+
+^^^
+
+- de-claudification
+- get rid of superpowers -> and disable them + other skills (consider handoff to autonomous mode)
+- paraler development
+    - agents monitoring ???
+- top ten items roadmap / backlog items noldor
+- agents foder -> agent rules, commands,..
+
 #### Next
 
-- handoff pro autonomní vývoj -> vlastní writing plans skill? [triaged 2026-05-23 → autonomous-plan-to-pr-merge]
 - still does it make sense to introduce SQL into a framework?
-- get rid of superpowers -> and disable them + other skills
-- framework should consist of mini skills supported by scripts and hooks, only little markdown files (supportive) -> framework docs should be there for me and other contributors not for a agent to use it
-
-CLI standalone tool:
+- CLI standalone tool
 
 #### Later
 

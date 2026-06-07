@@ -2,17 +2,6 @@
 
 ### Noldor Framework
 
-#### Historical Gate-Compliance Debt Backfill
-
-- area: tooling
-- type: chore
-- since: 2026-05-17
-- size: M
-- impact: med
-- parent: noldor
-
-`pnpm garden:detect --gate-compliance` blocks release on 72 historical `trailerScopeMismatch` entries + 12 `overrideAudit` WARN entries inherited from pre-gate-rollout commits. Operator must skip via `RELEASE_SKIP_GATE_COMPLIANCE=1` (12 prior overrides in `.noldor/overrides.log` document this as the established release-blocker pattern), but the escape hatch leaks: each release adds another "release-sweep blocker - gate-compliance escape hatch" override entry, growing the WARN count and re-blocking subsequent releases in a positive-feedback loop. Discovered 2026-05-17 during v0.5.1 release sweep when the audit count had grown to 12. Two parts: (a) one-time backfill — retro-amend or land an audited "framework rollout backfill" commit that adds the missing `Noldor-FD:` slug trailer to each of the 72 historical commits so they validate against the current scope rule; (b) cap the override-audit feedback loop — `scripts/garden/detectors/override-audit.ts` should already skip `release-automation` commits (it does, per :102), but does NOT skip release-sweep blocker overrides recorded against the release-sweep commit itself; widen the skip rule, or have the release script auto-stamp a `Noldor-Path-Override: gate-compliance-escape (release)` trailer that audit ignores. Until shipped, every release requires the escape hatch + the override count grows linearly. Touches: `scripts/garden/detectors/override-audit.ts`, `.noldor/overrides.log` (one-time backfill), `scripts/release/index.ts`.
-
 #### End-of-Flow Ergonomics
 
 - area: tooling
@@ -57,17 +46,6 @@ Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superp
 
 `scripts/release/index.ts:139-146` runs `pnpm sdd:report --release` and aborts when `docs/sdd-report.md` is dirty. But `sdd:report` is not idempotent: the `Review-skip count (last 30 days)` line increments by 1 per commit on the active branch (each sweep commit lacks `Noldor-Reviewed` and counts as a review-skip). Even when `/release-sweep` step 5.5 pre-emptively commits the regen, the release-time re-run always produces a +1 diff and aborts. Discovered 2026-05-17 during `release-sweep-process-hardening` part 2 plan execution (idempotency verification failed). Two fix candidates: (a) release-script treats "only the review-skip count line changed" as clean and proceeds; (b) `sdd:report` gains a flag to exclude in-flight branch commits from the count. Until shipped, the release operator hits a single sdd:report-driven retry on the first `pnpm release` after sweep PR merge. Touches: `scripts/release/index.ts`, `scripts/garden/sdd-report.ts`.
 
-#### Phase Validator Allow `phase=in-progress + introduced`
-
-- area: tooling
-- type: fix
-- since: 2026-05-15
-- size: XS
-- impact: high
-- parent: noldor
-
-`scripts/features/feature-schema.ts:58-65` rejects `phase=in-progress` + `introduced` set, but the attach-revert lifecycle (per `framework-pr-flow-agent-auto-merge` spec) deliberately puts shipped FDs in exactly that state — `release-markers.ts:fillMarkers` auto-restores `phase: done` at the next `pnpm release` only when it sees `phase: in-progress` + `introduced` already set + a changelog block. The schema rule directly contradicts the auto-restore contract. Discovered 2026-05-15 attempting `specs-only-attach` on `docs/features/noldor.md` (shipped FD, `introduced: 0.4.0`) — the gate skill's phase-revert commit fails `validate:features`. Fix: scope the schema rule to exclude the attach-revert state. Options: (a) drop the rule outright (it's a hint, not a hard invariant — release-markers already restores the correct state); (b) refine to only fire when no `Noldor-FD:` trailer + no `specs-only-attach` / `full-attach` session marker is present; (c) replace the rule with a warning. Without this fix, attach-revert on any shipped FD is impossible — and shipped FDs are the most common attach target.
-
 #### Codex CR Plan-Review Mode
 
 - area: tooling
@@ -91,6 +69,17 @@ Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superp
 - recovered: 2026-05-23
 
 Existing multiterminal-development flow has a reproducible bug, discovered while scoping [[specs-cr-gate-multi-reviewer]]. Reproduce, root-cause, fix — blocks delivery of [[specs-cr-gate-multi-reviewer]].
+
+#### Dynamic FD ↔ File Pointers via Frontmatter
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: L
+- impact: high
+- parent: noldor
+
+Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
 
 #### Bootstrap-Immunity for Self-Gating Features
 
@@ -117,17 +106,6 @@ When a feature adds a new release-time gate, the feature's own implementation co
 `pnpm release` is not idempotent when the final `git commit` step fails. v0.4.0 release hit this when the release commit's pre-commit hook rejected the diff (micro-chore session active): all package.json bumps, CHANGELOG entry, release-notes entry, FD `introduced:` markers were already written + staged, but the commit failed. Re-running the script would derive a new (wrong) version. Manual recovery required (`git reset`, fix root cause, re-run). Fix: either (a) `pnpm release --resume` flag that skips precondition + version-derive and goes straight to commit-tag-push when staged files match the in-progress release shape, or (b) wrap the file-mutation phase in a temp staging area committed atomically only after precondition success — so a failed commit leaves an empty tree.
 
 - triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
-
-#### Dynamic FD ↔ File Pointers via Frontmatter
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: L
-- impact: high
-- parent: noldor
-
-Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
 
 #### Triage→Now Direct Shortcut
 
