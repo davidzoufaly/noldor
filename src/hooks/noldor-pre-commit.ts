@@ -1,6 +1,8 @@
 // scripts/hooks/noldor-pre-commit.ts
 // pre-commit stage: enforces micro-chore allowlist and hard-wall post-rollout session requirement.
 import { spawnSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { readSession } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
@@ -8,6 +10,34 @@ import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
 export interface PreCommitResult {
   ok: boolean;
   reason?: string;
+  /**
+   * Set when {@link runPreCommit} honored a `NOLDOR_PATH_OVERRIDE` bypass. Carries
+   * the trimmed override reason so the CLI entrypoint can write the audit
+   * breadcrumb via {@link logOverride}. Kept out of the function so `runPreCommit`
+   * stays pure (no file I/O).
+   */
+  overrideReason?: string;
+}
+
+/**
+ * Appends a `(pre-commit)`-tagged breadcrumb line to `.noldor/overrides.log` so an
+ * env-var pre-commit bypass always leaves a local audit record — even when the
+ * commit carries no `Noldor-Path-Override` trailer. The trailing tag distinguishes
+ * it from the 2-column untagged line `validate-trailer` writes at the commit-msg
+ * layer. The cross-clone audit (git log, read by the `/garden` override detector)
+ * still relies on the committed trailer; this is the local backstop.
+ *
+ * A failed write is swallowed: logging must never block the override itself.
+ */
+export function logOverride(cwd: string, reason: string): void {
+  try {
+    appendFileSync(
+      join(cwd, '.noldor', 'overrides.log'),
+      `${new Date().toISOString()}\t${reason}\t(pre-commit)\n`,
+    );
+  } catch {
+    // logging failure must not block the override itself
+  }
 }
 
 function getStagedPaths(cwd: string): string[] {
@@ -15,7 +45,16 @@ function getStagedPaths(cwd: string): string[] {
   return (r.stdout ?? '').split('\n').filter(Boolean);
 }
 
-export function runPreCommit(opts: { cwd: string }): PreCommitResult {
+export function runPreCommit(opts: { cwd: string; pathOverride?: string }): PreCommitResult {
+  // Universal escape hatch: a non-empty NOLDOR_PATH_OVERRIDE releases both the
+  // allowlist branches and the no-session hard wall, consistent with the
+  // Noldor-Path-Override trailer's semantics at every other layer. Checked first
+  // so it short-circuits everything below. Empty/whitespace is treated as unset.
+  const override = opts.pathOverride?.trim();
+  if (override) {
+    return { ok: true, overrideReason: override };
+  }
+
   // Always check session first (before rollout gate) so micro-chore session enforcement
   // works even pre-rollout (belt-and-suspenders for the session itself).
   const session = readSession(opts.cwd);
@@ -67,7 +106,13 @@ export function runPreCommit(opts: { cwd: string }): PreCommitResult {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const r = runPreCommit({ cwd: process.cwd() });
+  const r = runPreCommit({
+    cwd: process.cwd(),
+    pathOverride: process.env.NOLDOR_PATH_OVERRIDE,
+  });
+  if (r.overrideReason) {
+    logOverride(process.cwd(), r.overrideReason);
+  }
   if (!r.ok) {
     console.error(`Noldor gate: ${r.reason}`);
     process.exit(1);

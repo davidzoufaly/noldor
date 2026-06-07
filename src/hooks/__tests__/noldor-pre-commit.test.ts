@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runPreCommit } from '../noldor-pre-commit';
+import { runPreCommit, logOverride } from '../noldor-pre-commit';
 
 function setupRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'qfpc-'));
@@ -170,5 +170,89 @@ describe('noldor pre-commit', () => {
     const r = runPreCommit({ cwd: dir });
     expect(r.ok).toBe(false);
     expect(r.reason).toMatch(/\/gate/);
+  });
+
+  describe('NOLDOR_PATH_OVERRIDE bypass', () => {
+    it('releases the micro-chore allowlist when pathOverride is set', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'micro-chore', startedAt: 'x' }),
+      );
+      mkdirSync(join(dir, 'packages', 'web', 'src'), { recursive: true });
+      writeFileSync(join(dir, 'packages', 'web', 'src', 'foo.ts'), 'x');
+      execSync('git add packages/web/src/foo.ts', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, pathOverride: 'stale micro-chore session' });
+      expect(r).toEqual({ ok: true, overrideReason: 'stale micro-chore session' });
+    });
+
+    it('releases the release-sweep allowlist when pathOverride is set', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'release-sweep', startedAt: '2026-05-17T08:00:00.000Z' }),
+      );
+      mkdirSync(join(dir, 'packages', 'engine', 'src'), { recursive: true });
+      writeFileSync(join(dir, 'packages', 'engine', 'src', 'foo.ts'), 'x');
+      execSync('git add packages/engine/src/foo.ts', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, pathOverride: 'sweep escape' });
+      expect(r).toEqual({ ok: true, overrideReason: 'sweep escape' });
+    });
+
+    it('releases the no-session hard wall post-rollout when pathOverride is set', () => {
+      const dir = setupRepo();
+      writeFileSync(join(dir, 'a'), 'init');
+      execSync('git add a && git commit -q -m init', { cwd: dir });
+      const initSha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+      writeFileSync(join(dir, '.noldor', 'rollout-marker'), initSha + '\n');
+      writeFileSync(join(dir, 'past-marker'), 'x');
+      execSync('git add past-marker && git commit -q -m "past-marker"', { cwd: dir });
+      writeFileSync(join(dir, 'README.md'), 'x');
+      execSync('git add README.md', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, pathOverride: 'hook broken mid-migration' });
+      expect(r).toEqual({ ok: true, overrideReason: 'hook broken mid-migration' });
+    });
+
+    it('treats a whitespace-only pathOverride as unset (allowlist still blocks)', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'micro-chore', startedAt: 'x' }),
+      );
+      mkdirSync(join(dir, 'packages', 'web', 'src'), { recursive: true });
+      writeFileSync(join(dir, 'packages', 'web', 'src', 'foo.ts'), 'x');
+      execSync('git add packages/web/src/foo.ts', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, pathOverride: '   ' });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/allowlist/);
+      expect(r.overrideReason).toBeUndefined();
+    });
+
+    it('leaves behavior unchanged when pathOverride is unset (regression guard)', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'micro-chore', startedAt: 'x' }),
+      );
+      writeFileSync(join(dir, 'README.md'), 'x');
+      execSync('git add README.md', { cwd: dir });
+      const r = runPreCommit({ cwd: dir });
+      expect(r).toEqual({ ok: true });
+    });
+  });
+
+  describe('logOverride breadcrumb', () => {
+    it('appends a (pre-commit)-tagged line with the reason to .noldor/overrides.log', () => {
+      const dir = setupRepo();
+      logOverride(dir, 'stale micro-chore session');
+      const log = readFileSync(join(dir, '.noldor', 'overrides.log'), 'utf8');
+      expect(log).toMatch(/\tstale micro-chore session\t\(pre-commit\)\n$/);
+    });
+
+    it('does not throw when .noldor is missing (logging failure must not block the commit)', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'qfpc-nolog-'));
+      // no .noldor directory created — appendFileSync will fail, must be swallowed
+      expect(() => logOverride(dir, 'reason')).not.toThrow();
+    });
   });
 });
