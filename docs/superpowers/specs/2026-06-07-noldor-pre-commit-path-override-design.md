@@ -59,21 +59,51 @@ branches and before the hard-wall block, short-circuits both.
 
 ## Audit
 
-No new audit logging is added at the pre-commit layer. The operator must set the
-matching `Noldor-Path-Override:` trailer regardless — it is required to pass the
-commit-msg `validate-trailer` layer. That trailer is the single durable audit
-source:
+The audit trail is two-tier. The earlier (rejected) "rely on the trailer alone"
+design had a laundering hole: pre-commit cannot read the commit message, so the
+operator could set the env var to unlock pre-commit *and* use a non-override
+trailer (e.g. `Noldor-Path: fast-track`, which `validate-trailer` accepts at
+`noldor-validate-trailer.ts:146` with no logging) — landing the change with **zero
+audit record**. The claim that the trailer is "required" is false: only *some*
+valid `Noldor-Path` trailer is required, and most paths are not logged.
 
-- `validate-trailer` ([`src/hooks/noldor-validate-trailer.ts`](../../../src/hooks/noldor-validate-trailer.ts))
-  appends it to `.noldor/overrides.log`.
-- It lands in git history, where the `/garden` override detector
-  ([`src/garden/detectors/override-audit.ts`](../../../src/garden/detectors/override-audit.ts))
-  reads it via `git log`.
+The fix closes the hole by making the env-var bypass self-auditing:
 
-The env var's only job is unlocking pre-commit; the audit trail already exists via
-the trailer. No double-logging, no dedup concern.
+1. **Local breadcrumb (always written).** When the env var unlocks pre-commit, the
+   CLI entrypoint appends a tagged line to `.noldor/overrides.log`:
 
-The env var value and trailer reason are **not** enforced to match — they are
+   ```
+   <iso>\t<reason>\t(pre-commit)
+   ```
+
+   where `<reason>` is the trimmed env-var value. This is written on *every*
+   env-var bypass, regardless of which trailer (if any) the commit carries —
+   symmetric with the existing `validate-trailer`
+   ([`src/hooks/noldor-validate-trailer.ts`](../../../src/hooks/noldor-validate-trailer.ts):82-89)
+   write for the `Noldor-Path-Override` trailer. The `(pre-commit)` tag
+   distinguishes it from the commit-msg-layer line, so a canonical
+   env-var-**and**-trailer commit produces two distinguishable lines rather than
+   an ambiguous duplicate. `.noldor/overrides.log` has no automated parser today
+   (it is a human-readable convenience log), so the trailing tag is format-safe.
+
+2. **Authoritative cross-clone audit.** The committed `Noldor-Path-Override:`
+   trailer remains the durable audit source read by the `/garden` override detector
+   ([`src/garden/detectors/override-audit.ts`](../../../src/garden/detectors/override-audit.ts))
+   via `git log`. The operator should pair the env var with the matching trailer:
+
+   ```
+   NOLDOR_PATH_OVERRIDE="reason" git commit -m "msg" -m "Noldor-Path-Override: reason"
+   ```
+
+**Residual gap (accepted).** An env-var bypass *without* the override trailer is
+recorded in the local `.noldor/overrides.log` but is absent from the git-log
+cross-clone audit (it is not in commit history). This is strictly better than the
+pre-existing `git commit --no-verify` escape, which bypasses every hook and leaves
+no record at all. Pairing the env var with the trailer (the documented one-liner)
+is required for full cross-clone auditability; the local breadcrumb is the
+backstop when an operator omits it.
+
+The env-var value and trailer reason are **not** enforced to match — they are
 independent layers, and coupling them adds no safety.
 
 ## Unlock signal semantics
@@ -86,30 +116,68 @@ assignment from silently unlocking the gate.
 
 ### `src/hooks/noldor-pre-commit.ts`
 
+- Add `overrideReason?: string` to the `PreCommitResult` interface — set when the
+  env var honored the bypass so the CLI knows to log it. Keeps `runPreCommit`
+  pure (no file I/O inside the function), matching the existing injectable
+  structure.
 - Add `pathOverride?: string` to the `opts` parameter of `runPreCommit`.
 - At the top of `runPreCommit` (before reading the session and before the
   hard-wall block):
 
   ```ts
-  if (opts.pathOverride?.trim()) {
-    return { ok: true };
+  const override = opts.pathOverride?.trim();
+  if (override) {
+    return { ok: true, overrideReason: override };
   }
   ```
 
+  The single early return releases **both** the allowlist branches and the
+  no-session hard wall.
 - The CLI entrypoint (the `import.meta.url === ...` block) reads
-  `process.env.NOLDOR_PATH_OVERRIDE` and passes it as `opts.pathOverride`. This
-  keeps `runPreCommit` pure and testable (no direct `process.env` read inside the
-  function), matching the existing injectable structure.
+  `process.env.NOLDOR_PATH_OVERRIDE`, passes it as `opts.pathOverride`, and when
+  the result carries `overrideReason`, appends the breadcrumb line to
+  `.noldor/overrides.log`:
+
+  ```ts
+  if (r.overrideReason) {
+    try {
+      appendFileSync(
+        join(process.cwd(), '.noldor', 'overrides.log'),
+        `${new Date().toISOString()}\t${r.overrideReason}\t(pre-commit)\n`,
+      );
+    } catch {
+      // logging failure must not block the override itself
+    }
+  }
+  ```
+
+  The try/catch mirrors `validate-trailer`'s logging discipline — a failed log
+  write never blocks the commit.
+
+Lefthook runs hooks as child processes of `git commit` and inherits git's
+environment, so `NOLDOR_PATH_OVERRIDE` set on the `git commit` invocation reaches
+the hook process. No lefthook config change is needed.
 
 ### `src/hooks/__tests__/noldor-pre-commit.test.ts`
 
-Add cases:
+Add cases against `runPreCommit` (pure — assert the result, including
+`overrideReason`):
 
-1. env var non-empty + `micro-chore` session with disallowed staged files →
-   `ok: true` (allowlist released).
-2. env var non-empty + no session, post-rollout → `ok: true` (hard wall released).
-3. env var empty / whitespace-only → behaves as if unset (allowlist still blocks).
-4. env var unset → existing behavior unchanged (regression guard).
+1. `pathOverride` non-empty + `micro-chore` session with disallowed staged files →
+   `{ ok: true, overrideReason: '<reason>' }` (allowlist released).
+2. `pathOverride` non-empty + `release-sweep` session with disallowed staged files →
+   `{ ok: true, overrideReason }` (release-sweep allowlist released).
+3. `pathOverride` non-empty + no session, post-rollout →
+   `{ ok: true, overrideReason }` (hard wall released).
+4. `pathOverride` empty / whitespace-only → behaves as if unset (allowlist still
+   blocks; no `overrideReason`).
+5. `pathOverride` unset → existing behavior unchanged (regression guard).
+
+Plus one integration-style test for the breadcrumb: invoking the bypass path with
+a temp `cwd` writes a `(pre-commit)`-tagged line to `.noldor/overrides.log`. Drive
+this through whatever seam the CLI append uses (extract a small `logOverride(cwd,
+reason)` helper if a direct entrypoint test is awkward) so the audit side-effect
+is covered without spawning a real `git commit`.
 
 ### `docs/noldor/complexity-gating.md`
 
