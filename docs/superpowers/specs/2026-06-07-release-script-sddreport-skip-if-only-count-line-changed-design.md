@@ -50,6 +50,18 @@ Candidate (b) (a `sdd:report` flag that excludes in-flight commits from the
 count) is **out of scope** — it changes the report's semantics globally
 (dashboard + report meaning shift) to fix a release-only ergonomics gap.
 
+**Scope: narrows, not removes, the forced retry.** This guard only short-circuits
+the abort when the review-skip count line is the *sole* delta. Other sections of
+`docs/sdd-report.md` can also go dirty between `/release-sweep` step 5.5 and the
+release-time regen — `## Gap details` shifts if a sweep commit touches
+`docs/features`, and `### Override usage` shifts if a commit carries a
+`Noldor-Override` trailer. Either re-triggers the same abort. The count line is
+the dominant real-world case (it bumps on *every* in-flight commit, the others
+only on specific commit shapes — FD evidence: the +1-per-commit drift is what
+made the retry deterministic), so killing it removes the recurring failure; the
+non-count cases remain a genuine "operator must review + commit" signal and keep
+the existing abort.
+
 ## Units
 
 ### 1. `src/release/sdd-report-diff.ts` (new, pure, unit-tested)
@@ -126,6 +138,14 @@ Vitest over `onlyReviewSkipCountChanged`:
 The guard wiring in `index.ts` is exercised end-to-end by the existing release
 flow; no new integration test is added for it (matches current `index.ts`
 coverage convention — pure helpers are unit-tested, the orchestration is not).
+
+**Known coverage gap:** the actual release-blocking logic lives in the `index.ts`
+wiring (the `git show HEAD:` baseline read, the fail-on-missing-baseline →
+keep-abort branch, the disk read of the working file), and the unit-only
+convention leaves that branch unverified — the risk concentrates in the
+orchestration, not the pure helper. Accepted for this slice (the helper carries
+the only non-trivial decision; the wiring is straight-line glue), but flagged so
+a later integration-test pass over `index.ts` has the entry point.
 
 ## Risk / trade-off
 
