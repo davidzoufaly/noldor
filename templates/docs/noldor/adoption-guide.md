@@ -44,6 +44,21 @@ Noldor is a standalone package. A consuming repo installs it as a dev dependency
 
 A monorepo lists multiple `lockstepPackages` and broader `scanPaths` (e.g. `["packages", "apps"]`).
 
+## Optional: autonomous CR config
+
+Beyond the required `consumer:` block, `.noldor/config.json` accepts two **optional** blocks that drive the unsupervised gate path (`proceed-autonomous`):
+
+- `crLanes` — review lanes per artifact kind (`spec` / `plan` / `code`). Omit it and orchestrate uses the built-in `DEFAULT_CR_LANES` (`subagent`-only per kind). Set it to opt in heavier review, e.g. `"code": ["subagent", "codex"]`.
+- `autonomous` — `skipLanePicker` (default `false`), `onFailure` (`prompt` | `spawn-deep-review` | `abort`, default `prompt`), `requireHumanPrApproval` (default `false`). Every field defaults, so the block may be omitted entirely.
+
+```json
+{ "consumer": { "...": "..." },
+  "crLanes": { "spec": ["manual", "subagent"], "plan": ["manual", "subagent"], "code": ["subagent"] },
+  "autonomous": { "skipLanePicker": false, "onFailure": "prompt", "requireHumanPrApproval": false } }
+```
+
+Neither block is required — a config with only `consumer:` runs autonomous CR on the `subagent`-only defaults. Full reference: [`cr-pipeline.md`](cr-pipeline.md).
+
 ## Invocation
 
 The framework is invoked as `pnpm noldor <group> <subcommand>` (e.g. `pnpm noldor garden detect`, `pnpm noldor validate features`, `pnpm noldor release run`). A consumer MAY add flat `package.json` aliases (`"release": "noldor release run"`) for convenience, but the framework only guarantees the `noldor` CLI itself.

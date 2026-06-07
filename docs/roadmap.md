@@ -2,17 +2,6 @@
 
 ### Noldor Framework
 
-#### Document & Default Autonomous Mode Config
-
-- area: tooling
-- type: feat
-- since: 2026-06-07
-- size: S
-- impact: high
-- parent: noldor
-
-`/gate` already supports a fully-unsupervised path: pick `proceed-autonomous` at the plan-stage Step 2.5 and all downstream seams (lane-picker, commit-confirms, continue-dialogs) go non-interactive through PR-merge, and the `.noldor/config.json` `autonomous.skipLanePicker` flag suppresses the lane multi-select. But none of this is documented in the README or adoption guide, and the `autonomous` config block has no shipped defaults — a missing field is a hard error (by design, never a silent skip), so operators can't discover or enable the mode without reading `gate/SKILL.md` line-by-line. Ship: (a) document the `autonomous` config block (`skipLanePicker`, `onFailure: abort | spawn-deep-review | prompt`, per-stage `crLanes`) in `docs/noldor/` + a `.noldor/config.json` example; (b) provide sane defaults so the block is optional, not a hard error. Highest leverage of the autonomy quick-wins — unlocks the unsupervised-through-merge path that already exists but is invisible. Touches: `.claude/skills/gate/SKILL.md`, `docs/noldor/` adoption/config docs, consumer-config defaults.
-
 #### Pre-commit Hook Honors `Noldor-Path-Override`
 
 - area: tooling

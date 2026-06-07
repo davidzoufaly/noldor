@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
-import { loadConfig } from './config.js';
+import { DEFAULT_CR_LANES, loadConfig } from './config.js';
 import type { NoldorConfig } from './config.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult } from './lane-types.js';
@@ -43,13 +43,16 @@ export function resolveLanes(
   args: { slug: string; kind: ArtifactKind; lanes?: Lane[]; autonomous?: boolean },
   cfg: NoldorConfig | null,
 ): Lane[] {
+  // 1. Explicit --lanes always wins.
   if (args.lanes && args.lanes.length > 0) return args.lanes;
-  if (cfg?.autonomous?.skipLanePicker && cfg.crLanes?.[args.kind]?.length) {
-    return cfg.crLanes[args.kind]!;
+  // 2. Autonomous / skipLanePicker path: configured crLanes.<kind> when present,
+  //    else the built-in autonomous-safe default (subagent). Never throws — a
+  //    missing crLanes block is no longer a hard error.
+  if (args.autonomous || cfg?.autonomous?.skipLanePicker) {
+    const configured = cfg?.crLanes?.[args.kind];
+    return configured && configured.length > 0 ? configured : DEFAULT_CR_LANES[args.kind];
   }
-  if (args.autonomous) {
-    throw new Error('autonomous CR requires .noldor/config.json crLanes.<kind> non-empty');
-  }
+  // 3. Interactive mode, no CLI flag: empty signals the /gate skill to prompt.
   return [];
 }
 

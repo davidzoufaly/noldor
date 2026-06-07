@@ -70,6 +70,8 @@ For `full-new` / `full-attach` paths, the plan-stage continue-dialog gains a fou
 
 Autonomous mode is opt-in per session. The default continue-dialog choice remains `proceed` (interactive between-step checkpoints).
 
+Autonomous CR needs **no** config to work: when `crLanes.<kind>` is absent, orchestrate falls back to the built-in `subagent`-only defaults (`DEFAULT_CR_LANES`). Add a `crLanes` / `autonomous` block to `.noldor/config.json` only to override those defaults (e.g. opt codex back in, or set `onFailure: 'abort'`). See [`cr-pipeline.md`](cr-pipeline.md#config-driven-defaults) for the full reference.
+
 ## Picking your path
 
 ### Path confirmation beat

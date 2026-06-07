@@ -37,10 +37,30 @@ describe('resolveLanes', () => {
       ),
     ).toEqual(['subagent']);
   });
-  it('autonomous + no config => throws', () => {
-    expect(() => resolveLanes({ slug: 'x', kind: 'spec', autonomous: true }, null)).toThrow(
-      /autonomous/,
-    );
+  it('autonomous + no config => built-in defaults (no throw)', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'spec', autonomous: true }, null)).toEqual(['subagent']);
+    expect(resolveLanes({ slug: 'x', kind: 'code', autonomous: true }, null)).toEqual(['subagent']);
+  });
+  it('configured crLanes overrides built-in default (shift 2: autonomous + skipLanePicker:false)', () => {
+    expect(
+      resolveLanes(
+        { slug: 'x', kind: 'code', autonomous: true },
+        {
+          crLanes: { code: ['subagent', 'codex'] },
+          autonomous: { skipLanePicker: false, onFailure: 'prompt', requireHumanPrApproval: false },
+        },
+      ),
+    ).toEqual(['subagent', 'codex']);
+  });
+  it('skipLanePicker:true + absent crLanes => built-in defaults (shift 3, no --autonomous flag)', () => {
+    expect(
+      resolveLanes(
+        { slug: 'x', kind: 'plan' },
+        {
+          autonomous: { skipLanePicker: true, onFailure: 'prompt', requireHumanPrApproval: false },
+        },
+      ),
+    ).toEqual(['subagent']);
   });
   it('interactive + no CLI flag => returns empty (signal: skill prompts)', () => {
     expect(resolveLanes({ slug: 'x', kind: 'spec' }, null)).toEqual([]);
