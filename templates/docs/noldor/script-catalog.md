@@ -33,7 +33,7 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **Inputs:** every `docs/noldor/*.md` (frontmatter only).
 - **Outputs:** exit 0 when each non-`README.md` page carries a `noldor-page: <slug>` frontmatter matching its filename stem; exit 1 with mismatched files listed.
 - **When to use:** ad hoc — confirms the framework page set is consistent. Not currently in `pre-commit`.
-- **Source:** [`src/noldor/validate-noldor.ts`](../../src/noldor/validate-noldor.ts)
+- **Source:** [`src/core/validate-noldor.ts`](../../src/core/validate-noldor.ts)
 
 ### `validate:noldor-scope`
 
@@ -41,15 +41,15 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **Inputs:** commit message file path; staged file list (`git diff --cached --name-only`); `docs/noldor/*.md` slug set.
 - **Outputs:** exit 0 unless the commit touches `docs/noldor/*.md` without a `noldor` or `noldor:<slug>` scope, where `<slug>` matches an existing page.
 - **When to use:** automatic gate on every commit that touches framework pages.
-- **Source:** [`src/noldor/validate-noldor-scope.ts`](../../src/noldor/validate-noldor-scope.ts)
+- **Source:** [`src/core/validate-noldor-scope.ts`](../../src/core/validate-noldor-scope.ts)
 
 ### `validate:skill-catalog`
 
 - **Trigger:** `pnpm noldor validate skill-catalog`.
 - **Inputs:** `.claude/skills/*` filenames; [`docs/noldor/skill-catalog.md`](skill-catalog.md) `## /<slug>` headings.
 - **Outputs:** exit 0 when every skill file maps 1:1 to a heading and vice versa; exit 1 with missing/orphan entries listed.
-- **When to use:** automatic gate when skill source or the catalog page changes. See [`garden-and-drift.md`](garden-and-drift.md) Detector 16.
-- **Source:** [`src/noldor/validate-skill-catalog.ts`](../../src/noldor/validate-skill-catalog.ts)
+- **When to use:** automatic gate when skill source or the catalog page changes. See [`garden-and-drift.md`](garden-and-drift.md).
+- **Source:** [`src/core/validate-skill-catalog.ts`](../../src/core/validate-skill-catalog.ts)
 
 ### `check:invariants`
 
@@ -67,9 +67,25 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** automatic. Forces shared-file edits onto main where they are visible to other worktrees.
 - **Source:** [`src/checks/check-shared-files.ts`](../../src/checks/check-shared-files.ts)
 
+### `check:template-sync`
+
+- **Trigger:** `pnpm noldor checks template-sync [files…]`. Runs in both `pre-commit` (staged files) and `pre-push` (whole tree).
+- **Inputs:** files Noldor ships from [`templates/`](../../templates/) into the consumer repo (e.g. `templates/.claude/engineering-rules.md`, `templates/lefthook/noldor.yml`) + their landed copies.
+- **Outputs:** exit 0 when each templated file matches its `templates/` source; exit 1 listing files that have drifted. Keeps the baseline rules + hook config a consumer receives identical to the framework's tested copy.
+- **When to use:** automatic on commit and push. See [`rules.md`](rules.md) § Template sync.
+- **Source:** [`src/checks/check-template-sync.ts`](../../src/checks/check-template-sync.ts)
+
+### Other validators
+
+| Command                              | Source                                                            | Purpose                                                                    |
+| ------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `pnpm noldor validate noldor-config` | [`src/validate/noldor-config.ts`](../../src/validate/noldor-config.ts) | Validate `.noldor/config.json` shape (categories, scanPaths, crLanes, …).  |
+| `pnpm noldor validate milestones`    | [`src/milestones/validate-milestones.ts`](../../src/milestones/validate-milestones.ts) | Validate `docs/milestones/*.md` + vision's `current-milestone:` pointer.   |
+| `pnpm noldor validate triage`        | [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts) | Validate roadmap/backlog schema-C blocks.                                  |
+
 ## Gate hooks
 
-These four scripts implement the 4-stage hook stack for the 6-path gate model. They run automatically via Lefthook; the `pnpm noldor hooks *` aliases let you invoke them directly for debugging.
+These scripts implement the hook stack for the 6-path gate model. They run automatically via Lefthook; the `pnpm noldor hooks *` aliases let you invoke them directly for debugging.
 
 ### `hook:noldor:pre-commit`
 
@@ -98,6 +114,20 @@ These four scripts implement the 4-stage hook stack for the 6-path gate model. T
 - **Inputs:** tip commit trailers; `git rev-parse HEAD^{tree}`.
 - **Outputs:** for any tip commit on paths 2–6, validates `Noldor-Reviewed: <tree-hash>` equals `HEAD^{tree}`. Rejects the push when the tree hash mismatches (new code committed after the review receipt). Tip commits carrying `Noldor-Path-Override: <reason>` skip the check entirely (escape hatch wins over auto-injected `Noldor-Path`). Exit 1 with instructions to re-run review.
 - **Source:** [`src/hooks/noldor-enforce-review-receipt.ts`](../../src/hooks/noldor-enforce-review-receipt.ts)
+
+### `hook:noldor:pre-push`
+
+- **Trigger:** `pnpm noldor hooks pre-push`. Runs in `pre-push` (`noldor-pre-push` job).
+- **Inputs:** the push ref lines (stdin), remote name, env.
+- **Outputs:** blocks any direct push to `origin/main` — all paths must land via PR through the gate end-of-flow. Bypass for the release script only via `NOLDOR_RELEASE_PUSH=1`. Exit 1 with PR-flow instructions otherwise.
+- **Source:** [`src/hooks/noldor-pre-push.ts`](../../src/hooks/noldor-pre-push.ts)
+
+### `hook:noldor:pre-edit-guard`
+
+- **Trigger:** `pnpm noldor hooks pre-edit-guard`. Intended as a Claude Code **PreToolUse** guard (settings.json), not a git hook — it is **not** wired into `lefthook/noldor.yml`.
+- **Inputs:** the rollout marker + `.noldor/session.json` + the target file path.
+- **Outputs:** in soft mode (pre-rollout marker absent) it always passes; once the rollout marker exists, it blocks edits to tracked files unless a `/gate` session marker is present. Enforces "no edit without `/gate`".
+- **Source:** [`src/hooks/noldor-pre-edit-guard.ts`](../../src/hooks/noldor-pre-edit-guard.ts)
 
 ## Sync (FD link populators)
 
@@ -139,7 +169,7 @@ These four scripts implement the 4-stage hook stack for the 6-path gate model. T
 
 - **Trigger:** `pnpm noldor garden detect`. Backs the `/garden` skill. Accepts `--gate-compliance` flag.
 - **Inputs:** `docs/features/*.md`, `docs/superpowers/{specs,plans}/*.md`, `docs/{roadmap,backlog,vision}.md`, `package.json` workspaces, `.noldor/overrides.log`, optionally `graphify-out/graph.json`.
-- **Outputs:** JSON report with `category`, `itemId`, `message` per gap across the 18 detectors (14 SDD — slots 1-13 + 19 — + 3 doc-maintenance + detectors 16–17). With `--gate-compliance`: runs the override-audit, tier-mismatch, allowlist-drift, trailer-scope-mismatch, plan-without-fd, and fd-without-plan detectors; exit 1 if any findings.
+- **Outputs:** JSON report with `category`, `itemId`, `message` per gap across the 19 numbered detectors (plus the 4 doc-maintenance signals when run via `/garden`). With `--gate-compliance`: runs the override-audit, tier-mismatch, allowlist-drift, trailer-scope-mismatch, plan-without-fd, and fd-without-plan detectors; exit 1 if any findings. See [`garden-and-drift.md`](garden-and-drift.md) for the full detector list.
 - **When to use:** through `/garden` for interactive maintenance; `--gate-compliance` as a `pnpm release` precondition; ad hoc `--json` for scripted automation. See [`garden-and-drift.md`](garden-and-drift.md).
 - **Source:** [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
 
@@ -166,6 +196,43 @@ These four scripts implement the 4-stage hook stack for the 6-path gate model. T
 - **Outputs:** JSON of bullets without a triage marker.
 - **When to use:** via `/triage`; ad hoc to count untagged items before deciding to run triage.
 - **Source:** [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
+
+### `triage:score`
+
+- **Trigger:** `pnpm noldor triage score`. Backs the `/triage` skill's scoring step.
+- **Inputs:** a backlog/roadmap entry's effort / impact / confidence / dependency signals.
+- **Outputs:** a numeric priority score used to order roadmap entries. See [`triage.md`](triage.md).
+- **Source:** [`src/triage/score.ts`](../../src/triage/score.ts)
+
+### `garden:receipt`
+
+- **Trigger:** `pnpm noldor garden receipt`.
+- **Inputs:** the current `/garden` pass result.
+- **Outputs:** writes a garden receipt recording what the pass detected/actioned (audit trail for gardening runs).
+- **Source:** [`src/garden/garden-receipt.ts`](../../src/garden/garden-receipt.ts)
+
+## Rules
+
+The engineering-rules cascade. Full model in [`rules.md`](rules.md).
+
+### `rules:resolve` / `rules:list` / `rules:validate`
+
+- **Trigger:** `pnpm noldor rules resolve --file <path> --stage <stage>` (JSON `{ injected, enforce }`); `pnpm noldor rules list` (tab-separated rule table); `pnpm noldor rules validate` (store integrity gate).
+- **Inputs:** the `.noldor/rules/<id>.md` store (frontmatter: `id`, `applies-to` globs, `stage`, `enforce`, `links`).
+- **Outputs:** `resolve` returns the file/stage-scoped rules split into inject (advisory) and enforce buckets, ordered by glob specificity; `list` dumps the store; `validate` exits non-zero on schema / id-filename / parse errors.
+- **When to use:** `validate` as the store integrity check; `resolve` to surface rules relevant to a given edit; `list` to inspect the store.
+- **Source:** [`src/rules/cli-resolve.ts`](../../src/rules/cli-resolve.ts), [`src/rules/cli-list.ts`](../../src/rules/cli-list.ts), [`src/rules/cli-validate.ts`](../../src/rules/cli-validate.ts)
+
+## Code review (CR)
+
+Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-pipeline.md`](cr-pipeline.md).
+
+### `cr:orchestrate` / `cr:aggregate` / `cr:codex` / `cr:escalate`
+
+- **Trigger:** `pnpm noldor cr orchestrate --slug <slug> --artifact <path> --kind <spec\|plan\|code> --lanes <list>` (run lanes for an artifact); `pnpm noldor cr aggregate --slug <slug> [--kind <kind>] [--wait-ms <n>]` (collapse lane sinks into one verdict); `pnpm noldor cr codex` (codex second-opinion pass); `pnpm noldor cr escalate --slug <slug> --reason <cr-red\|test-red> --context-file <path>` (escalation dialog on red).
+- **Inputs:** the artifact diff/file, lane config (`crLanes.<kind>` in `.noldor/config.json`), per-lane sinks at `.noldor/cr/<slug>-<kind>-<lane>.json`.
+- **Outputs:** lane sinks + an aggregate verdict (exit 0 clean / exit 1 blockers). `escalate` drives retry / spawn-deep-review / override / abort. Driven by `/gate` Step 2.5 + Step 4.
+- **Source:** [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts), [`src/cr/aggregate-cli.ts`](../../src/cr/aggregate-cli.ts), [`src/cr/codex.ts`](../../src/cr/codex.ts), [`src/cr/escalate-cli.ts`](../../src/cr/escalate-cli.ts)
 
 ## Worktree
 
@@ -201,7 +268,22 @@ These four scripts implement the 4-stage hook stack for the 6-path gate model. T
 - **Inputs:** git log filtered to commits whose scope is `noldor` or `noldor:<slug>`.
 - **Outputs:** stdout markdown changelog, grouped by page.
 - **When to use:** ad hoc to inspect framework-rule churn over a release window.
-- **Source:** [`src/noldor/changelog.ts`](../../src/noldor/changelog.ts)
+- **Source:** [`src/core/changelog.ts`](../../src/core/changelog.ts)
+
+## Utilities
+
+Leaf commands (flags land directly after the group name, e.g. `pnpm noldor init --update`) and `noldor`-group helpers used by `/gate` and the skills.
+
+| Command                                  | Source                                                          | Purpose                                                                                       |
+| ---------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `pnpm noldor next-priority`              | [`src/core/next-priority.ts`](../../src/core/next-priority.ts)   | Print the top roadmap priority. `--suggestions --json` powers `/gate` Step 0 pickup.          |
+| `pnpm noldor pr-flow`                    | [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts)       | Push + open PR + auto-merge + poll. `/gate` Step 4 end-of-flow. See [`pr-flow.md`](pr-flow.md). |
+| `pnpm noldor init [--update\|--adopt]`   | [`src/cli/commands/init.ts`](../../src/cli/commands/init.ts)     | Scaffold framework files into a consumer repo.                                                 |
+| `pnpm noldor doctor`                     | [`src/cli/commands/doctor.ts`](../../src/cli/commands/doctor.ts) | Diff consumer files against shipped `templates/`; non-zero exit on drift.                      |
+| `pnpm noldor noldor bump-session-marker` | [`src/core/bump-session-marker.ts`](../../src/core/bump-session-marker.ts) | Bump the session marker `markerVersion`.                                                    |
+| `pnpm noldor noldor set-autonomous`      | [`src/core/set-autonomous.ts`](../../src/core/set-autonomous.ts) | Set `session.autonomous = true` (autonomous gate mode).                                        |
+| `pnpm noldor noldor lint-plan-snippets`  | [`src/core/lint-plan-snippets.ts`](../../src/core/lint-plan-snippets.ts) | Lint code snippets inside a plan MD (advisory; `/gate` Step 2.5).                           |
+| `pnpm noldor noldor rename-plan-only-tier` | [`src/core/rename-plan-only-tier.ts`](../../src/core/rename-plan-only-tier.ts) | One-off: rename legacy `plan-only` tier docs to `specs-only`.                              |
 
 ## Docs build
 
@@ -254,6 +336,13 @@ These four scripts implement the 4-stage hook stack for the 6-path gate model. T
 - **Outputs:** rewrites FD frontmatter to the latest schema shape (legacy field renames, default-fill, ordering normalisation). With `--infer-tier`: backfills `noldor-tier` — assigns `full` when `links.spec` is present, `specs-only` otherwise. `--dry-run` shows proposed changes without writing.
 - **When to use:** after a breaking schema change in `feature-schema.ts`. Run `--infer-tier` once at rollout time to backfill the tier field on existing FDs. Idempotent — safe to re-run.
 - **Source:** [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts)
+
+### `migrate:fd-commits-to-prs`
+
+- **Trigger:** `pnpm noldor features migrate-fd-commits-to-prs`. One-shot.
+- **Inputs:** FD changelog blocks carrying bare commit refs.
+- **Outputs:** rewrites FD commit references to PR references (post PR-flow adoption). Idempotent.
+- **Source:** [`src/features/migrate-fd-commits-to-prs.ts`](../../src/features/migrate-fd-commits-to-prs.ts)
 
 ## Dev surfaces
 

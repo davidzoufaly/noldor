@@ -10,6 +10,7 @@ import {
   detectUnusedBacklog,
   hasBlockingFindings,
   shouldFlagSourceDrift,
+  SOURCE_DRIFT_PAIRS,
   specSlugFromFilename,
 } from '../garden-detect.js';
 
@@ -543,6 +544,21 @@ describe('shouldFlagSourceDrift (Detector 15)', () => {
 
   it('returns false on malformed dates', () => {
     expect(shouldFlagSourceDrift('not-a-date', '2026-05-08T12:00:00Z', 30)).toBe(false);
+  });
+
+  // Regression: a stale `sources` path (e.g. after a dir rename) makes
+  // lastCommitISO return null, silently no-op'ing the detector for that page.
+  // Every source must resolve to a real path on disk so the detector stays live.
+  it('every SOURCE_DRIFT_PAIRS source path exists on disk', async () => {
+    const { fileURLToPath } = await import('node:url');
+    const { existsSync } = await import('node:fs');
+    const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+    for (const pair of SOURCE_DRIFT_PAIRS) {
+      for (const src of pair.sources) {
+        expect(existsSync(join(repoRoot, src)), `missing source path: ${src}`).toBe(true);
+      }
+      expect(existsSync(join(repoRoot, pair.page)), `missing page: ${pair.page}`).toBe(true);
+    }
   });
 });
 

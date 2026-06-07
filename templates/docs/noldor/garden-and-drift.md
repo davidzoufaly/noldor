@@ -11,7 +11,7 @@ Periodic audit that detects framework drift: features without tests, plans witho
 
 | Trigger                                            | What it does                                                                                                |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `/garden`                                          | Interactive audit; walks all 17 detectors + 4 doc-maintenance signals                                       |
+| `/garden`                                          | Interactive audit; walks all 19 detectors + 4 doc-maintenance signals                                       |
 | `pnpm noldor garden detect`                        | Same as `/garden` non-interactive; JSON report (`category`, `itemId`, `message` per gap)                    |
 | `pnpm noldor garden sdd-report`                    | Walks SDD detectors (1-13 + 19), writes `docs/sdd-report.md`. Informational — never blocks                  |
 | `pnpm noldor garden sdd-report --json`             | Machine-readable output (no file write)                                                                     |

@@ -32,7 +32,7 @@ The Zod schema is `.strict()`: unknown keys are rejected. Every FD frontmatter m
 | ---------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `name`     | `string` (min 1)                                                                             | Human-readable feature name. Free-form prose.                                                                      |
 | `phase`    | enum: `done` \| `in-progress`                                                                | Lifecycle state. No other values accepted. Roadmap entries (file order = priority) live in `roadmap.md`, not here. |
-| `category` | enum: `Modeling` \| `Editor` \| `Agents` \| `Distribution` \| `Docs` \| `Tooling` \| `Other` | Drives release-notes grouping. See section below.                                                                  |
+| `category` | `string` (min 1), validated at runtime against `consumer.categories` in `.noldor/config.json` (default: `Core` \| `Tooling` \| `Other`) | Drives release-notes grouping. Closed set per repo, but configured — not a hardcoded enum. See section below. |
 | `area`     | `string` (min 1)                                                                             | User-facing grouping (e.g. `viewport`, `history`, `persistence`). Decoupled from packages.                         |
 | `packages` | `string[]` (min 1, each non-empty)                                                           | Monorepo package(s) containing the implementation. Always an array, even for single-package features.              |
 | `links`    | `LinksSchema` (`.strict()` object)                                                           | See [Links shape](#links-shape).                                                                                   |
@@ -52,7 +52,7 @@ Example minimum-viable frontmatter (in-progress, no deps yet):
 ---
 name: Example Feature
 phase: in-progress
-category: Editor
+category: Tooling
 area: example
 packages:
   - web
@@ -79,7 +79,7 @@ Attach history is reconstructed from trailers, not from the parent FD's frontmat
 
 Per the Workflow rules: every new feature MD requires a `category` field — one of the categories configured in `.noldor/config.json` (`consumer.categories`; default `Core | Tooling | Other`). Drives release-notes grouping. `/promote` prompts for this; `/new-feature` requires it.
 
-This is coarser than the internal `area` taxonomy. `area` can be free-form (`history`, `viewport`, `persistence`); `category` is the closed enum above.
+This is coarser than the internal `area` taxonomy. `area` can be free-form (`history`, `viewport`, `persistence`); `category` is the configured set above (a closed set per repo, sourced from `.noldor/config.json` — not a hardcoded enum).
 
 ## phase transitions
 
@@ -134,6 +134,7 @@ The operator no longer stages release-notes copy ahead of time. To override the 
 | --------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `code`    | `string[]` (default `[]`) | Repo-relative paths to implementation files or directories.                                                               |
 | `docs`    | `string[]` (default `[]`) | Repo-relative paths to user-facing docs. Populated by `pnpm noldor sync doc-links` from `<!-- @feature: <slug> -->` tags. |
+| `plan`    | `string \| string[]` (optional) | Repo-relative path(s) to the implementation plan under `docs/superpowers/plans/`. Set on `full-*` paths.            |
 | `spec`    | `string` (optional)       | Single repo-relative path to the design spec under `docs/superpowers/specs/`.                                             |
 | `tests`   | `string[]` (default `[]`) | Repo-relative paths to test files. Populated by `pnpm noldor sync test-links` from `// @tests: <slug>` tags.              |
 

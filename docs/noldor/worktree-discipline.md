@@ -32,7 +32,7 @@ The `release-sweep` gate path operates directly on the `main` workspace from a t
 
 **Rationale.** Sweep operates against the release-time view of `main` itself: `/graphify` reads main's tip for the dependency snapshot, `pnpm docs:build` regenerates typedoc against the current source tree, `pnpm noldor garden sdd-report --release` reads main's commit history for the release-range. A worktree's base ref would falsify all three.
 
-**Boundary.** Every other gate path (`fast-track`, `specs-only-*`, `full-*`, `micro-chore`) stays under the worktree rule above. The carve-out is enforced narrowly by the `release-sweep` allowlist (`RELEASE_SWEEP_GLOBS` in `src/noldor/allowlist.ts`) — sweep cannot launder a source-code edit by piggy-backing on a graphify regen.
+**Boundary.** Every other gate path (`fast-track`, `specs-only-*`, `full-*`, `micro-chore`) stays under the worktree rule above. The carve-out is enforced narrowly by the `release-sweep` allowlist (`RELEASE_SWEEP_GLOBS` in `src/core/allowlist.ts`) — sweep cannot launder a source-code edit by piggy-backing on a graphify regen.
 
 See [release-sweep-process-hardening](../features/release-sweep-process-hardening.md) for the underlying FD.
 

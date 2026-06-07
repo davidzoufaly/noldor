@@ -1,17 +1,49 @@
 // @tests: project-tracking-dashboard
 
-import { describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { loadReleaseNotes } from '../data.js';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { loadReleaseNotes, setDocRootsOverride } from '../data.js';
 import { renderLayout } from '../layout.js';
 import { renderReleaseNotes } from '../views.js';
 
-describe('loadReleaseNotes', () => {
-  it('renders a placeholder until the first release generates docs/release-notes.md', async () => {
-    // noldor has not cut a release yet, so docs/release-notes.md does not exist
-    // and loadReleaseNotes degrades to a placeholder instead of throwing.
-    const notes = await loadReleaseNotes();
-    expect(notes.bodyHtml).toContain('No release notes yet');
+// loadReleaseNotes reads docs/release-notes.md from the doc root. These tests
+// pin a temp fixture root via setDocRootsOverride so they assert the load
+// behaviour hermetically rather than coupling to the live repo's release state.
+describe('loadReleaseNotes (fixture)', () => {
+  afterEach(() => {
+    setDocRootsOverride(undefined);
+  });
+
+  it('degrades to a placeholder when docs/release-notes.md is absent', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'relnotes-absent-'));
+    try {
+      setDocRootsOverride(root);
+      const notes = await loadReleaseNotes();
+      expect(notes.bodyHtml).toContain('No release notes yet');
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it('renders the file content once a release has generated docs/release-notes.md', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'relnotes-present-'));
+    try {
+      await mkdir(join(root, 'docs'), { recursive: true });
+      await writeFile(
+        join(root, 'docs', 'release-notes.md'),
+        '# Release Notes\n\n## v0.2.0 — 2026-06-01\n\n### Tooling\n\nbody\n',
+      );
+      setDocRootsOverride(root);
+      const notes = await loadReleaseNotes();
+      expect(notes.bodyHtml).toContain('Release Notes');
+      expect(notes.bodyHtml).not.toContain('No release notes yet');
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
   });
 });
 
