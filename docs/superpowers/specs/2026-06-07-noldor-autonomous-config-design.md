@@ -87,8 +87,21 @@ export function resolveLanes(
 Precedence (unchanged at the top, relaxed at the bottom): **CLI `--lanes` > configured
 `crLanes.<kind>` > built-in `DEFAULT_CR_LANES[kind]` > interactive picker (`[]`)**.
 
-The only semantic change: branch 2 no longer throws when `crLanes.<kind>` is missing — it
-returns the built-in default. Interactive mode (branch 3) is untouched.
+**This is not a pure no-op.** The new branch-2 guard `args.autonomous || cfg?.autonomous?.skipLanePicker`
+broadens the old guard (`skipLanePicker && crLanes?.[kind]?.length`). Three behavior shifts ride along,
+all intended:
+
+1. `--autonomous` + **no** `crLanes` → was a throw; now returns `DEFAULT_CR_LANES[kind]`. (The headline fix.)
+2. `--autonomous` + `crLanes` present + `skipLanePicker:false` → old code fell through to the throw
+   despite `crLanes` existing; new code returns the configured lanes. (Old behavior was arguably a bug —
+   an explicit `--autonomous` flag should honor configured lanes regardless of `skipLanePicker`.)
+3. `skipLanePicker:true` + **no** `crLanes` + no `--autonomous` flag → old returned `[]` (interactive
+   picker); new returns `DEFAULT_CR_LANES[kind]`, suppressing the picker. This matches the intent of
+   `skipLanePicker:true` ("don't prompt for lanes") — in practice the gate always pairs `skipLanePicker:true`
+   with `--autonomous`, so this path is reachable only via a direct `resolveLanes` call, but the change is
+   still correct and must be tested.
+
+Interactive mode with `skipLanePicker:false` and no flags (branch 3) is untouched: still returns `[]`.
 
 ### 3. Test update — `src/cr/__tests__/orchestrate.test.ts`
 
@@ -97,7 +110,10 @@ The existing case `'autonomous + no config => throws'` (line 41) inverts. Replac
 - `autonomous + no config => built-in defaults`: `resolveLanes({slug,kind:'spec',autonomous:true}, null)` ⇒ `['subagent']` (and `kind:'code'` ⇒ `['subagent']`).
 - Keep `'CLI --lanes wins'`, `'config default applied when CLI unset + skipLanePicker'`,
   `'interactive + no CLI flag => returns empty'`.
-- Add `'configured crLanes overrides built-in default'`: cfg with `crLanes.code:['subagent','codex']` + `autonomous:true` ⇒ `['subagent','codex']`.
+- Add `'configured crLanes overrides built-in default'` (covers shift 2): cfg with
+  `crLanes.code:['subagent','codex']` + `autonomous:true` + `skipLanePicker:false` ⇒ `['subagent','codex']`.
+- Add `'skipLanePicker:true + absent crLanes => built-in defaults'` (covers shift 3): cfg
+  `autonomous:{skipLanePicker:true,...}` with no `crLanes`, no `--autonomous` flag ⇒ `DEFAULT_CR_LANES[kind]`.
 
 ### 4. Documentation (part a)
 
@@ -112,11 +128,14 @@ The existing case `'autonomous + no config => throws'` (line 41) inverts. Replac
   document each `autonomous` field default explicitly.
 - **`docs/noldor/complexity-gating.md`** — note that autonomous mode works with no config
   (built-in defaults), config only needed to override.
-- **`.claude/skills/gate/SKILL.md`** — fix the two prose spots that still say a missing
-  `crLanes` default is a hard error (Step 2.5 "missing defaults are a hard error, never a
-  silent skip"; Autonomous-mode bullet "which must be non-empty for the relevant kind —
-  missing default is a hard error, surface it"). New wording: orchestrate falls back to
+- **`.claude/skills/gate/SKILL.md`** — fix the two prose spots (lines ~119 and ~265) that
+  still say a missing `crLanes` default is a hard error (Step 2.5 "missing defaults are a hard
+  error, never a silent skip"; Autonomous-mode bullet "which must be non-empty for the relevant
+  kind — missing default is a hard error, surface it"). New wording: orchestrate falls back to
   built-in `subagent`-only defaults when `crLanes.<kind>` is absent; config overrides.
+  **Edit BOTH copies** — the runtime skill `.claude/skills/gate/SKILL.md` AND its template twin
+  `templates/.claude/skills/gate/SKILL.md` (identical prose at both lines; `allowlist.ts` keeps
+  the twins in lockstep, so a one-sided edit drifts on next template-sync).
 
 ### Annotated `.noldor/config.json` example (for docs)
 
@@ -128,7 +147,9 @@ The existing case `'autonomous + no config => throws'` (line 41) inverts. Replac
   "crLanes": {
     "spec": ["manual", "subagent"],
     "plan": ["manual", "subagent"],
-    "code": ["subagent"]              // codex opt-in: ["subagent", "codex"]
+    "code": ["subagent"]              // add "codex" for a second opinion: ["subagent", "codex"]
+                                      // (codex needs the codex CLI authenticated — not part of
+                                      //  the autonomous-safe built-in default, which is subagent-only)
   },
 
   // OPTIONAL. Every field defaults (block may be omitted entirely).
