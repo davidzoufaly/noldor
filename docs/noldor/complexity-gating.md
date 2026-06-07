@@ -46,6 +46,16 @@ Noldor-Path-Override: <human-readable reason>
 
 `--no-verify` is forbidden by repo conventions. The override trailer is the only sanctioned escape.
 
+### Pre-commit layer: `NOLDOR_PATH_OVERRIDE`
+
+The trailer above is read at the **commit-msg** layer. Git runs the **pre-commit** hook *before* the commit message exists, so the trailer cannot release a pre-commit block (e.g. a stale `micro-chore` session whose allowlist rejects code edits). For that, set the `NOLDOR_PATH_OVERRIDE` env var on the `git commit` invocation — pair it with the trailer:
+
+```
+NOLDOR_PATH_OVERRIDE="reason" git commit -m "msg" -m "Noldor-Path-Override: reason"
+```
+
+The env var unlocks the pre-commit hook (releasing both the allowlist check and the no-`/gate`-session hard wall) and always writes a `(pre-commit)`-tagged breadcrumb to `.noldor/overrides.log`. The `Noldor-Path-Override` trailer **should** be paired with it: only the *override* trailer lands in git history for the cross-clone `/garden` `override-audit` detector. The commit-msg layer accepts any valid `Noldor-Path` (including the unlogged `fast-track`), so an env-var bypass with a non-override trailer is captured only in the local `overrides.log`, not the cross-clone audit — still strictly better than `--no-verify`, which leaves no record at all.
+
 ## Review handoff after spec/plan
 
 For paths that produce a spec or plan artifact (`specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`), `/gate` pauses after the artifact is written and **does not auto-chain into the next skill** (implementation, `/draft-feature-md`, etc.). The operator picks one of three:

@@ -25,6 +25,7 @@ links:
     - src/garden/detectors/override-audit.ts
     - src/garden/sdd-report.ts
     - src/core/pr-flow.ts
+    - src/hooks/noldor-pre-commit.ts
     - .claude/skills/gate/SKILL.md
     - .claude/skills/promote/SKILL.md
     - docs/noldor/pr-flow.md
@@ -55,6 +56,7 @@ links:
     - src/garden/detectors/__tests__/tier-mismatch.test.ts
     - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
     - src/hooks/__tests__/noldor-validate-trailer.test.ts
+    - src/hooks/__tests__/noldor-pre-commit.test.ts
     - src/release/__tests__/release-cr-gate-e2e.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
   docs:
@@ -81,6 +83,7 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
+
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
@@ -185,7 +188,9 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
   - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
   - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
+  - [`src/hooks/noldor-pre-commit.ts`](../../src/hooks/noldor-pre-commit.ts)
   - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`.claude/skills/promote/SKILL.md`](../../.claude/skills/promote/SKILL.md)
   - [`docs/noldor/pr-flow.md`](../../docs/noldor/pr-flow.md)
 - **Tests:**
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
@@ -214,6 +219,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/garden/detectors/__tests__/tier-mismatch.test.ts`](../../src/garden/detectors/__tests__/tier-mismatch.test.ts)
   - [`src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts`](../../src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts)
   - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
+  - [`src/hooks/__tests__/noldor-pre-commit.test.ts`](../../src/hooks/__tests__/noldor-pre-commit.test.ts)
   - [`src/release/__tests__/release-cr-gate-e2e.test.ts`](../../src/release/__tests__/release-cr-gate-e2e.test.ts)
   - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
 - **Docs:**
@@ -240,6 +246,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
 ## Enhancements
 
 - **Specs-only tier produces a spec file** (2026-05-25): flipped tier behavior to match the rename's original intent — `specs-only` paths now invoke `superpowers:brainstorming` and produce a spec file (no plan). Roster stays at 2 tiers (`specs-only`, `full`). See [spec](../superpowers/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md) + [plan](../superpowers/plans/2026-05-25-noldor-specs-only-tier-produces-spec.md).
+- **Pre-commit honors `NOLDOR_PATH_OVERRIDE`** (2026-06-07): the pre-commit hook runs before the commit message exists, so the `Noldor-Path-Override:` trailer (a commit-msg-layer escape) could not release a pre-commit block such as a stale `micro-chore` allowlist. `runPreCommit` now reads a `NOLDOR_PATH_OVERRIDE` env var: a non-empty value releases both the allowlist check and the no-`/gate`-session hard wall, and always writes a `(pre-commit)`-tagged breadcrumb to `.noldor/overrides.log` (via `logOverride`). `runPreCommit` stays pure — it returns `overrideReason`; the CLI entrypoint does the append. Pair the env var with the `Noldor-Path-Override:` trailer for cross-clone git-log audit. See [spec](../superpowers/specs/2026-06-07-noldor-pre-commit-path-override-design.md).
 
 ## Changelog
 
