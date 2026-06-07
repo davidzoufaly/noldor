@@ -12,8 +12,8 @@ Every gate path lands `main` only via a GitHub PR opened by the controlling agen
 ```
 gate end-of-flow (any path)
   ├─ Claude review (superpowers:requesting-code-review) — address inline, no retry cap
-  ├─ codex CR retry loop (src/noldor/cr-retry.ts) — up to 3 retries
-  ├─ pnpm noldor pr-flow → openAndAutoMerge (src/noldor/pr-flow-cli.ts → pr-flow.ts):
+  ├─ codex CR retry loop (src/core/cr-retry.ts) — up to 3 retries
+  ├─ pnpm noldor pr-flow → openAndAutoMerge (src/core/pr-flow-cli.ts → pr-flow.ts):
   │    1. preflight: gh --version + gh auth status
   │    2. git push --force-with-lease --set-upstream origin <branch>
   │    3. gh pr create --base main --head <branch> --title <…> --body <…>
@@ -63,7 +63,7 @@ Each blind retry forks another zombie hook chain and amplifies wasted time. The 
 
 ### `pnpm noldor pr-flow` recovery — when the CLI itself is broken
 
-The `/gate` Step 4 path invokes `pnpm noldor pr-flow`. If the CLI exits non-zero for a reason unrelated to the pre-push hook (e.g. a regression in [`src/noldor/pr-flow-cli.ts`](../../src/noldor/pr-flow-cli.ts), an upstream `gh` change, a malformed FD that `loadFdSummary` can't parse), fall back to the manual three-step ship — the same one the framework used pre-CLI:
+The `/gate` Step 4 path invokes `pnpm noldor pr-flow`. If the CLI exits non-zero for a reason unrelated to the pre-push hook (e.g. a regression in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts), an upstream `gh` change, a malformed FD that `loadFdSummary` can't parse), fall back to the manual three-step ship — the same one the framework used pre-CLI:
 
 ```bash
 git push --force-with-lease --set-upstream origin "$(git rev-parse --abbrev-ref HEAD)"

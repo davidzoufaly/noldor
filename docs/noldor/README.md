@@ -42,4 +42,4 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 - [`garden-and-drift.md`](garden-and-drift.md) — what /garden detects + sentinel rules
 - [`graph-integration.md`](graph-integration.md) — graphify ↔ SDD substrate
 - [`adoption-guide.md`](adoption-guide.md) — stub; framework is WIP, standalone-package lift tracked in backlog
-- [`engineering-principles.md`](engineering-principles.md) — generic TS / React / a11y / testing principles
+- [`rules.md`](rules.md) — engineering-rules cascade: rule store, per-file/stage resolution, template-sync gate; raw principles live in [`.claude/engineering-rules.md`](../../.claude/engineering-rules.md)

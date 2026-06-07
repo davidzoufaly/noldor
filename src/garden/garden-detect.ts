@@ -395,7 +395,7 @@ export async function detectContradictions(
 
 /**
  * Pair of source-of-truth path(s) and the Noldor page that documents them.
- * Used by Detector 16 (source-drift) to flag drift when sources are touched
+ * Used by Detector 15 (source-drift) to flag drift when sources are touched
  * after the matching page.
  */
 export interface SourceDriftPair {
@@ -406,13 +406,13 @@ export interface SourceDriftPair {
 /** Default source-of-truth ↔ Noldor page pairs. */
 export const SOURCE_DRIFT_PAIRS: readonly SourceDriftPair[] = [
   {
-    sources: ['scripts/features/feature-schema.ts'],
+    sources: ['src/features/feature-schema.ts'],
     page: 'docs/noldor/feature-md-schema.md',
   },
   { sources: ['.claude/skills'], page: 'docs/noldor/skill-catalog.md' },
   { sources: ['lefthook.yml', 'package.json'], page: 'docs/noldor/script-catalog.md' },
-  { sources: ['scripts/release'], page: 'docs/noldor/versioning.md' },
-  { sources: ['scripts/garden'], page: 'docs/noldor/garden-and-drift.md' },
+  { sources: ['src/release'], page: 'docs/noldor/versioning.md' },
+  { sources: ['src/garden'], page: 'docs/noldor/garden-and-drift.md' },
 ];
 
 /**
@@ -467,7 +467,7 @@ function lastCommitISO(repo: string, pathspec: string): string | null {
 }
 
 /**
- * Run Detector 16 (source drift) against the configured pairs. For each pair,
+ * Run Detector 15 (source drift) against the configured pairs. For each pair,
  * compares the latest commit date across all `sources` against the page's
  * latest commit; flags when source is newer by more than `toleranceDays`.
  */
