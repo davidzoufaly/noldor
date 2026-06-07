@@ -1,6 +1,6 @@
 ---
 name: Noldor Framework
-phase: done
+phase: in-progress
 area: docs
 category: Tooling
 packages:
