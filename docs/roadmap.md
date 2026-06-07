@@ -13,17 +13,6 @@
 
 Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
 
-#### Drop Manual Feature MD Update Step
-
-- area: tooling
-- type: refactor
-- since: 2026-05-16
-- size: S
-- impact: med
-- parent: noldor
-
-Remove the `## After every feature, update the feature MD` rule from `docs/noldor/workflow.md` (lines 30-32). The rule says the operator must flip `phase` to `done` and update Summary / User Story / Usage in the shipping commit. Already obsolete: `/draft-feature-md --refresh` rewrites User Story + Usage from spec + code + tests automatically, `pnpm release` owns `introduced` / `updated`, and the `phase: done` flip belongs in `/gate` end-of-flow rather than as a human checklist item. Audit `/gate` Step 4 to ensure `/draft-feature-md --refresh` is invoked before the ship commit (today it isn't — the rule lives only in workflow.md prose, no enforcement). Touches: `docs/noldor/workflow.md`, `.claude/skills/gate/SKILL.md`. Possible drift: `.claude/skills/promote/SKILL.md:139` ("Reminder: edit parent FD body sections … per CLAUDE.md 'after every feature, update the feature MD' rule") needs the dangling reference removed.
-
 #### Graphify `plan-of` edges + nodes for plans/specs
 
 - area: tooling
