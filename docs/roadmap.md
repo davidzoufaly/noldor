@@ -529,14 +529,3 @@ Every roadmap and backlog entry is identified today by its kebab-slug derived fr
 Today FDs stay `phase: in-progress` from feature-branch creation through merge until `pnpm release` flips them to `phase: done` via `release-markers.ts:fillMarkers`. Result: `main` carries shipped-but-still-`in-progress` FDs for the entire window between feature-merge and the next release cut. Want: the phase-flip `in-progress → done` happens in the last commit on the feature branch **before merge** and lands on `main` as part of the feature's PR. If the feature is later reopened (attach-revert flow), flip back to `in-progress` per existing `framework-pr-flow-agent-auto-merge` asymmetric state-machine — release-time `fillMarkers` then becomes a no-op for done features and only fills `introduced` markers on FDs whose phase was already done. Trigger: live now — surfaced 2026-05-23 during release sweep when several recently-merged features remained `in-progress` on `main` until release. Heavily overlaps with roadmap entry "Drop Manual Feature MD Update Step" which already proposes flipping phase=done at `/gate` end-of-flow — merge candidate. Touches: `.claude/skills/gate/SKILL.md` Step 4, `scripts/release/release-markers.ts`, `docs/noldor/workflow.md`.
 
 - triage 2026-05-23: round-tripped roadmap → backlog → roadmap same day. First demoted as vague (`ship-plans-specs-via-fast-track`), then UC clarified, then re-promoted with current slug + scope. Original `ideas.md:43` marker references the old slug for traceability.
-
-### Noldor FD stale `links.code` paths (scripts/noldor → src/core)
-
-- area: tooling
-- type: fix
-- since: 2026-06-07
-- size: XS
-- impact: low
-- parent: noldor
-
-The `scripts/noldor/** → src/core/**` source migration left ~7 stale `scripts/noldor/*.ts` entries in `docs/features/noldor.md` frontmatter `links.code` (`changelog.ts`, `next-priority.ts`, `lint-plan-snippets.ts`, `release-markers.ts`, `validate-noldor-scope.ts`, `validate-noldor.ts`, `validate-skill-catalog.ts`) plus their auto-generated Resources markdown links. `pnpm validate:features` passes (validator does not assert path existence), so stale-but-not-failing — no release blocker. Surfaced during the `end-of-flow-ergonomics` spec CR (which fixed only the `pr-flow.ts` entry, its own file). Fix: rewrite the 7 paths to `src/core/*.ts`, regenerate Resources. Clean `/garden` link-drift sweep candidate. Touches: `docs/features/noldor.md`.
