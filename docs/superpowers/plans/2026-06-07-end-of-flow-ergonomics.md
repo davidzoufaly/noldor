@@ -4,7 +4,7 @@
 
 **Goal:** Stream throttled auto-merge poll status to the operator, and fix the post-merge worktree-cleanup instructions so they actually remove the worktree (no silent leak).
 
-**Architecture:** Part (b) adds two injected seams (`onStatus`, `now`) to `pollAutoMerge` in `src/core/pr-flow.ts`, widens the `gh pr view` field set with `mergeStateStatus`, and emits a throttled status line (first cycle, then ≥30s apart). The CLI wires `onStatus` to stderr. Part (a) is doc/skill-only: replace the `ExitWorktree`-tool cleanup instruction with the non-interactive `git worktree remove` + `git branch -d` sequence in `gate/SKILL.md` and `docs/noldor/pr-flow.md`. Plus a one-line FD `links.code` path correction.
+**Architecture:** Part (b) adds two injected seams (`onStatus`, `now`) to `pollAutoMerge` in `src/core/pr-flow.ts`, widens the `gh pr view` field set with `mergeStateStatus`, and emits a status line on the first cycle, on any `state`/`mergeStateStatus` change, or every ≥30s (emit-on-change OR throttle). The CLI wires `onStatus` to stderr. Part (a) is doc/skill-only: replace the `ExitWorktree`-tool cleanup instruction with the non-interactive `git worktree remove` + `git branch -D` sequence (`-D` because the squash-merge leaves the branch's commits non-ancestor of `main`, so `-d` rejects) across `gate/SKILL.md`, `docs/noldor/pr-flow.md`, and `docs/noldor/worktree-discipline.md` (3 refs) — all three kept consistent to avoid Detector 14/15 drift. Plus a one-line FD `links.code` path correction.
 
 **Tech Stack:** TypeScript, vitest, Node child_process, `gh` CLI.
 
@@ -236,7 +236,10 @@ export async function pollAutoMerge(opts: {
         const elapsedMs = now() - start;
         // Emit on first cycle, on any meaningful transition (so OPEN→BEHIND /
         // BLOCKED→CLEAN surface immediately, not after the 30s window), or when
-        // the steady-state throttle window has elapsed.
+        // the steady-state throttle window has elapsed. No anti-flap guard: if
+        // state/mergeStateStatus oscillated every cycle it would emit every
+        // cycle, but GH merge states do not flap in practice (monotonic toward
+        // CLEAN/MERGED), so the simplicity is worth it.
         const changed = data.state !== lastState || mss !== lastMss;
         if (lastEmitMs === null || changed || elapsedMs - lastEmitMs >= STATUS_THROTTLE_MS) {
           opts.onStatus(
