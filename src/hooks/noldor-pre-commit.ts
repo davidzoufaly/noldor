@@ -1,4 +1,4 @@
-// scripts/hooks/noldor-pre-commit.ts
+// src/hooks/noldor-pre-commit.ts
 // pre-commit stage: enforces micro-chore allowlist and hard-wall post-rollout session requirement.
 import { spawnSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
