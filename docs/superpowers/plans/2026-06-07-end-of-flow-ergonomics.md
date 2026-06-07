@@ -436,6 +436,11 @@ The `scripts/** → src/**` migration left the *entire* `links.code` block in `d
 
 **Files:**
 - Modify: `docs/features/noldor.md` (`links.code` full remap, `links.docs` add, Resources regen, `17 pages` count)
+- Modify: `docs/roadmap.md` (remove the now-moot "Noldor FD stale `links.code` paths" tracking entry — the work it tracked is done here)
+
+- [x] **Step 0: Remove the moot roadmap tracking entry**
+
+Delete the `### Noldor FD stale `links.code` paths (scripts/noldor → src/core)` block from `docs/roadmap.md` (added earlier during spec CR to defer this work). It is superseded — the remap happens in this task.
 
 - [x] **Step 1: Remap every stale `links.code` path `scripts/* → src/*`**
 
