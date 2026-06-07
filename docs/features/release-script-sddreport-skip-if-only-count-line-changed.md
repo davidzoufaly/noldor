@@ -5,8 +5,10 @@ deps: []
 links:
   code:
     - src/release/index.ts
+    - src/release/sdd-report-diff.ts
     - src/garden/sdd-report.ts
-  tests: []
+  tests:
+    - src/release/__tests__/sdd-report-diff.test.ts
 name: Release Script `sdd:report` Skip-If-Only-Count-Line-Changed
 packages:
   - noldor
@@ -20,11 +22,16 @@ noldor-tier: specs-only
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a release operator running `pnpm release`, I want the release to continue when the regenerated `docs/sdd-report.md` differs only in its rolling review-skip count line, so that I'm not forced into a spurious abort-and-retry on every release after a doc-sweep.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+Automatic — no manual step. During `pnpm release`, after `noldor garden sdd-report --release` regenerates `docs/sdd-report.md`:
+
+- If the report is unchanged, the release proceeds as before.
+- If the **only** changed line is `Gated commits missing \`Noldor-Reviewed\` trailer: <n>` (the count bumps once per in-flight branch commit), the release logs `folding regen into the release commit`, proceeds, and stages the regenerated report into the `chore(release)` commit so `main` carries the accurate count.
+- If any other part of the report changed (a new gap, an override entry), the release still aborts with the "commit the regenerated report" error — real content drift remains an operator decision.
+- On a first release with no committed `docs/sdd-report.md` baseline, the original abort behavior is kept.
 
 ## PRs
 

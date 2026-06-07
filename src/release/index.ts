@@ -11,6 +11,7 @@ import { classifyCommits, deriveBumpLevel, readCommitsSince } from './release-co
 import { checkCrGate } from './release-cr-gate.js';
 import { generateFdChangelogs } from './release-fd-changelog.js';
 import { prependToChangelog, renderChangelogEntry } from './release-changelog.js';
+import { onlyReviewSkipCountChanged } from './sdd-report-diff.js';
 import { fillAllMarkers } from './release-markers.js';
 import {
   collectFeaturesForRelease,
@@ -172,10 +173,26 @@ async function main(): Promise<void> {
     await runCliCheck('noldor garden sdd-report --release', ['garden', 'sdd-report', '--release']);
     const dirtyReport = await run('git', ['status', '--porcelain', 'docs/sdd-report.md']);
     if (dirtyReport.length > 0) {
-      throw new Error(
-        'docs/sdd-report.md has uncommitted changes after sdd-report regen. ' +
-          'Commit the regenerated report before releasing.',
-      );
+      let baseline: string | null = null;
+      try {
+        baseline = await run('git', ['show', 'HEAD:docs/sdd-report.md'], { captureOutput: true });
+      } catch {
+        // No committed baseline (first release / file untracked) — nothing to
+        // compare against, so fall through to the abort below.
+        baseline = null;
+      }
+      const working = (await readFile('docs/sdd-report.md', 'utf8')).trim();
+      if (baseline !== null && onlyReviewSkipCountChanged(baseline, working)) {
+        console.log(
+          '→ docs/sdd-report.md differs only in the review-skip count line; ' +
+            'folding regen into the release commit.',
+        );
+      } else {
+        throw new Error(
+          'docs/sdd-report.md has uncommitted changes after sdd-report regen. ' +
+            'Commit the regenerated report before releasing.',
+        );
+      }
     }
     await runOptionalCheck(scripts, 'build');
     await runCliCheck('noldor validate features', ['validate', 'features']);
@@ -290,6 +307,7 @@ async function main(): Promise<void> {
       'add',
       'CHANGELOG.md',
       'docs/release-notes.md',
+      'docs/sdd-report.md',
       'docs/features',
       'docs/noldor',
       ...lockstepPackages,
