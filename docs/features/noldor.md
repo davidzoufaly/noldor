@@ -24,7 +24,7 @@ links:
     - scripts/garden/detectors/codex-cr-override-audit.ts
     - scripts/garden/detectors/override-audit.ts
     - scripts/garden/sdd-report.ts
-    - scripts/noldor/pr-flow.ts
+    - src/core/pr-flow.ts
     - .claude/skills/gate/SKILL.md
     - docs/noldor/pr-flow.md
   tests:
