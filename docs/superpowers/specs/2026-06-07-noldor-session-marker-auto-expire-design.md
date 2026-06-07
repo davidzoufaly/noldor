@@ -76,7 +76,8 @@ names `/gate`) — there is no silent-block to expire (see Non-Goals).
 Pure function — no clock, no filesystem, **no cr import**. The caller injects
 `nowMs` and `ttlHours`, keeping it fully unit-testable. The default-hours
 constant lives in `cr/config.ts` (below), not here, so `session.ts` keeps its
-only-`fs`/`zod` dependency footprint and there is no `core → cr` edge.
+existing `node:fs` / `node:path` / `zod`-only footprint and there is no
+`core → cr` edge.
 
 **`src/cr/config.ts`** (the canonical `.noldor/config.json` schema — already home
 to the non-cr `autonomous` block)
@@ -95,8 +96,15 @@ to the non-cr `autonomous` block)
 
 **`src/hooks/noldor-pre-commit.ts`**
 
-- `runPreCommit` opts gain `nowMs: number` and `ttlHours: number` (the function
-  stays pure — no `Date.now()` / config read inside it).
+- `runPreCommit` opts gain `nowMs?: number` and `ttlHours?: number`, both
+  **optional with defaults** (`nowMs ??= Date.now()`,
+  `ttlHours ??= DEFAULT_SESSION_TTL_HOURS`, imported from `cr/config.ts` — a
+  hook→cr edge, which is fine since the hook is the top layer). Optional keeps
+  the ~15 existing `runPreCommit({ cwd })` call sites in
+  `noldor-pre-commit.test.ts` compiling unchanged; new staleness tests inject
+  explicit `nowMs`/`ttlHours`. The default `Date.now()` is evaluated only when
+  the arg is omitted, so injected calls stay deterministic and the function
+  stays effectively pure for tests.
 - The staleness check is placed **inside** the `micro-chore` and `release-sweep`
   branches, as the first line of each, before the allowlist call — so it
   pre-empts the silent allowlist rejection and inherits each branch's existing
@@ -119,12 +127,22 @@ to the non-cr `autonomous` block)
 - The existing `NOLDOR_PATH_OVERRIDE` check already short-circuits at the top of
   `runPreCommit`, so an override bypasses staleness for free — consistent with
   override semantics at every other layer.
-- The `import.meta.url` entrypoint resolves the inputs **fail-open**: a thrown
-  config error must never block a commit, since the hook gates every commit.
+- The `import.meta.url` entrypoint resolves the inputs **fail-open** (a thrown
+  config error must never block a commit) and passes them explicitly into
+  `runPreCommit`. `loadConfigSync` is given an explicit path built from
+  `process.cwd()`, matching how `pr-flow-cli` calls `loadConfig` (rather than
+  relying on the module-level relative `DEFAULT_PATH`):
   ```
+  const cwd = process.cwd();
   let ttlHours = DEFAULT_SESSION_TTL_HOURS;
-  try { ttlHours = resolveSessionTtlHours(loadConfigSync()); } catch { /* fail-open */ }
-  const nowMs = Date.now();
+  try { ttlHours = resolveSessionTtlHours(loadConfigSync(join(cwd, '.noldor', 'config.json'))); }
+  catch { /* fail-open: malformed config must not block commits */ }
+  const r = runPreCommit({
+    cwd,
+    pathOverride: process.env.NOLDOR_PATH_OVERRIDE,
+    nowMs: Date.now(),
+    ttlHours,
+  });
   ```
 
 ### Part 2 — Micro-chore auto-clear (complementary)
@@ -147,6 +165,12 @@ gap at its source. The Part 1 staleness expiry remains the safety net for any
 micro-chore session that is abandoned before pr-flow runs (operator commits,
 then walks away): the next day it reads as stale rather than enforcing a cold
 allowlist.
+
+`release-sweep` deliberately gets **no** Part-2 auto-clear: its end-of-flow is
+`pnpm release`, not `pr-flow-cli`, so there is no single merge point to hook,
+and a release sweep is a same-day operation. Its lingering risk is covered by
+Part 1 staleness alone. The asymmetry is intentional — Part 2 targets only the
+one main-repo path that flows through `pr-flow-cli`.
 
 ## Testing
 
