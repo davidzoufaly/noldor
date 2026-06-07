@@ -1,6 +1,6 @@
 ---
 name: Noldor Framework
-phase: done
+phase: in-progress
 area: docs
 category: Tooling
 packages:
@@ -83,7 +83,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
