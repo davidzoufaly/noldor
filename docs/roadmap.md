@@ -2,6 +2,39 @@
 
 ### Noldor Framework
 
+#### Document & Default Autonomous Mode Config
+
+- area: tooling
+- type: feat
+- since: 2026-06-07
+- size: S
+- impact: high
+- parent: noldor
+
+`/gate` already supports a fully-unsupervised path: pick `proceed-autonomous` at the plan-stage Step 2.5 and all downstream seams (lane-picker, commit-confirms, continue-dialogs) go non-interactive through PR-merge, and the `.noldor/config.json` `autonomous.skipLanePicker` flag suppresses the lane multi-select. But none of this is documented in the README or adoption guide, and the `autonomous` config block has no shipped defaults — a missing field is a hard error (by design, never a silent skip), so operators can't discover or enable the mode without reading `gate/SKILL.md` line-by-line. Ship: (a) document the `autonomous` config block (`skipLanePicker`, `onFailure: abort | spawn-deep-review | prompt`, per-stage `crLanes`) in `docs/noldor/` + a `.noldor/config.json` example; (b) provide sane defaults so the block is optional, not a hard error. Highest leverage of the autonomy quick-wins — unlocks the unsupervised-through-merge path that already exists but is invisible. Touches: `.claude/skills/gate/SKILL.md`, `docs/noldor/` adoption/config docs, consumer-config defaults.
+
+#### Pre-commit Hook Honors `Noldor-Path-Override`
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- size: S
+- impact: high
+- parent: noldor
+
+`lefthook` pre-commit reads `.noldor/session.json` only and never inspects the pending commit message, so the documented `Noldor-Path-Override:` trailer releases the commit-msg layer (scope + trailer validators) but pre-commit gate blocks first. Hit live during the 2026-05-12 roadmap-priority follow-up: code edits with a `fast-track` intent got stopped because the session was still `micro-chore` from the prior triage commit, and the override trailer was invisible to the pre-commit script. Verified 2026-06-07: `src/hooks/noldor-pre-commit.ts` still reads only the session marker — no env-var or commit-msg peek. Fix candidates: (a) read `NOLDOR_PATH_OVERRIDE` env var in `src/hooks/noldor-pre-commit.ts` and short-circuit the allowlist check with an audit-log entry to `.noldor/overrides.log`; (b) introduce a `.noldor/override` marker file with the same semantics + auto-delete after one commit; (c) make the pre-commit hook peek at `.git/COMMIT_EDITMSG` when it exists (best-effort; not all flows write it pre-commit). Pick whichever audits cleanly via `/garden` override detectors so the escape stays visible.
+
+#### Session Marker Auto-Expire
+
+- area: tooling
+- type: feat
+- since: 2026-05-12
+- size: S
+- impact: med
+- parent: noldor
+
+`.noldor/session.json` persists indefinitely between gate flows. Yesterday's `micro-chore` session lingered into the next day's code-editing work and silently blocked at pre-commit allowlist check — recovery required either manual session rewrite or a fresh `/gate` invocation. Verified 2026-06-07: `startedAt` already lands in the session marker (`src/core/session.ts`) but nothing reads it for expiry. Add expiry semantics: if `startedAt` is older than N hours (default 24h?), pre-commit treats the session as stale and prompts `Run /gate again` rather than enforcing the stale allowlist. Complementary tweak: on successful commit, auto-clear session when `path = micro-chore` (one-and-done semantics) while leaving `fast-track` / `plan-*` / `full-*` intact since those imply ongoing multi-commit work. Pairs with the pre-commit-override entry — both target the same friction surface (gate state outliving its intent).
+
 #### Dynamic FD ↔ File Pointers via Frontmatter
 
 - area: tooling
@@ -449,28 +482,6 @@ When the gate flow picks a specs-only path (`specs-only-new` / `specs-only-attac
 - impact: low
 
 Add a filter (or default-on flag column) on the dashboard's `/features` listing for FDs whose frontmatter is missing the `introduced:` version field. The SDD detector already flags this server-side, but operators want a one-click view on the dashboard to spot done features that shipped without an `introduced:` marker (release-notes drift, version-attribution gaps). Trigger: live now — surfaced during recent dashboard browsing; missing-`introduced` features are otherwise invisible until release-time SDD report.
-
-#### Pre-commit Hook Honors `Noldor-Path-Override`
-
-- area: tooling
-- type: feat
-- since: 2026-05-12
-- size: S
-- impact: high
-- parent: noldor
-
-`lefthook` pre-commit reads `.noldor/session.json` only and never inspects the pending commit message, so the documented `Noldor-Path-Override:` trailer releases the commit-msg layer (scope + trailer validators) but pre-commit gate blocks first. Hit live during the 2026-05-12 roadmap-priority follow-up: code edits with a `fast-track` intent got stopped because the session was still `micro-chore` from the prior triage commit, and the override trailer was invisible to the pre-commit script. Fix candidates: (a) read `QUICKFORGE_PATH_OVERRIDE` env var in `scripts/hooks/noldor-pre-commit.ts` and short-circuit the allowlist check with an audit-log entry to `.noldor/overrides.log`; (b) introduce a `.noldor/override` marker file with the same semantics + auto-delete after one commit; (c) make the pre-commit hook peek at `.git/COMMIT_EDITMSG` when it exists (best-effort; not all flows write it pre-commit). Pick whichever audits cleanly via `/garden` override detectors so the escape stays visible.
-
-#### Session Marker Auto-Expire
-
-- area: tooling
-- type: feat
-- since: 2026-05-12
-- size: S
-- impact: med
-- parent: noldor
-
-`.noldor/session.json` persists indefinitely between gate flows. Yesterday's `micro-chore` session lingered into the next day's code-editing work and silently blocked at pre-commit allowlist check — recovery required either manual session rewrite or a fresh `/gate` invocation. Add expiry semantics: if `startedAt` is older than N hours (default 24h?), pre-commit treats the session as stale and prompts `Run /gate again` rather than enforcing the stale allowlist. Complementary tweak: on successful commit, auto-clear session when `path = micro-chore` (one-and-done semantics) while leaving `fast-track` / `plan-*` / `full-*` intact since those imply ongoing multi-commit work. Pairs with the pre-commit-override entry — both target the same friction surface (gate state outliving its intent).
 
 #### Scope Sibling Trailer for Doc-Sync Commits
 

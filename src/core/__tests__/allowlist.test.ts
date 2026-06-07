@@ -43,6 +43,17 @@ describe('micro-chore allowlist', () => {
   it('rejects .gitignore + code file (tainted)', () => {
     expect(isMicroChoreAllowed(['.gitignore', 'packages/web/src/foo.ts'])).toBe(false);
   });
+  it('accepts a templated skill edited alongside its .claude twin', () => {
+    expect(
+      isMicroChoreAllowed([
+        '.claude/skills/gate/SKILL.md',
+        'templates/.claude/skills/gate/SKILL.md',
+      ]),
+    ).toBe(true);
+  });
+  it('rejects non-.claude templates paths (only template twins of skills qualify)', () => {
+    expect(isMicroChoreAllowed(['templates/src/foo.ts'])).toBe(false);
+  });
 });
 
 describe('isReleaseSweepAllowed', () => {

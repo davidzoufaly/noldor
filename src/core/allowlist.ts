@@ -6,6 +6,7 @@ export const MICRO_CHORE_GLOBS = [
   '*.md', // root-level markdown only
   'lefthook.yml', // framework hook config — single-line hook edits land via micro-chore
   '.gitignore', // ignore-policy edits (e.g. operator-local marker files) land via micro-chore
+  'templates/.claude/**', // template twins of `.claude/**` skills — template-sync forces editing both, so the twin must share the micro-chore lane
 ] as const;
 
 /**

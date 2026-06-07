@@ -47,7 +47,7 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
    - `full-new` — new FD with spec
    - `full-attach` — attach with spec
 
-1.5. **Path confirmation.** Skip when `path === 'micro-chore'`. Otherwise, surface a second `AskUserQuestion`:
+1.5. **Path confirmation.** Skip when `path === 'micro-chore'` or when the path was reached via `/gate --resume <slug>` (the slug + tier are already known from FD frontmatter and the operator committed to the path by resuming — re-confirming is redundant friction). Otherwise, surface a second `AskUserQuestion`:
 
 > Confirm <path> path?
 >
@@ -250,7 +250,7 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
 ## --resume mode
 
-Re-establish session marker for an existing in-progress FD. Reads tier from FD frontmatter, infers path (`specs-only-new` or `full-new` based on tier; user can override to `*-attach` if extending an existing FD).
+Re-establish session marker for an existing in-progress FD. Reads tier from FD frontmatter, infers path (`specs-only-new` or `full-new` based on tier; user can override to `*-attach` if extending an existing FD). Skips the Step 1.5 path-confirmation prompt — resuming already commits to the inferred path, so the confirm is redundant; advance straight to the Step 2 scaffold. (The optional override-to-`*-attach` is an explicit operator choice, not the generic confirm dialog.)
 
 ## Autonomous mode
 
