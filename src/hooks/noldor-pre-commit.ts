@@ -3,9 +3,10 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readSession } from '../core/session';
+import { readSession, isSessionStale, type SessionMarker } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
+import { DEFAULT_SESSION_TTL_HOURS, loadConfigSync, resolveSessionTtlHours } from '../cr/config';
 
 export interface PreCommitResult {
   ok: boolean;
@@ -45,7 +46,21 @@ function getStagedPaths(cwd: string): string[] {
   return (r.stdout ?? '').split('\n').filter(Boolean);
 }
 
-export function runPreCommit(opts: { cwd: string; pathOverride?: string }): PreCommitResult {
+function staleResult(session: SessionMarker, ttlHours: number): PreCommitResult {
+  return {
+    ok: false,
+    reason:
+      `session stale: '${session.path}' started ${session.startedAt} ` +
+      `(older than ${ttlHours}h). Run /gate again to refresh.`,
+  };
+}
+
+export function runPreCommit(opts: {
+  cwd: string;
+  pathOverride?: string;
+  nowMs: number;
+  ttlHours: number;
+}): PreCommitResult {
   // Universal escape hatch: a non-empty NOLDOR_PATH_OVERRIDE releases both the
   // allowlist branches and the no-session hard wall, consistent with the
   // Noldor-Path-Override trailer's semantics at every other layer. Checked first
@@ -61,6 +76,8 @@ export function runPreCommit(opts: { cwd: string; pathOverride?: string }): PreC
   const staged = getStagedPaths(opts.cwd);
 
   if (session?.path === 'micro-chore') {
+    if (isSessionStale(session, opts.nowMs, opts.ttlHours))
+      return staleResult(session, opts.ttlHours);
     if (!isMicroChoreAllowed(staged)) {
       return {
         ok: false,
@@ -71,6 +88,8 @@ export function runPreCommit(opts: { cwd: string; pathOverride?: string }): PreC
   }
 
   if (session?.path === 'release-sweep') {
+    if (isSessionStale(session, opts.nowMs, opts.ttlHours))
+      return staleResult(session, opts.ttlHours);
     if (!isReleaseSweepAllowed(staged)) {
       return {
         ok: false,
@@ -106,12 +125,23 @@ export function runPreCommit(opts: { cwd: string; pathOverride?: string }): PreC
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const cwd = process.cwd();
+  // Fail-open: a malformed .noldor/config.json must never block a commit, since
+  // this hook gates every commit. Fall back to the default TTL on any read/parse error.
+  let ttlHours = DEFAULT_SESSION_TTL_HOURS;
+  try {
+    ttlHours = resolveSessionTtlHours(loadConfigSync(join(cwd, '.noldor', 'config.json')));
+  } catch {
+    /* fail-open */
+  }
   const r = runPreCommit({
-    cwd: process.cwd(),
+    cwd,
     pathOverride: process.env.NOLDOR_PATH_OVERRIDE,
+    nowMs: Date.now(),
+    ttlHours,
   });
   if (r.overrideReason) {
-    logOverride(process.cwd(), r.overrideReason);
+    logOverride(cwd, r.overrideReason);
   }
   if (!r.ok) {
     console.error(`Noldor gate: ${r.reason}`);

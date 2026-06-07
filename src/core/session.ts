@@ -42,6 +42,31 @@ export const SessionMarkerSchema = z
   });
 export type SessionMarker = z.infer<typeof SessionMarkerSchema>;
 
+/**
+ * Paths whose session marker can go stale. Limited to the paths that own an
+ * allowlist branch in `noldor-pre-commit.ts` (`micro-chore`, `release-sweep`):
+ * these are the only paths where a session that has outlived its intent
+ * *silently* rejects a commit against a cold allowlist, and both live in the
+ * main repo with no worktree to clear them. Every other path has no allowlist
+ * branch, so a lingering session there never silently blocks — nothing to
+ * expire. See the session-marker-auto-expire spec.
+ */
+const STALE_ELIGIBLE_PATHS: ReadonlySet<Path> = new Set(['micro-chore', 'release-sweep']);
+
+/**
+ * True when a stale-eligible session's {@link SessionMarker.startedAt} is older
+ * than `ttlHours`. Pure — the caller injects `nowMs` and `ttlHours` (no clock,
+ * no config read here). Non-eligible paths are never stale. An unparseable
+ * `startedAt` is treated as fresh: a garbage timestamp must never block a
+ * commit. Strict `>` so a session exactly at the boundary is still fresh.
+ */
+export function isSessionStale(session: SessionMarker, nowMs: number, ttlHours: number): boolean {
+  if (!STALE_ELIGIBLE_PATHS.has(session.path)) return false;
+  const startedMs = Date.parse(session.startedAt);
+  if (Number.isNaN(startedMs)) return false;
+  return nowMs - startedMs > ttlHours * 3_600_000;
+}
+
 const FILE = '.noldor/session.json';
 
 export function readSession(cwd: string = process.cwd()): SessionMarker | null {

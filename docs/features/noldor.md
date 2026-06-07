@@ -56,7 +56,6 @@ links:
     - src/garden/detectors/__tests__/tier-mismatch.test.ts
     - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
     - src/hooks/__tests__/noldor-validate-trailer.test.ts
-    - src/hooks/__tests__/noldor-pre-commit.test.ts
     - src/release/__tests__/release-cr-gate-e2e.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
   docs:
