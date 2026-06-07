@@ -1,6 +1,6 @@
 ---
 name: draft-feature-md
-description: Auto-draft a feature MD's User Story and Usage sections from the spec (--from-spec) or from spec + code + tests (--refresh). Presents drafts inline as fenced markdown blocks; user confirms or edits inline. Non-destructive — never overwrites non-TODO content without explicit confirmation. Skips Summary and frontmatter. Does not stage or commit. Use after a spec is approved (--from-spec) and again before flipping phase: in-progress → done (--refresh).
+description: Auto-draft a feature MD's User Story and Usage sections from the spec (--from-spec) or from spec + code + tests (--refresh). Presents drafts inline; user confirms or edits inline, or pass --yes for non-interactive auto-apply (gate Step 4 autonomous mode). --scope <paths> narrows the source files and --usage-only restricts to Usage — gate uses both on attach paths to scope a parent-FD refresh. Non-destructive — never overwrites non-TODO content without explicit confirmation. Skips Summary and frontmatter. Does not stage or commit. Use after a spec is approved (--from-spec) and again before flipping phase: in-progress → done (--refresh).
 user_invocable: true
 ---
 
@@ -12,6 +12,9 @@ Draft `User Story` and `Usage` sections of a feature MD from the spec (and at re
 
 - **slug** (required) — kebab-case feature slug. The feature MD lives at `docs/features/<slug>.md`.
 - **mode** (optional flag) — `--from-spec` (default) or `--refresh`.
+- **`--yes`** (optional, `--refresh` only) — non-interactive. Auto-apply drafts without prompting, per the decision rule in `--refresh` step 8. Used by `/gate` Step 4 in autonomous mode.
+- **`--scope <comma-separated paths>`** (optional, `--refresh` only) — draft from exactly these files instead of reading `links.code` + `links.tests`. Used by `/gate` on attach paths to scope the parent-FD refresh to an enhancement's changed files.
+- **`--usage-only`** (optional, `--refresh` only) — draft and write only `## Usage`; read `## User Story` for context but never modify or diff it. Used by `/gate` on attach paths.
 
 ## Steps — `--from-spec` mode
 
@@ -35,18 +38,23 @@ Draft `User Story` and `Usage` sections of a feature MD from the spec (and at re
 
 1. Read `docs/features/<slug>.md`. If missing, abort (same message as `--from-spec` step 1).
 2. Read the latest spec at `docs/superpowers/specs/*-<slug>-design.md` if present (optional but preferred). If absent, log: `No spec found — drafting from code + tests only.`
-3. Read every file path listed in the feature MD's `links.code` frontmatter array. For directory entries, recurse one level. Filter to extensions `*.ts`, `*.tsx`, `*.md`, `*.html`. Ignore `node_modules`, `dist`, `.turbo`.
-4. Read every file in `links.tests`.
+3. Read every file path listed in the feature MD's `links.code` frontmatter array. For directory entries, recurse one level. Filter to extensions `*.ts`, `*.tsx`, `*.md`, `*.html`. Ignore `node_modules`, `dist`, `.turbo`. **When `--scope <paths>` is given, read exactly those comma-separated paths instead** (same extension filter + one-level directory recursion); `links.code`/`links.tests` are not scanned — the scope list is the complete source set.
+4. Read every file in `links.tests` (skipped when `--scope` is given).
 5. If both `links.code` and `links.tests` are empty AND no spec was loaded, abort:
    > Refresh needs at least a spec or shipped code/tests. Nothing to draw from.
-6. Draft fresh `User Story` + `Usage` according to **Drafting prompts**, weighting code/tests over spec where they conflict (reality wins).
-7. For each of `User Story`, `Usage`:
+
+   When `--scope` is given but resolves to zero readable files, abort:
+   > `--scope` resolved to no readable files.
+6. Draft fresh `User Story` + `Usage` according to **Drafting prompts**, weighting code/tests over spec where they conflict (reality wins). **When `--usage-only` is given, draft only `## Usage`** — read `## User Story` for context but never redraft or diff it.
+7. For each of `User Story`, `Usage` (only `Usage` when `--usage-only`):
    - Compute a normalized form of the current section body (strip leading/trailing whitespace, collapse runs of blank lines to one).
    - Compute a normalized form of the draft.
    - If `normalized current == normalized draft`, leave the section alone, tell the user: `<section>: unchanged`.
    - Else, present a unified diff (current vs proposed). Ask the user:
      > Reply: `keep` (current text), `replace` (use proposal), or `edit: <new text>`.
 8. Apply user choices. If a section was edited heavily by the user (current text shares <30% of tokens with what we'd draft), prefer `keep` as the default if the user replies with empty input — don't surprise-replace.
+
+   **Under `--yes` (non-interactive): no prompts.** For each in-scope section decide unconditionally: normalized current == draft → `unchanged`; else token-overlap(current, draft) `< 30%` → **keep** (treat as hand-curated); else → **apply** the draft. Emit one log line per section (`<section>: unchanged | kept (curated) | refreshed`). This promotes the interactive empty-reply default into a hard rule — a deliberate behavior difference, not identical behavior. The auto-applied body is reviewed downstream by `/gate` Step 4's code-stage CR.
 9. Save the file. Tell the user what changed. Do NOT stage or commit.
 
 ## Drafting prompts

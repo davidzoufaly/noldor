@@ -61,7 +61,7 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
 Scaffolding line is path-specific (consult `docs/noldor/complexity-gating.md` path matrix). Commitment label: `fast-track` = fast; `specs-only-*` = medium; `full-*` = heavy. The pause exists to give the operator a beat to abort before the heavy scaffolding starts — `full-new` in particular kicks off `/promote` + worktree + spec brainstorm in sequence and is expensive to abort mid-flight.
 
 2. **Path-specific scaffold:**
-   - `micro-chore`: Confirm diff scope (pre-commit allowlist enforces, see [`scripts/noldor/allowlist.ts`](../../../scripts/noldor/allowlist.ts)). Write session marker `{ path: 'micro-chore' }`. No worktree — edits land on local `main`. Commit. After commit, gate scaffolds the temp-branch handoff so Step 4 can deliver the change via PR:
+   - `micro-chore`: Confirm diff scope (pre-commit allowlist enforces, see [`src/core/allowlist.ts`](../../../src/core/allowlist.ts)). Write session marker `{ path: 'micro-chore' }`. No worktree — edits land on local `main`. Commit. After commit, gate scaffolds the temp-branch handoff so Step 4 can deliver the change via PR:
      1. `branch=micro/$(date -u +%s)` — epoch seconds, unique + sortable.
      2. `git branch $branch HEAD` — point temp branch at the new commit.
      3. `git reset --hard origin/main` — rewind local main (keeps the PR shape: temp branch is the only commit ahead of `origin/main`).
@@ -81,7 +81,7 @@ When `full-attach` or `specs-only-attach` runs, the parent FD's phase may need t
 
 **Step 1 — apply the revert (no-op when phase is already `in-progress` or `proposed`):**
 
-`pnpm exec tsx -e "import {readFileSync as r, writeFileSync as w} from 'node:fs'; import {revertPhaseForAttach as f} from './scripts/noldor/phase-revert.ts'; const p = 'docs/features/<parent-slug>.md'; const m = r(p, 'utf8'); const o = f(m); if (o !== m) w(p, o, 'utf8');"`
+`pnpm exec tsx -e "import {readFileSync as r, writeFileSync as w} from 'node:fs'; import {revertPhaseForAttach as f} from './src/core/phase-revert.ts'; const p = 'docs/features/<parent-slug>.md'; const m = r(p, 'utf8'); const o = f(m); if (o !== m) w(p, o, 'utf8');"`
 
 The inline `if (o !== m)` guard prevents an empty-diff commit attempt.
 
@@ -89,9 +89,9 @@ The inline `if (o !== m)` guard prevents an empty-diff commit attempt.
 
 `git diff --quiet docs/features/<parent-slug>.md || (git add docs/features/<parent-slug>.md && git commit -m "docs(features:<parent-slug>): revert phase done → in-progress for attach session" -m "Noldor-FD: <parent-slug>" -m "Noldor-Phase-Revert: 1")`
 
-The `Noldor-Phase-Revert: 1` trailer is what [`scripts/hooks/noldor-validate-trailer.ts`](../../../scripts/hooks/noldor-validate-trailer.ts) reads to bypass the spec-file existence check on `specs-only-*` / `full-attach` paths. The subject line is informational only — it may be reworded freely without breaking the bypass.
+The `Noldor-Phase-Revert: 1` trailer is what [`src/hooks/noldor-validate-trailer.ts`](../../../src/hooks/noldor-validate-trailer.ts) reads to bypass the spec-file existence check on `specs-only-*` / `full-attach` paths. The subject line is informational only — it may be reworded freely without breaking the bypass.
 
-The reverse transition `in-progress → done` is written by `/gate` Step 4 end-of-flow (see Step 4's first bullet) — `flipPhaseToDone` from `scripts/noldor/phase-flip-done.ts` flips phase back to `done` in the last commit before merge, so `phase: done` lands on `main` as part of the feature PR. `release-markers.ts:fillMarkers` remains the release-time safety net for any FD that didn't get flipped at end-of-flow.
+The reverse transition `in-progress → done` is written by `/gate` Step 4 end-of-flow (see Step 4's first bullet) — `flipPhaseToDone` from `src/core/phase-flip-done.ts` flips phase back to `done` in the last commit before merge, so `phase: done` lands on `main` as part of the feature PR. `release-markers.ts:fillMarkers` remains the release-time safety net for any FD that didn't get flipped at end-of-flow.
 
 Trade-off: the `### <version> (in-progress)` changelog label no longer renders for enhancement cycles whose Step 4 flip succeeded — the original asymmetric design from `framework-pr-flow-agent-auto-merge` spec §3 (gate writes revert; release-markers writes restore) is superseded. The label still renders for FDs caught by the safety net (Step 4 flip skipped or forgotten).
 
@@ -142,15 +142,23 @@ For `specs-only-*` paths, the kind=spec continue-dialog has no `proceed-autonomo
 
 This pause is the cheapest place to catch architectural drift, missing edge cases, or scope misalignment — far cheaper than fixing it post-implementation in the end-of-flow code review (Step 4).
 
-3. **Session marker.** Always write `.noldor/session.json` (use `scripts/noldor/session.ts`).
+3. **Session marker.** Always write `.noldor/session.json` (use `src/core/session.ts`).
 
 4. **End-of-flow (PR flow).** When the user signals "ready to ship":
 
-- **Flip FD `phase: in-progress → done`** for all FD-carrying paths (`specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`). Read `slug` (new-FD paths) or `parent` (attach paths) from `.noldor/session.json`. Apply `flipPhaseToDone` from `scripts/noldor/phase-flip-done.ts` to `docs/features/<slug>.md`. If the file changed, commit:
+- **Refresh the feature-MD body (`/draft-feature-md --refresh`)** for all FD-carrying paths, *before* the phase-flip below, so refreshed `User Story` / `Usage` ride the same commit and are seen by the code-stage CR. Resolve target + scope by path:
+  - **New-FD paths** (`specs-only-new`, `full-new`): target = `slug`; full `links.code` / `links.tests`; both sections. Invoke `/draft-feature-md <slug> --refresh` (add `--yes` in autonomous mode).
+  - **Attach paths** (`specs-only-attach`, `full-attach`): target = `parent`; scoped + Usage-only so a small enhancement can't rewrite the parent FD's story. Changed files = `git diff --name-only origin/main...HEAD` filtered to `/draft-feature-md`'s source-extension allowlist, excluding the target FD file and anything under `docs/superpowers/`. **If that filter yields zero files, skip the refresh entirely** (treat as no-op — do *not* invoke `/draft-feature-md`, which aborts on empty scope; this also keeps the autonomous `--yes` pipeline from halting). Otherwise **join the surviving paths with commas** (the `git diff` output is newline-separated; `--scope` wants comma-separated) and invoke `/draft-feature-md <parent> --refresh --scope <comma-joined paths> --usage-only` (add `--yes` in autonomous mode).
+  - **Fast-track / micro-chore:** skip (no FD).
+  `/draft-feature-md` never stages or commits — the flip step below commits the refreshed body together with `phase: done`. In autonomous mode `--yes` runs it non-interactively (no prompt). Because the flip commits the refreshed FD onto the branch, it rides the `origin/main..HEAD` diff that the code-stage CR reviews below (that step passes `--base-sha origin/main`) — that is the mechanism behind "reviewed by the code-stage CR".
 
-  `pnpm exec tsx -e "import {readFileSync as r, writeFileSync as w} from 'node:fs'; import {flipPhaseToDone as f} from './scripts/noldor/phase-flip-done.ts'; const p = 'docs/features/<slug>.md'; const m = r(p, 'utf8'); const o = f(m); if (o !== m) w(p, o, 'utf8');"`
+- **Flip FD `phase: in-progress → done`** for all FD-carrying paths (`specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`). Read `slug` (new-FD paths) or `parent` (attach paths) from `.noldor/session.json`. Apply `flipPhaseToDone` from `src/core/phase-flip-done.ts` to `docs/features/<slug>.md`. If the file changed, commit:
 
-  `git diff --quiet docs/features/<slug>.md || (git add docs/features/<slug>.md && git commit -m "docs(features:<slug>): mark phase=done" -m "Noldor-FD: <slug>")`
+  `pnpm exec tsx -e "import {readFileSync as r, writeFileSync as w} from 'node:fs'; import {flipPhaseToDone as f} from './src/core/phase-flip-done.ts'; const p = 'docs/features/<slug>.md'; const m = r(p, 'utf8'); const o = f(m); if (o !== m) w(p, o, 'utf8');"`
+
+  `git diff --quiet docs/features/<slug>.md || (git add docs/features/<slug>.md && git commit -m "docs(features:<slug>): mark phase=done + refresh User Story/Usage" -m "Noldor-FD: <slug>")`
+
+  On attach paths the subject is `docs(features:<parent>): mark phase=done + refresh Usage` (Usage-only); drop the `+ refresh …` clause when the refresh step produced no body change. `<slug>` is the new-FD slug or the parent slug per path. This single commit now carries both the refreshed body and `phase: done`.
 
   `release-markers.ts:fillMarkers` remains the release-time safety net for any FD that didn't get flipped at end-of-flow (forgot, manual commits, etc.) — its branches still accept `phase: in-progress + introduced` as input. Trade-off: the `### <version> (in-progress)` changelog label no longer renders for enhancement cycles whose Step 4 flip succeeded — the original asymmetric design in `framework-pr-flow-agent-auto-merge` spec §3 is superseded by this end-of-flow flip. The `(in-progress)` label still renders for FDs caught by the release-time safety net.
 
@@ -167,8 +175,10 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 - **Code-stage orchestrate.** Run the worktree-code lane (default `subagent`; config `crLanes.code` can override, e.g. `['subagent', 'codex']` to opt codex back in):
 
   ```
-  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes subagent
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes subagent --base-sha origin/main
   ```
+
+  `<code-paths>` is a representative changed path used only for labeling; the subagent lane actually reviews the **`BASE_SHA..HEAD` diff range**, so pass `--base-sha origin/main` to cover the whole feature diff — which **includes the refreshed `docs/features/<slug>.md`** from the first bullet. That range membership is what delivers the "refreshed FD is reviewed by the code-stage CR" guarantee. Omitting `--base-sha` defaults the lane to `HEAD~1..HEAD` (last commit only — usually not what you want at end-of-flow). On attach paths pass the **parent** slug for `--slug` (the lane reads `docs/features/<slug>.md` as FD context, and attach has no child FD).
 
   **Autonomous mode:** add `--autonomous` and omit `--lanes` (orchestrate reads `crLanes.code` from `.noldor/config.json`). The `--autonomous` flag also suppresses the overwrite-guard prompts and the standalone-in-progress prompt, so re-runs over prior sinks don't pause.
 
@@ -205,9 +215,9 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
 - **Context cleanup on clean exit.** Once all aggregates are green and the gate is about to enter PR flow, remove the escalation context file so stale failure context can't leak into a subsequent retry on the next feature: `rm -f .noldor/cr/<slug>-escalation-context.md`.
 
-- Invoke `pnpm noldor pr-flow` (CLI wrapper around `scripts/noldor/pr-flow.ts:openAndAutoMerge`, source at [`scripts/noldor/pr-flow-cli.ts`](../../../scripts/noldor/pr-flow-cli.ts)) — existing behavior. The CLI reads `.noldor/session.json`, derives `PrFlowInput` from session + FD frontmatter + `Noldor-Reviewed-Subagent` commit trailer + git-discovered spec/plan paths, then runs preflight `gh` → `git push --force-with-lease --set-upstream origin <branch>` → `gh pr create` → `gh pr merge --auto --squash` → poll until merged. See [`docs/noldor/pr-flow.md`](../../../docs/noldor/pr-flow.md) for the top-level flow diagram + push runbook + failure runbook.
+- Invoke `pnpm noldor pr-flow` (CLI wrapper around `src/core/pr-flow.ts:openAndAutoMerge`, source at [`src/core/pr-flow-cli.ts`](../../../src/core/pr-flow-cli.ts)) — existing behavior. The CLI reads `.noldor/session.json`, derives `PrFlowInput` from session + FD frontmatter + `Noldor-Reviewed-Subagent` commit trailer + git-discovered spec/plan paths, then runs preflight `gh` → `git push --force-with-lease --set-upstream origin <branch>` → `gh pr create` → `gh pr merge --auto --squash` → poll until merged. See [`docs/noldor/pr-flow.md`](../../../docs/noldor/pr-flow.md) for the top-level flow diagram + push runbook + failure runbook.
 
-  **The old codex retry loop is gone.** Earlier revisions of this step invoked `superpowers:requesting-code-review` directly + ran `scripts/noldor/cr-retry.ts` for up to 3 codex passes. Both are removed — the subagent now runs via `pnpm noldor cr orchestrate --kind code` (single lane), and codex at Step 4 is opt-in via config (`crLanes.code: ['subagent', 'codex']`) rather than a forced retry loop. `scripts/noldor/cr-retry.ts` survives on disk as dead code for a separate refactor pass; the gate no longer calls it.
+  **The old codex retry loop is gone.** Earlier revisions of this step invoked `superpowers:requesting-code-review` directly + ran `src/core/cr-retry.ts` for up to 3 codex passes. Both are removed — the subagent now runs via `pnpm noldor cr orchestrate --kind code` (single lane), and codex at Step 4 is opt-in via config (`crLanes.code: ['subagent', 'codex']`) rather than a forced retry loop. `src/core/cr-retry.ts` survives on disk as dead code for a separate refactor pass; the gate no longer calls it.
 
 - On merged: explicit cleanup (do NOT call `superpowers:finishing-a-development-branch` — it's interactive and this flow is autonomous by design):
   - **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>` — removes the worktree directory + deletes the local feature branch. Non-interactive; no native tool. (Do NOT use the `ExitWorktree` native tool here: the framework creates worktrees via `git worktree add .worktrees/<name>`, which `ExitWorktree` did not create, so it is a no-op that silently leaves the worktree + branch on disk.) `git branch -D` (force) is required because the PR is squash-merged — the branch's commits are not ancestors of `main`, so `-d` would reject with "not fully merged" and leak the branch. Use `--force` on `git worktree remove` only if the worktree has uncommitted changes (it should not at this point). **Then sync local `main` to the merged squash commit: `git fetch origin main && git checkout main && git merge --ff-only origin/main`.** A PR is not "finished" until local `main` matches `origin/main` — the next session must start from the merged state, not a behind one. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence; do not force the merge.
