@@ -191,26 +191,61 @@ export async function preflightGh(opts: { spawn: SpawnFn }): Promise<void> {
   }
 }
 
+const STATUS_THROTTLE_MS = 30_000;
+
 export async function pollAutoMerge(opts: {
   prUrl: string;
   spawn: SpawnFn;
   intervalMs: number;
   timeoutMs: number;
+  onStatus?: (line: string) => void;
+  now?: () => number;
 }): Promise<{ mergedAt: string }> {
-  const start = Date.now();
+  const now = opts.now ?? Date.now;
+  const start = now();
   let extendedDeadline = opts.timeoutMs;
   let behindObserved = false;
+  let lastEmitMs: number | null = null;
+  let lastState: string | null = null;
+  let lastMss: string | null = null;
 
-  while (Date.now() - start < extendedDeadline) {
-    const r = await opts.spawn('gh', ['pr', 'view', opts.prUrl, '--json', 'mergedAt,state']);
+  while (now() - start < extendedDeadline) {
+    const r = await opts.spawn('gh', [
+      'pr',
+      'view',
+      opts.prUrl,
+      '--json',
+      'mergedAt,state,mergeStateStatus',
+    ]);
     if (r.exitCode === 0) {
-      const data = JSON.parse(r.stdout) as { mergedAt: string | null; state: string };
+      const data = JSON.parse(r.stdout) as {
+        mergedAt: string | null;
+        state: string;
+        mergeStateStatus?: string | null;
+      };
       if (data.mergedAt) return { mergedAt: data.mergedAt };
       if (data.state === 'CLOSED') throw new PrClosedWithoutMergeError(opts.prUrl);
       if (data.state === 'BEHIND' && !behindObserved) {
         behindObserved = true;
         // Absolute ceiling from poll start — not from when BEHIND was first seen
         extendedDeadline = BEHIND_TIMEOUT_MS;
+      }
+      if (opts.onStatus) {
+        const mss = data.mergeStateStatus ?? 'UNKNOWN';
+        const elapsedMs = now() - start;
+        // Emit on first cycle, on any meaningful transition (so OPEN→BEHIND /
+        // BLOCKED→CLEAN surface immediately, not after the 30s window), or when
+        // the steady-state throttle window has elapsed. No anti-flap guard: GH
+        // merge states do not flap in practice (monotonic toward CLEAN/MERGED).
+        const changed = data.state !== lastState || mss !== lastMss;
+        if (lastEmitMs === null || changed || elapsedMs - lastEmitMs >= STATUS_THROTTLE_MS) {
+          opts.onStatus(
+            `Auto-merge: state=${data.state}, mergeStateStatus=${mss}, elapsed=${Math.floor(elapsedMs / 1000)}s`,
+          );
+          lastEmitMs = elapsedMs;
+          lastState = data.state;
+          lastMss = mss;
+        }
       }
     }
     await new Promise<void>((resolve) => setTimeout(resolve, opts.intervalMs));
@@ -222,6 +257,7 @@ export interface OpenAndAutoMergeInput extends PrFlowInput {
   spawn: SpawnFn;
   intervalMs?: number;
   timeoutMs?: number;
+  onStatus?: (line: string) => void;
 }
 
 export async function openAndAutoMerge(input: OpenAndAutoMergeInput): Promise<PrFlowResult> {
@@ -270,6 +306,7 @@ export async function openAndAutoMerge(input: OpenAndAutoMergeInput): Promise<Pr
       spawn: input.spawn,
       intervalMs: input.intervalMs ?? DEFAULT_POLL_INTERVAL_MS,
       timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      onStatus: input.onStatus,
     });
     mergedAt = polled.mergedAt;
   } else {
