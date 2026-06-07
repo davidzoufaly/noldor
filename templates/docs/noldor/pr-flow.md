@@ -19,13 +19,13 @@ gate end-of-flow (any path)
   │    3. gh pr create --base main --head <branch> --title <…> --body <…>
   │    4. gh pr merge <pr> --auto --squash
   │       └─ on failure (e.g. repo doesn't have auto-merge enabled): retry `gh pr merge --squash --delete-branch` synchronously, verify via `gh pr view --json mergedAt,state`
-  │    5. poll gh pr view --json mergedAt,state until merged (10min timeout; 20min if BEHIND) — skipped on the fallback path because the synchronous merge has already completed
-  ├─ explicit cleanup: ExitWorktree (worktree paths) OR delete temp branch (micro-chore)
+  │    5. poll gh pr view --json mergedAt,state,mergeStateStatus until merged (10min timeout; 20min if BEHIND) — streams a throttled status line per cycle (Auto-merge: state=…, mergeStateStatus=…, elapsed=…s) to stderr; skipped on the fallback path because the synchronous merge has already completed
+  ├─ explicit cleanup: git worktree remove + git branch -D (worktree paths) OR delete temp branch (micro-chore)
   ├─ sync local main to origin/main (git fetch + ff-only merge / rebase) — PR is not "finished" until local main matches origin
   └─ Step 5 next-priority handoff (always-clear)
 ```
 
-**Local main sync is part of PR completion.** A merged PR isn't done at the GitHub side — the next session must start from the merged state, not a behind one. Both gate paths refresh local main as part of Step 4 cleanup: worktree paths run `git fetch origin main && git checkout main && git merge --ff-only origin/main` in the main workspace after `ExitWorktree`; micro-chore runs `git fetch origin main && git rebase origin/main` after deleting the temp branch. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence — do not force the merge.
+**Local main sync is part of PR completion.** A merged PR isn't done at the GitHub side — the next session must start from the merged state, not a behind one. Both gate paths refresh local main as part of Step 4 cleanup: worktree paths run `git fetch origin main && git checkout main && git merge --ff-only origin/main` in the main workspace after `git worktree remove`; micro-chore runs `git fetch origin main && git rebase origin/main` after deleting the temp branch. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence — do not force the merge.
 
 ## One-time operator setup
 

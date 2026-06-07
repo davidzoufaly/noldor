@@ -2,17 +2,6 @@
 
 ### Noldor Framework
 
-#### End-of-Flow Ergonomics
-
-- area: tooling
-- type: feat
-- since: 2026-05-16
-- size: M
-- impact: high
-- parent: noldor
-
-Two end-of-flow ergonomics for the post-merge handoff in `/gate` Step 4 / `pr-flow.openAndAutoMerge`. (a) **Auto-remove worktree without prompting** — already nominally codified (Step 4 invokes `ExitWorktree` native tool with `action: 'remove'`, and `worktree-discipline.md` says "skip the 4-option menu, don't ask first"), but audit the actual end-to-end path for any remaining interactive blockers: `ExitWorktree`'s own confirmation, residual `AskUserQuestion` prompts in `gate/SKILL.md` end-of-flow, `superpowers:finishing-a-development-branch` invocations elsewhere. Goal: zero prompts between "PR merged" and "next-priority handoff". (b) **PR auto-merge polling streams status into chat** — today `openAndAutoMerge` polls `gh pr view --json mergedAt,state` for up to 10min (20min if `BEHIND`) with no operator visibility into healthy progress. Print one status line per poll cycle (suggest every 30-60s): `Auto-merge: state=<state>, behind=<n>, elapsed=<m>s`. Lets the operator distinguish "polling healthy, waiting on checks" from "hung / network dropped". Touches: `scripts/noldor/pr-flow.ts`, `.claude/skills/gate/SKILL.md`, `docs/noldor/pr-flow.md`.
-
 #### Drop Manual Feature MD Update Step
 
 - area: tooling

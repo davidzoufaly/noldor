@@ -7,23 +7,26 @@ packages:
   - scripts
 links:
   code:
-    - scripts/noldor/changelog.ts
-    - scripts/noldor/next-priority.ts
-    - scripts/noldor/lint-plan-snippets.ts
-    - scripts/noldor/release-markers.ts
-    - scripts/noldor/validate-noldor-scope.ts
-    - scripts/noldor/validate-noldor.ts
-    - scripts/noldor/validate-skill-catalog.ts
-    - scripts/cr/codex.ts
-    - scripts/cr/sidecar.ts
-    - scripts/cr/context.ts
-    - scripts/cr/run-codex.ts
-    - scripts/cr/cr-record.schema.json
-    - scripts/cr/cli-args.ts
-    - scripts/release/release-cr-gate.ts
-    - scripts/garden/detectors/codex-cr-override-audit.ts
-    - scripts/garden/detectors/override-audit.ts
-    - scripts/garden/sdd-report.ts
+    - src/core/changelog.ts
+    - src/core/next-priority.ts
+    - src/core/lint-plan-snippets.ts
+    - src/core/release-markers.ts
+    - src/core/validate-noldor-scope.ts
+    - src/core/validate-noldor.ts
+    - src/core/validate-skill-catalog.ts
+    - src/cr/codex.ts
+    - src/cr/sidecar.ts
+    - src/cr/context.ts
+    - src/cr/run-codex.ts
+    - src/cr/cr-record.schema.json
+    - src/cr/cli-args.ts
+    - src/release/release-cr-gate.ts
+    - src/garden/detectors/codex-cr-override-audit.ts
+    - src/garden/detectors/override-audit.ts
+    - src/garden/sdd-report.ts
+    - src/core/pr-flow.ts
+    - .claude/skills/gate/SKILL.md
+    - docs/noldor/pr-flow.md
   tests:
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts
@@ -70,6 +73,7 @@ links:
     - docs/noldor/graph-integration.md
     - docs/noldor/adoption-guide.md
     - docs/noldor/engineering-principles.md
+    - docs/noldor/cr-pipeline.md
   spec: >-
     docs/superpowers/specs/archive/2026-05-08-quickforge-framework-extraction-design.md
 noldor-tier: full
@@ -84,7 +88,7 @@ dedicated `docs/noldor/` folder so the project-agnostic rules
 (complexity gating, worktree discipline, /promote /triage /garden,
 SDD audit, graphify integration, FD schema, doc & test conventions,
 engineering principles) live separately from Charuy's product-specific
-overlays. Tracked as a single FD with all 16 framework pages in
+overlays. Tracked as a single FD with all 17 framework pages in
 `links.docs`; per-page change history is recovered via
 `pnpm noldor:changelog` walking commit scopes
 (`noldor:<slug>` / `noldor`).
@@ -94,7 +98,7 @@ overlays. Tracked as a single FD with all 16 framework pages in
 As a contributor (human or agent) iterating on the dev-loop framework, I want
 the Noldor rules to live in a dedicated `docs/noldor/` home with
 git-driven per-page change history, so that I can evolve framework theory as a
-coherent body without bloating CLAUDE.md or duplicating frontmatter across 16
+coherent body without bloating CLAUDE.md or duplicating frontmatter across 17
 pages.
 
 ## Usage
@@ -163,23 +167,26 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-05-08-quickforge-framework-extraction-design.md`](../../docs/superpowers/specs/archive/2026-05-08-quickforge-framework-extraction-design.md)
 - **Code:**
-  - [`scripts/noldor/changelog.ts`](../../scripts/noldor/changelog.ts)
-  - [`scripts/noldor/next-priority.ts`](../../scripts/noldor/next-priority.ts)
-  - [`scripts/noldor/lint-plan-snippets.ts`](../../scripts/noldor/lint-plan-snippets.ts)
-  - [`scripts/noldor/release-markers.ts`](../../scripts/noldor/release-markers.ts)
-  - [`scripts/noldor/validate-noldor-scope.ts`](../../scripts/noldor/validate-noldor-scope.ts)
-  - [`scripts/noldor/validate-noldor.ts`](../../scripts/noldor/validate-noldor.ts)
-  - [`scripts/noldor/validate-skill-catalog.ts`](../../scripts/noldor/validate-skill-catalog.ts)
-  - [`scripts/cr/codex.ts`](../../scripts/cr/codex.ts)
-  - [`scripts/cr/sidecar.ts`](../../scripts/cr/sidecar.ts)
-  - [`scripts/cr/context.ts`](../../scripts/cr/context.ts)
-  - [`scripts/cr/run-codex.ts`](../../scripts/cr/run-codex.ts)
-  - [`scripts/cr/cr-record.schema.json`](../../scripts/cr/cr-record.schema.json)
-  - [`scripts/cr/cli-args.ts`](../../scripts/cr/cli-args.ts)
-  - [`scripts/release/release-cr-gate.ts`](../../scripts/release/release-cr-gate.ts)
-  - [`scripts/garden/detectors/codex-cr-override-audit.ts`](../../scripts/garden/detectors/codex-cr-override-audit.ts)
-  - [`scripts/garden/detectors/override-audit.ts`](../../scripts/garden/detectors/override-audit.ts)
-  - [`scripts/garden/sdd-report.ts`](../../scripts/garden/sdd-report.ts)
+  - [`src/core/changelog.ts`](../../src/core/changelog.ts)
+  - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
+  - [`src/core/lint-plan-snippets.ts`](../../src/core/lint-plan-snippets.ts)
+  - [`src/core/release-markers.ts`](../../src/core/release-markers.ts)
+  - [`src/core/validate-noldor-scope.ts`](../../src/core/validate-noldor-scope.ts)
+  - [`src/core/validate-noldor.ts`](../../src/core/validate-noldor.ts)
+  - [`src/core/validate-skill-catalog.ts`](../../src/core/validate-skill-catalog.ts)
+  - [`src/cr/codex.ts`](../../src/cr/codex.ts)
+  - [`src/cr/sidecar.ts`](../../src/cr/sidecar.ts)
+  - [`src/cr/context.ts`](../../src/cr/context.ts)
+  - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
+  - [`src/cr/cr-record.schema.json`](../../src/cr/cr-record.schema.json)
+  - [`src/cr/cli-args.ts`](../../src/cr/cli-args.ts)
+  - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
+  - [`src/garden/detectors/codex-cr-override-audit.ts`](../../src/garden/detectors/codex-cr-override-audit.ts)
+  - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
+  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
+  - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
+  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`docs/noldor/pr-flow.md`](../../docs/noldor/pr-flow.md)
 - **Tests:**
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
   - [`src/core/__tests__/lint-plan-snippets.test.ts`](../../src/core/__tests__/lint-plan-snippets.test.ts)
@@ -226,6 +233,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`docs/noldor/graph-integration.md`](../../docs/noldor/graph-integration.md)
   - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
   - [`docs/noldor/engineering-principles.md`](../../docs/noldor/engineering-principles.md)
+  - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
 
 <!-- /generated: resources -->
 

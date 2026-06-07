@@ -468,3 +468,205 @@ describe('openAndAutoMerge', () => {
     );
   });
 });
+
+describe('pollAutoMerge status streaming', () => {
+  // Real timers + tiny interval + a settable clock the spawn mock advances per
+  // cycle, so the test controls elapsed time regardless of how many times now()
+  // is read within a cycle (deadline + throttle + elapsed all read it).
+  it('emits on first non-merged cycle with state/mergeStateStatus/elapsed', async () => {
+    let nowMs = 0;
+    const lines: string[] = [];
+    let cycle = 0;
+    const spawn: SpawnFn = vi.fn(async () => {
+      cycle += 1;
+      nowMs += 10_000; // 10s per cycle
+      if (cycle >= 2) {
+        return {
+          stdout: JSON.stringify({
+            mergedAt: '2026-06-07T00:00:00Z',
+            state: 'MERGED',
+            mergeStateStatus: 'CLEAN',
+          }),
+          exitCode: 0,
+        };
+      }
+      return {
+        stdout: JSON.stringify({ mergedAt: null, state: 'OPEN', mergeStateStatus: 'BLOCKED' }),
+        exitCode: 0,
+      };
+    });
+    await pollAutoMerge({
+      prUrl: 'https://github.com/x/y/pull/1',
+      spawn,
+      intervalMs: 1,
+      timeoutMs: 600_000,
+      onStatus: (l) => lines.push(l),
+      now: () => nowMs,
+    });
+    expect(lines).toEqual(['Auto-merge: state=OPEN, mergeStateStatus=BLOCKED, elapsed=10s']);
+  });
+
+  it('throttles: no second emit < 30s, emits at >= 30s', async () => {
+    let nowMs = 0;
+    const lines: string[] = [];
+    let cycle = 0;
+    const spawn: SpawnFn = vi.fn(async () => {
+      cycle += 1;
+      nowMs += 10_000; // cycles at elapsed 10s,20s,30s,40s
+      if (cycle >= 5) {
+        return {
+          stdout: JSON.stringify({
+            mergedAt: '2026-06-07T00:00:00Z',
+            state: 'MERGED',
+            mergeStateStatus: 'CLEAN',
+          }),
+          exitCode: 0,
+        };
+      }
+      return {
+        stdout: JSON.stringify({ mergedAt: null, state: 'OPEN', mergeStateStatus: 'BLOCKED' }),
+        exitCode: 0,
+      };
+    });
+    await pollAutoMerge({
+      prUrl: 'https://github.com/x/y/pull/1',
+      spawn,
+      intervalMs: 1,
+      timeoutMs: 600_000,
+      onStatus: (l) => lines.push(l),
+      now: () => nowMs,
+    });
+    // emit at 10s (first), skip 20s (<30s since last), skip 30s (=20s since last),
+    // emit at 40s (=30s since last emit at 10s).
+    expect(lines).toEqual([
+      'Auto-merge: state=OPEN, mergeStateStatus=BLOCKED, elapsed=10s',
+      'Auto-merge: state=OPEN, mergeStateStatus=BLOCKED, elapsed=40s',
+    ]);
+  });
+
+  it('emits immediately on a state/mergeStateStatus transition inside the 30s window', async () => {
+    let nowMs = 0;
+    const lines: string[] = [];
+    let cycle = 0;
+    const spawn: SpawnFn = vi.fn(async () => {
+      cycle += 1;
+      nowMs += 10_000; // cycles at elapsed 10s, 20s, ...
+      if (cycle === 1) {
+        return {
+          stdout: JSON.stringify({ mergedAt: null, state: 'OPEN', mergeStateStatus: 'BLOCKED' }),
+          exitCode: 0,
+        };
+      }
+      if (cycle === 2) {
+        // transition at elapsed 20s (<30s since first emit) — must emit on change
+        return {
+          stdout: JSON.stringify({ mergedAt: null, state: 'BEHIND', mergeStateStatus: 'BEHIND' }),
+          exitCode: 0,
+        };
+      }
+      return {
+        stdout: JSON.stringify({
+          mergedAt: '2026-06-07T00:00:00Z',
+          state: 'MERGED',
+          mergeStateStatus: 'CLEAN',
+        }),
+        exitCode: 0,
+      };
+    });
+    await pollAutoMerge({
+      prUrl: 'https://github.com/x/y/pull/1',
+      spawn,
+      intervalMs: 1,
+      timeoutMs: 600_000,
+      onStatus: (l) => lines.push(l),
+      now: () => nowMs,
+    });
+    expect(lines).toEqual([
+      'Auto-merge: state=OPEN, mergeStateStatus=BLOCKED, elapsed=10s',
+      'Auto-merge: state=BEHIND, mergeStateStatus=BEHIND, elapsed=20s',
+    ]);
+  });
+
+  it('emits nothing on instant merge (first cycle already merged)', async () => {
+    let nowMs = 0;
+    const lines: string[] = [];
+    const spawn: SpawnFn = vi.fn(async () => {
+      nowMs += 10_000;
+      return {
+        stdout: JSON.stringify({
+          mergedAt: '2026-06-07T00:00:00Z',
+          state: 'MERGED',
+          mergeStateStatus: 'CLEAN',
+        }),
+        exitCode: 0,
+      };
+    });
+    const r = await pollAutoMerge({
+      prUrl: 'https://github.com/x/y/pull/1',
+      spawn,
+      intervalMs: 1,
+      timeoutMs: 600_000,
+      onStatus: (l) => lines.push(l),
+      now: () => nowMs,
+    });
+    expect(r.mergedAt).toBe('2026-06-07T00:00:00Z');
+    expect(lines).toEqual([]);
+  });
+
+  it('prints UNKNOWN when mergeStateStatus absent', async () => {
+    let nowMs = 0;
+    const lines: string[] = [];
+    let cycle = 0;
+    const spawn: SpawnFn = vi.fn(async () => {
+      cycle += 1;
+      nowMs += 10_000;
+      if (cycle >= 2) {
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-06-07T00:00:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      }
+      return {
+        stdout: JSON.stringify({ mergedAt: null, state: 'OPEN' }),
+        exitCode: 0,
+      };
+    });
+    await pollAutoMerge({
+      prUrl: 'https://github.com/x/y/pull/1',
+      spawn,
+      intervalMs: 1,
+      timeoutMs: 600_000,
+      onStatus: (l) => lines.push(l),
+      now: () => nowMs,
+    });
+    expect(lines).toEqual(['Auto-merge: state=OPEN, mergeStateStatus=UNKNOWN, elapsed=10s']);
+  });
+
+  it('does not emit on a failed (non-zero) gh fetch cycle', async () => {
+    let nowMs = 0;
+    const lines: string[] = [];
+    let cycle = 0;
+    const spawn: SpawnFn = vi.fn(async () => {
+      cycle += 1;
+      nowMs += 10_000;
+      if (cycle === 1) return { stdout: '', exitCode: 1 }; // failed fetch, no state
+      return {
+        stdout: JSON.stringify({
+          mergedAt: '2026-06-07T00:00:00Z',
+          state: 'MERGED',
+          mergeStateStatus: 'CLEAN',
+        }),
+        exitCode: 0,
+      };
+    });
+    await pollAutoMerge({
+      prUrl: 'https://github.com/x/y/pull/1',
+      spawn,
+      intervalMs: 1,
+      timeoutMs: 600_000,
+      onStatus: (l) => lines.push(l),
+      now: () => nowMs,
+    });
+    expect(lines).toEqual([]); // cycle 1 failed (no emit), cycle 2 merged (returns before emit)
+  });
+});
