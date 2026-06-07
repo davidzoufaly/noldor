@@ -144,8 +144,7 @@ When the operator picks an existing parent FD at step 1.5:
 - Step 10 message:
 
   > Attached to `<parent-slug>`. Source block removed.
-  > Reminder: edit parent FD body sections (Summary / Usage) inline at end of implementation per CLAUDE.md "after every feature, update the feature MD" rule.
-  > Recommended: run `/draft-feature-md <parent-slug> --refresh` after implementation lands.
+  > The parent FD body (User Story / Usage) is refreshed automatically at ship time by `/gate` Step 4 via `/draft-feature-md --refresh` (scoped to the enhancement's changed files, Usage-only) — no manual edit needed. See `docs/noldor/workflow.md`.
 
 ## Rules
 
