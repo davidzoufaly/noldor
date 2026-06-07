@@ -45,10 +45,14 @@ FD-carrying path, including autonomous and attach flows. Two design decisions ma
 all-paths sound rather than naive:
 
 - **Autonomous safety:** add a non-interactive `--yes` mode to `draft-feature-md` that
-  auto-applies drafts but reuses the skill's existing `<30% token-overlap with current
-  → keep` heuristic as the default, so hand-curated prose is not silently clobbered.
-  The refreshed FD lands in the worktree diff and is therefore reviewed by Step 4's
-  code-stage CR (the human-in-the-loop substitute).
+  auto-applies drafts. It **promotes** the skill's `<30% token-overlap with current →
+  keep` rule — which today is only a *default-on-empty-reply* nudge in interactive mode
+  (skill steps 8) — into an *unconditional* skip, so hand-curated prose is not silently
+  clobbered. This is a deliberate behavior change, not identical behavior. The refreshed
+  FD lands in the worktree diff and is re-reviewed by Step 4's code-stage CR. **In
+  autonomous mode that CR is a subagent, not a human, and the PR auto-merges when it
+  finds no blockers** — so the overlap guard plus the subagent CR are the only gates,
+  and residual prose drift can ship unattended (see Risk).
 - **Attach safety:** add `--scope <paths>` (draft only from the listed files instead of
   the FD's full `links.code`/`links.tests`) and `--usage-only` (write only `## Usage`,
   never `## User Story`). On attach paths, `/gate` refreshes the **parent** FD scoped to
@@ -69,6 +73,9 @@ Add to the **Inputs** section and `--refresh` steps:
     log `<section>: kept (curated)`.
   - else → **apply drafted**, log `<section>: refreshed`.
   Still never stages/commits (unchanged rule). Still never touches Summary/frontmatter.
+  Note the behavior delta: interactively this `<30%` rule only sets the empty-reply
+  default (the operator can still override either way); under `--yes` it is the
+  unconditional decision.
 - **`--scope <comma-separated paths>`**. Overrides the source files: draft from exactly
   these paths instead of reading `links.code` + `links.tests`. Files that don't exist
   are skipped with a warning (reuse the existing missing-file behavior). When `--scope`
@@ -95,16 +102,22 @@ is included in the diff the code-stage CR reviews:
     `… --refresh --yes` (autonomous).
   - `specs-only-attach` / `full-attach` → target = `<parent>`; scoped + Usage-only.
     Changed files = `git diff --name-only origin/main...HEAD` filtered to
-    `draft-feature-md`'s extension allowlist (`.ts .tsx .md .html`), **excluding** the
-    target FD file and anything under `docs/superpowers/` (specs/plans). Invoke
-    `/draft-feature-md <parent> --refresh --scope <changed> --usage-only`
-    (+ `--yes` in autonomous).
+    `draft-feature-md`'s step-3 extension allowlist (the single source of that list —
+    currently `.ts .tsx .md .html`; reference it, don't re-hardcode a copy that can
+    drift), **excluding** the target FD file and anything under `docs/superpowers/`
+    (specs/plans). Invoke `/draft-feature-md <parent> --refresh --scope <changed>
+    --usage-only` (+ `--yes` in autonomous).
   - `fast-track` / `micro-chore` → skip (no FD). Unchanged.
 - The existing `phase-flip-done` flip + commit then stages the FD, which now carries
   both the phase flip and the refreshed prose. Update that commit's subject to
-  `mark phase=done + refresh User Story/Usage` (drop the suffix when `--refresh`
-  produced no change). All trailers unchanged.
+  `mark phase=done + refresh User Story/Usage` on new-FD paths, or
+  `mark phase=done + refresh Usage` on attach paths (Usage-only); drop the `+ refresh …`
+  suffix entirely when `--refresh` produced no change. All trailers unchanged.
 - Autonomous mode: the new action emits no `AskUserQuestion`; it relies on `--yes`.
+- **Incidental fix (same file).** `gate/SKILL.md:94,149,151` still reference the moved
+  path `scripts/noldor/phase-flip-done.ts`; correct them to `src/core/phase-flip-done.ts`
+  (`workflow.md:32` already uses the correct path). The `rule-conflicts` invariant does
+  not catch a moved-file path, so this is a manual fix folded into this edit.
 
 The `--refresh` write itself never commits (skill rule); the commit is the existing
 `phase-flip-done` step. If `--refresh` produced no change, behavior is identical to
@@ -142,16 +155,24 @@ No TypeScript changes → no unit tests. Validation surface:
   `draft-feature-md` prose stays mutually consistent (no contradictory rules).
 - `validate-noldor` / `validate-noldor-scope` — page frontmatter + commit scope for the
   `docs/noldor/workflow.md` edit (`noldor:workflow` or `noldor` scope).
-- **Manual dogfood:** this session is itself `specs-only-attach` to `noldor`, so its own
-  Step 4 exercises the new attach-scoped `--refresh --scope <changed> --usage-only`
-  against the `noldor` parent FD — the first real run of the new path.
+- **Manual dogfood (emulated).** This session is itself `specs-only-attach` to `noldor`.
+  Because the `~/.claude` registry copy won't carry the new flags until this PR merges
+  (see Risk → bootstrap), its Step 4 cannot invoke `--refresh --yes --scope --usage-only`
+  through the registry. Instead the controller **emulates** the new attach-scoped
+  behavior by following the repo copy's updated prose by hand against the `noldor` parent
+  FD. This validates the prose is *followable and correct*, not the registry wiring — a
+  dry-run, not a first registry invocation.
 
 ## Risk / trade-off
 
-- **Auto-accepted prose drift (autonomous `--yes`).** Mitigated by the `<30%-overlap →
-  keep` guard *and* the Step 4 code-stage CR reviewing the FD diff. Residual risk: a
-  drafted section that overlaps ≥30% but is subtly worse gets applied; the CR is the
-  backstop.
+- **Auto-accepted prose drift (autonomous `--yes`).** Guarded by the `<30%-overlap →
+  keep` rule and the Step 4 code-stage CR reviewing the FD diff. **But in autonomous mode
+  no human sees the refreshed FD** — the code-stage CR is a subagent, and the PR
+  auto-merges when it returns no blockers. So a drafted section that overlaps ≥30% but is
+  subtly worse can be applied and **shipped fully unattended**; the subagent CR is the
+  only backstop. Interactive (non-autonomous) flows keep the human diff-confirm, so this
+  risk is autonomous-only. Accepted: the alternative (block autonomous refresh) was
+  rejected when the scope choice was full-wire-all-paths.
 - **Attach Usage-only skips User Story.** Intentional: an enhancement rarely reshapes a
   parent's User Story, and rewriting a meta-FD's story from a few files is the failure
   mode we're avoiding. Cost: a genuine User-Story-level change on an attach must be
