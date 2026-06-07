@@ -89,7 +89,7 @@ The inline `if (o !== m)` guard prevents an empty-diff commit attempt.
 
 `git diff --quiet docs/features/<parent-slug>.md || (git add docs/features/<parent-slug>.md && git commit -m "docs(features:<parent-slug>): revert phase done → in-progress for attach session" -m "Noldor-FD: <parent-slug>" -m "Noldor-Phase-Revert: 1")`
 
-The `Noldor-Phase-Revert: 1` trailer is what [`scripts/hooks/noldor-validate-trailer.ts`](../../../scripts/hooks/noldor-validate-trailer.ts) reads to bypass the spec-file existence check on `specs-only-*` / `full-attach` paths. The subject line is informational only — it may be reworded freely without breaking the bypass.
+The `Noldor-Phase-Revert: 1` trailer is what [`src/hooks/noldor-validate-trailer.ts`](../../../src/hooks/noldor-validate-trailer.ts) reads to bypass the spec-file existence check on `specs-only-*` / `full-attach` paths. The subject line is informational only — it may be reworded freely without breaking the bypass.
 
 The reverse transition `in-progress → done` is written by `/gate` Step 4 end-of-flow (see Step 4's first bullet) — `flipPhaseToDone` from `src/core/phase-flip-done.ts` flips phase back to `done` in the last commit before merge, so `phase: done` lands on `main` as part of the feature PR. `release-markers.ts:fillMarkers` remains the release-time safety net for any FD that didn't get flipped at end-of-flow.
 

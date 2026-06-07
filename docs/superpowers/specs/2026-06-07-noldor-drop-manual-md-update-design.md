@@ -120,7 +120,9 @@ is included in the diff the code-stage CR reviews:
   `pr-flow-cli` (×2), `cr-retry`. The inline tsx commands at L84/L145 are broken as
   written (ENOENT — hit live this session). `workflow.md:32` already uses the correct
   path. The `rule-conflicts` invariant does not catch a moved-file path, so this is a
-  manual sweep folded into this edit.
+  manual sweep folded into this edit. (Code-stage CR additionally caught a sibling
+  `scripts/hooks/noldor-validate-trailer.ts` → `src/hooks/` ref at L92 — same class,
+  fixed too.)
 
 The `--refresh` write itself never commits (skill rule); the commit is the existing
 `phase-flip-done` step. If `--refresh` produced no change, behavior is identical to
