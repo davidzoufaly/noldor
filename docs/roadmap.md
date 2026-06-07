@@ -2,6 +2,17 @@
 
 ### Noldor Framework
 
+#### Dynamic FD ↔ File Pointers via Frontmatter
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: L
+- impact: high
+- parent: noldor
+
+Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
+
 #### Drop Manual Feature MD Update Step
 
 - area: tooling
@@ -47,17 +58,6 @@ Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superp
 - recovered: 2026-05-23
 
 Existing multiterminal-development flow has a reproducible bug, discovered while scoping [[specs-cr-gate-multi-reviewer]]. Reproduce, root-cause, fix — blocks delivery of [[specs-cr-gate-multi-reviewer]].
-
-#### Dynamic FD ↔ File Pointers via Frontmatter
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: L
-- impact: high
-- parent: noldor
-
-Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
 
 #### Bootstrap-Immunity for Self-Gating Features
 

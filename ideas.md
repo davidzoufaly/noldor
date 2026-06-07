@@ -25,6 +25,9 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 #### Now
 
+- ať se to neptá na potvrzení cesty a na commitnutí specu -> automatish
+- release pushes log -> gitignore?
+- po vyběru cesty -> zbytečná otázka pro potvrzení
 - next priority -> be able to dispatch next priority via agent window
 - when checking FD also consider checking backlog/if there might be other candidates for the same FD so it can suggest new FD with higher confidence so it will be usefull also later
 - milestones to dashboard web
