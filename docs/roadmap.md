@@ -2,17 +2,6 @@
 
 ### Noldor Framework
 
-#### Pre-commit Hook Honors `Noldor-Path-Override`
-
-- area: tooling
-- type: feat
-- since: 2026-05-12
-- size: S
-- impact: high
-- parent: noldor
-
-`lefthook` pre-commit reads `.noldor/session.json` only and never inspects the pending commit message, so the documented `Noldor-Path-Override:` trailer releases the commit-msg layer (scope + trailer validators) but pre-commit gate blocks first. Hit live during the 2026-05-12 roadmap-priority follow-up: code edits with a `fast-track` intent got stopped because the session was still `micro-chore` from the prior triage commit, and the override trailer was invisible to the pre-commit script. Verified 2026-06-07: `src/hooks/noldor-pre-commit.ts` still reads only the session marker — no env-var or commit-msg peek. Fix candidates: (a) read `NOLDOR_PATH_OVERRIDE` env var in `src/hooks/noldor-pre-commit.ts` and short-circuit the allowlist check with an audit-log entry to `.noldor/overrides.log`; (b) introduce a `.noldor/override` marker file with the same semantics + auto-delete after one commit; (c) make the pre-commit hook peek at `.git/COMMIT_EDITMSG` when it exists (best-effort; not all flows write it pre-commit). Pick whichever audits cleanly via `/garden` override detectors so the escape stays visible.
-
 #### Session Marker Auto-Expire
 
 - area: tooling
