@@ -15,8 +15,9 @@
 - `src/core/pr-flow.ts` — add `onStatus`/`now` to `pollAutoMerge` opts + `OpenAndAutoMergeInput`; widen `--json`; throttle emit; thread callback through `openAndAutoMerge`.
 - `src/core/pr-flow-cli.ts` — pass `onStatus: (line) => process.stderr.write(line + '\n')` into `openAndAutoMerge`.
 - `src/core/__tests__/pr-flow.test.ts` — new `describe` block for status streaming (real timers, `intervalMs: 1`, injected settable clock).
-- `.claude/skills/gate/SKILL.md` — Step 4 cleanup bullet.
+- `.claude/skills/gate/SKILL.md` — Step 4 cleanup bullet (`git worktree remove` + `git branch -D`).
 - `docs/noldor/pr-flow.md` — flow-diagram line + local-main-sync paragraph.
+- `docs/noldor/worktree-discipline.md` — 3× `git branch -d` → `-D` (squash-merge correctness; keep docs consistent).
 - `docs/features/noldor.md` — correct the `scripts/noldor/pr-flow.ts` → `src/core/pr-flow.ts` `links.code` entry.
 
 ---
@@ -84,6 +85,36 @@ describe('pollAutoMerge status streaming', () => {
     expect(lines).toEqual([
       'Auto-merge: state=OPEN, mergeStateStatus=BLOCKED, elapsed=10s',
       'Auto-merge: state=OPEN, mergeStateStatus=BLOCKED, elapsed=40s',
+    ]);
+  });
+
+  it('emits immediately on a state/mergeStateStatus transition inside the 30s window', async () => {
+    let nowMs = 0;
+    const lines: string[] = [];
+    let cycle = 0;
+    const spawn: SpawnFn = vi.fn(async () => {
+      cycle += 1;
+      nowMs += 10_000; // cycles at elapsed 10s, 20s, ...
+      if (cycle === 1) {
+        return { stdout: JSON.stringify({ mergedAt: null, state: 'OPEN', mergeStateStatus: 'BLOCKED' }), exitCode: 0 };
+      }
+      if (cycle === 2) {
+        // transition at elapsed 20s (<30s since first emit) — must emit on change
+        return { stdout: JSON.stringify({ mergedAt: null, state: 'BEHIND', mergeStateStatus: 'BEHIND' }), exitCode: 0 };
+      }
+      return { stdout: JSON.stringify({ mergedAt: '2026-06-07T00:00:00Z', state: 'MERGED', mergeStateStatus: 'CLEAN' }), exitCode: 0 };
+    });
+    await pollAutoMerge({
+      prUrl: 'https://github.com/x/y/pull/1',
+      spawn,
+      intervalMs: 1,
+      timeoutMs: 600_000,
+      onStatus: (l) => lines.push(l),
+      now: () => nowMs,
+    });
+    expect(lines).toEqual([
+      'Auto-merge: state=OPEN, mergeStateStatus=BLOCKED, elapsed=10s',
+      'Auto-merge: state=BEHIND, mergeStateStatus=BEHIND, elapsed=20s',
     ]);
   });
 
@@ -176,6 +207,8 @@ export async function pollAutoMerge(opts: {
   let extendedDeadline = opts.timeoutMs;
   let behindObserved = false;
   let lastEmitMs: number | null = null;
+  let lastState: string | null = null;
+  let lastMss: string | null = null;
 
   while (now() - start < extendedDeadline) {
     const r = await opts.spawn('gh', [
@@ -199,13 +232,19 @@ export async function pollAutoMerge(opts: {
         extendedDeadline = BEHIND_TIMEOUT_MS;
       }
       if (opts.onStatus) {
+        const mss = data.mergeStateStatus ?? 'UNKNOWN';
         const elapsedMs = now() - start;
-        if (lastEmitMs === null || elapsedMs - lastEmitMs >= STATUS_THROTTLE_MS) {
-          const mss = data.mergeStateStatus ?? 'UNKNOWN';
+        // Emit on first cycle, on any meaningful transition (so OPEN→BEHIND /
+        // BLOCKED→CLEAN surface immediately, not after the 30s window), or when
+        // the steady-state throttle window has elapsed.
+        const changed = data.state !== lastState || mss !== lastMss;
+        if (lastEmitMs === null || changed || elapsedMs - lastEmitMs >= STATUS_THROTTLE_MS) {
           opts.onStatus(
             `Auto-merge: state=${data.state}, mergeStateStatus=${mss}, elapsed=${Math.floor(elapsedMs / 1000)}s`,
           );
           lastEmitMs = elapsedMs;
+          lastState = data.state;
+          lastMss = mss;
         }
       }
     }
@@ -255,7 +294,7 @@ Expected: no errors.
 ```bash
 cd .worktrees/end-of-flow-ergonomics
 git add src/core/pr-flow.ts src/core/__tests__/pr-flow.test.ts
-git commit -m "feat(core:pr-flow): stream throttled auto-merge poll status" -m "Noldor-FD: noldor"
+git commit -m "feat(noldor): stream auto-merge poll status (emit-on-change + throttle)" -m "Noldor-FD: noldor"
 ```
 
 ---
@@ -304,7 +343,7 @@ Expected: PASS (no behavioral change to existing assertions).
 ```bash
 cd .worktrees/end-of-flow-ergonomics
 git add src/core/pr-flow-cli.ts
-git commit -m "feat(core:pr-flow): wire auto-merge status to stderr in CLI" -m "Noldor-FD: noldor"
+git commit -m "feat(noldor): wire auto-merge status to stderr in CLI" -m "Noldor-FD: noldor"
 ```
 
 ---
@@ -314,8 +353,11 @@ git commit -m "feat(core:pr-flow): wire auto-merge status to stderr in CLI" -m "
 **Files:**
 - Modify: `.claude/skills/gate/SKILL.md` (Step 4 "On merged" → "Worktree-backed paths" bullet)
 - Modify: `docs/noldor/pr-flow.md` (flow-diagram cleanup line + local-main-sync paragraph)
+- Modify: `docs/noldor/worktree-discipline.md` (3× `git branch -d` → `-D`)
 
 > NOTE: `.claude/skills/**` is a shared-root path blocked from worktree commits by the pre-commit hook. This task's commit needs `NOLDOR_ALLOW_SHARED=1` (see worktree-discipline.md). The edit is intentional and in-scope per the FD.
+>
+> **Why `-D` not `-d`:** the PR is squash-merged, so the feature branch's commits are not ancestors of `main`. `git branch -d` rejects with "not fully merged" and the branch leaks. Use the force delete `-D`. All three docs must agree on `-D` or Detector 14/15 flags the contradiction.
 
 - [ ] **Step 1: Edit `.claude/skills/gate/SKILL.md`**
 
@@ -328,7 +370,7 @@ Find the Step 4 cleanup bullet (search for `**Worktree-backed paths**`). Replace
 becomes:
 
 ```
-  - **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -d feat/<name>` — removes the worktree directory + deletes the local feature branch. Non-interactive; no native tool. (Do NOT use the `ExitWorktree` native tool here: the framework creates worktrees via `git worktree add .worktrees/<name>`, which `ExitWorktree` did not create, so it is a no-op that silently leaves the worktree + branch on disk.) Use `--force` only if the worktree has uncommitted changes (it should not at this point). **Then sync local `main` to the merged squash commit: `git fetch origin main && git checkout main && git merge --ff-only origin/main`.** A PR is not "finished" until local `main` matches `origin/main` — the next session must start from the merged state, not a behind one. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence; do not force the merge.
+  - **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>` — removes the worktree directory + deletes the local feature branch. Non-interactive; no native tool. (Do NOT use the `ExitWorktree` native tool here: the framework creates worktrees via `git worktree add .worktrees/<name>`, which `ExitWorktree` did not create, so it is a no-op that silently leaves the worktree + branch on disk.) `git branch -D` (force) is required because the PR is squash-merged — the branch's commits are not ancestors of `main`, so `-d` would reject with "not fully merged" and leak the branch. Use `--force` on `git worktree remove` only if the worktree has uncommitted changes (it should not at this point). **Then sync local `main` to the merged squash commit: `git fetch origin main && git checkout main && git merge --ff-only origin/main`.** A PR is not "finished" until local `main` matches `origin/main` — the next session must start from the merged state, not a behind one. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence; do not force the merge.
 ```
 
 - [ ] **Step 2: Edit `docs/noldor/pr-flow.md`**
@@ -342,7 +384,7 @@ Edit 1 — the flow-diagram cleanup line. Find:
 Replace with:
 
 ```
-  ├─ explicit cleanup: git worktree remove + git branch -d (worktree paths) OR delete temp branch (micro-chore)
+  ├─ explicit cleanup: git worktree remove + git branch -D (worktree paths) OR delete temp branch (micro-chore)
 ```
 
 Edit 2 — the "Local main sync is part of PR completion" paragraph. Find the phrase:
@@ -357,17 +399,30 @@ Replace `after `ExitWorktree`` with `after `git worktree remove`` so it reads:
 worktree paths run `git fetch origin main && git checkout main && git merge --ff-only origin/main` in the main workspace after `git worktree remove`;
 ```
 
-- [ ] **Step 3: Verify no other `ExitWorktree` cleanup references remain**
+- [ ] **Step 3: Edit `docs/noldor/worktree-discipline.md` (3× `-d` → `-D`)**
 
-Run: `cd /Users/davidzoufaly/code/noldor/.worktrees/end-of-flow-ergonomics && grep -rn "ExitWorktree" .claude/skills/gate/SKILL.md docs/noldor/pr-flow.md`
-Expected: only the new explanatory mention in `gate/SKILL.md` Step 1 ("(Do NOT use the `ExitWorktree` native tool here…)"). No remaining *instruction* to use it for cleanup. (The roadmap-entry description text mentioning `ExitWorktree` lives in `docs/roadmap.md` and is out of scope.)
+Three `git branch -d feat/<name>` references carry the same squash-merge leak bug. Change each to `git branch -D feat/<name>`:
 
-- [ ] **Step 4: Commit (shared-files override)**
+1. The commands-table row (search `git worktree remove [--force] .worktrees/<name>`): `Pair with `git branch -d feat/<name>`.` → `Pair with `git branch -D feat/<name>` (force: squash-merge leaves the branch's commits non-ancestor of main, so `-d` rejects).`
+2. The "Finish sequence" line (search `**Finish sequence`): `→ `git worktree remove` → `git branch -d`.` → `→ `git worktree remove` → `git branch -D`.`
+3. The "Finishing a worktree" bullet (search `Finishing a worktree`): `→ `git branch -d feat/<name>`.` → `→ `git branch -D feat/<name>`.`
+
+- [ ] **Step 4: Verify no other `ExitWorktree` cleanup references + no `-d` leak remains**
+
+Run:
+```bash
+cd /Users/davidzoufaly/code/noldor/.worktrees/end-of-flow-ergonomics
+grep -rn "ExitWorktree" .claude/skills/gate/SKILL.md docs/noldor/pr-flow.md
+grep -rn "branch -d feat" .claude/skills/gate/SKILL.md docs/noldor/pr-flow.md docs/noldor/worktree-discipline.md
+```
+Expected: the first grep shows only the new explanatory mention in `gate/SKILL.md` ("(Do NOT use the `ExitWorktree` native tool here…)") — no remaining *instruction* to use it for cleanup. (The roadmap-entry text mentioning `ExitWorktree` lives in `docs/roadmap.md`, out of scope.) The second grep returns **nothing** (all `-d feat` are now `-D feat`).
+
+- [ ] **Step 5: Commit (shared-files override)**
 
 ```bash
 cd /Users/davidzoufaly/code/noldor/.worktrees/end-of-flow-ergonomics
-git add .claude/skills/gate/SKILL.md docs/noldor/pr-flow.md
-NOLDOR_ALLOW_SHARED=1 git commit -m "docs(noldor:pr-flow): replace ExitWorktree cleanup with git worktree remove" -m "Noldor-FD: noldor"
+git add .claude/skills/gate/SKILL.md docs/noldor/pr-flow.md docs/noldor/worktree-discipline.md
+NOLDOR_ALLOW_SHARED=1 git commit -m "docs(noldor): replace ExitWorktree cleanup with git worktree remove + git branch -D" -m "Noldor-FD: noldor"
 ```
 
 ---
@@ -381,10 +436,11 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "docs(noldor:pr-flow): replace ExitWorktree 
 
 In `docs/features/noldor.md` frontmatter `links.code`, change the entry `scripts/noldor/pr-flow.ts` (appended during promote) to `src/core/pr-flow.ts`. Leave the other 7 stale `scripts/noldor/*.ts` entries untouched — they are scope-deferred to the tracking roadmap entry per the spec.
 
-- [ ] **Step 2: Validate**
+- [ ] **Step 2: Validate (schema sanity only)**
 
 Run: `cd /Users/davidzoufaly/code/noldor/.worktrees/end-of-flow-ergonomics && node bin/noldor.mjs validate features`
 Expected: `Validated N feature MD(s) — all OK.`
+Note: this confirms the frontmatter still parses — it does **not** verify the path exists (the validator does not check `links.code` path existence; the 7 deferred stale entries pass too). This edit is doc-accuracy only, with no functional gate behind it.
 
 - [ ] **Step 3: Commit**
 

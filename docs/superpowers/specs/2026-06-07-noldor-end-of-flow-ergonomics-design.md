@@ -82,9 +82,15 @@ export async function pollAutoMerge(opts: {
 
 - Fetch field set widens: `gh pr view <url> --json mergedAt,state,mergeStateStatus`.
 - Poll interval stays 5s (responsive merge detection preserved).
-- Throttle emission: emit a status line on the **first** poll cycle, then only
-  when ≥30s have elapsed (per `now()`) since the last emission. Both the
-  deadline and the throttle read the injected `now()` — no separate timer.
+- Emit-on-change OR throttle: emit a status line when **any** of these hold —
+  (1) first poll cycle, (2) `state` or `mergeStateStatus` changed since the last
+  emitted line, or (3) ≥30s have elapsed (per `now()`) since the last emission.
+  A meaningful transition (e.g. `OPEN→BEHIND`, `mergeStateStatus BLOCKED→CLEAN`)
+  surfaces immediately rather than being suppressed for up to 30s — that
+  transition is exactly the moment an operator wants to see. Steady-state
+  (no change) falls back to the 30s throttle so a stalled poll still emits
+  periodically. Both the deadline and the throttle read the injected `now()` —
+  no separate timer.
 - Line format:
   `Auto-merge: state=<state>, mergeStateStatus=<mergeStateStatus>, elapsed=<s>s`
   where `<s>` is whole seconds since poll start (`Math.floor((now()-start)/1000)`).
@@ -127,9 +133,18 @@ The **Worktree-backed paths** bullet changes from:
 to:
 
 > `git worktree remove [--force] .worktrees/<name>` then
-> `git branch -d feat/<name>` — removes the worktree directory + deletes the
+> `git branch -D feat/<name>` — removes the worktree directory + deletes the
 > local feature branch. Non-interactive; no native tool. `--force` only if the
 > worktree has uncommitted changes (it should not at this point).
+
+**`-D`, not `-d`:** the PR is **squash**-merged (`gh pr merge --squash`), so the
+feature branch's commits are not ancestors of `main`. `git branch -d` rejects
+with "not fully merged" and the branch leaks — recreating the silent-leak class
+this fix targets, moved from worktree to branch. Use the force delete `-D`. This
+also corrects the three `git branch -d feat/<name>` references in
+`worktree-discipline.md` (table row + two finish-sequence bullets), which carry
+the same latent bug; left as `-d` they would contradict the gate instruction
+(Detector 14/15 drift).
 
 The subsequent local-`main` sync sentence
 (`git fetch origin main && git checkout main && git merge --ff-only origin/main`)
@@ -139,14 +154,14 @@ is unchanged.
 
 - Flow-diagram line: `explicit cleanup: ExitWorktree (worktree paths) OR delete
   temp branch (micro-chore)` → `explicit cleanup: git worktree remove + git
-  branch -d (worktree paths) OR delete temp branch (micro-chore)`.
+  branch -D (worktree paths) OR delete temp branch (micro-chore)`.
 - "Local main sync" paragraph: replace the `after ExitWorktree` phrasing with
   `after git worktree remove`.
 
 ### Verification of "zero prompts"
 
 After the doc fix, the post-merge sequence is: `git worktree remove` →
-`git branch -d` → `git fetch` → `git checkout main` → `git merge --ff-only` →
+`git branch -D` → `git fetch` → `git checkout main` → `git merge --ff-only` →
 `next-priority`. None prompt. `superpowers:finishing-a-development-branch` is
 not invoked. Goal met.
 
@@ -178,11 +193,12 @@ not invoked. Goal met.
 
 | File | Change | Kind |
 | --- | --- | --- |
-| `src/core/pr-flow.ts` | `onStatus` callback, `mergeStateStatus` fetch, throttle emit, thread through `openAndAutoMerge` | code |
+| `src/core/pr-flow.ts` | `onStatus`/`now` seams, `mergeStateStatus` fetch, emit-on-change-OR-throttle, thread through `openAndAutoMerge` | code |
 | `src/core/pr-flow-cli.ts` | wire `onStatus` → stderr | code |
-| `src/core/__tests__/pr-flow.test.ts` | throttle / first-cycle / parse / instant-merge tests | test |
-| `.claude/skills/gate/SKILL.md` | Step 4 cleanup → git worktree remove | doc/skill |
-| `docs/noldor/pr-flow.md` | diagram + sync paragraph | doc |
+| `src/core/__tests__/pr-flow.test.ts` | first-cycle / throttle / emit-on-change / parse / instant-merge / failed-fetch tests | test |
+| `.claude/skills/gate/SKILL.md` | Step 4 cleanup → `git worktree remove` + `git branch -D` | doc/skill |
+| `docs/noldor/pr-flow.md` | diagram + sync paragraph (`-D`) | doc |
+| `docs/noldor/worktree-discipline.md` | 3× `git branch -d` → `-D` (squash-merge correctness) | doc |
 | `docs/features/noldor.md` | correct stale `links.code` path | doc |
 
 ## Test plan
@@ -195,11 +211,14 @@ not invoked. Goal met.
   check + `elapsed`), so a positional array would drift; a settable variable
   does not. Plus a recording `onStatus`; assert:
   - first cycle emits one line with correct `state` / `mergeStateStatus` / `elapsed`;
-  - no second emit when `now()` advances <30s; emit when it advances ≥30s
-    (boundary asserted exactly via the injected clock);
+  - steady state (unchanged `state`+`mergeStateStatus`): no second emit when
+    `now()` advances <30s; emit when it advances ≥30s (boundary asserted exactly
+    via the injected clock);
+  - emit-on-change: a `state` or `mergeStateStatus` transition inside the 30s
+    window emits immediately (e.g. `OPEN`→`BEHIND` at elapsed 20s);
   - instant merge (first cycle has `mergedAt`) emits nothing and returns;
   - `mergeStateStatus` absent → `UNKNOWN`;
-  - `elapsed` value matches `floor((now-start)/1000)` for a scripted clock.
+  - failed (non-zero) `gh` fetch cycle emits nothing (no fresh state to report).
 - Existing `pollAutoMerge` / `openAndAutoMerge` tests stay green (callback optional).
 - Manual: next real `/gate` end-of-flow ships through the new cleanup sequence
   and prints status lines (acceptance via dogfood).
