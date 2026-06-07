@@ -15,13 +15,20 @@ function setupRepo(): string {
 }
 
 describe('noldor pre-commit', () => {
+  // Shared clock for the pre-existing cases: within 24h of the release-sweep
+  // fixtures' startedAt (2026-05-17T08:00) so they stay fresh under the new
+  // required staleness inputs. micro-chore fixtures use `startedAt: 'x'` → NaN →
+  // never stale; release-automation is not stale-eligible.
+  const NOW = Date.parse('2026-05-17T09:00:00.000Z');
+  const TTL = 24;
+
   it('soft mode: passes everything when no rollout marker', () => {
     const dir = setupRepo();
     // No .noldor/rollout-marker — soft mode should pass regardless
     mkdirSync(join(dir, 'packages', 'web', 'src'), { recursive: true });
     writeFileSync(join(dir, 'packages', 'web', 'src', 'foo.ts'), 'x');
     execSync('git add packages/web/src/foo.ts', { cwd: dir });
-    expect(runPreCommit({ cwd: dir }).ok).toBe(true);
+    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL }).ok).toBe(true);
   });
 
   it('passes when session is fast-track (no allowlist check)', () => {
@@ -32,7 +39,7 @@ describe('noldor pre-commit', () => {
     );
     writeFileSync(join(dir, 'a.ts'), 'x');
     execSync('git add a.ts', { cwd: dir });
-    expect(runPreCommit({ cwd: dir }).ok).toBe(true);
+    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL }).ok).toBe(true);
   });
 
   it('passes when session is micro-chore and diff matches allowlist', () => {
@@ -43,7 +50,7 @@ describe('noldor pre-commit', () => {
     );
     writeFileSync(join(dir, 'README.md'), 'x');
     execSync('git add README.md', { cwd: dir });
-    expect(runPreCommit({ cwd: dir }).ok).toBe(true);
+    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL }).ok).toBe(true);
   });
 
   it('fails when session is micro-chore but diff escapes allowlist', () => {
@@ -55,7 +62,7 @@ describe('noldor pre-commit', () => {
     mkdirSync(join(dir, 'packages', 'web', 'src'), { recursive: true });
     writeFileSync(join(dir, 'packages', 'web', 'src', 'foo.ts'), 'x');
     execSync('git add packages/web/src/foo.ts', { cwd: dir });
-    const r = runPreCommit({ cwd: dir });
+    const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
     expect(r.reason).toMatch(/allowlist/);
   });
@@ -73,7 +80,7 @@ describe('noldor pre-commit', () => {
     execSync('git commit -q -m "post-rollout"', { cwd: dir }); // need HEAD past marker
     writeFileSync(join(dir, 'packages', 'web', 'src', 'bar.ts'), 'x');
     execSync('git add packages/web/src/bar.ts', { cwd: dir });
-    const r = runPreCommit({ cwd: dir });
+    const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
     expect(r.reason).toMatch(/\/gate|allowlist/);
   });
@@ -88,7 +95,7 @@ describe('noldor pre-commit', () => {
     execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
     writeFileSync(join(dir, 'README.md'), 'x');
     execSync('git add README.md', { cwd: dir });
-    const r = runPreCommit({ cwd: dir });
+    const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
     expect(r.reason).toMatch(/\/gate/);
   });
@@ -104,7 +111,7 @@ describe('noldor pre-commit', () => {
     mkdirSync(join(dir, 'docs'), { recursive: true });
     writeFileSync(join(dir, 'docs', 'sdd-report.md'), 'x');
     execSync('git add graphify-out/graph.json docs/sdd-report.md', { cwd: dir });
-    expect(runPreCommit({ cwd: dir })).toEqual({ ok: true });
+    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL })).toEqual({ ok: true });
   });
 
   it('rejects release-sweep session when a staged path escapes RELEASE_SWEEP_GLOBS', () => {
@@ -118,7 +125,7 @@ describe('noldor pre-commit', () => {
     mkdirSync(join(dir, 'packages', 'engine', 'src'), { recursive: true });
     writeFileSync(join(dir, 'packages', 'engine', 'src', 'foo.ts'), 'x');
     execSync('git add graphify-out/graph.json packages/engine/src/foo.ts', { cwd: dir });
-    const r = runPreCommit({ cwd: dir });
+    const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
     expect(r.reason).toContain('release-sweep diff includes files outside allowlist');
   });
@@ -152,7 +159,7 @@ describe('noldor pre-commit', () => {
       { cwd: dir },
     );
 
-    expect(runPreCommit({ cwd: dir })).toEqual({ ok: true });
+    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL })).toEqual({ ok: true });
   });
 
   it('rejects in post-rollout when release-automation session is absent (regression guard for the marker contract)', () => {
@@ -167,9 +174,87 @@ describe('noldor pre-commit', () => {
     // where the release script committed without provisioning a marker.
     writeFileSync(join(dir, 'CHANGELOG.md'), 'changes\n');
     execSync('git add CHANGELOG.md', { cwd: dir });
-    const r = runPreCommit({ cwd: dir });
+    const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
     expect(r.reason).toMatch(/\/gate/);
+  });
+
+  describe('staleness expiry', () => {
+    const TTL = 24;
+    const STARTED = '2026-05-17T08:00:00.000Z';
+    const FRESH = Date.parse('2026-05-17T09:00:00.000Z'); // +1h
+    const STALE = Date.parse('2026-05-18T09:00:00.000Z'); // +25h
+
+    it('rejects a stale micro-chore session with the stale reason (not the allowlist reason)', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'micro-chore', startedAt: STARTED }),
+      );
+      writeFileSync(join(dir, 'README.md'), 'x'); // allowlisted — would pass if fresh
+      execSync('git add README.md', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, nowMs: STALE, ttlHours: TTL });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/stale/);
+      expect(r.reason).not.toMatch(/allowlist/);
+    });
+
+    it('a fresh micro-chore outside the allowlist still fails with the allowlist reason', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'micro-chore', startedAt: STARTED }),
+      );
+      mkdirSync(join(dir, 'packages', 'web', 'src'), { recursive: true });
+      writeFileSync(join(dir, 'packages', 'web', 'src', 'foo.ts'), 'x');
+      execSync('git add packages/web/src/foo.ts', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, nowMs: FRESH, ttlHours: TTL });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/allowlist/);
+    });
+
+    it('rejects a stale release-sweep session with the stale reason', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'release-sweep', startedAt: STARTED }),
+      );
+      mkdirSync(join(dir, 'graphify-out'), { recursive: true });
+      writeFileSync(join(dir, 'graphify-out', 'graph.json'), '{}');
+      execSync('git add graphify-out/graph.json', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, nowMs: STALE, ttlHours: TTL });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/stale/);
+    });
+
+    it('NOLDOR_PATH_OVERRIDE bypasses staleness (override wins)', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'micro-chore', startedAt: STARTED }),
+      );
+      writeFileSync(join(dir, 'README.md'), 'x');
+      execSync('git add README.md', { cwd: dir });
+      const r = runPreCommit({
+        cwd: dir,
+        pathOverride: 'shipping anyway',
+        nowMs: STALE,
+        ttlHours: TTL,
+      });
+      expect(r).toEqual({ ok: true, overrideReason: 'shipping anyway' });
+    });
+
+    it('a stale fast-track is unaffected (no allowlist branch — passes)', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'fast-track', startedAt: STARTED }),
+      );
+      writeFileSync(join(dir, 'a.ts'), 'x');
+      execSync('git add a.ts', { cwd: dir });
+      // No rollout marker → soft mode → ok:true regardless of age (fast-track is not stale-eligible).
+      expect(runPreCommit({ cwd: dir, nowMs: STALE, ttlHours: TTL }).ok).toBe(true);
+    });
   });
 
   describe('NOLDOR_PATH_OVERRIDE bypass', () => {
@@ -182,7 +267,12 @@ describe('noldor pre-commit', () => {
       mkdirSync(join(dir, 'packages', 'web', 'src'), { recursive: true });
       writeFileSync(join(dir, 'packages', 'web', 'src', 'foo.ts'), 'x');
       execSync('git add packages/web/src/foo.ts', { cwd: dir });
-      const r = runPreCommit({ cwd: dir, pathOverride: 'stale micro-chore session' });
+      const r = runPreCommit({
+        cwd: dir,
+        pathOverride: 'stale micro-chore session',
+        nowMs: NOW,
+        ttlHours: TTL,
+      });
       expect(r).toEqual({ ok: true, overrideReason: 'stale micro-chore session' });
     });
 
@@ -195,7 +285,7 @@ describe('noldor pre-commit', () => {
       mkdirSync(join(dir, 'packages', 'engine', 'src'), { recursive: true });
       writeFileSync(join(dir, 'packages', 'engine', 'src', 'foo.ts'), 'x');
       execSync('git add packages/engine/src/foo.ts', { cwd: dir });
-      const r = runPreCommit({ cwd: dir, pathOverride: 'sweep escape' });
+      const r = runPreCommit({ cwd: dir, pathOverride: 'sweep escape', nowMs: NOW, ttlHours: TTL });
       expect(r).toEqual({ ok: true, overrideReason: 'sweep escape' });
     });
 
@@ -209,7 +299,12 @@ describe('noldor pre-commit', () => {
       execSync('git add past-marker && git commit -q -m "past-marker"', { cwd: dir });
       writeFileSync(join(dir, 'README.md'), 'x');
       execSync('git add README.md', { cwd: dir });
-      const r = runPreCommit({ cwd: dir, pathOverride: 'hook broken mid-migration' });
+      const r = runPreCommit({
+        cwd: dir,
+        pathOverride: 'hook broken mid-migration',
+        nowMs: NOW,
+        ttlHours: TTL,
+      });
       expect(r).toEqual({ ok: true, overrideReason: 'hook broken mid-migration' });
     });
 
@@ -222,7 +317,7 @@ describe('noldor pre-commit', () => {
       mkdirSync(join(dir, 'packages', 'web', 'src'), { recursive: true });
       writeFileSync(join(dir, 'packages', 'web', 'src', 'foo.ts'), 'x');
       execSync('git add packages/web/src/foo.ts', { cwd: dir });
-      const r = runPreCommit({ cwd: dir, pathOverride: '   ' });
+      const r = runPreCommit({ cwd: dir, pathOverride: '   ', nowMs: NOW, ttlHours: TTL });
       expect(r.ok).toBe(false);
       expect(r.reason).toMatch(/allowlist/);
       expect(r.overrideReason).toBeUndefined();
@@ -236,7 +331,7 @@ describe('noldor pre-commit', () => {
       );
       writeFileSync(join(dir, 'README.md'), 'x');
       execSync('git add README.md', { cwd: dir });
-      const r = runPreCommit({ cwd: dir });
+      const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
       expect(r).toEqual({ ok: true });
     });
   });

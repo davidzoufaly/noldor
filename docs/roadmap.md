@@ -2,17 +2,6 @@
 
 ### Noldor Framework
 
-#### Session Marker Auto-Expire
-
-- area: tooling
-- type: feat
-- since: 2026-05-12
-- size: S
-- impact: med
-- parent: noldor
-
-`.noldor/session.json` persists indefinitely between gate flows. Yesterday's `micro-chore` session lingered into the next day's code-editing work and silently blocked at pre-commit allowlist check — recovery required either manual session rewrite or a fresh `/gate` invocation. Verified 2026-06-07: `startedAt` already lands in the session marker (`src/core/session.ts`) but nothing reads it for expiry. Add expiry semantics: if `startedAt` is older than N hours (default 24h?), pre-commit treats the session as stale and prompts `Run /gate again` rather than enforcing the stale allowlist. Complementary tweak: on successful commit, auto-clear session when `path = micro-chore` (one-and-done semantics) while leaving `fast-track` / `plan-*` / `full-*` intact since those imply ongoing multi-commit work. Pairs with the pre-commit-override entry — both target the same friction surface (gate state outliving its intent).
-
 #### Dynamic FD ↔ File Pointers via Frontmatter
 
 - area: tooling

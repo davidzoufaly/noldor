@@ -2,7 +2,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { loadConfig } from '../config.js';
+import {
+  loadConfig,
+  loadConfigSync,
+  resolveSessionTtlHours,
+  DEFAULT_SESSION_TTL_HOURS,
+} from '../config.js';
 
 let dir: string;
 beforeEach(async () => {
@@ -46,5 +51,47 @@ describe('loadConfig', () => {
     const path = join(dir, 'config.json');
     await writeFile(path, JSON.stringify({ crLanes: { spec: [] } }), 'utf8');
     await expect(loadConfig(path)).rejects.toThrow();
+  });
+  it('parses the optional gate.sessionTtlHours block', async () => {
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ gate: { sessionTtlHours: 6 } }), 'utf8');
+    const cfg = await loadConfig(path);
+    expect(cfg?.gate?.sessionTtlHours).toBe(6);
+  });
+  it('rejects a non-positive gate.sessionTtlHours', async () => {
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ gate: { sessionTtlHours: 0 } }), 'utf8');
+    await expect(loadConfig(path)).rejects.toThrow();
+  });
+});
+
+describe('loadConfigSync', () => {
+  it('returns null when file is absent', () => {
+    expect(loadConfigSync(join(dir, 'absent.json'))).toBeNull();
+  });
+  it('parses a valid config synchronously', async () => {
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ gate: { sessionTtlHours: 12 } }), 'utf8');
+    expect(loadConfigSync(path)?.gate?.sessionTtlHours).toBe(12);
+  });
+  it('throws on a malformed config (strict, mirrors loadConfig)', async () => {
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ gate: { sessionTtlHours: -1 } }), 'utf8');
+    expect(() => loadConfigSync(path)).toThrow();
+  });
+});
+
+describe('resolveSessionTtlHours', () => {
+  it('returns the configured value when gate.sessionTtlHours is set', () => {
+    expect(resolveSessionTtlHours({ gate: { sessionTtlHours: 6 } })).toBe(6);
+  });
+  it('falls back to the default when the gate block is absent', () => {
+    expect(resolveSessionTtlHours({})).toBe(DEFAULT_SESSION_TTL_HOURS);
+  });
+  it('falls back to the default when config is null', () => {
+    expect(resolveSessionTtlHours(null)).toBe(DEFAULT_SESSION_TTL_HOURS);
+  });
+  it('DEFAULT_SESSION_TTL_HOURS is 24', () => {
+    expect(DEFAULT_SESSION_TTL_HOURS).toBe(24);
   });
 });

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
 
-import { readSession, type SessionMarker } from './session.js';
+import { readSession, clearSession, type SessionMarker } from './session.js';
 import { loadConfig, type NoldorConfig } from '../cr/config.js';
 import { promptSelect } from '../cr/prompt-stdin.js';
 import { openAndAutoMerge, type FdSummary, type CrResultSummary, type SpawnFn } from './pr-flow.js';
@@ -111,6 +111,18 @@ export function shouldPromptForPrApproval(input: ApprovalGateInput): boolean {
   return input.config?.autonomous?.requireHumanPrApproval === true;
 }
 
+/**
+ * Clears the session marker once a `micro-chore` PR has merged. micro-chore is
+ * one-and-done and, unlike worktree-backed paths, has no worktree whose removal
+ * would drop the marker — so without this it lingers in the main repo's
+ * `.noldor/` and can silently block the next day's work. A no-op for every
+ * other path (those imply ongoing multi-commit work). See the
+ * session-marker-auto-expire spec.
+ */
+export function clearMicroChoreSession(cwd: string, session: SessionMarker): void {
+  if (session.path === 'micro-chore') clearSession(cwd);
+}
+
 function nodeSpawn(): SpawnFn {
   return async (cmd, args, stdin) => {
     return new Promise((resolve, reject) => {
@@ -190,6 +202,9 @@ export async function runCli(cwd: string): Promise<number> {
   });
 
   process.stdout.write(`PR merged: ${result.prUrl} at ${result.mergedAt}\n`);
+  // micro-chore is one-and-done: clear its main-repo session marker now that the
+  // PR has shipped, so it can't linger into the next day's work. No-op otherwise.
+  clearMicroChoreSession(cwd, session);
   return 0;
 }
 

@@ -8,6 +8,7 @@ import {
   writeSession,
   clearSession,
   setAutonomous,
+  isSessionStale,
   SessionMarkerSchema,
   type SessionMarker,
 } from '../session';
@@ -165,6 +166,43 @@ describe('SessionMarker markerVersion field', () => {
         markerVersion: 3,
       }),
     ).toThrow();
+  });
+});
+
+describe('isSessionStale', () => {
+  const HOUR = 3_600_000;
+  const NOW = Date.parse('2026-06-07T00:00:00.000Z');
+  const TTL = 24;
+  const at = (hoursAgo: number): string => new Date(NOW - hoursAgo * HOUR).toISOString();
+  const marker = (path: SessionMarker['path'], startedAt: string): SessionMarker =>
+    ({ path, startedAt }) as SessionMarker;
+
+  it('micro-chore fresh (1h old) is not stale', () => {
+    expect(isSessionStale(marker('micro-chore', at(1)), NOW, TTL)).toBe(false);
+  });
+  it('micro-chore stale (25h old) is stale', () => {
+    expect(isSessionStale(marker('micro-chore', at(25)), NOW, TTL)).toBe(true);
+  });
+  it('release-sweep stale (25h old) is stale', () => {
+    expect(isSessionStale(marker('release-sweep', at(25)), NOW, TTL)).toBe(true);
+  });
+  it('fast-track stale (25h old) is NOT eligible — never stale', () => {
+    expect(isSessionStale(marker('fast-track', at(25)), NOW, TTL)).toBe(false);
+  });
+  it('full-new stale (25h old) is NOT eligible — never stale', () => {
+    expect(isSessionStale(marker('full-new', at(25)), NOW, TTL)).toBe(false);
+  });
+  it('specs-only-attach stale (25h old) is NOT eligible — never stale', () => {
+    expect(isSessionStale(marker('specs-only-attach', at(25)), NOW, TTL)).toBe(false);
+  });
+  it('release-automation stale (25h old) is NOT eligible — never stale', () => {
+    expect(isSessionStale(marker('release-automation', at(25)), NOW, TTL)).toBe(false);
+  });
+  it('unparseable startedAt is never stale (no block on garbage)', () => {
+    expect(isSessionStale(marker('micro-chore', 'x'), NOW, TTL)).toBe(false);
+  });
+  it('exactly at the TTL boundary is still fresh (strict >)', () => {
+    expect(isSessionStale(marker('micro-chore', at(24)), NOW, TTL)).toBe(false);
   });
 });
 

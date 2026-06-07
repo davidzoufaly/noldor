@@ -1,12 +1,17 @@
 // @tests: autonomous-plan-to-pr-merge
 import { describe, it, expect } from 'vitest';
+import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   pickMostRecentByDatePrefix,
   parseCrTrailersFromLog,
   normalizeRepoUrl,
   shouldPromptForPrApproval,
+  clearMicroChoreSession,
 } from '../pr-flow-cli.js';
+import { writeSession } from '../session.js';
 
 describe('shouldPromptForPrApproval', () => {
   it('returns false when config flag is unset (default)', () => {
@@ -133,6 +138,36 @@ describe('parseCrTrailersFromLog', () => {
       ],
       status: 'clean',
     });
+  });
+});
+
+describe('clearMicroChoreSession', () => {
+  const setup = (): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'prf-'));
+    mkdirSync(join(dir, '.noldor'));
+    return dir;
+  };
+  const sessionFile = (dir: string): string => join(dir, '.noldor', 'session.json');
+
+  it('clears the session when path is micro-chore', () => {
+    const dir = setup();
+    writeSession(dir, { path: 'micro-chore', startedAt: '2026-06-07T00:00:00.000Z' });
+    expect(existsSync(sessionFile(dir))).toBe(true);
+    clearMicroChoreSession(dir, { path: 'micro-chore', startedAt: '2026-06-07T00:00:00.000Z' });
+    expect(existsSync(sessionFile(dir))).toBe(false);
+  });
+
+  it('leaves the session untouched for a non-micro-chore path', () => {
+    const dir = setup();
+    const marker = {
+      path: 'specs-only-attach' as const,
+      parent: 'noldor',
+      startedAt: '2026-06-07T00:00:00.000Z',
+      markerVersion: 2 as const,
+    };
+    writeSession(dir, marker);
+    clearMicroChoreSession(dir, marker);
+    expect(existsSync(sessionFile(dir))).toBe(true);
   });
 });
 

@@ -56,7 +56,6 @@ links:
     - src/garden/detectors/__tests__/tier-mismatch.test.ts
     - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
     - src/hooks/__tests__/noldor-validate-trailer.test.ts
-    - src/hooks/__tests__/noldor-pre-commit.test.ts
     - src/release/__tests__/release-cr-gate-e2e.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
   docs:
@@ -83,7 +82,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
@@ -154,6 +152,19 @@ release gate on every code-touching commit. Override:
   CLAUDE.md ↔ Noldor tracked pairs) and Detector 15 (source-of-truth ↔
   page drift). Detector 9 (orphan source files) now also walks `scripts/`,
   so framework scripts surface alongside `packages/` and `apps/` files.
+
+**Session-marker expiry**
+
+- A `/gate` session marker (`.noldor/session.json`) on a `micro-chore` or
+  `release-sweep` path goes stale after `gate.sessionTtlHours` hours (default
+  24; configurable in `.noldor/config.json`). Once stale, pre-commit fails with
+  `session stale: '<path>' started <ts> (older than Nh). Run /gate again to
+  refresh.` instead of silently enforcing a cold allowlist. Paths without an
+  allowlist branch never expire; a non-empty `NOLDOR_PATH_OVERRIDE` bypasses the
+  check; a malformed config fails open to the 24h default.
+- A `micro-chore` session auto-clears once its PR merges (`pnpm noldor pr-flow`),
+  so the marker can't linger into the next day. Worktree-backed paths already
+  clear via worktree removal at end-of-flow.
 
 **Keyboard shortcut**
 

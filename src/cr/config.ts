@@ -1,7 +1,16 @@
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { artifactKindSchema, laneSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane } from './findings-schema.js';
+
+/**
+ * Default session-marker time-to-live, in hours. A stale-eligible session
+ * (`micro-chore` / `release-sweep`) older than this reads as stale at
+ * pre-commit. Lives here, beside {@link resolveSessionTtlHours}, rather than in
+ * `core/session.ts` so `session.ts` keeps no `core → cr` import edge.
+ */
+export const DEFAULT_SESSION_TTL_HOURS = 24;
 
 export const crLanesConfigSchema = z.record(artifactKindSchema, z.array(laneSchema).min(1));
 
@@ -28,9 +37,14 @@ export const autonomousConfigSchema = z.object({
   requireHumanPrApproval: z.boolean().default(false),
 });
 
+export const gateConfigSchema = z.object({
+  sessionTtlHours: z.number().positive(),
+});
+
 export const noldorConfigSchema = z.object({
   crLanes: crLanesConfigSchema.optional(),
   autonomous: autonomousConfigSchema.optional(),
+  gate: gateConfigSchema.optional(),
 });
 export type NoldorConfig = z.infer<typeof noldorConfigSchema>;
 
@@ -45,4 +59,31 @@ export async function loadConfig(path: string = DEFAULT_PATH): Promise<NoldorCon
     throw err;
   }
   return noldorConfigSchema.parse(JSON.parse(raw));
+}
+
+/**
+ * Synchronous sibling of {@link loadConfig}, needed by the pre-commit hook
+ * entrypoint (which cannot `await`). Mirrors `loadConfig` exactly: `null` on a
+ * missing file, and a thrown parse error on malformed content. Module-level
+ * strictness is preserved on purpose — fail-open is applied at the hook call
+ * site, not here, so non-hook callers still get strict validation.
+ */
+export function loadConfigSync(path: string = DEFAULT_PATH): NoldorConfig | null {
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
+  }
+  return noldorConfigSchema.parse(JSON.parse(raw));
+}
+
+/**
+ * Resolves the effective session TTL in hours: the configured
+ * `gate.sessionTtlHours`, or {@link DEFAULT_SESSION_TTL_HOURS} when absent
+ * (including a `null` config).
+ */
+export function resolveSessionTtlHours(config: NoldorConfig | null): number {
+  return config?.gate?.sessionTtlHours ?? DEFAULT_SESSION_TTL_HOURS;
 }
