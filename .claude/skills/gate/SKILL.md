@@ -116,7 +116,7 @@ The `prepare-commit-msg` hook injects `Noldor-Path` and `Noldor-FD` from `.noldo
 - `standalone` — spawn `claude --max-thinking` in a fresh iTerm2 window for deep review (disabled inline when `fix-multiterminal-dev-flow-bug` is not at `phase: done`, e.g. "standalone — disabled until `fix-multiterminal-dev-flow-bug` lands")
 - `proceed-without-review` — skip orchestrate entirely (artifact remains committed); advance to next skill
 
-The operator picks one or several. The selected list becomes the `--lanes` argument. When `.noldor/config.json` has `autonomous.skipLanePicker: true`, skip the prompt and invoke orchestrate with `--autonomous` and no `--lanes` flag (orchestrate reads defaults from `crLanes.<kind>` in config — missing defaults are a hard error, never a silent skip).
+The operator picks one or several. The selected list becomes the `--lanes` argument. When `.noldor/config.json` has `autonomous.skipLanePicker: true`, skip the prompt and invoke orchestrate with `--autonomous` and no `--lanes` flag (orchestrate reads lanes from `crLanes.<kind>` in config, falling back to the built-in `subagent`-only defaults when that block is absent — a configured block overrides the defaults).
 
 **Invoke orchestrate.**
 
@@ -262,7 +262,7 @@ Once autonomous:
 
 2. **Step 4 omits all AskUserQuestion seams.** Specifically:
    - No commit-confirm `y` prompt around phase-flip / orchestrate / aggregate / pr-flow invocations.
-   - No lane multi-select. `cr:orchestrate` is invoked with `--autonomous` and reads `crLanes.<kind>` from `.noldor/config.json` (which must be non-empty for the relevant kind — missing default is a hard error, surface it).
+   - No lane multi-select. `cr:orchestrate` is invoked with `--autonomous` and reads `crLanes.<kind>` from `.noldor/config.json`, falling back to the built-in `subagent`-only defaults when that block is absent (a configured block overrides the defaults).
    - No continue-dialog after orchestrate. Exit 0 → proceed. Exit 1 → escalate (next bullet).
 
 3. **`cr:orchestrate --autonomous`** for both artifact-stage (Step 2.5, already committed before autonomous activated) and code-stage (Step 4). The flag flows into the overwrite-guard (defaults `archive-and-overwrite`) and the standalone-in-progress guard (defaults `drop-lane`) so neither prompts.

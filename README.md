@@ -24,6 +24,13 @@ Filesystem assumption: `noldor/` is a sibling directory of the consumer repo (e.
 
 Every consumer ships a `.noldor/config.json` with a `consumer:` block declaring repo URL, lockstep packages, boundaries (dependency-cruiser rules), package prefix, app path prefix, e2e prefix, samples path, deprecated packages, and pnpm stderr prefix. See `src/core/consumer-config.ts` for the schema.
 
+Two **optional** blocks unlock unsupervised code review and PR-merge — the autonomous gate path:
+
+- `crLanes` — which review lanes run per artifact kind (`spec` / `plan` / `code`). Absent → built-in `subagent`-only defaults (`DEFAULT_CR_LANES` in `src/cr/config.ts`); a configured block overrides them.
+- `autonomous` — `skipLanePicker` (default `false`), `onFailure` (`prompt` | `spawn-deep-review` | `abort`, default `prompt`), `requireHumanPrApproval` (default `false`). Every field defaults, so the block may be omitted entirely.
+
+Both default sanely; you only add them to override. See [`docs/noldor/cr-pipeline.md`](docs/noldor/cr-pipeline.md) for the full reference and an annotated example.
+
 ## Development
 
 ```bash

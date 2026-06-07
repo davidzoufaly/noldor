@@ -73,26 +73,46 @@ dispatcher (see below).
 ## Config-driven defaults
 
 `.noldor/config.json` (loaded by `src/cr/config.ts`) holds the
-lane defaults and autonomous-mode toggles:
+lane overrides and autonomous-mode toggles. **Both blocks are optional**
+— omit them entirely and sane built-in defaults apply:
 
-```json
+```jsonc
 {
+  "consumer": { /* required — see adoption-guide.md */ },
+
+  // OPTIONAL. Absent → built-in DEFAULT_CR_LANES: every kind reviews with ["subagent"].
   "crLanes": {
     "spec": ["manual", "subagent"],
     "plan": ["manual", "subagent"],
-    "code": ["subagent"]
+    "code": ["subagent"]              // add "codex" for a second opinion: ["subagent", "codex"]
+                                      // (codex needs the codex CLI authenticated — it is NOT
+                                      //  part of the autonomous-safe built-in default)
   },
+
+  // OPTIONAL. Every field defaults (the whole block may be omitted).
   "autonomous": {
-    "skipLanePicker": false,
-    "onFailure": "prompt",
-    "requireHumanPrApproval": true
+    "skipLanePicker": false,          // default false — true skips the lane multi-select
+    "onFailure": "prompt",            // default "prompt" | "spawn-deep-review" | "abort"
+    "requireHumanPrApproval": false   // default false — true keeps the PR-approval prompt
   }
 }
 ```
 
-Precedence at orchestrate time: CLI `--lanes <list>` wins, otherwise
-config defaults apply when `autonomous.skipLanePicker: true`,
-otherwise the interactive picker prompts the operator. The schema is
+Built-in defaults live in `DEFAULT_CR_LANES` (`src/cr/config.ts`):
+`{ spec: ['subagent'], plan: ['subagent'], code: ['subagent'] }`. `subagent`
+is the only lane that runs fully unattended (in-process; no external CLI auth
+like codex, no human stdin like manual, no GUI terminal like standalone), so it
+is the autonomous-safe default.
+
+Precedence at orchestrate time (`resolveLanes` in `src/cr/orchestrate.ts`):
+
+1. CLI `--lanes <list>` wins.
+2. Otherwise, when `--autonomous` is passed **or** `autonomous.skipLanePicker: true`:
+   the configured `crLanes.<kind>` if present, else `DEFAULT_CR_LANES[kind]`.
+   A missing `crLanes` block is no longer a hard error — it falls back to the default.
+3. Otherwise (interactive, no flag): the gate skill prompts via the lane multi-select.
+
+The schema is
 validated by `pnpm noldor validate noldor-config` (Zod loader in
 `src/cr/config.ts`); validation also runs at the top of
 `src/cr/orchestrate.ts` so a malformed config fails fast.
