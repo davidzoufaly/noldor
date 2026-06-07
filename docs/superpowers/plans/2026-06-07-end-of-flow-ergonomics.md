@@ -4,7 +4,7 @@
 
 **Goal:** Stream throttled auto-merge poll status to the operator, and fix the post-merge worktree-cleanup instructions so they actually remove the worktree (no silent leak).
 
-**Architecture:** Part (b) adds two injected seams (`onStatus`, `now`) to `pollAutoMerge` in `src/core/pr-flow.ts`, widens the `gh pr view` field set with `mergeStateStatus`, and emits a status line on the first cycle, on any `state`/`mergeStateStatus` change, or every ≥30s (emit-on-change OR throttle). The CLI wires `onStatus` to stderr. Part (a) is doc/skill-only: replace the `ExitWorktree`-tool cleanup instruction with the non-interactive `git worktree remove` + `git branch -D` sequence (`-D` because the squash-merge leaves the branch's commits non-ancestor of `main`, so `-d` rejects) across `gate/SKILL.md`, `docs/noldor/pr-flow.md`, and `docs/noldor/worktree-discipline.md` (3 refs) — all three kept consistent to avoid Detector 14/15 drift. Plus a one-line FD `links.code` path correction.
+**Architecture:** Part (b) adds two injected seams (`onStatus`, `now`) to `pollAutoMerge` in `src/core/pr-flow.ts`, widens the `gh pr view` field set with `mergeStateStatus`, and emits a status line on the first cycle, on any `state`/`mergeStateStatus` change, or every ≥30s (emit-on-change OR throttle). The CLI wires `onStatus` to stderr. Part (a) is doc/skill-only: replace the `ExitWorktree`-tool cleanup instruction with the non-interactive `git worktree remove` + `git branch -D` sequence (`-D` because the squash-merge leaves the branch's commits non-ancestor of `main`, so `-d` rejects) across `gate/SKILL.md`, `docs/noldor/pr-flow.md`, and `docs/noldor/worktree-discipline.md` (3 refs) — all three kept consistent to avoid Detector 14/15 drift. Plus an FD-metadata reconciliation before the `phase: done` flip: remap the whole stale `scripts/*` `links.code` block to `src/*`, add the untracked `cr-pipeline.md` to `links.docs`, and regenerate the Resources block.
 
 **Tech Stack:** TypeScript, vitest, Node child_process, `gh` CLI.
 
@@ -18,7 +18,7 @@
 - `.claude/skills/gate/SKILL.md` — Step 4 cleanup bullet (`git worktree remove` + `git branch -D`).
 - `docs/noldor/pr-flow.md` — flow-diagram line + local-main-sync paragraph.
 - `docs/noldor/worktree-discipline.md` — 3× `git branch -d` → `-D` (squash-merge correctness; keep docs consistent).
-- `docs/features/noldor.md` — correct the `scripts/noldor/pr-flow.ts` → `src/core/pr-flow.ts` `links.code` entry.
+- `docs/features/noldor.md` — remap all stale `scripts/*` `links.code` entries → `src/*`, add `cr-pipeline.md` to `links.docs` (16→17 pages), regen the generated Resources block, phase → done.
 
 ---
 
@@ -28,7 +28,7 @@
 - Modify: `src/core/pr-flow.ts` (`pollAutoMerge` ~line 194; `OpenAndAutoMergeInput` ~line 221; `openAndAutoMerge` poll call ~line 268)
 - Test: `src/core/__tests__/pr-flow.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add a new `describe` block at the end of `src/core/__tests__/pr-flow.test.ts` (NOT inside the existing fake-timers blocks — these use real timers with a tiny interval and a settable clock the `spawn` mock advances):
 
@@ -183,12 +183,12 @@ describe('pollAutoMerge status streaming', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd .worktrees/end-of-flow-ergonomics && pnpm vitest run src/core/__tests__/pr-flow.test.ts -t "status streaming"`
 Expected: FAIL — `onStatus`/`now` not in opts type (TS error) or lines empty (no emit logic yet).
 
-- [ ] **Step 3: Add the seams + throttle to `pollAutoMerge`**
+- [x] **Step 3: Add the seams + throttle to `pollAutoMerge`**
 
 In `src/core/pr-flow.ts`, replace the `pollAutoMerge` signature opts and body. New signature opts add two optional fields:
 
@@ -257,7 +257,7 @@ export async function pollAutoMerge(opts: {
 }
 ```
 
-- [ ] **Step 4: Thread `onStatus` through `openAndAutoMerge`**
+- [x] **Step 4: Thread `onStatus` through `openAndAutoMerge`**
 
 In `src/core/pr-flow.ts`, add `onStatus` to `OpenAndAutoMergeInput`:
 
@@ -282,17 +282,17 @@ And pass it into the `pollAutoMerge` call inside `openAndAutoMerge` (the `if (me
     });
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd .worktrees/end-of-flow-ergonomics && pnpm vitest run src/core/__tests__/pr-flow.test.ts`
 Expected: PASS — new `status streaming` block green AND all pre-existing `pollAutoMerge` / `openAndAutoMerge` tests still green (callback + field are optional; existing JSON without `mergeStateStatus` still parses).
 
-- [ ] **Step 6: Typecheck**
+- [x] **Step 6: Typecheck**
 
 Run: `cd .worktrees/end-of-flow-ergonomics && pnpm typecheck`
 Expected: no errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd .worktrees/end-of-flow-ergonomics
@@ -307,7 +307,7 @@ git commit -m "feat(noldor): stream auto-merge poll status (emit-on-change + thr
 **Files:**
 - Modify: `src/core/pr-flow-cli.ts` (the `openAndAutoMerge({...})` call ~line 176-189)
 
-- [ ] **Step 1: Add the `onStatus` wiring**
+- [x] **Step 1: Add the `onStatus` wiring**
 
 In `src/core/pr-flow-cli.ts`, add one line to the `openAndAutoMerge` call object (after `spawn: nodeSpawn(),`):
 
@@ -331,17 +331,17 @@ In `src/core/pr-flow-cli.ts`, add one line to the `openAndAutoMerge` call object
 
 Rationale: status lines go to stderr so the machine-readable `PR merged: <url>` line on stdout stays clean.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `cd .worktrees/end-of-flow-ergonomics && pnpm typecheck`
 Expected: no errors.
 
-- [ ] **Step 3: Run the CLI test suite to confirm no regression**
+- [x] **Step 3: Run the CLI test suite to confirm no regression**
 
 Run: `cd .worktrees/end-of-flow-ergonomics && pnpm vitest run src/core/__tests__/pr-flow-cli.test.ts`
 Expected: PASS (no behavioral change to existing assertions).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd .worktrees/end-of-flow-ergonomics
@@ -362,7 +362,7 @@ git commit -m "feat(noldor): wire auto-merge status to stderr in CLI" -m "Noldor
 >
 > **Why `-D` not `-d`:** the PR is squash-merged, so the feature branch's commits are not ancestors of `main`. `git branch -d` rejects with "not fully merged" and the branch leaks. Use the force delete `-D`. All three docs must agree on `-D` or Detector 14/15 flags the contradiction.
 
-- [ ] **Step 1: Edit `.claude/skills/gate/SKILL.md`**
+- [x] **Step 1: Edit `.claude/skills/gate/SKILL.md`**
 
 Find the Step 4 cleanup bullet (search for `**Worktree-backed paths**`). Replace the `ExitWorktree` instruction. The current text:
 
@@ -376,7 +376,7 @@ becomes:
   - **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>` — removes the worktree directory + deletes the local feature branch. Non-interactive; no native tool. (Do NOT use the `ExitWorktree` native tool here: the framework creates worktrees via `git worktree add .worktrees/<name>`, which `ExitWorktree` did not create, so it is a no-op that silently leaves the worktree + branch on disk.) `git branch -D` (force) is required because the PR is squash-merged — the branch's commits are not ancestors of `main`, so `-d` would reject with "not fully merged" and leak the branch. Use `--force` on `git worktree remove` only if the worktree has uncommitted changes (it should not at this point). **Then sync local `main` to the merged squash commit: `git fetch origin main && git checkout main && git merge --ff-only origin/main`.** A PR is not "finished" until local `main` matches `origin/main` — the next session must start from the merged state, not a behind one. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence; do not force the merge.
 ```
 
-- [ ] **Step 2: Edit `docs/noldor/pr-flow.md`**
+- [x] **Step 2: Edit `docs/noldor/pr-flow.md`**
 
 Edit 1 — the flow-diagram cleanup line. Find:
 
@@ -402,7 +402,7 @@ Replace `after `ExitWorktree`` with `after `git worktree remove`` so it reads:
 worktree paths run `git fetch origin main && git checkout main && git merge --ff-only origin/main` in the main workspace after `git worktree remove`;
 ```
 
-- [ ] **Step 3: Edit `docs/noldor/worktree-discipline.md` (3× `-d` → `-D`)**
+- [x] **Step 3: Edit `docs/noldor/worktree-discipline.md` (3× `-d` → `-D`)**
 
 Three `git branch -d feat/<name>` references carry the same squash-merge leak bug. Change each to `git branch -D feat/<name>`:
 
@@ -410,7 +410,7 @@ Three `git branch -d feat/<name>` references carry the same squash-merge leak bu
 2. The "Finish sequence" line (search `**Finish sequence`): `→ `git worktree remove` → `git branch -d`.` → `→ `git worktree remove` → `git branch -D`.`
 3. The "Finishing a worktree" bullet (search `Finishing a worktree`): `→ `git branch -d feat/<name>`.` → `→ `git branch -D feat/<name>`.`
 
-- [ ] **Step 4: Verify no other `ExitWorktree` cleanup references + no `-d` leak remains**
+- [x] **Step 4: Verify no other `ExitWorktree` cleanup references + no `-d` leak remains**
 
 Run:
 ```bash
@@ -420,7 +420,7 @@ grep -rn "branch -d feat" .claude/skills/gate/SKILL.md docs/noldor/pr-flow.md do
 ```
 Expected: the first grep shows only the new explanatory mention in `gate/SKILL.md` ("(Do NOT use the `ExitWorktree` native tool here…)") — no remaining *instruction* to use it for cleanup. (The roadmap-entry text mentioning `ExitWorktree` lives in `docs/roadmap.md`, out of scope.) The second grep returns **nothing** (all `-d feat` are now `-D feat`).
 
-- [ ] **Step 5: Commit (shared-files override)**
+- [x] **Step 5: Commit (shared-files override)**
 
 ```bash
 cd /Users/davidzoufaly/code/noldor/.worktrees/end-of-flow-ergonomics
@@ -430,27 +430,35 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "docs(noldor): replace ExitWorktree cleanup 
 
 ---
 
-## Task 4: Correct the stale `links.code` path for this file (Part a rider)
+## Task 4: Reconcile FD metadata before the `phase: done` flip
+
+The `scripts/** → src/**` migration left the *entire* `links.code` block in `docs/features/noldor.md` pointing at the dead `scripts/` tree, and `cr-pipeline.md` was missing from `links.docs`. A `phase: done` FD must not ship 404 links / stale generated body. Fix all, not just our one file.
 
 **Files:**
-- Modify: `docs/features/noldor.md` (`links.code` entry added during promote)
+- Modify: `docs/features/noldor.md` (`links.code` full remap, `links.docs` add, Resources regen, `17 pages` count)
 
-- [ ] **Step 1: Fix the path**
+- [x] **Step 1: Remap every stale `links.code` path `scripts/* → src/*`**
 
-In `docs/features/noldor.md` frontmatter `links.code`, change the entry `scripts/noldor/pr-flow.ts` (appended during promote) to `src/core/pr-flow.ts`. Leave the other 7 stale `scripts/noldor/*.ts` entries untouched — they are scope-deferred to the tracking roadmap entry per the spec.
+`scripts/noldor/* → src/core/*` (7), `scripts/cr/* → src/cr/*` (6), `scripts/release/* → src/release/*` (1), `scripts/garden/* → src/garden/*` (3), plus the `src/core/pr-flow.ts` entry this FD adds. Verify each target exists on disk before writing.
 
-- [ ] **Step 2: Validate (schema sanity only)**
+- [x] **Step 2: Add `docs/noldor/cr-pipeline.md` to `links.docs`** and bump the "16 framework pages" prose to "17" (Summary + User Story).
+
+- [x] **Step 3: Regenerate the Resources block**
+
+Run: `cd /Users/davidzoufaly/code/noldor/.worktrees/end-of-flow-ergonomics && node bin/noldor.mjs sync fd-resources`
+Expected: `Synced N feature MD(s), updated M.` — the `<!-- generated: resources -->` Code/Docs lists now mirror the corrected frontmatter.
+
+- [x] **Step 4: Validate**
 
 Run: `cd /Users/davidzoufaly/code/noldor/.worktrees/end-of-flow-ergonomics && node bin/noldor.mjs validate features`
 Expected: `Validated N feature MD(s) — all OK.`
-Note: this confirms the frontmatter still parses — it does **not** verify the path exists (the validator does not check `links.code` path existence; the 7 deferred stale entries pass too). This edit is doc-accuracy only, with no functional gate behind it.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/davidzoufaly/code/noldor/.worktrees/end-of-flow-ergonomics
-git add docs/features/noldor.md
-git commit -m "docs(features:noldor): correct pr-flow.ts links.code path to src/core" -m "Noldor-FD: noldor"
+git add docs/features/noldor.md docs/roadmap.md
+git commit -m "docs(features:noldor): remap links.code to src/, track cr-pipeline.md, regen resources" -m "Noldor-FD: noldor"
 ```
 
 ---

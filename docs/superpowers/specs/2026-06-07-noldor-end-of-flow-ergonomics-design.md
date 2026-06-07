@@ -167,27 +167,24 @@ not invoked. Goal met.
 
 ## Cleanup riders (found during audit)
 
-- **Stale path (in scope — our file).** The `links.code` entry appended to
-  `docs/features/noldor.md` during promote used `scripts/noldor/pr-flow.ts`; the
-  file now lives at `src/core/pr-flow.ts` (source migrated
-  `scripts/noldor/**` → `src/core/**`). Correct **this one** entry to
-  `src/core/pr-flow.ts` in the implementation — it is the file this FD touches.
-  `.claude/skills/gate/SKILL.md` and `docs/noldor/pr-flow.md` paths are correct.
+- **Stale `links.code` paths (fixed in this FD).** The `scripts/** → src/**`
+  source migration had left the *entire* `links.code` block in
+  `docs/features/noldor.md` pointing at the dead `scripts/` tree
+  (`scripts/noldor/*` → `src/core/*`; `scripts/cr/*` → `src/cr/*`;
+  `scripts/release/*` → `src/release/*`; `scripts/garden/*` → `src/garden/*`).
+  Because this FD flips the parent to `phase: done`, shipping it atop stale
+  metadata is exactly what the CR passes flagged. **Resolution:** rewrite all
+  stale entries to their real `src/` locations and regenerate the
+  `<!-- generated: resources -->` block via `noldor sync fd-resources` so
+  frontmatter and rendered body agree. Originally scoped as a deferred
+  follow-up; promoted into this FD because the `phase: done` flip can't honestly
+  ratify known-404 links and the fix is mechanical. The earlier roadmap
+  tracking entry is removed (work done here).
 
-- **Other stale `links.code` paths (scope-deferred).** The same migration left
-  7 further stale `scripts/noldor/*.ts` entries in `docs/features/noldor.md`
-  frontmatter (`changelog.ts`, `next-priority.ts`, `lint-plan-snippets.ts`,
-  `release-markers.ts`, `validate-noldor-scope.ts`, `validate-noldor.ts`,
-  `validate-skill-catalog.ts`), plus the auto-generated Resources markdown
-  links that regenerate from them. **Deferred deliberately:** these are
-  orthogonal pre-existing drift, not part of the end-of-flow surface, and
-  fixing them here would widen this FD into unrelated link maintenance (and
-  pull in the generated-Resources regen path). They are a clean `/garden`
-  link-drift sweep or a one-line `chore`. Tracked as roadmap entry "Noldor FD
-  stale `links.code` paths (scripts/noldor → src/core)".
-  `pnpm validate:features` currently passes
-  with them present (the validator does not assert path existence), so they are
-  stale-but-not-failing — no release blocker.
+- **`cr-pipeline.md` added to `links.docs`.** `docs/noldor/cr-pipeline.md`
+  exists and is linked from the FD's Usage section but was missing from the
+  `links.docs` 16-page set (so the per-page changelog/release-marker walk
+  skipped it). Added — the set is now 17 pages.
 
 ## Files touched
 
@@ -199,7 +196,7 @@ not invoked. Goal met.
 | `.claude/skills/gate/SKILL.md` | Step 4 cleanup → `git worktree remove` + `git branch -D` | doc/skill |
 | `docs/noldor/pr-flow.md` | diagram + sync paragraph (`-D`) | doc |
 | `docs/noldor/worktree-discipline.md` | 3× `git branch -d` → `-D` (squash-merge correctness) | doc |
-| `docs/features/noldor.md` | correct stale `links.code` path | doc |
+| `docs/features/noldor.md` | rewrite all stale `scripts/*` `links.code` → `src/*`, add `cr-pipeline.md` to `links.docs`, regen Resources, phase→done | doc |
 
 ## Test plan
 
