@@ -46,6 +46,15 @@ export const ConsumerConfigSchema = z
       .default([...DEFAULT_CATEGORIES]),
     /** Maps an FD `area` slug to its release-notes category. Unmapped → `Other`. */
     areaCategories: z.record(z.string(), z.string()).default({}),
+    /**
+     * Maps a short Conventional-Commit scope token to the FD slug(s) it may
+     * legitimately front. Lets the team use informal scopes (`feat(cr):`)
+     * without tripping the trailer-scope-mismatch detector. Key = scope token
+     * (matched against the scope's last `:`-delimited segment); value = FD slugs
+     * that token is allowed to represent. Empty by default — the detector's
+     * behaviour is unchanged until a consumer declares aliases.
+     */
+    scopeAliases: z.record(z.string(), z.array(z.string().min(1))).default({}),
   })
   .strict();
 
@@ -109,6 +118,20 @@ export function loadCategories(cwd: string = process.cwd()): string[] {
 export function loadAreaCategories(cwd: string = process.cwd()): Record<string, string> {
   try {
     return loadConsumerConfig(cwd).areaCategories;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The consumer's scope-token → FD-slug(s) alias map (empty when no config).
+ * Consumed by the trailer-scope-mismatch detector to accept the team's
+ * informal short scopes. Tolerant by design: a missing config yields `{}`,
+ * leaving detector behaviour unchanged.
+ */
+export function loadScopeAliases(cwd: string = process.cwd()): Record<string, string[]> {
+  try {
+    return loadConsumerConfig(cwd).scopeAliases;
   } catch {
     return {};
   }

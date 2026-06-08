@@ -109,4 +109,74 @@ describe('detectTrailerScopeMismatch', () => {
     const findings = await detectTrailerScopeMismatch({ cwd: repo });
     expect(findings).toHaveLength(0);
   });
+
+  it('accepts a bare short scope token registered as an alias for the FD slug', async () => {
+    addCommit(repo, 'chore: genesis');
+    addCommit(repo, 'feat(cr): a cr commit\n\nNoldor-FD: noldor');
+
+    const findings = await detectTrailerScopeMismatch({
+      cwd: repo,
+      scopeAliases: { cr: ['noldor'] },
+    });
+    expect(findings).toHaveLength(0);
+  });
+
+  it('accepts a multi-level scope whose last segment is an alias for the FD slug', async () => {
+    addCommit(repo, 'chore: genesis');
+    addCommit(repo, 'feat(garden:cr): a nested cr commit\n\nNoldor-FD: noldor');
+
+    const findings = await detectTrailerScopeMismatch({
+      cwd: repo,
+      scopeAliases: { cr: ['noldor'] },
+    });
+    expect(findings).toHaveLength(0);
+  });
+
+  it('accepts a token mapped to multiple FD slugs for each slug', async () => {
+    addCommit(repo, 'chore: genesis');
+    addCommit(repo, 'feat(cr): first\n\nNoldor-FD: noldor');
+    addCommit(repo, 'feat(cr): second\n\nNoldor-FD: codex-cr-override-audit');
+
+    const findings = await detectTrailerScopeMismatch({
+      cwd: repo,
+      scopeAliases: { cr: ['noldor', 'codex-cr-override-audit'] },
+    });
+    expect(findings).toHaveLength(0);
+  });
+
+  it('still flags a token that is registered as an alias for a different FD', async () => {
+    addCommit(repo, 'chore: genesis');
+    addCommit(repo, 'feat(cr): wrong fd\n\nNoldor-FD: some-other-feature');
+
+    const findings = await detectTrailerScopeMismatch({
+      cwd: repo,
+      scopeAliases: { cr: ['noldor'] },
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.fdSlug).toBe('some-other-feature');
+  });
+
+  it('still flags an unknown token not present in the alias map', async () => {
+    addCommit(repo, 'chore: genesis');
+    addCommit(repo, 'feat(unknown): nope\n\nNoldor-FD: noldor');
+
+    const findings = await detectTrailerScopeMismatch({
+      cwd: repo,
+      scopeAliases: { cr: ['noldor'] },
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.scope).toBe('unknown');
+  });
+
+  it('cannot alias a commit with no scope (null scope stays flagged)', async () => {
+    addCommit(repo, 'chore: genesis');
+    addCommit(repo, 'feat: no scope\n\nNoldor-FD: noldor');
+
+    const findings = await detectTrailerScopeMismatch({
+      cwd: repo,
+      scopeAliases: { cr: ['noldor'] },
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.scope).toBeNull();
+  });
 });
