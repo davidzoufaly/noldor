@@ -15,6 +15,7 @@ docs/ideas.md
 .noldor/session.json
 .noldor/garden-receipt
 .noldor/release-pushes.log
+.noldor/cr/
 
 # Machine-local graphify interpreter path (resolved per-run)
 graphify-out/.graphify_python

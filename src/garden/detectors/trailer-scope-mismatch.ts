@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 
+import { loadScopeAliases } from '../../core/consumer-config.js';
 import { readRolloutMarker } from '../../core/rollout-marker.js';
 import { parseTrailers } from '../../core/trailers.js';
 
@@ -51,8 +52,10 @@ export interface TrailerScopeMismatchFinding {
  */
 export async function detectTrailerScopeMismatch(opts: {
   cwd: string;
+  scopeAliases?: Record<string, string[]>;
 }): Promise<TrailerScopeMismatchFinding[]> {
   const { cwd } = opts;
+  const aliases = opts.scopeAliases ?? loadScopeAliases(cwd);
   const marker = readRolloutMarker(cwd);
   const range = marker ? [`${marker}..HEAD`] : ['HEAD'];
   const rootShas = rootCommitShas(cwd);
@@ -103,8 +106,15 @@ export async function detectTrailerScopeMismatch(opts: {
     const scopeMatch = SUBJECT_RE.exec(subject);
     const scope = scopeMatch?.groups?.scope ?? null;
 
-    // Scope is acceptable if it equals the slug or contains `:<slug>`
-    const scopeContainsSlug = scope !== null && (scope === fdSlug || scope.endsWith(`:${fdSlug}`));
+    // Scope is acceptable if it equals the slug, contains `:<slug>`, or its
+    // last `:`-delimited segment is a configured alias for this FD slug. The
+    // alias check mirrors the sub-scope leniency (last-segment-only): `garden:cr`
+    // matches alias `cr`, but `cr:garden` does not.
+    // pop() on a non-empty array is always a string; split() never yields [].
+    const lastSegment = scope === null ? null : scope.split(':').pop()!;
+    const aliasAccepts = lastSegment !== null && (aliases[lastSegment]?.includes(fdSlug) ?? false);
+    const scopeContainsSlug =
+      scope !== null && (scope === fdSlug || scope.endsWith(`:${fdSlug}`) || aliasAccepts);
 
     if (!scopeContainsSlug) {
       findings.push({
