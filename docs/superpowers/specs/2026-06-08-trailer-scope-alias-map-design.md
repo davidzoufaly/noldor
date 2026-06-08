@@ -8,20 +8,30 @@
 
 `src/garden/detectors/trailer-scope-mismatch.ts` flags any commit whose
 Conventional-Commit scope does not equal the `Noldor-FD:` slug or end with
-`:<slug>`. The v0.4.0 release surfaced 24 such mismatches: the team has
-informally adopted shorter scope tokens (`feat(sdd):` for FD
-`sdd-co-tag-detector`, `feat(cr):` for FD `noldor`, …). Shipping required the
-`RELEASE_SKIP_GATE_COMPLIANCE=1` bypass.
+`:<slug>`. The originating incident was an upstream (Charuy) v0.4.0 release that
+surfaced ~24 such mismatches because the team had informally adopted shorter
+scope tokens (`feat(sdd):` for FD `sdd-co-tag-detector`, `feat(cr):` for FD
+`noldor`, …); shipping required the `RELEASE_SKIP_GATE_COMPLIANCE=1` bypass.
 
-Demanding artificial scope expansion (`feat(sdd-co-tag-detector):`) fights the
-team's actual usage. Instead, let the detector accept a configured set of
-short-token → FD-slug aliases.
+That incident is the *motivation*, not a reproducible repo state. In this
+self-host repo, a full-history scan finds only a handful of mismatches and they
+have a different shape (e.g. `noldor → noldor-package-lift`, plus null-scope
+commits an alias map cannot help). The 24-token Charuy set is not present here
+and must not be hardcoded.
+
+The standing need is forward-looking: as the team keeps committing with short
+scopes, each release window will re-accumulate the same wall. Demanding
+artificial scope expansion (`feat(sdd-co-tag-detector):`) fights actual usage.
+Instead, let the detector accept an **operator-curated** set of short-token →
+FD-slug aliases that encode the team's real convention.
 
 ## Solution
 
 A config-driven alias map in `.noldor/config.json` consumer block. The detector
 accepts a commit when its scope's last segment is registered as an alias for
-that commit's FD slug.
+that commit's FD slug. The map is operator-curated team convention — it ships
+with an empty (valid) default and is seeded with the agreed entries during
+implementation (see Deliverables).
 
 ### 1. Config schema
 
@@ -37,17 +47,25 @@ Extend `ConsumerConfigSchema` in `src/core/consumer-config.ts`:
 scopeAliases: z.record(z.string(), z.array(z.string().min(1))).default({}),
 ```
 
-Example:
+Example (shown in its real nesting under the `consumer:` block, sibling of
+`areaCategories`):
 
 ```json
-"scopeAliases": {
-  "sdd": ["sdd-co-tag-detector"],
-  "cr": ["noldor"]
+{
+  "consumer": {
+    "areaCategories": { "...": "..." },
+    "scopeAliases": {
+      "cr": ["noldor"],
+      "sdd": ["sdd-co-tag-detector"]
+    }
+  }
 }
 ```
 
 A token may front multiple FDs (array value) — informal tokens like `cr` can be
-shared across several FDs without a future schema migration.
+shared across several FDs without a future schema migration. (The `sdd`/`cr`
+entries are illustrative of the *shape*; the actual seed for this repo is
+derived per Deliverables, not copied from the Charuy example.)
 
 ### 2. Tolerant accessor
 
@@ -79,7 +97,8 @@ const scopeContainsSlug = scope !== null && (scope === fdSlug || scope.endsWith(
 New:
 
 ```ts
-const lastSegment = scope === null ? null : (scope.split(':').pop() ?? scope);
+// pop() on a non-empty array is always a string; split() never yields []
+const lastSegment = scope === null ? null : scope.split(':').pop()!;
 const aliasAccepts = lastSegment !== null && (aliases[lastSegment]?.includes(fdSlug) ?? false);
 const accepted =
   scope !== null && (scope === fdSlug || scope.endsWith(`:${fdSlug}`) || aliasAccepts);
@@ -121,13 +140,46 @@ finding.
 - Unknown token (not in map) → flagged as today.
 - Alias registered for a different FD than the commit carries → no match.
 
+## Deliverables (this closes the bypass)
+
+The mechanism alone ships inert — the bypass only goes away once
+`.noldor/config.json` carries the team's real aliases. Both land in this FD:
+
+1. **Mechanism** — schema field, accessor, detector change, tests (above).
+2. **Seed the map** — during implementation:
+   a. Run the detector over the current scan window
+      (`detectTrailerScopeMismatch({ cwd })`) to list live `scope → fdSlug`
+      mismatches.
+   b. Filter to genuine team-convention cases (a non-null short scope that
+      *should* be accepted for that FD). Discard noise — e.g. null-scope
+      commits (no alias can help; see below) and one-off wrong-FD taggings.
+   c. Present the candidate `token → [slugs]` set to the operator for
+      confirmation.
+   d. Write the confirmed entries into `.noldor/config.json` `consumer.scopeAliases`.
+   If the confirmed set is empty in this repo, that is a legitimate outcome —
+   the field ships as `{}` and the detector behaviour is unchanged until the
+   team adds tokens. The mechanism is still complete and the next release no
+   longer needs a code change to register a token.
+
+## Why no commit rewrite is needed
+
+The rollout marker (`readRolloutMarker`) advances to the release commit each
+release, so the scan window is `<last-release>..HEAD`. Pre-marker historical
+mismatches (including the original Charuy 24) are never re-walked and need no
+retroactive scope rewrite. The alias map's job is forward-looking: it stops
+*future* in-window commits using standing team tokens from being flagged.
+
+Note: a commit with **no scope at all** (`docs: …`, scope `null`) is not
+addressable by an alias map — there is no token to alias — and remains flagged
+by design. Such commits are a separate gate-discipline concern, not part of this
+FD.
+
 ## Out of scope (YAGNI)
 
 - Validating that alias target slugs reference real FDs — separate concern; the
   detector only decides scope acceptance.
-- Migrating the 24 historical mismatches — the rollout marker
-  (`readRolloutMarker`) already bounds the scan window, so pre-marker commits
-  are never walked.
+- Auto-deriving the alias set without operator confirmation — the map encodes
+  team convention, which is a human decision, not a mechanical scan output.
 
 ## Testing
 
