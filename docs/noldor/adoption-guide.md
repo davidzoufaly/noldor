@@ -31,6 +31,7 @@ Noldor is a standalone package. A consuming repo installs it as a dev dependency
 | `appPathPrefix`     | Path prefix for the app, for FD `links.code` resolution.                   |
 | `categories`        | Release-notes categories (functional-domain axis, NOT commit types). Default `["Core","Tooling","Other"]`. Grows via `/triage` + `/promote`. |
 | `areaCategories`    | Maps an FD `area` slug → a category. Unmapped areas fall back to `Other`.   |
+| `scopeAliases`      | Maps a short commit-scope token → the FD slug(s) it may front, so the trailer-scope-mismatch detector accepts informal scopes (e.g. `{"cr": ["noldor"]}` lets `feat(cr):` carry `Noldor-FD: noldor`). Matched on the scope's last `:`-segment. Optional, defaults `{}`. |
 
 **Single-package example:**
 
