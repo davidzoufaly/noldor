@@ -110,7 +110,11 @@ if (!accepted) {
 
 `lastSegment` handles bare `cr` and multi-level `garden:cr` uniformly (a
 single-segment scope is its own last segment), mirroring the existing
-`endsWith(':<slug>')` sub-scope leniency.
+`endsWith(':<slug>')` sub-scope leniency. Matching is **last-segment-only** by
+deliberate symmetry with that existing rule: `feat(garden:cr):` matches alias
+`cr`, but `feat(cr:garden):` (token in a leading position) does not. Real
+informal tokens are whole-scope or trailing, so coverage holds; token-anywhere
+matching is intentionally not supported.
 
 Signature gains an optional override so unit tests need no on-disk config:
 
