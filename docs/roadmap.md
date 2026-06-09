@@ -34,19 +34,6 @@ Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD fron
 
 Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superpowers/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `scripts/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it). Touches: `scripts/graphify/**`, `scripts/garden/garden-detect.ts`, `scripts/garden/plan-resolution.ts`.
 
-#### Codex CR Plan-Review Mode
-
-- area: tooling
-- type: feat
-- since: 2026-05-11
-- size: S
-- impact: high
-- promoted: 2026-05-11 (from backlog)
-
-`pnpm cr:codex` reviews code diffs today (`<sha>`, `<from>..<to>`, `--paths`, `--working`). Add a `--plan <path>` (and `--spec <path>`) mode that takes a markdown plan/spec and runs codex with plan-review semantics — flag missing edge cases, unclear acceptance criteria, signature inconsistencies, placeholder content. The gate-flow Step 2.5 (review handoff after spec/plan) currently relies on operators invoking `--paths <artifact>` which applies code-review heuristics; a dedicated plan/spec mode would give sharper feedback. Trigger: when operators hitting the Step 2.5 pause want codex review and the `--paths` workaround proves too noisy.
-
-- merged 2026-05-23: scoped to the codex lane of a broader multi-reviewer specs/plan CR gate — see [[specs-cr-gate-multi-reviewer]].
-
 #### Fix Multiterminal-Development Flow Bug
 
 - area: tooling
