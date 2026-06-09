@@ -47,19 +47,6 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
    - `full-new` — new FD with spec
    - `full-attach` — attach with spec
 
-1.5. **Path confirmation.** Skip when `path === 'micro-chore'` or when the path was reached via `/gate --resume <slug>` (the slug + tier are already known from FD frontmatter and the operator committed to the path by resuming — re-confirming is redundant friction). Otherwise, surface a second `AskUserQuestion`:
-
-> Confirm <path> path?
->
-> - Scaffolding: <FD? worktree? spec? plan? reviewer?>
-> - Estimated commitment: <fast | medium | heavy>
->
-> 1. Confirm — proceed to Step 2
-> 2. Pick different — return to Step 1
-> 3. Cancel — exit /gate
-
-Scaffolding line is path-specific (consult `docs/noldor/complexity-gating.md` path matrix). Commitment label: `fast-track` = fast; `specs-only-*` = medium; `full-*` = heavy. The pause exists to give the operator a beat to abort before the heavy scaffolding starts — `full-new` in particular kicks off `/promote` + worktree + spec brainstorm in sequence and is expensive to abort mid-flight.
-
 2. **Path-specific scaffold:**
    - `micro-chore`: Confirm diff scope (pre-commit allowlist enforces, see [`src/core/allowlist.ts`](../../../src/core/allowlist.ts)). Write session marker `{ path: 'micro-chore', startedAt }` (the `startedAt` timestamp is required by the schema and drives the 24h staleness expiry — see the Noldor FD Usage "Session-marker expiry"). No worktree — edits land on local `main`. Commit. After commit, gate scaffolds the temp-branch handoff so Step 4 can deliver the change via PR:
      1. `branch=micro/$(date -u +%s)` — epoch seconds, unique + sortable.
@@ -101,7 +88,7 @@ See [`docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-chang
 
 **Lint pass first.** Run `pnpm noldor noldor lint-plan-snippets <artifact-path>` and capture stdout + exit code. Exit code 0 = clean; exit code 2 = findings present (include the captured stdout verbatim in the AskUserQuestion description so the operator sees them before choosing); exit code 1 = script error (mention the error in the description but still proceed to the prompt — never block on linter infra). Findings are informational; they do not gate the choice.
 
-**Commit the artifact first.** Surface the artifact path in one sentence, then ask the operator to confirm (`y` to commit, anything else aborts the round). On confirm, stage + commit before any lane runs — subagent needs a `BASE_SHA..HEAD_SHA` range, standalone needs the file on disk, codex+orchestrator need a stable `artifactSha` to record in `LaneFindings`.
+**Commit the artifact first.** Surface the artifact path in one sentence, then stage + commit it (no confirm — recoverable via `git reset --soft HEAD~1` if the round needs unwinding) before any lane runs — subagent needs a `BASE_SHA..HEAD_SHA` range, standalone needs the file on disk, codex+orchestrator need a stable `artifactSha` to record in `LaneFindings`.
 
 - After spec: `docs(features:<slug>): add spec for <slug>` (attach paths scope on the parent slug + name the enhancement in the subject)
 - After plan: `docs(features:<slug>): add plan for <slug>`
@@ -250,7 +237,7 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
 ## --resume mode
 
-Re-establish session marker for an existing in-progress FD. Reads tier from FD frontmatter, infers path (`specs-only-new` or `full-new` based on tier; user can override to `*-attach` if extending an existing FD). Skips the Step 1.5 path-confirmation prompt — resuming already commits to the inferred path, so the confirm is redundant; advance straight to the Step 2 scaffold. (The optional override-to-`*-attach` is an explicit operator choice, not the generic confirm dialog.)
+Re-establish session marker for an existing in-progress FD. Reads tier from FD frontmatter, infers path (`specs-only-new` or `full-new` based on tier; user can override to `*-attach` if extending an existing FD). Advances straight to the Step 2 scaffold.
 
 ## Autonomous mode
 

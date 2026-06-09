@@ -84,10 +84,6 @@ Autonomous CR needs **no** config to work: when `crLanes.<kind>` is absent, orch
 
 ## Picking your path
 
-### Path confirmation beat
-
-Every path except `micro-chore` runs an explicit confirmation `AskUserQuestion` between the path picker (`/gate` Step 1) and the scaffold (Step 2). This pause is the cheapest place to abort if the operator picked the wrong path — `full-new` in particular starts a spec brainstorm + plan + implementation chain that's expensive to unwind. `micro-chore` skips the confirmation because the path matches a small doc/policy edit by definition; the pre-commit allowlist enforces scope discipline.
-
 **Example 1 — `micro-chore`:** You want to fix a typo in a doc file.
 
 Path 1 applies. Run `/gate`, pick `micro-chore`. No worktree, no FD. Confirm the diff is within the allowlist, then commit directly. Hook validates the allowlist at pre-commit.
