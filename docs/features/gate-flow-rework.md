@@ -39,8 +39,7 @@ As an operator (human or agent) driving `/gate`:
    - Stage 1 picks a bucket: `In-progress` / `Top priority` / `Quick win` / `Milestone-aligned` / `Other / Cancel` (max 4 options shown; lowest-priority non-empty bucket folds into Other when count exceeds 4).
    - Stage 2 (when the chosen bucket has multiple entries) picks the specific entry.
 2. **Path picker (Step 1)** — operator picks one of `micro-chore | fast-track | specs-only-new | specs-only-attach | full-new | full-attach`.
-3. **Path confirmation (Step 1.5)** — skipped for `micro-chore`; otherwise an explicit "Confirm `<path>`?" with scaffolding implications listed.
-4. **Scaffold (Step 2)** — for `specs-only-new` / `full-new`: worktree created _first_, session marker written, then `/promote` runs inside the worktree. Attach paths and `fast-track` already follow worktree-first ordering.
+3. **Scaffold (Step 2)** — for `specs-only-new` / `full-new`: worktree created _first_, session marker written, then `/promote` runs inside the worktree. Attach paths and `fast-track` already follow worktree-first ordering.
 
 Programmatic entry: `pnpm next-priority --suggestions --json` returns the structured suggestion set without invoking `/gate`. Exit code 2 when no in-progress FDs and no roadmap entries.
 
