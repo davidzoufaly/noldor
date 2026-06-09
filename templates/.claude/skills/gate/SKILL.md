@@ -27,17 +27,16 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
      The bucket question caps at 4 options. When more than 4 buckets are non-empty (worst case: in-progress + top + quick + milestone + path picker = 5), drop `Milestone-aligned` from the question list — it's the lowest-priority bucket before the path-picker fast-track.
 
    - **On `In-progress` bucket pick:** if `inProgress.length === 1`, derive `slug = inProgress[0].slug` and invoke `/gate --resume <slug>`. Otherwise, fire a second `AskUserQuestion` with up to 4 options (first 4 entries of `inProgress`; if more than 4 in-progress FDs exist, the 4th option is `[more — see docs/features/]` which prints the full list to chat and exits the gate so the operator can re-invoke with `--resume <slug>` explicitly). On pick, invoke `/gate --resume <slug>`.
-   - **On `Top priority` bucket pick:** if `topPriority.length === 1`, use that entry directly. Otherwise, fire a second `AskUserQuestion` with up to 4 options: `topPriority[0]`, `topPriority[1]` (if present), `topPriority[2]` (if present), `Back`. On entry pick: use `entry.slug` (carried in the JSON by `BacklogEntry.slug`), invoke `/promote <slug> --tier=<full | specs-only>` (full when `entry.size ∈ {L, XL}`, specs-only otherwise). After `/promote` succeeds, fall through to Step 1 with the path pre-filled per the tier→path mapping below.
-   - **On `Quick win` bucket pick:** if `smallHighImpact.length === 1`, use that entry directly. Otherwise, second question with both entries + `Back`. Same `/promote` + path-prefill handling.
-   - **On `Milestone-aligned` bucket pick:** use `milestoneAligned` directly (always a single entry by construction — `BacklogEntry | null`, never a list). Same `/promote` + path-prefill handling.
+   - **On `Top priority` bucket pick:** if `topPriority.length === 1`, use that entry directly. Otherwise, fire a second `AskUserQuestion` with up to 4 options: `topPriority[0]`, `topPriority[1]` (if present), `topPriority[2]` (if present), `Back`. On entry pick: use `entry.slug` (carried in the JSON by `BacklogEntry.slug`) and `entry.suggestedPath` (stamped by `getSuggestions` per the size→path policy — see the `suggestedPath` handling below), then fall through to Step 1 with that path pre-filled.
+   - **On `Quick win` bucket pick:** if `smallHighImpact.length === 1`, use that entry directly. Otherwise, second question with both entries + `Back`. Same `suggestedPath` handling.
+   - **On `Milestone-aligned` bucket pick:** use `milestoneAligned` directly (always a single entry by construction — `BacklogEntry | null`, never a list). Same `suggestedPath` handling.
    - **On `Path picker` bucket pick:** fast-track straight to Step 1 — no intermediate confirmation. To cancel, escape the path-picker prompt.
    - Any other exit code → report the stderr message and stop (don't auto-skip; surfacing the error keeps roadmap parse bugs visible).
 
-   **Tier → path mapping for the prefill** (used after `/promote` resolves):
-   - tier `specs-only` + `entry.parent` set → `specs-only-attach`
-   - tier `specs-only` + no parent → `specs-only-new`
-   - tier `full` + `entry.parent` set → `full-attach`
-   - tier `full` + no parent → `full-new`
+   **`suggestedPath` handling for the prefill.** Every surfaced entry carries `suggestedPath`, computed by `sizeToPath(size, hasParent)` in [`src/core/size-routing.ts`](../../../src/core/size-routing.ts) — the single source of truth for the size→path policy (XS/S → `fast-track`; M → `specs-only-*`; L/XL → `full-*`; the `-attach` variant when the entry declares a `parent`). On pick:
+   - `fast-track` (size XS/S) → **no `/promote`** (no FD, no spec). Carry `entry.slug` forward and go straight to Step 1 with `fast-track` pre-filled; the fast-track scaffold records the slug in the session marker so the source roadmap block is retired (see "Roadmap-entry retirement" under Step 2). Downgrade to `micro-chore` only when the diff is pure-doc.
+   - `specs-only-new` / `specs-only-attach` (size M) → `/promote <slug> --tier=specs-only`, then prefill that path.
+   - `full-new` / `full-attach` (size L/XL) → `/promote <slug> --tier=full`, then prefill that path.
 
 1. **Path picker.** Use AskUserQuestion to select one of:
    - `micro-chore` — doc/policy edits only (allowlisted)
@@ -56,11 +55,27 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
 
      Trade-off: working tree is briefly "ahead of `origin/main`" between commit and reset (5-10s window). Multi-commit micro-chore is not supported in a single session — second commit fails the pre-commit allowlist (existing single-commit invariant).
 
-   - `fast-track`: Invoke `superpowers:using-git-worktrees`. Write session marker `{ path: 'fast-track', startedAt }`. Branch named `fast/<short-desc>`. No FD.
+   - `fast-track`: Invoke `superpowers:using-git-worktrees`. Write session marker `{ path: 'fast-track', startedAt }` — include `slug: <roadmap-slug>` when this fast-track was entered from a Step 0 roadmap pick (an XS/S `suggestedPath`). Branch named `fast/<short-desc>`. No FD. When the marker carries a `slug`, run the **Roadmap-entry retirement** sequence below so the shipped entry leaves the queue.
    - `specs-only-new`: Prompt slug + category. **Create the worktree first** via `superpowers:using-git-worktrees` (`.worktrees/<slug>`, branch `feat/<slug>`); run `pnpm install` inside the new worktree per `docs/noldor/worktree-discipline.md`. Write session marker `{ path, slug, startedAt, markerVersion: 2 }` _inside_ the worktree's `.noldor/session.json`. **Then** invoke `/promote <slug> --tier=specs-only` (or `/new-feature <slug> --tier=specs-only` when slug isn't in roadmap/backlog). Then `superpowers:brainstorming` to produce the spec at `docs/superpowers/specs/<date>-<slug>-design.md`. **After spec returns, run Step 2.5 with `--kind spec`.** On operator approval, advance directly to implementation (no plan stage).
    - `specs-only-attach`: Prompt parent slug. Prompt enhancement slug (`Enhancement slug (short, kebab-case, scopes the spec filename)?`). Validate parent FD exists. Worktree. Session `{ path, parent, enhancement, startedAt, markerVersion: 2 }`. Run the phase-revert sequence below if applicable. `superpowers:brainstorming` writing spec named `<date>-<parent>-<enhancement>-design.md`. **After spec returns, run Step 2.5 with `--kind spec`.** On operator approval, advance directly to implementation (no plan stage).
    - `full-new`: Prompt slug + category. **Create the worktree first** via `superpowers:using-git-worktrees` (`.worktrees/<slug>`, branch `feat/<slug>`); run `pnpm install` inside the new worktree. Write session marker `{ path, slug, startedAt }` inside the worktree. **Then** invoke `/promote <slug> --tier=full` (or `/new-feature <slug> --tier=full` when slug isn't in roadmap/backlog). Then `superpowers:brainstorming` to produce the spec. **After spec returns, run Step 2.5 with `--kind spec`.** On operator approval, continue: `/draft-feature-md <slug> --from-spec` (writes FD body stubs from the spec). Then `superpowers:writing-plans`. **After plan returns, run Step 2.5 with `--kind plan` again.**
    - `full-attach`: Prompt parent slug. Prompt enhancement slug (`Enhancement slug (short, kebab-case, scopes the spec/plan filename)?`). Worktree. Session `{ path, parent, enhancement, startedAt }`. Run the phase-revert sequence below if applicable. `superpowers:brainstorming` writing spec named `<date>-<parent>-<enhancement>-design.md`. **After spec returns, run Step 2.5 with `--kind spec`.** On operator approval, continue: `superpowers:writing-plans`. **After plan returns, run Step 2.5 with `--kind plan` again.**
+
+### Roadmap-entry retirement (fast-track from a roadmap pick)
+
+When a `fast-track` session was entered from a Step 0 roadmap pick (XS/S `suggestedPath`), its session marker carries `slug`. Unlike `/promote` — which removes the source block as it scaffolds an FD — `fast-track` creates no FD, so the source roadmap block must be retired explicitly or the shipped entry re-surfaces at the next gate. Execute this on the worktree branch immediately after worktree creation + session-marker write (mirrors the phase-revert sequence). Skip entirely when the marker has no `slug` (ad-hoc fast-track not tied to a roadmap entry).
+
+**Step 1 — remove the block (guarded no-op when the slug is already absent):**
+
+`pnpm exec tsx -e "import {readFileSync as r, writeFileSync as w} from 'node:fs'; import {removeBlock} from './src/utils/write-blocks.ts'; import {parseRoadmap} from './src/utils/parse-blocks.ts'; const p='docs/roadmap.md'; const m=r(p,'utf8'); if (parseRoadmap(m).some((e)=>e.slug==='<slug>')) w(p, removeBlock(m,'<slug>').newRaw, 'utf8');"`
+
+The `parseRoadmap(...).some(...)` guard prevents `removeBlock` from throwing when the block is already gone (re-run safety).
+
+**Step 2 — commit only if the file changed:**
+
+`git diff --quiet docs/roadmap.md || (git add docs/roadmap.md && git commit -m "docs(roadmap): retire <slug> — shipped via fast-track (no FD)")`
+
+The `prepare-commit-msg` hook injects `Noldor-Path: fast-track` from the session marker; `fast-track` carries no `Noldor-FD`. The block is removed on the feature branch and lands on `main` when the fast-track PR merges — keeping retirement atomic with the shipped change rather than a separate edit on `main`.
 
 ### Phase-revert lifecycle (attach paths)
 

@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 
 import { loadDocRoots } from './doc-roots.js';
+import { sizeToPath, type GatePath } from './size-routing.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 
@@ -78,11 +79,20 @@ export interface SuggestionsInput {
   milestoneGate: string;
 }
 
+/**
+ * A roadmap entry stamped with the gate path the size→path policy recommends
+ * for it (see {@link sizeToPath}). `/gate` Step 0 reads `suggestedPath` directly
+ * instead of re-deriving the size→tier mapping in prose.
+ */
+export interface SuggestedEntry extends BacklogEntry {
+  suggestedPath: GatePath;
+}
+
 export interface Suggestions {
   inProgress: ReadonlyArray<InProgressFd>;
-  topPriority: ReadonlyArray<BacklogEntry>;
-  smallHighImpact: ReadonlyArray<BacklogEntry>;
-  milestoneAligned: BacklogEntry | null;
+  topPriority: ReadonlyArray<SuggestedEntry>;
+  smallHighImpact: ReadonlyArray<SuggestedEntry>;
+  milestoneAligned: SuggestedEntry | null;
 }
 
 /**
@@ -100,7 +110,7 @@ export interface Suggestions {
  *
  * @param roadmapRaw - Raw contents of `docs/roadmap.md`.
  * @param input - In-progress FDs (caller-discovered) + active milestone's gate paragraph.
- * @returns 3 top + 2 small×high-impact (disjoint from top) + 1 milestone-aligned (disjoint) + inProgress (passed through verbatim).
+ * @returns 3 top + 2 small×high-impact (disjoint from top) + 1 milestone-aligned (disjoint) + inProgress (passed through verbatim). Each surfaced entry is stamped with a `suggestedPath` per the size→path policy ({@link sizeToPath}).
  */
 export function getSuggestions(roadmapRaw: string, input: SuggestionsInput): Suggestions {
   const all = parseRoadmap(roadmapRaw);
@@ -123,7 +133,20 @@ export function getSuggestions(roadmapRaw: string, input: SuggestionsInput): Sug
       ? null
       : findMilestoneMatch(sorted, input.milestoneGate, new Set([...topSlugs, ...smallSlugs]));
 
-  return { inProgress: input.inProgressFds, topPriority, smallHighImpact, milestoneAligned };
+  return {
+    inProgress: input.inProgressFds,
+    topPriority: topPriority.map(withRouting),
+    smallHighImpact: smallHighImpact.map(withRouting),
+    milestoneAligned: milestoneAligned === null ? null : withRouting(milestoneAligned),
+  };
+}
+
+/**
+ * Stamp a roadmap entry with the gate path recommended by the size→path policy.
+ * The `-attach` variants are selected when the entry declares a `parent` FD.
+ */
+function withRouting(entry: BacklogEntry): SuggestedEntry {
+  return { ...entry, suggestedPath: sizeToPath(entry.size, entry.parent !== undefined) };
 }
 
 /**
