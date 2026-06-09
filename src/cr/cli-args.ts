@@ -1,10 +1,22 @@
 import type { Lane } from './context.js';
 
+export interface PlanReview {
+  kind: 'plan' | 'spec';
+  artifact: string;
+  slug?: string;
+  baseSha?: string;
+  fullReview: boolean;
+}
+
 export interface Invocation {
   lane: Lane;
   paths: string[];
   rerun: boolean;
   dryRun: boolean;
+  /** Present only for artifact (plan/spec) review invocations. */
+  review?: PlanReview;
+  /** Present only for `--help`. */
+  help?: boolean;
 }
 
 const RANGE_RE = /^(.+)\.\.(.+)$/;
@@ -15,15 +27,39 @@ export function parseCliArgs(argv: readonly string[]): Invocation {
   let rerun = false;
   let dryRun = false;
   let paths: string[] = [];
+  let help = false;
+
+  let reviewKind: 'plan' | 'spec' | null = null;
+  let artifact: string | undefined;
+  let slug: string | undefined;
+  let baseSha: string | undefined;
+  let fullReview = false;
+
+  const requireValue = (flag: string, v: string | undefined): string => {
+    if (!v) throw new Error(`${flag} requires a value`);
+    return v;
+  };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--rerun') {
+    if (a === '--help') {
+      help = true;
+    } else if (a === '--rerun') {
       rerun = true;
     } else if (a === '--dry-run') {
       dryRun = true;
     } else if (a === '--working') {
       lane = { kind: 'working' };
+    } else if (a === '--plan' || a === '--spec') {
+      if (reviewKind !== null) throw new Error('--plan and --spec are mutually exclusive');
+      reviewKind = a === '--plan' ? 'plan' : 'spec';
+      artifact = requireValue(a, argv[++i]);
+    } else if (a === '--slug') {
+      slug = requireValue('--slug', argv[++i]);
+    } else if (a === '--base-sha') {
+      baseSha = requireValue('--base-sha', argv[++i]);
+    } else if (a === '--full-review') {
+      fullReview = true;
     } else if (a === '--paths') {
       const v = argv[++i];
       if (!v) throw new Error('--paths requires a comma-separated list');
@@ -42,5 +78,13 @@ export function parseCliArgs(argv: readonly string[]): Invocation {
   }
 
   if (rerun && dryRun) throw new Error('--rerun and --dry-run are mutually exclusive');
-  return { lane, paths, rerun, dryRun };
+
+  const inv: Invocation = { lane, paths, rerun, dryRun };
+  if (help) inv.help = true;
+  if (reviewKind !== null) {
+    inv.review = { kind: reviewKind, artifact: artifact!, fullReview };
+    if (slug !== undefined) inv.review.slug = slug;
+    if (baseSha !== undefined) inv.review.baseSha = baseSha;
+  }
+  return inv;
 }

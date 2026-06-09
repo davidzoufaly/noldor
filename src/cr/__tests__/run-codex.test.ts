@@ -70,4 +70,38 @@ describe('runCodex', () => {
     expect(call.stdin).toMatch(/^Respond ONLY with a JSON object/);
     expect(call.stdin).toMatch(/Do not call tools/);
   });
+
+  it('plan ctx → plan-review prompt with artifact content and plan heuristics', async () => {
+    const spawn: Spawn = vi.fn(async () => ({
+      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+      exitCode: 0,
+    }));
+    await runCodex({
+      ctx: { kind: 'plan', artifact: '## My plan body', featureMd: 'F', rules: 'R' },
+      spawn,
+    });
+    const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.stdin).toMatch(/^Respond ONLY with a JSON object/);
+    expect(call.stdin).toMatch(/plan/i);
+    expect(call.stdin).toMatch(/edge case/i);
+    expect(call.stdin).toMatch(/acceptance criteria/i);
+    expect(call.stdin).toMatch(/placeholder/i);
+    expect(call.stdin).toContain('## My plan body');
+    // plan review reads the artifact, not a code diff
+    expect(call.stdin).not.toMatch(/Diff to review/);
+  });
+
+  it('spec ctx → spec-review prompt mentioning spec', async () => {
+    const spawn: Spawn = vi.fn(async () => ({
+      stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
+      exitCode: 0,
+    }));
+    await runCodex({
+      ctx: { kind: 'spec', artifact: 'SPEC TEXT', featureMd: 'F', rules: 'R' },
+      spawn,
+    });
+    const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.stdin).toMatch(/spec/i);
+    expect(call.stdin).toContain('SPEC TEXT');
+  });
 });

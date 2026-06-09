@@ -13,7 +13,7 @@ vi.mock('node:child_process', () => ({
   ) => execFileFn(cmd, args, opts, cb),
 }));
 
-import { runCodex } from '../../lanes/codex.js';
+import { codexSupportsBaseSha, runCodex } from '../../lanes/codex.js';
 import type { LaneInput } from '../../lane-types.js';
 
 let root: string;
@@ -85,5 +85,48 @@ describe('runCodex', () => {
     await runCodex(baseInput({ baseSha: 'beef' }), { supportsBaseSha: false });
     expect(spy).toHaveBeenCalledWith(expect.stringMatching(/base-sha.*fall back/i));
     spy.mockRestore();
+  });
+
+  it('invokes the codex CLI via the noldor manifest path (not the retired cr:codex alias)', async () => {
+    let capturedArgs: string[] = [];
+    execFileFn.mockImplementation((_c, args, _o, cb) => {
+      capturedArgs = args;
+      cb(null, JSON.stringify({ summary: 'ok', findings: [] }), '');
+    });
+    await runCodex(baseInput());
+    expect(capturedArgs.slice(0, 3)).toEqual(['noldor', 'cr', 'codex']);
+    expect(capturedArgs).not.toContain('cr:codex');
+  });
+
+  it('passes --spec for a spec artifact and --plan for a plan artifact', async () => {
+    let capturedArgs: string[] = [];
+    execFileFn.mockImplementation((_c, args, _o, cb) => {
+      capturedArgs = args;
+      cb(null, JSON.stringify({ summary: 'ok', findings: [] }), '');
+    });
+    await runCodex(baseInput({ kind: 'spec' }));
+    expect(capturedArgs).toContain('--spec');
+    expect(capturedArgs).not.toContain('--plan');
+    await runCodex(baseInput({ kind: 'plan' }));
+    expect(capturedArgs).toContain('--plan');
+    expect(capturedArgs).not.toContain('--spec');
+  });
+});
+
+describe('codexSupportsBaseSha', () => {
+  it('probes the manifest help path and detects --base-sha', async () => {
+    execFileFn.mockImplementation((_c, args, _o, cb) => {
+      expect(args.slice(0, 3)).toEqual(['noldor', 'cr', 'codex']);
+      expect(args).toContain('--help');
+      cb(null, 'usage: noldor cr codex ... --base-sha <sha> ...', '');
+    });
+    expect(await codexSupportsBaseSha()).toBe(true);
+  });
+
+  it('returns false when help text lacks --base-sha', async () => {
+    execFileFn.mockImplementation((_c, _a, _o, cb) => {
+      cb(null, 'usage without the flag', '');
+    });
+    expect(await codexSupportsBaseSha()).toBe(false);
   });
 });
