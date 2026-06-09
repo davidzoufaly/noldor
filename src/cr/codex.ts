@@ -1,10 +1,10 @@
 import { execFileSync, spawn as nodeSpawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseCliArgs, type Invocation } from './cli-args.js';
+import { parseCliArgs, type Invocation, type PlanReview } from './cli-args.js';
 import { buildContext } from './context.js';
 import { runCodex, type Spawn } from './run-codex.js';
-import { sidecarFilename, writeSidecar } from './sidecar.js';
+import { sidecarFilename, writeSidecar, type CrRecord } from './sidecar.js';
 
 export interface RunCliInput {
   argv: readonly string[];
@@ -12,9 +12,37 @@ export interface RunCliInput {
   spawn?: Spawn;
 }
 
+const USAGE = `noldor cr codex — Codex code-review / plan-review pass
+
+Code-review lanes (writes a sidecar; gate lane amends Noldor-Reviewed-Codex):
+  noldor cr codex                 gate lane (main...HEAD), amends trailer
+  noldor cr codex --working       review the working tree (HEAD), no trailer
+  noldor cr codex <sha>           review main...<sha>, no trailer
+  noldor cr codex <from>..<to>    review a commit range, no trailer
+  noldor cr codex --paths a,b     scope the diff to comma-separated paths
+  noldor cr codex --rerun         re-run the gate lane over an existing trailer
+  noldor cr codex --dry-run       run without writing a sidecar or trailer
+
+Plan/spec-review lanes (prints {summary, findings} JSON to stdout; no sidecar, no trailer):
+  noldor cr codex --plan <path>   review a markdown plan with plan-review heuristics
+  noldor cr codex --spec <path>   review a markdown spec with plan-review heuristics
+  noldor cr codex --slug <slug>   load docs/features/<slug>.md as review context
+  noldor cr codex --base-sha <sha>  scope the artifact review to its diff since <sha>
+  noldor cr codex --full-review   ignore --base-sha; review the whole artifact
+`;
+
 export async function runCli(input: RunCliInput): Promise<number> {
   const inv = parseCliArgs(input.argv);
   const cwd = input.cwd;
+
+  if (inv.help) {
+    process.stdout.write(USAGE);
+    return 0;
+  }
+  if (inv.review) {
+    return runPlanReview(inv.review, cwd, input.spawn ?? defaultSpawn);
+  }
+
   const tree = sh(cwd, ['rev-parse', `${refForLane(inv)}^{tree}`]).trim();
 
   if (isGateLane(inv) && !inv.rerun) {
@@ -58,6 +86,78 @@ export async function runCli(input: RunCliInput): Promise<number> {
     execFileSync('git', ['commit', '--amend', '-F', msgFile], { cwd });
   }
   return 0;
+}
+
+interface OutFinding {
+  file: string;
+  message: string;
+  severity: 'high' | 'med' | 'low';
+  line?: number;
+  suggestion?: string;
+}
+
+/**
+ * Plan/spec review: read the artifact (or its diff since `--base-sha`), run
+ * codex with plan-review heuristics, and print `{ summary, findings }` to
+ * stdout for the orchestrate codex lane to consume. Always exits 0 when codex
+ * ran — findings (including a synthetic "codex spawn failed" blocker) travel in
+ * the JSON, never via the exit code, because the lane treats a non-zero exit as
+ * an infrastructure error rather than review output.
+ */
+async function runPlanReview(review: PlanReview, cwd: string, spawn: Spawn): Promise<number> {
+  let out: { summary: string; findings: OutFinding[] };
+  try {
+    const rules = readIfExists(cwd, '.claude/engineering-rules.md');
+    const featureMd = review.slug
+      ? readIfExists(cwd, `docs/features/${review.slug}.md`)
+      : readFeatureMd(cwd);
+    const artifact =
+      review.baseSha && !review.fullReview
+        ? sh(cwd, ['diff', `${review.baseSha}..HEAD`, '--', review.artifact])
+        : readIfExists(cwd, review.artifact);
+
+    const record = await runCodex({
+      ctx: { kind: review.kind, artifact, featureMd, rules },
+      spawn,
+    });
+    out = {
+      summary: record.summary || '(no summary provided)',
+      findings: toFindings(record, review.artifact),
+    };
+  } catch (e) {
+    // The contract is: findings travel via stdout, never the exit code (the
+    // orchestrate lane treats a non-zero exit as infrastructure failure). A bad
+    // --base-sha or unreadable artifact becomes a synthetic blocker, not a crash.
+    const message = `plan review failed: ${(e as Error).message}`;
+    out = { summary: message, findings: [{ file: review.artifact, message, severity: 'high' }] };
+  }
+  process.stdout.write(JSON.stringify(out) + '\n');
+  return 0;
+}
+
+/**
+ * Map a codex {@link CrRecord} to the orchestrate lane's `Finding[]` shape.
+ * Blockers always become `severity: 'high'` (the lane reclassifies high-severity
+ * findings as blockers); suggestions are pinned non-high so they stay
+ * suggestions. The codex schema uses `medium`; the lane schema uses `med`.
+ */
+function toFindings(record: CrRecord, fallbackFile: string): OutFinding[] {
+  const map = (f: CrRecord['blockers'][number], severity: OutFinding['severity']): OutFinding => {
+    // Document-level findings may carry an empty `file`; the consumer's
+    // findings-schema requires a non-empty string, so fall back to the artifact.
+    const o: OutFinding = {
+      file: f.file || fallbackFile,
+      message: f.message || '(no message provided)',
+      severity,
+    };
+    if (f.line != null) o.line = f.line;
+    if (f.suggestion != null) o.suggestion = f.suggestion;
+    return o;
+  };
+  return [
+    ...record.blockers.map((b) => map(b, 'high')),
+    ...record.suggestions.map((s) => map(s, s.severity == null ? 'low' : 'med')),
+  ];
 }
 
 function isGateLane(inv: Invocation): boolean {

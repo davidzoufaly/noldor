@@ -7,8 +7,24 @@ export type Spawn = (args: {
   stdin: string;
 }) => Promise<{ stdout: string; exitCode: number }>;
 
+export interface CodeReviewCtx {
+  kind?: 'code';
+  diff: string;
+  featureMd: string;
+  rules: string;
+}
+
+export interface ArtifactReviewCtx {
+  kind: 'plan' | 'spec';
+  artifact: string;
+  featureMd: string;
+  rules: string;
+}
+
+export type ReviewCtx = CodeReviewCtx | ArtifactReviewCtx;
+
 export interface RunCodexInput {
-  ctx: { diff: string; featureMd: string; rules: string };
+  ctx: ReviewCtx;
   spawn: Spawn;
   cmd?: string;
 }
@@ -53,9 +69,13 @@ export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
   return parsed.data;
 }
 
-function formatPrompt(ctx: { diff: string; featureMd: string; rules: string }): string {
+const JSON_ONLY_DIRECTIVE =
+  'Respond ONLY with a JSON object matching the provided output schema. Do not call tools, do not read additional files, do not run shell commands.';
+
+function formatPrompt(ctx: ReviewCtx): string {
+  if ('artifact' in ctx) return formatArtifactPrompt(ctx);
   return [
-    'Respond ONLY with a JSON object matching the provided output schema. Do not call tools, do not read additional files, do not run shell commands.',
+    JSON_ONLY_DIRECTIVE,
     '',
     '## Engineering rules',
     ctx.rules,
@@ -65,6 +85,31 @@ function formatPrompt(ctx: { diff: string; featureMd: string; rules: string }): 
     '',
     '## Diff to review',
     ctx.diff,
+  ].join('\n');
+}
+
+function formatArtifactPrompt(ctx: ArtifactReviewCtx): string {
+  const noun = ctx.kind === 'plan' ? 'plan' : 'spec';
+  const Noun = ctx.kind === 'plan' ? 'Plan' : 'Spec';
+  return [
+    JSON_ONLY_DIRECTIVE,
+    '',
+    `You are reviewing a ${noun} document (markdown, not code). Judge it as a design artifact — do NOT apply code-review heuristics. Surface:`,
+    '- missing or unconsidered edge cases',
+    '- unclear, unmeasurable, or absent acceptance criteria',
+    '- inconsistent or ambiguous function/type signatures',
+    '- placeholder / TODO / unfilled content that must be resolved before implementation',
+    '- internal contradictions or unstated assumptions',
+    `Report gaps that must be fixed before the ${noun} is implementable as blockers; softer improvements as suggestions. For document-level findings with no specific line, set "line": null.`,
+    '',
+    '## Engineering rules',
+    ctx.rules,
+    '',
+    '## Feature MD',
+    ctx.featureMd,
+    '',
+    `## ${Noun} to review`,
+    ctx.artifact,
   ].join('\n');
 }
 

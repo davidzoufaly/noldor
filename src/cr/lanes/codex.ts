@@ -27,7 +27,7 @@ export interface CodexOpts {
 
 export async function codexSupportsBaseSha(): Promise<boolean> {
   try {
-    const { stdout } = await exec('pnpm', ['cr:codex', '--help'], { timeout: 5000 });
+    const { stdout } = await exec('pnpm', ['noldor', 'cr', 'codex', '--help'], { timeout: 5000 });
     return /--base-sha/.test(stdout);
   } catch {
     return false;
@@ -42,7 +42,8 @@ interface CodexRawOutput {
 export async function runCodex(input: LaneInput, opts: CodexOpts = {}): Promise<LaneResult> {
   const sinkPath = join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-codex.json`);
   const startedAt = new Date().toISOString();
-  const args = ['cr:codex', '--plan', input.artifact, '--slug', input.slug];
+  const mode = input.kind === 'spec' ? '--spec' : '--plan';
+  const args = ['noldor', 'cr', 'codex', mode, input.artifact, '--slug', input.slug];
 
   if (input.baseSha && !input.fullReview) {
     if (opts.supportsBaseSha) {
