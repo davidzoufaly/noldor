@@ -105,21 +105,32 @@ interface OutFinding {
  * an infrastructure error rather than review output.
  */
 async function runPlanReview(review: PlanReview, cwd: string, spawn: Spawn): Promise<number> {
-  const rules = readIfExists(cwd, '.claude/engineering-rules.md');
-  const featureMd = review.slug
-    ? readIfExists(cwd, `docs/features/${review.slug}.md`)
-    : readFeatureMd(cwd);
-  const artifact =
-    review.baseSha && !review.fullReview
-      ? sh(cwd, ['diff', `${review.baseSha}..HEAD`, '--', review.artifact])
-      : readIfExists(cwd, review.artifact);
+  let out: { summary: string; findings: OutFinding[] };
+  try {
+    const rules = readIfExists(cwd, '.claude/engineering-rules.md');
+    const featureMd = review.slug
+      ? readIfExists(cwd, `docs/features/${review.slug}.md`)
+      : readFeatureMd(cwd);
+    const artifact =
+      review.baseSha && !review.fullReview
+        ? sh(cwd, ['diff', `${review.baseSha}..HEAD`, '--', review.artifact])
+        : readIfExists(cwd, review.artifact);
 
-  const record = await runCodex({
-    ctx: { kind: review.kind, artifact, featureMd, rules },
-    spawn,
-  });
-
-  const out = { summary: record.summary, findings: toFindings(record) };
+    const record = await runCodex({
+      ctx: { kind: review.kind, artifact, featureMd, rules },
+      spawn,
+    });
+    out = {
+      summary: record.summary || '(no summary provided)',
+      findings: toFindings(record, review.artifact),
+    };
+  } catch (e) {
+    // The contract is: findings travel via stdout, never the exit code (the
+    // orchestrate lane treats a non-zero exit as infrastructure failure). A bad
+    // --base-sha or unreadable artifact becomes a synthetic blocker, not a crash.
+    const message = `plan review failed: ${(e as Error).message}`;
+    out = { summary: message, findings: [{ file: review.artifact, message, severity: 'high' }] };
+  }
   process.stdout.write(JSON.stringify(out) + '\n');
   return 0;
 }
@@ -130,9 +141,15 @@ async function runPlanReview(review: PlanReview, cwd: string, spawn: Spawn): Pro
  * findings as blockers); suggestions are pinned non-high so they stay
  * suggestions. The codex schema uses `medium`; the lane schema uses `med`.
  */
-function toFindings(record: CrRecord): OutFinding[] {
+function toFindings(record: CrRecord, fallbackFile: string): OutFinding[] {
   const map = (f: CrRecord['blockers'][number], severity: OutFinding['severity']): OutFinding => {
-    const o: OutFinding = { file: f.file, message: f.message, severity };
+    // Document-level findings may carry an empty `file`; the consumer's
+    // findings-schema requires a non-empty string, so fall back to the artifact.
+    const o: OutFinding = {
+      file: f.file || fallbackFile,
+      message: f.message || '(no message provided)',
+      severity,
+    };
     if (f.line != null) o.line = f.line;
     if (f.suggestion != null) o.suggestion = f.suggestion;
     return o;

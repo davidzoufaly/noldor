@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../codex.js';
+import { findingSchema } from '../findings-schema.js';
 
 function makeRepo(): string {
   const cwd = mkdtempSync(join(tmpdir(), 'cr-codex-cli-'));
@@ -285,5 +286,77 @@ describe('runCli — plan/spec review mode', () => {
     expect(code).toBe(0);
     expect(cap.text()).toMatch(/--base-sha/);
     expect(cap.text()).toMatch(/--plan/);
+  });
+
+  it('--base-sha with a bad sha emits a synthetic blocker and still exits 0', async () => {
+    const cwd = makeRepo();
+    writeFileSync(join(cwd, 'plan.md'), '# Plan');
+    spawnSync('git', ['add', 'plan.md'], { cwd });
+    spawnSync('git', ['commit', '-q', '-m', 'add plan'], { cwd });
+    const cap = captureStdout();
+    let code: number;
+    try {
+      code = await runCli({
+        argv: ['--plan', 'plan.md', '--base-sha', 'deadbeefnope'],
+        cwd,
+        spawn: async () => ({ stdout: passing, exitCode: 0 }),
+      });
+    } finally {
+      cap.restore();
+    }
+    expect(code).toBe(0);
+    const out = JSON.parse(cap.text());
+    expect(out.findings.some((f: { severity: string }) => f.severity === 'high')).toBe(true);
+    for (const f of out.findings) expect(findingSchema.safeParse(f).success).toBe(true);
+  });
+
+  it('defaults a document-level finding with an empty file to the artifact path', async () => {
+    const cwd = makeRepo();
+    writeFileSync(join(cwd, 'plan.md'), '# Plan');
+    const emptyFile = JSON.stringify({
+      blockers: [
+        { file: '', message: 'doc-level gap', line: null, severity: null, suggestion: null },
+      ],
+      suggestions: [],
+      summary: 's',
+    });
+    const cap = captureStdout();
+    try {
+      await runCli({
+        argv: ['--plan', 'plan.md'],
+        cwd,
+        spawn: async () => ({ stdout: emptyFile, exitCode: 0 }),
+      });
+    } finally {
+      cap.restore();
+    }
+    const out = JSON.parse(cap.text());
+    expect(out.findings[0].file).toBe('plan.md');
+    // every emitted finding must satisfy the consumer's findings-schema
+    for (const f of out.findings) expect(findingSchema.safeParse(f).success).toBe(true);
+  });
+
+  it('coerces empty message/summary so the consumer min(1) schemas never reject', async () => {
+    const cwd = makeRepo();
+    writeFileSync(join(cwd, 'plan.md'), '# Plan');
+    const emptyText = JSON.stringify({
+      blockers: [{ file: 'plan.md', message: '', line: null, severity: null, suggestion: null }],
+      suggestions: [],
+      summary: '',
+    });
+    const cap = captureStdout();
+    try {
+      await runCli({
+        argv: ['--plan', 'plan.md'],
+        cwd,
+        spawn: async () => ({ stdout: emptyText, exitCode: 0 }),
+      });
+    } finally {
+      cap.restore();
+    }
+    const out = JSON.parse(cap.text());
+    expect(out.summary.length).toBeGreaterThan(0);
+    expect(out.findings[0].message.length).toBeGreaterThan(0);
+    for (const f of out.findings) expect(findingSchema.safeParse(f).success).toBe(true);
   });
 });
