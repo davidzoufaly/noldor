@@ -1,5 +1,15 @@
 # Roadmap
 
+Flat priority-ordered list (file order = priority); H3 headings group related entries.
+
+> **Routing policy — prep scales with `size:`. Don't spec the small ones.**
+>
+> - **XS / S** → no spec, no plan. `/gate` routes these to `fast-track` (code) or `micro-chore` (pure-doc) and retires the entry on ship — the drain-runner's bread and butter.
+> - **M** → `specs-only` (spec, no plan).
+> - **L / XL** → `full` (spec + plan), and only when there's real design risk — a mechanical L can still fast-track.
+>
+> Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
+
 ### Noldor Framework
 
 #### Dynamic FD ↔ File Pointers via Frontmatter

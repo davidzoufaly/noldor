@@ -24,6 +24,20 @@ A `specs-only` FD can receive a `full-attach` enhancement and vice versa. The pa
 
 There is also a 7th internal path `release-automation` reserved for the `pnpm release` script's `chore(release): v…` commit. It carries `Noldor-Path: release-automation` and is the only path the hook accepts without `Noldor-FD` or `Noldor-Reviewed`. Users cannot pick this path via `/gate`; the release script provisions the session marker and the `prepare-commit-msg` hook injects the trailer from it.
 
+## Size → path
+
+Prep effort scales with an entry's `size:` field. Small entries are mechanical and ship without a design spec; medium-and-up entries warrant one. This is the default routing `/gate` applies to a roadmap pick — the operator can always override the prefilled path.
+
+| `size:` | Spec? | Default path                                | Rationale                                      |
+| ------- | ----- | ------------------------------------------- | ---------------------------------------------- |
+| XS / S  | —     | `fast-track` (or `micro-chore` if pure-doc) | mechanical; a spec/plan is overhead, no FD     |
+| M       | ✓     | `specs-only-new` / `specs-only-attach`      | design worth capturing; plan would be overkill |
+| L / XL  | ✓     | `full-new` / `full-attach`                  | design **and** plan decomposition both warrant |
+
+The `-attach` variant is chosen when the entry declares a `parent:` FD. A missing or unrecognized `size:` defaults to `specs-only` — the policy never silently drops review for an entry whose size it can't read.
+
+The mapping is encoded once in [`sizeToPath()`](../../src/core/size-routing.ts) (with `sizeToTier()` and `sizeSkipsSpec()`); `getSuggestions()` stamps each entry surfaced at `/gate` Step 0 with a `suggestedPath` so the gate reads the verdict instead of re-deriving it in prose. Because XS/S route to `fast-track` (no FD, no `/promote`), `/gate` retires the source roadmap block itself when the fast-track ships — see the gate skill's "Roadmap-entry retirement" step.
+
 ## Allowlist for `micro-chore`
 
 The pre-commit hook enforces that `micro-chore` diffs match this set of globs only:
