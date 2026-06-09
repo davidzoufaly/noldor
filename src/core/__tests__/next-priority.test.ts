@@ -236,6 +236,57 @@ describe(getSuggestions, () => {
     });
     expect(result.inProgress).toEqual([{ slug: 'foo', name: 'Foo', tier: 'specs-only' }]);
   });
+
+  it('stamps each topPriority entry with a suggestedPath per the size→path policy', () => {
+    const result = getSuggestions(ROADMAP_FOR_SUGGESTIONS, {
+      inProgressFds: [],
+      milestoneGate: '',
+    });
+    const byName = new Map(result.topPriority.map((e) => [e.name, e.suggestedPath]));
+    expect(byName.get('Big Top Entry')).toBe('full-new'); // L
+    expect(byName.get('Second Top')).toBe('specs-only-new'); // M
+    expect(byName.get('Third Top')).toBe('fast-track'); // S → no spec
+  });
+
+  it('stamps small×high-impact entries (XS/S) with fast-track', () => {
+    const result = getSuggestions(ROADMAP_FOR_SUGGESTIONS, {
+      inProgressFds: [],
+      milestoneGate: '',
+    });
+    expect(result.smallHighImpact.map((e) => e.suggestedPath)).toEqual([
+      'fast-track',
+      'fast-track',
+    ]);
+  });
+
+  it('selects the -attach variant when the entry declares a parent', () => {
+    const md = `# Roadmap
+
+### Noldor Framework
+
+#### Parented Medium
+
+- area: tooling
+- type: feat
+- since: 2026-05-13
+- size: M
+- impact: high
+- parent: noldor
+
+Body.
+`;
+    const result = getSuggestions(md, { inProgressFds: [], milestoneGate: '' });
+    expect(result.topPriority[0]?.suggestedPath).toBe('specs-only-attach');
+  });
+
+  it('stamps the milestoneAligned entry with a suggestedPath', () => {
+    const result = getSuggestions(ROADMAP_FOR_SUGGESTIONS, {
+      inProgressFds: [],
+      milestoneGate: 'milestone match candidate shipping fast',
+    });
+    expect(result.milestoneAligned?.name).toBe('Milestone Match Candidate');
+    expect(result.milestoneAligned?.suggestedPath).toBe('specs-only-new'); // M
+  });
 });
 
 describe(loadInProgressFds, () => {
