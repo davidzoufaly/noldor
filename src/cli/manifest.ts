@@ -18,6 +18,15 @@ export interface Group {
 }
 
 export const MANIFEST: Record<string, Group> = {
+  autonomous: {
+    desc: 'Autonomous runners (queue-drain)',
+    subs: {
+      'queue-drain': {
+        src: 'autonomous/queue-drain.ts',
+        desc: 'Drain the fast-track roadmap queue autonomously',
+      },
+    },
+  },
   garden: {
     desc: 'Garden drift detection + SDD report + receipts',
     subs: {
