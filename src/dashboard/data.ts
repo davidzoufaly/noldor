@@ -1,7 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
-import { join, posix } from 'node:path';
+import { join, posix, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 import matter from 'gray-matter';
@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 import { escapeHtml } from './layout.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
-import { loadCategories } from '../core/consumer-config.js';
+import { loadCategories, loadConsumerConfig } from '../core/consumer-config.js';
 import { areaToCategory } from '../lib/area-category.js';
 import { loadMilestoneBySlug } from '../milestones/lib.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
@@ -1393,6 +1393,110 @@ export async function loadWipAge(opts?: { now?: Date }): Promise<WipAgeRow[]> {
     return a.slug.localeCompare(b.slug);
   });
   return z.array(wipAgeRowSchema).parse(rows);
+}
+
+/**
+ * Zod schema for one module row on the test-pyramid page.
+ *
+ * @remarks
+ * `ratio` is test files per source file, rounded to 2 decimals; `null` when
+ * the module has no source files (test-only directories).
+ */
+export const testPyramidRowSchema = z
+  .object({
+    module: z.string().min(1),
+    sourceFiles: z.number().int().nonnegative(),
+    testFiles: z.number().int().nonnegative(),
+    testCases: z.number().int().nonnegative(),
+    ratio: z.number().nonnegative().nullable(),
+  })
+  .strict();
+
+export type TestPyramidRow = z.infer<typeof testPyramidRowSchema>;
+
+/** File extensions counted as code on the test-pyramid page. */
+const CODE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'];
+
+/**
+ * Whether a repo-relative path is a test file (`__tests__/` segment or a
+ * `.test.<ext>` suffix).
+ */
+export function isTestPath(relPath: string): boolean {
+  const p = relPath.split(sep).join('/');
+  if (p.split('/').includes('__tests__')) return true;
+  return CODE_EXTENSIONS.some((ext) => p.endsWith(`.test${ext}`));
+}
+
+/**
+ * Count test cases in a test-file source: top-level-ish `it(`/`test(` calls,
+ * including modifier forms like `it.each(...)`, `test.skip(`.
+ */
+export function countTestCases(content: string): number {
+  const matches = content.match(/^\s*(?:it|test)(?:\.\w+)*(?:\(|`)/gm);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * Load per-module test-pyramid stats: source-file / test-file / test-case
+ * counts plus the test-to-code ratio, for every module directory under the
+ * consumer config's `scanPaths` (fallback `['src']`).
+ *
+ * @remarks
+ * A module is the first directory level under a scan path (`src/cr`,
+ * `src/core`, ...); files sitting directly in a scan path root are grouped
+ * under the scan path itself. Rows sort worst-covered first (ratio
+ * ascending, `null` last), so untested modules surface at the top.
+ */
+export async function loadTestPyramid(): Promise<TestPyramidRow[]> {
+  const root = getDocRoot();
+  let scanPaths: string[];
+  try {
+    scanPaths = loadConsumerConfig(root).scanPaths;
+  } catch {
+    scanPaths = [];
+  }
+  if (scanPaths.length === 0) scanPaths = ['src'];
+
+  const byModule = new Map<string, { sourceFiles: number; testFiles: number; testCases: number }>();
+  for (const scanPath of scanPaths) {
+    const base = join(root, scanPath);
+    const files: string[] = [];
+    await walkRepo(base, files);
+    for (const file of files) {
+      const ext = file.slice(file.lastIndexOf('.'));
+      if (!CODE_EXTENSIONS.includes(ext) || file.endsWith('.d.ts')) continue;
+      const rel = file
+        .slice(base.length + 1)
+        .split(sep)
+        .join('/');
+      const firstDir = rel.includes('/') ? rel.slice(0, rel.indexOf('/')) : null;
+      const module =
+        firstDir === null || firstDir === '__tests__' ? scanPath : `${scanPath}/${firstDir}`;
+      const agg = byModule.get(module) ?? { sourceFiles: 0, testFiles: 0, testCases: 0 };
+      if (isTestPath(rel)) {
+        agg.testFiles += 1;
+        const content = await readFile(file, 'utf8');
+        agg.testCases += countTestCases(content);
+      } else {
+        agg.sourceFiles += 1;
+      }
+      byModule.set(module, agg);
+    }
+  }
+
+  const rows: TestPyramidRow[] = [...byModule.entries()].map(([module, agg]) => ({
+    module,
+    ...agg,
+    ratio: agg.sourceFiles > 0 ? Math.round((agg.testFiles / agg.sourceFiles) * 100) / 100 : null,
+  }));
+  rows.sort((a, b) => {
+    if (a.ratio === null && b.ratio === null) return a.module.localeCompare(b.module);
+    if (a.ratio === null) return 1;
+    if (b.ratio === null) return -1;
+    if (a.ratio !== b.ratio) return a.ratio - b.ratio;
+    return a.module.localeCompare(b.module);
+  });
+  return z.array(testPyramidRowSchema).parse(rows);
 }
 
 /**
