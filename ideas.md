@@ -25,8 +25,15 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 #### Now
 
-- ať se to neptá na potvrzení cesty a na commitnutí specu -> automatish
-- release pushes log -> gitignore?
+1. Ship Queue-Drain Runner first. It's the multiplier. One L feature, then the rest of the queue drains feature-after-feature overnight with no human between. Building anything else before this = leaving the lever on floor. Do it manually/now.
+
+2. Stop spec'ing the small ones. 25 of 42 are S/XS — mechanical. They do not need specs/plans. Route them to gate fast-track / micro-chore and let the drain runner chew them. Specs only for L/M/XL with real design risk. That alone removes prep from ~60% of queue.
+
+3. Parallelize the prep that remains — flip authoring → reviewing. This kills your "even prep takes long" pain. Fan out parallel agents (one per remaining M+ entry). Each agent drafts spec + plan AND proposes answers to its own open questions (recommendation + rationale). Then you run ONE batch review session: approve/edit across all features at once.
+
+Collapses N sequential prep sessions → 1 parallel fan-out + 1 batch approve. You stop originating answers, start ratifying them.
+
+- do not ask for commiting the plan -> commit autonomously
 - po vyběru cesty -> zbytečná otázka pro potvrzení
 - next priority -> be able to dispatch next priority via agent window
 - when checking FD also consider checking backlog/if there might be other candidates for the same FD so it can suggest new FD with higher confidence so it will be usefull also later
