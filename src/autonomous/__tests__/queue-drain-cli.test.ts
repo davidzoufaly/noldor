@@ -34,6 +34,18 @@ describe('queue-drain CLI helpers', () => {
     expect(() => parseArgs(['--source', 'bogus'])).toThrow(/source/);
   });
 
+  it('defaults --concurrency to 1', () => {
+    expect(parseArgs([]).concurrency).toBe(1);
+  });
+
+  it('reads --concurrency 3', () => {
+    expect(parseArgs(['--concurrency', '3']).concurrency).toBe(3);
+  });
+
+  it('rejects a non-positive --concurrency', () => {
+    expect(() => parseArgs(['--concurrency', '0'])).toThrow(/positive integer/);
+  });
+
   it('assertConfig passes the headless precondition set', () => {
     expect(() =>
       assertConfig({

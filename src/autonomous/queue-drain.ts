@@ -22,6 +22,7 @@ export interface ParsedArgs {
   dryRun: boolean;
   json: boolean;
   source: SourceId;
+  concurrency: number;
 }
 
 function intFlag(args: readonly string[], name: string, def: number): number {
@@ -55,6 +56,7 @@ export function parseArgs(args: readonly string[]): ParsedArgs {
     dryRun: args.includes('--dry-run'),
     json: args.includes('--json'),
     source: parseSource(args),
+    concurrency: intFlag(args, '--concurrency', 1),
   };
 }
 
