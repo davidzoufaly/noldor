@@ -449,6 +449,7 @@ describe('writeState', () => {
     expect(j.currentSlug).toBe('x');
   });
   it('never throws when the target dir is unwritable (best-effort)', () => {
+    if (process.getuid?.() === 0) return; // root bypasses perms (CI containers) — the chmod wouldn't bite
     const ro = mkdtempSync(join(tmpdir(), 'drain-state-ro-'));
     chmodSync(ro, 0o500); // r-x: cannot create the .noldor subdir
     try {
@@ -602,9 +603,10 @@ function entryOf(slug: string, over: Partial<SuggestedEntry> = {}): SuggestedEnt
 function harness(initial: string[], opts: {
   ships?: (slug: string) => boolean;
   spawnImpl?: () => number;
-  openPr?: () => boolean;
+  openPr?: () => boolean;       // may throw to exercise the fail-closed abort
   stop?: () => boolean;
   nextPriorityImpl?: (skip: ReadonlySet<string>) => Suggestions;
+  parseAllImpl?: () => string[]; // may throw to exercise the abort path
   entryOver?: (slug: string) => Partial<SuggestedEntry>;
 } = {}) {
   let roadmap = [...initial];
@@ -627,7 +629,7 @@ function harness(initial: string[], opts: {
   return {
     deps: {
       nextPriority,
-      parseAll: vi.fn(() => [...roadmap]),
+      parseAll: vi.fn(opts.parseAllImpl ?? (() => [...roadmap])),
       spawnGate,
       syncMainCleanState: vi.fn(),
       openPrExistsFor: vi.fn(opts.openPr ?? (() => false)),
@@ -685,7 +687,10 @@ describe('runDrain', () => {
   });
 
   it('(i) post-spawn open PR → skip, no re-spawn', () => {
-    let calls = 0; // pre-spawn check false (call 0), post-spawn true (call 1)
+    // Coupling: the loop consults openPrExistsFor exactly twice per spawned iteration —
+    // call 0 = pre-spawn (false here), call 1 = post-spawn (true). If the loop ever adds
+    // another consult, update this counter.
+    let calls = 0;
     const h = harness(['a'], { ships: () => false, openPr: () => calls++ >= 1 });
     const r = runDrain(h.deps, opts);
     expect(r.skipped).toContain('a');
@@ -697,7 +702,20 @@ describe('runDrain', () => {
     runDrain(h.deps, opts);
     expect(h.spawnGate).not.toHaveBeenCalled();
   });
+
+  it('(k) openPrExistsFor gh failure → abort exit 1 (fail-closed)', () => {
+    const h = harness(['a'], { openPr: () => { throw new Error('gh offline'); } });
+    expect(runDrain(h.deps, opts).exitCode).toBe(1);
+  });
+
+  it('(l) parseAll failure (roadmap parse) → abort exit 1', () => {
+    const h = harness(['a'], { ships: () => false, parseAllImpl: () => { throw new Error('parse'); } });
+    expect(runDrain(h.deps, opts).exitCode).toBe(1);
+  });
 });
+
+// Note: spec test-case (h) "lock held by a live pid → abort" is NOT a runDrain test — the lock lives
+// in queue-drain.ts (Task 8) + drain-lock.ts (Task 4), covered there. The (g)→(i) gap is intentional.
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -1015,8 +1033,10 @@ git commit -m "docs(autonomous-queue-drain-runner): add NOLDOR_DRAIN gate-mode b
 - [ ] **Step 1: Spike** — from a throwaway shell, confirm: (a) `claude --print "/gate"` resolves the
   `/gate` skill in print mode; (b) the flag that denies `AskUserQuestion` works (adjust `drain-io.ts`
   to match the real flag name/permission-mode); (c) `git`/`gh`/`pnpm`/Edit run without permission
-  prompts under the spawn (pass the necessary `--allowedTools` / `--permission-mode`). Record the
-  exact working invocation.
+  prompts under the spawn (pass the necessary `--allowedTools` / `--permission-mode`); (d) Ctrl-C in
+  the controlling terminal propagates SIGINT to the spawned `claude` child (the child must stay in the
+  supervisor's foreground process group — no `setsid`/own pgid — or the kill-switch story breaks).
+  Record the exact working invocation.
 
 - [ ] **Step 2: Seeded integration run** — on a scratch branch, seed `docs/roadmap.md` with one
   standalone XS/S entry, set the `autonomous` config block, run `pnpm noldor autonomous queue-drain
