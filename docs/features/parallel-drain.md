@@ -4,8 +4,21 @@ category: Tooling
 deps:
   - autonomous-queue-drain-runner
 links:
-  code: []
-  tests: []
+  code:
+    - src/autonomous/drain-loop.ts
+    - src/autonomous/drain-io.ts
+    - src/autonomous/queue-drain.ts
+    - src/autonomous/drain-state.ts
+    - src/core/pr-flow.ts
+    - src/core/pr-flow-cli.ts
+    - .claude/skills/gate/SKILL.md
+  tests:
+    - src/autonomous/__tests__/run-drain.test.ts
+    - src/autonomous/__tests__/build-pool.test.ts
+    - src/autonomous/__tests__/merge-coordinator.test.ts
+    - src/autonomous/__tests__/merge-classify.test.ts
+    - src/autonomous/__tests__/queue-drain-cli.test.ts
+    - src/core/__tests__/pr-flow.test.ts
   spec: docs/superpowers/specs/2026-06-10-parallel-drain-design.md
 name: Parallel Drain
 packages:
