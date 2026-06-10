@@ -254,6 +254,22 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
 Re-establish session marker for an existing in-progress FD. Reads tier from FD frontmatter, infers path (`specs-only-new` or `full-new` based on tier; user can override to `*-attach` if extending an existing FD). Advances straight to the Step 2 scaffold.
 
+### Drain mode (`NOLDOR_DRAIN=1`)
+
+When `--resume <slug>` runs under the drain supervisor (env `NOLDOR_DRAIN=1`, set by the `runDrain` loop on every spawn — source-independent), behaviour changes **only under that env var** — the interactive `--resume` path (env unset) is unchanged. This is what `plansSource` (`pnpm noldor autonomous run --source plans`) relies on to ship already-designed in-progress FDs unattended.
+
+After re-establishing the session marker and creating/force-recreating the `feat/<slug>` worktree:
+
+1. **Detect committed design.** Confirm the FD carries BOTH a spec and a plan in the worktree (they are committed on the feature branch — `plansSource` already gated on this, so this is a defensive re-check):
+   - spec: `ls docs/superpowers/specs/*-<slug>-design.md` resolves to ≥1 file.
+   - plan: `ls docs/superpowers/plans/*-<slug>.md` resolves to ≥1 file.
+
+   (These globs are a coarse defensive existence re-check only — `plansSource.nextItem` already applied the date-anchored `<date>-<slug>-design.md` / `<date>-<slug>.md` match before spawning, so a `runner`-vs-`plan-runner` suffix false-match here would at worst let an already-vetted FD through, never block one.)
+2. **Both present →** run `pnpm noldor noldor set-autonomous` (sets `session.autonomous = true`), then advance **directly to inline implementation** (gate autonomous-mode rules: read the plan MD, execute task-by-task, commit at each boundary, tick `- [x]`). Do **NOT** invoke `superpowers:brainstorming` or `superpowers:writing-plans`, and do **NOT** pause at any Step 2.5 continue-dialog. Zero `AskUserQuestion` — the `--disallowed-tools AskUserQuestion` backstop would otherwise hang the iteration until the per-iteration timeout.
+3. **Either missing →** this is specs-source territory (phase 2); the drain should not have spawned it. Print the missing-artifact path to stderr and exit non-zero so the supervisor's retry-then-skip handles it. Do NOT enter a design stage under drain.
+
+Step 4 autonomous end-of-flow then ships the PR on `feat/<slug>` and Step 5 exits clean, exactly as the queue-drain fast-track path does.
+
 ## Autonomous mode
 
 Activated when the operator picks `proceed-autonomous` at the plan-stage Step 2.5 continue-dialog. Persisted as `session.autonomous = true` in `.noldor/session.json` (via `pnpm noldor noldor set-autonomous`). Stays on through PR-merge — no operator-facing "exit autonomous" command; the session marker is cleared by the post-merge cleanup like any other session.

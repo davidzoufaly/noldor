@@ -1,0 +1,177 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+
+import { getSuggestions, loadInProgressFds, loadMilestoneGate } from '../core/next-priority.js';
+import { loadDocRoots } from '../core/doc-roots.js';
+import { parseRoadmap } from '../utils/parse-blocks.js';
+import { isDrainEligible } from './drain-eligibility.js';
+
+export type SourceId = 'roadmap' | 'plans' | 'specs';
+
+/**
+ * One drainable item. `eligible` replaces the fast-track literal that used to
+ * live in `decideNext`: the source decides eligibility, the loop only reads it.
+ * `reason` (when ineligible) feeds the dry-run / skip log.
+ */
+export interface DrainCandidate {
+  slug: string;
+  /** body used by eligibility; '' when N/A */
+  description: string;
+  /** may this slug be spawned? (replaces the fast-track literal) */
+  eligible: boolean;
+  /** why not, for the skip log */
+  reason?: string;
+}
+
+/**
+ * The injected source seam. `runDrain` is pure of source knowledge — every
+ * `'fast-track'` / `'roadmap'` / `'feat/'` / `'fast/'` literal lives in an
+ * implementation here.
+ */
+export interface DrainSource {
+  id: SourceId;
+  /** next candidate not in `skip`, or null when none remain */
+  nextItem(skip: ReadonlySet<string>): DrainCandidate | null;
+  /** success-oracle universe: ALL items (unfiltered); absence === shipped */
+  parseAll(): string[];
+  /** prompt handed to `claude --print` for this slug */
+  gatePrompt(slug: string): string;
+  /** branch the shipped PR lives on, for `openPrExistsFor` */
+  branchFor(slug: string): string;
+}
+
+/** Escape a slug for safe embedding in a RegExp (slugs are kebab-case, but be defensive). */
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Reproduces queue-drain selection behavior: `nextItem` is today's
+ * `getSuggestions(...).topPriority[0]` with `eligible = fast-track && isDrainEligible`;
+ * `parseAll` is the full roadmap slug list (the success oracle); the gate prompt is
+ * bare `/gate` (drain Step 0 auto-selects topPriority[0]); the branch is `fast/<slug>`.
+ */
+export function roadmapSource(cwd: string): DrainSource {
+  const read = (): string => readFileSync(loadDocRoots(cwd).roadmap, 'utf8');
+  return {
+    id: 'roadmap',
+    nextItem(skip) {
+      const sugg = getSuggestions(
+        read(),
+        { inProgressFds: loadInProgressFds(cwd), milestoneGate: loadMilestoneGate(cwd) },
+        skip,
+      );
+      const top = sugg.topPriority[0];
+      if (top === undefined) return null;
+      const description = top.description ?? '';
+      const fastTrack = top.suggestedPath === 'fast-track';
+      const drainOk = isDrainEligible(description);
+      const eligible = fastTrack && drainOk;
+      // Distinguish the two ineligibility causes (a non-fast-track size vs a
+      // Touches/multi-scope residue) so the skip log is accurate.
+      const reason = !fastTrack
+        ? 'not a fast-track XS/S entry (roadmap source ships fast-track only)'
+        : !drainOk
+          ? 'multi-scope or Touches-bearing entry — needs human /promote residue disposition'
+          : undefined;
+      return {
+        slug: top.slug,
+        description,
+        eligible,
+        ...(reason !== undefined ? { reason } : {}),
+      };
+    },
+    parseAll() {
+      return parseRoadmap(read()).map((e) => e.slug);
+    },
+    gatePrompt() {
+      return '/gate';
+    },
+    branchFor(slug) {
+      return `fast/${slug}`;
+    },
+  };
+}
+
+/**
+ * Drains already-designed in-progress FDs. Eligible iff the FD has BOTH a
+ * committed spec (`<date>-<slug>-design.md`) and a plan (`<date>-<slug>.md`).
+ * Eligible FDs are ordered by ascending plan-file date (FIFO — oldest-designed-
+ * first). A non-eligible in-progress FD is surfaced with a precise reason so
+ * dry-run logs it and the loop skips — never fails, never silently drops — it.
+ * `parseAll` is the full in-progress slug set: a slug is shipped iff absent on the
+ * post-spawn re-read (absence === shipped).
+ */
+export function plansSource(cwd: string): DrainSource {
+  const roots = loadDocRoots(cwd);
+  const inProgressSlugs = (): string[] => loadInProgressFds(cwd).map((f) => f.slug);
+
+  const planDate = (slug: string): string | null => {
+    if (!existsSync(roots.plans)) return null;
+    const re = new RegExp(`^(\\d{4}-\\d{2}-\\d{2})-${escapeRe(slug)}\\.md$`);
+    for (const f of readdirSync(roots.plans)) {
+      const m = re.exec(f);
+      if (m !== null) return m[1]!;
+    }
+    return null;
+  };
+
+  // Anchored to the full stem (`<date>-<slug>-design.md`) — mirrors planDate — so
+  // slug `runner` does NOT false-match `2026-06-10-plan-runner-design.md`.
+  const hasSpec = (slug: string): boolean => {
+    if (!existsSync(roots.specs)) return false;
+    const re = new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${escapeRe(slug)}-design\\.md$`);
+    return readdirSync(roots.specs).some((f) => re.test(f));
+  };
+
+  return {
+    id: 'plans',
+    nextItem(skip) {
+      const rows = inProgressSlugs()
+        .filter((slug) => !skip.has(slug))
+        .toSorted((a, b) => a.localeCompare(b)) // deterministic blocked-pick order
+        .map((slug) => ({ slug, date: planDate(slug), spec: hasSpec(slug) }));
+
+      const eligible = rows
+        .filter((r) => r.date !== null && r.spec)
+        .toSorted((a, b) => a.date!.localeCompare(b.date!)); // FIFO oldest-plan-first
+      if (eligible.length > 0) {
+        return { slug: eligible[0]!.slug, description: '', eligible: true };
+      }
+
+      // No eligible FD left: surface the first non-eligible in-progress FD with a
+      // precise reason so dry-run reports it and the loop skips it — never silently
+      // drops it. Every row here is non-eligible (eligible were returned above).
+      const blocked = rows[0];
+      if (blocked !== undefined) {
+        const reason =
+          blocked.date === null
+            ? blocked.spec
+              ? 'no plan — specs source (phase 2)'
+              : 'no spec or plan — not designed yet'
+            : 'no spec — not eligible (plan present, spec missing)';
+        return { slug: blocked.slug, description: '', eligible: false, reason };
+      }
+      return null;
+    },
+    parseAll() {
+      return inProgressSlugs();
+    },
+    gatePrompt(slug) {
+      return `/gate --resume ${slug}`;
+    },
+    branchFor(slug) {
+      return `feat/${slug}`;
+    },
+  };
+}
+
+/**
+ * Phase-2 placeholder. Specs-source needs an autonomous `writing-plans` step —
+ * the risky design stage the queue-drain MVP deliberately omitted — so it errors
+ * until a separate FD takes it on.
+ */
+export function specsSource(_cwd: string): DrainSource {
+  throw new Error(
+    '--source specs is not yet implemented (phase 2: needs an autonomous writing-plans step)',
+  );
+}

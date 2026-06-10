@@ -19,11 +19,28 @@ export interface Group {
 
 export const MANIFEST: Record<string, Group> = {
   autonomous: {
-    desc: 'Autonomous runners (queue-drain)',
+    desc: 'Autonomous runners (queue-drain / plan-runner)',
     subs: {
+      run: {
+        src: 'autonomous/queue-drain.ts',
+        desc: 'Drain a source autonomously (--source roadmap|plans)',
+      },
       'queue-drain': {
         src: 'autonomous/queue-drain.ts',
-        desc: 'Drain the fast-track roadmap queue autonomously',
+        desc: 'Fast-track roadmap drain (same entrypoint as `run`; defaults --source roadmap)',
+      },
+    },
+  },
+  prep: {
+    desc: 'Parallel prep: fan out spec/plan drafts, then promote approved ones to FDs',
+    subs: {
+      fanout: {
+        src: 'prep/prep-fanout.ts',
+        desc: 'Draft spec [+plan] + self-answered open questions for every M+ roadmap entry, in parallel',
+      },
+      promote: {
+        src: 'prep/prep-promote.ts',
+        desc: 'Promote approved drafts to in-progress FDs (serial; --ship opens an auto-merged PR)',
       },
     },
   },

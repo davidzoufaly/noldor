@@ -36,15 +36,21 @@ export function syncMainCleanState(cwd: string): void {
 }
 
 /**
- * True when an OPEN PR exists for the deterministic drain branch `fast/<slug>`.
- * Throws on a `gh` failure — the caller treats that as a fail-closed abort (spec):
- * treating an error as "no PR" would re-spawn a duplicate.
+ * True when an OPEN PR exists for the source's drain branch (`fast/<slug>` for
+ * roadmap, `feat/<slug>` for plans — the branch is passed in by the loop via
+ * `DrainSource.branchFor`). Throws on a `gh` failure — the caller treats that as
+ * a fail-closed abort: treating an error as "no PR" would re-spawn a duplicate.
+ * `slug` is retained for caller/log context even though `branch` drives the query.
  */
-export function openPrExistsFor(cwd: string, slug: string): boolean {
+export function openPrExistsFor(cwd: string, slug: string, branch: string): boolean {
+  void slug;
   const out = execFileSync(
     'gh',
-    ['pr', 'list', '--state', 'open', '--head', `fast/${slug}`, '--json', 'number'],
-    { cwd, encoding: 'utf8' },
+    ['pr', 'list', '--state', 'open', '--head', branch, '--json', 'number'],
+    {
+      cwd,
+      encoding: 'utf8',
+    },
   );
   return (JSON.parse(out) as unknown[]).length > 0;
 }
@@ -55,14 +61,20 @@ export function openPrExistsFor(cwd: string, slug: string): boolean {
  * as failure). `--disallowed-tools AskUserQuestion` is the code-level prompt
  * kill-switch (a forgotten prose branch fails fast instead of hanging);
  * `--permission-mode bypassPermissions` lets git/gh/pnpm/Edit run unattended.
- * Flags confirmed against `claude --help` during the spike (Task 11).
+ * Flags confirmed against `claude --help` during the spike (Task 11). `prompt`
+ * defaults to `/gate` (roadmap source); plans source passes `/gate --resume <slug>`.
  */
-export function spawnGate(cwd: string, env: Record<string, string>, timeoutMs: number): number {
+export function spawnGate(
+  cwd: string,
+  env: Record<string, string>,
+  timeoutMs: number,
+  prompt = '/gate',
+): number {
   const res = spawnSync(
     'claude',
     [
       '--print',
-      '/gate',
+      prompt,
       '--disallowed-tools',
       'AskUserQuestion',
       '--permission-mode',

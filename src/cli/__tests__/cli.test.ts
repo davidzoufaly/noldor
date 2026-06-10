@@ -36,6 +36,12 @@ describe('noldor CLI', () => {
     expect(out).toContain('sdd-report');
   });
 
+  it('autonomous --help shows run + queue-drain subcommands', () => {
+    const out = run(['autonomous', '--help']);
+    expect(out).toContain('run');
+    expect(out).toContain('queue-drain');
+  });
+
   it('leaf command dispatches with no subcommand (doctor)', () => {
     // doctor is a real leaf command now (template-sync check); assert it
     // dispatches and reports sync status rather than the old stub message.
