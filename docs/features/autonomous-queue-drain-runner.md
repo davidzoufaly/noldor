@@ -4,8 +4,23 @@ category: Tooling
 deps:
   - autonomous-plan-to-pr-merge
 links:
-  code: []
-  tests: []
+  code:
+    - src/autonomous/queue-drain.ts
+    - src/autonomous/drain-loop.ts
+    - src/autonomous/drain-eligibility.ts
+    - src/autonomous/drain-lock.ts
+    - src/autonomous/drain-state.ts
+    - src/autonomous/drain-io.ts
+    - src/core/next-priority.ts
+    - src/cli/manifest.ts
+    - .claude/skills/gate/SKILL.md
+  tests:
+    - src/autonomous/__tests__/run-drain.test.ts
+    - src/autonomous/__tests__/decide-next.test.ts
+    - src/autonomous/__tests__/drain-eligibility.test.ts
+    - src/autonomous/__tests__/drain-lock.test.ts
+    - src/autonomous/__tests__/drain-state.test.ts
+    - src/autonomous/__tests__/queue-drain-cli.test.ts
   spec: docs/superpowers/specs/2026-06-10-autonomous-queue-drain-runner-design.md
 name: Autonomous Queue-Drain Runner
 packages:
@@ -39,6 +54,21 @@ As an operator with a backlog of small (XS/S) roadmap entries, I want one comman
 **Exit codes**
 
 - `0` completed (drained / all-skipped / `--max-features` reached) · `1` aborted on error (config/lock/parse/`gh`/git-sync) · `130` stopped via kill switch.
+
+## Verification
+
+**Headless-flag spike (done).** `claude --help` confirms the flags the supervisor relies on:
+`-p/--print`, `--disallowed-tools <tools…>` (used to deny `AskUserQuestion` as a code-level prompt
+kill-switch), and `--permission-mode bypassPermissions` (so `git`/`gh`/`pnpm`/Edit run unattended).
+These are wired in [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts) `spawnGate`.
+
+**Still to verify by a live integration run (not yet exercised — no real drain has shipped a PR):**
+that `claude --print "/gate"` resolves the `/gate` *skill* in print mode (vs treating the string as a
+literal prompt) and that Ctrl-C propagates SIGINT to the spawned child. Runbook: on a scratch branch,
+seed `docs/roadmap.md` with one standalone XS/S entry, set the `autonomous` config block
+(`onFailure: "abort"`, `skipLanePicker: true`, `requireHumanPrApproval: false`), run
+`pnpm noldor autonomous queue-drain --max-features 1`, and confirm the entry is retired from `main` via
+a merged PR (not merely a clean child exit).
 
 ## PRs
 
