@@ -97,7 +97,7 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
    (`size` and `impact` are required on roadmap; `confidence` and `deps` are silently optional — emit `confidence` when the proposal supplied it, omit otherwise. For `deps`, only emit the bullet when the slug list is non-empty.)
    - **`merge:<existing-slug>`** target → locate the host block in roadmap or backlog. Append a sub-bullet under the host's body paragraph (or after the last existing sub-bullet) preserving the new bullet's wording lightly polished. Do NOT rewrite the host paragraph. Do NOT update the host's `since`. If the operator confirmed `promote-to:<position>`, also relocate the entire host block (heading + bullet fields + body + new sub-bullet) to the indicated position in `docs/roadmap.md` (or move to `docs/backlog.md` if `promote-to:backlog`). When the host move targets roadmap and the host originally came from backlog, the host block's `size` / `impact` lines must be present on arrival — if absent, prompt the operator to supply them as part of the confirmation row. Cross-file moves between roadmap and backlog mirror the patterns logged in commits `08a509c` / `c46f560` / `22719c6`.
 
-   - **`now`** target → write the block exactly as a `roadmap` insert at `top` (same required fields — `size` and `impact` gate it). The auto-chain to `/promote` happens in step 8, never here — a failed validation must abort the chain.
+   - **`now`** target → write the block exactly as a `roadmap` insert at `top` (same required fields — `size` and `impact` gate it). With multiple `now` rows, insert in reverse confirmation-table order so the final roadmap order matches the table. The auto-chain to `/promote` happens in step 8, never here — a failed validation must abort the chain.
 
    Append `[triaged YYYY-MM-DD → <slug>]` to the original bullet in `ideas.md` — for merges, `<slug>` is the host's slug, not a new one (preserves traceability back to the host).
 
@@ -106,9 +106,9 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
    `pnpm noldor validate triage && pnpm noldor sync test-links && pnpm noldor sync doc-links && pnpm noldor validate features`.
    Each must succeed; if any fails, report the failure and the partial state. Do not roll back. `validate:triage` runs first so a missing `size` / `impact` on any newly-inserted roadmap block fails fast before the doc-link sync re-writes derived files.
 
-   **Then, for each confirmed `now` row** (in table order, only when the whole chain above succeeded): invoke `/promote <slug> --tier=<full when size is L/XL, else specs-only>`. `/promote` reads the just-inserted roadmap block and removes it as it scaffolds the FD — the transient roadmap insert keeps the schema-C contract intact and the `[triaged … → slug]` marker preserves traceability. If `/promote` fails for a row, report it and continue with the remaining `now` rows; the block stays on the roadmap top for a manual retry.
+   **Then, for each confirmed `now` row** (in table order; any of the four commands above failing aborts ALL `now` chaining): invoke `/promote <slug> --tier=<full when size is L/XL, else specs-only>`. `/promote` reads the just-inserted roadmap block and removes it as it scaffolds the FD — the transient roadmap insert keeps the schema-C contract intact and the `[triaged … → slug]` marker preserves traceability. If `/promote` fails for a row, report it and continue with the remaining `now` rows; the block stays on the roadmap top for a manual retry.
 9. **Report** to the user:
-   - Number of ideas triaged, broken down by target (roadmap / backlog)
+   - Number of ideas triaged, broken down by target (roadmap / backlog / now — for `now` rows also report each `/promote` chain outcome: FD scaffolded, or failed-and-left-on-roadmap)
    - Number remaining untriaged
    - Files modified
    - Reminder: stage and commit when ready

@@ -31,7 +31,7 @@ The skill:
 
 The skill **never commits**. Stage and commit yourself after reviewing.
 
-**Triage does not pre-assign a gate path or `noldor-tier`.** Roadmap and backlog blocks are tier-agnostic — they represent what should be done, not how. The gate path is chosen when work starts, via [`/gate`](../../.claude/skills/gate/SKILL.md). The complexity question (brainstorm needed? new FD? attach?) is answered at that point, not during triage. The `now` target is the one deliberate exception: it carries the operator's ship-next intent through to `/promote` (tier derived from `size`, same mapping `/gate` Step 0 uses), so the FD exists when the work session starts — the gate path itself is still picked at `/gate` time.
+**Triage does not pre-assign a gate path or `noldor-tier`.** Roadmap and backlog blocks are tier-agnostic — they represent what should be done, not how. The gate path is chosen when work starts, via [`/gate`](../../.claude/skills/gate/SKILL.md). The complexity question (brainstorm needed? new FD? attach?) is answered at that point, not during triage. The `now` target is the one deliberate exception: it carries the operator's ship-next intent through to `/promote` (tier derived from `size`: `full` for L/XL, `specs-only` otherwise — note this is deliberately coarser than `/gate` Step 0's three-way routing, which sends XS/S to `fast-track` with no FD at all), so the FD exists when the work session starts — the gate path itself is still picked at `/gate` time.
 
 ## Priority is file order
 
