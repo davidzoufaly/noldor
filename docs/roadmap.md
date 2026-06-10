@@ -82,17 +82,6 @@ Before the flat-priority restructure, `docs/noldor/triage.md` said `## Now` was 
 
 The final whole-branch reviewer for automated-cr-pipeline flagged "`pnpm validate:features` will hard-fail because new test files lack `// @tests:` tag" as a blocking issue — but the validator only checks the tag when the test file is referenced from `links.tests`. The reviewer reached the right conclusion (fix the tag + populate links.tests) for the wrong reason. Reviewer prompts in `superpowers:subagent-driven-development` should say "before flagging a blocking issue, run the failure command (`pnpm validate:features`, `pnpm typecheck`, etc.) and quote the actual error". Cheap, prevents controller having to spot-check every reviewer claim.
 
-#### Dashboard Backlog Age Buckets
-
-- area: tooling
-- type: feat
-- since: 2026-05-04
-- size: S
-- impact: med
-- parent: project-tracking-dashboard
-
-On `/backlog`, bucket entries by their `since:` field (0-30d / 30-90d / 90d+). Old entries are signal — promote, demote, or delete. No git needed; pure frontmatter math.
-
 #### Dashboard Graphify Health Snapshot
 
 - area: tooling
