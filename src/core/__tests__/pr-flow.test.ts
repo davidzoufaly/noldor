@@ -362,6 +362,29 @@ describe('openAndAutoMerge', () => {
     ]);
   });
 
+  it('openOnly: pushes + opens the PR, NEVER merges (merge deferred to drain coordinator)', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'gh' && args[0] === '--version')
+        return { stdout: 'gh version 2.50', exitCode: 0 };
+      if (cmd === 'gh' && args.join(' ') === 'auth status')
+        return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create')
+        return { stdout: 'https://github.com/davidzoufaly/acme/pull/7', exitCode: 0 };
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await openAndAutoMerge({ ...baseInput, spawn, openOnly: true });
+    expect(result.prUrl).toBe('https://github.com/davidzoufaly/acme/pull/7');
+    expect(result.prNumber).toBe(7);
+    expect(result.mergedAt).toBeNull();
+    // No `gh pr merge` of any kind — the supervisor's coordinator owns the merge.
+    expect(calls.some((c) => c.cmd === 'gh' && c.args[0] === 'pr' && c.args[1] === 'merge')).toBe(
+      false,
+    );
+  });
+
   it('throws GhPreflightError before any git push when gh missing', async () => {
     const spawn: SpawnFn = vi.fn(async () => ({ stdout: '', exitCode: 127 }));
     await expect(openAndAutoMerge({ ...baseInput, spawn })).rejects.toThrow(GhPreflightError);

@@ -199,9 +199,15 @@ export async function runCli(cwd: string): Promise<number> {
     firstCommitSubject,
     spawn: nodeSpawn(),
     onStatus: (line) => process.stderr.write(line + '\n'),
+    // Parallel drain K>1: the supervisor's merge coordinator merges; this call stops at PR-open.
+    openOnly: process.env.NOLDOR_DRAIN_OPEN_ONLY === '1',
   });
 
-  process.stdout.write(`PR merged: ${result.prUrl} at ${result.mergedAt}\n`);
+  process.stdout.write(
+    result.mergedAt === null
+      ? `PR opened (merge deferred to drain coordinator): ${result.prUrl}\n`
+      : `PR merged: ${result.prUrl} at ${result.mergedAt}\n`,
+  );
   // micro-chore is one-and-done: clear its main-repo session marker now that the
   // PR has shipped, so it can't linger into the next day's work. No-op otherwise.
   clearMicroChoreSession(cwd, session);

@@ -12,7 +12,7 @@ import {
 } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { writeState, type DrainState } from './drain-state.js';
-import { syncMainCleanState, openPrExistsFor, spawnGate } from './drain-io.js';
+import { syncMainCleanState, openPrExistsFor, spawnGate, mergePr } from './drain-io.js';
 
 export interface ParsedArgs {
   maxFeatures: number;
@@ -22,6 +22,7 @@ export interface ParsedArgs {
   dryRun: boolean;
   json: boolean;
   source: SourceId;
+  concurrency: number;
 }
 
 function intFlag(args: readonly string[], name: string, def: number): number {
@@ -55,6 +56,7 @@ export function parseArgs(args: readonly string[]): ParsedArgs {
     dryRun: args.includes('--dry-run'),
     json: args.includes('--json'),
     source: parseSource(args),
+    concurrency: intFlag(args, '--concurrency', 1),
   };
 }
 
@@ -82,7 +84,7 @@ function buildSource(id: SourceId, cwd: string): DrainSource {
   return specsSource(cwd); // throws — phase 2
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const cwd = process.cwd();
   let parsed: ParsedArgs;
@@ -120,13 +122,16 @@ function main(): void {
     source,
     spawnGate: (env, timeoutMs, prompt) => spawnGate(cwd, env, timeoutMs, prompt),
     syncMainCleanState: () => syncMainCleanState(cwd),
+    mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
     writeState: (s) => {
       const state: DrainState = {
         pid: process.pid,
         startedAt,
         phase: s.phase,
-        currentSlug: s.currentSlug,
+        inFlight: s.inFlight,
+        merging: s.merging,
+        currentSlug: s.inFlight[0]?.slug ?? null, // back-compat projection
         shipped: s.shipped,
         skip: s.skip,
         retries: s.retries,
@@ -138,7 +143,7 @@ function main(): void {
 
   let res: DrainResult;
   try {
-    res = runDrain(deps, { ...parsed, cwd });
+    res = await runDrain(deps, { ...parsed, cwd, startupStaggerMs: 750 });
   } finally {
     releaseLock(cwd);
   }
@@ -163,4 +168,9 @@ function main(): void {
 // Match the entrypoint file exactly (queue-drain.ts/.js/.mjs) — NOT a test file
 // such as queue-drain-cli.test.ts, which would otherwise run main() at import.
 const invokedDirect = /[\\/]queue-drain\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirect) {
+  void main().catch((e: unknown) => {
+    process.stderr.write(`drain crashed: ${e instanceof Error ? e.message : String(e)}\n`);
+    process.exit(1);
+  });
+}

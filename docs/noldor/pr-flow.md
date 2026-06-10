@@ -115,6 +115,10 @@ These commits are written by `/gate` Step 2 scaffolding (see [`.claude/skills/ga
 
 The reverse (`phase: in-progress → done`) is auto-restored by `release-markers.ts:fillMarkers` at the next `pnpm release` — see [versioning.md](versioning.md) step 4 and the [changelog-pr-flow-integration spec](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3 for the asymmetric model.
 
+## Open-only mode (parallel drain)
+
+Under parallel drain (`pnpm noldor autonomous queue-drain --concurrency N`, N > 1) the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1` in each child's environment. `openAndAutoMerge` then pushes the branch and opens the PR but **returns at PR-open without merging or polling** — `PrFlowResult.mergedAt` is `null`. The supervisor's serialized merge coordinator (`src/autonomous/drain-loop.ts`) then merges the open PRs one at a time — `gh pr merge --auto --squash` + poll `mergeStateStatus`, advancing local `main` between merges — so two concurrent children never race a `main` update. At `--concurrency 1` (default) the flag is unset and the child merges inline exactly as documented above.
+
 ## See also
 
 - [`docs/noldor/cr-pipeline.md`](cr-pipeline.md) — Claude + codex review semantics.

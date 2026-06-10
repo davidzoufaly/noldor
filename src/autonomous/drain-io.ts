@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 
 /**
  * Real implementations of the {@link DrainDeps} IO adapters. These shell out to
@@ -6,6 +6,87 @@ import { execFileSync, spawnSync } from 'node:child_process';
  * the loop logic is tested against mocks in `run-drain.test.ts`, and these are
  * exercised by the manual integration run (FD Usage → Verification).
  */
+
+/**
+ * Outcome of a serialized PR merge under parallel drain (K>1). `merge-conflict` and
+ * `merge-timeout` both mean "leave the PR open, skip this slug for the run"; only `merged`
+ * advances the success oracle. See {@link mergePr}.
+ */
+export type MergeOutcome = 'merged' | 'merge-conflict' | 'merge-timeout';
+
+interface MergeView {
+  mergedAt: string | null;
+  mergeStateStatus: string;
+  state: string;
+}
+
+/**
+ * Pure verdict on one `gh pr view` payload. `pending` means "keep polling" — crucially
+ * BLOCKED / UNSTABLE / BEHIND (checks running, branch protection, behind base) are NOT
+ * conflicts; only `DIRTY` / `CONFLICTING` are. Merging on a `pending` PR would land code
+ * before CI completes on a repo without required-checks protection.
+ */
+export function classifyMergeView(d: MergeView): 'merged' | 'merge-conflict' | 'pending' {
+  if (d.mergedAt !== null || d.state === 'MERGED') return 'merged';
+  if (d.mergeStateStatus === 'DIRTY' || d.mergeStateStatus === 'CONFLICTING')
+    return 'merge-conflict';
+  return 'pending';
+}
+
+/**
+ * Serialized squash-merge of one already-open PR (parallel drain K>1), reusing the same
+ * `--auto --squash` + poll machinery the K=1 child runs today (`pr-flow.ts`). Enqueues auto-merge,
+ * then polls the STRUCTURED `mergeStateStatus` until merged / genuine conflict / timeout — never a
+ * stderr substring. On a repo WITHOUT a merge queue (auto-merge enqueue exits non-zero) it attempts a
+ * direct squash, but ONLY when `mergeStateStatus === 'CLEAN'` (all required checks passed + up to
+ * date) so it never lands code before CI. Throws only on a systemic `gh`/spawn failure → the
+ * coordinator aborts the whole drain fail-closed.
+ */
+export async function mergePr(
+  cwd: string,
+  slug: string,
+  branch: string,
+  pollTimeoutMs = 20 * 60 * 1000,
+  pollIntervalMs = 10_000,
+): Promise<MergeOutcome> {
+  void slug; // retained for caller/log context; `branch` drives the gh queries
+  const enq = spawnSync('gh', ['pr', 'merge', branch, '--auto', '--squash'], {
+    cwd,
+    encoding: 'utf8',
+  });
+  if (enq.error) throw new Error(`gh pr merge spawn failed for ${branch}: ${enq.error.message}`);
+  const autoEnabled = enq.status === 0;
+  const deadline = Date.now() + pollTimeoutMs; // real wall-clock — IO adapter, not unit-tested
+  for (;;) {
+    const view = spawnSync(
+      'gh',
+      ['pr', 'view', branch, '--json', 'mergedAt,mergeStateStatus,state'],
+      {
+        cwd,
+        encoding: 'utf8',
+      },
+    );
+    if (view.status !== 0) {
+      throw new Error(`gh pr view failed for ${branch}: ${(view.stderr ?? '').trim()}`);
+    }
+    const v = JSON.parse(view.stdout) as MergeView;
+    const verdict = classifyMergeView(v);
+    if (verdict === 'merged') return 'merged';
+    if (verdict === 'merge-conflict') return 'merge-conflict';
+    if (Date.now() > deadline) return 'merge-timeout';
+    if (v.mergeStateStatus === 'BEHIND') {
+      // "require branches up to date" protection: a PR opened off the pre-merge base goes BEHIND
+      // once the prior PR merges. Update it onto the new base so it can become mergeable — this is
+      // what makes "merges serialize, each rebased on the prior" actually true on a protected repo.
+      // Best-effort (clean PRs need no update); the next poll re-reads the fresh status.
+      spawnSync('gh', ['pr', 'update-branch', branch], { cwd, encoding: 'utf8' });
+    } else if (!autoEnabled && v.mergeStateStatus === 'CLEAN') {
+      // No merge queue: attempt a direct squash, but ONLY when CLEAN (mergeable now — checks passed).
+      spawnSync('gh', ['pr', 'merge', branch, '--squash'], { cwd, encoding: 'utf8' });
+    }
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+}
 
 /**
  * Checkout main, fetch, ff-only sync, prune stale worktree admin entries, drop
@@ -69,32 +150,36 @@ export function spawnGate(
   env: Record<string, string>,
   timeoutMs: number,
   prompt = '/gate',
-): number {
-  const res = spawnSync(
-    'claude',
-    [
-      '--print',
-      prompt,
-      '--disallowed-tools',
-      'AskUserQuestion',
-      '--permission-mode',
-      'bypassPermissions',
-    ],
-    {
-      cwd,
-      env: { ...process.env, ...env },
-      stdio: 'inherit',
-      timeout: timeoutMs,
-      killSignal: 'SIGKILL',
-    },
-  );
-  if (res.error) {
-    const code = (res.error as NodeJS.ErrnoException).code;
-    if (code === 'ETIMEDOUT') throw new Error('iteration-timeout'); // per-entry failure → retry/skip
-    // Any other spawn error (e.g. ENOENT — `claude` not on PATH) is systemic, not a per-entry
-    // failure: throw a non-timeout error so the loop aborts the whole drain instead of churning
-    // retries across every entry.
-    throw new Error(`spawn-failed: ${res.error.message}`);
-  }
-  return res.status ?? 1;
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      'claude',
+      [
+        '--print',
+        prompt,
+        '--disallowed-tools',
+        'AskUserQuestion',
+        '--permission-mode',
+        'bypassPermissions',
+      ],
+      { cwd, env: { ...process.env, ...env }, stdio: 'inherit' },
+    );
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, timeoutMs);
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      // Systemic spawn error (e.g. ENOENT — `claude` not on PATH): reject non-timeout so the loop
+      // aborts the whole drain instead of churning retries across every entry.
+      reject(new Error(`spawn-failed: ${err.message}`));
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut)
+        reject(new Error('iteration-timeout')); // per-entry failure → retry/skip
+      else resolve(code ?? 1);
+    });
+  });
 }
