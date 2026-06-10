@@ -18,13 +18,15 @@ export interface DispatchInput {
  * the artifact path; output must match the Strengths/Issues/Assessment
  * markdown contract parsed by `parseSubagentMarkdown` in `subagent.ts`.
  */
-function buildPrompt(input: DispatchInput): string {
+export function buildPrompt(input: DispatchInput): string {
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
 
 FD summary context:
 ${input.fdSummary}
 
 Range under review: ${input.baseSha}..${input.headSha}. If they differ, review only the diff; if equal, review the whole artifact.
+
+Verify-before-flag protocol: before flagging any Critical issue that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual output in the bullet. If the command passes, do not flag the issue. Never assert a failure you have not reproduced.
 
 Emit your review in this exact format, no preamble:
 
