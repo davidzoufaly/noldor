@@ -8,9 +8,17 @@ import { execFileSync, spawnSync } from 'node:child_process';
  */
 
 /**
- * Checkout main, fetch, ff-only sync, prune leftover worktrees + `fast/*`
- * branches, drop stale escalation context. Throws on an ff-only rejection
- * (caller aborts the drain — local main diverged, spec Error handling).
+ * Checkout main, fetch, ff-only sync, prune stale worktree admin entries, drop
+ * stale escalation context. Throws on an ff-only rejection (caller aborts the
+ * drain — local main diverged, spec Error handling).
+ *
+ * IMPORTANT: this does **not** blanket-remove `.worktrees/*` or delete `fast/*`
+ * branches — that would destroy unrelated human feature worktrees and ordinary
+ * interactive fast-track branches the lock does not protect. `git worktree prune`
+ * only drops admin entries for worktree dirs that are *already gone*; it never
+ * deletes a live worktree. Per-slug cleanup of the drain's own `fast/<slug>`
+ * branch + worktree is the gate Step 2 force-recreate's job (drain-mode), scoped
+ * to the exact slug being shipped.
  */
 export function syncMainCleanState(cwd: string): void {
   const git = (args: string[]): void => {
@@ -19,18 +27,12 @@ export function syncMainCleanState(cwd: string): void {
   git(['checkout', 'main']);
   git(['fetch', 'origin', 'main']);
   git(['merge', '--ff-only', 'origin/main']); // throws on divergence → abort
-  git(['worktree', 'prune']);
-  // Best-effort: remove leftover .worktrees/* + their fast/* branches; rm stale escalation context.
-  spawnSync(
-    'bash',
-    [
-      '-lc',
-      'for d in .worktrees/*; do [ -d "$d" ] && git worktree remove --force "$d" 2>/dev/null || true; done; ' +
-        'for b in $(git branch --list "fast/*" --format "%(refname:short)"); do git branch -D "$b" 2>/dev/null || true; done; ' +
-        'rm -f .noldor/cr/*-escalation-context.md 2>/dev/null || true',
-    ],
-    { cwd, stdio: 'pipe' },
-  );
+  git(['worktree', 'prune']); // admin-only: drops entries for already-deleted dirs; never deletes a live worktree
+  // Drop stale escalation context so a failed iteration's context can't bleed into the next.
+  spawnSync('bash', ['-c', 'rm -f .noldor/cr/*-escalation-context.md 2>/dev/null || true'], {
+    cwd,
+    stdio: 'pipe',
+  });
 }
 
 /**

@@ -61,6 +61,8 @@ export interface DrainResult {
   shipped: number;
   skipped: string[];
   exitCode: 0 | 1 | 130;
+  /** Set only on an abort (exitCode 1) — the message of the dep that threw. */
+  error?: string;
 }
 
 /**
@@ -76,10 +78,11 @@ export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
   const retries = new Map<string, number>();
   let shipped = 0;
   let spawns = 0;
-  const result = (exitCode: 0 | 1 | 130): DrainResult => ({
+  const result = (exitCode: 0 | 1 | 130, error?: string): DrainResult => ({
     shipped,
     skipped: [...skip],
     exitCode,
+    ...(error !== undefined ? { error } : {}),
   });
 
   try {
@@ -142,7 +145,8 @@ export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
       retries.set(entry.slug, n);
       if (n > opts.maxRetries) skip.add(entry.slug);
     }
-  } catch {
-    return result(1); // nextPriority / parseAll / openPrExistsFor / syncMain failure → abort
+  } catch (err) {
+    // nextPriority / parseAll / openPrExistsFor / syncMain failure → abort, surfacing the cause.
+    return result(1, err instanceof Error ? err.message : String(err));
   }
 }

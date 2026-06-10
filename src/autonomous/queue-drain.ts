@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { loadConfigSync, type NoldorConfig } from '../cr/config.js';
@@ -70,10 +70,19 @@ function main(): void {
   }
 
   const cwd = process.cwd();
-  const lock = acquireLock(cwd, new Date().toISOString());
+  const startedAt = new Date().toISOString();
+  const lock = acquireLock(cwd, startedAt);
   if (!lock.ok) {
     process.stderr.write(`drain: ${lock.reason}\n`);
     process.exit(1);
+  }
+
+  // Clear a stale stop sentinel from a prior run so this run isn't immediately
+  // short-circuited to exit 130 (the sentinel is a one-shot between-iterations stop).
+  try {
+    unlinkSync(join(cwd, '.noldor/drain-stop'));
+  } catch {
+    /* not present — fine */
   }
 
   let stop = false;
@@ -96,7 +105,7 @@ function main(): void {
     writeState: (s) => {
       const state: DrainState = {
         pid: process.pid,
-        startedAt: new Date().toISOString(),
+        startedAt,
         phase: s.phase as DrainState['phase'],
         currentSlug: s.currentSlug,
         shipped: s.shipped,
@@ -120,6 +129,7 @@ function main(): void {
       ? `${JSON.stringify(res)}\n`
       : `drain: shipped ${res.shipped}, skipped ${res.skipped.length} [${res.skipped.join(', ')}]\n`,
   );
+  if (res.error !== undefined) process.stderr.write(`drain aborted: ${res.error}\n`);
   process.exit(res.exitCode);
 }
 

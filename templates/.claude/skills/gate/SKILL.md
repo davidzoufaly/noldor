@@ -306,7 +306,10 @@ loop / retry / skip / lock; each gate run only ships its one entry. Step overrid
   supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly. Before `git worktree add`,
   **force-recreate** the branch (a prior interrupted run may have left it): `git branch -D fast/<slug>`
   + `git push origin --delete fast/<slug>` (when each exists). Reaching this point means the supervisor
-  found no open PR for the slug, so any existing `fast/<slug>` is abandoned work safe to discard.
+  found no open PR for the slug, so any existing `fast/<slug>` is abandoned work safe to discard
+  (also `git worktree remove --force` its stale worktree dir first, if present, so `git branch -D`
+  won't fail on a checked-out branch). This per-slug removal is the only worktree the drain deletes —
+  the supervisor's `syncMainCleanState` never blanket-wipes `.worktrees/*`.
 - **Step 2:** the existing **Roadmap-entry retirement** sequence (above) runs unchanged — implement
   the entry, `removeBlock` the roadmap block on the branch. `cd` into the worktree first; the session
   marker, `set-autonomous`, and `pr-flow` all operate from there.

@@ -85,13 +85,15 @@ describe('runDrain', () => {
     expect(h.spawnGate).toHaveBeenCalledTimes(1 + (opts.maxRetries + 1)); // a once + b (1 + retries)
   });
 
-  it('(b) aborts exit 1 when nextPriority throws', () => {
+  it('(b) aborts exit 1 when nextPriority throws, surfacing the cause', () => {
     const h = harness(['a'], {
       nextPriorityImpl: () => {
-        throw new Error('parse');
+        throw new Error('parse boom');
       },
     });
-    expect(runDrain(h.deps, opts).exitCode).toBe(1);
+    const r = runDrain(h.deps, opts);
+    expect(r.exitCode).toBe(1);
+    expect(r.error).toContain('parse boom');
   });
 
   it('(c) child timeout → retry then skip', () => {

@@ -15,8 +15,10 @@ function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // EPERM = the process exists but is owned by another user → still alive.
+    // ESRCH (and anything else) = no such process → dead.
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 

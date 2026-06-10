@@ -121,7 +121,7 @@ held by a *live* drain is never safe — so an override flag would have nothing 
 acquireLock()                      // .noldor/drain.lock {pid, startedAt}; reclaim if holder pid dead; exit 1 if held by live pid
 assertConfig()                     // the full precondition set (D6): onFailure==='abort' && skipLanePicker===true && requireHumanPrApproval===false
 assertNoDuplicateSlugs(roadmap)    // colliding -2/-3 slugs → abort (can't target a block safely)
-syncMainCleanState()               // checkout main; fetch origin/main; merge --ff-only (reject → abort, do NOT force); prune worktrees/branches; rm stale cr/*-escalation-context.md
+syncMainCleanState()               // checkout main; fetch origin/main; merge --ff-only (reject → abort); `git worktree prune` (admin-only — never deletes a live worktree); rm stale cr/*-escalation-context.md. Does NOT blanket-remove .worktrees/* or fast/* branches (would destroy human work) — per-slug cleanup is the gate's force-recreate.
 skip=∅, retries=Map, shipped=0, spawns=0
 loop {
   if stopRequested(): exit 130 with summary
@@ -188,7 +188,9 @@ loop touches no real FS/git/process directly — tests drive every branch with m
 iteration with `{ pid, startedAt, phase, currentSlug, shipped, skip[], retries{} }`. It is **not** a
 cross-run cache — a fresh run starts with empty skip/retries (a previously-skipped entry is
 reconsidered; it may have been flaky/since-fixed). On startup the supervisor reclaims a stale lock
-whose pid is dead and prunes leftover `.worktrees/*` from an interrupted prior run.
+whose pid is dead and clears a stale `.noldor/drain-stop` sentinel. Orphaned drain worktrees are
+cleaned per-slug by the gate's force-recreate (scoped to `fast/<slug>`), never by a blanket
+`.worktrees/*` wipe — that would destroy unrelated human feature worktrees the lock doesn't protect.
 
 **Concurrency.** `.noldor/drain.lock` (pid + startedAt) is exclusive, acquired via an atomic
 `O_EXCL` create. Reclaim-if-dead is TOCTOU-safe by renaming the stale lock **aside** (`drain.lock` →
@@ -230,10 +232,11 @@ harness-level deny + D-timeout):
   create/push. Reaching branch-create means the pre-spawn `openPrExistsFor` found **no open PR**, so
   any existing `fast/<slug>` is abandoned work safe to discard: drain-mode Step 2 **force-recreates**
   it — `git branch -D fast/<slug>` (local) + `git push origin --delete fast/<slug>` (remote, if it
-  exists) — before `git worktree add … -b fast/<slug>`. Ordering matters: the supervisor's
-  `syncMainCleanState` (which prunes leftover `.worktrees/*` + their branches) runs **before** the
-  child spawns, so by branch-create time no leftover worktree still has `fast/<slug>` checked out and
-  the `git branch -D` cannot fail on a checked-out branch.
+  exists) — before `git worktree add … -b fast/<slug>`. The force-recreate also removes its own
+  `.worktrees/<slug>` dir first (`git worktree remove --force` scoped to that slug) so the `git branch
+  -D` cannot fail on a checked-out branch. This per-slug cleanup is the *only* worktree removal the
+  drain does — `syncMainCleanState` itself never removes a live worktree (it only runs
+  `git worktree prune`, which drops admin entries for already-deleted dirs).
 - **Step 2:** the **existing** fast-track + Roadmap-entry-retirement sequence (unchanged) — worktree,
   implement from the entry description, `removeBlock` retirement commit on the branch. `cd` into the
   worktree; the session marker, `set-autonomous`, and `pr-flow` all operate from the worktree
@@ -306,8 +309,9 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
   continues (never crashes the loop). A failed **roadmap** edit inside the gate is fatal to that
   iteration (handled as a child failure).
 - Inter-iteration cleanup (`syncMainCleanState`) runs before every spawn and after every failure:
-  clean tree on synced `main`, no orphaned `fast/*` branches or `.worktrees/*`, no stale
-  `cr/*-escalation-context.md`.
+  clean tree on synced `main` (ff-only), `git worktree prune` (admin-only), and no stale
+  `cr/*-escalation-context.md`. It does **not** blanket-delete `.worktrees/*` or `fast/*` branches —
+  the drain's own `fast/<slug>` branch + worktree are removed per-slug by the gate's force-recreate.
 
 ## Testing
 
