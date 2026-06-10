@@ -10,14 +10,16 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
 ## Parameters
 
 - `--resume <slug>` — resume an in-progress FD (post-backfill); skips path picker.
+- `--drain <slug>` — **headless drain entry (supervisor-only).** Ship `<slug>` via `fast-track` with zero `AskUserQuestion`s; short-circuits the interactive Step 0 / Step 1 straight to the **Drain mode** section. The autonomous queue-drain supervisor passes this on every spawned `claude --print`; not for interactive use.
 - All other invocations are interactive.
 
 ## Flow
 
-**Drain-mode entry check (headless runs) — do this before Step 0.** Inspect the environment first: run `printenv NOLDOR_DRAIN`. If `NOLDOR_DRAIN=1` is set (the autonomous supervisor sets it on every spawned `claude --print "/gate"`), this is an unattended drain run — **do NOT execute the interactive Step 0 / Step 1 below.** Those steps fire `AskUserQuestion`, which the supervisor disallows in the headless child (`--disallowed-tools AskUserQuestion`), so any prompt stalls the iteration until its timeout. Skip straight to the **Drain mode (`NOLDOR_DRAIN=1`)** section near the end of this skill and follow its step overrides — that section owns slug selection (`NOLDOR_DRAIN_SLUG` when the supervisor assigns one under parallel drain, else `topPriority[0]`), forces the `fast-track` path, and runs end-of-flow autonomously with zero prompts. Interactive invocations (`NOLDOR_DRAIN` unset) fall through to Step 0 below as normal.
+**Drain-mode entry check — do this before Step 0.** If this gate was invoked as **`/gate --drain <slug>`** (the autonomous supervisor's headless entry — it also sets `NOLDOR_DRAIN=1`), this is an unattended drain run — **do NOT execute the interactive Step 0 / Step 1 below.** Those steps fire `AskUserQuestion`, which the supervisor disallows in the headless child (`--disallowed-tools AskUserQuestion`), so any prompt stalls the iteration until its timeout. Skip straight to the **Drain mode (`NOLDOR_DRAIN=1`)** section near the end of this skill and ship **that exact `<slug>`** per its step overrides — `fast-track` path, end-of-flow autonomous, zero prompts. (Belt-and-suspenders: if `--drain` is somehow absent but `printenv NOLDOR_DRAIN` shows `1`, still treat it as a drain run — use `NOLDOR_DRAIN_SLUG` when set, else `topPriority[0]`.) Interactive invocations (no `--drain`, `NOLDOR_DRAIN` unset) fall through to Step 0 below as normal.
 
 0. **Priority pickup.** Run `pnpm noldor next-priority --suggestions --json` and capture stdout + exit code.
    - **Skipped entirely when `/gate --resume <slug>` is invoked** (`--resume` short-circuits to the `--resume mode` section at the bottom of this skill — it does not pass through Step 0 or Step 1).
+   - **Skipped entirely when `/gate --drain <slug>` is invoked** (headless drain) — short-circuits to the **Drain mode** section at the bottom and ships `<slug>` via `fast-track`; it does not pass through Step 0 or Step 1.
    - Exit code 2 → no in-progress FDs AND no roadmap entries. Proceed to Step 1 (path picker).
    - Exit code 0 → parse stdout as JSON. If the parse fails (corrupt stdout despite exit 0), treat as "any other exit code" below — don't try to recover. On success, build the **bucket question** dynamically — include only buckets that are non-empty:
      - `In-progress` (when `inProgress.length > 0`) — label `Continue in-progress (<inProgress.length>)`, description names the first FD's slug.
@@ -309,19 +311,19 @@ Once autonomous:
 
 The [Autonomous Queue-Drain Runner](../../../docs/features/autonomous-queue-drain-runner.md)
 (`pnpm noldor autonomous queue-drain`) is an external supervisor that spawns one fresh headless
-`claude --print "/gate"` per fast-track roadmap entry, setting `NOLDOR_DRAIN=1` in the child's
-environment. When that env var is set, this gate run takes **zero `AskUserQuestion`s** — the
+`claude --print "/gate --drain <slug>"` per fast-track roadmap entry, also setting `NOLDOR_DRAIN=1` in the child's
+environment. When invoked this way, this gate run takes **zero `AskUserQuestion`s** — the
 supervisor backstops a forgotten branch by spawning `claude` with `--disallowed-tools AskUserQuestion`
 (any prompt then fails fast instead of hanging) plus a per-iteration timeout. The supervisor owns the
 loop / retry / skip / lock; each gate run only ships its one entry. Step overrides:
 
-- **Step 0:** skip the bucket `AskUserQuestion`. When `NOLDOR_DRAIN_SLUG=<slug>` is set (parallel
-  drain, `--concurrency > 1`), select **that exact slug** instead of `topPriority[0]` — the supervisor
-  assigns each concurrent child a distinct slug so K near-simultaneous children don't all pick the same
-  top entry. When `NOLDOR_DRAIN_SLUG` is unset (sequential drain / back-compat), auto-select
-  `topPriority[0]`. Either way, honor `NOLDOR_DRAIN_SKIP` (the comma-separated skip-set the supervisor
-  passes through) and, if the chosen entry's `suggestedPath !== 'fast-track'`, exit without scaffolding
-  (defensive — the supervisor pre-filters scope, so this should not happen).
+- **Step 0:** skip the bucket `AskUserQuestion`. **Ship the slug named by the `--drain <slug>`
+  argument** the supervisor passed (parallel drain, `--concurrency > 1`, assigns each concurrent child a
+  distinct slug so K near-simultaneous children don't all pick the same top entry). Fallbacks when
+  `--drain` is absent: the `NOLDOR_DRAIN_SLUG` env var if set, else `topPriority[0]`. Either way, honor
+  `NOLDOR_DRAIN_SKIP` (the comma-separated skip-set the supervisor passes through) and, if the chosen
+  entry's `suggestedPath !== 'fast-track'`, exit without scaffolding (defensive — the supervisor
+  pre-filters scope, so this should not happen).
 - **Steps 1 / 1.5:** skip path-pick + path-confirm. Force `fast-track`, carrying `entry.slug`. Name
   the branch **`fast/<slug>`** (deterministic — vs ordinary fast-track's `fast/<short-desc>`) so the
   supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly. Before `git worktree add`,

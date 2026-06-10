@@ -48,7 +48,9 @@ function escapeRe(s: string): string {
  * Reproduces queue-drain selection behavior: `nextItem` is today's
  * `getSuggestions(...).topPriority[0]` with `eligible = fast-track && isDrainEligible`;
  * `parseAll` is the full roadmap slug list (the success oracle); the gate prompt is
- * bare `/gate` (drain Step 0 auto-selects topPriority[0]); the branch is `fast/<slug>`.
+ * `/gate --drain <slug>` — an explicit drain entry that short-circuits the interactive Step 0
+ * (a headless model ignores an env-var-only signal, so the assigned slug must ride the prompt
+ * itself, mirroring how `plansSource` uses `--resume <slug>`); the branch is `fast/<slug>`.
  */
 export function roadmapSource(cwd: string): DrainSource {
   const read = (): string => readFileSync(loadDocRoots(cwd).roadmap, 'utf8');
@@ -83,8 +85,8 @@ export function roadmapSource(cwd: string): DrainSource {
     parseAll() {
       return parseRoadmap(read()).map((e) => e.slug);
     },
-    gatePrompt() {
-      return '/gate';
+    gatePrompt(slug) {
+      return `/gate --drain ${slug}`;
     },
     branchFor(slug) {
       return `fast/${slug}`;
