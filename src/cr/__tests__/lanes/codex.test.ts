@@ -94,7 +94,7 @@ describe('runCodex', () => {
       cb(null, JSON.stringify({ summary: 'ok', findings: [] }), '');
     });
     await runCodex(baseInput());
-    expect(capturedArgs.slice(0, 3)).toEqual(['noldor', 'cr', 'codex']);
+    expect(capturedArgs.slice(0, 4)).toEqual(['--silent', 'noldor', 'cr', 'codex']);
     expect(capturedArgs).not.toContain('cr:codex');
   });
 
@@ -116,7 +116,7 @@ describe('runCodex', () => {
 describe('codexSupportsBaseSha', () => {
   it('probes the manifest help path and detects --base-sha', async () => {
     execFileFn.mockImplementation((_c, args, _o, cb) => {
-      expect(args.slice(0, 3)).toEqual(['noldor', 'cr', 'codex']);
+      expect(args.slice(0, 4)).toEqual(['--silent', 'noldor', 'cr', 'codex']);
       expect(args).toContain('--help');
       cb(null, 'usage: noldor cr codex ... --base-sha <sha> ...', '');
     });
