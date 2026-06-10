@@ -1,7 +1,7 @@
 # Parallel Drain — Concurrent Autonomous Execution — Design
 
 **Slug:** `parallel-drain`
-**FD:** [docs/features/parallel-drain.md](../../features/parallel-drain.md) *(scaffolded at /promote)*
+**FD:** [docs/features/parallel-drain.md](../../features/parallel-drain.md) *(scaffolded via /new-feature — not in roadmap/backlog)*
 **Date:** 2026-06-10
 **Tier:** full
 **Deps:** `autonomous-queue-drain-runner`
