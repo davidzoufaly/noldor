@@ -64,7 +64,7 @@ Two implementations now: `roadmapSource(cwd)` and `plansSource(cwd)`. `specsSour
 - `gatePrompt()`: always `'/gate'` (drain Step 0 auto-selects `topPriority[0]`).
 - `branchFor(slug)`: `'fast/' + slug` (the deterministic drain branch).
 
-`--source roadmap` (the default) therefore reproduces queue-drain byte-for-byte — existing `run-drain.test.ts` / `queue-drain-cli.test.ts` must pass unchanged.
+`--source roadmap` (the default) therefore **preserves queue-drain behavior** — existing `run-drain.test.ts` / `queue-drain-cli.test.ts` pass with no assertion changes (only injected-source wiring). *Amended during plan-runner implementation:* the output is **additively extended**, not byte-identical — a roadmap drain now also emits the optional `planned` (dry-run only) and `skipReasons` (per skipped candidate) keys the original lacked. Pure additions: present only in `--dry-run` / when a reason exists, and no existing test asserts exact JSON/stdout shape.
 
 ### 3. `plansSource` — the new capability
 
