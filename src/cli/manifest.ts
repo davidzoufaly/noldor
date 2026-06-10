@@ -19,11 +19,15 @@ export interface Group {
 
 export const MANIFEST: Record<string, Group> = {
   autonomous: {
-    desc: 'Autonomous runners (queue-drain)',
+    desc: 'Autonomous runners (queue-drain / plan-runner)',
     subs: {
+      run: {
+        src: 'autonomous/queue-drain.ts',
+        desc: 'Drain a source autonomously (--source roadmap|plans)',
+      },
       'queue-drain': {
         src: 'autonomous/queue-drain.ts',
-        desc: 'Drain the fast-track roadmap queue autonomously',
+        desc: 'Fast-track roadmap drain (same entrypoint as `run`; defaults --source roadmap)',
       },
     },
   },
