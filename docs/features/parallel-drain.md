@@ -23,10 +23,9 @@ links:
 name: Parallel Drain
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
