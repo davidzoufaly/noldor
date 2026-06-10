@@ -37,6 +37,8 @@ Six blockers from the first plan review reshaped the merge coordinator. The corr
 
 6. **TDD red signal in Task 1 (was MED).** Converting `runDrain` to async makes `pnpm typecheck` go red (the `spawnGate` `Promise<number>` vs `number` mismatch); the *vitest* run may still pass under the old sync body. Task 1's red baseline is the **typecheck**, not the test run.
 
+7. **`maxFeatures` is a SHIP CEILING that counts in-flight — accepted trade-off (CR round-2/3).** At K>1 a worker stops scheduling once `shipped + dispatched.size >= maxFeatures` and exits. A slug that was counted as `dispatched` but then settles as a merge-skip (conflict/timeout) frees its slot *after* workers have exited, so a conflict-heavy run can ship slightly **fewer** than `maxFeatures` even when more queue items exist. This is deliberate: `maxFeatures` is an upper bound on work attempted per run, not a delivery target, and **no work is lost** — an unshipped slug stays in the source (roadmap / in-progress set) and the next drain run picks it up (the queue-drain design is re-run-safe by construction). K=1 is unaffected (skips never consumed the cap there, and they still don't — the inline path increments only `shipped`). A future enhancement could have cap-blocked workers park on a "slot-freed" signal instead of exiting; v1 chooses the simpler exit + re-run. The coordinator's `recordRetryOrSkip` (the rare "merged but oracle still sees the slug" case) likewise defers to the next run rather than re-spawning into an emptied worker pool.
+
 ## File structure
 
 - `src/autonomous/drain-loop.ts` — `runDrain` → `async`; add the build pool + serialized merge coordinator; `decideNext` stays a pure sync function. `DrainDeps.spawnGate` → returns `Promise<number>`; add an async `mergePr` dep. The coordinator reuses the existing `syncMainCleanState` dep to advance local `main` after each merge (no new sync dep — `syncMainOnly` was rejected as insufficient).
@@ -354,11 +356,13 @@ describe('build pool + coordinator (K>1)', () => {
     expect(h.buildPeak).toBeLessThanOrEqual(3);
     expect(h.buildPeak).toBeGreaterThan(1); // genuinely parallel builds
   });
-  it('maxFeatures counts awaiting-merge: never ships more than the cap', async () => {
-    // 5 queued, K=3, cap 2 → exactly 2 ship, no over-dispatch while merges lag (CR round-2 HIGH).
+  it('maxFeatures counts awaiting-merge: never ships OR builds more than the cap', async () => {
+    // 5 queued, K=3, cap 2 → exactly 2 ship AND only 2 builds ever dispatched (CR round-2 HIGH + round-3 low):
+    // dispatched counts against the cap, so no third child is spawned while a/b await merge.
     const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 3);
     const r = await runDrain(h.deps, { ...h.opts, maxFeatures: 2 });
     expect(r.shipped).toBe(2);
+    expect(h.assignedSlugs.length).toBe(2); // no over-dispatch past the cap
   });
   it('assigns each child its exact slug via NOLDOR_DRAIN_SLUG', async () => {
     const h = poolHarness(['a', 'b', 'c'], 3);
@@ -553,7 +557,7 @@ it('openOnly: opens PR, never merges', async () => {
 });
 ```
 
-(`makeInput()` = the existing input fixture/builder already used by the other `openAndAutoMerge` tests in this file — reuse it verbatim and spread `openOnly: true` on top. No `as never` cast — `openOnly` is a real optional field on `OpenAndAutoMergeInput` after Step 3, so the typed object suffices.)
+(`makeInput()` is a stand-in name — **first open `pr-flow.test.ts` and use whatever input fixture/builder the existing `openAndAutoMerge` tests already use** (it may be an inline object literal rather than a helper); reuse it verbatim and spread `openOnly: true` on top. No `as never` cast — `openOnly` is a real optional field on `OpenAndAutoMergeInput` after Step 3, so the typed object suffices.)
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -666,19 +670,27 @@ export async function mergePr(
   // iteration so the PR doesn't ride the full poll timeout (CR round-2 low). Only a spawn error throws.
   const enq = spawnSync('gh', ['pr', 'merge', branch, '--auto', '--squash'], { cwd, encoding: 'utf8' });
   if (enq.error) throw new Error(`gh pr merge spawn failed for ${branch}: ${enq.error.message}`);
+  // `autoEnabled` is best-effort: a non-zero exit may mean "no auto-merge on this repo" OR a transient
+  // failure (rate limit / already-enabled). That's fine — the direct fallback below only fires on a
+  // CLEAN PR, and if auto-merge WAS actually enabled the poll sees `mergedAt` first anyway; a redundant
+  // direct `gh pr merge` on an already-merging PR just exits non-zero and is ignored (CR round-3 low).
   const autoEnabled = enq.status === 0;
   const deadline = Date.now() + pollTimeoutMs; // real wall-clock — fine in the IO adapter (not unit-tested)
   for (;;) {
     const view = spawnSync('gh', ['pr', 'view', branch, '--json', 'mergedAt,mergeStateStatus,state'], { cwd, encoding: 'utf8' });
     if (view.status !== 0) throw new Error(`gh pr view failed for ${branch}: ${(view.stderr ?? '').trim()}`);
-    const verdict = classifyMergeView(JSON.parse(view.stdout) as MergeView);
+    const v = JSON.parse(view.stdout) as MergeView;
+    const verdict = classifyMergeView(v);
     if (verdict === 'merged') return 'merged';
     if (verdict === 'merge-conflict') return 'merge-conflict';
     if (Date.now() > deadline) return 'merge-timeout';
-    // No merge queue: try a direct squash now. Harmless no-op if the PR isn't mergeable yet
-    // (checks pending) — gh exits non-zero, we ignore it and re-poll; succeeds once checks pass,
-    // and the next `pr view` sees `mergedAt`. Mirrors pr-flow.ts's direct-merge fallback.
-    if (!autoEnabled) spawnSync('gh', ['pr', 'merge', branch, '--squash'], { cwd, encoding: 'utf8' });
+    // No merge queue: attempt a direct squash — but ONLY when the PR is fully mergeable
+    // (`CLEAN` = required checks passed AND branch up to date). Gating on CLEAN is mandatory
+    // (CR round-3 MED-2): a bare `gh pr merge --squash` on a repo WITHOUT required-checks branch
+    // protection would land code before CI finishes. CLEAN is GitHub's own "safe to merge now" verdict.
+    if (!autoEnabled && v.mergeStateStatus === 'CLEAN') {
+      spawnSync('gh', ['pr', 'merge', branch, '--squash'], { cwd, encoding: 'utf8' });
+    }
     await new Promise((r) => setTimeout(r, pollIntervalMs));
   }
 }
