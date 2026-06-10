@@ -19,12 +19,28 @@ The spec (§1, §6) says "a child's job ends when its PR is open (not merged); t
 - `--concurrency 1` → child runs `pr-flow` unchanged (auto-merge + poll inline). **Today's behavior, byte-for-byte.**
 - `--concurrency K>1` → the supervisor passes `NOLDOR_DRAIN_OPEN_ONLY=1`; `pr-flow.openAndAutoMerge` honors it by returning right after `gh pr create` (push + PR open, **no** `gh pr merge`, **no** poll). The supervisor's serialized merge coordinator then owns every merge.
 
-This keeps K=1 untouched (the merge-coordinator risk is opt-in at K>1) and makes the fallback (no merge queue) correct. If a GitHub merge queue *is* enabled on `main`, the coordinator's `gh pr merge --squash` enqueues into it — same code path, platform serializes. The only behavioral change to a child is *who issues the merge*, gated entirely by an env var the operator never sets by hand. **This deviation from the "child unchanged" non-goal is deliberate and is the single most important thing for the plan reviewer to accept or reject.**
+This keeps K=1 untouched (the merge-coordinator risk is opt-in at K>1) and makes the fallback (no merge queue) correct. The coordinator does **not** invent a new merge mechanism: it reuses the same `gh pr merge --auto --squash` + poll-until-mergeable machinery that the K=1 child already runs today (`pr-flow.ts:300` + `pollAutoMerge` at `:196`), just serially and from the supervisor. The only behavioral change to a child is *who issues the merge*, gated entirely by an env var the operator never sets by hand. **This deviation from the "child unchanged" non-goal is deliberate and is the single most important thing for the plan reviewer to accept or reject.**
+
+## Correctness notes (resolved from plan CR round 1)
+
+Six blockers from the first plan review reshaped the merge coordinator. The corrected invariants:
+
+1. **Oracle authority at K>1 (was HIGH).** A server-side squash merge does **not** advance the supervisor's local working tree, and `source.parseAll()` reads the *local* roadmap/FD set (`drain-source.ts` reads `loadDocRoots(cwd)`). So after each successful merge the coordinator MUST advance local `main` (`git checkout main && git fetch origin main && git merge --ff-only` — exactly `syncMainCleanState`, whose `git worktree prune` is admin-only and never touches a live child worktree) **before** reading the per-feature oracle. A plain `git fetch` (the rejected `syncMainOnly`) is insufficient — the local file never changes, so every merged slug reads as still-present and `shipped` stays 0. `syncMainOnly` is removed.
+
+2. **Mergeability, not immediate squash (was HIGH).** A just-opened PR is usually not yet mergeable (required checks pending, branch protection). `gh pr merge --squash` issued immediately fails with "not mergeable"/"blocked" — which is **not** a conflict. The coordinator therefore uses `gh pr merge <branch> --auto --squash` (enqueue) + polls `gh pr view --json mergedAt,mergeStateStatus,state` until `mergedAt` is set (→ merged) or `mergeStateStatus ∈ {DIRTY, CONFLICTING}` (→ genuine conflict → skip, leave PR open) or a per-PR merge timeout elapses (→ skip with `merge-timeout`, leave PR open). Conflict detection is on the structured `mergeStateStatus` field, never a stderr substring.
+
+3. **Serialization source (was MED).** Conflict-safety comes from (a) merging exactly one PR at a time and (b) advancing local `main` after each merge so the next merge's base — and the next oracle read — are current. A local `git fetch` does not "rebase" the server-side PR; that earlier rationale is dropped.
+
+4. **Shared-`.git` contention across children (was MED).** K children each run `/gate`, which does `git worktree add` / `git fetch` / branch writes against the **shared** `.git`. Simultaneous `git worktree add` can collide on `.git/worktrees` + `index.lock`. v1 mitigation: stagger worker first-spawns by `STARTUP_STAGGER_MS` (default 750ms × worker index) so worktree creations don't land at the same instant, and keep the recommended `--concurrency` small (≤ ~4, per spec D5). This is a *mitigation, not elimination* — documented as a known limitation; a future FD can add a proper child-startup mutex.
+
+5. **`maxFeatures` accounting at K>1 (was MED).** `shipped` only increments after merge (in the coordinator), which lags dispatch. A worker must gate dispatch on `shipped + dispatched.size >= maxFeatures` (in-flight + shipped), not on `shipped` alone, or it over-dispatches while merges lag. `decideNext`'s `shipped >= maxFeatures` check remains a backstop.
+
+6. **TDD red signal in Task 1 (was MED).** Converting `runDrain` to async makes `pnpm typecheck` go red (the `spawnGate` `Promise<number>` vs `number` mismatch); the *vitest* run may still pass under the old sync body. Task 1's red baseline is the **typecheck**, not the test run.
 
 ## File structure
 
-- `src/autonomous/drain-loop.ts` — `runDrain` → `async`; add the build pool + serialized merge coordinator; `decideNext` stays a pure sync function. `DrainDeps.spawnGate` → returns `Promise<number>`; add `mergePr` + `syncMainOnly` deps.
-- `src/autonomous/drain-io.ts` — `spawnGate` → async (`spawn`); add `mergePr` (serialized `gh pr merge --squash` + conflict detection) and `syncMainOnly` (fetch + ff-only, no checkout-churn for the coordinator).
+- `src/autonomous/drain-loop.ts` — `runDrain` → `async`; add the build pool + serialized merge coordinator; `decideNext` stays a pure sync function. `DrainDeps.spawnGate` → returns `Promise<number>`; add an async `mergePr` dep. The coordinator reuses the existing `syncMainCleanState` dep to advance local `main` after each merge (no new sync dep — `syncMainOnly` was rejected as insufficient).
+- `src/autonomous/drain-io.ts` — `spawnGate` → async (`spawn`); add `mergePr` (`gh pr merge --auto --squash` + poll `mergeStateStatus` until merged / conflict / timeout).
 - `src/autonomous/queue-drain.ts` — parse `--concurrency` (default 1); thread into `DrainOpts`; `main` → async; wire async `spawnGate` + `mergePr`.
 - `src/autonomous/drain-state.ts` — `currentSlug: string | null` → `inFlight: InFlight[]` + `merging: string | null`; keep `currentSlug` as a derived back-compat field.
 - `src/core/pr-flow.ts` — `OpenAndAutoMergeInput` gains optional `openOnly?: boolean`; when true, return after `gh pr create` (no merge/poll).
@@ -71,10 +87,10 @@ const r = await runDrain(h.deps, opts);
 
 Make every `it(...)` callback `async`. Tests (b), (k), (l), (m) that assert `exitCode` inline become `expect((await runDrain(h.deps, opts)).exitCode).toBe(...)`.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run typecheck to verify it fails (the red signal here is typecheck, not vitest)**
 
-Run: `cd /Users/davidzoufaly/code/noldor/.worktrees/parallel-drain && pnpm exec vitest run src/autonomous/__tests__/run-drain.test.ts`
-Expected: FAIL — `runDrain` is still sync (returns `DrainResult`, not a Promise), `await` yields the object but `spawnGate` signature mismatch surfaces as a type error under `pnpm typecheck`; runtime tests fail on `r.exitCode` of a non-awaited value if sync. (The point is a red baseline before the async refactor.)
+Run: `cd /Users/davidzoufaly/code/noldor/.worktrees/parallel-drain && pnpm typecheck`
+Expected: FAIL — the harness `spawnGate` now returns `Promise<number>` but `DrainDeps.spawnGate` is still typed `=> number`, and `runDrain` is still sync. (`pnpm exec vitest run …/run-drain.test.ts` may still *pass* under the old sync body — `await` on a non-promise is legal and the loop ignores `spawnGate`'s return — so typecheck, not the test run, is the red baseline that Step 3 turns green.)
 
 - [ ] **Step 3: Convert `runDrain` to async (concurrency-1 path only for now)**
 
@@ -89,6 +105,9 @@ export interface DrainOpts {
   dryRun: boolean;
   cwd: string;
   concurrency: number;
+  /** Per-worker first-spawn stagger to avoid simultaneous `git worktree add` on the shared .git.
+   *  Production passes 750; tests pass 0 for determinism. Only applies at concurrency > 1. */
+  startupStaggerMs: number;
 }
 
 // in DrainDeps:
@@ -238,7 +257,7 @@ async function main(): Promise<void> {
   };
   let res: DrainResult;
   try {
-    res = await runDrain(deps, { ...parsed, cwd });
+    res = await runDrain(deps, { ...parsed, cwd, startupStaggerMs: 750 });
   } finally {
     releaseLock(cwd);
   }
@@ -263,27 +282,29 @@ git commit -m "refactor(autonomous): async spawnGate via spawn; await runDrain i
 
 ---
 
-## Task 4: Build pool — K workers, assigned-slug dispatch
+## Task 4: Build pool + serialized merge coordinator (K>1 path)
 
 **Files:**
 - Modify: `src/autonomous/drain-loop.ts`
 - Create: `src/autonomous/__tests__/build-pool.test.ts`
 
-The pool replaces the sequential `for (;;)`. It must (a) keep ≤ K spawns in flight, (b) call `decideNext` per slug, (c) assign each child its exact slug via `NOLDOR_DRAIN_SLUG`, (d) keep the success-oracle + retry-then-skip semantics per feature, (e) reduce to the Task-1 sequential behavior at `concurrency: 1`.
+The pool replaces the sequential `for (;;)` with `concurrency` workers. **K=1 keeps today's inline path** (the child self-merges via unchanged `pr-flow`; the Task-1 regression suite is that guarantee — build-pool.test.ts does not re-cover K=1). **K>1 splits build from merge:** workers open PRs only (`NOLDOR_DRAIN_OPEN_ONLY=1`, no child merge) and a single serialized **coordinator** merges them one at a time via the injected `mergePr` dep, advancing local `main` (`syncMainCleanState`) after each merge **before** the per-feature oracle (CR round-1 HIGH-1). This task wires the loop with an INJECTED `mergePr` test stub; **Task 6 supplies the real `gh`-backed `mergePr` IO** — so build-pool.test.ts stays green when Task 6 lands.
 
-Because `source.nextItem(skip)` is the only selector and it returns *one* candidate at a time keyed off the live `skip` set, the pool serializes *selection* (a tiny critical section) but parallelizes *spawning*. A worker: pick next → mark in-flight (add to a transient `dispatched` set so the next worker's `nextItem` doesn't re-pick it) → `await spawnGate` → run the per-feature oracle → record shipped/retry/skip.
+Selection is a synchronous critical section (JS is single-threaded; the only `await` is the spawn, so reads/writes to `skip`/`dispatched`/`shipped` between awaits are atomic). A `dispatched` set excludes in-flight slugs from re-selection and counts against `maxFeatures`.
 
-- [ ] **Step 1: Write the failing test (K in flight, refill, assigned slug)**
+- [ ] **Step 1: Write the failing test (builder peak ≤K, refill, assigned slug, serialized merge)**
 
 ```typescript
 import { describe, expect, it, vi } from 'vitest';
 import { runDrain, type DrainDeps, type DrainOpts } from '../drain-loop.js';
 import type { DrainSource } from '../drain-source.js';
 
+/** K>1 harness: spawnGate OPENS a PR (no ship); the coordinator's mergePr is what ships
+ *  (mutates the fake roadmap). Tracks builder peak and merge peak separately. */
 function poolHarness(initial: string[], concurrency: number) {
   let roadmap = [...initial];
-  let inFlight = 0;
-  let peak = 0;
+  let building = 0, buildPeak = 0;
+  let merging = 0, mergePeak = 0;
   const assignedSlugs: string[] = [];
   const source: DrainSource = {
     id: 'roadmap',
@@ -297,47 +318,50 @@ function poolHarness(initial: string[], concurrency: number) {
   };
   const spawnGate = vi.fn(async (env: Record<string, string>) => {
     assignedSlugs.push(env.NOLDOR_DRAIN_SLUG!);
-    inFlight += 1;
-    peak = Math.max(peak, inFlight);
+    building += 1; buildPeak = Math.max(buildPeak, building);
     await new Promise((r) => setTimeout(r, 5));
-    inFlight -= 1;
-    roadmap = roadmap.filter((s) => s !== env.NOLDOR_DRAIN_SLUG); // ships
-    return 0;
+    building -= 1;
+    return 0; // child opened a PR; did NOT ship (open-only)
   });
   const deps: DrainDeps = {
     source,
     spawnGate,
-    syncMainCleanState: vi.fn(),
-    syncMainOnly: vi.fn(),
-    mergePr: vi.fn(async () => 'merged' as const),
-    openPrExistsFor: vi.fn(() => false),
+    syncMainCleanState: vi.fn(), // coordinator calls this after each merge (no-op here; mergePr mutates roadmap)
+    mergePr: vi.fn(async (slug: string) => {
+      merging += 1; mergePeak = Math.max(mergePeak, merging);
+      await new Promise((r) => setTimeout(r, 3));
+      merging -= 1;
+      roadmap = roadmap.filter((s) => s !== slug); // server-side squash; oracle reads it post-advance
+      return 'merged' as const;
+    }),
+    openPrExistsFor: vi.fn(() => true), // each child opened a PR
     writeState: vi.fn(),
     stopRequested: vi.fn(() => false),
   };
   const opts: DrainOpts = {
     maxFeatures: 20, maxRetries: 2, maxSpawns: 40, timeoutMs: 1000,
-    dryRun: false, cwd: '/x', concurrency,
+    dryRun: false, cwd: '/x', concurrency, startupStaggerMs: 0, // 0 in tests for determinism
   };
-  return { deps, opts, get peak() { return peak; }, assignedSlugs };
+  return { deps, opts, get buildPeak() { return buildPeak; }, get mergePeak() { return mergePeak; }, assignedSlugs };
 }
 
-describe('build pool', () => {
-  it('keeps at most K spawns in flight and ships all', async () => {
+describe('build pool + coordinator (K>1)', () => {
+  it('keeps at most K builders in flight and ships all', async () => {
     const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 3);
     const r = await runDrain(h.deps, h.opts);
     expect(r.shipped).toBe(5);
-    expect(h.peak).toBeLessThanOrEqual(3);
-    expect(h.peak).toBeGreaterThan(1); // genuinely parallel
+    expect(h.buildPeak).toBeLessThanOrEqual(3);
+    expect(h.buildPeak).toBeGreaterThan(1); // genuinely parallel builds
   });
   it('assigns each child its exact slug via NOLDOR_DRAIN_SLUG', async () => {
     const h = poolHarness(['a', 'b', 'c'], 3);
     await runDrain(h.deps, h.opts);
     expect([...h.assignedSlugs].sort()).toEqual(['a', 'b', 'c']);
   });
-  it('concurrency 1 → strictly sequential (peak 1)', async () => {
-    const h = poolHarness(['a', 'b', 'c'], 1);
+  it('serializes merges (merge peak 1) even with K=3 builders', async () => {
+    const h = poolHarness(['a', 'b', 'c'], 3);
     await runDrain(h.deps, h.opts);
-    expect(h.peak).toBe(1);
+    expect(h.mergePeak).toBe(1);
   });
 });
 ```
@@ -345,81 +369,20 @@ describe('build pool', () => {
 - [ ] **Step 2: Run to verify it fails**
 
 Run: `pnpm exec vitest run src/autonomous/__tests__/build-pool.test.ts`
-Expected: FAIL — `DrainDeps` has no `syncMainOnly`/`mergePr` yet; `runDrain` does not parallelize; `NOLDOR_DRAIN_SLUG` not passed.
+Expected: FAIL — `DrainDeps` has no `mergePr`; `runDrain` does not parallelize / has no coordinator; `NOLDOR_DRAIN_SLUG` not passed.
 
-- [ ] **Step 3: Implement the pool**
+- [ ] **Step 3: Implement pool + coordinator**
 
-Add `NOLDOR_DRAIN_SLUG` to the spawn env. Replace the sequential `for` with `concurrency` worker loops sharing the `skip`/`retries`/`shipped` state, guarded by a synchronous selection critical section (JS is single-threaded; the only await is the spawn, so reads/writes to the shared sets between awaits are atomic). Extract the per-slug "ship verdict" into a helper so K=1 and K>1 share it.
-
-```typescript
-// env now carries the assigned slug:
-const env = {
-  NOLDOR_DRAIN: '1',
-  NOLDOR_DRAIN_SLUG: candidate.slug,
-  NOLDOR_DRAIN_SKIP: [...skip].join(','),
-  ...(opts.concurrency > 1 ? { NOLDOR_DRAIN_OPEN_ONLY: '1' } : {}),
-};
-```
-
-Pool skeleton (selection + dispatch; merge handling lands in Task 6 — for this task, after `spawnGate` resolves, run the oracle inline as today):
+Add `mergePr: (slug: string, branch: string) => Promise<MergeOutcome>` to `DrainDeps` (and `import type { MergeOutcome } from './drain-io.js'`). Add `NOLDOR_DRAIN_SLUG` (+ `NOLDOR_DRAIN_OPEN_ONLY` at K>1) to the spawn env via an `envFor` helper. Replace the sequential `for` with `concurrency` worker loops plus one coordinator loop; share `skip`/`retries`/`shipped` (atomic between awaits). Helpers:
 
 ```typescript
-const dispatched = new Set<string>(); // in-flight slugs, excluded from selection
-let shipped = 0, spawns = 0, aborted: Error | null = null;
-
-async function worker(): Promise<void> {
-  for (;;) {
-    if (aborted || deps.stopRequested()) return;
-    // ---- selection critical section (synchronous, no await) ----
-    const candidate = deps.source.nextItem(new Set([...skip, ...dispatched]));
-    if (candidate === null) return; // nothing left for this worker
-    const d = decideNext({ candidate, shipped, maxFeatures: opts.maxFeatures, spawns, maxSpawns: opts.maxSpawns });
-    if (d.action === 'done') return;
-    if (d.action === 'skip-out-of-scope') {
-      skip.add(candidate.slug);
-      if (candidate.reason !== undefined) skipReasons[candidate.slug] = candidate.reason;
-      continue;
-    }
-    const branch = deps.source.branchFor(candidate.slug);
-    if (deps.openPrExistsFor(candidate.slug, branch)) { skip.add(candidate.slug); continue; }
-    if (opts.dryRun) { planned.push(candidate.slug); skip.add(candidate.slug); continue; }
-    spawns += 1;
-    dispatched.add(candidate.slug);
-    // ---- end critical section ----
-    try {
-      await deps.spawnGate(envFor(candidate.slug, skip, opts), opts.timeoutMs, deps.source.gatePrompt(candidate.slug));
-      await settleShipVerdict(candidate.slug, branch); // oracle + retry/skip (shared helper)
-    } catch (e) {
-      if (e instanceof Error && e.message === 'iteration-timeout') {
-        recordRetryOrSkip(candidate.slug);
-      } else { aborted = e instanceof Error ? e : new Error(String(e)); return; }
-    } finally {
-      dispatched.delete(candidate.slug);
-    }
-  }
-}
-
-try {
-  deps.syncMainCleanState();
-  const workers = Array.from({ length: Math.max(1, opts.concurrency) }, () => worker());
-  await Promise.all(workers);
-  if (aborted) return result(1, aborted.message);
-  if (deps.stopRequested()) return result(130);
-  return result(0);
-} catch (err) {
-  return result(1, err instanceof Error ? err.message : String(err));
-}
-```
-
-`settleShipVerdict` (K=1 inline-merge path uses `syncMainCleanState` exactly like today; K>1 path is wired in Task 6):
-
-```typescript
-async function settleShipVerdict(slug: string, branch: string): Promise<void> {
-  if (opts.concurrency === 1) deps.syncMainCleanState(); // unchanged sequential authority
-  const stillPresent = deps.source.parseAll().includes(slug);
-  if (!stillPresent) { shipped += 1; retries.delete(slug); return; }
-  if (deps.openPrExistsFor(slug, branch)) { skip.add(slug); return; }
-  recordRetryOrSkip(slug);
+function envFor(slug: string, skip: Set<string>, opts: DrainOpts): Record<string, string> {
+  return {
+    NOLDOR_DRAIN: '1',
+    NOLDOR_DRAIN_SLUG: slug,
+    NOLDOR_DRAIN_SKIP: [...skip].join(','),
+    ...(opts.concurrency > 1 ? { NOLDOR_DRAIN_OPEN_ONLY: '1' } : {}),
+  };
 }
 function recordRetryOrSkip(slug: string): void {
   const n = (retries.get(slug) ?? 0) + 1;
@@ -428,18 +391,115 @@ function recordRetryOrSkip(slug: string): void {
 }
 ```
 
-Add a `envFor(slug, skip, opts)` helper returning the env object shown above.
+Pool + coordinator:
+
+```typescript
+const dispatched = new Set<string>(); // in-flight slugs: excluded from selection + counted against maxFeatures
+const readyToMerge: Array<{ slug: string; branch: string }> = [];
+let shipped = 0, spawns = 0, aborted: Error | null = null, buildersDone = false;
+let wake: (() => void) | null = null;                 // resolves the coordinator's idle wait
+const signalCoordinator = () => { if (wake) { wake(); wake = null; } };
+const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function settleShipVerdict(slug: string, branch: string): Promise<void> {
+  if (opts.concurrency === 1) {
+    // Today's inline path: the child self-merged; advance local main + read the oracle here.
+    deps.syncMainCleanState();
+    const stillPresent = deps.source.parseAll().includes(slug);
+    if (!stillPresent) { shipped += 1; retries.delete(slug); return; }
+    if (deps.openPrExistsFor(slug, branch)) { skip.add(slug); return; }
+    recordRetryOrSkip(slug);
+    return;
+  }
+  // K>1: child opened a PR (open-only). Hand off to the serialized coordinator.
+  if (deps.openPrExistsFor(slug, branch)) { readyToMerge.push({ slug, branch }); signalCoordinator(); }
+  else recordRetryOrSkip(slug); // no PR → build failed → retry/skip
+}
+
+async function worker(index: number): Promise<void> {
+  if (opts.concurrency > 1 && opts.startupStaggerMs > 0) await delay(index * opts.startupStaggerMs); // CR MED-4
+  for (;;) {
+    if (aborted || deps.stopRequested()) return;
+    // ---- selection critical section (synchronous, no await) ----
+    if (shipped + dispatched.size >= opts.maxFeatures) return; // CR MED-6: count in-flight
+    const candidate = deps.source.nextItem(new Set([...skip, ...dispatched]));
+    if (candidate === null) return;
+    const d = decideNext({ candidate, shipped, maxFeatures: opts.maxFeatures, spawns, maxSpawns: opts.maxSpawns }); // backstop
+    if (d.action === 'done') return;
+    if (d.action === 'skip-out-of-scope') {
+      skip.add(candidate.slug);
+      if (candidate.reason !== undefined) skipReasons[candidate.slug] = candidate.reason;
+      continue;
+    }
+    const branch = deps.source.branchFor(candidate.slug);
+    if (deps.openPrExistsFor(candidate.slug, branch)) { skip.add(candidate.slug); continue; } // restart-safety
+    if (opts.dryRun) { planned.push(candidate.slug); skip.add(candidate.slug); continue; }
+    spawns += 1;
+    dispatched.add(candidate.slug);
+    // ---- end critical section ----
+    try {
+      await deps.spawnGate(envFor(candidate.slug, skip, opts), opts.timeoutMs, deps.source.gatePrompt(candidate.slug));
+      await settleShipVerdict(candidate.slug, branch);
+    } catch (e) {
+      if (e instanceof Error && e.message === 'iteration-timeout') recordRetryOrSkip(candidate.slug);
+      else { aborted = e instanceof Error ? e : new Error(String(e)); return; }
+    } finally {
+      dispatched.delete(candidate.slug);
+    }
+  }
+}
+
+async function coordinator(): Promise<void> {
+  for (;;) {
+    if (aborted) return;
+    const next = readyToMerge.shift();
+    if (next === undefined) {
+      if (buildersDone) return;
+      await new Promise<void>((r) => { wake = r; }); // woken by a worker push or by buildersDone+signal
+      continue;
+    }
+    let outcome: MergeOutcome;
+    try { outcome = await deps.mergePr(next.slug, next.branch); }
+    catch (e) { aborted = e instanceof Error ? e : new Error(String(e)); return; }
+    if (outcome !== 'merged') {
+      skip.add(next.slug);
+      skipReasons[next.slug] = `${outcome} — PR left open for human resolution`;
+      continue;
+    }
+    try { deps.syncMainCleanState(); } // CR HIGH-1: advance local main before the oracle
+    catch (e) { aborted = e instanceof Error ? e : new Error(String(e)); return; }
+    const stillPresent = deps.source.parseAll().includes(next.slug);
+    if (!stillPresent) { shipped += 1; retries.delete(next.slug); }
+    else recordRetryOrSkip(next.slug);
+  }
+}
+
+try {
+  deps.syncMainCleanState();
+  const coordinatorPromise = opts.concurrency > 1 ? coordinator() : Promise.resolve();
+  const workers = Array.from({ length: Math.max(1, opts.concurrency) }, (_, i) => worker(i));
+  await Promise.all(workers);
+  buildersDone = true;
+  signalCoordinator();          // unblock a parked coordinator so it sees buildersDone and exits
+  await coordinatorPromise;
+  if (aborted) return result(1, aborted.message);
+  if (deps.stopRequested()) return result(130);
+  return result(0);
+} catch (err) {
+  return result(1, err instanceof Error ? err.message : String(err));
+}
+```
 
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `pnpm exec vitest run src/autonomous/__tests__/build-pool.test.ts src/autonomous/__tests__/run-drain.test.ts`
-Expected: PASS — pool caps at K, ships all, assigns slugs; the 12 regression cases still pass at concurrency 1 (peak 1, inline merge unchanged).
+Expected: PASS — builders cap at K + ship all (via coordinator), slugs assigned, merges serialized (peak 1); the 12 regression cases still pass at concurrency 1 (inline path unchanged).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/autonomous/drain-loop.ts src/autonomous/__tests__/build-pool.test.ts
-git commit -m "feat(autonomous): K-bounded build pool with assigned-slug dispatch"
+git commit -m "feat(autonomous): K-bounded build pool + serialized merge coordinator"
 ```
 
 ---
@@ -508,26 +568,103 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "feat(core): pr-flow openOnly mode + gate ho
 
 ---
 
-## Task 6: Serialized merge coordinator
+## Task 6: Real `mergePr` IO (mergeability-aware) + coordinator contract tests
 
 **Files:**
-- Modify: `src/autonomous/drain-io.ts` (add `mergePr`, `syncMainOnly`)
-- Modify: `src/autonomous/drain-loop.ts` (wire coordinator at K>1)
-- Create: `src/autonomous/__tests__/merge-coordinator.test.ts`
+- Modify: `src/autonomous/drain-io.ts` (add `classifyMergeView` + async `mergePr`)
+- Modify: `src/autonomous/queue-drain.ts` (wire the `mergePr` dep)
+- Create: `src/autonomous/__tests__/merge-classify.test.ts`
+- Create: `src/autonomous/__tests__/merge-coordinator.test.ts` (locks the Task-4 coordinator conflict/timeout contract)
 
-The coordinator is a single async lane fed by a FIFO queue of `{ slug, branch }` that workers push when their child returns at PR-open (K>1). It pops one, `git fetch origin main` (so the merge rebases on the prior), `gh pr merge <branch> --squash`, then runs the per-feature oracle. A merge that exits non-zero with conflict signature → mark `merge-conflict`, leave PR open, skip; continue with the rest.
+The coordinator loop shipped in Task 4 against an injected `mergePr` stub. This task supplies the real `gh`-backed `mergePr` and unit-tests the only branching part — the view classification — as a **pure** function (`classifyMergeView`); the shell wrapper stays an integration-tested IO adapter (per the `drain-io.ts` header). `mergePr` uses `gh pr merge --auto --squash` (enqueue) + polls the STRUCTURED `mergeStateStatus`, never a stderr substring (CR round-1 HIGH-2). `merge-conflict` and `merge-timeout` both mean "leave PR open, skip the slug"; only a systemic `gh`/spawn failure throws (coordinator aborts fail-closed).
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing test (pure classifier)**
+
+```typescript
+// src/autonomous/__tests__/merge-classify.test.ts
+import { describe, expect, it } from 'vitest';
+import { classifyMergeView } from '../drain-io.js';
+
+describe('classifyMergeView', () => {
+  it('merged when mergedAt set', () => {
+    expect(classifyMergeView({ mergedAt: '2026-06-10T00:00:00Z', mergeStateStatus: 'CLEAN', state: 'OPEN' })).toBe('merged');
+  });
+  it('merged when state MERGED even if mergedAt null', () => {
+    expect(classifyMergeView({ mergedAt: null, mergeStateStatus: 'UNKNOWN', state: 'MERGED' })).toBe('merged');
+  });
+  it('conflict on DIRTY / CONFLICTING', () => {
+    expect(classifyMergeView({ mergedAt: null, mergeStateStatus: 'DIRTY', state: 'OPEN' })).toBe('merge-conflict');
+    expect(classifyMergeView({ mergedAt: null, mergeStateStatus: 'CONFLICTING', state: 'OPEN' })).toBe('merge-conflict');
+  });
+  it('pending while checks run (BLOCKED / UNSTABLE / BEHIND) — NOT a conflict', () => {
+    for (const s of ['BLOCKED', 'UNSTABLE', 'BEHIND', 'CLEAN']) {
+      expect(classifyMergeView({ mergedAt: null, mergeStateStatus: s, state: 'OPEN' })).toBe('pending');
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `pnpm exec vitest run src/autonomous/__tests__/merge-classify.test.ts`
+Expected: FAIL — `classifyMergeView` not exported from `drain-io.ts`.
+
+- [ ] **Step 3: Implement `classifyMergeView` + `mergePr`**
+
+```typescript
+export type MergeOutcome = 'merged' | 'merge-conflict' | 'merge-timeout';
+
+interface MergeView { mergedAt: string | null; mergeStateStatus: string; state: string; }
+
+/** Pure verdict on one `gh pr view` payload. `pending` means "keep polling" — crucially,
+ *  BLOCKED/UNSTABLE/BEHIND (checks running, branch protection, behind base) are NOT conflicts
+ *  (CR round-1 HIGH-2); only DIRTY/CONFLICTING are. */
+export function classifyMergeView(d: MergeView): 'merged' | 'merge-conflict' | 'pending' {
+  if (d.mergedAt !== null || d.state === 'MERGED') return 'merged';
+  if (d.mergeStateStatus === 'DIRTY' || d.mergeStateStatus === 'CONFLICTING') return 'merge-conflict';
+  return 'pending';
+}
+
+/** Serialized squash-merge of one already-open PR, reusing the same --auto + poll machinery
+ *  the K=1 child runs today (pr-flow.ts). Throws only on a systemic gh/spawn failure. */
+export async function mergePr(
+  cwd: string,
+  slug: string,
+  branch: string,
+  pollTimeoutMs = 20 * 60 * 1000,
+  pollIntervalMs = 10_000,
+): Promise<MergeOutcome> {
+  void slug;
+  // Enqueue auto-merge. A non-zero exit here is usually "already enabled"/"not yet mergeable" —
+  // NOT fatal; the poll below is the source of truth. Only a spawn error (ENOENT) throws.
+  const enq = spawnSync('gh', ['pr', 'merge', branch, '--auto', '--squash'], { cwd, encoding: 'utf8' });
+  if (enq.error) throw new Error(`gh pr merge spawn failed for ${branch}: ${enq.error.message}`);
+  const deadline = Date.now() + pollTimeoutMs; // real wall-clock — fine in the IO adapter (not unit-tested)
+  for (;;) {
+    const view = spawnSync('gh', ['pr', 'view', branch, '--json', 'mergedAt,mergeStateStatus,state'], { cwd, encoding: 'utf8' });
+    if (view.status !== 0) throw new Error(`gh pr view failed for ${branch}: ${(view.stderr ?? '').trim()}`);
+    const verdict = classifyMergeView(JSON.parse(view.stdout) as MergeView);
+    if (verdict === 'merged') return 'merged';
+    if (verdict === 'merge-conflict') return 'merge-conflict';
+    if (Date.now() > deadline) return 'merge-timeout';
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+}
+```
+
+- [ ] **Step 4: Wire the dep + lock the coordinator contract**
+
+In `queue-drain.ts`, import `mergePr` from `drain-io.js` and add to the `deps` object: `mergePr: (slug, branch) => mergePr(cwd, slug, branch)`.
+
+Create `src/autonomous/__tests__/merge-coordinator.test.ts` to lock the conflict/timeout behavior of the Task-4 coordinator (these PASS as soon as Task 4 + the dep wiring are in — they are a contract characterization, not a new red, because the coordinator already handles `outcome !== 'merged'`):
 
 ```typescript
 import { describe, expect, it, vi } from 'vitest';
 import { runDrain, type DrainDeps, type DrainOpts } from '../drain-loop.js';
 import type { DrainSource } from '../drain-source.js';
 
-function coordHarness(initial: string[], conflictOn: string[] = []) {
+function coordHarness(initial: string[], badOn: Record<string, 'merge-conflict' | 'merge-timeout'> = {}) {
   let roadmap = [...initial];
-  let merging = 0, mergePeak = 0;
-  const mergeOrder: string[] = [];
   const source: DrainSource = {
     id: 'roadmap',
     nextItem: (skip) => { const s = roadmap.find((x) => !skip.has(x)); return s ? { slug: s, description: '', eligible: true } : null; },
@@ -537,119 +674,48 @@ function coordHarness(initial: string[], conflictOn: string[] = []) {
   };
   const deps: DrainDeps = {
     source,
-    spawnGate: vi.fn(async () => 0), // child opens PR; does not ship
+    spawnGate: vi.fn(async () => 0),
     syncMainCleanState: vi.fn(),
-    syncMainOnly: vi.fn(),
     mergePr: vi.fn(async (slug: string) => {
-      merging += 1; mergePeak = Math.max(mergePeak, merging);
-      await new Promise((r) => setTimeout(r, 3));
-      merging -= 1;
-      mergeOrder.push(slug);
-      if (conflictOn.includes(slug)) return 'merge-conflict' as const;
-      roadmap = roadmap.filter((s) => s !== slug); // merge ships it
+      if (badOn[slug]) return badOn[slug];
+      roadmap = roadmap.filter((s) => s !== slug);
       return 'merged' as const;
     }),
-    openPrExistsFor: vi.fn(() => true), // child opened a PR
+    openPrExistsFor: vi.fn(() => true),
     writeState: vi.fn(),
     stopRequested: vi.fn(() => false),
   };
-  const opts: DrainOpts = { maxFeatures: 20, maxRetries: 0, maxSpawns: 40, timeoutMs: 1000, dryRun: false, cwd: '/x', concurrency: 3 };
-  return { deps, opts, get mergePeak() { return mergePeak; }, mergeOrder };
+  const opts: DrainOpts = { maxFeatures: 20, maxRetries: 0, maxSpawns: 40, timeoutMs: 1000, dryRun: false, cwd: '/x', concurrency: 3, startupStaggerMs: 0 };
+  return { deps, opts };
 }
 
-describe('merge coordinator', () => {
-  it('serializes merges (peak 1) even with K=3 builders', async () => {
-    const h = coordHarness(['a', 'b', 'c']);
-    const r = await runDrain(h.deps, h.opts);
-    expect(h.mergePeak).toBe(1);   // at most one merge at a time
-    expect(r.shipped).toBe(3);
-  });
-  it('a merge-conflict slug is skipped, others still ship', async () => {
-    const h = coordHarness(['a', 'b', 'c'], ['b']);
+describe('merge coordinator contract', () => {
+  it('conflict slug skipped, others ship', async () => {
+    const h = coordHarness(['a', 'b', 'c'], { b: 'merge-conflict' });
     const r = await runDrain(h.deps, h.opts);
     expect(r.shipped).toBe(2);
     expect(r.skipped).toContain('b');
     expect(r.skipReasons?.b).toMatch(/conflict/i);
   });
+  it('timeout slug skipped with a timeout reason, others ship', async () => {
+    const h = coordHarness(['a', 'b', 'c'], { b: 'merge-timeout' });
+    const r = await runDrain(h.deps, h.opts);
+    expect(r.shipped).toBe(2);
+    expect(r.skipReasons?.b).toMatch(/timeout/i);
+  });
 });
 ```
 
-- [ ] **Step 2: Run to verify it fails**
-
-Run: `pnpm exec vitest run src/autonomous/__tests__/merge-coordinator.test.ts`
-Expected: FAIL — no coordinator; `mergePr` never called; merges not serialized.
-
-- [ ] **Step 3: Implement `mergePr` + `syncMainOnly` in drain-io**
-
-```typescript
-/** Fetch origin/main + ff-only, WITHOUT the checkout/prune churn of syncMainCleanState.
- *  Used by the merge coordinator between serialized merges so each rebases on the prior. */
-export function syncMainOnly(cwd: string): void {
-  execFileSync('git', ['fetch', 'origin', 'main'], { cwd, stdio: 'pipe' });
-}
-
-export type MergeOutcome = 'merged' | 'merge-conflict';
-
-/** Serialized squash-merge of one open PR. Returns 'merge-conflict' (leave PR open, skip)
- *  on a merge/rebase conflict; throws on a systemic gh failure (caller aborts fail-closed). */
-export function mergePr(cwd: string, slug: string, branch: string): MergeOutcome {
-  void slug;
-  const res = spawnSync('gh', ['pr', 'merge', branch, '--squash'], { cwd, encoding: 'utf8' });
-  if (res.status === 0) return 'merged';
-  const blob = `${res.stdout ?? ''}${res.stderr ?? ''}`.toLowerCase();
-  if (/conflict|not mergeable|merge commit cannot|blocked/.test(blob)) return 'merge-conflict';
-  throw new Error(`gh pr merge failed for ${branch}: ${blob.trim() || `exit ${res.status}`}`);
-}
-```
-
-- [ ] **Step 4: Wire the coordinator into `runDrain` (K>1)**
-
-Add `mergePr: (slug: string, branch: string) => Promise<MergeOutcome>` and `syncMainOnly: () => void` to `DrainDeps`. At `concurrency > 1`, workers push `{ slug, branch }` onto a `readyToMerge` queue after `spawnGate` resolves **and** `openPrExistsFor` confirms a PR; a single coordinator loop (started alongside the workers) pops one at a time:
-
-```typescript
-const readyToMerge: Array<{ slug: string; branch: string }> = [];
-let buildersDone = false;
-
-async function coordinator(): Promise<void> {
-  for (;;) {
-    if (aborted) return;
-    const next = readyToMerge.shift();
-    if (next === undefined) {
-      if (buildersDone) return;
-      await new Promise((r) => setTimeout(r, 10)); // idle wait for the next ready PR
-      continue;
-    }
-    deps.syncMainOnly(); // rebase-on-prior: fetch latest main before this merge
-    try {
-      const outcome = await deps.mergePr(next.slug, next.branch);
-      if (outcome === 'merge-conflict') {
-        skip.add(next.slug);
-        skipReasons[next.slug] = 'merge-conflict — PR left open for human resolution';
-        continue;
-      }
-    } catch (e) { aborted = e instanceof Error ? e : new Error(String(e)); return; }
-    // success oracle, per feature, after THIS merge:
-    const stillPresent = deps.source.parseAll().includes(next.slug);
-    if (!stillPresent) { shipped += 1; retries.delete(next.slug); }
-    else { recordRetryOrSkip(next.slug); }
-  }
-}
-```
-
-In `worker()` (K>1 branch of `settleShipVerdict`), instead of running the oracle inline, enqueue: `if (opts.concurrency > 1) { if (deps.openPrExistsFor(slug, branch)) readyToMerge.push({ slug, branch }); else recordRetryOrSkip(slug); return; }`. After `Promise.all(workers)` set `buildersDone = true` and `await coordinatorPromise`. Start `const coordinatorPromise = opts.concurrency > 1 ? coordinator() : Promise.resolve();` before the workers.
-
-Wire the deps in `queue-drain.ts`: `mergePr: (slug, branch) => Promise.resolve(mergePr(cwd, slug, branch))`, `syncMainOnly: () => syncMainOnly(cwd)`.
-
 - [ ] **Step 5: Run to verify it passes**
 
-Run: `pnpm exec vitest run src/autonomous`
-Expected: PASS — coordinator serializes (peak 1), conflict slug skipped with reason, others ship; all prior tests green.
+Run: `pnpm exec vitest run src/autonomous && pnpm typecheck`
+Expected: PASS — `classifyMergeView` cases green; coordinator conflict/timeout contract green; all prior tests green; types clean.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/autonomous/drain-io.ts src/autonomous/drain-loop.ts src/autonomous/queue-drain.ts src/autonomous/__tests__/merge-coordinator.test.ts
-git commit -m "feat(autonomous): serialized merge coordinator (rebase-between, conflict→skip)"
+git add src/autonomous/drain-io.ts src/autonomous/queue-drain.ts src/autonomous/__tests__/merge-classify.test.ts src/autonomous/__tests__/merge-coordinator.test.ts
+git commit -m "feat(autonomous): mergeability-aware mergePr IO + coordinator contract tests"
 ```
 
 ---
@@ -723,36 +789,41 @@ git commit -m "feat(autonomous): heartbeat reports inFlight[] + merging"
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
-it('stop request stops new scheduling, drains in-flight, exits 130', async () => {
+it('stop after first build stops NEW scheduling, drains in-flight, exits 130', async () => {
   let stopped = false;
-  const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 2);
+  const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 2); // 5 queued, K=2
   h.deps.stopRequested = vi.fn(() => stopped);
-  // flip stop after the first spawn resolves:
+  // Flip stop the instant the first builder resolves — so at most the 2 already in-flight run.
   const orig = h.deps.spawnGate;
   let n = 0;
-  h.deps.spawnGate = vi.fn(async (env) => { const r = await orig(env, 1000, '/gate'); if (++n === 1) stopped = true; return r; });
+  h.deps.spawnGate = vi.fn(async (env: Record<string, string>) => {
+    const r = await orig(env, 1000, '/gate');
+    if (++n === 1) stopped = true;
+    return r;
+  });
   const r = await runDrain(h.deps, h.opts);
-  expect(r.exitCode).toBe(130);
-  // already-in-flight builders finished (no throw); no NEW spawn after stop beyond the in-flight ≤K:
-  expect(h.assignedSlugs.length).toBeLessThan(5);
+  expect(r.exitCode).toBe(130);                       // stop wins over the 0 "drained" exit
+  expect(h.assignedSlugs.length).toBeLessThanOrEqual(2); // never dispatched past the in-flight K — c/d/e never started
+  expect(r.shipped).toBe(h.assignedSlugs.length);     // every in-flight build was drained through the coordinator (none orphaned)
 });
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
 Run: `pnpm exec vitest run src/autonomous/__tests__/build-pool.test.ts`
-Expected: FAIL — stop currently only checked at top; exit code not 130 after partial drain.
+Expected: FAIL — without the stop precedence, exit is `0` (loop drained), not `130`; and/or scheduling continues past the in-flight K so `assignedSlugs.length > 2`.
 
 - [ ] **Step 3: Implement graceful stop**
 
-Worker loop already checks `deps.stopRequested()` at the top of each iteration (stops *new* scheduling). Ensure in-flight `await spawnGate` calls are allowed to finish (they are — no cancellation), then the coordinator drains whatever PRs are already `readyToMerge` before returning. After `Promise.all(workers)`, if `deps.stopRequested()` is true, still `await coordinatorPromise` (drain the merge queue) and `return result(130)` (precedence: 130 over 0 when stop was requested; abort 1 still wins over 130).
+The worker loop already checks `deps.stopRequested()` at the top of each iteration (stops *new* scheduling); in-flight `await spawnGate` calls finish (no cancellation), and the coordinator drains whatever is already in `readyToMerge`. The final block from Task 4 already encodes the precedence — confirm it reads exactly:
 
 ```typescript
 await Promise.all(workers);
 buildersDone = true;
-await coordinatorPromise;
-if (aborted) return result(1, aborted.message);
-if (deps.stopRequested()) return result(130);
+signalCoordinator();          // unblock a parked coordinator so it observes buildersDone
+await coordinatorPromise;     // drain the in-flight merge queue
+if (aborted) return result(1, aborted.message);   // abort (1) wins over stop
+if (deps.stopRequested()) return result(130);     // stop (130) wins over the drained-0
 return result(0);
 ```
 
@@ -840,19 +911,24 @@ git commit -m "docs(features:parallel-drain): seed links + document open-only me
 
 **1. Spec coverage:**
 - Build pool size K, refill → Task 4. ✓
-- One PR per feature, per-FD CR, skip-on-fail isolation → preserved (each child is a full `/gate`); Task 6 skip-on-conflict. ✓
-- Serialized merge, rebase-between → Task 6 (`syncMainOnly` fetch between merges). ✓
-- `--concurrency 1` byte-for-byte → Tasks 1, 4 (`settleShipVerdict` inline-merge at K=1; peak-1 test). ✓
+- One PR per feature, per-FD CR, skip-on-fail isolation → preserved (each child is a full `/gate`); Task 4 coordinator skip-on-conflict/timeout. ✓
+- Serialized merge → Task 4 coordinator (one merge at a time + post-merge local-main advance; NOT a pre-merge fetch — CR R1 MED-3). ✓
+- `--concurrency 1` byte-for-byte → Tasks 1, 4 (`settleShipVerdict` K=1 inline path; the 12-case run-drain regression suite is the guarantee). ✓
 - Assigned-slug dispatch (`NOLDOR_DRAIN_SLUG`) + gate change → Tasks 4, 5. ✓
-- Worktree isolation unchanged; no mid-flight `syncMainCleanState` at K>1 → Task 4 (coordinator uses `syncMainOnly`, no checkout). ✓
-- Success oracle per feature → Tasks 4/6. ✓
+- Worktree isolation unchanged → Task 4. The coordinator DOES advance local `main` (`syncMainCleanState`) after each merge — safe because children live in separate worktrees, and `worktree prune` is admin-only (CR R1 HIGH-1). ✓
+- Success oracle per feature, post-merge → Task 4 coordinator (advance-then-`parseAll`). ✓
+- Mergeability-aware merge (not immediate squash) → Task 6 `classifyMergeView` + `--auto`+poll (CR R1 HIGH-2). ✓
+- `git`-lock contention across children → Task 4 launch stagger + documented limit (CR R1 MED-4). ✓
+- `maxFeatures` counts in-flight → Task 4 (`shipped + dispatched.size`) (CR R1 MED-6). ✓
 - Heartbeat `inFlight[]` + `merging` → Task 7. ✓
 - Kill switch drains in-flight, exit 130 → Task 8. ✓
 - Source-agnostic (no source/branch literal in scheduler) → pool uses `source.nextItem`/`branchFor` only. ✓
-- Caps `--max-features` / `--max-spawns` / `--concurrency` → Tasks 2, 4 (`decideNext` caps unchanged). ✓
+- Caps `--max-features` / `--max-spawns` / `--concurrency` → Tasks 2, 4. ✓
 
-**2. Placeholder scan:** Task 5 Step 1 elides fixture fields ("use the existing test's input-builder") — acceptable because the executor must match the real fixture shape in that file; all logic-bearing code is concrete.
+**2. Placeholder scan:** Task 5 Step 1 elides pr-flow fixture fields ("use the existing test's input-builder") and Task 7 Step 1 references "poolHarness deps" — both deliberate: the executor reuses the concrete harness/fixtures defined in Tasks 4/5's files. All logic-bearing code is concrete.
 
-**3. Type consistency:** `MergeOutcome` ('merged' | 'merge-conflict') used in drain-io + drain-loop + tests. `settleShipVerdict` / `recordRetryOrSkip` / `envFor` names consistent across Tasks 4, 6, 8. `DrainDeps` gains `mergePr` + `syncMainOnly` in Task 6, referenced by Task-4 harness (which stubs them ahead of wiring — intentional, both are `vi.fn()` in the pool harness). `PrFlowResult.mergedAt` widened to `string | null` in Task 5.
+**3. Type consistency:** `MergeOutcome` = `'merged' | 'merge-conflict' | 'merge-timeout'` (drain-io) — the coordinator treats anything `!== 'merged'` as skip; the harness stubs return the same union. `classifyMergeView` returns `'merged' | 'merge-conflict' | 'pending'` (internal to the poll loop, not the dep). `settleShipVerdict` / `recordRetryOrSkip` / `envFor` / `signalCoordinator` names consistent across Tasks 4, 6, 8. `DrainDeps` gains exactly one new field — `mergePr` (added in Task 4, real IO in Task 6); `syncMainOnly` was considered and **rejected** (insufficient for the oracle) — it appears nowhere. `PrFlowResult.mergedAt` widened to `string | null` in Task 5.
 
-**Known risk carried to code review:** the pr-flow `openOnly` deviation from the spec's "child unchanged" non-goal (documented at top). If the reviewer rejects it, the alternative is mandating a GitHub merge queue and making the coordinator a pure monitor — larger ops dependency, no fallback.
+**Resolved from CR round 1:** all 6 blockers (oracle authority HIGH-1, mergeability HIGH-2, serialization rationale MED-3, `.git` contention MED-4, `maxFeatures` accounting MED-6, Task-1 red baseline MED-5) — see "Correctness notes" at the top.
+
+**Known risk carried to code review:** the pr-flow `openOnly` deviation from the spec's "child unchanged" non-goal (documented at top). If the reviewer rejects it, the alternative is mandating a GitHub merge queue and making the coordinator a pure monitor — larger ops dependency, no fallback. The `.git`-lock stagger (MED-4) is a *mitigation*, not elimination — flagged for the integration run to stress at K=4.
