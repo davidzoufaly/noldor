@@ -79,7 +79,7 @@ it and continue. A broken entry cannot stall the drain; a flaky one gets a few c
 | D3 | **Supervisor reads `next-priority --suggestions --json --skip`**; never the bare form. | Only `--suggestions` (`getSuggestions` → `withRouting`) stamps `suggestedPath`; the bare `--json` returns a plain entry with no `topPriority`/`suggestedPath`. |
 | D4 | **Termination = `topPriority.length === 0`** (after skip-filtering), independent of exit code. | `--suggestions` exits 2 only when `inProgress` *and* `topPriority` are both empty; one stuck in-progress FD would otherwise keep exit 0 forever. The drain ignores `inProgress` entirely. |
 | D5 | **Supervisor syncs local `main` to `origin/main` before the post-spawn read.** | The retirement lands on `main` only at PR-merge, which is async on GitHub's side; a child can exit before the local main reflects the merge → false-failure re-spawn of an already-shipped entry. |
-| D6 | **Headless failure policy is forced to `abort`.** Drain refuses to start unless `autonomous.onFailure === 'abort'`. | `'prompt'` (the config default) drops a cr-red/test-red into an interactive `@inquirer` select with no TTY → hang. `'spawn-deep-review'` is an iTerm2/`osascript` GUI spawn → non-functional headless. |
+| D6 | **Headless config precondition set.** Drain refuses to start unless **all** hold: `autonomous.onFailure === 'abort'`, `autonomous.skipLanePicker === true`, `autonomous.requireHumanPrApproval === false`. | `onFailure: 'prompt'` (the config default) drops a cr-red/test-red into an interactive `@inquirer` select with no TTY → hang; `'spawn-deep-review'` is an iTerm2/`osascript` GUI spawn → non-functional headless. `skipLanePicker`/`requireHumanPrApproval` would each re-introduce a prompt seam. `assertConfig` checks this exact set and aborts (exit 1) naming any unmet key. |
 | D7 | **Prompt suppression is backstopped at the harness, not trusted to prose.** Supervisor spawns `claude` with AskUserQuestion disallowed + a per-iteration timeout. | `NOLDOR_DRAIN` is read by LLM prose across many gate steps; a single forgotten branch would hang. A code-level deny turns a forgotten branch into a fast, visible failure. |
 | D8 | **Supervisor lives at `src/autonomous/queue-drain.ts` + a manifest entry.** | The CLI dispatcher resolves all manifest `src:` paths under `src/` ([cli/index.ts](../../../src/cli/index.ts)); a `scripts/`-rooted command is unreachable via `pnpm noldor`. |
 | D9 | **Skip parented-but-`Touches`/multi-scope; ship plain parented XS/S.** | Q2 decision — see Scope. |
@@ -100,7 +100,9 @@ CLI: `pnpm noldor autonomous queue-drain [flags]` (new `autonomous` namespace +
 - `--dry-run` — run the decision loop + print planned spawn/skip/ship decisions, spawning **no**
   `claude` and merging nothing.
 - `--json` — emit machine-readable summary.
-- `--force` — start even if a drain lock is held (after verifying the holder pid is dead).
+
+(No `--force`: a lock whose holder pid is dead is auto-reclaimed at startup, and stealing a lock
+held by a *live* drain is never safe — so an override flag would have nothing valid to do.)
 
 **Own exit-code contract** (mirrors the repo's `next-priority` convention — 0 actionable-done,
 1 error):
@@ -112,10 +114,10 @@ CLI: `pnpm noldor autonomous queue-drain [flags]` (new `autonomous` namespace +
 **Loop** (the loop is a thin IO shell; all branching lives in the pure `decideNext`):
 
 ```
-acquireLock()                      // .noldor/drain.lock {pid, startedAt}; exit 1 if held by live pid
-assertConfig()                     // autonomous.onFailure==='abort' && skipLanePicker && !requireHumanPrApproval
+acquireLock()                      // .noldor/drain.lock {pid, startedAt}; reclaim if holder pid dead; exit 1 if held by live pid
+assertConfig()                     // the full precondition set (D6): onFailure==='abort' && skipLanePicker===true && requireHumanPrApproval===false
 assertNoDuplicateSlugs(roadmap)    // colliding -2/-3 slugs → abort (can't target a block safely)
-syncMainCleanState()               // checkout main; fetch; reset --hard origin/main; prune worktrees/branches; rm stale cr/*-escalation-context.md
+syncMainCleanState()               // checkout main; fetch origin/main; merge --ff-only (reject → abort, do NOT force); prune worktrees/branches; rm stale cr/*-escalation-context.md
 skip=∅, retries=Map, shipped=0, spawns=0
 loop {
   if stopRequested(): exit 130 with summary
@@ -128,10 +130,11 @@ loop {
     'done':               break                                 // maxFeatures or maxSpawns reached
     'spawn': {
       spawns++; writeState({phase:'spawning', slug:entry.slug, pid, startedAt})
-      const code = spawnGate({ env:{NOLDOR_DRAIN:'1', NOLDOR_DRAIN_SKIP:csv(skip)}, timeoutMs })
+      const code = spawnGate({ env:{NOLDOR_DRAIN:'1', NOLDOR_DRAIN_SKIP:csv(skip)}, timeoutMs })  // blocks until merged or killed
       syncMainCleanState()                                      // D5 — make the read authoritative
       const after = nextPriority({ suggestions:true, skip })
       if shipped_(entry.slug, after): { shipped++; retries.delete(entry.slug); continue }  // D2 — slug absent
+      if openPrExistsFor(entry.slug): { skip.add(entry.slug); continue }  // D5b — PR in-flight; never re-spawn a duplicate
       const n=(retries.get(entry.slug)??0)+1; retries.set(entry.slug,n)
       if n>maxRetries: skip.add(entry.slug)                     // give up on this entry
     }
@@ -144,13 +147,18 @@ releaseLock(); printSummary({shipped, skipped:[...skip], retries})
 (review flagged the thin `(prev,next,retries,max)` form as under-powered):
 
 ```
-decideNext({ entry, retries, maxRetries, shipped, maxFeatures, spawns, maxSpawns })
+decideNext({ entry, shipped, maxFeatures, spawns, maxSpawns })
   → { action: 'spawn' | 'skip-out-of-scope' | 'done', slug }
 ```
 - `shipped >= maxFeatures || spawns >= maxSpawns` → `done`.
 - `entry.suggestedPath !== 'fast-track'` → `skip-out-of-scope` (M/L/XL).
 - `entry` block has a `Touches:` line or >1 scope bullet → `skip-out-of-scope` (D9 residue guard).
 - else → `spawn`.
+
+`decideNext` is intentionally **retry-agnostic** — retry is just "spawn again next iteration because
+the still-present entry is still top and not yet skipped". Retry *bookkeeping* (increment, and add to
+`skip` once `> maxRetries`) lives in the post-spawn loop body, not in `decideNext`; once an entry is
+added to `skip`, `--skip` filtering removes it from `topPriority` so it never re-surfaces.
 
 Eligibility scanning (`isDrainEligible(block)`) is a pure helper over the parsed roadmap block —
 unit-tested independently. The supervisor owns the scope decision **pre-spawn**; the gate's Step 0
@@ -162,8 +170,8 @@ that slug — D2. Because `removeBlock` only removes on merge-to-main and the su
 first (D5), absence is an authoritative "shipped" signal robust to reordering.
 
 **Injected dependencies (for purity under test):** `nextPriority`, `spawnGate`, `syncMainCleanState`,
-`writeState`, `acquireLock`/`releaseLock`, `stopRequested`, `clock`/`timeout`. The loop touches no real
-FS/git/process directly — tests drive every branch with mocks.
+`openPrExistsFor`, `writeState`, `acquireLock`/`releaseLock`, `stopRequested`, `clock`/`timeout`. The
+loop touches no real FS/git/process directly — tests drive every branch with mocks.
 
 **Observability + crash recovery.** `.noldor/drain-state.json` (gitignored) is rewritten each
 iteration with `{ pid, startedAt, phase, currentSlug, shipped, skip[], retries{} }`. It is **not** a
@@ -175,6 +183,13 @@ whose pid is dead and prunes leftover `.worktrees/*` from an interrupted prior r
 `/gate` running concurrently would collide on the single-slot `.noldor/session.json` and race on
 `docs/roadmap.md`. The drain refuses to start if the lock is held by a live pid. Serial-only — one
 feature at a time.
+
+The lock guards concurrent **local** drains/gates, not a **remote** push landing on `main` between
+the supervisor's pre-spawn read and the child's Step 0 read. If a remote push reorders the roadmap so
+the child ships a *different* fast-track entry than the supervisor targeted, the slug-absence oracle
+(D2) self-corrects: the shipped entry is absent from `main` (so it never re-attempts), the targeted
+entry is still present (so it retries and ships next iteration). The only cost is a transient
+`shipped`-counter undercount, never duplicate work or lost work.
 
 ### 2. `next-priority --skip <csv>` (modify [next-priority.ts](../../../src/core/next-priority.ts))
 
@@ -199,7 +214,11 @@ harness-level deny + D-timeout):
   (existing gate cwd discipline; called out because a split-brain marker silently breaks autonomous
   activation — see the "Worktree edit-path trap" memory).
 - **Step 4:** autonomous end-of-flow — `set-autonomous`, code-stage CR via `crLanes.code`, `pr-flow`
-  auto-merge, no prompts. **No-FD seams are skipped** (phase-flip, `draft-feature-md --refresh` —
+  auto-merge, no prompts. `pr-flow` **polls until the PR is actually merged** (existing gate Step 4
+  behavior) and then fast-forwards local `main`, so a clean child exit implies the entry is retired on
+  `main`. If the child instead exits with the merge still pending (timeout/edge), the supervisor's
+  `openPrExistsFor(slug)` check (D5b) catches the in-flight PR and skips rather than re-spawning a
+  duplicate. **No-FD seams are skipped** (phase-flip, `draft-feature-md --refresh` —
   fast-track carries no FD). The code-stage `cr orchestrate --slug` receives the roadmap slug for
   sink naming only; there is no `docs/features/<slug>.md` for a fast-track, matching existing gate
   fast-track behavior. Escalation runs `cr escalate --autonomous`; with `onFailure: abort` (D6) a red
@@ -238,8 +257,11 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
 - `claude` child exits non-zero → iteration failure (retry/skip).
 - `claude` child exceeds `--iteration-timeout` → kill the process tree, prune its worktree, treat as
   iteration failure.
-- Config precondition unmet (`onFailure !== 'abort'`, etc.) → abort before the first spawn with a
-  message telling the operator exactly which `autonomous.*` keys to set.
+- **Kill switch.** `.noldor/drain-stop` sentinel or SIGINT **between iterations** → finish cleanly,
+  exit 130. SIGINT **during a spawned child** → forward a kill to the child process tree, prune its
+  worktree, then exit 130 (never leave an orphaned child still auto-merging to `main`).
+- Config precondition unmet (any of the D6 set: `onFailure !== 'abort'`, `skipLanePicker !== true`,
+  `requireHumanPrApproval !== false`) → abort before the first spawn (exit 1), naming each unmet key.
 - `git merge --ff-only origin/main` rejects (local main diverged) during sync → abort the drain with
   the divergence surfaced (do not force; mirrors the gate's own ff-only discipline).
 - Merged-on-origin-but-not-locally → resolved by D5's pre-read sync; the slug-absence check then reads
@@ -263,7 +285,8 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
   skips → assert summary + spawn count; (b) `nextPriority` throws → abort exit 1; (c) child timeout →
   fail-then-retry; (d) merged-but-locally-unsynced → sync makes slug absent → counts shipped, no
   re-spawn; (e) `--dry-run` → zero `spawnGate` calls; (f) stop-signal at iteration top → exit 130;
-  (g) duplicate-slug roadmap → abort; (h) lock held by live pid → abort.
+  (g) duplicate-slug roadmap → abort; (h) lock held by live pid → abort; (i) child exits with slug
+  still present but `openPrExistsFor` true → skip, no re-spawn (D5b).
 - **Reused (not re-tested):** `removeBlock` is already covered by
   [write-blocks tests](../../../src/utils/__tests__/write-blocks.test.ts).
 - **Pre-implementation spike (documented in the FD Usage section):** confirm `claude --print "/gate"`
