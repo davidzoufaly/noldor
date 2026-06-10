@@ -112,8 +112,8 @@ held by a *live* drain is never safe — so an override flag would have nothing 
 - **1** — aborted on error: `next-priority` parse/exec failure, `openPrExistsFor` `gh` failure
   (fail-closed), lock contention with a live drain, duplicate-slug roadmap, config precondition unmet,
   or a fatal git-sync failure.
-- **130** — stopped via kill switch (SIGINT, or `.noldor/drain-stop` sentinel between iterations);
-  also when SIGINT arrives mid-child (the child tree is killed first — see Error handling).
+- **130** — stopped via kill switch: Ctrl-C (process-group SIGINT kills the child too) or the
+  `.noldor/drain-stop` sentinel checked between iterations (see Error handling).
 
 **Loop** (the loop is a thin IO shell; all branching lives in the pure `decideNext`):
 
@@ -286,12 +286,16 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
 - `claude` child exits non-zero → iteration failure (retry/skip).
 - `claude` child exceeds `--iteration-timeout` → kill the process tree, prune its worktree, treat as
   iteration failure.
-- **Kill switch.** `.noldor/drain-stop` sentinel or SIGINT **between iterations** → finish cleanly,
-  exit 130. SIGINT **during a spawned child** → forward a kill to the child process tree, prune its
-  worktree, then exit 130 (no orphaned child left running locally). Note: if `pr-flow` already enabled
-  GitHub's server-side auto-merge before the kill, killing the local child does not cancel that merge —
-  the entry may still land on `main`; D5b's `openPrExistsFor` check on the next run absorbs this so it
-  is never re-spawned.
+- **Kill switch.** `.noldor/drain-stop` sentinel (checked between iterations) → finish cleanly, exit
+  130. Ctrl-C from the controlling terminal sends SIGINT to the whole foreground process group, so the
+  inherited-stdio `claude` child dies together with the supervisor (no orphaned local child) and the
+  next loop check exits 130. A child that ignores the group signal is bounded by `--iteration-timeout`
+  (the `spawnSync` timeout + `SIGKILL`). A cross-shell `kill -INT <supervisor-pid>` that targets only
+  the supervisor cannot interrupt the blocking `spawnSync` and is **not** a supported stop path in MVP
+  (async spawn with explicit child-tree forwarding is a post-MVP refinement) — use Ctrl-C or the
+  sentinel. Note: if `pr-flow` already enabled GitHub's server-side auto-merge before the kill, killing
+  the local child does not cancel that merge — the entry may still land on `main`; D5b's
+  `openPrExistsFor` check on the next run absorbs this so it is never re-spawned.
 - Config precondition unmet (any of the D6 set: `onFailure !== 'abort'`, `skipLanePicker !== true`,
   `requireHumanPrApproval !== false`) → abort before the first spawn (exit 1), naming each unmet key.
 - `git merge --ff-only origin/main` rejects (local main diverged) during sync → abort the drain with

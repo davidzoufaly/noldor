@@ -22,6 +22,13 @@
 - `.gitignore` — MODIFY: add drain state/lock/stop files.
 - `.claude/skills/gate/SKILL.md` — MODIFY: `NOLDOR_DRAIN` drain-mode branches.
 
+**⚠ Execution order — DO TASK 11 (the headless `claude --print "/gate"` spike) FIRST.** It validates the
+feature's single riskiest, unproven assumption (that a headless gate run resolves the skill, accepts an
+AskUserQuestion-deny flag, and runs git/gh/pnpm without permission prompts). If the spike fails, the IO
+adapter (Task 6) and CLI (Task 8) rest on sand. Tasks 1–5 (pure units) may proceed in parallel since they
+have no dependency on the spike; do **not** start Task 6 until Task 11 Step 1 passes. The numbering below
+is topical, not chronological.
+
 ---
 
 ### Task 1: `next-priority --skip` filter
@@ -315,7 +322,7 @@ Acquire via `O_EXCL` create. Reclaim a dead holder by renaming the stale lock **
 
 ```ts
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { acquireLock, releaseLock } from '../drain-lock.js';
@@ -334,6 +341,7 @@ describe('drain lock', () => {
     expect(acquireLock(dir).ok).toBe(false); // current process is alive → contention
   });
   it('reclaims a lock whose holder pid is dead', () => {
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
     writeFileSync(join(dir, '.noldor/drain.lock'),
       JSON.stringify({ pid: 2147483646, startedAt: 't' })); // pid that cannot exist
     expect(acquireLock(dir).ok).toBe(true);
@@ -385,9 +393,13 @@ export function acquireLock(cwd: string, now: string = ''): { ok: boolean; reaso
       return { ok: false, reason: 'lost reclaim race' };
     }
     try { unlinkSync(`${lockPath}.reclaim.${process.pid}`); } catch { /* ignore */ }
-    const fd = openSync(lockPath, 'wx');
-    writeSync(fd, payload); closeSync(fd);
-    return { ok: true };
+    try {
+      const fd = openSync(lockPath, 'wx'); // a third racer could re-create between unlink + here
+      writeSync(fd, payload); closeSync(fd);
+      return { ok: true };
+    } catch {
+      return { ok: false, reason: 'lost reclaim race' };
+    }
   }
 }
 
@@ -420,7 +432,7 @@ git commit -m "feat(autonomous-queue-drain-runner): add TOCTOU-safe drain lock"
 
 ```ts
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeState } from '../drain-state.js';
@@ -436,8 +448,15 @@ describe('writeState', () => {
     expect(j.phase).toBe('spawning');
     expect(j.currentSlug).toBe('x');
   });
-  it('never throws on an unwritable path (best-effort)', () => {
-    expect(() => writeState('/proc/nonexistent-xyz', { pid: 1, startedAt: 't', phase: 'idle', currentSlug: null, shipped: 0, skip: [], retries: {} })).not.toThrow();
+  it('never throws when the target dir is unwritable (best-effort)', () => {
+    const ro = mkdtempSync(join(tmpdir(), 'drain-state-ro-'));
+    chmodSync(ro, 0o500); // r-x: cannot create the .noldor subdir
+    try {
+      expect(() => writeState(ro, { pid: 1, startedAt: 't', phase: 'idle', currentSlug: null, shipped: 0, skip: [], retries: {} })).not.toThrow();
+    } finally {
+      chmodSync(ro, 0o700);
+      rmSync(ro, { recursive: true, force: true });
+    }
   });
 });
 ```
@@ -570,101 +589,116 @@ import { describe, expect, it, vi } from 'vitest';
 import { runDrain } from '../drain-loop.js';
 import type { SuggestedEntry, Suggestions } from '../../core/next-priority.js';
 
-function sugg(slugs: string[]): Suggestions {
-  return {
-    inProgress: [],
-    topPriority: slugs.map((slug) => ({ name: slug, slug, suggestedPath: 'fast-track', description: 'x' } as SuggestedEntry)),
-    smallHighImpact: [], milestoneAligned: null,
-  };
+function entryOf(slug: string, over: Partial<SuggestedEntry> = {}): SuggestedEntry {
+  return { name: slug, slug, suggestedPath: 'fast-track', description: 'x', ...over } as SuggestedEntry;
 }
-function baseDeps(over = {}) {
+
+/**
+ * Mutable-roadmap harness. `nextPriority(skip)` returns the live roadmap minus `skip` (so the loop's
+ * skip filter genuinely terminates it); `parseAll()` returns the live roadmap (the D2 oracle); a
+ * "shipping" spawn removes the just-targeted slug (simulating a merged PR). This makes every test
+ * terminate for the RIGHT reason — not via the maxSpawns backstop.
+ */
+function harness(initial: string[], opts: {
+  ships?: (slug: string) => boolean;
+  spawnImpl?: () => number;
+  openPr?: () => boolean;
+  stop?: () => boolean;
+  nextPriorityImpl?: (skip: ReadonlySet<string>) => Suggestions;
+  entryOver?: (slug: string) => Partial<SuggestedEntry>;
+} = {}) {
+  let roadmap = [...initial];
+  let lastTarget: string | null = null;
+  const ships = opts.ships ?? (() => true);
+  const nextPriority = vi.fn(opts.nextPriorityImpl ?? ((skip: ReadonlySet<string>): Suggestions => {
+    const visible = roadmap.filter((s) => !skip.has(s));
+    lastTarget = visible[0] ?? null;
+    return {
+      inProgress: [],
+      topPriority: visible.map((s) => entryOf(s, opts.entryOver?.(s))),
+      smallHighImpact: [], milestoneAligned: null,
+    };
+  }));
+  const spawnGate = vi.fn((_env: Record<string, string>) => {
+    const code = (opts.spawnImpl ?? (() => 0))();              // may throw (timeout) → no removal
+    if (lastTarget && ships(lastTarget)) roadmap = roadmap.filter((s) => s !== lastTarget);
+    return code;
+  });
   return {
-    nextPriority: vi.fn(),
-    spawnGate: vi.fn(() => 0),
-    syncMainCleanState: vi.fn(),
-    openPrExistsFor: vi.fn(() => false),
-    writeState: vi.fn(),
-    stopRequested: vi.fn(() => false),
-    ...over,
+    deps: {
+      nextPriority,
+      parseAll: vi.fn(() => [...roadmap]),
+      spawnGate,
+      syncMainCleanState: vi.fn(),
+      openPrExistsFor: vi.fn(opts.openPr ?? (() => false)),
+      writeState: vi.fn(),
+      stopRequested: vi.fn(opts.stop ?? (() => false)),
+    },
+    spawnGate, nextPriority,
   };
 }
 const opts = { maxFeatures: 20, maxRetries: 2, maxSpawns: 40, timeoutMs: 1000, dryRun: false, cwd: '/x' };
 
 describe('runDrain', () => {
-  it('(a) ships entry 1, skips entry 2 after retries', () => {
-    // entry-1 consumed after its spawn; entry-2 never consumed → 2 retries then skip → done.
-    const seqs = [sugg(['a','b']), sugg(['b']), sugg(['b']), sugg(['b']), sugg(['b'])];
-    let i = 0;
-    const deps = baseDeps({ nextPriority: vi.fn(() => seqs[Math.min(i++, seqs.length - 1)]) });
-    const r = runDrain(deps, opts);
+  it('(a) ships entry a, skips entry b after maxRetries', () => {
+    const h = harness(['a', 'b'], { ships: (s) => s === 'a' });
+    const r = runDrain(h.deps, opts);
     expect(r.shipped).toBe(1);
     expect(r.skipped).toContain('b');
     expect(r.exitCode).toBe(0);
+    expect(h.spawnGate).toHaveBeenCalledTimes(1 + (opts.maxRetries + 1)); // a once + b (1 + retries)
   });
 
   it('(b) aborts exit 1 when nextPriority throws', () => {
-    const deps = baseDeps({ nextPriority: vi.fn(() => { throw new Error('parse'); }) });
-    expect(runDrain(deps, opts).exitCode).toBe(1);
+    const h = harness(['a'], { nextPriorityImpl: () => { throw new Error('parse'); } });
+    expect(runDrain(h.deps, opts).exitCode).toBe(1);
   });
 
   it('(c) child timeout → retry then skip', () => {
-    const deps = baseDeps({
-      nextPriority: vi.fn(() => sugg(['a'])),
-      spawnGate: vi.fn(() => { throw new Error('iteration-timeout'); }),
-    });
-    const r = runDrain(deps, { ...opts, maxRetries: 1 });
+    const h = harness(['a'], { spawnImpl: () => { throw new Error('iteration-timeout'); } });
+    const r = runDrain(h.deps, { ...opts, maxRetries: 1 });
     expect(r.skipped).toContain('a');
   });
 
-  it('(d) merged-but-unsynced absorbed by sync → counts shipped, no re-spawn', () => {
-    // After sync the slug is gone on the first post-spawn read.
-    const seqs = [sugg(['a']), sugg([])];
-    let i = 0;
-    const spawnGate = vi.fn(() => 0);
-    const deps = baseDeps({ nextPriority: vi.fn(() => seqs[Math.min(i++, 1)]), spawnGate });
-    const r = runDrain(deps, opts);
+  it('(d) shipped entry leaves the roadmap → counts shipped, one spawn', () => {
+    const h = harness(['a'], { ships: () => true });
+    const r = runDrain(h.deps, opts);
     expect(r.shipped).toBe(1);
-    expect(spawnGate).toHaveBeenCalledTimes(1);
+    expect(h.spawnGate).toHaveBeenCalledTimes(1);
   });
 
   it('(e) dry-run never spawns', () => {
-    const spawnGate = vi.fn(() => 0);
-    const deps = baseDeps({ nextPriority: vi.fn(() => sugg(['a'])), spawnGate });
-    runDrain(deps, { ...opts, dryRun: true, maxFeatures: 1 });
-    expect(spawnGate).not.toHaveBeenCalled();
+    const h = harness(['a']);
+    runDrain(h.deps, { ...opts, dryRun: true });
+    expect(h.spawnGate).not.toHaveBeenCalled();
   });
 
   it('(f) stop-signal at iteration top → exit 130', () => {
-    const deps = baseDeps({ nextPriority: vi.fn(() => sugg(['a'])), stopRequested: vi.fn(() => true) });
-    expect(runDrain(deps, opts).exitCode).toBe(130);
+    const h = harness(['a'], { stop: () => true });
+    expect(runDrain(h.deps, opts).exitCode).toBe(130);
+  });
+
+  it('(g) out-of-scope entry skipped without spawning', () => {
+    const h = harness(['a'], { entryOver: () => ({ suggestedPath: 'full-attach' }) });
+    runDrain(h.deps, opts);
+    expect(h.spawnGate).not.toHaveBeenCalled();
   });
 
   it('(i) post-spawn open PR → skip, no re-spawn', () => {
-    const deps = baseDeps({
-      nextPriority: vi.fn(() => sugg(['a'])), // never consumed
-      openPrExistsFor: vi.fn(() => true),
-    });
-    const r = runDrain(deps, opts);
+    let calls = 0; // pre-spawn check false (call 0), post-spawn true (call 1)
+    const h = harness(['a'], { ships: () => false, openPr: () => calls++ >= 1 });
+    const r = runDrain(h.deps, opts);
     expect(r.skipped).toContain('a');
+    expect(h.spawnGate).toHaveBeenCalledTimes(1);
   });
 
   it('(j) pre-spawn open PR (restart) → skip without spawning', () => {
-    const spawnGate = vi.fn(() => 0);
-    const seqs = [sugg(['a']), sugg([])];
-    let i = 0;
-    const deps = baseDeps({
-      nextPriority: vi.fn(() => seqs[Math.min(i++, 1)]),
-      openPrExistsFor: vi.fn(() => true),
-      spawnGate,
-    });
-    runDrain(deps, opts);
-    expect(spawnGate).not.toHaveBeenCalled();
+    const h = harness(['a'], { openPr: () => true });
+    runDrain(h.deps, opts);
+    expect(h.spawnGate).not.toHaveBeenCalled();
   });
 });
 ```
-
-> Decide and document whether `openPrExistsFor` is checked pre-spawn (case j) and post-spawn (case i)
-> — the loop below does both. Tune the fixtures so case (a)'s retry math matches your `maxRetries`.
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -678,6 +712,7 @@ import type { Suggestions } from '../core/next-priority.js';
 
 export interface DrainDeps {
   nextPriority: (skip: ReadonlySet<string>) => Suggestions;            // may throw → abort
+  parseAll: () => string[];                                            // ALL roadmap slugs (unfiltered) — D2 success oracle. may throw → abort
   spawnGate: (env: Record<string, string>, timeoutMs: number) => number; // may throw('iteration-timeout')
   syncMainCleanState: () => void;                                       // may throw → abort
   openPrExistsFor: (slug: string) => boolean;                          // may throw → abort (fail-closed)
@@ -716,9 +751,8 @@ export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
         deps.spawnGate({ NOLDOR_DRAIN: '1', NOLDOR_DRAIN_SKIP: [...skip].join(',') }, opts.timeoutMs);
       } catch { /* timeout / spawn error → treated as failure below */ }
       deps.syncMainCleanState();                                    // D5 — authoritative read
-      const after = deps.nextPriority(skip);
-      const stillPresent = after.topPriority.some((e) => e.slug === entry.slug);
-      if (!stillPresent) { shipped++; retries.delete(entry.slug); continue; } // D2 — shipped
+      const stillPresent = deps.parseAll().includes(entry.slug);    // D2 — absent from FULL roadmap == shipped (robust to reorder)
+      if (!stillPresent) { shipped++; retries.delete(entry.slug); continue; }
       if (deps.openPrExistsFor(entry.slug)) { skip.add(entry.slug); continue; } // D5b — in-flight
       const n = (retries.get(entry.slug) ?? 0) + 1; retries.set(entry.slug, n);
       if (n > opts.maxRetries) skip.add(entry.slug);
@@ -729,12 +763,11 @@ export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
 }
 ```
 
-> Note: `stillPresent` uses `after.topPriority`, which is the skip-filtered top-3. For a roadmap
-> deeper than 3 entries this is sufficient because a *shipped* slug is removed entirely (absent from
-> the full parse, hence from topPriority too); a *failed* slug stays top (not skipped) so it remains in
-> topPriority. If you prefer the spec's literal "absent from the full roadmap parse", add a
-> `parseAll: () => string[]` dep returning all slugs and check that instead. Either satisfies D2; pick
-> one and align the test fixtures.
+> Note: `stillPresent` checks `parseAll()` — ALL roadmap slugs, unfiltered — per spec D2. This is the
+> only signal robust to a concurrent reorder/insertion that pushes the target out of the skip-filtered
+> top-3 *without* shipping it (the "no longer top" check D2 explicitly rejects, and the
+> "Gate main-sync vs concurrent triage" memory documents as live). `parseAll` is `parseRoadmap(roadmap)
+> .map(e => e.slug)` from the freshly-synced main (Task 8 wires it).
 
 - [ ] **Step 4: Run to verify pass**
 
@@ -796,7 +829,8 @@ Expected: FAIL — module not found.
 ```ts
 import { loadConfigSync, type NoldorConfig } from '../cr/config.js';
 import { getSuggestions, loadInProgressFds, loadMilestoneGate } from '../core/next-priority.js';
-import { loadDocRoots } from '../cli/doc-roots.js';
+import { loadDocRoots } from '../core/doc-roots.js';
+import { parseRoadmap } from '../utils/parse-blocks.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { runDrain, type DrainDeps } from './drain-loop.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
@@ -848,7 +882,13 @@ function main(): void {
 
   const stopSentinel = '.noldor/drain-stop';
   let stop = false;
-  process.on('SIGINT', () => { stop = true; }); // mid-child: spawnSync inherits the signal and dies
+  // Stop semantics (MVP, matches spec kill-switch): Ctrl-C from the controlling terminal sends SIGINT
+  // to the whole foreground process group, so the inherited-stdio `claude` child dies with the
+  // supervisor; `stop=true` then makes the next loop check exit 130. A wedged child that ignores the
+  // group signal is bounded by `--iteration-timeout` (spawnSync timeout + SIGKILL). A cross-shell
+  // `kill -INT <supervisor-pid>` targeting ONLY the supervisor cannot interrupt the blocking spawnSync
+  // and is not a supported stop path — use Ctrl-C or `touch .noldor/drain-stop` (checked between iterations).
+  process.on('SIGINT', () => { stop = true; });
 
   const deps: DrainDeps = {
     nextPriority: (skip) => getSuggestions(
@@ -856,6 +896,7 @@ function main(): void {
       { inProgressFds: loadInProgressFds(cwd), milestoneGate: loadMilestoneGate(cwd) },
       skip,
     ),
+    parseAll: () => parseRoadmap(readFileSync(loadDocRoots(cwd).roadmap, 'utf8')).map((e) => e.slug),
     spawnGate: (env, timeoutMs) => spawnGate(cwd, env, timeoutMs),
     syncMainCleanState: () => syncMainCleanState(cwd),
     openPrExistsFor: (slug) => openPrExistsFor(cwd, slug),
@@ -880,7 +921,8 @@ if (invokedDirect) main();
 ```
 
 > Confirm `loadInProgressFds` and `loadMilestoneGate` are exported from `next-priority.ts` (the test
-> file imports them, so they are). `loadDocRoots` import path is `../cli/doc-roots.js`.
+> file imports them, so they are). `loadDocRoots` lives at `src/core/doc-roots.ts` → import
+> `../core/doc-roots.js` (verified). `parseRoadmap` is from `../utils/parse-blocks.js`.
 
 - [ ] **Step 4: Add the manifest entry**
 
@@ -965,7 +1007,7 @@ git commit -m "docs(autonomous-queue-drain-runner): add NOLDOR_DRAIN gate-mode b
 
 ---
 
-### Task 11: Headless `claude --print` spike + integration doc
+### Task 11: Headless `claude --print` spike + integration doc  ⚠ DO STEP 1 FIRST (before Task 6)
 
 **Files:**
 - Modify: `docs/features/autonomous-queue-drain-runner.md` (append a "Verification" note under Usage)
