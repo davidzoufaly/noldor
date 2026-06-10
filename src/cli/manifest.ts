@@ -27,6 +27,19 @@ export const MANIFEST: Record<string, Group> = {
       },
     },
   },
+  prep: {
+    desc: 'Parallel prep: fan out spec/plan drafts, then promote approved ones to FDs',
+    subs: {
+      fanout: {
+        src: 'prep/prep-fanout.ts',
+        desc: 'Draft spec [+plan] + self-answered open questions for every M+ roadmap entry, in parallel',
+      },
+      promote: {
+        src: 'prep/prep-promote.ts',
+        desc: 'Promote approved drafts to in-progress FDs (serial; --ship opens an auto-merged PR)',
+      },
+    },
+  },
   garden: {
     desc: 'Garden drift detection + SDD report + receipts',
     subs: {

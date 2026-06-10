@@ -20,6 +20,10 @@ docs/ideas.md
 .noldor/drain.lock
 .noldor/drain.lock.reclaim.*
 .noldor/drain-stop
+.noldor/prep-batch/
+
+# Harness scheduler lock (operator-local runtime state)
+.claude/scheduled_tasks.lock
 
 # Machine-local graphify interpreter path (resolved per-run)
 graphify-out/.graphify_python
