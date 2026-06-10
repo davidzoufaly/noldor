@@ -34,7 +34,9 @@ export interface PrFlowInput {
 export interface PrFlowResult {
   prUrl: string;
   prNumber: number;
-  mergedAt: string;
+  /** ISO timestamp once merged, or `null` when opened in `openOnly` mode (parallel drain K>1:
+   *  the supervisor's serialized merge coordinator owns the merge, not this call). */
+  mergedAt: string | null;
 }
 
 export function composeTitle(input: PrFlowInput): string {
@@ -258,6 +260,9 @@ export interface OpenAndAutoMergeInput extends PrFlowInput {
   intervalMs?: number;
   timeoutMs?: number;
   onStatus?: (line: string) => void;
+  /** When true (parallel drain K>1, via `NOLDOR_DRAIN_OPEN_ONLY=1`): push + open the PR, then RETURN
+   *  without merging or polling. The drain supervisor's serialized merge coordinator owns the merge. */
+  openOnly?: boolean;
 }
 
 export async function openAndAutoMerge(input: OpenAndAutoMergeInput): Promise<PrFlowResult> {
@@ -296,6 +301,13 @@ export async function openAndAutoMerge(input: OpenAndAutoMergeInput): Promise<Pr
     throw new Error(`gh pr create returned unparseable URL: ${prUrl}`);
   }
   const prNumber = Number(prMatch[1]);
+
+  // Parallel drain (K>1): the child's job ends at PR-open. The supervisor's serialized merge
+  // coordinator merges it (one at a time, rebased on the prior) — never merge here or two
+  // concurrent children would race `main`.
+  if (input.openOnly === true) {
+    return { prUrl, prNumber, mergedAt: null };
+  }
 
   const merge = await input.spawn('gh', ['pr', 'merge', prUrl, '--auto', '--squash']);
 

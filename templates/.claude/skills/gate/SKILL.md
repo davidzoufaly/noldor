@@ -313,10 +313,13 @@ supervisor backstops a forgotten branch by spawning `claude` with `--disallowed-
 (any prompt then fails fast instead of hanging) plus a per-iteration timeout. The supervisor owns the
 loop / retry / skip / lock; each gate run only ships its one entry. Step overrides:
 
-- **Step 0:** skip the bucket `AskUserQuestion`. Auto-select `topPriority[0]` honoring
-  `NOLDOR_DRAIN_SKIP` (the comma-separated skip-set the supervisor passes through). If its
-  `suggestedPath !== 'fast-track'`, exit without scaffolding (defensive — the supervisor pre-filters
-  scope, so this should not happen).
+- **Step 0:** skip the bucket `AskUserQuestion`. When `NOLDOR_DRAIN_SLUG=<slug>` is set (parallel
+  drain, `--concurrency > 1`), select **that exact slug** instead of `topPriority[0]` — the supervisor
+  assigns each concurrent child a distinct slug so K near-simultaneous children don't all pick the same
+  top entry. When `NOLDOR_DRAIN_SLUG` is unset (sequential drain / back-compat), auto-select
+  `topPriority[0]`. Either way, honor `NOLDOR_DRAIN_SKIP` (the comma-separated skip-set the supervisor
+  passes through) and, if the chosen entry's `suggestedPath !== 'fast-track'`, exit without scaffolding
+  (defensive — the supervisor pre-filters scope, so this should not happen).
 - **Steps 1 / 1.5:** skip path-pick + path-confirm. Force `fast-track`, carrying `entry.slug`. Name
   the branch **`fast/<slug>`** (deterministic — vs ordinary fast-track's `fast/<short-desc>`) so the
   supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly. Before `git worktree add`,
@@ -331,9 +334,12 @@ loop / retry / skip / lock; each gate run only ships its one entry. Step overrid
   marker, `set-autonomous`, and `pr-flow` all operate from there.
 - **Step 4:** run end-of-flow autonomously — `set-autonomous`, code-stage CR via `crLanes.code`,
   `pr-flow` auto-merge, no prompts. Skip the no-FD seams (phase-flip, `draft-feature-md --refresh` —
-  fast-track carries no FD). `pr-flow` polls until the PR actually merges. Escalation uses
-  `cr escalate --autonomous` with `onFailure: abort` (the supervisor asserts this precondition before
-  it starts), so a red cleanly fails the iteration → the supervisor retries-from-clean or skips.
+  fast-track carries no FD). `pr-flow` polls until the PR actually merges — **except** under parallel
+  drain, where the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`: `pr-flow` then pushes + opens the PR and
+  returns at PR-open (no merge, no poll), and the supervisor's serialized merge coordinator merges it
+  one at a time. Escalation uses `cr escalate --autonomous` with `onFailure: abort` (the supervisor
+  asserts this precondition before it starts), so a red cleanly fails the iteration → the supervisor
+  retries-from-clean or skips.
 - **Step 5:** exit clean — no human `/clear` + `/gate` handoff prose. The supervisor is the loop.
 
 Drain mode is orthogonal to (and stricter than) Autonomous mode: it requires the full headless-safe
