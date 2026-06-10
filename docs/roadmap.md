@@ -34,17 +34,6 @@ Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD fron
 
 Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superpowers/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `scripts/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it). Touches: `scripts/graphify/**`, `scripts/garden/garden-detect.ts`, `scripts/garden/plan-resolution.ts`.
 
-#### Fix Multiterminal-Development Flow Bug
-
-- area: tooling
-- type: fix
-- since: 2026-05-23
-- size: S
-- impact: med
-- recovered: 2026-05-23
-
-Existing multiterminal-development flow has a reproducible bug, discovered while scoping [[specs-cr-gate-multi-reviewer]]. Reproduce, root-cause, fix — blocks delivery of [[specs-cr-gate-multi-reviewer]].
-
 #### Bootstrap-Immunity for Self-Gating Features
 
 - area: tooling

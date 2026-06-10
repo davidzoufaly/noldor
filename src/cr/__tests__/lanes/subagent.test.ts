@@ -9,6 +9,7 @@ vi.mock('../../read-fd-summary.js', () => ({
 
 import { setDispatcher } from '../../lanes/subagent-dispatch.js';
 import { runSubagent } from '../../lanes/subagent.js';
+import { readFdSummary } from '../../read-fd-summary.js';
 import type { LaneInput } from '../../lane-types.js';
 
 const dispatchSubagent = vi.fn();
@@ -82,6 +83,18 @@ describe('runSubagent', () => {
     expect(j.blockers).toHaveLength(1);
     expect(j.blockers[0].severity).toBe('high');
     expect(j.summary).toBe('blockers found');
+  });
+  it('missing FD (ENOENT) → reviews with fallback summary instead of erroring', async () => {
+    const enoent = Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
+    vi.mocked(readFdSummary).mockRejectedValueOnce(enoent);
+    dispatchSubagent.mockResolvedValueOnce(
+      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
+    );
+    const r = await runSubagent(input());
+    expect(r.ok).toBe(true);
+    expect(dispatchSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({ fdSummary: expect.stringMatching(/no FD — fast-track/) }),
+    );
   });
   it('dispatch error → synthetic blocker', async () => {
     dispatchSubagent.mockRejectedValueOnce(new Error('claude not on PATH'));

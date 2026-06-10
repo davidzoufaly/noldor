@@ -83,7 +83,14 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
 
   let markdown: string;
   try {
-    const fdSummary = await readFdSummary(input.fdPath);
+    // Fast-track ships no FD, so a missing FD file is a legitimate state
+    // (drain-mode code review), not an error — review the diff without the
+    // summary context. A present-but-malformed FD still errors below.
+    const fdSummary = await readFdSummary(input.fdPath).catch((err) => {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT')
+        return '(no FD — fast-track change; review the diff on its own merits)';
+      throw err;
+    });
     markdown = await dispatchSubagent({
       artifact: input.artifact,
       fdSummary,

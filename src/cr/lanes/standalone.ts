@@ -28,7 +28,7 @@ function execAsync(cmd: string, args: string[], opts: ExecOpts = {}): Promise<Ex
   });
 }
 
-const PROMPT_TEMPLATE_PATH = 'scripts/cr/lanes/standalone-prompt.md';
+export const PROMPT_TEMPLATE_PATH = 'src/cr/lanes/standalone-prompt.md';
 
 export async function claudeSupportsMaxThinking(): Promise<boolean> {
   try {
@@ -43,22 +43,18 @@ interface MultiterminalProbeOpts {
   cwd?: string;
 }
 
+// The multiterminal-flow bug (stale `scripts/cr/` paths from the scripts→src
+// migration) shipped as a fast-track fix with no FD, so the probe can't gate
+// on FD frontmatter. The runtime precondition the lane actually needs is the
+// prompt template on disk at its post-migration path.
 export async function multiterminalDepDone(opts: MultiterminalProbeOpts = {}): Promise<boolean> {
-  const path = join(
-    opts.cwd ?? process.cwd(),
-    'docs',
-    'features',
-    'fix-multiterminal-dev-flow-bug.md',
-  );
-  let raw: string;
+  const path = join(opts.cwd ?? process.cwd(), PROMPT_TEMPLATE_PATH);
   try {
-    raw = await readFile(path, 'utf8');
+    await readFile(path, 'utf8');
+    return true;
   } catch {
     return false;
   }
-  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return false;
-  return /phase:\s*done/.test(fmMatch[1]) && /introduced:\s*/.test(fmMatch[1]);
 }
 
 async function templateSha(repoRoot: string): Promise<string> {
@@ -96,7 +92,7 @@ export async function runStandalone(input: LaneInput): Promise<LaneResult> {
     `cd ${input.repoRoot} && claude --dangerously-skip-permissions${maxThinkingFlag} ` +
     `"Read the markdown artifact at ${input.artifact}. ` +
     `Apply the spec-review rubric in ${PROMPT_TEMPLATE_PATH}. ` +
-    `Emit a JSON object conforming to LaneFindings in scripts/cr/findings-schema.ts. ` +
+    `Emit a JSON object conforming to LaneFindings in src/cr/findings-schema.ts. ` +
     `Write the JSON to ${sinkPath}.tmp then mv it to ${sinkPath}. ` +
     `Set finishedAt before writing. Preserve templateSha. Do not modify any other files."`;
 

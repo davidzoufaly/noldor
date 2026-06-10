@@ -83,9 +83,9 @@ describe('aggregate', () => {
     expect(Object.keys(r.summaries).toSorted()).toEqual(['manual', 'subagent']);
   });
   it('emits notes entry when standalone templateSha drifts vs current', async () => {
-    await mkdir(join(root, 'scripts', 'cr', 'lanes'), { recursive: true });
+    await mkdir(join(root, 'src', 'cr', 'lanes'), { recursive: true });
     await writeFile(
-      join(root, 'scripts', 'cr', 'lanes', 'standalone-prompt.md'),
+      join(root, 'src', 'cr', 'lanes', 'standalone-prompt.md'),
       'current template body',
       'utf8',
     );

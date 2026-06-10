@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import { inferLaneFromFilename } from './filename.js';
+import { PROMPT_TEMPLATE_PATH } from './lanes/standalone.js';
 
 export interface AggregateResult {
   ok: boolean;
@@ -101,7 +102,7 @@ export async function aggregate(
     // templateSha drift detection. Standalone lane only.
     if (filenameLane === 'standalone' && parsed.data.templateSha) {
       const currentSha = await templateShaFor(
-        join(opts.cwd ?? process.cwd(), 'scripts/cr/lanes/standalone-prompt.md'),
+        join(opts.cwd ?? process.cwd(), PROMPT_TEMPLATE_PATH),
       );
       if (currentSha && currentSha !== parsed.data.templateSha) {
         notes[filenameLane] = notes[filenameLane] ?? [];

@@ -1,4 +1,4 @@
-<!-- scripts/cr/lanes/standalone-prompt.md -->
+<!-- src/cr/lanes/standalone-prompt.md -->
 
 # Standalone deep review
 
@@ -8,7 +8,7 @@ artifact path passed via the environment.
 ## Output contract
 
 Write a JSON object conforming to the `LaneFindings` schema in
-`scripts/cr/findings-schema.ts`. Use the path provided to you
+`src/cr/findings-schema.ts`. Use the path provided to you
 (`.noldor/cr/<slug>-<kind>-standalone.json.tmp`) for the temp file, then
 `mv` it to `.noldor/cr/<slug>-<kind>-standalone.json`. Set `finishedAt`
 to the ISO timestamp at write time. Preserve the existing `templateSha`
