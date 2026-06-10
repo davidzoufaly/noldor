@@ -1,4 +1,5 @@
 import type { DrainSource, DrainCandidate } from './drain-source.js';
+import type { MergeOutcome } from './drain-io.js';
 
 export type DrainAction = 'spawn' | 'skip-out-of-scope' | 'done';
 
@@ -31,8 +32,13 @@ export interface DrainDeps {
    *  Rejects with 'iteration-timeout' on a per-entry timeout, or 'spawn-failed: …' on a systemic
    *  spawn error. Async so the build pool can keep K children in flight at once. */
   spawnGate: (env: Record<string, string>, timeoutMs: number, prompt: string) => Promise<number>;
-  /** Sync local main to origin + clean leftover worktrees/branches. May throw → abort (ff-only reject). */
+  /** Sync local main to origin + clean leftover worktrees/branches. May throw → abort (ff-only reject).
+   *  At K>1 the coordinator also calls this after each merge to advance local main before the oracle. */
   syncMainCleanState: () => void;
+  /** Serialized squash-merge of one open PR (K>1 only). Resolves with the merge outcome; rejects on a
+   *  systemic gh failure (coordinator aborts fail-closed). Optional: only the K>1 path uses it, so the
+   *  K=1 sequential callers (and tests) need not provide it. Asserted present before the coordinator runs. */
+  mergePr?: (slug: string, branch: string) => Promise<MergeOutcome>;
   /** True when an open PR exists for the source's branch. May throw → abort (fail-closed). */
   openPrExistsFor: (slug: string, branch: string) => boolean;
   /** Best-effort heartbeat write (never throws). */
@@ -98,12 +104,77 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     ...(error !== undefined ? { error } : {}),
   });
 
-  try {
-    deps.syncMainCleanState();
+  // `dispatched` holds a slug from the moment a worker dispatches it until it is FULLY settled
+  // (shipped / skipped / retry-bumped). At K>1 that window includes awaiting-merge — the COORDINATOR
+  // removes the slug after settling it (not the worker), so the slug stays (a) counted against
+  // maxFeatures and (b) excluded from re-selection while its PR is open.
+  const dispatched = new Set<string>();
+  const readyToMerge: Array<{ slug: string; branch: string }> = [];
+  // Holder (not a bare `let`) so TS doesn't narrow the closure-mutated abort flag to `never` at the
+  // outer read after `await Promise.all` — object properties aren't subject to that CFA collapse.
+  const abortRef: { current: Error | null } = { current: null };
+  let buildersDone = false;
+  let wake: (() => void) | null = null; // resolves the coordinator's idle wait
+  const signalCoordinator = (): void => {
+    if (wake) {
+      wake();
+      wake = null;
+    }
+  };
+  const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+  const recordRetryOrSkip = (slug: string): void => {
+    const n = (retries.get(slug) ?? 0) + 1;
+    retries.set(slug, n);
+    if (n > opts.maxRetries) skip.add(slug);
+  };
+
+  // K=1 → EXACTLY today's env (no slug assignment / open-only): the gate falls back to topPriority[0],
+  // which the single worker selected anyway. Slug-assignment + open-only are K>1-only.
+  const envFor = (slug: string): Record<string, string> => {
+    const base = { NOLDOR_DRAIN: '1', NOLDOR_DRAIN_SKIP: [...skip].join(',') };
+    return opts.concurrency > 1
+      ? { ...base, NOLDOR_DRAIN_SLUG: slug, NOLDOR_DRAIN_OPEN_ONLY: '1' }
+      : base;
+  };
+
+  /** Returns true iff the slug was handed to the coordinator (worker must NOT drop it from
+   *  `dispatched` — the coordinator owns its removal). K=1 settles inline and returns false. */
+  const settleShipVerdict = (slug: string, branch: string): boolean => {
+    if (opts.concurrency === 1) {
+      deps.syncMainCleanState(); // today's inline authority: advance local main, then read the oracle
+      const stillPresent = deps.source.parseAll().includes(slug);
+      if (!stillPresent) {
+        shipped += 1;
+        retries.delete(slug);
+        return false;
+      }
+      if (deps.openPrExistsFor(slug, branch)) {
+        skip.add(slug); // PR landed in-flight; never re-spawn a duplicate
+        return false;
+      }
+      recordRetryOrSkip(slug);
+      return false;
+    }
+    // K>1: child opened a PR (open-only). Hand off to the serialized coordinator.
+    if (deps.openPrExistsFor(slug, branch)) {
+      readyToMerge.push({ slug, branch });
+      signalCoordinator();
+      return true;
+    }
+    recordRetryOrSkip(slug); // no PR → build failed → retry/skip; worker drops it
+    return false;
+  };
+
+  const worker = async (index: number): Promise<void> => {
+    if (opts.concurrency > 1 && opts.startupStaggerMs > 0)
+      await delay(index * opts.startupStaggerMs);
     for (;;) {
-      if (deps.stopRequested()) return result(130);
-      const candidate = deps.source.nextItem(skip);
-      if (candidate === null) return result(0); // no items remain — done
+      if (abortRef.current || deps.stopRequested()) return;
+      // ---- selection critical section (synchronous, no await) ----
+      if (shipped + dispatched.size >= opts.maxFeatures) return; // cap counts in-flight + awaiting-merge
+      const candidate = deps.source.nextItem(new Set([...skip, ...dispatched]));
+      if (candidate === null) return;
       const d = decideNext({
         candidate,
         shipped,
@@ -111,25 +182,24 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
         spawns,
         maxSpawns: opts.maxSpawns,
       });
-      if (d.action === 'done') return result(0);
+      if (d.action === 'done') return;
       if (d.action === 'skip-out-of-scope') {
         skip.add(candidate.slug);
         if (candidate.reason !== undefined) skipReasons[candidate.slug] = candidate.reason;
         continue;
       }
-
       const branch = deps.source.branchFor(candidate.slug);
       if (deps.openPrExistsFor(candidate.slug, branch)) {
         skip.add(candidate.slug); // restart-safety: a prior run's PR is in-flight
         continue;
       }
       if (opts.dryRun) {
-        planned.push(candidate.slug); // eligible — would ship (dry-run diagnostic, FIFO order)
-        skip.add(candidate.slug); // plan only — never spawn / merge
+        planned.push(candidate.slug);
+        skip.add(candidate.slug);
         continue;
       }
-
       spawns += 1;
+      dispatched.add(candidate.slug);
       deps.writeState({
         phase: 'spawning',
         currentSlug: candidate.slug,
@@ -137,32 +207,76 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
         skip: [...skip],
         retries: Object.fromEntries(retries),
       });
+      // ---- end critical section ----
+      let handedToCoordinator = false;
       try {
         await deps.spawnGate(
-          { NOLDOR_DRAIN: '1', NOLDOR_DRAIN_SKIP: [...skip].join(',') },
+          envFor(candidate.slug),
           opts.timeoutMs,
           deps.source.gatePrompt(candidate.slug),
         );
+        handedToCoordinator = settleShipVerdict(candidate.slug, branch);
       } catch (e) {
-        // A per-iteration timeout is recoverable (retry/skip below). Any other spawn error
-        // (e.g. `claude` not on PATH) is systemic — re-throw so the outer catch aborts.
-        if (!(e instanceof Error && e.message === 'iteration-timeout')) throw e;
+        // A per-entry timeout is recoverable (retry/skip). Any other spawn error is systemic → abort.
+        if (e instanceof Error && e.message === 'iteration-timeout')
+          recordRetryOrSkip(candidate.slug);
+        else abortRef.current = e instanceof Error ? e : new Error(String(e));
+      } finally {
+        if (!handedToCoordinator) dispatched.delete(candidate.slug);
       }
-      deps.syncMainCleanState(); // make the read authoritative
-      const stillPresent = deps.source.parseAll().includes(candidate.slug);
-      if (!stillPresent) {
-        shipped += 1;
-        retries.delete(candidate.slug);
-        continue;
-      }
-      if (deps.openPrExistsFor(candidate.slug, branch)) {
-        skip.add(candidate.slug); // PR landed in-flight; never re-spawn a duplicate
-        continue;
-      }
-      const n = (retries.get(candidate.slug) ?? 0) + 1;
-      retries.set(candidate.slug, n);
-      if (n > opts.maxRetries) skip.add(candidate.slug);
+      if (abortRef.current) return;
     }
+  };
+
+  const coordinator = async (): Promise<void> => {
+    for (;;) {
+      if (abortRef.current) return;
+      const next = readyToMerge.shift();
+      if (next === undefined) {
+        if (buildersDone) return;
+        await new Promise<void>((r) => {
+          wake = r;
+        }); // woken by a worker push or by buildersDone + signal
+        continue;
+      }
+      try {
+        const outcome = await deps.mergePr!(next.slug, next.branch); // non-null: asserted at K>1 entry
+        if (outcome !== 'merged') {
+          skip.add(next.slug);
+          skipReasons[next.slug] = `${outcome} — PR left open for human resolution`;
+        } else {
+          deps.syncMainCleanState(); // advance local main so parseAll() reflects the squash before the oracle
+          const stillPresent = deps.source.parseAll().includes(next.slug);
+          if (!stillPresent) {
+            shipped += 1;
+            retries.delete(next.slug);
+          } else {
+            recordRetryOrSkip(next.slug);
+          }
+        }
+      } catch (e) {
+        abortRef.current = e instanceof Error ? e : new Error(String(e));
+        return;
+      } finally {
+        dispatched.delete(next.slug); // settled (any outcome) → free the cap slot + re-selection guard
+      }
+    }
+  };
+
+  try {
+    if (opts.concurrency > 1 && deps.mergePr === undefined) {
+      throw new Error('concurrency > 1 requires a mergePr dep');
+    }
+    deps.syncMainCleanState();
+    const coordinatorPromise = opts.concurrency > 1 ? coordinator() : Promise.resolve();
+    const workers = Array.from({ length: Math.max(1, opts.concurrency) }, (_, i) => worker(i));
+    await Promise.all(workers);
+    buildersDone = true;
+    signalCoordinator(); // unblock a parked coordinator so it observes buildersDone and exits
+    await coordinatorPromise;
+    if (abortRef.current) return result(1, abortRef.current.message); // abort (1) wins
+    if (deps.stopRequested()) return result(130); // stop (130) wins over the drained 0
+    return result(0);
   } catch (err) {
     // source.nextItem / parseAll / openPrExistsFor / syncMain failure → abort, surfacing the cause.
     return result(1, err instanceof Error ? err.message : String(err));

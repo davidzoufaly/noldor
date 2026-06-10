@@ -8,6 +8,13 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
  */
 
 /**
+ * Outcome of a serialized PR merge under parallel drain (K>1). `merge-conflict` and
+ * `merge-timeout` both mean "leave the PR open, skip this slug for the run"; only `merged`
+ * advances the success oracle. See {@link mergePr}.
+ */
+export type MergeOutcome = 'merged' | 'merge-conflict' | 'merge-timeout';
+
+/**
  * Checkout main, fetch, ff-only sync, prune stale worktree admin entries, drop
  * stale escalation context. Throws on an ff-only rejection (caller aborts the
  * drain — local main diverged, spec Error handling).
