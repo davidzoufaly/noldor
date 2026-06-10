@@ -84,7 +84,7 @@ function buildSource(id: SourceId, cwd: string): DrainSource {
   return specsSource(cwd); // throws — phase 2
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const cwd = process.cwd();
   let parsed: ParsedArgs;
@@ -140,7 +140,7 @@ function main(): void {
 
   let res: DrainResult;
   try {
-    res = runDrain(deps, { ...parsed, cwd });
+    res = await runDrain(deps, { ...parsed, cwd, startupStaggerMs: 750 });
   } finally {
     releaseLock(cwd);
   }
@@ -165,4 +165,4 @@ function main(): void {
 // Match the entrypoint file exactly (queue-drain.ts/.js/.mjs) — NOT a test file
 // such as queue-drain-cli.test.ts, which would otherwise run main() at import.
 const invokedDirect = /[\\/]queue-drain\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+if (invokedDirect) void main();

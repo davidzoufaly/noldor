@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 
 /**
  * Real implementations of the {@link DrainDeps} IO adapters. These shell out to
@@ -69,32 +69,36 @@ export function spawnGate(
   env: Record<string, string>,
   timeoutMs: number,
   prompt = '/gate',
-): number {
-  const res = spawnSync(
-    'claude',
-    [
-      '--print',
-      prompt,
-      '--disallowed-tools',
-      'AskUserQuestion',
-      '--permission-mode',
-      'bypassPermissions',
-    ],
-    {
-      cwd,
-      env: { ...process.env, ...env },
-      stdio: 'inherit',
-      timeout: timeoutMs,
-      killSignal: 'SIGKILL',
-    },
-  );
-  if (res.error) {
-    const code = (res.error as NodeJS.ErrnoException).code;
-    if (code === 'ETIMEDOUT') throw new Error('iteration-timeout'); // per-entry failure → retry/skip
-    // Any other spawn error (e.g. ENOENT — `claude` not on PATH) is systemic, not a per-entry
-    // failure: throw a non-timeout error so the loop aborts the whole drain instead of churning
-    // retries across every entry.
-    throw new Error(`spawn-failed: ${res.error.message}`);
-  }
-  return res.status ?? 1;
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      'claude',
+      [
+        '--print',
+        prompt,
+        '--disallowed-tools',
+        'AskUserQuestion',
+        '--permission-mode',
+        'bypassPermissions',
+      ],
+      { cwd, env: { ...process.env, ...env }, stdio: 'inherit' },
+    );
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, timeoutMs);
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      // Systemic spawn error (e.g. ENOENT — `claude` not on PATH): reject non-timeout so the loop
+      // aborts the whole drain instead of churning retries across every entry.
+      reject(new Error(`spawn-failed: ${err.message}`));
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut)
+        reject(new Error('iteration-timeout')); // per-entry failure → retry/skip
+      else resolve(code ?? 1);
+    });
+  });
 }
