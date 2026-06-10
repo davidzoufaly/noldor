@@ -78,12 +78,12 @@ describe('roadmapSource', () => {
     }
   });
 
-  it('parseAll returns every roadmap slug; gatePrompt is /gate; branchFor is fast/<slug>', () => {
+  it('parseAll returns every roadmap slug; gatePrompt is /gate --drain <slug>; branchFor is fast/<slug>', () => {
     const dir = tmpRepo(block('alpha', 'XS') + block('beta', 'L'));
     try {
       const s = roadmapSource(dir);
       expect(s.parseAll().sort()).toEqual(['alpha', 'beta']);
-      expect(s.gatePrompt('alpha')).toBe('/gate');
+      expect(s.gatePrompt('alpha')).toBe('/gate --drain alpha');
       expect(s.branchFor('alpha')).toBe('fast/alpha');
     } finally {
       rmSync(dir, { recursive: true, force: true });

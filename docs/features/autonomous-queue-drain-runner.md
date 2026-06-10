@@ -30,7 +30,7 @@ noldor-tier: full
 ---
 ## Summary
 
-An external supervisor that drains the roadmap's fast-track (XS/S) queue autonomously — spawning a fresh `claude --print "/gate"` per entry, one auto-merged PR at a time, with retry-then-skip, a concurrency lock, and a per-iteration timeout. Each feature runs in a clean context, so always-clear is preserved without a human between features.
+An external supervisor that drains the roadmap's fast-track (XS/S) queue autonomously — spawning a fresh `claude --print "/gate --drain <slug>"` per entry, one auto-merged PR at a time, with retry-then-skip, a concurrency lock, and a per-iteration timeout. Each feature runs in a clean context, so always-clear is preserved without a human between features.
 
 ## User Story
 
@@ -48,7 +48,7 @@ As an operator with a backlog of small (XS/S) roadmap entries, I want one comman
 
 **Agent API**
 
-- None. The runner is the agent driver — it spawns `NOLDOR_DRAIN=1 claude --print "/gate"` per entry; there is no in-editor API surface.
+- None. The runner is the agent driver — it spawns `NOLDOR_DRAIN=1 claude --print "/gate --drain <slug>"` per entry; there is no in-editor API surface.
 
 **Exit codes**
 
@@ -62,7 +62,7 @@ kill-switch), and `--permission-mode bypassPermissions` (so `git`/`gh`/`pnpm`/Ed
 These are wired in [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts) `spawnGate`.
 
 **Still to verify by a live integration run (not yet exercised — no real drain has shipped a PR):**
-that `claude --print "/gate"` resolves the `/gate` *skill* in print mode (vs treating the string as a
+that `claude --print "/gate --drain <slug>"` resolves the `/gate` *skill* in print mode (vs treating the string as a
 literal prompt) and that Ctrl-C propagates SIGINT to the spawned child. Runbook: on a scratch branch,
 seed `docs/roadmap.md` with one standalone XS/S entry, set the `autonomous` config block
 (`onFailure: "abort"`, `skipLanePicker: true`, `requireHumanPrApproval: false`), run
