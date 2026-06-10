@@ -109,8 +109,9 @@ held by a *live* drain is never safe — so an override flag would have nothing 
 **Own exit-code contract** (mirrors the repo's `next-priority` convention — 0 actionable-done,
 1 error):
 - **0** — ran to completion: queue drained, all-remaining-skipped, or `--max-features` reached cleanly.
-- **1** — aborted on error: `next-priority` parse/exec failure, lock contention with a live drain,
-  duplicate-slug roadmap, or a fatal git-sync failure.
+- **1** — aborted on error: `next-priority` parse/exec failure, `openPrExistsFor` `gh` failure
+  (fail-closed), lock contention with a live drain, duplicate-slug roadmap, config precondition unmet,
+  or a fatal git-sync failure.
 - **130** — stopped via kill switch (SIGINT, or `.noldor/drain-stop` sentinel between iterations);
   also when SIGINT arrives mid-child (the child tree is killed first — see Error handling).
 
@@ -190,8 +191,10 @@ reconsidered; it may have been flaky/since-fixed). On startup the supervisor rec
 whose pid is dead and prunes leftover `.worktrees/*` from an interrupted prior run.
 
 **Concurrency.** `.noldor/drain.lock` (pid + startedAt) is exclusive, acquired via an atomic
-`O_EXCL` create (and reclaim-if-dead via atomic rename) so two supervisors starting simultaneously
-can't both observe a dead holder and proceed (TOCTOU-safe). A second drain or a human
+`O_EXCL` create. Reclaim-if-dead is TOCTOU-safe by renaming the stale lock **aside** (`drain.lock` →
+a unique reclaim name; the loser's rename fails `ENOENT`), then `O_EXCL`-creating a fresh lock — *not*
+by renaming a freshly-written tmp lock *onto* `drain.lock` (last-writer-wins, which both racers would
+pass). So two supervisors starting simultaneously cannot both proceed. A second drain or a human
 `/gate` running concurrently would collide on the single-slot `.noldor/session.json` and race on
 `docs/roadmap.md`. The drain refuses to start if the lock is held by a live pid. Serial-only — one
 feature at a time.
@@ -227,7 +230,10 @@ harness-level deny + D-timeout):
   create/push. Reaching branch-create means the pre-spawn `openPrExistsFor` found **no open PR**, so
   any existing `fast/<slug>` is abandoned work safe to discard: drain-mode Step 2 **force-recreates**
   it — `git branch -D fast/<slug>` (local) + `git push origin --delete fast/<slug>` (remote, if it
-  exists) — before `git worktree add … -b fast/<slug>`.
+  exists) — before `git worktree add … -b fast/<slug>`. Ordering matters: the supervisor's
+  `syncMainCleanState` (which prunes leftover `.worktrees/*` + their branches) runs **before** the
+  child spawns, so by branch-create time no leftover worktree still has `fast/<slug>` checked out and
+  the `git branch -D` cannot fail on a checked-out branch.
 - **Step 2:** the **existing** fast-track + Roadmap-entry-retirement sequence (unchanged) — worktree,
   implement from the entry description, `removeBlock` retirement commit on the branch. `cd` into the
   worktree; the session marker, `set-autonomous`, and `pr-flow` all operate from the worktree
@@ -314,7 +320,8 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
   re-spawn; (e) `--dry-run` → zero `spawnGate` calls; (f) stop-signal at iteration top → exit 130;
   (g) duplicate-slug roadmap → abort; (h) lock held by live pid → abort; (i) child exits with slug
   still present but `openPrExistsFor` true → skip, no re-spawn (D5b); (j) `openPrExistsFor` true
-  **pre-spawn** (restart after an interrupted run) → skip without spawning.
+  **pre-spawn** (restart after an interrupted run) → skip without spawning; (k) `openPrExistsFor`
+  `gh` call fails → abort exit 1 (fail-closed, no spawn).
 - **Reused (not re-tested):** `removeBlock` is already covered by
   [write-blocks tests](../../../src/utils/__tests__/write-blocks.test.ts).
 - **Pre-implementation spike (documented in the FD Usage section):** confirm `claude --print "/gate"`
