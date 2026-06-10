@@ -21,6 +21,23 @@ function exec(cmd: string, args: string[], opts: { timeout: number }): Promise<E
   });
 }
 
+/**
+ * Extract the `{ summary, findings }` JSON object from a command's stdout,
+ * tolerating any non-JSON noise around it. `--silent` already strips pnpm's
+ * lifecycle banner, but a pnpm flag is not the only thing that can pollute
+ * stdout (codex CLI warnings, an `.npmrc`-driven notice, a deprecation line),
+ * and a leading `>` makes a bare `JSON.parse` throw. Slicing from the first `{`
+ * to the last `}` recovers the object regardless of surrounding lines.
+ */
+function extractLaneJson(stdout: string): CodexRawOutput {
+  const start = stdout.indexOf('{');
+  const end = stdout.lastIndexOf('}');
+  if (start === -1 || end < start) {
+    throw new Error(`codex lane: no JSON object in stdout: ${stdout.slice(0, 200)}`);
+  }
+  return JSON.parse(stdout.slice(start, end + 1)) as CodexRawOutput;
+}
+
 export interface CodexOpts {
   supportsBaseSha?: boolean;
 }
@@ -63,7 +80,7 @@ export async function runCodex(input: LaneInput, opts: CodexOpts = {}): Promise<
   let payload: LaneFindings;
   try {
     const { stdout } = await exec('pnpm', args, { timeout: 120_000 });
-    const raw = JSON.parse(stdout) as CodexRawOutput;
+    const raw = extractLaneJson(stdout);
     payload = {
       lane: 'codex',
       artifact: input.artifact,
