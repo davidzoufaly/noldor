@@ -51,19 +51,13 @@ describe('claudeSupportsMaxThinking', () => {
 });
 
 describe('multiterminalDepDone', () => {
-  it('true when FD phase done + introduced set', async () => {
-    const path = join(root, 'docs', 'features', 'fix-multiterminal-dev-flow-bug.md');
-    await mkdir(join(root, 'docs', 'features'), { recursive: true });
-    await writeFile(path, '---\nphase: done\nintroduced: v0.6.0\n---\n', 'utf8');
+  it('true when prompt template exists at its src path', async () => {
+    const path = join(root, 'src', 'cr', 'lanes', 'standalone-prompt.md');
+    await mkdir(join(root, 'src', 'cr', 'lanes'), { recursive: true });
+    await writeFile(path, '# Standalone deep review\n', 'utf8');
     expect(await multiterminalDepDone({ cwd: root })).toBe(true);
   });
-  it('false when phase still in-progress', async () => {
-    const path = join(root, 'docs', 'features', 'fix-multiterminal-dev-flow-bug.md');
-    await mkdir(join(root, 'docs', 'features'), { recursive: true });
-    await writeFile(path, '---\nphase: in-progress\n---\n', 'utf8');
-    expect(await multiterminalDepDone({ cwd: root })).toBe(false);
-  });
-  it('false when FD missing', async () => {
+  it('false when template missing', async () => {
     expect(await multiterminalDepDone({ cwd: root })).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -92,11 +92,6 @@ beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'oint-'));
   await mkdir(join(root, '.noldor', 'cr'), { recursive: true });
   await mkdir(join(root, 'docs', 'features'), { recursive: true });
-  await writeFile(
-    join(root, 'docs', 'features', 'fix-multiterminal-dev-flow-bug.md'),
-    '---\nphase: done\nintroduced: v0.6.0\n---\n',
-    'utf8',
-  );
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
