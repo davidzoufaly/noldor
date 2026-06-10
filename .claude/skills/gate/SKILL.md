@@ -14,6 +14,8 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
 
 ## Flow
 
+**Drain-mode entry check (headless runs) — do this before Step 0.** Inspect the environment first: run `printenv NOLDOR_DRAIN`. If `NOLDOR_DRAIN=1` is set (the autonomous supervisor sets it on every spawned `claude --print "/gate"`), this is an unattended drain run — **do NOT execute the interactive Step 0 / Step 1 below.** Those steps fire `AskUserQuestion`, which the supervisor disallows in the headless child (`--disallowed-tools AskUserQuestion`), so any prompt stalls the iteration until its timeout. Skip straight to the **Drain mode (`NOLDOR_DRAIN=1`)** section near the end of this skill and follow its step overrides — that section owns slug selection (`NOLDOR_DRAIN_SLUG` when the supervisor assigns one under parallel drain, else `topPriority[0]`), forces the `fast-track` path, and runs end-of-flow autonomously with zero prompts. Interactive invocations (`NOLDOR_DRAIN` unset) fall through to Step 0 below as normal.
+
 0. **Priority pickup.** Run `pnpm noldor next-priority --suggestions --json` and capture stdout + exit code.
    - **Skipped entirely when `/gate --resume <slug>` is invoked** (`--resume` short-circuits to the `--resume mode` section at the bottom of this skill — it does not pass through Step 0 or Step 1).
    - Exit code 2 → no in-progress FDs AND no roadmap entries. Proceed to Step 1 (path picker).
