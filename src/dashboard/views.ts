@@ -15,6 +15,7 @@ import type {
   ReleaseNotes,
   Roadmap,
   RoadmapEntry,
+  TestPyramidRow,
   UserDocDetail,
   UserDocsCategoryData,
   VelocityStats,
@@ -1255,4 +1256,67 @@ export function renderWipAge(rows: WipAgeRow[]): string {
   </table>`;
 
   return `<h1>WIP age</h1>${counterStrip}${table}`;
+}
+
+/**
+ * Render the test-pyramid page: per-module source/test/case counts with a
+ * test-to-code ratio, worst-covered modules first.
+ */
+export function renderTestPyramid(rows: TestPyramidRow[]): string {
+  const totals = rows.reduce(
+    (acc, r) => ({
+      sourceFiles: acc.sourceFiles + r.sourceFiles,
+      testFiles: acc.testFiles + r.testFiles,
+      testCases: acc.testCases + r.testCases,
+    }),
+    { sourceFiles: 0, testFiles: 0, testCases: 0 },
+  );
+  const untested = rows.filter((r) => r.sourceFiles > 0 && r.testFiles === 0).length;
+  const overallRatio =
+    totals.sourceFiles > 0 ? (totals.testFiles / totals.sourceFiles).toFixed(2) : '—';
+
+  const counterStrip = `<div class="counter-strip">
+    <div class="counter"><div class="v">${rows.length}</div><div class="l">modules</div></div>
+    <div class="counter"><div class="v">${totals.sourceFiles}</div><div class="l">source files</div></div>
+    <div class="counter"><div class="v">${totals.testFiles}</div><div class="l">test files</div></div>
+    <div class="counter"><div class="v">${totals.testCases}</div><div class="l">test cases</div></div>
+    <div class="counter"><div class="v">${overallRatio}</div><div class="l">tests per source file</div></div>
+    <div class="counter"><div class="v">${untested}</div><div class="l">untested modules</div></div>
+  </div>`;
+
+  if (rows.length === 0) {
+    return `<h1>Test pyramid</h1>${counterStrip}<p class="empty">No code files found under the configured scan paths.</p>`;
+  }
+
+  const maxRatio = Math.max(...rows.map((r) => r.ratio ?? 0), 1);
+  const body = rows
+    .map((r) => {
+      const isUntested = r.sourceFiles > 0 && r.testFiles === 0;
+      const rowClass = isUntested ? ' class="row-stale"' : '';
+      const badge = isUntested
+        ? '<span class="badge stale">untested</span>'
+        : r.ratio === null
+          ? '<span class="badge aging">test-only</span>'
+          : '<span class="badge fresh">covered</span>';
+      const ratioCell =
+        r.ratio === null
+          ? '—'
+          : `${r.ratio.toFixed(2)} <div class="bar" style="width:120px"><div style="width:${Math.round((r.ratio / maxRatio) * 100)}%"></div></div>`;
+      return `<tr${rowClass}>
+        <td><code>${escapeHtml(r.module)}</code></td>
+        <td>${r.sourceFiles}</td>
+        <td>${r.testFiles}</td>
+        <td>${r.testCases}</td>
+        <td>${ratioCell}</td>
+        <td>${badge}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const table = `<table>
+    <thead><tr><th>Module</th><th>Source files</th><th>Test files</th><th>Test cases</th><th>Tests / source</th><th>Status</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
+
+  return `<h1>Test pyramid</h1>${counterStrip}${table}`;
 }
