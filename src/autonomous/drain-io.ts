@@ -14,6 +14,74 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
  */
 export type MergeOutcome = 'merged' | 'merge-conflict' | 'merge-timeout';
 
+interface MergeView {
+  mergedAt: string | null;
+  mergeStateStatus: string;
+  state: string;
+}
+
+/**
+ * Pure verdict on one `gh pr view` payload. `pending` means "keep polling" — crucially
+ * BLOCKED / UNSTABLE / BEHIND (checks running, branch protection, behind base) are NOT
+ * conflicts; only `DIRTY` / `CONFLICTING` are. Merging on a `pending` PR would land code
+ * before CI completes on a repo without required-checks protection.
+ */
+export function classifyMergeView(d: MergeView): 'merged' | 'merge-conflict' | 'pending' {
+  if (d.mergedAt !== null || d.state === 'MERGED') return 'merged';
+  if (d.mergeStateStatus === 'DIRTY' || d.mergeStateStatus === 'CONFLICTING')
+    return 'merge-conflict';
+  return 'pending';
+}
+
+/**
+ * Serialized squash-merge of one already-open PR (parallel drain K>1), reusing the same
+ * `--auto --squash` + poll machinery the K=1 child runs today (`pr-flow.ts`). Enqueues auto-merge,
+ * then polls the STRUCTURED `mergeStateStatus` until merged / genuine conflict / timeout — never a
+ * stderr substring. On a repo WITHOUT a merge queue (auto-merge enqueue exits non-zero) it attempts a
+ * direct squash, but ONLY when `mergeStateStatus === 'CLEAN'` (all required checks passed + up to
+ * date) so it never lands code before CI. Throws only on a systemic `gh`/spawn failure → the
+ * coordinator aborts the whole drain fail-closed.
+ */
+export async function mergePr(
+  cwd: string,
+  slug: string,
+  branch: string,
+  pollTimeoutMs = 20 * 60 * 1000,
+  pollIntervalMs = 10_000,
+): Promise<MergeOutcome> {
+  void slug; // retained for caller/log context; `branch` drives the gh queries
+  const enq = spawnSync('gh', ['pr', 'merge', branch, '--auto', '--squash'], {
+    cwd,
+    encoding: 'utf8',
+  });
+  if (enq.error) throw new Error(`gh pr merge spawn failed for ${branch}: ${enq.error.message}`);
+  const autoEnabled = enq.status === 0;
+  const deadline = Date.now() + pollTimeoutMs; // real wall-clock — IO adapter, not unit-tested
+  for (;;) {
+    const view = spawnSync(
+      'gh',
+      ['pr', 'view', branch, '--json', 'mergedAt,mergeStateStatus,state'],
+      {
+        cwd,
+        encoding: 'utf8',
+      },
+    );
+    if (view.status !== 0) {
+      throw new Error(`gh pr view failed for ${branch}: ${(view.stderr ?? '').trim()}`);
+    }
+    const v = JSON.parse(view.stdout) as MergeView;
+    const verdict = classifyMergeView(v);
+    if (verdict === 'merged') return 'merged';
+    if (verdict === 'merge-conflict') return 'merge-conflict';
+    if (Date.now() > deadline) return 'merge-timeout';
+    // No merge queue: attempt a direct squash, but ONLY when CLEAN (mergeable now — checks passed).
+    if (!autoEnabled && v.mergeStateStatus === 'CLEAN') {
+      spawnSync('gh', ['pr', 'merge', branch, '--squash'], { cwd, encoding: 'utf8' });
+    }
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+  }
+}
+
 /**
  * Checkout main, fetch, ff-only sync, prune stale worktree admin entries, drop
  * stale escalation context. Throws on an ff-only rejection (caller aborts the

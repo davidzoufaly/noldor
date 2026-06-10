@@ -12,7 +12,7 @@ import {
 } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { writeState, type DrainState } from './drain-state.js';
-import { syncMainCleanState, openPrExistsFor, spawnGate } from './drain-io.js';
+import { syncMainCleanState, openPrExistsFor, spawnGate, mergePr } from './drain-io.js';
 
 export interface ParsedArgs {
   maxFeatures: number;
@@ -122,6 +122,7 @@ async function main(): Promise<void> {
     source,
     spawnGate: (env, timeoutMs, prompt) => spawnGate(cwd, env, timeoutMs, prompt),
     syncMainCleanState: () => syncMainCleanState(cwd),
+    mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
     writeState: (s) => {
       const state: DrainState = {
