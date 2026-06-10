@@ -93,6 +93,38 @@ export function renderChipRow(opts: {
 export const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL'] as const;
 export const IMPACT_ORDER = ['low', 'med', 'high', 'critical'] as const;
 
+/**
+ * Age buckets for the `/backlog` view, oldest last. `undated` collects
+ * entries with a missing or unparseable `since:` field.
+ */
+export const AGE_BUCKET_ORDER = ['0-30d', '30-90d', '90d+', 'undated'] as const;
+export type AgeBucket = (typeof AGE_BUCKET_ORDER)[number];
+
+const AGE_BUCKET_LABELS: Record<AgeBucket, string> = {
+  '0-30d': '0–30 days',
+  '30-90d': '30–90 days',
+  '90d+': '90+ days',
+  undated: 'No date',
+};
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Bucket a backlog entry by the age of its `since:` date — pure frontmatter
+ * math, no git. Boundaries are inclusive on the young side (exactly 30 days
+ * → `0-30d`, exactly 90 → `30-90d`); future dates clamp to `0-30d`; missing
+ * or unparseable dates land in `undated`.
+ */
+export function ageBucket(since: string | undefined, now: Date): AgeBucket {
+  if (!since) return 'undated';
+  const t = Date.parse(since);
+  if (Number.isNaN(t)) return 'undated';
+  const days = (now.getTime() - t) / DAY_MS;
+  if (days <= 30) return '0-30d';
+  if (days <= 90) return '30-90d';
+  return '90d+';
+}
+
 export interface SortableEntry {
   name: string;
   size?: string;
@@ -689,14 +721,23 @@ export async function renderRoadmap(
  * paragraph description so users do not need to drill into `docs/backlog.md`
  * to see the rationale.
  *
- * The `<table>` carries `data-section="backlog"` + `data-etag`; rows expose
- * only a trailing Promote button (no drag-handle column, no `draggable`
- * attribute) — `docs/backlog.md` is a priority-less parking lot, so file
- * order is incidental and drag-to-reorder UI is conceptually noise.
+ * Entries are grouped into age buckets by their `since:` field
+ * ({@link ageBucket} — 0–30 / 30–90 / 90+ days, undated last); old entries
+ * are signal to promote, demote, or delete. Each non-empty bucket renders
+ * its own heading + table; filters and sort apply across buckets, sort
+ * order is preserved within each bucket.
+ *
+ * Every bucket `<table>` carries `data-section="backlog"` + `data-etag`
+ * (the promote-button wiring in `static/drag.ts` binds per-table); rows
+ * expose only a trailing Promote button (no drag-handle column, no
+ * `draggable` attribute) — `docs/backlog.md` is a priority-less parking
+ * lot, so file order is incidental and drag-to-reorder UI is conceptually
+ * noise.
  *
  * @param entries - Backlog entries
  * @param filters - Active filter state
- * @param meta - File hash (etag attribute on the table)
+ * @param meta - File hash (etag attribute on the table); `now` overrides
+ *   the bucket-math clock (tests)
  * @returns HTML body string
  */
 export async function renderBacklog(
@@ -709,7 +750,7 @@ export async function renderBacklog(
     impact: string[];
     sort: string;
   },
-  meta: { rawHash: string } = { rawHash: '' },
+  meta: { rawHash: string; now?: Date } = { rawHash: '' },
 ): Promise<string> {
   const matches = (e: BacklogEntry): boolean =>
     (!filters.area || e.area === filters.area) &&
@@ -791,16 +832,14 @@ export async function renderBacklog(
     return `<h1>Backlog (0 of ${entries.length})</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="empty">No matching entries.</p>`;
   }
 
-  const rows = (
-    await Promise.all(
-      filtered.map(async (e) => {
-        const typeBadge = e.type
-          ? `<span class="badge type-${escapeHtml(e.type)}">${escapeHtml(e.type)}</span>`
-          : '—';
-        const slug = escapeHtml(e.slug);
-        const descId = `desc-${slug}`;
-        const descHtml = await renderDescription(e.description);
-        return `<tr data-slug="${slug}">
+  const renderRow = async (e: BacklogEntry): Promise<string> => {
+    const typeBadge = e.type
+      ? `<span class="badge type-${escapeHtml(e.type)}">${escapeHtml(e.type)}</span>`
+      : '—';
+    const slug = escapeHtml(e.slug);
+    const descId = `desc-${slug}`;
+    const descHtml = await renderDescription(e.description);
+    return `<tr data-slug="${slug}">
         <td><strong>${escapeHtml(e.name)}</strong></td>
         <td>${escapeHtml(e.category ?? '—')}</td>
         <td>${escapeHtml(e.area)}</td>
@@ -811,16 +850,34 @@ export async function renderBacklog(
         <td class="description"><span class="description--clamped">${escapeHtml(plainTextPreview(e.description))}</span><div id="${descId}" class="body description-full">${descHtml}</div><button type="button" class="description-toggle" aria-expanded="false" aria-controls="${descId}">Show more</button></td>
         <td><button type="button" class="move-chip" data-action="promote" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">↑</span>Promote</button></td>
       </tr>`;
+  };
+
+  const now = meta.now ?? new Date();
+  const buckets = new Map<AgeBucket, BacklogEntry[]>();
+  for (const e of filtered) {
+    const b = ageBucket(e.since, now);
+    const group = buckets.get(b);
+    if (group) {
+      group.push(e);
+    } else {
+      buckets.set(b, [e]);
+    }
+  }
+
+  const sections = (
+    await Promise.all(
+      AGE_BUCKET_ORDER.filter((b) => buckets.has(b)).map(async (b) => {
+        const group = buckets.get(b) as BacklogEntry[];
+        const rows = (await Promise.all(group.map(renderRow))).join('');
+        return `<h2 class="age-bucket">${escapeHtml(AGE_BUCKET_LABELS[b])} (${group.length})</h2><table data-section="backlog" data-etag="${escapeHtml(meta.rawHash)}">
+    <thead><tr><th>Name</th><th>Category</th><th>Area</th><th>Type</th><th>Size</th><th>Impact</th><th>Since</th><th>Description</th><th class="action-col">Action</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
       }),
     )
   ).join('');
 
-  const table = `<table data-section="backlog" data-etag="${escapeHtml(meta.rawHash)}">
-    <thead><tr><th>Name</th><th>Category</th><th>Area</th><th>Type</th><th>Size</th><th>Impact</th><th>Since</th><th>Description</th><th class="action-col">Action</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
-
-  return `<h1>Backlog (${filtered.length} of ${entries.length})</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p>${table}`;
+  return `<h1>Backlog (${filtered.length} of ${entries.length})</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p>${sections}`;
 }
 
 /**
