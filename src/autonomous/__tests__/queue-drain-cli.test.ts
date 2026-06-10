@@ -22,6 +22,18 @@ describe('queue-drain CLI helpers', () => {
     expect(() => parseArgs(['--max-features', '0'])).toThrow(/positive integer/);
   });
 
+  it('defaults --source to roadmap', () => {
+    expect(parseArgs([]).source).toBe('roadmap');
+  });
+
+  it('reads --source plans', () => {
+    expect(parseArgs(['--source', 'plans']).source).toBe('plans');
+  });
+
+  it('rejects an invalid --source', () => {
+    expect(() => parseArgs(['--source', 'bogus'])).toThrow(/source/);
+  });
+
   it('assertConfig passes the headless precondition set', () => {
     expect(() =>
       assertConfig({

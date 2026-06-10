@@ -1,23 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runDrain } from '../drain-loop.js';
-import type { SuggestedEntry, Suggestions } from '../../core/next-priority.js';
-
-function entryOf(slug: string, over: Partial<SuggestedEntry> = {}): SuggestedEntry {
-  return {
-    name: slug,
-    slug,
-    suggestedPath: 'fast-track',
-    description: 'x',
-    ...over,
-  } as SuggestedEntry;
-}
+import type { DrainSource } from '../drain-source.js';
 
 /**
- * Mutable-roadmap harness. `nextPriority(skip)` returns the live roadmap minus
- * `skip` (so the loop's skip filter genuinely terminates it); `parseAll()`
- * returns the live roadmap (the D2 oracle); a "shipping" spawn removes the
- * just-targeted slug (simulating a merged PR). Every test terminates for the
- * RIGHT reason — not via the maxSpawns backstop.
+ * Mutable-roadmap harness. The mock source's `nextItem(skip)` returns the live
+ * list minus `skip` (so the loop's skip filter genuinely terminates it);
+ * `parseAll()` returns the live list (the success oracle); a "shipping" spawn
+ * removes the just-targeted slug (simulating a merged PR). Every test terminates
+ * for the RIGHT reason — not via the maxSpawns backstop.
  */
 function harness(
   initial: string[],
@@ -26,36 +16,39 @@ function harness(
     spawnImpl?: () => number;
     openPr?: () => boolean;
     stop?: () => boolean;
-    nextPriorityImpl?: (skip: ReadonlySet<string>) => Suggestions;
+    eligibleFor?: (slug: string) => boolean;
+    nextItemImpl?: (skip: ReadonlySet<string>) => ReturnType<DrainSource['nextItem']>;
     parseAllImpl?: () => string[];
-    entryOver?: (slug: string) => Partial<SuggestedEntry>;
   } = {},
 ) {
   let roadmap = [...initial];
   let lastTarget: string | null = null;
   const ships = opts.ships ?? (() => true);
-  const nextPriority = vi.fn(
-    opts.nextPriorityImpl ??
-      ((skip: ReadonlySet<string>): Suggestions => {
+  const eligibleFor = opts.eligibleFor ?? (() => true);
+  const nextItem = vi.fn(
+    opts.nextItemImpl ??
+      ((skip: ReadonlySet<string>) => {
         const visible = roadmap.filter((s) => !skip.has(s));
         lastTarget = visible[0] ?? null;
-        return {
-          inProgress: [],
-          topPriority: visible.map((s) => entryOf(s, opts.entryOver?.(s))),
-          smallHighImpact: [],
-          milestoneAligned: null,
-        };
+        if (lastTarget === null) return null;
+        return { slug: lastTarget, description: 'x', eligible: eligibleFor(lastTarget) };
       }),
   );
-  const spawnGate = vi.fn((_env: Record<string, string>) => {
+  const spawnGate = vi.fn((_env: Record<string, string>, _timeoutMs: number, _prompt: string) => {
     const code = (opts.spawnImpl ?? (() => 0))(); // may throw (timeout) → no removal
-    if (lastTarget && ships(lastTarget)) roadmap = roadmap.filter((s) => s !== lastTarget);
+    if (lastTarget !== null && ships(lastTarget)) roadmap = roadmap.filter((s) => s !== lastTarget);
     return code;
   });
+  const source: DrainSource = {
+    id: 'roadmap',
+    nextItem,
+    parseAll: vi.fn(opts.parseAllImpl ?? (() => [...roadmap])),
+    gatePrompt: () => '/gate',
+    branchFor: (s) => `fast/${s}`,
+  };
   return {
     deps: {
-      nextPriority,
-      parseAll: vi.fn(opts.parseAllImpl ?? (() => [...roadmap])),
+      source,
       spawnGate,
       syncMainCleanState: vi.fn(),
       openPrExistsFor: vi.fn(opts.openPr ?? (() => false)),
@@ -63,7 +56,7 @@ function harness(
       stopRequested: vi.fn(opts.stop ?? (() => false)),
     },
     spawnGate,
-    nextPriority,
+    nextItem,
   };
 }
 const opts = {
@@ -85,9 +78,9 @@ describe('runDrain', () => {
     expect(h.spawnGate).toHaveBeenCalledTimes(1 + (opts.maxRetries + 1)); // a once + b (1 + retries)
   });
 
-  it('(b) aborts exit 1 when nextPriority throws, surfacing the cause', () => {
+  it('(b) aborts exit 1 when source.nextItem throws, surfacing the cause', () => {
     const h = harness(['a'], {
-      nextPriorityImpl: () => {
+      nextItemImpl: () => {
         throw new Error('parse boom');
       },
     });
@@ -125,7 +118,7 @@ describe('runDrain', () => {
   });
 
   it('(g) out-of-scope entry skipped without spawning', () => {
-    const h = harness(['a'], { entryOver: () => ({ suggestedPath: 'full-attach' }) });
+    const h = harness(['a'], { eligibleFor: () => false });
     runDrain(h.deps, opts);
     expect(h.spawnGate).not.toHaveBeenCalled();
   });
@@ -156,7 +149,7 @@ describe('runDrain', () => {
     expect(runDrain(h.deps, opts).exitCode).toBe(1);
   });
 
-  it('(l) parseAll failure (roadmap parse) → abort exit 1', () => {
+  it('(l) parseAll failure (oracle read) → abort exit 1', () => {
     const h = harness(['a'], {
       ships: () => false,
       parseAllImpl: () => {

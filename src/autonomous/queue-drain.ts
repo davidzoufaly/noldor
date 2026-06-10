@@ -1,11 +1,15 @@
-import { readFileSync, existsSync, unlinkSync } from 'node:fs';
+import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { loadConfigSync, type NoldorConfig } from '../cr/config.js';
-import { getSuggestions, loadInProgressFds, loadMilestoneGate } from '../core/next-priority.js';
-import { loadDocRoots } from '../core/doc-roots.js';
-import { parseRoadmap } from '../utils/parse-blocks.js';
 import { runDrain, type DrainDeps, type DrainResult } from './drain-loop.js';
+import {
+  roadmapSource,
+  plansSource,
+  specsSource,
+  type SourceId,
+  type DrainSource,
+} from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { writeState, type DrainState } from './drain-state.js';
 import { syncMainCleanState, openPrExistsFor, spawnGate } from './drain-io.js';
@@ -17,6 +21,7 @@ export interface ParsedArgs {
   timeoutMs: number;
   dryRun: boolean;
   json: boolean;
+  source: SourceId;
 }
 
 function intFlag(args: readonly string[], name: string, def: number): number {
@@ -27,7 +32,18 @@ function intFlag(args: readonly string[], name: string, def: number): number {
   return v;
 }
 
-/** Parse the queue-drain CLI flags. Throws on a non-positive integer flag. */
+/** Parse `--source roadmap|plans|specs` (default roadmap). Throws on an unknown source. */
+function parseSource(args: readonly string[]): SourceId {
+  const i = args.indexOf('--source');
+  if (i === -1) return 'roadmap';
+  const v = args[i + 1];
+  if (v !== 'roadmap' && v !== 'plans' && v !== 'specs') {
+    throw new Error('--source must be one of: roadmap, plans, specs');
+  }
+  return v;
+}
+
+/** Parse the drain CLI flags. Throws on a non-positive integer flag or bad --source. */
 export function parseArgs(args: readonly string[]): ParsedArgs {
   const maxFeatures = intFlag(args, '--max-features', 20);
   const maxRetries = intFlag(args, '--max-retries', 2);
@@ -38,6 +54,7 @@ export function parseArgs(args: readonly string[]): ParsedArgs {
     timeoutMs: intFlag(args, '--iteration-timeout', 30 * 60 * 1000),
     dryRun: args.includes('--dry-run'),
     json: args.includes('--json'),
+    source: parseSource(args),
   };
 }
 
@@ -58,18 +75,27 @@ export function assertConfig(cfg: Partial<NoldorConfig>): void {
     throw new Error(`drain config precondition unmet:\n  - ${bad.join('\n  - ')}`);
 }
 
+/** Build the matching {@link DrainSource}. `specs` throws (phase 2) → caller exits 1. */
+function buildSource(id: SourceId, cwd: string): DrainSource {
+  if (id === 'roadmap') return roadmapSource(cwd);
+  if (id === 'plans') return plansSource(cwd);
+  return specsSource(cwd); // throws — phase 2
+}
+
 function main(): void {
   const args = process.argv.slice(2);
+  const cwd = process.cwd();
   let parsed: ParsedArgs;
+  let source: DrainSource;
   try {
     parsed = parseArgs(args);
     assertConfig(loadConfigSync() ?? {});
+    source = buildSource(parsed.source, cwd); // --source specs throws here → exit 1
   } catch (e) {
     process.stderr.write(`${(e as Error).message}\n`);
     process.exit(1);
   }
 
-  const cwd = process.cwd();
   const startedAt = new Date().toISOString();
   const lock = acquireLock(cwd, startedAt);
   if (!lock.ok) {
@@ -91,17 +117,10 @@ function main(): void {
   });
 
   const deps: DrainDeps = {
-    nextPriority: (skip) =>
-      getSuggestions(
-        readFileSync(loadDocRoots(cwd).roadmap, 'utf8'),
-        { inProgressFds: loadInProgressFds(cwd), milestoneGate: loadMilestoneGate(cwd) },
-        skip,
-      ),
-    parseAll: () =>
-      parseRoadmap(readFileSync(loadDocRoots(cwd).roadmap, 'utf8')).map((e) => e.slug),
-    spawnGate: (env, timeoutMs) => spawnGate(cwd, env, timeoutMs),
+    source,
+    spawnGate: (env, timeoutMs, prompt) => spawnGate(cwd, env, timeoutMs, prompt),
     syncMainCleanState: () => syncMainCleanState(cwd),
-    openPrExistsFor: (slug) => openPrExistsFor(cwd, slug),
+    openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
     writeState: (s) => {
       const state: DrainState = {
         pid: process.pid,
@@ -129,6 +148,14 @@ function main(): void {
       ? `${JSON.stringify(res)}\n`
       : `drain: shipped ${res.shipped}, skipped ${res.skipped.length} [${res.skipped.join(', ')}]\n`,
   );
+  if (!parsed.json && res.planned !== undefined) {
+    process.stdout.write(`  would ship (FIFO plan-age): ${res.planned.join(', ')}\n`);
+  }
+  if (!parsed.json && res.skipReasons !== undefined) {
+    for (const [slug, reason] of Object.entries(res.skipReasons)) {
+      process.stdout.write(`  skip ${slug}: ${reason}\n`);
+    }
+  }
   if (res.error !== undefined) process.stderr.write(`drain aborted: ${res.error}\n`);
   process.exit(res.exitCode);
 }
