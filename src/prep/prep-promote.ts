@@ -389,7 +389,18 @@ function run(argv: readonly string[]): number {
       );
     process.stdout.write(`  record: ${recordPath}\n`);
   }
-  return promoted.length > 0 ? 0 : 1;
+  return promoteExitCode(promoted.length, failedCount);
+}
+
+/**
+ * Exit code for `prep promote`. Non-zero on ANY failed promotion so scripted
+ * callers (and the autonomous pipeline) can detect partial failure — a batch
+ * where some drafts promoted and others failed must NOT report success. Also
+ * non-zero when nothing was promoted (all skipped / none approved).
+ */
+function promoteExitCode(promoted: number, failed: number): number {
+  if (failed > 0) return 1;
+  return promoted > 0 ? 0 : 1;
 }
 
 function main(): void {
@@ -404,4 +415,4 @@ function main(): void {
 const invokedDirect = /[\\/]prep-promote\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
 if (invokedDirect) main();
 
-export { parseArgs, promoteOne, run, selectApproved, toPrepEntry };
+export { parseArgs, promoteExitCode, promoteOne, run, selectApproved, toPrepEntry };

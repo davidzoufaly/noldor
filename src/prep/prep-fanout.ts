@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -9,7 +10,21 @@ import { renderIndex } from './index-doc.js';
 import { spawnClaude, runWithConcurrency } from './spawn.js';
 import { batchDirFor, ensureDir, indexPath, manifestPath, writeManifest } from './staging.js';
 
+import { draftMetaSchema } from './types.js';
 import type { DraftMeta, FeatureDraft, StagingManifest } from './types.js';
+
+/**
+ * `git status --porcelain` (tracked changes only — the staging batch dir under
+ * `.noldor/` is gitignored, so output here means a change OUTSIDE the staging
+ * area). Returns '' when git is unavailable so the tree guard never blocks fanout.
+ */
+function gitStatusPorcelain(cwd: string): string {
+  try {
+    return execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
+  } catch {
+    return '';
+  }
+}
 
 interface FanoutArgs {
   max: number;
@@ -82,6 +97,16 @@ async function run(argv: readonly string[]): Promise<number> {
     `prep fanout: drafting ${entries.length} feature(s) into ${relBatchDir} (max ${parsed.max} concurrent)\n`,
   );
 
+  // Parallel children run with `bypassPermissions` in this shared working tree,
+  // isolated only by prompt instruction. Snapshot the tree before spawning so we
+  // can flag anything a child dirties outside its allotted staging files (D3).
+  const preStatus = gitStatusPorcelain(cwd);
+  if (preStatus.length > 0) {
+    process.stderr.write(
+      `prep fanout: WARNING — working tree dirty before spawn; a pre-existing change may be confused with a child's:\n${preStatus}\n`,
+    );
+  }
+
   const spawnStatus = new Map<string, string>();
   await runWithConcurrency(entries, parsed.max, async (e) => {
     process.stderr.write(`  -> drafting ${e.slug}\n`);
@@ -96,18 +121,36 @@ async function run(argv: readonly string[]): Promise<number> {
     }
   });
 
+  // Post-batch tree diff: the staging dir is gitignored, so any change vs the
+  // pre-spawn snapshot is a child writing OUTSIDE its allotted files (e.g.
+  // dirtying docs/roadmap.md or a sibling's draft). Warn, don't fail (D3).
+  const postStatus = gitStatusPorcelain(cwd);
+  if (postStatus !== preStatus) {
+    process.stderr.write(
+      `prep fanout: WARNING — tracked files outside the batch dir changed during fanout (a child may have written outside its allotted files); review with \`git status\`:\n${postStatus}\n`,
+    );
+  }
+
   const drafts: FeatureDraft[] = entries.map((e) => {
     const specExists = existsSync(join(absBatchDir, `${e.slug}.spec.md`));
     const metaExists = existsSync(join(absBatchDir, `${e.slug}.meta.json`));
     const planExists = e.tier === 'full' && existsSync(join(absBatchDir, `${e.slug}.plan.md`));
     let meta: DraftMeta = { summary: e.name, confidence: 'low', risks: [], openQuestions: [] };
     if (metaExists) {
+      // The child is an untrusted process: validate shape, don't `as DraftMeta`.
+      // valid-JSON-but-wrong-shape (e.g. summary:null, missing openQuestions) would
+      // otherwise throw later in renderIndex and lose the whole batch's INDEX.
       try {
-        meta = JSON.parse(
-          readFileSync(join(absBatchDir, `${e.slug}.meta.json`), 'utf8'),
-        ) as DraftMeta;
+        const parsed = draftMetaSchema.safeParse(
+          JSON.parse(readFileSync(join(absBatchDir, `${e.slug}.meta.json`), 'utf8')),
+        );
+        if (parsed.success) meta = parsed.data;
+        else
+          process.stderr.write(
+            `  ! ${e.slug}: meta.json shape invalid (${parsed.error.issues[0]?.message ?? 'unknown'}) — using fallback\n`,
+          );
       } catch {
-        /* keep fallback */
+        process.stderr.write(`  ! ${e.slug}: meta.json not valid JSON — using fallback\n`);
       }
     }
     const complete = specExists && metaExists && (e.tier !== 'full' || planExists);

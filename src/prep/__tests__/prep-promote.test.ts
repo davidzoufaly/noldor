@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { promoteOne, selectApproved, toPrepEntry } from '../prep-promote.js';
+import { promoteExitCode, promoteOne, selectApproved, toPrepEntry } from '../prep-promote.js';
 
 import type { FeatureDraft, StagingManifest } from '../types.js';
 
@@ -88,6 +88,21 @@ describe('selectApproved', () => {
       json: false,
     });
     expect(got.map((d) => d.slug)).toEqual(['done-one']);
+  });
+});
+
+describe('promoteExitCode', () => {
+  it('returns 0 on clean success (promoted, none failed)', () => {
+    expect(promoteExitCode(2, 0)).toBe(0);
+  });
+  it('returns 1 on partial failure (some promoted, some failed) — scripted callers can detect it', () => {
+    expect(promoteExitCode(1, 1)).toBe(1);
+  });
+  it('returns 1 when all failed', () => {
+    expect(promoteExitCode(0, 1)).toBe(1);
+  });
+  it('returns 1 when nothing was promoted', () => {
+    expect(promoteExitCode(0, 0)).toBe(1);
   });
 });
 
