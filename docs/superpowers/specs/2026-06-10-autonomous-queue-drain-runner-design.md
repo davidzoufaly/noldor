@@ -109,7 +109,8 @@ held by a *live* drain is never safe — so an override flag would have nothing 
 - **0** — ran to completion: queue drained, all-remaining-skipped, or `--max-features` reached cleanly.
 - **1** — aborted on error: `next-priority` parse/exec failure, lock contention with a live drain,
   duplicate-slug roadmap, or a fatal git-sync failure.
-- **130** — stopped via kill switch (SIGINT / `.noldor/drain-stop` sentinel) between iterations.
+- **130** — stopped via kill switch (SIGINT, or `.noldor/drain-stop` sentinel between iterations);
+  also when SIGINT arrives mid-child (the child tree is killed first — see Error handling).
 
 **Loop** (the loop is a thin IO shell; all branching lives in the pure `decideNext`):
 
@@ -124,11 +125,12 @@ loop {
   const sugg = nextPriority({ suggestions:true, skip })       // parse JSON
   if sugg.topPriority.length === 0: break                     // D4 — done (ignore inProgress)
   const entry = sugg.topPriority[0]
-  const decision = decideNext({ entry, retries, maxRetries, shipped, maxFeatures, spawns, maxSpawns })
+  const decision = decideNext({ entry, shipped, maxFeatures, spawns, maxSpawns })
   switch decision.action {
     'skip-out-of-scope':  skip.add(entry.slug); continue        // non-fast-track, parented+Touches, or multi-scope
     'done':               break                                 // maxFeatures or maxSpawns reached
     'spawn': {
+      if openPrExistsFor(entry.slug): { skip.add(entry.slug); continue }  // restart-safety — a PR from an interrupted prior run is in-flight; never duplicate
       spawns++; writeState({phase:'spawning', slug:entry.slug, pid, startedAt})
       const code = spawnGate({ env:{NOLDOR_DRAIN:'1', NOLDOR_DRAIN_SKIP:csv(skip)}, timeoutMs })  // blocks until merged or killed
       syncMainCleanState()                                      // D5 — make the read authoritative
@@ -169,6 +171,12 @@ out-of-scope entry).
 that slug — D2. Because `removeBlock` only removes on merge-to-main and the supervisor synced main
 first (D5), absence is an authoritative "shipped" signal robust to reordering.
 
+**`openPrExistsFor(slug)`** ≡ `gh pr list --state open --head fast/<slug>` returns a PR. This relies on
+the drain-mode gate naming the feature branch **deterministically** `fast/<slug>` (see §3 Step 2) so
+the slug→branch→PR mapping is exact (ordinary fast-track uses `fast/<short-desc>`, which is not
+slug-derivable). Checked **pre-spawn** (restart-safety against an interrupted prior run) and
+**post-spawn** (D5b in-flight guard).
+
 **Injected dependencies (for purity under test):** `nextPriority`, `spawnGate`, `syncMainCleanState`,
 `openPrExistsFor`, `writeState`, `acquireLock`/`releaseLock`, `stopRequested`, `clock`/`timeout`. The
 loop touches no real FS/git/process directly — tests drive every branch with mocks.
@@ -207,7 +215,9 @@ harness-level deny + D-timeout):
 - **Step 0:** no bucket prompt. Auto-pick `topPriority[0]` honoring `NOLDOR_DRAIN_SKIP`. (The
   supervisor only spawns for in-scope entries, so the top is expected to be a fast-track XS/S.) If
   `suggestedPath !== 'fast-track'`, exit without scaffolding (defensive — should not happen).
-- **Steps 1 / 1.5:** no path-pick / confirm. Force `fast-track`, carrying `entry.slug`.
+- **Steps 1 / 1.5:** no path-pick / confirm. Force `fast-track`, carrying `entry.slug`. In drain mode
+  the feature branch is named **`fast/<slug>`** (deterministic, vs ordinary fast-track's
+  `fast/<short-desc>`) so the supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly.
 - **Step 2:** the **existing** fast-track + Roadmap-entry-retirement sequence (unchanged) — worktree,
   implement from the entry description, `removeBlock` retirement commit on the branch. `cd` into the
   worktree; the session marker, `set-autonomous`, and `pr-flow` all operate from the worktree
@@ -253,13 +263,17 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
 
 - `next-priority` non-zero / unparseable JSON → **abort** (exit 1; never loop blind).
 - Duplicate/colliding roadmap slugs (`-2` suffixing) → **abort** (exit 1; can't target a block safely).
-- Lock held by a live pid → **abort** (exit 1) unless `--force` (which still verifies the holder is dead).
+- Lock held by a live pid → **abort** (exit 1). A lock whose holder pid is dead is auto-reclaimed at
+  startup (no flag needed).
 - `claude` child exits non-zero → iteration failure (retry/skip).
 - `claude` child exceeds `--iteration-timeout` → kill the process tree, prune its worktree, treat as
   iteration failure.
 - **Kill switch.** `.noldor/drain-stop` sentinel or SIGINT **between iterations** → finish cleanly,
   exit 130. SIGINT **during a spawned child** → forward a kill to the child process tree, prune its
-  worktree, then exit 130 (never leave an orphaned child still auto-merging to `main`).
+  worktree, then exit 130 (no orphaned child left running locally). Note: if `pr-flow` already enabled
+  GitHub's server-side auto-merge before the kill, killing the local child does not cancel that merge —
+  the entry may still land on `main`; D5b's `openPrExistsFor` check on the next run absorbs this so it
+  is never re-spawned.
 - Config precondition unmet (any of the D6 set: `onFailure !== 'abort'`, `skipLanePicker !== true`,
   `requireHumanPrApproval !== false`) → abort before the first spawn (exit 1), naming each unmet key.
 - `git merge --ff-only origin/main` rejects (local main diverged) during sync → abort the drain with
@@ -276,7 +290,8 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
 ## Testing
 
 - **Unit — `decideNext`:** spawn / skip-out-of-scope / done across permutations of (suggestedPath,
-  Touches/multi-scope, retries vs maxRetries, shipped vs maxFeatures, spawns vs maxSpawns).
+  Touches/multi-scope, shipped vs maxFeatures, spawns vs maxSpawns). `decideNext` is retry-agnostic —
+  retry behavior is covered by the loop test, not here.
 - **Unit — `isDrainEligible(block)`:** plain single-scope block → eligible; `Touches:`-bearing →
   ineligible; multi-bullet body → ineligible.
 - **Unit — `next-priority --skip`:** excludes a slug, surfaces the next; all-skipped → empty
@@ -286,7 +301,8 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
   fail-then-retry; (d) merged-but-locally-unsynced → sync makes slug absent → counts shipped, no
   re-spawn; (e) `--dry-run` → zero `spawnGate` calls; (f) stop-signal at iteration top → exit 130;
   (g) duplicate-slug roadmap → abort; (h) lock held by live pid → abort; (i) child exits with slug
-  still present but `openPrExistsFor` true → skip, no re-spawn (D5b).
+  still present but `openPrExistsFor` true → skip, no re-spawn (D5b); (j) `openPrExistsFor` true
+  **pre-spawn** (restart after an interrupted run) → skip without spawning.
 - **Reused (not re-tested):** `removeBlock` is already covered by
   [write-blocks tests](../../../src/utils/__tests__/write-blocks.test.ts).
 - **Pre-implementation spike (documented in the FD Usage section):** confirm `claude --print "/gate"`
