@@ -4,7 +4,7 @@
 >
 > **Note on autonomous gate mode:** when this plan is executed via `/gate` autonomous mode (the controller runs it inline, not via subagents), follow the same task order and commit at each task's Commit step.
 
-**Goal:** Generalize the shipped queue-drain supervisor with an injected `DrainSource` seam so it can drain a second source — already-designed in-progress FDs (`--source plans`) — autonomously, one auto-merged `feat/<slug>` PR at a time, while `--source roadmap` reproduces queue-drain byte-for-byte.
+**Goal:** Generalize the shipped queue-drain supervisor with an injected `DrainSource` seam so it can drain a second source — already-designed in-progress FDs (`--source plans`) — autonomously, one auto-merged `feat/<slug>` PR at a time, while `--source roadmap` preserves queue-drain behavior (output additively extended with dry-run `planned` + `skipReasons`).
 
 **Architecture:** A new `src/autonomous/drain-source.ts` defines a `DrainSource` interface and three constructors: `roadmapSource` (preserves today's fast-track-only behavior), `plansSource` (the new capability), and `specsSource` (throws — phase 2). `decideNext` and `runDrain` lose all source/path literals and drive the injected source. `drain-io.ts` threads a gate prompt and branch through `spawnGate`/`openPrExistsFor`. The CLI gains `--source` and a `run` command (with `queue-drain` kept as a `--source roadmap` alias). The gate skill gains a drain-only branch that resumes a fully-designed FD straight into autonomous implementation.
 
@@ -159,23 +159,15 @@ function tmpRepo(roadmap: string): string {
   return dir;
 }
 
-// A schema-C roadmap block. `size: XS` → suggestedPath 'fast-track'; `size: L` → not.
-function block(slug: string, size: string, body = ''): string {
-  return [
-    `<!-- noldor:entry`,
-    `slug: ${slug}`,
-    `name: ${slug}`,
-    `area: tooling`,
-    `since: 2026-06-10`,
-    `type: feat`,
-    `priority: 1`,
-    `size: ${size}`,
-    `impact: high`,
-    `-->`,
-    `## ${slug}`,
-    body,
-    '',
-  ].join('\n');
+// A real roadmap entry: `### Name` + `- key: value` bullets + free-text body.
+// `parseRoadmap` derives the slug from the heading via slugify and sets priority
+// from source order — there is NO `slug:`/`priority:` field. Use lowercase
+// single-word names so `slug === name`. `size: XS` → suggestedPath 'fast-track'
+// (sizeToPath); `size: L` → an attach path (not fast-track).
+function block(name: string, size: string, body = ''): string {
+  return [`### ${name}`, '', `- area: tooling`, `- size: ${size}`, `- impact: high`, '', body, ''].join(
+    '\n',
+  );
 }
 
 describe('roadmapSource', () => {
@@ -234,7 +226,7 @@ describe('roadmapSource', () => {
 });
 ```
 
-> Verify the schema-C block shape against a real entry in `docs/roadmap.md` before running — `parseRoadmap` is the authority on the comment-block format. If the `<!-- noldor:entry ... -->` delimiters differ, copy an actual block and substitute slug/size. (Run `grep -n "noldor:entry" docs/roadmap.md` and mirror the first match.)
+> Format verified against `src/utils/parse-blocks.ts:parseRoadmap`: an H3 `### Name` with a `- area:` bullet is a direct (level-3) entry; the slug is `slugify(name)` (single-word lowercase names keep `slug === name`); `size`/`impact`/`area` are `- key: value` bullets; the rest is free-text body. There is no `slug:` or `priority:` field — priority is source order.
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -263,14 +255,21 @@ export function roadmapSource(cwd: string): DrainSource {
       const top = sugg.topPriority[0];
       if (top === undefined) return null;
       const description = top.description ?? '';
-      const eligible = top.suggestedPath === 'fast-track' && isDrainEligible(description);
+      const fastTrack = top.suggestedPath === 'fast-track';
+      const drainOk = isDrainEligible(description);
+      const eligible = fastTrack && drainOk;
+      // Distinguish the two ineligibility causes (a non-fast-track size vs a
+      // Touches/multi-scope residue that fails isDrainEligible) so the skip log is accurate.
+      const reason = !fastTrack
+        ? 'not a fast-track XS/S entry (roadmap source ships fast-track only)'
+        : !drainOk
+          ? 'multi-scope or Touches-bearing entry — needs human /promote residue disposition'
+          : undefined;
       return {
         slug: top.slug,
         description,
         eligible,
-        ...(eligible
-          ? {}
-          : { reason: 'not a fast-track XS/S entry (roadmap source ships fast-track only)' }),
+        ...(reason !== undefined ? { reason } : {}),
       };
     },
     parseAll() {
@@ -389,6 +388,18 @@ describe('plansSource', () => {
     }
   });
 
+  it('surfaces a plan-but-no-spec FD as ineligible with a no-spec reason (never silently dropped)', () => {
+    const dir = tmpPlansRepo([{ slug: 'nospec', spec: false }]);
+    try {
+      const c = plansSource(dir).nextItem(new Set());
+      expect(c!.slug).toBe('nospec');
+      expect(c!.eligible).toBe(false);
+      expect(c!.reason).toMatch(/no spec/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('prefers an eligible FD over a no-plan FD', () => {
     const dir = tmpPlansRepo([{ slug: 'noplan', planDate: null }, { slug: 'designed' }]);
     try {
@@ -452,33 +463,44 @@ export function plansSource(cwd: string): DrainSource {
     return null;
   };
 
-  const hasSpec = (slug: string): boolean =>
-    existsSync(roots.specs) && readdirSync(roots.specs).some((f) => f.endsWith(`-${slug}-design.md`));
+  // Anchored to the full stem (`<date>-<slug>-design.md`) — mirrors planDate — so
+  // slug `runner` does NOT false-match `2026-06-10-plan-runner-design.md`. Trade-off:
+  // an attach-enhancement spec (`<date>-<parent>-<enh>-design.md`) won't match a
+  // parent-slug lookup; plan-runner's MVP targets full-new designed FDs whose spec
+  // is `<date>-<slug>-design.md` (the prep-pipeline output). Documented, acceptable.
+  const hasSpec = (slug: string): boolean => {
+    if (!existsSync(roots.specs)) return false;
+    const re = new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${escapeRe(slug)}-design\\.md$`);
+    return readdirSync(roots.specs).some((f) => re.test(f));
+  };
 
   return {
     id: 'plans',
     nextItem(skip) {
       const rows = inProgressSlugs()
         .filter((slug) => !skip.has(slug))
+        .toSorted((a, b) => a.localeCompare(b)) // deterministic blocked-pick order
         .map((slug) => ({ slug, date: planDate(slug), spec: hasSpec(slug) }));
 
       const eligible = rows
         .filter((r) => r.date !== null && r.spec)
-        .toSorted((a, b) => a.date!.localeCompare(b.date!));
+        .toSorted((a, b) => a.date!.localeCompare(b.date!)); // FIFO oldest-plan-first
       if (eligible.length > 0) {
         return { slug: eligible[0]!.slug, description: '', eligible: true };
       }
 
-      // No eligible FD left: surface the first no-plan FD so dry-run reports a reason
-      // and the loop skips it (skip-out-of-scope), then re-reads minus it next pass.
-      const noPlan = rows.find((r) => r.date === null);
-      if (noPlan !== undefined) {
-        return {
-          slug: noPlan.slug,
-          description: '',
-          eligible: false,
-          reason: 'no plan — specs source (phase 2)',
-        };
+      // No eligible FD left: surface the first non-eligible in-progress FD with a
+      // precise reason so dry-run reports it and the loop skips it — never silently
+      // drops it. Every row here is non-eligible (eligible were returned above).
+      const blocked = rows[0];
+      if (blocked !== undefined) {
+        const reason =
+          blocked.date === null
+            ? blocked.spec
+              ? 'no plan — specs source (phase 2)'
+              : 'no spec or plan — not designed yet'
+            : 'no spec — not eligible (plan present, spec missing)';
+        return { slug: blocked.slug, description: '', eligible: false, reason };
       }
       return null;
     },
@@ -706,6 +728,8 @@ export interface DrainResult {
   skipped: string[];
   /** Per-slug skip reasons (e.g. ineligible). Present only when at least one reason was recorded. */
   skipReasons?: Record<string, string>;
+  /** Dry-run only: eligible candidates that WOULD ship, in FIFO order. Present only in --dry-run with ≥1 eligible. */
+  planned?: string[];
   exitCode: 0 | 1 | 130;
   /** Set only on an abort (exitCode 1) — the message of the dep that threw. */
   error?: string;
@@ -723,12 +747,14 @@ export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
   const skip = new Set<string>();
   const retries = new Map<string, number>();
   const skipReasons: Record<string, string> = {};
+  const planned: string[] = [];
   let shipped = 0;
   let spawns = 0;
   const result = (exitCode: 0 | 1 | 130, error?: string): DrainResult => ({
     shipped,
     skipped: [...skip],
     ...(Object.keys(skipReasons).length > 0 ? { skipReasons } : {}),
+    ...(planned.length > 0 ? { planned } : {}),
     exitCode,
     ...(error !== undefined ? { error } : {}),
   });
@@ -759,6 +785,7 @@ export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
         continue;
       }
       if (opts.dryRun) {
+        planned.push(candidate.slug); // eligible — would ship (dry-run diagnostic, FIFO order)
         skip.add(candidate.slug); // plan only — never spawn / merge
         continue;
       }
@@ -945,6 +972,9 @@ And surface `skipReasons` in the output (after the existing stdout write):
       ? `${JSON.stringify(res)}\n`
       : `drain: shipped ${res.shipped}, skipped ${res.skipped.length} [${res.skipped.join(', ')}]\n`,
   );
+  if (!parsed.json && res.planned !== undefined) {
+    process.stdout.write(`  would ship (FIFO plan-age): ${res.planned.join(', ')}\n`);
+  }
   if (!parsed.json && res.skipReasons !== undefined) {
     for (const [slug, reason] of Object.entries(res.skipReasons)) {
       process.stdout.write(`  skip ${slug}: ${reason}\n`);
@@ -1014,7 +1044,7 @@ If no manifest test file exists, skip the unit assertion (the CLI smoke in Task 
       },
       'queue-drain': {
         src: 'autonomous/queue-drain.ts',
-        desc: 'Alias for `run --source roadmap` (fast-track roadmap queue)',
+        desc: 'Fast-track roadmap drain (same entrypoint as `run`; defaults --source roadmap)',
       },
     },
   },
@@ -1058,7 +1088,7 @@ Insert after the existing `--resume mode` paragraph:
 ```markdown
 ### Drain mode (`NOLDOR_DRAIN=1`)
 
-When `--resume <slug>` runs under the drain supervisor (env `NOLDOR_DRAIN=1`, set by `plansSource` via `spawnGate`), behaviour changes **only under that env var** — the interactive `--resume` path (env unset) is unchanged.
+When `--resume <slug>` runs under the drain supervisor (env `NOLDOR_DRAIN=1`, set by the `runDrain` loop on every spawn — source-independent, not source-specific), behaviour changes **only under that env var** — the interactive `--resume` path (env unset) is unchanged.
 
 After re-establishing the session marker and creating/force-recreating the `feat/<slug>` worktree:
 
@@ -1090,33 +1120,33 @@ git commit -m "docs(gate): drain-resume autonomous-from-plan branch under NOLDOR
 **Files:**
 - Modify: `docs/features/plan-runner.md` (via `/draft-feature-md --refresh`)
 
-- [ ] **Step 1: Full typecheck + test + lint**
+> **Verification stance:** the unit tests (Tasks 1–4) are the AUTHORITATIVE check for source behavior. The live `autonomous run` smokes below are NOT safe from the `feat/plan-runner` worktree: `runDrain` calls `syncMainCleanState()` (`git checkout main` + ff-only merge) BEFORE the loop, even under `--dry-run` — that abandons the feature branch and reads `main`'s FDs (where the in-progress plan-runner FD/spec/plan don't exist until merge). Treat live `--source plans`/`--source roadmap` runs as OPTIONAL post-merge checks from a clean `main`. Only the specs-source guard (Step 2) is safe in-worktree, because `specsSource` throws at build time, before `runDrain`/`syncMainCleanState`.
+
+- [ ] **Step 1: Full typecheck + test + lint (authoritative)**
 
 Run: `pnpm typecheck && pnpm test && pnpm lint`
-Expected: all green. If lint flags unused imports in `queue-drain.ts` (helpers that moved into `drain-source.ts`), remove them.
+Expected: all green — `drain-source.test.ts` (roadmap + plans + specs incl. plan-but-no-spec), `decide-next.test.ts` (4), `run-drain.test.ts` (all original cases), `queue-drain-cli.test.ts` (original + 3 new). If lint flags unused imports in `queue-drain.ts` (helpers that moved into `drain-source.ts`), remove them.
 
-- [ ] **Step 2: Plans-source dry-run smoke (live, read-only)**
-
-Run: `pnpm noldor autonomous run --source plans --dry-run --json`
-Expected: exit 0; JSON lists `shipped: 0`, `skipped: [...]` and (when any in-progress FD lacks a plan) a `skipReasons` map with `no plan — specs source (phase 2)`. Because **this** session's `plan-runner` FD is in-progress with a committed spec but its plan is committed too, it should appear eligible (not skipped) — confirm the FIFO ordering and eligibility read look right. (No spawn happens in `--dry-run`.)
-
-> If `.noldor/config.json` lacks the autonomous triple, the runner aborts at `assertConfig` before the dry-run — that is expected; either add the triple or run the `plansSource` logic via the unit tests (Task 3) as the authoritative check.
-
-- [ ] **Step 3: Roadmap-source regression smoke**
-
-Run: `pnpm noldor autonomous queue-drain --dry-run --json` and `pnpm noldor autonomous run --source roadmap --dry-run --json`
-Expected: identical-shaped output (both go through `roadmapSource`) — byte-for-byte behavior preserved (AC 1).
-
-- [ ] **Step 4: Specs-source guard**
+- [ ] **Step 2: Specs-source guard (safe in-worktree)**
 
 Run: `pnpm noldor autonomous run --source specs --dry-run; echo "exit=$?"`
-Expected: stderr "not yet implemented (phase 2...)", `exit=1` (AC 6).
+Expected: stderr "not yet implemented (phase 2...)", `exit=1` (AC 6). Safe to run from the worktree — `specsSource(cwd)` throws at `buildSource`, before any `git checkout`.
 
-- [ ] **Step 5: Refresh the FD body against shipped reality**
+- [ ] **Step 3 (OPTIONAL — post-merge, from clean main only): plans + roadmap dry-run smoke**
+
+> Run ONLY after this branch is merged, on a clean `main` with the autonomous config triple set. From the feature worktree these abort at `assertConfig` (no triple) or, worse, check out `main` mid-implementation — do NOT run them in-flight. The unit tests already cover the behavior; this is a confidence check on the real CLI.
+
+Run (post-merge): `pnpm noldor autonomous run --source plans --dry-run --json`
+Expected: exit 0; JSON `shipped: 0`, a `planned: [...]` array of eligible in-progress FDs in FIFO plan-age order, and a `skipReasons` map for any in-progress FD missing a spec or plan. (Read `planned` for "would ship" — eligible slugs are *also* added to `skipped` internally as the loop's termination mechanism, so a slug may appear in both lists. That dual-listing is why `planned` exists; AC2's "lists eligible in FIFO order" is satisfied by `planned`, not `skipped`.)
+
+Run (post-merge): `pnpm noldor autonomous queue-drain --dry-run --json` and `pnpm noldor autonomous run --source roadmap --dry-run --json`
+Expected: identical output between the two (both route through `roadmapSource`). Behavior matches shipped queue-drain; output is additively extended (`planned`/`skipReasons` keys) — behavior-preserved, not byte-identical (AC1 as amended).
+
+- [ ] **Step 4: Refresh the FD body against shipped reality**
 
 Run `/draft-feature-md plan-runner --refresh`. Surfaces any drift between the spec-derived User Story/Usage and what shipped. Apply/keep per the diffs. (Do NOT flip `phase` here — gate Step 4 owns the `in-progress → done` flip in the shipping commit.)
 
-- [ ] **Step 6: Commit the refresh (if changed)**
+- [ ] **Step 5: Commit the refresh (if changed)**
 
 ```bash
 git add docs/features/plan-runner.md
@@ -1128,12 +1158,12 @@ git commit -m "docs(features:plan-runner): refresh User Story + Usage against sh
 ## Self-Review
 
 **1. Spec coverage** (spec §Acceptance criteria):
-- AC1 (roadmap byte-for-byte; existing tests pass) → Task 2 (roadmapSource) + Task 4 (rewired run-drain.test.ts keeps all assertions) + Task 7 Step 3.
-- AC2 (`--source plans --dry-run` FIFO list + no-plan skip reason) → Task 3 (plansSource ordering + reason) + Task 4 (skipReasons threading) + Task 7 Step 2.
+- AC1 (roadmap behavior preserved; existing test assertions pass) → Task 2 (roadmapSource) + Task 4 (rewired run-drain.test.ts keeps all assertions). Output is additively extended (`planned`/`skipReasons`), NOT byte-identical — behavior-preserved per the amended AC (see Goal + Deviations).
+- AC2 (`--source plans --dry-run` lists eligible in FIFO order + per-FD skip reasons) → Task 3 (plansSource FIFO ordering + reasons incl. plan-but-no-spec) + Task 4 (`planned` + `skipReasons` threading) + Task 3 unit tests (authoritative); Task 7 Step 3 is an optional post-merge smoke. The FIFO eligible list is `planned`, not `skipped`.
 - AC3 (`--source plans` live: spawn `/gate --resume`, ship on `feat/<slug>`, absence===shipped) → Task 3 (gatePrompt/branchFor/parseAll) + Task 4 (loop drives them) + Task 6 (gate resume implements).
 - AC4 (retry/lock/timeout/kill-switch identical across sources) → Task 4 (loop logic unchanged except source seam; lock/state/io untouched).
 - AC5 (NOLDOR_DRAIN resume implements, no brainstorm/writing-plans, zero AskUserQuestion) → Task 6.
-- AC6 (`--source specs` exits 1) → Task 1 (specsSource throws) + Task 4 (buildSource in try → exit 1) + Task 7 Step 4.
+- AC6 (`--source specs` exits 1) → Task 1 (specsSource throws) + Task 4 (buildSource in try → exit 1) + Task 7 Step 2 (safe in-worktree).
 - AC7 (no source/path literals in decideNext/runDrain) → Task 4 (`'fast-track'`/`'roadmap'`/`'feat/'`/`'fast/'` all live in drain-source.ts).
 
 **2. Placeholder scan:** every code step ships complete code. The one judgement call — the schema-C roadmap block shape in Task 2 Step 1 — is flagged with a `grep` to confirm against the real format before running.
