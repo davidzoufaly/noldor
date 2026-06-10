@@ -27,8 +27,10 @@ export function decideNext(input: DecideInput): { action: DrainAction; slug: str
 export interface DrainDeps {
   /** Injected source — owns next-item selection, the success oracle, prompt, and branch. */
   source: DrainSource;
-  /** Spawn a headless gate run with the source's prompt; returns the child exit code. May throw('iteration-timeout'). */
-  spawnGate: (env: Record<string, string>, timeoutMs: number, prompt: string) => number;
+  /** Spawn a headless gate run with the source's prompt; resolves with the child exit code.
+   *  Rejects with 'iteration-timeout' on a per-entry timeout, or 'spawn-failed: …' on a systemic
+   *  spawn error. Async so the build pool can keep K children in flight at once. */
+  spawnGate: (env: Record<string, string>, timeoutMs: number, prompt: string) => Promise<number>;
   /** Sync local main to origin + clean leftover worktrees/branches. May throw → abort (ff-only reject). */
   syncMainCleanState: () => void;
   /** True when an open PR exists for the source's branch. May throw → abort (fail-closed). */
@@ -52,6 +54,11 @@ export interface DrainOpts {
   timeoutMs: number;
   dryRun: boolean;
   cwd: string;
+  /** Max features built concurrently. 1 (default) = today's sequential, inline-merge behavior. */
+  concurrency: number;
+  /** Per-worker first-spawn stagger (ms) so K simultaneous `git worktree add` don't collide on the
+   *  shared `.git`. Production passes 750; tests pass 0. Only applies at concurrency > 1. */
+  startupStaggerMs: number;
 }
 
 export interface DrainResult {
@@ -75,7 +82,7 @@ export interface DrainResult {
  * openPrExistsFor / syncMainCleanState) aborts the whole drain (exit 1) — never
  * loop blind.
  */
-export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
+export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainResult> {
   const skip = new Set<string>();
   const retries = new Map<string, number>();
   const skipReasons: Record<string, string> = {};
@@ -131,7 +138,7 @@ export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
         retries: Object.fromEntries(retries),
       });
       try {
-        deps.spawnGate(
+        await deps.spawnGate(
           { NOLDOR_DRAIN: '1', NOLDOR_DRAIN_SKIP: [...skip].join(',') },
           opts.timeoutMs,
           deps.source.gatePrompt(candidate.slug),
