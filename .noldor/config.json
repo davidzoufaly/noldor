@@ -21,5 +21,10 @@
       "release": "Tooling"
     },
     "scopeAliases": {}
+  },
+  "autonomous": {
+    "skipLanePicker": true,
+    "onFailure": "abort",
+    "requireHumanPrApproval": false
   }
 }
