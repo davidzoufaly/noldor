@@ -10,7 +10,9 @@ import {
   isWritePendingDeprecated,
   loadInProgressFds,
   loadMilestoneGate,
+  parseSkip,
 } from '../next-priority.js';
+import { parseRoadmap } from '../../utils/parse-blocks.js';
 
 const ROADMAP_WITH_ENTRIES = `# Roadmap
 
@@ -399,5 +401,40 @@ body
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('getSuggestions skip-set', () => {
+  const input = { inProgressFds: [], milestoneGate: '' };
+
+  it('excludes skipped slugs from topPriority', () => {
+    const all = getSuggestions(ROADMAP_WITH_ENTRIES, input);
+    const firstSlug = all.topPriority[0].slug;
+    const filtered = getSuggestions(ROADMAP_WITH_ENTRIES, input, new Set([firstSlug]));
+    expect(filtered.topPriority.map((e) => e.slug)).not.toContain(firstSlug);
+  });
+
+  it('returns empty topPriority when every entry is skipped', () => {
+    const everySlug = new Set(parseRoadmap(ROADMAP_WITH_ENTRIES).map((e) => e.slug));
+    const filtered = getSuggestions(ROADMAP_WITH_ENTRIES, input, everySlug);
+    expect(filtered.topPriority).toHaveLength(0);
+  });
+
+  it('defaults to no skipping when the set is omitted', () => {
+    const a = getSuggestions(ROADMAP_WITH_ENTRIES, input);
+    const b = getSuggestions(ROADMAP_WITH_ENTRIES, input, new Set());
+    expect(a.topPriority.map((e) => e.slug)).toEqual(b.topPriority.map((e) => e.slug));
+  });
+});
+
+describe('parseSkip', () => {
+  it('parses a csv value after --skip', () => {
+    expect([...parseSkip(['--skip', 'a,b, c'])]).toEqual(['a', 'b', 'c']);
+  });
+  it('returns an empty set when --skip is absent', () => {
+    expect(parseSkip(['--suggestions', '--json']).size).toBe(0);
+  });
+  it('returns an empty set when --skip has no value', () => {
+    expect(parseSkip(['--skip']).size).toBe(0);
   });
 });
