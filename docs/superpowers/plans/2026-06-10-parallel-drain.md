@@ -350,8 +350,15 @@ describe('build pool + coordinator (K>1)', () => {
     const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 3);
     const r = await runDrain(h.deps, h.opts);
     expect(r.shipped).toBe(5);
+    expect(r.skipped).toEqual([]); // CR round-2 low: catches an awaiting-merge slug wrongly re-selected + skipped
     expect(h.buildPeak).toBeLessThanOrEqual(3);
     expect(h.buildPeak).toBeGreaterThan(1); // genuinely parallel builds
+  });
+  it('maxFeatures counts awaiting-merge: never ships more than the cap', async () => {
+    // 5 queued, K=3, cap 2 → exactly 2 ship, no over-dispatch while merges lag (CR round-2 HIGH).
+    const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 3);
+    const r = await runDrain(h.deps, { ...h.opts, maxFeatures: 2 });
+    expect(r.shipped).toBe(2);
   });
   it('assigns each child its exact slug via NOLDOR_DRAIN_SLUG', async () => {
     const h = poolHarness(['a', 'b', 'c'], 3);
@@ -373,16 +380,17 @@ Expected: FAIL — `DrainDeps` has no `mergePr`; `runDrain` does not parallelize
 
 - [ ] **Step 3: Implement pool + coordinator**
 
-Add `mergePr: (slug: string, branch: string) => Promise<MergeOutcome>` to `DrainDeps` (and `import type { MergeOutcome } from './drain-io.js'`). Add `NOLDOR_DRAIN_SLUG` (+ `NOLDOR_DRAIN_OPEN_ONLY` at K>1) to the spawn env via an `envFor` helper. Replace the sequential `for` with `concurrency` worker loops plus one coordinator loop; share `skip`/`retries`/`shipped` (atomic between awaits). Helpers:
+Add `mergePr?: (slug: string, branch: string) => Promise<MergeOutcome>` to `DrainDeps` as **optional** (and `import type { MergeOutcome } from './drain-io.js'`). Optional on purpose (CR round-2 MED): it's used only on the K>1 path, so `run-drain.test.ts` (K=1) and `queue-drain.ts` need not provide it until Task 6 — Task 5's `pnpm typecheck` therefore stays green. At runtime, assert it before the coordinator starts: `if (opts.concurrency > 1 && deps.mergePr === undefined) throw new Error('concurrency > 1 requires a mergePr dep');`. Add `NOLDOR_DRAIN_SLUG` + `NOLDOR_DRAIN_OPEN_ONLY` (K>1 only) to the spawn env via `envFor`. Replace the sequential `for` with `concurrency` worker loops plus one coordinator loop; share `skip`/`retries`/`shipped`/`dispatched` (atomic between awaits). Helpers:
 
 ```typescript
 function envFor(slug: string, skip: Set<string>, opts: DrainOpts): Record<string, string> {
-  return {
-    NOLDOR_DRAIN: '1',
-    NOLDOR_DRAIN_SLUG: slug,
-    NOLDOR_DRAIN_SKIP: [...skip].join(','),
-    ...(opts.concurrency > 1 ? { NOLDOR_DRAIN_OPEN_ONLY: '1' } : {}),
-  };
+  const base = { NOLDOR_DRAIN: '1', NOLDOR_DRAIN_SKIP: [...skip].join(',') };
+  // K=1 → EXACTLY today's env (no slug assignment, no open-only): the gate falls back to
+  // topPriority[0] — which is what the single worker selected anyway — so K=1 is byte-for-byte
+  // (CR round-2 low). Slug assignment + open-only are K>1-only.
+  return opts.concurrency > 1
+    ? { ...base, NOLDOR_DRAIN_SLUG: slug, NOLDOR_DRAIN_OPEN_ONLY: '1' }
+    : base;
 }
 function recordRetryOrSkip(slug: string): void {
   const n = (retries.get(slug) ?? 0) + 1;
@@ -394,26 +402,34 @@ function recordRetryOrSkip(slug: string): void {
 Pool + coordinator:
 
 ```typescript
-const dispatched = new Set<string>(); // in-flight slugs: excluded from selection + counted against maxFeatures
+// `dispatched` holds a slug from the moment a worker dispatches it until it is FULLY settled
+// (shipped / skipped / retry-bumped). At K>1 that includes the awaiting-merge window — the
+// COORDINATOR removes the slug after settling it, NOT the worker (CR round-2 HIGH). This keeps
+// the slug (a) counted against maxFeatures and (b) excluded from re-selection while its PR is
+// open — closing the "appears in both shipped and skipped" race.
+const dispatched = new Set<string>();
 const readyToMerge: Array<{ slug: string; branch: string }> = [];
 let shipped = 0, spawns = 0, aborted: Error | null = null, buildersDone = false;
 let wake: (() => void) | null = null;                 // resolves the coordinator's idle wait
 const signalCoordinator = () => { if (wake) { wake(); wake = null; } };
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-async function settleShipVerdict(slug: string, branch: string): Promise<void> {
+/** Returns true iff the slug was handed to the coordinator (so the worker must NOT drop it
+ *  from `dispatched` — the coordinator owns its removal). K=1 always returns false (settled inline). */
+async function settleShipVerdict(slug: string, branch: string): Promise<boolean> {
   if (opts.concurrency === 1) {
     // Today's inline path: the child self-merged; advance local main + read the oracle here.
     deps.syncMainCleanState();
     const stillPresent = deps.source.parseAll().includes(slug);
-    if (!stillPresent) { shipped += 1; retries.delete(slug); return; }
-    if (deps.openPrExistsFor(slug, branch)) { skip.add(slug); return; }
+    if (!stillPresent) { shipped += 1; retries.delete(slug); return false; }
+    if (deps.openPrExistsFor(slug, branch)) { skip.add(slug); return false; }
     recordRetryOrSkip(slug);
-    return;
+    return false;
   }
-  // K>1: child opened a PR (open-only). Hand off to the serialized coordinator.
-  if (deps.openPrExistsFor(slug, branch)) { readyToMerge.push({ slug, branch }); signalCoordinator(); }
-  else recordRetryOrSkip(slug); // no PR → build failed → retry/skip
+  // K>1: child opened a PR (open-only). Hand off to the serialized coordinator (slug stays in `dispatched`).
+  if (deps.openPrExistsFor(slug, branch)) { readyToMerge.push({ slug, branch }); signalCoordinator(); return true; }
+  recordRetryOrSkip(slug); // no PR → build failed → retry/skip; worker drops it
+  return false;
 }
 
 async function worker(index: number): Promise<void> {
@@ -421,7 +437,7 @@ async function worker(index: number): Promise<void> {
   for (;;) {
     if (aborted || deps.stopRequested()) return;
     // ---- selection critical section (synchronous, no await) ----
-    if (shipped + dispatched.size >= opts.maxFeatures) return; // CR MED-6: count in-flight
+    if (shipped + dispatched.size >= opts.maxFeatures) return; // CR MED-6: count in-flight + awaiting-merge
     const candidate = deps.source.nextItem(new Set([...skip, ...dispatched]));
     if (candidate === null) return;
     const d = decideNext({ candidate, shipped, maxFeatures: opts.maxFeatures, spawns, maxSpawns: opts.maxSpawns }); // backstop
@@ -437,15 +453,18 @@ async function worker(index: number): Promise<void> {
     spawns += 1;
     dispatched.add(candidate.slug);
     // ---- end critical section ----
+    let handedToCoordinator = false;
     try {
       await deps.spawnGate(envFor(candidate.slug, skip, opts), opts.timeoutMs, deps.source.gatePrompt(candidate.slug));
-      await settleShipVerdict(candidate.slug, branch);
+      handedToCoordinator = await settleShipVerdict(candidate.slug, branch);
     } catch (e) {
       if (e instanceof Error && e.message === 'iteration-timeout') recordRetryOrSkip(candidate.slug);
-      else { aborted = e instanceof Error ? e : new Error(String(e)); return; }
+      else { aborted = e instanceof Error ? e : new Error(String(e)); }
+      // either way the slug never reached the coordinator → drop it below
     } finally {
-      dispatched.delete(candidate.slug);
+      if (!handedToCoordinator) dispatched.delete(candidate.slug); // coordinator owns removal for handed-off slugs
     }
+    if (aborted) return;
   }
 }
 
@@ -458,19 +477,23 @@ async function coordinator(): Promise<void> {
       await new Promise<void>((r) => { wake = r; }); // woken by a worker push or by buildersDone+signal
       continue;
     }
-    let outcome: MergeOutcome;
-    try { outcome = await deps.mergePr(next.slug, next.branch); }
-    catch (e) { aborted = e instanceof Error ? e : new Error(String(e)); return; }
-    if (outcome !== 'merged') {
-      skip.add(next.slug);
-      skipReasons[next.slug] = `${outcome} — PR left open for human resolution`;
-      continue;
+    try {
+      const outcome = await deps.mergePr!(next.slug, next.branch); // non-null: asserted at K>1 entry
+      if (outcome !== 'merged') {
+        skip.add(next.slug);
+        skipReasons[next.slug] = `${outcome} — PR left open for human resolution`;
+      } else {
+        deps.syncMainCleanState(); // CR HIGH-1: advance local main before the oracle
+        const stillPresent = deps.source.parseAll().includes(next.slug);
+        if (!stillPresent) { shipped += 1; retries.delete(next.slug); }
+        else recordRetryOrSkip(next.slug);
+      }
+    } catch (e) {
+      aborted = e instanceof Error ? e : new Error(String(e));
+      return;
+    } finally {
+      dispatched.delete(next.slug); // settled (any outcome) → free the maxFeatures slot + re-selection guard
     }
-    try { deps.syncMainCleanState(); } // CR HIGH-1: advance local main before the oracle
-    catch (e) { aborted = e instanceof Error ? e : new Error(String(e)); return; }
-    const stillPresent = deps.source.parseAll().includes(next.slug);
-    if (!stillPresent) { shipped += 1; retries.delete(next.slug); }
-    else recordRetryOrSkip(next.slug);
   }
 }
 
@@ -524,13 +547,13 @@ it('openOnly: opens PR, never merges', async () => {
     if (args.includes('create')) return { exitCode: 0, stdout: 'https://github.com/x/y/pull/7\n', stderr: '' };
     return { exitCode: 0, stdout: '', stderr: '' };
   });
-  const res = await openAndAutoMerge({ /* ...minimal valid input... */ spawn, openOnly: true } as never);
+  const res = await openAndAutoMerge({ ...makeInput(), spawn, openOnly: true });
   expect(calls.some((c) => c.includes('merge'))).toBe(false);
   expect(res.prUrl).toContain('/pull/7');
 });
 ```
 
-(Use the existing test's input-builder/fixtures in that file for the elided fields; match its established `spawn` mock shape.)
+(`makeInput()` = the existing input fixture/builder already used by the other `openAndAutoMerge` tests in this file — reuse it verbatim and spread `openOnly: true` on top. No `as never` cast — `openOnly` is a real optional field on `OpenAndAutoMergeInput` after Step 3, so the typed object suffices.)
 
 - [ ] **Step 2: Run to verify it fails**
 
@@ -577,6 +600,8 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "feat(core): pr-flow openOnly mode + gate ho
 - Create: `src/autonomous/__tests__/merge-coordinator.test.ts` (locks the Task-4 coordinator conflict/timeout contract)
 
 The coordinator loop shipped in Task 4 against an injected `mergePr` stub. This task supplies the real `gh`-backed `mergePr` and unit-tests the only branching part — the view classification — as a **pure** function (`classifyMergeView`); the shell wrapper stays an integration-tested IO adapter (per the `drain-io.ts` header). `mergePr` uses `gh pr merge --auto --squash` (enqueue) + polls the STRUCTURED `mergeStateStatus`, never a stderr substring (CR round-1 HIGH-2). `merge-conflict` and `merge-timeout` both mean "leave PR open, skip the slug"; only a systemic `gh`/spawn failure throws (coordinator aborts fail-closed).
+
+`gh pr ... <branch>` resolves the PR by head branch. The drain branch (`fast/<slug>` / `feat/<slug>`) is reused across retries and deleted on merge, so at most one open PR per branch exists at a time — and the coordinator only enqueues a slug whose `openPrExistsFor(slug, branch)` already returned true. That makes branch-keyed resolution unambiguous here; capturing the PR *number* instead is a possible later hardening (CR round-2 low), not needed for v1.
 
 - [ ] **Step 1: Write the failing test (pure classifier)**
 
@@ -635,10 +660,13 @@ export async function mergePr(
   pollIntervalMs = 10_000,
 ): Promise<MergeOutcome> {
   void slug;
-  // Enqueue auto-merge. A non-zero exit here is usually "already enabled"/"not yet mergeable" —
-  // NOT fatal; the poll below is the source of truth. Only a spawn error (ENOENT) throws.
+  // Enqueue auto-merge. A non-zero exit is usually "already enabled" / "not yet mergeable" — NOT
+  // fatal; the poll is the source of truth. `autoEnabled` records whether the queue accepted it:
+  // when it didn't (repo has no auto-merge / merge queue), we attempt a DIRECT squash each pending
+  // iteration so the PR doesn't ride the full poll timeout (CR round-2 low). Only a spawn error throws.
   const enq = spawnSync('gh', ['pr', 'merge', branch, '--auto', '--squash'], { cwd, encoding: 'utf8' });
   if (enq.error) throw new Error(`gh pr merge spawn failed for ${branch}: ${enq.error.message}`);
+  const autoEnabled = enq.status === 0;
   const deadline = Date.now() + pollTimeoutMs; // real wall-clock — fine in the IO adapter (not unit-tested)
   for (;;) {
     const view = spawnSync('gh', ['pr', 'view', branch, '--json', 'mergedAt,mergeStateStatus,state'], { cwd, encoding: 'utf8' });
@@ -647,6 +675,10 @@ export async function mergePr(
     if (verdict === 'merged') return 'merged';
     if (verdict === 'merge-conflict') return 'merge-conflict';
     if (Date.now() > deadline) return 'merge-timeout';
+    // No merge queue: try a direct squash now. Harmless no-op if the PR isn't mergeable yet
+    // (checks pending) — gh exits non-zero, we ignore it and re-poll; succeeds once checks pass,
+    // and the next `pr view` sees `mergedAt`. Mirrors pr-flow.ts's direct-merge fallback.
+    if (!autoEnabled) spawnSync('gh', ['pr', 'merge', branch, '--squash'], { cwd, encoding: 'utf8' });
     await new Promise((r) => setTimeout(r, pollIntervalMs));
   }
 }
