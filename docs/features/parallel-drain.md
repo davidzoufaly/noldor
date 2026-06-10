@@ -28,7 +28,7 @@ noldor-tier: full
 ---
 ## Summary
 
-<!-- TODO 1-3 sentences. What the feature is. -->
+Generalizes the autonomous drain supervisor from sequential (one feature at a time) to K-concurrent via `--concurrency N`: up to N features build in parallel, each in its own worktree and its own PR, while merges are serialized through a single coordinator so `main` never sees an N-way conflict. `--concurrency 1` (default) is byte-for-byte today's sequential drain; concurrency is opt-in.
 
 ## User Story
 
