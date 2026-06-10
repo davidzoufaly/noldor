@@ -26,7 +26,7 @@ ${input.fdSummary}
 
 Range under review: ${input.baseSha}..${input.headSha}. If they differ, review only the diff; if equal, review the whole artifact.
 
-Verify-before-flag protocol: before flagging any Critical issue that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual output in the bullet. If the command passes, do not flag the issue. Never assert a failure you have not reproduced.
+Verify-before-flag protocol: before flagging any Critical issue that claims a command, validator, or test will fail (e.g. \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual output in the bullet. If the command passes — or does not exist — do not flag the issue. Never assert a failure you have not reproduced.
 
 Emit your review in this exact format, no preamble:
 
