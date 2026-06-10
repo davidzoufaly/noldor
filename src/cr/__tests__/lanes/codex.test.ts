@@ -55,6 +55,24 @@ describe('runCodex', () => {
     expect(j.summary).toBe('codex clean');
   });
 
+  it('parses codex JSON even when stdout is polluted (regression: pnpm banner leaked past --silent)', async () => {
+    // Simulate the original failure mode: a pnpm lifecycle banner prefixing the JSON. `--silent`
+    // prevents it at the source, but extractLaneJson must also recover the object if anything else
+    // (codex warnings, npmrc notices) pollutes stdout — a bare JSON.parse would throw on the `>`.
+    execFileFn.mockImplementation((_c, _a, _o, cb) => {
+      cb(
+        null,
+        '\n> noldor@0.2.0 noldor /repo\n> node bin/noldor.mjs "cr" "codex"\n' +
+          JSON.stringify({ summary: 'parsed past banner', findings: [] }),
+        '',
+      );
+    });
+    const r = await runCodex(baseInput());
+    expect(r.ok).toBe(true);
+    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
+    expect(j.summary).toBe('parsed past banner');
+  });
+
   it('emits synthetic blocker on non-zero exit', async () => {
     execFileFn.mockImplementation((_c, _a, _o, cb) => {
       const err = new Error('exit 1') as NodeJS.ErrnoException & { code?: number };
@@ -94,7 +112,7 @@ describe('runCodex', () => {
       cb(null, JSON.stringify({ summary: 'ok', findings: [] }), '');
     });
     await runCodex(baseInput());
-    expect(capturedArgs.slice(0, 3)).toEqual(['noldor', 'cr', 'codex']);
+    expect(capturedArgs.slice(0, 4)).toEqual(['--silent', 'noldor', 'cr', 'codex']);
     expect(capturedArgs).not.toContain('cr:codex');
   });
 
@@ -116,7 +134,7 @@ describe('runCodex', () => {
 describe('codexSupportsBaseSha', () => {
   it('probes the manifest help path and detects --base-sha', async () => {
     execFileFn.mockImplementation((_c, args, _o, cb) => {
-      expect(args.slice(0, 3)).toEqual(['noldor', 'cr', 'codex']);
+      expect(args.slice(0, 4)).toEqual(['--silent', 'noldor', 'cr', 'codex']);
       expect(args).toContain('--help');
       cb(null, 'usage: noldor cr codex ... --base-sha <sha> ...', '');
     });
