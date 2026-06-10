@@ -113,4 +113,22 @@ describe('build pool + coordinator (K>1)', () => {
     await runDrain(h.deps, h.opts);
     expect(Math.max(...seenInFlight)).toBeGreaterThan(1); // genuinely concurrent builders observed
   });
+
+  it('stop after first build halts NEW scheduling, drains in-flight, exits 130', async () => {
+    let stopped = false;
+    const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 2); // 5 queued, K=2
+    h.deps.stopRequested = vi.fn(() => stopped);
+    // Flip stop the instant the first builder resolves — so at most the 2 already in-flight run.
+    const orig = h.deps.spawnGate;
+    let n = 0;
+    h.deps.spawnGate = vi.fn(async (env: Record<string, string>) => {
+      const r = await orig(env, 1000, '/gate');
+      if (++n === 1) stopped = true;
+      return r;
+    });
+    const r = await runDrain(h.deps, h.opts);
+    expect(r.exitCode).toBe(130); // stop wins over the 0 "drained" exit
+    expect(h.assignedSlugs.length).toBeLessThanOrEqual(2); // c/d/e never started — no new scheduling
+    expect(r.shipped).toBe(h.assignedSlugs.length); // in-flight builds drained through the coordinator
+  });
 });
