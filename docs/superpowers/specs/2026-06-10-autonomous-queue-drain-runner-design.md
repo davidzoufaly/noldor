@@ -92,7 +92,9 @@ CLI: `pnpm noldor autonomous queue-drain [flags]` (new `autonomous` namespace +
 `queue-drain` sub in [manifest.ts](../../../src/cli/manifest.ts), `src: 'autonomous/queue-drain.ts'`).
 
 **Flags** (validated; bad input → exit 1 with a usage message):
-- `--max-features N` (default 20) — bounds **ships**.
+- `--max-features N` (default 20) — bounds **ships** (`shipped` counts only entries *this run* drove
+  to merge; an entry skipped pre-spawn because a prior run's PR is in-flight is not counted, even if
+  that PR merges during this run — it simply leaves the queue via D2).
 - `--max-spawns N` (default `maxFeatures * (maxRetries + 1)`) — hard backstop on **spawns**
   (a queue of flaky entries spawns far more than it ships).
 - `--max-retries N` (default 2) — retries per entry before skip.
@@ -187,7 +189,9 @@ cross-run cache — a fresh run starts with empty skip/retries (a previously-ski
 reconsidered; it may have been flaky/since-fixed). On startup the supervisor reclaims a stale lock
 whose pid is dead and prunes leftover `.worktrees/*` from an interrupted prior run.
 
-**Concurrency.** `.noldor/drain.lock` (pid + startedAt) is exclusive; a second drain or a human
+**Concurrency.** `.noldor/drain.lock` (pid + startedAt) is exclusive, acquired via an atomic
+`O_EXCL` create (and reclaim-if-dead via atomic rename) so two supervisors starting simultaneously
+can't both observe a dead holder and proceed (TOCTOU-safe). A second drain or a human
 `/gate` running concurrently would collide on the single-slot `.noldor/session.json` and race on
 `docs/roadmap.md`. The drain refuses to start if the lock is held by a live pid. Serial-only — one
 feature at a time.
@@ -218,6 +222,12 @@ harness-level deny + D-timeout):
 - **Steps 1 / 1.5:** no path-pick / confirm. Force `fast-track`, carrying `entry.slug`. In drain mode
   the feature branch is named **`fast/<slug>`** (deterministic, vs ordinary fast-track's
   `fast/<short-desc>`) so the supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly.
+  Because the name is deterministic, a prior interrupted run can leave a stale `fast/<slug>` branch
+  (killed *before* a PR opened, or with a closed-unmerged PR) — which would otherwise collide on
+  create/push. Reaching branch-create means the pre-spawn `openPrExistsFor` found **no open PR**, so
+  any existing `fast/<slug>` is abandoned work safe to discard: drain-mode Step 2 **force-recreates**
+  it — `git branch -D fast/<slug>` (local) + `git push origin --delete fast/<slug>` (remote, if it
+  exists) — before `git worktree add … -b fast/<slug>`.
 - **Step 2:** the **existing** fast-track + Roadmap-entry-retirement sequence (unchanged) — worktree,
   implement from the entry description, `removeBlock` retirement commit on the branch. `cd` into the
   worktree; the session marker, `set-autonomous`, and `pr-flow` all operate from the worktree
@@ -262,6 +272,8 @@ queue-drain.ts ─ acquireLock + assertConfig + assertNoDupSlugs + syncMain
 ## Error handling
 
 - `next-priority` non-zero / unparseable JSON → **abort** (exit 1; never loop blind).
+- `openPrExistsFor` `gh` call non-zero / offline → **abort** (exit 1, fail-closed). Treating a `gh`
+  failure as "no PR" would re-spawn a duplicate — the opposite of safe.
 - Duplicate/colliding roadmap slugs (`-2` suffixing) → **abort** (exit 1; can't target a block safely).
 - Lock held by a live pid → **abort** (exit 1). A lock whose holder pid is dead is auto-reclaimed at
   startup (no flag needed).
