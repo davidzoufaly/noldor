@@ -37,7 +37,7 @@ In-progress work (FDs with `phase: in-progress`) is tracked via FD frontmatter, 
      - **name** — human-readable (capitalize meaningful words from the bullet text)
      - **area** — match an existing feature/backlog/roadmap `area`; invent only when nothing fits. When inventing a new `area`, check `consumer.areaCategories` in `.noldor/config.json`: if the new area maps to no existing release-notes **category** (and none of `consumer.categories` fits its functional domain), surface a proposed new category to the operator in the confirmation table. On approval, append it to `consumer.categories` + add the `areaCategories[area]` mapping. This is how the project's taxonomy grows as new domains appear — categories are a functional axis, never duplicating commit types (`feat`/`fix`/`docs`). Never add a category silently.
      - **type** — one of `feat | fix | refactor | chore | docs | perf | test` (see Type rubric below)
-     - **target** — `roadmap` (with a position annotation: `top`, `after:<slug>`, or `bottom`) or `backlog`
+     - **target** — `roadmap` (with a position annotation: `top`, `after:<slug>`, or `bottom`), `backlog`, or `now`. `now` declares ship-next intent: the row is written as a roadmap insert at `top`, and after step 8's validations pass the skill auto-chains `/promote <slug> --tier=<full when size is L/XL, else specs-only>` — closing the old two-step seam (triage → manual `/promote`). Propose `now` only when the operator's bullet explicitly signals immediate work ("do this now", "next up"); never infer it from score alone.
      - **since** — today's date in `YYYY-MM-DD`
      - **size** — `XS | S | M | L | XL`. **Required** when `target` is `roadmap` (validator gates on it); advisory on `backlog`. Skill estimates from bullet text + similar prior entries; operator overrides per row.
      - **impact** — `low | med | high | critical`. Same gating as `size`: required on roadmap, advisory on backlog.
@@ -97,14 +97,18 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
    (`size` and `impact` are required on roadmap; `confidence` and `deps` are silently optional — emit `confidence` when the proposal supplied it, omit otherwise. For `deps`, only emit the bullet when the slug list is non-empty.)
    - **`merge:<existing-slug>`** target → locate the host block in roadmap or backlog. Append a sub-bullet under the host's body paragraph (or after the last existing sub-bullet) preserving the new bullet's wording lightly polished. Do NOT rewrite the host paragraph. Do NOT update the host's `since`. If the operator confirmed `promote-to:<position>`, also relocate the entire host block (heading + bullet fields + body + new sub-bullet) to the indicated position in `docs/roadmap.md` (or move to `docs/backlog.md` if `promote-to:backlog`). When the host move targets roadmap and the host originally came from backlog, the host block's `size` / `impact` lines must be present on arrival — if absent, prompt the operator to supply them as part of the confirmation row. Cross-file moves between roadmap and backlog mirror the patterns logged in commits `08a509c` / `c46f560` / `22719c6`.
 
+   - **`now`** target → write the block exactly as a `roadmap` insert at `top` (same required fields — `size` and `impact` gate it). With multiple `now` rows, insert in reverse confirmation-table order so the final roadmap order matches the table. The auto-chain to `/promote` happens in step 8, never here — a failed validation must abort the chain.
+
    Append `[triaged YYYY-MM-DD → <slug>]` to the original bullet in `ideas.md` — for merges, `<slug>` is the host's slug, not a new one (preserves traceability back to the host).
 
 7. **On all rejection** (user said `n`), do nothing. Confirm with user and stop.
 8. **Final step (regardless of outcome):** run
    `pnpm noldor validate triage && pnpm noldor sync test-links && pnpm noldor sync doc-links && pnpm noldor validate features`.
    Each must succeed; if any fails, report the failure and the partial state. Do not roll back. `validate:triage` runs first so a missing `size` / `impact` on any newly-inserted roadmap block fails fast before the doc-link sync re-writes derived files.
+
+   **Then, for each confirmed `now` row** (in table order; any of the four commands above failing aborts ALL `now` chaining): invoke `/promote <slug> --tier=<full when size is L/XL, else specs-only>`. `/promote` reads the just-inserted roadmap block and removes it as it scaffolds the FD — the transient roadmap insert keeps the schema-C contract intact and the `[triaged … → slug]` marker preserves traceability. If `/promote` fails for a row, report it and continue with the remaining `now` rows; the block stays on the roadmap top for a manual retry.
 9. **Report** to the user:
-   - Number of ideas triaged, broken down by target (roadmap / backlog)
+   - Number of ideas triaged, broken down by target (roadmap / backlog / now — for `now` rows also report each `/promote` chain outcome: FD scaffolded, or failed-and-left-on-roadmap)
    - Number remaining untriaged
    - Files modified
    - Reminder: stage and commit when ready
@@ -133,7 +137,7 @@ When ambiguous, prefer the more specific type over `feat` (e.g. a perf-targeted 
 
 - **Never** delete or relocate bullets within `ideas.md`; only append `[triaged …]` markers.
 - **Never** commit. Operator commits.
-- **Never** auto-promote backlog or roadmap entries to feature MDs. Promotion is `/promote <slug>` (separate skill).
+- **Never** auto-promote backlog or roadmap entries to feature MDs — with one exception: rows the operator explicitly confirmed as `target: now` chain to `/promote <slug>` in step 8 after validations pass. Everything else promotes via a manual `/promote <slug>` (separate skill).
 - **Never** silently merge — every `merge:<slug>` proposal must show the matched host's heading + current section in the confirmation table. Operator can flip merge → new entry.
 - **Bias toward merge** when an existing block plausibly covers the new bullet. Multiple sub-bullets under one block beat scattered duplicates that `/garden` will later flag.
 - **Sub-bullets, not paragraph rewrites.** Preserve the host's original summary verbatim. Append the new bullet as a fresh `-` item under the body.
