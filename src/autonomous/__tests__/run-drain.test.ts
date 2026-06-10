@@ -165,4 +165,15 @@ describe('runDrain', () => {
     });
     expect(runDrain(h.deps, opts).exitCode).toBe(1);
   });
+
+  it('(m) systemic spawn error (non-timeout) → abort exit 1, not retry-churn', () => {
+    const h = harness(['a', 'b'], {
+      spawnImpl: () => {
+        throw new Error('spawn-failed: claude ENOENT');
+      },
+    });
+    const r = runDrain(h.deps, opts);
+    expect(r.exitCode).toBe(1);
+    expect(h.spawnGate).toHaveBeenCalledTimes(1); // aborts on the first failure, no churn
+  });
 });

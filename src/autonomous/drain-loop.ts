@@ -38,7 +38,7 @@ export interface DrainDeps {
   openPrExistsFor: (slug: string) => boolean;
   /** Best-effort heartbeat write (never throws). */
   writeState: (s: {
-    phase: string;
+    phase: 'spawning' | 'awaiting-merge' | 'idle';
     currentSlug: string | null;
     shipped: number;
     skip: string[];
@@ -127,8 +127,11 @@ export function runDrain(deps: DrainDeps, opts: DrainOpts): DrainResult {
           { NOLDOR_DRAIN: '1', NOLDOR_DRAIN_SKIP: [...skip].join(',') },
           opts.timeoutMs,
         );
-      } catch {
-        // timeout / spawn error → treated as an iteration failure below
+      } catch (e) {
+        // A per-iteration timeout is a recoverable failure (retry/skip below). Any other spawn
+        // error (e.g. `claude` not on PATH) is systemic — re-throw so the outer catch aborts the
+        // whole drain rather than churning retries across every entry.
+        if (!(e instanceof Error && e.message === 'iteration-timeout')) throw e;
       }
       deps.syncMainCleanState(); // D5 — make the read authoritative
       const stillPresent = deps.parseAll().includes(entry.slug); // D2

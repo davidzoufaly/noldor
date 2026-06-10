@@ -76,8 +76,13 @@ export function spawnGate(cwd: string, env: Record<string, string>, timeoutMs: n
       killSignal: 'SIGKILL',
     },
   );
-  if (res.error && (res.error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
-    throw new Error('iteration-timeout');
+  if (res.error) {
+    const code = (res.error as NodeJS.ErrnoException).code;
+    if (code === 'ETIMEDOUT') throw new Error('iteration-timeout'); // per-entry failure → retry/skip
+    // Any other spawn error (e.g. ENOENT — `claude` not on PATH) is systemic, not a per-entry
+    // failure: throw a non-timeout error so the loop aborts the whole drain instead of churning
+    // retries across every entry.
+    throw new Error(`spawn-failed: ${res.error.message}`);
   }
   return res.status ?? 1;
 }

@@ -18,6 +18,7 @@ docs/ideas.md
 .noldor/cr/
 .noldor/drain-state.json
 .noldor/drain.lock
+.noldor/drain.lock.reclaim.*
 .noldor/drain-stop
 
 # Machine-local graphify interpreter path (resolved per-run)

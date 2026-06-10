@@ -106,7 +106,7 @@ function main(): void {
       const state: DrainState = {
         pid: process.pid,
         startedAt,
-        phase: s.phase as DrainState['phase'],
+        phase: s.phase,
         currentSlug: s.currentSlug,
         shipped: s.shipped,
         skip: s.skip,
