@@ -82,17 +82,6 @@ The final whole-branch reviewer for automated-cr-pipeline flagged "`pnpm validat
 
 Read `graphify-out/GRAPH_REPORT.md` per request, surface god-node count, low-cohesion communities, dead-export count. Snapshot metric — labelled with the timestamp of the last `/graphify` run. Gates the pre-release sweep in one glance.
 
-#### Dashboard Test Pyramid Page
-
-- area: tooling
-- type: feat
-- since: 2026-05-04
-- size: S
-- impact: med
-- parent: project-tracking-dashboard
-
-Per-package counts of unit tests (`__tests__/*.test.ts`), component tests, e2e (`apps/web/e2e/scenarios/`), and smoke tests (`@smoke` tag). Test-to-code ratio per package. Catches packages that are shipping logic without tests.
-
 #### Dashboard Skills Browser Page
 
 - area: tooling
