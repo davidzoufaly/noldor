@@ -105,4 +105,12 @@ describe('build pool + coordinator (K>1)', () => {
     expect(r.shipped).toBe(2);
     expect(h.assignedSlugs.length).toBe(2); // no over-dispatch past the cap
   });
+
+  it('heartbeat reports >1 in-flight builder under concurrency', async () => {
+    const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 3);
+    const seenInFlight: number[] = [];
+    h.deps.writeState = vi.fn((s) => seenInFlight.push(s.inFlight.length));
+    await runDrain(h.deps, h.opts);
+    expect(Math.max(...seenInFlight)).toBeGreaterThan(1); // genuinely concurrent builders observed
+  });
 });

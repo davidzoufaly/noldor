@@ -129,7 +129,9 @@ async function main(): Promise<void> {
         pid: process.pid,
         startedAt,
         phase: s.phase,
-        currentSlug: s.currentSlug,
+        inFlight: s.inFlight,
+        merging: s.merging,
+        currentSlug: s.inFlight[0]?.slug ?? null, // back-compat projection
         shipped: s.shipped,
         skip: s.skip,
         retries: s.retries,

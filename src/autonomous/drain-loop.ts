@@ -1,5 +1,6 @@
 import type { DrainSource, DrainCandidate } from './drain-source.js';
 import type { MergeOutcome } from './drain-io.js';
+import type { InFlight } from './drain-state.js';
 
 export type DrainAction = 'spawn' | 'skip-out-of-scope' | 'done';
 
@@ -41,10 +42,12 @@ export interface DrainDeps {
   mergePr?: (slug: string, branch: string) => Promise<MergeOutcome>;
   /** True when an open PR exists for the source's branch. May throw → abort (fail-closed). */
   openPrExistsFor: (slug: string, branch: string) => boolean;
-  /** Best-effort heartbeat write (never throws). */
+  /** Best-effort heartbeat write (never throws). Reports ALL in-flight slugs (building or
+   *  awaiting-merge) + the slug currently merging — the K>1 generalization of the old `currentSlug`. */
   writeState: (s: {
     phase: 'spawning' | 'awaiting-merge' | 'idle';
-    currentSlug: string | null;
+    inFlight: InFlight[];
+    merging: string | null;
     shipped: number;
     skip: string[];
     retries: Record<string, number>;
@@ -122,6 +125,24 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     }
   };
   const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+  let merging: string | null = null; // slug the coordinator is merging right now (K>1)
+
+  // Best-effort heartbeat: derive inFlight (building vs awaiting-merge) from the live sets.
+  const emitState = (): void => {
+    const pending = new Set(readyToMerge.map((r) => r.slug));
+    const inFlight: InFlight[] = [...dispatched].map((slug) => ({
+      slug,
+      phase: pending.has(slug) || slug === merging ? 'awaiting-merge' : 'building',
+    }));
+    deps.writeState({
+      phase: merging !== null ? 'awaiting-merge' : inFlight.length > 0 ? 'spawning' : 'idle',
+      inFlight,
+      merging,
+      shipped,
+      skip: [...skip],
+      retries: Object.fromEntries(retries),
+    });
+  };
 
   const recordRetryOrSkip = (slug: string): void => {
     const n = (retries.get(slug) ?? 0) + 1;
@@ -160,6 +181,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     if (deps.openPrExistsFor(slug, branch)) {
       readyToMerge.push({ slug, branch });
       signalCoordinator();
+      emitState(); // slug transitions building → awaiting-merge
       return true;
     }
     recordRetryOrSkip(slug); // no PR → build failed → retry/skip; worker drops it
@@ -200,13 +222,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       }
       spawns += 1;
       dispatched.add(candidate.slug);
-      deps.writeState({
-        phase: 'spawning',
-        currentSlug: candidate.slug,
-        shipped,
-        skip: [...skip],
-        retries: Object.fromEntries(retries),
-      });
+      emitState();
       // ---- end critical section ----
       let handedToCoordinator = false;
       try {
@@ -239,6 +255,8 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
         }); // woken by a worker push or by buildersDone + signal
         continue;
       }
+      merging = next.slug;
+      emitState();
       try {
         const outcome = await deps.mergePr!(next.slug, next.branch); // non-null: asserted at K>1 entry
         if (outcome !== 'merged') {
@@ -258,7 +276,9 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
         abortRef.current = e instanceof Error ? e : new Error(String(e));
         return;
       } finally {
+        merging = null;
         dispatched.delete(next.slug); // settled (any outcome) → free the cap slot + re-selection guard
+        emitState();
       }
     }
   };

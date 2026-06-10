@@ -1,10 +1,20 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+export interface InFlight {
+  slug: string;
+  phase: 'building' | 'awaiting-merge';
+}
+
 export interface DrainState {
   pid: number;
   startedAt: string;
   phase: 'spawning' | 'awaiting-merge' | 'idle';
+  /** All slugs currently in flight (building or awaiting merge). Empty at K=1 between iterations. */
+  inFlight: InFlight[];
+  /** The slug the serialized coordinator is merging right now, or null. */
+  merging: string | null;
+  /** Back-compat projection for readers written against the sequential heartbeat: `inFlight[0]?.slug`. */
   currentSlug: string | null;
   shipped: number;
   skip: string[];
