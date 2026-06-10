@@ -68,6 +68,23 @@ export function isWritePendingDeprecated(argv: ReadonlySet<string>): boolean {
   return argv.has('--write-pending');
 }
 
+/**
+ * Parse the `--skip <csv>` value flag from a raw argv list into a set of slugs
+ * to exclude. Returns an empty set when the flag is absent or has no value.
+ * Used by the autonomous queue-drain runner (and any caller passing `--skip`)
+ * to drop already-shipped/skipped roadmap entries from the suggestion buckets.
+ */
+export function parseSkip(argvList: readonly string[]): ReadonlySet<string> {
+  const i = argvList.indexOf('--skip');
+  if (i === -1 || i + 1 >= argvList.length) return new Set();
+  return new Set(
+    argvList[i + 1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+  );
+}
+
 export interface InProgressFd {
   slug: string;
   name: string;
@@ -112,8 +129,12 @@ export interface Suggestions {
  * @param input - In-progress FDs (caller-discovered) + active milestone's gate paragraph.
  * @returns 3 top + 2 small×high-impact (disjoint from top) + 1 milestone-aligned (disjoint) + inProgress (passed through verbatim). Each surfaced entry is stamped with a `suggestedPath` per the size→path policy ({@link sizeToPath}).
  */
-export function getSuggestions(roadmapRaw: string, input: SuggestionsInput): Suggestions {
-  const all = parseRoadmap(roadmapRaw);
+export function getSuggestions(
+  roadmapRaw: string,
+  input: SuggestionsInput,
+  skip: ReadonlySet<string> = new Set(),
+): Suggestions {
+  const all = parseRoadmap(roadmapRaw).filter((e) => !skip.has(e.slug));
   const sorted = all.toSorted((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
   const topPriority = sorted.slice(0, 3);
   const topSlugs = new Set(topPriority.map((e) => e.slug));
@@ -251,7 +272,8 @@ async function main(): Promise<void> {
   if (argv.has('--suggestions')) {
     const inProgressFds = loadInProgressFds(cwd);
     const milestoneGate = loadMilestoneGate(cwd);
-    const suggestions = getSuggestions(roadmapRaw, { inProgressFds, milestoneGate });
+    const skip = parseSkip(process.argv.slice(2));
+    const suggestions = getSuggestions(roadmapRaw, { inProgressFds, milestoneGate }, skip);
     process.stdout.write(`${JSON.stringify(suggestions, null, 2)}\n`);
     // Exit 2 = nothing actionable (no in-progress AND no roadmap entries).
     process.exit(

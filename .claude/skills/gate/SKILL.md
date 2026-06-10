@@ -286,3 +286,41 @@ Once autonomous:
 - Pre-push hook still validates the receipt trailer against `HEAD^{tree}`.
 
 **Trade-off:** Autonomous mode trades operator-visibility for momentum. If the plan was wrong, the cost is felt at Step 4 code-stage CR (subagent flags blockers → escalate fires). The escape hatch is `autonomous.onFailure: 'prompt'` (default), which keeps the interactive escalate dialog and lets the operator regain control without manually clearing the session flag.
+
+## Drain mode (`NOLDOR_DRAIN=1`)
+
+The [Autonomous Queue-Drain Runner](../../../docs/features/autonomous-queue-drain-runner.md)
+(`pnpm noldor autonomous queue-drain`) is an external supervisor that spawns one fresh headless
+`claude --print "/gate"` per fast-track roadmap entry, setting `NOLDOR_DRAIN=1` in the child's
+environment. When that env var is set, this gate run takes **zero `AskUserQuestion`s** — the
+supervisor backstops a forgotten branch by spawning `claude` with `--disallowed-tools AskUserQuestion`
+(any prompt then fails fast instead of hanging) plus a per-iteration timeout. The supervisor owns the
+loop / retry / skip / lock; each gate run only ships its one entry. Step overrides:
+
+- **Step 0:** skip the bucket `AskUserQuestion`. Auto-select `topPriority[0]` honoring
+  `NOLDOR_DRAIN_SKIP` (the comma-separated skip-set the supervisor passes through). If its
+  `suggestedPath !== 'fast-track'`, exit without scaffolding (defensive — the supervisor pre-filters
+  scope, so this should not happen).
+- **Steps 1 / 1.5:** skip path-pick + path-confirm. Force `fast-track`, carrying `entry.slug`. Name
+  the branch **`fast/<slug>`** (deterministic — vs ordinary fast-track's `fast/<short-desc>`) so the
+  supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly. Before `git worktree add`,
+  **force-recreate** the branch (a prior interrupted run may have left it): `git branch -D fast/<slug>`
+  + `git push origin --delete fast/<slug>` (when each exists). Reaching this point means the supervisor
+  found no open PR for the slug, so any existing `fast/<slug>` is abandoned work safe to discard
+  (also `git worktree remove --force` its stale worktree dir first, if present, so `git branch -D`
+  won't fail on a checked-out branch). This per-slug removal is the only worktree the drain deletes —
+  the supervisor's `syncMainCleanState` never blanket-wipes `.worktrees/*`.
+- **Step 2:** the existing **Roadmap-entry retirement** sequence (above) runs unchanged — implement
+  the entry, `removeBlock` the roadmap block on the branch. `cd` into the worktree first; the session
+  marker, `set-autonomous`, and `pr-flow` all operate from there.
+- **Step 4:** run end-of-flow autonomously — `set-autonomous`, code-stage CR via `crLanes.code`,
+  `pr-flow` auto-merge, no prompts. Skip the no-FD seams (phase-flip, `draft-feature-md --refresh` —
+  fast-track carries no FD). `pr-flow` polls until the PR actually merges. Escalation uses
+  `cr escalate --autonomous` with `onFailure: abort` (the supervisor asserts this precondition before
+  it starts), so a red cleanly fails the iteration → the supervisor retries-from-clean or skips.
+- **Step 5:** exit clean — no human `/clear` + `/gate` handoff prose. The supervisor is the loop.
+
+Drain mode is orthogonal to (and stricter than) Autonomous mode: it requires the full headless-safe
+config set (`autonomous.onFailure: 'abort'`, `skipLanePicker: true`, `requireHumanPrApproval: false`)
+or the supervisor refuses to start. See the FD + its spec for the supervisor's loop, success oracle,
+and safety rails.
