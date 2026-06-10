@@ -168,4 +168,9 @@ async function main(): Promise<void> {
 // Match the entrypoint file exactly (queue-drain.ts/.js/.mjs) — NOT a test file
 // such as queue-drain-cli.test.ts, which would otherwise run main() at import.
 const invokedDirect = /[\\/]queue-drain\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) void main();
+if (invokedDirect) {
+  void main().catch((e: unknown) => {
+    process.stderr.write(`drain crashed: ${e instanceof Error ? e.message : String(e)}\n`);
+    process.exit(1);
+  });
+}

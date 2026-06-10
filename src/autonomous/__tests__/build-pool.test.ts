@@ -114,6 +114,18 @@ describe('build pool + coordinator (K>1)', () => {
     expect(Math.max(...seenInFlight)).toBeGreaterThan(1); // genuinely concurrent builders observed
   });
 
+  it('K>1: a child that exits non-zero is skipped, not merged — even with an open PR', async () => {
+    const h = poolHarness(['a', 'b', 'c'], 3);
+    const orig = h.deps.spawnGate;
+    h.deps.spawnGate = vi.fn(async (env: Record<string, string>) => {
+      await orig(env, 1000, '/gate'); // marks the PR as opened (built)
+      return env.NOLDOR_DRAIN_SLUG === 'b' ? 1 : 0; // b's child fails AFTER opening its PR
+    });
+    const r = await runDrain(h.deps, { ...h.opts, maxRetries: 0 });
+    expect(r.shipped).toBe(2); // a + c merged
+    expect(r.skipped).toContain('b'); // b skipped despite an open PR (non-zero exit → never handed to coordinator)
+  });
+
   it('stop after first build halts NEW scheduling, drains in-flight, exits 130', async () => {
     let stopped = false;
     const h = poolHarness(['a', 'b', 'c', 'd', 'e'], 2); // 5 queued, K=2

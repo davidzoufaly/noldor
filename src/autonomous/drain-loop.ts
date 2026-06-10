@@ -160,8 +160,10 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
   };
 
   /** Returns true iff the slug was handed to the coordinator (worker must NOT drop it from
-   *  `dispatched` — the coordinator owns its removal). K=1 settles inline and returns false. */
-  const settleShipVerdict = (slug: string, branch: string): boolean => {
+   *  `dispatched` — the coordinator owns its removal). K=1 settles inline and returns false.
+   *  `code` is the gate child's exit code. At K=1 it's ignored (the oracle is authoritative, as
+   *  today); at K>1 a non-zero exit means a post-open failure — don't merge that PR, skip it. */
+  const settleShipVerdict = (slug: string, branch: string, code: number): boolean => {
     if (opts.concurrency === 1) {
       deps.syncMainCleanState(); // today's inline authority: advance local main, then read the oracle
       const stillPresent = deps.source.parseAll().includes(slug);
@@ -177,14 +179,16 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       recordRetryOrSkip(slug);
       return false;
     }
-    // K>1: child opened a PR (open-only). Hand off to the serialized coordinator.
-    if (deps.openPrExistsFor(slug, branch)) {
+    // K>1: hand off to the coordinator ONLY when the child exited cleanly AND opened a PR. A non-zero
+    // exit with an open PR (post-open failure) is skipped — its PR is left open, matching K=1's
+    // "don't ship a failed build" intent rather than letting the coordinator merge it blindly.
+    if (code === 0 && deps.openPrExistsFor(slug, branch)) {
       readyToMerge.push({ slug, branch });
       signalCoordinator();
       emitState(); // slug transitions building → awaiting-merge
       return true;
     }
-    recordRetryOrSkip(slug); // no PR → build failed → retry/skip; worker drops it
+    recordRetryOrSkip(slug); // no PR / non-zero exit → build failed → retry/skip; worker drops it
     return false;
   };
 
@@ -226,12 +230,12 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       // ---- end critical section ----
       let handedToCoordinator = false;
       try {
-        await deps.spawnGate(
+        const code = await deps.spawnGate(
           envFor(candidate.slug),
           opts.timeoutMs,
           deps.source.gatePrompt(candidate.slug),
         );
-        handedToCoordinator = settleShipVerdict(candidate.slug, branch);
+        handedToCoordinator = settleShipVerdict(candidate.slug, branch, code);
       } catch (e) {
         // A per-entry timeout is recoverable (retry/skip). Any other spawn error is systemic → abort.
         if (e instanceof Error && e.message === 'iteration-timeout')

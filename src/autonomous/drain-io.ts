@@ -74,8 +74,14 @@ export async function mergePr(
     if (verdict === 'merged') return 'merged';
     if (verdict === 'merge-conflict') return 'merge-conflict';
     if (Date.now() > deadline) return 'merge-timeout';
-    // No merge queue: attempt a direct squash, but ONLY when CLEAN (mergeable now — checks passed).
-    if (!autoEnabled && v.mergeStateStatus === 'CLEAN') {
+    if (v.mergeStateStatus === 'BEHIND') {
+      // "require branches up to date" protection: a PR opened off the pre-merge base goes BEHIND
+      // once the prior PR merges. Update it onto the new base so it can become mergeable — this is
+      // what makes "merges serialize, each rebased on the prior" actually true on a protected repo.
+      // Best-effort (clean PRs need no update); the next poll re-reads the fresh status.
+      spawnSync('gh', ['pr', 'update-branch', branch], { cwd, encoding: 'utf8' });
+    } else if (!autoEnabled && v.mergeStateStatus === 'CLEAN') {
+      // No merge queue: attempt a direct squash, but ONLY when CLEAN (mergeable now — checks passed).
       spawnSync('gh', ['pr', 'merge', branch, '--squash'], { cwd, encoding: 'utf8' });
     }
     await new Promise((r) => setTimeout(r, pollIntervalMs));
