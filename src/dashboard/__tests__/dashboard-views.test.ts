@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { escapeHtml, renderLayout } from '../layout.js';
 import {
+  ageBucket,
   parseMultiParam,
   plainTextPreview,
   renderBacklog,
@@ -569,6 +570,58 @@ describe('renderBacklog', () => {
     expect(html).toMatch(/<a[^>]*class="reset"[^>]*href="\?"[^>]*>Reset</);
   });
 
+  // Age buckets — entries grouped by `since:` age (pure frontmatter math),
+  // young → old, undated last; empty buckets are skipped.
+  const bucketNow = new Date('2026-06-10T00:00:00Z');
+  const agedBacklog = [
+    { name: 'Fresh', slug: 'fresh', area: 'web', since: '2026-06-01', description: 'd' },
+    { name: 'Aging', slug: 'aging', area: 'web', since: '2026-04-15', description: 'd' },
+    { name: 'Stale', slug: 'stale', area: 'web', since: '2026-01-01', description: 'd' },
+    { name: 'Dateless', slug: 'dateless', area: 'web', description: 'd' },
+  ];
+
+  it('groups entries into age-bucket sections with per-bucket counts', async () => {
+    const html = await renderBacklog(agedBacklog, noBmulti, { rawHash: 'h', now: bucketNow });
+    expect(html).toContain('0–30 days (1)');
+    expect(html).toContain('30–90 days (1)');
+    expect(html).toContain('90+ days (1)');
+    expect(html).toContain('No date (1)');
+    // Young → old → undated section order; rows live in their bucket.
+    const order = [
+      '0–30 days',
+      'Fresh',
+      '30–90 days',
+      'Aging',
+      '90+ days',
+      'Stale',
+      'No date',
+      'Dateless',
+    ];
+    const idx = order.map((s) => html.indexOf(s));
+    expect(idx.every((i) => i >= 0)).toBe(true);
+    expect([...idx].sort((a, b) => a - b)).toEqual(idx);
+  });
+
+  it('skips empty age buckets and keeps data-section on every bucket table', async () => {
+    const html = await renderBacklog([agedBacklog[0]!, agedBacklog[2]!], noBmulti, {
+      rawHash: 'h',
+      now: bucketNow,
+    });
+    expect(html).not.toContain('30–90 days');
+    expect(html).not.toContain('No date');
+    expect(html.match(/<table data-section="backlog" data-etag="h">/g)).toHaveLength(2);
+  });
+
+  it('applies filters across buckets while the h1 keeps the global count', async () => {
+    const html = await renderBacklog(
+      agedBacklog.map((e, i) => ({ ...e, size: i === 0 ? 'S' : 'L' })),
+      { ...noBmulti, size: ['S'] },
+      { rawHash: 'h', now: bucketNow },
+    );
+    expect(html).toContain('Backlog (1 of 4)');
+    expect(html).toContain('0–30 days (1)');
+    expect(html).not.toContain('90+ days');
+  });
   // Task 2 — Category column derived from `area` via areaToCategory helper.
   // Backlog source markdown has no `- category:` bullet; the dashboard
   // surfaces the derived category so demote/promote decisions don't
@@ -655,6 +708,27 @@ describe('renderBacklog', () => {
     });
     expect((html.match(/<input[^>]*name="size"/g) ?? []).length).toBeLessThanOrEqual(1);
     expect((html.match(/<input[^>]*name="impact"/g) ?? []).length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('ageBucket', () => {
+  const now = new Date('2026-06-10T00:00:00Z');
+
+  it('buckets by age with inclusive young-side boundaries', () => {
+    expect(ageBucket('2026-06-09', now)).toBe('0-30d');
+    expect(ageBucket('2026-05-11', now)).toBe('0-30d'); // exactly 30 days
+    expect(ageBucket('2026-05-10', now)).toBe('30-90d'); // 31 days
+    expect(ageBucket('2026-03-12', now)).toBe('30-90d'); // exactly 90 days
+    expect(ageBucket('2026-03-11', now)).toBe('90d+'); // 91 days
+  });
+
+  it('clamps future dates to 0-30d', () => {
+    expect(ageBucket('2026-07-01', now)).toBe('0-30d');
+  });
+
+  it('routes missing or unparseable dates to undated', () => {
+    expect(ageBucket(undefined, now)).toBe('undated');
+    expect(ageBucket('not-a-date', now)).toBe('undated');
   });
 });
 
