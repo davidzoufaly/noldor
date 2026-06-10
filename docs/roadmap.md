@@ -60,17 +60,6 @@ When a feature adds a new release-time gate, the feature's own implementation co
 
 - triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
 
-#### Triage→Now Direct Shortcut
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: XS
-- impact: med
-- parent: noldor
-
-Before the flat-priority restructure, `docs/noldor/triage.md` said `## Now` was reserved for `/promote`, so when an operator picked "now" during triage the flow forced a two-step seam (triage→Next, then `/promote slug`). Hit during automated-cr-pipeline triage — operator picked "now" intent and the controller had to manually chain. Add a `target: now` triage option that auto-chains to `/promote <slug>` (or to `/gate` if appropriate). Reduces one workflow seam on the path most-used flows take. Either feature in `/triage` skill or document the chained `/triage <slug> --then-promote` invocation.
-
 #### Subagent Reviewer Verify-Before-Flag Protocol
 
 - area: tooling
