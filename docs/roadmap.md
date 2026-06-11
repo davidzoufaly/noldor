@@ -230,16 +230,3 @@ Every roadmap and backlog entry is identified today by its kebab-slug derived fr
 - parent: noldor
 
 `docs/noldor/triage.md:64` describes a `deps:` bullet (comma-separated kebab slugs) that `scripts/triage/score.ts` reads for dependency-weight scoring, but the field is silently optional in v1, undocumented in both `docs/roadmap.md` and `docs/backlog.md` preambles, and unused across every current entry. Promote it to a first-class `blocked-by:` field — name matches GitHub-issue + Jira convention and reads better in prose than `deps`. Document it in both file preambles, surface it on the dashboard as a dependency graph view, validate that each referenced ID exists, and have `/garden` flag circular chains. Accept `deps:` ↔ `blocked-by:` as aliases during a migration window, then deprecate `deps:`. Blocked by Stable Entry IDs — `blocked-by:` references should target stable IDs, not rename-fragile slugs. Touches: `docs/roadmap.md` + `docs/backlog.md` preambles, `.claude/skills/triage/SKILL.md`, `scripts/validate/validate-triage.ts`, `scripts/garden/detectors/*` (new circular-blocked-by detector), `docs/noldor/triage.md`.
-
-### Mark FD phase=done in feature PR (not at release)
-
-- area: tooling
-- type: feat
-- since: 2026-05-23
-- size: S
-- impact: med
-- parent: noldor
-
-Today FDs stay `phase: in-progress` from feature-branch creation through merge until `pnpm release` flips them to `phase: done` via `release-markers.ts:fillMarkers`. Result: `main` carries shipped-but-still-`in-progress` FDs for the entire window between feature-merge and the next release cut. Want: the phase-flip `in-progress → done` happens in the last commit on the feature branch **before merge** and lands on `main` as part of the feature's PR. If the feature is later reopened (attach-revert flow), flip back to `in-progress` per existing `framework-pr-flow-agent-auto-merge` asymmetric state-machine — release-time `fillMarkers` then becomes a no-op for done features and only fills `introduced` markers on FDs whose phase was already done. Trigger: live now — surfaced 2026-05-23 during release sweep when several recently-merged features remained `in-progress` on `main` until release. Heavily overlaps with roadmap entry "Drop Manual Feature MD Update Step" which already proposes flipping phase=done at `/gate` end-of-flow — merge candidate. Touches: `.claude/skills/gate/SKILL.md` Step 4, `scripts/release/release-markers.ts`, `docs/noldor/workflow.md`.
-
-- triage 2026-05-23: round-tripped roadmap → backlog → roadmap same day. First demoted as vague (`ship-plans-specs-via-fast-track`), then UC clarified, then re-promoted with current slug + scope. Original `ideas.md:43` marker references the old slug for traceability.
