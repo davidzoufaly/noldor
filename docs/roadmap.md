@@ -197,17 +197,6 @@ Audit `scripts/` and the framework's test corpus to identify scripts/tests that 
 
 Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-discipline.md`). Today every active task lives in its own branch worktree. The proposal: collapse to a single shared dev branch — still in worktrees for parallelism, but not separate branches — with all task work landing on one rolling branch and merging to main on release. Trade-off: simpler integration story (no per-task rebase, fewer divergent histories) at the cost of losing the per-task isolation that lets `/gate` and `/promote` reason about scope. Trigger: when per-branch overhead (rebase storms, cross-branch lint regen, merge order ambiguity) outweighs the isolation benefit.
 
-#### Dashboard: Filter Features Missing `introduced`
-
-- area: tooling
-- type: feat
-- since: 2026-05-12
-- parent: project-tracking-dashboard
-- size: XS
-- impact: low
-
-Add a filter (or default-on flag column) on the dashboard's `/features` listing for FDs whose frontmatter is missing the `introduced:` version field. The SDD detector already flags this server-side, but operators want a one-click view on the dashboard to spot done features that shipped without an `introduced:` marker (release-notes drift, version-attribution gaps). Trigger: live now — surfaced during recent dashboard browsing; missing-`introduced` features are otherwise invisible until release-time SDD report.
-
 #### Scope Sibling Trailer for Doc-Sync Commits
 
 - area: tooling
