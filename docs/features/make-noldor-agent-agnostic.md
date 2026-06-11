@@ -3,7 +3,21 @@ area: tooling
 category: Agents
 deps: []
 links:
-  code: []
+  code:
+    - src/core/agent-runner/
+    - src/core/agent-events.ts
+    - src/templates/agent-filter.ts
+    - src/cr/deep-review-spawn.ts
+    - src/cr/run-codex.ts
+    - src/autonomous/drain-io.ts
+    - src/prep/spawn.ts
+    - src/cr/lanes/subagent-dispatch.ts
+    - src/release/llm-polish-summary.ts
+    - 'src/cli/commands/{init,doctor}.ts'
+    - templates/.opencode/
+    - templates/AGENTS.md
+    - templates/opencode.json
+    - docs/noldor/agent-runtimes.md
   tests:
     - src/core/__tests__/agent-events.test.ts
     - src/core/agent-runner/__tests__/doctor-runners.test.ts
@@ -16,7 +30,7 @@ links:
 name: Make Noldor Agent-Agnostic
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary
