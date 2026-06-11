@@ -873,7 +873,7 @@ Expected: both exit 0
 - [ ] **Step 9: Commit**
 
 ```bash
-git add .claude/skills/draft-feature-md .claude/engineering-rules.md templates/.claude docs/noldor templates/docs/noldor
+git add .claude/skills/draft-feature-md .claude/engineering-rules.md templates/.claude docs/noldor templates/docs/noldor src/core/__tests__/allowlist.test.ts
 NOLDOR_ALLOW_SHARED=1 git commit -m "docs(noldor): sweep remaining superpowers references, correct worktree install claim" -m "Noldor-FD: de-superpowers-vendor-spec-plan-and-worktree-flows"
 ```
 
