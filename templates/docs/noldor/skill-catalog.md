@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Skill Catalog
 
-Noldor ships 10 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
+Noldor ships 11 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
 
 > **Strict drift gate.** `pnpm noldor validate skill-catalog` (pre-commit, see [`garden-and-drift.md`](garden-and-drift.md) Detector 16) asserts that every `## /<slug>` heading on this page maps to a `<slug>.md` (or `<slug>/SKILL.md`) under `.claude/skills/`, and vice versa. Add or rename a skill → update this page in the same commit, or pre-commit blocks.
 
@@ -35,7 +35,7 @@ Noldor ships 10 user-invocable skills, each owned by a single concern. This page
 - **Trigger:** `/draft-feature-md <slug> [--from-spec | --refresh]`. `--from-spec` is the default.
 - **Inputs:** kebab-case slug; `docs/features/<slug>.md`; the latest matching spec at `docs/superpowers/specs/*-<slug>-design.md` (`--from-spec` mode); plus `links.code` + `links.tests` files (`--refresh` mode).
 - **Outputs:** drafted `## User Story` + `## Usage` sections presented inline as fenced markdown blocks for inline confirmation/edit. On approval, applies via Edit tool. Never modifies Summary or frontmatter. Never stages or commits.
-- **When to use:** `--from-spec` after a spec is approved (before invoking `superpowers:writing-plans`) to fill the feature MD's `<!-- TODO -->` stubs while the spec is fresh. `--refresh` before flipping `phase: in-progress → done` in the shipping commit, so User Story / Usage reflect what actually shipped (reality wins over spec claims).
+- **When to use:** `--from-spec` after a spec is approved (before invoking `noldor-plan`) to fill the feature MD's `<!-- TODO -->` stubs while the spec is fresh. `--refresh` before flipping `phase: in-progress → done` in the shipping commit, so User Story / Usage reflect what actually shipped (reality wins over spec claims).
 
 ## /gate
 
@@ -64,6 +64,14 @@ Noldor ships 10 user-invocable skills, each owned by a single concern. This page
 - **Inputs:** kebab-case slug; roadmap entry / FD body for grounding; `docs/vision.md`; the real code the idea touches; the format contract via `pnpm noldor prep format spec`.
 - **Outputs:** self-reviewed spec at `docs/superpowers/specs/YYYY-MM-DD-<slug>-design.md` (attach naming: `<parent>-<enhancement>`); reports the path and stops — `/gate` Step 2.5 owns commit + CR. Never commits.
 - **When to use:** the spec stage of any gated feature, or standalone design exploration. Vendored replacement for the third-party brainstorming flow — no plugin required.
+
+## /noldor-plan
+
+- **Trigger:** `/noldor-plan <slug>`, or the gate's plan stage on `full-*` paths after spec approval.
+- **Inputs:** approved spec at `docs/superpowers/specs/*-<slug>-design.md`; every file the spec names; the format contract via `pnpm noldor prep format plan`.
+- **Outputs:** bite-size TDD plan at `docs/superpowers/plans/YYYY-MM-DD-<slug>.md` — complete code, exact commands, expected output per step; reports the path and stops — `/gate` Step 2.5 (`--kind plan`) owns commit + CR. Never commits.
+- **When to use:** the plan stage of `full-*` paths, or any multi-step work with a written spec. Vendored replacement for the third-party writing-plans flow — no plugin required.
+
 
 
 ## /refactor
