@@ -82,17 +82,6 @@ Read `graphify-out/GRAPH_REPORT.md` per request, surface god-node count, low-coh
 
 Dashboard `/skills` route — list + detail view for the 8 project-local skills under `.claude/skills/<name>/SKILL.md`. List page pulls trigger + one-line description from each SKILL.md's frontmatter (`name`, `description`); clicking a row opens the rendered SKILL.md body for the full step-by-step. Pairs with existing `/features` and `/docs` dashboard surfaces — the skills counter on `/` (`scripts/dashboard/views.ts:97`) currently has no destination to click into. Cross-link `docs/noldor/skill-catalog.md` block per skill so the dashboard reflects both source-of-truths (SKILL.md = execution, catalog = operator summary). Trigger: surfaced 2026-05-12 right after the flat → subdirectory migration registered the skills with the Skill tool — the counter on KPIs is now actionable but un-browseable.
 
-#### Implementer Subagent Scope-Guard Template
-
-- area: tooling
-- type: refactor
-- since: 2026-05-10
-- size: S
-- impact: med
-- parent: noldor
-
-`superpowers:subagent-driven-development`'s `implementer-prompt.md` should explicitly say "ONLY edit the files listed in the Files: section. If a hook forces unrelated edits (oxfmt drift, sdd-report regen), stop and report `DONE_WITH_CONCERNS` instead of bundling them into the commit." During automated-cr-pipeline, multiple implementer subagents bundled unrelated formatter fixes for spec/plan/feature-MD files into their task commit because lefthook required it. Acceptable in practice but blurs commit scope and makes `git log` per-task harder to read. Stricter prompt + a hook flag like `LEFTHOOK_AUTOFIX=warn` (advise, don't auto-fix) would let the bundled edits be a separate explicit cleanup commit.
-
 #### Multi-Line Trailer Value Detection
 
 - area: tooling
