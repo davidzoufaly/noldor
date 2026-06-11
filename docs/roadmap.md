@@ -188,17 +188,6 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 Augment `/hot-zones` rows with insertion + deletion line counts via `git log --shortstat`. Touch count (current v1) answers "how often", lines changed answers "how much" — together they distinguish files that get tweaked often from files that get rewritten often. Trigger when touch-count alone proves too coarse to pick refactor targets.
 
-#### Hot Zones JSON Endpoint
-
-- area: tooling
-- type: feat
-- since: 2026-05-04
-- size: XS
-- impact: low
-- parent: dashboard-hot-zones-page
-
-`/hot-zones?format=json` returning the `HotZoneRow[]` array as `application/json`. Lets agents skip HTML parsing. Trigger when an agent workflow actually wants the data programmatically.
-
 #### Sort Features by Last-Updated (Git)
 
 - area: tooling
