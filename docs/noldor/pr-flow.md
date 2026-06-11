@@ -11,7 +11,7 @@ Every gate path lands `main` only via a GitHub PR opened by the controlling agen
 
 ```
 gate end-of-flow (any path)
-  ├─ Claude review (superpowers:requesting-code-review) — address inline, no retry cap
+  ├─ Claude review (noldor cr orchestrate --kind code, subagent lane) — address inline, no retry cap
   ├─ codex CR retry loop (src/core/cr-retry.ts) — up to 3 retries
   ├─ pnpm noldor pr-flow → openAndAutoMerge (src/core/pr-flow-cli.ts → pr-flow.ts):
   │    1. preflight: gh --version + gh auth status
