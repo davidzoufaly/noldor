@@ -11,7 +11,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 ## Summary
 
 - Total features: 35
-- Untriaged ideas: 23
+- Untriaged ideas: 27
 - Backlog entries: 1
 - Gap categories with issues: 7 / 14
 
@@ -29,7 +29,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 46
+Gated commits missing `Noldor-Reviewed` trailer: 47
 
 ## Gap details
 
@@ -53,29 +53,33 @@ Gated commits missing `Noldor-Reviewed` trailer: 46
 
 ### Untriaged ideas in ideas.md
 
-- `ideas.md:28` — do not ask for commiting the plan -> commit autonomously
-- `ideas.md:29` — po vyběru cesty -> zbytečná otázka pro potvrzení
-- `ideas.md:30` — next priority -> be able to dispatch next priority via agent window
-- `ideas.md:31` — when checking FD also consider checking backlog/if there might be other candidates for the same FD so it can suggest new FD with higher confidence so it will be usefull also later
-- `ideas.md:32` — milestones to dashboard web
-- `ideas.md:33` — where are milestones documented?
-- `ideas.md:34` — is gate function properly documented
-- `ideas.md:35` — roadmap nové akce -> top and bottom
-- `ideas.md:36` — add "remove" button from backlog and roadmap to action column rename it to "actions"
-- `ideas.md:40` — code reviewer 2.0 -> inspiration from MC Code Reviwer
-- `ideas.md:41` — in autonomous mode summary of PR is: Micro-chore: docs(roadmap): retire dashboard-auto-start-on-project-load — shipped via fast-track (no FD)
-- `ideas.md:45` — code reviewer configuration for fast-track
-- `ideas.md:48` — codex CR gate unsatisfiable — 18 commits since v0.1.0 lack codex receipts; release needs RELEASE_SKIP_CR_GATE=1 until codex CR operationalized or pre-v0.1.0 grandfathered
-- `ideas.md:49` — graphify writes cache to src/graphify-out/ when scanned on src -> breaks fmt:check every run (had to mv to /tmp 3x); make it write under graphify-out/ or exclude from fmt
-- `ideas.md:50` — GARDEN_SRC_PATHS = apps/packages/scripts/ (not src/) -> garden-receipt freshness doesn't track this repo's source; mirror scanPaths
-- `ideas.md:51` — every src-touching fast-track re-stales the graph (scanPaths=src) -> forces a graph-refresh sweep before each release; consider auto-regen in release or relax freshness for test-only diffs
-- `ideas.md:52` — pnpm toon script omits required graph.json arg (bare `pnpm toon` fails; src/garden/graph-fd-lookup.ts tells users to run it)
-- `ideas.md:53` — README Status section stale -> claims pre-extract, lives in Charuy monorepo; we're standalone now
-- `ideas.md:54` — graphify-out/graph.html oxfmt churn ~41k lines/sweep -> gitignore graph.html or exclude from fmt
-- `ideas.md:55` — .noldor/release-pushes.log not gitignored (operator-local release audit, like garden-receipt)
-- `ideas.md:56` — sdd-report review-skip count non-idempotent: bumps per fast-track commit, re-fires release gate once (roadmap: skip-if-only-count-line-changed)
-- `ideas.md:63` — still does it make sense to introduce SQL into a framework?
-- `ideas.md:64` — CLI standalone tool
+- `ideas.md:36` — do not ask for commiting the plan -> commit autonomously
+- `ideas.md:37` — po vyběru cesty -> zbytečná otázka pro potvrzení
+- `ideas.md:38` — next priority -> be able to dispatch next priority via agent window
+- `ideas.md:39` — when checking FD also consider checking backlog/if there might be other candidates for the same FD so it can suggest new FD with higher confidence so it will be usefull also later
+- `ideas.md:40` — milestones to dashboard web
+- `ideas.md:41` — where are milestones documented?
+- `ideas.md:42` — is gate function properly documented
+- `ideas.md:43` — roadmap nové akce -> top and bottom
+- `ideas.md:44` — add "remove" button from backlog and roadmap to action column rename it to "actions"
+- `ideas.md:48` — code reviewer 2.0 -> inspiration from MC Code Reviwer
+- `ideas.md:49` — code reviewer configuration for fast-track
+- `ideas.md:52` — codex CR gate unsatisfiable — 18 commits since v0.1.0 lack codex receipts; release needs RELEASE_SKIP_CR_GATE=1 until codex CR operationalized or pre-v0.1.0 grandfathered
+- `ideas.md:53` — graphify writes cache to src/graphify-out/ when scanned on src -> breaks fmt:check every run (had to mv to /tmp 3x); make it write under graphify-out/ or exclude from fmt
+- `ideas.md:54` — GARDEN_SRC_PATHS = apps/packages/scripts/ (not src/) -> garden-receipt freshness doesn't track this repo's source; mirror scanPaths
+- `ideas.md:55` — every src-touching fast-track re-stales the graph (scanPaths=src) -> forces a graph-refresh sweep before each release; consider auto-regen in release or relax freshness for test-only diffs
+- `ideas.md:56` — pnpm toon script omits required graph.json arg (bare `pnpm toon` fails; src/garden/graph-fd-lookup.ts tells users to run it)
+- `ideas.md:57` — README Status section stale -> claims pre-extract, lives in Charuy monorepo; we're standalone now
+- `ideas.md:58` — graphify-out/graph.html oxfmt churn ~41k lines/sweep -> gitignore graph.html or exclude from fmt
+- `ideas.md:59` — .noldor/release-pushes.log not gitignored (operator-local release audit, like garden-receipt)
+- `ideas.md:60` — sdd-report review-skip count non-idempotent: bumps per fast-track commit, re-fires release gate once (roadmap: skip-if-only-count-line-changed)
+- `ideas.md:64` — de-claudification
+- `ideas.md:65` — get rid of superpowers -> and disable them + other skills (consider handoff to autonomous mode)
+- `ideas.md:66` — paraler development
+- `ideas.md:68` — top ten items roadmap / backlog items noldor
+- `ideas.md:69` — agents foder -> agent rules, commands,..
+- `ideas.md:73` — still does it make sense to introduce SQL into a framework?
+- `ideas.md:74` — CLI standalone tool
 
 ### Plans without matching spec
 
