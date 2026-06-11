@@ -168,6 +168,6 @@ Subagents don't auto-load CLAUDE.md, so the parent must reference the files expl
 
 When dispatching an implementer subagent to execute a plan task (e.g. `superpowers:subagent-driven-development`), append this template to the implementer prompt verbatim:
 
-> ONLY edit the files listed in the task's Files: section. If a hook forces unrelated edits — formatter drift, report regen, `stage_fixed` auto-fixes — stop and report `DONE_WITH_CONCERNS` instead of bundling them into your commit. Forced edits land in a separate, explicitly-labeled cleanup commit so each task commit maps 1:1 to its task scope in `git log`.
+> ONLY edit the files listed in the task's Files: section (no Files: section ⇒ only the files the task names). Hooks may auto-stage fixes for files you never touched — lefthook `stage_fixed` formatter/sync jobs run during `git commit`, so you cannot prevent the bundling up front. After committing, run `git show --stat HEAD`: if it lists files outside your task scope, report `DONE_WITH_CONCERNS` naming those files instead of reporting the commit as clean. Do not amend or re-commit — the controller moves the forced edits into a separate, explicitly-labeled cleanup commit (e.g. `chore(hooks): stage_fixed auto-fixes from task N`).
 
-The guard exists because lefthook `stage_fixed` jobs silently stage auto-fixes for files the task never touched, blurring per-task commit scope.
+The guard exists because lefthook `stage_fixed` jobs silently stage auto-fixes for files the task never touched, blurring per-task commit scope in `git log`.
