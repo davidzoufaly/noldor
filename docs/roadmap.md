@@ -23,6 +23,61 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
 
+#### Parallel-Drain `roadmap.md` Conflict Auto-Resolution
+
+- area: tooling
+- type: feat
+- since: 2026-06-11
+- size: M
+- impact: high
+- parent: parallel-drain
+
+Under `--concurrency >1`, every fast-track child removes its own block from the shared `docs/roadmap.md`; the serialized merge coordinator rebases each PR onto the prior merge, but git cannot auto-merge *adjacent* block removals → the PR goes `DIRTY`, the coordinator skips it, and the worktree + open PR are orphaned. Hit live during a 23-entry drain: ~5 of the K=3 PRs went DIRTY, forcing a fall back to `--concurrency 1` (sequential is conflict-free by construction — each merges before the next branch is cut). Block-removal is deterministic, so the coordinator should re-apply "remove `<slug>`'s block" against the freshly-rebased base (parse + drop the block, not a textual 3-way merge) rather than letting git's line-merge fail. Without this, `--concurrency >1` is effectively unusable for roadmap-source drains. Touches: `src/autonomous/drain-io.ts`, `src/autonomous/drain-loop.ts`, `src/utils/parse-blocks.ts`.
+
+#### Drain Startup Reconciliation of a Prior Dead Run
+
+- area: tooling
+- type: feat
+- since: 2026-06-11
+- size: M
+- impact: high
+- parent: autonomous-queue-drain-runner
+
+When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `fast/<slug>` worktrees, leftover branches, open PRs (clean *and* DIRTY), and a stale `.noldor/drain.lock`. Today a fresh drain does not reconcile these — the operator must manually merge clean open PRs, close/rebuild DIRTY ones, prune worktrees, and clear the stale lock (done by hand 3× in one session). Add a startup reconciliation pass: for each in-roadmap slug with an open PR, merge it when CLEAN (advance the oracle) or close + flag-for-rebuild when DIRTY; `git worktree prune` + remove orphaned `fast/*` worktrees whose slug is already shipped; reclaim a stale lock whose pid is dead. Makes the drain crash-recoverable instead of leaving a mess. Touches: `src/autonomous/queue-drain.ts`, `src/autonomous/drain-io.ts`, `src/autonomous/drain-lock.ts`.
+
+#### micro-chore `reset --hard` Must Stash Uncommitted Work First
+
+- area: tooling
+- type: fix
+- since: 2026-06-11
+- size: S
+- impact: high
+- parent: noldor
+
+The micro-chore temp-branch handoff (`/gate` Step 2) runs `git reset --hard origin/main` to rewind local main — which silently discards *any* uncommitted working-tree edits to unrelated tracked files. Hit live: a drain's micro-chore iteration destroyed uncommitted `ideas.md` edits (recovered only via VSCode Local History; uncommitted content never enters git's object store, so `git fsck` could not help). Fix: `git stash --include-untracked` before the reset and `git stash pop` after — or refuse the reset when the working tree carries unrelated dirty files, surfacing them to the operator. Real data-loss hazard on every micro-chore run started from a dirty tree. Touches: `.claude/skills/gate/SKILL.md` (Step 2 micro-chore handoff), the temp-branch scaffold.
+
+#### `isDrainEligible`: Skip `blocked-by` + Match `Touches:` Anywhere
+
+- area: tooling
+- type: fix
+- since: 2026-06-11
+- size: S
+- impact: med
+- parent: autonomous-queue-drain-runner
+
+`isDrainEligible` (`src/autonomous/drain-eligibility.ts`) today only inspects a block's `Touches:` prefix + top-level-bullet count. A fast-track entry that is `blocked-by` / `deps`-on an entry still present in roadmap/backlog is not shippable in isolation, but the drain still spawns it, lets the gate child fail deliberately, then burns `--max-retries` before skipping. Hit live: `first-class-blocked-by-field` (blocked by `stable-entry-ids-for-roadmap-backlog`, a size-M specs-only entry) burned retries each pass. Make it ineligible upfront: return false when `blocked-by:`/`deps:` references a slug still in the queue, and match `Touches:` anywhere in the body (not only at line-start). The gate child already specced this exact fix during the drain. Touches: `src/autonomous/drain-eligibility.ts`, `src/autonomous/drain-source.ts`.
+
+#### `noldor autonomous status` + Robust Lock Read
+
+- area: tooling
+- type: feat
+- since: 2026-06-11
+- size: XS
+- impact: low
+- parent: autonomous-queue-drain-runner
+
+There is no first-class way to ask "is a drain running, and where is it?" — operators read `.noldor/drain-state.json` + `.noldor/drain.lock` by hand, and a transient empty/partial read of the lock's `pid` field reads as "dead" (caused a live drain to be misjudged dead and interfered with mid-run). Add `noldor autonomous status`: report liveness from the actual process (`pgrep` / `kill -0` on the lock pid, with a robust JSON read) plus shipped / skip / in-flight from drain-state. Cheap operator-safety win that would have prevented the worst incident of the 2026-06-11 drain. Touches: `src/autonomous/drain-state.ts`, `src/autonomous/drain-lock.ts`, `src/cli/manifest.ts`.
+
 #### Graphify `plan-of` edges + nodes for plans/specs
 
 - area: tooling
