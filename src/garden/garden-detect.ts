@@ -17,7 +17,7 @@ import { detectAllowlistDrift } from './detectors/allowlist-drift.js';
 import { detectTrailerScopeMismatch } from './detectors/trailer-scope-mismatch.js';
 import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
-import { resolveByLinksPlan } from './plan-resolution.js';
+import { resolveByLinksPlan, resolveByLinksSpec } from './plan-resolution.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
 import type { FeatureFrontmatter } from '../features/feature-schema.js';
@@ -230,6 +230,23 @@ export async function detectStaleSpecs(
           path: relPath,
           reason: 'feature-done',
           slug,
+        });
+      }
+      continue;
+    }
+
+    // Fallback — scan FDs' links.spec for this spec path. Catches attach-path
+    // specs (`<date>-<parent>-<enhancement>-design.md`) whose filename slug
+    // matches no FD but whose parent FD still owns them: live owner suppresses
+    // the age-out signal, done owner archives as feature-done.
+    const byLinks = await resolveByLinksSpec({ repo, specPath: relPath });
+    if (byLinks) {
+      if (byLinks.fd.phase === 'done') {
+        findings.push({
+          action: 'archive',
+          path: relPath,
+          reason: 'feature-done',
+          slug: byLinks.slug,
         });
       }
       continue;
