@@ -20,11 +20,33 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a Noldor consumer (human operator or autonomous agent), I want every framework agent spawn to resolve through a role-based runner registry covering Claude Code, Codex, and opencode, so that I can pick or mix runtimes per role — including local models via opencode — without touching framework code, and without the framework silently re-welding itself to one vendor.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Config** (`.noldor/config.json`, opt-in — absent block keeps today's behavior):
+
+```jsonc
+"agents": {
+  "default": "claude",
+  "roles": {
+    "reviewer": { "runner": "codex" },
+    "polish":   { "runner": "opencode", "model": "ollama/llama3.2" }
+  },
+  "versionFloors": { "opencode": "0.6.0" },
+  "targets": ["claude", "codex", "opencode"]
+}
+```
+
+**CLI**
+
+- `noldor init --agents claude,codex,opencode` — write per-driver shim sets (`.claude/`, `.opencode/command/` + `opencode.json`, `AGENTS.md`).
+- `noldor doctor` — template drift + presence/version-floor check for every configured runner.
+
+**Agent API**
+
+- `spawnAgent(prompt, { role, runner?, cwd, env, timeoutMs, stdio, schemaPath, needsWrite, site })` from `src/core/agent-runner/registry.ts` — resolves `opts.runner ?? resolveRunner(role, config)`, builds per-runner argv, enforces capability fit, emits one `.noldor/agent-events.jsonl` line per spawn.
+- Inspect spawns: `tail .noldor/agent-events.jsonl` — `runner` / `role` / `site` / `exitCode` per line.
 
 ## PRs
 
