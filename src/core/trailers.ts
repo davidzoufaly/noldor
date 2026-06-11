@@ -33,6 +33,39 @@ export function parseTrailers(message: string): Trailers {
   return trailers;
 }
 
+/**
+ * Detect `Noldor-*` trailer-shaped lines that `git interpret-trailers --parse`
+ * silently dropped. git invalidates the ENTIRE trailer block when any value
+ * wraps to a continuation line without leading whitespace — during the v0.4.0
+ * release two multi-line `Noldor-Path-Override:` values vanished this way and
+ * sailed through the commit-msg gate unseen.
+ *
+ * Only the message's final paragraph (the trailer-block candidate) is
+ * inspected, so `Noldor-*:` mentions in earlier body prose never false-flag a
+ * well-formed commit. Comment lines (`#`) are stripped first — interactive
+ * commits append a comment block after the trailers, and git itself ignores
+ * those lines when locating the block.
+ *
+ * @returns the keys git missed, in message order; `[]` when nothing was dropped.
+ */
+export function detectDroppedTrailers(message: string, parsed: Trailers): string[] {
+  const withoutComments = message
+    .split('\n')
+    .filter((line) => !line.startsWith('#'))
+    .join('\n');
+  const lastParagraph =
+    withoutComments
+      .replace(/\s+$/, '')
+      .split(/\n\s*\n/)
+      .at(-1) ?? '';
+  const dropped: string[] = [];
+  for (const line of lastParagraph.split('\n')) {
+    const m = line.match(/^(Noldor-[A-Za-z-]+):/);
+    if (m && parsed[m[1]!] === undefined) dropped.push(m[1]!);
+  }
+  return dropped;
+}
+
 /** Format a trailers object as an array of `Key: value` strings. */
 export function formatTrailers(t: Trailers): string[] {
   return Object.entries(t).map(([k, v]) => `${k}: ${v}`);

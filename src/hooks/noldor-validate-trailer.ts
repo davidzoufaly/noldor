@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync, appendFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
-import { parseTrailers } from '../core/trailers';
+import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
 import { PATHS } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
@@ -78,6 +78,18 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   if (!isPostRollout(head, opts.cwd)) return { ok: true };
 
   const t = parseTrailers(opts.message);
+
+  // A value wrapped to an unindented line makes git drop the WHOLE trailer
+  // block (v0.4.0: two Noldor-Path-Override values vanished this way and the
+  // override never took effect). Reject before any branch reads `t`, so the
+  // operator fixes the message instead of the gate acting on missing trailers.
+  const dropped = detectDroppedTrailers(opts.message, t);
+  if (dropped.length > 0) {
+    return {
+      ok: false,
+      reason: `trailer(s) invisible to git interpret-trailers — a value wrapped to an unindented line invalidates the whole trailer block: ${dropped.join(', ')}. Keep each value on a single line, or indent continuation lines with whitespace.`,
+    };
+  }
 
   if (t['Noldor-Path-Override']) {
     const logPath = join(opts.cwd, '.noldor', 'overrides.log');
