@@ -13,12 +13,6 @@ vi.mock('../lanes/codex.js', () => ({
 vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async () => ({ lane: 'subagent', sinkPath: 's', ok: true })),
 }));
-vi.mock('../lanes/standalone.js', () => ({
-  runStandalone: vi.fn(async () => ({ lane: 'standalone', sinkPath: 'so', ok: true })),
-  claudeSupportsMaxThinking: vi.fn(async () => false),
-  multiterminalDepDone: vi.fn(async () => true),
-}));
-
 import { run } from '../orchestrate.js';
 
 let root: string;
@@ -31,13 +25,13 @@ afterEach(async () => {
 });
 
 describe('delta short-circuit', () => {
-  it('writes synthetic OK for ALL lanes when empty diff (including standalone)', async () => {
+  it('writes synthetic OK for ALL lanes when empty diff', async () => {
     const r = await run({
       args: {
         slug: 'x',
         artifact: 'docs/x.md',
         kind: 'spec',
-        lanes: ['manual', 'subagent', 'standalone'],
+        lanes: ['manual', 'subagent'],
         baseSha: 'b',
         fullReview: false,
         autonomous: false,
@@ -45,9 +39,7 @@ describe('delta short-circuit', () => {
       cwd: root,
       isEmptyDiff: async () => true,
     });
-    expect(r.syntheticOks.toSorted()).toEqual(['manual', 'standalone', 'subagent']);
-    const { runStandalone } = await import('../lanes/standalone.js');
-    expect(runStandalone).not.toHaveBeenCalled();
+    expect(r.syntheticOks.toSorted()).toEqual(['manual', 'subagent']);
     const manualJson = JSON.parse(
       await readFile(join(root, '.noldor', 'cr', 'x-spec-manual.json'), 'utf8'),
     );

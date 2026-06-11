@@ -59,32 +59,6 @@ vi.mock('../lanes/subagent.js', () => ({
     return { lane: 'subagent', sinkPath: path, ok: true };
   }),
 }));
-vi.mock('../lanes/standalone.js', () => ({
-  runStandalone: vi.fn(async (input) => {
-    const { writeJsonAtomic } = await import('../atomic-write.js');
-    const path = join(
-      input.repoRoot,
-      '.noldor',
-      'cr',
-      `${input.slug}-${input.kind}-standalone.json`,
-    );
-    await writeJsonAtomic(path, {
-      lane: 'standalone',
-      artifact: input.artifact,
-      kind: input.kind,
-      slug: input.slug,
-      blockers: [],
-      suggestions: [],
-      summary: 'running',
-      startedAt: new Date().toISOString(),
-      templateSha: 'fakehash',
-    });
-    return { lane: 'standalone', sinkPath: path, ok: false };
-  }),
-  claudeSupportsMaxThinking: vi.fn(async () => false),
-  multiterminalDepDone: vi.fn(async () => true),
-}));
-
 import { run } from '../orchestrate.js';
 
 let root: string;
@@ -98,24 +72,23 @@ afterEach(async () => {
 });
 
 describe('orchestrate integration', () => {
-  it('runs all four lanes; writes 4 schema-valid sinks', async () => {
+  it('runs all three runnable lanes; writes 3 schema-valid sinks', async () => {
     const r = await run({
       args: {
         slug: 'x',
         artifact: 'docs/superpowers/specs/x.md',
         kind: 'spec',
-        lanes: ['manual', 'codex', 'subagent', 'standalone'],
+        lanes: ['manual', 'codex', 'subagent'],
         fullReview: false,
         autonomous: false,
       },
       cwd: root,
     });
-    expect(r.lanesRun.toSorted()).toEqual(['codex', 'manual', 'standalone', 'subagent']);
+    expect(r.lanesRun.toSorted()).toEqual(['codex', 'manual', 'subagent']);
     const entries = await readdir(join(root, '.noldor', 'cr'));
     expect(entries.filter((e) => e.endsWith('.json')).toSorted()).toEqual([
       'x-spec-codex.json',
       'x-spec-manual.json',
-      'x-spec-standalone.json',
       'x-spec-subagent.json',
     ]);
     expect(entries.filter((e) => e.endsWith('.tmp'))).toEqual([]);

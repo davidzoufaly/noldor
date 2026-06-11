@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import { inferLaneFromFilename } from './filename.js';
-import { PROMPT_TEMPLATE_PATH } from './lanes/standalone.js';
+import { PROMPT_TEMPLATE_PATH } from './deep-review-spawn.js';
 
 export interface AggregateResult {
   ok: boolean;

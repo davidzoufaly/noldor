@@ -67,12 +67,6 @@ describe('guardLaneOverwrite', () => {
     expect(archive).toHaveLength(1);
     expect(archive[0]).toMatch(/x-spec-manual\.json$/);
   });
-  it('skips standalone when finishedAt is unset (handled by in-progress guard, not this fn)', async () => {
-    await writePrior('x-spec-standalone.json', null);
-    const r = await guardLaneOverwrite(['standalone'], { slug: 'x', kind: 'spec', cwd: root });
-    expect(promptSelect).not.toHaveBeenCalled();
-    expect(r).toEqual(['standalone']);
-  });
   it('autonomous mode defaults to archive-and-overwrite without prompting', async () => {
     await writePrior('x-spec-manual.json');
     const r = await guardLaneOverwrite(
