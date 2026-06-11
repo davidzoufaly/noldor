@@ -1,4 +1,5 @@
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnAgent } from '../core/agent-runner/registry.js';
 
 /**
  * Real implementations of the {@link DrainDeps} IO adapters. These shell out to
@@ -137,49 +138,31 @@ export function openPrExistsFor(cwd: string, slug: string, branch: string): bool
 }
 
 /**
- * Spawn a headless gate run. Returns the child exit code; throws
- * `iteration-timeout` when the child exceeds `timeoutMs` (caller kills + treats
- * as failure). `--disallowed-tools AskUserQuestion` is the code-level prompt
- * kill-switch (a forgotten prose branch fails fast instead of hanging);
- * `--permission-mode bypassPermissions` lets git/gh/pnpm/Edit run unattended.
- * Flags confirmed against `claude --help` during the spike (Task 11). `prompt`
- * defaults to `/gate` (roadmap source); plans source passes `/gate --resume <slug>`.
+ * Spawn a headless gate run via the agent-runner registry (implementer role —
+ * claude unless the consumer's agents config remaps it). Returns the child
+ * exit code; throws `iteration-timeout` when the child exceeds `timeoutMs`.
+ * The registry's canonical argv keeps the AskUserQuestion kill-switch (a
+ * forgotten prose branch fails fast instead of hanging) and bypassPermissions
+ * so git/gh/pnpm/Edit run unattended. A systemic spawn error (e.g. ENOENT —
+ * runner not on PATH) rejects `spawn-failed: …` so the loop aborts the whole
+ * drain instead of churning retries across every entry. `prompt` defaults to
+ * `/gate` (roadmap source); plans source passes `/gate --resume <slug>`.
  */
-export function spawnGate(
+export async function spawnGate(
   cwd: string,
   env: Record<string, string>,
   timeoutMs: number,
   prompt = '/gate',
 ): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      'claude',
-      [
-        '--print',
-        prompt,
-        '--disallowed-tools',
-        'AskUserQuestion',
-        '--permission-mode',
-        'bypassPermissions',
-      ],
-      { cwd, env: { ...process.env, ...env }, stdio: 'inherit' },
-    );
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill('SIGKILL');
-    }, timeoutMs);
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      // Systemic spawn error (e.g. ENOENT — `claude` not on PATH): reject non-timeout so the loop
-      // aborts the whole drain instead of churning retries across every entry.
-      reject(new Error(`spawn-failed: ${err.message}`));
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (timedOut)
-        reject(new Error('iteration-timeout')); // per-entry failure → retry/skip
-      else resolve(code ?? 1);
-    });
+  const r = await spawnAgent(prompt, {
+    role: 'implementer',
+    cwd,
+    env,
+    timeoutMs,
+    stdio: 'inherit',
+    needsWrite: true,
+    site: 'drain.spawnGate',
   });
+  if (r.timedOut) throw new Error('iteration-timeout'); // per-entry failure → retry/skip
+  return r.exitCode;
 }

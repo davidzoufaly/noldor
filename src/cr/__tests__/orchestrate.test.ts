@@ -14,12 +14,6 @@ vi.mock('../lanes/codex.js', () => ({
 vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async () => ({ lane: 'subagent', sinkPath: 's', ok: true })),
 }));
-vi.mock('../lanes/standalone.js', () => ({
-  runStandalone: vi.fn(async () => ({ lane: 'standalone', sinkPath: 'so', ok: false })),
-  claudeSupportsMaxThinking: vi.fn(async () => false),
-  multiterminalDepDone: vi.fn(async () => true),
-}));
-
 import { resolveLanes, run } from '../orchestrate.js';
 
 describe('resolveLanes', () => {
@@ -77,20 +71,35 @@ afterEach(async () => {
 });
 
 describe('run (orchestrate)', () => {
-  it('runs standalone first then Promise.allSettled over the rest', async () => {
+  it('runs requested lanes via Promise.allSettled', async () => {
     const result = await run({
       args: {
         slug: 'x',
         artifact: 'docs/x.md',
         kind: 'spec',
-        lanes: ['subagent', 'standalone', 'manual'],
+        lanes: ['subagent', 'manual'],
         fullReview: false,
         autonomous: false,
       },
       cwd: root,
     });
-    expect(result.lanesRun.toSorted()).toEqual(['manual', 'standalone', 'subagent']);
+    expect(result.lanesRun.toSorted()).toEqual(['manual', 'subagent']);
     expect(result.exitCode).toBe(0);
+  });
+  it('rejects standalone as a runnable lane with an escalate pointer', async () => {
+    await expect(
+      run({
+        args: {
+          slug: 'x',
+          artifact: 'docs/x.md',
+          kind: 'spec',
+          lanes: ['standalone'],
+          fullReview: false,
+          autonomous: false,
+        },
+        cwd: root,
+      }),
+    ).rejects.toThrow(/no longer an orchestrate lane.*escalate/);
   });
   it('exit 1 when any sync lane fails', async () => {
     const { runSubagent } = await import('../lanes/subagent.js');

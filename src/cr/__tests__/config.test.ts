@@ -5,9 +5,20 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   loadConfig,
   loadConfigSync,
+  noldorConfigSchema,
   resolveSessionTtlHours,
   DEFAULT_SESSION_TTL_HOURS,
 } from '../config.js';
+
+describe('agents block', () => {
+  it('parses an agents block and leaves it optional', () => {
+    const parsed = noldorConfigSchema.parse({
+      agents: { default: 'claude', roles: { reviewer: { runner: 'codex' } } },
+    });
+    expect(parsed.agents?.roles.reviewer?.runner).toBe('codex');
+    expect(noldorConfigSchema.parse({}).agents).toBeUndefined();
+  });
+});
 
 let dir: string;
 beforeEach(async () => {

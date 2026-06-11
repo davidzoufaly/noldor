@@ -9,10 +9,9 @@ const { promptSelect, promptText, runStandalone } = vi.hoisted(() => ({
   runStandalone: vi.fn(async () => ({ lane: 'standalone', sinkPath: 'x', ok: false })),
 }));
 vi.mock('../prompt-stdin.js', () => ({ promptSelect, promptText }));
-vi.mock('../lanes/standalone.js', () => ({
+vi.mock('../deep-review-spawn.js', () => ({
   runStandalone,
   claudeSupportsMaxThinking: async () => false,
-  multiterminalDepDone: async () => true,
 }));
 
 import { escalate } from '../escalate.js';

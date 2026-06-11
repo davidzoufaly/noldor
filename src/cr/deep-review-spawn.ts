@@ -2,9 +2,10 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { writeJsonAtomic } from '../atomic-write.js';
-import type { LaneFindings } from '../findings-schema.js';
-import type { LaneInput, LaneResult } from '../lane-types.js';
+import { CLAUDE_BIN } from '../core/agent-runner/runners/claude.js';
+import { writeJsonAtomic } from './atomic-write.js';
+import type { LaneFindings } from './findings-schema.js';
+import type { LaneInput, LaneResult } from './lane-types.js';
 
 interface ExecOpts {
   cwd?: string;
@@ -17,7 +18,7 @@ interface ExecResult {
 }
 
 // Hand-rolled promise wrapper around execFile (NOT promisify) — the vitest
-// mock in standalone.test.ts replaces execFile directly and would lose
+// mock in deep-review-spawn.test.ts replaces execFile directly and would lose
 // promisify's custom-promisified symbol.
 function execAsync(cmd: string, args: string[], opts: ExecOpts = {}): Promise<ExecResult> {
   return new Promise<ExecResult>((resolveP, rejectP) => {
@@ -28,30 +29,12 @@ function execAsync(cmd: string, args: string[], opts: ExecOpts = {}): Promise<Ex
   });
 }
 
-export const PROMPT_TEMPLATE_PATH = 'src/cr/lanes/standalone-prompt.md';
+export const PROMPT_TEMPLATE_PATH = 'src/cr/standalone-prompt.md';
 
 export async function claudeSupportsMaxThinking(): Promise<boolean> {
   try {
-    const { stdout } = await execAsync('claude', ['--help'], { timeout: 5000 });
+    const { stdout } = await execAsync(CLAUDE_BIN, ['--help'], { timeout: 5000 });
     return /--max-thinking/.test(stdout);
-  } catch {
-    return false;
-  }
-}
-
-interface MultiterminalProbeOpts {
-  cwd?: string;
-}
-
-// The multiterminal-flow bug (stale `scripts/cr/` paths from the scripts→src
-// migration) shipped as a fast-track fix with no FD, so the probe can't gate
-// on FD frontmatter. The runtime precondition the lane actually needs is the
-// prompt template on disk at its post-migration path.
-export async function multiterminalDepDone(opts: MultiterminalProbeOpts = {}): Promise<boolean> {
-  const path = join(opts.cwd ?? process.cwd(), PROMPT_TEMPLATE_PATH);
-  try {
-    await readFile(path, 'utf8');
-    return true;
   } catch {
     return false;
   }
@@ -77,6 +60,14 @@ async function osascriptSpawn(repoRoot: string, command: string): Promise<void> 
   await execAsync('osascript', ['-e', script], { cwd: repoRoot });
 }
 
+/**
+ * Escalate-only deep-review spawn: opens an interactive Claude session in a
+ * fresh iTerm2 window. No longer an orchestrate lane — `noldor cr escalate`
+ * (spawn-deep-review) is the single consumer. Claude + macOS/iTerm coupling
+ * is deliberate here: this is the operator-facing escalation seam, not a
+ * headless lane (see docs/noldor/agent-runtimes.md). The binary name is
+ * single-sourced from the claude runner module.
+ */
 export async function runStandalone(input: LaneInput): Promise<LaneResult> {
   const sinkPath = join(
     input.repoRoot,
@@ -89,7 +80,7 @@ export async function runStandalone(input: LaneInput): Promise<LaneResult> {
   const supportsMaxThinking = await claudeSupportsMaxThinking();
   const maxThinkingFlag = supportsMaxThinking ? ' --max-thinking' : '';
   const command =
-    `cd ${input.repoRoot} && claude --dangerously-skip-permissions${maxThinkingFlag} ` +
+    `cd ${input.repoRoot} && ${CLAUDE_BIN} --dangerously-skip-permissions${maxThinkingFlag} ` +
     `"Read the markdown artifact at ${input.artifact}. ` +
     `Apply the spec-review rubric in ${PROMPT_TEMPLATE_PATH}. ` +
     `Emit a JSON object conforming to LaneFindings in src/cr/findings-schema.ts. ` +

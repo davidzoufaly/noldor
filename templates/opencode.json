@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "question": "deny",
+    "edit": {
+      "docs/roadmap.md": "deny",
+      "docs/backlog.md": "deny",
+      "docs/release-notes.md": "deny"
+    }
+  }
+}

@@ -264,13 +264,16 @@ export const MANIFEST: Record<string, Group> = {
   init: {
     desc: 'Scaffold framework files into the consumer repo',
     subs: {
-      '': { src: 'cli/commands/init.ts', desc: 'Run init (--update / --adopt flags)' },
+      '': { src: 'cli/commands/init.ts', desc: 'Run init (--update / --adopt / --agents flags)' },
     },
   },
   doctor: {
     desc: 'Diff consumer files against pkg templates (non-zero exit on drift)',
     subs: {
-      '': { src: 'cli/commands/doctor.ts', desc: 'Run drift check' },
+      '': {
+        src: 'cli/commands/doctor.ts',
+        desc: 'Run drift check + configured-runner presence/version check',
+      },
     },
   },
 };

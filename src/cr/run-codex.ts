@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { CODEX_BIN, buildCodexArgv } from '../core/agent-runner/runners/codex.js';
 import { CrRecordSchema, type CrRecord } from './sidecar.js';
 
 export type Spawn = (args: {
@@ -30,22 +31,18 @@ export interface RunCodexInput {
 }
 
 export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
-  const cmd = input.cmd ?? 'codex';
+  const cmd = input.cmd ?? CODEX_BIN;
   const stdin = formatPrompt(input.ctx);
   let stdout = '';
   let exitCode = 0;
   try {
     const schemaPath = fileURLToPath(new URL('./cr-record.schema.json', import.meta.url));
+    // Argv shape owned by the codex runner module — the CR lane is a registry
+    // consumer, not the owner of the spawn (spec D11). Review spawns never
+    // write: read-only sandbox.
     const r = await input.spawn({
       cmd,
-      args: [
-        'exec',
-        '--sandbox',
-        'read-only',
-        '--skip-git-repo-check',
-        '--output-schema',
-        schemaPath,
-      ],
+      args: buildCodexArgv({ needsWrite: false, schemaPath }),
       stdin,
     });
     stdout = r.stdout;

@@ -12,19 +12,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Noldor Framework
 
-#### Make Noldor Agent-Agnostic
-
-- area: tooling
-- type: refactor
-- since: 2026-05-10
-- size: XL
-- impact: med
-- parent: noldor
-
-Noldor today assumes Claude Code as the operating agent (skill names, hook patterns, transcript layout). Lift the assumptions so Codex, Gemini, or other agents can drive the same framework with equivalent gates. Concrete asks: (1) abstract skill invocation (`Skill` tool vs `activate_skill` vs raw markdown read), (2) abstract hook triggers (the `lefthook` pre-commit chain works for all, but the auto-gate behavior is Claude-only), (3) document the agent-equivalence matrix in `docs/noldor/`. Trigger: when a second agent adopts Noldor in earnest (today's automated-cr-pipeline already runs Codex as a reviewer; controller is still Claude).
-
-- triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
-
 #### Continuous Drain Daemon and Escalation Inbox
 
 - area: tooling
@@ -87,50 +74,6 @@ The framework enforces process and never measures whether the process works. Eve
 **Touches:** new `src/metrics/`, `src/cli/manifest.ts`, `src/dashboard/` (route + view), `src/garden/sdd-report` integration, `docs/noldor/` new page `metrics.md`, `script-catalog.md`.
 
 **Acceptance sketch:** `noldor metrics compute` on this repo emits cycle-time for every `introduced:` FD + routing-accuracy table for the last 10 shipped entries; `/metrics` renders headline cards; sdd-report section appears at next release.
-
-#### Multi-Runner Agent Runtime (Claude Code, Codex, opencode)
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: L
-- impact: high
-- deps: de-superpowers-vendor-spec-plan-and-worktree-flows
-- parent: noldor
-
-Decision (2026-06-11): Noldor supports **three agent runtimes as simultaneous first-class peers — Claude Code, Codex, opencode**. Not a migration off Claude; a registry where every spawn site resolves a runner per role, and a consumer (or a single repo, per role) can mix all three. Codex already proves the seam works: `src/cr/run-codex.ts` spawns `codex exec --sandbox --output-schema` headless today — but only inside the CR lane; it graduates to a general runner. opencode brings the multi-provider layer (anthropic / openai / ollama / openrouter via `opencode.json`), so local models come free through it. Today the Claude CLI is hard-coded at five spawn sites with Claude-specific flags; Codex is welded into one lane.
-
-**Flag mapping** (opencode verified against opencode.ai docs 2026-06-11; Codex column proven in-repo by `run-codex.ts`):
-
-| Noldor need | Claude Code | Codex | opencode |
-| --- | --- | --- | --- |
-| headless spawn | `claude --print "<prompt>"` | `codex exec "<prompt>"` | `opencode run "<prompt>"` |
-| auto-permissions | `--permission-mode bypassPermissions` | `--sandbox workspace-write` + never-ask approval policy (read-only sandbox for review roles) | `--dangerously-skip-permissions` (still respects explicit `deny`) or `permission: "allow"` |
-| no-questions kill-switch | `--disallowed-tools AskUserQuestion` | non-interactive by design (`exec` + approval policy) | `permission.question: "deny"` |
-| model / role selection | session model | `--model` / `config.toml` | `--model <provider/model>` + `--agent <name>` |
-| structured output | parse stdout prose | `--output-schema <json-schema>` (strongest — already used by CR lane) | `--format json` (raw event stream) |
-| rules file | `CLAUDE.md` | `AGENTS.md` (native) | `AGENTS.md` |
-| guards / hooks | Claude hooks + `src/hooks/` pre-edit guards | sandbox modes (coarse: read-only / workspace-write) | plugins (JS event hooks) + granular glob permission rules |
-| local models | no | no | yes (ollama et al.) |
-
-**What to do:**
-
-- Runner registry: `src/core/agent-runner.ts` — `spawnAgent(prompt, { role, cwd, env, timeoutMs })` resolving role → runner config → argv shape, with three built-in runners: `claude`, `codex`, `opencode`. Extract the Codex argv shape out of `src/cr/run-codex.ts` into the codex runner module (CR lane becomes a consumer of the registry, not the owner of the spawn). Refit the Claude-welded sites: `src/autonomous/drain-io.ts` `spawnGate`, `src/prep/spawn.ts` `spawnClaude`, `src/cr/lanes/subagent-dispatch.ts`, `src/release/llm-polish-summary.ts`. Drop or rewrite `src/cr/lanes/standalone.ts` (osascript + Claude double-coupled; headless lanes cover the need). Timeout backstop stays universal. PR-#33 rule holds for all three: directives ride the prompt, never env/flags.
-- Capability matrix as code + doc: runners differ (structured output strength, sandbox granularity, local-model support, question-suppression mechanism). Encode per-runner capabilities in the registry (`supportsLocalModels`, `structuredOutput: schema | events | prose`, `sandbox: fine | coarse | none`) so role-resolution can validate fit (e.g. a role requiring `--output-schema`-grade output refuses a prose-only runner); publish the same matrix as `docs/noldor/agent-runtimes.md` — this fulfills ask (3) of the existing `make-noldor-agent-agnostic` roadmap entry.
-- Config: `.noldor/config.json` `agents:` block — `{ "default": "claude", "roles": { "implementer": { "runner": "claude" }, "reviewer": { "runner": "codex" }, "second-opinion": { "runner": "opencode", "model": "ollama/<local>" }, "polish": { "runner": "opencode", "model": "ollama/<small>" } } }`. Every spawn site declares its role; resolution falls back to `default`. All fields optional — absent block ≡ today's behavior (claude everywhere, codex where `crLanes` says so).
-- Mixed-fleet rollout by risk tier: `polish` first (pure text, no tools — cheapest local win), then CR lanes (already multi-runner in spirit — generalize `crLanes` vocabulary from hardcoded `subagent`/`codex` lane names to role refs), implementer **last** and per-runner: telemetry (ship/retry/revert rates from outcome-telemetry, segmented by runner) decides which runners graduate to implementer duty.
-- Guards per runner: opencode → generated glob permission blocks in the worktree's `opencode.json` (shared-files guard → `edit: { "docs/roadmap.md": "deny" }`); Codex → sandbox mode per role (read-only for reviewers, workspace-write for implementers); Claude → existing `src/hooks/` guards. Hard floor for all three stays lefthook git hooks (trailer inject/validate, pre-commit session-marker check) — agent-neutral by construction, the only layer that *must* hold.
-- Interactive plane: per-driver shims from one source — Claude `.claude/skills/`, opencode `.opencode/command/*.md` + agent definitions, Codex `AGENTS.md` + custom prompts. Direction stays **fat CLI, thin skills** — every flow step that moves into a `noldor` subcommand is written once and shimmed three times trivially. `noldor init` gains `--agents claude,codex,opencode` target selection (writes the chosen shim sets + `AGENTS.md`/`opencode.json`/`CLAUDE.md` overlays from one template source).
-- Events: opencode `--format json` and codex `--output-schema` map into `agent-events.jsonl` richer than Claude stdout scraping — wire through the agent-events writer; runner field on every event enables the per-runner telemetry cut.
-- Pin + verify: all three CLIs move fast — record validated version floors per runner in consumer config; `doctor` checks presence + version for each *configured* runner only (extends stack-assumption-audit prerequisites matrix).
-
-**What it enables:** consumer picks their driver — or mixes: Claude implements, Codex reviews, local-model-via-opencode polishes; local models (the original ask) via the opencode runner; per-role model economics; no single-vendor dependency for the framework's autonomy story; three concurrent runners keep the seam honest — Claude-coupling can't silently regrow when CI exercises all three.
-
-**Open questions:** opencode skills/commands semantics vs Claude Skill tool (model-invoked skill parity needs verification on current opencode version); Codex custom-prompt surface as skill-shim target vs AGENTS.md-only (verify against current codex CLI); whether drain implementers use named agent definitions with scoped permissions instead of broad bypass flags (lean yes where the runner supports it — opencode `--agent`, codex sandbox; Claude lacks the granular equivalent); session continuity for retry flows (`--session`/`--continue` on opencode, `codex exec resume` — could replace fresh-spawn retries; defer).
-
-**Touches:** new `src/core/agent-runner.ts` + per-runner modules, `src/cr/run-codex.ts` (extract spawn), `src/autonomous/drain-io.ts`, `src/prep/spawn.ts`, `src/cr/lanes/subagent-dispatch.ts` + `standalone.ts`, `src/release/llm-polish-summary.ts`, `src/core/consumer-config.ts` (`agents:` block), `src/cli/commands/init.ts` (multi-target), templates (shim sets, `opencode.json`, `AGENTS.md`), new `docs/noldor/agent-runtimes.md`, `docs/noldor/{cr-pipeline,adoption-guide}.md`, doctor checks.
-
-**Acceptance sketch:** fixture consumer configured `implementer: claude`, `reviewer: codex`, `polish: opencode+ollama` → drain ships a seeded XS entry using all three runners in one pass, agent-events carries a `runner` field per spawn; swapping `implementer` to `opencode` ships the same entry with no code change; `grep -rn "spawn('claude'\|execFileP('claude'\|'codex'" src` → hits only inside `src/core/agent-runner/` runner modules.
 
 #### Acceptance-Verify Lane
 

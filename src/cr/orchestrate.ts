@@ -10,12 +10,11 @@ import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
 import { codexSupportsBaseSha, runCodex } from './lanes/codex.js';
 import { runSubagent } from './lanes/subagent.js';
-import { multiterminalDepDone, runStandalone } from './lanes/standalone.js';
 import { promptSelect } from './prompt-stdin.js';
 import { amendSubagentReceipt } from './amend-receipt.js';
 
 // Hand-rolled promise wrapper around execFile (NOT promisify) — keeps parity
-// with lanes/standalone.ts where vitest replaces execFile directly and would
+// with deep-review-spawn.ts where vitest replaces execFile directly and would
 // lose promisify's custom-promisified symbol.
 function execAsync(
   cmd: string,
@@ -32,11 +31,12 @@ function execAsync(
 
 // Uniform lane dispatch — codex's optional 2nd arg is supplied separately in
 // the allSettled batch below, so this record only needs the 1-arg shape.
-const LANES: Record<Lane, (input: LaneInput) => Promise<LaneResult>> = {
+// `standalone` is intentionally absent: it is no longer an orchestrate lane
+// (escalate-only deep-review spawn; the run() entry rejects it explicitly).
+const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<LaneResult>> = {
   manual: runManual,
   codex: runCodex,
   subagent: runSubagent,
-  standalone: runStandalone,
 };
 
 export function resolveLanes(
@@ -115,18 +115,11 @@ export async function guardLaneOverwrite(
   for (const lane of lanes) {
     const path = join(ctx.cwd, '.noldor', 'cr', `${ctx.slug}-${ctx.kind}-${lane}.json`);
     let exists = false;
-    let finishedAtUnset = false;
     try {
-      const raw = await readFile(path, 'utf8');
+      await readFile(path, 'utf8');
       exists = true;
-      finishedAtUnset = !(JSON.parse(raw) as { finishedAt?: string }).finishedAt;
     } catch {}
     if (!exists) {
-      keep.push(lane);
-      continue;
-    }
-    if (lane === 'standalone' && finishedAtUnset) {
-      // Handled by guardStandaloneInProgress (Task 5.6). Pass through.
       keep.push(lane);
       continue;
     }
@@ -152,48 +145,6 @@ export async function guardLaneOverwrite(
   return keep;
 }
 
-export type StandaloneGuardOutcome = 'proceed' | 'skip-spawn' | 'drop-lane';
-
-export async function guardStandaloneInProgress(
-  ctx: GuardCtx,
-  opts: GuardOpts = {},
-): Promise<StandaloneGuardOutcome> {
-  const path = join(ctx.cwd, '.noldor', 'cr', `${ctx.slug}-${ctx.kind}-standalone.json`);
-  let raw: string;
-  try {
-    raw = await readFile(path, 'utf8');
-  } catch {
-    return 'proceed';
-  }
-  let parsed: { finishedAt?: string } | undefined;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return 'proceed';
-  }
-  if (parsed?.finishedAt) return 'proceed';
-
-  if (opts.autonomous) return 'drop-lane';
-
-  const choice = await promptSelect({
-    message: `standalone for ${ctx.slug}-${ctx.kind} is in-progress (no finishedAt); choose:`,
-    choices: [
-      { name: 'wait — re-aggregate without spawning', value: 'wait' as const },
-      {
-        name: 'kill-and-respawn — close existing iTerm2 first, then respawn',
-        value: 'kill-and-respawn' as const,
-      },
-      {
-        name: 'continue-without-lane — drop standalone from this run',
-        value: 'continue-without-lane' as const,
-      },
-    ],
-  });
-  if (choice === 'wait') return 'skip-spawn';
-  if (choice === 'continue-without-lane') return 'drop-lane';
-  return 'proceed';
-}
-
 export interface RunOpts {
   args: OrchestrateArgs;
   cwd?: string;
@@ -207,7 +158,6 @@ export interface RunOpts {
 
 export interface RunResult {
   lanesRun: Lane[];
-  lanesSkippedPreDep: Lane[];
   syntheticOks: Lane[];
   exitCode: number;
 }
@@ -216,6 +166,11 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   const cwd = opts.cwd ?? process.cwd();
   const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
   const requested = resolveLanes(opts.args, cfg);
+  if (requested.includes('standalone')) {
+    throw new Error(
+      "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
+    );
+  }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });
 
   // `artifactSha` is the SHA of the artifact's tip commit (HEAD by default).
@@ -239,8 +194,6 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     ...(opts.args.fullReview ? { fullReview: true } : {}),
   };
 
-  // Pre-dep probes
-  const lanesSkippedPreDep: Lane[] = [];
   let effective = [...requested];
   effective = await guardLaneOverwrite(
     effective,
@@ -251,17 +204,8 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     },
     { autonomous: opts.args.autonomous },
   );
-  if (effective.includes('standalone')) {
-    const depDone = await multiterminalDepDone({ cwd });
-    if (!depDone) {
-      lanesSkippedPreDep.push('standalone');
-      effective = effective.filter((l) => l !== 'standalone');
-    }
-  }
-
   // Delta short-circuit: empty diff + baseSha + !fullReview => synthetic OK for
-  // EVERY lane including standalone (Decision §4). Spawning iTerm2 +
-  // --max-thinking to re-read an unchanged artifact is wasteful.
+  // EVERY lane. Re-reviewing an unchanged artifact is wasteful.
   const isEmptyDiff = opts.isEmptyDiff ?? isEmptyDiffDefault;
   const syntheticOks: Lane[] = [];
   if (input.baseSha && !input.fullReview) {
@@ -275,30 +219,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     }
   }
 
-  // Standalone first (fire-and-continue) — only when not short-circuited above
   const lanesRun: Lane[] = [...syntheticOks];
-  if (effective.includes('standalone')) {
-    const outcome = await guardStandaloneInProgress(
-      {
-        slug: opts.args.slug,
-        kind: opts.args.kind,
-        cwd,
-      },
-      { autonomous: opts.args.autonomous },
-    );
-    if (outcome === 'drop-lane' || outcome === 'skip-spawn') {
-      effective = effective.filter((l) => l !== 'standalone');
-    }
-  }
-  if (effective.includes('standalone')) {
-    try {
-      await runStandalone(input);
-      lanesRun.push('standalone');
-    } catch (err) {
-      console.error(`standalone lane failed: ${(err as Error).message}`);
-    }
-    effective = effective.filter((l) => l !== 'standalone');
-  }
 
   // Pre-cache the codex --base-sha probe result for all-settled batch
   const codexBaseShaSupport = effective.includes('codex') ? await codexSupportsBaseSha() : false;
@@ -306,7 +227,8 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   const settled = await Promise.allSettled(
     effective.map((l) => {
       if (l === 'codex') return runCodex(input, { supportsBaseSha: codexBaseShaSupport });
-      return LANES[l](input);
+      // standalone can't reach here — run() rejects it at entry.
+      return LANES[l as Exclude<Lane, 'standalone'>](input);
     }),
   );
 
@@ -314,7 +236,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     if (settled[i].status === 'fulfilled') lanesRun.push(effective[i]);
   }
 
-  // Exit code: 0 only if all sync lanes ok. Standalone async => doesn't affect.
+  // Exit code: 0 only if all sync lanes ok.
   let exitCode = 0;
   for (let i = 0; i < effective.length; i++) {
     const r = settled[i];
@@ -336,7 +258,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     }
   }
 
-  return { lanesRun, lanesSkippedPreDep, syntheticOks, exitCode };
+  return { lanesRun, syntheticOks, exitCode };
 }
 
 // CLI entry — wired up in Task 5.4
@@ -347,7 +269,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(`lanes run: ${r.lanesRun.join(', ')}`);
   if (r.syntheticOks.length)
     console.log(`synthetic OK (empty delta): ${r.syntheticOks.join(', ')}`);
-  if (r.lanesSkippedPreDep.length)
-    console.log(`skipped (pre-dep): ${r.lanesSkippedPreDep.join(', ')}`);
   process.exit(r.exitCode);
 }

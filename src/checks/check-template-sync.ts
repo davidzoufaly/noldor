@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { loadAgentsConfig } from '../core/agent-runner/registry.js';
+import { filterTemplatesByAgents } from '../templates/agent-filter.js';
 import { computeDrift, type DriftEntry } from '../templates/diff.js';
 import { templateFiles, TEMPLATES_ROOT } from '../templates/manifest.js';
 
@@ -15,7 +17,9 @@ export interface TemplateSyncResult {
  * is byte-identical to its `templates/` copy.
  *
  * A changed path is "templated" if it is `templates/<rel>` (→ `<rel>`) or is
- * itself a member of `templateFiles()`. Non-templated changes are ignored.
+ * itself a member of `templateFiles()`. Non-templated changes are ignored, as
+ * are template subtrees outside the consumer's `agents.targets` (a claude-only
+ * consumer carries no `.opencode/` / `AGENTS.md` twins — same filter as doctor).
  *
  * @param opts.cwd - Consumer root (repo root).
  * @param opts.changedFiles - Repo-relative POSIX paths touched by the commit/push.
@@ -27,11 +31,17 @@ export function checkTemplateSync(opts: {
   templatesRoot?: string;
 }): TemplateSyncResult {
   const root = opts.templatesRoot ?? TEMPLATES_ROOT;
-  const known = new Set(templateFiles(root));
+  const targeted = new Set(
+    filterTemplatesByAgents(templateFiles(root), loadAgentsConfig(opts.cwd).targets),
+  );
   const rels = new Set<string>();
   for (const f of opts.changedFiles) {
-    if (f.startsWith(TEMPLATES_PREFIX)) rels.add(f.slice(TEMPLATES_PREFIX.length));
-    else if (known.has(f)) rels.add(f);
+    if (f.startsWith(TEMPLATES_PREFIX)) {
+      const rel = f.slice(TEMPLATES_PREFIX.length);
+      if (targeted.has(rel)) rels.add(rel);
+    } else if (targeted.has(f)) {
+      rels.add(f);
+    }
   }
   const offenders = computeDrift(root, opts.cwd, [...rels]).filter((e) => e.status !== 'unchanged');
   return { ok: offenders.length === 0, offenders };

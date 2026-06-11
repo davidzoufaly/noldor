@@ -1,12 +1,8 @@
 // scripts/release/llm-polish-summary.ts
 // @tests: dynamic-fd-changelog
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
+import { spawnAgent } from '../core/agent-runner/registry.js';
 import type { FeatureCommit } from './release-fd-commits.js';
-
-const execFileP = promisify(execFile);
 
 const LLM_TIMEOUT_MS = 60_000;
 
@@ -22,8 +18,8 @@ export type PolishRunner = (commits: FeatureCommit[]) => Promise<string>;
  * - `commits.length === 0` → `''`. Caller should skip the version block.
  * - `options.offline === true` or `process.env.NOLDOR_NO_LLM === '1'` →
  *   {@link joinSubjectsDeterministic} (no network, no subprocess).
- * - default → invoke the runner (defaults to `claude -p`); on any failure,
- *   fall back to {@link joinSubjectsDeterministic}.
+ * - default → invoke the runner (the agent-runner registry's polish role);
+ *   on any failure, fall back to {@link joinSubjectsDeterministic}.
  *
  * @param commits - Filtered feature commits, ordered as returned by `git log`
  * @param options - `offline` to force fallback; `runner` to inject an alternate runner
@@ -37,7 +33,7 @@ export async function polishSummary(
   if (options.offline === true || process.env.NOLDOR_NO_LLM === '1') {
     return joinSubjectsDeterministic(commits);
   }
-  const runner = options.runner ?? runClaudePolish;
+  const runner = options.runner ?? runAgentPolish;
   try {
     return await runner(commits);
   } catch {
@@ -68,15 +64,19 @@ export function joinSubjectsDeterministic(commits: FeatureCommit[]): string {
     .join(' ');
 }
 
-async function runClaudePolish(commits: FeatureCommit[]): Promise<string> {
+async function runAgentPolish(commits: FeatureCommit[]): Promise<string> {
   const prompt = buildPrompt(commits);
-  const { stdout } = await execFileP('claude', ['-p', prompt], {
-    encoding: 'utf8',
-    timeout: LLM_TIMEOUT_MS,
+  const r = await spawnAgent(prompt, {
+    role: 'polish',
+    timeoutMs: LLM_TIMEOUT_MS,
+    site: 'release.polish-summary',
   });
-  const out = stdout.trim();
+  if (r.timedOut || r.exitCode !== 0) {
+    throw new Error(`polish runner failed: exit ${r.exitCode}${r.timedOut ? ' (timeout)' : ''}`);
+  }
+  const out = r.stdout.trim();
   if (out.length === 0) {
-    throw new Error('claude -p returned empty output');
+    throw new Error('polish runner returned empty output');
   }
   return out;
 }

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,12 +13,8 @@ vi.mock('node:child_process', () => ({
   ) => execFileFn(cmd, args, opts, cb),
 }));
 
-import {
-  claudeSupportsMaxThinking,
-  multiterminalDepDone,
-  runStandalone,
-} from '../../lanes/standalone.js';
-import type { LaneInput } from '../../lane-types.js';
+import { claudeSupportsMaxThinking, runStandalone } from '../deep-review-spawn.js';
+import type { LaneInput } from '../lane-types.js';
 
 let root: string;
 beforeEach(async () => {
@@ -47,18 +43,6 @@ describe('claudeSupportsMaxThinking', () => {
   it('returns false when absent', async () => {
     execFileFn.mockImplementation((_c, _a, _o, cb) => cb(null, 'flags:\n  --other\n', ''));
     expect(await claudeSupportsMaxThinking()).toBe(false);
-  });
-});
-
-describe('multiterminalDepDone', () => {
-  it('true when prompt template exists at its src path', async () => {
-    const path = join(root, 'src', 'cr', 'lanes', 'standalone-prompt.md');
-    await mkdir(join(root, 'src', 'cr', 'lanes'), { recursive: true });
-    await writeFile(path, '# Standalone deep review\n', 'utf8');
-    expect(await multiterminalDepDone({ cwd: root })).toBe(true);
-  });
-  it('false when template missing', async () => {
-    expect(await multiterminalDepDone({ cwd: root })).toBe(false);
   });
 });
 
