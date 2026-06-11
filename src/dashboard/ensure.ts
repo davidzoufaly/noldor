@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, openSync } from 'node:fs';
-import { dirname, resolve, sep } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Default dashboard port, mirroring `startServer` in `server.ts`. */
@@ -63,7 +63,8 @@ export function resolveMainRoot(run: () => string = gitCommonDir): string {
   try {
     const common = run();
     // `<main-root>/.git` from main checkout AND from any linked worktree.
-    if (common.endsWith(`${sep}.git`)) return dirname(common);
+    // Git emits forward slashes even on win32, so don't test with path.sep.
+    if (common.endsWith('/.git') || common.endsWith('\\.git')) return dirname(common);
     return process.cwd();
   } catch {
     return process.cwd();
