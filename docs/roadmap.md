@@ -613,30 +613,16 @@ Operator cannot see which agents are running, on what, since when. `drain-state.
 
 **Acceptance sketch:** run `noldor autonomous run --concurrency 2 --max-features 2`; `/agents` shows 2 live implementer rows with distinct lanes, then a timeline with 2 shipped outcomes; events file has spawned/exited pairs for every agent incl. CR lanes.
 
-#### De-Superpowers: Vendor Spec, Plan and Worktree Flows
+#### Path Rename: docs/superpowers to docs/design
 
 - area: tooling
 - type: refactor
 - since: 2026-06-11
-- size: M
-- impact: high
+- size: S
+- impact: med
 - parent: noldor
+- recovered: 2026-06-11
 
-The framework's core flows depend on the third-party `superpowers` Claude Code plugin. Four load-bearing uses: `superpowers:brainstorming` produces every spec (gate SKILL.md Steps for all spec paths), `superpowers:writing-plans` produces every plan, `superpowers:using-git-worktrees` does worktree creation, and — worst — `src/prep/draft.ts:18` bakes a "REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans" blockquote **into every generated plan**, so the dependency propagates into consumer repos at plan-execution time. Everything else is path naming (`docs/superpowers/specs|plans`). A consumer without the plugin cannot run the gate's spec/plan paths; an upstream plugin edit can silently change framework behavior. Vendor the flows.
+Separable last step split out of `de-superpowers-vendor-spec-plan-and-worktree-flows` at its promotion: rename `docs/superpowers/` → `docs/design/{specs,plans}`. `src/core/doc-roots.ts:30-31` is the single code seam; everything else is prose/links. Ship as a migration (see version-migration-chain) that moves files and rewrites links; keep a transition alias in doc-roots for one release.
 
-**What to do:**
-
-- `noldor-spec` skill (vendored brainstorming): distill the question-loop → spec-document flow into a noldor-owned skill + spec template. Evidence it's template-able: `prep/draft.ts` already reproduces the spec format headless via prompt instructions — the plugin's value here is the *format and sequence*, both extractable. Keep the operator-dialog version (interactive gate paths) and the headless version (prep fanout) sourced from one template.
-- `noldor-plan` skill (vendored writing-plans): the plan format is already mirrored verbatim in `draft.ts` `PLAN FORMAT` const — extract to `templates/`, single-source both the skill and the prep prompt from it.
-- Worktree creation → CLI, not skill: `noldor worktree create <slug>` subcommand implementing the mechanical steps (`.worktrees/<slug>`, branch naming, `pnpm install`, port assignment per `worktree-discipline.md`). Code beats prose; `src/worktrees/` already exists as home. Gate SKILL.md calls the command.
-- Rewrite the plan blockquote in `draft.ts` to noldor-owned execution instructions: "execute task-by-task inline, commit at each task boundary, tick `- [x]`" — the gate's autonomous mode already executes plans exactly this way without the superpowers executors (gate SKILL.md explicitly forbids invoking them); make inline execution the canonical documented mode for interactive too.
-- Sweep remaining prose references in `gate` / `garden` / `draft-feature-md` SKILL.md + their `templates/` twins (template-sync gate distributes to consumers).
-- **Separable last step** — path rename `docs/superpowers/` → `docs/design/{specs,plans}`: `src/core/doc-roots.ts:30-31` is the single code seam; everything else is prose/links. Ship as a migration (see version-migration-chain) that moves files and rewrites links; keep a transition alias in doc-roots for one release.
-
-**What it enables:** adoption without any plugin prerequisite (today's hidden install step); immunity to upstream skill drift; precondition for the opencode interactive plane (opencode-side flows cannot reference a Claude-only plugin); generated plans become self-contained artifacts any agent can execute.
-
-**Open questions:** how much of brainstorming's dialog discipline to keep in the vendored version (lean: keep the question-first loop, drop the plugin's meta-machinery); whether `/promote`'s tier vocabulary references the new skills by name (yes — update `complexity-gating.md` table).
-
-**Touches:** new `.claude/skills/noldor-spec/`, `.claude/skills/noldor-plan/`, `src/worktrees/` (+CLI manifest entry), `src/prep/draft.ts`, `.claude/skills/{gate,garden,draft-feature-md}/SKILL.md` + template twins, `docs/noldor/{complexity-gating,workflow,skill-catalog}.md`; path-rename step: `src/core/doc-roots.ts`, `src/migrations/`.
-
-**Acceptance sketch:** fresh consumer without superpowers installed runs a full `specs-only-new` gate path to merge; generated plan contains no `superpowers:` reference; `grep -r "superpowers" .claude/skills templates src` → only the historical specs/plans path (or nothing, post-rename).
+Touches: src/core/doc-roots.ts, src/migrations/
