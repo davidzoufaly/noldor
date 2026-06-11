@@ -92,19 +92,6 @@ Read `graphify-out/GRAPH_REPORT.md` per request, surface god-node count, low-coh
 
 The `Features without spec` SDD detector flags every FD with empty `links.spec`, but the framework explicitly permits spec-less FDs in three of four complexity tiers (`skip-brainstorm`, `attach-to-parent`, and the no-MD chore — the last doesn't even produce an FD). Today three FDs are flagged as a "gap" purely because the detector has no signal for which tier the work shipped under. Proposal: add a `tier: <brainstorm-first | skip-brainstorm | attach-to-parent>` field to FD frontmatter, written by `/promote` (and required by `/new-feature`). The `Features without spec` detector then only flags `tier: brainstorm-first` FDs missing `links.spec`. Open design questions for brainstorm: (a) backfill rules for ~30 existing FDs — has-spec → `brainstorm-first`, has-`parent` → `attach-to-parent`, else → `skip-brainstorm`?; (b) is `tier` advisory or does `/promote` block save without it?; (c) does `tier: brainstorm-first` enforce `links.spec` non-empty at FD save time, or only at release?; (d) dashboard surface — per-tier pie / counts on `/features` so we see how often each path actually gets used. Trigger: live now — dashboard noise from the false-positive gap, plus the tier verdict already exists conceptually in CLAUDE.md so making it explicit unlocks per-tier metrics.
 
-#### `staleSpecs` Spec-Without-FD Archive Candidate
-
-- area: tooling
-- type: feat
-- since: 2026-05-11
-- size: S
-- impact: med
-- parent: doc-gardening-skill
-
-The `staleSpecs` detector in `scripts/garden/garden-detect.ts` flags specs only when a matching FD exists with `phase: done`. Framework-infra specs that never spawned a single FD (e.g. `engine-design.md`, `tvar-platform-design.md`, `viewport-render-only-design.md`, `versioning-design.md`, `testing-strategy-design.md`) sit in active `docs/superpowers/specs/` forever — invisible to the detector. v0.4.0 garden pass had to manually identify + archive 17 such specs. Fix: extend the detector to also flag specs that (a) have no matching FD AND (b) are older than N days (e.g. 30) AND (c) have no FD currently referencing them via `spec:` link, surfacing them as archive candidates in `/garden`'s manual sweep section.
-
-- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
-
 #### SDD Detector 5 — Idea-Merge Semantic Similarity
 
 - area: tooling

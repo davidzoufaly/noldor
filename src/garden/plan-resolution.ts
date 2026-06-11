@@ -12,33 +12,32 @@ export interface ResolvedOwner {
   fd: FeatureFrontmatter;
 }
 
-interface ResolveByLinksPlanOptions {
-  planPath: string;
-  repo: string;
+interface FsSeams {
   /** Test seam — defaults to fs/promises readdir. */
   readdir?: (path: string) => Promise<string[]>;
   /** Test seam — defaults to fs/promises readFile. */
   readFile?: (path: string, encoding: 'utf8') => Promise<string>;
 }
 
-/**
- * Fallback resolver in the detector's plan-staleness chain. Scans every
- * `docs/features/*.md` FD; if any has `links.plan` containing the plan
- * path (verbatim string match, single string or array), returns that FD
- * as the owner. Used when the filename-slug heuristic
- * (`detectStalePlans` primary signal) doesn't match any FD — e.g.
- * multi-feature plans, infra plans.
- *
- * Today's hit rate is zero: no existing FD uses `links.plan` (audited
- * 2026-05-17 during release-sweep-process-hardening part 3 planning).
- * Future-facing for parent FDs that adopt the field.
- */
-export async function resolveByLinksPlan(
-  opts: ResolveByLinksPlanOptions,
+interface ResolveByLinksPlanOptions extends FsSeams {
+  planPath: string;
+  repo: string;
+}
+
+interface ResolveByLinksSpecOptions extends FsSeams {
+  specPath: string;
+  repo: string;
+}
+
+/** Shared FD scan: returns the first FD (filename order) for which `matches` is true. */
+async function scanFdsForOwner(
+  repo: string,
+  seams: FsSeams,
+  matches: (fd: FeatureFrontmatter) => boolean,
 ): Promise<ResolvedOwner | null> {
-  const readdir = opts.readdir ?? ((p) => fsReaddir(p));
-  const readFile = opts.readFile ?? ((p, e) => fsReadFile(p, e));
-  const featuresDir = loadDocRoots(opts.repo).features;
+  const readdir = seams.readdir ?? ((p) => fsReaddir(p));
+  const readFile = seams.readFile ?? ((p, e) => fsReadFile(p, e));
+  const featuresDir = loadDocRoots(repo).features;
   let entries: string[];
   try {
     entries = await readdir(featuresDir);
@@ -66,11 +65,45 @@ export async function resolveByLinksPlan(
     } catch {
       continue;
     }
-    const planList = (fd.links as { plan?: string | string[] }).plan;
-    const plans = Array.isArray(planList) ? planList : planList ? [planList] : [];
-    if (plans.includes(opts.planPath)) {
+    if (matches(fd)) {
       return { slug: entry.replace(/\.md$/, ''), fd };
     }
   }
   return null;
+}
+
+/**
+ * Fallback resolver in the detector's plan-staleness chain. Scans every
+ * `docs/features/*.md` FD; if any has `links.plan` containing the plan
+ * path (verbatim string match, single string or array), returns that FD
+ * as the owner. Used when the filename-slug heuristic
+ * (`detectStalePlans` primary signal) doesn't match any FD — e.g.
+ * multi-feature plans, infra plans.
+ *
+ * Today's hit rate is zero: no existing FD uses `links.plan` (audited
+ * 2026-05-17 during release-sweep-process-hardening part 3 planning).
+ * Future-facing for parent FDs that adopt the field.
+ */
+export async function resolveByLinksPlan(
+  opts: ResolveByLinksPlanOptions,
+): Promise<ResolvedOwner | null> {
+  return scanFdsForOwner(opts.repo, opts, (fd) => {
+    const planList = (fd.links as { plan?: string | string[] }).plan;
+    const plans = Array.isArray(planList) ? planList : planList ? [planList] : [];
+    return plans.includes(opts.planPath);
+  });
+}
+
+/**
+ * Spec analog of {@link resolveByLinksPlan}: returns the FD whose
+ * `links.spec` matches the spec path verbatim. Covers attach-path specs
+ * (`<date>-<parent>-<enhancement>-design.md`) whose filename slug never
+ * matches an FD but which a parent FD still owns via its `spec:` link —
+ * without this, `detectStaleSpecs`' age-out signal flags them as archive
+ * candidates while the owning work is live.
+ */
+export async function resolveByLinksSpec(
+  opts: ResolveByLinksSpecOptions,
+): Promise<ResolvedOwner | null> {
+  return scanFdsForOwner(opts.repo, opts, (fd) => fd.links.spec === opts.specPath);
 }

@@ -691,6 +691,88 @@ describe('detectStaleSpecs (secondary: age + no feature)', () => {
   });
 });
 
+describe('detectStaleSpecs (links.spec ownership fallback)', () => {
+  let repo: string;
+  beforeEach(async () => {
+    repo = await makeRepo();
+  });
+  afterEach(async () => {
+    await rm(repo, { force: true, recursive: true });
+  });
+
+  const fdReferencingSpec = (phase: string): string => `---
+name: Parent Feat
+phase: ${phase}
+area: tooling
+category: Tooling
+packages: ['@acme/web']
+'noldor-tier': full
+links:
+  code: []
+  tests: []
+  docs: []
+  spec: docs/superpowers/specs/2024-01-01-parent-feat-extra-design.md
+---
+
+body
+`;
+
+  it('does not age-flag an old spec owned via links.spec by an in-progress FD', async () => {
+    const spec = join(repo, 'docs/superpowers/specs/2024-01-01-parent-feat-extra-design.md');
+    await writeFile(spec, '# Attach Spec\n');
+    const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    await utimes(spec, oldDate, oldDate);
+    await writeFile(join(repo, 'docs/features/parent-feat.md'), fdReferencingSpec('in-progress'));
+
+    const result = await detectStaleSpecs(repo);
+    expect(result).toHaveLength(0);
+  });
+
+  it('flags a spec owned via links.spec when the owning FD is done', async () => {
+    const spec = join(repo, 'docs/superpowers/specs/2024-01-01-parent-feat-extra-design.md');
+    await writeFile(spec, '# Attach Spec\n');
+    await writeFile(join(repo, 'docs/features/parent-feat.md'), fdReferencingSpec('done'));
+
+    const result = await detectStaleSpecs(repo);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      action: 'archive',
+      reason: 'feature-done',
+      slug: 'parent-feat',
+    });
+    expect(result[0].path).toContain('2024-01-01-parent-feat-extra-design.md');
+  });
+
+  it('still age-flags an old spec when no FD references it via links.spec', async () => {
+    const spec = join(repo, 'docs/superpowers/specs/2024-01-01-parent-feat-extra-design.md');
+    await writeFile(spec, '# Attach Spec\n');
+    const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    await utimes(spec, oldDate, oldDate);
+    await writeFile(
+      join(repo, 'docs/features/unrelated.md'),
+      `---
+name: Unrelated
+phase: in-progress
+area: tooling
+category: Tooling
+packages: ['@acme/web']
+'noldor-tier': specs-only
+links:
+  code: []
+  tests: []
+  docs: []
+---
+
+body
+`,
+    );
+
+    const result = await detectStaleSpecs(repo);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ reason: 'age-no-feature', slug: 'parent-feat-extra' });
+  });
+});
+
 describe('hasBlockingFindings', () => {
   const emptyFindings: GateComplianceFindings = {
     overrideAudit: { severity: 'INFO', count: 0, overrides: [] },
