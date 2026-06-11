@@ -45,7 +45,7 @@
 - Create: `src/core/agent-runner/types.ts`
 - Test: `src/core/agent-runner/__tests__/types.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // @tests: make-noldor-agent-agnostic
@@ -82,11 +82,11 @@ describe('agentsConfigSchema', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 `pnpm vitest run src/core/agent-runner/__tests__/types.test.ts` — Expected: `Cannot find module '../types'` (or equivalent resolve error).
 
-- [ ] **Step 3: Implement `types.ts`**
+- [x] **Step 3: Implement `types.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -163,11 +163,11 @@ export interface ResolvedRunner {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 `pnpm vitest run src/core/agent-runner/__tests__/types.test.ts` — Expected: `3 passed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/agent-runner/types.ts src/core/agent-runner/__tests__/types.test.ts
@@ -180,7 +180,7 @@ git commit -m "feat(agent-runner): add role/runner types and agents config schem
 - Create: `src/core/agent-runner/capabilities.ts`, `src/core/agent-runner/runners/claude.ts`, `src/core/agent-runner/runners/codex.ts`, `src/core/agent-runner/runners/opencode.ts`
 - Test: `src/core/agent-runner/__tests__/runners.test.ts`
 
-- [ ] **Step 1: Write the failing test (golden argv; canonical claude shape; codex sandbox flip; model pass-through)**
+- [x] **Step 1: Write the failing test (golden argv; canonical claude shape; codex sandbox flip; model pass-through)**
 
 ```ts
 // @tests: make-noldor-agent-agnostic
@@ -254,11 +254,11 @@ describe('opencode argv', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 `pnpm vitest run src/core/agent-runner/__tests__/runners.test.ts` — Expected: module-resolve failures.
 
-- [ ] **Step 3: Implement the four modules**
+- [x] **Step 3: Implement the four modules**
 
 `capabilities.ts`:
 
@@ -364,11 +364,11 @@ export function buildOpencodeArgv(prompt: string, opts: { model?: string }): str
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 `pnpm vitest run src/core/agent-runner/__tests__/runners.test.ts` — Expected: `7 passed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/agent-runner/capabilities.ts src/core/agent-runner/runners src/core/agent-runner/__tests__/runners.test.ts
@@ -381,7 +381,7 @@ git commit -m "feat(agent-runner): capability matrix and per-runner argv builder
 - Create: `src/core/agent-events.ts`
 - Test: `src/core/__tests__/agent-events.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // @tests: make-noldor-agent-agnostic
@@ -420,11 +420,11 @@ describe('appendAgentEvent', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 `pnpm vitest run src/core/__tests__/agent-events.test.ts` — Expected: module-resolve failure.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import { appendFileSync, mkdirSync } from 'node:fs';
@@ -456,11 +456,11 @@ export function appendAgentEvent(cwd: string, event: AgentEvent): void {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 `pnpm vitest run src/core/__tests__/agent-events.test.ts` — Expected: `2 passed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/agent-events.ts src/core/__tests__/agent-events.test.ts
@@ -473,7 +473,7 @@ git commit -m "feat(agent-runner): fail-open agent-events JSONL writer" -m "Nold
 - Create: `src/core/agent-runner/registry.ts`
 - Test: `src/core/agent-runner/__tests__/registry.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // @tests: make-noldor-agent-agnostic
@@ -611,11 +611,11 @@ describe('spawnAgent', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 `pnpm vitest run src/core/agent-runner/__tests__/registry.test.ts` — Expected: module-resolve failure.
 
-- [ ] **Step 3: Implement `registry.ts`**
+- [x] **Step 3: Implement `registry.ts`**
 
 ```ts
 import { spawn as nodeSpawn } from 'node:child_process';
@@ -757,11 +757,11 @@ export function spawnAgent(
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 `pnpm vitest run src/core/agent-runner/__tests__/registry.test.ts` — Expected: `9 passed`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/agent-runner/registry.ts src/core/agent-runner/__tests__/registry.test.ts
@@ -774,7 +774,7 @@ git commit -m "feat(agent-runner): spawnAgent registry with role resolution, run
 - Modify: `src/cr/config.ts`
 - Test: extend `src/cr/__tests__/config.test.ts` (existing file; add one describe)
 
-- [ ] **Step 1: Add the failing test** (append to the existing config test file)
+- [x] **Step 1: Add the failing test** (append to the existing config test file)
 
 ```ts
 describe('agents block', () => {
@@ -790,11 +790,11 @@ describe('agents block', () => {
 
 (Import `noldorConfigSchema` if the file doesn't already.)
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 `pnpm vitest run src/cr/__tests__/config.test.ts` — Expected: zod unknown-key strictness is NOT the failure (schema isn't `.strict()` at top level — verify); the failure is `parsed.agents` undefined / type error. If `noldorConfigSchema` rejects unknown keys, the parse throws — either way red.
 
-- [ ] **Step 3: Implement** — in `src/cr/config.ts` add the import and field:
+- [x] **Step 3: Implement** — in `src/cr/config.ts` add the import and field:
 
 ```ts
 import { agentsConfigSchema } from '../core/agent-runner/types.js';
@@ -811,11 +811,11 @@ export const noldorConfigSchema = z.object({
 });
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 `pnpm vitest run src/cr/__tests__/config.test.ts` — Expected: all passing incl. new describe.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/cr/config.ts src/cr/__tests__/config.test.ts
@@ -829,7 +829,7 @@ git commit -m "feat(cr): accept optional agents block in noldor config schema" -
 
 No new unit tests: both are IO adapters (drain-io documents this; prep tests inject `spawnClaude`). Registry tests already cover argv/timeout/error. Verification = typecheck + full suite green.
 
-- [ ] **Step 1: Refit `src/prep/spawn.ts`** — replace the body of `spawnClaude` (keep exported name, types, and `runWithConcurrency` untouched; delete the `node:child_process` import):
+- [x] **Step 1: Refit `src/prep/spawn.ts`** — replace the body of `spawnClaude` (keep exported name, types, and `runWithConcurrency` untouched; delete the `node:child_process` import):
 
 ```ts
 import { spawnAgent } from '../core/agent-runner/registry.js';
@@ -864,7 +864,7 @@ export function spawnClaude(prompt: string, opts: SpawnClaudeOpts = {}): Promise
 }
 ```
 
-- [ ] **Step 2: Refit `spawnGate` in `src/autonomous/drain-io.ts`** — replace the function (keep its JSDoc, adjust the last sentence to mention the registry); drop `spawn` from the `node:child_process` import (keep `execFileSync`, `spawnSync`):
+- [x] **Step 2: Refit `spawnGate` in `src/autonomous/drain-io.ts`** — replace the function (keep its JSDoc, adjust the last sentence to mention the registry); drop `spawn` from the `node:child_process` import (keep `execFileSync`, `spawnSync`):
 
 ```ts
 import { spawnAgent } from '../core/agent-runner/registry.js';
@@ -891,11 +891,11 @@ export async function spawnGate(
 
 (`spawn-failed: …` rejections pass through unchanged — same abort-the-drain contract.)
 
-- [ ] **Step 3: Run to verify PASS**
+- [x] **Step 3: Run to verify PASS**
 
 `pnpm typecheck && pnpm vitest run src/prep src/autonomous` — Expected: green.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/prep/spawn.ts src/autonomous/drain-io.ts
@@ -907,7 +907,7 @@ git commit -m "refactor(agent-runner): route prep and drain gate spawns through 
 **Files:**
 - Modify: `src/cr/lanes/subagent-dispatch.ts`, `src/release/llm-polish-summary.ts`
 
-- [ ] **Step 1: Refit `subagent-dispatch.ts`** — replace the default dispatcher and the `node:child_process` import:
+- [x] **Step 1: Refit `subagent-dispatch.ts`** — replace the default dispatcher and the `node:child_process` import:
 
 ```ts
 import { spawnAgent } from '../../core/agent-runner/registry.js';
@@ -929,7 +929,7 @@ let dispatcher: Dispatcher = async (input) => {
 
 (Markdown contract + `setDispatcher` seam unchanged. The pre-refit `-p`/`--dangerously-skip-permissions` shape is normalized onto the canonical claude argv — spec Unit 1 normalization note.)
 
-- [ ] **Step 2: Refit `llm-polish-summary.ts`** — replace `runClaudePolish` (and the `execFile`/`promisify` imports) with:
+- [x] **Step 2: Refit `llm-polish-summary.ts`** — replace `runClaudePolish` (and the `execFile`/`promisify` imports) with:
 
 ```ts
 import { spawnAgent } from '../core/agent-runner/registry.js';
@@ -952,11 +952,11 @@ async function runAgentPolish(commits: FeatureCommit[]): Promise<string> {
 
 Update the one reference: `const runner = options.runner ?? runAgentPolish;` and the doc comment line `default → invoke the runner (defaults to \`claude -p\`)` → `default → invoke the runner (the agent-runner registry's polish role)`.
 
-- [ ] **Step 3: Run to verify PASS**
+- [x] **Step 3: Run to verify PASS**
 
 `pnpm typecheck && pnpm vitest run src/cr/lanes src/release` — Expected: green (existing tests inject dispatcher/runner; behavior contracts unchanged).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/cr/lanes/subagent-dispatch.ts src/release/llm-polish-summary.ts
@@ -968,7 +968,7 @@ git commit -m "refactor(agent-runner): route subagent dispatch and release polis
 **Files:**
 - Modify: `src/cr/run-codex.ts`
 
-- [ ] **Step 1: Replace the inline argv + bin literal** — in `runCodex`, change:
+- [x] **Step 1: Replace the inline argv + bin literal** — in `runCodex`, change:
 
 ```ts
 import { CODEX_BIN, buildCodexArgv } from '../core/agent-runner/runners/codex.js';
@@ -990,11 +990,11 @@ const r = await input.spawn({
 
 with `const schemaPath = fileURLToPath(new URL('./cr-record.schema.json', import.meta.url));` kept as-is above. (The `Spawn` injection seam and `CrRecord` parsing are untouched; argv ownership moves to the runner module — the CR lane is now a registry consumer per spec D11.)
 
-- [ ] **Step 2: Run to verify PASS**
+- [x] **Step 2: Run to verify PASS**
 
 `pnpm vitest run src/cr` — Expected: green (run-codex tests assert behavior through the injected `Spawn`; argv equality tests, if any, still match because the builder reproduces the exact shape).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/cr/run-codex.ts
@@ -1009,7 +1009,7 @@ git commit -m "refactor(cr): source codex argv and binary name from the codex ru
 - Modify: `src/cr/orchestrate.ts`, `src/cr/escalate.ts`, test files importing the old path
 - Test: move `standalone` lane tests to `src/cr/__tests__/deep-review-spawn.test.ts`; add orchestrate rejection test
 
-- [ ] **Step 1: `git mv src/cr/lanes/standalone.ts src/cr/deep-review-spawn.ts`**, then fix its relative imports (one directory shallower): `'../atomic-write.js'` → `'./atomic-write.js'`, `'../findings-schema.js'` → `'./findings-schema.js'`, `'../lane-types.js'` → `'./lane-types.js'`. Replace the hard-coded `claude` in the iTerm command string with the single-sourced binary name:
+- [x] **Step 1: `git mv src/cr/lanes/standalone.ts src/cr/deep-review-spawn.ts`**, then fix its relative imports (one directory shallower): `'../atomic-write.js'` → `'./atomic-write.js'`, `'../findings-schema.js'` → `'./findings-schema.js'`, `'../lane-types.js'` → `'./lane-types.js'`. Replace the hard-coded `claude` in the iTerm command string with the single-sourced binary name:
 
 ```ts
 import { CLAUDE_BIN } from '../core/agent-runner/runners/claude.js';
@@ -1022,9 +1022,9 @@ const command =
 
 and in `claudeSupportsMaxThinking`, `execAsync('claude', …)` → `execAsync(CLAUDE_BIN, …)`. Update `PROMPT_TEMPLATE_PATH` if it references the old module dir (it points at `src/cr/lanes/standalone-prompt.md`; `git mv src/cr/lanes/standalone-prompt.md src/cr/standalone-prompt.md` and set the constant to `'src/cr/standalone-prompt.md'`). The deep-review window stays Claude-only + macOS/iTerm-only by design (operator-facing escalation seam; documented in agent-runtimes.md).
 
-- [ ] **Step 2: Update `src/cr/escalate.ts`** — `import { runStandalone } from './lanes/standalone.js'` → `import { runStandalone } from './deep-review-spawn.js'`.
+- [x] **Step 2: Update `src/cr/escalate.ts`** — `import { runStandalone } from './lanes/standalone.js'` → `import { runStandalone } from './deep-review-spawn.js'`.
 
-- [ ] **Step 3: Update `src/cr/orchestrate.ts`** — full teardown enumeration (line refs are pre-edit):
+- [x] **Step 3: Update `src/cr/orchestrate.ts`** — full teardown enumeration (line refs are pre-edit):
 
 1. **L13** delete `import { multiterminalDepDone, runStandalone } from './lanes/standalone.js';` — nothing else in the file may import from `deep-review-spawn.js`.
 2. **L35-40** lane table loses standalone and narrows its key type:
@@ -1067,7 +1067,7 @@ if (requested.includes('standalone')) {
 
 (`src/cr/aggregate.ts` is intentionally untouched — it still polls escalate-spawned and legacy `*-standalone.json` sinks; `laneSchema` keeps the `'standalone'` value so those sinks parse. `writeSyntheticOk`'s lane loop is unaffected: standalone can no longer appear in `effective`.)
 
-- [ ] **Step 4: Move/adjust tests** — `git mv` the standalone lane test file (find via `ls src/cr/lanes/__tests__/ | grep standalone` or `grep -rl "lanes/standalone" src`) to `src/cr/__tests__/deep-review-spawn.test.ts` and fix its import paths; delete its `multiterminalDepDone` describes. In the orchestrate test file, delete the `guardStandaloneInProgress` describes and any standalone-lane run-path cases (pre-dep skip, in-progress guard, fire-and-continue), and the standalone case inside `guardLaneOverwrite` tests. Add to the orchestrate test file:
+- [x] **Step 4: Move/adjust tests** — `git mv` the standalone lane test file (find via `ls src/cr/lanes/__tests__/ | grep standalone` or `grep -rl "lanes/standalone" src`) to `src/cr/__tests__/deep-review-spawn.test.ts` and fix its import paths; delete its `multiterminalDepDone` describes. In the orchestrate test file, delete the `guardStandaloneInProgress` describes and any standalone-lane run-path cases (pre-dep skip, in-progress guard, fire-and-continue), and the standalone case inside `guardLaneOverwrite` tests. Add to the orchestrate test file:
 
 ```ts
 it('rejects standalone as a runnable lane with an escalate pointer', async () => {
@@ -1079,11 +1079,11 @@ it('rejects standalone as a runnable lane with an escalate pointer', async () =>
 
 (Match the existing orchestrate test harness's call shape — adapt the input literal to however the suite invokes orchestrate.)
 
-- [ ] **Step 5: Run to verify PASS**
+- [x] **Step 5: Run to verify PASS**
 
 `pnpm typecheck && pnpm vitest run src/cr` — Expected: green incl. moved tests + new rejection test.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A src/cr
@@ -1095,7 +1095,7 @@ git commit -m "refactor(cr): retire standalone orchestrate lane; deep-review spa
 **Files:**
 - Test: `src/core/agent-runner/__tests__/no-stray-spawns.test.ts`
 
-- [ ] **Step 1: Write the test (it should PASS immediately — it verifies Tasks 6–9 left no stray binary literals)**
+- [x] **Step 1: Write the test (it should PASS immediately — it verifies Tasks 6–9 left no stray binary literals)**
 
 ```ts
 // @tests: make-noldor-agent-agnostic
@@ -1136,11 +1136,11 @@ describe('agent-CLI spawn containment', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify PASS**
+- [x] **Step 2: Run to verify PASS**
 
 `pnpm vitest run src/core/agent-runner/__tests__/no-stray-spawns.test.ts` — Expected: `1 passed`. If it lists offenders, those are real misses from Tasks 6–9 — fix them, do not loosen the regex.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/core/agent-runner/__tests__/no-stray-spawns.test.ts
@@ -1154,7 +1154,7 @@ git commit -m "test(agent-runner): invariant — agent CLI spawns contained to t
 - Modify: `src/cli/commands/doctor.ts`, `src/cli/manifest.ts` (doctor desc)
 - Test: `src/core/agent-runner/__tests__/doctor-runners.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // @tests: make-noldor-agent-agnostic
@@ -1204,11 +1204,11 @@ describe('checkRunners', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 `pnpm vitest run src/core/agent-runner/__tests__/doctor-runners.test.ts` — Expected: module-resolve failure.
 
-- [ ] **Step 3: Implement `doctor-runners.ts`**
+- [x] **Step 3: Implement `doctor-runners.ts`**
 
 ```ts
 import { execFileSync } from 'node:child_process';
@@ -1279,11 +1279,11 @@ export function checkRunners(cfg: AgentsConfig, probe: VersionProbe = defaultPro
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 `pnpm vitest run src/core/agent-runner/__tests__/doctor-runners.test.ts` — Expected: `5 passed`.
 
-- [ ] **Step 5: Wire into `src/cli/commands/doctor.ts`** — after the template-drift loop and before the exit decision, restructure the tail of the script to:
+- [x] **Step 5: Wire into `src/cli/commands/doctor.ts`** — after the template-drift loop and before the exit decision, restructure the tail of the script to:
 
 ```ts
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
@@ -1317,11 +1317,11 @@ process.exit(1);
 
 In `src/cli/manifest.ts` update the doctor desc: `'Run drift check'` → `'Run drift check + configured-runner presence/version check'`.
 
-- [ ] **Step 6: Run to verify PASS**
+- [x] **Step 6: Run to verify PASS**
 
 `pnpm typecheck && pnpm noldor doctor` — Expected on this repo: `OK — <n> template files in sync, 1 runner(s) healthy` exit 0 (default config → claude only, installed).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/core/agent-runner/doctor-runners.ts src/core/agent-runner/__tests__/doctor-runners.test.ts src/cli/commands/doctor.ts src/cli/manifest.ts
@@ -1335,7 +1335,7 @@ git commit -m "feat(doctor): presence and version-floor checks for configured ag
 - Modify: `src/cli/commands/init.ts`, `src/cli/manifest.ts` (init desc), `src/cli/commands/doctor.ts` (filter drift by targets)
 - Test: `src/templates/__tests__/agent-filter.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 // @tests: make-noldor-agent-agnostic
@@ -1372,11 +1372,11 @@ describe('filterTemplatesByAgents', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 `pnpm vitest run src/templates/__tests__/agent-filter.test.ts` — Expected: module-resolve failure.
 
-- [ ] **Step 3: Implement `src/templates/agent-filter.ts`**
+- [x] **Step 3: Implement `src/templates/agent-filter.ts`**
 
 ```ts
 import type { RunnerName } from '../core/agent-runner/types.js';
@@ -1396,11 +1396,11 @@ export function filterTemplatesByAgents(files: string[], targets: RunnerName[]):
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 `pnpm vitest run src/templates/__tests__/agent-filter.test.ts` — Expected: `3 passed`.
 
-- [ ] **Step 5: Create the template files.**
+- [x] **Step 5: Create the template files.**
 
 `templates/AGENTS.md`:
 
@@ -1481,7 +1481,7 @@ workflow: `docs/noldor/workflow.md`; commands: `docs/noldor/script-catalog.md`
 `docs/noldor/agent-runtimes.md`.
 ```
 
-- [ ] **Step 6: Wire `--agents` into `src/cli/commands/init.ts`** — replace the arg parsing + file selection:
+- [x] **Step 6: Wire `--agents` into `src/cli/commands/init.ts`** — replace the arg parsing + file selection:
 
 ```ts
 import { TEMPLATES_ROOT, templateFiles } from '../../templates/manifest.js';
@@ -1522,7 +1522,7 @@ const files = filterTemplatesByAgents(templateFiles(), parseAgents());
 
 In `src/cli/manifest.ts` update the init desc: `'Run init (--update / --adopt flags)'` → `'Run init (--update / --adopt / --agents flags)'`.
 
-- [ ] **Step 7: Filter doctor drift by targets too** — in `src/cli/commands/doctor.ts` change the file list line:
+- [x] **Step 7: Filter doctor drift by targets too** — in `src/cli/commands/doctor.ts` change the file list line:
 
 ```ts
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
@@ -1536,7 +1536,7 @@ const drift = computeDrift(TEMPLATES_ROOT, process.cwd(), files);
 
 (reuse `agentsCfg` for `checkRunners(agentsCfg)` from Task 11 — single load).
 
-- [ ] **Step 8: Run to verify PASS**
+- [x] **Step 8: Run to verify PASS**
 
 `pnpm typecheck && pnpm noldor doctor` — Expected: `OK — <n> template files in sync, 1 runner(s) healthy` (targets default `['claude']` filters the new opencode/AGENTS templates out of the drift set — repo root stays clean). Then smoke `init --agents` in a scratch dir:
 
@@ -1546,7 +1546,7 @@ cd "$(mktemp -d)" && mkdir -p .noldor && echo '{"consumer":{"name":"x","repoUrl"
 
 Expected: copy summary; `AGENTS.md opencode.json` listed and `gate.md noldor.md` in `.opencode/command/`.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/templates/agent-filter.ts src/templates/__tests__/agent-filter.test.ts templates/AGENTS.md templates/opencode.json templates/.opencode src/cli/commands/init.ts src/cli/commands/doctor.ts src/cli/manifest.ts
@@ -1558,7 +1558,7 @@ git commit -m "feat(init): --agents driver selection writing codex/opencode shim
 **Files:**
 - Create: `docs/noldor/agent-runtimes.md`, `templates/docs/noldor/agent-runtimes.md` (identical content)
 
-- [ ] **Step 1: Write the doc** (same bytes to both paths — doctor diffs them):
+- [x] **Step 1: Write the doc** (same bytes to both paths — doctor diffs them):
 
 ```markdown
 # Agent Runtimes
@@ -1625,11 +1625,11 @@ spawn-deep-review) stays Claude + macOS/iTerm only by design — it is the
 operator-facing escalation seam, not a headless lane.
 ```
 
-- [ ] **Step 2: Run to verify PASS**
+- [x] **Step 2: Run to verify PASS**
 
 `pnpm noldor doctor` — Expected: still `OK` (twin files identical; the docs/ copy is driver-neutral so it stays in the filtered set).
 
-- [ ] **Step 3: Commit** (shared-files guard may require the allow env for the `docs/noldor/` + `templates/` pair):
+- [x] **Step 3: Commit** (shared-files guard may require the allow env for the `docs/noldor/` + `templates/` pair):
 
 ```bash
 git add docs/noldor/agent-runtimes.md templates/docs/noldor/agent-runtimes.md
@@ -1640,11 +1640,11 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "docs(noldor): agent-runtimes matrix — fla
 
 **Files:** none (verification only)
 
-- [ ] **Step 1:** `pnpm typecheck` — Expected: clean.
-- [ ] **Step 2:** `pnpm test` — Expected: all suites green (pre-existing 174 files + new agent-runner/agent-events/agent-filter/doctor-runners suites).
-- [ ] **Step 3:** `pnpm noldor validate features` — Expected: `all OK`.
-- [ ] **Step 4:** `pnpm noldor doctor` — Expected: exit 0, runners healthy.
-- [ ] **Step 5:** Fix anything red, then commit any stragglers:
+- [x] **Step 1:** `pnpm typecheck` — Expected: clean.
+- [x] **Step 2:** `pnpm test` — Expected: all suites green (pre-existing 174 files + new agent-runner/agent-events/agent-filter/doctor-runners suites).
+- [x] **Step 3:** `pnpm noldor validate features` — Expected: `all OK`.
+- [x] **Step 4:** `pnpm noldor doctor` — Expected: exit 0, runners healthy.
+- [x] **Step 5:** Fix anything red, then commit any stragglers:
 
 ```bash
 git add -A
