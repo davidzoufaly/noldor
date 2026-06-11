@@ -155,6 +155,41 @@ function isIgnoredFreshnessPath(path: string, samplesPath: string): boolean {
 }
 
 /**
+ * The fresh graph plus the FD-ownership map detectors need alongside it.
+ * Produced by {@link requireFreshGraph}.
+ */
+export interface FreshGraphContext {
+  graph: GraphifyGraph;
+  fileToFds: Map<string, Set<string>>;
+}
+
+/**
+ * Optional-suggestion variant of {@link loadFreshGraphOrWarn}: load the
+ * graph and bundle it with {@link buildFileToFdsMap} output, or return
+ * `null` when the graph is stale or missing.
+ *
+ * @param graphPath - Path to `graphify-out/graph.json`
+ * @param srcRoots - Source directories whose mtimes gate freshness
+ * @param features - Loaded feature records for the ownership map
+ * @returns `{ graph, fileToFds }` when fresh; `null` otherwise
+ *
+ * @remarks
+ * For detectors where the graph only *enriches* the message (degraded
+ * mode is silent). Detectors that must surface staleness as a gap —
+ * the 13th detector, `detectMissingCoTags` — call
+ * {@link loadFreshGraphOrWarn} directly and propagate the gap.
+ */
+export function requireFreshGraph(
+  graphPath: string,
+  srcRoots: string[],
+  features: FeatureRecord[],
+): FreshGraphContext | null {
+  const loadResult = loadFreshGraphOrWarn(graphPath, srcRoots);
+  if (!loadResult.ok) return null;
+  return { fileToFds: buildFileToFdsMap(features), graph: loadResult.graph };
+}
+
+/**
  * Build a map from every file path in any FD's `links.code` to the set
  * of owning FD slugs. Directory entries are normalized (trailing `/`
  * stripped) so callers compare against the canonical key.

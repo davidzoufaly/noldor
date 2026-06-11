@@ -21,11 +21,10 @@ import {
   getCommunityOwners,
   getImportOwnersForTest,
   loadFreshGraphOrWarn,
+  requireFreshGraph,
 } from './graph-fd-lookup.js';
 
 import type { Dirent } from 'node:fs';
-
-import type { GraphifyGraph } from './graph-fd-lookup.js';
 
 import type { FeatureFrontmatter } from '../features/feature-schema.js';
 import type { BacklogEntry } from '../utils/parse-blocks.js';
@@ -379,15 +378,9 @@ export function detectCodeOrphans(
       !isInfraFile(p),
   );
 
-  let graph: GraphifyGraph | null = null;
-  let fileToFds: Map<string, Set<string>> | null = null;
-  if (suggestion) {
-    const loadResult = loadFreshGraphOrWarn(suggestion.graphPath, suggestion.srcRoots);
-    if (loadResult.ok) {
-      graph = loadResult.graph;
-      fileToFds = buildFileToFdsMap(features);
-    }
-  }
+  const ctx = suggestion
+    ? requireFreshGraph(suggestion.graphPath, suggestion.srcRoots, features)
+    : null;
 
   return tsFiles
     .filter((p) => !referenced.has(p))
@@ -395,8 +388,8 @@ export function detectCodeOrphans(
     .map((p) => {
       const base = `${p} is not referenced by any feature MD links.code`;
       let message = base;
-      if (graph && fileToFds) {
-        const ranked = getCommunityOwners(p, graph, fileToFds);
+      if (ctx) {
+        const ranked = getCommunityOwners(p, ctx.graph, ctx.fileToFds);
         if (ranked.length > 0) {
           const top = ranked
             .slice(0, 3)
@@ -438,19 +431,15 @@ export function detectUntaggedTests(
   inputs: { path: string; content: string }[],
   suggestion?: UntaggedTestSuggestionInputs,
 ): Gap[] {
+  const ctx = suggestion
+    ? requireFreshGraph(suggestion.graphPath, suggestion.srcRoots, suggestion.features)
+    : null;
   let nodeByPath: Map<string, string> | null = null;
-  let graph: GraphifyGraph | null = null;
-  let fileToFds: Map<string, Set<string>> | null = null;
-  if (suggestion) {
-    const loadResult = loadFreshGraphOrWarn(suggestion.graphPath, suggestion.srcRoots);
-    if (loadResult.ok) {
-      graph = loadResult.graph;
-      fileToFds = buildFileToFdsMap(suggestion.features);
-      nodeByPath = new Map<string, string>();
-      for (const n of graph.nodes) {
-        if (n.source_location !== 'L1' || !n.source_file) continue;
-        nodeByPath.set(n.source_file, n.id);
-      }
+  if (ctx) {
+    nodeByPath = new Map<string, string>();
+    for (const n of ctx.graph.nodes) {
+      if (n.source_location !== 'L1' || !n.source_file) continue;
+      nodeByPath.set(n.source_file, n.id);
     }
   }
 
@@ -460,10 +449,10 @@ export function detectUntaggedTests(
     .filter((i) => !i.path.startsWith('scripts/') && !TESTS_TAG_RE.test(i.content))
     .map((i) => {
       let message = base;
-      if (graph && fileToFds && nodeByPath) {
+      if (ctx && nodeByPath) {
         const nodeId = nodeByPath.get(i.path);
         if (nodeId) {
-          const owners = [...getImportOwnersForTest(nodeId, graph, fileToFds)].toSorted();
+          const owners = [...getImportOwnersForTest(nodeId, ctx.graph, ctx.fileToFds)].toSorted();
           if (owners.length > 0) {
             message = `${base} — suggested: ${owners.join(', ')}`;
           }

@@ -12,6 +12,7 @@ import {
   getFdOwnersForFile,
   getImportOwnersForTest,
   loadFreshGraphOrWarn,
+  requireFreshGraph,
 } from '../graph-fd-lookup.js';
 
 import type { GraphifyGraph } from '../graph-fd-lookup.js';
@@ -205,6 +206,53 @@ describe(loadFreshGraphOrWarn, () => {
         expect(result.gap.message).toMatch(/does not exist/);
         expect(result.gap.message).toMatch(/Run \/graphify/);
       }
+    });
+  });
+});
+
+describe(requireFreshGraph, () => {
+  function withTmp<T>(fn: (dir: string) => T): T {
+    const dir = mkdtempSync(join(tmpdir(), 'graph-fd-lookup-'));
+    try {
+      return fn(dir);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  }
+
+  it('returns the graph plus an ownership map built from features when fresh', () => {
+    withTmp((dir) => {
+      writeFileSync(join(dir, 'src.ts'), 'x');
+      const srcMtime = statSync(join(dir, 'src.ts')).mtime;
+      const graphPath = join(dir, 'graph.json');
+      writeFileSync(graphPath, JSON.stringify({ nodes: [], links: [] }));
+      const future = new Date(srcMtime.getTime() + 1000);
+      utimesSync(graphPath, future, future);
+      const ctx = requireFreshGraph(
+        graphPath,
+        [dir],
+        [feature('foo', ['packages/engine/src/foo.ts'])],
+      );
+      expect(ctx).not.toBeNull();
+      expect(ctx?.graph.nodes).toEqual([]);
+      expect(ctx?.fileToFds.get('packages/engine/src/foo.ts')).toEqual(new Set(['foo']));
+    });
+  });
+
+  it('returns null when the graph is stale (degraded mode, no gap)', () => {
+    withTmp((dir) => {
+      const graphPath = join(dir, 'graph.json');
+      writeFileSync(graphPath, JSON.stringify({ nodes: [], links: [] }));
+      const past = new Date(Date.now() - 60_000);
+      utimesSync(graphPath, past, past);
+      writeFileSync(join(dir, 'src.ts'), 'x');
+      expect(requireFreshGraph(graphPath, [dir], [])).toBeNull();
+    });
+  });
+
+  it('returns null when the graph file is missing', () => {
+    withTmp((dir) => {
+      expect(requireFreshGraph(join(dir, 'nope.json'), [dir], [])).toBeNull();
     });
   });
 });
