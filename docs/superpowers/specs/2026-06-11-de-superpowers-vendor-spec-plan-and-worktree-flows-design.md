@@ -14,6 +14,7 @@ The framework's core flows depend on the third-party `superpowers` Claude Code p
 2. `superpowers:writing-plans` produces every plan — invoked by `/gate` on `full-*` paths.
 3. `superpowers:using-git-worktrees` does worktree creation — invoked by `/gate` on every worktree-backed path.
 4. `src/prep/draft.ts:18` bakes a `REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans` blockquote into every generated plan, so the dependency propagates into consumer repos at plan-execution time.
+5. Gate prose describes the Step 2.5 CR lane `subagent` as "`superpowers:code-reviewer` subagent over the artifact diff" — prose-only coupling: the implementation (`src/cr/lanes/subagent-dispatch.ts`) is already self-contained (`claude -p` with an inline senior-reviewer prompt, no plugin reference). The stale description still blocks the zero-references goal and misdocuments the lane.
 
 A consumer without the plugin cannot run the gate's spec/plan paths; an upstream plugin edit can silently change framework behavior. Secondary drift: `docs/noldor/lifecycle.md` still references `superpowers:requesting-code-review` and `superpowers:finishing-a-development-branch`, both already obsolete (CR runs via `noldor cr orchestrate`; gate Step 4 explicitly forbids the finishing skill). `docs/noldor/worktree-discipline.md` claims worktree `pnpm install` "re-installs lefthook hooks via postinstall" — false: `lefthook install` exits non-zero in a fresh worktree because `core.hooksPath` is already set to the shared `.git/hooks` (reproduced live 2026-06-11).
 
@@ -90,15 +91,15 @@ Not absorbed (stays in `/gate`): session-marker write (path-specific shape) and 
 
 | File | Change |
 | --- | --- |
-| `.claude/skills/gate/SKILL.md` | `superpowers:brainstorming` → `noldor-spec` (4 path scaffolds); `superpowers:writing-plans` → `noldor-plan` (2); `superpowers:using-git-worktrees` → `pnpm noldor worktrees create <slug>` (all worktree paths); autonomous-mode prohibition reworded plugin-free ("do not delegate plan execution to subagent executors — execute inline per the plan header"); Step 4 "do NOT call superpowers:finishing-a-development-branch" reworded ("no interactive finishing flow — cleanup is scripted below") |
-| `.claude/skills/draft-feature-md/SKILL.md` | `superpowers:writing-plans` mention → `noldor-plan` |
+| `.claude/skills/gate/SKILL.md` | all 11 colon-form references: `superpowers:brainstorming` → `noldor-spec` (5×); `superpowers:writing-plans` → `noldor-plan` (4× incl. the line-281 autonomous-mode sentence naming both); `superpowers:using-git-worktrees` → `pnpm noldor worktrees create <slug>`; Step 2.5 lane description "`superpowers:code-reviewer` subagent over the artifact diff" → "senior-reviewer subagent (self-contained `claude -p` prompt, `src/cr/lanes/subagent-dispatch.ts`)"; autonomous-mode executor prohibition reworded plugin-free ("do not delegate plan execution to subagent executors — execute inline per the plan header"); Step 4 "do NOT call superpowers:finishing-a-development-branch" reworded ("no interactive finishing flow — cleanup is scripted below"); line-235 historical note ("Earlier revisions… invoked `superpowers:requesting-code-review`") reworded without the colon-form token |
+| `.claude/skills/draft-feature-md/SKILL.md` | both `superpowers:writing-plans` mentions → `noldor-plan` |
 | `.claude/engineering-rules.md` | scope-guard intro genericized: "When dispatching an implementer subagent to execute a plan task" (drop the parenthetical plugin example) |
 | `docs/noldor/complexity-gating.md` | "produced by `superpowers:brainstorming`" → `noldor-spec`; `superpowers:writing-plans` → `noldor-plan` in tier definitions + path walkthroughs |
 | `docs/noldor/workflow.md` | §"Use /draft-feature-md" swap to noldor skill names |
 | `docs/noldor/lifecycle.md` | mermaid nodes swap (brainstorming/writing-plans → noldor-spec/noldor-plan); stale `superpowers:requesting-code-review` node → `noldor cr orchestrate`; stale `superpowers:finishing-a-development-branch` paragraph → gate Step 4/5 scripted-cleanup prose |
 | `docs/noldor/pr-flow.md` | line 14 flow-diagram stale `superpowers:requesting-code-review` → `noldor cr orchestrate --kind code` |
-| `docs/noldor/worktree-discipline.md` | command table gains `pnpm noldor worktrees create <slug>` row; `superpowers:using-git-worktrees` mention → the command; false "re-installs lefthook hooks via postinstall" claim corrected to describe the tolerated-failure behavior |
-| `docs/noldor/skill-catalog.md` | +`## /noldor-spec`, +`## /noldor-plan` entries; "ships 9 user-invocable skills" → 11 |
+| `docs/noldor/worktree-discipline.md` | command table gains `pnpm noldor worktrees create <slug>` row; both colon-form references (`superpowers:using-git-worktrees`, `superpowers:subagent-driven-development` in the parallel-dev bullet) reworded to noldor equivalents; false "re-installs lefthook hooks via postinstall" claim corrected to describe the tolerated-failure behavior |
+| `docs/noldor/skill-catalog.md` | +`## /noldor-spec`, +`## /noldor-plan` entries; "ships 9 user-invocable skills" → 11; line-38 "`before invoking superpowers:writing-plans`" → `noldor-plan` |
 
 Template twins under `templates/.claude/skills/` and `templates/docs/noldor/` receive identical edits in the same commit (template-sync pre-commit gate enforces). New skill dirs get twins created.
 
@@ -124,7 +125,7 @@ Template twins under `templates/.claude/skills/` and `templates/docs/noldor/` re
 
 ## Acceptance criteria
 
-- `grep -rn "superpowers:" .claude/skills templates/.claude templates/docs src docs/noldor .claude/engineering-rules.md` → zero hits (42 colon-form hits exist there today; `.claude/skills/garden/` and refactor-workspace fixtures carry only path-form mentions, which stay).
+- `grep -rn "superpowers:" .claude/skills templates/.claude templates/docs src docs/noldor .claude/engineering-rules.md` → zero hits (56 colon-form hits exist there today, verified 2026-06-11; `.claude/skills/garden/` and refactor-workspace fixtures carry only path-form mentions, which stay).
 - `pnpm noldor prep format spec` and `... format plan` print the contracts; `pnpm noldor prep format bogus` exits 2.
 - `noldor worktrees create <slug>` from main produces `.worktrees/<slug>` on `feat/<slug>` with `node_modules` populated and `.env.local` port stamped, surviving the lefthook postinstall failure with a warning.
 - A full `/gate` `full-new` cycle (worktree → spec → plan → implementation) completes with the superpowers plugin absent from the machine.
