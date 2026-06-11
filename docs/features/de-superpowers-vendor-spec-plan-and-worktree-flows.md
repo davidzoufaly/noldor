@@ -25,11 +25,15 @@ The framework's core flows depend on the third-party `superpowers` Claude Code p
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a framework adopter (human or agent) without the superpowers Claude Code plugin, I want the gate's spec, plan, and worktree stages to run on noldor-owned skills and CLI commands, so that I can drive the full feature lifecycle in my repo with no third-party plugin prerequisite and no upstream-drift exposure.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+- Spec stage (gate-invoked or standalone): invoke the `noldor-spec` skill — dialogues to a design, writes `docs/superpowers/specs/YYYY-MM-DD-<slug>-design.md` per `pnpm noldor prep format spec`.
+- Plan stage: invoke the `noldor-plan` skill — writes `docs/superpowers/plans/YYYY-MM-DD-<slug>.md` per `pnpm noldor prep format plan`.
+- Worktree: `pnpm noldor worktrees create <slug>` from the main workspace (`--no-install` to skip dependency install on restores).
+- Format contract inspection (any agent, any repo with noldor installed): `pnpm noldor prep format <spec|plan>`.
+- Plan execution (interactive and autonomous alike): follow the plan header — execute tasks inline, commit per task, tick checkboxes.
 
 ## PRs
 
