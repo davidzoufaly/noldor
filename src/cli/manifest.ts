@@ -42,6 +42,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'prep/prep-promote.ts',
         desc: 'Promote approved drafts to in-progress FDs (serial; --ship opens an auto-merged PR)',
       },
+      format: {
+        src: 'prep/print-format.ts',
+        desc: 'Print the canonical spec|plan format contract',
+      },
     },
   },
   garden: {
