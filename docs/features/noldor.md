@@ -46,6 +46,7 @@ links:
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/schema-parity.test.ts
     - src/cr/__tests__/sidecar.test.ts
+    - src/garden/__tests__/backlog-demote.test.ts
     - src/garden/__tests__/garden-detect.test.ts
     - src/garden/__tests__/garden-receipt.test.ts
     - src/garden/detectors/__tests__/allowlist-drift.test.ts
