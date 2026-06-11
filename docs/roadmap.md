@@ -82,17 +82,6 @@ The final whole-branch reviewer for automated-cr-pipeline flagged "`pnpm validat
 
 Read `graphify-out/GRAPH_REPORT.md` per request, surface god-node count, low-cohesion communities, dead-export count. Snapshot metric — labelled with the timestamp of the last `/graphify` run. Gates the pre-release sweep in one glance.
 
-#### Dashboard Skills Browser Page
-
-- area: tooling
-- type: feat
-- since: 2026-05-12
-- size: S
-- impact: med
-- parent: project-tracking-dashboard
-
-Dashboard `/skills` route — list + detail view for the 8 project-local skills under `.claude/skills/<name>/SKILL.md`. List page pulls trigger + one-line description from each SKILL.md's frontmatter (`name`, `description`); clicking a row opens the rendered SKILL.md body for the full step-by-step. Pairs with existing `/features` and `/docs` dashboard surfaces — the skills counter on `/` (`scripts/dashboard/views.ts:97`) currently has no destination to click into. Cross-link `docs/noldor/skill-catalog.md` block per skill so the dashboard reflects both source-of-truths (SKILL.md = execution, catalog = operator summary). Trigger: surfaced 2026-05-12 right after the flat → subdirectory migration registered the skills with the Skill tool — the counter on KPIs is now actionable but un-browseable.
-
 #### Implementer Subagent Scope-Guard Template
 
 - area: tooling
