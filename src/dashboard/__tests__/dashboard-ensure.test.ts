@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ensureDashboard, isDashboardUp } from '../ensure.js';
+import { ensureDashboard, isDashboardUp, resolveMainRoot } from '../ensure.js';
 import { startServer } from '../server.js';
 
 import type { Server } from 'node:http';
@@ -26,6 +26,29 @@ describe('isDashboardUp', () => {
 
   it('returns false when nothing listens on the port', async () => {
     expect(await isDashboardUp('http://localhost:1', 300)).toBe(false);
+  });
+});
+
+describe('resolveMainRoot', () => {
+  it('maps the main checkout git dir to the checkout root', () => {
+    expect(resolveMainRoot(() => '/repo/.git')).toBe('/repo');
+  });
+
+  it('maps a worktree git-common-dir to the MAIN checkout root, not the worktree', () => {
+    // From .worktrees/<slug>, --git-common-dir points at the main .git.
+    expect(resolveMainRoot(() => '/repo/.git')).toBe('/repo');
+  });
+
+  it('falls back to cwd when git is unavailable', () => {
+    expect(
+      resolveMainRoot(() => {
+        throw new Error('not a git repo');
+      }),
+    ).toBe(process.cwd());
+  });
+
+  it('falls back to cwd on a layout without a .git suffix (bare repo)', () => {
+    expect(resolveMainRoot(() => '/srv/bare-repo')).toBe(process.cwd());
   });
 });
 

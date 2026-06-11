@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, openSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Default dashboard port, mirroring `startServer` in `server.ts`. */
@@ -44,19 +44,51 @@ export async function isDashboardUp(baseUrl: string, timeoutMs = 1500): Promise<
   }
 }
 
+function gitCommonDir(): string {
+  return execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+    encoding: 'utf8',
+  }).trim();
+}
+
+/**
+ * Resolve the MAIN checkout root, even when called from inside a worktree.
+ * The dashboard server roots its docs at its cwd, and the spawned server is a
+ * port-global singleton that outlives the calling session — so a worktree
+ * session must never anchor it at a disposable `.worktrees/<slug>` directory.
+ *
+ * @param run - Injection seam for tests; returns `git rev-parse --git-common-dir` output
+ * @returns Main checkout root, or `process.cwd()` when git is absent or the layout is odd
+ */
+export function resolveMainRoot(run: () => string = gitCommonDir): string {
+  try {
+    const common = run();
+    // `<main-root>/.git` from main checkout AND from any linked worktree.
+    if (common.endsWith(`${sep}.git`)) return dirname(common);
+    return process.cwd();
+  } catch {
+    return process.cwd();
+  }
+}
+
 /**
  * Spawn the dashboard server as a detached child surviving this process,
- * logging to {@link DASHBOARD_LOG_PATH}.
+ * logging to {@link DASHBOARD_LOG_PATH} under the main checkout root.
+ *
+ * The child's cwd is pinned to {@link resolveMainRoot} so the server's
+ * docs root (cwd fallback in `server.ts`) is the main checkout, not whatever
+ * worktree happened to trigger the spawn.
  *
  * @param port - Port handed to the server via `PORT`
  */
 export function spawnDetachedServer(port: number): void {
-  mkdirSync(resolve('.noldor'), { recursive: true });
-  const log = openSync(resolve(DASHBOARD_LOG_PATH), 'a');
+  const root = resolveMainRoot();
+  mkdirSync(resolve(root, '.noldor'), { recursive: true });
+  const log = openSync(resolve(root, DASHBOARD_LOG_PATH), 'a');
   const here = dirname(fileURLToPath(import.meta.url));
-  // `src/dashboard/` (or `dist/dashboard/`) → repo root is two levels up.
+  // `src/dashboard/` (or `dist/dashboard/`) → package root is two levels up.
   const launcher = resolve(here, '../../bin/noldor.mjs');
   const child = spawn(process.execPath, [launcher, 'dashboard', 'server'], {
+    cwd: root,
     detached: true,
     stdio: ['ignore', log, log],
     env: { ...process.env, PORT: String(port) },
@@ -100,6 +132,10 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const portIdx = argv.indexOf('--port');
   const port = portIdx >= 0 ? Number(argv[portIdx + 1]) : undefined;
+  if (port !== undefined && !Number.isInteger(port)) {
+    console.error('--port requires an integer value');
+    process.exit(1);
+  }
   const wait = !argv.includes('--no-wait');
   const result = await ensureDashboard({ port, wait });
   const label =
