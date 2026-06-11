@@ -134,6 +134,15 @@ pnpm noldor cr orchestrate --slug <slug> --artifact <artifact-path> --kind <spec
 
 **Summary table.** Read orchestrate stdout and surface the per-lane summary in chat: lanes that ran, synthetic-OK lanes (empty-delta short-circuit), skipped pre-dep lanes, and per-lane sink paths at `.noldor/cr/<slug>-<kind>-<lane>.json`. Exit 0 = all sync lanes clean; exit 1 = blockers somewhere.
 
+**Detailed spec summary (specs-only handoff).** When `kind === 'spec'` on a `specs-only-*` path, print a detailed summary of the committed spec to chat BEFORE the continue dialog — this pause is the last review surface before implementation (no plan stage follows), so a minimal "spec written, proceed?" prompt is not enough. Render four sections, each sourced from the spec body:
+
+- **Scope** — what will be built, as bullets
+- **Files touched** — code/test/doc paths the spec expects to change
+- **Acceptance criteria** — verifiable outcomes the implementation must satisfy
+- **Deferred risks / open questions** — what the spec explicitly postpones or leaves undecided
+
+Mark any section the spec doesn't cover as `(not specified in spec)` rather than omitting it — a visible gap is itself review signal. The operator must be able to pick `proceed` / `address-blockers` without opening the spec file. `full-*` paths get their detailed review surface at the kind=plan pause; this summary targets the path that otherwise has none.
+
 **Continue dialog.** Surface `AskUserQuestion`. When `kind === 'plan'`, options are: `proceed-autonomous / proceed / address-blockers / abort`. When `kind === 'spec'`, the autonomous option is omitted (autonomous mode triggers on plan-confirm, not spec-confirm).
 
 For `specs-only-*` paths, the kind=spec continue-dialog has no `proceed-autonomous` option — these paths have no plan stage. Operators wanting autonomous flows should use `full-*` paths. The `proceed` option at kind=spec advances:
