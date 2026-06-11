@@ -1024,10 +1024,10 @@ and in `claudeSupportsMaxThinking`, `execAsync('claude', …)` → `execAsync(CL
 
 - [ ] **Step 2: Update `src/cr/escalate.ts`** — `import { runStandalone } from './lanes/standalone.js'` → `import { runStandalone } from './deep-review-spawn.js'`.
 
-- [ ] **Step 3: Update `src/cr/orchestrate.ts`** — remove the standalone import and lane entry:
+- [ ] **Step 3: Update `src/cr/orchestrate.ts`** — full teardown enumeration (line refs are pre-edit):
 
-- delete `import { multiterminalDepDone, runStandalone } from './lanes/standalone.js';` (re-import `multiterminalDepDone` from `'./deep-review-spawn.js'` ONLY if something else in the file still calls it; otherwise drop it and delete its uses guarding the standalone lane)
-- change the lane table to exclude standalone and reject it explicitly:
+1. **L13** delete `import { multiterminalDepDone, runStandalone } from './lanes/standalone.js';` — nothing else in the file may import from `deep-review-spawn.js`.
+2. **L35-40** lane table loses standalone and narrows its key type:
 
 ```ts
 const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<LaneResult>> = {
@@ -1037,19 +1037,26 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
 };
 ```
 
-- at the top of the orchestrate run (after lanes resolve), add:
+3. **In `run()`, immediately after `const requested = resolveLanes(...)` (L218)** add the rejection:
 
 ```ts
-if (lanes.includes('standalone')) {
+if (requested.includes('standalone')) {
   throw new Error(
     "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
   );
 }
 ```
 
-and narrow downstream indexing with `LANES[lane as Exclude<Lane, 'standalone'>]`. Remove the now-dead `lane === 'standalone' && finishedAtUnset` special case in the same file. (`src/cr/aggregate.ts` is intentionally untouched — it still polls escalate-spawned and legacy `*-standalone.json` sinks; `laneSchema` keeps the `'standalone'` value so those sinks parse.)
+4. **L128-132** in `guardLaneOverwrite`: delete the `if (lane === 'standalone' && finishedAtUnset) { keep.push(lane); continue; }` pass-through (unreachable after the rejection; `finishedAtUnset` becomes unused — delete the variable and its assignment too).
+5. **L155-195** delete `guardStandaloneInProgress` and the `StandaloneGuardOutcome` export entirely — its only consumer was the standalone spawn path.
+6. **L254-260** delete the pre-dep probe block (`if (effective.includes('standalone')) { const depDone = await multiterminalDepDone(...) ... }`). `lanesSkippedPreDep` stays (it's in `RunResult`) but is now always empty — keep the field for CLI/report shape stability.
+7. **L278-301** delete both standalone blocks (the `guardStandaloneInProgress` call site and the `runStandalone` fire-and-continue try/catch).
+8. **L262-264 + L317** comment touch-ups: the delta short-circuit comment drops "including standalone (Decision §4). Spawning iTerm2 + --max-thinking…" (now just "synthetic OK for EVERY lane"); the exit-code comment drops "Standalone async => doesn't affect."
+9. In `deep-review-spawn.ts`, delete `multiterminalDepDone` + `MultiterminalProbeOpts` (orchestrate was the only consumer; YAGNI) and delete its tests when moving the test file in Step 4. `PROMPT_TEMPLATE_PATH` and `templateSha` stay — `runStandalone` uses them.
 
-- [ ] **Step 4: Move/adjust tests** — `git mv` the standalone lane test file (find via `ls src/cr/lanes/__tests__/ | grep standalone` or `grep -rl "lanes/standalone" src`) to `src/cr/__tests__/deep-review-spawn.test.ts` and fix its import paths. Add to the orchestrate test file:
+(`src/cr/aggregate.ts` is intentionally untouched — it still polls escalate-spawned and legacy `*-standalone.json` sinks; `laneSchema` keeps the `'standalone'` value so those sinks parse. `writeSyntheticOk`'s lane loop is unaffected: standalone can no longer appear in `effective`.)
+
+- [ ] **Step 4: Move/adjust tests** — `git mv` the standalone lane test file (find via `ls src/cr/lanes/__tests__/ | grep standalone` or `grep -rl "lanes/standalone" src`) to `src/cr/__tests__/deep-review-spawn.test.ts` and fix its import paths; delete its `multiterminalDepDone` describes. In the orchestrate test file, delete the `guardStandaloneInProgress` describes and any standalone-lane run-path cases (pre-dep skip, in-progress guard, fire-and-continue), and the standalone case inside `guardLaneOverwrite` tests. Add to the orchestrate test file:
 
 ```ts
 it('rejects standalone as a runnable lane with an escalate pointer', async () => {
