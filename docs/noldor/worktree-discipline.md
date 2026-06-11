@@ -11,6 +11,7 @@ introduced: 0.4.0
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `git worktree add .worktrees/<name> -b feat/<name>` | Create a new worktree from main. Run from main.                                                             |
 | `pnpm noldor worktrees status`                      | Print per-tree table (path, branch, port, ahead/behind, dirty, last commit). Warn on cap / drift / overlap. |
+| `pnpm noldor worktrees conflicts`                   | Pre-flight conflict scan across trees: HARD (same-file) ranked above soft (same graphify-community). Exits non-zero on a HARD conflict. |
 | `pnpm noldor worktrees launch`                      | Spawn one iTerm2 window per non-main worktree, each running `claude` with the launch-prompt template.       |
 | `git worktree remove [--force] .worktrees/<name>`   | Remove a worktree after merge. Pair with `git branch -D feat/<name>` (force: squash-merge leaves the branch's commits non-ancestor of main, so `-d` rejects). |
 | `NOLDOR_ALLOW_SHARED=1 git commit ...`              | Override `check:shared-files` block when intentionally editing a shared root file from a worktree.          |

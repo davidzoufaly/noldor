@@ -15,13 +15,13 @@ links:
   tests:
     - src/checks/__tests__/check-shared-files.test.ts
     - src/worktrees/__tests__/launch-worktrees.test.ts
+    - src/worktrees/__tests__/worktree-conflicts.test.ts
     - src/worktrees/__tests__/worktree-status.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-05-04-parallel-worktree-workflow-design.md
 introduced: 0.3.0
 noldor-tier: full
 ---
-
 ## Summary
 
 Tooling and rules for running up to three concurrent git worktrees on independent features. Adds `pnpm worktree:status` (status table + drift / overlap / cap warnings + auto port allocation in `5174-5179`), a lefthook pre-commit gate that blocks edits to shared root files from inside `.worktrees/`, a one-line `apps/web/vite.config.ts` change to honour `PORT` from `.env.local`, and a CLAUDE.md subsection codifying the parallel-worktree workflow.

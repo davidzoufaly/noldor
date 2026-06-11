@@ -195,6 +195,10 @@ export const MANIFEST: Record<string, Group> = {
     desc: 'Worktree status + launch',
     subs: {
       status: { src: 'worktrees/worktree-status.ts', desc: 'Per-tree status table' },
+      conflicts: {
+        src: 'worktrees/worktree-conflicts.ts',
+        desc: 'Pre-flight conflict scan across worktrees (direct + graphify-community)',
+      },
       launch: { src: 'worktrees/launch-worktrees.ts', desc: 'Spawn iTerm2 worktree windows' },
     },
   },
