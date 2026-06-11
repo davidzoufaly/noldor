@@ -838,6 +838,8 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "docs(gate): swap superpowers flow reference
 - L38: `(superpowers:writing-plans)` → `(noldor-plan)`
 - L44: `(superpowers:requesting-code-review)` → `(noldor cr orchestrate --kind code)`
 - L70: `After \`superpowers:finishing-a-development-branch\` returns (\`/gate\` Step 4 complete),` → `After \`/gate\` Step 4's scripted cleanup completes,`
+- L81 (lifecycle-stages table, Spec row): `superpowers brainstorming skill (skipped when complexity verdict = \`skip-brainstorm\`)` → `\`noldor-spec\` skill (skipped when complexity verdict = \`skip-brainstorm\`)`
+- L82 (Plan row): `superpowers writing-plans skill` → `\`noldor-plan\` skill`
 
 - [ ] **Step 6: pr-flow (both copies)**
 
@@ -855,10 +857,15 @@ b. L49: `populates its own \`node_modules\` and re-installs lefthook hooks via \
 
 c. L51: `\`superpowers:subagent-driven-development\` is for _executing_ an already-written plan with independent tasks inside one tree, not for the upstream design phases` → `plan execution is inline work for the controlling session (per the plan header), not for the upstream design phases`
 
-- [ ] **Step 8: Verify zero across the whole acceptance scope**
+d. L51 (same bullet, earlier clause): `The template tells each fresh session to read its feature MD and run \`/brainstorm <slug>\`.` → `The template tells each fresh session to read its feature MD and run \`/noldor-spec <slug>\`.` (Note: `.claude/launch-prompt.md` itself is not git-tracked — pre-existing condition, out of scope.)
+
+- [ ] **Step 8: Verify zero across the whole acceptance scope (colon-form AND name-form)**
 
 Run: `grep -rn "superpowers:" .claude/skills templates/.claude templates/docs src docs/noldor .claude/engineering-rules.md; echo "exit:$?"`
 Expected: `exit:1` (zero hits)
+
+Run: `grep -rniE "superpowers (brainstorming|writing-plans|using-git-worktrees|code-reviewer|subagent-driven|executing-plans)|/brainstorm\b" .claude/skills templates/.claude templates/docs src docs/noldor .claude/engineering-rules.md; echo "exit:$?"`
+Expected: `exit:1` (zero hits — catches space-form names and the `/brainstorm` slash command; `docs/superpowers/` path tokens don't match either pattern)
 
 Run: `pnpm noldor checks template-sync && pnpm noldor validate skill-catalog`
 Expected: both exit 0
@@ -874,9 +881,12 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "docs(noldor): sweep remaining superpowers r
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Acceptance grep**
+- [ ] **Step 1: Acceptance grep (both forms)**
 
 Run: `grep -rn "superpowers:" .claude/skills templates/.claude templates/docs src docs/noldor .claude/engineering-rules.md; echo "exit:$?"`
+Expected: `exit:1`
+
+Run: `grep -rniE "superpowers (brainstorming|writing-plans|using-git-worktrees|code-reviewer|subagent-driven|executing-plans)|/brainstorm\b" .claude/skills templates/.claude templates/docs src docs/noldor .claude/engineering-rules.md; echo "exit:$?"`
 Expected: `exit:1`
 
 - [ ] **Step 2: CLI smokes**
