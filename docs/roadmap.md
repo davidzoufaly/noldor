@@ -82,19 +82,6 @@ Read `graphify-out/GRAPH_REPORT.md` per request, surface god-node count, low-coh
 
 `superpowers:subagent-driven-development`'s `implementer-prompt.md` should explicitly say "ONLY edit the files listed in the Files: section. If a hook forces unrelated edits (oxfmt drift, sdd-report regen), stop and report `DONE_WITH_CONCERNS` instead of bundling them into the commit." During automated-cr-pipeline, multiple implementer subagents bundled unrelated formatter fixes for spec/plan/feature-MD files into their task commit because lefthook required it. Acceptable in practice but blurs commit scope and makes `git log` per-task harder to read. Stricter prompt + a hook flag like `LEFTHOOK_AUTOFIX=warn` (advise, don't auto-fix) would let the bundled edits be a separate explicit cleanup commit.
 
-#### Multi-Line Trailer Value Detection
-
-- area: tooling
-- type: fix
-- since: 2026-05-11
-- size: S
-- impact: med
-- parent: noldor
-
-`git interpret-trailers --parse` silently drops trailers whose value wraps to a continuation line without leading whitespace. Hit during v0.4.0 release: two commits with multi-line `Noldor-Path-Override:` values passed `commit-msg` gate (validate-trailer didn't see the override) but pushed through enforce-review-receipt only because they ALSO didn't see the trailer → fell through to "no path" branch. Subtle. Fix candidates: (a) `parseTrailers` raw-grep fallback for `^Noldor-`-prefixed lines that interpret-trailers missed; (b) `prepare-commit-msg` warning when a multi-line trailer value is detected; (c) commit-msg pre-validation that rejects multi-line trailer-key values outright. Pick whichever doesn't break existing well-formed commits.
-
-- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
-
 #### FD Complexity-Tier Field
 
 - area: tooling

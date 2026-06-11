@@ -105,7 +105,7 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 - **Trigger:** `pnpm noldor hooks validate-trailer <commit-msg-file>`. Runs in `commit-msg` (`noldor-validate-trailer` job).
 - **Inputs:** commit message file path.
-- **Outputs:** parses trailers via `git interpret-trailers --parse`. Validates schema and trailer-vs-FD consistency. Accepts `Noldor-Path-Override: <reason>` (logs to `.noldor/overrides.log`); accepts `Noldor-Path: release-automation` unconditionally; otherwise requires a valid path trailer + per-path checks (FD existence, tier match, review receipt, spec existence). Exit 1 on invalid.
+- **Outputs:** parses trailers via `git interpret-trailers --parse`. Rejects the commit when a `Noldor-*` trailer-shaped line in the final paragraph is invisible to git (a value wrapped to an unindented continuation line invalidates the whole trailer block — keep values single-line or indent continuations). Validates schema and trailer-vs-FD consistency. Accepts `Noldor-Path-Override: <reason>` (logs to `.noldor/overrides.log`); accepts `Noldor-Path: release-automation` unconditionally; otherwise requires a valid path trailer + per-path checks (FD existence, tier match, review receipt, spec existence). Exit 1 on invalid.
 - **Source:** [`src/hooks/noldor-validate-trailer.ts`](../../src/hooks/noldor-validate-trailer.ts)
 
 ### `hook:noldor:enforce-review-receipt`

@@ -135,6 +135,26 @@ describe('validateTrailer', () => {
     expect(r.reason).toMatch(/Noldor-Path/);
   });
 
+  it('rejects a trailer whose value wraps to an unindented line (git drops the whole block)', () => {
+    const dir = setupRepo();
+    writeFileSync(join(dir, 'a'), 'init');
+    execSync('git add a && git commit -q -m init', { cwd: dir });
+    const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+    writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
+    writeFileSync(join(dir, 'b'), 'x');
+    execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
+    // v0.4.0 release bug: the wrapped override made git interpret-trailers drop
+    // the ENTIRE trailer block, so the override silently never took effect.
+    const r = validateTrailer({
+      message:
+        'fix: x\n\nNoldor-Path: fast-track\nNoldor-Path-Override: hook broken because of a very long\nreason that wraps without indent\n',
+      cwd: dir,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/Noldor-Path-Override/);
+    expect(r.reason).toMatch(/single line|indent/i);
+  });
+
   it('rejects unknown path enum value', () => {
     const dir = setupRepo();
     writeFileSync(join(dir, 'a'), 'init');
