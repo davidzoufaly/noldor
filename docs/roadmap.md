@@ -142,16 +142,6 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 - triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
 
-#### Stand-Alone Worktree Conflict Pre-Flight
-
-- area: tooling
-- type: feat
-- since: 2026-05-04
-- size: S
-- impact: low
-
-Dedicated `pnpm worktree:conflicts` script that intersects file-touch sets across active worktrees and optionally cross-references graphify community membership for richer conflict scoring. Initial release of `parallel-worktree-workflow` folds a basic file-overlap warning into `pnpm worktree:status` display; this richer stand-alone tool is deferred until the basic version proves insufficient. Trigger: running 3+ trees regularly and finding the inline warning too coarse.
-
 #### Auto-Promotion of Stale Ideas
 
 - area: tooling

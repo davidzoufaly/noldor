@@ -244,6 +244,14 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 - **When to use:** start of session, before kicking off another parallel worktree, before `pnpm noldor worktrees launch`.
 - **Source:** [`src/worktrees/worktree-status.ts`](../../src/worktrees/worktree-status.ts)
 
+### `worktree:conflicts`
+
+- **Trigger:** `pnpm noldor worktrees conflicts` from any tree.
+- **Inputs:** `git worktree list`, per-tree `git diff main...<branch> --name-only` touch sets, and (optional) `graphify-out/graph.json` for community membership.
+- **Outputs:** stdout report of scored pairwise conflicts — `HARD` (two trees touch the same file → merge conflict) ranked above `soft` (two trees touch *different* files in the same graphify community → likely semantic interaction). Exits non-zero only on a HARD conflict. Falls back to direct-only scoring when the graph is absent.
+- **When to use:** pre-flight before merging or rebasing parallel worktrees, when the inline overlap warning in `worktrees status` is too coarse (3+ active trees).
+- **Source:** [`src/worktrees/worktree-conflicts.ts`](../../src/worktrees/worktree-conflicts.ts)
+
 ### `worktree:launch`
 
 - **Trigger:** `pnpm noldor worktrees launch` from any tree.
