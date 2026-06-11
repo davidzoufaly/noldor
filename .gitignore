@@ -30,3 +30,7 @@ docs/ideas.md
 
 # Machine-local graphify interpreter path (resolved per-run)
 graphify-out/.graphify_python
+# Machine-local graphify caches + per-run artifacts (regenerated each run)
+graphify-out/cache/
+graphify-out/cost.json
+graphify-out/.graphify_incremental.json
