@@ -60,17 +60,6 @@ When a feature adds a new release-time gate, the feature's own implementation co
 
 - triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
 
-#### Dashboard Graphify Health Snapshot
-
-- area: tooling
-- type: feat
-- since: 2026-05-04
-- size: S
-- impact: med
-- parent: project-tracking-dashboard
-
-Read `graphify-out/GRAPH_REPORT.md` per request, surface god-node count, low-cohesion communities, dead-export count. Snapshot metric — labelled with the timestamp of the last `/graphify` run. Gates the pre-release sweep in one glance.
-
 #### Implementer Subagent Scope-Guard Template
 
 - area: tooling
