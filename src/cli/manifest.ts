@@ -184,6 +184,10 @@ export const MANIFEST: Record<string, Group> = {
     desc: 'Dev dashboard',
     subs: {
       server: { src: 'dashboard/server.ts', desc: 'Run dashboard dev server' },
+      ensure: {
+        src: 'dashboard/ensure.ts',
+        desc: 'Start dashboard server if not already running (idempotent)',
+      },
     },
   },
   docs: {
