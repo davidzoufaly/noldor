@@ -13,6 +13,7 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/hot-zones', label: 'Hot zones' },
   { href: '/wip-age', label: 'WIP age' },
   { href: '/test-pyramid', label: 'Test pyramid' },
+  { href: '/graph-health', label: 'Graph health' },
   { href: '/worktrees', label: 'Worktrees' },
 ];
 
@@ -93,6 +94,7 @@ const STYLE = `
   .bar { background: var(--line); border-radius: 3px; height: 8px; overflow: hidden; }
   .bar > div { background: var(--accent); height: 100%; }
   .empty { color: var(--muted); font-style: italic; padding: 1rem 0; }
+  .muted { color: var(--muted); font-size: 0.85rem; }
   pre { overflow-x: auto; padding: 0.5rem; background: rgba(0,0,0,0.04); border-radius: 4px; }
   a { color: var(--accent); }
   ul.links { list-style: none; padding: 0; }

@@ -11,6 +11,7 @@ import type {
   FeatureRecord,
   FrameworkPage,
   FrameworkPageDetail,
+  GraphHealthSnapshot,
   HotZoneRow,
   ReleaseNotes,
   Roadmap,
@@ -1363,4 +1364,68 @@ export function renderTestPyramid(rows: TestPyramidRow[]): string {
   </table>`;
 
   return `<h1>Test pyramid</h1>${counterStrip}${table}`;
+}
+
+/**
+ * Render the graphify health snapshot: god-node count, low-cohesion community
+ * count, and dead-export count parsed from `graphify-out/GRAPH_REPORT.md`,
+ * labelled with the report's run date. `null` snapshot → "run /graphify" empty
+ * state; `deadExportCount === null` → "not reported" (graphify emits no such
+ * section today).
+ */
+export function renderGraphHealth(snapshot: GraphHealthSnapshot | null): string {
+  if (snapshot === null) {
+    return `<h1>Graph health</h1><p class="empty">No graph report found at <code>graphify-out/GRAPH_REPORT.md</code>. Run <code>/graphify</code> to generate one.</p>`;
+  }
+
+  const asOf =
+    snapshot.reportDate === null
+      ? 'unknown date'
+      : `${escapeHtml(snapshot.reportDate)}${snapshot.scope === null ? '' : ` · scope ${escapeHtml(snapshot.scope)}`}`;
+  const deadExports = snapshot.deadExportCount === null ? '—' : String(snapshot.deadExportCount);
+  // Percentage is against the communities actually scored for cohesion
+  // (scannedCommunityCount), not the Summary total — the latter counts
+  // thin/omitted communities the report never details, which would understate.
+  const lowCohesionPct =
+    snapshot.scannedCommunityCount > 0
+      ? ` (${Math.round((snapshot.lowCohesionCount / snapshot.scannedCommunityCount) * 100)}% of ${snapshot.scannedCommunityCount} scored)`
+      : '';
+
+  const counterStrip = `<div class="counter-strip">
+    <div class="counter"><div class="v">${snapshot.godNodeCount}</div><div class="l">god nodes</div></div>
+    <div class="counter"><div class="v">${snapshot.lowCohesionCount}</div><div class="l">low-cohesion communities${lowCohesionPct}</div></div>
+    <div class="counter"><div class="v">${deadExports}</div><div class="l">dead exports</div></div>
+    <div class="counter"><div class="v">${snapshot.communityCount ?? '—'}</div><div class="l">communities</div></div>
+    <div class="counter"><div class="v">${snapshot.nodeCount ?? '—'}</div><div class="l">nodes</div></div>
+    <div class="counter"><div class="v">${snapshot.edgeCount ?? '—'}</div><div class="l">edges</div></div>
+  </div>`;
+
+  const caption = `<p class="muted">Snapshot as of ${asOf}. Low-cohesion threshold: cohesion ≤ ${snapshot.lowCohesionThreshold}.${snapshot.deadExportCount === null ? ' Dead exports not reported by graphify.' : ''}</p>`;
+
+  const godRows =
+    snapshot.godNodes.length === 0
+      ? '<tr><td colspan="2" class="empty">No god nodes reported.</td></tr>'
+      : snapshot.godNodes
+          .map((g) => `<tr><td><code>${escapeHtml(g.name)}</code></td><td>${g.edges}</td></tr>`)
+          .join('');
+  const godTable = `<h2>God nodes</h2><table>
+    <thead><tr><th>Symbol</th><th>Edges</th></tr></thead>
+    <tbody>${godRows}</tbody>
+  </table>`;
+
+  const cohesionRows =
+    snapshot.lowCohesionCommunities.length === 0
+      ? '<tr><td colspan="3" class="empty">No communities below the cohesion threshold.</td></tr>'
+      : snapshot.lowCohesionCommunities
+          .map(
+            (c) =>
+              `<tr class="row-stale"><td>${c.id}</td><td><code>${escapeHtml(c.label)}</code></td><td>${c.cohesion}</td></tr>`,
+          )
+          .join('');
+  const cohesionTable = `<h2>Low-cohesion communities</h2><table>
+    <thead><tr><th>#</th><th>Label</th><th>Cohesion</th></tr></thead>
+    <tbody>${cohesionRows}</tbody>
+  </table>`;
+
+  return `<h1>Graph health</h1>${counterStrip}${caption}${cohesionTable}${godTable}`;
 }

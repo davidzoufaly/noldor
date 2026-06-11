@@ -1757,3 +1757,165 @@ export async function loadWorktreeHealth(): Promise<WorktreeHealth> {
 }
 
 export { describeWarning };
+
+/**
+ * Cohesion at or below this threshold marks a community as "low cohesion" — a
+ * sprawling, poorly-clustered group worth flagging before a release sweep.
+ * `/graphify` cohesion runs ~0.05–0.55; 0.15 cleanly separates the diffuse
+ * communities (split-candidates) from the focused ones.
+ */
+export const LOW_COHESION_THRESHOLD = 0.15;
+
+/** One god node: a name and its edge count, parsed from the report's God Nodes list. */
+export const graphGodNodeSchema = z
+  .object({ name: z.string().min(1), edges: z.number().int().nonnegative() })
+  .strict();
+export type GraphGodNode = z.infer<typeof graphGodNodeSchema>;
+
+/** One community row: id, label, and cohesion score from the report's Communities section. */
+export const graphCommunitySchema = z
+  .object({ id: z.number().int().nonnegative(), label: z.string(), cohesion: z.number() })
+  .strict();
+export type GraphCommunity = z.infer<typeof graphCommunitySchema>;
+
+/**
+ * A point-in-time health snapshot derived from `graphify-out/GRAPH_REPORT.md`.
+ *
+ * @remarks
+ * `reportDate` is the run date from the report header (`# Graph Report - src
+ * (2026-06-01)`) — the snapshot's "as of" label. `deadExportCount` is `null`
+ * because `/graphify` does not currently emit a dead-export section; the parser
+ * still reads one if a future report version adds it (see {@link parseGraphReport}).
+ * `communityCount` is the Summary total (includes thin/omitted communities);
+ * `scannedCommunityCount` is how many community blocks the report actually
+ * details (the ones cohesion was scored for) — the correct denominator for the
+ * low-cohesion percentage.
+ */
+export const graphHealthSnapshotSchema = z
+  .object({
+    scope: z.string().nullable(),
+    reportDate: z.string().nullable(),
+    nodeCount: z.number().int().nonnegative().nullable(),
+    edgeCount: z.number().int().nonnegative().nullable(),
+    communityCount: z.number().int().nonnegative().nullable(),
+    scannedCommunityCount: z.number().int().nonnegative(),
+    godNodeCount: z.number().int().nonnegative(),
+    godNodes: z.array(graphGodNodeSchema),
+    lowCohesionThreshold: z.number(),
+    lowCohesionCount: z.number().int().nonnegative(),
+    lowCohesionCommunities: z.array(graphCommunitySchema),
+    deadExportCount: z.number().int().nonnegative().nullable(),
+  })
+  .strict();
+export type GraphHealthSnapshot = z.infer<typeof graphHealthSnapshotSchema>;
+
+/**
+ * Slice a `## <title>` section body out of a markdown report: everything from
+ * the heading line to (but not including) the next `## ` heading or EOF.
+ * Returns `null` when the section is absent. `title` is always a trusted
+ * literal here, but escape it defensively in case a metachar ever creeps in.
+ */
+function graphReportSection(raw: string, title: string): string | null {
+  const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const start = new RegExp(`^##\\s+${escaped}[^\\n]*$`, 'm').exec(raw);
+  if (start === null) return null;
+  const after = raw.slice(start.index + start[0].length);
+  const next = /^##\s/m.exec(after);
+  return next === null ? after : after.slice(0, next.index);
+}
+
+/**
+ * Count dead/unused exports if the report carries such a section. `/graphify`
+ * does not emit one today, so this returns `null` (rendered as "not reported").
+ * Kept forward-compatible: a future `## Dead Exports` / `## Unused Exports`
+ * section is read as either an explicit count line or a bullet list.
+ */
+function parseDeadExports(raw: string): number | null {
+  for (const title of ['Dead Exports', 'Unused Exports']) {
+    const body = graphReportSection(raw, title);
+    if (body === null) continue;
+    const countLine = /(\d+)\s+(?:dead|unused)\s+exports?/i.exec(body);
+    if (countLine !== null) return Number(countLine[1]);
+    const bullets = body.match(/^\s*[-*]\s+/gm);
+    return bullets === null ? 0 : bullets.length;
+  }
+  return null;
+}
+
+/**
+ * Parse a `GRAPH_REPORT.md` body into a {@link GraphHealthSnapshot}. Pure — no
+ * filesystem access, so it is directly unit-testable against report fixtures.
+ * Missing sections degrade to `null` / empty rather than throwing, so a partial
+ * or future-version report still yields a usable snapshot.
+ */
+export function parseGraphReport(raw: string): GraphHealthSnapshot {
+  const header = /^#\s+Graph Report\s*-\s*(.+?)\s*\((\d{4}-\d{2}-\d{2})\)\s*$/m.exec(raw);
+  const scope = header === null ? null : header[1]!.trim();
+  const reportDate = header === null ? null : header[2]!;
+
+  // Scope the node/edge/community parse to the Summary section so a stray
+  // "N nodes · M edges" elsewhere in the report can never mis-match.
+  const summarySection = graphReportSection(raw, 'Summary');
+  const summary =
+    summarySection === null
+      ? null
+      : /(\d+)\s+nodes\s*·\s*(\d+)\s+edges\s*·\s*(\d+)\s+communities/.exec(summarySection);
+  const nodeCount = summary === null ? null : Number(summary[1]);
+  const edgeCount = summary === null ? null : Number(summary[2]);
+
+  const godNodes: GraphGodNode[] = [];
+  const godSection = graphReportSection(raw, 'God Nodes');
+  if (godSection !== null) {
+    const re = /^\s*\d+\.\s+`([^`]+)`\s*-\s*(\d+)\s+edges/gm;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(godSection)) !== null) {
+      godNodes.push({ name: m[1]!, edges: Number(m[2]) });
+    }
+  }
+
+  const communities: GraphCommunity[] = [];
+  const commRe = /^###\s+Community\s+(\d+)\s+-\s+"([^"]*)"\s*\r?\nCohesion:\s*([\d.]+)/gm;
+  let cm: RegExpExecArray | null;
+  while ((cm = commRe.exec(raw)) !== null) {
+    communities.push({ id: Number(cm[1]), label: cm[2]!, cohesion: Number(cm[3]) });
+  }
+  const lowCohesionCommunities = communities
+    .filter((c) => c.cohesion <= LOW_COHESION_THRESHOLD)
+    .sort((a, b) => a.cohesion - b.cohesion || a.id - b.id);
+
+  // Prefer the Summary's authoritative total (counts thin/omitted communities);
+  // fall back to the count of parsed Community blocks when Summary is absent.
+  const communityCount =
+    summary !== null ? Number(summary[3]) : communities.length > 0 ? communities.length : null;
+
+  return graphHealthSnapshotSchema.parse({
+    scope,
+    reportDate,
+    nodeCount,
+    edgeCount,
+    communityCount,
+    scannedCommunityCount: communities.length,
+    godNodeCount: godNodes.length,
+    godNodes,
+    lowCohesionThreshold: LOW_COHESION_THRESHOLD,
+    lowCohesionCount: lowCohesionCommunities.length,
+    lowCohesionCommunities,
+    deadExportCount: parseDeadExports(raw),
+  });
+}
+
+/**
+ * Load the graphify health snapshot from `graphify-out/GRAPH_REPORT.md` under
+ * the doc root. Returns `null` when the report does not exist yet (no
+ * `/graphify` run) — the page renders a "run /graphify" empty state.
+ */
+export async function loadGraphHealth(): Promise<GraphHealthSnapshot | null> {
+  const reportPath = join(getDocRoot(), 'graphify-out', 'GRAPH_REPORT.md');
+  let raw: string;
+  try {
+    raw = await readFile(reportPath, 'utf8');
+  } catch {
+    return null;
+  }
+  return parseGraphReport(raw);
+}
