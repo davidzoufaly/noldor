@@ -1,6 +1,6 @@
 // @tests: feature-md-links-overhaul
 
-import { execFileSync } from 'node:child_process';
+import { spawnAgent } from '../core/agent-runner/registry.js';
 import {
   copyFileSync,
   existsSync,
@@ -121,10 +121,10 @@ export function resolveByPath({
 }
 
 /**
- * Parse the JSON response from a `claude -p` subprocess call into a
+ * Parse the JSON response from a second-opinion agent spawn into a
  * CandidateMatch. Returns null on parse error or missing/invalid fields.
  *
- * @param raw - Raw stdout from `claude -p`
+ * @param raw - Raw stdout from the agent spawn
  * @returns Parsed CandidateMatch, or null when invalid
  */
 export function parseLlmResponse(raw: string): CandidateMatch | null {
@@ -151,18 +151,18 @@ export function parseLlmResponse(raw: string): CandidateMatch | null {
 }
 
 /**
- * Resolve via LLM: invoke `claude -p` subprocess with FD candidates plus
- * file path and first 30 lines of source. The prompt asks for JSON-only
- * output matching the parseLlmResponse contract.
+ * Resolve via LLM: spawn a second-opinion-role agent (via the agent-runner
+ * registry) with FD candidates plus file path and first 30 lines of source.
+ * The prompt asks for JSON-only output matching the parseLlmResponse contract.
  *
  * @param filePath - Code file to attribute
  * @param candidates - Pre-filtered FD candidates from path-only resolver
  * @returns CandidateMatch from LLM, or null if call/parse fails
  */
-export function resolveByLlm(
+export async function resolveByLlm(
   filePath: string,
   candidates: { slug: string; name: string; summary: string }[],
-): CandidateMatch | null {
+): Promise<CandidateMatch | null> {
   let sourceHead = '';
   try {
     sourceHead = readFileSync(filePath, 'utf8').split('\n').slice(0, 30).join('\n');
@@ -181,10 +181,13 @@ ${candidates.map((c) => `- ${c.slug}: ${c.name} — ${c.summary.slice(0, 200)}`)
 
   let raw: string;
   try {
-    raw = execFileSync('claude', ['-p', prompt], {
-      encoding: 'utf8',
-      timeout: 60_000,
+    const r = await spawnAgent(prompt, {
+      role: 'second-opinion',
+      timeoutMs: 60_000,
+      site: 'features.fill-links-code-gaps',
     });
+    if (r.timedOut || r.exitCode !== 0) return null;
+    raw = r.stdout;
   } catch {
     return null;
   }
@@ -438,7 +441,7 @@ async function main(): Promise<void> {
         summary: summaryByFd.get(m.fdSlug) ?? '',
       };
     });
-    const llmResult = resolveByLlm(file, candidates);
+    const llmResult = await resolveByLlm(file, candidates);
     if (llmResult && llmResult.confidence !== 'low') {
       assignments.push({ filePath: file, match: llmResult });
     } else {
