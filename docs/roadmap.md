@@ -197,17 +197,6 @@ Audit `scripts/` and the framework's test corpus to identify scripts/tests that 
 
 Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-discipline.md`). Today every active task lives in its own branch worktree. The proposal: collapse to a single shared dev branch — still in worktrees for parallelism, but not separate branches — with all task work landing on one rolling branch and merging to main on release. Trade-off: simpler integration story (no per-task rebase, fewer divergent histories) at the cost of losing the per-task isolation that lets `/gate` and `/promote` reason about scope. Trigger: when per-branch overhead (rebase storms, cross-branch lint regen, merge order ambiguity) outweighs the isolation benefit.
 
-#### Specs-Only Path: Print Detailed Plan Summary to Operator
-
-- area: tooling
-- type: feat
-- since: 2026-05-12
-- parent: noldor
-- size: S
-- impact: high
-
-When the gate flow picks a specs-only path (`specs-only-new` / `specs-only-attach`) and the spec is skipped, the framework should print a detailed summary of the plan to the operator at handoff — scope bullets, files touched, acceptance criteria, deferred risks — instead of the current minimal "plan written, proceed?" prompt. Specs-only is the path most likely to mask scope drift because there's no spec to anchor against; surfacing the plan's contents at the gate boundary gives the operator a real review surface before subagent dispatch. Trigger: live now — observed during the specs-only-attach flow that the operator is expected to open the plan file to verify it.
-
 #### Dashboard: Filter Features Missing `introduced`
 
 - area: tooling
