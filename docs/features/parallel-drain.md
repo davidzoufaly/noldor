@@ -19,13 +19,14 @@ links:
     - src/autonomous/__tests__/merge-classify.test.ts
     - src/autonomous/__tests__/queue-drain-cli.test.ts
     - src/core/__tests__/pr-flow.test.ts
-  spec: docs/superpowers/specs/2026-06-10-parallel-drain-design.md
+  spec: docs/superpowers/specs/archive/2026-06-10-parallel-drain-design.md
 name: Parallel Drain
 packages:
   - scripts
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 Generalizes the autonomous drain supervisor from sequential (one feature at a time) to K-concurrent via `--concurrency N`: up to N features build in parallel, each in its own worktree and its own PR, while merges are serialized through a single coordinator so `main` never sees an N-way conflict. `--concurrency 1` (default) is byte-for-byte today's sequential drain; concurrency is opt-in.
@@ -55,3 +56,26 @@ As an operator draining a large queue (or a batch of designed plans), I want `--
 <!-- @prs-since-last-release: parallel-drain -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-10-parallel-drain-design.md`](../../docs/superpowers/specs/archive/2026-06-10-parallel-drain-design.md)
+- **Code:**
+  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
+  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
+  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
+  - [`src/autonomous/drain-state.ts`](../../src/autonomous/drain-state.ts)
+  - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
+  - [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts)
+  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+- **Tests:**
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
+  - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
+  - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
+  - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
+  - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
+
+<!-- /generated: resources -->

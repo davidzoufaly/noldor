@@ -28,13 +28,14 @@ links:
     - src/prep/__tests__/prep-promote.test.ts
     - src/prep/__tests__/scaffold.test.ts
     - src/prep/__tests__/staging.test.ts
-  spec: docs/superpowers/specs/2026-06-10-plan-runner-design.md
+  spec: docs/superpowers/specs/archive/2026-06-10-plan-runner-design.md
 name: Plan-Runner — Autonomous Plan Executor
 packages:
   - scripts
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 The execution end of the autonomous-design pipeline. Generalizes the shipped queue-drain supervisor with an injected `DrainSource` seam (`src/autonomous/drain-source.ts`) so the loop is source-agnostic: `roadmapSource` reproduces queue-drain byte-for-byte (fast-track XS/S roadmap entries), while the new `plansSource` drains already-designed in-progress FDs (spec **and** plan committed) — taking on the M/L/XL work queue-drain refuses, one auto-merged `feat/<slug>` PR at a time, always-clear preserved. Exposed as `pnpm noldor autonomous run --source roadmap|plans`, with `queue-drain` retained as a `--source roadmap` alias. The authoring end of the same pipeline — the `prep` CLI (`noldor prep fanout` drafts specs+plans, `noldor prep promote` produces the in-progress FDs plan-runner consumes) — ships under this FD as the feeder. `--source specs` is reserved for phase 2 (needs an autonomous `writing-plans` step).
@@ -67,3 +68,35 @@ As an operator (human or agent) with a stack of already-designed in-progress FDs
 <!-- @prs-since-last-release: plan-runner -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-10-plan-runner-design.md`](../../docs/superpowers/specs/archive/2026-06-10-plan-runner-design.md)
+- **Code:**
+  - [`src/autonomous/drain-source.ts`](../../src/autonomous/drain-source.ts)
+  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
+  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
+  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`src/prep/prep-fanout.ts`](../../src/prep/prep-fanout.ts)
+  - [`src/prep/prep-promote.ts`](../../src/prep/prep-promote.ts)
+  - [`src/prep/discover.ts`](../../src/prep/discover.ts)
+  - [`src/prep/draft.ts`](../../src/prep/draft.ts)
+  - [`src/prep/scaffold.ts`](../../src/prep/scaffold.ts)
+  - [`src/prep/staging.ts`](../../src/prep/staging.ts)
+  - [`src/prep/index-doc.ts`](../../src/prep/index-doc.ts)
+  - [`src/prep/spawn.ts`](../../src/prep/spawn.ts)
+- **Tests:**
+  - [`src/autonomous/__tests__/drain-source.test.ts`](../../src/autonomous/__tests__/drain-source.test.ts)
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
+  - [`src/prep/__tests__/discover.test.ts`](../../src/prep/__tests__/discover.test.ts)
+  - [`src/prep/__tests__/index-doc.test.ts`](../../src/prep/__tests__/index-doc.test.ts)
+  - [`src/prep/__tests__/prep-promote.test.ts`](../../src/prep/__tests__/prep-promote.test.ts)
+  - [`src/prep/__tests__/scaffold.test.ts`](../../src/prep/__tests__/scaffold.test.ts)
+  - [`src/prep/__tests__/staging.test.ts`](../../src/prep/__tests__/staging.test.ts)
+
+<!-- /generated: resources -->

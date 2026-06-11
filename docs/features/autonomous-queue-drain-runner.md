@@ -21,13 +21,15 @@ links:
     - src/autonomous/__tests__/drain-lock.test.ts
     - src/autonomous/__tests__/drain-state.test.ts
     - src/autonomous/__tests__/queue-drain-cli.test.ts
-  spec: docs/superpowers/specs/2026-06-10-autonomous-queue-drain-runner-design.md
+  spec: >-
+    docs/superpowers/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md
 name: Autonomous Queue-Drain Runner
 packages:
   - scripts
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 An external supervisor that drains the roadmap's fast-track (XS/S) queue autonomously — spawning a fresh `claude --print "/gate --drain <slug>"` per entry, one auto-merged PR at a time, with retry-then-skip, a concurrency lock, and a per-iteration timeout. Each feature runs in a clean context, so always-clear is preserved without a human between features.
@@ -74,3 +76,28 @@ a merged PR (not merely a clean child exit).
 <!-- @prs-since-last-release: autonomous-queue-drain-runner -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md`](../../docs/superpowers/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md)
+- **Code:**
+  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
+  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
+  - [`src/autonomous/drain-eligibility.ts`](../../src/autonomous/drain-eligibility.ts)
+  - [`src/autonomous/drain-lock.ts`](../../src/autonomous/drain-lock.ts)
+  - [`src/autonomous/drain-state.ts`](../../src/autonomous/drain-state.ts)
+  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
+  - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+- **Tests:**
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
+  - [`src/autonomous/__tests__/drain-eligibility.test.ts`](../../src/autonomous/__tests__/drain-eligibility.test.ts)
+  - [`src/autonomous/__tests__/drain-lock.test.ts`](../../src/autonomous/__tests__/drain-lock.test.ts)
+  - [`src/autonomous/__tests__/drain-state.test.ts`](../../src/autonomous/__tests__/drain-state.test.ts)
+  - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
+
+<!-- /generated: resources -->

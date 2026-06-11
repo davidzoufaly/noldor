@@ -16,6 +16,7 @@ packages:
 phase: done
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 `src/release/index.ts` runs `pnpm noldor garden sdd-report --release` and aborts when `docs/sdd-report.md` is dirty. But `sdd:report` is not idempotent: the `Review-skip count (last 30 days)` line increments by 1 per commit on the active branch (each sweep commit lacks `Noldor-Reviewed` and counts as a review-skip). Even when `/release-sweep` step 5.5 pre-emptively commits the regen, the release-time re-run always produces a +1 diff and aborts. Discovered 2026-05-17 during `release-sweep-process-hardening` part 2 plan execution (idempotency verification failed). Two fix candidates: (a) release-script treats "only the review-skip count line changed" as clean and proceeds; (b) `sdd:report` gains a flag to exclude in-flight branch commits from the count. Until shipped, the release operator hits a single sdd:report-driven retry on the first `pnpm release` after sweep PR merge.
@@ -38,3 +39,17 @@ Automatic — no manual step. During `pnpm release`, after `noldor garden sdd-re
 <!-- @prs-since-last-release: release-script-sddreport-skip-if-only-count-line-changed -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`src/release/index.ts`](../../src/release/index.ts)
+  - [`src/release/sdd-report-diff.ts`](../../src/release/sdd-report-diff.ts)
+  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
+  - [`src/garden/sdd-report-format.ts`](../../src/garden/sdd-report-format.ts)
+- **Tests:**
+  - [`src/release/__tests__/sdd-report-diff.test.ts`](../../src/release/__tests__/sdd-report-diff.test.ts)
+
+<!-- /generated: resources -->

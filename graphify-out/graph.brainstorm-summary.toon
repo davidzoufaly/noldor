@@ -1,53 +1,53 @@
 # Domain Knowledge Graph — Summary
-# 1036 nodes, 2318 edges, 52 communities
+# 1250 nodes, 2879 edges, 66 communities
 
 directed: false
 
 ## community index (top 20 by size)
-  c0 (88): consumer-config.ts · loadConsumerConfig() · loadAreaCategories()
-  c1 (82): release-markers.ts · fillNoldorMarker() · fillAllNoldorMarkers()
-  c3 (77): lanes
-  c2 (77): allowlist.ts · isMicroChoreAllowed() · isReleaseSweepAllowed()
-  c4 (62): next-priority.ts · getTopPriorityNext() · formatEntry()
-  c5 (48): release-fd-commits.ts · parseCommitLine() · gitLogShas()
-  c6 (44): pr-flow-cli.ts · pickMostRecentByDatePrefix() · parseCrTrailersFromLog()
-  c7 (43): prsSinceLastTag() · getRepoUrl() · data.ts
-  c8 (36): check-invariants.ts · runAll() · formatResults()
-  c9 (35): write-blocks.ts · scanBlocks() · findBlockBySlug()
-  c11 (34): stage.ts · pathToStage() · stage.test.ts
-  c10 (34): context.ts · buildContext() · diffArgs()
-  c12 (31): views.ts · deriveRepoSlug() · parseMultiParam()
-  c13 (30): validate-features.ts · walkDir() · collectTestFiles()
-  c14 (30): setDocRootsOverride() · loadFeatures() · loadVision()
-  c15 (21): cli.ts · fmtGroup() · usage()
-  c16 (18): check-template-sync.ts · checkTemplateSync() · resolveChangedFiles()
-  c17 (17): graph-to-toon.ts · hyperedgeMembers() · shortenPath()
-  c18 (16): edge-scroll.test.ts · drag.ts · edgeScrollVelocity()
-  c19 (15): lint-plan-snippets.ts · parseOpenFence() · isCloseFence()
+  c0 (92): cross-tree-link-audit.ts · auditCrossTreeLinks() · classify.ts
+  c1 (90): lanes
+  c2 (86): detectors
+  c3 (76): release-markers.ts · fillNoldorMarker() · fillAllNoldorMarkers()
+  c4 (75): draft.ts · buildDraftPrompt() · staging.ts
+  c5 (52): consumer-config.ts · loadConsumerConfig() · loadCategories()
+  c6 (48): rules
+  c7 (44): release-fd-commits.ts · parseCommitLine() · gitLogShas()
+  c8 (39): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
+  c9 (38): context.ts · buildContext() · diffArgs()
+  c10 (36): check-invariants.ts · runAll() · formatResults()
+  c11 (34): rules
+  c12 (33): data.ts · highlight() · getDocRoot()
+  c13 (29): walkTokens() · views.ts · deriveRepoSlug()
+  c14 (27): detectors
+  c15 (27): worktree-conflicts.ts · buildCommunityMap() · communityForFile()
+  c16 (24): detectors
+  c17 (24): getSkillsDir() · parseRoadmapFromString() · parseRoadmap()
+  c18 (21): cli.ts · fmtGroup() · usage()
+  c19 (20): rollout-marker.ts · readRolloutMarker() · isPostRollout()
 
 ## cross-community edges (top 25)
-  pr-flow-cli.ts [c6] --imports_from-- config.ts [c3]
-  pr-flow-cli.ts [c6] --imports-- loadConfig() [c3]
-  pr-flow-cli.ts [c6] --imports_from-- prompt-stdin.ts [c3]
-  pr-flow-cli.ts [c6] --imports-- promptSelect() [c3]
-  runCli() [c6] --calls-- loadConfig() [c3]
-  runCli() [c6] --calls-- promptSelect() [c3]
-  garden-detect.ts [c4] --imports_from-- noldor-cli.ts [c1]
-  garden-detect.ts [c4] --imports-- noldorCliCommand() [c1]
-  loadSddGaps() [c4] --calls-- noldorCliCommand() [c1]
-  override-audit.ts [c4] --imports_from-- trailers.ts [c2]
-  override-audit.ts [c4] --imports-- parseTrailers() [c2]
-  consumer-config.ts [c0] --contains-- loadCategories() [c1]
-  validate-features.ts [c13] --imports_from-- consumer-config.ts [c0]
-  boundaries.ts [c8] --imports_from-- consumer-config.ts [c0]
-  release-packages.ts [c1] --imports_from-- consumer-config.ts [c0]
-  release-notes.ts [c1] --imports_from-- consumer-config.ts [c0]
-  index.ts [c1] --imports_from-- consumer-config.ts [c0]
-  docs-howto.ts [c1] --imports_from-- consumer-config.ts [c0]
-  data.ts [c7] --imports_from-- consumer-config.ts [c0]
-  views.ts [c12] --imports_from-- consumer-config.ts [c0]
-  noldor-validate-trailer.ts [c2] --imports_from-- consumer-config.ts [c0]
-  loadCategories() [c1] --calls-- loadConsumerConfig() [c0]
-  validate-features.ts [c13] --imports-- loadConsumerConfig() [c0]
-  boundaries.ts [c8] --imports-- loadConsumerConfig() [c0]
-  release-packages.ts [c1] --imports-- loadConsumerConfig() [c0]
+  classify-feature-track.ts [c0] --imports_from-- sdd-report.ts [c2]
+  classify-feature-track.ts [c0] --imports-- loadSddFeatures() [c2]
+  main() [c0] --calls-- loadSddFeatures() [c2]
+  scaffold.ts [c4] --imports_from-- consumer-config.ts [c5]
+  discover.ts [c4] --imports_from-- parse-blocks.ts [c0]
+  discover.ts [c4] --imports-- parseRoadmap() [c0]
+  prep-promote.ts [c4] --imports_from-- parse-blocks.ts [c0]
+  prep-promote.ts [c4] --imports-- parseRoadmap() [c0]
+  prep-promote.ts [c4] --imports_from-- write-blocks.ts [c20]
+  prep-promote.ts [c4] --imports-- removeBlock() [c20]
+  promoteOne() [c4] --calls-- removeBlock() [c20]
+  pr-flow-cli.ts [c6] --imports_from-- config.ts [c1]
+  pr-flow-cli.ts [c6] --imports-- loadConfig() [c1]
+  pr-flow-cli.ts [c6] --imports_from-- prompt-stdin.ts [c1]
+  pr-flow-cli.ts [c6] --imports-- promptSelect() [c1]
+  runCli() [c6] --calls-- loadConfig() [c1]
+  runCli() [c6] --calls-- promptSelect() [c1]
+  release-cr-gate.ts [c3] --imports_from-- allowlist.ts [c16]
+  noldor-pre-commit.ts [c19] --imports_from-- allowlist.ts [c16]
+  release-cr-gate.ts [c3] --imports-- isMicroChoreAllowed() [c16]
+  noldor-pre-commit.ts [c19] --imports-- isMicroChoreAllowed() [c16]
+  checkCrGate() [c3] --calls-- isMicroChoreAllowed() [c16]
+  runPreCommit() [c19] --calls-- isMicroChoreAllowed() [c16]
+  noldor-pre-commit.ts [c19] --imports-- isReleaseSweepAllowed() [c16]
+  runPreCommit() [c19] --calls-- isReleaseSweepAllowed() [c16]
