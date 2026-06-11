@@ -163,3 +163,11 @@ When delegating to a subagent (Agent tool), include this line in the prompt:
 > Follow engineering principles in `docs/noldor/engineering-principles.md` and project overlays in `.claude/engineering-rules.md`.
 
 Subagents don't auto-load CLAUDE.md, so the parent must reference the files explicitly.
+
+### Implementer scope-guard
+
+When dispatching an implementer subagent to execute a plan task (e.g. `superpowers:subagent-driven-development`), append this template to the implementer prompt verbatim:
+
+> ONLY edit the files listed in the task's Files: section. If a hook forces unrelated edits — formatter drift, report regen, `stage_fixed` auto-fixes — stop and report `DONE_WITH_CONCERNS` instead of bundling them into your commit. Forced edits land in a separate, explicitly-labeled cleanup commit so each task commit maps 1:1 to its task scope in `git log`.
+
+The guard exists because lefthook `stage_fixed` jobs silently stage auto-fixes for files the task never touched, blurring per-task commit scope.
