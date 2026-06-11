@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Skill Catalog
 
-Noldor ships 9 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
+Noldor ships 10 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
 
 > **Strict drift gate.** `pnpm noldor validate skill-catalog` (pre-commit, see [`garden-and-drift.md`](garden-and-drift.md) Detector 16) asserts that every `## /<slug>` heading on this page maps to a `<slug>.md` (or `<slug>/SKILL.md`) under `.claude/skills/`, and vice versa. Add or rename a skill → update this page in the same commit, or pre-commit blocks.
 
@@ -57,6 +57,14 @@ Noldor ships 9 user-invocable skills, each owned by a single concern. This page 
 - **Inputs:** `slug` (kebab-case), `name` (human-readable), `area`, `category` (one of `consumer.categories`), `packages` (array, non-empty), `deps` (optional).
 - **Outputs:** `docs/features/<slug>.md` scaffolded with `phase: in-progress` and `<!-- TODO -->` body stubs; `pnpm noldor validate features` run to confirm schema. Never commits.
 - **When to use:** starting work on a feature that is not in `docs/roadmap.md` or `docs/backlog.md` — urgent work, matured spike, or bug-fix-became-feature. For promoting a backlog/roadmap entry, use `/promote` instead.
+
+## /noldor-spec
+
+- **Trigger:** `/noldor-spec <slug>`, or the gate's spec stage on every `specs-only-*` / `full-*` path.
+- **Inputs:** kebab-case slug; roadmap entry / FD body for grounding; `docs/vision.md`; the real code the idea touches; the format contract via `pnpm noldor prep format spec`.
+- **Outputs:** self-reviewed spec at `docs/superpowers/specs/YYYY-MM-DD-<slug>-design.md` (attach naming: `<parent>-<enhancement>`); reports the path and stops — `/gate` Step 2.5 owns commit + CR. Never commits.
+- **When to use:** the spec stage of any gated feature, or standalone design exploration. Vendored replacement for the third-party brainstorming flow — no plugin required.
+
 
 ## /refactor
 
