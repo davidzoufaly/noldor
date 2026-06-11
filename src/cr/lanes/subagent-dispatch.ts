@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { spawnAgent } from '../../core/agent-runner/registry.js';
 
 export interface DispatchInput {
   artifact: string;
@@ -9,14 +9,16 @@ export interface DispatchInput {
 }
 
 /**
- * Default impl: shells to `claude` in non-interactive mode (`-p`). Works
- * from any agent harness (gate skill, bare CLI, CI runner). The skill
+ * Default impl: spawns a headless reviewer-role agent via the agent-runner
+ * registry (claude unless the consumer's agents config remaps the role).
+ * Works from any agent harness (gate skill, bare CLI, CI runner). The skill
  * layer may inject a Task-tool-based dispatcher via `setDispatcher()` for
  * finer control, but the default is self-sufficient.
  *
- * The prompt instructs claude to act as a senior code reviewer against
+ * The prompt instructs the agent to act as a senior code reviewer against
  * the artifact path; output must match the Strengths/Issues/Assessment
- * markdown contract parsed by `parseSubagentMarkdown` in `subagent.ts`.
+ * markdown contract parsed by `parseSubagentMarkdown` in `subagent.ts` —
+ * prose-grade output, so every runner qualifies.
  */
 function buildPrompt(input: DispatchInput): string {
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
@@ -47,18 +49,19 @@ Leave a bucket's bullet list empty (no bullets) when there are no items at that 
 
 type Dispatcher = (input: DispatchInput) => Promise<string>;
 
-let dispatcher: Dispatcher = (input) =>
-  new Promise<string>((resolveP, rejectP) => {
-    execFile(
-      'claude',
-      ['-p', buildPrompt(input), '--dangerously-skip-permissions'],
-      { timeout: 600_000, maxBuffer: 10 * 1024 * 1024 },
-      (err, stdout) => {
-        if (err) rejectP(err);
-        else resolveP(stdout);
-      },
-    );
+let dispatcher: Dispatcher = async (input) => {
+  const r = await spawnAgent(buildPrompt(input), {
+    role: 'reviewer',
+    timeoutMs: 600_000,
+    site: 'cr.subagent-dispatch',
   });
+  if (r.timedOut || r.exitCode !== 0) {
+    throw new Error(
+      `subagent dispatch failed: exit ${r.exitCode}${r.timedOut ? ' (timeout)' : ''}`,
+    );
+  }
+  return r.stdout;
+};
 
 /**
  * Skill-layer injection point. Gate skill calls this once at Step 2.5 entry
