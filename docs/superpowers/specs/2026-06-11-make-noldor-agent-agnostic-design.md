@@ -73,10 +73,14 @@ export interface RunnerCapabilities {
 
 export interface SpawnAgentOpts {
   role: AgentRole;
+  runner?: RunnerName;               // pin a runner, bypassing role resolution (codex CR lane)
   cwd?: string;
   env?: Record<string, string>;
   timeoutMs?: number;
-  stdio?: 'pipe' | 'inherit';        // default 'pipe'
+  stdio?: 'pipe' | 'inherit';        // OUTPUT handling only (stdout/stderr); default 'pipe'.
+                                     // stdin is always owned by the runner's prompt-delivery
+                                     // channel: argv-runners → 'ignore', stdin-runners → 'pipe'
+                                     // (prompt written then closed) — so 'inherit' + codex still works.
   schemaPath?: string;               // requires a schema-grade runner (codex)
   needsWrite?: boolean;              // drives codex sandbox mode + opencode permissions
   site?: string;                     // caller tag for agent-events, e.g. 'drain.spawnGate'
@@ -138,7 +142,7 @@ Zod schema in `src/core/agent-runner/types.ts`, wired `.optional()` into `noldor
 - **`prep/spawn.ts` `spawnClaude`** → thin wrapper over `spawnAgent(prompt, { role: 'implementer', … , stdio: 'pipe' })`, renamed `spawnAgent` re-export retired gradually; `runWithConcurrency` unchanged.
 - **`subagent-dispatch.ts`** default dispatcher → `spawnAgent(buildPrompt(input), { role: 'reviewer', timeoutMs: 600_000 })`. Markdown Strengths/Issues contract unchanged (prose-grade, all runners qualify). `setDispatcher()` injection seam stays for the gate skill and tests.
 - **`llm-polish-summary.ts` `runClaudePolish`** → `runPolish` via `spawnAgent(prompt, { role: 'polish', timeoutMs: 60_000 })`. Deterministic fallback + `NOLDOR_NO_LLM` short-circuit unchanged.
-- **`run-codex.ts`** — keeps `CrRecord` parsing, prompt formatting, and the `Spawn` injection type for tests; the *default* spawn impl moves to the codex runner module (`schemaPath: cr-record.schema.json`, role `'second-opinion'`, `needsWrite: false` → `read-only` sandbox). Behavior identical when `agents:` absent.
+- **`run-codex.ts`** — keeps `CrRecord` parsing, prompt formatting, and the `Spawn` injection type for tests; the *default* spawn impl moves to the codex runner module via `spawnAgent(prompt, { role: 'second-opinion', runner: 'codex', schemaPath: cr-record.schema.json, needsWrite: false })`. The **`runner: 'codex'` pin** is load-bearing: the `crLanes` `codex` lane is codex *by name*, so it bypasses role resolution entirely — a consumer mapping `second-opinion → opencode` re-routes other second-opinion spawns but can never push a `schemaPath` onto a non-schema runner here. Behavior identical when `agents:` absent.
 - **`standalone.ts`** — `laneSchema` keeps the `'standalone'` enum value (existing `.noldor/cr/*-standalone.json` sinks must still parse), but orchestrate's runnable-lane set excludes it (attempting `--lanes standalone` → clear error naming the escalate path). The osascript spawn + `claudeSupportsMaxThinking` probe move to `src/cr/deep-review-spawn.ts`, consumed only by `src/cr/escalate.ts`; its interactive command string is composed from the claude runner's binary name + permission flag so the coupling is single-sourced. macOS/iTerm requirement documented in `agent-runtimes.md`.
 
 ### Unit 5 — agent-events writer
@@ -260,3 +264,7 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
    -> Becomes guidance prose in `agent-runtimes.md` (rollout order: polish → CR lanes → implementer). The telemetry gating itself already lives in the `outcome-telemetry-and-effectiveness-metrics` entry; no residue entry needed.
 10. *(D10) Where does the `agents:` zod schema live — `src/cr/config.ts` hosts `noldorConfigSchema` today?*
     -> Schema defined in `src/core/agent-runner/types.ts`, imported into `noldorConfigSchema` in `src/cr/config.ts`. Keeps runner types self-contained; avoids a config-module reshuffle in this slice.
+11. *(D11) Can role-config remaps break spawns that require schema-grade output?*
+    -> No: such call sites pin `runner: 'codex'` (bypassing role resolution — see the run-codex refit). The capability-mismatch throw remains as a defensive backstop for future unpinned `schemaPath` callers.
+12. *(D12) How does `stdio: 'inherit'` coexist with codex's stdin prompt delivery?*
+    -> `stdio` governs stdout/stderr only; stdin is always owned by the runner's prompt-delivery channel (argv-runners `ignore`, stdin-runners `pipe` + write + close). `inherit` + codex therefore streams output live while the prompt still arrives.
