@@ -28,8 +28,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.3.0
 ---
-
 ## Summary
 
 An external supervisor that drains the roadmap's fast-track (XS/S) queue autonomously — spawning a fresh `claude --print "/gate --drain <slug>"` per entry, one auto-merged PR at a time, with retry-then-skip, a concurrency lock, and a per-iteration timeout. Each feature runs in a clean context, so always-clear is preserved without a human between features.

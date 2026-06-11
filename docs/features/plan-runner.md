@@ -34,8 +34,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.3.0
 ---
-
 ## Summary
 
 The execution end of the autonomous-design pipeline. Generalizes the shipped queue-drain supervisor with an injected `DrainSource` seam (`src/autonomous/drain-source.ts`) so the loop is source-agnostic: `roadmapSource` reproduces queue-drain byte-for-byte (fast-track XS/S roadmap entries), while the new `plansSource` drains already-designed in-progress FDs (spec **and** plan committed) — taking on the M/L/XL work queue-drain refuses, one auto-merged `feat/<slug>` PR at a time, always-clear preserved. Exposed as `pnpm noldor autonomous run --source roadmap|plans`, with `queue-drain` retained as a `--source roadmap` alias. The authoring end of the same pipeline — the `prep` CLI (`noldor prep fanout` drafts specs+plans, `noldor prep promote` produces the in-progress FDs plan-runner consumes) — ships under this FD as the feeder. `--source specs` is reserved for phase 2 (needs an autonomous `writing-plans` step).
@@ -68,6 +68,18 @@ As an operator (human or agent) with a stack of already-designed in-progress FDs
 <!-- @prs-since-last-release: plan-runner -->
 
 ## Changelog
+
+### Initial Release (v0.3.0)
+
+#### Summary
+
+Release-notes prose (write normal — doc artifact):
+
+This release adds a parallel prep pipeline to the noldor CLI, introducing fanout drafts together with a promote bridge (#30).
+
+#### PRs
+
+- #30: parallel prep pipeline — fanout drafts + promote bridge as noldor CLI ([link](https://github.com/davidzoufaly/noldor/pull/30))
 
 <!-- generated: resources -->
 
