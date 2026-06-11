@@ -175,17 +175,6 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 `/hot-zones?format=json` returning the `HotZoneRow[]` array as `application/json`. Lets agents skip HTML parsing. Trigger when an agent workflow actually wants the data programmatically.
 
-#### Sort Features by Last-Updated (Git)
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: XS
-- impact: low
-- parent: project-tracking-dashboard
-
-Add a "last updated" sort option to the dashboard's `/features` listing, sourced from `git log -1 --format=%cI -- docs/features/<slug>.md`. Today the list is alphabetical or by phase. A recency sort surfaces the actively-edited FDs and de-emphasizes stale ones. Trigger: when the FD count grows large enough that "what changed recently" stops being obvious from the alphabetical list.
-
 #### Extract requireFreshGraph helper
 
 - area: tooling
