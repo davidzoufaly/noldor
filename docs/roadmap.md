@@ -186,33 +186,6 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 Add a "last updated" sort option to the dashboard's `/features` listing, sourced from `git log -1 --format=%cI -- docs/features/<slug>.md`. Today the list is alphabetical or by phase. A recency sort surfaces the actively-edited FDs and de-emphasizes stale ones. Trigger: when the FD count grows large enough that "what changed recently" stops being obvious from the alphabetical list.
 
-#### SDD Graphify-Lift Audit (theoretical substrate scan)
-
-- area: tooling
-- type: docs
-- since: 2026-05-07
-- size: XS
-- impact: low
-
-Reference table — which of the 12 pre-existing SDD detectors gain real signal from graphify data, ordered by lift strength (the 13th, co-tag, has shipped). Used to decide which detectors to fold into the graphify-augmented family beyond the initial 13th.
-
-| #   | Detector                           | Lift       | Augmentation                                                                                           |
-| --- | ---------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ |
-| 1   | Done features without tests        | Weak       | Per-FD coverage % from import edges; sharper than "tests array empty".                                 |
-| 2   | Done features without docs         | Medium     | Community-based doc co-tag suggestion.                                                                 |
-| 3   | Features without spec              | None       | Pure metadata.                                                                                         |
-| 4   | Done features missing `introduced` | None       | Pure metadata.                                                                                         |
-| 5   | Untriaged ideas                    | **Strong** | Semantic-similarity match idea text vs FD names → propose auto-`merge:<slug>` for `/triage`.           |
-| 6   | Stale backlog                      | None       | Pure age check.                                                                                        |
-| 7   | Specs without FD reference         | Medium     | Spec content vs FD community match.                                                                    |
-| 8   | Plans without matching spec        | None       | Pure filename match.                                                                                   |
-| 9   | Code orphans                       | **Strong** | Suggest probable owner FD via file's community membership (instead of just listing as orphan).         |
-| 10  | Untagged tests                     | **Strong** | Auto-suggest `@tests:` slug from imports + `links.code`. Same engine as 13th, runs on absent-tag case. |
-| 11  | Untagged docs                      | Medium     | Community-driven `@feature:` slug suggestion.                                                          |
-| 12  | README package drift               | None       | Pure FS check.                                                                                         |
-
-Strong-lift family: 9, 10, 13. Same "path → FD" substrate, same staleness gate. Standalone strong-lift: 5 (idea-merge suggestions, touches `/triage`). Medium-lift candidates (2, 7, 11) only worth chasing if false-negatives accumulate.
-
 #### Stand-Alone Worktree Conflict Pre-Flight
 
 - area: tooling

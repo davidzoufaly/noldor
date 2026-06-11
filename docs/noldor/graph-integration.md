@@ -79,6 +79,36 @@ Used by:
 - Detector 10 (untagged-test slug suggestion) when it ships — see
   [`../backlog.md`](../backlog.md) "SDD Detector 10".
 
+## Lift audit — which detectors gain graph signal
+
+Reference table for deciding which of the 12 pre-existing SDD detectors
+to fold into the graphify-augmented family beyond the initial 13th
+(co-tag, shipped). Detector numbering and names match the
+[`garden-and-drift.md`](garden-and-drift.md) detector table; detectors
+14–19 postdate this audit and are metadata/audit checks with no graph
+consumption.
+
+| #   | Detector                           | Lift       | Augmentation                                                                                           |
+| --- | ---------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ |
+| 1   | Done features without tests        | Weak       | Per-FD coverage % from import edges; sharper than "tests array empty".                                 |
+| 2   | Done features without docs         | Medium     | Community-based doc co-tag suggestion.                                                                 |
+| 3   | Features without spec              | None       | Pure metadata.                                                                                         |
+| 4   | Done features missing `introduced` | None       | Pure metadata.                                                                                         |
+| 5   | Untriaged ideas                    | **Strong** | Semantic-similarity match idea text vs FD names → propose auto-`merge:<slug>` for `/triage`.           |
+| 6   | Stale backlog entries              | None       | Pure age check.                                                                                        |
+| 7   | Spec files not referenced          | Medium     | Spec content vs FD community match.                                                                    |
+| 8   | Plan files without matching spec   | None       | Pure filename match.                                                                                   |
+| 9   | Code files not referenced          | **Strong** | Suggest probable owner FD via file's community membership (instead of just listing as orphan).         |
+| 10  | Tests without `@tests:` tag        | **Strong** | Auto-suggest `@tests:` slug from imports + `links.code`. Same engine as 13th, runs on absent-tag case. |
+| 11  | Tutorials without `@feature:` tag  | Medium     | Community-driven `@feature:` slug suggestion.                                                          |
+| 12  | README architecture drift          | None       | Pure FS check.                                                                                         |
+
+Strong-lift family: 9, 10, 13 — same "path → FD" substrate (see
+[graph-fd-lookup](#graph-fd-lookup-substrate) above), same staleness
+gate. Standalone strong-lift: 5 (idea-merge suggestions, touches
+`/triage`). Medium-lift candidates (2, 7, 11) only worth chasing if
+false-negatives accumulate.
+
 ## Staleness gate — graph older than latest source commit
 
 Detectors that consume `graph.json` check its mtime against the largest
