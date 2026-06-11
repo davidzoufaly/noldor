@@ -12,6 +12,176 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Noldor Framework
 
+#### Make Noldor Agent-Agnostic
+
+- area: tooling
+- type: refactor
+- since: 2026-05-10
+- size: XL
+- impact: med
+- parent: noldor
+
+Noldor today assumes Claude Code as the operating agent (skill names, hook patterns, transcript layout). Lift the assumptions so Codex, Gemini, or other agents can drive the same framework with equivalent gates. Concrete asks: (1) abstract skill invocation (`Skill` tool vs `activate_skill` vs raw markdown read), (2) abstract hook triggers (the `lefthook` pre-commit chain works for all, but the auto-gate behavior is Claude-only), (3) document the agent-equivalence matrix in `docs/noldor/`. Trigger: when a second agent adopts Noldor in earnest (today's automated-cr-pipeline already runs Codex as a reviewer; controller is still Claude).
+
+- triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
+
+#### Continuous Drain Daemon and Escalation Inbox
+
+- area: tooling
+- type: feat
+- since: 2026-06-11
+- size: XL
+- impact: high
+- deps: agent-events-log-and-agents-dashboard-page, acceptance-verify-lane
+- parent: noldor
+
+Every autonomous stage is one-shot and operator-fired: someone types `noldor autonomous run`, watches (or returns later), handles failures by reading logs, salvages stale bases by hand from a memory recipe. The vision sentence — agents ship unsupervised — currently means "unsupervised per invocation". Make autonomy *continuous*: a long-running (or cron-fired) mode that keeps draining the queue, repairs its own known failure modes, and escalates the rest to a structured inbox instead of dying or blocking.
+
+**What to do:**
+
+- `noldor autonomous watch` mode: wraps the existing drain loop (`src/autonomous/drain-loop.ts`) in a scheduler — `--interval <min>` polling or long-lived daemon; each cycle: refresh main, re-read queue, run a bounded drain (`--max-features` per cycle), sleep. Reuses `drain.lock` semantics; a second watcher refuses to start.
+- Auto-salvage: codify the stale-base recipe as code, not operator lore — detect on pickup: existing `fast/<slug>` branch whose base is behind main, or a closed-unmerged PR for the slug → rebuild worktree from fresh main, **re-apply** the change (not cherry-pick), retire stale branch + remote; emit `salvaged` event. The 2026-06-10/11 drain runs proved the recipe manually (PR #49→#55 case); this entry mechanizes it.
+- Escalation inbox: when an item exhausts retries, hits a verify/CR blocking fail with `onFailure` not resolvable headlessly, or trips an unknown git state → write `.noldor/escalations.jsonl` (`{ ts, slug, reason, evidence, state-snapshot, suggested-action }`), mark the item parked (skip-list with reason), **continue with the next item** — park-and-continue replaces today's abort-or-prompt at the loop level. Dashboard inbox page (or `/agents` tab): open escalations with one-glance reason + evidence, operator resolves → unpark (`noldor autonomous unpark <slug>`).
+- Notification: pluggable notify hook on escalation + cycle summary (shipped/parked counts) — shell command in consumer config (`autonomous.notifyCommand`), so Slack/push/mail is the consumer's one-liner, not framework scope.
+- Safety rails, all consumer-config with conservative defaults: `maxFeaturesPerDay`, `maxConsecutiveFailures` (trip → pause whole watcher + escalate), wall-clock cap per item, `pause` switch (file-based `.noldor/drain.pause` honored mid-cycle), budget cap hook if token accounting exists by then. A paused or tripped watcher is loud — notify + dashboard banner, never silent.
+- Run placement: local daemon first (operator's machine, simplest trust model); CI-cron variant documented as a follow-up once contract-CI exists (needs secrets + checkout strategy decisions).
+
+**What it enables:** the vision claim made literal — queue drains continuously, operator's job collapses to feeding triage and clearing an inbox; combined with verify-lane + telemetry, "unsupervised" becomes defensible: continuously shipped, independently verified, measurably tracked.
+
+**Open questions:** daemon vs cron-fired (lean: same code, `--once` flag makes cron trivial); interaction with release cadence (auto-release-candidate after N ships? — explicitly out of scope v1, release stays operator-fired); multi-repo watchers later (one per consumer, no coordination v1); how `watch` coexists with an operator working in the same repo (lock + pause conventions probably suffice — document).
+
+**Touches:** `src/autonomous/` (watch loop, salvage module, escalations, unpark), `src/core/consumer-config.ts` (`autonomous.*` rails), `src/dashboard/` (inbox surface), `src/cli/manifest.ts`, `docs/noldor/cr-pipeline.md` + new `docs/noldor/autonomy.md`, `script-catalog.md`.
+
+**Acceptance sketch:** seed queue with 3 entries incl. one engineered stale-base and one destined-to-fail → `noldor autonomous watch --interval 5 --max-features 1`: two ship across cycles (one via auto-salvage, `salvaged` event present), one lands in escalations with evidence and the watcher keeps running; `drain.pause` halts next cycle; notify hook fired on the escalation.
+
+#### Outcome Telemetry and Effectiveness Metrics
+
+- area: tooling
+- type: feat
+- since: 2026-06-11
+- size: L
+- impact: high
+- deps: agent-events-log-and-agents-dashboard-page
+- parent: noldor
+
+The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
+
+**What to do:**
+
+- Metric set v1, each derived reproducibly from repo history + `.noldor/` artifacts:
+  - **Cycle time** — `since:` (roadmap intake) → `introduced:` (release) per FD; segmented by path (`Noldor-Path:` trailer) and by autonomous vs operator-driven.
+  - **Size-routing accuracy** — `sizeToPath()` suggestion vs actual: diff stats + path taken per shipped entry; surfaces systematic over/under-sizing at triage.
+  - **CR effectiveness** — findings per lane (from `.noldor/cr/` artifacts) vs post-merge corrective commits (`fix:` touching same FD within N days) and reverts; approximates catch-rate vs noise.
+  - **Drain reliability** — per-run: shipped / skipped / retried / escalated / salvaged counts, retry distribution, mean time per feature (from agent-events).
+  - **Override pressure** — trailer-override usage by detector over time (extends the existing override-audit data); rising overrides = a gate that fights the team.
+  - **Token cost per feature** — if obtainable from agent transcripts/logs; explicitly optional v1, schema reserves the field.
+- `noldor metrics compute` CLI: scans history, emits `metrics.json` (derive-on-demand; no persistent aggregate store in v1 — git is the store, computation is the cache).
+- Dashboard `/metrics` page: headline cards (median cycle time, autonomous-ship share, drain success rate), per-path breakdown table, trend over releases. Reuses the `/agents` data plumbing.
+- Release integration: `sdd-report.md` gains a metrics section per release cut, so every release answers "is the framework getting faster/safer or just heavier".
+- Honesty rails: every metric documents its derivation + known blind spots in `docs/noldor/` (e.g. CR catch-rate is an approximation); no metric without a documented formula — this framework audits itself, the metrics must be auditable too.
+
+**What it enables:** gate tuning with data (e.g. "fast-track reverts ≈ full-path reverts → loosen routing"); a testable version of the vision claim "agents ship production-quality changes unsupervised"; the adoption pitch for other projects becomes numbers ("N features, X% fully autonomous, median 2 days intake→release") instead of assertion.
+
+**Open questions:** token-cost source (Claude Code transcript JSONL? drain could record usage per spawn into agent-events); how far back to backfill (pre-event-log history supports cycle-time + routing metrics only — fine, label it); metric stability across the consumer/self-host split (compute per-repo, never blended).
+
+**Touches:** new `src/metrics/`, `src/cli/manifest.ts`, `src/dashboard/` (route + view), `src/garden/sdd-report` integration, `docs/noldor/` new page `metrics.md`, `script-catalog.md`.
+
+**Acceptance sketch:** `noldor metrics compute` on this repo emits cycle-time for every `introduced:` FD + routing-accuracy table for the last 10 shipped entries; `/metrics` renders headline cards; sdd-report section appears at next release.
+
+#### Multi-Runner Agent Runtime (Claude Code, Codex, opencode)
+
+- area: tooling
+- type: feat
+- since: 2026-06-11
+- size: L
+- impact: high
+- deps: de-superpowers-vendor-spec-plan-and-worktree-flows
+- parent: noldor
+
+Decision (2026-06-11): Noldor supports **three agent runtimes as simultaneous first-class peers — Claude Code, Codex, opencode**. Not a migration off Claude; a registry where every spawn site resolves a runner per role, and a consumer (or a single repo, per role) can mix all three. Codex already proves the seam works: `src/cr/run-codex.ts` spawns `codex exec --sandbox --output-schema` headless today — but only inside the CR lane; it graduates to a general runner. opencode brings the multi-provider layer (anthropic / openai / ollama / openrouter via `opencode.json`), so local models come free through it. Today the Claude CLI is hard-coded at five spawn sites with Claude-specific flags; Codex is welded into one lane.
+
+**Flag mapping** (opencode verified against opencode.ai docs 2026-06-11; Codex column proven in-repo by `run-codex.ts`):
+
+| Noldor need | Claude Code | Codex | opencode |
+| --- | --- | --- | --- |
+| headless spawn | `claude --print "<prompt>"` | `codex exec "<prompt>"` | `opencode run "<prompt>"` |
+| auto-permissions | `--permission-mode bypassPermissions` | `--sandbox workspace-write` + never-ask approval policy (read-only sandbox for review roles) | `--dangerously-skip-permissions` (still respects explicit `deny`) or `permission: "allow"` |
+| no-questions kill-switch | `--disallowed-tools AskUserQuestion` | non-interactive by design (`exec` + approval policy) | `permission.question: "deny"` |
+| model / role selection | session model | `--model` / `config.toml` | `--model <provider/model>` + `--agent <name>` |
+| structured output | parse stdout prose | `--output-schema <json-schema>` (strongest — already used by CR lane) | `--format json` (raw event stream) |
+| rules file | `CLAUDE.md` | `AGENTS.md` (native) | `AGENTS.md` |
+| guards / hooks | Claude hooks + `src/hooks/` pre-edit guards | sandbox modes (coarse: read-only / workspace-write) | plugins (JS event hooks) + granular glob permission rules |
+| local models | no | no | yes (ollama et al.) |
+
+**What to do:**
+
+- Runner registry: `src/core/agent-runner.ts` — `spawnAgent(prompt, { role, cwd, env, timeoutMs })` resolving role → runner config → argv shape, with three built-in runners: `claude`, `codex`, `opencode`. Extract the Codex argv shape out of `src/cr/run-codex.ts` into the codex runner module (CR lane becomes a consumer of the registry, not the owner of the spawn). Refit the Claude-welded sites: `src/autonomous/drain-io.ts` `spawnGate`, `src/prep/spawn.ts` `spawnClaude`, `src/cr/lanes/subagent-dispatch.ts`, `src/release/llm-polish-summary.ts`. Drop or rewrite `src/cr/lanes/standalone.ts` (osascript + Claude double-coupled; headless lanes cover the need). Timeout backstop stays universal. PR-#33 rule holds for all three: directives ride the prompt, never env/flags.
+- Capability matrix as code + doc: runners differ (structured output strength, sandbox granularity, local-model support, question-suppression mechanism). Encode per-runner capabilities in the registry (`supportsLocalModels`, `structuredOutput: schema | events | prose`, `sandbox: fine | coarse | none`) so role-resolution can validate fit (e.g. a role requiring `--output-schema`-grade output refuses a prose-only runner); publish the same matrix as `docs/noldor/agent-runtimes.md` — this fulfills ask (3) of the existing `make-noldor-agent-agnostic` roadmap entry.
+- Config: `.noldor/config.json` `agents:` block — `{ "default": "claude", "roles": { "implementer": { "runner": "claude" }, "reviewer": { "runner": "codex" }, "second-opinion": { "runner": "opencode", "model": "ollama/<local>" }, "polish": { "runner": "opencode", "model": "ollama/<small>" } } }`. Every spawn site declares its role; resolution falls back to `default`. All fields optional — absent block ≡ today's behavior (claude everywhere, codex where `crLanes` says so).
+- Mixed-fleet rollout by risk tier: `polish` first (pure text, no tools — cheapest local win), then CR lanes (already multi-runner in spirit — generalize `crLanes` vocabulary from hardcoded `subagent`/`codex` lane names to role refs), implementer **last** and per-runner: telemetry (ship/retry/revert rates from outcome-telemetry, segmented by runner) decides which runners graduate to implementer duty.
+- Guards per runner: opencode → generated glob permission blocks in the worktree's `opencode.json` (shared-files guard → `edit: { "docs/roadmap.md": "deny" }`); Codex → sandbox mode per role (read-only for reviewers, workspace-write for implementers); Claude → existing `src/hooks/` guards. Hard floor for all three stays lefthook git hooks (trailer inject/validate, pre-commit session-marker check) — agent-neutral by construction, the only layer that *must* hold.
+- Interactive plane: per-driver shims from one source — Claude `.claude/skills/`, opencode `.opencode/command/*.md` + agent definitions, Codex `AGENTS.md` + custom prompts. Direction stays **fat CLI, thin skills** — every flow step that moves into a `noldor` subcommand is written once and shimmed three times trivially. `noldor init` gains `--agents claude,codex,opencode` target selection (writes the chosen shim sets + `AGENTS.md`/`opencode.json`/`CLAUDE.md` overlays from one template source).
+- Events: opencode `--format json` and codex `--output-schema` map into `agent-events.jsonl` richer than Claude stdout scraping — wire through the agent-events writer; runner field on every event enables the per-runner telemetry cut.
+- Pin + verify: all three CLIs move fast — record validated version floors per runner in consumer config; `doctor` checks presence + version for each *configured* runner only (extends stack-assumption-audit prerequisites matrix).
+
+**What it enables:** consumer picks their driver — or mixes: Claude implements, Codex reviews, local-model-via-opencode polishes; local models (the original ask) via the opencode runner; per-role model economics; no single-vendor dependency for the framework's autonomy story; three concurrent runners keep the seam honest — Claude-coupling can't silently regrow when CI exercises all three.
+
+**Open questions:** opencode skills/commands semantics vs Claude Skill tool (model-invoked skill parity needs verification on current opencode version); Codex custom-prompt surface as skill-shim target vs AGENTS.md-only (verify against current codex CLI); whether drain implementers use named agent definitions with scoped permissions instead of broad bypass flags (lean yes where the runner supports it — opencode `--agent`, codex sandbox; Claude lacks the granular equivalent); session continuity for retry flows (`--session`/`--continue` on opencode, `codex exec resume` — could replace fresh-spawn retries; defer).
+
+**Touches:** new `src/core/agent-runner.ts` + per-runner modules, `src/cr/run-codex.ts` (extract spawn), `src/autonomous/drain-io.ts`, `src/prep/spawn.ts`, `src/cr/lanes/subagent-dispatch.ts` + `standalone.ts`, `src/release/llm-polish-summary.ts`, `src/core/consumer-config.ts` (`agents:` block), `src/cli/commands/init.ts` (multi-target), templates (shim sets, `opencode.json`, `AGENTS.md`), new `docs/noldor/agent-runtimes.md`, `docs/noldor/{cr-pipeline,adoption-guide}.md`, doctor checks.
+
+**Acceptance sketch:** fixture consumer configured `implementer: claude`, `reviewer: codex`, `polish: opencode+ollama` → drain ships a seeded XS entry using all three runners in one pass, agent-events carries a `runner` field per spawn; swapping `implementer` to `opencode` ships the same entry with no code change; `grep -rn "spawn('claude'\|execFileP('claude'\|'codex'" src` → hits only inside `src/core/agent-runner/` runner modules.
+
+#### Acceptance-Verify Lane
+
+- area: tooling
+- type: feat
+- since: 2026-06-11
+- size: L
+- impact: high
+- parent: noldor
+
+Autonomous paths merge on tests + CR. Both have a structural blind spot: the implementer agent writes the code *and* the tests, so a misunderstood requirement produces tests that assert the misunderstanding — green suite, wrong feature. CR reads diffs and can ratify the same error. Nobody runs the artifact and checks it against what the FD/entry actually promised. Add a `verify` lane: an independent agent that boots the real artifact and judges the shipped behavior against the acceptance text.
+
+**What to do:**
+
+- Lane plumbing: extend the `crLanes` config vocabulary with a `verify` lane kind for `code` artifacts (`"code": ["subagent", "verify"]`), riding the existing lane-runner machinery in `src/cr/` — same verdict-artifact pattern into `.noldor/cr/`, same orchestrate consumption, so the drain merge gate gets it for free.
+- Verify agent contract: input = FD acceptance criteria / Usage section (or the roadmap-entry prose for FD-less fast-tracks) + the diff + boot instructions; it must (1) start the artifact, (2) exercise the *specific new behavior* through the real interface — CLI invocation, HTTP request, file output — never by reading the code, (3) compare observed vs promised, (4) emit verdict `{ pass | fail | cannot-verify, evidence: [command + observed output], mismatches: [] }`. `cannot-verify` is an honest first-class outcome (no boot path, behavior needs external services) and routes to advisory, not silent pass.
+- Boot knowledge: new consumer-config block `verifyCommands` — named run surfaces (`{ "dashboard": "pnpm noldor dashboard server --port {port}", "cli": "pnpm noldor {args}" }`) + health-check hints. Self-host config seeds dashboard + CLI entries.
+- Smoke floor (sub-item, ships first): a fixed, feature-agnostic pre-merge check for autonomous paths — `noldor doctor` + boot each `verifyCommands` surface + HTTP 200/exit-0 probe. Catches "build broken / server 500s" for S-effort before the per-FD lane lands.
+- Policy: blocking vs advisory per consumer (`autonomous.verifyMode: "blocking" | "advisory"`, default advisory for one bake-in release, then flip self-host to blocking); `fail` on blocking → same flow as CR fail (`onFailure`: prompt / spawn-deep-review / abort).
+- Sandboxing + hygiene: verify runs in the feature worktree on a per-tree port (worktree-discipline port convention already exists); must clean up spawned processes; wall-clock cap per verify.
+
+**What it enables:** breaks the implementer self-confirming-test loop — the riskiest failure mode of unsupervised shipping; concrete catches of the PR-#53/#55 class ("does `/hot-zones?format=json` return the promised shape on a real server", "is `/features` actually ordered by commit date"), not just fixture assertions; raises the trust ceiling enough to make the [continuous-drain-daemon](#continuous-drain-daemon-and-escalation-inbox) responsible.
+
+**Open questions:** judge strictness — exact-shape matching vs intent-level judgment (lean intent-level with evidence quoted, mismatches enumerated); UI-only changes without an API surface (out of scope v1 — `cannot-verify`); whether verify evidence gets attached to the PR body (probably yes — it's the best reviewer aid in the whole pipeline).
+
+**Touches:** `src/cr/` (lane kind, runner, verdict schema), `src/core/consumer-config.ts` (`verifyCommands`, `autonomous.verifyMode`), drain merge gate consumption in `src/autonomous/`, `docs/noldor/cr-pipeline.md`, `adoption-guide.md` (config reference), self-host `.noldor/config.json`.
+
+**Acceptance sketch:** seed a deliberately-wrong implementation (endpoint returns array, FD promises object) with passing self-written tests → verify lane boots server, curls endpoint, emits `fail` with quoted mismatch; honest implementation → `pass` with evidence; drain respects blocking mode.
+
+#### Drop Branched Worktrees — Single Dev Branch Workflow
+
+- area: tooling
+- type: refactor
+- since: 2026-05-10
+- size: L
+- impact: low
+- parent: noldor
+
+Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-discipline.md`). Today every active task lives in its own branch worktree. The proposal: collapse to a single shared dev branch — still in worktrees for parallelism, but not separate branches — with all task work landing on one rolling branch and merging to main on release. Trade-off: simpler integration story (no per-task rebase, fewer divergent histories) at the cost of losing the per-task isolation that lets `/gate` and `/promote` reason about scope. Trigger: when per-branch overhead (rebase storms, cross-branch lint regen, merge order ambiguity) outweighs the isolation benefit.
+
+#### Per-Task Dev Environment Bootstrap
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: L
+- impact: med
+- parent: parallel-worktree-workflow
+
+Extend the worktree workflow with full per-task environment scaffolding: open IDE on the worktree folder/file, spawn a new terminal per task (already done), boot an internal web server scoped to the task's port, and start a local Charuy app instance per task. Today only the terminal spawn is automated; IDE focus and per-task app instances are manual. Goal: a single command takes an operator from "branch checked out" to "fully usable dev surface" without manual port-juggling. Pairs with the worktree port-per-tree convention from `docs/noldor/worktree-discipline.md`.
+
 #### Dynamic FD ↔ File Pointers via Frontmatter
 
 - area: tooling
@@ -23,6 +193,47 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
 
+#### Version-Aware Upgrade and Migration Chain
+
+- area: tooling
+- type: feat
+- since: 2026-06-11
+- size: L
+- impact: high
+- deps: registry-distribution
+- parent: noldor
+
+`noldor init --update` re-pulls current templates, but nothing handles *schema* evolution between framework versions: FD frontmatter shape changes, `consumer:` config field renames, skill-twin contract changes, trailer-format changes. With one consumer that's hand-migration; with N consumers on mixed pinned versions it's the biggest structural risk of the multi-project goal. Build `noldor upgrade`: a version-aware chain that takes a consumer from its current framework version to the installed one by running ordered codemods.
+
+**What to do:**
+
+- Version anchoring: record the framework version a consumer was last migrated to — `.noldor/config.json` `frameworkVersion:` field (written by `init` and `upgrade`), compared against the installed package version. `doctor` gains a skew check: installed ≠ migrated → warn, point at `upgrade`.
+- Migration registry: `src/migrations/<version>.ts` modules, each exporting `{ from, to, description, migrate(cwd, config), dryRun(cwd, config) }`. Migrations are pure file transforms over the consumer tree (FD frontmatter rewrites, config key renames, template re-syncs with content-preserving merges) — same codemod discipline the Charuy→standalone extract used by hand.
+- `noldor upgrade` command: resolves the chain `frameworkVersion → installed`, runs each migration sequentially, `--dry-run` prints the planned diffs per step, writes `frameworkVersion` only after the full chain succeeds. Refuses on dirty git tree; recommends a branch.
+- Authoring discipline: a framework PR that changes any consumer-facing schema MUST ship the matching migration in the same PR — enforce via a `/garden` detector or a release gate that diffs `feature-md-schema.md` / `consumer-config.ts` against `src/migrations/` coverage.
+- Codemod tests: fixture consumer trees per from-version under `src/migrations/__tests__/fixtures/`, snapshot the post-migration tree. The [consumer-contract-ci](#consumer-contract-ci-and-headless-gate-e2e-harness) fixture doubles as the live test bed.
+
+**What it enables:** the framework can keep evolving its schemas without freezing or hand-walking every consumer; consumers upgrade with one command and a reviewable diff; removes the "Charuy is three versions behind and nobody dares sync it" failure mode before it exists.
+
+**Open questions:** migration granularity — per release version vs per schema-change id (lean per-release, matches semver discipline in `versioning.md`); downgrade support (no — document as unsupported); how template re-sync merges consumer-local edits to twin files (three-way merge vs ours/theirs prompt — connects to the existing skill-twin drift pain).
+
+**Touches:** new `src/migrations/`, `src/cli/manifest.ts` (+`upgrade` group), `src/cli/commands/init.ts` (write `frameworkVersion`), `src/core/consumer-config.ts` (schema field), doctor checks, `docs/noldor/adoption-guide.md`, `docs/noldor/versioning.md`.
+
+**Acceptance sketch:** fixture consumer pinned at v0.2.0 shape + installed v0.4.0 → `noldor upgrade --dry-run` lists 2 steps with diffs; `noldor upgrade` lands both; `doctor` green; re-run is a no-op.
+
+#### Framework Milestones Support (POC / MVP / 1.0.0)
+
+- area: tooling
+- type: feat
+- since: 2026-05-10
+- size: M
+- impact: med
+- parent: noldor
+
+Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
+
+- Optional, not mandatory — apps can grow organically without a milestone plan; the framework should not force the abstraction. When milestones are declared, the rest of the wiring activates; otherwise the field stays absent and detectors stay silent.
+
 #### Parallel-Drain `roadmap.md` Conflict Auto-Resolution
 
 - area: tooling
@@ -33,6 +244,17 @@ Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD fron
 - parent: parallel-drain
 
 Under `--concurrency >1`, every fast-track child removes its own block from the shared `docs/roadmap.md`; the serialized merge coordinator rebases each PR onto the prior merge, but git cannot auto-merge *adjacent* block removals → the PR goes `DIRTY`, the coordinator skips it, and the worktree + open PR are orphaned. Hit live during a 23-entry drain: ~5 of the K=3 PRs went DIRTY, forcing a fall back to `--concurrency 1` (sequential is conflict-free by construction — each merges before the next branch is cut). Block-removal is deterministic, so the coordinator should re-apply "remove `<slug>`'s block" against the freshly-rebased base (parse + drop the block, not a textual 3-way merge) rather than letting git's line-merge fail. Without this, `--concurrency >1` is effectively unusable for roadmap-source drains. Touches: `src/autonomous/drain-io.ts`, `src/autonomous/drain-loop.ts`, `src/utils/parse-blocks.ts`.
+
+### PR-Flow Tree-Shape Validation (auditReleasePushes)
+
+- area: tooling
+- type: feat
+- since: 2026-05-15
+- size: S
+- impact: med
+- parent: framework-pr-flow-agent-auto-merge
+
+`scripts/garden/detectors/override-audit.ts`'s `auditReleasePushes` only validates the receipt-log format today (per spec §7 of `framework-pr-flow-agent-auto-merge`). Extend the detector to cross-check each receipt SHA against the canonical release-commit signature: `git show --name-only <sha>` must include `package.json` and `docs/release-notes.md`. Suspicious receipts (env-var-bypass written but commit doesn't match release shape) get downgraded to WARN. Closes the spec gap noted as a TODO comment above `auditReleasePushes`.
 
 #### Drain Startup Reconciliation of a Prior Dead Run
 
@@ -55,6 +277,19 @@ When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `
 - parent: noldor
 
 The micro-chore temp-branch handoff (`/gate` Step 2) runs `git reset --hard origin/main` to rewind local main — which silently discards *any* uncommitted working-tree edits to unrelated tracked files. Hit live: a drain's micro-chore iteration destroyed uncommitted `ideas.md` edits (recovered only via VSCode Local History; uncommitted content never enters git's object store, so `git fsck` could not help). Fix: `git stash --include-untracked` before the reset and `git stash pop` after — or refuse the reset when the working tree carries unrelated dirty files, surfacing them to the operator. Real data-loss hazard on every micro-chore run started from a dirty tree. Touches: `.claude/skills/gate/SKILL.md` (Step 2 micro-chore handoff), the temp-branch scaffold.
+
+### Trailer Scope-Alias Map
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- size: S
+- impact: high
+- parent: noldor
+
+`scripts/garden/detectors/trailer-scope-mismatch.ts` rejects commits where the Conventional Commits scope doesn't equal (or end with `:`) the `Noldor-FD:` slug. v0.4.0 release surfaced 24 such mismatches: `feat(sdd):` commits tagged to FD `sdd-co-tag-detector`, `feat(cr):` commits tagged to FD `noldor`, etc. — the team has informally adopted shorter scope tokens. Required `RELEASE_SKIP_GATE_COMPLIANCE=1` bypass. Fix: add a config-driven alias map (`scope-aliases.json` or detector frontmatter) where `sdd → sdd-co-tag-detector`, `cr → noldor`, etc., so the detector accepts the team's actual usage instead of demanding artificial scope expansion.
+
+- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
 
 #### `isDrainEligible`: Skip `blocked-by` + Match `Touches:` Anywhere
 
@@ -160,43 +395,6 @@ When a feature or plan grows past size thresholds, the framework should suggest 
 
 - Plan threshold — suggest split when a plan exceeds ~1000 rows (one part = ~1000 rows). Use this as the initial heuristic and tune with experience.
 
-#### Framework Milestones Support (POC / MVP / 1.0.0)
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: M
-- impact: med
-- parent: noldor
-
-Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
-
-- Optional, not mandatory — apps can grow organically without a milestone plan; the framework should not force the abstraction. When milestones are declared, the rest of the wiring activates; otherwise the field stays absent and detectors stay silent.
-
-#### Per-Task Dev Environment Bootstrap
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: L
-- impact: med
-- parent: parallel-worktree-workflow
-
-Extend the worktree workflow with full per-task environment scaffolding: open IDE on the worktree folder/file, spawn a new terminal per task (already done), boot an internal web server scoped to the task's port, and start a local Charuy app instance per task. Today only the terminal spawn is automated; IDE focus and per-task app instances are manual. Goal: a single command takes an operator from "branch checked out" to "fully usable dev surface" without manual port-juggling. Pairs with the worktree port-per-tree convention from `docs/noldor/worktree-discipline.md`.
-
-#### Make Noldor Agent-Agnostic
-
-- area: tooling
-- type: refactor
-- since: 2026-05-10
-- size: XL
-- impact: med
-- parent: noldor
-
-Noldor today assumes Claude Code as the operating agent (skill names, hook patterns, transcript layout). Lift the assumptions so Codex, Gemini, or other agents can drive the same framework with equivalent gates. Concrete asks: (1) abstract skill invocation (`Skill` tool vs `activate_skill` vs raw markdown read), (2) abstract hook triggers (the `lefthook` pre-commit chain works for all, but the auto-gate behavior is Claude-only), (3) document the agent-equivalence matrix in `docs/noldor/`. Trigger: when a second agent adopts Noldor in earnest (today's automated-cr-pipeline already runs Codex as a reviewer; controller is still Claude).
-
-- triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
-
 #### Noldor Section-Age Staleness Detector
 
 - area: tooling
@@ -240,17 +438,6 @@ Render `docs/user/reference/api/` (typedoc-generated `engine` + `format` API tre
 - parent: noldor
 
 Audit `scripts/` and the framework's test corpus to identify scripts/tests that were only needed during migration (FD frontmatter shape changes, gate path additions, garden detector rollouts) and can now be deleted. Conversely, identify gaps where shipped framework features lack test coverage. The migration-only scripts add maintenance load; the gaps add risk. One-pass sweep — possibly a `/garden` detector that flags scripts referenced only in commits with `chore(framework):` or `refactor:` migration messages and not in any current pipeline.
-
-#### Drop Branched Worktrees — Single Dev Branch Workflow
-
-- area: tooling
-- type: refactor
-- since: 2026-05-10
-- size: L
-- impact: low
-- parent: noldor
-
-Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-discipline.md`). Today every active task lives in its own branch worktree. The proposal: collapse to a single shared dev branch — still in worktrees for parallelism, but not separate branches — with all task work landing on one rolling branch and merging to main on release. Trade-off: simpler integration story (no per-task rebase, fewer divergent histories) at the cost of losing the per-task isolation that lets `/gate` and `/promote` reason about scope. Trigger: when per-branch overhead (rebase storms, cross-branch lint regen, merge order ambiguity) outweighs the isolation benefit.
 
 #### Scope Sibling Trailer for Doc-Sync Commits
 
@@ -344,34 +531,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 **Acceptance sketch:** friction log exists with ≥10 dated entries; ≥3 changes shipped in consumer incl. ≥1 autonomous drain ship; ≥5 entries triaged back into Noldor's queue.
 
-#### Version-Aware Upgrade and Migration Chain
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: L
-- impact: high
-- deps: registry-distribution
-- parent: noldor
-
-`noldor init --update` re-pulls current templates, but nothing handles *schema* evolution between framework versions: FD frontmatter shape changes, `consumer:` config field renames, skill-twin contract changes, trailer-format changes. With one consumer that's hand-migration; with N consumers on mixed pinned versions it's the biggest structural risk of the multi-project goal. Build `noldor upgrade`: a version-aware chain that takes a consumer from its current framework version to the installed one by running ordered codemods.
-
-**What to do:**
-
-- Version anchoring: record the framework version a consumer was last migrated to — `.noldor/config.json` `frameworkVersion:` field (written by `init` and `upgrade`), compared against the installed package version. `doctor` gains a skew check: installed ≠ migrated → warn, point at `upgrade`.
-- Migration registry: `src/migrations/<version>.ts` modules, each exporting `{ from, to, description, migrate(cwd, config), dryRun(cwd, config) }`. Migrations are pure file transforms over the consumer tree (FD frontmatter rewrites, config key renames, template re-syncs with content-preserving merges) — same codemod discipline the Charuy→standalone extract used by hand.
-- `noldor upgrade` command: resolves the chain `frameworkVersion → installed`, runs each migration sequentially, `--dry-run` prints the planned diffs per step, writes `frameworkVersion` only after the full chain succeeds. Refuses on dirty git tree; recommends a branch.
-- Authoring discipline: a framework PR that changes any consumer-facing schema MUST ship the matching migration in the same PR — enforce via a `/garden` detector or a release gate that diffs `feature-md-schema.md` / `consumer-config.ts` against `src/migrations/` coverage.
-- Codemod tests: fixture consumer trees per from-version under `src/migrations/__tests__/fixtures/`, snapshot the post-migration tree. The [consumer-contract-ci](#consumer-contract-ci-and-headless-gate-e2e-harness) fixture doubles as the live test bed.
-
-**What it enables:** the framework can keep evolving its schemas without freezing or hand-walking every consumer; consumers upgrade with one command and a reviewable diff; removes the "Charuy is three versions behind and nobody dares sync it" failure mode before it exists.
-
-**Open questions:** migration granularity — per release version vs per schema-change id (lean per-release, matches semver discipline in `versioning.md`); downgrade support (no — document as unsupported); how template re-sync merges consumer-local edits to twin files (three-way merge vs ours/theirs prompt — connects to the existing skill-twin drift pain).
-
-**Touches:** new `src/migrations/`, `src/cli/manifest.ts` (+`upgrade` group), `src/cli/commands/init.ts` (write `frameworkVersion`), `src/core/consumer-config.ts` (schema field), doctor checks, `docs/noldor/adoption-guide.md`, `docs/noldor/versioning.md`.
-
-**Acceptance sketch:** fixture consumer pinned at v0.2.0 shape + installed v0.4.0 → `noldor upgrade --dry-run` lists 2 steps with diffs; `noldor upgrade` lands both; `doctor` green; re-run is a no-op.
-
 #### Consumer-Contract CI and Headless Gate E2E Harness
 
 - area: tooling
@@ -454,97 +613,6 @@ Operator cannot see which agents are running, on what, since when. `drain-state.
 
 **Acceptance sketch:** run `noldor autonomous run --concurrency 2 --max-features 2`; `/agents` shows 2 live implementer rows with distinct lanes, then a timeline with 2 shipped outcomes; events file has spawned/exited pairs for every agent incl. CR lanes.
 
-#### Outcome Telemetry and Effectiveness Metrics
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: L
-- impact: high
-- deps: agent-events-log-and-agents-dashboard-page
-- parent: noldor
-
-The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
-
-**What to do:**
-
-- Metric set v1, each derived reproducibly from repo history + `.noldor/` artifacts:
-  - **Cycle time** — `since:` (roadmap intake) → `introduced:` (release) per FD; segmented by path (`Noldor-Path:` trailer) and by autonomous vs operator-driven.
-  - **Size-routing accuracy** — `sizeToPath()` suggestion vs actual: diff stats + path taken per shipped entry; surfaces systematic over/under-sizing at triage.
-  - **CR effectiveness** — findings per lane (from `.noldor/cr/` artifacts) vs post-merge corrective commits (`fix:` touching same FD within N days) and reverts; approximates catch-rate vs noise.
-  - **Drain reliability** — per-run: shipped / skipped / retried / escalated / salvaged counts, retry distribution, mean time per feature (from agent-events).
-  - **Override pressure** — trailer-override usage by detector over time (extends the existing override-audit data); rising overrides = a gate that fights the team.
-  - **Token cost per feature** — if obtainable from agent transcripts/logs; explicitly optional v1, schema reserves the field.
-- `noldor metrics compute` CLI: scans history, emits `metrics.json` (derive-on-demand; no persistent aggregate store in v1 — git is the store, computation is the cache).
-- Dashboard `/metrics` page: headline cards (median cycle time, autonomous-ship share, drain success rate), per-path breakdown table, trend over releases. Reuses the `/agents` data plumbing.
-- Release integration: `sdd-report.md` gains a metrics section per release cut, so every release answers "is the framework getting faster/safer or just heavier".
-- Honesty rails: every metric documents its derivation + known blind spots in `docs/noldor/` (e.g. CR catch-rate is an approximation); no metric without a documented formula — this framework audits itself, the metrics must be auditable too.
-
-**What it enables:** gate tuning with data (e.g. "fast-track reverts ≈ full-path reverts → loosen routing"); a testable version of the vision claim "agents ship production-quality changes unsupervised"; the adoption pitch for other projects becomes numbers ("N features, X% fully autonomous, median 2 days intake→release") instead of assertion.
-
-**Open questions:** token-cost source (Claude Code transcript JSONL? drain could record usage per spawn into agent-events); how far back to backfill (pre-event-log history supports cycle-time + routing metrics only — fine, label it); metric stability across the consumer/self-host split (compute per-repo, never blended).
-
-**Touches:** new `src/metrics/`, `src/cli/manifest.ts`, `src/dashboard/` (route + view), `src/garden/sdd-report` integration, `docs/noldor/` new page `metrics.md`, `script-catalog.md`.
-
-**Acceptance sketch:** `noldor metrics compute` on this repo emits cycle-time for every `introduced:` FD + routing-accuracy table for the last 10 shipped entries; `/metrics` renders headline cards; sdd-report section appears at next release.
-
-#### Acceptance-Verify Lane
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: L
-- impact: high
-- parent: noldor
-
-Autonomous paths merge on tests + CR. Both have a structural blind spot: the implementer agent writes the code *and* the tests, so a misunderstood requirement produces tests that assert the misunderstanding — green suite, wrong feature. CR reads diffs and can ratify the same error. Nobody runs the artifact and checks it against what the FD/entry actually promised. Add a `verify` lane: an independent agent that boots the real artifact and judges the shipped behavior against the acceptance text.
-
-**What to do:**
-
-- Lane plumbing: extend the `crLanes` config vocabulary with a `verify` lane kind for `code` artifacts (`"code": ["subagent", "verify"]`), riding the existing lane-runner machinery in `src/cr/` — same verdict-artifact pattern into `.noldor/cr/`, same orchestrate consumption, so the drain merge gate gets it for free.
-- Verify agent contract: input = FD acceptance criteria / Usage section (or the roadmap-entry prose for FD-less fast-tracks) + the diff + boot instructions; it must (1) start the artifact, (2) exercise the *specific new behavior* through the real interface — CLI invocation, HTTP request, file output — never by reading the code, (3) compare observed vs promised, (4) emit verdict `{ pass | fail | cannot-verify, evidence: [command + observed output], mismatches: [] }`. `cannot-verify` is an honest first-class outcome (no boot path, behavior needs external services) and routes to advisory, not silent pass.
-- Boot knowledge: new consumer-config block `verifyCommands` — named run surfaces (`{ "dashboard": "pnpm noldor dashboard server --port {port}", "cli": "pnpm noldor {args}" }`) + health-check hints. Self-host config seeds dashboard + CLI entries.
-- Smoke floor (sub-item, ships first): a fixed, feature-agnostic pre-merge check for autonomous paths — `noldor doctor` + boot each `verifyCommands` surface + HTTP 200/exit-0 probe. Catches "build broken / server 500s" for S-effort before the per-FD lane lands.
-- Policy: blocking vs advisory per consumer (`autonomous.verifyMode: "blocking" | "advisory"`, default advisory for one bake-in release, then flip self-host to blocking); `fail` on blocking → same flow as CR fail (`onFailure`: prompt / spawn-deep-review / abort).
-- Sandboxing + hygiene: verify runs in the feature worktree on a per-tree port (worktree-discipline port convention already exists); must clean up spawned processes; wall-clock cap per verify.
-
-**What it enables:** breaks the implementer self-confirming-test loop — the riskiest failure mode of unsupervised shipping; concrete catches of the PR-#53/#55 class ("does `/hot-zones?format=json` return the promised shape on a real server", "is `/features` actually ordered by commit date"), not just fixture assertions; raises the trust ceiling enough to make the [continuous-drain-daemon](#continuous-drain-daemon-and-escalation-inbox) responsible.
-
-**Open questions:** judge strictness — exact-shape matching vs intent-level judgment (lean intent-level with evidence quoted, mismatches enumerated); UI-only changes without an API surface (out of scope v1 — `cannot-verify`); whether verify evidence gets attached to the PR body (probably yes — it's the best reviewer aid in the whole pipeline).
-
-**Touches:** `src/cr/` (lane kind, runner, verdict schema), `src/core/consumer-config.ts` (`verifyCommands`, `autonomous.verifyMode`), drain merge gate consumption in `src/autonomous/`, `docs/noldor/cr-pipeline.md`, `adoption-guide.md` (config reference), self-host `.noldor/config.json`.
-
-**Acceptance sketch:** seed a deliberately-wrong implementation (endpoint returns array, FD promises object) with passing self-written tests → verify lane boots server, curls endpoint, emits `fail` with quoted mismatch; honest implementation → `pass` with evidence; drain respects blocking mode.
-
-#### Continuous Drain Daemon and Escalation Inbox
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: XL
-- impact: high
-- deps: agent-events-log-and-agents-dashboard-page, acceptance-verify-lane
-- parent: noldor
-
-Every autonomous stage is one-shot and operator-fired: someone types `noldor autonomous run`, watches (or returns later), handles failures by reading logs, salvages stale bases by hand from a memory recipe. The vision sentence — agents ship unsupervised — currently means "unsupervised per invocation". Make autonomy *continuous*: a long-running (or cron-fired) mode that keeps draining the queue, repairs its own known failure modes, and escalates the rest to a structured inbox instead of dying or blocking.
-
-**What to do:**
-
-- `noldor autonomous watch` mode: wraps the existing drain loop (`src/autonomous/drain-loop.ts`) in a scheduler — `--interval <min>` polling or long-lived daemon; each cycle: refresh main, re-read queue, run a bounded drain (`--max-features` per cycle), sleep. Reuses `drain.lock` semantics; a second watcher refuses to start.
-- Auto-salvage: codify the stale-base recipe as code, not operator lore — detect on pickup: existing `fast/<slug>` branch whose base is behind main, or a closed-unmerged PR for the slug → rebuild worktree from fresh main, **re-apply** the change (not cherry-pick), retire stale branch + remote; emit `salvaged` event. The 2026-06-10/11 drain runs proved the recipe manually (PR #49→#55 case); this entry mechanizes it.
-- Escalation inbox: when an item exhausts retries, hits a verify/CR blocking fail with `onFailure` not resolvable headlessly, or trips an unknown git state → write `.noldor/escalations.jsonl` (`{ ts, slug, reason, evidence, state-snapshot, suggested-action }`), mark the item parked (skip-list with reason), **continue with the next item** — park-and-continue replaces today's abort-or-prompt at the loop level. Dashboard inbox page (or `/agents` tab): open escalations with one-glance reason + evidence, operator resolves → unpark (`noldor autonomous unpark <slug>`).
-- Notification: pluggable notify hook on escalation + cycle summary (shipped/parked counts) — shell command in consumer config (`autonomous.notifyCommand`), so Slack/push/mail is the consumer's one-liner, not framework scope.
-- Safety rails, all consumer-config with conservative defaults: `maxFeaturesPerDay`, `maxConsecutiveFailures` (trip → pause whole watcher + escalate), wall-clock cap per item, `pause` switch (file-based `.noldor/drain.pause` honored mid-cycle), budget cap hook if token accounting exists by then. A paused or tripped watcher is loud — notify + dashboard banner, never silent.
-- Run placement: local daemon first (operator's machine, simplest trust model); CI-cron variant documented as a follow-up once contract-CI exists (needs secrets + checkout strategy decisions).
-
-**What it enables:** the vision claim made literal — queue drains continuously, operator's job collapses to feeding triage and clearing an inbox; combined with verify-lane + telemetry, "unsupervised" becomes defensible: continuously shipped, independently verified, measurably tracked.
-
-**Open questions:** daemon vs cron-fired (lean: same code, `--once` flag makes cron trivial); interaction with release cadence (auto-release-candidate after N ships? — explicitly out of scope v1, release stays operator-fired); multi-repo watchers later (one per consumer, no coordination v1); how `watch` coexists with an operator working in the same repo (lock + pause conventions probably suffice — document).
-
-**Touches:** `src/autonomous/` (watch loop, salvage module, escalations, unpark), `src/core/consumer-config.ts` (`autonomous.*` rails), `src/dashboard/` (inbox surface), `src/cli/manifest.ts`, `docs/noldor/cr-pipeline.md` + new `docs/noldor/autonomy.md`, `script-catalog.md`.
-
-**Acceptance sketch:** seed queue with 3 entries incl. one engineered stale-base and one destined-to-fail → `noldor autonomous watch --interval 5 --max-features 1`: two ship across cycles (one via auto-salvage, `salvaged` event present), one lands in escalations with evidence and the watcher keeps running; `drain.pause` halts next cycle; notify hook fired on the escalation.
-
 #### De-Superpowers: Vendor Spec, Plan and Worktree Flows
 
 - area: tooling
@@ -572,47 +640,3 @@ The framework's core flows depend on the third-party `superpowers` Claude Code p
 **Touches:** new `.claude/skills/noldor-spec/`, `.claude/skills/noldor-plan/`, `src/worktrees/` (+CLI manifest entry), `src/prep/draft.ts`, `.claude/skills/{gate,garden,draft-feature-md}/SKILL.md` + template twins, `docs/noldor/{complexity-gating,workflow,skill-catalog}.md`; path-rename step: `src/core/doc-roots.ts`, `src/migrations/`.
 
 **Acceptance sketch:** fresh consumer without superpowers installed runs a full `specs-only-new` gate path to merge; generated plan contains no `superpowers:` reference; `grep -r "superpowers" .claude/skills templates src` → only the historical specs/plans path (or nothing, post-rename).
-
-#### Multi-Runner Agent Runtime (Claude Code, Codex, opencode)
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: L
-- impact: high
-- deps: de-superpowers-vendor-spec-plan-and-worktree-flows
-- parent: noldor
-
-Decision (2026-06-11): Noldor supports **three agent runtimes as simultaneous first-class peers — Claude Code, Codex, opencode**. Not a migration off Claude; a registry where every spawn site resolves a runner per role, and a consumer (or a single repo, per role) can mix all three. Codex already proves the seam works: `src/cr/run-codex.ts` spawns `codex exec --sandbox --output-schema` headless today — but only inside the CR lane; it graduates to a general runner. opencode brings the multi-provider layer (anthropic / openai / ollama / openrouter via `opencode.json`), so local models come free through it. Today the Claude CLI is hard-coded at five spawn sites with Claude-specific flags; Codex is welded into one lane.
-
-**Flag mapping** (opencode verified against opencode.ai docs 2026-06-11; Codex column proven in-repo by `run-codex.ts`):
-
-| Noldor need | Claude Code | Codex | opencode |
-| --- | --- | --- | --- |
-| headless spawn | `claude --print "<prompt>"` | `codex exec "<prompt>"` | `opencode run "<prompt>"` |
-| auto-permissions | `--permission-mode bypassPermissions` | `--sandbox workspace-write` + never-ask approval policy (read-only sandbox for review roles) | `--dangerously-skip-permissions` (still respects explicit `deny`) or `permission: "allow"` |
-| no-questions kill-switch | `--disallowed-tools AskUserQuestion` | non-interactive by design (`exec` + approval policy) | `permission.question: "deny"` |
-| model / role selection | session model | `--model` / `config.toml` | `--model <provider/model>` + `--agent <name>` |
-| structured output | parse stdout prose | `--output-schema <json-schema>` (strongest — already used by CR lane) | `--format json` (raw event stream) |
-| rules file | `CLAUDE.md` | `AGENTS.md` (native) | `AGENTS.md` |
-| guards / hooks | Claude hooks + `src/hooks/` pre-edit guards | sandbox modes (coarse: read-only / workspace-write) | plugins (JS event hooks) + granular glob permission rules |
-| local models | no | no | yes (ollama et al.) |
-
-**What to do:**
-
-- Runner registry: `src/core/agent-runner.ts` — `spawnAgent(prompt, { role, cwd, env, timeoutMs })` resolving role → runner config → argv shape, with three built-in runners: `claude`, `codex`, `opencode`. Extract the Codex argv shape out of `src/cr/run-codex.ts` into the codex runner module (CR lane becomes a consumer of the registry, not the owner of the spawn). Refit the Claude-welded sites: `src/autonomous/drain-io.ts` `spawnGate`, `src/prep/spawn.ts` `spawnClaude`, `src/cr/lanes/subagent-dispatch.ts`, `src/release/llm-polish-summary.ts`. Drop or rewrite `src/cr/lanes/standalone.ts` (osascript + Claude double-coupled; headless lanes cover the need). Timeout backstop stays universal. PR-#33 rule holds for all three: directives ride the prompt, never env/flags.
-- Capability matrix as code + doc: runners differ (structured output strength, sandbox granularity, local-model support, question-suppression mechanism). Encode per-runner capabilities in the registry (`supportsLocalModels`, `structuredOutput: schema | events | prose`, `sandbox: fine | coarse | none`) so role-resolution can validate fit (e.g. a role requiring `--output-schema`-grade output refuses a prose-only runner); publish the same matrix as `docs/noldor/agent-runtimes.md` — this fulfills ask (3) of the existing `make-noldor-agent-agnostic` roadmap entry.
-- Config: `.noldor/config.json` `agents:` block — `{ "default": "claude", "roles": { "implementer": { "runner": "claude" }, "reviewer": { "runner": "codex" }, "second-opinion": { "runner": "opencode", "model": "ollama/<local>" }, "polish": { "runner": "opencode", "model": "ollama/<small>" } } }`. Every spawn site declares its role; resolution falls back to `default`. All fields optional — absent block ≡ today's behavior (claude everywhere, codex where `crLanes` says so).
-- Mixed-fleet rollout by risk tier: `polish` first (pure text, no tools — cheapest local win), then CR lanes (already multi-runner in spirit — generalize `crLanes` vocabulary from hardcoded `subagent`/`codex` lane names to role refs), implementer **last** and per-runner: telemetry (ship/retry/revert rates from outcome-telemetry, segmented by runner) decides which runners graduate to implementer duty.
-- Guards per runner: opencode → generated glob permission blocks in the worktree's `opencode.json` (shared-files guard → `edit: { "docs/roadmap.md": "deny" }`); Codex → sandbox mode per role (read-only for reviewers, workspace-write for implementers); Claude → existing `src/hooks/` guards. Hard floor for all three stays lefthook git hooks (trailer inject/validate, pre-commit session-marker check) — agent-neutral by construction, the only layer that *must* hold.
-- Interactive plane: per-driver shims from one source — Claude `.claude/skills/`, opencode `.opencode/command/*.md` + agent definitions, Codex `AGENTS.md` + custom prompts. Direction stays **fat CLI, thin skills** — every flow step that moves into a `noldor` subcommand is written once and shimmed three times trivially. `noldor init` gains `--agents claude,codex,opencode` target selection (writes the chosen shim sets + `AGENTS.md`/`opencode.json`/`CLAUDE.md` overlays from one template source).
-- Events: opencode `--format json` and codex `--output-schema` map into `agent-events.jsonl` richer than Claude stdout scraping — wire through the agent-events writer; runner field on every event enables the per-runner telemetry cut.
-- Pin + verify: all three CLIs move fast — record validated version floors per runner in consumer config; `doctor` checks presence + version for each *configured* runner only (extends stack-assumption-audit prerequisites matrix).
-
-**What it enables:** consumer picks their driver — or mixes: Claude implements, Codex reviews, local-model-via-opencode polishes; local models (the original ask) via the opencode runner; per-role model economics; no single-vendor dependency for the framework's autonomy story; three concurrent runners keep the seam honest — Claude-coupling can't silently regrow when CI exercises all three.
-
-**Open questions:** opencode skills/commands semantics vs Claude Skill tool (model-invoked skill parity needs verification on current opencode version); Codex custom-prompt surface as skill-shim target vs AGENTS.md-only (verify against current codex CLI); whether drain implementers use named agent definitions with scoped permissions instead of broad bypass flags (lean yes where the runner supports it — opencode `--agent`, codex sandbox; Claude lacks the granular equivalent); session continuity for retry flows (`--session`/`--continue` on opencode, `codex exec resume` — could replace fresh-spawn retries; defer).
-
-**Touches:** new `src/core/agent-runner.ts` + per-runner modules, `src/cr/run-codex.ts` (extract spawn), `src/autonomous/drain-io.ts`, `src/prep/spawn.ts`, `src/cr/lanes/subagent-dispatch.ts` + `standalone.ts`, `src/release/llm-polish-summary.ts`, `src/core/consumer-config.ts` (`agents:` block), `src/cli/commands/init.ts` (multi-target), templates (shim sets, `opencode.json`, `AGENTS.md`), new `docs/noldor/agent-runtimes.md`, `docs/noldor/{cr-pipeline,adoption-guide}.md`, doctor checks.
-
-**Acceptance sketch:** fixture consumer configured `implementer: claude`, `reviewer: codex`, `polish: opencode+ollama` → drain ships a seeded XS entry using all three runners in one pass, agent-events carries a `runner` field per spawn; swapping `implementer` to `opencode` ships the same entry with no code change; `grep -rn "spawn('claude'\|execFileP('claude'\|'codex'" src` → hits only inside `src/core/agent-runner/` runner modules.

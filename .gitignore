@@ -21,6 +21,8 @@ docs/ideas.md
 .noldor/drain.lock
 .noldor/drain.lock.reclaim.*
 .noldor/drain-stop
+.noldor/drain-*.log
+.noldor/ideas-recovery-*.md
 .noldor/prep-batch/
 
 # Harness scheduler lock (operator-local runtime state)
