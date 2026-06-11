@@ -60,17 +60,6 @@ When a feature adds a new release-time gate, the feature's own implementation co
 
 - triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
 
-#### Implementer Subagent Scope-Guard Template
-
-- area: tooling
-- type: refactor
-- since: 2026-05-10
-- size: S
-- impact: med
-- parent: noldor
-
-`superpowers:subagent-driven-development`'s `implementer-prompt.md` should explicitly say "ONLY edit the files listed in the Files: section. If a hook forces unrelated edits (oxfmt drift, sdd-report regen), stop and report `DONE_WITH_CONCERNS` instead of bundling them into the commit." During automated-cr-pipeline, multiple implementer subagents bundled unrelated formatter fixes for spec/plan/feature-MD files into their task commit because lefthook required it. Acceptable in practice but blurs commit scope and makes `git log` per-task harder to read. Stricter prompt + a hook flag like `LEFTHOOK_AUTOFIX=warn` (advise, don't auto-fix) would let the bundled edits be a separate explicit cleanup commit.
-
 #### FD Complexity-Tier Field
 
 - area: tooling
