@@ -204,8 +204,12 @@ export const MANIFEST: Record<string, Group> = {
     },
   },
   worktrees: {
-    desc: 'Worktree status + launch',
+    desc: 'Worktree create + status + launch',
     subs: {
+      create: {
+        src: 'worktrees/create-worktree.ts',
+        desc: 'Create .worktrees/<slug> on feat/<slug> (--branch overrides), install deps, stamp port',
+      },
       status: { src: 'worktrees/worktree-status.ts', desc: 'Per-tree status table' },
       conflicts: {
         src: 'worktrees/worktree-conflicts.ts',
