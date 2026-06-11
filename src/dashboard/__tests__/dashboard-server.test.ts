@@ -107,6 +107,38 @@ describe('dashboard server', () => {
     expect(nan).toContain('value="10"');
   });
 
+  it('GET /hot-zones?format=json returns the bare HotZoneRow[] array as application/json', async () => {
+    const res = await fetch(`${baseUrl}/hot-zones?format=json`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = await res.json();
+    expect(Array.isArray(body)).toBe(true);
+    // Self-host repo always has churn, so the array is non-empty; each row
+    // carries the documented HotZoneRow shape rather than HTML chrome.
+    if (body.length > 0) {
+      const row = body[0];
+      expect(typeof row.rank).toBe('number');
+      expect(typeof row.path).toBe('string');
+      expect(typeof row.changeCount).toBe('number');
+      expect(Array.isArray(row.authors)).toBe(true);
+    }
+    // Confirm the JSON branch is not wrapped in the dashboard HTML layout.
+    expect(JSON.stringify(body)).not.toContain('<html');
+  });
+
+  it('GET /hot-zones?format=json&limit=3 clamps the JSON array to the limit', async () => {
+    const res = await fetch(`${baseUrl}/hot-zones?format=json&limit=3`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBeLessThanOrEqual(3);
+  });
+
+  it('GET /hot-zones without format still returns HTML (default branch unchanged)', async () => {
+    const res = await fetch(`${baseUrl}/hot-zones`);
+    expect(res.headers.get('content-type')).toContain('text/html');
+  });
+
   it('GET / nav contains a link to /hot-zones', async () => {
     const res = await fetch(`${baseUrl}/`);
     const body = await res.text();
