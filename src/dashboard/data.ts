@@ -1705,9 +1705,12 @@ export function parseGraphReport(md: string): GraphHealth {
 
   const communities: GraphCommunity[] = [];
   for (const m of md.matchAll(
-    /^### Community \d+ - "([^"]+)"\nCohesion: ([\d.]+)\nNodes \((\d+)\)/gm,
+    /^### Community \d+ - "([^"]+)"\nCohesion: (\d+(?:\.\d+)?)\nNodes \((\d+)\)/gm,
   )) {
-    communities.push({ label: m[1], cohesion: Number(m[2]), nodeCount: Number(m[3]) });
+    const cohesion = Number(m[2]);
+    // Drift guard: never let a malformed numeric reach the schema parse.
+    if (!Number.isFinite(cohesion)) continue;
+    communities.push({ label: m[1], cohesion, nodeCount: Number(m[3]) });
   }
   communities.sort((a, b) => a.cohesion - b.cohesion || b.nodeCount - a.nodeCount);
 

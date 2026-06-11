@@ -81,6 +81,12 @@ describe('parseGraphReport', () => {
     expect(h.communities[0]).toEqual({ label: 'core', cohesion: 0.1, nodeCount: 27 });
   });
 
+  it('skips a community with a malformed cohesion value instead of throwing', () => {
+    const drifted = FIXTURE.replace('Cohesion: 0.06', 'Cohesion: ...');
+    const h = parseGraphReport(drifted);
+    expect(h.communities).toEqual([{ label: 'core', cohesion: 0.1, nodeCount: 27 }]);
+  });
+
   it('yields nulls and empty arrays for a body with no recognizable sections', () => {
     const h = parseGraphReport('just prose, no report here');
     expect(h.scope).toBeNull();
