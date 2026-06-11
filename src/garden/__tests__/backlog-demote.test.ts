@@ -120,6 +120,60 @@ Fresh description.
     expect(newRaw.indexOf('- demoted 2026-06-11:')).toBeLessThan(newRaw.indexOf('### Fresh Idea'));
   });
 
+  it('rewrites a phase bullet that sits after body text — second pass stays a no-op', () => {
+    const raw = `# Backlog
+
+### Old Idea
+
+- area: tooling
+- since: 2025-01-01
+
+Description text.
+
+- phase: now
+`;
+    const first = demoteStaleBacklog(raw, { nowMs: NOW_MS });
+    expect(first.demoted).toHaveLength(1);
+    expect(first.newRaw.match(/^- phase: /gm)).toHaveLength(1);
+    expect(first.newRaw).not.toContain('- phase: now');
+    expect(parseBacklog(first.newRaw)[0].phase).toBe('later');
+
+    const second = demoteStaleBacklog(first.newRaw, { nowMs: NOW_MS });
+    expect(second.demoted).toHaveLength(0);
+    expect(second.newRaw).toBe(first.newRaw);
+  });
+
+  it('preserves the trailing newline when the marker flushes at EOF', () => {
+    const raw = `# Backlog
+
+### Old Idea
+
+- area: tooling
+- since: 2025-01-01
+
+Description text.
+`;
+    const { newRaw } = demoteStaleBacklog(raw, { nowMs: NOW_MS });
+    expect(newRaw.endsWith('\n')).toBe(true);
+  });
+
+  it('leaves a blank line between the marker and a following heading', () => {
+    const raw = `# Backlog
+
+### Old Idea
+
+- area: tooling
+- since: 2025-01-01
+
+### Fresh Idea
+
+- area: tooling
+- since: 2026-06-01
+`;
+    const { newRaw } = demoteStaleBacklog(raw, { nowMs: NOW_MS });
+    expect(newRaw).toContain('phase auto-demoted to later\n\n### Fresh Idea');
+  });
+
   it('respects a custom --days threshold', () => {
     const raw = `# Backlog
 

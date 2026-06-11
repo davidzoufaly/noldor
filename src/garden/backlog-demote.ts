@@ -83,66 +83,75 @@ export function demoteStaleBacklog(raw: string, opts: DemoteOptions = {}): Demot
   const out: string[] = [];
   const demoted: DemotedEntry[] = [];
   let inCodeFence = false;
+  // True from a stale block's heading until the next heading / EOF — phase
+  // bullets are rewritten anywhere in this span, not just in the field run.
   let inStaleBlock = false;
+  // True while the block's leading field run is still open.
+  let fieldRunOpen = false;
   // Index in `out` of the last field bullet seen in the current stale block
   // (falls back to the heading index when the block has no field bullets).
   let lastFieldIdx = -1;
-  // True once the block's existing `- phase: X` bullet was rewritten in
-  // place — no separate insert needed then.
+  // True once a `- phase: X` bullet was rewritten in place — no separate
+  // insert needed then.
   let phaseDone = false;
   let pendingMarker: string | null = null;
 
-  const flushPhase = (): void => {
+  // Runs at the next heading / EOF: insert `- phase: later` only when no
+  // existing phase bullet was rewritten anywhere in the block, then append
+  // the dated marker. Deferring the insert to the block boundary is what
+  // keeps a phase bullet sitting after body text from surviving alongside
+  // the inserted one (last-assignment-wins would un-demote the entry).
+  const flushBlock = (): void => {
     if (inStaleBlock && !phaseDone) {
       out.splice(lastFieldIdx + 1, 0, '- phase: later');
     }
+    if (pendingMarker !== null) {
+      // Drop trailing blank lines so the marker sits flush at the block end;
+      // the trailing '' keeps a blank line before the next heading and the
+      // file's trailing newline at EOF.
+      while (out.length > 0 && out[out.length - 1].trim() === '') out.pop();
+      out.push('', pendingMarker, '');
+      pendingMarker = null;
+    }
     inStaleBlock = false;
+    fieldRunOpen = false;
     phaseDone = false;
     lastFieldIdx = -1;
-  };
-  const flushMarker = (): void => {
-    if (pendingMarker === null) return;
-    // Drop trailing blank lines so the marker sits flush at the block end.
-    while (out.length > 0 && out[out.length - 1].trim() === '') out.pop();
-    out.push('', pendingMarker);
-    pendingMarker = null;
   };
 
   for (const line of lines) {
     if (line.startsWith('```')) inCodeFence = !inCodeFence;
     const heading = !inCodeFence && /^###\s+(.+?)\s*$/.exec(line);
     if (heading) {
-      flushPhase();
-      flushMarker();
+      flushBlock();
       const entry = staleByName.get(heading[1]);
       if (entry) {
         demoted.push(entry);
         pendingMarker = `- demoted ${today}: stale (since ${entry.since}, >${staleDays} days) — phase auto-demoted to later`;
         inStaleBlock = true;
+        fieldRunOpen = true;
         lastFieldIdx = out.length; // heading index; advances over the field run below
       }
       out.push(line);
       continue;
     }
-    if (inStaleBlock && !inCodeFence && /^- \w+: /.test(line)) {
-      if (line.startsWith('- phase: ')) {
-        out.push('- phase: later'); // rewrite the existing phase bullet in place
-        phaseDone = true;
-      } else {
-        out.push(line);
-        lastFieldIdx = out.length - 1;
-      }
+    if (inStaleBlock && !inCodeFence && line.startsWith('- phase: ')) {
+      out.push('- phase: later'); // rewrite in place, wherever it sits
+      phaseDone = true;
+      continue;
+    }
+    if (fieldRunOpen && !inCodeFence && /^- \w+: /.test(line)) {
+      out.push(line);
+      lastFieldIdx = out.length - 1;
       continue;
     }
     out.push(line);
-    // First non-field, non-blank line ends the field run → insert phase there.
-    if (inStaleBlock && line.trim() !== '' && !/^- \w+: /.test(line)) {
-      flushPhase();
+    // First non-field, non-blank line closes the field run.
+    if (fieldRunOpen && line.trim() !== '' && !/^- \w+: /.test(line)) {
+      fieldRunOpen = false;
     }
   }
-  // Block ran to EOF with only fields/blanks: still insert + mark.
-  flushPhase();
-  flushMarker();
+  flushBlock();
 
   return { demoted, newRaw: out.join('\n') };
 }
@@ -153,9 +162,14 @@ if (invokedDirect) {
   const dryRun = argv.includes('--dry-run');
   const json = argv.includes('--json');
   const daysIdx = argv.indexOf('--days');
-  const staleDays = daysIdx >= 0 ? Number(argv[daysIdx + 1]) : STALE_BACKLOG_DAYS_DEFAULT;
+  const rawDays = daysIdx >= 0 ? argv[daysIdx + 1] : undefined;
+  const staleDays = daysIdx >= 0 ? Number(rawDays) : STALE_BACKLOG_DAYS_DEFAULT;
   if (!Number.isFinite(staleDays) || staleDays <= 0) {
-    console.error(`backlog-demote: invalid --days value '${argv[daysIdx + 1]}'`);
+    console.error(
+      rawDays === undefined
+        ? 'backlog-demote: --days requires a value'
+        : `backlog-demote: invalid --days value '${rawDays}'`,
+    );
     process.exit(1);
   }
 
