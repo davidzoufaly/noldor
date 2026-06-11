@@ -18,6 +18,7 @@ import {
   loadCounts,
   loadFdChangelog,
   loadFeatureDetail,
+  loadFeatureGitTimestamps,
   loadFeatures,
   loadGaps,
   loadHotZones,
@@ -27,6 +28,7 @@ import {
   loadWipAge,
   mergeChangelogIntoBody,
   parseBacklogFromString,
+  parseFeatureLastCommitDates,
   parseRoadmap,
   parseRoadmapFromString,
   resolveRenamePath,
@@ -185,6 +187,46 @@ describe('loadFeatures', () => {
       expect(typeof f.slug).toBe('string');
       expect(f.frontmatter.name.length).toBeGreaterThan(0);
       expect(['done', 'in-progress']).toContain(f.frontmatter.phase);
+    }
+  });
+});
+
+describe('parseFeatureLastCommitDates', () => {
+  it('maps each feature slug to its newest commit date (first occurrence wins)', () => {
+    const stdout = [
+      '2026-06-10T10:00:00+02:00',
+      '',
+      'docs/features/foo.md',
+      'docs/features/bar.md',
+      '',
+      '2026-06-01T09:00:00+02:00',
+      '',
+      'docs/features/foo.md',
+      'docs/features/baz.md',
+      '',
+    ].join('\n');
+    const map = parseFeatureLastCommitDates(stdout);
+    expect(map.get('foo')).toBe('2026-06-10T10:00:00+02:00');
+    expect(map.get('bar')).toBe('2026-06-10T10:00:00+02:00');
+    expect(map.get('baz')).toBe('2026-06-01T09:00:00+02:00');
+  });
+
+  it('ignores non-md paths and returns an empty map for empty stdout', () => {
+    expect(parseFeatureLastCommitDates('').size).toBe(0);
+    const stdout = ['2026-06-10T10:00:00+02:00', '', 'docs/features/img.png', ''].join('\n');
+    expect(parseFeatureLastCommitDates(stdout).size).toBe(0);
+  });
+});
+
+describe('loadFeatureGitTimestamps', () => {
+  it('returns a slug → ISO date map covering committed feature MDs', async () => {
+    const map = await loadFeatureGitTimestamps();
+    const features = await loadFeatures();
+    expect(map.size).toBeGreaterThan(0);
+    const dated = features.filter((f) => map.has(f.slug));
+    expect(dated.length).toBeGreaterThan(0);
+    for (const f of dated) {
+      expect(map.get(f.slug)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     }
   });
 });

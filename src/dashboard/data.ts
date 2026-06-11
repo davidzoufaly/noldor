@@ -393,6 +393,43 @@ export async function loadFeatures(): Promise<FeatureRecord[]> {
   return records;
 }
 
+/**
+ * Parse `git log --format=%cI --name-only` output into a slug → last-commit
+ * date map. The log arrives newest-first, so the first occurrence of each
+ * feature MD path wins. Non-`.md` paths are ignored.
+ */
+export function parseFeatureLastCommitDates(stdout: string): Map<string, string> {
+  const map = new Map<string, string>();
+  let current = '';
+  for (const line of stdout.split('\n')) {
+    if (!line) continue;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(line)) {
+      current = line;
+      continue;
+    }
+    if (!current || !line.endsWith('.md')) continue;
+    const slug = posix.basename(line, '.md');
+    if (!map.has(slug)) map.set(slug, current);
+  }
+  return map;
+}
+
+/**
+ * Resolve each feature MD's last git commit date (`%cI`) in a single
+ * `git log` pass over the features dir. Features never committed (fresh,
+ * untracked files) are absent from the map.
+ *
+ * @returns Map of feature slug → ISO-8601 committer date
+ */
+export async function loadFeatureGitTimestamps(): Promise<Map<string, string>> {
+  const { stdout } = await execFileAsync(
+    'git',
+    ['log', '--format=%cI', '--name-only', '--', getFeaturesDir()],
+    { cwd: process.cwd(), maxBuffer: 64 * 1024 * 1024 },
+  );
+  return parseFeatureLastCommitDates(stdout);
+}
+
 const CHANGELOG_HEADING = '## Changelog';
 
 async function listVersionTags(cwd: string): Promise<string[]> {

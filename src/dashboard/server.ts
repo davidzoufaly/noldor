@@ -11,6 +11,7 @@ import {
   loadBacklogWithHash,
   loadCounts,
   loadFeatureDetail,
+  loadFeatureGitTimestamps,
   loadFeatures,
   loadFrameworkPage,
   loadFrameworkPages,
@@ -552,15 +553,22 @@ async function handleBacklog(params: URLSearchParams): Promise<RouteResult> {
 
 async function handleFeatures(params: URLSearchParams): Promise<RouteResult> {
   const features = await loadFeatures();
+  const sort = params.get('sort') ?? '';
+  // git timestamps cost a git spawn — fetch only when the sort needs them
+  const gitUpdated = sort.startsWith('git-updated') ? await loadFeatureGitTimestamps() : undefined;
   return {
     status: 200,
-    body: renderFeatures(features, {
-      phase: params.get('phase') ?? '',
-      category: params.get('category') ?? '',
-      area: params.get('area') ?? '',
-      updated: params.get('updated') ?? '',
-      sort: params.get('sort') ?? '',
-    }),
+    body: renderFeatures(
+      features,
+      {
+        phase: params.get('phase') ?? '',
+        category: params.get('category') ?? '',
+        area: params.get('area') ?? '',
+        updated: params.get('updated') ?? '',
+        sort,
+      },
+      gitUpdated,
+    ),
     title: 'Features',
     activeNav: '/features',
   };

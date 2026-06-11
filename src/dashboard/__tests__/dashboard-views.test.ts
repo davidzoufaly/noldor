@@ -756,6 +756,70 @@ describe('renderFeatures', () => {
     expect(html).toContain('href="/features/foo"');
     expect(html).toContain('Foo');
   });
+
+  const featureFixture = (slug: string, name: string) => ({
+    slug,
+    frontmatter: {
+      name,
+      phase: 'done' as const,
+      area: 'tooling',
+      category: 'Tooling',
+      packages: ['scripts'],
+      deps: [],
+      links: { code: [], docs: [], tests: [] },
+      'noldor-tier': 'specs-only' as const,
+    },
+    bodyMarkdown: '',
+  });
+
+  it('offers git last-commit sort options in the dropdown', () => {
+    const html = renderFeatures([featureFixture('foo', 'Foo')], {
+      phase: '',
+      category: '',
+      area: '',
+      updated: '',
+      sort: '',
+    });
+    expect(html).toContain('value="git-updated-desc"');
+    expect(html).toContain('value="git-updated-asc"');
+  });
+
+  it('sorts by git last-commit date desc, missing timestamps last', () => {
+    const html = renderFeatures(
+      [
+        featureFixture('older', 'Older'),
+        featureFixture('undated', 'Undated'),
+        featureFixture('newer', 'Newer'),
+      ],
+      { phase: '', category: '', area: '', updated: '', sort: 'git-updated-desc' },
+      new Map([
+        ['older', '2026-01-05T10:00:00+02:00'],
+        ['newer', '2026-06-01T10:00:00+02:00'],
+      ]),
+    );
+    const pos = (slug: string) => html.indexOf(`href="/features/${slug}"`);
+    expect(pos('newer')).toBeGreaterThan(-1);
+    expect(pos('newer')).toBeLessThan(pos('older'));
+    expect(pos('older')).toBeLessThan(pos('undated'));
+  });
+
+  it('sorts by git last-commit date asc, missing timestamps last', () => {
+    const html = renderFeatures(
+      [
+        featureFixture('undated', 'Undated'),
+        featureFixture('newer', 'Newer'),
+        featureFixture('older', 'Older'),
+      ],
+      { phase: '', category: '', area: '', updated: '', sort: 'git-updated-asc' },
+      new Map([
+        ['older', '2026-01-05T10:00:00+02:00'],
+        ['newer', '2026-06-01T10:00:00+02:00'],
+      ]),
+    );
+    const pos = (slug: string) => html.indexOf(`href="/features/${slug}"`);
+    expect(pos('older')).toBeLessThan(pos('newer'));
+    expect(pos('newer')).toBeLessThan(pos('undated'));
+  });
 });
 
 describe('renderGaps', () => {
