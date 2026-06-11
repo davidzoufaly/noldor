@@ -1,4 +1,52 @@
 {
+  "/Users/davidzoufaly/code/noldor/vitest.config.ts": {
+    "mtime": 1780128269.2085218,
+    "hash": "b817b5882b37bd03a04a2548af935a65"
+  },
+  "/Users/davidzoufaly/code/noldor/vitest.setup.ts": {
+    "mtime": 1780321428.3456156,
+    "hash": "43d0d43372575baf503529d48b3ceaf7"
+  },
+  "/Users/davidzoufaly/code/noldor/bin/noldor.mjs": {
+    "mtime": 1780128269.15794,
+    "hash": "9b92bfa8c870bc4454cee89abb202647"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/stage-framework-docs.ts": {
+    "mtime": 1780128269.1659875,
+    "hash": "546ca12b8ba3f3e71b5fc9fb83c3e2d7"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/cross-tree-link-audit.ts": {
+    "mtime": 1780128269.1657665,
+    "hash": "5d30014bd10a72e069b93d461f1d5829"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/partition-blocks.ts": {
+    "mtime": 1780128269.165887,
+    "hash": "567f4734ea09164f99bbd9c7a93ff6ea"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/classify.ts": {
+    "mtime": 1780128269.165668,
+    "hash": "54ab24c6e1b9b2c5d274935a4a242054"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/classify-feature-track.ts": {
+    "mtime": 1780128269.165551,
+    "hash": "bff0a73e8f06a0aa53c8e666b181fa83"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/__tests__/partition-blocks.test.ts": {
+    "mtime": 1780128269.1652684,
+    "hash": "bdf2ad31c88257324ca7005dcc54ea59"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/__tests__/classify.test.ts": {
+    "mtime": 1780128269.1649985,
+    "hash": "5d4f53f7986d6e7d620bd437373855b0"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/__tests__/cross-tree-link-audit.test.ts": {
+    "mtime": 1780128269.1651275,
+    "hash": "6db5e4ef66490b6d25fe15a9e230bc1e"
+  },
+  "/Users/davidzoufaly/code/noldor/scripts/migration/__tests__/stage-framework-docs.test.ts": {
+    "mtime": 1780128269.1654189,
+    "hash": "b4b71a203fa35f37b217c47e781840e7"
+  },
   "/Users/davidzoufaly/code/noldor/src/index.ts": {
     "mtime": 1780128269.1933289,
     "hash": "9a3ea158858d6e5e941489cfc6dc82a3"
@@ -7,25 +55,81 @@
     "mtime": 1780128269.201248,
     "hash": "bfde36e87d9df7727014e3e53b64658a"
   },
+  "/Users/davidzoufaly/code/noldor/src/prep/draft.ts": {
+    "mtime": 1781107922.0682538,
+    "hash": "46858841bfcf513d45ba1ed59ebab6c8"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/staging.ts": {
+    "mtime": 1781107922.0689662,
+    "hash": "255eb5dacd1013e79f8990c70392bea3"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/index-doc.ts": {
+    "mtime": 1781107922.0683513,
+    "hash": "5356a5a0d71f0c0516e3af2d90a96970"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/scaffold.ts": {
+    "mtime": 1781107922.068748,
+    "hash": "767b1685810adca8913e830bcde6e2d5"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/prep-fanout.ts": {
+    "mtime": 1781107922.0684814,
+    "hash": "f3b7376b33783a24be601c25508f1eda"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/spawn.ts": {
+    "mtime": 1781107922.0688474,
+    "hash": "e8b7bf251acf09019e7936da86c880e6"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/types.ts": {
+    "mtime": 1781107922.0690656,
+    "hash": "0348798afce1d6c38ccfd4c2b5992e73"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/discover.ts": {
+    "mtime": 1781107922.068117,
+    "hash": "c8ed3861b19589aacabfb05750890ea5"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/prep-promote.ts": {
+    "mtime": 1781107922.0686214,
+    "hash": "66750898bde08cd401304f89bf682350"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/__tests__/scaffold.test.ts": {
+    "mtime": 1781107922.067921,
+    "hash": "89cecb0971f7c2c2a17cb55875e29595"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/__tests__/index-doc.test.ts": {
+    "mtime": 1781107922.0676603,
+    "hash": "a8ef0091fc82cf3e6b5630c40c0e5b5d"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/__tests__/staging.test.ts": {
+    "mtime": 1781107922.068014,
+    "hash": "9b871a2e6768bf0144bd0ee5d01fd0dc"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/__tests__/discover.test.ts": {
+    "mtime": 1781107922.0675259,
+    "hash": "649101e67bacf445cfbc077da5b77b23"
+  },
+  "/Users/davidzoufaly/code/noldor/src/prep/__tests__/prep-promote.test.ts": {
+    "mtime": 1781107922.0678017,
+    "hash": "2c557ad908f0507fe138ba6a356563c2"
+  },
   "/Users/davidzoufaly/code/noldor/src/core/lint-plan-snippets.ts": {
     "mtime": 1780128269.1717412,
     "hash": "3dec22360df6669b35b255c19f988738"
   },
   "/Users/davidzoufaly/code/noldor/src/core/pr-flow-cli.ts": {
-    "mtime": 1780128269.172365,
-    "hash": "05c252b8d1207255589b229df74d3352"
+    "mtime": 1781116721.6893866,
+    "hash": "c80c92c510ae4bae59445ebf3d5426af"
   },
   "/Users/davidzoufaly/code/noldor/src/core/release-markers.ts": {
     "mtime": 1780128269.1727076,
     "hash": "a6a04e190dfa82a876a49dfbaea36dd1"
   },
   "/Users/davidzoufaly/code/noldor/src/core/pr-flow.ts": {
-    "mtime": 1780128269.1725416,
-    "hash": "32a1188175c0b611d842f561cc0b30bc"
+    "mtime": 1781116721.6897411,
+    "hash": "924ba5fb583bd63040519b51666ede52"
   },
   "/Users/davidzoufaly/code/noldor/src/core/allowlist.ts": {
-    "mtime": 1780335967.6369007,
-    "hash": "a447e5b43303c9831e06d86c030c3dda"
+    "mtime": 1780854535.6376705,
+    "hash": "86a98e3ca2a9469d3903807e1b449d18"
   },
   "/Users/davidzoufaly/code/noldor/src/core/cr-retry.ts": {
     "mtime": 1780128269.171338,
@@ -48,8 +152,8 @@
     "hash": "1e1cec8ffe2eff8d9ad4ebcad7b1c731"
   },
   "/Users/davidzoufaly/code/noldor/src/core/trailers.ts": {
-    "mtime": 1780128269.1732528,
-    "hash": "1a844f8596920d24959fb658c965f31f"
+    "mtime": 1781162300.7154105,
+    "hash": "f8f0860d835f80f9b6811c23ed18b284"
   },
   "/Users/davidzoufaly/code/noldor/src/core/bump-session-marker.ts": {
     "mtime": 1780128269.1709569,
@@ -58,6 +162,10 @@
   "/Users/davidzoufaly/code/noldor/src/core/phase-flip-done.ts": {
     "mtime": 1780128269.1720889,
     "hash": "d09a681f8502f2db3812e000a7bb3385"
+  },
+  "/Users/davidzoufaly/code/noldor/src/core/size-routing.ts": {
+    "mtime": 1781035228.9622734,
+    "hash": "7267089fe2b6d68d344029a9857d204e"
   },
   "/Users/davidzoufaly/code/noldor/src/core/phase-revert.ts": {
     "mtime": 1780128269.1722205,
@@ -80,20 +188,20 @@
     "hash": "0f0d3f9b64c9f470fc6c09d9dc3332f7"
   },
   "/Users/davidzoufaly/code/noldor/src/core/consumer-config.ts": {
-    "mtime": 1780321428.3319168,
-    "hash": "6c33bdaf5ba6e5d525f85b542ea41c16"
+    "mtime": 1780930577.7899506,
+    "hash": "540aaad0fdbe16c9836cbdb12d6b3b6c"
   },
   "/Users/davidzoufaly/code/noldor/src/core/validate-skill-catalog.ts": {
     "mtime": 1780128269.1735666,
     "hash": "18a9582ccc17f05db8857e51b1d6992d"
   },
   "/Users/davidzoufaly/code/noldor/src/core/session.ts": {
-    "mtime": 1780321428.3323405,
-    "hash": "dadfc74f2a27ea16e789cd6853d2d796"
+    "mtime": 1780930577.7906728,
+    "hash": "feb33f662c44883086a0ad1afa59cc7b"
   },
   "/Users/davidzoufaly/code/noldor/src/core/next-priority.ts": {
-    "mtime": 1780128269.1719449,
-    "hash": "a082d69e1e727070f5eb162312d25aec"
+    "mtime": 1781078125.23153,
+    "hash": "06af1295747190cec968c026948c0e94"
   },
   "/Users/davidzoufaly/code/noldor/src/core/doc-roots.ts": {
     "mtime": 1780128269.1714551,
@@ -108,24 +216,28 @@
     "hash": "20ae9c519d75e44b5647c3d8f148552d"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/trailers.test.ts": {
-    "mtime": 1780128269.1704292,
-    "hash": "c85fbea04cdaa0e299982bd51f271742"
+    "mtime": 1781162300.7152293,
+    "hash": "09135a56d32cf125874336f93c65ca8f"
+  },
+  "/Users/davidzoufaly/code/noldor/src/core/__tests__/size-routing.test.ts": {
+    "mtime": 1781035228.9612122,
+    "hash": "f8eb033a3f44eb59050ccfa72ab27564"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/rollout-marker.test.ts": {
     "mtime": 1780128269.1701539,
     "hash": "2547edd01cf86b7c7db224c0e92e7af5"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/consumer-config.test.ts": {
-    "mtime": 1780321428.331049,
-    "hash": "d99ec5bc9ec627dc155eecf53b97f001"
+    "mtime": 1780930577.7886856,
+    "hash": "23016284787b3baded413d7cb75ec0ef"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/phase-flip-done.test.ts": {
     "mtime": 1780128269.1694343,
     "hash": "f457c0c810a7b880f482c3b0bc2b0a3a"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/next-priority.test.ts": {
-    "mtime": 1780128269.1693027,
-    "hash": "556be174ba7cba7e90d6254c55b79071"
+    "mtime": 1781078125.231254,
+    "hash": "621a52c091907780bab41fd16407c7bd"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/validate-skill-catalog.test.ts": {
     "mtime": 1780128269.1707525,
@@ -156,16 +268,16 @@
     "hash": "ed08c401da0f018821009ac457eec509"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/session.test.ts": {
-    "mtime": 1780128269.1702979,
-    "hash": "18357f1e22df966045b142feb1bbeeb5"
+    "mtime": 1780930577.7896826,
+    "hash": "1f969c80820e0d19e663f2e32ad39fd4"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/allowlist.test.ts": {
-    "mtime": 1780335967.6364336,
-    "hash": "253d1996a2b0ef3f740895c0cd411634"
+    "mtime": 1780854535.6375384,
+    "hash": "5a1f31ddd3ee3e83794149ec04c161fd"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/pr-flow-cli.test.ts": {
-    "mtime": 1780321428.3315578,
-    "hash": "716b25fbffa76f77b1f7c526d3c23d15"
+    "mtime": 1780930577.789045,
+    "hash": "9c65e182822fb4d238977b5459427265"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/cr-retry.test.ts": {
     "mtime": 1780128269.1686745,
@@ -176,8 +288,8 @@
     "hash": "0fb6aa93426a6e9326f70c16dc8a4fc1"
   },
   "/Users/davidzoufaly/code/noldor/src/core/__tests__/pr-flow.test.ts": {
-    "mtime": 1780321428.3316905,
-    "hash": "8f0dde01c55797a83454deb6bb97f7eb"
+    "mtime": 1781116721.688862,
+    "hash": "c35ff72ae6ab3d50b78cd69b7ed33fbb"
   },
   "/Users/davidzoufaly/code/noldor/src/core/rules/stage.ts": {
     "mtime": 1780321428.332244,
@@ -199,41 +311,53 @@
     "mtime": 1780321428.3374162,
     "hash": "d86801c05667982b8089e8d2f79018ef"
   },
+  "/Users/davidzoufaly/code/noldor/src/garden/sdd-report-format.ts": {
+    "mtime": 1780828984.458801,
+    "hash": "6e9c8ff00fc2528e426910a8c4dd275e"
+  },
+  "/Users/davidzoufaly/code/noldor/src/garden/backlog-demote.ts": {
+    "mtime": 1781190897.9257035,
+    "hash": "340c8cd821edcf0569e6ea3e69a37558"
+  },
   "/Users/davidzoufaly/code/noldor/src/garden/sdd-report.ts": {
-    "mtime": 1780321428.338009,
-    "hash": "f78270136f5454d0a775ea8bf8720dfa"
+    "mtime": 1781163804.7685359,
+    "hash": "34778d8b235920ef5149dfdac909b886"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/garden-detect.ts": {
-    "mtime": 1780321428.3375638,
-    "hash": "c02464e0cf95bf1cde46201a97c94371"
+    "mtime": 1781190897.9261014,
+    "hash": "19e292160b8c5074c42b35f4cacdc39d"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/garden-invariants.ts": {
     "mtime": 1780321428.3378296,
     "hash": "fbe51aceb42caae9077d9c31a9ee7a53"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/plan-resolution.ts": {
-    "mtime": 1780128269.1909912,
-    "hash": "f8292504a7e25f2f716322271a10f64c"
+    "mtime": 1781163066.149205,
+    "hash": "15fd5225a5b391065f848d6618fc3b75"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/graph-fd-lookup.ts": {
-    "mtime": 1780128269.1908836,
-    "hash": "7c494b8fae7c42a03bbcc8d6807abdb3"
+    "mtime": 1781163804.7680104,
+    "hash": "d0aa3c074b8ab6ba154afee2bd06c1b4"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/__tests__/plan-resolution.test.ts": {
-    "mtime": 1780128269.1882238,
-    "hash": "f7bf866a382f66022aceda305c9068c4"
+    "mtime": 1781163066.1485755,
+    "hash": "f1920cddb5deddb16c1fcbc18e9e5f5a"
+  },
+  "/Users/davidzoufaly/code/noldor/src/garden/__tests__/backlog-demote.test.ts": {
+    "mtime": 1781190897.9255097,
+    "hash": "1390b1b17d5869af01ece5612629c152"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/__tests__/garden-receipt.test.ts": {
     "mtime": 1780128269.1879811,
     "hash": "aa453f551a6b08d497c95a56fbebb058"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/__tests__/garden-detect.test.ts": {
-    "mtime": 1780321428.3364522,
-    "hash": "be75d293e90bbd31137cccbbee3280b3"
+    "mtime": 1781163066.148153,
+    "hash": "9f62279e5e7971181cd8cc446eeee434"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/__tests__/graph-fd-lookup.test.ts": {
-    "mtime": 1780321428.3366501,
-    "hash": "c765c33fb3a51b8c12235479203017c8"
+    "mtime": 1781163804.7674344,
+    "hash": "5a4c5211f558fd8bdeb1907859aa59b6"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/__tests__/sdd-report.test.ts": {
     "mtime": 1780321428.3367922,
@@ -260,8 +384,8 @@
     "hash": "ae8f635914f5d64de708ebccf91f7e0a"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/detectors/trailer-scope-mismatch.ts": {
-    "mtime": 1780336265.0882077,
-    "hash": "4b38ab814d0eb8762ee17818db51d0d8"
+    "mtime": 1780930577.792355,
+    "hash": "b3776cc549a0efe767c8349b2433da53"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/detectors/branch-protection.ts": {
     "mtime": 1780128269.1896598,
@@ -288,8 +412,8 @@
     "hash": "3caf8e8b33ceaf3470b362c5e6115ca0"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts": {
-    "mtime": 1780336265.0878785,
-    "hash": "9e703f0e7c40a2173c2fb6e7d18700c9"
+    "mtime": 1780930577.791969,
+    "hash": "d9fdceab017386e513b4cd00d0fe6ab9"
   },
   "/Users/davidzoufaly/code/noldor/src/garden/detectors/__tests__/codex-cr-override-audit.test.ts": {
     "mtime": 1780128269.188905,
@@ -376,12 +500,12 @@
     "hash": "12e18edad174faa82f98df76f93652d5"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/cli-args.ts": {
-    "mtime": 1780128269.1774213,
-    "hash": "7d026ce541e00a0badd17de9c72fa84d"
+    "mtime": 1781038035.3932416,
+    "hash": "84e65dd63cf84baaa5492542fb532b8d"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/orchestrate.ts": {
-    "mtime": 1780128269.1795142,
-    "hash": "a0a25468bdd5cd19e5fbe098d94553f6"
+    "mtime": 1780859092.0963356,
+    "hash": "ebb03f6d2213918729ea3d7ac74874fc"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/amend-receipt.ts": {
     "mtime": 1780128269.1772685,
@@ -404,24 +528,24 @@
     "hash": "9d5fe25750496f23ffdb6ce822a84100"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/run-codex.ts": {
-    "mtime": 1780128269.1797874,
-    "hash": "13d60809934ee00dfec3ef1f0ba293d3"
+    "mtime": 1781038035.3943286,
+    "hash": "55fdb7429480eadf6eb4d582cc417b6b"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/codex.ts": {
-    "mtime": 1780128269.17752,
-    "hash": "b5547749063043a0652977f6cc53302d"
+    "mtime": 1781038035.3936465,
+    "hash": "5d2e527763694b028e98758545e6ea9e"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/sidecar.ts": {
     "mtime": 1780128269.1798823,
     "hash": "7f424dfa7d94e60113432ddd12e4e6af"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/config.ts": {
-    "mtime": 1780128269.1776009,
-    "hash": "39289aec85ab674e4952254cd8d15ec6"
+    "mtime": 1780930577.791532,
+    "hash": "81b95bc1832151501140141fbf8f5fd6"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/aggregate.ts": {
-    "mtime": 1780128269.1771867,
-    "hash": "ceaf5c4ab2793b421da8cc5a25163d5f"
+    "mtime": 1781120051.416241,
+    "hash": "d78f1f6224658285a85779e47d421191"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/lane-types.ts": {
     "mtime": 1780128269.1782484,
@@ -432,24 +556,24 @@
     "hash": "cd92565aff919b4eb5ed2cd966fdf7ab"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/lanes/subagent-dispatch.ts": {
-    "mtime": 1780128269.179057,
-    "hash": "fd4118fb2427347481b6a76ef93826b9"
+    "mtime": 1781161270.2764444,
+    "hash": "59703461b43c236925b02c2a4299cad4"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/lanes/manual.ts": {
     "mtime": 1780128269.1787195,
     "hash": "64c3c3c0769c1c7f73e5cd4f76c2985c"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/lanes/codex.ts": {
-    "mtime": 1780128269.1785388,
-    "hash": "9646fb9219abbcacbe5119ae71c5cd7e"
+    "mtime": 1781079649.6757104,
+    "hash": "5b24de2701cb2dbcbd4ad60b0f5d8db6"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/lanes/subagent.ts": {
-    "mtime": 1780321428.3327188,
-    "hash": "98bf23901fe33f69f7d13effb5b0b40c"
+    "mtime": 1781120051.4177146,
+    "hash": "c95f78cfeeb7d0da4b39bbbbd6596d8c"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/lanes/standalone.ts": {
-    "mtime": 1780128269.1789448,
-    "hash": "4782a804e4fc6871d1515d7c14b9a91e"
+    "mtime": 1781120051.4172373,
+    "hash": "46e229351fa1050d14565d2a030d934d"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/aggregate.cli.test.ts": {
     "mtime": 1780128269.1737895,
@@ -468,8 +592,8 @@
     "hash": "e454ad6f58018daac5f5060b9e6958e3"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/orchestrate.integration.test.ts": {
-    "mtime": 1780128269.1764321,
-    "hash": "d029a414b3ecd9528bc9b2f803a4e43d"
+    "mtime": 1781120051.41581,
+    "hash": "eaa790a50703bc73fec423178de98d63"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/filename.test.ts": {
     "mtime": 1780128269.1746664,
@@ -480,8 +604,8 @@
     "hash": "4cdc1580609be6652de5b355d72eaa6d"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/cli-args.test.ts": {
-    "mtime": 1780128269.1741362,
-    "hash": "c32d8c682229ae95ab5e898fdcab4311"
+    "mtime": 1781038035.3911352,
+    "hash": "c364add734ec76cbaf0603219d8228b1"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/delta.test.ts": {
     "mtime": 1780128269.1744695,
@@ -496,8 +620,8 @@
     "hash": "398f6d5a5812ab15ff2c9a269c2d7fb5"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/run-codex.test.ts": {
-    "mtime": 1780128269.1768725,
-    "hash": "217d7ebb99887d4ab85d9a828f77b231"
+    "mtime": 1781038035.3925896,
+    "hash": "7e1a5107c479c2ac60d7e45cc2205f29"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/sidecar.test.ts": {
     "mtime": 1780128269.1770167,
@@ -516,40 +640,40 @@
     "hash": "6c3d2f68dae23c3880af2ce83efaa020"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/config.test.ts": {
-    "mtime": 1780128269.1742966,
-    "hash": "36dd2f9d423fa379b60e05747177407d"
+    "mtime": 1780930577.7912323,
+    "hash": "ab61e15bae496092293577be5550f933"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/schema-parity.test.ts": {
     "mtime": 1780128269.1769476,
     "hash": "07f14db271c9ec219e6298468e01d3b0"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/orchestrate.test.ts": {
-    "mtime": 1780128269.1765327,
-    "hash": "a4a05bd52776e2ab4355f703b05ba06f"
+    "mtime": 1780859092.0953553,
+    "hash": "f71e96eca86e3ae2835fc48413ff5258"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/aggregate.test.ts": {
-    "mtime": 1780128269.1738899,
-    "hash": "db71f8bbd2b8249399708445a31c1d26"
+    "mtime": 1781120051.4143426,
+    "hash": "a6b051c2dfbe24d4db981f423e40e0e6"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/codex.test.ts": {
-    "mtime": 1780128269.1742291,
-    "hash": "dc057b9fd23771f4c112080681b91c14"
+    "mtime": 1781038035.3915265,
+    "hash": "88e968f6d47cca33df651b1e4b4b04e2"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/lanes/standalone.test.ts": {
-    "mtime": 1780128269.176227,
-    "hash": "b5cc2814cb911aabeb657f4923121c5e"
+    "mtime": 1781120051.4149876,
+    "hash": "4482445ee73962af541bf9c47b0787fe"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/lanes/manual.test.ts": {
     "mtime": 1780128269.176087,
     "hash": "e61417bd96bd7c56af99943f6db7bfd8"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/lanes/subagent.test.ts": {
-    "mtime": 1780128269.176316,
-    "hash": "fdaa7a351aced72afa0995b69804bc31"
+    "mtime": 1781120051.4153414,
+    "hash": "7ab3cce654a30473043cf93969dd395e"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/lanes/codex.test.ts": {
-    "mtime": 1780128269.1757329,
-    "hash": "cf4d0ac7cbca57c2bd8703d31ac46025"
+    "mtime": 1781079649.6753092,
+    "hash": "bab17e72cb1d0958f0f93afe60fae858"
   },
   "/Users/davidzoufaly/code/noldor/src/features/migrate-fd-commits-to-prs.ts": {
     "mtime": 1780128269.1859381,
@@ -628,8 +752,8 @@
     "hash": "3a48be6413cfac5e87fa2c8550ae12b0"
   },
   "/Users/davidzoufaly/code/noldor/src/utils/parse-blocks.ts": {
-    "mtime": 1780128269.2009814,
-    "hash": "45a5d244b9909afcac7b7a3981227f16"
+    "mtime": 1781190897.9267664,
+    "hash": "06cda25f07f688c3fd8906316e9603e0"
   },
   "/Users/davidzoufaly/code/noldor/src/utils/slugify.ts": {
     "mtime": 1780128269.2010536,
@@ -696,8 +820,8 @@
     "hash": "a824d1fad72d089bdc44cd2de45bbfa2"
   },
   "/Users/davidzoufaly/code/noldor/src/release/index.ts": {
-    "mtime": 1780321428.3398001,
-    "hash": "3816b8545afdb38fe592008e63ec2395"
+    "mtime": 1780828984.4601414,
+    "hash": "bf4b1c93c8a63c5edfb08615c7148f73"
   },
   "/Users/davidzoufaly/code/noldor/src/release/release-noise-types.ts": {
     "mtime": 1780128269.1977403,
@@ -714,6 +838,10 @@
   "/Users/davidzoufaly/code/noldor/src/release/release-find-first-pr-commit.ts": {
     "mtime": 1780128269.1975935,
     "hash": "8e2d7b26897668330448f36c2c1abb7d"
+  },
+  "/Users/davidzoufaly/code/noldor/src/release/sdd-report-diff.ts": {
+    "mtime": 1780828984.4603145,
+    "hash": "66c988a5ee17b896fdccc17f8556817b"
   },
   "/Users/davidzoufaly/code/noldor/src/release/llm-polish-summary.ts": {
     "mtime": 1780321428.3398917,
@@ -774,6 +902,10 @@
   "/Users/davidzoufaly/code/noldor/src/release/__tests__/release-markers.test.ts": {
     "mtime": 1780321428.339339,
     "hash": "7239f9cd1ca92b51eb2cbd82599d8fc4"
+  },
+  "/Users/davidzoufaly/code/noldor/src/release/__tests__/sdd-report-diff.test.ts": {
+    "mtime": 1780828984.4595969,
+    "hash": "28564a8c4a2eceb106aa54fae8edd5f0"
   },
   "/Users/davidzoufaly/code/noldor/src/release/__tests__/release-commits.test.ts": {
     "mtime": 1780128269.1953416,
@@ -872,16 +1004,16 @@
     "hash": "e792a415be3a45a15a61f37d4856fe97"
   },
   "/Users/davidzoufaly/code/noldor/src/cli/manifest.ts": {
-    "mtime": 1780326047.1178167,
-    "hash": "77006804a83ec6a2ae8b4cff98310719"
+    "mtime": 1781193903.1971767,
+    "hash": "bb04066a1db641bee411d6c0b2e1e531"
   },
   "/Users/davidzoufaly/code/noldor/src/cli/index.ts": {
     "mtime": 1780128269.1679573,
     "hash": "13189d77eaf6d2a99b589a3ccdf06b0e"
   },
   "/Users/davidzoufaly/code/noldor/src/cli/__tests__/cli.test.ts": {
-    "mtime": 1780321428.33076,
-    "hash": "2239b90feb26a94b90d1a8e906a41ed6"
+    "mtime": 1781107922.0671613,
+    "hash": "1b6f366e327e960cee2da35dd73c737f"
   },
   "/Users/davidzoufaly/code/noldor/src/cli/commands/doctor.ts": {
     "mtime": 1780128269.1676738,
@@ -892,28 +1024,32 @@
     "hash": "f8226c8d5cb1a434593244ce4d5108c3"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/data.ts": {
-    "mtime": 1780321428.3340874,
-    "hash": "01ba8092b4b326b9f64f280c25f1c9e5"
+    "mtime": 1781187546.5979419,
+    "hash": "0fa805c7369d5c078c28a99fec998134"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/views.ts": {
-    "mtime": 1780128269.1835515,
-    "hash": "610dd7f9a6fc25fd3bf950d7841e60a2"
+    "mtime": 1781195058.3380406,
+    "hash": "6db140561bea00929fb43e33c8e16f63"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/layout.ts": {
-    "mtime": 1780128269.1825466,
-    "hash": "41d2f4c5ab5ab8def26d35dafa540638"
+    "mtime": 1781184677.7162461,
+    "hash": "f9f27fd84fe3672591a6fbea23a34c34"
+  },
+  "/Users/davidzoufaly/code/noldor/src/dashboard/ensure.ts": {
+    "mtime": 1781193903.1974304,
+    "hash": "3952785342a2471a293ddd74dc4c9a23"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/server.ts": {
-    "mtime": 1780128269.1828108,
-    "hash": "b8c92f6433df6d3c3bee7043e61e43be"
+    "mtime": 1781195058.3378074,
+    "hash": "03f81cb8d5ef4962f87749e88668e633"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-layout-style-polish.test.ts": {
     "mtime": 1780128269.180718,
     "hash": "546515b4ff925993ac4f4e437265c43b"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-views.test.ts": {
-    "mtime": 1780321428.3338764,
-    "hash": "75d8a63537c9350e39f0e39f01dc0634"
+    "mtime": 1781195058.3374577,
+    "hash": "daf8a4310f09909e77657b9cd329dbb5"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-worktrees.test.ts": {
     "mtime": 1780128269.1816251,
@@ -923,13 +1059,29 @@
     "mtime": 1780128269.1808257,
     "hash": "c545510f49765ecb368be6a9808258e0"
   },
+  "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-test-pyramid.test.ts": {
+    "mtime": 1781123761.1634936,
+    "hash": "138f01765c6f0468768d7b6f36ea3871"
+  },
+  "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-ensure.test.ts": {
+    "mtime": 1781193903.1972928,
+    "hash": "fc062c0c983f52fbf9e7853bc955f3b5"
+  },
+  "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-skills.test.ts": {
+    "mtime": 1781161617.3615239,
+    "hash": "dc7b9e189a240fdbd67b9b0e515dff2c"
+  },
+  "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-graph-health.test.ts": {
+    "mtime": 1781184677.715265,
+    "hash": "47abfc4bb9892250a7f58cd00022587e"
+  },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/api-blocks.test.ts": {
     "mtime": 1780128269.1802385,
     "hash": "4af8c76d889a08d1f9d51ab50fbadbc4"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-release-notes.test.ts": {
-    "mtime": 1780321428.333354,
-    "hash": "e27e571c865487d0d655c4a22d5c0b8f"
+    "mtime": 1780822791.4267285,
+    "hash": "8172ec110087c247f2c95899b1936901"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-render-markdown.test.ts": {
     "mtime": 1780128269.1810281,
@@ -940,8 +1092,8 @@
     "hash": "6f000c52eef4c1c236d5589de10a6148"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-server.test.ts": {
-    "mtime": 1780321428.3336906,
-    "hash": "8e3bc96f63e516581bb81f11c30263a5"
+    "mtime": 1781186234.7007914,
+    "hash": "4ad2f9c3a8b3f89baf6826517b8d88a1"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/edge-scroll.test.ts": {
     "mtime": 1780128269.1817303,
@@ -960,8 +1112,8 @@
     "hash": "5d3c282da19d21262ce6213dfa47a50d"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/__tests__/dashboard-data.test.ts": {
-    "mtime": 1780321428.332897,
-    "hash": "fefc82189b8d466b6d53229718f50968"
+    "mtime": 1781187546.5973787,
+    "hash": "19bed650ff596c487e687a0a1581957f"
   },
   "/Users/davidzoufaly/code/noldor/src/dashboard/static/drag.ts": {
     "mtime": 1780128269.1833377,
@@ -988,16 +1140,16 @@
     "hash": "a1603355e3cf10ac80f1470b41d46c85"
   },
   "/Users/davidzoufaly/code/noldor/src/hooks/noldor-validate-trailer.ts": {
-    "mtime": 1780321428.3383136,
-    "hash": "b4a804fe7ed983e5cc377ddb51c4c36d"
+    "mtime": 1781162300.7163424,
+    "hash": "b3e57802767807c3a7e4e2504b5877be"
   },
   "/Users/davidzoufaly/code/noldor/src/hooks/noldor-pre-edit-guard.ts": {
     "mtime": 1780128269.1928246,
     "hash": "42c43f3b7e0a75e07e7320542125eb51"
   },
   "/Users/davidzoufaly/code/noldor/src/hooks/noldor-pre-commit.ts": {
-    "mtime": 1780128269.192733,
-    "hash": "cbe38644a36228fb27c43de838cf5900"
+    "mtime": 1780930577.7930381,
+    "hash": "7bdf6cc01546c6aa2d49a2576f648904"
   },
   "/Users/davidzoufaly/code/noldor/src/hooks/noldor-pre-push.ts": {
     "mtime": 1780128269.1930287,
@@ -1012,16 +1164,16 @@
     "hash": "950fcb7ffd5fc231c4e317d7ff0650e9"
   },
   "/Users/davidzoufaly/code/noldor/src/hooks/__tests__/noldor-pre-commit.test.ts": {
-    "mtime": 1780128269.1920252,
-    "hash": "c1b57dfed444b5de8fd047a6be5c86b7"
+    "mtime": 1780930577.79267,
+    "hash": "26c4e4e75d33b4d49178f933c28e5b90"
   },
   "/Users/davidzoufaly/code/noldor/src/hooks/__tests__/noldor-pre-push.test.ts": {
     "mtime": 1780128269.1922336,
     "hash": "513c5814d98e0f36f2eeccb6f0d77cc0"
   },
   "/Users/davidzoufaly/code/noldor/src/hooks/__tests__/noldor-validate-trailer.test.ts": {
-    "mtime": 1780321428.3381546,
-    "hash": "725a91d68f4646234108e6f73b80169b"
+    "mtime": 1781162300.7159505,
+    "hash": "18276a5ca56cc39df4aad720b64ebc2c"
   },
   "/Users/davidzoufaly/code/noldor/src/hooks/__tests__/noldor-pre-edit-guard.test.ts": {
     "mtime": 1780128269.1921117,
@@ -1030,6 +1182,10 @@
   "/Users/davidzoufaly/code/noldor/src/hooks/__tests__/agent-rules-guard.test.ts": {
     "mtime": 1780128269.1915467,
     "hash": "5875bae05739d5af2d23c1ce569d51d7"
+  },
+  "/Users/davidzoufaly/code/noldor/src/worktrees/worktree-conflicts.ts": {
+    "mtime": 1781188843.7444875,
+    "hash": "7deb057cb7731d07c4128f56a9ca588a"
   },
   "/Users/davidzoufaly/code/noldor/src/worktrees/worktree-status.ts": {
     "mtime": 1780128269.2017171,
@@ -1042,6 +1198,10 @@
   "/Users/davidzoufaly/code/noldor/src/worktrees/__tests__/worktree-status.test.ts": {
     "mtime": 1780128269.2015126,
     "hash": "dc4eac61edd4b78eabb660fa7909af43"
+  },
+  "/Users/davidzoufaly/code/noldor/src/worktrees/__tests__/worktree-conflicts.test.ts": {
+    "mtime": 1781188843.7443118,
+    "hash": "75a26daa7d1b8321194446af0a0ebbe1"
   },
   "/Users/davidzoufaly/code/noldor/src/worktrees/__tests__/launch-worktrees.test.ts": {
     "mtime": 1780128269.2013955,
@@ -1143,6 +1303,74 @@
     "mtime": 1780128269.199087,
     "hash": "155c2b47807c67fb7b296f9e40e735bf"
   },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/drain-io.ts": {
+    "mtime": 1781116721.6877913,
+    "hash": "a491c68282990c59db88955257444651"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/queue-drain.ts": {
+    "mtime": 1781116721.6885612,
+    "hash": "a3516e0aed792a9d8e321c452064201b"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/drain-loop.ts": {
+    "mtime": 1781116721.6879652,
+    "hash": "31cc281972bf3ba43b0644c8e21e0c52"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/drain-lock.ts": {
+    "mtime": 1781078125.2297897,
+    "hash": "1c1cc66ec60b3f6466ed64bb34df9330"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/drain-eligibility.ts": {
+    "mtime": 1781078125.2294981,
+    "hash": "5d113d9094581c731b4d883c131420a3"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/drain-source.ts": {
+    "mtime": 1781119167.8122292,
+    "hash": "8953c9edcb77ee28333a921518a38197"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/drain-state.ts": {
+    "mtime": 1781116721.6882985,
+    "hash": "1f3bb06ed1b3a01436b3f9af2ca1fd1e"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/drain-eligibility.test.ts": {
+    "mtime": 1781078125.228726,
+    "hash": "1758d0870e3e7dffb573fd30bced7661"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/build-pool.test.ts": {
+    "mtime": 1781116721.6868217,
+    "hash": "f1ceabb493a02c4a8f6b89ff593ee4aa"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/decide-next.test.ts": {
+    "mtime": 1781107922.0659199,
+    "hash": "3ee7e9fd2f615403be561df091aa1ac1"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/drain-source.test.ts": {
+    "mtime": 1781119167.8119087,
+    "hash": "f683d6b652701a8cc4696d35c3d39e3e"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/run-drain.test.ts": {
+    "mtime": 1781116721.6875331,
+    "hash": "37a3150881bb0e461f382dd5616badf7"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/queue-drain-cli.test.ts": {
+    "mtime": 1781116721.6871958,
+    "hash": "7643563c0049af1522dd38ea68aa7e69"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/drain-lock.test.ts": {
+    "mtime": 1781078125.228859,
+    "hash": "5498b197fffb48da1139fdd623d7804d"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/drain-state.test.ts": {
+    "mtime": 1781078125.228992,
+    "hash": "cb1e2fa28ddaed9ff21c5bef26364af4"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/merge-classify.test.ts": {
+    "mtime": 1781116721.6869361,
+    "hash": "3c9d9ad7341e29fea4d7c70812c64615"
+  },
+  "/Users/davidzoufaly/code/noldor/src/autonomous/__tests__/merge-coordinator.test.ts": {
+    "mtime": 1781116721.68705,
+    "hash": "b97cd3bf6909490d4db1b5cedb6aa687"
+  },
   "/Users/davidzoufaly/code/noldor/src/sync/sync-fd-resources.ts": {
     "mtime": 1780128269.198794,
     "hash": "c1f52a3c6c1cb2c3e8ba8b4fccf4d3a6"
@@ -1179,13 +1407,457 @@
     "mtime": 1780128269.1913521,
     "hash": "770846912a16bc999e1331fdc12e50d8"
   },
+  "/Users/davidzoufaly/code/noldor/ideas.md": {
+    "mtime": 1781198181.5643845,
+    "hash": "79cdf58994a8a42ddef015448fb01763"
+  },
+  "/Users/davidzoufaly/code/noldor/CHANGELOG.md": {
+    "mtime": 1780337151.7339659,
+    "hash": "2a7c3b7e24051b7286ddad9b9124ac8c"
+  },
+  "/Users/davidzoufaly/code/noldor/README.md": {
+    "mtime": 1780859092.0925443,
+    "hash": "1ba5aee6b76555859016cb66dc371d54"
+  },
+  "/Users/davidzoufaly/code/noldor/lefthook.yml": {
+    "mtime": 1780321428.3293467,
+    "hash": "65a3e8872f5fbb29a06088e0b606ffe0"
+  },
+  "/Users/davidzoufaly/code/noldor/lefthook/noldor.yml": {
+    "mtime": 1780331805.7489264,
+    "hash": "9e99736aa963ba01ca1977f348ed4270"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/sdd-report.md": {
+    "mtime": 1780337140.4699838,
+    "hash": "c09037348d60c2734fb6e315f3d22710"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/release-notes.md": {
+    "mtime": 1780337151.7424695,
+    "hash": "77aa7a27f61ad80fc68ce5d839d38b4d"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/vision.md": {
+    "mtime": 1780128269.1645708,
+    "hash": "ea2a5f2528436f22c66bd6617df59c25"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/roadmap.md": {
+    "mtime": 1781197982.3260088,
+    "hash": "454fd52bc28b7a54e056f600f5e6dc75"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/backlog.md": {
+    "mtime": 1781197982.325681,
+    "hash": "71dcb4b3098d02b423ddd96bafd94566"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/parallel-worktree-workflow.md": {
+    "mtime": 1781188843.7430253,
+    "hash": "4ecea8c823e7146aca4e4e335e5a5df8"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/noldor.md": {
+    "mtime": 1781190897.9247782,
+    "hash": "88ffe89534c757144f2de1350eedd34d"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/roadmap-priority-ordering.md": {
+    "mtime": 1780128269.1616862,
+    "hash": "23f6200406635b07a6d10ee94ca6df2f"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/gate-flow-rework.md": {
+    "mtime": 1781033080.9042592,
+    "hash": "14ef24b21e087a30787d29d6886a0f5d"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/scripts-reorganization-by-feature-area.md": {
+    "mtime": 1780334987.143027,
+    "hash": "c8638a6518432ec9d5aa8180501f55b0"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/parallel-drain.md": {
+    "mtime": 1781116721.6857958,
+    "hash": "83c988a3f17168716dca4cc7c30b9c68"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/fd-prs-since-last-release-section.md": {
+    "mtime": 1780334987.1410503,
+    "hash": "7d377490e4cc0dfcf078447b6d5cb105"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/feature-md-links-overhaul.md": {
+    "mtime": 1780334987.1413221,
+    "hash": "2fe030df0f81975e4005e37439fab80b"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/framework-doc-extraction.md": {
+    "mtime": 1780337151.6093035,
+    "hash": "23075c01ae3bcb1c0710a2fe32eed613"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/dashboard-wip-age-page.md": {
+    "mtime": 1780334987.1401305,
+    "hash": "4cd61c9418396ca6267c0c09d74f813a"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/dashboard-vision-surface.md": {
+    "mtime": 1780334987.1399262,
+    "hash": "825d36a31b9bfd40ac84d37815c7c23f"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/release-script-sddreport-skip-if-only-count-line-changed.md": {
+    "mtime": 1780828984.4579687,
+    "hash": "09c0611d2bdb3af73ef640a9212813c5"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/replace-roadmap-buckets-with-flat-priority-order.md": {
+    "mtime": 1780128269.1615884,
+    "hash": "979ffa142399096820a8a4e4277f6ef6"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/triage-scoring-rubric-effort-impact-confidence-dependency.md": {
+    "mtime": 1780128269.162131,
+    "hash": "d7fc92dd66aaca70eb3413256db0c345"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/trailer-scope-alias-map.md": {
+    "mtime": 1780930577.7868378,
+    "hash": "5fe50dfdc9946500814250b12dad1f36"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/autonomous-queue-drain-runner.md": {
+    "mtime": 1781119167.8115487,
+    "hash": "bd53c67d4e9954a4560aa00ae9296a73"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/dashboard-roadmap-drag-drop.md": {
+    "mtime": 1780334987.1397464,
+    "hash": "463a5424cc67c0ec342a1c28bd9e698a"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/dynamic-fd-changelog.md": {
+    "mtime": 1780334987.1408708,
+    "hash": "f13d2f7d4bd16fdc3a29efb045da24cb"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/dashboard-hot-zones-page.md": {
+    "mtime": 1781186365.798151,
+    "hash": "1651afde17a398791b31c080bb67bc60"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/release-script-self-provisions-its-own-session-marker.md": {
+    "mtime": 1780128269.161212,
+    "hash": "a0b1dc67958c23c467e849a3c1068c36"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/release-sweep-process-hardening.md": {
+    "mtime": 1780128269.1613731,
+    "hash": "a8cce839ac6ed043c586d3642ef73b96"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/autonomous-plan-to-pr-merge.md": {
+    "mtime": 1780334987.138822,
+    "hash": "68b68d8c18f8eec6369152e7150911d3"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/architecture-invariants.md": {
+    "mtime": 1780334987.1386347,
+    "hash": "c71378ff81af3b3d91db605d3bd4933c"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/dashboard-worktree-health-page.md": {
+    "mtime": 1780334987.1403358,
+    "hash": "5394775657e26e693c83d2deaf8f8bc3"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/noldor-package-lift.md": {
+    "mtime": 1780337151.6100628,
+    "hash": "cd69c117a882425e758071fed0d96b3b"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/framework-pr-flow-agent-auto-merge.md": {
+    "mtime": 1780334987.1417665,
+    "hash": "020f92cdbb5dfcf8414e9c2ac0aaf840"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/dashboard-roadmap-backlog-polish.md": {
+    "mtime": 1780334987.1393647,
+    "hash": "3cea00ea438fd0afcc3a587242741bed"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/decouple-milestones-from-semver.md": {
+    "mtime": 1780128269.159382,
+    "hash": "1b46159fc79dbecf10cd2edb38f89780"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/specs-cr-gate-multi-reviewer.md": {
+    "mtime": 1780128269.1620226,
+    "hash": "973e8cd9264dd3458ae54d66c6b033b5"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/project-tracking-dashboard.md": {
+    "mtime": 1781184677.715048,
+    "hash": "68c2b2a264130fe873c0a1374736d044"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/doc-gardening-skill.md": {
+    "mtime": 1780334987.1405349,
+    "hash": "f5567ff5444f5e2f6c70d1a48bf95780"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/rename-plan-only-tier-to-specs-only.md": {
+    "mtime": 1780128269.1614707,
+    "hash": "f37f80d581a3a89427963fe03f702199"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/plan-runner.md": {
+    "mtime": 1781107922.0651178,
+    "hash": "cca35279d082a029c92d3b95da5e5aff"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/sdd-co-tag-detector.md": {
+    "mtime": 1780334987.1432564,
+    "hash": "55e5a233590ab64e2ae2603632a9ca57"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/features/howto-index-pipeline.md": {
+    "mtime": 1780337151.6097934,
+    "hash": "8f1a0acfb4b9e085cca23de95cc5951c"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/doc-conventions.md": {
+    "mtime": 1780321428.3257124,
+    "hash": "7b90ac37dbad71c002bd04b27e8cbc4b"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/complexity-gating.md": {
+    "mtime": 1781194613.672115,
+    "hash": "e22e5ecbdca36f1d7a547a679cd96091"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/versioning.md": {
+    "mtime": 1780321428.3278902,
+    "hash": "629a2d46c63c86422ff090691f849507"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/lifecycle.md": {
+    "mtime": 1780822791.4249878,
+    "hash": "18a8514a73765cb9d815c777edda6dbf"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/adoption-guide.md": {
+    "mtime": 1780930577.787198,
+    "hash": "ea47018c5ab19e40279281f3158ae5be"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/git-and-commits.md": {
+    "mtime": 1780321428.3263092,
+    "hash": "4912e2a845b1fd945ad16ce03c010639"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/triage.md": {
+    "mtime": 1781120829.7439225,
+    "hash": "ac7adefac210d193a14c84cb23fcf744"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/feature-md-schema.md": {
+    "mtime": 1780822791.4240782,
+    "hash": "454849839f765a0c7e03b88ed9ed7826"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/testing-principles.md": {
+    "mtime": 1780321428.327566,
+    "hash": "51c75388a493b991bf94009ed37ed804"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/script-catalog.md": {
+    "mtime": 1781188843.7433953,
+    "hash": "fab8570bace5d765742a6f6284c6beab"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/workflow.md": {
+    "mtime": 1780853541.2579641,
+    "hash": "37f40a418b5416f8765c3992db22f7e0"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/pr-flow.md": {
+    "mtime": 1781116721.6861227,
+    "hash": "bdd47ec1c7a89ea2e2b65d36f7de70b1"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/README.md": {
+    "mtime": 1780822791.423802,
+    "hash": "599f78d9a0b3e44aa04193c106ee413a"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/garden-and-drift.md": {
+    "mtime": 1780822791.4244564,
+    "hash": "e28a5eeabaf387a8ddec23c0c9e227f8"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/cr-pipeline.md": {
+    "mtime": 1780859092.0937684,
+    "hash": "24c573ba0160999511515a25dc776990"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/worktree-discipline.md": {
+    "mtime": 1781188843.7436922,
+    "hash": "3600bc310022abe3683ef186e75f30f5"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/rules.md": {
+    "mtime": 1780822791.4254582,
+    "hash": "46151390027bd2d396d547fe5a49559b"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/skill-catalog.md": {
+    "mtime": 1780321428.3273268,
+    "hash": "62bca6b2465e65e6c9022eab6d18b359"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/noldor/graph-integration.md": {
+    "mtime": 1781183579.2725246,
+    "hash": "1f294183b895e9d43caec83b0609cbaa"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/2026-06-10-plan-runner.md": {
+    "mtime": 1781107922.0653102,
+    "hash": "e0f5e2ee731968e9e73400f615b4f821"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/2026-06-07-end-of-flow-ergonomics.md": {
+    "mtime": 1780835875.408117,
+    "hash": "afddb3add5281eb896cc6ef71a9b4764"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/2026-06-10-parallel-drain.md": {
+    "mtime": 1781116721.68633,
+    "hash": "0f34575b79811ccf5145b0a30959f3a1"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/2026-06-10-autonomous-queue-drain-runner.md": {
+    "mtime": 1781078125.2281466,
+    "hash": "d659aaedabdea27ac2c8473b912b5246"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/archive/2026-05-28-framework-doc-extraction-phase-0.md": {
+    "mtime": 1780334987.1442995,
+    "hash": "dfa2ecd683ba19a2e8040df009f9589f"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/archive/2026-05-26-noldor-package-lift.md": {
+    "mtime": 1780334987.1441443,
+    "hash": "a50fcd85b37fc8df527f5878e04e9edf"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/archive/2026-06-01-template-sync-gate.md": {
+    "mtime": 1780334987.1448176,
+    "hash": "ceb43d9fd592325c1bed5cc5a2b4537b"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/archive/2026-05-29-framework-doc-extraction-repo-extraction-rev2-phase-a.md": {
+    "mtime": 1780334987.144488,
+    "hash": "8208ae39054a6da7064654953c70536f"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/archive/2026-05-25-noldor-specs-only-tier-produces-spec.md": {
+    "mtime": 1780334987.1439497,
+    "hash": "ea9954473ec871e17b2240632deb6069"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/plans/archive/2026-06-01-rules-cascade-v1-substrate.md": {
+    "mtime": 1780334987.1446261,
+    "hash": "4032683b86e309f9102eff90a3bb4c13"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-10-autonomous-queue-drain-runner-design.md": {
+    "mtime": 1781078125.228335,
+    "hash": "d14046fbfe4db92b3741002151edcb33"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-10-parallel-drain-design.md": {
+    "mtime": 1781116721.686617,
+    "hash": "1381dd8e6ad2b38ff319a71d01ac3ed1"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-10-plan-runner-design.md": {
+    "mtime": 1781107922.065656,
+    "hash": "3c48470452d11c65788822c5fd74721b"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-07-noldor-end-of-flow-ergonomics-design.md": {
+    "mtime": 1780835875.408305,
+    "hash": "ccdd5dc1b7a123ca7fd49780f72e7061"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-08-trailer-scope-alias-map-design.md": {
+    "mtime": 1780930577.7882924,
+    "hash": "4cb129ff361d2fe72a566b2a34747746"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-07-noldor-autonomous-config-design.md": {
+    "mtime": 1780859092.0943651,
+    "hash": "d21cba3633f5f27a2dff3a32ab87740e"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-07-release-script-sddreport-skip-if-only-count-line-changed-design.md": {
+    "mtime": 1780828984.458619,
+    "hash": "72db1ffd9fa8975b6746aca3a65b272f"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-07-noldor-pre-commit-path-override-design.md": {
+    "mtime": 1780861217.9802408,
+    "hash": "252663bce1276adc06f608140eda1d7d"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-07-noldor-session-marker-auto-expire-design.md": {
+    "mtime": 1780930577.788019,
+    "hash": "6bf87b34a0db02ab798464976e0efddc"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/2026-06-07-noldor-drop-manual-md-update-design.md": {
+    "mtime": 1780853541.2585423,
+    "hash": "10733bd3d4d48e56d0c9386961b61aed"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/archive/2026-06-01-rules-cascade-architecture-design.md": {
+    "mtime": 1780334987.1458623,
+    "hash": "2832a52efff181fed12aa656cc0de28b"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/archive/2026-05-25-noldor-specs-only-tier-produces-spec-design.md": {
+    "mtime": 1780334987.1452436,
+    "hash": "89c35af81a45b965ebb368565613ab2c"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-design.md": {
+    "mtime": 1780334987.1455524,
+    "hash": "42c665c891e34c3e4dd09ac858138747"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md": {
+    "mtime": 1780334987.1456964,
+    "hash": "214221e297d2dc75ae3571c608019838"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md": {
+    "mtime": 1780334987.1450763,
+    "hash": "2c8765ea6ae5804c73be327a8cbb45da"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/archive/2026-06-01-template-sync-gate-design.md": {
+    "mtime": 1780334987.1461694,
+    "hash": "11876ce931f5c0869d34a4d7eae1a8a7"
+  },
+  "/Users/davidzoufaly/code/noldor/docs/superpowers/specs/archive/2026-05-26-noldor-package-lift-design.md": {
+    "mtime": 1780334987.145417,
+    "hash": "09cb1b092e42d365ddfa83091930e735"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/lefthook/noldor.yml": {
+    "mtime": 1780331805.7502263,
+    "hash": "9e99736aa963ba01ca1977f348ed4270"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/doc-conventions.md": {
+    "mtime": 1780321428.343084,
+    "hash": "7b90ac37dbad71c002bd04b27e8cbc4b"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/complexity-gating.md": {
+    "mtime": 1781194613.6729908,
+    "hash": "e22e5ecbdca36f1d7a547a679cd96091"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/versioning.md": {
+    "mtime": 1780321428.3448765,
+    "hash": "629a2d46c63c86422ff090691f849507"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/lifecycle.md": {
+    "mtime": 1780822791.4281628,
+    "hash": "18a8514a73765cb9d815c777edda6dbf"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/adoption-guide.md": {
+    "mtime": 1780930577.7939117,
+    "hash": "ea47018c5ab19e40279281f3158ae5be"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/git-and-commits.md": {
+    "mtime": 1780321428.3436618,
+    "hash": "4912e2a845b1fd945ad16ce03c010639"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/triage.md": {
+    "mtime": 1781120829.744965,
+    "hash": "ac7adefac210d193a14c84cb23fcf744"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/feature-md-schema.md": {
+    "mtime": 1780822791.427715,
+    "hash": "454849839f765a0c7e03b88ed9ed7826"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/testing-principles.md": {
+    "mtime": 1780321428.3446076,
+    "hash": "51c75388a493b991bf94009ed37ed804"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/script-catalog.md": {
+    "mtime": 1781188843.7446828,
+    "hash": "fab8570bace5d765742a6f6284c6beab"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/workflow.md": {
+    "mtime": 1780853541.2600455,
+    "hash": "37f40a418b5416f8765c3992db22f7e0"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/pr-flow.md": {
+    "mtime": 1781116721.6904192,
+    "hash": "bdd47ec1c7a89ea2e2b65d36f7de70b1"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/README.md": {
+    "mtime": 1780822791.4274864,
+    "hash": "599f78d9a0b3e44aa04193c106ee413a"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/garden-and-drift.md": {
+    "mtime": 1780822791.4279594,
+    "hash": "e28a5eeabaf387a8ddec23c0c9e227f8"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/cr-pipeline.md": {
+    "mtime": 1780859092.097609,
+    "hash": "24c573ba0160999511515a25dc776990"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/worktree-discipline.md": {
+    "mtime": 1781188843.7522457,
+    "hash": "3600bc310022abe3683ef186e75f30f5"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/rules.md": {
+    "mtime": 1780822791.4285564,
+    "hash": "46151390027bd2d396d547fe5a49559b"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/skill-catalog.md": {
+    "mtime": 1780321428.3444123,
+    "hash": "62bca6b2465e65e6c9022eab6d18b359"
+  },
+  "/Users/davidzoufaly/code/noldor/templates/docs/noldor/graph-integration.md": {
+    "mtime": 1781183579.2734733,
+    "hash": "1f294183b895e9d43caec83b0609cbaa"
+  },
   "/Users/davidzoufaly/code/noldor/src/cr/lanes/standalone-prompt.md": {
-    "mtime": 1780128269.1788213,
-    "hash": "e77fb269c281e592173f11ad6ca5915f"
+    "mtime": 1781161270.275801,
+    "hash": "5b095b0c2736953e88fb923acacaf932"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/lanes/escalate-prompt.md": {
-    "mtime": 1780128269.1786427,
-    "hash": "cc8e52e813852bc316cd7de70791edd5"
+    "mtime": 1781120051.4166539,
+    "hash": "f3a086718b03533ba3acda0660c08b6c"
   },
   "/Users/davidzoufaly/code/noldor/src/cr/__tests__/fixtures/subagent-markdown-malformed.md": {
     "mtime": 1780128269.1755373,
