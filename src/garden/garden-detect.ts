@@ -219,7 +219,9 @@ export async function detectStaleSpecs(
     }
 
     const fullPath = join(specsDir, entry);
-    // Presentation string — relative path shown in garden output, not used for IO.
+    // Not used for IO. Shown in garden output AND matched verbatim against FDs'
+    // links.spec by the fallback below — keep the exact
+    // 'docs/superpowers/specs/<entry>' forward-slash form.
     const relPath = join('docs/superpowers/specs', entry);
     const feature = await loadFeatureBySlug(repo, slug);
 
