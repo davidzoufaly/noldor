@@ -71,17 +71,6 @@ When a feature adds a new release-time gate, the feature's own implementation co
 
 The final whole-branch reviewer for automated-cr-pipeline flagged "`pnpm validate:features` will hard-fail because new test files lack `// @tests:` tag" as a blocking issue — but the validator only checks the tag when the test file is referenced from `links.tests`. The reviewer reached the right conclusion (fix the tag + populate links.tests) for the wrong reason. Reviewer prompts in `superpowers:subagent-driven-development` should say "before flagging a blocking issue, run the failure command (`pnpm validate:features`, `pnpm typecheck`, etc.) and quote the actual error". Cheap, prevents controller having to spot-check every reviewer claim.
 
-#### Dashboard Graphify Health Snapshot
-
-- area: tooling
-- type: feat
-- since: 2026-05-04
-- size: S
-- impact: med
-- parent: project-tracking-dashboard
-
-Read `graphify-out/GRAPH_REPORT.md` per request, surface god-node count, low-cohesion communities, dead-export count. Snapshot metric — labelled with the timestamp of the last `/graphify` run. Gates the pre-release sweep in one glance.
-
 #### Dashboard Skills Browser Page
 
 - area: tooling
