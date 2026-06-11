@@ -1037,6 +1037,17 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
 };
 ```
 
+2b. **L306-311 allSettled dispatch**: after the table narrows, `LANES[l]` with `l: Lane` is a typecheck error — the rejection in item 3 guarantees standalone can't reach here, so cast at the index site:
+
+```ts
+const settled = await Promise.allSettled(
+  effective.map((l) => {
+    if (l === 'codex') return runCodex(input, { supportsBaseSha: codexBaseShaSupport });
+    return LANES[l as Exclude<Lane, 'standalone'>](input);
+  }),
+);
+```
+
 3. **In `run()`, immediately after `const requested = resolveLanes(...)` (L218)** add the rejection:
 
 ```ts
@@ -1050,7 +1061,7 @@ if (requested.includes('standalone')) {
 4. **L128-132** in `guardLaneOverwrite`: delete the `if (lane === 'standalone' && finishedAtUnset) { keep.push(lane); continue; }` pass-through (unreachable after the rejection; `finishedAtUnset` becomes unused — delete the variable and its assignment too).
 5. **L155-195** delete `guardStandaloneInProgress` and the `StandaloneGuardOutcome` export entirely — its only consumer was the standalone spawn path.
 6. **L254-260** delete the pre-dep probe block (`if (effective.includes('standalone')) { const depDone = await multiterminalDepDone(...) ... }`). `lanesSkippedPreDep` stays (it's in `RunResult`) but is now always empty — keep the field for CLI/report shape stability.
-7. **L278-301** delete both standalone blocks (the `guardStandaloneInProgress` call site and the `runStandalone` fire-and-continue try/catch).
+7. Delete the two standalone blocks **L280-292** (`if (effective.includes('standalone')) { const outcome = await guardStandaloneInProgress(…) … }`) and **L293-301** (`if (effective.includes('standalone')) { try { await runStandalone(input) … }`), plus the L278 comment line `// Standalone first (fire-and-continue) — only when not short-circuited above`. **L279 `const lanesRun: Lane[] = [...syntheticOks];` MUST survive** — it is used at L314/L330 and returned at L339.
 8. **L262-264 + L317** comment touch-ups: the delta short-circuit comment drops "including standalone (Decision §4). Spawning iTerm2 + --max-thinking…" (now just "synthetic OK for EVERY lane"); the exit-code comment drops "Standalone async => doesn't affect."
 9. In `deep-review-spawn.ts`, delete `multiterminalDepDone` + `MultiterminalProbeOpts` (orchestrate was the only consumer; YAGNI) and delete its tests when moving the test file in Step 4. `PROMPT_TEMPLATE_PATH` and `templateSha` stay — `runStandalone` uses them.
 
