@@ -60,17 +60,6 @@ When a feature adds a new release-time gate, the feature's own implementation co
 
 - triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
 
-#### Subagent Reviewer Verify-Before-Flag Protocol
-
-- area: tooling
-- type: refactor
-- since: 2026-05-10
-- size: XS
-- impact: med
-- parent: noldor
-
-The final whole-branch reviewer for automated-cr-pipeline flagged "`pnpm validate:features` will hard-fail because new test files lack `// @tests:` tag" as a blocking issue — but the validator only checks the tag when the test file is referenced from `links.tests`. The reviewer reached the right conclusion (fix the tag + populate links.tests) for the wrong reason. Reviewer prompts in `superpowers:subagent-driven-development` should say "before flagging a blocking issue, run the failure command (`pnpm validate:features`, `pnpm typecheck`, etc.) and quote the actual error". Cheap, prevents controller having to spot-check every reviewer claim.
-
 #### Dashboard Graphify Health Snapshot
 
 - area: tooling

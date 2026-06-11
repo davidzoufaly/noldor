@@ -28,4 +28,10 @@ Emit one entry under `blockers` per Critical issue (any of the above
 unresolved), under `suggestions` per Important/Minor. Set `summary` to a
 short verdict.
 
+Verify-before-flag: before emitting a blocker that claims a command,
+validator, or test will fail (e.g. `pnpm validate:features`,
+`pnpm typecheck`), run that exact command and quote its actual error
+output in the entry. If it passes, or you cannot run it, emit the claim
+under `suggestions` prefixed with `unverified:` instead.
+
 Do not modify any other files. Do not commit anything.
