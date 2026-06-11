@@ -12,19 +12,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Noldor Framework
 
-#### Make Noldor Agent-Agnostic
-
-- area: tooling
-- type: refactor
-- since: 2026-05-10
-- size: XL
-- impact: med
-- parent: noldor
-
-Noldor today assumes Claude Code as the operating agent (skill names, hook patterns, transcript layout). Lift the assumptions so Codex, Gemini, or other agents can drive the same framework with equivalent gates. Concrete asks: (1) abstract skill invocation (`Skill` tool vs `activate_skill` vs raw markdown read), (2) abstract hook triggers (the `lefthook` pre-commit chain works for all, but the auto-gate behavior is Claude-only), (3) document the agent-equivalence matrix in `docs/noldor/`. Trigger: when a second agent adopts Noldor in earnest (today's automated-cr-pipeline already runs Codex as a reviewer; controller is still Claude).
-
-- triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
-
 #### Continuous Drain Daemon and Escalation Inbox
 
 - area: tooling

@@ -11,7 +11,7 @@
     "packagePrefix": "@noldor/",
     "pnpmStderrPrefix": "noldor",
     "appPathPrefix": "src",
-    "categories": ["Core", "Tooling", "Other"],
+    "categories": ["Core", "Tooling", "Agents", "Other"],
     "areaCategories": {
       "core": "Core",
       "tooling": "Tooling",
