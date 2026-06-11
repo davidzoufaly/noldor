@@ -48,6 +48,8 @@ export interface BacklogEntry {
   impact?: string;
   /** Confidence in the size + impact estimate. Bullet field `- confidence: <value>`. Validated downstream; parser accepts any string. Default at scoring time: `med`. */
   confidence?: string;
+  /** Lifecycle phase. Bullet field `- phase: <value>`. Today only `later` is written (stale backlog auto-demotion); parser accepts any string. */
+  phase?: string;
 }
 
 /**
@@ -155,6 +157,7 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
       impact: parsed.impact,
       confidence: parsed.confidence,
       deps: parsed.deps,
+      phase: parsed.phase,
     });
     pending = null;
   };
@@ -202,6 +205,7 @@ function parseBlockBody(lines: string[]): {
   impact?: string;
   confidence?: string;
   deps?: string[];
+  phase?: string;
   body: string;
 } {
   let area = '';
@@ -212,10 +216,11 @@ function parseBlockBody(lines: string[]): {
   let impact: string | undefined;
   let confidence: string | undefined;
   let deps: string[] | undefined;
+  let phase: string | undefined;
   const bodyLines: string[] = [];
   for (const line of lines) {
     const fieldMatch =
-      /^-\s+(area|type|since|parent|size|impact|confidence|deps):\s*(.+?)\s*$/.exec(line);
+      /^-\s+(area|type|since|parent|size|impact|confidence|deps|phase):\s*(.+?)\s*$/.exec(line);
     if (fieldMatch) {
       const [, key, value] = fieldMatch;
       if (key === 'area') area = value;
@@ -225,6 +230,7 @@ function parseBlockBody(lines: string[]): {
       else if (key === 'size') size = value;
       else if (key === 'impact') impact = value;
       else if (key === 'confidence') confidence = value;
+      else if (key === 'phase') phase = value;
       else if (key === 'deps') {
         deps = value
           .split(',')
@@ -242,6 +248,7 @@ function parseBlockBody(lines: string[]): {
     deps,
     impact,
     parent,
+    phase,
     since,
     size,
     type,
@@ -291,6 +298,7 @@ function parseEntries(raw: string): BacklogEntry[] {
       size: fields.size,
       impact: fields.impact,
       confidence: fields.confidence,
+      phase: fields.phase,
       deps: fields.deps
         ? fields.deps
             .split(',')

@@ -142,18 +142,6 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 - triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
 
-#### Auto-Promotion of Stale Ideas
-
-- area: tooling
-- type: feat
-- since: 2026-04-28
-- size: S
-- impact: low
-
-Backlog entries past the stale threshold auto-demote phase to `later` (or get rejected with a marker). Demoted from roadmap 2026-05-04 — manual `/triage` is sufficient until the backlog grows past human grep capacity.
-
-- triage 2026-05-11: demote candidate — block was already demoted but lingered in the former `## Next` section. Move back to `docs/backlog.md`.
-
 #### E2E Tests Referenced by Multiple FDs
 
 - area: tooling
