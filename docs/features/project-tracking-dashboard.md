@@ -15,6 +15,7 @@ links:
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
+    - src/dashboard/__tests__/dashboard-graph-health.test.ts
     - src/dashboard/__tests__/dashboard-layout-body-styles.test.ts
     - src/dashboard/__tests__/dashboard-layout-style-polish.test.ts
     - src/dashboard/__tests__/dashboard-mermaid.test.ts
