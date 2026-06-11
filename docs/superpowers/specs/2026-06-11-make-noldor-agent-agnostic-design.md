@@ -79,6 +79,7 @@ export interface SpawnAgentOpts {
   stdio?: 'pipe' | 'inherit';        // default 'pipe'
   schemaPath?: string;               // requires a schema-grade runner (codex)
   needsWrite?: boolean;              // drives codex sandbox mode + opencode permissions
+  site?: string;                     // caller tag for agent-events, e.g. 'drain.spawnGate'
 }
 
 export interface AgentResult {
@@ -92,9 +93,11 @@ Argv builders (per runner; prompt delivery differs and is part of the builder co
 
 | Runner | argv | prompt via | notes |
 | --- | --- | --- | --- |
-| claude | `--print <prompt> --disallowed-tools AskUserQuestion --permission-mode bypassPermissions [--model <m>]` | argv | today's proven shape (PR #28/#33) |
+| claude | `--print <prompt> --disallowed-tools AskUserQuestion --permission-mode bypassPermissions [--model <m>]` | argv | canonical shape (PR #28/#33) — see normalization note below |
 | codex | `exec --sandbox <read-only\|workspace-write> --skip-git-repo-check [--output-schema <path>] [--model <m>]` | stdin | extracted verbatim from `run-codex.ts:39-48`; `needsWrite` picks the sandbox |
-| opencode | `run <prompt> --dangerously-skip-permissions [--model <provider/model>]` | argv | flag mapping verified against opencode.ai docs 2026-06-11 |
+| opencode | `run <prompt> --dangerously-skip-permissions [--model <provider/model>]` | argv | flag mapping verified against opencode.ai docs 2026-06-11; re-verify against the installed CLI (`opencode --help`) at implementation time |
+
+**Claude argv normalization.** The five live sites use three claude shapes today: `--print … --disallowed-tools AskUserQuestion --permission-mode bypassPermissions` (drain, prep), `-p … --dangerously-skip-permissions` (subagent-dispatch), and bare `-p …` (polish). The registry deliberately unifies on the canonical shape above for all sites: `-p` ≡ `--print`, `--dangerously-skip-permissions` ≡ `--permission-mode bypassPermissions`, and adding the AskUserQuestion kill-switch to dispatch/polish is a strict robustness upgrade (their prompts never legitimately ask questions; a hallucinated prompt now fails fast instead of hanging). Back-compat goldens therefore pin **byte-identity for drain + prep** (already canonical) and **the new canonical argv for dispatch + polish** with this normalization documented as intentional.
 
 `spawnAgent` behavior: resolve role → runner config (Unit 3) → capability-fit check (`schemaPath` set but runner's `structuredOutput !== 'schema'` → throw `capability-mismatch` with the runner name and required grade) → build argv → `child_process.spawn` with the timeout-SIGKILL pattern lifted from `src/prep/spawn.ts:42-48` → append one agent-event (Unit 5, fail-open) → resolve `AgentResult`. Spawn `error` events reject with `spawn-failed: <msg>` preserving `drain-io.ts`'s abort-the-drain contract. The PR #33 rule holds for all three runners: **directives ride the prompt, never env/flags.**
 
@@ -144,7 +147,7 @@ Zod schema in `src/core/agent-runner/types.ts`, wired `.optional()` into `noldor
 
 ### Unit 6 — doctor runner checks
 
-`src/cli/commands/doctor.ts` gains a second phase after template drift: load `agents:` config; for each *referenced* runner (default + every role), run `<cli> --version` (5s timeout). Missing CLI → drift-style line + exit 1. Version below the configured floor (plain semver string compare, no range syntax) → exit 1. No `agents:` block → check `claude` only (it's the implicit default). Output joins the existing drift report format.
+`src/cli/commands/doctor.ts` gains a second phase after template drift: load `agents:` config; for each *referenced* runner (default + every role), run `<cli> --version` (5s timeout). Missing CLI → drift-style line + exit 1. Version below the configured floor (numeric per-segment compare of dotted versions — `0.10.0 > 0.6.0`; no range syntax) → exit 1. No `agents:` block → check `claude` only (it's the implicit default). Output joins the existing drift report format.
 
 ### Unit 7 — interactive-plane shims (`init --agents`)
 
@@ -192,8 +195,8 @@ All mock-spawn, zero real CLIs (real-CLI smoke is a separate roadmap entry):
 
 ## Acceptance criteria
 
-- `grep -rnE "spawn\('claude'|execFile\('claude'|execFileP\('claude'|'codex'" src --include='*.ts'` (excluding tests) hits only `src/core/agent-runner/runners/*` and the `deep-review-spawn.ts` single-sourced binary reference.
-- With no `agents:` config block: full test suite green and golden-argv tests prove all five spawn sites byte-identical to pre-refit argv.
+- Architecture-invariant test `src/core/agent-runner/__tests__/no-stray-spawns.test.ts`: scans every `src/**/*.ts` (excluding `__tests__`, `src/core/agent-runner/`, and `src/cr/deep-review-spawn.ts`) with the multiline-tolerant regex `/\b(?:spawn|spawnSync|execFile|execFileSync|execFileP|exec)\s*\(\s*['"](?:claude|codex|opencode)['"]/m` over file contents — zero matches. (A shell grep can't see `spawn(\n  'claude'` split across lines and a bare `'codex'` pattern over-matches runner-name literals in types/config; the invariant test is the guard.)
+- With no `agents:` config block: full test suite green; golden-argv tests pin drain + prep byte-identical to pre-refit argv, and dispatch + polish to the documented canonical normalization (Unit 1).
 - `agents.roles.reviewer = { runner: 'codex' }` routes `subagent-dispatch` through codex argv (golden test).
 - `agents.roles.polish = { runner: 'opencode', model: 'ollama/x' }` produces `opencode run … --model ollama/x` (golden test).
 - Every `spawnAgent` call appends one `.noldor/agent-events.jsonl` line carrying `runner`, `role`, `site`.
