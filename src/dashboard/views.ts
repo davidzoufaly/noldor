@@ -941,6 +941,7 @@ export function renderFeatures(
     updated: string;
     sort: string;
   },
+  gitUpdated?: ReadonlyMap<string, string>,
 ): string {
   const filtered = features.filter(
     (f) =>
@@ -960,6 +961,10 @@ export function renderFeatures(
         return cmpStr(b.frontmatter.updated, a.frontmatter.updated);
       case 'updated-asc':
         return cmpStr(a.frontmatter.updated, b.frontmatter.updated);
+      case 'git-updated-desc':
+        return cmpUndefLast(gitUpdated?.get(a.slug), gitUpdated?.get(b.slug), 'desc', cmpString);
+      case 'git-updated-asc':
+        return cmpUndefLast(gitUpdated?.get(a.slug), gitUpdated?.get(b.slug), 'asc', cmpString);
       default:
         return cmpStr(a.frontmatter.name, b.frontmatter.name);
     }
@@ -1003,6 +1008,8 @@ export function renderFeatures(
           ['introduced-asc', 'Introduced ↑'],
           ['updated-desc', 'Updated ↓'],
           ['updated-asc', 'Updated ↑'],
+          ['git-updated-desc', 'Last commit ↓'],
+          ['git-updated-asc', 'Last commit ↑'],
         ]
           .map(
             ([v, l]) =>
