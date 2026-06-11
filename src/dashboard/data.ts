@@ -1,6 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, posix, sep } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -1630,6 +1630,122 @@ export async function loadWorktreeHealth(): Promise<WorktreeHealth> {
   // Validate; warnings are pass-through (z.unknown() — typed by re-export).
   const validatedTrees = z.array(worktreeHealthTreeSchema).parse(trees);
   return { trees: validatedTrees, warnings };
+}
+
+/** Zod schema for one god-node row parsed from GRAPH_REPORT.md. */
+export const graphGodNodeSchema = z
+  .object({
+    name: z.string().min(1),
+    edges: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type GraphGodNode = z.infer<typeof graphGodNodeSchema>;
+
+/** Zod schema for one community row parsed from GRAPH_REPORT.md. */
+export const graphCommunitySchema = z
+  .object({
+    label: z.string().min(1),
+    cohesion: z.number().nonnegative(),
+    nodeCount: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type GraphCommunity = z.infer<typeof graphCommunitySchema>;
+
+/**
+ * Communities with cohesion strictly below this are flagged "low cohesion" on
+ * the graph-health page — same signal the `/refactor` skill chases during the
+ * pre-release sweep.
+ */
+export const LOW_COHESION_THRESHOLD = 0.08;
+
+/** Zod schema for the graph-health snapshot parsed from GRAPH_REPORT.md. */
+export const graphHealthSchema = z
+  .object({
+    /** scope from the report header, e.g. 'src' */
+    scope: z.string().min(1).nullable(),
+    /** date from the report header, e.g. '2026-06-01' */
+    generatedOn: z.string().min(1).nullable(),
+    /** mtime of GRAPH_REPORT.md — when /graphify last wrote it */
+    reportMtime: z.string().min(1).nullable(),
+    nodes: z.number().int().nonnegative().nullable(),
+    edges: z.number().int().nonnegative().nullable(),
+    communitiesTotal: z.number().int().nonnegative().nullable(),
+    thinOmitted: z.number().int().nonnegative().nullable(),
+    godNodes: z.array(graphGodNodeSchema),
+    communities: z.array(graphCommunitySchema),
+    /** null when the report carries no dead-export section (current graphify emits none) */
+    deadExports: z.number().int().nonnegative().nullable(),
+  })
+  .strict();
+
+export type GraphHealth = z.infer<typeof graphHealthSchema>;
+
+/**
+ * Parse a GRAPH_REPORT.md body into a graph-health snapshot. Every section is
+ * optional — graphify's report format drifts, so a missing section yields
+ * null/empty rather than a throw. Communities sort worst-cohesion first.
+ */
+export function parseGraphReport(md: string): GraphHealth {
+  const header = /^# Graph Report\s*-\s*(\S+)\s*\((\d{4}-\d{2}-\d{2})\)/m.exec(md);
+
+  const summary =
+    /^- (\d+) nodes · (\d+) edges · (\d+) communities(?: \(\d+ shown, (\d+) thin omitted\))?/m.exec(
+      md,
+    );
+
+  const godNodes: GraphGodNode[] = [];
+  const godSection = /^## God Nodes[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(md);
+  if (godSection) {
+    for (const m of godSection[1].matchAll(/^\d+\.\s+`([^`]+)`\s+-\s+(\d+) edges/gm)) {
+      godNodes.push({ name: m[1], edges: Number(m[2]) });
+    }
+  }
+
+  const communities: GraphCommunity[] = [];
+  for (const m of md.matchAll(
+    /^### Community \d+ - "([^"]+)"\nCohesion: ([\d.]+)\nNodes \((\d+)\)/gm,
+  )) {
+    communities.push({ label: m[1], cohesion: Number(m[2]), nodeCount: Number(m[3]) });
+  }
+  communities.sort((a, b) => a.cohesion - b.cohesion || b.nodeCount - a.nodeCount);
+
+  // Graphify does not emit a dead-export section today; parse defensively so
+  // the count lights up if/when the report grows one.
+  const deadSection = /^## Dead Exports[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(md);
+  const deadExports = deadSection ? (deadSection[1].match(/^[-\d]/gm)?.length ?? 0) : null;
+
+  return graphHealthSchema.parse({
+    scope: header?.[1] ?? null,
+    generatedOn: header?.[2] ?? null,
+    reportMtime: null,
+    nodes: summary ? Number(summary[1]) : null,
+    edges: summary ? Number(summary[2]) : null,
+    communitiesTotal: summary ? Number(summary[3]) : null,
+    thinOmitted: summary?.[4] !== undefined ? Number(summary[4]) : null,
+    godNodes,
+    communities,
+    deadExports,
+  });
+}
+
+/**
+ * Load the graph-health snapshot from `graphify-out/GRAPH_REPORT.md` under the
+ * doc root, re-read per request. Returns null when no report exists (run
+ * `/graphify` to produce one).
+ */
+export async function loadGraphHealth(): Promise<GraphHealth | null> {
+  const reportPath = join(getDocRoot(), 'graphify-out', 'GRAPH_REPORT.md');
+  let md: string;
+  let mtime: string;
+  try {
+    md = await readFile(reportPath, 'utf8');
+    mtime = (await stat(reportPath)).mtime.toISOString();
+  } catch {
+    return null;
+  }
+  return { ...parseGraphReport(md), reportMtime: mtime };
 }
 
 export { describeWarning };

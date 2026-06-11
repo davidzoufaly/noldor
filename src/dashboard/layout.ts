@@ -12,6 +12,7 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/hot-zones', label: 'Hot zones' },
   { href: '/wip-age', label: 'WIP age' },
   { href: '/test-pyramid', label: 'Test pyramid' },
+  { href: '/graph-health', label: 'Graph health' },
   { href: '/worktrees', label: 'Worktrees' },
 ];
 

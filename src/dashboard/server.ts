@@ -15,6 +15,7 @@ import {
   loadFrameworkPage,
   loadFrameworkPages,
   loadGaps,
+  loadGraphHealth,
   loadHotZones,
   loadReleaseNotes,
   loadRoadmapWithHash,
@@ -36,6 +37,7 @@ import {
   renderFrameworkIndex,
   renderFrameworkPage,
   renderGaps,
+  renderGraphHealth,
   renderHotZones,
   renderOverview,
   renderReleaseNotes,
@@ -117,6 +119,7 @@ function matchRoute(method: string, pathname: string): RouteMatch | null {
     if (pathname === '/hot-zones') return { handler: handleHotZones, pathParams: {} };
     if (pathname === '/wip-age') return { handler: handleWipAge, pathParams: {} };
     if (pathname === '/test-pyramid') return { handler: handleTestPyramid, pathParams: {} };
+    if (pathname === '/graph-health') return { handler: handleGraphHealth, pathParams: {} };
     if (pathname === '/worktrees') return { handler: handleWorktrees, pathParams: {} };
     if (pathname === '/framework') return { handler: handleFrameworkIndex, pathParams: {} };
     const fwMatch = /^\/framework\/([a-z0-9-]+)$/.exec(pathname);
@@ -602,6 +605,16 @@ async function handleTestPyramid(): Promise<RouteResult> {
     body: renderTestPyramid(rows),
     title: 'Test pyramid',
     activeNav: '/test-pyramid',
+  };
+}
+
+async function handleGraphHealth(): Promise<RouteResult> {
+  const health = await loadGraphHealth();
+  return {
+    status: 200,
+    body: renderGraphHealth(health),
+    title: 'Graph health',
+    activeNav: '/graph-health',
   };
 }
 

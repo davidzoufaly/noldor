@@ -1,4 +1,4 @@
-import { describeWarning, renderMarkdown } from './data.js';
+import { LOW_COHESION_THRESHOLD, describeWarning, renderMarkdown } from './data.js';
 import { escapeHtml } from './layout.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
@@ -11,6 +11,7 @@ import type {
   FeatureRecord,
   FrameworkPage,
   FrameworkPageDetail,
+  GraphHealth,
   HotZoneRow,
   ReleaseNotes,
   Roadmap,
@@ -1319,4 +1320,77 @@ export function renderTestPyramid(rows: TestPyramidRow[]): string {
   </table>`;
 
   return `<h1>Test pyramid</h1>${counterStrip}${table}`;
+}
+
+/**
+ * Render the graph-health page: god-node / community-cohesion / dead-export
+ * snapshot parsed from graphify-out/GRAPH_REPORT.md, labelled with the
+ * timestamp of the last /graphify run. Gates the pre-release sweep in one
+ * glance.
+ */
+export function renderGraphHealth(health: GraphHealth | null): string {
+  if (health === null) {
+    return `<h1>Graph health</h1><p class="empty">No <code>graphify-out/GRAPH_REPORT.md</code> found — run <code>/graphify</code> to produce a snapshot.</p>`;
+  }
+
+  const lowCohesion = health.communities.filter((c) => c.cohesion < LOW_COHESION_THRESHOLD);
+  const stampParts = [
+    health.generatedOn !== null ? `report dated ${escapeHtml(health.generatedOn)}` : null,
+    health.scope !== null ? `scope <code>${escapeHtml(health.scope)}</code>` : null,
+    health.reportMtime !== null
+      ? `last /graphify run ${escapeHtml(health.reportMtime.slice(0, 16).replace('T', ' '))} UTC`
+      : null,
+  ].filter((p): p is string => p !== null);
+  const stamp =
+    stampParts.length > 0 ? `<p class="count">Snapshot — ${stampParts.join(' · ')}.</p>` : '';
+
+  const counterStrip = `<div class="counter-strip">
+    <div class="counter"><div class="v">${health.godNodes.length}</div><div class="l">god nodes</div></div>
+    <div class="counter"><div class="v">${lowCohesion.length}</div><div class="l">low-cohesion communities</div></div>
+    <div class="counter"><div class="v">${health.deadExports ?? '—'}</div><div class="l">dead exports${health.deadExports === null ? ' (not in report)' : ''}</div></div>
+    <div class="counter"><div class="v">${health.communitiesTotal ?? '—'}</div><div class="l">communities${health.thinOmitted !== null ? ` (${health.thinOmitted} thin omitted)` : ''}</div></div>
+    <div class="counter"><div class="v">${health.nodes ?? '—'}</div><div class="l">nodes</div></div>
+    <div class="counter"><div class="v">${health.edges ?? '—'}</div><div class="l">edges</div></div>
+  </div>`;
+
+  const godBody = health.godNodes
+    .map(
+      (g, i) => `<tr>
+        <td>${i + 1}</td>
+        <td><code>${escapeHtml(g.name)}</code></td>
+        <td>${g.edges}</td>
+      </tr>`,
+    )
+    .join('');
+  const godTable =
+    health.godNodes.length === 0
+      ? '<p class="empty">No god-node section in the report.</p>'
+      : `<table>
+    <thead><tr><th>#</th><th>Node</th><th>Edges</th></tr></thead>
+    <tbody>${godBody}</tbody>
+  </table>`;
+
+  const communityBody = health.communities
+    .map((c) => {
+      const low = c.cohesion < LOW_COHESION_THRESHOLD;
+      const badge = low
+        ? '<span class="badge stale">low cohesion</span>'
+        : '<span class="badge fresh">ok</span>';
+      return `<tr${low ? ' class="row-stale"' : ''}>
+        <td>${escapeHtml(c.label)}</td>
+        <td>${c.cohesion.toFixed(2)}</td>
+        <td>${c.nodeCount}</td>
+        <td>${badge}</td>
+      </tr>`;
+    })
+    .join('');
+  const communityTable =
+    health.communities.length === 0
+      ? '<p class="empty">No community section in the report.</p>'
+      : `<table>
+    <thead><tr><th>Community</th><th>Cohesion</th><th>Nodes</th><th>Status</th></tr></thead>
+    <tbody>${communityBody}</tbody>
+  </table>`;
+
+  return `<h1>Graph health</h1>${stamp}${counterStrip}<h2>God nodes</h2>${godTable}<h2>Communities (worst cohesion first, threshold ${LOW_COHESION_THRESHOLD})</h2>${communityTable}`;
 }
