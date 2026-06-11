@@ -39,7 +39,7 @@
 - Create: `src/prep/__tests__/formats.test.ts`
 - Modify: `src/prep/draft.ts:1-24`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/prep/__tests__/formats.test.ts`:
 
@@ -93,12 +93,12 @@ describe('no plugin coupling', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run src/prep/__tests__/formats.test.ts`
 Expected: FAIL — `Cannot find module '../formats.js'`
 
-- [ ] **Step 3: Create `src/prep/formats.ts`**
+- [x] **Step 3: Create `src/prep/formats.ts`**
 
 ```ts
 /**
@@ -132,7 +132,7 @@ export const PLAN_FORMAT = [
 ].join('\n');
 ```
 
-- [ ] **Step 4: Refit `src/prep/draft.ts`**
+- [x] **Step 4: Refit `src/prep/draft.ts`**
 
 Replace lines 1-24 (the import + both local consts) with:
 
@@ -144,12 +144,12 @@ import type { PrepEntry } from './types.js';
 
 The rest of the file (from `/** Instruction for one drafting child ... */`) is unchanged — `buildDraftPrompt` already references `SPEC_FORMAT` / `PLAN_FORMAT` by name.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pnpm vitest run src/prep/__tests__/formats.test.ts src/prep/__tests__/scaffold.test.ts`
 Expected: PASS (formats new, scaffold untouched)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/prep/formats.ts src/prep/draft.ts src/prep/__tests__/formats.test.ts
@@ -163,7 +163,7 @@ git commit -m "feat(prep): single-source spec/plan format contracts, drop superp
 - Create: `src/prep/__tests__/print-format.test.ts`
 - Modify: `src/cli/manifest.ts:36-45`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/prep/__tests__/print-format.test.ts`:
 
@@ -189,12 +189,12 @@ describe('formatForKind', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run src/prep/__tests__/print-format.test.ts`
 Expected: FAIL — `Cannot find module '../print-format.js'`
 
-- [ ] **Step 3: Create `src/prep/print-format.ts`**
+- [x] **Step 3: Create `src/prep/print-format.ts`**
 
 ```ts
 // noldor prep format <spec|plan> — print the canonical artifact format
@@ -231,7 +231,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 ```
 
-- [ ] **Step 4: Register in `src/cli/manifest.ts`**
+- [x] **Step 4: Register in `src/cli/manifest.ts`**
 
 In the `prep` group's `subs` (after the `promote` entry), add:
 
@@ -242,7 +242,7 @@ In the `prep` group's `subs` (after the `promote` entry), add:
       },
 ```
 
-- [ ] **Step 5: Run test to verify it passes + smoke the CLI**
+- [x] **Step 5: Run test to verify it passes + smoke the CLI**
 
 Run: `pnpm vitest run src/prep/__tests__/print-format.test.ts`
 Expected: PASS
@@ -257,7 +257,7 @@ SPEC FORMAT (mirror the modern Noldor convention):
 Run: `pnpm noldor prep format bogus; echo "exit:$?"`
 Expected: `usage: noldor prep format <spec|plan>` then `exit:2` (pnpm may add ELIFECYCLE noise around it)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/prep/print-format.ts src/prep/__tests__/print-format.test.ts src/cli/manifest.ts
@@ -271,7 +271,7 @@ git commit -m "feat(prep): add noldor prep format print command" -m "Noldor-FD: 
 - Create: `src/worktrees/__tests__/create-worktree.test.ts`
 - Modify: `src/cli/manifest.ts:202-212`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/worktrees/__tests__/create-worktree.test.ts`:
 
@@ -383,12 +383,12 @@ describe('createWorktree', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pnpm vitest run src/worktrees/__tests__/create-worktree.test.ts`
 Expected: FAIL — `Cannot find module '../create-worktree.js'`
 
-- [ ] **Step 3: Create `src/worktrees/create-worktree.ts`**
+- [x] **Step 3: Create `src/worktrees/create-worktree.ts`**
 
 ```ts
 // noldor worktrees create <slug> [--branch <name>] [--no-install]
@@ -573,7 +573,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 ```
 
-- [ ] **Step 4: Register in `src/cli/manifest.ts`**
+- [x] **Step 4: Register in `src/cli/manifest.ts`**
 
 In the `worktrees` group's `subs` (before `status`), add:
 
@@ -586,17 +586,17 @@ In the `worktrees` group's `subs` (before `status`), add:
 
 Also update the group `desc` from `'Worktree status + launch'` to `'Worktree create + status + launch'`.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pnpm vitest run src/worktrees/__tests__/create-worktree.test.ts`
 Expected: PASS (9 tests)
 
-- [ ] **Step 6: Run the full worktrees test dir (no regression)**
+- [x] **Step 6: Run the full worktrees test dir (no regression)**
 
 Run: `pnpm vitest run src/worktrees`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/worktrees/create-worktree.ts src/worktrees/__tests__/create-worktree.test.ts src/cli/manifest.ts
@@ -611,7 +611,7 @@ git commit -m "feat(worktrees): add noldor worktrees create with lefthook postin
 - Modify: `docs/noldor/skill-catalog.md` (+ entry; count line)
 - Modify: `templates/docs/noldor/skill-catalog.md` (same edits)
 
-- [ ] **Step 1: Create `.claude/skills/noldor-spec/SKILL.md`**
+- [x] **Step 1: Create `.claude/skills/noldor-spec/SKILL.md`**
 
 ```markdown
 ---
@@ -643,12 +643,12 @@ Turn an idea into a reviewed design document through collaborative dialogue. No 
 - The operator's explicit instructions always override this skill.
 ```
 
-- [ ] **Step 2: Copy to the template twin**
+- [x] **Step 2: Copy to the template twin**
 
 Run: `mkdir -p templates/.claude/skills/noldor-spec && cp .claude/skills/noldor-spec/SKILL.md templates/.claude/skills/noldor-spec/SKILL.md`
 Expected: silent success
 
-- [ ] **Step 3: Add the catalog entry**
+- [x] **Step 3: Add the catalog entry**
 
 In `docs/noldor/skill-catalog.md`: change the intro line `Noldor ships 9 user-invocable skills` → `Noldor ships 10 user-invocable skills` (Task 5 bumps it to 11). After the `## /new-feature` section, insert:
 
@@ -663,12 +663,12 @@ In `docs/noldor/skill-catalog.md`: change the intro line `Noldor ships 9 user-in
 
 Apply the same two edits to `templates/docs/noldor/skill-catalog.md`.
 
-- [ ] **Step 4: Validate**
+- [x] **Step 4: Validate**
 
 Run: `pnpm noldor validate skill-catalog`
 Expected: exit 0, no missing-slug complaints
 
-- [ ] **Step 5: Commit (shared-files override — skills + catalog are shared roots)**
+- [x] **Step 5: Commit (shared-files override — skills + catalog are shared roots)**
 
 ```bash
 git add .claude/skills/noldor-spec templates/.claude/skills/noldor-spec docs/noldor/skill-catalog.md templates/docs/noldor/skill-catalog.md
@@ -683,7 +683,7 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "feat(skills): vendor noldor-spec dialog ski
 - Modify: `docs/noldor/skill-catalog.md` (+ entry; count line 10→11; line-38 swap)
 - Modify: `templates/docs/noldor/skill-catalog.md` (same edits)
 
-- [ ] **Step 1: Create `.claude/skills/noldor-plan/SKILL.md`**
+- [x] **Step 1: Create `.claude/skills/noldor-plan/SKILL.md`**
 
 ```markdown
 ---
@@ -720,12 +720,12 @@ Write an implementation plan for an engineer with zero context for this codebase
 - The operator's explicit instructions always override this skill.
 ```
 
-- [ ] **Step 2: Copy to the template twin**
+- [x] **Step 2: Copy to the template twin**
 
 Run: `mkdir -p templates/.claude/skills/noldor-plan && cp .claude/skills/noldor-plan/SKILL.md templates/.claude/skills/noldor-plan/SKILL.md`
 Expected: silent success
 
-- [ ] **Step 3: Catalog entry + count + line-38 swap**
+- [x] **Step 3: Catalog entry + count + line-38 swap**
 
 In `docs/noldor/skill-catalog.md`:
 
@@ -745,12 +745,12 @@ c. Line 38 (in `## /draft-feature-md` → When to use): `before invoking `superp
 
 Apply the same three edits to `templates/docs/noldor/skill-catalog.md`.
 
-- [ ] **Step 4: Validate**
+- [x] **Step 4: Validate**
 
 Run: `pnpm noldor validate skill-catalog && grep -c "superpowers:" docs/noldor/skill-catalog.md; echo ok`
 Expected: validator exit 0; grep prints `0` (grep itself exits 1 on zero matches — the trailing `echo ok` confirms the shell continued)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .claude/skills/noldor-plan templates/.claude/skills/noldor-plan docs/noldor/skill-catalog.md templates/docs/noldor/skill-catalog.md
@@ -763,7 +763,7 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "feat(skills): vendor noldor-plan TDD-plan s
 - Modify: `.claude/skills/gate/SKILL.md` (lines 62, 63, 64, 65, 66, 121, 151, 235, 237, 281, 292)
 - Modify: `templates/.claude/skills/gate/SKILL.md` (identical line set)
 
-- [ ] **Step 1: Apply the 11 line edits to `.claude/skills/gate/SKILL.md`**
+- [x] **Step 1: Apply the 11 line edits to `.claude/skills/gate/SKILL.md`**
 
 Per-line replacements (old token → new text; the rest of each line stays):
 
@@ -779,14 +779,14 @@ Per-line replacements (old token → new text; the rest of each line stays):
 10. L281: `Do **NOT** invoke \`superpowers:brainstorming\` or \`superpowers:writing-plans\`` → `Do **NOT** invoke \`noldor-spec\` or \`noldor-plan\``
 11. L292: `Do not invoke \`superpowers:subagent-driven-development\` or \`superpowers:executing-plans\` — both have between-task / between-batch checkpoint prompts that bypass autonomous mode.` → `Do not delegate execution to a plan-executor skill — checkpoint prompts between tasks/batches would bypass autonomous mode.`
 
-- [ ] **Step 2: Mirror all 11 edits into `templates/.claude/skills/gate/SKILL.md`**
+- [x] **Step 2: Mirror all 11 edits into `templates/.claude/skills/gate/SKILL.md`**
 
 The twin's line numbers may differ slightly; locate each by the same old-token grep. After editing:
 
 Run: `diff <(grep -c "superpowers:" .claude/skills/gate/SKILL.md || true) <(grep -c "superpowers:" templates/.claude/skills/gate/SKILL.md || true)`
 Expected: no diff output (both 0)
 
-- [ ] **Step 3: Verify zero + template sync**
+- [x] **Step 3: Verify zero + template sync**
 
 Run: `grep -n "superpowers:" .claude/skills/gate/SKILL.md templates/.claude/skills/gate/SKILL.md; echo "exit:$?"`
 Expected: `exit:1` (no matches)
@@ -794,7 +794,7 @@ Expected: `exit:1` (no matches)
 Run: `pnpm noldor checks template-sync`
 Expected: exit 0
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .claude/skills/gate/SKILL.md templates/.claude/skills/gate/SKILL.md
@@ -812,28 +812,28 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "docs(gate): swap superpowers flow reference
 - Modify: `docs/noldor/pr-flow.md:14` + twin
 - Modify: `docs/noldor/worktree-discipline.md:49,51` + command table + twin
 
-- [ ] **Step 1: draft-feature-md (both copies)**
+- [x] **Step 1: draft-feature-md (both copies)**
 
 - L24: `Author one via \`superpowers:brainstorming\`,` → `Author one via the \`noldor-spec\` skill,`
 - L97: `**After a spec is approved** in \`superpowers:brainstorming\`, before invoking \`writing-plans\`.` → `**After a spec is approved** via \`noldor-spec\`, before invoking \`noldor-plan\`.`
 
-- [ ] **Step 2: engineering-rules (both copies)**
+- [x] **Step 2: engineering-rules (both copies)**
 
 - L169: `When dispatching an implementer subagent to execute a plan task (e.g. \`superpowers:subagent-driven-development\`), append` → `When dispatching an implementer subagent to execute a plan task, append`
 
-- [ ] **Step 3: complexity-gating (both copies)**
+- [x] **Step 3: complexity-gating (both copies)**
 
 - L21: `produced by \`superpowers:brainstorming\`` → `produced by the \`noldor-spec\` skill`; `whether \`superpowers:writing-plans\` runs after the spec` → `whether \`noldor-plan\` runs after the spec`
 - L83: `once after \`superpowers:brainstorming\` (spec, \`kind=spec\`) and again after \`superpowers:writing-plans\` (plan, \`kind=plan\`)` → `once after \`noldor-spec\` (spec, \`kind=spec\`) and again after \`noldor-plan\` (plan, \`kind=plan\`)`
 - L113: `creates a worktree, and launches \`superpowers:brainstorming\`` → `creates a worktree (\`pnpm noldor worktrees create\`), and launches \`noldor-spec\``
 - L117: same swap as L113, plus `then \`superpowers:writing-plans\` builds the plan` → `then \`noldor-plan\` builds the plan`
 
-- [ ] **Step 4: workflow (both copies)**
+- [x] **Step 4: workflow (both copies)**
 
 - L38: `After a spec is approved (via \`superpowers:brainstorming\`)` → `After a spec is approved (via \`noldor-spec\`)`; later in the same bullet `before invoking writing-plans` → `before invoking noldor-plan`
 - L56: `**Before executing a superpowers spec, check its length.**` → `**Before executing a spec, check its length.**`
 
-- [ ] **Step 5: lifecycle (both copies)**
+- [x] **Step 5: lifecycle (both copies)**
 
 - L29: `(superpowers:brainstorming)` → `(noldor-spec)`
 - L38: `(superpowers:writing-plans)` → `(noldor-plan)`
@@ -842,11 +842,11 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "docs(gate): swap superpowers flow reference
 - L81 (lifecycle-stages table, Spec row): `superpowers brainstorming skill (skipped when complexity verdict = \`skip-brainstorm\`)` → `\`noldor-spec\` skill (skipped when complexity verdict = \`skip-brainstorm\`)`
 - L82 (Plan row): `superpowers writing-plans skill` → `\`noldor-plan\` skill`
 
-- [ ] **Step 6: pr-flow (both copies)**
+- [x] **Step 6: pr-flow (both copies)**
 
 - L14: `├─ Claude review (superpowers:requesting-code-review) — address inline, no retry cap` → `├─ Claude review (noldor cr orchestrate --kind code, subagent lane) — address inline, no retry cap`
 
-- [ ] **Step 7: worktree-discipline (both copies)**
+- [x] **Step 7: worktree-discipline (both copies)**
 
 a. Command table (after the `git worktree add` row) — insert:
 
@@ -862,7 +862,7 @@ d. L51 (same bullet, earlier clause): `The template tells each fresh session to 
 
 e. `src/core/__tests__/allowlist.test.ts:95` test title: `it('admits superpowers plans + specs', () => {` → `it('admits design plans + specs under docs/superpowers/', () => {` (path-prose stays valid; the bare space-form word leaves the audit pattern). Then run: `pnpm vitest run src/core/__tests__/allowlist.test.ts` — Expected: PASS.
 
-- [ ] **Step 8: Verify zero across the whole acceptance scope (one catch-all audit)**
+- [x] **Step 8: Verify zero across the whole acceptance scope (one catch-all audit)**
 
 Run: `grep -rniE "superpowers:|superpowers [a-z-]+|/brainstorm\b" .claude/skills templates/.claude templates/docs src docs/noldor .claude/engineering-rules.md; echo "exit:$?"`
 Expected: `exit:1` (zero hits — colon-form invocations, space-form names like "superpowers spec", and the `/brainstorm` slash command; `docs/superpowers/` path tokens match none of the three alternations, so they stay legal with no exclusion filter)
@@ -870,7 +870,7 @@ Expected: `exit:1` (zero hits — colon-form invocations, space-form names like 
 Run: `pnpm noldor checks template-sync && pnpm noldor validate skill-catalog`
 Expected: both exit 0
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add .claude/skills/draft-feature-md .claude/engineering-rules.md templates/.claude docs/noldor templates/docs/noldor src/core/__tests__/allowlist.test.ts
@@ -881,24 +881,24 @@ NOLDOR_ALLOW_SHARED=1 git commit -m "docs(noldor): sweep remaining superpowers r
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Acceptance grep (catch-all audit)**
+- [x] **Step 1: Acceptance grep (catch-all audit)**
 
 Run: `grep -rniE "superpowers:|superpowers [a-z-]+|/brainstorm\b" .claude/skills templates/.claude templates/docs src docs/noldor .claude/engineering-rules.md; echo "exit:$?"`
 Expected: `exit:1`
 
-- [ ] **Step 2: CLI smokes**
+- [x] **Step 2: CLI smokes**
 
 Run: `pnpm noldor prep format spec >/dev/null && pnpm noldor prep format plan >/dev/null && echo ok`
 Expected: `ok`
 
-- [ ] **Step 3: Full test suite**
+- [x] **Step 3: Full test suite**
 
 Run: `pnpm test`
 Expected: all files pass (baseline 171 files / 1825 tests + 3 new files)
 
-- [ ] **Step 4: Validator chain**
+- [x] **Step 4: Validator chain**
 
 Run: `pnpm noldor validate features && pnpm noldor validate skill-catalog && pnpm noldor checks template-sync && pnpm noldor checks invariants`
 Expected: all exit 0
 
-- [ ] **Step 5: Tick all plan checkboxes** (this file) and proceed to gate Step 4 (FD refresh, phase flip, code-stage CR, PR flow).
+- [x] **Step 5: Tick all plan checkboxes** (this file) and proceed to gate Step 4 (FD refresh, phase flip, code-stage CR, PR flow).
