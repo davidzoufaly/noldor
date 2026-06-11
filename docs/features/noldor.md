@@ -83,6 +83,7 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
+
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
@@ -221,6 +222,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/cr/__tests__/schema-parity.test.ts`](../../src/cr/__tests__/schema-parity.test.ts)
   - [`src/cr/__tests__/sidecar.test.ts`](../../src/cr/__tests__/sidecar.test.ts)
+  - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
   - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
   - [`src/garden/detectors/__tests__/allowlist-drift.test.ts`](../../src/garden/detectors/__tests__/allowlist-drift.test.ts)
@@ -231,7 +233,6 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/garden/detectors/__tests__/tier-mismatch.test.ts`](../../src/garden/detectors/__tests__/tier-mismatch.test.ts)
   - [`src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts`](../../src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts)
   - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
-  - [`src/hooks/__tests__/noldor-pre-commit.test.ts`](../../src/hooks/__tests__/noldor-pre-commit.test.ts)
   - [`src/release/__tests__/release-cr-gate-e2e.test.ts`](../../src/release/__tests__/release-cr-gate-e2e.test.ts)
   - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
 - **Docs:**
