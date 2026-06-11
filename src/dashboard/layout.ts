@@ -3,6 +3,7 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/vision', label: 'Vision' },
   { href: '/framework', label: 'Framework' },
   { href: '/docs', label: 'Docs' },
+  { href: '/skills', label: 'Skills' },
   { href: '/release-notes', label: 'Releases' },
   { href: '/roadmap', label: 'Roadmap' },
   { href: '/backlog', label: 'Backlog' },
@@ -87,6 +88,8 @@ const STYLE = `
   .counter { padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-radius: 6px; min-width: 6rem; }
   .counter .v { font-size: 1.5rem; font-weight: 600; }
   .counter .l { font-size: 0.8rem; color: var(--muted); }
+  a.counter-link { color: inherit; text-decoration: none; }
+  a.counter-link .counter:hover { border-color: var(--accent); }
   .bar { background: var(--line); border-radius: 3px; height: 8px; overflow: hidden; }
   .bar > div { background: var(--accent); height: 100%; }
   .empty { color: var(--muted); font-style: italic; padding: 1rem 0; }

@@ -21,6 +21,7 @@ links:
     - src/dashboard/__tests__/dashboard-release-notes.test.ts
     - src/dashboard/__tests__/dashboard-render-markdown.test.ts
     - src/dashboard/__tests__/dashboard-server.test.ts
+    - src/dashboard/__tests__/dashboard-skills.test.ts
     - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
   spec: >-

@@ -839,6 +839,94 @@ export async function loadFrameworkPage(slug: string): Promise<FrameworkPageDeta
   return { ...match, bodyHtml };
 }
 
+export interface SkillPage {
+  slug: string;
+  name: string;
+  description: string;
+  filePath: string;
+  bodyMarkdown: string;
+}
+
+/**
+ * Lenient SKILL.md frontmatter split. Skill descriptions are free prose
+ * and routinely contain `: ` sequences that blow up strict YAML (e.g.
+ * `phase: in-progress → done`), so `matter()` is not safe here. Treat
+ * the frontmatter block as plain `key: value` lines instead — only
+ * `name` and `description` are consumed, both single-line by the skill
+ * authoring convention.
+ */
+function parseSkillMd(raw: string): { name?: string; description?: string; body: string } {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(raw);
+  if (!m) return { body: raw };
+  const out: { name?: string; description?: string; body: string } = {
+    body: raw.slice(m[0].length),
+  };
+  for (const line of m[1].split(/\r?\n/)) {
+    const kv = /^(name|description):\s*(.*)$/.exec(line);
+    if (kv) out[kv[1] as 'name' | 'description'] = kv[2].trim();
+  }
+  return out;
+}
+
+/**
+ * Read every `.claude/skills/<dir>/SKILL.md`, parse frontmatter (`name`,
+ * `description`), and return skills sorted alphabetically by slug. The
+ * slug is the directory name; frontmatter `name` falls back to it when
+ * absent. Directories without a SKILL.md are skipped.
+ *
+ * @returns Project-local skills in alphabetical order
+ */
+export async function loadSkills(): Promise<SkillPage[]> {
+  const skillsDir = getSkillsDir();
+  let dirs: string[];
+  try {
+    const entries = await readdir(skillsDir, { withFileTypes: true });
+    dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    return [];
+  }
+  const skills = await Promise.all(
+    dirs.map(async (dir): Promise<SkillPage | null> => {
+      const filePath = join(skillsDir, dir, 'SKILL.md');
+      const raw = await readFile(filePath, 'utf8').catch(() => null);
+      if (raw === null) return null;
+      const parsed = parseSkillMd(raw);
+      return {
+        slug: dir,
+        name: parsed.name !== undefined && parsed.name.length > 0 ? parsed.name : dir,
+        description: parsed.description ?? '',
+        filePath,
+        bodyMarkdown: parsed.body,
+      };
+    }),
+  );
+  return skills
+    .filter((s): s is SkillPage => s !== null)
+    .toSorted((a, b) => a.slug.localeCompare(b.slug));
+}
+
+export interface SkillPageDetail extends SkillPage {
+  bodyHtml: string;
+}
+
+/**
+ * Load a single skill, render its SKILL.md body to HTML, and rewrite
+ * relative doc links (`../../../docs/noldor/…`, FD links, …) to
+ * dashboard routes. Source dir for relative-path resolution is the
+ * skill's own directory, `.claude/skills/<slug>`.
+ *
+ * @param slug - Skill directory name (matches `loadSkills` output)
+ * @returns Skill detail with rendered HTML, or `null` if no matching skill
+ */
+export async function loadSkill(slug: string): Promise<SkillPageDetail | null> {
+  const skills = await loadSkills();
+  const match = skills.find((s) => s.slug === slug);
+  if (!match) return null;
+  const rendered = await renderMarkdown(match.bodyMarkdown);
+  const bodyHtml = rewriteDocLinks(rendered, `.claude/skills/${slug}`);
+  return { ...match, bodyHtml };
+}
+
 /**
  * Read docs/backlog.md and return parsed entries. Thin wrapper around
  * {@link loadBacklogWithHash} for callers that don't need the source

@@ -18,6 +18,8 @@ import {
   loadHotZones,
   loadReleaseNotes,
   loadRoadmapWithHash,
+  loadSkill,
+  loadSkills,
   loadTestPyramid,
   loadUserDoc,
   loadUserDocs,
@@ -40,6 +42,8 @@ import {
   renderOverview,
   renderReleaseNotes,
   renderRoadmap,
+  renderSkillPage,
+  renderSkillsIndex,
   renderTestPyramid,
   renderUserDoc,
   renderUserDocsIndex,
@@ -121,6 +125,9 @@ function matchRoute(method: string, pathname: string): RouteMatch | null {
     if (pathname === '/framework') return { handler: handleFrameworkIndex, pathParams: {} };
     const fwMatch = /^\/framework\/([a-z0-9-]+)$/.exec(pathname);
     if (fwMatch) return { handler: handleFrameworkPage, pathParams: { slug: fwMatch[1] } };
+    if (pathname === '/skills') return { handler: handleSkillsIndex, pathParams: {} };
+    const skillMatch = /^\/skills\/([a-z0-9-]+)$/.exec(pathname);
+    if (skillMatch) return { handler: handleSkillPage, pathParams: { slug: skillMatch[1] } };
     if (pathname === '/docs') return { handler: handleUserDocsIndex, pathParams: {} };
     if (pathname === '/release-notes') return { handler: handleReleaseNotes, pathParams: {} };
     const docsDocMatch = /^\/docs\/(tutorials|how-to|reference|explanation)\/([a-z0-9-]+)$/.exec(
@@ -414,6 +421,37 @@ async function handleFrameworkPage(
     body: renderFrameworkPage(page),
     title: `framework / ${page.slug}`,
     activeNav: '/framework',
+  };
+}
+
+async function handleSkillsIndex(): Promise<RouteResult> {
+  const skills = await loadSkills();
+  return {
+    status: 200,
+    body: renderSkillsIndex(skills),
+    title: 'skills',
+    activeNav: '/skills',
+  };
+}
+
+async function handleSkillPage(
+  _params: URLSearchParams,
+  pathParams: Record<string, string>,
+): Promise<RouteResult> {
+  const skill = await loadSkill(pathParams.slug);
+  if (!skill) {
+    return {
+      status: 404,
+      body: `<h1>Not found</h1><p>No skill named <code>${pathParams.slug}</code>.</p>`,
+      title: '404',
+      activeNav: '/skills',
+    };
+  }
+  return {
+    status: 200,
+    body: renderSkillPage(skill),
+    title: `skills / ${skill.slug}`,
+    activeNav: '/skills',
   };
 }
 

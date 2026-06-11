@@ -15,6 +15,8 @@ import type {
   ReleaseNotes,
   Roadmap,
   RoadmapEntry,
+  SkillPage,
+  SkillPageDetail,
   TestPyramidRow,
   UserDocDetail,
   UserDocsCategoryData,
@@ -312,8 +314,9 @@ export interface OverviewKpis {
   };
 }
 
-function renderCounter(v: string | number, l: string): string {
-  return `<div class="counter"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+function renderCounter(v: string | number, l: string, href?: string): string {
+  const counter = `<div class="counter"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  return href ? `<a class="counter-link" href="${href}">${counter}</a>` : counter;
 }
 
 function cmpStr(x: string | undefined, y: string | undefined): number {
@@ -375,7 +378,7 @@ export function renderOverview(
     ${renderCounter(kpis.project.gaps, 'gaps')}
     ${renderCounter(kpis.project.roadmap.total, 'roadmap')}
     ${renderCounter(kpis.project.backlog, 'backlog')}
-    ${renderCounter(kpis.project.skills, 'skills')}
+    ${renderCounter(kpis.project.skills, 'skills', '/skills')}
     ${renderCounter(kpis.project.scripts, 'scripts')}
   </div></div>`;
 
@@ -491,6 +494,46 @@ export function renderFrameworkPage(page: FrameworkPageDetail): string {
   return `<h1>${escapeHtml(page.title)}</h1>
     <p><a href="/framework">← back to framework index</a> · <code>docs/noldor/${escapeHtml(page.slug)}.md</code></p>
     <div class="body">${page.bodyHtml}</div>`;
+}
+
+/**
+ * Render the skills index — one row per project-local skill with its
+ * trigger (`/<name>`) and one-line frontmatter description, link to
+ * `/skills/<slug>`. A footer link points at the skill-catalog framework
+ * page, the operator-summary source-of-truth paired with SKILL.md.
+ *
+ * @param skills - Skills from `loadSkills`
+ * @returns HTML body string
+ */
+export function renderSkillsIndex(skills: SkillPage[]): string {
+  const rows = skills
+    .map(
+      (s) => `<tr>
+      <td><a href="/skills/${escapeHtml(s.slug)}"><strong>/${escapeHtml(s.name)}</strong></a></td>
+      <td>${escapeHtml(s.description)}</td>
+    </tr>`,
+    )
+    .join('');
+  return `<h1>Skills</h1>
+    <p>Project-local skills (${skills.length}). Source: <code>.claude/skills/&lt;name&gt;/SKILL.md</code> · operator summaries in <a href="/framework/skill-catalog">skill-catalog</a>.</p>
+    <table>
+      <thead><tr><th>Trigger</th><th>Description</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/**
+ * Render a single skill: trigger title, breadcrumb back to the index,
+ * source-file path, cross-link to its skill-catalog block, and the
+ * rendered SKILL.md body in `.body` for markdown styling.
+ *
+ * @param skill - Detail from `loadSkill`
+ * @returns HTML body string
+ */
+export function renderSkillPage(skill: SkillPageDetail): string {
+  return `<h1>/${escapeHtml(skill.name)}</h1>
+    <p><a href="/skills">← back to skills</a> · <code>.claude/skills/${escapeHtml(skill.slug)}/SKILL.md</code> · <a href="/framework/skill-catalog">operator summary →</a></p>
+    <div class="body">${skill.bodyHtml}</div>`;
 }
 
 /**
