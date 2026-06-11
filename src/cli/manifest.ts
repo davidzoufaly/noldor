@@ -50,6 +50,10 @@ export const MANIFEST: Record<string, Group> = {
       detect: { src: 'garden/garden-detect.ts', desc: 'Detect framework drift sentinels' },
       receipt: { src: 'garden/garden-receipt.ts', desc: 'Write a garden receipt' },
       'sdd-report': { src: 'garden/sdd-report.ts', desc: 'Produce the SDD report' },
+      'demote-stale': {
+        src: 'garden/backlog-demote.ts',
+        desc: 'Auto-demote stale backlog entries to phase: later (--days N / --dry-run / --json)',
+      },
     },
   },
   cr: {

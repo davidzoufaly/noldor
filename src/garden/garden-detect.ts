@@ -10,6 +10,7 @@ import { INVARIANTS } from './garden-invariants.js';
 import { makeInvariants, runInvariants } from '../invariants/index.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
 import { slugify } from '../utils/slugify.js';
+import { STALE_BACKLOG_DAYS_DEFAULT } from './backlog-demote.js';
 import { auditOverrides } from './detectors/override-audit.js';
 import { auditCodexCrOverrides } from './detectors/codex-cr-override-audit.js';
 import { detectTierMismatch } from './detectors/tier-mismatch.js';
@@ -34,7 +35,8 @@ import type { FdWithoutPlanFinding } from './detectors/fd-without-plan.js';
 // --- Defaults ---
 /** Age threshold (in days) for plans with no matching feature MD. */
 const STALE_DAYS_DEFAULT = 60;
-const UNUSED_BACKLOG_DAYS_DEFAULT = 180;
+/** Shared with `backlog-demote.ts` so detector + auto-demotion agree on "stale". */
+const UNUSED_BACKLOG_DAYS_DEFAULT = STALE_BACKLOG_DAYS_DEFAULT;
 
 /**
  * One stale plan finding. The detector emits these for plans whose matching
@@ -298,7 +300,9 @@ async function listFeatureSlugs(repo: string): Promise<Set<string>> {
  * Detect unused backlog entries.
  *
  * Age signal: `since` older than `staleDays` AND no feature MD with the
- * derived slug exists.
+ * derived slug exists. `phase: later` entries are NOT exempt — demotion
+ * (`backlog-demote.ts`) parks an entry, but a parked entry that keeps
+ * aging still surfaces here for the operator's eventual drop decision.
  *
  * Redundancy signal: a feature MD with the derived slug already exists
  * (regardless of age).
