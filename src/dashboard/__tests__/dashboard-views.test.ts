@@ -834,6 +834,8 @@ describe('renderHotZones', () => {
     rank: 1,
     path: 'packages/noldor/src/dashboard/data.ts',
     changeCount: 7,
+    insertions: 412,
+    deletions: 89,
     authors: ['David Zoufaly'],
     lastCommitDate: '2026-05-04',
     lastCommitSubject: 'feat(scripts): something',
@@ -869,6 +871,12 @@ describe('renderHotZones', () => {
     const orphan: HotZoneRow = { ...sampleRow, featureSlugs: [] };
     const html = renderHotZones([orphan], { days: 30, limit: 10 });
     expect(html).toMatch(/<td>—<\/td>/);
+  });
+
+  it('renders the lines-changed column with insertions and deletions', () => {
+    const html = renderHotZones([sampleRow], { days: 30, limit: 10 });
+    expect(html).toContain('<th>Lines (+/−)</th>');
+    expect(html).toContain('<td>+412 / −89</td>');
   });
 
   it('preserves filter state in the form', () => {

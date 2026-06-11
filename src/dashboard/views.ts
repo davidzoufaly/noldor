@@ -1184,6 +1184,7 @@ export function renderHotZones(
         <td>${row.rank}</td>
         <td><a href="${blobUrl}"><code>${escapeHtml(row.path)}</code></a></td>
         <td>${row.changeCount}</td>
+        <td>+${row.insertions} / −${row.deletions}</td>
         <td>${authors}</td>
         <td>${features}</td>
         <td><time>${escapeHtml(row.lastCommitDate)}</time> · <code>${escapeHtml(row.lastCommitHash)}</code> · ${escapeHtml(row.lastCommitSubject)}</td>
@@ -1192,7 +1193,7 @@ export function renderHotZones(
     .join('');
 
   const table = `<table>
-    <thead><tr><th>#</th><th>File</th><th>Changes</th><th>Authors</th><th>Features</th><th>Last commit</th></tr></thead>
+    <thead><tr><th>#</th><th>File</th><th>Changes</th><th>Lines (+/−)</th><th>Authors</th><th>Features</th><th>Last commit</th></tr></thead>
     <tbody>${body}</tbody>
   </table>`;
 
