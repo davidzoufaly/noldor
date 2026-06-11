@@ -21,7 +21,7 @@ Draft `User Story` and `Usage` sections of a feature MD from the spec (and at re
 1. Read `docs/features/<slug>.md`. If missing, abort:
    > No feature MD at `docs/features/<slug>.md` — run `/promote` or `/new-feature` first.
 2. Locate the latest spec at `docs/superpowers/specs/*-<slug>-design.md` (sort by date prefix, take latest). If none, abort:
-   > No spec found for slug `<slug>`. Author one via `superpowers:brainstorming`, or run `/draft-feature-md <slug> --refresh` after code lands.
+   > No spec found for slug `<slug>`. Author one via the `noldor-spec` skill, or run `/draft-feature-md <slug> --refresh` after code lands.
 3. Read the spec. Extract its `## User Story` and `## Usage` sections (everything between those headings and the next `##`).
 4. For each of `User Story`, `Usage` in the feature MD:
    - If the section's body contains the substring `<!-- TODO`, mark it for drafting.
@@ -94,7 +94,7 @@ When the agent invoking this skill produces the draft itself (no separate API ca
 
 ## When to use
 
-- **After a spec is approved** in `superpowers:brainstorming`, before invoking `writing-plans`. Mode: `--from-spec`. Pre-fills the feature MD so it's not a TODO black hole during implementation.
+- **After a spec is approved** via `noldor-spec`, before invoking `noldor-plan`. Mode: `--from-spec`. Pre-fills the feature MD so it's not a TODO black hole during implementation.
 - **Before flipping `phase: in-progress → done`** in the shipping commit. Mode: `--refresh`. Surfaces drift between spec claims and what shipped.
 
 ## When NOT to use

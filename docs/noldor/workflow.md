@@ -35,7 +35,7 @@ Do not start implementation without running `/gate` first. If the hook genuinely
 
 ## Use /draft-feature-md, not yourself
 
-- **Use `/draft-feature-md` to write User Story + Usage, not yourself.** After a spec is approved (via `superpowers:brainstorming`), invoke `/draft-feature-md <slug> --from-spec` before invoking writing-plans — this fills the feature MD's `<!-- TODO -->` stubs from the spec while it's fresh. This `--from-spec` pass is the one manual invocation. The `--refresh` pass (rewriting User Story / Usage to reflect what actually shipped, not just what the spec claimed) is **not** manual — `/gate` Step 4 runs it automatically before the shipping commit (`--yes` in autonomous mode; scoped to changed files + `--usage-only` on attach paths). The skill drafts proposals and asks you to confirm — you don't write the prose yourself.
+- **Use `/draft-feature-md` to write User Story + Usage, not yourself.** After a spec is approved (via `noldor-spec`), invoke `/draft-feature-md <slug> --from-spec` before invoking noldor-plan — this fills the feature MD's `<!-- TODO -->` stubs from the spec while it's fresh. This `--from-spec` pass is the one manual invocation. The `--refresh` pass (rewriting User Story / Usage to reflect what actually shipped, not just what the spec claimed) is **not** manual — `/gate` Step 4 runs it automatically before the shipping commit (`--yes` in autonomous mode; scoped to changed files + `--usage-only` on attach paths). The skill drafts proposals and asks you to confirm — you don't write the prose yourself.
 
 For agentic operators who want to chain through to PR-merge without checkpoints, pick `proceed-autonomous` at the plan-stage Step 2.5 continue-dialog — see [`complexity-gating.md`](complexity-gating.md#autonomous-mode-post-plan-confirm).
 
@@ -53,4 +53,4 @@ For agentic operators who want to chain through to PR-merge without checkpoints,
 
 ## Spec length check — split if too long
 
-- **Before executing a superpowers spec, check its length.** If it's too long to finish in one pass without exhausting context, split into 2 parts and execute sequentially. Propose the split to the user if borderline
+- **Before executing a spec, check its length.** If it's too long to finish in one pass without exhausting context, split into 2 parts and execute sequentially. Propose the split to the user if borderline

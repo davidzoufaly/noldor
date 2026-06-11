@@ -18,7 +18,7 @@ Every change picks exactly one of six gate paths, chosen via [`/gate`](../../.cl
 | 5   | `full-new`          | new (tier: `full`)       | ✓           | ✓    | ✓        | ✓        | new design dialogue, new FD               |
 | 6   | `full-attach`       | parent (any tier)        | ✓           | ✓    | ✓        | ✓        | substantial enhancement under existing FD |
 
-**Design Spec** = a separate document under `docs/superpowers/specs/`, produced by `superpowers:brainstorming`. Both `specs-only` and `full` tiers produce one. The FD frontmatter + body always exists for FD-carrying paths regardless of tier. The difference between `specs-only-*` and `full-*` is whether `superpowers:writing-plans` runs after the spec — `specs-only` skips the plan-decomposition stage and goes directly to implementation.
+**Design Spec** = a separate document under `docs/superpowers/specs/`, produced by the `noldor-spec` skill. Both `specs-only` and `full` tiers produce one. The FD frontmatter + body always exists for FD-carrying paths regardless of tier. The difference between `specs-only-*` and `full-*` is whether `noldor-plan` runs after the spec — `specs-only` skips the plan-decomposition stage and goes directly to implementation.
 
 A `specs-only` FD can receive a `full-attach` enhancement and vice versa. The parent FD's `noldor-tier` records its own creation depth, not the depth of subsequent attached work. Attach history is reconstructed from `Noldor-Path` trailers in attaching commits, not from the parent FD's frontmatter.
 
@@ -80,7 +80,7 @@ For paths that produce a spec or plan artifact (`specs-only-new`, `specs-only-at
 
 This pause is mandatory and catches architectural drift, missing edge cases, and scope misalignment at the cheapest possible point — before a 10-commit implementation locks the decisions in. `fast-track` and `micro-chore` skip this step because they produce no spec/plan artifact.
 
-`full-new` and `full-attach` hit this pause twice: once after `superpowers:brainstorming` (spec, `kind=spec`) and again after `superpowers:writing-plans` (plan, `kind=plan`). `specs-only-new` and `specs-only-attach` hit this pause once at `kind=spec` — no plan stage; implementation follows directly from the spec.
+`full-new` and `full-attach` hit this pause twice: once after `noldor-spec` (spec, `kind=spec`) and again after `noldor-plan` (plan, `kind=plan`). `specs-only-new` and `specs-only-attach` hit this pause once at `kind=spec` — no plan stage; implementation follows directly from the spec.
 
 Because the `specs-only-*` pause is the **only** review surface before implementation, `/gate` prints a detailed summary of the committed spec to chat at that handoff — scope bullets, files touched, acceptance criteria, and deferred risks / open questions, with uncovered sections marked `(not specified in spec)` — instead of a minimal "spec written, proceed?" prompt. The operator can approve or send back the spec without opening the file. See [`gate/SKILL.md`](../../.claude/skills/gate/SKILL.md) Step 2.5 "Detailed spec summary (specs-only handoff)".
 
@@ -110,11 +110,11 @@ Path 2 applies. Run `/gate`, pick `fast-track`. A worktree is created (`fast/<sh
 
 **Example 3 — `specs-only-new`:** You're adding a small but design-meaningful feature — say, a new validator that needs to integrate with existing schema rules. Implementation is small enough that a separate plan would be overkill, but the design decisions (which rule slots to use, how to surface errors) need to be captured.
 
-Path 3 applies. Run `/gate`, pick `specs-only-new`. `/gate` prompts for a slug and category, runs `/promote <slug> --tier=specs-only`, creates a worktree, and launches `superpowers:brainstorming`. Spec is produced, reviewed at Step 2.5 (`--kind spec`), then implementation flows directly from the spec.
+Path 3 applies. Run `/gate`, pick `specs-only-new`. `/gate` prompts for a slug and category, runs `/promote <slug> --tier=specs-only`, creates a worktree (`pnpm noldor worktrees create`), and launches `noldor-spec`. Spec is produced, reviewed at Step 2.5 (`--kind spec`), then implementation flows directly from the spec.
 
 **Example 4 — `full-new`:** You are designing a new export format — new UX flow, new API surface, design ambiguity AND plan decomposition both warranted.
 
-Path 5 applies. Run `/gate`, pick `full-new`. `/gate` prompts for a slug and category, runs `/promote <slug> --tier=full` (or `/new-feature <slug> --tier=full`), creates a worktree, and launches `superpowers:brainstorming`. Spec is produced, reviewed at Step 2.5 (`--kind spec`), then `superpowers:writing-plans` builds the plan, reviewed again at Step 2.5 (`--kind plan`). Implementation follows.
+Path 5 applies. Run `/gate`, pick `full-new`. `/gate` prompts for a slug and category, runs `/promote <slug> --tier=full` (or `/new-feature <slug> --tier=full`), creates a worktree (`pnpm noldor worktrees create`), and launches `noldor-spec`. Spec is produced, reviewed at Step 2.5 (`--kind spec`), then `noldor-plan` builds the plan, reviewed again at Step 2.5 (`--kind plan`). Implementation follows.
 
 ---
 

@@ -92,7 +92,7 @@ describe('isReleaseSweepAllowed', () => {
     expect(isReleaseSweepAllowed(['docs/superpowers/specs/2026-05-17-foo.ts'])).toBe(false);
   });
 
-  it('admits superpowers plans + specs', () => {
+  it('admits design plans + specs under docs/superpowers/', () => {
     expect(isReleaseSweepAllowed(['docs/superpowers/plans/2026-05-17-foo.md'])).toBe(true);
     expect(isReleaseSweepAllowed(['docs/superpowers/specs/2026-05-17-foo-design.md'])).toBe(true);
   });
