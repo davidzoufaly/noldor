@@ -1,5 +1,9 @@
 // @tests: project-tracking-dashboard
 
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -88,12 +92,29 @@ describe('parseGraphReport', () => {
 });
 
 describe('loadGraphHealth', () => {
-  it('parses the tracked repo report and stamps the file mtime', async () => {
+  it('reads a report from the doc root and stamps the file mtime', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'graph-health-'));
+    try {
+      await mkdir(join(root, 'graphify-out'));
+      await writeFile(join(root, 'graphify-out', 'GRAPH_REPORT.md'), FIXTURE, 'utf8');
+      setDocRootsOverride(root);
+      const h = await loadGraphHealth();
+      expect(h).not.toBeNull();
+      graphHealthSchema.parse(h);
+      expect(h!.reportMtime).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(h!.godNodes).toHaveLength(3);
+      expect(h!.scope).toBe('src');
+    } finally {
+      setDocRootsOverride(undefined);
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('smoke: tolerates whatever the live tracked report contains', async () => {
+    // Live-tree smoke only — no assertions on parsed content, so a /graphify
+    // format drift can never break the dashboard suite (score.test trap class).
     const h = await loadGraphHealth();
-    expect(h).not.toBeNull();
-    graphHealthSchema.parse(h);
-    expect(h!.reportMtime).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(h!.godNodes.length).toBeGreaterThan(0);
+    if (h !== null) graphHealthSchema.parse(h);
   });
 
   it('returns null when no graphify-out report exists under the doc root', async () => {

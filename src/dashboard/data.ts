@@ -1714,7 +1714,7 @@ export function parseGraphReport(md: string): GraphHealth {
   // Graphify does not emit a dead-export section today; parse defensively so
   // the count lights up if/when the report grows one.
   const deadSection = /^## Dead Exports[^\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(md);
-  const deadExports = deadSection ? (deadSection[1].match(/^[-\d]/gm)?.length ?? 0) : null;
+  const deadExports = deadSection ? (deadSection[1].match(/^(?:- |\d+\. )/gm)?.length ?? 0) : null;
 
   return graphHealthSchema.parse({
     scope: header?.[1] ?? null,
@@ -1740,12 +1740,14 @@ export async function loadGraphHealth(): Promise<GraphHealth | null> {
   let md: string;
   let mtime: string;
   try {
-    md = await readFile(reportPath, 'utf8');
+    // stat before read: if /graphify rewrites in between, the stamp undersells
+    // the content rather than postdating it.
     mtime = (await stat(reportPath)).mtime.toISOString();
+    md = await readFile(reportPath, 'utf8');
   } catch {
     return null;
   }
-  return { ...parseGraphReport(md), reportMtime: mtime };
+  return graphHealthSchema.parse({ ...parseGraphReport(md), reportMtime: mtime });
 }
 
 export { describeWarning };
