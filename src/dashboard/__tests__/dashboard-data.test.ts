@@ -297,6 +297,11 @@ describe('resolveRenamePath', () => {
     expect(resolveRenamePath('src/{sub => }/a.ts')).toBe('src/a.ts');
   });
 
+  it('strips the stray leading slash when a top-level dir empties out', () => {
+    expect(resolveRenamePath('{src => }/a.ts')).toBe('a.ts');
+    expect(resolveRenamePath('{ => src}/a.ts')).toBe('src/a.ts');
+  });
+
   it('resolves a whole-path rename to the new path', () => {
     expect(resolveRenamePath('old-name.md => new-name.md')).toBe('new-name.md');
   });

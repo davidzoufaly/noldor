@@ -1311,6 +1311,23 @@ export async function loadVelocity(): Promise<VelocityStats> {
 }
 
 /**
+ * Resolve a numstat rename path to its post-rename form: braced segment
+ * renames (`dir/{old => new}/f.ts`, `src/{ => sub}/a.ts`) keep the right
+ * side; whole-path renames (`old.ts => new.ts`) keep the right side.
+ * An emptied leading segment (`{src => }/a.ts`) leaves no stray slash.
+ * Non-rename paths pass through unchanged.
+ */
+export function resolveRenamePath(raw: string): string {
+  const braced = raw
+    .replace(/\{([^{}]*) => ([^{}]*)\}/g, '$2')
+    .replaceAll('//', '/')
+    .replace(/^\//, '');
+  if (braced !== raw) return braced;
+  const arrow = raw.indexOf(' => ');
+  return arrow === -1 ? raw : raw.slice(arrow + 4);
+}
+
+/**
  * Compute the top-N most-changed files in the last `days` days.
  *
  * One git call (`git log --since=Nd --no-merges --numstat --format=...`)
@@ -1329,19 +1346,6 @@ export async function loadVelocity(): Promise<VelocityStats> {
  * @param opts - `days` (window) and `limit` (max rows).
  * @returns Hot-zone rows, ranked by change count desc.
  */
-/**
- * Resolve a numstat rename path to its post-rename form: braced segment
- * renames (`dir/{old => new}/f.ts`, `src/{ => sub}/a.ts`) keep the right
- * side; whole-path renames (`old.ts => new.ts`) keep the right side.
- * Non-rename paths pass through unchanged.
- */
-export function resolveRenamePath(raw: string): string {
-  const braced = raw.replace(/\{([^{}]*) => ([^{}]*)\}/g, '$2').replaceAll('//', '/');
-  if (braced !== raw) return braced;
-  const arrow = raw.indexOf(' => ');
-  return arrow === -1 ? raw : raw.slice(arrow + 4);
-}
-
 export async function loadHotZones(opts: {
   days: 7 | 30 | 90;
   limit: number;
