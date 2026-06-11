@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { artifactKindSchema, laneSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane } from './findings-schema.js';
+import { agentsConfigSchema } from '../core/agent-runner/types.js';
 
 /**
  * Default session-marker time-to-live, in hours. A stale-eligible session
@@ -45,6 +46,7 @@ export const noldorConfigSchema = z.object({
   crLanes: crLanesConfigSchema.optional(),
   autonomous: autonomousConfigSchema.optional(),
   gate: gateConfigSchema.optional(),
+  agents: agentsConfigSchema.optional(),
 });
 export type NoldorConfig = z.infer<typeof noldorConfigSchema>;
 
