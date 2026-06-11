@@ -4,11 +4,11 @@ Discipline framework for agent-driven software development. Single gate, doc-anc
 
 ## Status
 
-Pre-extract. Lives at `packages/noldor/` inside the Charuy monorepo. Phase C of the framework-doc-extraction work extracts this directory into its own repo at `github.com/davidzoufaly/noldor`.
+Standalone repo (`github.com/davidzoufaly/noldor`), lifted out of the Charuy monorepo. Pre-1.0 (`0.2.0`) and self-hosting — Noldor dogfoods its own gate, drain, and release framework. Distribution is still `file:`-dependency based; npm publication and a version-migration chain are tracked on the roadmap.
 
 ## Quick start
 
-After extract, consumers add a `file:` dependency:
+Consumers add a `file:` dependency:
 
 ```json
 {
