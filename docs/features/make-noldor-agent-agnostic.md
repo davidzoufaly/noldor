@@ -6,8 +6,12 @@ links:
   code: []
   tests:
     - src/core/__tests__/agent-events.test.ts
+    - src/core/agent-runner/__tests__/doctor-runners.test.ts
+    - src/core/agent-runner/__tests__/no-stray-spawns.test.ts
+    - src/core/agent-runner/__tests__/registry.test.ts
     - src/core/agent-runner/__tests__/runners.test.ts
     - src/core/agent-runner/__tests__/types.test.ts
+    - src/templates/__tests__/agent-filter.test.ts
   spec: docs/superpowers/specs/2026-06-11-make-noldor-agent-agnostic-design.md
 name: Make Noldor Agent-Agnostic
 packages:

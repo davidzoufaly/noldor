@@ -14,7 +14,6 @@ links:
   tests:
     - src/core/__tests__/pr-flow-cli.test.ts
     - src/core/__tests__/session.test.ts
-    - src/cr/__tests__/in-progress-guard.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/overwrite-guard.test.ts
 name: Autonomous Execution from Plan Confirm → PR Merge
@@ -24,7 +23,6 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.6.0
 ---
-
 ## Summary
 
 After the operator confirms the `superpowers:writing-plans` output, execution proceeds autonomously through implementation, review, PR creation, and merge — no further human checkpoints between plan-confirm and PR-merged. Today the flow stops at multiple seams (post-plan, post-implementation, post-review, pre-PR, pre-merge); each stop loses momentum and forces context reload. Scope: identify every interactive prompt / `AskUserQuestion` / pause between `superpowers:writing-plans` confirm and `pr-flow.openAndAutoMerge` completion; gate them behind autonomy mode; preserve safety rails (CR gate failures, test failures, override prompts) but auto-proceed on green.
