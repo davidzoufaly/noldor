@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { hotZoneRowSchema } from '../data.js';
 import { startServer } from '../server.js';
 
 import type { Server } from 'node:http';
@@ -105,6 +106,25 @@ describe('dashboard server', () => {
     expect(zero).toContain('value="1"');
     const nan = await (await fetch(`${baseUrl}/hot-zones?limit=abc`)).text();
     expect(nan).toContain('value="10"');
+  });
+
+  it('GET /hot-zones?format=json returns the HotZoneRow[] array as application/json', async () => {
+    const res = await fetch(`${baseUrl}/hot-zones?format=json&days=90&limit=3`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const rows: unknown = await res.json();
+    expect(Array.isArray(rows)).toBe(true);
+    const arr = rows as Record<string, unknown>[];
+    expect(arr.length).toBeLessThanOrEqual(3);
+    for (const row of arr) {
+      expect(hotZoneRowSchema.safeParse(row).success).toBe(true);
+    }
+  });
+
+  it('GET /hot-zones?format=html falls back to the HTML table', async () => {
+    const res = await fetch(`${baseUrl}/hot-zones?format=html`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
   });
 
   it('GET / nav contains a link to /hot-zones', async () => {

@@ -615,6 +615,7 @@ async function handleHotZones(params: URLSearchParams): Promise<RouteResult> {
   const limitRaw = Number(params.get('limit') ?? '10');
   const limit = Number.isFinite(limitRaw) ? Math.min(100, Math.max(1, Math.trunc(limitRaw))) : 10;
   const rows = await loadHotZones({ days, limit });
+  if (params.get('format') === 'json') return jsonResult(200, rows);
   return {
     status: 200,
     body: renderHotZones(rows, { days, limit }),

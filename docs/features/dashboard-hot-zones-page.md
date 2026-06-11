@@ -40,7 +40,8 @@ As a maintainer (human or agent), I want a sortable list of the files that chang
 
 **Agent API**
 
-- Endpoint: `GET /hot-zones?days=<7|30|90>&limit=<1..100>` — returns a rendered HTML table. JSON variant deferred (see backlog).
+- Endpoint: `GET /hot-zones?days=<7|30|90>&limit=<1..100>` — returns a rendered HTML table.
+- JSON variant: `GET /hot-zones?format=json&days=<7|30|90>&limit=<1..100>` — returns the `HotZoneRow[]` array as `application/json` (same `days`/`limit` clamping as the HTML view).
 
 <!-- generated: resources -->
 
