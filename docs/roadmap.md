@@ -142,17 +142,6 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 - triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
 
-#### E2E Tests Referenced by Multiple FDs
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: S
-- impact: low
-- parent: noldor
-
-Allow E2E test files to be referenced by multiple FDs (one E2E covers several features). Today `links.tests` is per-FD and the `@tests:` tag in test files is single-slug. Extend the schema so an E2E can declare `@tests: <slug-a>, <slug-b>, <slug-c>` and `links.tests` resolves the many-to-many fan-out. Garden detectors (untagged tests, untagged docs) need updating to handle the multi-slug case. Trigger: when the first E2E that legitimately covers 3+ features ships and the operator wants the link cardinality reflected accurately.
-
 #### Noldor Section-Age Staleness Detector
 
 - area: tooling
