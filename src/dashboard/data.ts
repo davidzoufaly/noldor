@@ -1055,6 +1055,8 @@ export const hotZoneRowSchema = z
     rank: z.number().int().positive(),
     path: z.string().min(1),
     changeCount: z.number().int().positive(),
+    insertions: z.number().int().nonnegative(), // lines added across window (binary diffs count 0)
+    deletions: z.number().int().nonnegative(), // lines removed across window (binary diffs count 0)
     authors: z.array(z.string()), // distinct, sorted
     lastCommitDate: z.string(), // YYYY-MM-DD
     lastCommitHash: z.string(), // short hash
@@ -1309,11 +1311,31 @@ export async function loadVelocity(): Promise<VelocityStats> {
 }
 
 /**
+ * Resolve a numstat rename path to its post-rename form: braced segment
+ * renames (`dir/{old => new}/f.ts`, `src/{ => sub}/a.ts`) keep the right
+ * side; whole-path renames (`old.ts => new.ts`) keep the right side.
+ * An emptied leading segment (`{src => }/a.ts`) leaves no stray slash.
+ * Non-rename paths pass through unchanged.
+ */
+export function resolveRenamePath(raw: string): string {
+  const braced = raw
+    .replace(/\{([^{}]*) => ([^{}]*)\}/g, '$2')
+    .replaceAll('//', '/')
+    .replace(/^\//, '');
+  if (braced !== raw) return braced;
+  const arrow = raw.indexOf(' => ');
+  return arrow === -1 ? raw : raw.slice(arrow + 4);
+}
+
+/**
  * Compute the top-N most-changed files in the last `days` days.
  *
- * One git call (`git log --since=Nd --no-merges --name-only --format=...`)
- * is parsed in a single pass into per-file metrics. Generated and lockfile
- * paths are excluded via {@link EXCLUDE_PATTERNS}. Each surviving row is
+ * One git call (`git log --since=Nd --no-merges --numstat --format=...`)
+ * is parsed in a single pass into per-file metrics. `--numstat` (not
+ * `--shortstat`) because lines changed must be attributed per file, and
+ * shortstat only emits per-commit totals. Binary diffs report `-\t-` and
+ * count as 0 inserted / 0 deleted. Generated and lockfile paths are
+ * excluded via {@link EXCLUDE_PATTERNS}. Each surviving row is
  * cross-referenced against feature MDs' `links.code` to populate
  * `featureSlugs`.
  *
@@ -1336,7 +1358,7 @@ export async function loadHotZones(opts: {
           'log',
           `--since=${days} days ago`,
           '--no-merges',
-          '--name-only',
+          '--numstat',
           '--format=__C__%h%x09%an%x09%cs%x09%s',
         ])
       ).split('\n'),
@@ -1346,6 +1368,8 @@ export async function loadHotZones(opts: {
   interface Acc {
     path: string;
     changeCount: number;
+    insertions: number;
+    deletions: number;
     authors: Set<string>;
     lastCommitDate: string;
     lastCommitSubject: string;
@@ -1367,12 +1391,20 @@ export async function loadHotZones(opts: {
       continue;
     }
     if (line === '') continue;
-    const path = line;
+    // Numstat line: `<ins>\t<del>\t<path>` — `-` for binary diffs. Churn from
+    // a rename (`dir/{old => new}` / `old => new`) attributes to the new path.
+    const [ins, del, ...pathParts] = line.split('\t');
+    if (ins === undefined || del === undefined || pathParts.length === 0) continue;
+    const path = resolveRenamePath(pathParts.join('\t'));
+    const insertions = ins === '-' ? 0 : Number.parseInt(ins, 10);
+    const deletions = del === '-' ? 0 : Number.parseInt(del, 10);
     let acc = accByPath.get(path);
     if (!acc) {
       acc = {
         path,
         changeCount: 1,
+        insertions,
+        deletions,
         authors: new Set<string>([curAuthor]),
         lastCommitDate: curDate,
         lastCommitSubject: curSubject,
@@ -1382,6 +1414,8 @@ export async function loadHotZones(opts: {
       continue;
     }
     acc.changeCount += 1;
+    acc.insertions += insertions;
+    acc.deletions += deletions;
     acc.authors.add(curAuthor);
     if (curDate > acc.lastCommitDate) {
       acc.lastCommitDate = curDate;
@@ -1409,6 +1443,8 @@ export async function loadHotZones(opts: {
     rank: i + 1,
     path: a.path,
     changeCount: a.changeCount,
+    insertions: a.insertions,
+    deletions: a.deletions,
     authors: Array.from(a.authors).toSorted((x, y) => x.localeCompare(y)),
     lastCommitDate: a.lastCommitDate,
     lastCommitSubject: a.lastCommitSubject,

@@ -29,6 +29,7 @@ import {
   parseBacklogFromString,
   parseRoadmap,
   parseRoadmapFromString,
+  resolveRenamePath,
   WIP_AGE_THRESHOLDS,
   wipAgeRowSchema,
 } from '../data.js';
@@ -281,6 +282,31 @@ describe('loadVelocity', () => {
   });
 });
 
+describe('resolveRenamePath', () => {
+  it('passes non-rename paths through unchanged', () => {
+    expect(resolveRenamePath('src/dashboard/data.ts')).toBe('src/dashboard/data.ts');
+  });
+
+  it('resolves a braced segment rename to the new path', () => {
+    expect(resolveRenamePath('src/{old.ts => new.ts}')).toBe('src/new.ts');
+    expect(resolveRenamePath('{scripts => src}/cli/run.ts')).toBe('src/cli/run.ts');
+  });
+
+  it('resolves a braced rename with an empty side without double slashes', () => {
+    expect(resolveRenamePath('src/{ => sub}/a.ts')).toBe('src/sub/a.ts');
+    expect(resolveRenamePath('src/{sub => }/a.ts')).toBe('src/a.ts');
+  });
+
+  it('strips the stray leading slash when a top-level dir empties out', () => {
+    expect(resolveRenamePath('{src => }/a.ts')).toBe('a.ts');
+    expect(resolveRenamePath('{ => src}/a.ts')).toBe('src/a.ts');
+  });
+
+  it('resolves a whole-path rename to the new path', () => {
+    expect(resolveRenamePath('old-name.md => new-name.md')).toBe('new-name.md');
+  });
+});
+
 describe('loadHotZones', () => {
   it('returns rows that satisfy hotZoneRowSchema', async () => {
     const rows = await loadHotZones({ days: 30, limit: 10 });
@@ -330,6 +356,20 @@ describe('loadHotZones', () => {
     for (const row of rows) {
       expect(Array.isArray(row.featureSlugs)).toBe(true);
     }
+  });
+
+  it('accumulates non-negative integer insertions and deletions per row', async () => {
+    const rows = await loadHotZones({ days: 90, limit: 100 });
+    expect(rows.length).toBeGreaterThan(0); // this repo always has recent churn
+    for (const row of rows) {
+      expect(Number.isInteger(row.insertions)).toBe(true);
+      expect(Number.isInteger(row.deletions)).toBe(true);
+      expect(row.insertions).toBeGreaterThanOrEqual(0);
+      expect(row.deletions).toBeGreaterThanOrEqual(0);
+    }
+    // A multi-commit text file accrues at least one changed line in the window.
+    const top = rows[0];
+    expect(top.insertions + top.deletions).toBeGreaterThan(0);
   });
 
   it('honors days window (no row predates today minus days)', async () => {
