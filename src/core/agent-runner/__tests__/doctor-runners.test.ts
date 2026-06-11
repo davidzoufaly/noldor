@@ -22,6 +22,13 @@ describe('referencedRunners', () => {
   it('defaults to claude only', () => {
     expect(referencedRunners(agentsConfigSchema.parse({}))).toEqual(['claude']);
   });
+  it('includes targets so a floored-but-unroled runner is still checked', () => {
+    const cfg = agentsConfigSchema.parse({
+      targets: ['claude', 'opencode'],
+      versionFloors: { opencode: '0.6.0' },
+    });
+    expect(referencedRunners(cfg).toSorted()).toEqual(['claude', 'opencode']);
+  });
 });
 
 describe('checkRunners', () => {

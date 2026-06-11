@@ -28,9 +28,14 @@ export function compareDotted(a: string, b: string): number {
   return 0;
 }
 
-/** Every runner the config actually references: the default + each role's runner. */
+/**
+ * Every runner the config actually references: the default, each role's
+ * runner, and every `targets` entry (a consumer who opted a driver's shim set
+ * in expects doctor to verify that driver — and it keeps a `versionFloors`
+ * entry for a targeted-but-unroled runner enforceable instead of dead config).
+ */
 export function referencedRunners(cfg: AgentsConfig): RunnerName[] {
-  const set = new Set<RunnerName>([cfg.default]);
+  const set = new Set<RunnerName>([cfg.default, ...cfg.targets]);
   for (const rc of Object.values(cfg.roles)) {
     if (rc) set.add(rc.runner);
   }

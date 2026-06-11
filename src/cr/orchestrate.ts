@@ -158,7 +158,6 @@ export interface RunOpts {
 
 export interface RunResult {
   lanesRun: Lane[];
-  lanesSkippedPreDep: Lane[];
   syntheticOks: Lane[];
   exitCode: number;
 }
@@ -195,8 +194,6 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     ...(opts.args.fullReview ? { fullReview: true } : {}),
   };
 
-  // Pre-dep probes
-  const lanesSkippedPreDep: Lane[] = [];
   let effective = [...requested];
   effective = await guardLaneOverwrite(
     effective,
@@ -261,7 +258,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     }
   }
 
-  return { lanesRun, lanesSkippedPreDep, syntheticOks, exitCode };
+  return { lanesRun, syntheticOks, exitCode };
 }
 
 // CLI entry — wired up in Task 5.4
@@ -272,7 +269,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(`lanes run: ${r.lanesRun.join(', ')}`);
   if (r.syntheticOks.length)
     console.log(`synthetic OK (empty delta): ${r.syntheticOks.join(', ')}`);
-  if (r.lanesSkippedPreDep.length)
-    console.log(`skipped (pre-dep): ${r.lanesSkippedPreDep.join(', ')}`);
   process.exit(r.exitCode);
 }
