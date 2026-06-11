@@ -940,6 +940,7 @@ export function renderFeatures(
     area: string;
     updated: string;
     sort: string;
+    missingIntroduced?: boolean;
   },
   gitUpdated?: ReadonlyMap<string, string>,
 ): string {
@@ -948,7 +949,8 @@ export function renderFeatures(
       (!filters.phase || f.frontmatter.phase === filters.phase) &&
       (!filters.category || f.frontmatter.category === filters.category) &&
       (!filters.area || f.frontmatter.area === filters.area) &&
-      (!filters.updated || f.frontmatter.updated === filters.updated),
+      (!filters.updated || f.frontmatter.updated === filters.updated) &&
+      (!filters.missingIntroduced || !f.frontmatter.introduced),
   );
   const sortMode = filters.sort || 'name-asc';
   filtered.sort((a, b) => {
@@ -1017,6 +1019,9 @@ export function renderFeatures(
           )
           .join('')}
       </select>
+    </label>
+    <label>Missing introduced
+      <input type="checkbox" name="missing-introduced" value="1"${filters.missingIntroduced ? ' checked' : ''} onchange="this.form.submit()">
     </label>
   </form>`;
   const table =

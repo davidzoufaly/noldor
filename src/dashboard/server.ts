@@ -569,6 +569,7 @@ async function handleFeatures(params: URLSearchParams): Promise<RouteResult> {
         area: params.get('area') ?? '',
         updated: params.get('updated') ?? '',
         sort,
+        missingIntroduced: params.get('missing-introduced') === '1',
       },
       gitUpdated,
     ),

@@ -757,7 +757,7 @@ describe('renderFeatures', () => {
     expect(html).toContain('Foo');
   });
 
-  const featureFixture = (slug: string, name: string) => ({
+  const featureFixture = (slug: string, name: string, introduced?: string) => ({
     slug,
     frontmatter: {
       name,
@@ -768,6 +768,7 @@ describe('renderFeatures', () => {
       deps: [],
       links: { code: [], docs: [], tests: [] },
       'noldor-tier': 'specs-only' as const,
+      ...(introduced ? { introduced } : {}),
     },
     bodyMarkdown: '',
   });
@@ -819,6 +820,38 @@ describe('renderFeatures', () => {
     const pos = (slug: string) => html.indexOf(`href="/features/${slug}"`);
     expect(pos('older')).toBeLessThan(pos('newer'));
     expect(pos('newer')).toBeLessThan(pos('undated'));
+  });
+
+  it('renders the missing-introduced checkbox, unchecked by default', () => {
+    const html = renderFeatures([featureFixture('foo', 'Foo')], {
+      phase: '',
+      category: '',
+      area: '',
+      updated: '',
+      sort: '',
+    });
+    expect(html).toContain('name="missing-introduced"');
+    expect(html).not.toContain('name="missing-introduced" value="1" checked');
+  });
+
+  it('filters to features missing introduced when the checkbox is on', () => {
+    const html = renderFeatures(
+      [featureFixture('shipped', 'Shipped', '0.4.0'), featureFixture('unmarked', 'Unmarked')],
+      { phase: '', category: '', area: '', updated: '', sort: '', missingIntroduced: true },
+    );
+    expect(html).toContain('href="/features/unmarked"');
+    expect(html).not.toContain('href="/features/shipped"');
+    expect(html).toContain('checked');
+    expect(html).toContain('Features (1 of 2)');
+  });
+
+  it('keeps features with introduced visible when the checkbox is off', () => {
+    const html = renderFeatures(
+      [featureFixture('shipped', 'Shipped', '0.4.0'), featureFixture('unmarked', 'Unmarked')],
+      { phase: '', category: '', area: '', updated: '', sort: '' },
+    );
+    expect(html).toContain('href="/features/shipped"');
+    expect(html).toContain('href="/features/unmarked"');
   });
 });
 
