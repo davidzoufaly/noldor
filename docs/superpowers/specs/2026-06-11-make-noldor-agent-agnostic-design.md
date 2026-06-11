@@ -103,7 +103,7 @@ Argv builders (per runner; prompt delivery differs and is part of the builder co
 
 **Claude argv normalization.** The five live sites use three claude shapes today: `--print … --disallowed-tools AskUserQuestion --permission-mode bypassPermissions` (drain, prep), `-p … --dangerously-skip-permissions` (subagent-dispatch), and bare `-p …` (polish). The registry deliberately unifies on the canonical shape above for all sites: `-p` ≡ `--print`, `--dangerously-skip-permissions` ≡ `--permission-mode bypassPermissions`, and adding the AskUserQuestion kill-switch to dispatch/polish is a strict robustness upgrade (their prompts never legitimately ask questions; a hallucinated prompt now fails fast instead of hanging). Back-compat goldens therefore pin **byte-identity for drain + prep** (already canonical) and **the new canonical argv for dispatch + polish** with this normalization documented as intentional.
 
-`spawnAgent` behavior: resolve role → runner config (Unit 3) → capability-fit check (`schemaPath` set but runner's `structuredOutput !== 'schema'` → throw `capability-mismatch` with the runner name and required grade) → build argv → `child_process.spawn` with the timeout-SIGKILL pattern lifted from `src/prep/spawn.ts:42-48` → append one agent-event (Unit 5, fail-open) → resolve `AgentResult`. Spawn `error` events reject with `spawn-failed: <msg>` preserving `drain-io.ts`'s abort-the-drain contract. The PR #33 rule holds for all three runners: **directives ride the prompt, never env/flags.**
+`spawnAgent` behavior: resolve the runner as `opts.runner ?? resolveRunner(opts.role, config)` — an explicit pin short-circuits role resolution entirely (Unit 3 config is consulted only when no pin is given) → capability-fit check (`schemaPath` set but runner's `structuredOutput !== 'schema'` → throw `capability-mismatch` with the runner name and required grade) → build argv → `child_process.spawn` with the timeout-SIGKILL pattern lifted from `src/prep/spawn.ts:42-48` → append one agent-event (Unit 5, fail-open) → resolve `AgentResult`. Spawn `error` events reject with `spawn-failed: <msg>` preserving `drain-io.ts`'s abort-the-drain contract. The PR #33 rule holds for all three runners: **directives ride the prompt, never env/flags.**
 
 ### Unit 2 — capability matrix (code + doc)
 
@@ -134,7 +134,7 @@ Extends `noldorConfigSchema` (`src/cr/config.ts:44-48` — the file already host
 }
 ```
 
-Zod schema in `src/core/agent-runner/types.ts`, wired `.optional()` into `noldorConfigSchema` (same no-default posture as `crLanes` — never synthesized onto configs that didn't declare it). Resolution: `roles[role] ?? { runner: default ?? 'claude' }`.
+Zod schema in `src/core/agent-runner/types.ts`, wired `.optional()` into `noldorConfigSchema` (same no-default posture as `crLanes` — never synthesized onto configs that didn't declare it). Resolution: `opts.runner ?? (roles[role] ?? { runner: default ?? 'claude' }).runner` — the pin always wins; role config applies only to unpinned spawns.
 
 ### Unit 4 — site refits
 
@@ -168,7 +168,7 @@ Selection logic: `--agents` filters which template subtrees `copyTemplate` write
 ```
 caller (drain | prep | CR lane | release)
   → spawnAgent(prompt, { role, … })
-    → loadConfig().agents → resolveRunner(role)        (claude when absent)
+    → opts.runner ?? resolveRunner(role, loadConfig().agents)   (pin wins; claude when absent)
     → capability-fit check (schemaPath ⇒ schema grade)
     → runners/<name>.buildArgv(prompt, opts)
     → child_process.spawn + timeout SIGKILL
