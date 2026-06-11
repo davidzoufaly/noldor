@@ -142,17 +142,6 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 - triage 2026-05-11: strategic but premature pre-1.0. Impact rated med (not high) because external agent adoption is not yet a live constraint.
 
-#### Hot Zones JSON Endpoint
-
-- area: tooling
-- type: feat
-- since: 2026-05-04
-- size: XS
-- impact: low
-- parent: dashboard-hot-zones-page
-
-`/hot-zones?format=json` returning the `HotZoneRow[]` array as `application/json`. Lets agents skip HTML parsing. Trigger when an agent workflow actually wants the data programmatically.
-
 #### Sort Features by Last-Updated (Git)
 
 - area: tooling
