@@ -186,16 +186,6 @@ Noldor today assumes Claude Code as the operating agent (skill names, hook patte
 
 Add a "last updated" sort option to the dashboard's `/features` listing, sourced from `git log -1 --format=%cI -- docs/features/<slug>.md`. Today the list is alphabetical or by phase. A recency sort surfaces the actively-edited FDs and de-emphasizes stale ones. Trigger: when the FD count grows large enough that "what changed recently" stops being obvious from the alphabetical list.
 
-#### Extract requireFreshGraph helper
-
-- area: tooling
-- type: refactor
-- since: 2026-05-07
-- size: XS
-- impact: low
-
-When a 2nd graph-consuming SDD detector lands, extract the inline staleness check from the 13th detector into a shared helper under `scripts/graphify/`. Premature today (1 consumer). Trigger: arrival of the 2nd consumer.
-
 #### SDD Graphify-Lift Audit (theoretical substrate scan)
 
 - area: tooling
