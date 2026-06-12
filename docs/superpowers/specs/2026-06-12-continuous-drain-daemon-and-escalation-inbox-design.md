@@ -73,7 +73,7 @@ Failure inside salvage: throw → the worker's existing catch treats it as a sys
 Storage (both under `.noldor/`, gitignored like the other runtime artifacts):
 
 - `escalations.jsonl` — append-only audit log: `{ ts, slug, reason, evidence, stateSnapshot, suggestedAction }`. `reason ∈ 'retries-exhausted' | 'pr-open-unmerged' | 'merge-conflict' | 'merge-timeout' | 'run-aborted' | 'watcher-tripped'`. `evidence` = retry count, last skip reason, `res.error` text when present. `stateSnapshot` = `{ shipped, skipped, retries }` from the `DrainResult`. `suggestedAction` = canned per reason (e.g. retries-exhausted → "inspect `.noldor/cr/<slug>-*` sinks; unpark after fixing the entry or its premise").
-- `drain-park.json` — the open set: `{ [slug]: { reason, ts } }`. Parked slugs are the inbox's "open" items; resolution = removal.
+- `drain-park.json` — the open set: `{ [slug]: { reason, ts, source } }` (`source` = the `SourceId` the slug was parked under — scopes both the park filter and auto-resolve). Parked slugs are the inbox's "open" items; resolution = removal.
 
 Loop visibility changes (the only `drain-loop.ts` edits besides the optional dep — all reason-recording, no behavior change):
 
@@ -81,16 +81,36 @@ Loop visibility changes (the only `drain-loop.ts` edits besides the optional dep
 - The two **silent open-PR skips** record `skipReasons[slug] = 'pr-open-unmerged'`: the K=1 `settleShipVerdict` branch (`drain-loop.ts:175-178` — child opened a PR but the oracle still sees the slug) and the worker's restart-safety guard (`drain-loop.ts:218-220`). This matters because `watch` runs K=1 by default (no `--concurrency` pass-through) — without it, a child that opens a PR that never merges is skipped reason-less every cycle: the invisible-failure class again, on the *default* path.
 - Ineligible skips keep their precise source-provided reasons.
 
-Mapping (a pure exported helper `mapCycleToEscalations(result)` called after each `runDrain` return — by `watch.ts` per cycle AND by `queue-drain.ts` post-run, so a plain `run`'s terminal failures land in the same inbox; the loop itself stays IO-pure):
+Mapping — a **pure decision core + thin IO shell**, the `decideNext` pattern the loop already uses. The pure helper:
+
+```ts
+mapCycle(input: {
+  result: DrainResult;
+  mode: 'watch' | 'run';        // run never parks pr-open-unmerged, never dedupes run-aborted
+  source: SourceId;             // stamped onto park entries; scopes auto-resolve
+  parked: ParkMap;              // dedup against open incidents
+  pendingPr: readonly string[]; // grace carry-over (watch only; [] for run)
+  prevRunAbortError?: string;   // run-aborted streak dedup (watch only)
+  queueUniverse: readonly string[]; // source.parseAll() after the cycle's final sync
+}): {
+  escalations: EscalationRow[];
+  toPark: Array<{ slug: string; reason: string }>;
+  toUnpark: string[];           // auto-resolved
+  nextPendingPr: string[];
+  nextRunAbortError?: string;
+}
+```
+
+The shell (in `escalations.ts`) applies the verdict: JSONL appends, park-map write, and (watch only) notify. Called by `watch.ts` per cycle AND by `queue-drain.ts` post-run (`mode: 'run'`), so a plain `run`'s terminal failures land in the same inbox. Rules the core encodes:
 
 - skip with reason `retries-exhausted`, or either coordinator outcome string — `merge-conflict — PR left open for human resolution` / `merge-timeout — PR left open for human resolution` (both non-`merged` members of `MergeOutcome`, `drain-io.ts:16`, written at `drain-loop.ts:268`) → append escalation (reason `retries-exhausted` / `merge-conflict` / `merge-timeout`) + park the slug immediately.
 - skip with reason `pr-open-unmerged` gets a **one-cycle grace**: the K=1 verdict branch (`drain-loop.ts:175-178`) and the restart-safety guard (`drain-loop.ts:218-220`) both fire on a PR that may merely be awaiting auto-merge/CI, so the first observation only records the slug in watch state (`pendingPr` set); the *second consecutive* cycle still reporting it → escalate (reason `pr-open-unmerged`) + park, suggested action "PR open but unmerged across cycles — check auto-merge/CI, merge or close the PR, then unpark". Plain one-shot `run` cannot observe persistence, so it reports the reason in its summary but never parks on it. Without this reason an unmerged PR is silently re-skipped by `openPrExistsFor` every later cycle — the invisible-failure class this feature exists to kill; the grace keeps healthy in-flight PRs out of the inbox.
-- **Auto-resolve**: at the start of each mapping pass, any parked slug no longer present in the source's freshly-synced `parseAll()` universe (its PR merged after parking, or the entry left the queue) is auto-unparked with a `{ ts, slug, resolved: true, auto: true }` JSONL line — parks self-heal, the operator only ever sees live incidents.
-- Dedup: a slug already present in `drain-park.json` is never re-escalated by a later cycle (one inbox row per open incident). `run-aborted` rows (never parked) dedupe on identical error text against the immediately-previous cycle — one row per distinct error streak, with the trip rail (Unit 5) bounding the streak at `maxConsecutiveFailures` anyway.
+- **Auto-resolve, source-scoped**: park entries carry the source they were parked under (`{ reason, ts, source }` — see storage above). A mapping pass auto-unparks only entries whose `source` matches the current run's `SourceId` AND whose slug is absent from that source's freshly-synced `parseAll()` universe (PR merged after parking, or the entry left the queue) — appending `{ ts, slug, resolved: true, auto: true }`. A `--source plans` run can never resolve (or shadow) a roadmap park: cross-source slugs live in different universes.
+- Dedup: a slug already parked under the same source is never re-escalated (one inbox row per open incident). `run-aborted` rows (never parked) dedupe on identical error text against the previous cycle's `lastRunAbortError` from watch state — one row per distinct error streak, trip rail bounding the streak; plain `run` has no cycle history, so it always appends its single row.
 - `res.error` set (abort: ff-only reject, `gh` failure, unknown git state) → append `run-aborted` escalation, **no park** (repo-scoped — the next item would hit the same wall), bump the consecutive-failure rail.
 - ineligible skips → never escalated (they're queue hygiene, not failures).
 
-Park enforcement: `parkAwareSource(inner, parked)` decorator wraps `DrainSource.nextItem(exclude)` to add parked slugs to the exclude set (`parseAll` is NOT touched — absence-oracle semantics must stay pristine). Zero `runDrain` signature change. Wired into **both** entry points — `watch.ts` and `queue-drain.ts` — same symmetry as salvage (D3): a parked slug must not be re-attempted by a plain `noldor autonomous run` either.
+Park enforcement: `parkAwareSource(inner, parked, sourceId)` decorator wraps `DrainSource.nextItem(exclude)` to add parked slugs **of the matching source** to the exclude set (`parseAll` is NOT touched — absence-oracle semantics must stay pristine). Zero `runDrain` signature change. Wired into **both** entry points — `watch.ts` and `queue-drain.ts` — same symmetry as salvage (D3): a parked slug must not be re-attempted by a plain `noldor autonomous run` either.
 
 CLI (registered under `autonomous` in `src/cli/manifest.ts`):
 
@@ -116,7 +136,7 @@ watch: z.object({
 
 Wall-clock cap per item = the existing `--iteration-timeout` (default 30 min in `parseArgs`) — documented in `autonomy.md`, not duplicated as a new rail.
 
-`watch-state.json` (`.noldor/`, best-effort writes mirroring `writeState` in `drain-state.ts`): `{ dayKey: 'YYYY-MM-DD', shippedToday, consecutiveFailures, lastCycleAt, pendingPr: string[], pausedReason? }` (`pendingPr` backs the one-cycle `pr-open-unmerged` grace, Unit 3). Day rollover resets `shippedToday`. Restart-safe: a restarted watcher resumes today's counts instead of resetting the cap. The cap check is pre-cycle only, so a cycle with `--max-features N > 1` can overshoot `maxFeaturesPerDay` by up to N−1 — fine at the default of 1; noted in `autonomy.md`.
+`watch-state.json` (`.noldor/`, best-effort writes mirroring `writeState` in `drain-state.ts`): `{ dayKey: 'YYYY-MM-DD', shippedToday, consecutiveFailures, lastCycleAt, pendingPr: string[], lastRunAbortError?: string, pausedReason? }` (`pendingPr` backs the one-cycle `pr-open-unmerged` grace; `lastRunAbortError` backs the `run-aborted` streak dedup — both Unit 3). Day rollover resets `shippedToday`. Restart-safe: a restarted watcher resumes today's counts instead of resetting the cap. The cap check is pre-cycle only, so a cycle with `--max-features N > 1` can overshoot `maxFeaturesPerDay` by up to N−1 — fine at the default of 1; noted in `autonomy.md`.
 
 Trip rule, evaluated on each cycle's `DrainResult` in this order: exit 130 (pause/stop/SIGINT) → `consecutiveFailures` unchanged, except a 130 cycle that still shipped ≥1 resets it; exit 1, or 0 ships with ≥1 new escalation → increment; otherwise (≥1 ship, or clean zero-failure cycle) → reset to 0. A fully-parked queue therefore reads as clean (0 ships, 0 *new* escalations → reset) — intended: parked items are operator-owned, and an idle watcher over a parked queue is healthy, not failing. Reaching `maxConsecutiveFailures` → write `.noldor/drain.pause` (so even a cron-fired `--once` respects the trip), append `watcher-tripped` escalation, fire notify, exit 1. Resume: operator clears escalations via inbox, then `rm .noldor/drain.pause` (documented; no auto-unpause).
 
