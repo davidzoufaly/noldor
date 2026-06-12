@@ -13,6 +13,12 @@ export interface AgentEvent {
   exitCode: number;
   durationMs: number;
   timedOut: boolean;
+  /**
+   * Raw token usage, read VERBATIM from the runner's native usage records
+   * (never estimated, never derived from text length). Absent when the
+   * runner exposed no trustworthy usage data. NEVER converted to cost.
+   */
+  tokens?: { input: number; output: number; total: number; source: string };
 }
 
 /**
