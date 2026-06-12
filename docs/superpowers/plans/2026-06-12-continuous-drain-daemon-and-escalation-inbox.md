@@ -44,28 +44,31 @@
 Modify: `src/core/agent-events.ts`
 Test: `src/core/__tests__/agent-events.test.ts`
 
-- [ ] **Step 1: Write the failing test** — append to the existing `describe` in `src/core/__tests__/agent-events.test.ts`:
+- [ ] **Step 1: Write the failing test** — append to the existing `describe` in `src/core/__tests__/agent-events.test.ts`. The file's existing tests each create their own temp dir inline — do the same (reuse its existing imports; add any of `mkdtempSync`/`rmSync`/`tmpdir` that are missing):
 
 ```ts
   it('serializes optional kind and slug when present', () => {
-    appendAgentEvent(dir, {
-      ts: '2026-06-12T00:00:00.000Z',
-      runner: 'drain',
-      role: 'watch',
-      kind: 'salvaged',
-      slug: 'foo-bar',
-      exitCode: 0,
-      durationMs: 5,
-      timedOut: false,
-    });
-    const line = readFileSync(join(dir, '.noldor/agent-events.jsonl'), 'utf8').trim();
-    const parsed = JSON.parse(line) as Record<string, unknown>;
-    expect(parsed.kind).toBe('salvaged');
-    expect(parsed.slug).toBe('foo-bar');
+    const dir = mkdtempSync(join(tmpdir(), 'agent-events-'));
+    try {
+      appendAgentEvent(dir, {
+        ts: '2026-06-12T00:00:00.000Z',
+        runner: 'drain',
+        role: 'watch',
+        kind: 'salvaged',
+        slug: 'foo-bar',
+        exitCode: 0,
+        durationMs: 5,
+        timedOut: false,
+      });
+      const line = readFileSync(join(dir, '.noldor/agent-events.jsonl'), 'utf8').trim();
+      const parsed = JSON.parse(line) as Record<string, unknown>;
+      expect(parsed.kind).toBe('salvaged');
+      expect(parsed.slug).toBe('foo-bar');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 ```
-
-(The file already imports `readFileSync`, `join`, and manages a temp `dir` — match its existing setup; if it names the temp variable differently, use that name.)
 
 - [ ] **Step 2: Run to verify FAIL**
 
@@ -116,7 +119,7 @@ git commit -m "feat(autonomous): additive kind/slug fields on AgentEvent for sal
 Modify: `src/autonomous/drain-loop.ts`
 Test: `src/autonomous/__tests__/run-drain.test.ts`
 
-- [ ] **Step 1: Write the failing tests** — append a new `describe` block at the end of `src/autonomous/__tests__/run-drain.test.ts`, reusing the file's `harness` and `optsOf` helpers (read the file first; `optsOf` is the existing options builder — if it's named differently, e.g. inline literals, mirror the file's existing call style for `runDrain(deps, {...})`):
+- [ ] **Step 1: Write the failing tests** — append a new `describe` block at the end of `src/autonomous/__tests__/run-drain.test.ts`, reusing the file's `harness` helper and mirroring its existing inline-options call style for `runDrain(deps, {...})` (read the file first; if it has a shared `opts` const, reuse that instead of repeating literals):
 
 ```ts
 describe('reason recording + salvage dep', () => {
@@ -393,6 +396,23 @@ describe('detectStale', () => {
     });
     expect(() => detectStale(run, 'fast/x')).toThrow();
   });
+
+  it('throws when gh itself fails (fail-closed: never guess salvage state)', () => {
+    const run = runner({
+      'git rev-parse --verify fast/x': { ok: false, stdout: '' },
+      'gh pr list': { ok: false, stdout: '' },
+    });
+    expect(() => detectStale(run, 'fast/x')).toThrow('gh pr list failed');
+  });
+
+  it('throws when ls-remote fails (fail-closed)', () => {
+    const run = runner({
+      'git rev-parse --verify fast/x': { ok: false, stdout: '' },
+      'gh pr list': { ok: true, stdout: '[]' },
+      'git ls-remote --heads origin fast/x': { ok: false, stdout: '' },
+    });
+    expect(() => detectStale(run, 'fast/x')).toThrow('ls-remote failed');
+  });
 });
 
 describe('repair', () => {
@@ -436,8 +456,11 @@ export type StaleReason = 'local-branch-behind-main' | 'closed-unmerged-pr' | 'o
  * Classify provably-wedging leftover state for the drain's own branch (spec Unit 2).
  * Called after the worker's open-PR guard, so "no open PR" is already guaranteed.
  * A current-base local branch with no PR is NOT stale — the gate child's
- * force-recreate owns that case. gh JSON parse failure throws (fail-closed:
- * guessing "clean" could re-wedge the very case salvage exists to fix).
+ * force-recreate owns that case. Fail-closed on tool failure: a failed `gh pr
+ * list` or `ls-remote` throws rather than reading as "clean" — guessing could
+ * re-wedge the very case salvage exists to fix. (`rev-parse` !ok legitimately
+ * means "no local branch" and `merge-base --is-ancestor` !ok legitimately means
+ * "not an ancestor" — those two are semantic, not failures.)
  */
 export function detectStale(run: GitRunner, branch: string): StaleReason[] {
   const reasons: StaleReason[] = [];
@@ -456,9 +479,11 @@ export function detectStale(run: GitRunner, branch: string): StaleReason[] {
     '--json',
     'mergedAt',
   ]);
+  if (!prs.ok) throw new Error(`salvage: gh pr list failed for ${branch} — refusing to guess`);
   const rows = JSON.parse(prs.stdout || '[]') as Array<{ mergedAt: string | null }>;
   if (rows.some((r) => r.mergedAt === null)) reasons.push('closed-unmerged-pr');
   const remote = run('git', ['ls-remote', '--heads', 'origin', branch]);
+  if (!remote.ok) throw new Error(`salvage: ls-remote failed for ${branch} — refusing to guess`);
   if (remote.stdout.trim() !== '') reasons.push('orphan-remote-branch');
   return reasons;
 }
@@ -714,7 +739,7 @@ Expected output: module not found `../escalations.js`.
 - [ ] **Step 3: Implement the pure core** — create `src/autonomous/escalations.ts`:
 
 ```ts
-import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { DrainResult } from './drain-loop.js';
@@ -1885,13 +1910,15 @@ async function main(): Promise<void> {
       for (const rowItem of verdict.escalations) notify(notifyCommand, 'escalation', rowItem, cwd);
 
       const applied = applyCycleToState(state, res, verdict.escalations.length, rails, now);
-      state = {
-        ...applied.state,
-        pendingPr: verdict.nextPendingPr,
-        ...(verdict.nextRunAbortError !== undefined
-          ? { lastRunAbortError: verdict.nextRunAbortError }
-          : {}),
-      };
+      // lastRunAbortError is per-cycle memory: set it on an aborted cycle, CLEAR it
+      // otherwise — spreading the old value forward would dedupe a future identical
+      // abort against a long-gone streak.
+      state = { ...applied.state, pendingPr: verdict.nextPendingPr };
+      if (verdict.nextRunAbortError !== undefined) {
+        state.lastRunAbortError = verdict.nextRunAbortError;
+      } else {
+        delete state.lastRunAbortError;
+      }
       saveWatchState(cwd, state);
 
       const summary = {
@@ -1902,10 +1929,11 @@ async function main(): Promise<void> {
         unparked: verdict.toUnpark.length,
         exitCode: res.exitCode,
         consecutiveFailures: state.consecutiveFailures,
+        capped: applied.capped, // cap engages loudly the moment it's hit (FD: "never silent")
       };
       notify(notifyCommand, 'cycle-summary', summary, cwd);
       out(
-        `watch cycle: shipped ${String(res.shipped)}, parked ${String(verdict.toPark.length)}, failures ${String(state.consecutiveFailures)}/${String(rails.maxConsecutiveFailures)}`,
+        `watch cycle: shipped ${String(res.shipped)}, parked ${String(verdict.toPark.length)}, failures ${String(state.consecutiveFailures)}/${String(rails.maxConsecutiveFailures)}${applied.capped ? ' — DAILY CAP REACHED' : ''}`,
       );
       emitJson(summary);
 
