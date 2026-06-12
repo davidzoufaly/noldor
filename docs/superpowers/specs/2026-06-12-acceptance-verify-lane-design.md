@@ -65,7 +65,7 @@ Deterministic, agent-free. Sequence:
 2. For each `verifyCommands` surface: `server` → spawn (detached, own process group), poll `http://127.0.0.1:{port}{healthPath}` until HTTP 200 or `readyTimeoutMs`, then `kill(-pid)`; `cli` → run, require exit 0.
 3. Emit `SmokeReport { ok: boolean, surfaces: [{ name, ok, evidence: { command, observed } }] }` to stdout (`--json`) or human table; exit 0/1.
 
-Port resolution: read `PORT` from `.env.local` at the worktree root (the port-per-tree convention from `docs/noldor/worktree-discipline.md`); when absent, bind port 0 via `net.createServer` to find a free one. Zero configured surfaces → `ok: true` with a `no surfaces configured` note (smoke is opt-in by config, not a trap for unconfigured consumers).
+Port resolution: read `PORT` from `.env.local` at the worktree root (the port-per-tree convention from `docs/noldor/worktree-discipline.md`); when absent, bind port 0 via `net.createServer` to find a free one. Multiple `server` surfaces are booted **sequentially** (boot → probe → kill, then the next), so one `{port}` serves all of them — concurrent multi-server boot on a shared port is explicitly out: surfaces never overlap in time. Zero configured surfaces → `ok: true` with a `no surfaces configured` note (smoke is opt-in by config, not a trap for unconfigured consumers).
 
 CLI registered in `src/cli/manifest.ts` as `verify smoke`. Reusable function `runSmoke(cwd): Promise<SmokeReport>` is what the lane (Unit 4) calls.
 
@@ -86,21 +86,24 @@ Enum/schema edits in `src/cr/findings-schema.ts`:
 `runVerify(input: LaneInput): Promise<LaneResult>` (registered in orchestrate's `LANES` record, which currently maps `manual | codex | subagent` — `Exclude<Lane, 'standalone'>` extends naturally):
 
 1. **Kind guard.** `verify` is only valid for `kind === 'code'`; `orchestrate.run()` rejects it for `spec`/`plan` at entry, same pattern as the existing `standalone` rejection at `src/cr/orchestrate.ts:169`.
-2. **Smoke first.** Call `runSmoke(input.repoRoot)`. Smoke fail → verdict `fail` with smoke evidence, no agent tokens spent.
-3. **Acceptance text.** Read the FD's `## Usage` + `## Summary` via the `read-fd-summary.ts` pattern. Missing FD (fast-track) → fall back to `git log <base>..<head> --format='%s%n%b'` commit prose; if that is empty too → `cannot-verify`.
-4. **Agent dispatch.** `spawnAgent(prompt, { role: 'verifier', timeoutMs, site: 'cr.verify-dispatch' })` mirroring `subagent-dispatch.ts`, with a `setDispatcher()` injection point for tests. Prompt carries: acceptance text, the diff range (`baseSha..headSha`), the `verifyCommands` surfaces as boot instructions, the worktree port, and the hard rule *"exercise the new behavior through the real interface; never conclude from reading source"*. Output contract: a single fenced JSON block `{ verdict, evidence: [{command, observed}], mismatches: [] }`, zod-validated. Malformed output → `cannot-verify` with the raw head quoted in a note (an advisory outcome, not a lane error — contrast subagent's parse-error-as-blocker, which is correct for a blocking-by-design lane).
-5. **Verdict mapping** (the only place `verifyMode` is read — `loadConfig().autonomous.verifyMode`, default `advisory`):
-   - `pass` → `ok: true`, evidence recorded.
-   - `fail` + `blocking` → mismatches projected into `blockers` (severity `high`, file = artifact) → `ok: false` → orchestrate exit 1 → existing escalate `cr-red` flow.
-   - `fail` + `advisory` → mismatches projected into `suggestions`, `ok: true`, summary prefixed `ADVISORY FAIL:`.
-   - `cannot-verify` → `ok: true` always, reason in `notes`.
+2. **Smoke first.** Call `runSmoke(input.repoRoot)`. Smoke fail → blockers with the smoke evidence, `ok: false`, no agent tokens spent — **independent of `verifyMode`** (see Unit 5: the smoke floor is deterministic and objective, so it blocks from day one; only the agent's intent-level judgment respects the advisory bake-in). The smoke floor is deliberately feature-agnostic: it gates every code FD on global surface health (a CLI-only FD is blocked by a 500ing dashboard surface). That coupling is the point — "the build boots" is a repo invariant, not a per-FD concern; an unrelated broken surface means main is about to absorb a broken tree regardless of which FD trips it.
+3. **Acceptance text.** New helper `extractFdAcceptance` beside `readFdSummary` in `src/cr/read-fd-summary.ts` — the existing function captures `## Summary` only, so Usage extraction is new work, not reuse: it returns `## Summary` + `## Usage` bodies. Missing FD (fast-track) → fall back to `git log <base>..<head> --format='%s%n%b'` commit prose; if that is empty too → `cannot-verify`.
+4. **Agent dispatch.** `spawnAgent(prompt, { role: 'verifier', timeoutMs, site: 'cr.verify-dispatch' })` mirroring `subagent-dispatch.ts`, with a `setDispatcher()` injection point for tests. Prompt carries: acceptance text, the diff range (`baseSha..headSha`), the `verifyCommands` surfaces as boot instructions, the worktree port, and the hard rule *"exercise the new behavior through the real interface; never conclude from reading source"*. Output contract: a single fenced JSON block `{ verdict, evidence: [{command, observed}], mismatches: [] }`, zod-validated.
+5. **Verdict mapping** — three outcome classes, two policy reads:
+   - **Honest agent verdicts** (respect `verifyMode`, default `advisory`):
+     - `pass` → `ok: true`, evidence recorded.
+     - `fail` + `blocking` → mismatches projected into `blockers` (severity `high`, file = artifact) → `ok: false` → orchestrate exit 1 → existing escalate `cr-red` flow.
+     - `fail` + `advisory` → mismatches projected into `suggestions`, `ok: true`, summary prefixed `ADVISORY FAIL:`.
+     - `cannot-verify` (agent-emitted, with reason) → `ok: true` in both modes, reason in `notes` — an honest "I had no way to exercise this" must not block.
+   - **No trustworthy verdict** (spawn failure, timeout, malformed/unparseable output): one policy for the whole class, fail-closed in blocking mode — `blocking` → single blocker `verify lane errored: <msg>` with the raw output head quoted, `ok: false`; `advisory` → `cannot-verify` note, `ok: true`. A verifier that emits garbage must not be a free pass past a blocking gate, and infra failure and garbage output are the same class (no verdict exists), so they get the same outcome.
+   - **Smoke fail**: blockers in both modes (step 2).
 6. **Sink.** `.noldor/cr/<slug>-code-verify.json`, written via `writeJsonAtomic`. `aggregate`, `guardLaneOverwrite`, archive flow all work unchanged since the sink is a `LaneFindings`.
 
 Receipt amend (`amendSubagentReceipt`) stays subagent-only — verify produces no review receipt trailer.
 
 ### Unit 5 — policy config (`src/cr/config.ts`)
 
-`autonomousConfigSchema` gains `verifyMode: z.enum(['blocking', 'advisory']).default('advisory')`. Drain's `assertConfig` (`src/autonomous/queue-drain.ts:70`) needs no change — blocking-mode failures surface as ordinary orchestrate exit-1 → `onFailure: abort`. Self-host `.noldor/config.json` opts in: `crLanes.code: ["subagent", "verify"]`, `verifyMode` left at default (`advisory`) for one bake-in release, then flipped to `blocking`.
+`autonomousConfigSchema` gains `verifyMode: z.enum(['blocking', 'advisory']).default('advisory')`. **Scope of the knob:** `verifyMode` governs only the agent's intent-level judgment (the high-variance signal that needs calibration). The smoke floor and the no-trustworthy-verdict class are deterministic/objective and act per their own rules in Unit 4 step 5 — smoke fail blocks in both modes, so the smoke floor delivers its "catches build broken pre-merge" value from the first release, not after the bake-in flip. Drain's `assertConfig` (`src/autonomous/queue-drain.ts:70`) needs no change — blocking failures surface as ordinary orchestrate exit-1 → `onFailure: abort`. Self-host `.noldor/config.json` opts in: `crLanes.code: ["subagent", "verify"]`, `verifyMode` left at default (`advisory`) for one bake-in release, then flipped to `blocking`.
 
 ### Unit 6 — hygiene rails (inside Units 2/4)
 
@@ -131,9 +134,8 @@ gate Step 4 / drain-spawned gate
 
 ### Error handling
 
-- Smoke: doctor failure, boot timeout, non-200 probe, non-zero CLI exit → surface-level `ok: false` with the observed output quoted; lane maps per verifyMode.
-- Lane: agent spawn failure/timeout → `cannot-verify` (advisory) with the error in notes — an infra failure must not block a merge in advisory mode and must not silently pass in blocking mode either: in `blocking` mode, spawn failure maps to one blocker `verify lane errored: <msg>` (fail-closed).
-- Malformed agent JSON → `cannot-verify` + raw output head in notes.
+- Smoke: doctor failure, boot timeout, non-200 probe, non-zero CLI exit → surface-level `ok: false` with the observed output quoted; lane maps to blockers in both modes (Unit 4 step 2).
+- Lane infra failure (agent spawn fail, timeout) and malformed/unparseable agent JSON are one class — no trustworthy verdict: `blocking` → fail-closed blocker `verify lane errored: <msg>` (raw output head quoted); `advisory` → `cannot-verify` note (Unit 4 step 5).
 - Missing `verifyCommands` → smoke trivially green (with a `no surfaces configured` note). The agent receives only configured surfaces — it never invents boot commands; zero surfaces typically yields `cannot-verify`, which is the honest outcome.
 
 ### Testing
@@ -148,14 +150,17 @@ gate Step 4 / drain-spawned gate
 - Deliberately-wrong seeded implementation (endpoint returns array, FD promises object) with a green self-written test suite → verify verdict `fail`, mismatch quoted, and with `verifyMode: "blocking"` orchestrate exits 1 → `cr escalate --reason cr-red` fires.
 - Honest implementation → verdict `pass` with at least one `{command, observed}` evidence pair.
 - No boot path for the changed behavior → verdict `cannot-verify` with reason; aggregate stays green in both modes.
-- `verifyMode` default is `advisory`: a `fail` verdict lands in `suggestions`, exit 0, summary prefixed `ADVISORY FAIL:`.
+- Smoke fail (broken surface) → blockers and orchestrate exit 1 in **both** modes — `verifyMode` does not soften the smoke floor.
+- Malformed verifier output or agent spawn failure: `blocking` → blocker `verify lane errored: …` (exit 1); `advisory` → `cannot-verify` note (exit 0).
+- `verifyMode` default is `advisory`: an agent `fail` verdict lands in `suggestions`, exit 0, summary prefixed `ADVISORY FAIL:`.
 - `cr orchestrate --kind spec --lanes verify` errors at entry (kind guard).
 - Existing suites stay green; `pnpm noldor validate features` passes.
 
 ## Risks / trade-offs
 
 - **Judge variance.** Intent-level judgment means two runs can disagree on borderline mismatches. Mitigation: evidence + mismatches must be quoted verbatim, and one bake-in release in advisory mode calibrates strictness before anything blocks.
-- **Verifier can be fooled too.** It reads acceptance text written by the same pipeline; a wrong FD yields a confidently-wrong verdict. The lane narrows the blind spot (independent agent, real interface), it doesn't eliminate it.
+- **Verifier can be fooled too.** It reads acceptance text written by the same pipeline; a wrong FD yields a confidently-wrong verdict. The lane narrows the blind spot (independent agent, real interface), it doesn't eliminate it. The FD-less fast-track path is the weakest link: the commit-prose fallback (D5) is fully circular — acceptance text authored by the same implementer agent that wrote the code and tests — so on that path the verifier contributes near-zero independent signal beyond the smoke floor.
+- **Verifier executes arbitrary shell in autonomous paths.** Booting servers and curling endpoints expands the unsupervised-execution surface beyond the read-only reviewer role. Worktree isolation + process-group kill cover hygiene, not command scope; accepted because the implementer agent already executes arbitrary commands in the same worktree during the same run — verify adds no privilege the pipeline doesn't already grant.
 - **Wall-clock cost.** Boot + probe + agent judgment adds minutes per code-stage orchestrate. Acceptable for autonomous paths; interactive operators can omit `verify` from `--lanes`.
 - **Port/process hygiene.** A leaked server process breaks subsequent runs on the same tree. Mitigated by process-group kill in `finally` + per-tree ports; residual risk on SIGKILL of the lane itself.
 - **Advisory mode can be ignored.** `ADVISORY FAIL` in a sink nobody reads is the failure mode of the bake-in release. Mitigation: orchestrate's summary table surfaces it in gate chat; flip to blocking is the planned follow-up.
