@@ -1,5 +1,8 @@
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
 import type { DrainResult } from './drain-loop.js';
-import type { SourceId } from './drain-source.js';
+import type { DrainSource, SourceId } from './drain-source.js';
 
 export type EscalationReason =
   | 'retries-exhausted'
@@ -130,5 +133,141 @@ export function mapCycle(input: {
     toUnpark,
     nextPendingPr,
     ...(nextRunAbortError !== undefined ? { nextRunAbortError } : {}),
+  };
+}
+
+const PARK_REL = '.noldor/drain-park.json';
+const ESC_REL = '.noldor/escalations.jsonl';
+
+/** Read the park map. Fail-open: missing or corrupt file → {} (rails degrade, never crash). */
+export function loadPark(cwd: string): ParkMap {
+  try {
+    return JSON.parse(readFileSync(join(cwd, PARK_REL), 'utf8')) as ParkMap;
+  } catch {
+    return {};
+  }
+}
+
+function savePark(cwd: string, map: ParkMap): void {
+  try {
+    mkdirSync(join(cwd, '.noldor'), { recursive: true });
+    writeFileSync(join(cwd, PARK_REL), `${JSON.stringify(map, null, 2)}\n`, 'utf8');
+  } catch (err) {
+    process.stderr.write(`drain-park write failed (non-fatal): ${String(err)}\n`);
+  }
+}
+
+function appendJsonl(cwd: string, obj: unknown): void {
+  try {
+    mkdirSync(join(cwd, '.noldor'), { recursive: true });
+    appendFileSync(join(cwd, ESC_REL), `${JSON.stringify(obj)}\n`, 'utf8');
+  } catch (err) {
+    process.stderr.write(`escalations append failed (non-fatal): ${String(err)}\n`);
+  }
+}
+
+/**
+ * Apply a {@link CycleVerdict}: append escalation rows, park, auto-unpark (with
+ * `{ resolved: true, auto: true }` audit lines). All writes fail-open —
+ * observability must never kill the drain. Notify is NOT here: the watch loop
+ * owns it (plain `run` writes the same records but never notifies).
+ */
+export function applyCycleVerdict(cwd: string, source: SourceId, v: CycleVerdict): void {
+  for (const row of v.escalations) appendJsonl(cwd, row);
+  const park = loadPark(cwd);
+  for (const key of v.toUnpark) {
+    const slug = key.split(':').slice(1).join(':');
+    delete park[key];
+    appendJsonl(cwd, { ts: new Date().toISOString(), slug, source, resolved: true, auto: true });
+  }
+  for (const p of v.toPark) {
+    park[parkKey(source, p.slug)] = { reason: p.reason, ts: new Date().toISOString() };
+  }
+  savePark(cwd, park);
+}
+
+export interface InboxRow {
+  slug: string;
+  source: string;
+  reason: EscalationReason;
+  ts: string;
+  evidence: string;
+  suggestedAction: string;
+}
+
+/** Join each parked entry to its EARLIEST unresolved escalation line (first observation = authoritative evidence). */
+export function readInboxRows(cwd: string): InboxRow[] {
+  const park = loadPark(cwd);
+  let lines: Array<Record<string, unknown>> = [];
+  try {
+    lines = readFileSync(join(cwd, ESC_REL), 'utf8')
+      .trim()
+      .split('\n')
+      .filter((l) => l !== '')
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+  } catch {
+    lines = [];
+  }
+  return Object.entries(park).map(([key, entry]) => {
+    const [source, ...rest] = key.split(':');
+    const slug = rest.join(':');
+    const first = lines.find(
+      (l) => l.slug === slug && l.source === source && l.resolved === undefined,
+    );
+    return {
+      slug,
+      source: source ?? '',
+      reason: entry.reason,
+      ts: (first?.ts as string | undefined) ?? entry.ts,
+      evidence: (first?.evidence as string | undefined) ?? '',
+      suggestedAction:
+        (first?.suggestedAction as string | undefined) ?? SUGGESTED_ACTIONS[entry.reason],
+    };
+  });
+}
+
+export type UnparkStatus =
+  | { status: 'resolved'; key: string }
+  | { status: 'not-parked' }
+  | { status: 'ambiguous'; candidates: string[] };
+
+/**
+ * Resolve one parked slug. Ambiguous (parked under several sources, no
+ * `source` given) → caller must pass `--source`. Idempotent: missing slug is
+ * a no-op note, not an error.
+ */
+export function unparkSlug(cwd: string, slug: string, source?: string): UnparkStatus {
+  const park = loadPark(cwd);
+  const matches = Object.keys(park).filter((k) =>
+    source !== undefined ? k === `${source}:${slug}` : k.split(':').slice(1).join(':') === slug,
+  );
+  if (matches.length === 0) return { status: 'not-parked' };
+  if (matches.length > 1) return { status: 'ambiguous', candidates: matches };
+  const key = matches[0]!;
+  const src = key.split(':')[0]!;
+  delete park[key];
+  savePark(cwd, park);
+  appendJsonl(cwd, { ts: new Date().toISOString(), slug, source: src, resolved: true });
+  return { status: 'resolved', key };
+}
+
+/**
+ * Decorate a {@link DrainSource} so parked slugs of the matching source are
+ * excluded from selection. `parseAll` passes through untouched — the
+ * absence-oracle must stay pristine (spec Unit 3). `getParked` is a getter so
+ * each pickup sees the freshest park map.
+ */
+export function parkAwareSource(inner: DrainSource, getParked: () => ParkMap): DrainSource {
+  return {
+    id: inner.id,
+    nextItem(skip) {
+      const parkedSlugs = Object.keys(getParked())
+        .filter((k) => k.startsWith(`${inner.id}:`))
+        .map((k) => k.split(':').slice(1).join(':'));
+      return inner.nextItem(new Set([...skip, ...parkedSlugs]));
+    },
+    parseAll: () => inner.parseAll(),
+    gatePrompt: (slug) => inner.gatePrompt(slug),
+    branchFor: (slug) => inner.branchFor(slug),
   };
 }

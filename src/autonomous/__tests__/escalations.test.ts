@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest';
-import { mapCycle, parkKey, type ParkMap } from '../escalations.js';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  applyCycleVerdict,
+  loadPark,
+  mapCycle,
+  parkAwareSource,
+  parkKey,
+  readInboxRows,
+  unparkSlug,
+  type ParkMap,
+} from '../escalations.js';
 import type { DrainResult } from '../drain-loop.js';
+import type { DrainSource } from '../drain-source.js';
 
 const NOW = '2026-06-12T10:00:00.000Z';
 
@@ -160,5 +173,130 @@ describe('mapCycle', () => {
     );
     expect(v.toPark).toEqual([]);
     expect(v.escalations).toEqual([]);
+  });
+});
+
+describe('IO shell', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'esc-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('applyCycleVerdict appends rows, parks, and auto-unparks with resolution lines', () => {
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(dir, '.noldor/drain-park.json'),
+      JSON.stringify({ 'roadmap:old': { reason: 'retries-exhausted', ts: 't0' } }),
+      'utf8',
+    );
+    applyCycleVerdict(dir, 'roadmap', {
+      escalations: [
+        {
+          ts: 't1',
+          slug: 'a',
+          source: 'roadmap',
+          reason: 'retries-exhausted',
+          evidence: 'e',
+          stateSnapshot: { shipped: 0, skipped: ['a'] },
+          suggestedAction: 's',
+        },
+      ],
+      toPark: [{ slug: 'a', reason: 'retries-exhausted' }],
+      toUnpark: ['roadmap:old'],
+      nextPendingPr: [],
+    });
+    const park = loadPark(dir);
+    expect(park['roadmap:a']).toMatchObject({ reason: 'retries-exhausted' });
+    expect(park['roadmap:old']).toBeUndefined();
+    const lines = readFileSync(join(dir, '.noldor/escalations.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatchObject({ slug: 'a', reason: 'retries-exhausted' });
+    expect(lines[1]).toMatchObject({ slug: 'old', source: 'roadmap', resolved: true, auto: true });
+  });
+
+  it('loadPark returns {} on missing or corrupt file (fail-open)', () => {
+    expect(loadPark(dir)).toEqual({});
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(join(dir, '.noldor/drain-park.json'), 'garbage', 'utf8');
+    expect(loadPark(dir)).toEqual({});
+  });
+
+  it('readInboxRows joins each parked entry to its earliest unresolved escalation line', () => {
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(dir, '.noldor/drain-park.json'),
+      JSON.stringify({ 'roadmap:a': { reason: 'retries-exhausted', ts: 't2' } }),
+      'utf8',
+    );
+    const mk = (ts: string, evidence: string): string =>
+      JSON.stringify({
+        ts,
+        slug: 'a',
+        source: 'roadmap',
+        reason: 'retries-exhausted',
+        evidence,
+        stateSnapshot: { shipped: 0, skipped: [] },
+        suggestedAction: 's',
+      });
+    writeFileSync(
+      join(dir, '.noldor/escalations.jsonl'),
+      `${mk('t1', 'first')}\n${mk('t2', 'second')}\n`,
+      'utf8',
+    );
+    const rows = readInboxRows(dir);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ slug: 'a', source: 'roadmap', evidence: 'first' });
+  });
+
+  it('unparkSlug resolves unique slug, demands --source on ambiguity, is idempotent', () => {
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(dir, '.noldor/drain-park.json'),
+      JSON.stringify({
+        'roadmap:a': { reason: 'retries-exhausted', ts: 't' },
+        'plans:a': { reason: 'retries-exhausted', ts: 't' },
+        'roadmap:b': { reason: 'merge-conflict', ts: 't' },
+      }),
+      'utf8',
+    );
+    expect(unparkSlug(dir, 'a').status).toBe('ambiguous');
+    expect(unparkSlug(dir, 'a', 'plans').status).toBe('resolved');
+    expect(loadPark(dir)['plans:a']).toBeUndefined();
+    expect(unparkSlug(dir, 'b').status).toBe('resolved');
+    expect(unparkSlug(dir, 'missing').status).toBe('not-parked');
+    const lines = readFileSync(join(dir, '.noldor/escalations.jsonl'), 'utf8').trim().split('\n');
+    expect(lines).toHaveLength(2); // two resolution lines, none for the no-op
+  });
+});
+
+describe('parkAwareSource', () => {
+  it('adds matching-source parked slugs to the exclude set; parseAll untouched', () => {
+    let seen: ReadonlySet<string> = new Set();
+    const inner: DrainSource = {
+      id: 'roadmap',
+      nextItem(skip) {
+        seen = skip;
+        return null;
+      },
+      parseAll: () => ['a', 'b'],
+      gatePrompt: () => '/gate',
+      branchFor: (s) => `fast/${s}`,
+    };
+    const parked: ParkMap = {
+      'roadmap:a': { reason: 'retries-exhausted', ts: 't' },
+      'plans:b': { reason: 'retries-exhausted', ts: 't' },
+    };
+    const src = parkAwareSource(inner, () => parked);
+    src.nextItem(new Set(['z']));
+    expect([...seen].toSorted()).toEqual(['a', 'z']);
+    expect(src.parseAll()).toEqual(['a', 'b']);
+    expect(src.id).toBe('roadmap');
+    expect(src.branchFor('a')).toBe('fast/a');
   });
 });
