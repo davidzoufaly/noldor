@@ -11,6 +11,8 @@ links:
     - adoption-guide.md
     - .noldor/config.json
   tests:
+    - src/cr/__tests__/lanes/verify-dispatch.test.ts
+    - src/cr/__tests__/lanes/verify.test.ts
     - src/verify/__tests__/port.test.ts
     - src/verify/__tests__/smoke.test.ts
   spec: docs/superpowers/specs/2026-06-12-acceptance-verify-lane-design.md
