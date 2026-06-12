@@ -460,6 +460,9 @@ export interface SmokeDeps {
 
 const DEFAULT_DOCTOR = 'pnpm noldor doctor';
 const OBSERVED_CAP = 2000;
+// Bounds every probe fetch — a half-open stale server (accepts the
+// connection, never responds) must not hang the lane past its caps.
+const PROBE_FETCH_TIMEOUT_MS = 2000;
 
 function runShell(command: string, cwd: string): Promise<{ code: number; output: string }> {
   return new Promise((resolve) => {
@@ -486,7 +489,10 @@ async function probeServer(
   // stale or concurrent server. Booting anyway would EADDRINUSE-kill our
   // child while the probe false-greens against the pre-existing process (and
   // cleanup would never touch it). Fail the surface honestly instead.
-  const occupied = await fetchImpl(url).then(() => true, () => false);
+  const occupied = await fetchImpl(url, { signal: AbortSignal.timeout(PROBE_FETCH_TIMEOUT_MS) }).then(
+    () => true,
+    () => false,
+  );
   if (occupied) {
     return {
       name,
@@ -503,7 +509,7 @@ async function probeServer(
   try {
     while (Date.now() < deadline) {
       try {
-        const res = await fetchImpl(url);
+        const res = await fetchImpl(url, { signal: AbortSignal.timeout(PROBE_FETCH_TIMEOUT_MS) });
         if (res.status === 200) {
           return { name, ok: true, evidence: { command, observed: `GET ${url} → 200` } };
         }
