@@ -239,6 +239,15 @@ export const MANIFEST: Record<string, Group> = {
       launch: { src: 'worktrees/launch-worktrees.ts', desc: 'Spawn iTerm2 worktree windows' },
     },
   },
+  verify: {
+    desc: 'Acceptance verification (smoke floor)',
+    subs: {
+      smoke: {
+        src: 'verify/smoke-cli.ts',
+        desc: 'Doctor + boot every consumer.verifyCommands surface + HTTP-200/exit-0 probe',
+      },
+    },
+  },
   invariants: {
     desc: 'Same as `checks invariants`; alias kept for the spec cheatsheet.',
     subs: {
