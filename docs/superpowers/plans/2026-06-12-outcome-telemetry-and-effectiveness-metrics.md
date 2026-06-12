@@ -149,13 +149,13 @@ describe('tokens field', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [ ] **Step 2: Run to verify FAIL (type-level red).** Vitest transforms via esbuild with no type-check, and `appendAgentEvent` JSON-stringifies whatever it gets — so the runtime test would pass even before the schema change. The red gate for this task is the compiler:
 
 ```bash
-pnpm vitest run src/core/__tests__/agent-events.test.ts
+pnpm exec tsc --noEmit
 ```
 
-Expected output: TypeScript error / failure on the new test — `tokens` is not a known property of `AgentEvent`.
+Expected output: error in `src/core/__tests__/agent-events.test.ts` — `'tokens' does not exist in type 'AgentEvent'` (object literal may only specify known properties).
 
 - [ ] **Step 3: Implement.** In `src/core/agent-events.ts`, after the `timedOut: boolean;` line inside `AgentEvent` add:
 
@@ -603,7 +603,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { extractFacts, slugifyHeading } from '../facts';
+import { extractFacts } from '../facts';
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync('git', args, { cwd, stdio: 'ignore' });
@@ -616,17 +616,6 @@ function scratchRepo(): string {
   git(dir, 'config', 'user.name', 't');
   return dir;
 }
-
-describe('slugifyHeading', () => {
-  it('mirrors promote slug derivation', () => {
-    expect(slugifyHeading('Outcome Telemetry and Effectiveness Metrics')).toBe(
-      'outcome-telemetry-and-effectiveness-metrics',
-    );
-    expect(slugifyHeading('micro-chore `reset --hard` Must Stash')).toBe(
-      'micro-chore-reset-hard-must-stash',
-    );
-  });
-});
 
 describe('extractFacts', () => {
   it('extracts commits with trailers, features, releases, and intake recovery', async () => {
@@ -719,6 +708,7 @@ import matter from 'gray-matter';
 import { parseTrailers } from '../core/trailers.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
 import { laneFindingsSchema } from '../cr/findings-schema.js';
+import { slugify } from '../utils/slugify.js';
 import type { AgentEvent } from '../core/agent-events.js';
 import type { EscalationRow } from '../autonomous/escalations.js';
 import type { DrainState } from '../autonomous/drain-state.js';
@@ -729,16 +719,6 @@ const FIELD_SEP = '\x1f';
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-}
-
-/** Mirror of the promote skill's slug derivation (lowercase, spaces/slashes → hyphens, strip other punctuation). */
-export function slugifyHeading(heading: string): string {
-  return heading
-    .toLowerCase()
-    .replace(/[\s/]+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
 }
 
 function extractCommits(cwd: string): CommitFact[] {
@@ -799,7 +779,7 @@ function recoverIntake(cwd: string): IntakeFact[] {
     }
     const h = /^\+#{3,4} (.+)$/.exec(line);
     if (h) {
-      const slug = slugifyHeading(h[1]);
+      const slug = slugify(h[1]);
       current = map.get(slug) ?? { slug };
       map.set(slug, current);
       continue;
@@ -1950,7 +1930,7 @@ async function handleMetrics(): Promise<RouteResult> {
     status: 200,
     body: renderMetrics(report),
     title: 'Metrics',
-    activeNav: 'metrics',
+    activeNav: '/metrics',
   };
 }
 ```
@@ -2040,20 +2020,29 @@ export function renderMetricsSection(report: MetricsReport | null): string[] {
 }
 ```
 
-- [ ] **Step 4: Wire into the report.** In `src/garden/sdd-report.ts`, locate the report assembly that pushes `'## Gap details'` (~line 1057). Before it, insert:
+- [ ] **Step 4: Wire into the report.** `renderReportMd` (`src/garden/sdd-report.ts:1003`) is **synchronous** — do NOT `await` inside it. Three sub-edits:
+
+(a) Add a trailing parameter `metricsReport: MetricsReport | null` to `renderReportMd`'s signature.
+
+(b) Inside `renderReportMd`, immediately before the `lines.push('## Gap details')` line (~1057), insert:
 
 ```ts
-  let metricsReport = null;
+  lines.push(...renderMetricsSection(metricsReport));
+```
+
+(c) In the async caller (~line 1183), before the `renderReportMd(...)` call, compute fail-open and pass it as the new argument:
+
+```ts
+  let metricsReport: MetricsReport | null = null;
   try {
     const { compute } = await import('../metrics/compute.js');
     metricsReport = await compute(process.cwd());
   } catch {
     metricsReport = null;
   }
-  lines.push(...renderMetricsSection(metricsReport));
 ```
 
-Import `renderMetricsSection` from `./sdd-report-format.js` beside the existing `reviewSkipCountLine` import. (Dynamic import keeps sdd-report loadable even if metrics modules fail to resolve — fail-open by contract.)
+Import `renderMetricsSection` from `./sdd-report-format.js` beside the existing `reviewSkipCountLine` import, and `type MetricsReport` from `../metrics/types.js`. Grep for other `renderReportMd(` call sites (tests included) and pass `null` there. (Dynamic import keeps sdd-report loadable even if metrics modules fail to resolve — fail-open by contract.)
 
 - [ ] **Step 5: Run to verify PASS**
 
