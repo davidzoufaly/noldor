@@ -29,6 +29,18 @@ export const MANIFEST: Record<string, Group> = {
         src: 'autonomous/queue-drain.ts',
         desc: 'Fast-track roadmap drain (same entrypoint as `run`; defaults --source roadmap)',
       },
+      watch: {
+        src: 'autonomous/watch.ts',
+        desc: 'Continuous drain daemon (--interval <min>, --once for cron, --max-features per cycle)',
+      },
+      inbox: {
+        src: 'autonomous/inbox-cli.ts',
+        desc: 'List open escalations (parked slugs) with evidence + suggested action',
+      },
+      unpark: {
+        src: 'autonomous/unpark-cli.ts',
+        desc: 'Resolve an escalation: unpark <slug> [--source <id>]',
+      },
     },
   },
   prep: {
