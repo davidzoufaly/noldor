@@ -10,6 +10,7 @@ import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
 import { codexSupportsBaseSha, runCodex } from './lanes/codex.js';
 import { runSubagent } from './lanes/subagent.js';
+import { runVerify } from './lanes/verify.js';
 import { promptSelect } from './prompt-stdin.js';
 import { amendSubagentReceipt } from './amend-receipt.js';
 
@@ -37,6 +38,7 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
   manual: runManual,
   codex: runCodex,
   subagent: runSubagent,
+  verify: runVerify,
 };
 
 export function resolveLanes(
@@ -169,6 +171,11 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   if (requested.includes('standalone')) {
     throw new Error(
       "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
+    );
+  }
+  if (requested.includes('verify') && opts.args.kind !== 'code') {
+    throw new Error(
+      "lane 'verify' is code-only — remove it from --lanes / crLanes for spec/plan artifacts",
     );
   }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });

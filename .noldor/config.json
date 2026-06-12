@@ -20,7 +20,18 @@
       "cross-cutting": "Tooling",
       "release": "Tooling"
     },
-    "scopeAliases": {}
+    "scopeAliases": {},
+    "verifyCommands": {
+      "dashboard": {
+        "command": "pnpm noldor dashboard server --port {port}",
+        "kind": "server",
+        "healthPath": "/"
+      },
+      "cli": { "command": "pnpm noldor --help", "kind": "cli" }
+    }
+  },
+  "crLanes": {
+    "code": ["subagent", "verify"]
   },
   "autonomous": {
     "skipLanePicker": true,

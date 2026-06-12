@@ -1,5 +1,6 @@
 // @tests: autonomous-plan-to-pr-merge
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -168,5 +169,23 @@ describe('run (orchestrate)', () => {
     expect(result.exitCode).toBe(0);
     const archive = await readdir(join(root, '.noldor', 'cr', 'archive'));
     expect(archive.length).toBe(1);
+  });
+});
+
+describe('verify lane wiring', () => {
+  it('rejects verify for non-code kinds at entry', async () => {
+    await expect(
+      run({
+        args: {
+          slug: 's',
+          artifact: 'spec.md',
+          kind: 'spec',
+          lanes: ['verify'],
+          fullReview: false,
+          autonomous: true,
+        },
+        cwd: mkdtempSync(join(tmpdir(), 'noldor-orch-')),
+      }),
+    ).rejects.toThrow(/code-only/);
   });
 });
