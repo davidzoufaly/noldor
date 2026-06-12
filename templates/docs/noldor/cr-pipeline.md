@@ -197,6 +197,36 @@ copy-paste repeats.
 Failures abort the release with a per-commit diagnostic naming the
 missing side(s).
 
+## Verify lane
+
+The `verify` lane (code artifacts only) is the behavioral third signal beside
+tests and CR: it boots the real artifact and judges observed behavior against
+the FD's acceptance text (`## Summary` + `## Usage`; commit prose for FD-less
+fast-tracks).
+
+Two layers:
+
+- **Smoke floor** (deterministic): `noldor doctor` + boot every
+  `consumer.verifyCommands` surface + HTTP-200/exit-0 probe. Runs first, also
+  standalone via `pnpm noldor verify smoke [--json]`. A smoke failure blocks
+  in **both** verify modes — stop-the-line semantics: a broken surface halts
+  autonomous merging whether or not this FD broke it.
+- **Verifier agent** (judgment): spawned via the agent-runner registry
+  (`role: verifier`), exercises the specific new behavior through the real
+  interface (never by reading source), and emits
+  `{ verdict: pass | fail | cannot-verify, evidence: [{command, observed}], mismatches: [] }`
+  as the sink's verdict payload (`.noldor/cr/<slug>-code-verify.json`).
+
+Policy: `autonomous.verifyMode: "blocking" | "advisory"` (default `advisory`)
+governs only the agent verdict — `fail` maps mismatches to blockers (blocking)
+or suggestions with an `ADVISORY FAIL:` summary (advisory). `cannot-verify`
+never blocks. Spawn failure, timeout, or malformed verifier output is one
+"no trustworthy verdict" class: fail-closed blocker in blocking mode,
+`cannot-verify` note in advisory.
+
+Opt in via `crLanes.code: ["subagent", "verify"]`; drain and watch inherit it
+from config.
+
 ## Deferred (post-MVP)
 
 - Brainstorm-loop per finding.
