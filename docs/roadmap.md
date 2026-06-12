@@ -10,6 +10,30 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### graphify-out Breaks fmt:check
+
+- area: tooling
+- type: fix
+- since: 2026-06-12
+- size: S
+- impact: high
+- confidence: high
+
+Graphify writes its cache to `src/graphify-out/` when scanned on `src` → breaks `fmt:check` every run (had to `mv` to `/tmp` 3×). Make it write under a top-level `graphify-out/` or exclude the path from fmt.
+
+- `graphify-out/graph.html` oxfmt churn ~41k lines per sweep → gitignore `graph.html` or exclude it from fmt.
+
+### README Status Section Stale
+
+- area: docs
+- type: docs
+- since: 2026-06-12
+- size: XS
+- impact: med
+- confidence: high
+
+README Status section is stale — claims pre-extract, says it lives in the Charuy monorepo; we are standalone now. Rewrite to reflect the standalone repo state.
+
 ### Noldor Framework
 
 #### Drop Branched Worktrees — Single Dev Branch Workflow
@@ -85,6 +109,8 @@ Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD fron
 Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
 
 - Optional, not mandatory — apps can grow organically without a milestone plan; the framework should not force the abstraction. When milestones are declared, the rest of the wiring activates; otherwise the field stays absent and detectors stay silent.
+- Surface milestones on the dashboard web UI.
+- Document where milestones live (the `/milestone` skill + `docs/milestones/<slug>.md`) — answers the recurring "where are milestones documented?".
 
 #### Parallel-Drain `roadmap.md` Conflict Auto-Resolution
 
@@ -188,6 +214,7 @@ Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superp
 When a feature adds a new release-time gate, the feature's own implementation commits cannot satisfy that gate (the enforcement code didn't exist when they were authored). Hit live during automated-cr-pipeline: the new `release-cr-gate.ts` requires `Noldor-Reviewed-Codex` on every code-touching commit in the release range, but none of the 22 feature-branch commits have it because `pnpm cr:codex` was added by those very commits. Operator currently must hand-add `Noldor-CR-Override-Codex: bootstrap` to each commit before next release, or extend the gate to skip pre-feature SHAs. Framework-level fix: when a gate-introducing FD is detected (graph annotation? FD frontmatter `introduces-gate: <name>`?), `/gate` end-of-flow auto-injects matching `Noldor-<gate>-Override: bootstrap — feature added the gate that would block its own commits` on every commit on the worktree branch. Audited by `/garden`'s override detectors so it can't be silently abused on non-bootstrap work.
 
 - v0.4.0 release shipped with `RELEASE_SKIP_CR_GATE=1` bypass for the same reason — 34 commits in `v0.3.0..v0.4.0` predate the CR pipeline. Retire the env-var bypass next cycle once bootstrap-immunity lands so v0.5.0 doesn't ship the escape hatch as routine. Track via a `chore` to verify `pnpm release` succeeds without the flag.
+- Codex CR gate unsatisfiable — 18 commits since v0.1.0 lack codex receipts; release needs `RELEASE_SKIP_CR_GATE=1` until codex CR is operationalized or pre-v0.1.0 commits are grandfathered.
 
 #### `pnpm release --resume`
 
@@ -223,6 +250,7 @@ The `Features without spec` SDD detector flags every FD with empty `links.spec`,
 Standalone graphify enhancement (not in the substrate family). When `/triage` proposes targets for ideas in `ideas.md`, compute semantic similarity between idea text and existing FD names + community labels via graphify; surface top-3 `merge:<slug>` candidates ranked by similarity. Reduces hand-judgment burden in `/triage` and biases toward merging into existing host FDs (per CLAUDE.md `/triage` rubric). Trigger: when next batch of ideas accumulates and triage feels noisy.
 
 - Strengthen merge-first behavior — `/triage` should propose merging into existing roadmap/backlog blocks before suggesting new entries, with the candidate-host list surfaced explicitly in the confirmation table (today the bias is implicit).
+- When checking an FD, also scan backlog for other candidates for the same FD → suggest a new FD with higher confidence so it stays useful later too.
 
 #### Runtime Architecture Invariant Expansion
 
@@ -478,3 +506,110 @@ Operator cannot see which agents are running, on what, since when. `drain-state.
 Separable last step split out of `de-superpowers-vendor-spec-plan-and-worktree-flows` at its promotion: rename `docs/superpowers/` → `docs/design/{specs,plans}`. `src/core/doc-roots.ts:30-31` is the single code seam; everything else is prose/links. Ship as a migration (see version-migration-chain) that moves files and rewrites links; keep a transition alias in doc-roots for one release.
 
 Touches: src/core/doc-roots.ts, src/migrations/
+
+- Still using the superpowers worktree path → move specs/plan out of the `superpowers/` folder as part of this rename.
+
+### Prefix Skills with noldor-
+
+- area: tooling
+- type: refactor
+- since: 2026-06-12
+- size: S
+- impact: low
+- confidence: med
+
+Prefix the framework's skill names with `noldor-` to namespace them and avoid collisions with consumer-side or vendored skills.
+
+### Dispatch Next Priority via Agent Window
+
+- area: tooling
+- type: feat
+- since: 2026-06-12
+- size: M
+- impact: med
+- confidence: low
+
+Be able to dispatch the next-priority roadmap entry directly via an agent window — one action takes the top of the queue and kicks off work without manual slug lookup + command assembly.
+
+### Dashboard Roadmap/Backlog Row Actions
+
+- area: web
+- type: feat
+- since: 2026-06-12
+- size: S
+- impact: low
+- confidence: med
+
+Add a "remove" button to backlog and roadmap rows; rename the column to "Actions".
+
+- Add roadmap entries from both top and bottom of the list (`roadmap nové akce → top and bottom`).
+
+### Code Reviewer 2.0
+
+- area: tooling
+- type: feat
+- since: 2026-06-12
+- size: L
+- impact: med
+- confidence: low
+
+Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Raise review quality beyond the current CR lane.
+
+- Code-reviewer configuration for fast-track — let fast-track tune/scope the CR pass.
+
+### Fast-Track PR Summary Mislabels as Micro-Chore
+
+- area: tooling
+- type: fix
+- since: 2026-06-12
+- size: S
+- impact: med
+- confidence: high
+
+In autonomous mode the PR summary reads `Micro-chore: docs(roadmap): retire … — shipped via fast-track (no FD)` — but the gate path is fast-track, not micro-chore. The summary mislabels the path. Fix the summary to reflect the actual gate path.
+
+### Graph Freshness scanPaths Drift in Standalone Repo
+
+- area: tooling
+- type: fix
+- since: 2026-06-12
+- size: S
+- impact: med
+- confidence: med
+
+`GARDEN_SRC_PATHS = apps/packages/scripts/` (not `src/`) → garden-receipt freshness doesn't track this repo's source; mirror `scanPaths`.
+
+- Every `src`-touching fast-track re-stales the graph (`scanPaths=src`) → forces a graph-refresh sweep before each release; consider auto-regen in release or relax freshness for test-only diffs.
+
+### pnpm toon Omits Required graph.json Arg
+
+- area: tooling
+- type: fix
+- since: 2026-06-12
+- size: XS
+- impact: low
+- confidence: high
+
+The `pnpm toon` script omits the required `graph.json` arg — bare `pnpm toon` fails, yet `src/garden/graph-fd-lookup.ts` tells users to run it. Wire the arg into the script.
+
+### gitignore .noldor/release-pushes.log
+
+- area: tooling
+- type: chore
+- since: 2026-06-12
+- size: XS
+- impact: low
+- confidence: high
+
+`.noldor/release-pushes.log` is not gitignored — it is an operator-local release audit, like garden-receipt. Add it to `.gitignore`.
+
+### sdd-report Review-Skip Count Non-Idempotent
+
+- area: tooling
+- type: fix
+- since: 2026-06-12
+- size: S
+- impact: med
+- confidence: med
+
+The sdd-report review-skip count bumps per fast-track commit and re-fires the release gate once. Make it skip when only the count line changed.
