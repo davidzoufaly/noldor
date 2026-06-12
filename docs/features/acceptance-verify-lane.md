@@ -10,16 +10,16 @@ links:
     - docs/noldor/cr-pipeline.md
     - adoption-guide.md
     - .noldor/config.json
-  tests: []
-  spec: >-
-    docs/superpowers/specs/2026-06-12-acceptance-verify-lane-design.md
+  tests:
+    - src/verify/__tests__/port.test.ts
+    - src/verify/__tests__/smoke.test.ts
+  spec: docs/superpowers/specs/2026-06-12-acceptance-verify-lane-design.md
 name: Acceptance-Verify Lane
 packages:
   - scripts
 phase: in-progress
 noldor-tier: full
 ---
-
 ## Summary
 
 Autonomous paths merge on tests + CR. Both have a structural blind spot: the implementer agent writes the code _and_ the tests, so a misunderstood requirement produces tests that assert the misunderstanding — green suite, wrong feature. CR reads diffs and can ratify the same error. Nobody runs the artifact and checks it against what the FD/entry actually promised. Add a `verify` lane: an independent agent that boots the real artifact and judges the shipped behavior against the acceptance text.
