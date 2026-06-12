@@ -73,7 +73,7 @@ Failure inside salvage: throw → the worker's existing catch treats it as a sys
 Storage (both under `.noldor/`, gitignored like the other runtime artifacts):
 
 - `escalations.jsonl` — append-only audit log: `{ ts, slug, reason, evidence, stateSnapshot, suggestedAction }`. `reason ∈ 'retries-exhausted' | 'pr-open-unmerged' | 'merge-conflict' | 'merge-timeout' | 'run-aborted' | 'watcher-tripped'`. `evidence` = retry count, last skip reason, `res.error` text when present. `stateSnapshot` = `{ shipped, skipped, retries }` from the `DrainResult`. `suggestedAction` = canned per reason (e.g. retries-exhausted → "inspect `.noldor/cr/<slug>-*` sinks; unpark after fixing the entry or its premise").
-- `drain-park.json` — the open set: `{ [slug]: { reason, ts, source } }` (`source` = the `SourceId` the slug was parked under — scopes both the park filter and auto-resolve). Parked slugs are the inbox's "open" items; resolution = removal.
+- `drain-park.json` — the open set, keyed by `"<source>:<slug>"` composite: `{ ["roadmap:foo"]: { reason, ts } }` — so the same slug parked under two sources holds two independent entries (no cross-source overwrite/shadow), and both the park filter and auto-resolve match on the composite. Parked entries are the inbox's "open" items; resolution = removal. `unpark <slug>` resolves the unique matching entry; if the slug is parked under multiple sources it requires `--source <id>`.
 
 Loop visibility changes (the only `drain-loop.ts` edits besides the optional dep — all reason-recording, no behavior change):
 
@@ -92,6 +92,7 @@ mapCycle(input: {
   pendingPr: readonly string[]; // grace carry-over (watch only; [] for run)
   prevRunAbortError?: string;   // run-aborted streak dedup (watch only)
   queueUniverse: readonly string[]; // source.parseAll() after the cycle's final sync
+  now: string;                  // injected ISO timestamp (the acquireLock(cwd, now) pattern) — keeps the core pure
 }): {
   escalations: EscalationRow[];
   toPark: Array<{ slug: string; reason: string }>;
@@ -105,7 +106,7 @@ The shell (in `escalations.ts`) applies the verdict: JSONL appends, park-map wri
 
 - skip with reason `retries-exhausted`, or either coordinator outcome string — `merge-conflict — PR left open for human resolution` / `merge-timeout — PR left open for human resolution` (both non-`merged` members of `MergeOutcome`, `drain-io.ts:16`, written at `drain-loop.ts:268`) → append escalation (reason `retries-exhausted` / `merge-conflict` / `merge-timeout`) + park the slug immediately.
 - skip with reason `pr-open-unmerged` gets a **one-cycle grace**: the K=1 verdict branch (`drain-loop.ts:175-178`) and the restart-safety guard (`drain-loop.ts:218-220`) both fire on a PR that may merely be awaiting auto-merge/CI, so the first observation only records the slug in watch state (`pendingPr` set); the *second consecutive* cycle still reporting it → escalate (reason `pr-open-unmerged`) + park, suggested action "PR open but unmerged across cycles — check auto-merge/CI, merge or close the PR, then unpark". Plain one-shot `run` cannot observe persistence, so it reports the reason in its summary but never parks on it. Without this reason an unmerged PR is silently re-skipped by `openPrExistsFor` every later cycle — the invisible-failure class this feature exists to kill; the grace keeps healthy in-flight PRs out of the inbox.
-- **Auto-resolve, source-scoped**: park entries carry the source they were parked under (`{ reason, ts, source }` — see storage above). A mapping pass auto-unparks only entries whose `source` matches the current run's `SourceId` AND whose slug is absent from that source's freshly-synced `parseAll()` universe (PR merged after parking, or the entry left the queue) — appending `{ ts, slug, resolved: true, auto: true }`. A `--source plans` run can never resolve (or shadow) a roadmap park: cross-source slugs live in different universes.
+- **Auto-resolve, source-scoped**: park entries are keyed by `"<source>:<slug>"` (see storage above). A mapping pass auto-unparks only entries whose source component matches the current run's `SourceId` AND whose slug is absent from that source's freshly-synced `parseAll()` universe (PR merged after parking, or the entry left the queue) — appending `{ ts, slug, resolved: true, auto: true }`. A `--source plans` run can never resolve (or shadow) a roadmap park: cross-source slugs live in different universes.
 - Dedup: a slug already parked under the same source is never re-escalated (one inbox row per open incident). `run-aborted` rows (never parked) dedupe on identical error text against the previous cycle's `lastRunAbortError` from watch state — one row per distinct error streak, trip rail bounding the streak; plain `run` has no cycle history, so it always appends its single row.
 - `res.error` set (abort: ff-only reject, `gh` failure, unknown git state) → append `run-aborted` escalation, **no park** (repo-scoped — the next item would hit the same wall), bump the consecutive-failure rail.
 - ineligible skips → never escalated (they're queue hygiene, not failures).
