@@ -32,10 +32,20 @@ export const DEFAULT_CR_LANES: Record<ArtifactKind, Lane[]> = {
   code: ['subagent'],
 };
 
+export const watchConfigSchema = z.object({
+  intervalMinutes: z.number().int().positive().default(30),
+  maxFeaturesPerDay: z.number().int().positive().default(10),
+  maxConsecutiveFailures: z.number().int().positive().default(3),
+  notifyCommand: z.string().optional(),
+});
+
 export const autonomousConfigSchema = z.object({
   skipLanePicker: z.boolean().default(false),
   onFailure: z.enum(['prompt', 'spawn-deep-review', 'abort']).default('prompt'),
   requireHumanPrApproval: z.boolean().default(false),
+  // Wall-clock cap per item is the existing --iteration-timeout flag (30 min default), not a
+  // duplicate rail here. Token-budget rail deliberately omitted: no token accounting exists yet.
+  watch: watchConfigSchema.optional(),
 });
 
 export const gateConfigSchema = z.object({
