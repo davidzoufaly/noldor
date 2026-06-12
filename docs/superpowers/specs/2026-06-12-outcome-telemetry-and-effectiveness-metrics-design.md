@@ -8,7 +8,7 @@
 
 ## Problem
 
-The framework enforces process and never measures whether the process works. Every tuning decision — gate strictness, size-routing thresholds (`sizeToPath()` in `src/core/size-routing.ts`), CR lane composition (`crLanes` in `src/cr/config.ts`), drain retry caps — is currently vibes. The raw data already exists: git trailers (`Noldor-FD`, `Noldor-Path`, override trailers), FD frontmatter (`since` / `introduced` / `phase` in `docs/features/*.md`), PR history, `.noldor/cr/*.json` lane findings, `.noldor/drain-state.json`, and `.noldor/agent-events.jsonl` (writer `appendAgentEvent` in `src/core/agent-events.ts`, shipped with continuous-drain PR #72). Nothing derives metrics from it.
+The framework enforces process and never measures whether the process works. Every tuning decision — gate strictness, size-routing thresholds (`sizeToPath()` in `src/core/size-routing.ts`), CR lane composition (`crLanesConfigSchema` field on `noldorConfigSchema`, `src/cr/config.ts`), drain retry caps — is currently vibes. The raw data already exists: git trailers (`Noldor-FD`, `Noldor-Path`, override trailers), FD frontmatter (`since` / `introduced` / `phase` in `docs/features/*.md`), PR history, `.noldor/cr/*.json` lane findings, `.noldor/drain-state.json`, and `.noldor/agent-events.jsonl` (writer `appendAgentEvent` in `src/core/agent-events.ts`, shipped with continuous-drain PR #72). Nothing derives metrics from it.
 
 ## Goals
 
@@ -37,14 +37,24 @@ One function `extractFacts(cwd): Promise<RepoFacts>` reads every source once:
 | Fact | Source | Mechanism |
 | --- | --- | --- |
 | `commits[]` | `git log` on current branch (main at compute time) | one `git log --format` call with `%(trailers)`; parse `Noldor-FD`, `Noldor-Path`, `Noldor-Override*` trailers; subject + date + diff-stat (`--shortstat`) |
-| `features[]` | `docs/features/*.md` frontmatter | reuse the gray-matter-style loader pattern already used by `src/core/release-markers.ts` / `src/core/next-priority.ts`; fields `since`, `introduced`, `phase`, `noldor-tier`, `name` |
-| `laneFindings[]` | `.noldor/cr/*.json` (+ `archive/`) | JSON parse per file; slug/kind/lane from `src/cr/filename.ts` convention |
-| `agentEvents[]` | `.noldor/agent-events.jsonl` | line-parse; schema = `AgentEvent` from `src/core/agent-events.ts` |
-| `drainState` | `.noldor/drain-state.json` | JSON parse |
+| `features[]` | `docs/features/*.md` frontmatter | reuse the gray-matter-style loader pattern already used by `src/core/release-markers.ts` / `src/core/next-priority.ts`; fields `since` (new optional frontmatter field, see D7), `introduced`, `phase`, `noldor-tier`, `name` |
+| `intake[]` | git history of `docs/roadmap.md` / `docs/backlog.md` | recover `since:` + `parent:` per promoted entry from the entry's residue in history (`git log -S'<slug heading>'`-style scan) — fallback for FDs without frontmatter `since` (D7); same mechanism routing-accuracy uses for `size` |
+| `laneFindings[]` | `.noldor/cr/*.json` (+ `archive/`) | JSON parse per file against `LaneFindings` (`src/cr/findings-schema.ts`): per-lane `blockers[]` + `suggestions[]` (there is no flat `findings` field); slug/kind/lane from `src/cr/filename.ts` convention |
+| `agentEvents[]` | `.noldor/agent-events.jsonl` | line-parse; schema = `AgentEvent` from `src/core/agent-events.ts` (incl. `kind: 'salvaged'` rows written by `src/autonomous/salvage.ts`) |
+| `escalations[]` | `.noldor/escalations.jsonl` | line-parse; schema = `EscalationRow` from `src/autonomous/escalations.ts` |
+| `drainState` | `.noldor/drain-state.json` | JSON parse; `DrainState` (`src/autonomous/drain-state.ts`): `shipped`, `skip[]`, `retries` |
 | `releases[]` | `git tag -l 'v*'` + tag dates | one `git for-each-ref` call |
-| `overrides[]` | same trailer source as `src/garden/detectors/override-audit.ts` | reuse its extraction helper (export if currently private) |
+| `overrides[]` | same trailer source as `src/garden/detectors/override-audit.ts` | reuse the exported `auditOverrides()` / `parseTrailers` (`src/core/trailers.ts`) — already public, no new export needed |
 
 Every source is fail-open **per source**: absent file → empty list + entry in `facts.warnings[]`; malformed JSONL line → skipped + counted. `extractFacts` never throws on missing/dirty data; only a non-git cwd is fatal.
+
+### Unit 1.5 — `since` becomes FD frontmatter (D7)
+
+`since:` today lives only in roadmap/backlog entries, which promotion deletes — `FeatureFrontmatterSchema` (`src/features/feature-schema.ts`) has no `since` field and 0 of 39 FDs carry it, so cycle-time's intake timestamp has no forward-looking home. Fix in this slice:
+
+- Add optional `since?: string` (ISO date) to `FeatureFrontmatterSchema`.
+- The promote skill (`.claude/skills/promote/SKILL.md` step 6 + template twin) copies the source block's `- since:` into the new FD's frontmatter.
+- Backfill is NOT bulk-applied: historical FDs resolve via `intake[]` recovery (Unit 1); this feature's own FD gets `since: 2026-06-11` as the first carrier.
 
 ### Unit 2 — metric collectors (`src/metrics/collect/<metric>.ts`)
 
@@ -65,10 +75,10 @@ interface MetricResult {
 
 Per-metric derivations (v1):
 
-1. **`cycle-time`** — per FD with both `since` and `introduced`: days between. Segments: by `Noldor-Path` trailer of the FD's commits (majority path wins; mixed → 'mixed'), by autonomous vs operator (autonomous = any commit in the FD's set carries drain/plan-runner provenance — `Noldor-Path: fast-track` from a drain run is identified via agent-events `slug` match when available, else labeled 'unknown-provenance' — blind spot recorded). Value: median + p90 + per-segment table.
-2. **`routing-accuracy`** — for shipped entries where roadmap `size` is recoverable (FD git history of the promote commit or the entry's residue in history): `sizeToPath(size)` suggestion vs actual `Noldor-Path` taken. Value: confusion table suggestion×actual over last N shipped (default 10). Blind spot: entries promoted before `Noldor-Path` trailer existed are excluded.
-3. **`cr-effectiveness`** — per lane: findings count (from `laneFindings[].findings`) vs post-merge corrective commits = commits with `fix:`/`revert:` subject carrying the same `Noldor-FD` slug within 14 days (D3) after the FD's ship commit. Value: per-lane `{findings, blockers, correctiveCommits}`. Explicitly labeled approximation.
-4. **`drain-reliability`** — from `agentEvents[]` (epoch-limited) + `drain-state.json`: per-run shipped / skipped / retried / escalated / salvaged counts, retry distribution, mean wall-clock per feature (`durationMs`). When `agent-events.jsonl` absent or sparse → `value: null` for the event-derived parts, drain-state-derived parts still emitted. Blind spot: events shipped 2026-06-12; history before that is invisible (D4).
+1. **`cycle-time`** — per FD with a recoverable intake date (`since` frontmatter, else `intake[]` recovery — D7) and `introduced`: days between. Segments: by `Noldor-Path` trailer of the FD's commits (majority path wins; mixed → 'mixed'), by autonomous vs operator (autonomous = any commit in the FD's set carries drain/plan-runner provenance — `Noldor-Path: fast-track` from a drain run is identified via agent-events `slug` match when available, else labeled 'unknown-provenance' — blind spot recorded). Value: median + p90 + per-segment table. FDs with no recoverable intake are excluded and counted in a blind-spot tally.
+2. **`routing-accuracy`** — for shipped entries where roadmap `size` and `parent` are recoverable from `intake[]`: `sizeToPath(size, hasParent)` (actual signature, `src/core/size-routing.ts:64` — `hasParent` from the entry's `parent:` field) vs actual `Noldor-Path` taken. Value: confusion table suggestion×actual over last N shipped (default 10). Blind spot: entries promoted before `Noldor-Path` trailer existed are excluded.
+3. **`cr-effectiveness`** — per lane: findings count = `blockers.length + suggestions.length` per `LaneFindings` sink vs post-merge corrective commits = commits with `fix:`/`revert:` subject carrying the same `Noldor-FD` slug within 14 days (D3) after the FD's ship commit. Value: per-lane `{blockers, suggestions, correctiveCommits}`. Explicitly labeled approximation.
+4. **`drain-reliability`** — shipped / skipped / retried from `drain-state.json` (`shipped`, `skip[]`, `retries`); salvaged = count of `agentEvents[]` rows with `kind: 'salvaged'`; escalated = `escalations[]` row count per run; retry distribution + mean wall-clock per feature (`durationMs`) from `agentEvents[]`. All event/escalation-derived parts are epoch-limited: absent or sparse files → those parts `value: null` with labeled blind spot, drain-state-derived parts still emitted (D4).
 5. **`override-pressure`** — override-trailer usage grouped by detector over time buckets (per release window). Extends override-audit's extraction; rising trend = gate friction.
 6. **`tokens-per-feature`** — sum of `tokens.total` over agent-events rows for the FD's slug. Only present where events carry the new optional `tokens` field (Unit 3). Cost is NEVER computed. Features with zero token-bearing events → `null` + 'no usage data'.
 
@@ -112,7 +122,7 @@ Per-metric derivations (v1):
 
 ## Acceptance criteria
 
-- `noldor metrics compute` on this repo emits cycle-time for every FD with `introduced:` set, and a routing-accuracy table covering the last 10 shipped entries.
+- `noldor metrics compute` on this repo emits cycle-time for every FD with `introduced:` set and a recoverable intake date (frontmatter `since` or roadmap-history recovery); FDs with unrecoverable intake appear in a blind-spot tally, not silently dropped. Routing-accuracy table covers the last 10 shipped entries.
 - Every emitted metric carries non-empty `formula` and `blindSpots`; a unit test enforces it for all collectors.
 - Deleting `.noldor/agent-events.jsonl` and re-running compute → exit 0, drain/tokens metrics `value: null` with labeled blind spot — no throw.
 - A spawn through the agent-runner registry with the claude runner records a `tokens` field read from the session JSONL; a runner with no locatable usage record writes the event without `tokens` (adapter test per runner: claude, codex, opencode).
@@ -153,3 +163,4 @@ pnpm noldor dashboard server           # → http://localhost:4321/metrics
 4. _How far back to backfill?_ -> No synthesis. Trailer/frontmatter metrics cover all history they exist in; event-derived metrics start at the event-log epoch (2026-06-12) and the blind-spot field says so. (D4)
 5. _Token source per runner?_ -> Native usage records only: Claude Code session JSONL `usage` fields; codex/opencode native session stores. Adapter returns `null` when not found verbatim — measuring nothing beats hallucinating something. Raw counts only, cost permanently out of scope. (D5: operator directive 2026-06-12.)
 6. _Where does `metrics.json` live?_ -> Repo root, gitignored — it's a derived artifact; git history is the store. (D6)
+7. _`since` is not FD frontmatter — where does cycle-time's intake date come from?_ -> Two-track: add optional `since` to `FeatureFrontmatterSchema` + promote copies it forward (Unit 1.5); historical FDs recover intake from roadmap/backlog git history (`intake[]` facts source). No bulk backfill — recovery covers history, frontmatter covers the future. (D7: from spec-CR blocker, 2026-06-12.)
