@@ -25,9 +25,9 @@ export const collectOverridePressure: Collector = (facts: RepoFacts): MetricResu
     unit: 'override commits',
     value: buckets,
     formula:
-      'Count of commits carrying a Noldor-Override* trailer, grouped by trailer key and by release window (first tag dated >= commit date; after last tag → unreleased).',
+      'Count of commits carrying a Noldor-Override-prefixed trailer, grouped by trailer key and by release window (first tag dated >= commit date; after last tag → unreleased).',
     blindSpots: [
-      'Only trailer-carrying overrides count; env-var bypasses (e.g. RELEASE_SKIP_*) leave no commit trace.',
+      'Only trailer-carrying overrides count; env-var bypasses (the release-skip env flags) leave no commit trace.',
       'Rising counts can mean a stricter gate OR more violations — the metric flags friction, not fault.',
     ],
     samples,
