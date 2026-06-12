@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setVerifyDispatcher } from '../../lanes/verify-dispatch.js';
-import { runVerify, setSmokeRunner } from '../../lanes/verify.js';
+import { reapPort, runVerify, setSmokeRunner } from '../../lanes/verify.js';
 import type { LaneInput } from '../../lane-types.js';
 
 const GREEN_SMOKE = {
@@ -152,5 +152,35 @@ describe('runVerify', () => {
     expect((readSink(cwd).blockers as Array<{ message: string }>)[0].message).toContain(
       'spawn-failed',
     );
+  });
+});
+
+describe('reapPort', () => {
+  it('kills a process still listening on the port', async () => {
+    // The leak must live in a SEPARATE process — reapPort kill -9s whatever
+    // holds the port, and an in-process listener would be the vitest worker.
+    const { spawn } = await import('node:child_process');
+    const { resolvePort } = await import('../../../verify/port.js');
+    const port = await resolvePort(mkdtempSync(join(tmpdir(), 'noldor-reap-')));
+    const leak = spawn(
+      'node',
+      ['-e', `require('node:http').createServer((q,s)=>s.end('leak')).listen(${port},'127.0.0.1')`],
+      { detached: true, stdio: 'ignore' },
+    );
+    leak.unref();
+    const waitFor = async (want: boolean): Promise<boolean> => {
+      for (let i = 0; i < 30; i++) {
+        const up = await fetch(`http://127.0.0.1:${port}/`).then(
+          () => true,
+          () => false,
+        );
+        if (up === want) return true;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return false;
+    };
+    expect(await waitFor(true)).toBe(true);
+    await reapPort(port);
+    expect(await waitFor(false)).toBe(true);
   });
 });

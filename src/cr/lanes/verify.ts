@@ -45,6 +45,26 @@ function mkFinding(artifact: string, message: string, severity: Finding['severit
   return { file: artifact, severity, message };
 }
 
+/**
+ * Best-effort reap of anything still listening on the verify port. The
+ * verifier agent is told to kill what it boots (prompt rule 3), but prompt
+ * text is not enforcement — this is the programmatic backstop so a leaked
+ * server can't poison the next run's pre-boot occupancy check.
+ */
+export function reapPort(port: number): Promise<void> {
+  return new Promise((resolve) => {
+    // -sTCP:LISTEN is load-bearing: a bare `tcp:<port>` also matches CLIENT
+    // sockets (e.g. this process's own keep-alive fetch connections), and
+    // kill -9ing those reaps the caller itself.
+    execFile(
+      '/bin/sh',
+      ['-c', `lsof -ti tcp:${port} -sTCP:LISTEN | xargs kill -9 2>/dev/null`],
+      { timeout: 10_000 },
+      () => resolve(),
+    );
+  });
+}
+
 function commitProse(repoRoot: string, baseSha: string, headSha: string): Promise<string> {
   return new Promise((resolve) => {
     execFile(
@@ -138,6 +158,8 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     });
   } catch (err) {
     dispatchErr = (err as Error).message;
+  } finally {
+    await reapPort(port);
   }
   const parsed = raw === null ? null : parseVerifyVerdict(raw);
 

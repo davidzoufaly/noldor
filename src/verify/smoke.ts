@@ -19,10 +19,15 @@ export interface SmokeDeps {
   /** Injected by tests; defaults to the real doctor. */
   doctorCommand?: string;
   fetchImpl?: typeof fetch;
+  /** Aggregate wall-clock cap across doctor + all surfaces. */
+  totalTimeoutMs?: number;
 }
 
 const DEFAULT_DOCTOR = 'pnpm noldor doctor';
 const OBSERVED_CAP = 2000;
+// Per-surface caps (doctor 120s shell timeout, server readyTimeoutMs) stack
+// across N surfaces; this bounds the whole smoke run regardless of N.
+const DEFAULT_TOTAL_TIMEOUT_MS = 300_000;
 // Bounds every probe fetch — a half-open stale server (accepts the
 // connection, never responds) must not hang the lane past its caps.
 const PROBE_FETCH_TIMEOUT_MS = 2000;
@@ -115,6 +120,7 @@ export async function runSmoke(
 ): Promise<SmokeReport> {
   const doctorCommand = deps.doctorCommand ?? DEFAULT_DOCTOR;
   const fetchImpl = deps.fetchImpl ?? fetch;
+  const totalDeadline = Date.now() + (deps.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS);
   const notes: string[] = [];
 
   const doctor = await runShell(doctorCommand, cwd);
@@ -138,6 +144,17 @@ export async function runSmoke(
   const commands = loadVerifyCommands(cwd);
   if (Object.keys(commands).length === 0) notes.push('no surfaces configured');
   for (const [name, surface] of Object.entries(commands)) {
+    if (Date.now() > totalDeadline) {
+      surfaces.push({
+        name,
+        ok: false,
+        evidence: {
+          command: surface.command,
+          observed: `smoke wall-clock cap exceeded before surface '${name}' ran`,
+        },
+      });
+      continue;
+    }
     if (surface.kind === 'server') {
       surfaces.push(await probeServer(name, surface, port, cwd, fetchImpl));
     } else {

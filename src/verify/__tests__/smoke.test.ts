@@ -101,6 +101,22 @@ describe('runSmoke', () => {
     }
   });
 
+  it('aggregate wall-clock cap: surfaces past the deadline fail without running', async () => {
+    const dir = consumerDir({
+      slow: {
+        command: 'node -e "setTimeout(()=>{}, 60000)"',
+        kind: 'server',
+        readyTimeoutMs: 1200,
+      },
+      never: { command: 'node -e "process.exit(0)"', kind: 'cli' },
+    });
+    const report = await runSmoke(dir, 4000, { doctorCommand: OK_DOCTOR, totalTimeoutMs: 1000 });
+    expect(report.ok).toBe(false);
+    expect(report.surfaces.find((s) => s.name === 'never')?.evidence.observed).toContain(
+      'wall-clock cap exceeded',
+    );
+  });
+
   it('server surface: no 200 within readyTimeoutMs fails with evidence', async () => {
     const dir = consumerDir({
       dead: {
