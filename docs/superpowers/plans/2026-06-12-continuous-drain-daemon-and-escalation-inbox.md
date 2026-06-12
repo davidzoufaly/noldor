@@ -44,7 +44,7 @@
 Modify: `src/core/agent-events.ts`
 Test: `src/core/__tests__/agent-events.test.ts`
 
-- [ ] **Step 1: Write the failing test** — append to the existing `describe` in `src/core/__tests__/agent-events.test.ts`. The file's existing tests each create their own temp dir inline — do the same (reuse its existing imports; add any of `mkdtempSync`/`rmSync`/`tmpdir` that are missing):
+- [x] **Step 1: Write the failing test** — append to the existing `describe` in `src/core/__tests__/agent-events.test.ts`. The file's existing tests each create their own temp dir inline — do the same (reuse its existing imports; add any of `mkdtempSync`/`rmSync`/`tmpdir` that are missing):
 
 ```ts
   it('serializes optional kind and slug when present', () => {
@@ -70,7 +70,7 @@ Test: `src/core/__tests__/agent-events.test.ts`
   });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/core/__tests__/agent-events.test.ts
@@ -78,7 +78,7 @@ pnpm vitest run src/core/__tests__/agent-events.test.ts
 
 Expected output: 1 failing test — TypeScript object-literal error or property assertion failure mentioning `kind`.
 
-- [ ] **Step 3: Implement** — in `src/core/agent-events.ts`, extend the interface:
+- [x] **Step 3: Implement** — in `src/core/agent-events.ts`, extend the interface:
 
 ```ts
 export interface AgentEvent {
@@ -96,7 +96,7 @@ export interface AgentEvent {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/core/__tests__/agent-events.test.ts
@@ -104,7 +104,7 @@ pnpm vitest run src/core/__tests__/agent-events.test.ts
 
 Expected output: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/agent-events.ts src/core/__tests__/agent-events.test.ts
@@ -119,7 +119,7 @@ git commit -m "feat(autonomous): additive kind/slug fields on AgentEvent for sal
 Modify: `src/autonomous/drain-loop.ts`
 Test: `src/autonomous/__tests__/run-drain.test.ts`
 
-- [ ] **Step 1: Write the failing tests** — append a new `describe` block at the end of `src/autonomous/__tests__/run-drain.test.ts`, reusing the file's `harness` helper and mirroring its existing inline-options call style for `runDrain(deps, {...})` (read the file first; if it has a shared `opts` const, reuse that instead of repeating literals):
+- [x] **Step 1: Write the failing tests** — append a new `describe` block at the end of `src/autonomous/__tests__/run-drain.test.ts`, reusing the file's `harness` helper and mirroring its existing inline-options call style for `runDrain(deps, {...})` (read the file first; if it has a shared `opts` const, reuse that instead of repeating literals):
 
 ```ts
 describe('reason recording + salvage dep', () => {
@@ -240,7 +240,7 @@ describe('reason recording + salvage dep', () => {
 
 (If `harness` returns `deps` as a frozen/typed literal that rejects assigning `salvageStaleBase`, widen the local variable: `const deps: DrainDeps = { ...h.deps, salvageStaleBase: ... }` and pass `deps`.)
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/run-drain.test.ts
@@ -248,7 +248,7 @@ pnpm vitest run src/autonomous/__tests__/run-drain.test.ts
 
 Expected output: the new describe fails — `skipReasons` undefined / unknown property `salvageStaleBase`.
 
-- [ ] **Step 3: Implement** — in `src/autonomous/drain-loop.ts`:
+- [x] **Step 3: Implement** — in `src/autonomous/drain-loop.ts`:
 
 3a. Add the optional dep to `DrainDeps` (after `openPrExistsFor`):
 
@@ -301,7 +301,7 @@ Expected output: the new describe fails — `skipReasons` undefined / unknown pr
         const code = await deps.spawnGate(
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/run-drain.test.ts
@@ -309,7 +309,7 @@ pnpm vitest run src/autonomous/__tests__/run-drain.test.ts
 
 Expected output: all tests pass (existing + 5 new).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/autonomous/drain-loop.ts src/autonomous/__tests__/run-drain.test.ts
@@ -324,7 +324,7 @@ git commit -m "feat(autonomous): record terminal skip reasons + optional pre-spa
 Create: `src/autonomous/salvage.ts`
 Test: `src/autonomous/__tests__/salvage.test.ts`
 
-- [ ] **Step 1: Write the failing test** — create `src/autonomous/__tests__/salvage.test.ts`:
+- [x] **Step 1: Write the failing test** — create `src/autonomous/__tests__/salvage.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from 'vitest';
@@ -432,7 +432,7 @@ describe('repair', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/salvage.test.ts
@@ -440,7 +440,7 @@ pnpm vitest run src/autonomous/__tests__/salvage.test.ts
 
 Expected output: module not found `../salvage.js`.
 
-- [ ] **Step 3: Implement** — create `src/autonomous/salvage.ts`:
+- [x] **Step 3: Implement** — create `src/autonomous/salvage.ts`:
 
 ```ts
 import { spawnSync } from 'node:child_process';
@@ -536,7 +536,7 @@ export function makeSalvage(cwd: string): (slug: string, branch: string) => 'cle
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/salvage.test.ts
@@ -544,7 +544,7 @@ pnpm vitest run src/autonomous/__tests__/salvage.test.ts
 
 Expected output: 9 tests pass (8 `detectStale` + 1 `repair`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/autonomous/salvage.ts src/autonomous/__tests__/salvage.test.ts
@@ -559,7 +559,7 @@ git commit -m "feat(autonomous): stale-base salvage module (detect, repair, salv
 Create: `src/autonomous/escalations.ts`
 Test: `src/autonomous/__tests__/escalations.test.ts`
 
-- [ ] **Step 1: Write the failing tests** — create `src/autonomous/__tests__/escalations.test.ts`:
+- [x] **Step 1: Write the failing tests** — create `src/autonomous/__tests__/escalations.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -728,7 +728,7 @@ describe('mapCycle', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/escalations.test.ts
@@ -736,7 +736,7 @@ pnpm vitest run src/autonomous/__tests__/escalations.test.ts
 
 Expected output: module not found `../escalations.js`.
 
-- [ ] **Step 3: Implement the pure core** — create `src/autonomous/escalations.ts`:
+- [x] **Step 3: Implement the pure core** — create `src/autonomous/escalations.ts`:
 
 ```ts
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
@@ -878,7 +878,7 @@ export function mapCycle(input: {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/escalations.test.ts
@@ -886,7 +886,7 @@ pnpm vitest run src/autonomous/__tests__/escalations.test.ts
 
 Expected output: 9 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/autonomous/escalations.ts src/autonomous/__tests__/escalations.test.ts
@@ -901,7 +901,7 @@ git commit -m "feat(autonomous): pure mapCycle escalation core (park, grace, aut
 Modify: `src/autonomous/escalations.ts`
 Test: `src/autonomous/__tests__/escalations.test.ts`
 
-- [ ] **Step 1: Write the failing tests** — append to `src/autonomous/__tests__/escalations.test.ts` (extend the import line to include the new symbols):
+- [x] **Step 1: Write the failing tests** — append to `src/autonomous/__tests__/escalations.test.ts` (extend the import line to include the new symbols):
 
 ```ts
 import { mkdtempSync, rmSync, readFileSync as readFs, mkdirSync as mkDir, writeFileSync as writeFs } from 'node:fs';
@@ -1044,7 +1044,7 @@ describe('parkAwareSource', () => {
 
 Also extend the vitest import at the top of the file to `import { describe, expect, it, beforeEach, afterEach } from 'vitest';`.
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/escalations.test.ts
@@ -1052,7 +1052,7 @@ pnpm vitest run src/autonomous/__tests__/escalations.test.ts
 
 Expected output: import errors — `applyCycleVerdict` etc. not exported.
 
-- [ ] **Step 3: Implement the shell** — append to `src/autonomous/escalations.ts`:
+- [x] **Step 3: Implement the shell** — append to `src/autonomous/escalations.ts`:
 
 ```ts
 const PARK_REL = '.noldor/drain-park.json';
@@ -1192,7 +1192,7 @@ export function parkAwareSource(inner: DrainSource, getParked: () => ParkMap): D
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/escalations.test.ts
@@ -1200,7 +1200,7 @@ pnpm vitest run src/autonomous/__tests__/escalations.test.ts
 
 Expected output: all tests pass (9 pure + 6 shell/decorator).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/autonomous/escalations.ts src/autonomous/__tests__/escalations.test.ts
@@ -1215,7 +1215,7 @@ git commit -m "feat(autonomous): escalation IO shell, park-aware source decorato
 Create: `src/autonomous/watch-state.ts`
 Test: `src/autonomous/__tests__/watch-state.test.ts`
 
-- [ ] **Step 1: Write the failing tests** — create `src/autonomous/__tests__/watch-state.test.ts`:
+- [x] **Step 1: Write the failing tests** — create `src/autonomous/__tests__/watch-state.test.ts`:
 
 ```ts
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
@@ -1344,7 +1344,7 @@ describe('loadWatchState / saveWatchState', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/watch-state.test.ts
@@ -1352,7 +1352,7 @@ pnpm vitest run src/autonomous/__tests__/watch-state.test.ts
 
 Expected output: module not found `../watch-state.js`.
 
-- [ ] **Step 3: Implement** — create `src/autonomous/watch-state.ts`:
+- [x] **Step 3: Implement** — create `src/autonomous/watch-state.ts`:
 
 ```ts
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -1448,7 +1448,7 @@ export function applyCycleToState(
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/watch-state.test.ts
@@ -1456,7 +1456,7 @@ pnpm vitest run src/autonomous/__tests__/watch-state.test.ts
 
 Expected output: 6 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/autonomous/watch-state.ts src/autonomous/__tests__/watch-state.test.ts
@@ -1471,7 +1471,7 @@ git commit -m "feat(autonomous): watch state with day rollover and pure trip/cap
 Create: `src/autonomous/notify.ts`
 Test: `src/autonomous/__tests__/notify.test.ts`
 
-- [ ] **Step 1: Write the failing test** — create `src/autonomous/__tests__/notify.test.ts`:
+- [x] **Step 1: Write the failing test** — create `src/autonomous/__tests__/notify.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -1507,7 +1507,7 @@ describe('notify', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/notify.test.ts
@@ -1515,7 +1515,7 @@ pnpm vitest run src/autonomous/__tests__/notify.test.ts
 
 Expected output: module not found `../notify.js`.
 
-- [ ] **Step 3: Implement** — create `src/autonomous/notify.ts`:
+- [x] **Step 3: Implement** — create `src/autonomous/notify.ts`:
 
 ```ts
 import { spawnSync } from 'node:child_process';
@@ -1555,7 +1555,7 @@ export function notify(
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/notify.test.ts
@@ -1563,7 +1563,7 @@ pnpm vitest run src/autonomous/__tests__/notify.test.ts
 
 Expected output: 3 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/autonomous/notify.ts src/autonomous/__tests__/notify.test.ts
@@ -1578,7 +1578,7 @@ git commit -m "feat(autonomous): fail-open notify shell hook (escalation, cycle-
 Modify: `src/cr/config.ts`
 Test: `src/cr/__tests__/config.test.ts` (extend if present; if the file does not exist, create it with just this describe)
 
-- [ ] **Step 1: Write the failing test** — locate the existing config test (`ls src/cr/__tests__/ | grep -i config`). Append (or create the file with imports `import { describe, expect, it } from 'vitest'; import { autonomousConfigSchema } from '../config.js';`):
+- [x] **Step 1: Write the failing test** — locate the existing config test (`ls src/cr/__tests__/ | grep -i config`). Append (or create the file with imports `import { describe, expect, it } from 'vitest'; import { autonomousConfigSchema } from '../config.js';`):
 
 ```ts
 describe('autonomous.watch rails schema', () => {
@@ -1600,7 +1600,7 @@ describe('autonomous.watch rails schema', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/cr/__tests__/
@@ -1608,7 +1608,7 @@ pnpm vitest run src/cr/__tests__/
 
 Expected output: failures — `watch` unknown key (zod strips/undefined) or shape mismatch.
 
-- [ ] **Step 3: Implement** — in `src/cr/config.ts`, extend `autonomousConfigSchema`:
+- [x] **Step 3: Implement** — in `src/cr/config.ts`, extend `autonomousConfigSchema`:
 
 ```ts
 export const watchConfigSchema = z.object({
@@ -1628,7 +1628,7 @@ export const autonomousConfigSchema = z.object({
 });
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/cr/__tests__/
@@ -1636,7 +1636,7 @@ pnpm vitest run src/cr/__tests__/
 
 Expected output: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/cr/config.ts src/cr/__tests__/
@@ -1651,7 +1651,7 @@ git commit -m "feat(autonomous): watch rails sub-schema (interval, daily cap, tr
 Create: `src/autonomous/watch.ts`
 Test: `src/autonomous/__tests__/watch-args.test.ts`
 
-- [ ] **Step 1: Write the failing test** — create `src/autonomous/__tests__/watch-args.test.ts`:
+- [x] **Step 1: Write the failing test** — create `src/autonomous/__tests__/watch-args.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
@@ -1701,7 +1701,7 @@ describe('resolve130', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL**
+- [x] **Step 2: Run to verify FAIL**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/watch-args.test.ts
@@ -1709,7 +1709,7 @@ pnpm vitest run src/autonomous/__tests__/watch-args.test.ts
 
 Expected output: module not found `../watch.js`.
 
-- [ ] **Step 3: Implement** — create `src/autonomous/watch.ts`:
+- [x] **Step 3: Implement** — create `src/autonomous/watch.ts`:
 
 ```ts
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -1996,7 +1996,7 @@ if (invokedDirect) {
 }
 ```
 
-- [ ] **Step 4: Run to verify PASS**
+- [x] **Step 4: Run to verify PASS**
 
 ```bash
 pnpm vitest run src/autonomous/__tests__/watch-args.test.ts
@@ -2004,7 +2004,7 @@ pnpm vitest run src/autonomous/__tests__/watch-args.test.ts
 
 Expected output: 4 tests pass.
 
-- [ ] **Step 5: Verify no import cycle / type breakage**
+- [x] **Step 5: Verify no import cycle / type breakage**
 
 ```bash
 pnpm typecheck
@@ -2012,7 +2012,7 @@ pnpm typecheck
 
 Expected output: clean exit 0. (`watch.ts` imports `assertConfig` from `queue-drain.ts`; queue-drain's `main()` only runs when invoked directly, so the import is side-effect-free.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/autonomous/watch.ts src/autonomous/__tests__/watch-args.test.ts
@@ -2027,7 +2027,7 @@ git commit -m "feat(autonomous): noldor autonomous watch scheduler (cycles, rail
 Create: `src/autonomous/inbox-cli.ts`, `src/autonomous/unpark-cli.ts`
 Modify: `src/autonomous/queue-drain.ts`, `src/cli/manifest.ts`
 
-- [ ] **Step 1: Create `src/autonomous/inbox-cli.ts`:**
+- [x] **Step 1: Create `src/autonomous/inbox-cli.ts`:**
 
 ```ts
 import { readInboxRows } from './escalations.js';
@@ -2053,7 +2053,7 @@ const invokedDirect = /[\\/]inbox-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '')
 if (invokedDirect) main();
 ```
 
-- [ ] **Step 2: Create `src/autonomous/unpark-cli.ts`:**
+- [x] **Step 2: Create `src/autonomous/unpark-cli.ts`:**
 
 ```ts
 import { unparkSlug } from './escalations.js';
@@ -2086,7 +2086,7 @@ const invokedDirect = /[\\/]unpark-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? ''
 if (invokedDirect) main();
 ```
 
-- [ ] **Step 3: Wire `queue-drain.ts`** (run-side symmetry, spec Unit 3 / D3). In `main()`:
+- [x] **Step 3: Wire `queue-drain.ts`** (run-side symmetry, spec Unit 3 / D3). In `main()`:
 
 3a. Extend imports:
 
@@ -2128,7 +2128,7 @@ import { applyCycleVerdict, loadPark, mapCycle, parkAwareSource } from './escala
 
 (No notify on the run path — operator-fired runs report to their own terminal.)
 
-- [ ] **Step 4: Manifest entries** — in `src/cli/manifest.ts`, extend the `autonomous` group's `subs`:
+- [x] **Step 4: Manifest entries** — in `src/cli/manifest.ts`, extend the `autonomous` group's `subs`:
 
 ```ts
       watch: {
@@ -2145,7 +2145,7 @@ import { applyCycleVerdict, loadPark, mapCycle, parkAwareSource } from './escala
       },
 ```
 
-- [ ] **Step 5: Run to verify**
+- [x] **Step 5: Run to verify**
 
 ```bash
 pnpm typecheck && pnpm vitest run src/autonomous/
@@ -2165,7 +2165,7 @@ pnpm noldor autonomous unpark nothing-parked
 
 Expected output: `nothing-parked: not parked — nothing to do`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/autonomous/inbox-cli.ts src/autonomous/unpark-cli.ts src/autonomous/queue-drain.ts src/cli/manifest.ts
@@ -2180,7 +2180,7 @@ git commit -m "feat(autonomous): inbox/unpark CLIs + run-side park, salvage, and
 Create: `docs/noldor/autonomy.md`
 Modify: `docs/noldor/cr-pipeline.md`, `docs/noldor/script-catalog.md`, `docs/features/continuous-drain-daemon-and-escalation-inbox.md`
 
-- [ ] **Step 1: Create `docs/noldor/autonomy.md`:**
+- [x] **Step 1: Create `docs/noldor/autonomy.md`:**
 
 ```markdown
 # Continuous Autonomy — watch, salvage, escalations
@@ -2272,13 +2272,13 @@ Out of scope for now: run the watcher on the operator's machine (daemon or local
 `--once`). A CI-cron variant waits for consumer-contract CI (secrets + checkout strategy).
 ```
 
-- [ ] **Step 2: Pointer in `docs/noldor/cr-pipeline.md`** — locate the drain/autonomous section heading (`grep -n "drain" docs/noldor/cr-pipeline.md | head`) and append one line under it:
+- [x] **Step 2: Pointer in `docs/noldor/cr-pipeline.md`** — locate the drain/autonomous section heading (`grep -n "drain" docs/noldor/cr-pipeline.md | head`) and append one line under it:
 
 ```markdown
 Continuous mode (watch daemon, salvage, escalation inbox, rails): see [`autonomy.md`](autonomy.md).
 ```
 
-- [ ] **Step 3: Script catalog** — in `docs/noldor/script-catalog.md`, insert a new `## Autonomous` section directly before `## Utilities`:
+- [x] **Step 3: Script catalog** — in `docs/noldor/script-catalog.md`, insert a new `## Autonomous` section directly before `## Utilities`:
 
 ```markdown
 ## Autonomous
@@ -2291,7 +2291,7 @@ Continuous mode (watch daemon, salvage, escalation inbox, rails): see [`autonomy
 | `pnpm noldor autonomous unpark`  | [`src/autonomous/unpark-cli.ts`](../../src/autonomous/unpark-cli.ts)      | Resolve an escalation: `unpark <slug> [--source <id>]`.                                   |
 ```
 
-- [ ] **Step 4: FD links correction** — in `docs/features/continuous-drain-daemon-and-escalation-inbox.md` frontmatter, replace the `links` block (the roadmap entry's pointers were partly stale — no dashboard surface ships in this slice; the autonomous config block lives in `src/cr/config.ts`):
+- [x] **Step 4: FD links correction** — in `docs/features/continuous-drain-daemon-and-escalation-inbox.md` frontmatter, replace the `links` block (the roadmap entry's pointers were partly stale — no dashboard surface ships in this slice; the autonomous config block lives in `src/cr/config.ts`):
 
 ```yaml
 links:
@@ -2320,7 +2320,7 @@ links:
   plan: docs/superpowers/plans/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md
 ```
 
-- [ ] **Step 5: Validate + commit**
+- [x] **Step 5: Validate + commit**
 
 ```bash
 pnpm noldor validate features
@@ -2340,7 +2340,7 @@ git commit -m "docs(autonomous): autonomy.md runbook, script-catalog rows, cr-pi
 **Files:**
 Modify: none (verification only)
 
-- [ ] **Step 1: Full suite**
+- [x] **Step 1: Full suite**
 
 ```bash
 pnpm verify
@@ -2348,7 +2348,7 @@ pnpm verify
 
 Expected output: oxlint clean, oxfmt clean, tsc clean, vitest all green. Fix anything red before proceeding (formatting: `pnpm fmt`).
 
-- [ ] **Step 2: Dry-run smoke of the watch cycle** (no spawns, no mutations):
+- [x] **Step 2: Dry-run smoke of the watch cycle** (no spawns, no mutations):
 
 ```bash
 pnpm noldor autonomous watch --once --dry-run --max-features 1
@@ -2356,7 +2356,7 @@ pnpm noldor autonomous watch --once --dry-run --max-features 1
 
 Expected output: one cycle line, e.g. `watch cycle: shipped 0, parked 0, failures 0/3`, exit 0. (Dry-run marks candidates planned/skipped without spawning; with no eligible fast-track XS/S entry it reports shipped 0.)
 
-- [ ] **Step 3: Pause-switch smoke**
+- [x] **Step 3: Pause-switch smoke**
 
 ```bash
 touch .noldor/drain.pause && pnpm noldor autonomous watch --once; echo "exit=$?"; rm .noldor/drain.pause
@@ -2364,7 +2364,7 @@ touch .noldor/drain.pause && pnpm noldor autonomous watch --once; echo "exit=$?"
 
 Expected output: `watch: paused (.noldor/drain.pause present)` and `exit=0`.
 
-- [ ] **Step 4: Notify smoke**
+- [x] **Step 4: Notify smoke**
 
 ```bash
 NOTIFY_OUT=$(mktemp); pnpm exec tsx -e "
@@ -2375,7 +2375,7 @@ notify('printf %s \"\$NOLDOR_NOTIFY_KIND\" > $NOTIFY_OUT', 'cycle-summary', {ok:
 
 Expected output: `cycle-summary`
 
-- [ ] **Step 5: Commit any straggler formatting**
+- [x] **Step 5: Commit any straggler formatting**
 
 ```bash
 git status --porcelain
