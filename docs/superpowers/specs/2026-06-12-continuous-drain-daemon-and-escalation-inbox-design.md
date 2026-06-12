@@ -116,7 +116,7 @@ Park enforcement: `parkAwareSource(inner, parked, sourceId)` decorator wraps `Dr
 CLI (registered under `autonomous` in `src/cli/manifest.ts`):
 
 - `noldor autonomous inbox [--json]` — joins `drain-park.json` with the **earliest unresolved** `escalations.jsonl` line per parked slug (the first observation carries the authoritative evidence; later duplicates are suppressed by dedup anyway); prints one-glance `slug | reason | ts | evidence-summary | suggested-action`.
-- `noldor autonomous unpark <slug>` — removes from `drain-park.json` (idempotent; missing slug = note + exit 0); appends a resolution line to `escalations.jsonl` (`reason: 'unparked'`-style audit entry is NOT a new reason enum member — it's written as a plain JSONL line with `{ ts, slug, resolved: true }`) so the audit trail closes.
+- `noldor autonomous unpark <slug> [--source <id>]` — removes the matching entry from `drain-park.json` (idempotent; missing slug = note + exit 0; slug parked under multiple sources without `--source` = error listing the candidates); appends a resolution line to `escalations.jsonl` (NOT a new reason enum member — a plain JSONL line `{ ts, slug, source, resolved: true }`) so the audit trail closes.
 
 ### Unit 4 — `src/autonomous/notify.ts` (new): pluggable hook
 
