@@ -26,15 +26,16 @@ links:
     - src/autonomous/__tests__/notify.test.ts
     - src/autonomous/__tests__/watch-args.test.ts
     - src/autonomous/__tests__/run-drain.test.ts
-  spec: docs/superpowers/specs/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md
-  plan: docs/superpowers/plans/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md
+  spec: >-
+    docs/superpowers/specs/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md
+  plan: >-
+    docs/superpowers/plans/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md
 name: Continuous Drain Daemon and Escalation Inbox
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
-
 ## Summary
 
 Every autonomous stage is one-shot and operator-fired: someone types `noldor autonomous run`, watches (or returns later), handles failures by reading logs, salvages stale bases by hand from a memory recipe. The vision sentence — agents ship unsupervised — currently means "unsupervised per invocation". Make autonomy *continuous*: a long-running (or cron-fired) mode that keeps draining the queue, repairs its own known failure modes, and escalates the rest to a structured inbox instead of dying or blocking.
@@ -69,11 +70,11 @@ pnpm noldor autonomous watch --once --max-features 1
 
 # triage
 pnpm noldor autonomous inbox            # open escalations: slug | reason | evidence | suggested action
-pnpm noldor autonomous unpark <slug>    # resolve → re-eligible next cycle
+pnpm noldor autonomous unpark <slug>    # resolve → re-eligible next cycle (--source <id> when ambiguous)
 
-# pause / resume
-touch .noldor/drain.pause               # honored mid-cycle (between iterations)
-rm .noldor/drain.pause
+# pause / resume / stop
+touch .noldor/drain.pause               # honored mid-cycle (between iterations); rm to resume
+touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at next watch startup
 
 # notification hook (consumer one-liner, .noldor/config.json)
 # autonomous.watch.notifyCommand: "slack-cli post --channel ops \"$NOLDOR_NOTIFY_JSON\""
