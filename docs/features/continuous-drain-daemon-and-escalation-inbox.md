@@ -43,11 +43,28 @@ Every autonomous stage is one-shot and operator-fired: someone types `noldor aut
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator running an agent-driven repo, I want the roadmap queue to drain continuously — salvaging its own known failure modes and parking the rest into a reviewable inbox — so that my job collapses to feeding triage and clearing escalations instead of babysitting one-shot drain invocations.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+```bash
+# long-lived daemon: bounded cycle every 30 min (config default)
+pnpm noldor autonomous watch
+
+# cron mode: one cycle, then exit
+pnpm noldor autonomous watch --once --max-features 1
+
+# triage
+pnpm noldor autonomous inbox            # open escalations: slug | reason | evidence | suggested action
+pnpm noldor autonomous unpark <slug>    # resolve → re-eligible next cycle
+
+# pause / resume
+touch .noldor/drain.pause               # honored mid-cycle (between iterations)
+rm .noldor/drain.pause
+
+# notification hook (consumer one-liner, .noldor/config.json)
+# autonomous.watch.notifyCommand: "slack-cli post --channel ops \"$NOLDOR_NOTIFY_JSON\""
+```
 
 ## PRs
 
