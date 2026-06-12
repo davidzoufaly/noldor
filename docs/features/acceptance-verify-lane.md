@@ -19,7 +19,7 @@ links:
 name: Acceptance-Verify Lane
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary
