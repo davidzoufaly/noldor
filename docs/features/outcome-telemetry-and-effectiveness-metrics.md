@@ -12,14 +12,26 @@ links:
     - docs/noldor/metrics.md
     - docs/noldor/script-catalog.md
   tests:
+    - src/core/agent-runner/usage/__tests__/adapters.test.ts
+    - src/dashboard/__tests__/metrics-view.test.ts
     - src/features/__tests__/feature-schema-since.test.ts
+    - src/garden/__tests__/sdd-report-metrics.test.ts
+    - src/metrics/__tests__/compute-cli.test.ts
+    - src/metrics/__tests__/compute.test.ts
+    - src/metrics/__tests__/cr-and-override.test.ts
+    - src/metrics/__tests__/cycle-time.test.ts
+    - src/metrics/__tests__/drain-and-tokens.test.ts
+    - src/metrics/__tests__/facts.test.ts
+    - src/metrics/__tests__/routing-accuracy.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md
+  plan: >-
+    docs/superpowers/plans/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md
 name: Outcome Telemetry and Effectiveness Metrics
 packages:
   - scripts
-phase: in-progress
-since: 2026-06-11T00:00:00.000Z
+phase: done
+since: '2026-06-11'
 noldor-tier: full
 ---
 ## Summary
