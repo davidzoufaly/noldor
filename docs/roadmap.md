@@ -10,19 +10,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### graphify-out Breaks fmt:check
-
-- area: tooling
-- type: fix
-- since: 2026-06-12
-- size: S
-- impact: high
-- confidence: high
-
-Graphify writes its cache to `src/graphify-out/` when scanned on `src` → breaks `fmt:check` every run (had to `mv` to `/tmp` 3×). Make it write under a top-level `graphify-out/` or exclude the path from fmt.
-
-- `graphify-out/graph.html` oxfmt churn ~41k lines per sweep → gitignore `graph.html` or exclude it from fmt.
-
 ### README Status Section Stale
 
 - area: docs
