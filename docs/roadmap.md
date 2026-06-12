@@ -99,17 +99,6 @@ Add a milestones layer to Noldor — tracking which features belong to which mil
 
 Under `--concurrency >1`, every fast-track child removes its own block from the shared `docs/roadmap.md`; the serialized merge coordinator rebases each PR onto the prior merge, but git cannot auto-merge *adjacent* block removals → the PR goes `DIRTY`, the coordinator skips it, and the worktree + open PR are orphaned. Hit live during a 23-entry drain: ~5 of the K=3 PRs went DIRTY, forcing a fall back to `--concurrency 1` (sequential is conflict-free by construction — each merges before the next branch is cut). Block-removal is deterministic, so the coordinator should re-apply "remove `<slug>`'s block" against the freshly-rebased base (parse + drop the block, not a textual 3-way merge) rather than letting git's line-merge fail. Without this, `--concurrency >1` is effectively unusable for roadmap-source drains. Touches: `src/autonomous/drain-io.ts`, `src/autonomous/drain-loop.ts`, `src/utils/parse-blocks.ts`.
 
-### PR-Flow Tree-Shape Validation (auditReleasePushes)
-
-- area: tooling
-- type: feat
-- since: 2026-05-15
-- size: S
-- impact: med
-- parent: framework-pr-flow-agent-auto-merge
-
-`scripts/garden/detectors/override-audit.ts`'s `auditReleasePushes` only validates the receipt-log format today (per spec §7 of `framework-pr-flow-agent-auto-merge`). Extend the detector to cross-check each receipt SHA against the canonical release-commit signature: `git show --name-only <sha>` must include `package.json` and `docs/release-notes.md`. Suspicious receipts (env-var-bypass written but commit doesn't match release shape) get downgraded to WARN. Closes the spec gap noted as a TODO comment above `auditReleasePushes`.
-
 #### Drain Startup Reconciliation of a Prior Dead Run
 
 - area: tooling
