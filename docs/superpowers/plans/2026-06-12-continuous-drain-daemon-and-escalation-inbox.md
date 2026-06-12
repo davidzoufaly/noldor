@@ -542,7 +542,7 @@ export function makeSalvage(cwd: string): (slug: string, branch: string) => 'cle
 pnpm vitest run src/autonomous/__tests__/salvage.test.ts
 ```
 
-Expected output: 7 tests pass.
+Expected output: 9 tests pass (8 `detectStale` + 1 `repair`).
 
 - [ ] **Step 5: Commit**
 
