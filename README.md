@@ -4,7 +4,7 @@ Discipline framework for agent-driven software development. Single gate, doc-anc
 
 ## Status
 
-Standalone repo (`github.com/davidzoufaly/noldor`), lifted out of the Charuy monorepo. Pre-1.0 (`0.2.0`) and self-hosting — Noldor dogfoods its own gate, drain, and release framework. Distribution is still `file:`-dependency based; npm publication and a version-migration chain are tracked on the roadmap.
+Standalone repo (`github.com/davidzoufaly/noldor`), lifted out of the Charuy monorepo. Pre-1.0 (`0.3.0`) and self-hosting — Noldor dogfoods its own gate, drain, and release framework. Distribution is still `file:`-dependency based; npm publication and a version-migration chain are tracked on the roadmap.
 
 ## Quick start
 
