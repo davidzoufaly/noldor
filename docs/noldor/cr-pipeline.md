@@ -93,10 +93,13 @@ lane overrides and autonomous-mode toggles. **Both blocks are optional**
   "autonomous": {
     "skipLanePicker": false,          // default false — true skips the lane multi-select
     "onFailure": "prompt",            // default "prompt" | "spawn-deep-review" | "abort"
-    "requireHumanPrApproval": false   // default false — true keeps the PR-approval prompt
+    "requireHumanPrApproval": false,  // default false — true keeps the PR-approval prompt
+    "watch": {}                       // optional watch-daemon rails — see docs/noldor/autonomy.md
   }
 }
 ```
+
+Continuous mode (watch daemon, salvage, escalation inbox, rails): see [`autonomy.md`](autonomy.md).
 
 Built-in defaults live in `DEFAULT_CR_LANES` (`src/cr/config.ts`):
 `{ spec: ['subagent'], plan: ['subagent'], code: ['subagent'] }`. `subagent`

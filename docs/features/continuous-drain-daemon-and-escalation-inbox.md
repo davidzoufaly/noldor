@@ -6,15 +6,28 @@ deps:
   - acceptance-verify-lane
 links:
   code:
-    - src/autonomous/
-    - src/core/consumer-config.ts
-    - src/dashboard/
+    - src/autonomous/watch.ts
+    - src/autonomous/salvage.ts
+    - src/autonomous/escalations.ts
+    - src/autonomous/watch-state.ts
+    - src/autonomous/notify.ts
+    - src/autonomous/inbox-cli.ts
+    - src/autonomous/unpark-cli.ts
+    - src/autonomous/drain-loop.ts
+    - src/autonomous/queue-drain.ts
+    - src/core/agent-events.ts
+    - src/cr/config.ts
     - src/cli/manifest.ts
-    - docs/noldor/cr-pipeline.md
     - docs/noldor/autonomy.md
-    - script-catalog.md
-  tests: []
+  tests:
+    - src/autonomous/__tests__/salvage.test.ts
+    - src/autonomous/__tests__/escalations.test.ts
+    - src/autonomous/__tests__/watch-state.test.ts
+    - src/autonomous/__tests__/notify.test.ts
+    - src/autonomous/__tests__/watch-args.test.ts
+    - src/autonomous/__tests__/run-drain.test.ts
   spec: docs/superpowers/specs/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md
+  plan: docs/superpowers/plans/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md
 name: Continuous Drain Daemon and Escalation Inbox
 packages:
   - scripts
