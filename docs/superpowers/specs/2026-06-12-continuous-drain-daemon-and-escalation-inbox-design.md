@@ -36,14 +36,15 @@ Registered as `autonomous.watch` in `src/cli/manifest.ts`. Flags: `--interval <m
 Lifecycle:
 
 1. Parse flags; `assertConfig(loadConfigSync())` (reuse from `queue-drain.ts`); load `watch` rails from config.
-2. `acquireLock(cwd, startedAt)` (`src/autonomous/drain-lock.ts`) **once for the watcher's lifetime** — a second watcher (or a concurrent `autonomous run`) refuses to start, exactly today's semantics. Released in `finally`.
+2. `acquireLock(cwd, startedAt)` (`src/autonomous/drain-lock.ts`) **once for the watcher's lifetime** — a second watcher (or a concurrent `autonomous run`) refuses to start, exactly today's semantics. Released in `finally`. Then clear a stale `.noldor/drain-stop` sentinel exactly as `queue-drain.ts:110-114` does (and again before each cycle): the sentinel is a one-shot stop signal, and a leftover from a prior run would otherwise short-circuit every cycle to exit 130. `.noldor/drain.pause` is deliberately NOT cleared — pause is the persistent operator switch, stop is one-shot.
 3. Cycle loop:
    a. Pause check: `.noldor/drain.pause` exists → daemon logs + sleeps (re-checks each interval); `--once` exits 0 with a "paused" note.
    b. Daily-cap check from watch state (Unit 5): `shippedToday >= maxFeaturesPerDay` → sleep until `dayKey` rolls (daemon) or exit 0 (`--once`).
    c. Run one bounded drain: call `runDrain(deps, opts)` as a library (NOT the `queue-drain.ts` CLI — that would double-acquire the lock). Deps are the production set from `queue-drain.ts` (`spawnGate`, `syncMainCleanState`, `openPrExistsFor`, `mergePr`, `writeState` from `src/autonomous/drain-io.ts` / `drain-state.ts`) with two changes: the source is wrapped by the park-filter decorator (Unit 3) and `salvageStaleBase` (Unit 2) is provided; `stopRequested` returns true on SIGINT, `.noldor/drain-stop`, **or `.noldor/drain.pause`** — so a pause written mid-cycle stops between iterations through the existing seam (the exit-130 path `runDrain` already implements).
    d. Map the `DrainResult` to escalations (Unit 3), update watch state + rails (Unit 5), fire `cycle-summary` notify (Unit 4).
    e. `--once` → exit; else sleep `intervalMinutes` (interruptible by SIGINT).
-4. Exit codes: 0 clean/paused/capped, 1 tripped or repo-level abort with trip, 130 operator stop.
+4. Exit-130 disambiguation: pause, `drain-stop`, and SIGINT all flow through the same `stopRequested` seam, so `runDrain` returns 130 for all three. After a 130 cycle the watcher inspects its own state: its SIGINT flag set → exit 130; else `.noldor/drain.pause` exists → the cycle was pause-stopped → daemon holds (re-checks each interval), `--once` exits 0 with a paused note; else (a freshly written `drain-stop`) → exit 130. A 130 cycle is neutral for the trip rule — it never counts as a failed cycle (Unit 5).
+5. Exit codes: 0 clean/paused/capped, 1 tripped or repo-level abort with trip, 130 operator stop.
 
 ### Unit 2 — `src/autonomous/salvage.ts` (new): pre-spawn clean-room
 
@@ -59,7 +60,7 @@ Called in `worker()` after the `openPrExistsFor` skip-guard and before `spawnGat
 
 - local branch exists (`git rev-parse --verify <branch>`) and `git merge-base --is-ancestor origin/main <branch>` fails — `origin/main` is not an ancestor of the branch tip, so the branch was cut from (and still bases on) an older main → stale; OR
 - a **closed-unmerged** PR exists for the head: `gh pr list --state closed --head <branch> --json number,mergedAt` with `mergedAt == null` entries (mirrors `openPrExistsFor` in `drain-io.ts`); OR
-- a remote branch `origin/<branch>` exists with no open PR (leftover push).
+- a remote branch `origin/<branch>` exists (leftover push — the worker's `openPrExistsFor` guard at `drain-loop.ts:218` already guarantees no open PR exists by the time salvage runs).
 
 `repair(cwd, slug, branch)` then: `git worktree remove --force .worktrees/<slug>` (if registered), `git branch -D <branch>` (if exists), `git push origin --delete <branch>` (best-effort — remote may already be gone), and appends a `salvaged` event (Unit 6). Closed PRs are left as history. Return `'salvaged'`.
 
@@ -71,18 +72,18 @@ Failure inside salvage: throw → the worker's existing catch treats it as a sys
 
 Storage (both under `.noldor/`, gitignored like the other runtime artifacts):
 
-- `escalations.jsonl` — append-only audit log: `{ ts, slug, reason, evidence, stateSnapshot, suggestedAction }`. `reason ∈ 'retries-exhausted' | 'merge-conflict' | 'run-aborted' | 'watcher-tripped'`. `evidence` = retry count, last skip reason, `res.error` text when present. `stateSnapshot` = `{ shipped, skipped, retries }` from the `DrainResult`. `suggestedAction` = canned per reason (e.g. retries-exhausted → "inspect `.noldor/cr/<slug>-*` sinks; unpark after fixing the entry or its premise").
+- `escalations.jsonl` — append-only audit log: `{ ts, slug, reason, evidence, stateSnapshot, suggestedAction }`. `reason ∈ 'retries-exhausted' | 'merge-conflict' | 'merge-timeout' | 'run-aborted' | 'watcher-tripped'`. `evidence` = retry count, last skip reason, `res.error` text when present. `stateSnapshot` = `{ shipped, skipped, retries }` from the `DrainResult`. `suggestedAction` = canned per reason (e.g. retries-exhausted → "inspect `.noldor/cr/<slug>-*` sinks; unpark after fixing the entry or its premise").
 - `drain-park.json` — the open set: `{ [slug]: { reason, ts } }`. Parked slugs are the inbox's "open" items; resolution = removal.
 
 Loop visibility change (the only `drain-loop.ts` edit besides the optional dep): `recordRetryOrSkip` records `skipReasons[slug] = 'retries-exhausted'` when it crosses `maxRetries` into `skip` — today that reason is silent, which makes post-run mapping impossible. Ineligible skips keep their precise source-provided reasons.
 
-Mapping (watch layer, after each cycle — the loop itself stays IO-pure):
+Mapping (a pure exported helper `mapCycleToEscalations(result)` called after each `runDrain` return — by `watch.ts` per cycle AND by `queue-drain.ts` post-run, so a plain `run`'s terminal failures land in the same inbox; the loop itself stays IO-pure):
 
-- skip with reason `retries-exhausted` or the coordinator's `merge-conflict — PR left open for human resolution` → append escalation + park the slug.
+- skip with reason `retries-exhausted`, or either coordinator outcome string — `merge-conflict — PR left open for human resolution` / `merge-timeout — PR left open for human resolution` (both non-`merged` members of `MergeOutcome`, `drain-io.ts:16`, written at `drain-loop.ts:268`) → append escalation (reason `retries-exhausted` / `merge-conflict` / `merge-timeout`) + park the slug. Mapping on both outcomes matters: a timed-out merge leaves an open PR that `openPrExistsFor` silently re-skips every later cycle — without parking it would be exactly the invisible-failure class this feature exists to kill.
 - `res.error` set (abort: ff-only reject, `gh` failure, unknown git state) → append `run-aborted` escalation, **no park** (repo-scoped — the next item would hit the same wall), bump the consecutive-failure rail.
 - ineligible skips → never escalated (they're queue hygiene, not failures).
 
-Park enforcement: `parkAwareSource(inner, parked)` decorator wraps `DrainSource.nextItem(exclude)` to add parked slugs to the exclude set (and filters `parseAll` is NOT touched — absence-oracle semantics must stay pristine). Zero `runDrain` signature change.
+Park enforcement: `parkAwareSource(inner, parked)` decorator wraps `DrainSource.nextItem(exclude)` to add parked slugs to the exclude set (`parseAll` is NOT touched — absence-oracle semantics must stay pristine). Zero `runDrain` signature change. Wired into **both** entry points — `watch.ts` and `queue-drain.ts` — same symmetry as salvage (D3): a parked slug must not be re-attempted by a plain `noldor autonomous run` either.
 
 CLI (registered under `autonomous` in `src/cli/manifest.ts`):
 
@@ -91,7 +92,7 @@ CLI (registered under `autonomous` in `src/cli/manifest.ts`):
 
 ### Unit 4 — `src/autonomous/notify.ts` (new): pluggable hook
 
-Config: `autonomous.watch.notifyCommand?: string`. Unset → no-op. Set → `spawnSync('bash', ['-c', cmd])` with env `NOLDOR_NOTIFY_KIND` (`escalation` | `cycle-summary` | `watcher-tripped`) and `NOLDOR_NOTIFY_JSON` (compact payload). 10s timeout, stdio piped, any failure logged to stderr and swallowed — notification must never block or kill the loop (same fail-open contract as `appendAgentEvent` in `src/core/agent-events.ts`). Slack/mail/push is the consumer's one-liner, out of framework scope.
+Config: `autonomous.watch.notifyCommand?: string`. Unset → no-op. Set → `spawnSync('bash', ['-c', cmd])` with env `NOLDOR_NOTIFY_KIND` (`escalation` | `cycle-summary` | `watcher-tripped`) and `NOLDOR_NOTIFY_JSON` (compact payload). POSIX-only by construction — consistent with `syncMainCleanState`'s existing bash usage; noted in the `autonomy.md` contract. 10s timeout, stdio piped, any failure logged to stderr and swallowed — notification must never block or kill the loop (same fail-open contract as `appendAgentEvent` in `src/core/agent-events.ts`). Slack/mail/push is the consumer's one-liner, out of framework scope.
 
 ### Unit 5 — rails: config schema + watch state
 
@@ -108,9 +109,9 @@ watch: z.object({
 
 Wall-clock cap per item = the existing `--iteration-timeout` (default 30 min in `parseArgs`) — documented in `autonomy.md`, not duplicated as a new rail.
 
-`watch-state.json` (`.noldor/`, best-effort writes mirroring `writeState` in `drain-state.ts`): `{ dayKey: 'YYYY-MM-DD', shippedToday, consecutiveFailures, lastCycleAt, pausedReason? }`. Day rollover resets `shippedToday`. Restart-safe: a restarted watcher resumes today's counts instead of resetting the cap.
+`watch-state.json` (`.noldor/`, best-effort writes mirroring `writeState` in `drain-state.ts`): `{ dayKey: 'YYYY-MM-DD', shippedToday, consecutiveFailures, lastCycleAt, pausedReason? }`. Day rollover resets `shippedToday`. Restart-safe: a restarted watcher resumes today's counts instead of resetting the cap. The cap check is pre-cycle only, so a cycle with `--max-features N > 1` can overshoot `maxFeaturesPerDay` by up to N−1 — fine at the default of 1; noted in `autonomy.md`.
 
-Trip rule: a cycle counts as failed when `res.exitCode === 1` (abort) or (`res.shipped === 0` and ≥1 new escalation this cycle). `consecutiveFailures` resets on any cycle with ≥1 ship or with zero failures. Reaching `maxConsecutiveFailures` → write `.noldor/drain.pause` (so even a cron-fired `--once` respects the trip), append `watcher-tripped` escalation, fire notify, exit 1. Resume: operator clears escalations via inbox, then `rm .noldor/drain.pause` (documented; no auto-unpause).
+Trip rule: a cycle counts as failed when `res.exitCode === 1` (abort) or (`res.shipped === 0` and ≥1 new escalation this cycle). Exit-130 cycles (pause/stop/SIGINT) are neutral — neither failed nor resetting. `consecutiveFailures` resets on any cycle with ≥1 ship or with zero failures. Reaching `maxConsecutiveFailures` → write `.noldor/drain.pause` (so even a cron-fired `--once` respects the trip), append `watcher-tripped` escalation, fire notify, exit 1. Resume: operator clears escalations via inbox, then `rm .noldor/drain.pause` (documented; no auto-unpause).
 
 ### Unit 6 — `salvaged` event
 
@@ -137,7 +138,7 @@ New `docs/noldor/autonomy.md` (watch lifecycle, rails table, pause/resume + trip
 
 ## Acceptance criteria
 
-- `noldor autonomous watch --interval 5 --max-features 1` over a queue seeded with 3 entries (one engineered stale-base, one destined-to-fail): two ship across cycles — the stale-base one only after a `salvaged` event appears in `agent-events.jsonl`; the failing one lands in `escalations.jsonl` with reason `retries-exhausted`, evidence, and a park entry, and the watcher proceeds to the next item in the same run.
+- `noldor autonomous watch --interval 5 --max-features 1` over a queue seeded with 3 entries (one engineered stale-base, one destined-to-fail): two ship across cycles — the stale-base one only after a `salvaged` event appears in `agent-events.jsonl`; the failing one lands in `escalations.jsonl` with reason `retries-exhausted`, evidence, and a park entry, and the watcher keeps running — the remaining item ships in a subsequent cycle of the same watch run.
 - `noldor autonomous inbox` lists the parked slug with reason + suggested action; `--json` emits machine-readable rows; `noldor autonomous unpark <slug>` removes it and the next cycle re-selects the slug.
 - Creating `.noldor/drain.pause` mid-cycle stops the drain between iterations (exit 130 path) and the daemon refuses to start a new cycle while the file exists; `--once` exits 0 with a paused note.
 - With `notifyCommand` set, the hook fires with `NOLDOR_NOTIFY_KIND=escalation` on the parked failure and `cycle-summary` after each cycle; an exiting/broken hook never fails the cycle.
