@@ -6,6 +6,10 @@ export interface AgentEvent {
   runner: string;
   role: string;
   site?: string;
+  /** Optional event vocabulary (e.g. 'salvaged'). The /agents roadmap entry formalizes it. */
+  kind?: string;
+  /** Slug the event concerns, when item-scoped. */
+  slug?: string;
   exitCode: number;
   durationMs: number;
   timedOut: boolean;
