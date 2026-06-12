@@ -10,17 +10,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### README Status Section Stale
-
-- area: docs
-- type: docs
-- since: 2026-06-12
-- size: XS
-- impact: med
-- confidence: high
-
-README Status section is stale — claims pre-extract, says it lives in the Charuy monorepo; we are standalone now. Rewrite to reflect the standalone repo state.
-
 ### Noldor Framework
 
 #### Drop Branched Worktrees — Single Dev Branch Workflow
