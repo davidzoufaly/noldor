@@ -11,16 +11,17 @@ links:
     - src/garden/
     - docs/noldor/metrics.md
     - docs/noldor/script-catalog.md
-  tests: []
+  tests:
+    - src/features/__tests__/feature-schema-since.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md
 name: Outcome Telemetry and Effectiveness Metrics
 packages:
   - scripts
 phase: in-progress
+since: 2026-06-11T00:00:00.000Z
 noldor-tier: full
 ---
-
 ## Summary
 
 The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
