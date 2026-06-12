@@ -12,7 +12,6 @@ export interface WatchState {
   pendingPr: string[];
   /** run-aborted streak dedup memory (spec Unit 3). */
   lastRunAbortError?: string;
-  pausedReason?: string;
 }
 
 export interface WatchRails {
@@ -40,7 +39,6 @@ export function loadWatchState(cwd: string, todayKey: string): WatchState {
       lastCycleAt: raw.lastCycleAt ?? '',
       pendingPr: raw.pendingPr ?? [],
       ...(raw.lastRunAbortError !== undefined ? { lastRunAbortError: raw.lastRunAbortError } : {}),
-      ...(raw.pausedReason !== undefined ? { pausedReason: raw.pausedReason } : {}),
     };
   } catch {
     /* fail-open: rails reset, never crash */

@@ -69,9 +69,14 @@ function spawnRunner(cwd: string): GitRunner {
 /**
  * Production `DrainDeps.salvageStaleBase`. Detects, repairs, and appends a
  * `salvaged` agent-event (fail-open by appendAgentEvent's contract). Detection
- * errors propagate — the loop treats a thrown dep as a systemic abort.
+ * errors propagate — the loop treats a thrown dep as a systemic abort. `role`
+ * attributes the event to the wiring entry point (`watch` daemon vs one-shot
+ * `run`) so telemetry stays honest.
  */
-export function makeSalvage(cwd: string): (slug: string, branch: string) => 'clean' | 'salvaged' {
+export function makeSalvage(
+  cwd: string,
+  role: 'watch' | 'run',
+): (slug: string, branch: string) => 'clean' | 'salvaged' {
   const run = spawnRunner(cwd);
   return (slug, branch) => {
     const started = Date.now();
@@ -81,7 +86,7 @@ export function makeSalvage(cwd: string): (slug: string, branch: string) => 'cle
     appendAgentEvent(cwd, {
       ts: new Date().toISOString(),
       runner: 'drain',
-      role: 'watch',
+      role,
       kind: 'salvaged',
       slug,
       site: reasons.join(','),

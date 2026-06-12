@@ -127,7 +127,7 @@ async function main(): Promise<void> {
     syncMainCleanState: () => syncMainCleanState(cwd),
     mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
-    salvageStaleBase: makeSalvage(cwd),
+    salvageStaleBase: makeSalvage(cwd, 'run'),
     writeState: (s) => {
       const state: DrainState = {
         pid: process.pid,
@@ -155,6 +155,7 @@ async function main(): Promise<void> {
   // Run-side escalation symmetry (spec Unit 3 / D3): terminal failures land in the same
   // inbox as watch cycles. mode 'run' never parks pr-open-unmerged and never notifies —
   // an operator-fired one-shot reports to its own terminal.
+  const runNow = new Date().toISOString();
   const verdict = mapCycle({
     result: res,
     mode: 'run',
@@ -162,9 +163,9 @@ async function main(): Promise<void> {
     parked: loadPark(cwd),
     pendingPr: [],
     queueUniverse: drainSource.parseAll(),
-    now: new Date().toISOString(),
+    now: runNow,
   });
-  applyCycleVerdict(cwd, parsed.source, verdict);
+  applyCycleVerdict(cwd, parsed.source, verdict, runNow);
 
   process.stdout.write(
     parsed.json

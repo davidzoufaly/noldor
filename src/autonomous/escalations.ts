@@ -170,18 +170,25 @@ function appendJsonl(cwd: string, obj: unknown): void {
  * Apply a {@link CycleVerdict}: append escalation rows, park, auto-unpark (with
  * `{ resolved: true, auto: true }` audit lines). All writes fail-open —
  * observability must never kill the drain. Notify is NOT here: the watch loop
- * owns it (plain `run` writes the same records but never notifies).
+ * owns it (plain `run` writes the same records but never notifies). `now` is
+ * the same injected timestamp the verdict's rows carry, so every record of one
+ * cycle agrees.
  */
-export function applyCycleVerdict(cwd: string, source: SourceId, v: CycleVerdict): void {
+export function applyCycleVerdict(
+  cwd: string,
+  source: SourceId,
+  v: CycleVerdict,
+  now: string,
+): void {
   for (const row of v.escalations) appendJsonl(cwd, row);
   const park = loadPark(cwd);
   for (const key of v.toUnpark) {
     const slug = key.split(':').slice(1).join(':');
     delete park[key];
-    appendJsonl(cwd, { ts: new Date().toISOString(), slug, source, resolved: true, auto: true });
+    appendJsonl(cwd, { ts: now, slug, source, resolved: true, auto: true });
   }
   for (const p of v.toPark) {
-    park[parkKey(source, p.slug)] = { reason: p.reason, ts: new Date().toISOString() };
+    park[parkKey(source, p.slug)] = { reason: p.reason, ts: now };
   }
   savePark(cwd, park);
 }
@@ -195,7 +202,14 @@ export interface InboxRow {
   suggestedAction: string;
 }
 
-/** Join each parked entry to its EARLIEST unresolved escalation line (first observation = authoritative evidence). */
+/**
+ * Join each parked entry to the first escalation line of its CURRENT open
+ * incident. Resolution is a separate appended line (the original row is never
+ * mutated), so "earliest unresolved match" would resurface a PRIOR incident's
+ * evidence after a park → unpark → re-park cycle. Instead, replay the log per
+ * (source, slug): a resolution line closes the incident; the first escalation
+ * row after the last resolution opens the live one.
+ */
 export function readInboxRows(cwd: string): InboxRow[] {
   const park = loadPark(cwd);
   let lines: Array<Record<string, unknown>> = [];
@@ -211,9 +225,15 @@ export function readInboxRows(cwd: string): InboxRow[] {
   return Object.entries(park).map(([key, entry]) => {
     const [source, ...rest] = key.split(':');
     const slug = rest.join(':');
-    const first = lines.find(
-      (l) => l.slug === slug && l.source === source && l.resolved === undefined,
-    );
+    let first: Record<string, unknown> | undefined;
+    for (const l of lines) {
+      if (l.slug !== slug || l.source !== source) continue;
+      if (l.resolved !== undefined) {
+        first = undefined; // incident closed — next row starts a fresh one
+      } else if (first === undefined) {
+        first = l;
+      }
+    }
     return {
       slug,
       source: source ?? '',
@@ -236,7 +256,12 @@ export type UnparkStatus =
  * `source` given) → caller must pass `--source`. Idempotent: missing slug is
  * a no-op note, not an error.
  */
-export function unparkSlug(cwd: string, slug: string, source?: string): UnparkStatus {
+export function unparkSlug(
+  cwd: string,
+  slug: string,
+  source?: string,
+  now: string = new Date().toISOString(),
+): UnparkStatus {
   const park = loadPark(cwd);
   const matches = Object.keys(park).filter((k) =>
     source !== undefined ? k === `${source}:${slug}` : k.split(':').slice(1).join(':') === slug,
@@ -247,7 +272,7 @@ export function unparkSlug(cwd: string, slug: string, source?: string): UnparkSt
   const src = key.split(':')[0]!;
   delete park[key];
   savePark(cwd, park);
-  appendJsonl(cwd, { ts: new Date().toISOString(), slug, source: src, resolved: true });
+  appendJsonl(cwd, { ts: now, slug, source: src, resolved: true });
   return { status: 'resolved', key };
 }
 

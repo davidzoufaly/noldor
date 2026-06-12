@@ -139,7 +139,7 @@ async function main(): Promise<void> {
         out('watch: paused (.noldor/drain.pause present)');
         emitJson({ cycle: 'paused' });
         if (parsed.once) break;
-        await interruptibleSleep(parsed.intervalMinutes * 60_000, () => sigint);
+        await interruptibleSleep(parsed.intervalMinutes * 60_000, () => sigint || !pauseExists());
         continue;
       }
       let state = loadWatchState(cwd, dayKeyOf(new Date()));
@@ -160,7 +160,7 @@ async function main(): Promise<void> {
         syncMainCleanState: () => syncMainCleanState(cwd),
         mergePr: (slug, branch) => mergePr(cwd, slug, branch),
         openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
-        salvageStaleBase: makeSalvage(cwd),
+        salvageStaleBase: makeSalvage(cwd, 'watch'),
         writeState: (s) => {
           const ds: DrainState = {
             pid: process.pid,
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
         queueUniverse: source.parseAll(),
         now,
       });
-      applyCycleVerdict(cwd, source.id, verdict);
+      applyCycleVerdict(cwd, source.id, verdict, now);
       for (const rowItem of verdict.escalations) notify(notifyCommand, 'escalation', rowItem, cwd);
 
       const applied = applyCycleToState(state, res, verdict.escalations.length, rails, now);
@@ -249,30 +249,37 @@ async function main(): Promise<void> {
         } catch {
           /* best-effort */
         }
-        applyCycleVerdict(cwd, source.id, {
-          escalations: [
-            {
-              ts: now,
-              slug: '-',
-              source: source.id,
-              reason: 'watcher-tripped',
-              evidence: `consecutiveFailures=${String(state.consecutiveFailures)}`,
-              stateSnapshot: { shipped: res.shipped, skipped: [...res.skipped] },
-              suggestedAction:
-                'inspect recent escalations, clear the root cause, then `rm .noldor/drain.pause`',
-            },
-          ],
-          toPark: [],
-          toUnpark: [],
-          nextPendingPr: state.pendingPr,
-        });
+        applyCycleVerdict(
+          cwd,
+          source.id,
+          {
+            escalations: [
+              {
+                ts: now,
+                slug: '-',
+                source: source.id,
+                reason: 'watcher-tripped',
+                evidence: `consecutiveFailures=${String(state.consecutiveFailures)}`,
+                stateSnapshot: { shipped: res.shipped, skipped: [...res.skipped] },
+                suggestedAction:
+                  'inspect recent escalations, clear the root cause, then `rm .noldor/drain.pause`',
+              },
+            ],
+            toPark: [],
+            toUnpark: [],
+            nextPendingPr: state.pendingPr,
+          },
+          now,
+        );
         notify(
           notifyCommand,
           'watcher-tripped',
           { consecutiveFailures: state.consecutiveFailures },
           cwd,
         );
-        out('watch: TRIPPED — .noldor/drain.pause written; inbox has the evidence');
+        out(
+          'watch: TRIPPED — .noldor/drain.pause written; see watcher-tripped row in .noldor/escalations.jsonl',
+        );
         exitCode = 1;
         break;
       }

@@ -192,24 +192,29 @@ describe('IO shell', () => {
       JSON.stringify({ 'roadmap:old': { reason: 'retries-exhausted', ts: 't0' } }),
       'utf8',
     );
-    applyCycleVerdict(dir, 'roadmap', {
-      escalations: [
-        {
-          ts: 't1',
-          slug: 'a',
-          source: 'roadmap',
-          reason: 'retries-exhausted',
-          evidence: 'e',
-          stateSnapshot: { shipped: 0, skipped: ['a'] },
-          suggestedAction: 's',
-        },
-      ],
-      toPark: [{ slug: 'a', reason: 'retries-exhausted' }],
-      toUnpark: ['roadmap:old'],
-      nextPendingPr: [],
-    });
+    applyCycleVerdict(
+      dir,
+      'roadmap',
+      {
+        escalations: [
+          {
+            ts: 't1',
+            slug: 'a',
+            source: 'roadmap',
+            reason: 'retries-exhausted',
+            evidence: 'e',
+            stateSnapshot: { shipped: 0, skipped: ['a'] },
+            suggestedAction: 's',
+          },
+        ],
+        toPark: [{ slug: 'a', reason: 'retries-exhausted' }],
+        toUnpark: ['roadmap:old'],
+        nextPendingPr: [],
+      },
+      't1',
+    );
     const park = loadPark(dir);
-    expect(park['roadmap:a']).toMatchObject({ reason: 'retries-exhausted' });
+    expect(park['roadmap:a']).toMatchObject({ reason: 'retries-exhausted', ts: 't1' });
     expect(park['roadmap:old']).toBeUndefined();
     const lines = readFileSync(join(dir, '.noldor/escalations.jsonl'), 'utf8')
       .trim()
@@ -252,6 +257,35 @@ describe('IO shell', () => {
     const rows = readInboxRows(dir);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ slug: 'a', source: 'roadmap', evidence: 'first' });
+  });
+
+  it('readInboxRows shows the CURRENT incident after park → unpark → re-park', () => {
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(dir, '.noldor/drain-park.json'),
+      JSON.stringify({ 'roadmap:a': { reason: 'merge-conflict', ts: 't4' } }),
+      'utf8',
+    );
+    const esc = (ts: string, evidence: string): string =>
+      JSON.stringify({
+        ts,
+        slug: 'a',
+        source: 'roadmap',
+        reason: 'merge-conflict',
+        evidence,
+        stateSnapshot: { shipped: 0, skipped: [] },
+        suggestedAction: 's',
+      });
+    const resolved = (ts: string): string =>
+      JSON.stringify({ ts, slug: 'a', source: 'roadmap', resolved: true });
+    writeFileSync(
+      join(dir, '.noldor/escalations.jsonl'),
+      `${esc('t1', 'old incident')}\n${resolved('t2')}\n${esc('t4', 'new incident')}\n`,
+      'utf8',
+    );
+    const rows = readInboxRows(dir);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ ts: 't4', evidence: 'new incident' });
   });
 
   it('unparkSlug resolves unique slug, demands --source on ambiguity, is idempotent', () => {
