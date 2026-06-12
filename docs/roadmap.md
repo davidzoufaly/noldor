@@ -110,17 +110,6 @@ Under `--concurrency >1`, every fast-track child removes its own block from the 
 
 When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `fast/<slug>` worktrees, leftover branches, open PRs (clean *and* DIRTY), and a stale `.noldor/drain.lock`. Today a fresh drain does not reconcile these — the operator must manually merge clean open PRs, close/rebuild DIRTY ones, prune worktrees, and clear the stale lock (done by hand 3× in one session). Add a startup reconciliation pass: for each in-roadmap slug with an open PR, merge it when CLEAN (advance the oracle) or close + flag-for-rebuild when DIRTY; `git worktree prune` + remove orphaned `fast/*` worktrees whose slug is already shipped; reclaim a stale lock whose pid is dead. Makes the drain crash-recoverable instead of leaving a mess. Touches: `src/autonomous/queue-drain.ts`, `src/autonomous/drain-io.ts`, `src/autonomous/drain-lock.ts`.
 
-#### micro-chore `reset --hard` Must Stash Uncommitted Work First
-
-- area: tooling
-- type: fix
-- since: 2026-06-11
-- size: S
-- impact: high
-- parent: noldor
-
-The micro-chore temp-branch handoff (`/gate` Step 2) runs `git reset --hard origin/main` to rewind local main — which silently discards *any* uncommitted working-tree edits to unrelated tracked files. Hit live: a drain's micro-chore iteration destroyed uncommitted `ideas.md` edits (recovered only via VSCode Local History; uncommitted content never enters git's object store, so `git fsck` could not help). Fix: `git stash --include-untracked` before the reset and `git stash pop` after — or refuse the reset when the working tree carries unrelated dirty files, surfacing them to the operator. Real data-loss hazard on every micro-chore run started from a dirty tree. Touches: `.claude/skills/gate/SKILL.md` (Step 2 micro-chore handoff), the temp-branch scaffold.
-
 ### Trailer Scope-Alias Map
 
 - area: tooling
