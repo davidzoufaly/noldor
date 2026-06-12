@@ -67,14 +67,23 @@ export function roadmapSource(cwd: string): DrainSource {
       const description = top.description ?? '';
       const fastTrack = top.suggestedPath === 'fast-track';
       const drainOk = isDrainEligible(description);
-      const eligible = fastTrack && drainOk;
-      // Distinguish the two ineligibility causes (a non-fast-track size vs a
-      // Touches/multi-scope residue) so the skip log is accurate.
+      // An entry whose `deps:` still names a slug present in the queue is not
+      // shippable in isolation — spawning it lets the gate child fail deliberately
+      // and burns `--max-retries`. A dep still in `parseAll()` === unshipped, so
+      // mark the entry ineligible upfront. (Self-reference is excluded defensively.)
+      const queued = new Set(parseRoadmap(read()).map((e) => e.slug));
+      const unmetDeps = (top.deps ?? []).filter((d) => d !== top.slug && queued.has(d));
+      const depsBlocked = unmetDeps.length > 0;
+      const eligible = fastTrack && drainOk && !depsBlocked;
+      // Distinguish the ineligibility causes (a non-fast-track size, an unmet dep,
+      // or a Touches/multi-scope residue) so the skip log is accurate.
       const reason = !fastTrack
         ? 'not a fast-track XS/S entry (roadmap source ships fast-track only)'
-        : !drainOk
-          ? 'multi-scope or Touches-bearing entry — needs human /promote residue disposition'
-          : undefined;
+        : depsBlocked
+          ? `blocked by unshipped dep(s) still in queue: ${unmetDeps.join(', ')}`
+          : !drainOk
+            ? 'multi-scope or Touches-bearing entry — needs human /promote residue disposition'
+            : undefined;
       return {
         slug: top.slug,
         description,
