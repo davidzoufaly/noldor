@@ -175,3 +175,70 @@ describe('runDrain', () => {
     expect(h.spawnGate).toHaveBeenCalledTimes(1); // aborts on the first failure, no churn
   });
 });
+
+describe('reason recording + salvage dep', () => {
+  it('records retries-exhausted when a slug crosses maxRetries into skip', async () => {
+    const h = harness(['a'], { ships: () => false });
+    const res = await runDrain(h.deps, { ...opts, maxFeatures: 5, maxRetries: 1, maxSpawns: 10 });
+    expect(res.skipped).toEqual(['a']);
+    expect(res.skipReasons).toEqual({ a: 'retries-exhausted' });
+  });
+
+  it('records pr-open-unmerged on the K=1 verdict branch (PR opened, oracle still sees slug)', async () => {
+    let spawned = false;
+    const h = harness(['a'], {
+      ships: () => false,
+      openPr: () => spawned, // no PR pre-spawn; PR exists at verdict time
+    });
+    const inner = h.deps.spawnGate;
+    h.deps.spawnGate = async (env: Record<string, string>, t: number, p: string) => {
+      const code = await inner(env, t, p);
+      spawned = true;
+      return code;
+    };
+    const res = await runDrain(h.deps, { ...opts, maxFeatures: 5, maxSpawns: 10 });
+    expect(res.skipped).toEqual(['a']);
+    expect(res.skipReasons).toEqual({ a: 'pr-open-unmerged' });
+  });
+
+  it('records pr-open-unmerged on the restart-safety guard (open PR at pickup)', async () => {
+    const h = harness(['a'], { openPr: () => true });
+    const res = await runDrain(h.deps, { ...opts, maxFeatures: 5, maxSpawns: 10 });
+    expect(h.deps.spawnGate).not.toHaveBeenCalled();
+    expect(res.skipReasons).toEqual({ a: 'pr-open-unmerged' });
+  });
+
+  it('calls salvageStaleBase before each spawn and aborts the drain when it throws', async () => {
+    const calls: string[] = [];
+    const h1 = harness(['a']);
+    const deps1 = {
+      ...h1.deps,
+      salvageStaleBase: (slug: string, branch: string) => {
+        calls.push(`${slug}|${branch}`);
+        return 'salvaged' as const;
+      },
+    };
+    const res1 = await runDrain(deps1, { ...opts, maxFeatures: 5, maxSpawns: 10 });
+    expect(res1.shipped).toBe(1);
+    expect(calls).toEqual(['a|fast/a']);
+
+    const h2 = harness(['b']);
+    const deps2 = {
+      ...h2.deps,
+      salvageStaleBase: () => {
+        throw new Error('gh exploded');
+      },
+    };
+    const res2 = await runDrain(deps2, { ...opts, maxFeatures: 5, maxSpawns: 10 });
+    expect(res2.exitCode).toBe(1);
+    expect(res2.error).toBe('gh exploded');
+  });
+
+  it('does NOT call salvageStaleBase in dry-run', async () => {
+    const salvage = vi.fn(() => 'clean' as const);
+    const h = harness(['a']);
+    const deps = { ...h.deps, salvageStaleBase: salvage };
+    await runDrain(deps, { ...opts, maxFeatures: 5, maxSpawns: 10, dryRun: true });
+    expect(salvage).not.toHaveBeenCalled();
+  });
+});
