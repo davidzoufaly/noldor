@@ -275,7 +275,8 @@ import { join } from 'node:path';
 export function resolvePort(cwd: string): Promise<number> {
   try {
     const env = readFileSync(join(cwd, '.env.local'), 'utf8');
-    const m = env.match(/^PORT=(\d+)\s*$/m);
+    // No end anchor: tolerate trailing comments/whitespace (`PORT=4321 # dev`).
+    const m = env.match(/^PORT=(\d+)/m);
     if (m) return Promise.resolve(Number(m[1]));
   } catch {
     /* no .env.local — fall through to free-port probe */
@@ -385,10 +386,31 @@ describe('runSmoke', () => {
     expect(report.ok).toBe(true);
     const web = report.surfaces.find((s) => s.name === 'web');
     expect(web?.evidence.observed).toContain('200');
-    // the boot was killed: the port is free again
-    await expect(
-      fetch(`http://127.0.0.1:${port}/`).then(() => 'up', () => 'down'),
-    ).resolves.toBe('down');
+    // the boot was killed: the port frees up (poll — SIGKILL teardown is async)
+    const freed = async (): Promise<boolean> => {
+      for (let i = 0; i < 20; i++) {
+        const up = await fetch(`http://127.0.0.1:${port}/`).then(() => true, () => false);
+        if (!up) return true;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return false;
+    };
+    await expect(freed()).resolves.toBe(true);
+  });
+
+  it('server surface: port already occupied → honest fail, no boot', async () => {
+    const { createServer } = await import('node:http');
+    const squatter = createServer((q, s) => s.end('squatter'));
+    const port = await resolvePort(mkdtempSync(join(tmpdir(), 'noldor-squat-')));
+    await new Promise<void>((r) => squatter.listen(port, '127.0.0.1', r));
+    try {
+      const dir = consumerDir({ web: { command: 'node -e "process.exit(0)"', kind: 'server' } });
+      const report = await runSmoke(dir, port, { doctorCommand: OK_DOCTOR });
+      expect(report.ok).toBe(false);
+      expect(report.surfaces.find((s) => s.name === 'web')?.evidence.observed).toContain('already in use');
+    } finally {
+      squatter.close();
+    }
   });
 
   it('server surface: no 200 within readyTimeoutMs fails with evidence', async () => {
@@ -459,9 +481,24 @@ async function probeServer(
   fetchImpl: typeof fetch,
 ): Promise<SmokeSurfaceResult> {
   const command = surface.command.replaceAll('{port}', String(port));
+  const url = `http://127.0.0.1:${port}${surface.healthPath}`;
+  // Pre-boot occupancy check: a fixed .env.local PORT may already carry a
+  // stale or concurrent server. Booting anyway would EADDRINUSE-kill our
+  // child while the probe false-greens against the pre-existing process (and
+  // cleanup would never touch it). Fail the surface honestly instead.
+  const occupied = await fetchImpl(url).then(() => true, () => false);
+  if (occupied) {
+    return {
+      name,
+      ok: false,
+      evidence: {
+        command,
+        observed: `port ${port} already in use before boot — stale process or concurrent dev server; free it or fix the per-tree PORT`,
+      },
+    };
+  }
   // Own process group so cleanup kills the whole boot tree (pnpm → node → …).
   const child = spawn('/bin/sh', ['-c', command], { cwd, detached: true, stdio: 'ignore' });
-  const url = `http://127.0.0.1:${port}${surface.healthPath}`;
   const deadline = Date.now() + surface.readyTimeoutMs;
   try {
     while (Date.now() < deadline) {
@@ -548,7 +585,7 @@ export async function runSmoke(cwd: string, port: number, deps: SmokeDeps = {}):
 pnpm vitest run src/verify/__tests__/smoke.test.ts
 ```
 
-Expected output: 5 tests pass (server tests take a few seconds).
+Expected output: 6 tests pass (server tests take a few seconds).
 
 - [ ] **Step 5: Commit.**
 
@@ -1094,6 +1131,15 @@ describe('runVerify', () => {
     expect(readSink(advisory.cwd).verdict).toBe('cannot-verify');
   });
 
+  it('sectionless FD → commit-prose fallback; sink still written (no rethrow)', async () => {
+    const { cwd, input } = repo();
+    writeFileSync(input.fdPath, '# Title\nno sections here\n');
+    // tmpdir has no git repo → commit prose is '' → cannot-verify, sink written
+    const r = await runVerify(input);
+    expect(r.ok).toBe(true);
+    expect(readSink(cwd).verdict).toBe('cannot-verify');
+  });
+
   it('dispatch throw: same no-trustworthy-verdict mapping', async () => {
     setVerifyDispatcher(async () => {
       throw new Error('spawn-failed: ENOENT');
@@ -1117,7 +1163,7 @@ Expected output: `Cannot find module '../../lanes/verify.js'`.
 
 ```ts
 import { execFile } from 'node:child_process';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { writeJsonAtomic } from '../atomic-write.js';
 import { loadConfig } from '../config.js';
 import { loadVerifyCommands } from '../../core/consumer-config.js';
@@ -1202,10 +1248,16 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   }
 
   // 2. Acceptance text: FD Summary+Usage → commit prose → cannot-verify.
+  // A missing FD (fast-track) and a present-but-sectionless FD are the same
+  // situation — no FD acceptance text — so BOTH fall through to commit prose;
+  // a sink is always written (unlike a rethrow, which would leave no sink for
+  // aggregate to read). Only unexpected I/O errors (EACCES…) rethrow.
   const baseShaForRange = input.baseSha ?? `${input.artifactSha}~1`;
-  let acceptance = await extractFdAcceptance(input.fdPath).catch((err) => {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return '';
-    throw err;
+  const fdAbs = isAbsolute(input.fdPath) ? input.fdPath : join(input.repoRoot, input.fdPath);
+  let acceptance = await extractFdAcceptance(fdAbs).catch((err) => {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'ENOENT' || /no ## Summary or ## Usage/.test(e.message)) return '';
+    throw e;
   });
   if (!acceptance) acceptance = await commitProse(input.repoRoot, baseShaForRange, input.artifactSha);
   if (!acceptance) {
@@ -1321,7 +1373,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
 pnpm vitest run src/cr/__tests__/lanes/verify.test.ts
 ```
 
-Expected output: 7 tests pass.
+Expected output: 8 tests pass.
 
 - [ ] **Step 5: Commit.**
 
