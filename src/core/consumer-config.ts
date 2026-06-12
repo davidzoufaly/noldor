@@ -26,6 +26,23 @@ export const BoundaryRuleSchema = z
  */
 export const DEFAULT_CATEGORIES = ['Core', 'Tooling', 'Other'] as const;
 
+/**
+ * One bootable run surface for the verify lane / smoke floor. `server`
+ * surfaces are booted, probed at `healthPath` until HTTP 200 or
+ * `readyTimeoutMs`, then killed; `cli` surfaces run once and must exit 0.
+ * `{port}` in `command` is substituted with the per-tree port at run time.
+ */
+export const VerifySurfaceSchema = z
+  .object({
+    command: z.string().min(1),
+    kind: z.enum(['server', 'cli']),
+    healthPath: z.string().default('/'),
+    readyTimeoutMs: z.number().int().positive().default(30_000),
+  })
+  .strict();
+
+export type VerifySurface = z.infer<typeof VerifySurfaceSchema>;
+
 export const ConsumerConfigSchema = z
   .object({
     name: z.string().min(1),
@@ -55,6 +72,11 @@ export const ConsumerConfigSchema = z
      * behaviour is unchanged until a consumer declares aliases.
      */
     scopeAliases: z.record(z.string(), z.array(z.string().min(1))).default({}),
+    /**
+     * Named run surfaces for the verify lane's smoke floor (see
+     * docs/noldor/cr-pipeline.md). Empty by default — smoke is opt-in.
+     */
+    verifyCommands: z.record(z.string(), VerifySurfaceSchema).default({}),
   })
   .strict();
 
@@ -132,6 +154,19 @@ export function loadAreaCategories(cwd: string = process.cwd()): Record<string, 
 export function loadScopeAliases(cwd: string = process.cwd()): Record<string, string[]> {
   try {
     return loadConsumerConfig(cwd).scopeAliases;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The consumer's named verify surfaces (empty when no config). Tolerant by
+ * design, mirroring {@link loadScopeAliases}: a missing or invalid config
+ * yields `{}` so smoke/verify callers never throw at load time.
+ */
+export function loadVerifyCommands(cwd: string = process.cwd()): Record<string, VerifySurface> {
+  try {
+    return loadConsumerConfig(cwd).verifyCommands;
   } catch {
     return {};
   }

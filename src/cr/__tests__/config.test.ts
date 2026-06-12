@@ -125,3 +125,13 @@ describe('autonomous.watch rails schema', () => {
     expect(() => autonomousConfigSchema.parse({ watch: { intervalMinutes: 0 } })).toThrow();
   });
 });
+
+describe('verifyMode', () => {
+  it('defaults to advisory', () => {
+    expect(autonomousConfigSchema.parse({}).verifyMode).toBe('advisory');
+  });
+
+  it('accepts blocking', () => {
+    expect(autonomousConfigSchema.parse({ verifyMode: 'blocking' }).verifyMode).toBe('blocking');
+  });
+});

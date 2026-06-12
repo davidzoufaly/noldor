@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   loadConsumerConfig,
   loadScopeAliases,
+  loadVerifyCommands,
   ConsumerConfigSchema,
   BoundaryRuleSchema,
 } from '../consumer-config.js';
@@ -149,6 +150,50 @@ describe('loadScopeAliases', () => {
     const dir = mkdtempSync(join(tmpdir(), 'noldor-no-cfg-aliases-'));
     try {
       expect(loadScopeAliases(dir)).toEqual({});
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('verifyCommands', () => {
+  it('parses server and cli surfaces with defaults', () => {
+    const dir = makeTmpRepo({
+      consumer: {
+        ...MINIMAL_CONSUMER,
+        verifyCommands: {
+          dashboard: { command: 'pnpm dev --port {port}', kind: 'server' },
+          cli: { command: 'pnpm noldor --help', kind: 'cli' },
+        },
+      },
+    });
+    try {
+      const cfg = loadConsumerConfig(dir);
+      expect(cfg.verifyCommands.dashboard).toEqual({
+        command: 'pnpm dev --port {port}',
+        kind: 'server',
+        healthPath: '/',
+        readyTimeoutMs: 30_000,
+      });
+      expect(cfg.verifyCommands.cli.kind).toBe('cli');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('defaults to empty record when absent', () => {
+    const dir = makeTmpRepo({ consumer: MINIMAL_CONSUMER });
+    try {
+      expect(loadConsumerConfig(dir).verifyCommands).toEqual({});
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('loadVerifyCommands is tolerant: {} on missing config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-no-cfg-verify-'));
+    try {
+      expect(loadVerifyCommands(dir)).toEqual({});
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

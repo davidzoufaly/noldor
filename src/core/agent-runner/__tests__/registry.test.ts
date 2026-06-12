@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agentsConfigSchema } from '../types';
+import { AGENT_ROLES, agentsConfigSchema } from '../types';
 import { loadAgentsConfig, resolveRunner, spawnAgent } from '../registry';
 
 function tmpConfig(agents?: unknown): string {
@@ -167,5 +167,18 @@ describe('spawnAgent', () => {
       'ollama/x',
     ]);
     expect(existsSync(join(dir, '.noldor', 'agent-events.jsonl'))).toBe(true);
+  });
+});
+
+describe('verifier role', () => {
+  it('is a registered role and resolves to the default runner when unmapped', () => {
+    expect(AGENT_ROLES).toContain('verifier');
+    const cfg = agentsConfigSchema.parse({});
+    expect(resolveRunner('verifier', cfg)).toEqual({ runner: 'claude' });
+  });
+
+  it('can be remapped via agents.roles like any role', () => {
+    const cfg = agentsConfigSchema.parse({ roles: { verifier: { runner: 'opencode' } } });
+    expect(resolveRunner('verifier', cfg)).toEqual({ runner: 'opencode' });
   });
 });

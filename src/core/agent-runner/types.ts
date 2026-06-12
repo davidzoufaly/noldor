@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-export const AGENT_ROLES = ['implementer', 'reviewer', 'second-opinion', 'polish'] as const;
+export const AGENT_ROLES = [
+  'implementer',
+  'reviewer',
+  'second-opinion',
+  'polish',
+  'verifier',
+] as const;
 export type AgentRole = (typeof AGENT_ROLES)[number];
 
 export const RUNNER_NAMES = ['claude', 'codex', 'opencode'] as const;

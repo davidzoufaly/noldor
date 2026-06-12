@@ -32,6 +32,7 @@ Noldor is a standalone package. A consuming repo installs it as a dev dependency
 | `categories`        | Release-notes categories (functional-domain axis, NOT commit types). Default `["Core","Tooling","Other"]`. Grows via `/triage` + `/promote`. |
 | `areaCategories`    | Maps an FD `area` slug → a category. Unmapped areas fall back to `Other`.   |
 | `scopeAliases`      | Maps a short commit-scope token → the FD slug(s) it may front, so the trailer-scope-mismatch detector accepts informal scopes (e.g. `{"cr": ["noldor"]}` lets `feat(cr):` carry `Noldor-FD: noldor`). Matched on the scope's last `:`-segment. Optional, defaults `{}`. |
+| `verifyCommands`    | Named run surfaces for the verify lane's smoke floor: `{ "<name>": { "command": "… --port {port}", "kind": "server" \| "cli", "healthPath": "/", "readyTimeoutMs": 30000 } }`. `server` surfaces boot, get probed for HTTP 200, then killed; `cli` surfaces must exit 0. `{port}` is substituted with the per-tree port. Optional, defaults `{}` — smoke trivially green. Pair with `autonomous.verifyMode` (`"advisory"` default \| `"blocking"`), which governs only the verify agent's judgment; the smoke floor blocks in both modes. |
 
 **Single-package example:**
 

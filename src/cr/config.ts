@@ -43,6 +43,9 @@ export const autonomousConfigSchema = z.object({
   skipLanePicker: z.boolean().default(false),
   onFailure: z.enum(['prompt', 'spawn-deep-review', 'abort']).default('prompt'),
   requireHumanPrApproval: z.boolean().default(false),
+  // Governs ONLY the verify lane's agent judgment; the smoke floor blocks in
+  // both modes (stop-the-line). Advisory default = one bake-in release.
+  verifyMode: z.enum(['blocking', 'advisory']).default('advisory'),
   // Wall-clock cap per item is the existing --iteration-timeout flag (30 min default), not a
   // duplicate rail here. Token-budget rail deliberately omitted: no token accounting exists yet.
   watch: watchConfigSchema.optional(),
