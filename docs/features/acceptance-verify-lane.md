@@ -41,11 +41,15 @@ Autonomous paths merge on tests + CR. Both have a structural blind spot: the imp
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator running autonomous paths (drain, watch, gate autonomous mode), I want an independent verify lane that boots the shipped artifact and checks its real behavior against the FD's acceptance text, so that a misunderstood requirement with self-confirming tests cannot merge unnoticed.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+- Configure boot surfaces once per consumer in `.noldor/config.json` → `consumer.verifyCommands` (`server` surfaces get `{port}` + health probe, `cli` surfaces get exit-0 check).
+- Opt the lane in: `crLanes.code: ["subagent", "verify"]`; choose policy via `autonomous.verifyMode: "advisory" | "blocking"` (default advisory — governs only the agent's intent-level judgment; the smoke floor blocks in both modes).
+- Smoke floor standalone: `pnpm noldor verify smoke [--json]` — doctor + boot every surface + probe; exit 0/1.
+- Full lane rides the existing flow: `pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --autonomous` → verdict sink at `.noldor/cr/<slug>-code-verify.json`; `pnpm noldor cr aggregate --slug <slug> --kind code` turns blocking failures into the escalate flow.
+- Drain/watch need no flags — they inherit `crLanes.code` from config.
 
 ## PRs
 
