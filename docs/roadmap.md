@@ -123,17 +123,6 @@ When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `
 
 - triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
 
-#### `isDrainEligible`: Skip `blocked-by` + Match `Touches:` Anywhere
-
-- area: tooling
-- type: fix
-- since: 2026-06-11
-- size: S
-- impact: med
-- parent: autonomous-queue-drain-runner
-
-`isDrainEligible` (`src/autonomous/drain-eligibility.ts`) today only inspects a block's `Touches:` prefix + top-level-bullet count. A fast-track entry that is `blocked-by` / `deps`-on an entry still present in roadmap/backlog is not shippable in isolation, but the drain still spawns it, lets the gate child fail deliberately, then burns `--max-retries` before skipping. Hit live: `first-class-blocked-by-field` (blocked by `stable-entry-ids-for-roadmap-backlog`, a size-M specs-only entry) burned retries each pass. Make it ineligible upfront: return false when `blocked-by:`/`deps:` references a slug still in the queue, and match `Touches:` anywhere in the body (not only at line-start). The gate child already specced this exact fix during the drain. Touches: `src/autonomous/drain-eligibility.ts`, `src/autonomous/drain-source.ts`.
-
 #### `noldor autonomous status` + Robust Lock Read
 
 - area: tooling
