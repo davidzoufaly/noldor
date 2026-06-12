@@ -34,6 +34,21 @@ function block(name: string, size: string, body = ''): string {
   ].join('\n');
 }
 
+// Same as `block` but with a `- deps:` field bullet (comma-separated slugs).
+function blockWithDeps(name: string, size: string, deps: string, body = ''): string {
+  return [
+    `### ${name}`,
+    '',
+    `- area: tooling`,
+    `- size: ${size}`,
+    `- impact: high`,
+    `- deps: ${deps}`,
+    '',
+    body,
+    '',
+  ].join('\n');
+}
+
 describe('roadmapSource', () => {
   it('nextItem returns the top entry as an eligible fast-track candidate', () => {
     const dir = tmpRepo(block('alpha', 'XS', 'do one small thing'));
@@ -64,6 +79,31 @@ describe('roadmapSource', () => {
       const c = roadmapSource(dir).nextItem(new Set());
       expect(c!.eligible).toBe(false);
       expect(c!.reason).toMatch(/multi-scope|Touches/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marks a fast-track entry ineligible when a deps: slug is still in the queue', () => {
+    const dir = tmpRepo(
+      blockWithDeps('beta', 'XS', 'alpha', 'depends on alpha') + block('alpha', 'XS', 'base'),
+    );
+    try {
+      const c = roadmapSource(dir).nextItem(new Set());
+      expect(c!.slug).toBe('beta');
+      expect(c!.eligible).toBe(false);
+      expect(c!.reason).toMatch(/dep|blocked|queue/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('eligible when a deps: slug is absent from the queue (already shipped)', () => {
+    const dir = tmpRepo(blockWithDeps('beta', 'XS', 'shipped-thing', 'depends on a shipped entry'));
+    try {
+      const c = roadmapSource(dir).nextItem(new Set());
+      expect(c!.slug).toBe('beta');
+      expect(c!.eligible).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

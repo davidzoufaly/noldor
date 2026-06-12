@@ -9,7 +9,12 @@
 export function isDrainEligible(description: string | undefined): boolean {
   const body = (description ?? '').trim();
   if (body.length === 0) return true;
-  if (/^\s*Touches:/im.test(body)) return false;
+  // Match the `Touches:` scope clause anywhere in the body, not only at line-start:
+  // real entries bury it mid-paragraph (e.g. "...upfront. Touches: a.ts, b.ts"),
+  // which a line-anchored regex missed — letting a multi-scope block slip through.
+  // Case-sensitive on purpose: the scope marker is always capitalized `Touches:`,
+  // so this won't trip on lowercase prose (e.g. "barely touches: nothing").
+  if (/\bTouches:/.test(body)) return false;
   const topLevelBullets = body.split('\n').filter((line) => /^\s*[-*]\s+/.test(line)).length;
   return topLevelBullets <= 1;
 }
