@@ -1,5 +1,5 @@
 // @tests: autonomous-plan-to-pr-merge
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +16,8 @@ vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async () => ({ lane: 'subagent', sinkPath: 's', ok: true })),
 }));
 import { resolveLanes, run } from '../orchestrate.js';
+import { setSmokeRunner } from '../lanes/verify.js';
+import { setVerifyDispatcher } from '../lanes/verify-dispatch.js';
 
 describe('resolveLanes', () => {
   it('CLI --lanes wins', () => {
@@ -187,5 +189,42 @@ describe('verify lane wiring', () => {
         cwd: mkdtempSync(join(tmpdir(), 'noldor-orch-')),
       }),
     ).rejects.toThrow(/code-only/);
+  });
+});
+
+describe('verify lane positive wiring', () => {
+  it('crLanes.code containing verify resolves AND dispatches runVerify through run()', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'noldor-orch-verify-'));
+    await mkdir(join(cwd, '.noldor'), { recursive: true });
+    await mkdir(join(cwd, 'docs', 'features'), { recursive: true });
+    await writeFile(
+      join(cwd, '.noldor', 'config.json'),
+      JSON.stringify({ crLanes: { code: ['verify'] } }),
+    );
+    await writeFile(
+      join(cwd, 'docs', 'features', 'wired.md'),
+      '## Summary\n\nDoes the thing.\n\n## Usage\n\n- run it\n',
+    );
+    setSmokeRunner(async () => ({ ok: true, surfaces: [], notes: [] }));
+    setVerifyDispatcher(
+      async () => '```json\n{"verdict":"pass","evidence":[],"mismatches":[]}\n```',
+    );
+    const r = await run({
+      args: {
+        slug: 'wired',
+        artifact: '.',
+        kind: 'code',
+        fullReview: false,
+        autonomous: true,
+        headSha: 'head',
+      },
+      cwd,
+    });
+    expect(r.lanesRun).toEqual(['verify']);
+    expect(r.exitCode).toBe(0);
+    const sink = JSON.parse(
+      await readFile(join(cwd, '.noldor', 'cr', 'wired-code-verify.json'), 'utf8'),
+    );
+    expect(sink.verdict).toBe('pass');
   });
 });
