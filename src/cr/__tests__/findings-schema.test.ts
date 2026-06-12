@@ -19,7 +19,7 @@ describe('Severity', () => {
 
 describe('Lane', () => {
   it('exposes options', () => {
-    expect(laneSchema.options).toEqual(['manual', 'codex', 'subagent', 'standalone']);
+    expect(laneSchema.options).toEqual(['manual', 'codex', 'subagent', 'standalone', 'verify']);
   });
 });
 
@@ -89,5 +89,27 @@ describe('LaneFindings', () => {
   });
   it('rejects unknown lane', () => {
     expect(laneFindingsSchema.safeParse({ ...base, lane: 'mystery' }).success).toBe(false);
+  });
+});
+
+describe('verify lane extensions', () => {
+  it('laneSchema accepts verify', () => {
+    expect(laneSchema.parse('verify')).toBe('verify');
+  });
+
+  it('laneFindingsSchema accepts verdict/evidence/mismatches', () => {
+    const parsed = laneFindingsSchema.parse({
+      lane: 'verify',
+      artifact: '.',
+      kind: 'code',
+      slug: 's',
+      summary: 'verified',
+      startedAt: new Date().toISOString(),
+      verdict: 'fail',
+      evidence: [{ command: 'curl localhost:4000/x', observed: '[]' }],
+      mismatches: ['promised object, observed array'],
+    });
+    expect(parsed.verdict).toBe('fail');
+    expect(parsed.evidence?.[0].command).toContain('curl');
   });
 });

@@ -12,8 +12,17 @@ export const findingSchema = z.object({
 });
 export type Finding = z.infer<typeof findingSchema>;
 
-export const laneSchema = z.enum(['manual', 'codex', 'subagent', 'standalone']);
+export const laneSchema = z.enum(['manual', 'codex', 'subagent', 'standalone', 'verify']);
 export type Lane = z.infer<typeof laneSchema>;
+
+export const verifyVerdictValueSchema = z.enum(['pass', 'fail', 'cannot-verify']);
+export type VerifyVerdictValue = z.infer<typeof verifyVerdictValueSchema>;
+
+export const verifyEvidenceSchema = z.object({
+  command: z.string().min(1),
+  observed: z.string(),
+});
+export type VerifyEvidence = z.infer<typeof verifyEvidenceSchema>;
 
 export const artifactKindSchema = z.enum(['spec', 'plan', 'code']);
 export type ArtifactKind = z.infer<typeof artifactKindSchema>;
@@ -29,6 +38,10 @@ export const laneFindingsSchema = z.object({
   notes: z.array(z.string()).optional(),
   baseSha: z.string().optional(),
   fullReview: z.boolean().optional(),
+  // verify-lane verdict payload (absent on every other lane)
+  verdict: verifyVerdictValueSchema.optional(),
+  evidence: z.array(verifyEvidenceSchema).optional(),
+  mismatches: z.array(z.string()).optional(),
   templateSha: z.string().optional(),
   startedAt: z.string().datetime(),
   finishedAt: z.string().datetime().optional(),
