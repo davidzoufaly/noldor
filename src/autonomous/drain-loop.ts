@@ -42,6 +42,10 @@ export interface DrainDeps {
   mergePr?: (slug: string, branch: string) => Promise<MergeOutcome>;
   /** True when an open PR exists for the source's branch. May throw → abort (fail-closed). */
   openPrExistsFor: (slug: string, branch: string) => boolean;
+  /** Optional pre-spawn clean-room: detect + repair a stale `fast/<slug>` base (leftover local/remote
+   *  branch or closed-unmerged PR) before the gate child spawns. Throws → systemic abort (fail-closed,
+   *  like the other git/gh deps). Absent → no salvage (existing behavior). */
+  salvageStaleBase?: (slug: string, branch: string) => 'clean' | 'salvaged';
   /** Best-effort heartbeat write (never throws). Reports ALL in-flight slugs (building or
    *  awaiting-merge) + the slug currently merging — the K>1 generalization of the old `currentSlug`. */
   writeState: (s: {
@@ -147,7 +151,10 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
   const recordRetryOrSkip = (slug: string): void => {
     const n = (retries.get(slug) ?? 0) + 1;
     retries.set(slug, n);
-    if (n > opts.maxRetries) skip.add(slug);
+    if (n > opts.maxRetries) {
+      skip.add(slug);
+      skipReasons[slug] = 'retries-exhausted';
+    }
   };
 
   // K=1 → EXACTLY today's env (no slug assignment / open-only): the gate falls back to topPriority[0],
@@ -174,6 +181,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       }
       if (deps.openPrExistsFor(slug, branch)) {
         skip.add(slug); // PR landed in-flight; never re-spawn a duplicate
+        skipReasons[slug] = 'pr-open-unmerged';
         return false;
       }
       recordRetryOrSkip(slug);
@@ -217,6 +225,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       const branch = deps.source.branchFor(candidate.slug);
       if (deps.openPrExistsFor(candidate.slug, branch)) {
         skip.add(candidate.slug); // restart-safety: a prior run's PR is in-flight
+        skipReasons[candidate.slug] = 'pr-open-unmerged';
         continue;
       }
       if (opts.dryRun) {
@@ -230,6 +239,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       // ---- end critical section ----
       let handedToCoordinator = false;
       try {
+        deps.salvageStaleBase?.(candidate.slug, branch);
         const code = await deps.spawnGate(
           envFor(candidate.slug),
           opts.timeoutMs,

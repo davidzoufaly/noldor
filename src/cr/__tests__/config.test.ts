@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  autonomousConfigSchema,
   loadConfig,
   loadConfigSync,
   noldorConfigSchema,
@@ -104,5 +105,23 @@ describe('resolveSessionTtlHours', () => {
   });
   it('DEFAULT_SESSION_TTL_HOURS is 24', () => {
     expect(DEFAULT_SESSION_TTL_HOURS).toBe(24);
+  });
+});
+
+describe('autonomous.watch rails schema', () => {
+  it('defaults interval/caps and accepts notifyCommand', () => {
+    const parsed = autonomousConfigSchema.parse({ watch: {} });
+    expect(parsed.watch).toEqual({
+      intervalMinutes: 30,
+      maxFeaturesPerDay: 10,
+      maxConsecutiveFailures: 3,
+    });
+    const withCmd = autonomousConfigSchema.parse({ watch: { notifyCommand: 'true' } });
+    expect(withCmd.watch?.notifyCommand).toBe('true');
+  });
+
+  it('keeps watch optional and rejects non-positive rails', () => {
+    expect(autonomousConfigSchema.parse({}).watch).toBeUndefined();
+    expect(() => autonomousConfigSchema.parse({ watch: { intervalMinutes: 0 } })).toThrow();
   });
 });

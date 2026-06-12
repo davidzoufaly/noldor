@@ -31,4 +31,22 @@ describe('appendAgentEvent', () => {
   it('fails open on unwritable target', () => {
     expect(() => appendAgentEvent('/dev/null/nope', EVENT)).not.toThrow();
   });
+
+  it('serializes optional kind and slug when present', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agent-events-'));
+    appendAgentEvent(dir, {
+      ts: '2026-06-12T00:00:00.000Z',
+      runner: 'drain',
+      role: 'watch',
+      kind: 'salvaged',
+      slug: 'foo-bar',
+      exitCode: 0,
+      durationMs: 5,
+      timedOut: false,
+    });
+    const line = readFileSync(join(dir, '.noldor/agent-events.jsonl'), 'utf8').trim();
+    const parsed = JSON.parse(line) as Record<string, unknown>;
+    expect(parsed.kind).toBe('salvaged');
+    expect(parsed.slug).toBe('foo-bar');
+  });
 });

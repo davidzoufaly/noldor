@@ -21,7 +21,12 @@ docs/ideas.md
 .noldor/drain.lock
 .noldor/drain.lock.reclaim.*
 .noldor/drain-stop
+.noldor/drain.pause
 .noldor/drain-*.log
+.noldor/escalations.jsonl
+.noldor/drain-park.json
+.noldor/watch-state.json
+.noldor/agent-events.jsonl
 .noldor/ideas-recovery-*.md
 .noldor/prep-batch/
 

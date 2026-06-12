@@ -13,6 +13,8 @@ import {
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { writeState, type DrainState } from './drain-state.js';
 import { syncMainCleanState, openPrExistsFor, spawnGate, mergePr } from './drain-io.js';
+import { makeSalvage } from './salvage.js';
+import { applyCycleVerdict, loadPark, mapCycle, parkAwareSource } from './escalations.js';
 
 export interface ParsedArgs {
   maxFeatures: number;
@@ -118,12 +120,14 @@ async function main(): Promise<void> {
     stop = true;
   });
 
+  const drainSource = parkAwareSource(source, () => loadPark(cwd));
   const deps: DrainDeps = {
-    source,
+    source: drainSource,
     spawnGate: (env, timeoutMs, prompt) => spawnGate(cwd, env, timeoutMs, prompt),
     syncMainCleanState: () => syncMainCleanState(cwd),
     mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
+    salvageStaleBase: makeSalvage(cwd, 'run'),
     writeState: (s) => {
       const state: DrainState = {
         pid: process.pid,
@@ -147,6 +151,21 @@ async function main(): Promise<void> {
   } finally {
     releaseLock(cwd);
   }
+
+  // Run-side escalation symmetry (spec Unit 3 / D3): terminal failures land in the same
+  // inbox as watch cycles. mode 'run' never parks pr-open-unmerged and never notifies —
+  // an operator-fired one-shot reports to its own terminal.
+  const runNow = new Date().toISOString();
+  const verdict = mapCycle({
+    result: res,
+    mode: 'run',
+    source: parsed.source,
+    parked: loadPark(cwd),
+    pendingPr: [],
+    queueUniverse: drainSource.parseAll(),
+    now: runNow,
+  });
+  applyCycleVerdict(cwd, parsed.source, verdict, runNow);
 
   process.stdout.write(
     parsed.json
