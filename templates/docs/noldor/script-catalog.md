@@ -379,6 +379,14 @@ Leaf commands (flags land directly after the group name, e.g. `pnpm noldor init 
 - **When to use:** ad hoc when feeding the project graph to an agent. The `/graphify` skill itself is documented in [`skill-catalog.md`](skill-catalog.md); `src/graphify/` only hosts this post-processor.
 - **Source:** [`src/graphify/graph-to-toon.ts`](../../src/graphify/graph-to-toon.ts)
 
+### `metrics:compute`
+
+- **Trigger:** `pnpm noldor metrics compute` (`--json <path>` to redirect the JSON artifact, `--metric <id>` to filter the stdout table).
+- **Inputs:** git history (commits + trailers + tags), `docs/features/*.md` frontmatter, roadmap/backlog git history, `.noldor/cr/*.json`, `.noldor/agent-events.jsonl`, `.noldor/escalations.jsonl`, `.noldor/drain-state.json`.
+- **Outputs:** stdout table (one block per metric with formula + blind spots) plus `metrics.json` (gitignored derived artifact). Exit 0 even with source warnings; exit 1 only on fatal (non-git cwd).
+- **When to use:** ad hoc framework-effectiveness checks; the dashboard `/metrics` page and the sdd-report `## Metrics` section call the same `compute()`. Formulas documented in [`metrics.md`](metrics.md).
+- **Source:** [`src/metrics/compute-cli.ts`](../../src/metrics/compute-cli.ts)
+
 ## Test fixtures (not pnpm scripts)
 
 `src/fixtures/` is test data for the validator unit tests under `src/{features,docs,checks}/__tests__/` — sample valid and invalid FD frontmatters, doc tag fixtures, etc. Not invoked directly. Source-of-truth lookup point when extending validator coverage.
