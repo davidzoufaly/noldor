@@ -28,6 +28,7 @@ import {
   loadVelocity,
   loadVision,
   loadWipAge,
+  loadMetricsReport,
   loadWorktreeHealth,
   setDocRootsOverride,
 } from './data.js';
@@ -53,6 +54,7 @@ import {
   renderVelocity,
   renderVision,
   renderWipAge,
+  renderMetrics,
   renderWorktrees,
 } from './views.js';
 
@@ -126,6 +128,7 @@ function matchRoute(method: string, pathname: string): RouteMatch | null {
     if (pathname === '/test-pyramid') return { handler: handleTestPyramid, pathParams: {} };
     if (pathname === '/graph-health') return { handler: handleGraphHealth, pathParams: {} };
     if (pathname === '/worktrees') return { handler: handleWorktrees, pathParams: {} };
+    if (pathname === '/metrics') return { handler: handleMetrics, pathParams: {} };
     if (pathname === '/framework') return { handler: handleFrameworkIndex, pathParams: {} };
     const fwMatch = /^\/framework\/([a-z0-9-]+)$/.exec(pathname);
     if (fwMatch) return { handler: handleFrameworkPage, pathParams: { slug: fwMatch[1] } };
@@ -676,6 +679,16 @@ async function handleWorktrees(): Promise<RouteResult> {
     body: renderWorktrees(health),
     title: 'Worktrees',
     activeNav: '/worktrees',
+  };
+}
+
+async function handleMetrics(): Promise<RouteResult> {
+  const report = await loadMetricsReport();
+  return {
+    status: 200,
+    body: renderMetrics(report),
+    title: 'Metrics',
+    activeNav: '/metrics',
   };
 }
 

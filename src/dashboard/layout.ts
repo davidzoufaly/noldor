@@ -15,6 +15,7 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/test-pyramid', label: 'Test pyramid' },
   { href: '/graph-health', label: 'Graph health' },
   { href: '/worktrees', label: 'Worktrees' },
+  { href: '/metrics', label: 'Metrics' },
 ];
 
 const STYLE = `

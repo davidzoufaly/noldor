@@ -3,6 +3,7 @@ import { escapeHtml } from './layout.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
+import type { MetricsReport } from '../metrics/types.js';
 import type { Gap } from '../garden/sdd-report.js';
 import type {
   ActiveMilestonePayload,
@@ -1440,4 +1441,30 @@ export function renderGraphHealth(snapshot: GraphHealthSnapshot | null): string 
   </table>`;
 
   return `<h1>Graph health</h1>${counterStrip}${caption}${cohesionTable}${godTable}`;
+}
+
+export function renderMetrics(report: MetricsReport | null): string {
+  if (!report) {
+    return '<section class="card"><h2>Metrics</h2><p>metrics unavailable: compute failed — run <code>pnpm noldor metrics compute</code> for the error.</p></section>';
+  }
+  const cards = report.metrics
+    .map((m) => {
+      const blind = m.blindSpots.map((b) => `<li>${escapeHtml(b)}</li>`).join('');
+      return [
+        '<section class="card">',
+        `<h2>${escapeHtml(m.id)} <small>[${escapeHtml(m.unit)}]</small></h2>`,
+        `<pre>${escapeHtml(JSON.stringify(m.value, null, 2))}</pre>`,
+        '<details><summary>formula + blind spots</summary>',
+        `<p><strong>Formula:</strong> ${escapeHtml(m.formula)}</p>`,
+        `<ul>${blind}</ul>`,
+        '</details>',
+        '</section>',
+      ].join('\n');
+    })
+    .join('\n');
+  const warnings =
+    report.factsWarnings.length > 0
+      ? `<p class="muted">warnings: ${escapeHtml(report.factsWarnings.join(' | '))}</p>`
+      : '';
+  return `<h1>Metrics</h1><p class="muted">head ${escapeHtml(report.head.slice(0, 7))} · ${escapeHtml(report.generatedAt)}</p>${warnings}${cards}`;
 }
