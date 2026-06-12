@@ -194,6 +194,13 @@ export interface ReleasePushEntry {
   readonly iso: string;
   readonly sha: string;
   readonly version: string;
+  /**
+   * True when the receipt's SHA does NOT resolve to a canonical release-shaped
+   * commit (see {@link commitIsReleaseShaped}) — an env-var-bypass receipt was
+   * written but the commit's tree shape doesn't match a real release. A single
+   * suspicious entry downgrades the whole audit to WARN.
+   */
+  readonly suspicious: boolean;
 }
 
 export interface ReleasePushAuditResult {
@@ -204,18 +211,48 @@ export interface ReleasePushAuditResult {
 
 const RECEIPT_LINE_RE = /^(\S+)\s+([0-9a-f]+)\s+(\S+)$/i;
 
-// TODO(framework-pr-flow-agent-auto-merge): Tree-shape validation deferred.
-// Spec §7 requires cross-checking each receipt SHA against the canonical
-// release-commit signature (`package.json` version bump + `docs/release-notes.md`
-// entry). Current impl only validates log format; a future enhancement should
-// `git show --name-only <sha>` per receipt and downgrade to WARN when the
-// commit shape doesn't match. Tracked separately as a roadmap entry.
+/** The two files every canonical release commit must touch. */
+const RELEASE_SHAPE_FILES = ['package.json', 'docs/release-notes.md'] as const;
 
 /**
- * Parse `.noldor/release-pushes.log` and surface release-push overrides.
+ * Cross-check a receipt SHA against the canonical release-commit signature: the
+ * commit's changeset must include BOTH `package.json` (version bump) and
+ * `docs/release-notes.md` (release entry). A SHA that doesn't resolve — bad ref,
+ * not a git repo — is treated as NOT release-shaped (can't be confirmed, so
+ * suspicious).
+ *
+ * @param sha - Receipt SHA (full or abbreviated).
+ * @param cwd - Repository root.
+ * @returns true iff `git show --name-only <sha>` lists both release-shape files.
+ */
+export function commitIsReleaseShaped(sha: string, cwd: string): boolean {
+  let raw: string;
+  try {
+    raw = execFileSync('git', ['show', '--name-only', '--pretty=format:', sha], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    return false;
+  }
+  const files = new Set(
+    raw
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+  );
+  return RELEASE_SHAPE_FILES.every((f) => files.has(f));
+}
+
+/**
+ * Parse `.noldor/release-pushes.log` and surface release-push overrides, cross-
+ * checking each receipt SHA against the canonical release-commit signature.
  *
  * @param opts.cwd - Repository root.
- * @returns Severity (OK absent, INFO entries present, WARN malformed), count, entries.
+ * @returns Severity (OK absent, INFO when every entry matches a release-shaped
+ *   commit, WARN when the log is malformed OR any receipt is suspicious), count,
+ *   and per-entry `suspicious` flags.
  */
 export function auditReleasePushes(opts: { cwd: string }): ReleasePushAuditResult {
   const path = join(opts.cwd, '.noldor', 'release-pushes.log');
@@ -235,11 +272,17 @@ export function auditReleasePushes(opts: { cwd: string }): ReleasePushAuditResul
       malformed = true;
       continue;
     }
-    entries.push({ iso: m[1], sha: m[2], version: m[3] });
+    const sha = m[2];
+    entries.push({
+      iso: m[1],
+      sha,
+      version: m[3],
+      suspicious: !commitIsReleaseShaped(sha, opts.cwd),
+    });
   }
-  return {
-    severity: malformed ? 'WARN' : entries.length > 0 ? 'INFO' : 'OK',
-    count: entries.length,
-    entries,
-  };
+
+  const anySuspicious = entries.some((e) => e.suspicious);
+  const severity: 'OK' | 'INFO' | 'WARN' =
+    malformed || anySuspicious ? 'WARN' : entries.length > 0 ? 'INFO' : 'OK';
+  return { severity, count: entries.length, entries };
 }

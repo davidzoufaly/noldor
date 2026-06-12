@@ -213,11 +213,31 @@ import { auditReleasePushes } from '../override-audit.js';
 describe('auditReleasePushes', () => {
   let cwd: string;
   beforeEach(() => {
-    cwd = mkdtempSync(join(tmpdir(), 'pr-flow-test-'));
+    // A real git repo — tree-shape validation cross-checks each receipt SHA
+    // against the canonical release-commit signature via `git show`.
+    cwd = makeRepo();
   });
   afterEach(() => {
     rmSync(cwd, { recursive: true, force: true });
   });
+
+  /** Write `.noldor/release-pushes.log` with the given lines (no trailing-newline fuss). */
+  function writeLog(dir: string, lines: string[]): void {
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(dir, '.noldor', 'release-pushes.log'),
+      lines.map((l) => `${l}\n`).join(''),
+      'utf8',
+    );
+  }
+
+  /** A commit touching both `package.json` and `docs/release-notes.md` — the canonical release shape. */
+  function releaseShapedCommit(dir: string, version: string): string {
+    return commitTouchingPaths(dir, `chore(release): v${version}`, [
+      'package.json',
+      'docs/release-notes.md',
+    ]);
+  }
 
   it('returns OK when log absent', () => {
     const result = auditReleasePushes({ cwd });
@@ -225,26 +245,46 @@ describe('auditReleasePushes', () => {
     expect(result.count).toBe(0);
   });
 
-  it('returns INFO when entries exist and match release-shaped commits', () => {
-    mkdirSync(join(cwd, '.noldor'), { recursive: true });
-    writeFileSync(
-      join(cwd, '.noldor', 'release-pushes.log'),
-      '2026-05-15T10:00:00Z abc123 0.5.0\n2026-05-16T11:00:00Z def456 0.5.1\n',
-      'utf8',
-    );
+  it('returns INFO when entries match release-shaped commits', () => {
+    const sha = releaseShapedCommit(cwd, '0.5.0');
+    writeLog(cwd, [`2026-05-15T10:00:00Z ${sha} 0.5.0`]);
     const result = auditReleasePushes({ cwd });
     expect(result.severity).toBe('INFO');
+    expect(result.count).toBe(1);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({ sha, version: '0.5.0', suspicious: false });
+  });
+
+  it('returns WARN and flags the entry when a receipt commit is not release-shaped', () => {
+    const sha = commitTouchingPaths(cwd, 'feat(foo): not a release', ['src/foo.ts']);
+    writeLog(cwd, [`2026-05-15T10:00:00Z ${sha} 0.5.0`]);
+    const result = auditReleasePushes({ cwd });
+    expect(result.severity).toBe('WARN');
+    expect(result.count).toBe(1);
+    expect(result.entries[0]).toMatchObject({ sha, suspicious: true });
+  });
+
+  it('returns WARN when a receipt SHA does not resolve to a commit', () => {
+    writeLog(cwd, ['2026-05-15T10:00:00Z deadbeefdeadbeef 0.5.0']);
+    const result = auditReleasePushes({ cwd });
+    expect(result.severity).toBe('WARN');
+    expect(result.entries[0]).toMatchObject({ suspicious: true });
+  });
+
+  it('flags only the suspicious entry in a mixed log', () => {
+    const good = releaseShapedCommit(cwd, '0.5.0');
+    const bad = commitTouchingPaths(cwd, 'feat(bar): not a release', ['src/bar.ts']);
+    writeLog(cwd, [`2026-05-15T10:00:00Z ${good} 0.5.0`, `2026-05-16T11:00:00Z ${bad} 0.5.1`]);
+    const result = auditReleasePushes({ cwd });
+    expect(result.severity).toBe('WARN');
     expect(result.count).toBe(2);
-    expect(result.entries).toHaveLength(2);
-    expect(result.entries[0]).toMatchObject({
-      sha: 'abc123',
-      version: '0.5.0',
-    });
+    const byVersion = Object.fromEntries(result.entries.map((e) => [e.version, e.suspicious]));
+    expect(byVersion['0.5.0']).toBe(false);
+    expect(byVersion['0.5.1']).toBe(true);
   });
 
   it('returns WARN when log has malformed line', () => {
-    mkdirSync(join(cwd, '.noldor'), { recursive: true });
-    writeFileSync(join(cwd, '.noldor', 'release-pushes.log'), 'this-is-not-a-valid-line\n', 'utf8');
+    writeLog(cwd, ['this-is-not-a-valid-line']);
     const result = auditReleasePushes({ cwd });
     expect(result.severity).toBe('WARN');
   });
