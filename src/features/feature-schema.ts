@@ -45,6 +45,16 @@ export const FeatureFrontmatterSchema = z
     name: z.string().min(1),
     packages: z.array(z.string().min(1)).min(1),
     phase: z.enum(['done', 'in-progress']),
+    /** Roadmap intake date (ISO yyyy-mm-dd), copied from the source block's `- since:` by /promote. Optional — historical FDs recover intake from roadmap git history (metrics `intake[]`). YAML parses unquoted dates as Date objects, so coerce before validating. */
+    since: z
+      .preprocess(
+        (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v),
+        z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/, 'Expected ISO date (yyyy-mm-dd)')
+          .transform((s) => s.slice(0, 10)),
+      )
+      .optional(),
     'noldor-tier': z.enum(['specs-only', 'full']),
     updated: semver.optional(),
   })

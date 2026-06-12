@@ -59,6 +59,7 @@ name: <heading-verbatim>
 packages:
   - <package>
 phase: in-progress
+since: <since-from-source-block — omit the line when the source has no `- since:`>
 noldor-tier: <specs-only | full>
 ---
 

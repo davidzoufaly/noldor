@@ -72,6 +72,15 @@ export const MANIFEST: Record<string, Group> = {
       },
     },
   },
+  metrics: {
+    desc: 'Effectiveness metrics derived from repo history',
+    subs: {
+      compute: {
+        src: 'metrics/compute-cli.ts',
+        desc: 'Derive all metrics → stdout table + metrics.json (--json <path>, --metric <id>)',
+      },
+    },
+  },
   cr: {
     desc: 'Code-review orchestration (subagent / codex / standalone lanes)',
     subs: {

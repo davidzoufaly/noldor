@@ -57,6 +57,7 @@ marked.use({
 });
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
+import type { MetricsReport } from '../metrics/types.js';
 import type { FeatureRecord as SddFeatureRecord, Gap, ReportInput } from '../garden/sdd-report.js';
 import type { FeatureCommit } from '../release/release-fd-commits.js';
 import type { Warning } from '../worktrees/worktree-status.js';
@@ -1955,4 +1956,14 @@ export async function loadGraphHealth(): Promise<GraphHealthSnapshot | null> {
     return null;
   }
   return parseGraphReport(raw);
+}
+
+/** Fail-open: any compute error → null; the view renders a labeled degraded state. */
+export async function loadMetricsReport(): Promise<MetricsReport | null> {
+  try {
+    const { compute } = await import('../metrics/compute.js');
+    return await compute(getDocRoot());
+  } catch {
+    return null;
+  }
 }

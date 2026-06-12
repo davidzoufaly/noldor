@@ -15,7 +15,8 @@ import type { ConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
 import { commitOnlyTouchesReport } from './detectors/override-audit.js';
-import { reviewSkipCountLine } from './sdd-report-format.js';
+import { renderMetricsSection, reviewSkipCountLine } from './sdd-report-format.js';
+import type { MetricsReport } from '../metrics/types.js';
 import {
   buildFileToFdsMap,
   getCommunityOwners,
@@ -1006,6 +1007,7 @@ function renderReportMd(
   totalIdeasUntriaged: number,
   totalBacklog: number,
   gateCompliance: GateComplianceSection | null,
+  metricsReport: MetricsReport | null,
 ): string {
   const date = new Date().toISOString().slice(0, 10);
   const lines = [
@@ -1054,6 +1056,7 @@ function renderReportMd(
     lines.push('');
   }
 
+  lines.push(...renderMetricsSection(metricsReport));
   lines.push('## Gap details');
   lines.push('');
   if (grouped.size === 0) {
@@ -1180,12 +1183,20 @@ async function main(): Promise<void> {
 
   const releaseMode = process.argv.includes('--release');
   const gateCompliance = releaseMode ? buildGateComplianceSection(features) : null;
+  let metricsReport: MetricsReport | null = null;
+  try {
+    const { compute } = await import('../metrics/compute.js');
+    metricsReport = await compute(process.cwd());
+  } catch {
+    metricsReport = null;
+  }
   const reportMd = renderReportMd(
     grouped,
     features.length,
     totalIdeasUntriaged,
     backlog.length,
     gateCompliance,
+    metricsReport,
   );
   const outPath = resolveReportOutPath(process.argv.slice(2), process.env);
   await writeFile(outPath, `${reportMd.replace(/\n*$/, '')}\n`, 'utf8');

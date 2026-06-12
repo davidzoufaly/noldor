@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { appendAgentEvent } from '../agent-events.js';
 import { CAPABILITIES } from './capabilities.js';
+import { USAGE_ADAPTERS } from './usage/index.js';
 import { CLAUDE_BIN, buildClaudeArgv } from './runners/claude.js';
 import { CODEX_BIN, buildCodexArgv } from './runners/codex.js';
 import { OPENCODE_BIN, buildOpencodeArgv } from './runners/opencode.js';
@@ -136,6 +137,7 @@ export function spawnAgent(
     child.on('close', (code) => {
       if (timer) clearTimeout(timer);
       const exitCode = code ?? -1;
+      const usage = USAGE_ADAPTERS[resolved.runner]({ cwd, startedAtMs: started });
       appendAgentEvent(cwd, {
         ts: new Date().toISOString(),
         runner: resolved.runner,
@@ -144,6 +146,7 @@ export function spawnAgent(
         exitCode,
         durationMs: Date.now() - started,
         timedOut,
+        ...(usage ? { tokens: usage } : {}),
       });
       resolve({ exitCode, stdout, timedOut });
     });

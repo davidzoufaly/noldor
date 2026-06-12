@@ -50,3 +50,20 @@ describe('appendAgentEvent', () => {
     expect(parsed.slug).toBe('foo-bar');
   });
 });
+
+describe('tokens field', () => {
+  it('serializes tokens when present', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-events-'));
+    appendAgentEvent(dir, {
+      ...EVENT,
+      tokens: { input: 1200, output: 340, total: 1540, source: 'claude-jsonl' },
+    });
+    const line = readFileSync(join(dir, '.noldor', 'agent-events.jsonl'), 'utf8').trim();
+    expect(JSON.parse(line).tokens).toEqual({
+      input: 1200,
+      output: 340,
+      total: 1540,
+      source: 'claude-jsonl',
+    });
+  });
+});
