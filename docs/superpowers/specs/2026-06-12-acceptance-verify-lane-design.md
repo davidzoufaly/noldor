@@ -67,7 +67,7 @@ Deterministic, agent-free. Sequence:
 
 Port resolution: a dedicated `resolvePort(cwd): Promise<number>` helper — read `PORT` from `.env.local` at the worktree root (the port-per-tree convention from `docs/noldor/worktree-discipline.md`); when absent, bind port 0 via `net.createServer` once to find a free one and return that **concrete number**. The resolved port is a parameter to `runSmoke(cwd, port)` (and, in Unit 4, is substituted into the `{port}` placeholders before any command string reaches the verifier agent) — resolution happens exactly once per lane run, so smoke and the agent always target the same port even on the random-free-port path. Multiple `server` surfaces are booted **sequentially** (boot → probe → kill, then the next), so one port serves all of them — concurrent multi-server boot on a shared port is explicitly out: surfaces never overlap in time. Zero configured surfaces → `ok: true` with a `no surfaces configured` note (smoke is opt-in by config, not a trap for unconfigured consumers).
 
-CLI registered in `src/cli/manifest.ts` as `verify smoke`. Reusable function `runSmoke(cwd): Promise<SmokeReport>` is what the lane (Unit 4) calls.
+CLI registered in `src/cli/manifest.ts` as `verify smoke`; the CLI entry calls `resolvePort(cwd)` itself before invoking the smoke run (each caller — CLI or lane — owns one `resolvePort` call). Reusable function `runSmoke(cwd, port): Promise<SmokeReport>` is what the lane (Unit 4) calls.
 
 ### Unit 3 — `verifier` agent role (`src/core/agent-runner/types.ts`)
 
@@ -125,7 +125,7 @@ gate Step 4 / drain-spawned gate
        ├─ resolveLanes → crLanes.code = ["subagent", "verify"]
        ├─ runSubagent ──────────────► <slug>-code-subagent.json
        └─ runVerify
-            ├─ runSmoke (doctor + boot surfaces + probe)
+            ├─ resolvePort → runSmoke(cwd, port) (doctor + boot surfaces + probe)
             ├─ acceptance text (FD Usage/Summary | commit prose)
             ├─ spawnAgent(role: verifier) → fenced JSON verdict
             └─ verdict × verifyMode ─► <slug>-code-verify.json
