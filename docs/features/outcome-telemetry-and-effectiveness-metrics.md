@@ -47,11 +47,27 @@ The framework enforces process and never measures whether the process works. Eve
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator tuning an agent-driven repo, I want every framework-effectiveness claim derived reproducibly from repo history — cycle time, routing accuracy, CR catch-rate, drain reliability, override pressure, raw tokens per feature — so that gate and autonomy tuning decisions (and the adoption pitch) rest on auditable numbers instead of vibes.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**CLI**
+
+```bash
+# derive all metrics from repo history + .noldor artifacts
+pnpm noldor metrics compute            # human table + metrics.json
+pnpm noldor metrics compute --json out.json
+pnpm noldor metrics compute --metric cycle-time
+```
+
+**Dashboard**
+
+1. Run `pnpm noldor dashboard server`.
+2. Open `http://localhost:4321/metrics` — headline cards, per-path breakdown, per-release trend, formula + blind-spots expander per metric.
+
+**Release**
+
+- `sdd-report.md` gains a Metrics section automatically at each release cut; compute failure degrades to a labeled unavailable-line.
 
 ## PRs
 
