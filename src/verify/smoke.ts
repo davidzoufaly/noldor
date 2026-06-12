@@ -25,16 +25,24 @@ export interface SmokeDeps {
 
 const DEFAULT_DOCTOR = 'pnpm noldor doctor';
 const OBSERVED_CAP = 2000;
-// Per-surface caps (doctor 120s shell timeout, server readyTimeoutMs) stack
-// across N surfaces; this bounds the whole smoke run regardless of N.
+// Hard ceiling on the whole smoke run: surfaces past the deadline never
+// start, and an in-flight surface's own timeout is clamped to the remaining
+// budget (overshoot bounded by one probe fetch, not one surface).
 const DEFAULT_TOTAL_TIMEOUT_MS = 300_000;
 // Bounds every probe fetch — a half-open stale server (accepts the
 // connection, never responds) must not hang the lane past its caps.
 const PROBE_FETCH_TIMEOUT_MS = 2000;
 
-function runShell(command: string, cwd: string): Promise<{ code: number; output: string }> {
+const SHELL_TIMEOUT_MS = 120_000;
+
+function runShell(
+  command: string,
+  cwd: string,
+  budgetMs: number = SHELL_TIMEOUT_MS,
+): Promise<{ code: number; output: string }> {
+  const timeout = Math.max(1, Math.min(SHELL_TIMEOUT_MS, budgetMs));
   return new Promise((resolve) => {
-    execFile('/bin/sh', ['-c', command], { cwd, timeout: 120_000 }, (err, stdout, stderr) => {
+    execFile('/bin/sh', ['-c', command], { cwd, timeout }, (err, stdout, stderr) => {
       const rawCode = err ? ((err as NodeJS.ErrnoException & { code?: unknown }).code ?? 1) : 0;
       resolve({
         code: typeof rawCode === 'number' ? rawCode : 1,
@@ -50,7 +58,11 @@ async function probeServer(
   port: number,
   cwd: string,
   fetchImpl: typeof fetch,
+  budgetMs: number = Number.MAX_SAFE_INTEGER,
 ): Promise<SmokeSurfaceResult> {
+  // The aggregate cap is a hard ceiling: an in-flight surface gets only the
+  // remaining budget, not its full readyTimeoutMs.
+  const readyMs = Math.max(1, Math.min(surface.readyTimeoutMs, budgetMs));
   const command = surface.command.replaceAll('{port}', String(port));
   const url = `http://127.0.0.1:${port}${surface.healthPath}`;
   // Pre-boot occupancy check: a fixed .env.local PORT may already carry a
@@ -75,7 +87,7 @@ async function probeServer(
   }
   // Own process group so cleanup kills the whole boot tree (pnpm → node → …).
   const child = spawn('/bin/sh', ['-c', command], { cwd, detached: true, stdio: 'ignore' });
-  const deadline = Date.now() + surface.readyTimeoutMs;
+  const deadline = Date.now() + readyMs;
   try {
     while (Date.now() < deadline) {
       try {
@@ -93,7 +105,7 @@ async function probeServer(
       ok: false,
       evidence: {
         command,
-        observed: `GET ${url} → no HTTP 200 within ${surface.readyTimeoutMs}ms`,
+        observed: `GET ${url} → no HTTP 200 within ${readyMs}ms`,
       },
     };
   } finally {
@@ -123,7 +135,7 @@ export async function runSmoke(
   const totalDeadline = Date.now() + (deps.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS);
   const notes: string[] = [];
 
-  const doctor = await runShell(doctorCommand, cwd);
+  const doctor = await runShell(doctorCommand, cwd, totalDeadline - Date.now());
   if (doctor.code !== 0) {
     return {
       ok: false,
@@ -155,11 +167,12 @@ export async function runSmoke(
       });
       continue;
     }
+    const remaining = totalDeadline - Date.now();
     if (surface.kind === 'server') {
-      surfaces.push(await probeServer(name, surface, port, cwd, fetchImpl));
+      surfaces.push(await probeServer(name, surface, port, cwd, fetchImpl, remaining));
     } else {
       const command = surface.command.replaceAll('{port}', String(port));
-      const r = await runShell(command, cwd);
+      const r = await runShell(command, cwd, remaining);
       surfaces.push({
         name,
         ok: r.code === 0,
