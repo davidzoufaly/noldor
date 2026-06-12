@@ -148,6 +148,9 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   }));
   let raw: string | null = null;
   let dispatchErr = '';
+  // Pre-dispatch reap: smoke SIGKILLs its boots but teardown is async — make
+  // sure the port is actually free before the agent boots the same surface.
+  await reapPort(port);
   try {
     raw = await dispatchVerify({
       acceptance,
