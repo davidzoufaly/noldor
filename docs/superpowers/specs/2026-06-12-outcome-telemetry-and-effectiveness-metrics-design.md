@@ -44,13 +44,13 @@ One function `extractFacts(cwd): Promise<RepoFacts>` reads every source once:
 | `escalations[]` | `.noldor/escalations.jsonl` | line-parse; schema = `EscalationRow` from `src/autonomous/escalations.ts` |
 | `drainState` | `.noldor/drain-state.json` | JSON parse; `DrainState` (`src/autonomous/drain-state.ts`): `shipped`, `skip[]`, `retries` |
 | `releases[]` | `git tag -l 'v*'` + tag dates | one `git for-each-ref` call |
-| `overrides[]` | same trailer source as `src/garden/detectors/override-audit.ts` | reuse the exported `auditOverrides()` / `parseTrailers` (`src/core/trailers.ts`) — already public, no new export needed |
+| `overrides[]` | same trailer source as `src/garden/detectors/override-audit.ts` | reuse the exported `auditOverrides()` (`src/garden/detectors/override-audit.ts`) and `parseTrailers` (`src/core/trailers.ts`) — both already public, no new export needed |
 
 Every source is fail-open **per source**: absent file → empty list + entry in `facts.warnings[]`; malformed JSONL line → skipped + counted. `extractFacts` never throws on missing/dirty data; only a non-git cwd is fatal.
 
 ### Unit 1.5 — `since` becomes FD frontmatter (D7)
 
-`since:` today lives only in roadmap/backlog entries, which promotion deletes — `FeatureFrontmatterSchema` (`src/features/feature-schema.ts`) has no `since` field and 0 of 39 FDs carry it, so cycle-time's intake timestamp has no forward-looking home. Fix in this slice:
+`since:` today lives only in roadmap/backlog entries, which promotion deletes — `FeatureFrontmatterSchema` (`src/features/feature-schema.ts`) has no `since` field and no FD carries it (0 of 39 as of 2026-06-12), so cycle-time's intake timestamp has no forward-looking home. Fix in this slice:
 
 - Add optional `since?: string` (ISO date) to `FeatureFrontmatterSchema`.
 - The promote skill (`.claude/skills/promote/SKILL.md` step 6 + template twin) copies the source block's `- since:` into the new FD's frontmatter.
@@ -75,10 +75,10 @@ interface MetricResult {
 
 Per-metric derivations (v1):
 
-1. **`cycle-time`** — per FD with a recoverable intake date (`since` frontmatter, else `intake[]` recovery — D7) and `introduced`: days between. Segments: by `Noldor-Path` trailer of the FD's commits (majority path wins; mixed → 'mixed'), by autonomous vs operator (autonomous = any commit in the FD's set carries drain/plan-runner provenance — `Noldor-Path: fast-track` from a drain run is identified via agent-events `slug` match when available, else labeled 'unknown-provenance' — blind spot recorded). Value: median + p90 + per-segment table. FDs with no recoverable intake are excluded and counted in a blind-spot tally.
+1. **`cycle-time`** — per FD with a recoverable intake date (`since` frontmatter, else `intake[]` recovery — D7) and `introduced`: days between intake date and the **release date of `introduced`** — `introduced` is a semver string (`semver.optional()`, `src/features/feature-schema.ts:42`), so the endpoint is derived by joining `introduced` → `releases[]` tag `v<introduced>` → tag date. An `introduced` version with no matching tag → FD excluded + blind-spot tally. Segments: by `Noldor-Path` trailer of the FD's commits (majority path wins; mixed → 'mixed'), by autonomous vs operator (autonomous = any commit in the FD's set carries drain/plan-runner provenance — `Noldor-Path: fast-track` from a drain run is identified via agent-events `slug` match when available, else labeled 'unknown-provenance' — blind spot recorded). Value: median + p90 + per-segment table. FDs with no recoverable intake are excluded and counted in a blind-spot tally.
 2. **`routing-accuracy`** — for shipped entries where roadmap `size` and `parent` are recoverable from `intake[]`: `sizeToPath(size, hasParent)` (actual signature, `src/core/size-routing.ts:64` — `hasParent` from the entry's `parent:` field) vs actual `Noldor-Path` taken. Value: confusion table suggestion×actual over last N shipped (default 10). Blind spot: entries promoted before `Noldor-Path` trailer existed are excluded.
 3. **`cr-effectiveness`** — per lane: findings count = `blockers.length + suggestions.length` per `LaneFindings` sink vs post-merge corrective commits = commits with `fix:`/`revert:` subject carrying the same `Noldor-FD` slug within 14 days (D3) after the FD's ship commit. Value: per-lane `{blockers, suggestions, correctiveCommits}`. Explicitly labeled approximation.
-4. **`drain-reliability`** — shipped / skipped / retried from `drain-state.json` (`shipped`, `skip[]`, `retries`); salvaged = count of `agentEvents[]` rows with `kind: 'salvaged'`; escalated = `escalations[]` row count per run; retry distribution + mean wall-clock per feature (`durationMs`) from `agentEvents[]`. All event/escalation-derived parts are epoch-limited: absent or sparse files → those parts `value: null` with labeled blind spot, drain-state-derived parts still emitted (D4).
+4. **`drain-reliability`** — two explicitly-separated layers. (a) *Last-run snapshot:* shipped / skipped / retried from `drain-state.json` (`shipped`, `skip[]`, `retries`) — this file is a live snapshot overwritten by each run (`src/autonomous/drain-state.ts:27`), so it can never yield history; labeled "latest run only", mandatory blind spot. (b) *History:* salvaged = count of `agentEvents[]` rows with `kind: 'salvaged'`; escalated = `escalations[]` counts total / per-slug / per-time-bucket — `EscalationRow` has no run identifier, so per-run grouping is NOT derivable (run-id is out of v1 scope, noted as blind spot); retry distribution + mean wall-clock per feature (`durationMs`) from `agentEvents[]`. All history parts are epoch-limited: absent or sparse files → those parts `value: null` with labeled blind spot (D4). Dashboard trend rows for drain metrics start at the event-log epoch.
 5. **`override-pressure`** — override-trailer usage grouped by detector over time buckets (per release window). Extends override-audit's extraction; rising trend = gate friction.
 6. **`tokens-per-feature`** — sum of `tokens.total` over agent-events rows for the FD's slug. Only present where events carry the new optional `tokens` field (Unit 3). Cost is NEVER computed. Features with zero token-bearing events → `null` + 'no usage data'.
 
@@ -122,7 +122,7 @@ Per-metric derivations (v1):
 
 ## Acceptance criteria
 
-- `noldor metrics compute` on this repo emits cycle-time for every FD with `introduced:` set and a recoverable intake date (frontmatter `since` or roadmap-history recovery); FDs with unrecoverable intake appear in a blind-spot tally, not silently dropped. Routing-accuracy table covers the last 10 shipped entries.
+- `noldor metrics compute` on this repo emits cycle-time (intake date → `v<introduced>` tag date) for every FD with `introduced:` set, a matching release tag, and a recoverable intake date (frontmatter `since` or roadmap-history recovery); FDs with unrecoverable intake or unmatched tag appear in a blind-spot tally, not silently dropped. Routing-accuracy table covers the last 10 shipped entries.
 - Every emitted metric carries non-empty `formula` and `blindSpots`; a unit test enforces it for all collectors.
 - Deleting `.noldor/agent-events.jsonl` and re-running compute → exit 0, drain/tokens metrics `value: null` with labeled blind spot — no throw.
 - A spawn through the agent-runner registry with the claude runner records a `tokens` field read from the session JSONL; a runner with no locatable usage record writes the event without `tokens` (adapter test per runner: claude, codex, opencode).
