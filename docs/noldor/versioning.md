@@ -145,6 +145,32 @@ The release script. Authors never set these fields manually. Normal flow:
 This keeps authoring simple — no predicting the next version number — and
 gives the release script a single job.
 
+## Version-aware upgrade
+
+Each consumer records the framework version its tree was last migrated to in
+`.noldor/config.json` `consumer.frameworkVersion` — written by `noldor init`
+(fresh scaffold = current) and `noldor upgrade` (after a migration chain).
+
+`noldor upgrade` resolves the ordered chain from the anchored version to the
+installed framework version (`src/migrations/<version>.ts` modules) and runs
+each migration as a pure file transform:
+
+- `noldor upgrade --dry-run` prints per-step diffs and touches nothing.
+- `noldor upgrade` applies the chain and advances the anchor **only after the
+  full chain succeeds**. It refuses on a dirty git tree (use a fresh branch).
+- Re-running is a no-op once the anchor equals the installed version.
+- `noldor upgrade --from <version>` bootstraps a tree scaffolded before the
+  anchor existed.
+
+**Downgrade is unsupported** — `installed < anchored` errors out. Reverting
+framework versions is a git operation, not a codemod concern.
+
+**Authoring discipline:** a PR that edits a consumer-facing schema surface
+(`src/core/consumer-config.ts`, `docs/noldor/feature-md-schema.md`,
+`templates/.noldor/config.json`) MUST ship a matching
+`src/migrations/<version>.ts` in the same PR, or `pnpm noldor garden detect`
+flags `schema-changed-without-migration`.
+
 ## Extension points (deferred)
 
 **Prerelease channels** (`0.2.0-beta.1`, `-rc.1`) — not implemented. When

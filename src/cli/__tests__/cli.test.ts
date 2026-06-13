@@ -1,13 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 // @tests: noldor-package-lift
 
 const BIN = resolve(__dirname, '../../../bin/noldor.mjs');
 
-function run(args: string[]): string {
-  return execFileSync('node', [BIN, ...args], { encoding: 'utf8' });
+function run(args: string[], cwd?: string): string {
+  return execFileSync('node', [BIN, ...args], { encoding: 'utf8', cwd });
 }
 
 describe('noldor CLI', () => {
@@ -69,10 +71,17 @@ describe('noldor CLI', () => {
     expect(out).toContain('in sync');
   });
 
-  it('leaf command dispatches with flag in sub slot (init --update stub)', () => {
-    // init stub writes to stderr; capture combined output via execFileSync's
-    // default behavior (stderr flows through). Just assert it doesn't throw
-    // (exit 0).
-    expect(() => run(['init', '--update'])).not.toThrow();
+  it('leaf command dispatches with flag in sub slot (init --update)', () => {
+    // Run in an isolated temp dir: `init --update` does real work now (copies
+    // templates + stamps consumer.frameworkVersion), so running it in the repo
+    // root would mutate the live .noldor/config.json and template-managed docs.
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-init-'));
+    try {
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      writeFileSync(join(dir, '.noldor/config.json'), JSON.stringify({ consumer: { name: 'x' } }));
+      expect(() => run(['init', '--update'], dir)).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
