@@ -27,6 +27,8 @@
     "noldor": "node bin/noldor.mjs",
     "dashboard": "node bin/noldor.mjs dashboard server",
     "test": "vitest run",
+    "test:contract": "node scripts/test-contract.mjs",
+    "test:e2e:drain": "vitest run src/testing/__tests__/drain-e2e.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --deny-warnings",
     "lint:fix": "oxlint --fix",
