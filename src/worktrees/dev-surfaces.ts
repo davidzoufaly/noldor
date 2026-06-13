@@ -38,44 +38,47 @@ export interface BootOptions {
 export async function bootDevSurfaces(opts: BootOptions): Promise<BootedSurface[]> {
   const spawnImpl = opts.spawnImpl ?? spawn;
   const fetchImpl = opts.fetchImpl ?? fetch;
-  const results: BootedSurface[] = [];
 
-  for (const [name, surface] of Object.entries(opts.surfaces)) {
-    const port = deriveSurfacePort(opts.basePort, surface.portOffset);
-    const url = `http://127.0.0.1:${port}${surface.healthPath}`;
-    const command = surface.command
-      .replaceAll('{port}', String(port))
-      .replaceAll('{path}', opts.treePath);
+  // Surfaces hold distinct ports (base + offset) and are independent, so boot
+  // them concurrently — wall-clock is the slowest single surface, not the sum
+  // of every readyTimeoutMs. Object.entries order is preserved by the map.
+  const results = await Promise.all(
+    Object.entries(opts.surfaces).map(async ([name, surface]): Promise<BootedSurface> => {
+      const port = deriveSurfacePort(opts.basePort, surface.portOffset);
+      const url = `http://127.0.0.1:${port}${surface.healthPath}`;
+      const command = surface.command
+        .replaceAll('{port}', String(port))
+        .replaceAll('{path}', opts.treePath);
 
-    // Pre-boot occupancy check: a 200 here means a stale/concurrent server
-    // already holds the port; booting would false-green. Fail honestly.
-    const occupied = await fetchImpl(url, {
-      signal: AbortSignal.timeout(PROBE_FETCH_TIMEOUT_MS),
-    }).then(
-      () => true,
-      () => false,
-    );
-    if (occupied) {
-      results.push({
-        name,
-        port,
-        url,
-        pid: null,
-        ready: false,
-        note: `port ${port} already in use before boot`,
+      // Pre-boot occupancy check: a 200 here means a stale/concurrent server
+      // already holds the port; booting would false-green. Fail honestly.
+      const occupied = await fetchImpl(url, {
+        signal: AbortSignal.timeout(PROBE_FETCH_TIMEOUT_MS),
+      }).then(
+        () => true,
+        () => false,
+      );
+      if (occupied) {
+        return {
+          name,
+          port,
+          url,
+          pid: null,
+          ready: false,
+          note: `port ${port} already in use before boot`,
+        };
+      }
+
+      const child = spawnImpl('/bin/sh', ['-c', command], {
+        cwd: opts.treePath,
+        detached: true,
+        stdio: 'ignore',
       });
-      continue;
-    }
-
-    const child = spawnImpl('/bin/sh', ['-c', command], {
-      cwd: opts.treePath,
-      detached: true,
-      stdio: 'ignore',
-    });
-    child.unref();
-    const ready = await waitForHttp200(url, Date.now() + surface.readyTimeoutMs, fetchImpl);
-    results.push({ name, port, url, pid: child.pid ?? null, ready });
-  }
+      child.unref();
+      const ready = await waitForHttp200(url, Date.now() + surface.readyTimeoutMs, fetchImpl);
+      return { name, port, url, pid: child.pid ?? null, ready };
+    }),
+  );
 
   const live = results.filter((r) => r.pid !== null);
   if (live.length > 0) {

@@ -12,11 +12,14 @@ describe('bootDevSurfaces', () => {
   it('boots each surface on base+offset, substitutes vars, writes pids, never kills', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'devsurf-'));
     const spawnImpl = vi.fn(() => fakeChild(4242));
-    let calls = 0;
-    const fetchImpl = (async () => {
-      // first call per surface = occupancy pre-check → must reject (free)
-      calls++;
-      if (calls % 2 === 1) throw new Error('free');
+    // URL-keyed (not call-count) so it's robust to concurrent boots: the first
+    // touch of each url = occupancy pre-check → reject (free); later = 200.
+    const seen = new Set<string>();
+    const fetchImpl = (async (url: string) => {
+      if (!seen.has(url)) {
+        seen.add(url);
+        throw new Error('free');
+      }
       return { status: 200 } as Response;
     }) as unknown as typeof fetch;
 
