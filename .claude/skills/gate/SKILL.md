@@ -202,6 +202,12 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   **Autonomous mode:** add `--autonomous` and omit `--lanes` (orchestrate reads `crLanes.code` from `.noldor/config.json`). The `--autonomous` flag also suppresses the overwrite-guard prompts and the standalone-in-progress prompt, so re-runs over prior sinks don't pause.
 
+  **Fast-track profile.** When the session marker `path` is `fast-track`, append `--profile fast-track` to the orchestrate command so the CR pass is scoped (low effort, correctness+security per `crReview.profiles`). Other paths omit the flag and get the `default` profile (med effort, all six dimensions). For the fast-track / drain code-stage review the command is:
+
+  ```
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes subagent --base-sha origin/main --profile fast-track
+  ```
+
   Sink: `.noldor/cr/<slug>-code-subagent.json`. Trailer amended on tip commit: `Noldor-Reviewed-Subagent: <tree>`.
 
 - **Aggregate code-stage.**
