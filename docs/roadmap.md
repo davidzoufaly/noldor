@@ -318,36 +318,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 **Acceptance sketch:** friction log exists with ≥10 dated entries; ≥3 changes shipped in consumer incl. ≥1 autonomous drain ship; ≥5 entries triaged back into Noldor's queue.
 
-#### Consumer-Contract CI and Headless Gate E2E Harness
-
-- area: tooling
-- type: test
-- since: 2026-06-11
-- size: L
-- impact: high
-- parent: noldor
-
-164 unit-test files, zero end-to-end coverage of the flows autonomy actually depends on: the skill-markdown gate paths, drain loop against a real repo, init/upgrade against a real consumer tree. The PR #33 bug class (headless gate silently ignoring env-only signals) lived exactly in this blind spot and shipped broken. Build one harness that covers both needs: a fixture consumer repo as the *contract*, and headless skill-flow runs as the *e2e layer*.
-
-**What to do:**
-
-- Fixture consumer: a minimal single-package TS app (`fixtures/consumer/` in-repo, or generated into a temp dir by a builder script — temp-dir generation avoids fixture rot and `.git`-in-`.git` issues; lean that way). Contains: `.noldor/config.json`, a tiny `src/`, `docs/` skeleton with vision/roadmap/ideas, one seeded roadmap entry sized XS, lefthook wired. A builder util makes it a real git repo with an initial commit.
-- Contract layer: CI job — install framework *from the working tree* into the fixture (`pnpm pack` + install tarball), run `noldor init`, `noldor doctor`, `noldor validate features`, `noldor garden detect`. Assert exit codes + key artifacts. Any framework PR that breaks this fails before merge — consumers are protected without being in the loop.
-- Headless flow layer: drive real flows non-interactively and assert *outcomes*, not transcripts:
-  - drain a seeded XS roadmap entry: `noldor autonomous run --source roadmap --max-features 1` → assert roadmap entry retired, commit carries `Noldor-Path: fast-track` + `Noldor-Reviewed-*` trailers, branch merged, worktree cleaned.
-  - micro-chore and fast-track gate sessions: marker files written, scope validator accepts/rejects per the rules.
-  - failure-path probes: dirty main, locked drain (`drain.lock` present), stale `fast/<slug>` branch (the salvage case) — assert the loop surfaces/parks instead of corrupting state.
-- Agent-call seam: headless runs that would spawn an LLM agent need a stub mode (deterministic canned implementer/reviewer responses keyed by slug) so CI is hermetic + free; one opt-in non-stubbed nightly/manual lane runs a real model for true end-to-end (pairs with the existing roadmap entry "Real-Codex Integration Smoke Test" — same gating pattern, `NOLDOR_RUN_REAL_*=1`).
-- Wire into CI config + `script-catalog.md`; failures must print the fixture-repo git log + `.noldor/` state for debuggability.
-
-**What it enables:** framework changes can't silently break consumers (the contract half) or the autonomous paths (the e2e half); regression net for every PR-#33-class bug; the fixture doubles as the test bed for [version-migration-chain](#version-aware-upgrade-and-migration-chain) codemods and the demo ground for adoption docs.
-
-**Open questions:** in-repo fixture vs generated-on-the-fly (lean generated); how the agent-stub seam is injected (env var + stub binary on PATH vs a `DrainSource`-style interface — the `DrainSource` seam from plan-runner suggests the pattern); CI provider/workflow file location for the standalone repo.
-
-**Touches:** new `fixtures/` or `src/testing/consumer-fixture.ts`, CI workflow, `src/autonomous/` (stub seam), `docs/noldor/testing-principles.md`, `docs/noldor/script-catalog.md`.
-
-**Acceptance sketch:** `pnpm test:contract` locally green in <5 min; intentionally breaking `consumer-config.ts` field name fails the contract job; drain e2e asserts trailers + retired entry on the fixture repo.
-
 #### Stack-Assumption Audit and Declared Prerequisites
 
 - area: tooling
