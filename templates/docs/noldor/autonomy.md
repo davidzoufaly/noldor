@@ -82,7 +82,54 @@ pnpm noldor autonomous inbox            # open escalations
 pnpm noldor autonomous unpark <slug>    # resolve; --source <id> when parked under several
 ```
 
-## CI-cron placement
+## Unattended launch paths
 
-Out of scope for now: run the watcher on the operator's machine (daemon or local cron with
-`--once`). A CI-cron variant waits for consumer-contract CI (secrets + checkout strategy).
+A foreground `autonomous watch` started **inside a harness-managed background task** (e.g. Claude
+Code `run_in_background`) gets SIGTERM-reaped (exit 143) within minutes — the managed-task
+lifecycle tears it down. For an unattended run that outlives the launching session, the watcher
+must be detached from it. Three supported paths, simplest first:
+
+### 1. `watch --detach` (built-in, recommended)
+
+```bash
+pnpm noldor autonomous watch --detach            # daemon: re-checks every --interval minutes
+pnpm noldor autonomous watch --detach --once     # single cycle, then exits (cron-shaped)
+```
+
+`--detach` re-spawns the watcher as a session-independent process (`detached: true` + `unref()` —
+the same effect as `nohup … &`), redirects its stdout/stderr to `.noldor/watch.log`, records the
+pid in `.noldor/watch.pid`, and the launching command exits 0 immediately. The detached child
+acquires `.noldor/drain.lock` for its lifetime as usual. All other flags (`--interval`,
+`--max-features`, `--max-retries`, `--iteration-timeout`, `--dry-run`, `--json`) pass through.
+
+```bash
+tail -f .noldor/watch.log         # follow progress
+kill $(cat .noldor/watch.pid)     # stop (or: touch .noldor/drain-stop for a graceful exit-130)
+```
+
+If a watcher is already running (live `drain.lock`), `--detach` refuses and prints the live pid
+rather than spawning a second daemon that would only lose the lock race.
+
+### 2. `nohup` by hand
+
+The manual equivalent, when you want to own the redirection:
+
+```bash
+nohup pnpm noldor autonomous watch > .noldor/watch.log 2>&1 &
+disown
+```
+
+### 3. cron / systemd (`--once`)
+
+Drive the cycle cadence externally instead of with the daemon's internal sleep. A crontab entry
+fires one bounded cycle each interval:
+
+```cron
+*/30 * * * * cd /path/to/repo && pnpm noldor autonomous watch --once >> .noldor/watch.log 2>&1
+```
+
+`--once` exits after a single cycle, so the lock is held only for that cycle's duration — no
+detach needed. A systemd `OnCalendar=` timer wrapping the same command works the same way.
+
+> A **CI-cron** variant (run the watcher from CI on a schedule) is still out of scope — it waits on
+> consumer-contract CI for the secrets + checkout strategy.

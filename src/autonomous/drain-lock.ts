@@ -23,6 +23,27 @@ function isAlive(pid: number): boolean {
 }
 
 /**
+ * The pid recorded in `.noldor/drain.lock` iff that process is currently alive,
+ * else `null` (no lock, unreadable/garbage payload, or a dead holder). The
+ * liveness probe matches {@link acquireLock}'s own reclaim test, so a `null`
+ * here means `acquireLock` would succeed (the lock is free or reclaimable). Used
+ * by the `--detach` launcher to refuse starting a second daemon and surface the
+ * live pid instead of spawning a child that just loses the lock race.
+ *
+ * @param cwd - Repo root (the worktree's main workspace).
+ */
+export function liveLockPid(cwd: string): number | null {
+  let holder: { pid: number } | null;
+  try {
+    holder = JSON.parse(readFileSync(join(cwd, LOCK_REL), 'utf8')) as { pid: number };
+  } catch {
+    return null; // no lock or unreadable payload
+  }
+  if (holder && typeof holder.pid === 'number' && isAlive(holder.pid)) return holder.pid;
+  return null;
+}
+
+/**
  * Acquire the exclusive drain lock at `.noldor/drain.lock` via an atomic `O_EXCL`
  * create. If a lock already exists: held by a live pid → refuse; held by a dead /
  * garbage pid → reclaim TOCTOU-safely by renaming the stale lock **aside** (the
