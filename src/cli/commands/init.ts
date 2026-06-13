@@ -16,7 +16,7 @@ import { copyTemplate, adoptTemplate } from '../../templates/copy.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { RUNNER_NAMES, type RunnerName } from '../../core/agent-runner/types.js';
-import { writeFrameworkVersion } from '../../core/consumer-config.js';
+import { loadFrameworkVersion, writeFrameworkVersion } from '../../core/consumer-config.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 
 const argv = process.argv.slice(2);
@@ -70,10 +70,18 @@ try {
     if (r.status !== 'unchanged') console.log(`${r.status.padEnd(10)} ${r.path}`);
   }
   console.log(`\n${counts.added} added, ${counts.updated} updated, ${counts.unchanged} unchanged`);
-  // Stamp the framework version a fresh/updated tree is now at, so `upgrade`
-  // and `doctor` have an anchor to compare against. A scaffold is by definition
-  // current — it owes no migrations.
-  if (existsSync(join(consumer, '.noldor/config.json'))) {
+  // Stamp the framework version ONLY on a fresh scaffold — a tree with no
+  // existing anchor, scaffolded (not `--update`). A fresh scaffold is by
+  // definition current, so it owes no migrations. `init --update` (re-pull on
+  // an existing tree) and any tree that already carries an anchor must NOT be
+  // advanced here: that would skip the migration chain and silently mark a
+  // behind consumer as current. Advancing an existing anchor is `upgrade`'s
+  // job; a pre-feature tree (no anchor) bootstraps via `upgrade --from <v>`.
+  if (
+    !update &&
+    existsSync(join(consumer, '.noldor/config.json')) &&
+    loadFrameworkVersion(consumer) === null
+  ) {
     writeFrameworkVersion(consumer, installedFrameworkVersion());
   }
   process.exit(0);
