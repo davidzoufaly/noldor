@@ -99,6 +99,18 @@ function scanBlocks(raw: string): ScanResult {
   return { spans, lines };
 }
 
+/**
+ * Count the addressable entry blocks in `rawIn` — i.e. the spans `scanBlocks`
+ * recognizes (heading + `- area:` bullet). Category-container headings with no
+ * `- area:` are not counted. Used by the dashboard "add entry" flow to resolve
+ * the `bottom` position to an append index (`insertBlock` treats
+ * `targetIndex === count` as end-of-file).
+ */
+export function countEntries(rawIn: string): number {
+  const raw = rawIn.endsWith('\n') ? rawIn : rawIn + '\n';
+  return scanBlocks(raw).spans.length;
+}
+
 function findBlockBySlug(spans: BlockSpan[], slug: string): { span: BlockSpan; index: number } {
   const index = spans.findIndex((s) => s.slug === slug);
   if (index === -1) {

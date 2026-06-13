@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { resolve as resolvePath, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { handleDemote, handleMove, handlePromote } from './api/blocks.js';
+import { handleAdd, handleDemote, handleMove, handlePromote, handleRemove } from './api/blocks.js';
 import {
   getBacklogPath,
   getRoadmapPath,
@@ -174,6 +174,16 @@ function matchRoute(method: string, pathname: string): RouteMatch | null {
     if (demoteMatch) {
       return { handler: handleApiDemote, pathParams: { slug: demoteMatch[1] } };
     }
+    const removeMatch = /^\/api\/(roadmap|backlog)\/remove\/([a-z0-9-]+)$/.exec(pathname);
+    if (removeMatch) {
+      return {
+        handler: handleApiRemove,
+        pathParams: { section: removeMatch[1], slug: removeMatch[2] },
+      };
+    }
+    if (pathname === '/api/roadmap/add') {
+      return { handler: handleApiAdd, pathParams: {} };
+    }
   }
   return null;
 }
@@ -286,6 +296,62 @@ async function handleApiDemote(
     backlogPath: getBacklogPath(),
     ifMatch,
     slug: pathParams.slug,
+  });
+  return jsonResult(result.status, result.body, result.body.etag);
+}
+
+/**
+ * Single-file delete of a roadmap or backlog entry. `pathParams.section`
+ * (`roadmap` | `backlog`, captured by the route regex) selects the file;
+ * `If-Match` is that file's single SHA-256 (the table's `data-etag`).
+ */
+async function handleApiRemove(
+  _params: URLSearchParams,
+  pathParams: Record<string, string>,
+  req: IncomingMessage,
+): Promise<RouteResult> {
+  const ifMatch = (req.headers['if-match'] as string | undefined) ?? undefined;
+  const path = pathParams.section === 'backlog' ? getBacklogPath() : getRoadmapPath();
+  const result = await handleRemove({ path, ifMatch, slug: pathParams.slug });
+  return jsonResult(result.status, result.body, result.body.etag);
+}
+
+/**
+ * Add a new roadmap entry at the top or bottom of `docs/roadmap.md`. Body is
+ * `{ position, name, area, type?, size?, impact?, description? }`; `since` is
+ * stamped server-side with today's date so the client never supplies it.
+ * `If-Match` is the roadmap file's single SHA-256.
+ */
+async function handleApiAdd(
+  _params: URLSearchParams,
+  _pathParams: Record<string, string>,
+  req: IncomingMessage,
+): Promise<RouteResult> {
+  let body: unknown;
+  try {
+    body = await readJsonBody(req, 4096);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === 'body-too-large') return jsonResult(413, { ok: false, error: msg });
+    return jsonResult(400, { ok: false, error: msg });
+  }
+  const ifMatch = (req.headers['if-match'] as string | undefined) ?? undefined;
+  const b = (body ?? {}) as Record<string, unknown>;
+  const position = b.position === 'bottom' ? 'bottom' : 'top';
+  const since = new Date().toISOString().slice(0, 10);
+  const result = await handleAdd({
+    path: getRoadmapPath(),
+    ifMatch,
+    position,
+    fields: {
+      name: b.name,
+      area: b.area,
+      since,
+      type: b.type,
+      size: b.size,
+      impact: b.impact,
+      description: b.description,
+    },
   });
   return jsonResult(result.status, result.body, result.body.etag);
 }

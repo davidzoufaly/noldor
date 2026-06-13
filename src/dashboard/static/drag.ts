@@ -202,8 +202,27 @@ function wireButtons(): void {
     if (!btn) return;
     const action = btn.dataset.action;
     const slug = btn.dataset.slug;
-    if ((action !== 'promote' && action !== 'demote') || slug === undefined) return;
+    if (slug === undefined) return;
 
+    // Remove is a single-file delete: the If-Match precondition is the closest
+    // table's own `data-etag` (sha256 of that one file), not the combined etag.
+    if (action === 'remove') {
+      const section = btn.dataset.section;
+      if (section !== 'roadmap' && section !== 'backlog') return;
+      const table = btn.closest<HTMLTableElement>('table[data-section]');
+      const tableEtag = table?.dataset.etag;
+      if (tableEtag === undefined) {
+        window.location.reload();
+        return;
+      }
+      if (!window.confirm(`Remove "${slug}" from ${section}? This rewrites docs/${section}.md.`)) {
+        return;
+      }
+      void sendRemove(btn, section, slug, tableEtag);
+      return;
+    }
+
+    if (action !== 'promote' && action !== 'demote') return;
     const etag = combinedEtag();
     if (etag === null) {
       window.location.reload();
@@ -211,6 +230,68 @@ function wireButtons(): void {
     }
     void sendButton(btn, action, slug, etag);
   });
+}
+
+async function sendRemove(
+  btn: HTMLButtonElement,
+  section: 'roadmap' | 'backlog',
+  slug: string,
+  etag: string,
+): Promise<void> {
+  btn.disabled = true;
+  try {
+    await fetch(`/api/${section}/remove/${encodeURIComponent(slug)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'If-Match': etag },
+      body: '{}',
+    });
+  } finally {
+    // Server is authoritative — reload regardless of success/failure.
+    window.location.reload();
+  }
+}
+
+// Wire the top/bottom "add roadmap entry" forms. Native constraint validation
+// runs before `submit` fires, so name/area are guaranteed present here. The
+// If-Match etag rides on the form's own `data-etag` (the roadmap file hash),
+// which is available even when the roadmap table isn't rendered (empty filter).
+function wireAddForms(): void {
+  document.addEventListener('submit', (ev) => {
+    const form = (ev.target as HTMLElement).closest<HTMLFormElement>('form.add-entry__form');
+    if (!form) return;
+    ev.preventDefault();
+    const position = form.dataset.position === 'bottom' ? 'bottom' : 'top';
+    const etag = form.dataset.etag ?? '';
+    const fd = new FormData(form);
+    const payload = {
+      position,
+      name: String(fd.get('name') ?? ''),
+      area: String(fd.get('area') ?? ''),
+      type: String(fd.get('type') ?? ''),
+      size: String(fd.get('size') ?? ''),
+      impact: String(fd.get('impact') ?? ''),
+      description: String(fd.get('description') ?? ''),
+    };
+    void sendAdd(form, payload, etag);
+  });
+}
+
+async function sendAdd(
+  form: HTMLFormElement,
+  payload: Record<string, string>,
+  etag: string,
+): Promise<void> {
+  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+  if (submit) submit.disabled = true;
+  try {
+    await fetch('/api/roadmap/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'If-Match': etag },
+      body: JSON.stringify(payload),
+    });
+  } finally {
+    window.location.reload();
+  }
 }
 
 // Toggle the description clamp on the closest `<td class="description">`.
@@ -287,6 +368,7 @@ function init(): void {
     if (ctx) wireDrag(ctx);
   });
   wireButtons();
+  wireAddForms();
   wireDescriptionToggles();
   wireDescriptionOverflow();
 }

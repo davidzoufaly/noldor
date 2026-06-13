@@ -1,4 +1,4 @@
-import { insertBlock, moveBlock, removeBlock } from '../write-blocks.js';
+import { countEntries, insertBlock, moveBlock, removeBlock } from '../write-blocks.js';
 
 const ROADMAP_FIX = `# Roadmap
 
@@ -203,5 +203,28 @@ C.
     // Order check via body presence: "C." should appear before "A." now.
     expect(out.indexOf('C.')).toBeLessThan(out.indexOf('A.'));
     expect(out.indexOf('A.')).toBeLessThan(out.indexOf('B.'));
+  });
+});
+
+describe('countEntries', () => {
+  it('counts area-bearing blocks (H3 + H4) and skips category containers', () => {
+    // Alpha, Beta (H4) + Direct Entry (H3) = 3; "### Noldor Framework" is a
+    // container (no `- area:` bullet) and is not counted.
+    expect(countEntries(ROADMAP_FIX)).toBe(3);
+  });
+
+  it('counts flat H3 entries', () => {
+    expect(countEntries(BACKLOG_FIX)).toBe(2);
+  });
+
+  it('returns 0 for a file with no entries', () => {
+    expect(countEntries('# Roadmap\n\nJust prose, no blocks.\n')).toBe(0);
+  });
+
+  it('is the append index insertBlock uses for end-of-file insertion', () => {
+    const n = countEntries(BACKLOG_FIX);
+    const out = insertBlock(BACKLOG_FIX, '### Three\n\n- area: web\n\nThree body.\n', n, 3);
+    // New entry lands after the last existing entry.
+    expect(out.indexOf('Three body.')).toBeGreaterThan(out.indexOf('Two body.'));
   });
 });
