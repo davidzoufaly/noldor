@@ -166,10 +166,9 @@ each migration as a pure file transform:
 framework versions is a git operation, not a codemod concern.
 
 **Authoring discipline:** a PR that edits a consumer-facing schema surface
-(`src/core/consumer-config.ts`, `docs/noldor/feature-md-schema.md`,
-`templates/.noldor/config.json`) MUST ship a matching
-`src/migrations/<version>.ts` in the same PR, or `pnpm noldor garden detect`
-flags `schema-changed-without-migration`.
+(`src/core/consumer-config.ts`, `docs/noldor/feature-md-schema.md`) MUST ship a
+matching version-named `src/migrations/<x.y.z>.ts` in the same PR, or
+`pnpm noldor garden detect` flags `schema-changed-without-migration`.
 
 ## Extension points (deferred)
 
