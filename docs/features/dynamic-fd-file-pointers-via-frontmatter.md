@@ -7,6 +7,7 @@ links:
   docs: []
   tests:
     - src/features/__tests__/migrate-code-tags.test.ts
+    - src/features/__tests__/propose-pointers.test.ts
     - src/garden/detectors/__tests__/code-links-drift.test.ts
     - src/sync/__tests__/sync-code-links.test.ts
   spec: >-

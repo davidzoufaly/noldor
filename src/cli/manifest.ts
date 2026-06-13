@@ -122,6 +122,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'features/migrate-code-tags.ts',
         desc: 'One-off: seed // @fd: tags from links.code',
       },
+      'propose-pointers': {
+        src: 'features/propose-pointers.ts',
+        desc: 'Propose initial // @fd: pointers for a new FD',
+      },
       'migrate-fd-commits-to-prs': {
         src: 'features/migrate-fd-commits-to-prs.ts',
         desc: 'Migrate FD commit refs to PR refs',
