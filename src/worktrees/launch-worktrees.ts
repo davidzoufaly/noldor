@@ -2,12 +2,16 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
+import { loadAgentsConfig, resolveRunner } from '../core/agent-runner/registry.js';
+import { CLAUDE_BIN } from '../core/agent-runner/runners/claude.js';
+import { CODEX_BIN } from '../core/agent-runner/runners/codex.js';
+import { OPENCODE_BIN } from '../core/agent-runner/runners/opencode.js';
 
 const execFileAsync = promisify(execFile);
 
 const PROMPT_TEMPLATE_PATH = '.claude/launch-prompt.md';
 
-interface Worktree {
+export interface Worktree {
   path: string;
   branch: string;
   isMain: boolean;
@@ -34,6 +38,59 @@ function parseWorktrees(porcelain: string, mainPath: string): Worktree[] {
   }
   if (current.path) out.push(current as Worktree);
   return out;
+}
+
+/**
+ * Build the shell command an iTerm2 session runs for one worktree: cd in and
+ * start the agent, appending the rendered launch prompt when the template is
+ * non-empty. `agentInvocation` is the interactive launch string for the
+ * consumer's `agents.default` runner (e.g. `claude --dangerously-skip-permissions`),
+ * resolved by the caller via the agent-runner registry — this unit stays pure
+ * and never hardcodes a runner. `Worktree` and the `renderPrompt`/`escapeShell`
+ * helpers are reused.
+ */
+export function buildLaunchCommand(w: Worktree, template: string, agentInvocation: string): string {
+  const slug = basename(w.path);
+  const prompt = renderPrompt(template, { slug, branch: w.branch, path: w.path });
+  return prompt
+    ? `cd ${escapeShell(w.path)} && ${agentInvocation} ${escapeShell(prompt)}`
+    : `cd ${escapeShell(w.path)} && ${agentInvocation}`;
+}
+
+/**
+ * Resolve the interactive launch invocation for the consumer's configured agent.
+ * Reuses the agent-runner registry's per-runner bins so claude/codex/opencode
+ * stay the single source of truth. claude is the default → today's behavior.
+ * Headless argv (`--print` / `exec` / `run`) is NOT reused here — those are for
+ * the drain's non-interactive spawns; the terminal wants an interactive session.
+ */
+export function resolveAgentInvocation(cwd: string): string {
+  const runner = resolveRunner('implementer', loadAgentsConfig(cwd)).runner;
+  switch (runner) {
+    case 'codex':
+      return CODEX_BIN; // interactive codex (no `exec`)
+    case 'opencode':
+      return OPENCODE_BIN; // interactive opencode (no `run`)
+    case 'claude':
+    default:
+      return `${CLAUDE_BIN} --dangerously-skip-permissions`;
+  }
+}
+
+/** Open one iTerm2 window for a single worktree running the launch command. */
+export async function launchTree(
+  w: Worktree,
+  template: string,
+  agentInvocation: string,
+): Promise<void> {
+  const command = buildLaunchCommand(w, template, agentInvocation);
+  const script = `tell application "iTerm"
+      create window with default profile
+      tell current session of current window
+        write text "${command}"
+      end tell
+    end tell`;
+  await execFileAsync('osascript', ['-e', script]);
 }
 
 /**
@@ -69,20 +126,10 @@ async function main(): Promise<void> {
   const template = await readFile(join(mainPath, PROMPT_TEMPLATE_PATH), 'utf8').catch(() => '');
 
   console.log(`Launching ${worktrees.length} iTerm2 window(s):`);
+  const agentInvocation = resolveAgentInvocation(process.cwd());
   for (const w of worktrees) {
     console.log(`  ${w.branch} → ${w.path}`);
-    const slug = basename(w.path);
-    const prompt = renderPrompt(template, { slug, branch: w.branch, path: w.path });
-    const command = prompt
-      ? `cd ${escapeShell(w.path)} && claude --dangerously-skip-permissions ${escapeShell(prompt)}`
-      : `cd ${escapeShell(w.path)} && claude --dangerously-skip-permissions`;
-    const script = `tell application "iTerm"
-      create window with default profile
-      tell current session of current window
-        write text "${command}"
-      end tell
-    end tell`;
-    await execFileAsync('osascript', ['-e', script]);
+    await launchTree(w, template, agentInvocation);
   }
 }
 
