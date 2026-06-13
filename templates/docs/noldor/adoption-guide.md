@@ -14,6 +14,12 @@ Noldor is a standalone package. A consuming repo installs it as a dev dependency
 3. **Configure** `.noldor/config.json` with a `consumer:` block (see field table below).
 4. **Hooks** install automatically via the package's `postinstall` (`lefthook install`).
 
+After pulling a newer framework version, run `pnpm noldor doctor` — a
+`framework skew` warning means the consumer's tree is anchored to an older
+schema version. Run `pnpm noldor upgrade --dry-run` to review the migration
+diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
+[versioning.md](versioning.md#version-aware-upgrade).
+
 ## `.noldor/config.json` → `consumer:` block
 
 | Field               | Meaning                                                                    |

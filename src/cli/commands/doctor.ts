@@ -10,6 +10,8 @@ import { computeDrift } from '../../templates/diff.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { checkRunners } from '../../core/agent-runner/doctor-runners.js';
+import { loadFrameworkVersion } from '../../core/consumer-config.js';
+import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 
 const agentsCfg = loadAgentsConfig(process.cwd());
 const files = filterTemplatesByAgents(templateFiles(), agentsCfg.targets);
@@ -28,6 +30,17 @@ for (const c of checks) {
   if (c.status === 'ok') continue;
   runnerBad++;
   console.log(`${c.status.padEnd(12)} runner ${c.runner}: ${c.detail}`);
+}
+
+// Framework-version skew: advisory only (does NOT affect exit code). A consumer
+// with synced templates but an un-migrated tree should still pass `doctor`
+// green after running `noldor upgrade`.
+const anchored = loadFrameworkVersion(process.cwd());
+const installed = installedFrameworkVersion();
+if (anchored !== installed) {
+  console.log(
+    `warn         framework skew: anchored ${anchored ?? '(unset)'} ≠ installed ${installed} — run 'noldor upgrade'`,
+  );
 }
 
 if (bad === 0 && runnerBad === 0) {

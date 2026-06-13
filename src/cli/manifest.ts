@@ -323,4 +323,13 @@ export const MANIFEST: Record<string, Group> = {
       },
     },
   },
+  upgrade: {
+    desc: 'Run version-aware migration chain (anchored → installed framework version)',
+    subs: {
+      '': {
+        src: 'cli/commands/upgrade.ts',
+        desc: 'Run upgrade (--dry-run / --from <version> / --force)',
+      },
+    },
+  },
 };

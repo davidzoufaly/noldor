@@ -9,11 +9,15 @@
 //                                    templates from the live consumer state)
 //   --agents claude,codex,opencode   select which driver shim sets to write
 //                                    (default: agents.targets from config, else claude)
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { TEMPLATES_ROOT, templateFiles } from '../../templates/manifest.js';
 import { copyTemplate, adoptTemplate } from '../../templates/copy.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { RUNNER_NAMES, type RunnerName } from '../../core/agent-runner/types.js';
+import { loadFrameworkVersion, writeFrameworkVersion } from '../../core/consumer-config.js';
+import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -66,6 +70,20 @@ try {
     if (r.status !== 'unchanged') console.log(`${r.status.padEnd(10)} ${r.path}`);
   }
   console.log(`\n${counts.added} added, ${counts.updated} updated, ${counts.unchanged} unchanged`);
+  // Stamp the framework version ONLY on a fresh scaffold — a tree with no
+  // existing anchor, scaffolded (not `--update`). A fresh scaffold is by
+  // definition current, so it owes no migrations. `init --update` (re-pull on
+  // an existing tree) and any tree that already carries an anchor must NOT be
+  // advanced here: that would skip the migration chain and silently mark a
+  // behind consumer as current. Advancing an existing anchor is `upgrade`'s
+  // job; a pre-feature tree (no anchor) bootstraps via `upgrade --from <v>`.
+  if (
+    !update &&
+    existsSync(join(consumer, '.noldor/config.json')) &&
+    loadFrameworkVersion(consumer) === null
+  ) {
+    writeFrameworkVersion(consumer, installedFrameworkVersion());
+  }
   process.exit(0);
 } catch (err) {
   console.error(`init failed: ${(err as Error).message}`);
