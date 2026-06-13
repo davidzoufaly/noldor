@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { artifactKindSchema, laneSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane } from './findings-schema.js';
 import { agentsConfigSchema } from '../core/agent-runner/types.js';
+import { DEFAULT_REVIEW_PROFILES, reviewProfileSchema } from './review-profile.js';
+import type { ReviewProfile } from './review-profile.js';
 
 /**
  * Default session-marker time-to-live, in hours. A stale-eligible session
@@ -55,8 +57,13 @@ export const gateConfigSchema = z.object({
   sessionTtlHours: z.number().positive(),
 });
 
+export const crReviewConfigSchema = z.object({
+  profiles: z.record(z.string(), reviewProfileSchema).optional(),
+});
+
 export const noldorConfigSchema = z.object({
   crLanes: crLanesConfigSchema.optional(),
+  crReview: crReviewConfigSchema.optional(),
   autonomous: autonomousConfigSchema.optional(),
   gate: gateConfigSchema.optional(),
   agents: agentsConfigSchema.optional(),
@@ -101,4 +108,19 @@ export function loadConfigSync(path: string = DEFAULT_PATH): NoldorConfig | null
  */
 export function resolveSessionTtlHours(config: NoldorConfig | null): number {
   return config?.gate?.sessionTtlHours ?? DEFAULT_SESSION_TTL_HOURS;
+}
+
+/**
+ * Resolves the effective review profile for `name` (default `'default'`):
+ * a configured `crReview.profiles[name]`, else the built-in
+ * {@link DEFAULT_REVIEW_PROFILES}[name], else the `default` built-in. Never
+ * throws on an unknown name — falls back to the richer default (fails safe:
+ * more review, not less). Mirrors {@link resolveSessionTtlHours}.
+ */
+export function resolveReviewProfile(config: NoldorConfig | null, name = 'default'): ReviewProfile {
+  return (
+    config?.crReview?.profiles?.[name] ??
+    DEFAULT_REVIEW_PROFILES[name] ??
+    DEFAULT_REVIEW_PROFILES.default
+  );
 }

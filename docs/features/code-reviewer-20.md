@@ -11,7 +11,7 @@ links:
 name: Code Reviewer 2.0
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary

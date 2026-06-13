@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
-import { DEFAULT_CR_LANES, loadConfig } from './config.js';
+import { DEFAULT_CR_LANES, loadConfig, resolveReviewProfile } from './config.js';
 import type { NoldorConfig } from './config.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult } from './lane-types.js';
@@ -167,6 +167,7 @@ export interface RunResult {
 export async function run(opts: RunOpts): Promise<RunResult> {
   const cwd = opts.cwd ?? process.cwd();
   const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
+  const reviewProfile = resolveReviewProfile(cfg, opts.args.profile);
   const requested = resolveLanes(opts.args, cfg);
   if (requested.includes('standalone')) {
     throw new Error(
@@ -197,6 +198,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     fdPath: `docs/features/${opts.args.slug}.md`,
     artifactSha: headSha,
     repoRoot: cwd,
+    reviewProfile,
     ...(opts.args.baseSha ? { baseSha: opts.args.baseSha } : {}),
     ...(opts.args.fullReview ? { fullReview: true } : {}),
   };

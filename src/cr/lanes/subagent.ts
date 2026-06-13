@@ -97,6 +97,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       baseSha: baseShaForSlot,
       headSha: input.artifactSha,
       description: `${input.kind} for FD ${input.slug}`,
+      ...(input.reviewProfile ? { reviewProfile: input.reviewProfile } : {}),
     });
   } catch (err) {
     const errMsg = (err as NodeJS.ErrnoException).message ?? String(err);
