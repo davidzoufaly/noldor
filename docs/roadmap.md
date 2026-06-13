@@ -501,17 +501,6 @@ Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Rai
 
 - Code-reviewer configuration for fast-track — let fast-track tune/scope the CR pass.
 
-### gitignore .noldor/release-pushes.log
-
-- area: tooling
-- type: chore
-- since: 2026-06-12
-- size: XS
-- impact: low
-- confidence: high
-
-`.noldor/release-pushes.log` is not gitignored — it is an operator-local release audit, like garden-receipt. Add it to `.gitignore`.
-
 ### sdd-report Review-Skip Count Non-Idempotent
 
 - area: tooling
