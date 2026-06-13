@@ -12,6 +12,17 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Noldor Framework
 
+#### Autonomous Subcommand `--help` Guard
+
+- area: tooling
+- type: fix
+- since: 2026-06-12
+- size: XS
+- impact: high
+- confidence: high
+
+No `autonomous` subcommand (`run`, `watch`, `queue-drain`) guards `--help` — passing it runs the real drain/daemon instead of printing usage. During a dogfood session this spawned 3 colliding drains on a single slug (each grabbing the lock in turn, racing the same worktree). Add a `--help`/`-h` short-circuit per subcommand (or at the `autonomous` dispatcher) that prints usage and exits 0 before any lock acquisition or gate spawn. Cheap, prevents accidental concurrent drains.
+
 #### Drop Branched Worktrees — Single Dev Branch Workflow
 
 - area: tooling
@@ -109,6 +120,20 @@ Under `--concurrency >1`, every fast-track child removes its own block from the 
 - parent: autonomous-queue-drain-runner
 
 When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `fast/<slug>` worktrees, leftover branches, open PRs (clean *and* DIRTY), and a stale `.noldor/drain.lock`. Today a fresh drain does not reconcile these — the operator must manually merge clean open PRs, close/rebuild DIRTY ones, prune worktrees, and clear the stale lock (done by hand 3× in one session). Add a startup reconciliation pass: for each in-roadmap slug with an open PR, merge it when CLEAN (advance the oracle) or close + flag-for-rebuild when DIRTY; `git worktree prune` + remove orphaned `fast/*` worktrees whose slug is already shipped; reclaim a stale lock whose pid is dead. Makes the drain crash-recoverable instead of leaving a mess. Touches: `src/autonomous/queue-drain.ts`, `src/autonomous/drain-io.ts`, `src/autonomous/drain-lock.ts`.
+
+- Add a startup sync-check: an un-pushed local-`main`-ahead-of-`origin` commit (e.g. a triage commit on local main but not origin) blocks the whole drain — but only *after* the gate already did the work and tries to retire the entry. Pre-flight `origin/main == queue-source` before spawning the first gate, and surface the divergence loudly instead of failing deep.
+- Orphan agent children survive runner SIGTERM: killing the parent (`autonomous run`/`watch`) leaves the spawned `claude --print /gate` child running and holding context. Spawn the agent in its own process group and kill the group on runner death; at startup, reconcile (kill) any dead-run agent children before acquiring the lock.
+
+#### Supported Unattended Drain Launch Path
+
+- area: tooling
+- type: docs
+- since: 2026-06-12
+- size: S
+- impact: med
+- confidence: med
+
+A daemon-style drain (`autonomous run` / `watch`) launched via a harness-managed background task (e.g. Claude Code `run_in_background`) gets SIGTERM-reaped (exit 143) within minutes — the managed-task lifecycle tears it down. Reliable unattended runs need `nohup`/`disown` detach or a cron/systemd unit. Document the supported launch path(s) in the autonomous-drain docs, and consider a `noldor autonomous watch --detach` helper that does the nohup dance + writes a pidfile so operators don't hand-roll it.
 
 ### Trailer Scope-Alias Map
 
@@ -250,6 +275,17 @@ Render `docs/user/reference/api/` (typedoc-generated `engine` + `format` API tre
 - parent: noldor
 
 `scripts/cr/__tests__/codex.test.ts` mocks the `Spawn` function, so all CI runs of `pnpm cr:codex` validate the wiring without ever invoking the real `codex` binary. The first real-codex run will surface integration bugs the mocked tests can't catch (codex CLI flag drift, JSON schema variance, stdin-pipe encoding edge cases). Add a manual / opt-in smoke test (`pnpm cr:codex --dry-run` against a fixture worktree, gated behind `NOLDOR_RUN_REAL_CODEX=1`) plus a documented operator-side pre-release dogfood step in `docs/noldor/cr-pipeline.md`. Trigger: when codex CLI grows a stable `cr --json` subcommand (currently absent).
+
+#### Portable Gate Entrypoint for Non-Claude Runners
+
+- area: tooling
+- type: feat
+- since: 2026-06-12
+- size: M
+- impact: high
+- confidence: med
+
+The autonomous drain's spawn layer is agent-agnostic (the registry resolves bin + argv for `claude` / `codex` / `opencode`), but the *prompt* it spawns is `/gate --drain <slug>` — a Claude Code slash-command. On `codex` (prompt via stdin, no slash-command system) the string is treated as literal text → no gate runs. On `opencode` it only works if a `/gate` command is vendored into `.opencode/command/` (not present). So the multi-runner promise stops short of the autonomous drain: only claude can actually drive the gate headlessly. Options: (a) a portable `noldor gate --drain <slug>` CLI entrypoint the drain spawns instead of a slash-command, with the agent CLI wrapping it; or (b) per-runtime vendoring of a `/gate` command alongside the existing skill. Pairs with `make-noldor-agent-agnostic` (shipped) and `real-codex-integration-smoke-test`. Touches: `src/autonomous/drain-source.ts`, the runner argv builders, gate skill/CLI surface.
 
 #### Framework Script + Test Migration Cleanup
 
