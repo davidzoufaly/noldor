@@ -246,7 +246,13 @@ describe('plansSource', () => {
     try {
       const s = plansSource(dir);
       expect(s.parseAll().sort()).toEqual(['designed', 'noplan']);
-      expect(s.gatePrompt('designed')).toBe('/gate --resume designed');
+      // Plan-drain resume must ride the autonomous directive on the prompt (PR #33):
+      // the `--autonomous` flag plus prose so the headless gate never stalls at an
+      // interactive seam. Assert the resume command + the autonomous signal.
+      const prompt = s.gatePrompt('designed');
+      expect(prompt).toContain('/gate --resume designed --autonomous');
+      expect(prompt).toMatch(/set-autonomous|autonomous mode/);
+      expect(prompt).toContain('NO interactive prompts');
       expect(s.branchFor('designed')).toBe('feat/designed');
     } finally {
       rmSync(dir, { recursive: true, force: true });
