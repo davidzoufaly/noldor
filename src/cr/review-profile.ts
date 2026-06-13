@@ -19,14 +19,9 @@ export const reviewProfileSchema = z.object({
 });
 export type ReviewProfile = z.infer<typeof reviewProfileSchema>;
 
-export const ALL_DIMENSIONS: ReviewDimension[] = [
-  'correctness',
-  'security',
-  'reuse',
-  'simplification',
-  'efficiency',
-  'altitude',
-];
+// Derived from the schema's single source of truth — add a dimension to
+// `reviewDimensionSchema` and the `default` sweep picks it up automatically.
+export const ALL_DIMENSIONS: ReviewDimension[] = [...reviewDimensionSchema.options];
 
 /**
  * Built-in profiles, used when `crReview.profiles.<name>` is absent.
