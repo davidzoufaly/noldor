@@ -246,6 +246,14 @@ export const MANIFEST: Record<string, Group> = {
         desc: 'Pre-flight conflict scan across worktrees (direct + graphify-community)',
       },
       launch: { src: 'worktrees/launch-worktrees.ts', desc: 'Spawn iTerm2 worktree windows' },
+      up: {
+        src: 'worktrees/up-worktree.ts',
+        desc: 'Bootstrap full dev surface: create + IDE + terminal + dev servers',
+      },
+      down: {
+        src: 'worktrees/down-worktree.ts',
+        desc: 'Reap dev servers for a tree (--remove also deletes the worktree)',
+      },
     },
   },
   verify: {
