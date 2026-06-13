@@ -501,17 +501,6 @@ Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Rai
 
 - Code-reviewer configuration for fast-track — let fast-track tune/scope the CR pass.
 
-### Fast-Track PR Summary Mislabels as Micro-Chore
-
-- area: tooling
-- type: fix
-- since: 2026-06-12
-- size: S
-- impact: med
-- confidence: high
-
-In autonomous mode the PR summary reads `Micro-chore: docs(roadmap): retire … — shipped via fast-track (no FD)` — but the gate path is fast-track, not micro-chore. The summary mislabels the path. Fix the summary to reflect the actual gate path.
-
 ### Graph Freshness scanPaths Drift in Standalone Repo
 
 - area: tooling
