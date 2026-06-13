@@ -9,11 +9,15 @@
 //                                    templates from the live consumer state)
 //   --agents claude,codex,opencode   select which driver shim sets to write
 //                                    (default: agents.targets from config, else claude)
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { TEMPLATES_ROOT, templateFiles } from '../../templates/manifest.js';
 import { copyTemplate, adoptTemplate } from '../../templates/copy.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { RUNNER_NAMES, type RunnerName } from '../../core/agent-runner/types.js';
+import { writeFrameworkVersion } from '../../core/consumer-config.js';
+import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -66,6 +70,12 @@ try {
     if (r.status !== 'unchanged') console.log(`${r.status.padEnd(10)} ${r.path}`);
   }
   console.log(`\n${counts.added} added, ${counts.updated} updated, ${counts.unchanged} unchanged`);
+  // Stamp the framework version a fresh/updated tree is now at, so `upgrade`
+  // and `doctor` have an anchor to compare against. A scaffold is by definition
+  // current — it owes no migrations.
+  if (existsSync(join(consumer, '.noldor/config.json'))) {
+    writeFrameworkVersion(consumer, installedFrameworkVersion());
+  }
   process.exit(0);
 } catch (err) {
   console.error(`init failed: ${(err as Error).message}`);
