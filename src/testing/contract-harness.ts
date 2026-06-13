@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { join, dirname } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 
 export interface CliResult {
   exitCode: number;
@@ -32,7 +32,9 @@ export function installFrameworkTarball(fixtureDir: string): void {
     encoding: 'utf8',
   });
   const tgz = out.trim().split('\n').pop() as string;
-  execFileSync('pnpm', ['add', join(fixtureDir, tgz)], { cwd: fixtureDir, stdio: 'pipe' });
+  // `pnpm pack --pack-destination` prints an absolute path; only join when relative.
+  const tgzPath = isAbsolute(tgz) ? tgz : join(fixtureDir, tgz);
+  execFileSync('pnpm', ['add', tgzPath], { cwd: fixtureDir, stdio: 'pipe' });
 }
 
 /** Drive the four read-only contract commands; return per-step exit codes. */
