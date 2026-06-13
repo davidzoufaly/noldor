@@ -63,6 +63,28 @@ When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `
 - Add a startup sync-check: an un-pushed local-`main`-ahead-of-`origin` commit (e.g. a triage commit on local main but not origin) blocks the whole drain — but only *after* the gate already did the work and tries to retire the entry. Pre-flight `origin/main == queue-source` before spawning the first gate, and surface the divergence loudly instead of failing deep.
 - Orphan agent children survive runner SIGTERM: killing the parent (`autonomous run`/`watch`) leaves the spawned `claude --print /gate` child running and holding context. Spawn the agent in its own process group and kill the group on runner death; at startup, reconcile (kill) any dead-run agent children before acquiring the lock.
 
+#### Prep Promote `--ship` Direct-Merge Fallback
+
+- area: tooling
+- type: fix
+- since: 2026-06-13
+- size: S
+- impact: med
+- confidence: high
+
+`prep promote --ship` opens a PR then runs `gh pr merge --auto --squash`, but on a repo with GitHub auto-merge disabled (`enablePullRequestAutoMerge` off) that errors and the promote PR is left open + unmerged — the operator must merge by hand. `pr-flow`'s `openAndAutoMerge` already handles this by falling back to a direct squash-merge; `prep promote --ship` should mirror that fallback so a promote batch lands the same way the drain's PRs do. Touches: `src/prep/prep-promote.ts` (reuse `pr-flow.ts` merge path).
+
+#### Prep Promote Preflight Ignores Untracked Files
+
+- area: tooling
+- type: fix
+- since: 2026-06-13
+- size: XS
+- impact: low
+- confidence: high
+
+`prep promote`'s preflight "working tree not clean" check counts untracked files as dirty, so a stray gitignored-but-untracked artifact (e.g. `.noldor/prep-fanout.log`) blocks the whole promote with a confusing message. The preflight should ignore untracked / gitignored files and block only on tracked (staged or modified) changes — matching what actually threatens a clean promote commit. Touches: `src/prep/prep-promote.ts` preflight check.
+
 ### Trailer Scope-Alias Map
 
 - area: tooling
