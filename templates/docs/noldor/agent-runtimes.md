@@ -1,3 +1,8 @@
+---
+noldor-page: agent-runtimes
+introduced: 0.5.0
+---
+
 # Agent Runtimes
 
 Noldor supports three agent runtimes as simultaneous first-class peers:

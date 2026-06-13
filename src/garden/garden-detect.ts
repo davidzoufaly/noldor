@@ -18,6 +18,8 @@ import { detectAllowlistDrift } from './detectors/allowlist-drift.js';
 import { detectTrailerScopeMismatch } from './detectors/trailer-scope-mismatch.js';
 import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
+import { detectCodeLinksDrift } from './detectors/code-links-drift.js';
+import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
 import { resolveByLinksPlan, resolveByLinksSpec } from './plan-resolution.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
@@ -687,6 +689,12 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     detectFdWithoutPlan(repo),
   ]);
   const sddGaps = loadSddGaps(repo);
+  // Append the file-side `// @fd:` tag drift: an FD whose cached links.code
+  // diverges from what the tag scan would write. Reuses diffProjection so this
+  // can never disagree with `sync code-links --check`.
+  const scannedCode = buildSlugToCodeMap(await collectTaggedCode(repo));
+  const cachedCode = await loadCachedCode(join(repo, 'docs/features'));
+  sddGaps.push(...detectCodeLinksDrift(scannedCode, cachedCode));
   const overrideAudit = auditOverrides({ cwd: repo });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   return {

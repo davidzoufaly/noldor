@@ -3,9 +3,17 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/features/migrate-code-tags.ts
+    - src/features/propose-pointers.ts
+    - src/garden/detectors/code-links-drift.ts
+    - src/sync/sync-code-links.ts
   docs: []
-  tests: []
+  tests:
+    - src/features/__tests__/migrate-code-tags.test.ts
+    - src/features/__tests__/propose-pointers.test.ts
+    - src/garden/detectors/__tests__/code-links-drift.test.ts
+    - src/sync/__tests__/sync-code-links.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md
   plan: >-
@@ -13,7 +21,7 @@ links:
 name: Dynamic FD ↔ File Pointers via Frontmatter
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary

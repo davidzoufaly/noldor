@@ -118,6 +118,14 @@ export const MANIFEST: Record<string, Group> = {
         src: 'features/migrate-features.ts',
         desc: 'One-off features migration',
       },
+      'migrate-code-tags': {
+        src: 'features/migrate-code-tags.ts',
+        desc: 'One-off: seed // @fd: tags from links.code',
+      },
+      'propose-pointers': {
+        src: 'features/propose-pointers.ts',
+        desc: 'Propose initial // @fd: pointers for a new FD',
+      },
       'migrate-fd-commits-to-prs': {
         src: 'features/migrate-fd-commits-to-prs.ts',
         desc: 'Migrate FD commit refs to PR refs',
@@ -135,6 +143,7 @@ export const MANIFEST: Record<string, Group> = {
     subs: {
       'test-links': { src: 'sync/sync-test-links.ts', desc: 'Sync test links into FDs' },
       'doc-links': { src: 'sync/sync-doc-links.ts', desc: 'Sync doc links into FDs' },
+      'code-links': { src: 'sync/sync-code-links.ts', desc: 'Sync code links into FDs' },
       'spec-links': { src: 'sync/sync-spec-links.ts', desc: 'Sync spec links into FDs' },
       'fd-resources': { src: 'sync/sync-fd-resources.ts', desc: 'Sync FD resource links' },
     },

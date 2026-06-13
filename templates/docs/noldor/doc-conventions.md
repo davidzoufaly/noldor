@@ -13,6 +13,7 @@ This page collects the framework's documentation rules: feature-doc / test-tag c
 | ------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `pnpm noldor sync doc-links`    | Crawl `<!-- @feature: <slug> -->` tags, populate FD `links.docs`. Pre-commit hook.              |
 | `pnpm noldor sync test-links`   | Crawl `// @tests: <slug>` tags, populate FD `links.tests`. Pre-commit hook.                     |
+| `pnpm noldor sync code-links`   | Crawl `// @fd: <slug>` tags, populate FD `links.code`. `--check` flags drift without writing.   |
 | `pnpm noldor validate features` | Reject unknown `@feature:` / `@tests:` slugs. Pre-commit hook.                                  |
 | `pnpm noldor docs transclude`   | Sync `<!-- example:start <name> --> ... <!-- example:end -->` blocks from `packages/examples/`. |
 | `pnpm noldor docs howto`        | Regenerate `docs/user/how-to/index.md`. Don't hand-edit the index.                              |
@@ -36,6 +37,10 @@ This page collects the framework's documentation rules: feature-doc / test-tag c
 ## `@tests:` tag — every test file tagged
 
 - **Every test file must carry `// @tests: <feature-slug>[, <feature-slug>]` as its first non-import line.** `pnpm noldor sync test-links` populates feature MD `links.tests` from these tags. `pnpm noldor validate features` rejects unknown slugs. Both run in the pre-commit hook.
+
+## `@fd:` tag — every code file tagged
+
+- **Every code file should carry `// @fd: <feature-slug>[, <feature-slug>]` at the top, after any shebang line.** `pnpm noldor sync code-links` derives feature MD `links.code` from these tags — a scan-derived cached projection, not a hand-maintained array (mirror of the `// @tests:` rule). Comma-separate slugs for a co-owned file. `pnpm noldor sync code-links --check` and the `code-links-drift` garden detector flag any FD whose cached `links.code` diverges from the tag scan.
 
 ## Tutorial code blocks transclude from a tested examples source
 

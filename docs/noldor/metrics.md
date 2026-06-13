@@ -1,3 +1,8 @@
+---
+noldor-page: metrics
+introduced: 0.5.0
+---
+
 # Metrics
 
 Effectiveness metrics derived reproducibly from repo history + `.noldor/` artifacts. Derive-on-demand: git is the store, computation is the cache — no persistent aggregate file. Honesty rails: **no metric without a documented formula**; the collectors' `formula` / `blindSpots` fields (`src/metrics/collect/*.ts`) are canonical and this page mirrors them. A unit test (`src/metrics/__tests__/compute.test.ts`) rejects any collector with an empty formula or blind-spot list.

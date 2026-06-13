@@ -1,3 +1,8 @@
+---
+noldor-page: autonomy
+introduced: 0.5.0
+---
+
 # Continuous Autonomy — watch, salvage, escalations
 
 `noldor autonomous watch` makes the one-shot drain continuous: a long-lived (or cron-fired)
