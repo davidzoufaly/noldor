@@ -5,7 +5,8 @@ deps: []
 links:
   code: []
   docs: []
-  tests: []
+  tests:
+    - src/sync/__tests__/sync-code-links.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md
   plan: >-
