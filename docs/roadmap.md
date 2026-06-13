@@ -23,56 +23,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-discipline.md`). Today every active task lives in its own branch worktree. The proposal: collapse to a single shared dev branch — still in worktrees for parallelism, but not separate branches — with all task work landing on one rolling branch and merging to main on release. Trade-off: simpler integration story (no per-task rebase, fewer divergent histories) at the cost of losing the per-task isolation that lets `/gate` and `/promote` reason about scope. Trigger: when per-branch overhead (rebase storms, cross-branch lint regen, merge order ambiguity) outweighs the isolation benefit.
 
-#### Per-Task Dev Environment Bootstrap
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: L
-- impact: med
-- parent: parallel-worktree-workflow
-
-Extend the worktree workflow with full per-task environment scaffolding: open IDE on the worktree folder/file, spawn a new terminal per task (already done), boot an internal web server scoped to the task's port, and start a local Charuy app instance per task. Today only the terminal spawn is automated; IDE focus and per-task app instances are manual. Goal: a single command takes an operator from "branch checked out" to "fully usable dev surface" without manual port-juggling. Pairs with the worktree port-per-tree convention from `docs/noldor/worktree-discipline.md`.
-
-#### Dynamic FD ↔ File Pointers via Frontmatter
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: L
-- impact: high
-- parent: noldor
-
-Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
-
-#### Version-Aware Upgrade and Migration Chain
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: L
-- impact: high
-- deps: registry-distribution
-- parent: noldor
-
-`noldor init --update` re-pulls current templates, but nothing handles *schema* evolution between framework versions: FD frontmatter shape changes, `consumer:` config field renames, skill-twin contract changes, trailer-format changes. With one consumer that's hand-migration; with N consumers on mixed pinned versions it's the biggest structural risk of the multi-project goal. Build `noldor upgrade`: a version-aware chain that takes a consumer from its current framework version to the installed one by running ordered codemods.
-
-**What to do:**
-
-- Version anchoring: record the framework version a consumer was last migrated to — `.noldor/config.json` `frameworkVersion:` field (written by `init` and `upgrade`), compared against the installed package version. `doctor` gains a skew check: installed ≠ migrated → warn, point at `upgrade`.
-- Migration registry: `src/migrations/<version>.ts` modules, each exporting `{ from, to, description, migrate(cwd, config), dryRun(cwd, config) }`. Migrations are pure file transforms over the consumer tree (FD frontmatter rewrites, config key renames, template re-syncs with content-preserving merges) — same codemod discipline the Charuy→standalone extract used by hand.
-- `noldor upgrade` command: resolves the chain `frameworkVersion → installed`, runs each migration sequentially, `--dry-run` prints the planned diffs per step, writes `frameworkVersion` only after the full chain succeeds. Refuses on dirty git tree; recommends a branch.
-- Authoring discipline: a framework PR that changes any consumer-facing schema MUST ship the matching migration in the same PR — enforce via a `/garden` detector or a release gate that diffs `feature-md-schema.md` / `consumer-config.ts` against `src/migrations/` coverage.
-- Codemod tests: fixture consumer trees per from-version under `src/migrations/__tests__/fixtures/`, snapshot the post-migration tree. The [consumer-contract-ci](#consumer-contract-ci-and-headless-gate-e2e-harness) fixture doubles as the live test bed.
-
-**What it enables:** the framework can keep evolving its schemas without freezing or hand-walking every consumer; consumers upgrade with one command and a reviewable diff; removes the "Charuy is three versions behind and nobody dares sync it" failure mode before it exists.
-
-**Open questions:** migration granularity — per release version vs per schema-change id (lean per-release, matches semver discipline in `versioning.md`); downgrade support (no — document as unsupported); how template re-sync merges consumer-local edits to twin files (three-way merge vs ours/theirs prompt — connects to the existing skill-twin drift pain).
-
-**Touches:** new `src/migrations/`, `src/cli/manifest.ts` (+`upgrade` group), `src/cli/commands/init.ts` (write `frameworkVersion`), `src/core/consumer-config.ts` (schema field), doctor checks, `docs/noldor/adoption-guide.md`, `docs/noldor/versioning.md`.
-
-**Acceptance sketch:** fixture consumer pinned at v0.2.0 shape + installed v0.4.0 → `noldor upgrade --dry-run` lists 2 steps with diffs; `noldor upgrade` lands both; `doctor` green; re-run is a no-op.
-
 #### Framework Milestones Support (POC / MVP / 1.0.0)
 
 - area: tooling
@@ -368,36 +318,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 **Acceptance sketch:** friction log exists with ≥10 dated entries; ≥3 changes shipped in consumer incl. ≥1 autonomous drain ship; ≥5 entries triaged back into Noldor's queue.
 
-#### Consumer-Contract CI and Headless Gate E2E Harness
-
-- area: tooling
-- type: test
-- since: 2026-06-11
-- size: L
-- impact: high
-- parent: noldor
-
-164 unit-test files, zero end-to-end coverage of the flows autonomy actually depends on: the skill-markdown gate paths, drain loop against a real repo, init/upgrade against a real consumer tree. The PR #33 bug class (headless gate silently ignoring env-only signals) lived exactly in this blind spot and shipped broken. Build one harness that covers both needs: a fixture consumer repo as the *contract*, and headless skill-flow runs as the *e2e layer*.
-
-**What to do:**
-
-- Fixture consumer: a minimal single-package TS app (`fixtures/consumer/` in-repo, or generated into a temp dir by a builder script — temp-dir generation avoids fixture rot and `.git`-in-`.git` issues; lean that way). Contains: `.noldor/config.json`, a tiny `src/`, `docs/` skeleton with vision/roadmap/ideas, one seeded roadmap entry sized XS, lefthook wired. A builder util makes it a real git repo with an initial commit.
-- Contract layer: CI job — install framework *from the working tree* into the fixture (`pnpm pack` + install tarball), run `noldor init`, `noldor doctor`, `noldor validate features`, `noldor garden detect`. Assert exit codes + key artifacts. Any framework PR that breaks this fails before merge — consumers are protected without being in the loop.
-- Headless flow layer: drive real flows non-interactively and assert *outcomes*, not transcripts:
-  - drain a seeded XS roadmap entry: `noldor autonomous run --source roadmap --max-features 1` → assert roadmap entry retired, commit carries `Noldor-Path: fast-track` + `Noldor-Reviewed-*` trailers, branch merged, worktree cleaned.
-  - micro-chore and fast-track gate sessions: marker files written, scope validator accepts/rejects per the rules.
-  - failure-path probes: dirty main, locked drain (`drain.lock` present), stale `fast/<slug>` branch (the salvage case) — assert the loop surfaces/parks instead of corrupting state.
-- Agent-call seam: headless runs that would spawn an LLM agent need a stub mode (deterministic canned implementer/reviewer responses keyed by slug) so CI is hermetic + free; one opt-in non-stubbed nightly/manual lane runs a real model for true end-to-end (pairs with the existing roadmap entry "Real-Codex Integration Smoke Test" — same gating pattern, `NOLDOR_RUN_REAL_*=1`).
-- Wire into CI config + `script-catalog.md`; failures must print the fixture-repo git log + `.noldor/` state for debuggability.
-
-**What it enables:** framework changes can't silently break consumers (the contract half) or the autonomous paths (the e2e half); regression net for every PR-#33-class bug; the fixture doubles as the test bed for [version-migration-chain](#version-aware-upgrade-and-migration-chain) codemods and the demo ground for adoption docs.
-
-**Open questions:** in-repo fixture vs generated-on-the-fly (lean generated); how the agent-stub seam is injected (env var + stub binary on PATH vs a `DrainSource`-style interface — the `DrainSource` seam from plan-runner suggests the pattern); CI provider/workflow file location for the standalone repo.
-
-**Touches:** new `fixtures/` or `src/testing/consumer-fixture.ts`, CI workflow, `src/autonomous/` (stub seam), `docs/noldor/testing-principles.md`, `docs/noldor/script-catalog.md`.
-
-**Acceptance sketch:** `pnpm test:contract` locally green in <5 min; intentionally breaking `consumer-config.ts` field name fails the contract job; drain e2e asserts trailers + retired entry on the fixture repo.
-
 #### Stack-Assumption Audit and Declared Prerequisites
 
 - area: tooling
@@ -487,16 +407,3 @@ Prefix the framework's skill names with `noldor-` to namespace them and avoid co
 - confidence: low
 
 Be able to dispatch the next-priority roadmap entry directly via an agent window — one action takes the top of the queue and kicks off work without manual slug lookup + command assembly.
-
-### Code Reviewer 2.0
-
-- area: tooling
-- type: feat
-- since: 2026-06-12
-- size: L
-- impact: med
-- confidence: low
-
-Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Raise review quality beyond the current CR lane.
-
-- Code-reviewer configuration for fast-track — let fast-track tune/scope the CR pass.
