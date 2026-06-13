@@ -2,6 +2,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { loadVerifyCommands } from '../core/consumer-config.js';
 import type { VerifySurface } from '../core/consumer-config.js';
+import { waitForHttp200 } from './health.js';
 
 export interface SmokeSurfaceResult {
   name: string;
@@ -89,17 +90,8 @@ async function probeServer(
   const child = spawn('/bin/sh', ['-c', command], { cwd, detached: true, stdio: 'ignore' });
   const deadline = Date.now() + readyMs;
   try {
-    while (Date.now() < deadline) {
-      try {
-        const res = await fetchImpl(url, { signal: AbortSignal.timeout(PROBE_FETCH_TIMEOUT_MS) });
-        if (res.status === 200) {
-          return { name, ok: true, evidence: { command, observed: `GET ${url} → 200` } };
-        }
-      } catch {
-        /* not accepting connections yet */
-      }
-      await new Promise((r) => setTimeout(r, 250));
-    }
+    const ok = await waitForHttp200(url, deadline, fetchImpl);
+    if (ok) return { name, ok: true, evidence: { command, observed: `GET ${url} → 200` } };
     return {
       name,
       ok: false,

@@ -12,7 +12,7 @@ links:
 name: Per-Task Dev Environment Bootstrap
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary

@@ -199,3 +199,23 @@ describe('verifyCommands', () => {
     }
   });
 });
+
+import { DevSurfaceSchema, DevConfigSchema, loadDevSurfaces } from '../consumer-config.js';
+
+describe('dev config', () => {
+  it('parses a surface with offset + rejects unknown keys', () => {
+    const s = DevSurfaceSchema.parse({ command: 'pnpm dev --port {port}', portOffset: 100 });
+    expect(s.healthPath).toBe('/');
+    expect(s.readyTimeoutMs).toBe(30_000);
+    expect(s.portOffset).toBe(100);
+    expect(() => DevSurfaceSchema.parse({ command: 'x', bogus: 1 })).toThrow();
+  });
+  it('defaults portOffset to 0 and surfaces to {}', () => {
+    expect(DevSurfaceSchema.parse({ command: 'x' }).portOffset).toBe(0);
+    expect(DevConfigSchema.parse({}).surfaces).toEqual({});
+  });
+  it('loadDevSurfaces returns {} when consumer.dev absent', () => {
+    // config.json has no dev block by default in this repo at test time
+    expect(loadDevSurfaces(process.cwd())).toEqual({});
+  });
+});

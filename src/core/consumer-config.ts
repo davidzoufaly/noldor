@@ -43,6 +43,34 @@ export const VerifySurfaceSchema = z
 
 export type VerifySurface = z.infer<typeof VerifySurfaceSchema>;
 
+/**
+ * One long-running per-task dev surface (web app, internal API). Booted by
+ * `noldor worktrees up`, probed at `healthPath`, and left running. `{port}`
+ * and `{path}` in `command` are substituted at boot; the port is the tree's
+ * stamped base PORT plus `portOffset` (see deriveSurfacePort).
+ */
+export const DevSurfaceSchema = z
+  .object({
+    command: z.string().min(1),
+    healthPath: z.string().default('/'),
+    readyTimeoutMs: z.number().int().positive().default(30_000),
+    portOffset: z.number().int().min(0).default(0),
+  })
+  .strict();
+export type DevSurface = z.infer<typeof DevSurfaceSchema>;
+
+/** Per-task dev environment config: optional editor + named dev surfaces. */
+export const DevConfigSchema = z
+  .object({
+    editor: z
+      .object({ command: z.string().min(1) })
+      .strict()
+      .optional(),
+    surfaces: z.record(z.string(), DevSurfaceSchema).default({}),
+  })
+  .strict();
+export type DevConfig = z.infer<typeof DevConfigSchema>;
+
 export const ConsumerConfigSchema = z
   .object({
     name: z.string().min(1),
@@ -77,6 +105,8 @@ export const ConsumerConfigSchema = z
      * docs/noldor/cr-pipeline.md). Empty by default — smoke is opt-in.
      */
     verifyCommands: z.record(z.string(), VerifySurfaceSchema).default({}),
+    /** Per-task dev surfaces booted by `worktrees up`. Absent = nothing booted. */
+    dev: DevConfigSchema.optional(),
   })
   .strict();
 
@@ -170,4 +200,14 @@ export function loadVerifyCommands(cwd: string = process.cwd()): Record<string, 
   } catch {
     return {};
   }
+}
+
+/** Load the `consumer.dev` block, or null when absent. */
+export function loadDevConfig(cwd: string = process.cwd()): DevConfig | null {
+  return loadConsumerConfig(cwd).dev ?? null;
+}
+
+/** Load the named dev surfaces, or `{}` when `consumer.dev` is absent. */
+export function loadDevSurfaces(cwd: string = process.cwd()): Record<string, DevSurface> {
+  return loadConsumerConfig(cwd).dev?.surfaces ?? {};
 }
