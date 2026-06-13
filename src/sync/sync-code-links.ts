@@ -200,9 +200,17 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Drive the write from the union of scanned + cached slugs. A slug whose
+  // `// @fd:` tags were all removed survives only in `cached`; iterating it with
+  // an empty path list lets `updateFeatureMd` clear the stale file entries (dir
+  // entries are preserved). Without this, `--check` would flag such an FD as
+  // stale forever and `sync code-links` could never bring it back in sync.
+  const cached = await loadCachedCode(featuresDir);
+  const slugs = new Set([...scanned.keys(), ...cached.keys()]);
   let updated = 0;
-  for (const [slug, paths] of scanned) {
+  for (const slug of [...slugs].toSorted()) {
     const featureMd = join(featuresDir, `${slug}.md`);
+    const paths = scanned.get(slug) ?? [];
     try {
       if (await updateFeatureMd(featureMd, paths)) updated += 1;
     } catch (error) {
