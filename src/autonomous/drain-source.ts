@@ -168,7 +168,22 @@ export function plansSource(cwd: string): DrainSource {
       return inProgressSlugs();
     },
     gatePrompt(slug) {
-      return `/gate --resume ${slug}`;
+      // Plan-drain is headless: the resumed gate MUST run autonomously or it
+      // stalls at the autonomous-vs-interactive / lane-picker / PR-approval
+      // seams a `claude --print` child can't answer. Per the PR #33 rule the
+      // directive rides the prompt (never env): the `--autonomous` flag plus
+      // explicit prose tell the gate to set `session.autonomous` immediately
+      // and ship end-to-end without pausing.
+      return [
+        `/gate --resume ${slug} --autonomous`,
+        '',
+        'Autonomous plan-drain context: run this resume end-to-end with NO interactive prompts.',
+        'Immediately set autonomous mode (`pnpm noldor noldor set-autonomous`) right after the',
+        'session marker is written — do NOT ask autonomous-vs-interactive. Implement the plan',
+        'inline, run code-stage CR, and ship via pr-flow. On CR-red or test-red run',
+        '`cr escalate --autonomous` (config `autonomous.onFailure` governs). Never pause for a',
+        'lane picker or PR approval.',
+      ].join('\n');
     },
     branchFor(slug) {
       return `feat/${slug}`;
