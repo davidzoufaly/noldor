@@ -158,7 +158,8 @@ async function updateFeatureMd(path: string, codeForFeature: string[]): Promise<
   return true;
 }
 
-async function loadCachedCode(featuresDir: string): Promise<Map<string, string[]>> {
+/** Load each FD's current `links.code` array, keyed by slug, from `featuresDir`. */
+export async function loadCachedCode(featuresDir: string): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   let entries: string[] = [];
   try {
