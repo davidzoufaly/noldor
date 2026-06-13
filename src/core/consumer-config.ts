@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 
@@ -107,6 +107,16 @@ export const ConsumerConfigSchema = z
     verifyCommands: z.record(z.string(), VerifySurfaceSchema).default({}),
     /** Per-task dev surfaces booted by `worktrees up`. Absent = nothing booted. */
     dev: DevConfigSchema.optional(),
+    /**
+     * Framework version this consumer tree was last migrated to. Written by
+     * `init` (fresh scaffold = current) and `noldor upgrade` (after a chain).
+     * Absent on a tree scaffolded before the upgrade feature; `upgrade --from`
+     * bootstraps it.
+     */
+    frameworkVersion: z
+      .string()
+      .regex(/^\d+\.\d+\.\d+/)
+      .optional(),
   })
   .strict();
 
@@ -210,4 +220,37 @@ export function loadDevConfig(cwd: string = process.cwd()): DevConfig | null {
 /** Load the named dev surfaces, or `{}` when `consumer.dev` is absent. */
 export function loadDevSurfaces(cwd: string = process.cwd()): Record<string, DevSurface> {
   return loadConsumerConfig(cwd).dev?.surfaces ?? {};
+}
+
+/**
+ * The framework version this consumer was last migrated to, or `null` when the
+ * field (or the whole config) is absent. Tolerant by design — reads the
+ * `consumer.frameworkVersion` field straight from `.noldor/config.json` without
+ * running the strict {@link ConsumerConfigSchema} validation, so the anchor is
+ * still readable on a partial/pre-feature tree whose config is otherwise
+ * incomplete (the doctor skew check and `upgrade` must both work there).
+ */
+export function loadFrameworkVersion(cwd: string = process.cwd()): string | null {
+  try {
+    const raw = JSON.parse(readFileSync(join(cwd, CONFIG_FILE), 'utf8')) as {
+      consumer?: { frameworkVersion?: unknown };
+    };
+    const v = raw.consumer?.frameworkVersion;
+    return typeof v === 'string' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Set `consumer.frameworkVersion` in `<cwd>/.noldor/config.json`, preserving
+ * every other key. Round-trips the JSON with 2-space indent + trailing newline.
+ * Throws if the config file does not exist (the caller scaffolds it first).
+ */
+export function writeFrameworkVersion(cwd: string, version: string): void {
+  const path = join(cwd, CONFIG_FILE);
+  const raw = JSON.parse(readFileSync(path, 'utf8')) as { consumer?: Record<string, unknown> };
+  raw.consumer ??= {};
+  raw.consumer.frameworkVersion = version;
+  writeFileSync(path, `${JSON.stringify(raw, null, 2)}\n`);
 }
