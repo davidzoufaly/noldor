@@ -407,16 +407,3 @@ Prefix the framework's skill names with `noldor-` to namespace them and avoid co
 - confidence: low
 
 Be able to dispatch the next-priority roadmap entry directly via an agent window — one action takes the top of the queue and kicks off work without manual slug lookup + command assembly.
-
-### Code Reviewer 2.0
-
-- area: tooling
-- type: feat
-- since: 2026-06-12
-- size: L
-- impact: med
-- confidence: low
-
-Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Raise review quality beyond the current CR lane.
-
-- Code-reviewer configuration for fast-track — let fast-track tune/scope the CR pass.
