@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -80,6 +80,26 @@ describe('noldor CLI', () => {
       mkdirSync(join(dir, '.noldor'), { recursive: true });
       writeFileSync(join(dir, '.noldor/config.json'), JSON.stringify({ consumer: { name: 'x' } }));
       expect(() => run(['init', '--update'], dir)).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('init --update does NOT advance an existing framework anchor', () => {
+    // Regression: a behind consumer (anchored 0.2.0) re-pulling templates via
+    // `--update` must keep its anchor — advancing it here would skip the
+    // migration chain and silently mark the tree current. Anchor advancement is
+    // `noldor upgrade`'s job.
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-init-'));
+    try {
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor/config.json'),
+        JSON.stringify({ consumer: { name: 'x', frameworkVersion: '0.2.0' } }),
+      );
+      run(['init', '--update'], dir);
+      const raw = JSON.parse(readFileSync(join(dir, '.noldor/config.json'), 'utf8'));
+      expect(raw.consumer.frameworkVersion).toBe('0.2.0');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

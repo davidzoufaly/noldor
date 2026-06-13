@@ -21,4 +21,21 @@ describe('evaluateCoverage', () => {
   it('is silent when no schema surface changed', () => {
     expect(evaluateCoverage(['src/dashboard/server.ts'])).toBeNull();
   });
+  it('does NOT treat engine modules as a migration', () => {
+    // chain.ts/semver.ts/registry.ts live under src/migrations/ but are not
+    // version-named — touching them must not satisfy the discipline gate.
+    for (const engine of [
+      'src/migrations/chain.ts',
+      'src/migrations/semver.ts',
+      'src/migrations/registry.ts',
+    ]) {
+      const f = evaluateCoverage(['src/core/consumer-config.ts', engine]);
+      expect(f, engine).not.toBeNull();
+    }
+  });
+  it('accepts a version-named migration module', () => {
+    expect(
+      evaluateCoverage(['src/core/consumer-config.ts', 'src/migrations/0.10.0.ts']),
+    ).toBeNull();
+  });
 });
