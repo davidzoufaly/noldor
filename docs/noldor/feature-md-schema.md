@@ -17,6 +17,7 @@ Every user-visible capability in the project is tracked as one feature MD (FD) u
 | `/draft-feature-md <slug> --refresh`    | Rewrite FD User Story / Usage to match what shipped.                                                                                                                   |
 | `pnpm noldor validate features`         | Schema check + cross-checks (`packages` ↔ `links.code`, `@tests:` slugs, `@feature:` slugs). Pre-commit hook.                                                          |
 | `pnpm noldor sync test-links`           | Populate `links.tests` from `// @tests: <slug>` directives. Pre-commit hook.                                                                                           |
+| `pnpm noldor sync code-links`           | Populate `links.code` from `// @fd: <slug>` directives. `--check` flags drift without writing.                                                                         |
 | `pnpm noldor sync doc-links`            | Populate `links.docs` from `<!-- @feature: <slug> -->` tags. Pre-commit hook.                                                                                          |
 | `pnpm noldor sync spec-links`           | Populate `links.spec` from spec files. Pre-commit hook.                                                                                                                |
 | `pnpm noldor sync fd-resources`         | Rewrite FD body's auto-generated Resources block. Also auto-rewrites `links.spec` to its `archive/` variant when the original spec file is missing. Pre-commit hook.   |
@@ -132,7 +133,7 @@ The operator no longer stages release-notes copy ahead of time. To override the 
 
 | Sub-field | Type                      | Notes                                                                                                                     |
 | --------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `code`    | `string[]` (default `[]`) | Repo-relative paths to implementation files or directories.                                                               |
+| `code`    | `string[]` (default `[]`) | Repo-relative paths to implementation files or directories. Scan-derived cached projection — populated by `pnpm noldor sync code-links` from `// @fd: <slug>` tags, not hand-maintained; guarded by `sync code-links --check` + the `code-links-drift` detector. Directory entries stay manual (a tag can't live on a dir). |
 | `docs`    | `string[]` (default `[]`) | Repo-relative paths to user-facing docs. Populated by `pnpm noldor sync doc-links` from `<!-- @feature: <slug> -->` tags. |
 | `plan`    | `string \| string[]` (optional) | Repo-relative path(s) to the implementation plan under `docs/superpowers/plans/`. Set on `full-*` paths.            |
 | `spec`    | `string` (optional)       | Single repo-relative path to the design spec under `docs/superpowers/specs/`.                                             |
