@@ -22,7 +22,7 @@ links:
 name: Consumer-Contract CI and Headless Gate E2E Harness
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary
