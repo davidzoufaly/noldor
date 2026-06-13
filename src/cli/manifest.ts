@@ -118,6 +118,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'features/migrate-features.ts',
         desc: 'One-off features migration',
       },
+      'migrate-code-tags': {
+        src: 'features/migrate-code-tags.ts',
+        desc: 'One-off: seed // @fd: tags from links.code',
+      },
       'migrate-fd-commits-to-prs': {
         src: 'features/migrate-fd-commits-to-prs.ts',
         desc: 'Migrate FD commit refs to PR refs',

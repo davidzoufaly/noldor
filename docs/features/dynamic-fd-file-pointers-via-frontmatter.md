@@ -6,6 +6,7 @@ links:
   code: []
   docs: []
   tests:
+    - src/features/__tests__/migrate-code-tags.test.ts
     - src/sync/__tests__/sync-code-links.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md
