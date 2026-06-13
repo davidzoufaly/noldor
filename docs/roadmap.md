@@ -500,14 +500,3 @@ Be able to dispatch the next-priority roadmap entry directly via an agent window
 Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Raise review quality beyond the current CR lane.
 
 - Code-reviewer configuration for fast-track — let fast-track tune/scope the CR pass.
-
-### sdd-report Review-Skip Count Non-Idempotent
-
-- area: tooling
-- type: fix
-- since: 2026-06-12
-- size: S
-- impact: med
-- confidence: med
-
-The sdd-report review-skip count bumps per fast-track commit and re-fires the release gate once. Make it skip when only the count line changed.
