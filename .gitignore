@@ -26,6 +26,8 @@ docs/ideas.md
 .noldor/escalations.jsonl
 .noldor/drain-park.json
 .noldor/watch-state.json
+.noldor/watch.log
+.noldor/watch.pid
 .noldor/agent-events.jsonl
 .noldor/ideas-recovery-*.md
 .noldor/prep-batch/

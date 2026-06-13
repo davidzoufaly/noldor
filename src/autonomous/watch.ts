@@ -1,10 +1,12 @@
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { loadConfigSync } from '../cr/config.js';
 import { runDrain, type DrainDeps, type DrainResult } from './drain-loop.js';
 import { roadmapSource } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
+import { detachWatch } from './watch-detach.js';
 import { writeState, type DrainState } from './drain-state.js';
 import { syncMainCleanState, openPrExistsFor, spawnGate, mergePr } from './drain-io.js';
 import { assertConfig } from './queue-drain.js';
@@ -26,6 +28,7 @@ export interface WatchArgs {
   once: boolean;
   json: boolean;
   dryRun: boolean;
+  detach: boolean;
 }
 
 function intFlag(args: readonly string[], name: string, def: number): number {
@@ -46,6 +49,7 @@ export function parseWatchArgs(args: readonly string[], configInterval: number):
     once: args.includes('--once'),
     json: args.includes('--json'),
     dryRun: args.includes('--dry-run'),
+    detach: args.includes('--detach'),
   };
 }
 
@@ -99,6 +103,23 @@ async function main(): Promise<void> {
     maxConsecutiveFailures: cfg.autonomous?.watch?.maxConsecutiveFailures ?? 3,
   };
   const notifyCommand = cfg.autonomous?.watch?.notifyCommand;
+
+  // --detach: re-spawn ourselves as a session-independent daemon and exit. The
+  // detached child re-enters here without --detach and acquires the lock below.
+  // Kept BEFORE acquireLock so the launcher never holds the lock the child needs.
+  if (parsed.detach) {
+    const moduleDir = dirname(fileURLToPath(import.meta.url));
+    const r = detachWatch(cwd, moduleDir, args);
+    if (!r.ok) {
+      process.stderr.write(`watch --detach: ${r.reason}\n`);
+      process.exit(1);
+    }
+    process.stdout.write(
+      `watch: detached (pid ${String(r.pid)}) — logs → ${r.logPath}\n` +
+        `  stop: kill $(cat ${r.pidPath})   (or: touch .noldor/drain-stop)\n`,
+    );
+    process.exit(0);
+  }
 
   const startedAt = new Date().toISOString();
   const lock = acquireLock(cwd, startedAt);

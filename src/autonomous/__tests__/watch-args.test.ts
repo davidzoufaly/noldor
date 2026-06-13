@@ -12,6 +12,7 @@ describe('parseWatchArgs', () => {
       once: false,
       json: false,
       dryRun: false,
+      detach: false,
     });
   });
 
@@ -25,6 +26,7 @@ describe('parseWatchArgs', () => {
         '--once',
         '--json',
         '--dry-run',
+        '--detach',
         '--max-retries',
         '1',
         '--iteration-timeout',
@@ -40,6 +42,7 @@ describe('parseWatchArgs', () => {
       once: true,
       json: true,
       dryRun: true,
+      detach: true,
     });
   });
 

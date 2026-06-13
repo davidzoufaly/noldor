@@ -31,7 +31,7 @@ export const MANIFEST: Record<string, Group> = {
       },
       watch: {
         src: 'autonomous/watch.ts',
-        desc: 'Continuous drain daemon (--interval <min>, --once for cron, --max-features per cycle)',
+        desc: 'Continuous drain daemon (--interval <min>, --once for cron, --detach for unattended, --max-features per cycle)',
       },
       inbox: {
         src: 'autonomous/inbox-cli.ts',

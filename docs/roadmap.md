@@ -113,17 +113,6 @@ When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `
 - Add a startup sync-check: an un-pushed local-`main`-ahead-of-`origin` commit (e.g. a triage commit on local main but not origin) blocks the whole drain — but only *after* the gate already did the work and tries to retire the entry. Pre-flight `origin/main == queue-source` before spawning the first gate, and surface the divergence loudly instead of failing deep.
 - Orphan agent children survive runner SIGTERM: killing the parent (`autonomous run`/`watch`) leaves the spawned `claude --print /gate` child running and holding context. Spawn the agent in its own process group and kill the group on runner death; at startup, reconcile (kill) any dead-run agent children before acquiring the lock.
 
-#### Supported Unattended Drain Launch Path
-
-- area: tooling
-- type: docs
-- since: 2026-06-12
-- size: S
-- impact: med
-- confidence: med
-
-A daemon-style drain (`autonomous run` / `watch`) launched via a harness-managed background task (e.g. Claude Code `run_in_background`) gets SIGTERM-reaped (exit 143) within minutes — the managed-task lifecycle tears it down. Reliable unattended runs need `nohup`/`disown` detach or a cron/systemd unit. Document the supported launch path(s) in the autonomous-drain docs, and consider a `noldor autonomous watch --detach` helper that does the nohup dance + writes a pidfile so operators don't hand-roll it.
-
 ### Trailer Scope-Alias Map
 
 - area: tooling
