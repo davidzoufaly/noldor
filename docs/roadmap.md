@@ -501,17 +501,6 @@ Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Rai
 
 - Code-reviewer configuration for fast-track — let fast-track tune/scope the CR pass.
 
-### pnpm toon Omits Required graph.json Arg
-
-- area: tooling
-- type: fix
-- since: 2026-06-12
-- size: XS
-- impact: low
-- confidence: high
-
-The `pnpm toon` script omits the required `graph.json` arg — bare `pnpm toon` fails, yet `src/garden/graph-fd-lookup.ts` tells users to run it. Wire the arg into the script.
-
 ### gitignore .noldor/release-pushes.log
 
 - area: tooling
