@@ -1,0 +1,10 @@
+{
+  "slug": "add-greeting-helper",
+  "files": [
+    {
+      "path": "src/greeting.ts",
+      "content": "export const greet = (n: string): string => `hi ${n}`;\n"
+    }
+  ],
+  "commitSubject": "feat(tooling): add greeting helper"
+}
