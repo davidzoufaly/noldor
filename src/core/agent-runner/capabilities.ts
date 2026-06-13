@@ -23,4 +23,12 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     questionSuppression: 'permission-config',
     rulesFile: 'AGENTS.md',
   },
+  // Hermetic in-repo test double: no LLM, no network, scripted canned work.
+  stub: {
+    structuredOutput: 'prose',
+    sandbox: 'none',
+    supportsLocalModels: true,
+    questionSuppression: 'flag',
+    rulesFile: 'CLAUDE.md',
+  },
 };

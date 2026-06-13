@@ -2,12 +2,15 @@ import { execFileSync } from 'node:child_process';
 import { CLAUDE_BIN } from './runners/claude.js';
 import { CODEX_BIN } from './runners/codex.js';
 import { OPENCODE_BIN } from './runners/opencode.js';
+import { STUB_BIN } from './runners/stub.js';
 import type { AgentsConfig, RunnerName } from './types.js';
 
 const BINS: Record<RunnerName, string> = {
   claude: CLAUDE_BIN,
   codex: CODEX_BIN,
   opencode: OPENCODE_BIN,
+  // node binary — always present, so a stub-default consumer passes doctor.
+  stub: STUB_BIN,
 };
 
 export interface RunnerCheck {
