@@ -135,3 +135,35 @@ describe('verifyMode', () => {
     expect(autonomousConfigSchema.parse({ verifyMode: 'blocking' }).verifyMode).toBe('blocking');
   });
 });
+
+import { resolveReviewProfile } from '../config.js';
+
+describe('resolveReviewProfile', () => {
+  it('returns the built-in default when config is null', () => {
+    expect(resolveReviewProfile(null)).toEqual({
+      effort: 'med',
+      dimensions: ['correctness', 'security', 'reuse', 'simplification', 'efficiency', 'altitude'],
+    });
+  });
+
+  it('returns the built-in fast-track profile by name', () => {
+    expect(resolveReviewProfile(null, 'fast-track')).toEqual({
+      effort: 'low',
+      dimensions: ['correctness', 'security'],
+    });
+  });
+
+  it('falls back to default for an unknown name', () => {
+    expect(resolveReviewProfile(null, 'bogus').effort).toBe('med');
+  });
+
+  it('lets config override a built-in profile name', () => {
+    const cfg = {
+      crReview: { profiles: { 'fast-track': { effort: 'high', dimensions: ['correctness'] } } },
+    } as const;
+    expect(resolveReviewProfile(cfg, 'fast-track')).toEqual({
+      effort: 'high',
+      dimensions: ['correctness'],
+    });
+  });
+});
