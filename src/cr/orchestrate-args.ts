@@ -10,6 +10,7 @@ export const orchestrateArgsSchema = z.object({
   headSha: z.string().optional(),
   fullReview: z.boolean().default(false),
   autonomous: z.boolean().default(false),
+  profile: z.string().optional(),
 });
 export type OrchestrateArgs = z.infer<typeof orchestrateArgsSchema>;
 
@@ -25,6 +26,7 @@ export function parseArgs(argv: string[]): OrchestrateArgs {
     else if (t === '--head-sha') a.headSha = argv[++i];
     else if (t === '--full-review') a.fullReview = true;
     else if (t === '--autonomous') a.autonomous = true;
+    else if (t === '--profile') a.profile = argv[++i];
   }
   return orchestrateArgsSchema.parse(a);
 }

@@ -1,5 +1,6 @@
 // scripts/cr/lane-types.ts
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
+import type { ReviewProfile } from './review-profile.js';
 
 export interface LaneInput {
   slug: string;
@@ -9,6 +10,7 @@ export interface LaneInput {
   artifactSha: string;
   baseSha?: string;
   fullReview?: boolean;
+  reviewProfile?: ReviewProfile;
   repoRoot: string;
 }
 

@@ -228,3 +228,27 @@ describe('verify lane positive wiring', () => {
     expect(sink.verdict).toBe('pass');
   });
 });
+
+import { parseArgs } from '../orchestrate-args.js';
+
+describe('--profile arg', () => {
+  it('parses --profile', () => {
+    const a = parseArgs([
+      'node',
+      'x',
+      '--slug',
+      's',
+      '--artifact',
+      'a',
+      '--kind',
+      'code',
+      '--profile',
+      'fast-track',
+    ]);
+    expect(a.profile).toBe('fast-track');
+  });
+  it('leaves profile undefined when absent', () => {
+    const a = parseArgs(['node', 'x', '--slug', 's', '--artifact', 'a', '--kind', 'code']);
+    expect(a.profile).toBeUndefined();
+  });
+});
