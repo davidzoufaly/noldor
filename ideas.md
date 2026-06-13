@@ -25,6 +25,12 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 #### Now
 
+- no `--help` guard on any `autonomous` subcommand (run/watch) — `--help` runs the real drain/daemon instead of printing usage; probes spawned 3 colliding drains on one slug [triaged 2026-06-12 → autonomous-subcommand-help-guard]
+- drain has no startup sync-check: an un-pushed local-main-ahead-of-origin commit blocks the whole drain, but only after the gate already did the work — pre-flight origin/main == queue-source before spawning [triaged 2026-06-12 → drain-startup-reconciliation-of-a-prior-dead-run]
+- orphan gate child survives runner SIGTERM: parent (autonomous run) killed but `claude --print /gate` child keeps running + holds context; kill children as a process group + reconcile dead-run children at startup [triaged 2026-06-12 → drain-startup-reconciliation-of-a-prior-dead-run]
+- no idempotency guard for already-mirrored local commits: a triage commit un-pushed locally got delivered twice (#76 + #77, identical) by a concurrent process — detect "this local commit already on origin under a different sha" before re-delivering [triaged 2026-06-12 → idempotent-drain-delivery-guard]
+- daemon-style drain gets SIGTERM-reaped (exit 143) under harness run_in_background/managed-task lifecycle; needs nohup/detach or cron/systemd. Document the supported unattended launch path [triaged 2026-06-12 → unattended-drain-launch-path]
+- /gate not runtime-portable: drain spawns prompt `/gate --drain <slug>` (claude slash-command); spawn layer is agent-agnostic (registry picks bin+argv for claude/codex/opencode) but codex (stdin, no slash-cmds) + opencode (no vendored /gate) can't honor it — need a portable `noldor gate` CLI entry or per-runtime gate vendoring [triaged 2026-06-12 → portable-gate-entrypoint-for-non-claude-runners]
 - prefix skills "noldor:" [triaged 2026-06-12 → prefix-skills-with-noldor]
 - when I should verify the input the framework needs to help localize the file / open the file [triaged 2026-06-12 → reduce-gate-flow-confirmation-friction]
 - still used superpowers worktree -> remove specs plan to different folder [triaged 2026-06-12 → path-rename-docs-superpowers-to-docs-design]
