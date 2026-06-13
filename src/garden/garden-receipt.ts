@@ -4,6 +4,8 @@ import { basename, join } from 'node:path';
 
 import { z } from 'zod';
 
+import { loadConsumerConfig } from '../core/consumer-config.js';
+
 /**
  * Stamp on disk attesting that `/garden` ran successfully against a given
  * repo state. Read at release-time by {@link ensureGardenFresh} to refuse
@@ -74,33 +76,64 @@ export function evaluateGardenFreshness(input: FreshnessInputs): FreshnessResult
 }
 
 /**
- * Source paths whose most-recent commit timestamp gates the receipt. Mirrors
- * the `apps/ packages/ scripts/` scope used by `ensureGraphFresh()` in
- * `scripts/release/index.ts` so the two release-time freshness checks track
- * the same "src commit" universe. Scoping is the load-bearing detail —
- * without it, garden's own regen-chain commits would re-stale the receipt
- * the moment they land, forcing operators into a `/garden` loop or routine
- * `RELEASE_SKIP_GARDEN_GATE=1` use.
+ * Source paths whose most-recent commit timestamp gates the receipt. Derived
+ * from the consumer's `scanPaths` (`.noldor/config.json`) — the SAME scoping
+ * input `ensureGraphFresh()` reads in `src/release/index.ts` — instead of a
+ * hardcoded monorepo layout. A standalone repo with `scanPaths: ['src']` was
+ * previously invisible to the gate: the hardcoded `apps/ packages/ scripts/`
+ * scope matched nothing, so source commits never stale'd the receipt.
+ *
+ * Falls back to `['src']` when the config is missing or declares no scanPaths
+ * (mirrors the dashboard default), keeping the gate functional during
+ * bootstrap and in unit-test cwds.
+ *
+ * NOTE — deliberate divergence from `ensureGraphFresh()`: they share the
+ * scan-path *scoping* but not the *empty-config* semantics. Graph freshness is
+ * opt-in (no graph tracked OR empty `scanPaths` → gate skipped). The garden
+ * gate is NOT opt-out via empty config: an empty/absent `scanPaths` falls back
+ * to `['src']` and still gates, so a config typo can't silently disable the
+ * "did /garden run?" check. Disable it only via `RELEASE_SKIP_GARDEN_GATE=1`.
+ *
+ * Scoping is the load-bearing detail — without it, garden's own regen-chain
+ * commits would re-stale the receipt the moment they land, forcing operators
+ * into a `/garden` loop or routine `RELEASE_SKIP_GARDEN_GATE=1` use.
  */
-const GARDEN_SRC_PATHS = ['apps/', 'packages/', 'scripts/'] as const;
+export function resolveGardenScanPaths(cwd: string = process.cwd()): string[] {
+  try {
+    const { scanPaths } = loadConsumerConfig(cwd);
+    return scanPaths.length > 0 ? scanPaths : ['src'];
+  } catch {
+    return ['src'];
+  }
+}
 
 /**
  * Release-time gate: refuses to proceed unless `/garden` has been run since
- * the last commit under {@link GARDEN_SRC_PATHS}. Mirrors
- * `ensureGraphFresh()`'s shape.
+ * the last commit under the consumer's configured scan paths (see
+ * {@link resolveGardenScanPaths}). Mirrors `ensureGraphFresh()`'s shape.
+ *
+ * `scanPaths` defaults to {@link resolveGardenScanPaths} but callers that have
+ * already loaded the consumer config (e.g. the release flow) pass it directly
+ * to avoid a second config read.
  *
  * Bypass via `RELEASE_SKIP_GARDEN_GATE=1` for bootstrap commits (commits
  * that predate this gate's existence). The bypass is stdout-loud but has
  * no persistent audit ledger today — operators should treat each usage
  * as exceptional. Persistent override tracking is a candidate follow-up.
  */
-export function ensureGardenFresh(cwd: string = process.cwd()): void {
+export function ensureGardenFresh(cwd: string = process.cwd(), scanPaths?: string[]): void {
   if (process.env.RELEASE_SKIP_GARDEN_GATE === '1') {
     console.log('→ ensureGardenFresh (SKIPPED via RELEASE_SKIP_GARDEN_GATE=1)');
     return;
   }
+  // `?.length` (not `??`): callers — notably the release flow — pass the
+  // consumer config's `scanPaths`, which defaults to `[]` when undeclared.
+  // An empty pathspec to `git log -- ` resolves the latest commit across the
+  // WHOLE repo, exactly the unscoped behavior `resolveGardenScanPaths` exists
+  // to prevent. Treat empty the same as omitted and fall back.
+  const paths = scanPaths?.length ? scanPaths : resolveGardenScanPaths(cwd);
   const receipt = readGardenReceipt(cwd);
-  const raw = execFileSync('git', ['log', '-1', '--format=%ct', '--', ...GARDEN_SRC_PATHS], {
+  const raw = execFileSync('git', ['log', '-1', '--format=%ct', '--', ...paths], {
     cwd,
     encoding: 'utf8',
   }).trim();

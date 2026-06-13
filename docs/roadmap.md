@@ -501,18 +501,16 @@ Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Rai
 
 - Code-reviewer configuration for fast-track — let fast-track tune/scope the CR pass.
 
-### Graph Freshness scanPaths Drift in Standalone Repo
+### Relax Graph Freshness for Test-Only / Doc Diffs
 
 - area: tooling
-- type: fix
-- since: 2026-06-12
+- type: feat
+- since: 2026-06-13
 - size: S
-- impact: med
-- confidence: med
+- impact: low
+- confidence: low
 
-`GARDEN_SRC_PATHS = apps/packages/scripts/` (not `src/`) → garden-receipt freshness doesn't track this repo's source; mirror `scanPaths`.
-
-- Every `src`-touching fast-track re-stales the graph (`scanPaths=src`) → forces a graph-refresh sweep before each release; consider auto-regen in release or relax freshness for test-only diffs.
+Every `src`-touching fast-track re-stales the knowledge graph (`scanPaths=src`) → forces a graph-refresh sweep before each release even when the diff touches no graph-relevant source (tests, comments, docs). Consider auto-regen of the graph inside `pnpm release`, or relaxing graph freshness when the diff is test-only / doc-only. Split out of `graph-freshness-scanpaths-drift-in-standalone-repo`: the garden-receipt scanPaths drift is fixed (receipt now mirrors the consumer's `scanPaths`); this is the remaining release-friction half.
 
 ### pnpm toon Omits Required graph.json Arg
 
