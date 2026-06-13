@@ -12,12 +12,20 @@ const M_PLUS = new Set(['M', 'L', 'XL']);
  * Roadmap entries eligible for parallel prep: size M/L/XL, and not already designed
  * (no `*-<slug>-design.md` spec and no `docs/features/<slug>.md` FD). Pure — the
  * caller passes the spec filenames and FD slugs it read from disk.
+ *
+ * `slugFilter` (optional) narrows the result to the named slugs — `prep fanout --slugs`
+ * uses it to scope a fanout to specific roadmap entries (e.g. L-only). It only ever
+ * *removes* entries: a requested slug that is sub-M, already-specced, or already an FD
+ * stays excluded (no force-include). An empty array selects nothing; `undefined` keeps
+ * the unfiltered M+ behavior.
  */
 export function discoverPrepEntries(
   roadmapRaw: string,
   specFiles: readonly string[],
   fdSlugs: readonly string[],
+  slugFilter?: readonly string[],
 ): PrepEntry[] {
+  const filter = slugFilter ? new Set(slugFilter) : null;
   const fdSet = new Set(fdSlugs);
   // Anchored slug parse: a bare endsWith would false-match a slug that is a hyphen-suffix of a
   // longer spec slug (e.g. "drain" vs a "...-queue-drain-design.md" file).
@@ -30,6 +38,7 @@ export function discoverPrepEntries(
     const size = (e.size ?? '').toUpperCase();
     if (!M_PLUS.has(size)) continue;
     if (fdSet.has(e.slug) || specced.has(e.slug)) continue;
+    if (filter && !filter.has(e.slug)) continue;
     out.push({
       slug: e.slug,
       name: e.name,
