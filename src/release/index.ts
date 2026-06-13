@@ -6,6 +6,7 @@ import { loadConsumerConfig } from '../core/consumer-config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { ensureGardenFresh } from '../garden/garden-receipt.js';
 import { autoStampOnCleanDetect } from './auto-restamp.js';
+import { ensureGraphFresh } from './graph-freshness.js';
 import { fillAllNoldorMarkers } from '../core/release-markers.js';
 import { classifyCommits, deriveBumpLevel, readCommitsSince } from './release-commits.js';
 import { checkCrGate } from './release-cr-gate.js';
@@ -61,29 +62,6 @@ async function ensureGhAvailable(): Promise<void> {
   } catch {
     throw new Error(
       'gh CLI missing or unauthenticated. Install from https://cli.github.com/ and run `gh auth login`.',
-    );
-  }
-}
-
-/**
- * Knowledge-graph freshness gate. Graphify is OPTIONAL — a consumer that does
- * not track `graphify-out/graph.json` skips the check entirely. When a graph
- * IS tracked, it must postdate the latest commit under the configured
- * `scanPaths` (the SDD detectors read the graph; a stale graph ships degraded
- * meta-gaps in the report).
- */
-async function ensureGraphFresh(scanPaths: string[]): Promise<void> {
-  const graphTs = await run('git', ['log', '-1', '--format=%ct', '--', 'graphify-out/graph.json']);
-  if (graphTs.length === 0) {
-    console.log('→ graph freshness (skipped — no graphify-out/graph.json tracked)');
-    return;
-  }
-  if (scanPaths.length === 0) return;
-  const srcTs = await run('git', ['log', '-1', '--format=%ct', '--', ...scanPaths]);
-  if (srcTs.length > 0 && Number(srcTs) > Number(graphTs)) {
-    throw new Error(
-      'Knowledge graph is stale: source files were committed after graphify-out/graph.json. ' +
-        'Regenerate the graph (/graphify) and commit it before releasing.',
     );
   }
 }
