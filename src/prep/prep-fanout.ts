@@ -32,6 +32,7 @@ interface FanoutArgs {
   dryRun: boolean;
   json: boolean;
   date?: string;
+  slugs?: string[];
 }
 
 function intArg(value: string | undefined, name: string): number {
@@ -46,6 +47,7 @@ function parseArgs(argv: readonly string[]): FanoutArgs {
   let dryRun = false;
   let json = false;
   let date: string | undefined;
+  let slugs: string[] | undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === '--dry-run') dryRun = true;
@@ -53,9 +55,22 @@ function parseArgs(argv: readonly string[]): FanoutArgs {
     else if (a === '--max') max = intArg(argv[++i], '--max');
     else if (a === '--timeout') timeoutMs = intArg(argv[++i], '--timeout');
     else if (a === '--date') date = argv[++i];
+    else if (a === '--slugs')
+      // Mirror `prep promote --slugs`: comma-separated, trimmed, empties dropped.
+      slugs = (argv[++i] ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
     else throw new Error(`unknown flag: ${a}`);
   }
-  return { max, timeoutMs, dryRun, json, ...(date !== undefined ? { date } : {}) };
+  return {
+    max,
+    timeoutMs,
+    dryRun,
+    json,
+    ...(date !== undefined ? { date } : {}),
+    ...(slugs !== undefined ? { slugs } : {}),
+  };
 }
 
 function todayUtc(): string {
@@ -68,7 +83,24 @@ async function run(argv: readonly string[]): Promise<number> {
   const today = parsed.date ?? todayUtc();
 
   const roadmapRaw = readFileSync(loadDocRoots(cwd).roadmap, 'utf8');
-  const entries = discoverPrepEntries(roadmapRaw, listSpecFiles(cwd), listFdSlugs(cwd));
+  const entries = discoverPrepEntries(
+    roadmapRaw,
+    listSpecFiles(cwd),
+    listFdSlugs(cwd),
+    parsed.slugs,
+  );
+
+  // Surface requested slugs that didn't survive discovery (typo, sub-M, or already
+  // designed) so an explicit `--slugs` selection never silently drops entries.
+  if (parsed.slugs) {
+    const found = new Set(entries.map((e) => e.slug));
+    const missing = parsed.slugs.filter((s) => !found.has(s));
+    if (missing.length > 0 && !parsed.json) {
+      process.stderr.write(
+        `prep fanout: ${missing.length} requested slug(s) skipped (not an undesigned M+ roadmap entry): ${missing.join(', ')}\n`,
+      );
+    }
+  }
 
   if (entries.length === 0) {
     process.stdout.write(

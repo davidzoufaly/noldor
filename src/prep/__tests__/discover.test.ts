@@ -61,6 +61,32 @@ describe('discoverPrepEntries', () => {
     ]);
   });
 
+  it('restricts to slugFilter when provided', () => {
+    expect(discoverPrepEntries(ROADMAP, [], [], ['large-thing']).map((e) => e.slug)).toEqual([
+      'large-thing',
+    ]);
+  });
+
+  it('slugFilter still respects M+ / already-designed exclusions (no force-include)', () => {
+    // 'small-thing' is size-S, never eligible; requesting it yields nothing.
+    expect(discoverPrepEntries(ROADMAP, [], [], ['small-thing'])).toEqual([]);
+    // a spec'd entry stays excluded even when explicitly requested.
+    expect(
+      discoverPrepEntries(ROADMAP, ['2026-06-01-large-thing-design.md'], [], ['large-thing']),
+    ).toEqual([]);
+  });
+
+  it('empty slugFilter array filters everything out (explicit empty selection)', () => {
+    expect(discoverPrepEntries(ROADMAP, [], [], [])).toEqual([]);
+  });
+
+  it('undefined slugFilter keeps the unfiltered M+ behavior', () => {
+    expect(discoverPrepEntries(ROADMAP, [], [], undefined).map((e) => e.slug)).toEqual([
+      'medium-thing',
+      'large-thing',
+    ]);
+  });
+
   it('does not false-match a slug that is a hyphen-suffix of a longer spec slug', () => {
     // A spec for "queue-drain" must NOT make a roadmap slug "drain" look already-specced.
     const roadmap = `# Roadmap
