@@ -7,6 +7,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 // `src/cli/` → `src/` (one level up).
 const SRC_ROOT = resolve(here, '..');
 
+/** A `--help` / `-h` help request in any argv slot. */
+const isHelpFlag = (s: string | undefined): boolean => s === '--help' || s === '-h';
+
 async function dispatch(srcRelative: string, argsAfterModulePath: string[]): Promise<void> {
   const modPath = resolve(SRC_ROOT, srcRelative);
   // Reshape process.argv so the dispatched module sees its own invocation
@@ -26,7 +29,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (group === '--help' || group === undefined) {
+  if (group === undefined || isHelpFlag(group)) {
     printHelp();
     return;
   }
@@ -45,7 +48,7 @@ async function main(): Promise<void> {
   // subcommand.
   const leaf = g.subs[''];
   if (leaf !== undefined) {
-    if (sub === '--help') {
+    if (isHelpFlag(sub) || rest.some(isHelpFlag)) {
       printHelp(group);
       return;
     }
@@ -54,7 +57,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (sub === '--help' || sub === undefined) {
+  if (sub === undefined || isHelpFlag(sub)) {
     printHelp(group);
     return;
   }
@@ -63,6 +66,14 @@ async function main(): Promise<void> {
   if (subCmd === undefined) {
     console.error(`Unknown subcommand: ${group} ${sub}`);
     process.exit(1);
+  }
+
+  // A `--help`/`-h` anywhere in a subcommand's own args prints usage and exits 0
+  // BEFORE dispatching — otherwise `noldor autonomous run --help` falls through
+  // to queue-drain.ts and launches the real drain (the bug this guards against).
+  if (rest.some(isHelpFlag)) {
+    printHelp(group, sub);
+    return;
   }
 
   await dispatch(subCmd.src, rest);
