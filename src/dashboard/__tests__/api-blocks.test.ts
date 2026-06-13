@@ -7,9 +7,18 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { parseRoadmap } from '../../utils/parse-blocks.js';
+
 import * as atomicModule from '../api/atomic.js';
 import { atomicWriteFile } from '../api/atomic.js';
-import { handleDemote, handleMove, handlePromote } from '../api/blocks.js';
+import {
+  buildRoadmapBlock,
+  handleAdd,
+  handleDemote,
+  handleMove,
+  handlePromote,
+  handleRemove,
+} from '../api/blocks.js';
 
 describe(atomicWriteFile, () => {
   let dir: string;
@@ -332,5 +341,223 @@ describe('handlePromote destination-rename failure', () => {
     expect(logCall).toBeDefined();
 
     expect(writeSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe(buildRoadmapBlock, () => {
+  it('emits a schema-C H3 block with bullets in canonical order', () => {
+    const block = buildRoadmapBlock({
+      name: 'New Thing',
+      area: 'web',
+      since: '2026-06-13',
+      type: 'feat',
+      size: 'S',
+      impact: 'low',
+      description: 'Does a thing.',
+    });
+    expect(block).toBe(
+      `### New Thing\n\n- area: web\n- type: feat\n- since: 2026-06-13\n- size: S\n- impact: low\n\nDoes a thing.\n`,
+    );
+  });
+
+  it('omits optional bullets and body when absent', () => {
+    expect(buildRoadmapBlock({ name: 'Bare', area: 'core', since: '2026-06-13' })).toBe(
+      `### Bare\n\n- area: core\n- since: 2026-06-13\n`,
+    );
+  });
+});
+
+describe(handleRemove, () => {
+  let dir: string;
+  let roadmapPath: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'api-remove-test-'));
+    roadmapPath = join(dir, 'roadmap.md');
+    writeFileSync(roadmapPath, ROADMAP_FIX);
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('removes the block and returns 200 + new etag', async () => {
+    const hash = createHash('sha256').update(ROADMAP_FIX).digest('hex');
+    const result = await handleRemove({ path: roadmapPath, ifMatch: hash, slug: 'alpha' });
+    expect(result.status).toBe(200);
+    expect(result.body.ok).toBe(true);
+    expect(result.body.etag).toMatch(/^[a-f0-9]{64}$/);
+    const after = readFileSync(roadmapPath, 'utf8');
+    expect(after).not.toContain('Body A.');
+    expect(after).toContain('Body B.');
+  });
+
+  it('returns 404 for an unknown slug', async () => {
+    const hash = createHash('sha256').update(ROADMAP_FIX).digest('hex');
+    const result = await handleRemove({ path: roadmapPath, ifMatch: hash, slug: 'nope' });
+    expect(result.status).toBe(404);
+    expect(readFileSync(roadmapPath, 'utf8')).toBe(ROADMAP_FIX);
+  });
+
+  it('returns 412 on If-Match mismatch (no write)', async () => {
+    const result = await handleRemove({ path: roadmapPath, ifMatch: 'stale', slug: 'alpha' });
+    expect(result.status).toBe(412);
+    expect(readFileSync(roadmapPath, 'utf8')).toBe(ROADMAP_FIX);
+  });
+
+  it('returns 400 for an invalid slug shape', async () => {
+    const hash = createHash('sha256').update(ROADMAP_FIX).digest('hex');
+    const result = await handleRemove({ path: roadmapPath, ifMatch: hash, slug: 'Bad Slug' });
+    expect(result.status).toBe(400);
+  });
+});
+
+describe(handleAdd, () => {
+  let dir: string;
+  let roadmapPath: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'api-add-test-'));
+    roadmapPath = join(dir, 'roadmap.md');
+    writeFileSync(roadmapPath, ROADMAP_FIX);
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const hash = (): string =>
+    createHash('sha256').update(readFileSync(roadmapPath, 'utf8')).digest('hex');
+
+  it('adds an entry at the top (before the first existing entry)', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: { name: 'Top One', area: 'web', since: '2026-06-13' },
+    });
+    expect(result.status).toBe(200);
+    const after = readFileSync(roadmapPath, 'utf8');
+    expect(after).toContain('### Top One');
+    expect(after.indexOf('### Top One')).toBeLessThan(after.indexOf('### Alpha'));
+  });
+
+  it('adds an entry at the bottom (after the last existing entry)', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'bottom',
+      fields: { name: 'Bottom One', area: 'web', since: '2026-06-13' },
+    });
+    expect(result.status).toBe(200);
+    const after = readFileSync(roadmapPath, 'utf8');
+    expect(after).toContain('### Bottom One');
+    expect(after.indexOf('### Bottom One')).toBeGreaterThan(after.indexOf('Beta body.'));
+  });
+
+  it('returns 400 on a blank name', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: { name: '   ', area: 'web', since: '2026-06-13' },
+    });
+    expect(result.status).toBe(400);
+    expect(readFileSync(roadmapPath, 'utf8')).toBe(ROADMAP_FIX);
+  });
+
+  it('returns 400 on an invalid area token', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: { name: 'X', area: 'not valid', since: '2026-06-13' },
+    });
+    expect(result.status).toBe(400);
+  });
+
+  it('returns 400 on a malformed since', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: { name: 'X', area: 'web', since: 'yesterday' },
+    });
+    expect(result.status).toBe(400);
+  });
+
+  it('returns 412 on If-Match mismatch (no write)', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: 'stale',
+      position: 'top',
+      fields: { name: 'X', area: 'web', since: '2026-06-13' },
+    });
+    expect(result.status).toBe(412);
+    expect(readFileSync(roadmapPath, 'utf8')).toBe(ROADMAP_FIX);
+  });
+
+  it('returns 400 when the description contains a code fence (no roadmap corruption)', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: { name: 'X', area: 'web', since: '2026-06-13', description: 'before\n```js\ncode' },
+    });
+    expect(result.status).toBe(400);
+    // File untouched — the existing entries must still parse intact.
+    expect(readFileSync(roadmapPath, 'utf8')).toBe(ROADMAP_FIX);
+  });
+
+  it('returns 400 when the description contains a line-start heading', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: {
+        name: 'X',
+        area: 'web',
+        since: '2026-06-13',
+        description: '### Injected\n- area: x',
+      },
+    });
+    expect(result.status).toBe(400);
+    expect(readFileSync(roadmapPath, 'utf8')).toBe(ROADMAP_FIX);
+  });
+
+  it('allows inline backticks and mid-line hashes in the description', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: {
+        name: 'X',
+        area: 'web',
+        since: '2026-06-13',
+        description: 'Use `foo()` and support C# too.',
+      },
+    });
+    expect(result.status).toBe(200);
+    // The roadmap still parses to exactly the original entries + the new one.
+    expect(parseRoadmap(readFileSync(roadmapPath, 'utf8')).length).toBe(3);
+  });
+
+  it('returns 400 when the name begins with a heading marker', async () => {
+    const result = await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: { name: '#### Sneaky', area: 'web', since: '2026-06-13' },
+    });
+    expect(result.status).toBe(400);
+    expect(readFileSync(roadmapPath, 'utf8')).toBe(ROADMAP_FIX);
+  });
+
+  it('round-trips through the parser — the added entry is parseable', async () => {
+    await handleAdd({
+      path: roadmapPath,
+      ifMatch: hash(),
+      position: 'top',
+      fields: { name: 'Parseable Entry', area: 'web', since: '2026-06-13', type: 'feat' },
+    });
+    const after = readFileSync(roadmapPath, 'utf8');
+    const entries = parseRoadmap(after);
+    expect(entries.some((e) => e.slug === 'parseable-entry')).toBe(true);
   });
 });

@@ -136,7 +136,8 @@ const STYLE = `
   }
   /* --- Drag handle + move chip (roadmap / backlog reorder) --- */
   th.drag-col, td.drag-handle { width: 1.5rem; padding-left: 0.4rem; padding-right: 0.2rem; }
-  th.action-col, td:has(> .move-chip) { width: 6.5rem; white-space: nowrap; text-align: right; }
+  th.action-col, td.actions { width: 9.5rem; white-space: nowrap; text-align: right; }
+  td.actions { display: flex; gap: 0.3rem; justify-content: flex-end; flex-wrap: wrap; }
   td.drag-handle { color: var(--muted); cursor: grab; user-select: none; vertical-align: middle; }
   td.drag-handle:active { cursor: grabbing; }
   td.drag-handle svg { display: block; margin: 0 auto; }
@@ -147,10 +148,23 @@ const STYLE = `
   .move-chip:active { transform: translateY(1px); }
   .move-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .move-chip__arrow { font-weight: 700; line-height: 1; }
+  .remove-chip { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border: 1px solid var(--line); border-radius: 999px; background: rgba(220,38,38,0.06); color: #b91c1c; font: inherit; font-size: 0.78rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+  .remove-chip:hover { background: rgba(220,38,38,0.14); border-color: #b91c1c; }
+  .remove-chip:active { transform: translateY(1px); }
+  .remove-chip:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
   @media (prefers-color-scheme: dark) {
     .move-chip { background: rgba(96,165,250,0.08); }
     .move-chip:hover { background: rgba(96,165,250,0.18); }
+    .remove-chip { background: rgba(248,113,113,0.1); color: #f87171; }
+    .remove-chip:hover { background: rgba(248,113,113,0.2); }
   }
+  /* --- Add roadmap entry (top + bottom of roadmap list) --- */
+  .add-entry { margin: 0.75rem 0; }
+  .add-entry > summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; font-weight: 500; }
+  .add-entry__form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start; margin-top: 0.5rem; padding: 0.75rem; border: 1px solid var(--line); border-radius: 0.5rem; }
+  .add-entry__form input, .add-entry__form select, .add-entry__form textarea { font: inherit; font-size: 0.85rem; padding: 0.3rem 0.45rem; border: 1px solid var(--line); border-radius: 0.35rem; background: var(--bg); color: inherit; }
+  .add-entry__form textarea { flex: 1 1 100%; resize: vertical; }
+  .add-entry__form button[type="submit"] { padding: 0.3rem 0.8rem; border: 1px solid var(--accent); border-radius: 0.35rem; background: var(--accent); color: #fff; font: inherit; font-size: 0.85rem; cursor: pointer; }
   /* --- Markdown body surfaces (scoped to .body wrapper) --- */
   .body { font-size: 0.95rem; }
   .body h1 { font-size: 1.4rem; margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--line); padding-bottom: 0.25rem; }

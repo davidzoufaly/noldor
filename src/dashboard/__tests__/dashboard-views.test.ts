@@ -31,6 +31,7 @@ import type {
   Vision,
   WipAgeRow,
 } from '../data.js';
+import type { BacklogEntry } from '../../utils/parse-blocks.js';
 
 describe('escapeHtml', () => {
   it('escapes &, <, >, ", \'', () => {
@@ -1676,5 +1677,81 @@ describe('description-toggle placement', () => {
     const togglePos = cell.indexOf('class="description-toggle"');
     const fullBodyPos = cell.indexOf('class="body description-full"');
     expect(togglePos).toBeGreaterThan(fullBodyPos);
+  });
+});
+
+describe('roadmap/backlog row actions', () => {
+  const noFilters = { area: '', type: '', category: '', size: [], impact: [], sort: '' };
+  const roadmapEntries: RoadmapEntry[] = [
+    { name: 'Alpha', slug: 'alpha', area: 'web', type: 'feat', since: '2026-06-01', body: 'A.' },
+  ];
+  const backlogEntries: BacklogEntry[] = [
+    {
+      name: 'Charlie',
+      slug: 'charlie',
+      area: 'web',
+      type: 'feat',
+      since: '2026-06-01',
+      description: 'C.',
+    },
+  ];
+
+  it('renames the roadmap action column header to "Actions"', async () => {
+    const html = await renderRoadmap(roadmapEntries, noFilters, {
+      rawHash: 'abc',
+      dragEnabled: false,
+    });
+    expect(html).toContain('<th class="action-col">Actions</th>');
+    expect(html).not.toContain('<th class="action-col">Action</th>');
+  });
+
+  it('renames the backlog action column header to "Actions"', async () => {
+    const html = await renderBacklog(backlogEntries, noFilters, {
+      rawHash: 'abc',
+      now: new Date('2026-06-13'),
+    });
+    expect(html).toContain('<th class="action-col">Actions</th>');
+    expect(html).not.toContain('<th class="action-col">Action</th>');
+  });
+
+  it('renders a Remove button on each roadmap row (section=roadmap)', async () => {
+    const html = await renderRoadmap(roadmapEntries, noFilters, {
+      rawHash: 'abc',
+      dragEnabled: false,
+    });
+    expect(html).toContain(
+      'class="remove-chip" data-action="remove" data-section="roadmap" data-slug="alpha"',
+    );
+  });
+
+  it('renders a Remove button on each backlog row (section=backlog)', async () => {
+    const html = await renderBacklog(backlogEntries, noFilters, {
+      rawHash: 'abc',
+      now: new Date('2026-06-13'),
+    });
+    expect(html).toContain(
+      'class="remove-chip" data-action="remove" data-section="backlog" data-slug="charlie"',
+    );
+  });
+
+  it('renders add-entry forms at the top and bottom of the roadmap, carrying the file etag', async () => {
+    const html = await renderRoadmap(roadmapEntries, noFilters, {
+      rawHash: 'deadbeef',
+      dragEnabled: false,
+    });
+    expect(html).toContain('data-position="top"');
+    expect(html).toContain('data-position="bottom"');
+    // Both forms carry the roadmap file hash for the If-Match precondition.
+    expect((html.match(/class="add-entry__form"[^>]*data-etag="deadbeef"/g) ?? []).length).toBe(2);
+    // Top form precedes the table; bottom form follows it.
+    expect(html.indexOf('data-position="top"')).toBeLessThan(html.indexOf('<table'));
+    expect(html.indexOf('data-position="bottom"')).toBeGreaterThan(html.indexOf('</table>'));
+  });
+
+  it('renders add-entry forms even when the roadmap is empty', async () => {
+    const html = await renderRoadmap([], noFilters, { rawHash: 'feed', dragEnabled: false });
+    expect(html).toContain('data-position="top"');
+    expect(html).toContain('data-position="bottom"');
+    expect(html).not.toContain('<table');
   });
 });

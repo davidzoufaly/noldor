@@ -488,19 +488,6 @@ Prefix the framework's skill names with `noldor-` to namespace them and avoid co
 
 Be able to dispatch the next-priority roadmap entry directly via an agent window — one action takes the top of the queue and kicks off work without manual slug lookup + command assembly.
 
-### Dashboard Roadmap/Backlog Row Actions
-
-- area: web
-- type: feat
-- since: 2026-06-12
-- size: S
-- impact: low
-- confidence: med
-
-Add a "remove" button to backlog and roadmap rows; rename the column to "Actions".
-
-- Add roadmap entries from both top and bottom of the list (`roadmap nové akce → top and bottom`).
-
 ### Code Reviewer 2.0
 
 - area: tooling
