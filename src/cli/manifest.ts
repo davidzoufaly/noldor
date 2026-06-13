@@ -135,6 +135,7 @@ export const MANIFEST: Record<string, Group> = {
     subs: {
       'test-links': { src: 'sync/sync-test-links.ts', desc: 'Sync test links into FDs' },
       'doc-links': { src: 'sync/sync-doc-links.ts', desc: 'Sync doc links into FDs' },
+      'code-links': { src: 'sync/sync-code-links.ts', desc: 'Sync code links into FDs' },
       'spec-links': { src: 'sync/sync-spec-links.ts', desc: 'Sync spec links into FDs' },
       'fd-resources': { src: 'sync/sync-fd-resources.ts', desc: 'Sync FD resource links' },
     },
