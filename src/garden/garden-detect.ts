@@ -19,6 +19,7 @@ import { detectTrailerScopeMismatch } from './detectors/trailer-scope-mismatch.j
 import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
 import { detectCodeLinksDrift } from './detectors/code-links-drift.js';
+import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
 import { resolveByLinksPlan, resolveByLinksSpec } from './plan-resolution.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
@@ -33,6 +34,7 @@ import type { AllowlistDriftFinding } from './detectors/allowlist-drift.js';
 import type { TrailerScopeMismatchFinding } from './detectors/trailer-scope-mismatch.js';
 import type { PlanWithoutFdFinding } from './detectors/plan-without-fd.js';
 import type { FdWithoutPlanFinding } from './detectors/fd-without-plan.js';
+import type { MigrationCoverageFinding } from './detectors/migration-coverage.js';
 
 // --- Defaults ---
 /** Age threshold (in days) for plans with no matching feature MD. */
@@ -555,6 +557,7 @@ export interface GardenFindings {
   readonly trailerScopeMismatch: readonly TrailerScopeMismatchFinding[];
   readonly planWithoutFd: readonly PlanWithoutFdFinding[];
   readonly fdWithoutPlan: readonly FdWithoutPlanFinding[];
+  readonly migrationCoverage: readonly MigrationCoverageFinding[];
 }
 
 /**
@@ -655,6 +658,23 @@ export async function detectInvariants(
 }
 
 /**
+ * The release range the range-based detectors scan: `<prev-tag>..HEAD`, or
+ * `HEAD` when no version tag exists yet (degrades to a working-tree diff).
+ */
+function releaseRange(repo: string): string {
+  try {
+    const tag = execFileSync(
+      'git',
+      ['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*.[0-9]*.[0-9]*'],
+      { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    return tag ? `${tag}..HEAD` : 'HEAD';
+  } catch {
+    return 'HEAD';
+  }
+}
+
+/**
  * Run all detectors and return the unified findings object.
  *
  * @param repo - Repository root.
@@ -697,6 +717,9 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   sddGaps.push(...detectCodeLinksDrift(scannedCode, cachedCode));
   const overrideAudit = auditOverrides({ cwd: repo });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
+  // A schema-surface change in the release range with no accompanying migration
+  // is a drift finding (advisory, like the SDD gaps above).
+  const migration = detectMigrationCoverage(releaseRange(repo), repo);
   return {
     contradictions,
     invariantViolations,
@@ -712,6 +735,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     trailerScopeMismatch,
     planWithoutFd,
     fdWithoutPlan,
+    migrationCoverage: migration ? [migration] : [],
   };
 }
 
