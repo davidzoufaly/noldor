@@ -23,6 +23,32 @@ below; pick whatever unit/component/e2e runners suit the consumer's stack.
 Rendering that a headless DOM can't meaningfully exercise (Canvas/WebGL,
 native widgets) belongs in the e2e layer, not the component layer.
 
+### Framework self-test
+
+Beyond the unit suites, the framework tests *itself* against a generated
+consumer. A temp-dir fixture builder (`src/testing/consumer-fixture.ts`) writes
+a minimal real-git consumer repo — `.noldor/config.json`, a tiny `src/`, a docs
+skeleton, and one seeded XS roadmap entry — and two lanes drive it:
+
+- **Contract lane** (`pnpm test:contract`): packs the working tree (`pnpm pack`),
+  installs the tarball into the fixture, and asserts `init` / `doctor` /
+  `validate features` / `garden detect` all exit 0. Any framework PR that breaks
+  the CLI contract fails here — downstream consumers are protected without being
+  in the loop.
+- **Headless-flow lane** (`pnpm test:e2e:drain`): drives the real drain/gate flow
+  non-interactively and asserts *outcomes* (roadmap entry retired, commit
+  trailers present, failure probes hold), not transcripts. This is the regression
+  net for the PR-#33-class bug (a headless gate silently ignoring env-only
+  signals) that shipped broken because nothing drove the flow end-to-end.
+
+The flow lane is hermetic via the `stub` agent runner: the fixture's
+`agents.default: 'stub'` resolves to an in-repo entrypoint
+(`bin/noldor-stub-gate.mjs`) that performs scripted, canned fast-track work keyed
+by slug — no LLM, no network, free + deterministic in CI. One opt-in nightly lane
+runs a real model (`NOLDOR_RUN_REAL_AGENT=1`) for true end-to-end coverage. Both
+lanes are wired in `.github/workflows/contract-e2e.yml`; see
+[script-catalog.md](./script-catalog.md#testing-harness) for the per-command reference.
+
 ## Fixtures
 
 Keep shared, reusable test fixtures in one place the consumer owns (e.g. a

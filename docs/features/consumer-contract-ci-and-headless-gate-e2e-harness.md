@@ -10,7 +10,11 @@ links:
     - docs/noldor/testing-principles.md
     - docs/noldor/script-catalog.md
   docs: []
-  tests: []
+  tests:
+    - src/testing/__tests__/consumer-fixture.test.ts
+    - src/testing/__tests__/contract-harness.test.ts
+    - src/testing/__tests__/drain-e2e.test.ts
+    - src/testing/__tests__/stub-runner.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness-design.md
   plan: >-
@@ -18,7 +22,7 @@ links:
 name: Consumer-Contract CI and Headless Gate E2E Harness
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary

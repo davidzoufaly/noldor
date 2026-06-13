@@ -7,6 +7,7 @@ import { USAGE_ADAPTERS } from './usage/index.js';
 import { CLAUDE_BIN, buildClaudeArgv } from './runners/claude.js';
 import { CODEX_BIN, buildCodexArgv } from './runners/codex.js';
 import { OPENCODE_BIN, buildOpencodeArgv } from './runners/opencode.js';
+import { STUB_BIN, buildStubArgv } from './runners/stub.js';
 import {
   agentsConfigSchema,
   type AgentResult,
@@ -68,6 +69,12 @@ function planSpawn(resolved: ResolvedRunner, prompt: string, opts: SpawnAgentOpt
       return {
         bin: OPENCODE_BIN,
         argv: buildOpencodeArgv(prompt, { model: resolved.model }),
+        promptVia: 'argv',
+      };
+    case 'stub':
+      return {
+        bin: STUB_BIN,
+        argv: buildStubArgv(prompt, { model: resolved.model }),
         promptVia: 'argv',
       };
   }

@@ -9,7 +9,7 @@ export const AGENT_ROLES = [
 ] as const;
 export type AgentRole = (typeof AGENT_ROLES)[number];
 
-export const RUNNER_NAMES = ['claude', 'codex', 'opencode'] as const;
+export const RUNNER_NAMES = ['claude', 'codex', 'opencode', 'stub'] as const;
 export type RunnerName = (typeof RUNNER_NAMES)[number];
 
 /** Per-runner capability grades; consumed by role-resolution fit checks and doctor. */

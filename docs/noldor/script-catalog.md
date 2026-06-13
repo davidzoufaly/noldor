@@ -387,6 +387,26 @@ Leaf commands (flags land directly after the group name, e.g. `pnpm noldor init 
 - **When to use:** ad hoc framework-effectiveness checks; the dashboard `/metrics` page and the sdd-report `## Metrics` section call the same `compute()`. Formulas documented in [`metrics.md`](metrics.md).
 - **Source:** [`src/metrics/compute-cli.ts`](../../src/metrics/compute-cli.ts)
 
+## Testing harness
+
+Framework self-test layer: a generated fixture-consumer repo (the *contract*) plus headless skill-flow runs (the *e2e layer*). Closes the PR-#33-class blind spot where a headless gate change shipped broken because no test drove the real flow. Builders live in `src/testing/`; see [testing-principles.md](./testing-principles.md#framework-self-test).
+
+### `test:contract`
+
+- **Trigger:** `pnpm test:contract`. Runs in CI (`contract-e2e.yml`, `contract` job, on every PR).
+- **Inputs:** the framework working tree (packed via `pnpm pack`) installed into a temp-dir fixture consumer.
+- **Outputs:** exit 0 when `init`, `doctor`, `validate features`, and `garden detect` all exit 0 against the freshly-installed tarball; exit 1 + per-step failure list + fixture git log/`.noldor` dump otherwise. Protects downstream consumers from a framework change that breaks the CLI contract.
+- **When to use:** automatically on every PR; run locally before a release to confirm the packed tarball is consumer-installable (exercises `pnpm pack`, allow a few minutes).
+- **Source:** [`scripts/test-contract.mjs`](../../scripts/test-contract.mjs) → [`src/testing/contract-harness.ts`](../../src/testing/contract-harness.ts), [`src/testing/consumer-fixture.ts`](../../src/testing/consumer-fixture.ts)
+
+### `test:e2e:drain`
+
+- **Trigger:** `pnpm test:e2e:drain`. Runs in CI (`contract-e2e.yml`, `drain-e2e` job on PRs; `nightly-real-agent` job with `NOLDOR_RUN_REAL_AGENT=1` on the daily cron).
+- **Inputs:** a temp-dir fixture consumer with a seeded XS roadmap entry; the hermetic `stub` agent runner (`agents.default: 'stub'`) supplies canned implementer/reviewer work keyed by slug.
+- **Outputs:** exit 0 when the headless drain retires the seeded entry, the commit carries `Noldor-Path: fast-track` + `Noldor-Reviewed-*` trailers, and the failure probes (micro-chore marker accept/reject, live `drain.lock` detection) hold; exit 1 otherwise.
+- **When to use:** automatically on every PR; the nightly lane re-runs against a real model for true end-to-end coverage.
+- **Source:** [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts) → [`src/testing/stub-gate.ts`](../../src/testing/stub-gate.ts), [`src/core/agent-runner/runners/stub.ts`](../../src/core/agent-runner/runners/stub.ts)
+
 ## Test fixtures (not pnpm scripts)
 
 `src/fixtures/` is test data for the validator unit tests under `src/{features,docs,checks}/__tests__/` — sample valid and invalid FD frontmatters, doc tag fixtures, etc. Not invoked directly. Source-of-truth lookup point when extending validator coverage.
