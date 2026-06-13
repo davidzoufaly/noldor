@@ -3,7 +3,11 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/features/migrate-code-tags.ts
+    - src/features/propose-pointers.ts
+    - src/garden/detectors/code-links-drift.ts
+    - src/sync/sync-code-links.ts
   docs: []
   tests:
     - src/features/__tests__/migrate-code-tags.test.ts
