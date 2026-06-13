@@ -142,6 +142,19 @@ export async function readPort(worktreePath: string): Promise<number | null> {
   }
 }
 
+/**
+ * Port for a dev surface = the tree's stamped base PORT + the surface offset.
+ * Offset 0 → the stamped PORT itself (back-compat with a single dev server).
+ * Offsets >= 100 by convention keep secondary surfaces clear of the
+ * 5174-5179 base cap and of each other.
+ *
+ * @param basePort - The tree's stamped `.env.local` PORT.
+ * @param offset - The surface's configured `portOffset`.
+ */
+export function deriveSurfacePort(basePort: number, offset: number): number {
+  return basePort + offset;
+}
+
 /** Input for {@link allocatePorts}. */
 export interface PortInput {
   readonly path: string;

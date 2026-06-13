@@ -374,3 +374,11 @@ function emptyStats() {
     touchedFiles: [] as string[],
   };
 }
+
+import { deriveSurfacePort } from '../worktree-status.js';
+describe('deriveSurfacePort', () => {
+  it('adds the offset to the base port', () => {
+    expect(deriveSurfacePort(5174, 0)).toBe(5174);
+    expect(deriveSurfacePort(5174, 100)).toBe(5274);
+  });
+});
