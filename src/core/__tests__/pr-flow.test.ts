@@ -97,6 +97,20 @@ describe('composeBody', () => {
     expect(body).toContain('## CR Results');
   });
 
+  it('labels the summary Fast-track (not Micro-chore) on the fast-track path', () => {
+    const input: PrFlowInput = {
+      ...baseInput,
+      session: { ...baseInput.session, path: 'fast-track', slug: undefined },
+      fd: null,
+      specPath: null,
+      planPath: null,
+      firstCommitSubject: 'fix(core): correct pr summary label',
+    };
+    const body = composeBody(input);
+    expect(body).toContain('Fast-track: fix(core): correct pr summary label');
+    expect(body).not.toContain('Micro-chore:');
+  });
+
   it('renders the parent FD link on attach paths (slug undefined, parent set)', () => {
     // Attach sessions leave `slug` undefined and set `parent` to the FD being
     // extended. The body must link to docs/features/<parent>.md, not the

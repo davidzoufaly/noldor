@@ -96,7 +96,12 @@ export function composeBody(input: PrFlowInput): string {
     ].join('\n');
   }
 
-  const summary = input.fd ? input.fd.summary : `Micro-chore: ${input.firstCommitSubject}`;
+  // No-FD paths (micro-chore, fast-track) have no FD summary to draw from, so
+  // they fall back to the first commit subject — labelled by the actual gate
+  // path. fast-track is a code change, not a doc-only micro-chore; mislabelling
+  // it `Micro-chore` misrepresents what shipped.
+  const noFdLabel = input.session.path === 'fast-track' ? 'Fast-track' : 'Micro-chore';
+  const summary = input.fd ? input.fd.summary : `${noFdLabel}: ${input.firstCommitSubject}`;
 
   const scope = [
     `- Gate path: \`${input.session.path}\``,
