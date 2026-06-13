@@ -1,6 +1,6 @@
 import { MANIFEST } from './manifest.js';
 
-export function printHelp(group?: string): void {
+export function printHelp(group?: string, sub?: string): void {
   if (!group) {
     console.log('Usage: noldor <command> [subcommand] [args]\n\nCommands:');
     for (const [name, g] of Object.entries(MANIFEST)) {
@@ -14,6 +14,16 @@ export function printHelp(group?: string): void {
   if (!g) {
     console.error(`Unknown command: ${group}`);
     process.exit(1);
+  }
+  // Specific subcommand usage (e.g. `noldor autonomous run --help`).
+  if (sub !== undefined) {
+    const s = g.subs[sub];
+    if (!s) {
+      console.error(`Unknown subcommand: ${group} ${sub}`);
+      process.exit(1);
+    }
+    console.log(`Usage: noldor ${group} ${sub} [args]\n\n${s.desc}`);
+    return;
   }
   // Leaf command: single '' subcommand.
   if (g.subs['']) {

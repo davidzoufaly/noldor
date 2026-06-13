@@ -12,17 +12,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Noldor Framework
 
-#### Autonomous Subcommand `--help` Guard
-
-- area: tooling
-- type: fix
-- since: 2026-06-12
-- size: XS
-- impact: high
-- confidence: high
-
-No `autonomous` subcommand (`run`, `watch`, `queue-drain`) guards `--help` — passing it runs the real drain/daemon instead of printing usage. During a dogfood session this spawned 3 colliding drains on a single slug (each grabbing the lock in turn, racing the same worktree). Add a `--help`/`-h` short-circuit per subcommand (or at the `autonomous` dispatcher) that prints usage and exits 0 before any lock acquisition or gate spawn. Cheap, prevents accidental concurrent drains.
-
 #### Drop Branched Worktrees — Single Dev Branch Workflow
 
 - area: tooling

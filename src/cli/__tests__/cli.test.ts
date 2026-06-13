@@ -42,6 +42,26 @@ describe('noldor CLI', () => {
     expect(out).toContain('queue-drain');
   });
 
+  it('subcommand --help prints usage without dispatching (no real drain)', () => {
+    // Regression: `autonomous run --help` used to fall through to queue-drain.ts
+    // and launch the real drain. The guard must short-circuit to usage + exit 0.
+    const out = run(['autonomous', 'run', '--help']);
+    expect(out).toContain('Usage: noldor autonomous run');
+    expect(out).toContain('Drain a source autonomously');
+  });
+
+  it('subcommand -h short flag prints usage and exits 0', () => {
+    const out = run(['autonomous', 'watch', '-h']);
+    expect(out).toContain('Usage: noldor autonomous watch');
+  });
+
+  it('--help after a real flag still short-circuits (mid-args, not just leading)', () => {
+    // Distinguishes this guard from a naive `sub === '--help'` check: the flag
+    // can trail real args and must still print usage instead of dispatching.
+    const out = run(['autonomous', 'run', '--source', 'roadmap', '--help']);
+    expect(out).toContain('Usage: noldor autonomous run');
+  });
+
   it('leaf command dispatches with no subcommand (doctor)', () => {
     // doctor is a real leaf command now (template-sync check); assert it
     // dispatches and reports sync status rather than the old stub message.
