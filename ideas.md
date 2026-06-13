@@ -25,6 +25,8 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 #### Now
 
+- prep promote --ship has no direct-merge fallback (unlike pr-flow's openAndAutoMerge): on repos with GitHub auto-merge disabled, `gh pr merge --auto` errors and the promote PR is left open + unmerged. Mirror pr-flow's fallback to a direct squash-merge. [triaged 2026-06-13 → prep-promote-ship-direct-merge-fallback]
+- prep promote preflight counts untracked files as "working tree not clean" — a stray gitignored-but-untracked log (.noldor/prep-fanout.log) blocked the whole promote. Preflight should ignore untracked/gitignored files, only block on tracked changes. [triaged 2026-06-13 → prep-promote-preflight-ignores-untracked-files]
 - no `--help` guard on any `autonomous` subcommand (run/watch) — `--help` runs the real drain/daemon instead of printing usage; probes spawned 3 colliding drains on one slug [triaged 2026-06-12 → autonomous-subcommand-help-guard]
 - drain has no startup sync-check: an un-pushed local-main-ahead-of-origin commit blocks the whole drain, but only after the gate already did the work — pre-flight origin/main == queue-source before spawning [triaged 2026-06-12 → drain-startup-reconciliation-of-a-prior-dead-run]
 - orphan gate child survives runner SIGTERM: parent (autonomous run) killed but `claude --print /gate` child keeps running + holds context; kill children as a process group + reconcile dead-run children at startup [triaged 2026-06-12 → drain-startup-reconciliation-of-a-prior-dead-run]
