@@ -11,8 +11,25 @@ import {
   ensureGardenFresh,
   evaluateGardenFreshness,
   readGardenReceipt,
+  resolveGardenScanPaths,
   writeGardenReceipt,
 } from '../garden-receipt.js';
+
+function writeConfig(cwd: string, scanPaths: string[] | undefined): void {
+  mkdirSync(join(cwd, '.noldor'), { recursive: true });
+  const consumer: Record<string, unknown> = {
+    name: 'fixture',
+    repoUrl: 'https://example.com/repo',
+    lockstepPackages: ['package.json'],
+    e2ePrefix: 'e2e/',
+    samplesPath: 'samples',
+    packagePrefix: '@fixture/',
+    pnpmStderrPrefix: 'fixture',
+    appPathPrefix: 'src',
+  };
+  if (scanPaths !== undefined) consumer.scanPaths = scanPaths;
+  writeFileSync(join(cwd, '.noldor/config.json'), JSON.stringify({ consumer }), 'utf8');
+}
 
 describe(evaluateGardenFreshness, () => {
   it('rejects when no receipt is present', () => {
@@ -123,5 +140,36 @@ describe(ensureGardenFresh, () => {
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
+  });
+});
+
+describe(resolveGardenScanPaths, () => {
+  let cwd: string;
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), 'garden-scanpaths-'));
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("derives the consumer config's scanPaths (standalone repo tracks src/, not apps/)", () => {
+    writeConfig(cwd, ['src']);
+    expect(resolveGardenScanPaths(cwd)).toStrictEqual(['src']);
+  });
+
+  it('honours a multi-path monorepo scanPaths verbatim', () => {
+    writeConfig(cwd, ['apps', 'packages', 'scripts']);
+    expect(resolveGardenScanPaths(cwd)).toStrictEqual(['apps', 'packages', 'scripts']);
+  });
+
+  it("falls back to ['src'] when the config declares no scanPaths", () => {
+    writeConfig(cwd, []);
+    expect(resolveGardenScanPaths(cwd)).toStrictEqual(['src']);
+  });
+
+  it("falls back to ['src'] when the config is missing (bootstrap / unit-test cwd)", () => {
+    expect(resolveGardenScanPaths(cwd)).toStrictEqual(['src']);
   });
 });

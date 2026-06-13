@@ -150,7 +150,7 @@ async function main(): Promise<void> {
     await ensureGhAvailable();
     await ensureGraphFresh(scanPaths);
     await autoStampOnCleanDetect({ cwd: process.cwd() });
-    ensureGardenFresh();
+    ensureGardenFresh(process.cwd(), scanPaths);
 
     // Consumer-defined quality gates run only when declared — keeps the
     // pipeline portable across single-package and monorepo consumers.
