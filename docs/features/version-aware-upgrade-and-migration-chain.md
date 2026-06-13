@@ -20,7 +20,7 @@ links:
 name: Version-Aware Upgrade and Migration Chain
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
 ## Summary
