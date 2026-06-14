@@ -23,20 +23,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-discipline.md`). Today every active task lives in its own branch worktree. The proposal: collapse to a single shared dev branch — still in worktrees for parallelism, but not separate branches — with all task work landing on one rolling branch and merging to main on release. Trade-off: simpler integration story (no per-task rebase, fewer divergent histories) at the cost of losing the per-task isolation that lets `/gate` and `/promote` reason about scope. Trigger: when per-branch overhead (rebase storms, cross-branch lint regen, merge order ambiguity) outweighs the isolation benefit.
 
-#### Drain Startup Reconciliation of a Prior Dead Run
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: M
-- impact: high
-- parent: autonomous-queue-drain-runner
-
-When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `fast/<slug>` worktrees, leftover branches, open PRs (clean *and* DIRTY), and a stale `.noldor/drain.lock`. Today a fresh drain does not reconcile these — the operator must manually merge clean open PRs, close/rebuild DIRTY ones, prune worktrees, and clear the stale lock (done by hand 3× in one session). Add a startup reconciliation pass: for each in-roadmap slug with an open PR, merge it when CLEAN (advance the oracle) or close + flag-for-rebuild when DIRTY; `git worktree prune` + remove orphaned `fast/*` worktrees whose slug is already shipped; reclaim a stale lock whose pid is dead. Makes the drain crash-recoverable instead of leaving a mess. Touches: `src/autonomous/queue-drain.ts`, `src/autonomous/drain-io.ts`, `src/autonomous/drain-lock.ts`.
-
-- Add a startup sync-check: an un-pushed local-`main`-ahead-of-`origin` commit (e.g. a triage commit on local main but not origin) blocks the whole drain — but only *after* the gate already did the work and tries to retire the entry. Pre-flight `origin/main == queue-source` before spawning the first gate, and surface the divergence loudly instead of failing deep.
-- Orphan agent children survive runner SIGTERM: killing the parent (`autonomous run`/`watch`) leaves the spawned `claude --print /gate` child running and holding context. Spawn the agent in its own process group and kill the group on runner death; at startup, reconcile (kill) any dead-run agent children before acquiring the lock.
-
 #### Prep Promote `--ship` Direct-Merge Fallback
 
 - area: tooling
