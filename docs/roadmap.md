@@ -23,21 +23,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-discipline.md`). Today every active task lives in its own branch worktree. The proposal: collapse to a single shared dev branch — still in worktrees for parallelism, but not separate branches — with all task work landing on one rolling branch and merging to main on release. Trade-off: simpler integration story (no per-task rebase, fewer divergent histories) at the cost of losing the per-task isolation that lets `/gate` and `/promote` reason about scope. Trigger: when per-branch overhead (rebase storms, cross-branch lint regen, merge order ambiguity) outweighs the isolation benefit.
 
-#### Framework Milestones Support (POC / MVP / 1.0.0)
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: M
-- impact: med
-- parent: noldor
-
-Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
-
-- Optional, not mandatory — apps can grow organically without a milestone plan; the framework should not force the abstraction. When milestones are declared, the rest of the wiring activates; otherwise the field stays absent and detectors stay silent.
-- Surface milestones on the dashboard web UI.
-- Document where milestones live (the `/milestone` skill + `docs/milestones/<slug>.md`) — answers the recurring "where are milestones documented?".
-
 #### Parallel-Drain `roadmap.md` Conflict Auto-Resolution
 
 - area: tooling
