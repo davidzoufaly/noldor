@@ -69,17 +69,6 @@ Re-evaluate the always-branch worktree discipline (per `docs/noldor/worktree-dis
 
 There is no first-class way to ask "is a drain running, and where is it?" — operators read `.noldor/drain-state.json` + `.noldor/drain.lock` by hand, and a transient empty/partial read of the lock's `pid` field reads as "dead" (caused a live drain to be misjudged dead and interfered with mid-run). Add `noldor autonomous status`: report liveness from the actual process (`pgrep` / `kill -0` on the lock pid, with a robust JSON read) plus shipped / skip / in-flight from drain-state. Cheap operator-safety win that would have prevented the worst incident of the 2026-06-11 drain. Touches: `src/autonomous/drain-state.ts`, `src/autonomous/drain-lock.ts`, `src/cli/manifest.ts`.
 
-#### Graphify `plan-of` edges + nodes for plans/specs
-
-- area: tooling
-- type: feat
-- since: 2026-05-17
-- size: M
-- impact: med
-- parent: graphify
-
-Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superpowers/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `scripts/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it). Touches: `scripts/graphify/**`, `scripts/garden/garden-detect.ts`, `scripts/garden/plan-resolution.ts`.
-
 #### Bootstrap-Immunity for Self-Gating Features
 
 - area: tooling
