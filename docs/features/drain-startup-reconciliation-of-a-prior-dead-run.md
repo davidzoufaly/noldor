@@ -20,7 +20,7 @@ links:
 name: Drain Startup Reconciliation of a Prior Dead Run
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
