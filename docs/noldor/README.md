@@ -16,6 +16,7 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 | Working in parallel branches          | [`worktree-discipline.md`](worktree-discipline.md), [`git-and-commits.md`](git-and-commits.md)                                                                                              |
 | Writing tests                         | [`testing-principles.md`](testing-principles.md)                                                                                                                                            |
 | Releasing                             | [`versioning.md`](versioning.md)                                                                                                                                                            |
+| Planning milestones                   | [`milestones.md`](milestones.md)                                                                                                                                                           |
 | Reviewing code                        | [`cr-pipeline.md`](cr-pipeline.md)                                                                                                                                                          |
 | Finishing a feature (PR + auto-merge) | [`pr-flow.md`](pr-flow.md)                                                                                                                                                                  |
 | Writing docs                          | [`doc-conventions.md`](doc-conventions.md)                                                                                                                                                  |
@@ -37,6 +38,7 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 - [`triage.md`](triage.md) — `/triage` skill flow + roadmap/backlog/ideas buckets
 - [`testing-principles.md`](testing-principles.md) — testing layers, fixtures, e2e seeding
 - [`versioning.md`](versioning.md) — semver policy + release flow
+- [`milestones.md`](milestones.md) — optional strategic gates: lifecycle, FD `milestone:` field, /triage proposal, garden detector, dashboard page
 - [`skill-catalog.md`](skill-catalog.md) — /promote, /triage, /garden, /draft-feature-md, /new-feature reference
 - [`script-catalog.md`](script-catalog.md) — every pnpm script the framework relies on, grouped by concern
 - [`garden-and-drift.md`](garden-and-drift.md) — what /garden detects + sentinel rules
