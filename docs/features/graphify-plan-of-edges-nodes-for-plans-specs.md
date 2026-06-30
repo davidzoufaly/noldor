@@ -4,17 +4,19 @@ category: Tooling
 deps: []
 links:
   code:
-    - scripts/graphify/**
-    - scripts/garden/garden-detect.ts
-    - scripts/garden/plan-resolution.ts
+    - src/graphify/enrich-doc-nodes.ts
+    - src/garden/garden-detect.ts
+    - src/garden/plan-resolution.ts
+    - src/cli/manifest.ts
   docs: []
-  tests: []
+  tests:
+    - src/graphify/__tests__/enrich-doc-nodes.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md
 name: Graphify `plan-of` edges + nodes for plans/specs
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary

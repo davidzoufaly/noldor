@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { resolveByLinksPlan, resolveByLinksSpec } from '../plan-resolution';
+import {
+  resolveByLinksPlan,
+  resolveByLinksSpec,
+  resolveByGraphAdjacency,
+} from '../plan-resolution';
 
 describe('resolveByLinksPlan', () => {
   it('returns the FD whose links.plan contains the plan path', async () => {
@@ -119,5 +123,81 @@ describe('resolveByLinksSpec', () => {
     });
     expect(result).not.toBeNull();
     expect(result?.slug).toBe('foo');
+  });
+});
+
+describe('resolveByGraphAdjacency', () => {
+  const GRAPH = JSON.stringify({
+    nodes: [
+      {
+        id: 'doc:docs/superpowers/plans/2026-06-14-orphan.md',
+        source_file: 'docs/superpowers/plans/2026-06-14-orphan.md',
+      },
+      { id: 'doc:docs/features/owner.md', source_file: 'docs/features/owner.md' },
+    ],
+    links: [
+      {
+        source: 'doc:docs/superpowers/plans/2026-06-14-orphan.md',
+        target: 'doc:docs/features/owner.md',
+        relation: 'plan-of',
+        confidence: 'INFERRED',
+      },
+    ],
+  });
+  const FD =
+    '---\nname: Owner\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\nnoldor-tier: specs-only\n---\n';
+
+  const seamFor = (graph: string | null) => async (p: string, _e: 'utf8') => {
+    if (p.endsWith('graph.json')) {
+      if (graph === null) throw new Error('ENOENT');
+      return graph;
+    }
+    if (p.endsWith('owner.md')) return FD;
+    throw new Error(`unexpected read ${p}`);
+  };
+
+  it('follows the plan-of edge to the owning FD', async () => {
+    const result = await resolveByGraphAdjacency({
+      repo: '/tmp/repo',
+      docPath: 'docs/superpowers/plans/2026-06-14-orphan.md',
+      relation: 'plan-of',
+      graphPath: '/tmp/repo/graphify-out/graph.json',
+      readFile: seamFor(GRAPH),
+    });
+    expect(result?.slug).toBe('owner');
+    expect(result?.fd.phase).toBe('done');
+  });
+
+  it('returns null on a missing graph file', async () => {
+    const result = await resolveByGraphAdjacency({
+      repo: '/tmp/repo',
+      docPath: 'docs/superpowers/plans/2026-06-14-orphan.md',
+      relation: 'plan-of',
+      graphPath: '/tmp/repo/graphify-out/graph.json',
+      readFile: seamFor(null),
+    });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when no node matches the docPath', async () => {
+    const result = await resolveByGraphAdjacency({
+      repo: '/tmp/repo',
+      docPath: 'docs/superpowers/plans/2026-06-14-nonexistent.md',
+      relation: 'plan-of',
+      graphPath: '/tmp/repo/graphify-out/graph.json',
+      readFile: seamFor(GRAPH),
+    });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when the relation does not match (spec-of asked, only plan-of present)', async () => {
+    const result = await resolveByGraphAdjacency({
+      repo: '/tmp/repo',
+      docPath: 'docs/superpowers/plans/2026-06-14-orphan.md',
+      relation: 'spec-of',
+      graphPath: '/tmp/repo/graphify-out/graph.json',
+      readFile: seamFor(GRAPH),
+    });
+    expect(result).toBeNull();
   });
 });

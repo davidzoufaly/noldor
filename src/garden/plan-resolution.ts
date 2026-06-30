@@ -1,5 +1,5 @@
 import { readdir as fsReaddir, readFile as fsReadFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
@@ -106,4 +106,64 @@ export async function resolveByLinksSpec(
   opts: ResolveByLinksSpecOptions,
 ): Promise<ResolvedOwner | null> {
   return scanFdsForOwner(opts.repo, opts, (fd) => fd.links.spec === opts.specPath);
+}
+
+interface GraphAdjNode {
+  id: string;
+  source_file?: string;
+}
+interface GraphAdjLink {
+  source: string;
+  target: string;
+  relation?: string;
+}
+interface GraphAdjData {
+  nodes?: GraphAdjNode[];
+  links?: GraphAdjLink[];
+}
+
+interface ResolveByGraphAdjacencyOptions extends FsSeams {
+  repo: string;
+  /** Plan/spec relative path, e.g. `docs/superpowers/plans/<f>.md`. */
+  docPath: string;
+  relation: 'plan-of' | 'spec-of';
+  /** Override the graph path (defaults to `<repo>/graphify-out/graph.json`). */
+  graphPath?: string;
+}
+
+/**
+ * Last-resort fallback in the detector chain: resolve a plan/spec to its owning
+ * FD by following the `plan-of` / `spec-of` edge in the enriched
+ * `graphify-out/graph.json` (see `src/graphify/enrich-doc-nodes.ts`). Wired in
+ * AFTER {@link resolveByLinksPlan}/{@link resolveByLinksSpec} and BEFORE age-out,
+ * so it only ever resolves artifacts the authoritative slug/`links.*` signals
+ * miss. A missing graph file, missing node, missing edge, or unreadable owner FD
+ * all degrade to `null` (→ today's age-out), never a wrong-direction block.
+ */
+export async function resolveByGraphAdjacency(
+  opts: ResolveByGraphAdjacencyOptions,
+): Promise<ResolvedOwner | null> {
+  const readFile = opts.readFile ?? ((p, e) => fsReadFile(p, e));
+  const graphPath = opts.graphPath ?? join(opts.repo, 'graphify-out', 'graph.json');
+  let data: GraphAdjData;
+  try {
+    data = JSON.parse(await readFile(graphPath, 'utf8')) as GraphAdjData;
+  } catch {
+    return null; // no graph (or unparseable) → no finding
+  }
+  const node = (data.nodes ?? []).find((n) => n.source_file === opts.docPath);
+  if (!node) return null;
+  const edge = (data.links ?? []).find((l) => l.source === node.id && l.relation === opts.relation);
+  if (!edge) return null;
+  const fdNode = (data.nodes ?? []).find((n) => n.id === edge.target);
+  if (!fdNode?.source_file) return null;
+  // FD node source_file is `docs/features/<slug>.md`.
+  const slug = basename(fdNode.source_file, '.md');
+  const fdPath = join(loadDocRoots(opts.repo).features, `${slug}.md`);
+  try {
+    const fd = FeatureFrontmatterSchema.parse(matter(await readFile(fdPath, 'utf8')).data);
+    return { slug, fd };
+  } catch {
+    return null;
+  }
 }

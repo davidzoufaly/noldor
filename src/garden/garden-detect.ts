@@ -22,7 +22,11 @@ import { detectCodeLinksDrift } from './detectors/code-links-drift.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
-import { resolveByLinksPlan, resolveByLinksSpec } from './plan-resolution.js';
+import {
+  resolveByLinksPlan,
+  resolveByLinksSpec,
+  resolveByGraphAdjacency,
+} from './plan-resolution.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
 import type { FeatureFrontmatter } from '../features/feature-schema.js';
@@ -137,8 +141,6 @@ export async function detectStalePlans(
     }
 
     // Fallback — scan FDs' links.plan for this plan path.
-    // (Graph-adjacency fallback deferred; see roadmap entry
-    //  "Graphify plan-of edges + nodes for plans/specs".)
     const byLinks = await resolveByLinksPlan({ planPath: relPath, repo });
     if (byLinks) {
       if (byLinks.fd.phase === 'done') {
@@ -147,6 +149,22 @@ export async function detectStalePlans(
           path: relPath,
           reason: 'feature-done',
           slug: byLinks.slug,
+        });
+      }
+      continue;
+    }
+
+    // Last-resort fallback — graph adjacency (plan-of edge in the enriched graph.json).
+    // Catches plans no slug/links.* signal owns; a live owner suppresses age-out, a
+    // done owner archives as feature-done. Missing/stale graph degrades to age-out.
+    const byGraph = await resolveByGraphAdjacency({ repo, docPath: relPath, relation: 'plan-of' });
+    if (byGraph) {
+      if (byGraph.fd.phase === 'done') {
+        findings.push({
+          action: 'archive',
+          path: relPath,
+          reason: 'feature-done',
+          slug: byGraph.slug,
         });
       }
       continue;
@@ -257,6 +275,20 @@ export async function detectStaleSpecs(
           path: relPath,
           reason: 'feature-done',
           slug: byLinks.slug,
+        });
+      }
+      continue;
+    }
+
+    // Last-resort fallback — graph adjacency (spec-of edge in the enriched graph.json).
+    const byGraph = await resolveByGraphAdjacency({ repo, docPath: relPath, relation: 'spec-of' });
+    if (byGraph) {
+      if (byGraph.fd.phase === 'done') {
+        findings.push({
+          action: 'archive',
+          path: relPath,
+          reason: 'feature-done',
+          slug: byGraph.slug,
         });
       }
       continue;

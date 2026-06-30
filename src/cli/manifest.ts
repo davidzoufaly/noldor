@@ -212,6 +212,10 @@ export const MANIFEST: Record<string, Group> = {
     desc: 'Graphify runner + helpers',
     subs: {
       'graph-to-toon': { src: 'graphify/graph-to-toon.ts', desc: 'Render graph.json to TOON' },
+      'enrich-docs': {
+        src: 'graphify/enrich-doc-nodes.ts',
+        desc: 'Add FD/plan/spec doc nodes + plan-of/spec-of edges to graph.json',
+      },
     },
   },
   dashboard: {
