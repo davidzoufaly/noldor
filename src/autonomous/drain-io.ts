@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { spawnAgent } from '../core/agent-runner/registry.js';
-import { makeRoadmapConflictResolver } from './salvage.js';
+import { makeRoadmapConflictResolver, spawnRunner, type GitRunner } from './salvage.js';
 
 /**
  * Real implementations of the {@link DrainDeps} IO adapters. These shell out to
@@ -133,6 +133,33 @@ export function syncMainCleanState(cwd: string): void {
 }
 
 /**
+ * Pre-flight divergence guard: throw loud when local `main` is AHEAD of
+ * `origin/main` (an un-pushed commit — e.g. a triage commit on local main). The
+ * existing `git merge --ff-only origin/main` in {@link syncMainCleanState} only
+ * catches *behind* divergence; a local-ahead state reads as "Already up to date"
+ * and slips through, surfacing only AFTER a gate child did the work and tried to
+ * retire the entry against an out-of-sync `origin/main`. Runs after `syncMain`
+ * (so `origin/main` is freshly fetched) and before the first spawn. The thrown
+ * message names the offending commits; `main()` catches → exit 1. Injectable
+ * {@link GitRunner} for unit-testing (production binds `spawnRunner(cwd)`).
+ */
+export function assertQueueSourceSynced(run: GitRunner): void {
+  const r = run('git', ['rev-list', '--count', 'origin/main..HEAD']);
+  const ahead = Number((r.stdout || '0').trim());
+  if (Number.isFinite(ahead) && ahead > 0) {
+    const log = run('git', ['log', '--oneline', 'origin/main..HEAD']);
+    throw new Error(
+      `drain: local main is ahead of origin/main by ${ahead} commit(s) — push or reset before draining:\n${log.stdout.trim()}`,
+    );
+  }
+}
+
+/** Production binding of {@link assertQueueSourceSynced} to a repo root. */
+export function assertQueueSourceSyncedAt(cwd: string): void {
+  assertQueueSourceSynced(spawnRunner(cwd));
+}
+
+/**
  * True when an OPEN PR exists for the source's drain branch (`fast/<slug>` for
  * roadmap, `feat/<slug>` for plans — the branch is passed in by the loop via
  * `DrainSource.branchFor`). Throws on a `gh` failure — the caller treats that as
@@ -168,6 +195,7 @@ export async function spawnGate(
   env: Record<string, string>,
   timeoutMs: number,
   prompt = '/gate',
+  onSpawn?: (pgid: number) => void,
 ): Promise<number> {
   const r = await spawnAgent(prompt, {
     role: 'implementer',
@@ -177,6 +205,7 @@ export async function spawnGate(
     stdio: 'inherit',
     needsWrite: true,
     site: 'drain.spawnGate',
+    onSpawn,
   });
   if (r.timedOut) throw new Error('iteration-timeout'); // per-entry failure → retry/skip
   return r.exitCode;

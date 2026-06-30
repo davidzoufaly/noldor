@@ -31,8 +31,15 @@ export interface DrainDeps {
   source: DrainSource;
   /** Spawn a headless gate run with the source's prompt; resolves with the child exit code.
    *  Rejects with 'iteration-timeout' on a per-entry timeout, or 'spawn-failed: …' on a systemic
-   *  spawn error. Async so the build pool can keep K children in flight at once. */
-  spawnGate: (env: Record<string, string>, timeoutMs: number, prompt: string) => Promise<number>;
+   *  spawn error. Async so the build pool can keep K children in flight at once. `onSpawn` is
+   *  called synchronously with the child's process-group id so the loop can record it for the
+   *  next run's orphan-reap (spec Unit 2). */
+  spawnGate: (
+    env: Record<string, string>,
+    timeoutMs: number,
+    prompt: string,
+    onSpawn?: (pgid: number) => void,
+  ) => Promise<number>;
   /** Sync local main to origin + clean leftover worktrees/branches. May throw → abort (ff-only reject).
    *  At K>1 the coordinator also calls this after each merge to advance local main before the oracle. */
   syncMainCleanState: () => void;
@@ -55,6 +62,8 @@ export interface DrainDeps {
     shipped: number;
     skip: string[];
     retries: Record<string, number>;
+    /** pgids of the gate children currently in flight — the orphan-reap carrier (spec Unit 2). */
+    agentPgids: number[];
   }) => void;
   /** True when a stop has been requested (SIGINT / sentinel). */
   stopRequested: () => boolean;
@@ -130,6 +139,10 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
   };
   const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
   let merging: string | null = null; // slug the coordinator is merging right now (K>1)
+  // pgids of the gate children currently in flight. Recorded via spawnGate's onSpawn and
+  // surfaced in every heartbeat so the NEXT run can reap this run's orphans if it dies (SIGKILL
+  // runs no handler). A child's pgid is removed once its spawnGate promise settles.
+  const livePgids = new Set<number>();
 
   // Best-effort heartbeat: derive inFlight (building vs awaiting-merge) from the live sets.
   const emitState = (): void => {
@@ -145,6 +158,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       shipped,
       skip: [...skip],
       retries: Object.fromEntries(retries),
+      agentPgids: [...livePgids],
     });
   };
 
@@ -238,12 +252,18 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       emitState();
       // ---- end critical section ----
       let handedToCoordinator = false;
+      let childPgid: number | null = null;
       try {
         deps.salvageStaleBase?.(candidate.slug, branch);
         const code = await deps.spawnGate(
           envFor(candidate.slug),
           opts.timeoutMs,
           deps.source.gatePrompt(candidate.slug),
+          (pgid) => {
+            childPgid = pgid;
+            livePgids.add(pgid);
+            emitState(); // heartbeat now carries the live pgid for the next run's reap
+          },
         );
         handedToCoordinator = settleShipVerdict(candidate.slug, branch, code);
       } catch (e) {
@@ -252,6 +272,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
           recordRetryOrSkip(candidate.slug);
         else abortRef.current = e instanceof Error ? e : new Error(String(e));
       } finally {
+        if (childPgid !== null) livePgids.delete(childPgid); // child settled — drop its pgid
         if (!handedToCoordinator) dispatched.delete(candidate.slug);
       }
       if (abortRef.current) return;

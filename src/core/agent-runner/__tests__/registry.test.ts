@@ -144,6 +144,35 @@ describe('spawnAgent', () => {
     vi.useRealTimers();
   });
 
+  it('spawns detached, surfaces pgid via onSpawn, group-kills the process group on timeout', async () => {
+    vi.useFakeTimers();
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true as never);
+    const dir = tmpConfig();
+    const child = new FakeChild();
+    (child as unknown as { pid: number }).pid = 4242;
+    const calls: Array<Record<string, unknown>> = [];
+    const impl = vi.fn((_bin: string, _argv: string[], opts: Record<string, unknown>) => {
+      calls.push(opts);
+      return child as never;
+    });
+    const seen: number[] = [];
+    const p = spawnAgent(
+      'slow',
+      { role: 'implementer', cwd: dir, timeoutMs: 50, onSpawn: (pgid) => seen.push(pgid) },
+      { spawnImpl: impl as never },
+    );
+    expect(calls[0]!.detached).toBe(true);
+    expect(seen).toEqual([4242]);
+    vi.advanceTimersByTime(60); // fire timeout → group-kill
+    child.emit('close', null); // group-kill is mocked (no real signal) → settle the promise
+    const r = await p;
+    expect(r.timedOut).toBe(true);
+    expect(killSpy).toHaveBeenCalledWith(-4242, 'SIGKILL');
+    expect(child.killed).toBeNull(); // group-kill succeeded → no direct child.kill fallback
+    killSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
   it('spawn error rejects with spawn-failed', async () => {
     const dir = tmpConfig();
     const f = fakeSpawn();

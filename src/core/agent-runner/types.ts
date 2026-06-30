@@ -64,6 +64,15 @@ export interface SpawnAgentOpts {
   needsWrite?: boolean;
   /** Caller tag for agent-events, e.g. 'drain.spawnGate'. */
   site?: string;
+  /**
+   * Called synchronously right after a successful spawn with the child's process-
+   * group id (`pgid === child.pid`, since the child is spawned `detached: true`).
+   * The drain loop uses this to register the pgid into its live set so a dead
+   * run's orphan agent groups can be reaped at the next run's startup. Spawn
+   * failures never call it; deregistering the pgid once the child closes is the
+   * caller's responsibility.
+   */
+  onSpawn?: (pgid: number) => void;
 }
 
 export interface AgentResult {

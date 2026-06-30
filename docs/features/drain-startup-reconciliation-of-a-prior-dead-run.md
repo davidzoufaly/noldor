@@ -4,11 +4,17 @@ category: Tooling
 deps: []
 links:
   code:
+    - src/autonomous/drain-reconcile.ts
     - src/autonomous/queue-drain.ts
     - src/autonomous/drain-io.ts
     - src/autonomous/drain-lock.ts
+    - src/autonomous/drain-state.ts
+    - src/autonomous/drain-loop.ts
+    - src/core/agent-runner/registry.ts
+    - src/core/agent-runner/types.ts
   docs: []
-  tests: []
+  tests:
+    - src/autonomous/__tests__/drain-reconcile.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md
 name: Drain Startup Reconciliation of a Prior Dead Run
