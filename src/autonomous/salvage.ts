@@ -107,15 +107,21 @@ export type FileWriter = (path: string, content: string) => void;
 /**
  * Auto-resolve an *adjacent `docs/roadmap.md` block-removal* merge conflict for one
  * open fast-track PR under parallel drain (K>1). The correct post-merge content is
- * deterministic — "the freshly-rebased base's roadmap, minus this slug's block" —
- * so we re-apply {@link removeBlock} against `origin/main` rather than letting git's
- * textual 3-way merge fail. See the design spec
+ * deterministic — "the caller's current `origin/main` roadmap, minus this slug's
+ * block" — so we re-apply {@link removeBlock} against `origin/main` rather than
+ * letting git's textual 3-way merge fail. Freshness of `origin/main` is the caller's
+ * responsibility (the coordinator's `syncMainCleanState` fetches before each merge);
+ * this function does not fetch. See the design spec
  * (`docs/superpowers/specs/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md`).
  *
  * Pure/IO split in the {@link detectStale}/{@link repair} style (GitRunner +
  * FileWriter injection) so the branching logic is unit-tested without shelling out.
  * Operates in a scratch worktree `.worktrees/.merge-<slug>` cut from the PR tip so it
  * never touches a live build worktree or the main workspace HEAD while K workers run.
+ * `cwd` is the repo root the injected `run` is bound to — git resolves `wt` against
+ * it via `-C`, and the FileWriter must too, so the write path is absolute (`join(cwd,
+ * wt, …)`); a relative path would resolve against `process.cwd()` and silently miss
+ * the scratch tree when they differ.
  *
  * FAIL-CLOSED: any conflict touching a path other than `docs/roadmap.md`, a thrown
  * `removeBlock` (block already gone), or any unexpected git `!ok` returns
@@ -127,6 +133,7 @@ export function resolveRoadmapConflict(
   run: GitRunner,
   slug: string,
   branch: string,
+  cwd: string,
   removeBlockFn: typeof removeBlock = removeBlock,
   roadmapRel = 'docs/roadmap.md',
   maxAttempts = 3,
@@ -163,12 +170,18 @@ export function resolveRoadmapConflict(
     if (!base.ok) return abandon(true);
     let newRaw: string;
     try {
+      // Contract: a fast-track child's only roadmap edit is removing its own block, so
+      // the branch has exactly one roadmap-touching commit and `main-minus-slug` is the
+      // correct content for the single conflicting commit. A multi-commit roadmap branch
+      // would re-stage identical content each `--continue` and stall out (maxAttempts caps it).
       newRaw = removeBlockFn(base.stdout, slug).newRaw;
     } catch {
       // Block already removed from the fresh base by a prior PR — don't guess.
       return abandon(true);
     }
-    writeFile(join(wt, roadmapRel), newRaw);
+    // Absolute path: `run` (and thus `-C wt`) is bound to `cwd`, so the writer must
+    // target `cwd/wt/…` rather than a `process.cwd()`-relative path.
+    writeFile(join(cwd, wt, roadmapRel), newRaw);
     wtGit('add', roadmapRel);
     rebase = wtGit('rebase', '--continue'); // ok → rebase complete; !ok → next conflict, loop
   }
@@ -176,4 +189,33 @@ export function resolveRoadmapConflict(
   if (!wtGit('push', '--force-with-lease', 'origin', `HEAD:${branch}`).ok) return abandon(false);
   removeWorktree();
   return 'resolved';
+}
+
+/**
+ * Production `mergePr` conflict resolver: binds a runner to `cwd`, times the attempt,
+ * and on success appends a `kind: 'resolved'` agent-event (telemetry honesty — this
+ * merge was machine-rebased, not a plain ship). Mirrors {@link makeSalvage}; keeps the
+ * `drain-io` wiring thin. `appendAgentEvent` is fail-open by contract.
+ */
+export function makeRoadmapConflictResolver(
+  cwd: string,
+  role: 'watch' | 'run' = 'run',
+): (slug: string, branch: string) => 'resolved' | 'unresolvable' {
+  const run = spawnRunner(cwd);
+  return (slug, branch) => {
+    const started = Date.now();
+    const outcome = resolveRoadmapConflict(run, slug, branch, cwd);
+    if (outcome === 'resolved')
+      appendAgentEvent(cwd, {
+        ts: new Date().toISOString(),
+        runner: 'drain',
+        role,
+        kind: 'resolved',
+        slug,
+        exitCode: 0,
+        durationMs: Date.now() - started,
+        timedOut: false,
+      });
+    return outcome;
+  };
 }

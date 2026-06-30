@@ -1,7 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendAgentEvent } from '../core/agent-events.js';
 import { spawnAgent } from '../core/agent-runner/registry.js';
-import { resolveRoadmapConflict, spawnRunner } from './salvage.js';
+import { makeRoadmapConflictResolver } from './salvage.js';
 
 /**
  * Real implementations of the {@link DrainDeps} IO adapters. These shell out to
@@ -51,22 +50,10 @@ export async function mergePr(
   branch: string,
   pollTimeoutMs = 20 * 60 * 1000,
   pollIntervalMs = 10_000,
-  resolve: (slug: string, branch: string) => 'resolved' | 'unresolvable' = (s, b) => {
-    const outcome = resolveRoadmapConflict(spawnRunner(cwd), s, b);
-    if (outcome === 'resolved')
-      // telemetry honesty: this merge was machine-rebased, not a plain ship.
-      appendAgentEvent(cwd, {
-        ts: new Date().toISOString(),
-        runner: 'drain',
-        role: 'run',
-        kind: 'resolved',
-        slug: s,
-        exitCode: 0,
-        durationMs: 0,
-        timedOut: false,
-      });
-    return outcome;
-  },
+  resolve: (
+    slug: string,
+    branch: string,
+  ) => 'resolved' | 'unresolvable' = makeRoadmapConflictResolver(cwd),
 ): Promise<MergeOutcome> {
   const enq = spawnSync('gh', ['pr', 'merge', branch, '--auto', '--squash'], {
     cwd,

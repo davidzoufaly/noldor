@@ -28,6 +28,7 @@ function runner(script: Record<string, { ok: boolean; stdout: string }>): {
   return { run, calls };
 }
 
+const CWD = '/repo';
 const WT = '.worktrees/.merge-x';
 
 describe('resolveRoadmapConflict', () => {
@@ -46,6 +47,7 @@ describe('resolveRoadmapConflict', () => {
       run,
       'x',
       'fast/x',
+      CWD,
       removeBlockFn,
       'docs/roadmap.md',
       3,
@@ -81,6 +83,7 @@ describe('resolveRoadmapConflict', () => {
       run,
       'x',
       'fast/x',
+      CWD,
       removeBlockFn,
       'docs/roadmap.md',
       3,
@@ -88,7 +91,7 @@ describe('resolveRoadmapConflict', () => {
     );
     expect(out).toBe('resolved');
     expect(removeBlockFn).toHaveBeenCalledWith('BASE_RAW', 'x');
-    expect(writeFile).toHaveBeenCalledWith(join(WT, 'docs/roadmap.md'), 'NEW_RAW');
+    expect(writeFile).toHaveBeenCalledWith(join(CWD, WT, 'docs/roadmap.md'), 'NEW_RAW');
   });
 
   it('(c) conflict includes a non-roadmap path → unresolvable + rebase --abort', () => {
@@ -100,7 +103,16 @@ describe('resolveRoadmapConflict', () => {
         stdout: 'docs/roadmap.md\nsrc/foo.ts\n',
       },
     });
-    const out = resolveRoadmapConflict(run, 'x', 'fast/x', vi.fn(), 'docs/roadmap.md', 3, vi.fn());
+    const out = resolveRoadmapConflict(
+      run,
+      'x',
+      'fast/x',
+      CWD,
+      vi.fn(),
+      'docs/roadmap.md',
+      3,
+      vi.fn(),
+    );
     expect(out).toBe('unresolvable');
     expect(calls).toContain('git -C .worktrees/.merge-x rebase --abort');
     expect(calls).toContain('git worktree remove --force .worktrees/.merge-x');
@@ -126,6 +138,7 @@ describe('resolveRoadmapConflict', () => {
       run,
       'x',
       'fast/x',
+      CWD,
       removeBlockFn,
       'docs/roadmap.md',
       3,
@@ -144,7 +157,16 @@ describe('resolveRoadmapConflict', () => {
         stdout: '',
       },
     });
-    const out = resolveRoadmapConflict(run, 'x', 'fast/x', vi.fn(), 'docs/roadmap.md', 3, vi.fn());
+    const out = resolveRoadmapConflict(
+      run,
+      'x',
+      'fast/x',
+      CWD,
+      vi.fn(),
+      'docs/roadmap.md',
+      3,
+      vi.fn(),
+    );
     expect(out).toBe('unresolvable');
   });
 
@@ -152,7 +174,16 @@ describe('resolveRoadmapConflict', () => {
     const { run, calls } = runner({
       'git worktree add --force .worktrees/.merge-x origin/fast/x': { ok: false, stdout: '' },
     });
-    const out = resolveRoadmapConflict(run, 'x', 'fast/x', vi.fn(), 'docs/roadmap.md', 3, vi.fn());
+    const out = resolveRoadmapConflict(
+      run,
+      'x',
+      'fast/x',
+      CWD,
+      vi.fn(),
+      'docs/roadmap.md',
+      3,
+      vi.fn(),
+    );
     expect(out).toBe('unresolvable');
     expect(calls.some((c) => c.includes('rebase'))).toBe(false);
   });
