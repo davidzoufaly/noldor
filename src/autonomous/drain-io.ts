@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { spawnAgent } from '../core/agent-runner/registry.js';
+import { makeRoadmapConflictResolver } from './salvage.js';
 
 /**
  * Real implementations of the {@link DrainDeps} IO adapters. These shell out to
@@ -49,8 +50,11 @@ export async function mergePr(
   branch: string,
   pollTimeoutMs = 20 * 60 * 1000,
   pollIntervalMs = 10_000,
+  resolve: (
+    slug: string,
+    branch: string,
+  ) => 'resolved' | 'unresolvable' = makeRoadmapConflictResolver(cwd),
 ): Promise<MergeOutcome> {
-  void slug; // retained for caller/log context; `branch` drives the gh queries
   const enq = spawnSync('gh', ['pr', 'merge', branch, '--auto', '--squash'], {
     cwd,
     encoding: 'utf8',
@@ -58,6 +62,7 @@ export async function mergePr(
   if (enq.error) throw new Error(`gh pr merge spawn failed for ${branch}: ${enq.error.message}`);
   const autoEnabled = enq.status === 0;
   const deadline = Date.now() + pollTimeoutMs; // real wall-clock — IO adapter, not unit-tested
+  let resolveAttempted = false; // re-apply the deterministic roadmap removal at most once
   for (;;) {
     const view = spawnSync(
       'gh',
@@ -73,7 +78,17 @@ export async function mergePr(
     const v = JSON.parse(view.stdout) as MergeView;
     const verdict = classifyMergeView(v);
     if (verdict === 'merged') return 'merged';
-    if (verdict === 'merge-conflict') return 'merge-conflict';
+    if (verdict === 'merge-conflict') {
+      // A DIRTY PR under K>1 is usually an adjacent docs/roadmap.md block-removal conflict.
+      // Try the deterministic re-apply ONCE; on success the rebased+pushed branch re-reads
+      // BEHIND→CLEAN and we keep polling, on failure fall back to today's leave-open behaviour.
+      if (resolveAttempted) return 'merge-conflict';
+      resolveAttempted = true;
+      if (resolve(slug, branch) !== 'resolved') return 'merge-conflict';
+      spawnSync('gh', ['pr', 'merge', branch, '--auto', '--squash'], { cwd, encoding: 'utf8' });
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+      continue;
+    }
     if (Date.now() > deadline) return 'merge-timeout';
     if (v.mergeStateStatus === 'BEHIND') {
       // "require branches up to date" protection: a PR opened off the pre-merge base goes BEHIND
