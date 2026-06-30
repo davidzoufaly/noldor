@@ -57,19 +57,6 @@ Noldor can fan out parallel *build* agents (the K-concurrent drain) but has no f
 
 `prep promote`'s preflight "working tree not clean" check counts untracked files as dirty, so a stray gitignored-but-untracked artifact (e.g. `.noldor/prep-fanout.log`) blocks the whole promote with a confusing message. The preflight should ignore untracked / gitignored files and block only on tracked (staged or modified) changes — matching what actually threatens a clean promote commit. Touches: `src/prep/prep-promote.ts` preflight check.
 
-### Trailer Scope-Alias Map
-
-- area: tooling
-- type: feat
-- since: 2026-05-11
-- size: S
-- impact: high
-- parent: noldor
-
-`scripts/garden/detectors/trailer-scope-mismatch.ts` rejects commits where the Conventional Commits scope doesn't equal (or end with `:`) the `Noldor-FD:` slug. v0.4.0 release surfaced 24 such mismatches: `feat(sdd):` commits tagged to FD `sdd-co-tag-detector`, `feat(cr):` commits tagged to FD `noldor`, etc. — the team has informally adopted shorter scope tokens. Required `RELEASE_SKIP_GATE_COMPLIANCE=1` bypass. Fix: add a config-driven alias map (`scope-aliases.json` or detector frontmatter) where `sdd → sdd-co-tag-detector`, `cr → noldor`, etc., so the detector accepts the team's actual usage instead of demanding artificial scope expansion.
-
-- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
-
 #### `noldor autonomous status` + Robust Lock Read
 
 - area: tooling
