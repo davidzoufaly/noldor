@@ -24,7 +24,7 @@ links:
 name: Framework Milestones Support (POC / MVP / 1.0.0)
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
