@@ -23,7 +23,7 @@ links:
 name: Bootstrap-Immunity for Self-Gating Features
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
