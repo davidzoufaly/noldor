@@ -62,6 +62,12 @@ export const FeatureFrontmatterSchema = z
      *  the framework never requires a milestone. Cross-checked against the
      *  milestones dir by validate-features (dangling reference = error). */
     milestone: z.string().min(1).optional(),
+    /** Optional: the feature introduces a release-time gate its own commits
+     *  cannot satisfy (the enforcement code didn't exist when they were authored).
+     *  Value is a gate-registry key (src/cr/gate-registry.ts), e.g. `codex-cr`.
+     *  Drives `/gate` Step 4 bootstrap-immunity (auto-stamps the matching override
+     *  on the branch's commits). Absent by default. */
+    'introduces-gate': z.string().min(1).optional(),
   })
   .strict()
   .superRefine((data, ctx) => {

@@ -47,6 +47,7 @@ const FINDING_CATEGORIES = [
   'planWithoutFd',
   'fdWithoutPlan',
   'milestoneShippedIncomplete',
+  'bootstrapOverrideAudit',
 ] as const;
 
 interface ParsedGardenJson {

@@ -13,6 +13,7 @@ import { slugify } from '../utils/slugify.js';
 import { STALE_BACKLOG_DAYS_DEFAULT } from './backlog-demote.js';
 import { auditOverrides } from './detectors/override-audit.js';
 import { auditCodexCrOverrides } from './detectors/codex-cr-override-audit.js';
+import { detectBootstrapOverrideAudit } from './detectors/bootstrap-override-audit.js';
 import { detectTierMismatch } from './detectors/tier-mismatch.js';
 import { detectAllowlistDrift } from './detectors/allowlist-drift.js';
 import { detectTrailerScopeMismatch } from './detectors/trailer-scope-mismatch.js';
@@ -34,6 +35,7 @@ import type { Invariant } from './garden-invariants.js';
 import type { Invariant as ArchitectureInvariant, InvariantResult } from '../invariants/types.js';
 import type { OverrideAuditResult } from './detectors/override-audit.js';
 import type { Finding as CodexCrOverrideFinding } from './detectors/codex-cr-override-audit.js';
+import type { BootstrapOverrideFinding } from './detectors/bootstrap-override-audit.js';
 import type { TierMismatchFinding } from './detectors/tier-mismatch.js';
 import type { AllowlistDriftFinding } from './detectors/allowlist-drift.js';
 import type { TrailerScopeMismatchFinding } from './detectors/trailer-scope-mismatch.js';
@@ -593,6 +595,7 @@ export interface GardenFindings {
   readonly fdWithoutPlan: readonly FdWithoutPlanFinding[];
   readonly migrationCoverage: readonly MigrationCoverageFinding[];
   readonly milestoneShippedIncomplete: readonly MilestoneShippedIncompleteFinding[];
+  readonly bootstrapOverrideAudit: readonly BootstrapOverrideFinding[];
 }
 
 /**
@@ -607,6 +610,7 @@ export interface GateComplianceFindings {
   readonly trailerScopeMismatch: readonly TrailerScopeMismatchFinding[];
   readonly planWithoutFd: readonly PlanWithoutFdFinding[];
   readonly fdWithoutPlan: readonly FdWithoutPlanFinding[];
+  readonly bootstrapOverrideAudit: readonly BootstrapOverrideFinding[];
 }
 
 /**
@@ -625,6 +629,7 @@ export async function detectGateCompliance(repo: string): Promise<GateCompliance
     ]);
   const overrideAudit = auditOverrides({ cwd: repo });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
+  const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
   return {
     overrideAudit,
     codexCrOverrideAudit,
@@ -633,6 +638,7 @@ export async function detectGateCompliance(repo: string): Promise<GateCompliance
     trailerScopeMismatch,
     planWithoutFd,
     fdWithoutPlan,
+    bootstrapOverrideAudit,
   };
 }
 
@@ -753,6 +759,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   sddGaps.push(...detectCodeLinksDrift(scannedCode, cachedCode));
   const overrideAudit = auditOverrides({ cwd: repo });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
+  const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
   // A schema-surface change in the release range with no accompanying migration
   // is a drift finding (advisory, like the SDD gaps above).
   const migration = detectMigrationCoverage(releaseRange(repo), repo);
@@ -773,6 +780,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     fdWithoutPlan,
     migrationCoverage: migration ? [migration] : [],
     milestoneShippedIncomplete,
+    bootstrapOverrideAudit,
   };
 }
 

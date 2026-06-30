@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { isBootstrapReason } from '../../cr/gate-registry.js';
+
 export type Finding =
   | { kind: 'frequency'; count: number; windowDays: number }
   | { kind: 'short-reason'; reason: string; ts: string }
@@ -30,7 +32,11 @@ export function auditCodexCrOverrides(input: AuditInput): Finding[] {
     });
 
   const findings: Finding[] = [];
-  const recent = rows.filter((r) => Date.parse(r.ts) >= cutoff);
+  // Exclude legitimate bootstrap-immunity overrides: a gate-introducing feature
+  // stamps its whole branch (could be 20+ commits), which would always trip the
+  // frequency/repeated counters. The dedicated bootstrap-override-audit detector
+  // audits their legitimacy (backing introduces-gate FD) instead.
+  const recent = rows.filter((r) => Date.parse(r.ts) >= cutoff && !isBootstrapReason(r.reason));
 
   if (recent.length >= freqThreshold) {
     findings.push({ kind: 'frequency', count: recent.length, windowDays });

@@ -46,4 +46,17 @@ describe('auditCodexCrOverrides', () => {
     const r = auditCodexCrOverrides({ cwd });
     expect(r).toEqual([]);
   });
+
+  it('suppresses bootstrap-reason rows from frequency + repeated counters', () => {
+    const reason = 'bootstrap — feature added the gate that would block its own commits';
+    const cwd = makeRepo([
+      `${iso(1)}\t${reason}`,
+      `${iso(1)}\t${reason}`,
+      `${iso(1)}\t${reason}`,
+      `${iso(1)}\t${reason}`,
+      `${iso(1)}\t${reason}`,
+    ]);
+    // 5 bootstrap rows would normally trip frequency (≥3) + repeated; both suppressed.
+    expect(auditCodexCrOverrides({ cwd })).toEqual([]);
+  });
 });

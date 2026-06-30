@@ -46,6 +46,7 @@ The Zod schema is `.strict()`: unknown keys are rejected. Every FD frontmatter m
 | `updated`     | `string` matching `^\d+\.\d+\.\d+$` | Latest product release that modified the feature. **Set by `pnpm release`, never by hand.**                                                                                |
 | `deps`        | `string[]` (each non-empty)         | Slugs of prereq features. Defaults to `[]`.                                                                                                                                |
 | `noldor-tier` | enum: `specs-only \| full`          | Records the FD's creation depth. Set by `/gate` (or `--tier` flag on `/promote`/`/new-feature`). Immutable post-rollout. See [Tier transitions](#tier-transitions) below.  |
+| `introduces-gate` | `string` (min 1)                | Marks an FD whose work adds a release-time gate its own commits cannot satisfy. Value is a gate-registry key (`src/cr/gate-registry.ts`, e.g. `codex-cr`). Drives `/gate` Step 4 bootstrap-immunity (`pnpm noldor cr bootstrap`), which stamps the matching override on the branch's commits so the new gate can't block its own merge. Hand-added; absent by default. |
 
 Example minimum-viable frontmatter (in-progress, no deps yet):
 

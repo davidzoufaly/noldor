@@ -3,15 +3,27 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
-  docs: []
-  tests: []
+  code:
+    - src/cr/gate-registry.ts
+    - src/cr/bootstrap-immunity.ts
+    - src/cr/bootstrap-cli.ts
+    - src/features/feature-schema.ts
+    - src/cli/manifest.ts
+    - src/garden/detectors/bootstrap-override-audit.ts
+    - src/garden/detectors/codex-cr-override-audit.ts
+    - src/garden/garden-detect.ts
+  docs:
+    - docs/noldor/feature-md-schema.md
+  tests:
+    - src/cr/__tests__/gate-registry.test.ts
+    - src/cr/__tests__/bootstrap-immunity.test.ts
+    - src/garden/detectors/__tests__/bootstrap-override-audit.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md
 name: Bootstrap-Immunity for Self-Gating Features
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
