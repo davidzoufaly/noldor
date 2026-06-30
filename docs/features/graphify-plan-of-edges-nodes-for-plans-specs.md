@@ -16,7 +16,7 @@ links:
 name: Graphify `plan-of` edges + nodes for plans/specs
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
