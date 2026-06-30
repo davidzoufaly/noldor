@@ -12,7 +12,21 @@ import {
 } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { writeState, type DrainState } from './drain-state.js';
-import { syncMainCleanState, openPrExistsFor, spawnGate, mergePr } from './drain-io.js';
+import {
+  syncMainCleanState,
+  openPrExistsFor,
+  spawnGate,
+  mergePr,
+  assertQueueSourceSyncedAt,
+} from './drain-io.js';
+import {
+  reconcileDeadRun,
+  makeReconcileDeps,
+  reportIsEmpty,
+  formatReconcile,
+  groupKillState,
+  type ReconcileReport,
+} from './drain-reconcile.js';
 import { makeSalvage } from './salvage.js';
 import { applyCycleVerdict, loadPark, mapCycle, parkAwareSource } from './escalations.js';
 
@@ -116,14 +130,43 @@ async function main(): Promise<void> {
   }
 
   let stop = false;
+  // SIGINT stays graceful: flag a between-iterations stop and let in-flight children finish
+  // (group-killing here would abort a build mid-merge). SIGTERM is a hard stop — tear the
+  // agent grandchildren down with the runner so `kill <pid>` doesn't orphan them. SIGKILL
+  // runs no handler; the next run's startup `reapOrphanAgents` is the backstop for that.
   process.on('SIGINT', () => {
     stop = true;
   });
+  process.on('SIGTERM', () => {
+    groupKillState(cwd);
+    releaseLock(cwd);
+    process.exit(130);
+  });
+
+  // Startup reconciliation of a prior dead run (reap orphans → sync + divergence pre-flight →
+  // heal open PRs → prune shipped worktrees). A clean startup is an all-empty no-op. A
+  // local-ahead-of-origin divergence throws here → exit 1 before any gate child wastes work.
+  const reconcileDeps = makeReconcileDeps(
+    cwd,
+    source,
+    () => syncMainCleanState(cwd),
+    () => assertQueueSourceSyncedAt(cwd),
+  );
+  let reconcileReport: ReconcileReport | null = null;
+  try {
+    reconcileReport = await reconcileDeadRun(reconcileDeps, source, parsed.dryRun);
+    if (!reportIsEmpty(reconcileReport))
+      process.stdout.write(`${formatReconcile(reconcileReport)}\n`);
+  } catch (e) {
+    releaseLock(cwd);
+    process.stderr.write(`${(e as Error).message}\n`);
+    process.exit(1);
+  }
 
   const drainSource = parkAwareSource(source, () => loadPark(cwd));
   const deps: DrainDeps = {
     source: drainSource,
-    spawnGate: (env, timeoutMs, prompt) => spawnGate(cwd, env, timeoutMs, prompt),
+    spawnGate: (env, timeoutMs, prompt, onSpawn) => spawnGate(cwd, env, timeoutMs, prompt, onSpawn),
     syncMainCleanState: () => syncMainCleanState(cwd),
     mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
@@ -139,6 +182,7 @@ async function main(): Promise<void> {
         shipped: s.shipped,
         skip: s.skip,
         retries: s.retries,
+        agentPgids: s.agentPgids,
       };
       writeState(cwd, state);
     },
@@ -169,7 +213,7 @@ async function main(): Promise<void> {
 
   process.stdout.write(
     parsed.json
-      ? `${JSON.stringify(res)}\n`
+      ? `${JSON.stringify({ ...res, reconcile: reconcileReport })}\n`
       : `drain: shipped ${res.shipped}, skipped ${res.skipped.length} [${res.skipped.join(', ')}]\n`,
   );
   if (!parsed.json && res.planned !== undefined) {

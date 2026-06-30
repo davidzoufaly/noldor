@@ -19,6 +19,16 @@ export interface DrainState {
   shipped: number;
   skip: string[];
   retries: Record<string, number>;
+  /**
+   * Process-group ids of the gate children currently in flight. Populated by the
+   * drain loop's `emitState` from its live pgid set (each child is spawned
+   * `detached: true`, so `pgid === child.pid`). On runner SIGKILL — which runs no
+   * exit handler — these survive as orphans; the NEXT run's startup
+   * `reapOrphanAgents` reads them from the dead run's state file and group-kills
+   * each before acquiring the lock. Optional for back-compat with state files
+   * written before this field existed.
+   */
+  agentPgids?: number[];
 }
 
 /**

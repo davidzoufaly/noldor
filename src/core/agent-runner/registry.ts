@@ -118,20 +118,44 @@ export function spawnAgent(
     const child = spawnImpl(plan.bin, plan.argv, {
       cwd: opts.cwd,
       env: opts.env ? { ...process.env, ...opts.env } : process.env,
+      // `detached: true` makes the child its own process-group leader (pgid === child.pid),
+      // so a group-kill (`process.kill(-pgid)`) reaches the real agent process the CLI spawns
+      // — not just the thin wrapper. Without it, a runner SIGKILL orphans the grandchild.
+      detached: true,
       // stdin owned by prompt delivery; stdout per opts.stdio; stderr always live.
       stdio: [plan.promptVia === 'stdin' ? 'pipe' : 'ignore', outMode, 'inherit'],
     });
+    // pgid === child.pid under `detached: true`. Surface it so the drain loop can record
+    // it for the next run's orphan-reap (spec Unit 2 carrier). Guard: a spawn that never got
+    // a pid (immediate ENOENT, surfaced via 'error') has `child.pid === undefined`.
+    if (child.pid !== undefined) opts.onSpawn?.(child.pid);
     if (plan.promptVia === 'stdin') {
       child.stdin?.on('error', () => {});
       child.stdin?.end(prompt);
     }
     let stdout = '';
     let timedOut = false;
+    // Group-kill the whole process group on timeout (negative pid = pgid) so the agent
+    // grandchild dies with the wrapper. Falls back to a direct `child.kill` if the group
+    // kill throws (reused/permission edge) or the pid is unknown. POSIX-only (darwin/Linux);
+    // the carrier records a real group only because of `detached: true` above.
+    const killTree = (): void => {
+      const pid = child.pid;
+      if (pid !== undefined) {
+        try {
+          process.kill(-pid, 'SIGKILL');
+          return;
+        } catch {
+          /* group gone / not permitted — fall through to direct kill */
+        }
+      }
+      child.kill('SIGKILL');
+    };
     const timer =
       opts.timeoutMs !== undefined
         ? setTimeout(() => {
             timedOut = true;
-            child.kill('SIGKILL');
+            killTree();
           }, opts.timeoutMs)
         : null;
     child.stdout?.on('data', (chunk: Buffer) => {

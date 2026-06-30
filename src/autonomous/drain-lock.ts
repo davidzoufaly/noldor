@@ -11,13 +11,19 @@ import { join } from 'node:path';
 
 const LOCK_REL = '.noldor/drain.lock';
 
-function isAlive(pid: number): boolean {
+/**
+ * Liveness probe: true iff `pid` names a live process. `process.kill(pid, 0)`
+ * sends no signal — it only checks deliverability. EPERM = the process exists but
+ * is owned by another user → still alive; ESRCH (and anything else) = no such
+ * process → dead. Exported so the startup reconciliation pass
+ * ({@link ../drain-reconcile}) can reuse the exact same probe the lock reclaim
+ * uses, rather than forking a second definition.
+ */
+export function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    // EPERM = the process exists but is owned by another user → still alive.
-    // ESRCH (and anything else) = no such process → dead.
     return (err as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
