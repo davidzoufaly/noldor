@@ -16,7 +16,7 @@ links:
 name: Parallel-Drain `roadmap.md` Conflict Auto-Resolution
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
