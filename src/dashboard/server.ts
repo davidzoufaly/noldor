@@ -8,6 +8,7 @@ import {
   getBacklogPath,
   getRoadmapPath,
   loadActiveMilestone,
+  loadMilestoneGroups,
   loadBacklogWithHash,
   loadCounts,
   loadFeatureDetail,
@@ -53,6 +54,7 @@ import {
   renderUserDocsIndex,
   renderVelocity,
   renderVision,
+  renderMilestones,
   renderWipAge,
   renderMetrics,
   renderWorktrees,
@@ -118,6 +120,7 @@ function matchRoute(method: string, pathname: string): RouteMatch | null {
     }
     if (pathname === '/') return { handler: handleOverview, pathParams: {} };
     if (pathname === '/vision') return { handler: handleVision, pathParams: {} };
+    if (pathname === '/milestones') return { handler: handleMilestones, pathParams: {} };
     if (pathname === '/roadmap') return { handler: handleRoadmap, pathParams: {} };
     if (pathname === '/backlog') return { handler: handleBacklog, pathParams: {} };
     if (pathname === '/features') return { handler: handleFeatures, pathParams: {} };
@@ -463,6 +466,16 @@ async function handleVision(): Promise<RouteResult> {
     body: renderVision(vision, activeMilestone),
     title: 'Vision',
     activeNav: '/vision',
+  };
+}
+
+async function handleMilestones(): Promise<RouteResult> {
+  const groups = await loadMilestoneGroups();
+  return {
+    status: 200,
+    body: renderMilestones(groups),
+    title: 'Milestones',
+    activeNav: '/milestones',
   };
 }
 

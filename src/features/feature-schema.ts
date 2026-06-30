@@ -57,6 +57,11 @@ export const FeatureFrontmatterSchema = z
       .optional(),
     'noldor-tier': z.enum(['specs-only', 'full']),
     updated: semver.optional(),
+    /** Optional milestone membership — the slug of a docs/milestones/<slug>.md
+     *  file (filename stem == milestone frontmatter `name`). Absent by default;
+     *  the framework never requires a milestone. Cross-checked against the
+     *  milestones dir by validate-features (dangling reference = error). */
+    milestone: z.string().min(1).optional(),
   })
   .strict()
   .superRefine((data, ctx) => {

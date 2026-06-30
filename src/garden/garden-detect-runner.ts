@@ -46,6 +46,7 @@ const FINDING_CATEGORIES = [
   'trailerScopeMismatch',
   'planWithoutFd',
   'fdWithoutPlan',
+  'milestoneShippedIncomplete',
 ] as const;
 
 interface ParsedGardenJson {

@@ -1,6 +1,7 @@
 const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/', label: 'Overview' },
   { href: '/vision', label: 'Vision' },
+  { href: '/milestones', label: 'Milestones' },
   { href: '/framework', label: 'Framework' },
   { href: '/docs', label: 'Docs' },
   { href: '/skills', label: 'Skills' },
@@ -224,6 +225,23 @@ const STYLE = `
   .chip-row .chip:not(.selected):hover {
     background: rgba(37,99,235,0.08);
   }
+  /* Standalone pill chip (table cells, milestone member lists) — the chip-row
+     variant above is scoped to .chip-row. */
+  a.chip, span.chip {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.8rem;
+    text-decoration: none;
+    color: inherit;
+  }
+  /* Warn accent: shipped-milestone-with-open-feature rows + the dangling-banner. */
+  .warn { border-left-color: #dc2626 !important; }
+  tr.warn td, li.warn { background: rgba(220,38,38,0.07); }
+  .milestone-group { border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem 1rem; margin: 0 0 1rem; }
+  .milestone-group h3 { margin: 0 0 0.5rem; }
+  .milestone-group .status { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
   a.reset {
     font-size: 0.8rem;
     color: var(--muted);
