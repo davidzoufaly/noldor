@@ -4,11 +4,13 @@ category: Tooling
 deps: []
 links:
   code:
+    - src/autonomous/salvage.ts
     - src/autonomous/drain-io.ts
-    - src/autonomous/drain-loop.ts
-    - src/utils/parse-blocks.ts
+    - src/utils/write-blocks.ts
   docs: []
-  tests: []
+  tests:
+    - src/autonomous/__tests__/resolve-roadmap-conflict.test.ts
+    - src/autonomous/__tests__/merge-coordinator.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md
 name: Parallel-Drain `roadmap.md` Conflict Auto-Resolution

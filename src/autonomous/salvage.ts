@@ -1,6 +1,9 @@
 import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { appendAgentEvent } from '../core/agent-events.js';
+import { removeBlock } from '../utils/write-blocks.js';
 
 /** Injected process runner: ok=false on nonzero exit. Production uses spawnSync; tests script it. */
 export type GitRunner = (cmd: string, args: string[]) => { ok: boolean; stdout: string };
@@ -59,7 +62,7 @@ export function repair(run: GitRunner, slug: string): void {
 }
 
 /** Production runner bound to cwd. */
-function spawnRunner(cwd: string): GitRunner {
+export function spawnRunner(cwd: string): GitRunner {
   return (cmd, args) => {
     const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     return { ok: r.status === 0, stdout: r.stdout ?? '' };
@@ -96,4 +99,81 @@ export function makeSalvage(
     });
     return 'salvaged';
   };
+}
+
+/** Injected file writer (defaults to fs); split out so the resolver stays unit-pure. */
+export type FileWriter = (path: string, content: string) => void;
+
+/**
+ * Auto-resolve an *adjacent `docs/roadmap.md` block-removal* merge conflict for one
+ * open fast-track PR under parallel drain (K>1). The correct post-merge content is
+ * deterministic — "the freshly-rebased base's roadmap, minus this slug's block" —
+ * so we re-apply {@link removeBlock} against `origin/main` rather than letting git's
+ * textual 3-way merge fail. See the design spec
+ * (`docs/superpowers/specs/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md`).
+ *
+ * Pure/IO split in the {@link detectStale}/{@link repair} style (GitRunner +
+ * FileWriter injection) so the branching logic is unit-tested without shelling out.
+ * Operates in a scratch worktree `.worktrees/.merge-<slug>` cut from the PR tip so it
+ * never touches a live build worktree or the main workspace HEAD while K workers run.
+ *
+ * FAIL-CLOSED: any conflict touching a path other than `docs/roadmap.md`, a thrown
+ * `removeBlock` (block already gone), or any unexpected git `!ok` returns
+ * `'unresolvable'` (today's leave-PR-open behaviour) — never throws, never guesses.
+ * On every post-creation failure it best-effort aborts the rebase and removes the
+ * scratch worktree so nothing leaks.
+ */
+export function resolveRoadmapConflict(
+  run: GitRunner,
+  slug: string,
+  branch: string,
+  removeBlockFn: typeof removeBlock = removeBlock,
+  roadmapRel = 'docs/roadmap.md',
+  maxAttempts = 3,
+  writeFile: FileWriter = (p, c) => writeFileSync(p, c, 'utf8'),
+): 'resolved' | 'unresolvable' {
+  const wt = `.worktrees/.merge-${slug}`;
+  const wtGit = (...args: string[]): { ok: boolean; stdout: string } =>
+    run('git', ['-C', wt, ...args]);
+  const removeWorktree = (): void => {
+    run('git', ['worktree', 'remove', '--force', wt]);
+  };
+  const abandon = (abort: boolean): 'unresolvable' => {
+    if (abort) wtGit('rebase', '--abort');
+    removeWorktree();
+    return 'unresolvable';
+  };
+
+  // Scratch worktree at the open PR's branch tip; --force tolerates a stale leftover dir.
+  if (!run('git', ['worktree', 'add', '--force', wt, `origin/${branch}`]).ok) return 'unresolvable';
+
+  let rebase = wtGit('rebase', 'origin/main');
+  let attempts = 0;
+  while (!rebase.ok) {
+    if (++attempts > maxAttempts) return abandon(true); // pathological re-conflict backstop
+    const unmerged = wtGit('diff', '--name-only', '--diff-filter=U')
+      .stdout.split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    // Fail closed on any non-roadmap conflict — a genuine code conflict between two
+    // fast-track features must stay human-escalated.
+    if (unmerged.length !== 1 || unmerged[0] !== roadmapRel) return abandon(true);
+
+    const base = wtGit('show', `origin/main:${roadmapRel}`);
+    if (!base.ok) return abandon(true);
+    let newRaw: string;
+    try {
+      newRaw = removeBlockFn(base.stdout, slug).newRaw;
+    } catch {
+      // Block already removed from the fresh base by a prior PR — don't guess.
+      return abandon(true);
+    }
+    writeFile(join(wt, roadmapRel), newRaw);
+    wtGit('add', roadmapRel);
+    rebase = wtGit('rebase', '--continue'); // ok → rebase complete; !ok → next conflict, loop
+  }
+
+  if (!wtGit('push', '--force-with-lease', 'origin', `HEAD:${branch}`).ok) return abandon(false);
+  removeWorktree();
+  return 'resolved';
 }

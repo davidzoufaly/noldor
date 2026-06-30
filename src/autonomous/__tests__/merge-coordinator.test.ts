@@ -69,3 +69,71 @@ describe('merge coordinator contract', () => {
     expect(r.skipReasons?.b).toMatch(/timeout/i);
   });
 });
+
+/**
+ * Models {@link mergePr}'s new conflict-resolution fold (spec Unit 2): a DIRTY PR
+ * triggers `resolve(slug)`; `'resolved'` folds into `merged`, `'unresolvable'` into
+ * today's `merge-conflict` skip. `resolveOn` maps a slug → its resolver verdict.
+ */
+function resolveHarness(initial: string[], resolveOn: Record<string, 'resolved' | 'unresolvable'>) {
+  let roadmap = [...initial];
+  const built = new Set<string>();
+  const source: DrainSource = {
+    id: 'roadmap',
+    nextItem: (skip) => {
+      const slug = roadmap.find((s) => !skip.has(s));
+      return slug === undefined ? null : { slug, description: '', eligible: true };
+    },
+    parseAll: () => [...roadmap],
+    gatePrompt: () => '/gate',
+    branchFor: (s) => `fast/${s}`,
+  };
+  const deps: DrainDeps = {
+    source,
+    spawnGate: vi.fn(async (env: Record<string, string>) => {
+      built.add(env.NOLDOR_DRAIN_SLUG!);
+      return 0;
+    }),
+    syncMainCleanState: vi.fn(),
+    mergePr: vi.fn(async (slug: string) => {
+      // Two adjacent slugs each removed their roadmap block → this PR went DIRTY.
+      if (resolveOn[slug]) {
+        if (resolveOn[slug] === 'unresolvable') return 'merge-conflict' as const;
+        // resolved: deterministic re-apply succeeded → branch re-reads CLEAN → merges.
+      }
+      roadmap = roadmap.filter((s) => s !== slug);
+      return 'merged' as const;
+    }),
+    openPrExistsFor: vi.fn((slug: string) => built.has(slug)),
+    writeState: vi.fn(),
+    stopRequested: vi.fn(() => false),
+  };
+  const opts: DrainOpts = {
+    maxFeatures: 20,
+    maxRetries: 0,
+    maxSpawns: 40,
+    timeoutMs: 1000,
+    dryRun: false,
+    cwd: '/x',
+    concurrency: 3,
+    startupStaggerMs: 0,
+  };
+  return { deps, opts };
+}
+
+describe('merge coordinator with roadmap-conflict auto-resolution', () => {
+  it('two adjacent slugs whose conflicts auto-resolve both ship (no skip)', async () => {
+    const h = resolveHarness(['a', 'b', 'c'], { b: 'resolved', c: 'resolved' });
+    const r = await runDrain(h.deps, h.opts);
+    expect(r.shipped).toBe(3);
+    expect(r.skipped).toEqual([]);
+  });
+
+  it('an unresolvable conflict still skips with today’s reason, others ship', async () => {
+    const h = resolveHarness(['a', 'b', 'c'], { b: 'unresolvable' });
+    const r = await runDrain(h.deps, h.opts);
+    expect(r.shipped).toBe(2);
+    expect(r.skipped).toContain('b');
+    expect(r.skipReasons?.b).toMatch(/conflict/i);
+  });
+});
