@@ -116,6 +116,14 @@ export function reapOrphanAgents(deps: ReconcileDeps, dryRun = false): number[] 
  * bounded merge (advances the oracle on success; non-merge is left for the
  * worker's open-PR guard to re-observe). DIRTY/CONFLICTING → close, leaving the
  * branch so the next drain's `salvageStaleBase` rebuilds it. Already-merged → no-op.
+ *
+ * TWO guards keep this from clobbering anything but the drain's own leftovers: the
+ * head must be in the source's branch namespace (`fast/` | `feat/`) AND the slug
+ * must still be in the universe (`source.parseAll()`). The universe guard is what
+ * scopes this to "an **in-roadmap** slug with an open PR" (the spec's wording) —
+ * an ordinary interactive fast-track / no-FD PR shares the `fast/*` namespace but
+ * its slug is NOT in the roadmap, so it is never auto-merged or auto-closed.
+ * (`pruneShippedWorktrees` carries the mirror guard.)
  */
 export async function reconcileOpenPrs(
   deps: ReconcileDeps,
@@ -123,11 +131,13 @@ export async function reconcileOpenPrs(
   dryRun = false,
 ): Promise<{ merged: string[]; closedDirty: string[] }> {
   const prefix = source.branchFor(''); // 'fast/' (roadmap) | 'feat/' (plans)
+  const universe = new Set(source.parseAll());
   const merged: string[] = [];
   const closedDirty: string[] = [];
   for (const pr of deps.listOpenPrs()) {
     if (!pr.headRefName.startsWith(prefix)) continue; // not the drain's namespace — never touch
     const slug = pr.headRefName.slice(prefix.length);
+    if (!universe.has(slug)) continue; // in-namespace but not a drain entry (e.g. a human fast-track PR)
     const verdict = classifyMergeView({
       mergedAt: pr.mergedAt,
       mergeStateStatus: pr.mergeStateStatus,

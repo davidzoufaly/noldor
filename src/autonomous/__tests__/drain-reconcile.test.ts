@@ -201,6 +201,25 @@ describe('reconcileOpenPrs', () => {
     expect(r).toEqual({ merged: [], closedDirty: [] });
   });
 
+  it('never merges/closes an in-namespace PR whose slug is NOT in the universe (human fast-track)', async () => {
+    const mergePr = vi.fn(async () => 'merged' as const);
+    const closePr = vi.fn();
+    const r = await reconcileOpenPrs(
+      deps({
+        listOpenPrs: () => [
+          pr({ headRefName: 'fast/human-fix', mergeStateStatus: 'CLEAN' }), // fast/* but not a roadmap slug
+          pr({ headRefName: 'fast/human-dirty', mergeStateStatus: 'DIRTY' }),
+        ],
+        mergePr,
+        closePr,
+      }),
+      source('fast/', ['some-other-roadmap-slug']), // neither head's slug is in-universe
+    );
+    expect(mergePr).not.toHaveBeenCalled();
+    expect(closePr).not.toHaveBeenCalled();
+    expect(r).toEqual({ merged: [], closedDirty: [] });
+  });
+
   it('is source-agnostic: feat/ namespace for plans source', async () => {
     const mergePr = vi.fn(async () => 'merged' as const);
     const r = await reconcileOpenPrs(
@@ -306,7 +325,8 @@ describe('reconcileDeadRun', () => {
       listOpenPrs: () => [pr({ headRefName: 'fast/dirty', mergeStateStatus: 'DIRTY' })],
       listWorktrees: () => [{ path: '/repo/.worktrees/gone', branch: 'fast/gone' }],
     });
-    const report = await reconcileDeadRun(d, source('fast/', []), true);
+    // 'dirty' is in-universe (open PR → close); 'gone' is out-of-universe (shipped worktree → prune).
+    const report = await reconcileDeadRun(d, source('fast/', ['dirty']), true);
     expect(report.reapedPgids).toEqual([9]);
     expect(report.closedDirty).toEqual(['dirty']);
     expect(report.prunedWorktrees).toEqual(['gone']);
