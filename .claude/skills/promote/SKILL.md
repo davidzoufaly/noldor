@@ -39,7 +39,7 @@ Pick 1/2/3:
 If the operator picks (1) or (2): execute the attach branch (step 6.alt).
 If (3) or no candidates fired: continue to step 2 (existing scaffold flow).
 
-2. Parse the block's bullet fields: `area`, `since?`, `deps?`, `parent?`. Source roadmap section determines current bucket but is not carried into the feature MD.
+2. Parse the block's bullet fields: `area`, `since?`, `deps?`, `parent?`, `milestone?`. Source roadmap section determines current bucket but is not carried into the feature MD.
 3. If `docs/features/<slug>.md` already exists, stop and tell the user to either edit that file in-place or choose a different slug.
 4. Prompt the user for the user-facing release-notes **category**. The valid set is consumer-owned: read `consumer.categories` from `.noldor/config.json` and offer those. Suggest a default via the consumer's `consumer.areaCategories[area]` map (falls back to `Other`); `src/lib/area-category.ts` is the shared helper the dashboard `/backlog` Category column uses too.
 
@@ -60,6 +60,7 @@ packages:
   - <package>
 phase: in-progress
 since: <since-from-source-block — omit the line when the source has no `- since:`>
+milestone: <milestone-slug-from-source-block — copy verbatim when the source carries a `- milestone:` line; omit the line entirely otherwise>
 noldor-tier: <specs-only | full>
 ---
 

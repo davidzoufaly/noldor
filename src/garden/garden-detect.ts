@@ -20,6 +20,7 @@ import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
 import { detectCodeLinksDrift } from './detectors/code-links-drift.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
+import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
 import { resolveByLinksPlan, resolveByLinksSpec } from './plan-resolution.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
@@ -35,6 +36,7 @@ import type { TrailerScopeMismatchFinding } from './detectors/trailer-scope-mism
 import type { PlanWithoutFdFinding } from './detectors/plan-without-fd.js';
 import type { FdWithoutPlanFinding } from './detectors/fd-without-plan.js';
 import type { MigrationCoverageFinding } from './detectors/migration-coverage.js';
+import type { MilestoneShippedIncompleteFinding } from './detectors/milestone-shipped-incomplete.js';
 
 // --- Defaults ---
 /** Age threshold (in days) for plans with no matching feature MD. */
@@ -558,6 +560,7 @@ export interface GardenFindings {
   readonly planWithoutFd: readonly PlanWithoutFdFinding[];
   readonly fdWithoutPlan: readonly FdWithoutPlanFinding[];
   readonly migrationCoverage: readonly MigrationCoverageFinding[];
+  readonly milestoneShippedIncomplete: readonly MilestoneShippedIncompleteFinding[];
 }
 
 /**
@@ -708,6 +711,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     detectPlanWithoutFd(repo),
     detectFdWithoutPlan(repo),
   ]);
+  const milestoneShippedIncomplete = await detectMilestoneShippedIncomplete(repo);
   const sddGaps = loadSddGaps(repo);
   // Append the file-side `// @fd:` tag drift: an FD whose cached links.code
   // diverges from what the tag scan would write. Reuses diffProjection so this
@@ -736,6 +740,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     planWithoutFd,
     fdWithoutPlan,
     migrationCoverage: migration ? [migration] : [],
+    milestoneShippedIncomplete,
   };
 }
 

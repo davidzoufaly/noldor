@@ -3,15 +3,28 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
-  docs: []
-  tests: []
+  code:
+    - src/features/feature-schema.ts
+    - src/features/validate-features.ts
+    - src/garden/detectors/milestone-shipped-incomplete.ts
+    - src/garden/garden-detect.ts
+    - src/garden/garden-detect-runner.ts
+    - src/dashboard/server.ts
+    - src/dashboard/layout.ts
+    - src/dashboard/data.ts
+    - src/dashboard/views.ts
+  docs:
+    - docs/noldor/milestones.md
+  tests:
+    - src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts
+    - src/features/__tests__/feature-milestone.test.ts
+    - src/dashboard/__tests__/milestones-view.test.ts
   spec: >-
     docs/superpowers/specs/2026-06-14-framework-milestones-support-poc-mvp-100-design.md
 name: Framework Milestones Support (POC / MVP / 1.0.0)
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary

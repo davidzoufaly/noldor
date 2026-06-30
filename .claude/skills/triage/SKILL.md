@@ -43,6 +43,7 @@ In-progress work (FDs with `phase: in-progress`) is tracked via FD frontmatter, 
      - **impact** — `low | med | high | critical`. Same gating as `size`: required on roadmap, advisory on backlog.
      - **confidence** — `low | med | high`. How sure the proposer is about the `size` + `impact` estimate. Default to `med`; lower to `low` if the bullet text is fuzzy or the work needs spike-level exploration; raise to `high` only when the work has a clear, well-understood shape. Silently optional in v1 — `validate:triage` does NOT complain when missing.
      - **deps** — comma-separated kebab slugs of unshipped roadmap/backlog/in-progress entries this work blocks on. Empty when no blockers known. The slug list feeds dependency-weight at scoring time. Silently optional in v1; operator can supply or leave empty.
+     - **milestone** — slug of the milestone this work belongs to (a `docs/milestones/<slug>.md` file). Propose `- milestone: <active-slug>` **only** when `docs/vision.md` has an active `current-milestone:` AND the bullet aligns with that milestone's `## Gate`; otherwise omit the line entirely. Never infer from score. Operator overrides or drops per row. Silently optional, exactly like `confidence`/`deps` — written into the schema-C block only when proposed/confirmed; `validate:triage` does NOT complain when absent. `/promote` lifts the line into the FD frontmatter.
 5. **Present** the proposal table to the user for batch confirmation. Merge rows show the matched host block's heading + current section so the operator can spot bad matches:
 
 ```

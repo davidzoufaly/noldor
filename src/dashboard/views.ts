@@ -14,6 +14,7 @@ import type {
   FrameworkPageDetail,
   GraphHealthSnapshot,
   HotZoneRow,
+  MilestoneGroup,
   ReleaseNotes,
   Roadmap,
   RoadmapEntry,
@@ -352,6 +353,43 @@ export function renderMilestoneBanner(
   return `<aside class="milestone-banner">
     <div class="line"><span class="label">Current milestone</span> <strong>${escapeHtml(activeMilestone.name)}</strong>${tagline} · <a href="/vision">read vision →</a></div>
   </aside>`;
+}
+
+/**
+ * Render the `/milestones` page: milestones grouped by status (active → draft →
+ * shipped), each listing its member features as links with a phase chip and a
+ * done/total roll-up. A shipped milestone with any non-`done` member renders in
+ * the `warn` style (echoing the garden `milestone-shipped-incomplete` detector).
+ * Empty-state when no milestones are declared — the layer is optional.
+ *
+ * @param groups - Milestone groups from `buildMilestoneGroups`
+ * @returns HTML body string
+ */
+export function renderMilestones(groups: MilestoneGroup[]): string {
+  if (groups.length === 0) {
+    return `<h1>Milestones</h1><p class="empty">No milestones declared — milestones are optional. Create one with <code>/milestone draft</code>.</p>`;
+  }
+  const sections = groups
+    .map((g) => {
+      const members =
+        g.members.length === 0
+          ? '<p class="empty">No member features.</p>'
+          : `<ul>${g.members
+              .map(
+                (f) =>
+                  `<li><a href="/features/${escapeHtml(f.slug)}">${escapeHtml(f.frontmatter.name)}</a> <span class="chip">${escapeHtml(f.frontmatter.phase)}</span></li>`,
+              )
+              .join('')}</ul>`;
+      const desc = g.description ? ` — ${escapeHtml(g.description)}` : '';
+      return `<section class="milestone-group${g.incomplete ? ' warn' : ''}">
+        <div class="status">${escapeHtml(g.status)}${g.incomplete ? ' · shipped with open features' : ''}</div>
+        <h3>${escapeHtml(g.name)} <span class="chip">${g.doneCount}/${g.total} done</span></h3>
+        ${desc ? `<p>${desc.slice(3)}</p>` : ''}
+        ${members}
+      </section>`;
+    })
+    .join('');
+  return `<h1>Milestones</h1>${sections}`;
 }
 
 /**
@@ -1064,10 +1102,10 @@ export function renderFeatures(
   const table =
     filtered.length === 0
       ? '<p class="empty">No matching features.</p>'
-      : `<table><thead><tr><th>Name</th><th>Phase</th><th>Category</th><th>Area</th><th>Introduced</th><th>Updated</th></tr></thead><tbody>${filtered
+      : `<table><thead><tr><th>Name</th><th>Phase</th><th>Category</th><th>Area</th><th>Milestone</th><th>Introduced</th><th>Updated</th></tr></thead><tbody>${filtered
           .map(
             (f) =>
-              `<tr><td><a href="/features/${escapeHtml(f.slug)}">${escapeHtml(f.frontmatter.name)}</a></td><td>${escapeHtml(f.frontmatter.phase)}</td><td>${escapeHtml(f.frontmatter.category)}</td><td>${escapeHtml(f.frontmatter.area)}</td><td>${escapeHtml(f.frontmatter.introduced ?? '—')}</td><td>${escapeHtml(f.frontmatter.updated ?? '—')}</td></tr>`,
+              `<tr><td><a href="/features/${escapeHtml(f.slug)}">${escapeHtml(f.frontmatter.name)}</a></td><td>${escapeHtml(f.frontmatter.phase)}</td><td>${escapeHtml(f.frontmatter.category)}</td><td>${escapeHtml(f.frontmatter.area)}</td><td>${f.frontmatter.milestone ? `<a class="chip" href="/milestones">${escapeHtml(f.frontmatter.milestone)}</a>` : '—'}</td><td>${escapeHtml(f.frontmatter.introduced ?? '—')}</td><td>${escapeHtml(f.frontmatter.updated ?? '—')}</td></tr>`,
           )
           .join('')}</tbody></table>`;
   return `<h1>Features (${filtered.length} of ${features.length})</h1>${form}${table}`;

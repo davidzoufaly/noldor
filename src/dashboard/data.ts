@@ -14,7 +14,7 @@ import { escapeHtml } from './layout.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
 import { loadCategories, loadConsumerConfig } from '../core/consumer-config.js';
 import { areaToCategory } from '../lib/area-category.js';
-import { loadMilestoneBySlug } from '../milestones/lib.js';
+import { loadMilestoneBySlug, loadMilestones, type Milestone } from '../milestones/lib.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import {
@@ -723,6 +723,56 @@ export async function loadActiveMilestone(vision: Vision): Promise<ActiveMilesto
     description: m.frontmatter.description ?? null,
     bodyHtml: await renderMarkdown(m.body),
   };
+}
+
+/** One milestone plus its member features + a phase roll-up, for the /milestones page. */
+export interface MilestoneGroup {
+  slug: string;
+  name: string;
+  status: 'draft' | 'active' | 'shipped';
+  description: string | null;
+  members: FeatureRecord[];
+  doneCount: number;
+  total: number;
+  /** True when status is `shipped` but at least one member is not `done` (warn row). */
+  incomplete: boolean;
+}
+
+/**
+ * Group features under their declared `milestone` slug and compute a per-milestone
+ * phase roll-up. Pure (milestones + features injected) so the grouping is unit-
+ * testable. Members are matched by `frontmatter.milestone === milestone.slug`;
+ * features with no milestone (or one with no matching declared milestone) are
+ * omitted. Order: active → draft → shipped, then by name within each status.
+ */
+export function buildMilestoneGroups(
+  milestones: readonly Milestone[],
+  features: readonly FeatureRecord[],
+): MilestoneGroup[] {
+  const statusOrder: Record<MilestoneGroup['status'], number> = { active: 0, draft: 1, shipped: 2 };
+  return milestones
+    .map((m): MilestoneGroup => {
+      const members = features.filter((f) => f.frontmatter.milestone === m.slug);
+      const doneCount = members.filter((f) => f.frontmatter.phase === 'done').length;
+      const status = m.frontmatter.status;
+      return {
+        slug: m.slug,
+        name: m.frontmatter.name,
+        status,
+        description: m.frontmatter.description ?? null,
+        members,
+        doneCount,
+        total: members.length,
+        incomplete: status === 'shipped' && doneCount < members.length,
+      };
+    })
+    .sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || a.name.localeCompare(b.name));
+}
+
+/** Load all milestones + features and group them for the /milestones page. */
+export async function loadMilestoneGroups(): Promise<MilestoneGroup[]> {
+  const features = await loadFeatures();
+  return buildMilestoneGroups(loadMilestones(), features);
 }
 
 export interface ReleaseNotes {

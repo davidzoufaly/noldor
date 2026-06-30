@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
@@ -7,6 +8,7 @@ import { FeatureFrontmatterSchema, type FeatureFrontmatter } from './feature-sch
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
 import { loadConsumerConfig, loadCategories } from '../core/consumer-config.js';
+import { loadDocRoots } from '../core/doc-roots.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
 export interface FileError {
@@ -91,6 +93,7 @@ export async function validateFiles(paths: string[]): Promise<FileError[]> {
       }
       const tierErrors = validateTierVsSpec(result.data, slug);
       fileErrors.push(...tierErrors);
+      fileErrors.push(...validateMilestoneRef(result.data));
     }
     if (fileErrors.length > 0) {
       errors.push({ file: path, issues: fileErrors });
@@ -256,6 +259,29 @@ export async function validateDocTagPresence(paths: string[]): Promise<FileError
 export function validateTierVsSpec(fm: FeatureFrontmatter, slug: string): string[] {
   if (fm['noldor-tier'] === 'full' && !fm.links?.spec) {
     return [`${slug}: noldor-tier=full but links.spec is unset`];
+  }
+  return [];
+}
+
+/**
+ * Cross-check: when an FD declares `milestone: <slug>`, a matching
+ * `docs/milestones/<slug>.md` must exist. A dangling reference is a hard error —
+ * consistent with Noldor's strict-frontmatter posture and the dashboard's own
+ * "milestone referenced but file not found" warning. Skipped entirely when the
+ * field is absent (the optional-no-op invariant). `cwd` is injectable for tests.
+ *
+ * @param fm - Feature frontmatter
+ * @param cwd - Repo root (defaults to process.cwd())
+ * @returns Array of error messages (empty if valid / field absent)
+ */
+export function validateMilestoneRef(
+  fm: FeatureFrontmatter,
+  cwd: string = process.cwd(),
+): string[] {
+  if (fm.milestone === undefined) return [];
+  const file = join(loadDocRoots(cwd).milestones, `${fm.milestone}.md`);
+  if (!existsSync(file)) {
+    return [`milestone: "${fm.milestone}" does not resolve to an existing ${file}`];
   }
   return [];
 }
