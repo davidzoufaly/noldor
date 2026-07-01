@@ -22,8 +22,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.4.0
 ---
-
 ## Summary
 
 `noldor init --update` re-pulls current templates, but nothing handles *schema* evolution between framework versions: FD frontmatter shape changes, `consumer:` config field renames, skill-twin contract changes, trailer-format changes. With one consumer that's hand-migration; with N consumers on mixed pinned versions it's the biggest structural risk of the multi-project goal. Build `noldor upgrade`: a version-aware chain that takes a consumer from its current framework version to the installed one by running ordered codemods.
@@ -77,6 +77,16 @@ plus a fixture under `src/migrations/__tests__/fixtures/`, or
 <!-- @prs-since-last-release: version-aware-upgrade-and-migration-chain -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+Added semver parse and compare helpers (#104).
+
+#### PRs
+
+- #104: add semver parse + compare helpers ([link](https://github.com/davidzoufaly/noldor/pull/104))
 
 <!-- generated: resources -->
 

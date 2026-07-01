@@ -18,8 +18,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.4.0
 ---
-
 ## Summary
 
 Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superpowers/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `scripts/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it).
@@ -54,6 +54,16 @@ in `src/garden/plan-resolution.ts` returns `ResolvedOwner | null`.
 <!-- @prs-since-last-release: graphify-plan-of-edges-nodes-for-plans-specs -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+fd nodes + plan-of/spec-of edges added to graph, plus graph-adjacency stale fallback (#109).
+
+#### PRs
+
+- #109: doc nodes + plan-of/spec-of edges, graph-adjacency stale fallback ([link](https://github.com/davidzoufaly/noldor/pull/109))
 
 <!-- generated: resources -->
 

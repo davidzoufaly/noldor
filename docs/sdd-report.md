@@ -30,7 +30,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 72
+Gated commits missing `Noldor-Reviewed` trailer: 73
 
 ## Metrics
 

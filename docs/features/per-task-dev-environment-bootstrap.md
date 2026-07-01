@@ -14,8 +14,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.4.0
 ---
-
 ## Summary
 
 Extend the worktree workflow with full per-task environment scaffolding: open IDE on the worktree folder/file, spawn a new terminal per task (already done), boot an internal web server scoped to the task's port, and start a local Charuy app instance per task. Today only the terminal spawn is automated; IDE focus and per-task app instances are manual. Goal: a single command takes an operator from "branch checked out" to "fully usable dev surface" without manual port-juggling. Pairs with the worktree port-per-tree convention from `docs/noldor/worktree-discipline.md`.
@@ -68,6 +68,16 @@ fully usable dev surface without manual port-juggling or app-boot steps.
 <!-- @prs-since-last-release: per-task-dev-environment-bootstrap -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+Add a `consumer.dev` surface config block (#103).
+
+#### PRs
+
+- #103: add consumer.dev surface config block ([link](https://github.com/davidzoufaly/noldor/pull/103))
 
 <!-- generated: resources -->
 

@@ -1,5 +1,133 @@
 # Release Notes
 
+## v0.4.0 — 2026-07-01
+
+### Tooling
+
+#### Acceptance-Verify Lane
+
+Autonomous paths merge on tests + CR. Both have a structural blind spot: the implementer agent writes the code _and_ the tests, so a misunderstood requirement produces tests that assert the misunderstanding — green suite, wrong feature. CR reads diffs and can ratify the same error. Nobody runs the artifact and checks it against what the FD/entry actually promised. Add a `verify` lane: an independent agent that boots the real artifact and judges the shipped behavior against the acceptance text.
+
+[Feature page](/features/acceptance-verify-lane)
+
+#### Bootstrap-Immunity for Self-Gating Features
+
+This release adds bootstrap-immunity for self-gating features (#110), allowing features that gate themselves to bypass the gate during initial bootstrap.
+
+[Feature page](/features/bootstrap-immunity-for-self-gating-features)
+
+#### Code Reviewer 2.0
+
+Added a review-profile schema along with built-in profiles (#98).
+
+[Feature page](/features/code-reviewer-20)
+
+#### Consumer-Contract CI and Headless Gate E2E Harness
+
+Hermetic stub runner now register in agent registry (#99).
+
+[Feature page](/features/consumer-contract-ci-and-headless-gate-e2e-harness)
+
+#### De-Superpowers: Vendor Spec, Plan and Worktree Flows
+
+The framework's core flows depend on the third-party `superpowers` Claude Code plugin. Four load-bearing uses: `superpowers:brainstorming` produces every spec (gate SKILL.md Steps for all spec paths), `superpowers:writing-plans` produces every plan, `superpowers:using-git-worktrees` does worktree creation, and — worst — `src/prep/draft.ts:18` bakes a "REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans" blockquote **into every generated plan**, so the dependency propagates into consumer repos at plan-execution time. Everything else is path naming (`docs/superpowers/specs|plans`). A consumer without the plugin cannot run the gate's spec/plan paths; an upstream plugin edit can silently change framework behavior. Vendor the flows.
+
+[Feature page](/features/de-superpowers-vendor-spec-plan-and-worktree-flows)
+
+#### Drain Startup Reconciliation of a Prior Dead Run
+
+Reconcile a prior dead drain run at startup (#107).
+
+[Feature page](/features/drain-startup-reconciliation-of-a-prior-dead-run)
+
+#### Dynamic FD ↔ File Pointers via Frontmatter
+
+feat tag parser for `// @fd:` code tags plus a slug→code map (#100).
+
+[Feature page](/features/dynamic-fd-file-pointers-via-frontmatter)
+
+#### Dynamic FD Changelog
+
+Per-feature changelog now splits across two surfaces with no duplication. The FD body's `## Changelog` section holds only `### <version> > #### Summary` blocks (polished prose, written once at release time and rarely re-edited). The dashboard FD detail page injects everything else live: an `### Unreleased > #### Commits` block at the top, plus a `#### Commits` subsection under each released version, all sourced from a scope-filtered `git log` on every page render. `### Unreleased` is never written to FD bodies; `#### Commits` is never written either.
+
+[Feature page](/features/dynamic-fd-changelog)
+
+#### Feature MD Links Overhaul *(updated)*
+
+Cleans up the `links.*` fields on feature MDs so `pnpm sdd:report` produces actionable signal instead of 90+ lines of noise. Five coupled changes shipped:
+
+[Feature page](/features/feature-md-links-overhaul)
+
+#### Framework Milestones Support (POC / MVP / 1.0.0)
+
+feat: connect features to milestones across schema, garden, and dashboard (#108) — wire features to milestones spanning the schema, garden, and dashboard.
+
+[Feature page](/features/framework-milestones-support-poc-mvp-100)
+
+#### Graphify `plan-of` edges + nodes for plans/specs
+
+fd nodes + plan-of/spec-of edges added to graph, plus graph-adjacency stale fallback (#109).
+
+[Feature page](/features/graphify-plan-of-edges-nodes-for-plans-specs)
+
+#### Noldor Framework
+
+Noldor is the Charuy-internal dev-loop framework extracted into a
+dedicated `docs/noldor/` folder so the project-agnostic rules
+(complexity gating, worktree discipline, /promote /triage /garden,
+SDD audit, graphify integration, FD schema, doc & test conventions,
+engineering principles) live separately from Charuy's product-specific
+overlays. Tracked as a single FD with all 17 framework pages in
+`links.docs`; per-page change history is recovered via
+`pnpm noldor:changelog` walking commit scopes
+(`noldor:<slug>` / `noldor`).
+
+[Feature page](/features/noldor)
+
+#### Outcome Telemetry and Effectiveness Metrics
+
+The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
+
+[Feature page](/features/outcome-telemetry-and-effectiveness-metrics)
+
+#### Parallel-Drain `roadmap.md` Conflict Auto-Resolution
+
+K>1 drain now auto-resolves adjacent `roadmap.md` block conflicts (#106).
+
+[Feature page](/features/parallel-drain-roadmapmd-conflict-auto-resolution)
+
+#### Per-Task Dev Environment Bootstrap
+
+Add a `consumer.dev` surface config block (#103).
+
+[Feature page](/features/per-task-dev-environment-bootstrap)
+
+#### SDD Co-Tag Detector *(updated)*
+
+13th SDD detector flagging tests whose `// @tests:` tag list is incomplete given the FDs that own the source files the test imports. Today silent: `sample-gallery.spec.ts` tagged only `sample-scene-gallery` despite exercising `empty-scene-state`; `tree.test.ts` tagged only `zod-scene-schema` despite covering `group-node`; engine tests tagged only their primary FD without `manifold-wasm-integration`. Detector reads `graphify-out/graph.json` `imports_from` edges (graphify v0.7.8+, with the v0.4.20 path-normalization fix), maps target source files to owning FDs via `links.code`, diffs against declared tags. Staleness gate: graph mtime vs MAX(mtime) of `packages/ apps/ scripts/`; on stale, emits one meta-gap with regen instructions. Substrate (`loadFreshGraphOrWarn`, `buildFileToFdsMap`, `getFdOwnersForFile`) lives in `scripts/garden/graph-fd-lookup.ts`; reused by detectors 9 and 10 below.
+
+[Feature page](/features/sdd-co-tag-detector)
+
+#### Version-Aware Upgrade and Migration Chain
+
+Added semver parse and compare helpers (#104).
+
+[Feature page](/features/version-aware-upgrade-and-migration-chain)
+
+### Agents
+
+#### Continuous Drain Daemon and Escalation Inbox
+
+Every autonomous stage is one-shot and operator-fired: someone types `noldor autonomous run`, watches (or returns later), handles failures by reading logs, salvages stale bases by hand from a memory recipe. The vision sentence — agents ship unsupervised — currently means "unsupervised per invocation". Make autonomy *continuous*: a long-running (or cron-fired) mode that keeps draining the queue, repairs its own known failure modes, and escalates the rest to a structured inbox instead of dying or blocking.
+
+[Feature page](/features/continuous-drain-daemon-and-escalation-inbox)
+
+#### Make Noldor Agent-Agnostic
+
+Noldor today assumes Claude Code as the operating agent (skill names, hook patterns, transcript layout). Lift the assumptions so Codex, Gemini, or other agents can drive the same framework with equivalent gates. Concrete asks: (1) abstract skill invocation (`Skill` tool vs `activate_skill` vs raw markdown read), (2) abstract hook triggers (the `lefthook` pre-commit chain works for all, but the auto-gate behavior is Claude-only), (3) document the agent-equivalence matrix in `docs/noldor/`. Trigger: when a second agent adopts Noldor in earnest (today's automated-cr-pipeline already runs Codex as a reviewer; controller is still Claude).
+
+[Feature page](/features/make-noldor-agent-agnostic)
+
 ## v0.3.0 — 2026-06-11
 
 ### Tooling

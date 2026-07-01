@@ -13,8 +13,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.4.0
 ---
-
 ## Summary
 
 Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Raise review quality beyond the current CR lane.
@@ -56,6 +56,16 @@ Omit `--profile` → `default` profile. Gate's fast-track Step 4 appends
 <!-- @prs-since-last-release: code-reviewer-20 -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+Added a review-profile schema along with built-in profiles (#98).
+
+#### PRs
+
+- #98: add review-profile schema and built-in profiles ([link](https://github.com/davidzoufaly/noldor/pull/98))
 
 <!-- generated: resources -->
 

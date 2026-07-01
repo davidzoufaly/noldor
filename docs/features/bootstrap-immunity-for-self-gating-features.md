@@ -25,8 +25,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.4.0
 ---
-
 ## Summary
 
 When a feature adds a new release-time gate, the feature's own implementation commits cannot satisfy that gate (the enforcement code didn't exist when they were authored). Hit live during automated-cr-pipeline: the new `release-cr-gate.ts` requires `Noldor-Reviewed-Codex` on every code-touching commit in the release range, but none of the 22 feature-branch commits have it because `pnpm cr:codex` was added by those very commits. Operator currently must hand-add `Noldor-CR-Override-Codex: bootstrap` to each commit before next release, or extend the gate to skip pre-feature SHAs. Framework-level fix: when a gate-introducing FD is detected (graph annotation? FD frontmatter `introduces-gate: <name>`?), `/gate` end-of-flow auto-injects matching `Noldor-<gate>-Override: bootstrap — feature added the gate that would block its own commits` on every commit on the worktree branch. Audited by `/garden`'s override detectors so it can't be silently abused on non-bootstrap work.
@@ -78,6 +78,16 @@ CLI, and lefthook; no `window.*` surface._
 <!-- @prs-since-last-release: bootstrap-immunity-for-self-gating-features -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+This release adds bootstrap-immunity for self-gating features (#110), allowing features that gate themselves to bypass the gate during initial bootstrap.
+
+#### PRs
+
+- #110: bootstrap-immunity for self-gating features ([link](https://github.com/davidzoufaly/noldor/pull/110))
 
 <!-- generated: resources -->
 

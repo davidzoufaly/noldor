@@ -22,8 +22,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.4.0
 ---
-
 ## Summary
 
 When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `fast/<slug>` worktrees, leftover branches, open PRs (clean *and* DIRTY), and a stale `.noldor/drain.lock`. Today a fresh drain does not reconcile these — the operator must manually merge clean open PRs, close/rebuild DIRTY ones, prune worktrees, and clear the stale lock (done by hand 3× in one session). Add a startup reconciliation pass: for each in-roadmap slug with an open PR, merge it when CLEAN (advance the oracle) or close + flag-for-rebuild when DIRTY; `git worktree prune` + remove orphaned `fast/*` worktrees whose slug is already shipped; reclaim a stale lock whose pid is dead. Makes the drain crash-recoverable instead of leaving a mess. - Add a startup sync-check: an un-pushed local-`main`-ahead-of-`origin` commit (e.g. a triage commit on local main but not origin) blocks the whole drain — but only *after* the gate already did the work and tries to retire the entry. Pre-flight `origin/main == queue-source` before spawning the first gate, and surface the divergence loudly instead of failing deep.
@@ -51,6 +51,16 @@ As an operator re-running a drain after a prior one crashed or was killed mid-fl
 <!-- @prs-since-last-release: drain-startup-reconciliation-of-a-prior-dead-run -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+Reconcile a prior dead drain run at startup (#107).
+
+#### PRs
+
+- #107: reconcile a prior dead drain run at startup ([link](https://github.com/davidzoufaly/noldor/pull/107))
 
 <!-- generated: resources -->
 

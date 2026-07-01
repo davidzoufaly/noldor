@@ -1,5 +1,61 @@
 # Changelog
 
+## v0.4.0 — 2026-07-01
+
+### Features
+
+- feat(cr): bootstrap-immunity for self-gating features (#110) ([38015b0](https://github.com/davidzoufaly/noldor/commit/38015b09fe708aad7c4bd05f8e622870c3522b0f)) ([#110](https://github.com/davidzoufaly/noldor/pull/110))
+- feat(graphify): doc nodes + plan-of/spec-of edges, graph-adjacency stale fallback (#109) ([074c19c](https://github.com/davidzoufaly/noldor/commit/074c19cd2dfba0ad24bc61aad68bc0b2ee464dba)) ([#109](https://github.com/davidzoufaly/noldor/pull/109))
+- feat(milestones): connect features to milestones across schema, garden, and dashboard (#108) ([2a0603b](https://github.com/davidzoufaly/noldor/commit/2a0603bcc1e8e488f026d522f116e627a57acfbf)) ([#108](https://github.com/davidzoufaly/noldor/pull/108))
+- feat(autonomous:drain-startup-reconciliation-of-a-prior-dead-run): reconcile a prior dead drain run at startup (#107) ([30a5f81](https://github.com/davidzoufaly/noldor/commit/30a5f81f03b67ff1e6a1947193396277cb0b0c05)) ([#107](https://github.com/davidzoufaly/noldor/pull/107))
+- feat(autonomous:parallel-drain-roadmapmd-conflict-auto-resolution): auto-resolve adjacent roadmap.md block conflicts in K>1 drain (#106) ([e6d726e](https://github.com/davidzoufaly/noldor/commit/e6d726e9ec782e1fa88780021b23e0bc8216ee49)) ([#106](https://github.com/davidzoufaly/noldor/pull/106))
+- feat(migrations): add semver parse + compare helpers (#104) ([ad38407](https://github.com/davidzoufaly/noldor/commit/ad3840740893a8449dfec9b23f32192250b7be8d)) ([#104](https://github.com/davidzoufaly/noldor/pull/104))
+- feat(tooling): add consumer.dev surface config block (#103) ([2793178](https://github.com/davidzoufaly/noldor/commit/2793178ddc908fd97131764176a8d6d80d28fb74)) ([#103](https://github.com/davidzoufaly/noldor/pull/103))
+- feat(sync): add // @fd: code tag parser + slug→code map (#100) ([04c4401](https://github.com/davidzoufaly/noldor/commit/04c44018a69fdc25133a82c25f25def63d052b4a)) ([#100](https://github.com/davidzoufaly/noldor/pull/100))
+- feat(testing): register hermetic stub runner in agent registry (#99) ([2246759](https://github.com/davidzoufaly/noldor/commit/22467599efe506996171d4e3b339f52ecdc0ee87)) ([#99](https://github.com/davidzoufaly/noldor/pull/99))
+- feat(cr): add review-profile schema and built-in profiles (#98) ([d357d69](https://github.com/davidzoufaly/noldor/commit/d357d692f0624697810a99a7776d4202d7642a7e)) ([#98](https://github.com/davidzoufaly/noldor/pull/98))
+- feat(prep): add --slugs filter to prep fanout (#95) ([82e6e86](https://github.com/davidzoufaly/noldor/commit/82e6e86fe558dad9ac6ea70be94f7cdbb5578a71)) ([#95](https://github.com/davidzoufaly/noldor/pull/95))
+- feat(release): relax graph freshness for test-only and doc-only diffs (#91) ([0b99c46](https://github.com/davidzoufaly/noldor/commit/0b99c4612301642f073697485d209edda00fa2b2)) ([#91](https://github.com/davidzoufaly/noldor/pull/91))
+- feat(dashboard): roadmap/backlog row remove + add-entry controls (#88) ([78f826f](https://github.com/davidzoufaly/noldor/commit/78f826f3d5c2af071406a32edb7c2cc1bedaeb94)) ([#88](https://github.com/davidzoufaly/noldor/pull/88))
+- feat(noldor): add watch --detach for unattended drain launch (#87) ([67111ba](https://github.com/davidzoufaly/noldor/commit/67111ba595c386c08c7a3f5f3590be61110f6642)) ([#87](https://github.com/davidzoufaly/noldor/pull/87))
+- feat(garden): cross-check release-push receipts against release-commit shape (#80) ([bb2bd77](https://github.com/davidzoufaly/noldor/commit/bb2bd77e42a82935278aaef6596bf1ba417a2f6f)) ([#80](https://github.com/davidzoufaly/noldor/pull/80))
+
+### Fixes
+
+- fix(hooks): exclude graphify-out from fmt lefthook step + refresh graph (#114) ([5432d68](https://github.com/davidzoufaly/noldor/commit/5432d68e95e2cc8df959f9445f91fcdf1e27a81d)) ([#114](https://github.com/davidzoufaly/noldor/pull/114))
+- fix(autonomous): plan-drain resume rides autonomous directive on prompt (#101) ([cd6a7bf](https://github.com/davidzoufaly/noldor/commit/cd6a7bf17d31ab3799bf0ac01f49cc00eb07465a)) ([#101](https://github.com/davidzoufaly/noldor/pull/101))
+- fix(tooling): wire graph.json arg into pnpm toon script (#92) ([573e4b4](https://github.com/davidzoufaly/noldor/commit/573e4b4c9a64853a1fc5bafb72e8de7be950f6bd)) ([#92](https://github.com/davidzoufaly/noldor/pull/92))
+- fix(garden): derive receipt freshness from consumer scanPaths (#90) ([0974883](https://github.com/davidzoufaly/noldor/commit/09748836df3d51bc4199cd0552a88968df48d897)) ([#90](https://github.com/davidzoufaly/noldor/pull/90))
+- fix(core): label fast-track PR summary as Fast-track not Micro-chore (#89) ([519cb16](https://github.com/davidzoufaly/noldor/commit/519cb16f66bfc1f7b125ccd02fcb5848e107a058)) ([#89](https://github.com/davidzoufaly/noldor/pull/89))
+- fix(cli): guard --help on subcommands before dispatch (#86) ([16b08d6](https://github.com/davidzoufaly/noldor/commit/16b08d6f97ce94ca8686ea40c378ddc4e4009622)) ([#86](https://github.com/davidzoufaly/noldor/pull/86))
+- fix(autonomous): drain skips deps-in-queue + matches Touches: anywhere (#83) ([6afe19b](https://github.com/davidzoufaly/noldor/commit/6afe19bb7278ac8333e0a00c851b8f814dbd5266)) ([#83](https://github.com/davidzoufaly/noldor/pull/83))
+- fix(gate): stash uncommitted work before micro-chore reset --hard (#82) ([df4af54](https://github.com/davidzoufaly/noldor/commit/df4af544a6d292a0b05db8835eb20faf39998fc2)) ([#82](https://github.com/davidzoufaly/noldor/pull/82))
+- fix(tooling): stop stray graphify output breaking fmt:check (#78) ([0986079](https://github.com/davidzoufaly/noldor/commit/0986079858c7661b8cfbea615794b3769b3f3f8a)) ([#78](https://github.com/davidzoufaly/noldor/pull/78))
+
+### Other changes
+
+- docs(ideas): add Noldor-native long-task wait primitive idea (#113) ([e685c1f](https://github.com/davidzoufaly/noldor/commit/e685c1f730ef973339ff8d31618873c95b476a4b)) ([#113](https://github.com/davidzoufaly/noldor/pull/113))
+- docs(roadmap): drop shipped Trailer Scope-Alias Map entry (#112) ([340a955](https://github.com/davidzoufaly/noldor/commit/340a9555eb7a680824340b768c23d5b9520521af)) ([#112](https://github.com/davidzoufaly/noldor/pull/112))
+- docs(roadmap): replace Drop-Branched-Worktrees with Parallel-Agent Dispatch for Research Jobs (#111) ([d084621](https://github.com/davidzoufaly/noldor/commit/d0846210ec6966496be99d64f9214df5c9d07567)) ([#111](https://github.com/davidzoufaly/noldor/pull/111))
+- docs: promote prep-batch 2026-06-14 (5 FDs) (#105) ([799f0f7](https://github.com/davidzoufaly/noldor/commit/799f0f72c3789ee17e857950e18b2fc57fb6be17)) ([#105](https://github.com/davidzoufaly/noldor/pull/105))
+- docs: prune delivered triaged bullets + stale backlog entry (#102) ([884978f](https://github.com/davidzoufaly/noldor/commit/884978fe90d1f8afa28ab6818c52bed883f6f7d4)) ([#102](https://github.com/davidzoufaly/noldor/pull/102))
+- docs(triage): triage 2 prep-promote findings to roadmap (#97) ([b74805c](https://github.com/davidzoufaly/noldor/commit/b74805c622865081ca208c0d65de8d732f54e892)) ([#97](https://github.com/davidzoufaly/noldor/pull/97))
+- docs: promote prep-batch 2026-06-13 (5 FDs) (#96) ([61811c8](https://github.com/davidzoufaly/noldor/commit/61811c8f09f3471bcc67033db0ab22dd8273d808)) ([#96](https://github.com/davidzoufaly/noldor/pull/96))
+- docs(roadmap): drop redundant sdd-report-review-skip-count-non-idempotent entry (#94) ([a653012](https://github.com/davidzoufaly/noldor/commit/a6530120eecd3cab0b3ad7575a92becb08f12476)) ([#94](https://github.com/davidzoufaly/noldor/pull/94))
+- docs(roadmap): drop stale gitignore-release-pushes-log entry (#93) ([abb469f](https://github.com/davidzoufaly/noldor/commit/abb469f3cc66ed637fbe5b0cb553b996a4007e26)) ([#93](https://github.com/davidzoufaly/noldor/pull/93))
+- docs(triage): triage 6 autonomous-drain retrospective findings (#85) ([a12ddd8](https://github.com/davidzoufaly/noldor/commit/a12ddd882cc2d2c1729a09ffe2f676bad6295ea5)) ([#85](https://github.com/davidzoufaly/noldor/pull/85))
+- docs(roadmap): retire shipped isDrainEligible drain-eligibility entry (#84) ([4eee15d](https://github.com/davidzoufaly/noldor/commit/4eee15d059305b2c5a1f3280eeb6e1fdeb84c2cf)) ([#84](https://github.com/davidzoufaly/noldor/pull/84))
+- docs(roadmap): retire shipped PR-Flow Tree-Shape Validation entry (#81) ([a06290c](https://github.com/davidzoufaly/noldor/commit/a06290cbba2088dc5169e60e26f2a1bce80963c5)) ([#81](https://github.com/davidzoufaly/noldor/pull/81))
+- docs: refresh README Status version (0.2.0 → 0.3.0), retire roadmap entry (#79) ([85e3ee5](https://github.com/davidzoufaly/noldor/commit/85e3ee561225782ee7644b6abd590d6af586f0f1)) ([#79](https://github.com/davidzoufaly/noldor/pull/79))
+- docs(triage): triage 26 ideas into roadmap + backlog (#77) ([ab9ed7e](https://github.com/davidzoufaly/noldor/commit/ab9ed7e6eefa195bdb4b144458c952c29bb0ca99)) ([#77](https://github.com/davidzoufaly/noldor/pull/77))
+- docs(triage): triage 26 ideas into roadmap + backlog (#76) ([b72c94b](https://github.com/davidzoufaly/noldor/commit/b72c94b83c476a8d8ea9c78dc80c5557bce3e668)) ([#76](https://github.com/davidzoufaly/noldor/pull/76))
+- refactor(gate): localize on-disk inputs instead of asking blind (#75) ([cba2f92](https://github.com/davidzoufaly/noldor/commit/cba2f92d556ea028ea34708d8a18fb1a72edb061)) ([#75](https://github.com/davidzoufaly/noldor/pull/75))
+- docs(features:acceptance-verify-lane): promote from roadmap (tier full) (#74) ([ec7bf0b](https://github.com/davidzoufaly/noldor/commit/ec7bf0b7c52523977f4fa8ab95551f800054806e)) ([#74](https://github.com/davidzoufaly/noldor/pull/74))
+- docs(features:outcome-telemetry-and-effectiveness-metrics): promote from roadmap (tier full) (#73) ([4b13193](https://github.com/davidzoufaly/noldor/commit/4b13193620fea30e0d0333c877c7ee7bcb80876c)) ([#73](https://github.com/davidzoufaly/noldor/pull/73))
+- docs(features:continuous-drain-daemon-and-escalation-inbox): promote from roadmap (tier full) (#72) ([f47e8dd](https://github.com/davidzoufaly/noldor/commit/f47e8dd2cf93fccf04e513bbb52ddf04d9ea7e62)) ([#72](https://github.com/davidzoufaly/noldor/pull/72))
+- docs(features:make-noldor-agent-agnostic): promote from roadmap (tier full) (#71) ([4c7c7ab](https://github.com/davidzoufaly/noldor/commit/4c7c7abba676c5f6f2eee88f65751b37e4cafd5e)) ([#71](https://github.com/davidzoufaly/noldor/pull/71))
+- docs(features:de-superpowers-vendor-spec-plan-and-worktree-flows): promote from roadmap (tier full) (#70) ([f98eff1](https://github.com/davidzoufaly/noldor/commit/f98eff11b7af16c688890df6b53b404de35b6d06)) ([#70](https://github.com/davidzoufaly/noldor/pull/70))
+
 ## v0.3.0 — 2026-06-11
 
 ### Features

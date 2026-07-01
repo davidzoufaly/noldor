@@ -24,8 +24,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.4.0
 ---
-
 ## Summary
 
 164 unit-test files, zero end-to-end coverage of the flows autonomy actually depends on: the skill-markdown gate paths, drain loop against a real repo, init/upgrade against a real consumer tree. The PR #33 bug class (headless gate silently ignoring env-only signals) lived exactly in this blind spot and shipped broken. Build one harness that covers both needs: a fixture consumer repo as the *contract*, and headless skill-flow runs as the *e2e layer*.
@@ -84,6 +84,16 @@ NOLDOR_RUN_REAL_AGENT=1 pnpm test:e2e:drain   # same harness, real model end-to-
 <!-- @prs-since-last-release: consumer-contract-ci-and-headless-gate-e2e-harness -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+Hermetic stub runner now register in agent registry (#99).
+
+#### PRs
+
+- #99: register hermetic stub runner in agent registry ([link](https://github.com/davidzoufaly/noldor/pull/99))
 
 <!-- generated: resources -->
 

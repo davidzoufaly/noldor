@@ -23,8 +23,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.4.0
 ---
-
 ## Summary
 
 Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
@@ -88,6 +88,16 @@ the tag scan.
 <!-- @prs-since-last-release: dynamic-fd-file-pointers-via-frontmatter -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+feat tag parser for `// @fd:` code tags plus a slug→code map (#100).
+
+#### PRs
+
+- #100: add // @fd: code tag parser + slug→code map ([link](https://github.com/davidzoufaly/noldor/pull/100))
 
 <!-- generated: resources -->
 

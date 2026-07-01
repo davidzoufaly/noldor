@@ -26,8 +26,8 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.4.0
 ---
-
 ## Summary
 
 Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
@@ -60,6 +60,16 @@ As an operator running a milestone-planned Noldor project, I want each feature t
 <!-- @prs-since-last-release: framework-milestones-support-poc-mvp-100 -->
 
 ## Changelog
+
+### Initial Release (v0.4.0)
+
+#### Summary
+
+feat: connect features to milestones across schema, garden, and dashboard (#108) — wire features to milestones spanning the schema, garden, and dashboard.
+
+#### PRs
+
+- #108: connect features to milestones across schema, garden, and dashboard ([link](https://github.com/davidzoufaly/noldor/pull/108))
 
 <!-- generated: resources -->
 
