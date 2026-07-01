@@ -11,6 +11,8 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 ## Not groomed
 
+- Noldor-native long-task wait primitive — runner-agnostic alternative to the harness `Monitor` tool. Scope is the CONSUMER side only: a `noldor wait <state-file> --until <terminal-cond> [--emit <jsonpath>]` that polls until a job reaches a terminal state and surfaces progress. Do NOT invent a new progress format — reuse the existing producer-side state files (`.noldor/drain-state.json` heartbeat, `.noldor/cr/<slug>-<kind>-<lane>.json` sinks). The "write one side / read other" channel already exists; the gap is a portable wait/poll the controller calls instead of the host harness's Monitor (which can be blocked + isn't cross-runner). Lower priority — background-task completion notifications already cover most waiting. Touches: `src/autonomous/` (watch shares the poll loop), a `noldor wait` CLI.
+
 ## Verticals
 
 ### Business

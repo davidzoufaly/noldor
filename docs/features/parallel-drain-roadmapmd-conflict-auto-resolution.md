@@ -12,13 +12,14 @@ links:
     - src/autonomous/__tests__/resolve-roadmap-conflict.test.ts
     - src/autonomous/__tests__/merge-coordinator.test.ts
   spec: >-
-    docs/superpowers/specs/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md
+    docs/superpowers/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md
 name: Parallel-Drain `roadmap.md` Conflict Auto-Resolution
 packages:
   - scripts
 phase: done
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 Under `--concurrency >1`, every fast-track child removes its own block from the shared `docs/roadmap.md`; the serialized merge coordinator rebases each PR onto the prior merge, but git cannot auto-merge *adjacent* block removals → the PR goes `DIRTY`, the coordinator skips it, and the worktree + open PR are orphaned. Hit live during a 23-entry drain: ~5 of the K=3 PRs went DIRTY, forcing a fall back to `--concurrency 1` (sequential is conflict-free by construction — each merges before the next branch is cut). Block-removal is deterministic, so the coordinator should re-apply "remove `<slug>`'s block" against the freshly-rebased base (parse + drop the block, not a textual 3-way merge) rather than letting git's line-merge fail. Without this, `--concurrency >1` is effectively unusable for roadmap-source drains.
@@ -53,3 +54,18 @@ back to `--concurrency 1`.
 <!-- @prs-since-last-release: parallel-drain-roadmapmd-conflict-auto-resolution -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md`](../../docs/superpowers/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md)
+- **Code:**
+  - [`src/autonomous/salvage.ts`](../../src/autonomous/salvage.ts)
+  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
+  - [`src/utils/write-blocks.ts`](../../src/utils/write-blocks.ts)
+- **Tests:**
+  - [`src/autonomous/__tests__/resolve-roadmap-conflict.test.ts`](../../src/autonomous/__tests__/resolve-roadmap-conflict.test.ts)
+  - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
+
+<!-- /generated: resources -->

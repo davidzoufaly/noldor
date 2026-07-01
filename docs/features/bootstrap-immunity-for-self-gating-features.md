@@ -19,13 +19,14 @@ links:
     - src/cr/__tests__/bootstrap-immunity.test.ts
     - src/garden/detectors/__tests__/bootstrap-override-audit.test.ts
   spec: >-
-    docs/superpowers/specs/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md
+    docs/superpowers/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md
 name: Bootstrap-Immunity for Self-Gating Features
 packages:
   - scripts
 phase: done
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 When a feature adds a new release-time gate, the feature's own implementation commits cannot satisfy that gate (the enforcement code didn't exist when they were authored). Hit live during automated-cr-pipeline: the new `release-cr-gate.ts` requires `Noldor-Reviewed-Codex` on every code-touching commit in the release range, but none of the 22 feature-branch commits have it because `pnpm cr:codex` was added by those very commits. Operator currently must hand-add `Noldor-CR-Override-Codex: bootstrap` to each commit before next release, or extend the gate to skip pre-feature SHAs. Framework-level fix: when a gate-introducing FD is detected (graph annotation? FD frontmatter `introduces-gate: <name>`?), `/gate` end-of-flow auto-injects matching `Noldor-<gate>-Override: bootstrap — feature added the gate that would block its own commits` on every commit on the worktree branch. Audited by `/garden`'s override detectors so it can't be silently abused on non-bootstrap work.
@@ -77,3 +78,26 @@ CLI, and lefthook; no `window.*` surface._
 <!-- @prs-since-last-release: bootstrap-immunity-for-self-gating-features -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md`](../../docs/superpowers/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md)
+- **Code:**
+  - [`src/cr/gate-registry.ts`](../../src/cr/gate-registry.ts)
+  - [`src/cr/bootstrap-immunity.ts`](../../src/cr/bootstrap-immunity.ts)
+  - [`src/cr/bootstrap-cli.ts`](../../src/cr/bootstrap-cli.ts)
+  - [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`src/garden/detectors/bootstrap-override-audit.ts`](../../src/garden/detectors/bootstrap-override-audit.ts)
+  - [`src/garden/detectors/codex-cr-override-audit.ts`](../../src/garden/detectors/codex-cr-override-audit.ts)
+  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
+- **Tests:**
+  - [`src/cr/__tests__/gate-registry.test.ts`](../../src/cr/__tests__/gate-registry.test.ts)
+  - [`src/cr/__tests__/bootstrap-immunity.test.ts`](../../src/cr/__tests__/bootstrap-immunity.test.ts)
+  - [`src/garden/detectors/__tests__/bootstrap-override-audit.test.ts`](../../src/garden/detectors/__tests__/bootstrap-override-audit.test.ts)
+- **Docs:**
+  - [`docs/noldor/feature-md-schema.md`](../../docs/noldor/feature-md-schema.md)
+
+<!-- /generated: resources -->

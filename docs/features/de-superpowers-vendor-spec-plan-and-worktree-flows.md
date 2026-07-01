@@ -12,13 +12,14 @@ links:
     - 'docs/noldor/{complexity-gating,workflow,skill-catalog}.md'
   tests: []
   spec: >-
-    docs/superpowers/specs/2026-06-11-de-superpowers-vendor-spec-plan-and-worktree-flows-design.md
+    docs/superpowers/specs/archive/2026-06-11-de-superpowers-vendor-spec-plan-and-worktree-flows-design.md
 name: 'De-Superpowers: Vendor Spec, Plan and Worktree Flows'
 packages:
   - scripts
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 The framework's core flows depend on the third-party `superpowers` Claude Code plugin. Four load-bearing uses: `superpowers:brainstorming` produces every spec (gate SKILL.md Steps for all spec paths), `superpowers:writing-plans` produces every plan, `superpowers:using-git-worktrees` does worktree creation, and — worst — `src/prep/draft.ts:18` bakes a "REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans" blockquote **into every generated plan**, so the dependency propagates into consumer repos at plan-execution time. Everything else is path naming (`docs/superpowers/specs|plans`). A consumer without the plugin cannot run the gate's spec/plan paths; an upstream plugin edit can silently change framework behavior. Vendor the flows.
@@ -40,3 +41,18 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
 <!-- @prs-since-last-release: de-superpowers-vendor-spec-plan-and-worktree-flows -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-11-de-superpowers-vendor-spec-plan-and-worktree-flows-design.md`](../../docs/superpowers/specs/archive/2026-06-11-de-superpowers-vendor-spec-plan-and-worktree-flows-design.md)
+- **Code:**
+  - [`.claude/skills/noldor-spec/`](../../.claude/skills/noldor-spec/)
+  - [`.claude/skills/noldor-plan/`](../../.claude/skills/noldor-plan/)
+  - [`src/worktrees/`](../../src/worktrees/)
+  - [`src/prep/draft.ts`](../../src/prep/draft.ts)
+  - [`.claude/skills/{gate,garden,draft-feature-md}/SKILL.md`](../../.claude/skills/{gate,garden,draft-feature-md}/SKILL.md)
+  - [`docs/noldor/{complexity-gating,workflow,skill-catalog}.md`](../../docs/noldor/{complexity-gating,workflow,skill-catalog}.md)
+
+<!-- /generated: resources -->

@@ -7,7 +7,7 @@ links:
   docs: []
   tests: []
   spec: >-
-    docs/superpowers/specs/2026-06-13-per-task-dev-environment-bootstrap-design.md
+    docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md
   plan: docs/superpowers/plans/2026-06-13-per-task-dev-environment-bootstrap.md
 name: Per-Task Dev Environment Bootstrap
 packages:
@@ -15,6 +15,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 Extend the worktree workflow with full per-task environment scaffolding: open IDE on the worktree folder/file, spawn a new terminal per task (already done), boot an internal web server scoped to the task's port, and start a local Charuy app instance per task. Today only the terminal spawn is automated; IDE focus and per-task app instances are manual. Goal: a single command takes an operator from "branch checked out" to "fully usable dev surface" without manual port-juggling. Pairs with the worktree port-per-tree convention from `docs/noldor/worktree-discipline.md`.
@@ -67,3 +68,13 @@ fully usable dev surface without manual port-juggling or app-boot steps.
 <!-- @prs-since-last-release: per-task-dev-environment-bootstrap -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md`](../../docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-06-13-per-task-dev-environment-bootstrap.md`](../../docs/superpowers/plans/2026-06-13-per-task-dev-environment-bootstrap.md)
+
+<!-- /generated: resources -->

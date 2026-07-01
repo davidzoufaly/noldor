@@ -15,7 +15,7 @@ links:
     - src/garden/detectors/__tests__/code-links-drift.test.ts
     - src/sync/__tests__/sync-code-links.test.ts
   spec: >-
-    docs/superpowers/specs/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md
+    docs/superpowers/specs/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md
   plan: >-
     docs/superpowers/plans/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md
 name: Dynamic FD ↔ File Pointers via Frontmatter
@@ -24,6 +24,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 Replace the manual `links.code` / `links.tests` / `links.docs` arrays in FD frontmatter with dynamic frontmatter on the source files themselves — each code/test/doc file declares its FD slug, and the FD's link arrays derive from a scan. Also: brainstorm with an LLM at FD-creation time to propose initial pointers from imports + community membership. Reduces drift between FDs and their backing files. Open question: keep the FD-side arrays as a cached projection for `pnpm validate:features` speed, or always scan? Trigger: when manual FD link maintenance overtakes the value of having explicit link arrays — likely once FD count exceeds ~50 or after a refactor produces N broken links across many FDs.
@@ -87,3 +88,23 @@ the tag scan.
 <!-- @prs-since-last-release: dynamic-fd-file-pointers-via-frontmatter -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md`](../../docs/superpowers/specs/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md`](../../docs/superpowers/plans/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md)
+- **Code:**
+  - [`src/features/migrate-code-tags.ts`](../../src/features/migrate-code-tags.ts)
+  - [`src/features/propose-pointers.ts`](../../src/features/propose-pointers.ts)
+  - [`src/garden/detectors/code-links-drift.ts`](../../src/garden/detectors/code-links-drift.ts)
+  - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
+- **Tests:**
+  - [`src/features/__tests__/migrate-code-tags.test.ts`](../../src/features/__tests__/migrate-code-tags.test.ts)
+  - [`src/features/__tests__/propose-pointers.test.ts`](../../src/features/__tests__/propose-pointers.test.ts)
+  - [`src/garden/detectors/__tests__/code-links-drift.test.ts`](../../src/garden/detectors/__tests__/code-links-drift.test.ts)
+  - [`src/sync/__tests__/sync-code-links.test.ts`](../../src/sync/__tests__/sync-code-links.test.ts)
+
+<!-- /generated: resources -->

@@ -16,7 +16,7 @@ links:
     - src/testing/__tests__/drain-e2e.test.ts
     - src/testing/__tests__/stub-runner.test.ts
   spec: >-
-    docs/superpowers/specs/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness-design.md
+    docs/superpowers/specs/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness-design.md
   plan: >-
     docs/superpowers/plans/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md
 name: Consumer-Contract CI and Headless Gate E2E Harness
@@ -25,6 +25,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 164 unit-test files, zero end-to-end coverage of the flows autonomy actually depends on: the skill-markdown gate paths, drain loop against a real repo, init/upgrade against a real consumer tree. The PR #33 bug class (headless gate silently ignoring env-only signals) lived exactly in this blind spot and shipped broken. Build one harness that covers both needs: a fixture consumer repo as the *contract*, and headless skill-flow runs as the *e2e layer*.
@@ -83,3 +84,24 @@ NOLDOR_RUN_REAL_AGENT=1 pnpm test:e2e:drain   # same harness, real model end-to-
 <!-- @prs-since-last-release: consumer-contract-ci-and-headless-gate-e2e-harness -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness-design.md`](../../docs/superpowers/specs/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md`](../../docs/superpowers/plans/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md)
+- **Code:**
+  - [`fixtures/`](../../fixtures/)
+  - [`src/testing/consumer-fixture.ts`](../../src/testing/consumer-fixture.ts)
+  - [`src/autonomous/`](../../src/autonomous/)
+  - [`docs/noldor/testing-principles.md`](../../docs/noldor/testing-principles.md)
+  - [`docs/noldor/script-catalog.md`](../../docs/noldor/script-catalog.md)
+- **Tests:**
+  - [`src/testing/__tests__/consumer-fixture.test.ts`](../../src/testing/__tests__/consumer-fixture.test.ts)
+  - [`src/testing/__tests__/contract-harness.test.ts`](../../src/testing/__tests__/contract-harness.test.ts)
+  - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
+  - [`src/testing/__tests__/stub-runner.test.ts`](../../src/testing/__tests__/stub-runner.test.ts)
+
+<!-- /generated: resources -->

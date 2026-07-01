@@ -6,7 +6,7 @@ links:
   code: []
   docs: []
   tests: []
-  spec: docs/superpowers/specs/2026-06-13-code-reviewer-20-design.md
+  spec: docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md
   plan: docs/superpowers/plans/2026-06-13-code-reviewer-20.md
 name: Code Reviewer 2.0
 packages:
@@ -14,6 +14,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Raise review quality beyond the current CR lane.
@@ -55,3 +56,13 @@ Omit `--profile` → `default` profile. Gate's fast-track Step 4 appends
 <!-- @prs-since-last-release: code-reviewer-20 -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md`](../../docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-06-13-code-reviewer-20.md`](../../docs/superpowers/plans/2026-06-13-code-reviewer-20.md)
+
+<!-- /generated: resources -->
