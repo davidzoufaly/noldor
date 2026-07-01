@@ -1,53 +1,53 @@
 # Domain Knowledge Graph — Summary
-# 1250 nodes, 2879 edges, 66 communities
+# 1656 nodes, 3989 edges, 95 communities
 
 directed: false
 
 ## community index (top 20 by size)
-  c0 (92): cross-tree-link-audit.ts · auditCrossTreeLinks() · classify.ts
-  c1 (90): lanes
-  c2 (86): detectors
-  c3 (76): release-markers.ts · fillNoldorMarker() · fillAllNoldorMarkers()
-  c4 (75): draft.ts · buildDraftPrompt() · staging.ts
-  c5 (52): consumer-config.ts · loadConsumerConfig() · loadCategories()
-  c6 (48): rules
-  c7 (44): release-fd-commits.ts · parseCommitLine() · gitLogShas()
-  c8 (39): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
-  c9 (38): context.ts · buildContext() · diffArgs()
+  c0 (89): detectors
+  c1 (83): agent-runner / runners
+  c2 (79): detectors
+  c3 (78): collect
+  c4 (60): dev-surfaces.ts · bootDevSurfaces() · worktree-conflicts.ts
+  c5 (55): commands
+  c6 (49): collect
+  c7 (49): rules
+  c8 (39): walkTokens() · views.ts · deriveRepoSlug()
+  c9 (37): detectors
   c10 (36): check-invariants.ts · runAll() · formatResults()
-  c11 (34): rules
-  c12 (33): data.ts · highlight() · getDocRoot()
-  c13 (29): walkTokens() · views.ts · deriveRepoSlug()
-  c14 (27): detectors
-  c15 (27): worktree-conflicts.ts · buildCommunityMap() · communityForFile()
-  c16 (24): detectors
-  c17 (24): getSkillsDir() · parseRoadmapFromString() · parseRoadmap()
-  c18 (21): cli.ts · fmtGroup() · usage()
-  c19 (20): rollout-marker.ts · readRolloutMarker() · isPostRollout()
+  c11 (36): data.ts · highlight() · getDocRoot()
+  c12 (34): rules
+  c13 (33): validate-features.ts · walkDir() · collectTestFiles()
+  c14 (32): context.ts · buildContext() · diffArgs()
+  c15 (32): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
+  c16 (28): release-fd-commits.ts · parseCommitLine() · gitLogShas()
+  c17 (27): detectors
+  c18 (25): detectors
+  c19 (25): buildSource() · drain-loop.ts · decideNext()
 
 ## cross-community edges (top 25)
-  classify-feature-track.ts [c0] --imports_from-- sdd-report.ts [c2]
-  classify-feature-track.ts [c0] --imports-- loadSddFeatures() [c2]
-  main() [c0] --calls-- loadSddFeatures() [c2]
-  scaffold.ts [c4] --imports_from-- consumer-config.ts [c5]
-  discover.ts [c4] --imports_from-- parse-blocks.ts [c0]
-  discover.ts [c4] --imports-- parseRoadmap() [c0]
-  prep-promote.ts [c4] --imports_from-- parse-blocks.ts [c0]
-  prep-promote.ts [c4] --imports-- parseRoadmap() [c0]
-  prep-promote.ts [c4] --imports_from-- write-blocks.ts [c20]
-  prep-promote.ts [c4] --imports-- removeBlock() [c20]
-  promoteOne() [c4] --calls-- removeBlock() [c20]
-  pr-flow-cli.ts [c6] --imports_from-- config.ts [c1]
-  pr-flow-cli.ts [c6] --imports-- loadConfig() [c1]
-  pr-flow-cli.ts [c6] --imports_from-- prompt-stdin.ts [c1]
-  pr-flow-cli.ts [c6] --imports-- promptSelect() [c1]
-  runCli() [c6] --calls-- loadConfig() [c1]
-  runCli() [c6] --calls-- promptSelect() [c1]
-  release-cr-gate.ts [c3] --imports_from-- allowlist.ts [c16]
-  noldor-pre-commit.ts [c19] --imports_from-- allowlist.ts [c16]
-  release-cr-gate.ts [c3] --imports-- isMicroChoreAllowed() [c16]
-  noldor-pre-commit.ts [c19] --imports-- isMicroChoreAllowed() [c16]
-  checkCrGate() [c3] --calls-- isMicroChoreAllowed() [c16]
-  runPreCommit() [c19] --calls-- isMicroChoreAllowed() [c16]
-  noldor-pre-commit.ts [c19] --imports-- isReleaseSweepAllowed() [c16]
-  runPreCommit() [c19] --calls-- isReleaseSweepAllowed() [c16]
+  classify-feature-track.ts [c45] --imports_from-- sdd-report.ts [c0]
+  classify-feature-track.ts [c45] --imports-- loadSddFeatures() [c0]
+  classify-feature-track.ts [c45] --imports_from-- parse-blocks.ts [c22]
+  classify-feature-track.ts [c45] --imports-- parseBacklog() [c22]
+  classify-feature-track.ts [c45] --imports-- parseRoadmap() [c22]
+  main() [c45] --calls-- loadSddFeatures() [c0]
+  main() [c45] --calls-- parseBacklog() [c22]
+  compute.ts [c6] --imports_from-- routing-accuracy.ts [c3]
+  compute.ts [c6] --imports-- collectRoutingAccuracy() [c3]
+  main() [c0] --imports_from-- compute.ts [c6]
+  loadMetricsReport() [c15] --imports_from-- compute.ts [c6]
+  main() [c0] --calls-- compute() [c6]
+  loadMetricsReport() [c15] --calls-- compute() [c6]
+  types.ts [c6] --imports_from-- agent-events.ts [c1]
+  types.ts [c6] --imports_from-- escalations.ts [c31]
+  types.ts [c6] --imports_from-- drain-state.ts [c34]
+  types.ts [c6] --imports_from-- findings-schema.ts [c46]
+  types.ts [c6] --imports_from-- feature-schema.ts [c0]
+  routing-accuracy.ts [c3] --imports_from-- types.ts [c6]
+  sdd-report.ts [c0] --imports_from-- types.ts [c6]
+  data.ts [c11] --imports_from-- types.ts [c6]
+  views.ts [c8] --imports_from-- types.ts [c6]
+  metrics-view.test.ts [c8] --imports_from-- types.ts [c6]
+  facts.ts [c6] --imports_from-- feature-schema.ts [c0]
+  facts.ts [c6] --imports_from-- findings-schema.ts [c46]
