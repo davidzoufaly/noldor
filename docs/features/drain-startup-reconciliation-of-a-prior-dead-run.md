@@ -16,13 +16,14 @@ links:
   tests:
     - src/autonomous/__tests__/drain-reconcile.test.ts
   spec: >-
-    docs/superpowers/specs/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md
+    docs/superpowers/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md
 name: Drain Startup Reconciliation of a Prior Dead Run
 packages:
   - scripts
 phase: done
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `fast/<slug>` worktrees, leftover branches, open PRs (clean *and* DIRTY), and a stale `.noldor/drain.lock`. Today a fresh drain does not reconcile these — the operator must manually merge clean open PRs, close/rebuild DIRTY ones, prune worktrees, and clear the stale lock (done by hand 3× in one session). Add a startup reconciliation pass: for each in-roadmap slug with an open PR, merge it when CLEAN (advance the oracle) or close + flag-for-rebuild when DIRTY; `git worktree prune` + remove orphaned `fast/*` worktrees whose slug is already shipped; reclaim a stale lock whose pid is dead. Makes the drain crash-recoverable instead of leaving a mess. - Add a startup sync-check: an un-pushed local-`main`-ahead-of-`origin` commit (e.g. a triage commit on local main but not origin) blocks the whole drain — but only *after* the gate already did the work and tries to retire the entry. Pre-flight `origin/main == queue-source` before spawning the first gate, and surface the divergence loudly instead of failing deep.
@@ -50,3 +51,22 @@ As an operator re-running a drain after a prior one crashed or was killed mid-fl
 <!-- @prs-since-last-release: drain-startup-reconciliation-of-a-prior-dead-run -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md`](../../docs/superpowers/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md)
+- **Code:**
+  - [`src/autonomous/drain-reconcile.ts`](../../src/autonomous/drain-reconcile.ts)
+  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
+  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
+  - [`src/autonomous/drain-lock.ts`](../../src/autonomous/drain-lock.ts)
+  - [`src/autonomous/drain-state.ts`](../../src/autonomous/drain-state.ts)
+  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
+  - [`src/core/agent-runner/registry.ts`](../../src/core/agent-runner/registry.ts)
+  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
+- **Tests:**
+  - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
+
+<!-- /generated: resources -->

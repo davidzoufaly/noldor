@@ -14,7 +14,7 @@ links:
   docs: []
   tests: []
   spec: >-
-    docs/superpowers/specs/2026-06-13-version-aware-upgrade-and-migration-chain-design.md
+    docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md
   plan: >-
     docs/superpowers/plans/2026-06-13-version-aware-upgrade-and-migration-chain.md
 name: Version-Aware Upgrade and Migration Chain
@@ -23,6 +23,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 `noldor init --update` re-pulls current templates, but nothing handles *schema* evolution between framework versions: FD frontmatter shape changes, `consumer:` config field renames, skill-twin contract changes, trailer-format changes. With one consumer that's hand-migration; with N consumers on mixed pinned versions it's the biggest structural risk of the multi-project goal. Build `noldor upgrade`: a version-aware chain that takes a consumer from its current framework version to the installed one by running ordered codemods.
@@ -76,3 +77,20 @@ plus a fixture under `src/migrations/__tests__/fixtures/`, or
 <!-- @prs-since-last-release: version-aware-upgrade-and-migration-chain -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md`](../../docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-06-13-version-aware-upgrade-and-migration-chain.md`](../../docs/superpowers/plans/2026-06-13-version-aware-upgrade-and-migration-chain.md)
+- **Code:**
+  - [`src/migrations/`](../../src/migrations/)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`src/cli/commands/init.ts`](../../src/cli/commands/init.ts)
+  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
+  - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
+  - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
+
+<!-- /generated: resources -->

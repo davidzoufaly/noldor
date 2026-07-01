@@ -15,13 +15,14 @@ links:
     - src/cr/__tests__/lanes/verify.test.ts
     - src/verify/__tests__/port.test.ts
     - src/verify/__tests__/smoke.test.ts
-  spec: docs/superpowers/specs/2026-06-12-acceptance-verify-lane-design.md
+  spec: docs/superpowers/specs/archive/2026-06-12-acceptance-verify-lane-design.md
 name: Acceptance-Verify Lane
 packages:
   - scripts
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 Autonomous paths merge on tests + CR. Both have a structural blind spot: the implementer agent writes the code _and_ the tests, so a misunderstood requirement produces tests that assert the misunderstanding — green suite, wrong feature. CR reads diffs and can ratify the same error. Nobody runs the artifact and checks it against what the FD/entry actually promised. Add a `verify` lane: an independent agent that boots the real artifact and judges the shipped behavior against the acceptance text.
@@ -58,3 +59,23 @@ As an operator running autonomous paths (drain, watch, gate autonomous mode), I 
 <!-- @prs-since-last-release: acceptance-verify-lane -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-12-acceptance-verify-lane-design.md`](../../docs/superpowers/specs/archive/2026-06-12-acceptance-verify-lane-design.md)
+- **Code:**
+  - [`src/cr/`](../../src/cr/)
+  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
+  - [`src/autonomous/`](../../src/autonomous/)
+  - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
+  - [`adoption-guide.md`](../../adoption-guide.md)
+  - [`.noldor/config.json`](../../.noldor/config.json)
+- **Tests:**
+  - [`src/cr/__tests__/lanes/verify-dispatch.test.ts`](../../src/cr/__tests__/lanes/verify-dispatch.test.ts)
+  - [`src/cr/__tests__/lanes/verify.test.ts`](../../src/cr/__tests__/lanes/verify.test.ts)
+  - [`src/verify/__tests__/port.test.ts`](../../src/verify/__tests__/port.test.ts)
+  - [`src/verify/__tests__/smoke.test.ts`](../../src/verify/__tests__/smoke.test.ts)
+
+<!-- /generated: resources -->

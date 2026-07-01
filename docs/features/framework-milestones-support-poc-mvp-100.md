@@ -20,13 +20,14 @@ links:
     - src/features/__tests__/feature-milestone.test.ts
     - src/dashboard/__tests__/milestones-view.test.ts
   spec: >-
-    docs/superpowers/specs/2026-06-14-framework-milestones-support-poc-mvp-100-design.md
+    docs/superpowers/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md
 name: Framework Milestones Support (POC / MVP / 1.0.0)
 packages:
   - scripts
 phase: done
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
@@ -59,3 +60,27 @@ As an operator running a milestone-planned Noldor project, I want each feature t
 <!-- @prs-since-last-release: framework-milestones-support-poc-mvp-100 -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md`](../../docs/superpowers/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md)
+- **Code:**
+  - [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts)
+  - [`src/features/validate-features.ts`](../../src/features/validate-features.ts)
+  - [`src/garden/detectors/milestone-shipped-incomplete.ts`](../../src/garden/detectors/milestone-shipped-incomplete.ts)
+  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
+  - [`src/garden/garden-detect-runner.ts`](../../src/garden/garden-detect-runner.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
+- **Tests:**
+  - [`src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts`](../../src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts)
+  - [`src/features/__tests__/feature-milestone.test.ts`](../../src/features/__tests__/feature-milestone.test.ts)
+  - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
+- **Docs:**
+  - [`docs/noldor/milestones.md`](../../docs/noldor/milestones.md)
+
+<!-- /generated: resources -->

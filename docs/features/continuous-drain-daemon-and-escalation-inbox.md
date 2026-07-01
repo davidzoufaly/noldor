@@ -27,7 +27,7 @@ links:
     - src/autonomous/__tests__/watch-args.test.ts
     - src/autonomous/__tests__/run-drain.test.ts
   spec: >-
-    docs/superpowers/specs/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md
+    docs/superpowers/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md
   plan: >-
     docs/superpowers/plans/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md
 name: Continuous Drain Daemon and Escalation Inbox
@@ -36,6 +36,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 Every autonomous stage is one-shot and operator-fired: someone types `noldor autonomous run`, watches (or returns later), handles failures by reading logs, salvages stale bases by hand from a memory recipe. The vision sentence — agents ship unsupervised — currently means "unsupervised per invocation". Make autonomy *continuous*: a long-running (or cron-fired) mode that keeps draining the queue, repairs its own known failure modes, and escalates the rest to a structured inbox instead of dying or blocking.
@@ -85,3 +86,34 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
 <!-- @prs-since-last-release: continuous-drain-daemon-and-escalation-inbox -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md`](../../docs/superpowers/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md`](../../docs/superpowers/plans/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md)
+- **Code:**
+  - [`src/autonomous/watch.ts`](../../src/autonomous/watch.ts)
+  - [`src/autonomous/salvage.ts`](../../src/autonomous/salvage.ts)
+  - [`src/autonomous/escalations.ts`](../../src/autonomous/escalations.ts)
+  - [`src/autonomous/watch-state.ts`](../../src/autonomous/watch-state.ts)
+  - [`src/autonomous/notify.ts`](../../src/autonomous/notify.ts)
+  - [`src/autonomous/inbox-cli.ts`](../../src/autonomous/inbox-cli.ts)
+  - [`src/autonomous/unpark-cli.ts`](../../src/autonomous/unpark-cli.ts)
+  - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
+  - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
+  - [`src/core/agent-events.ts`](../../src/core/agent-events.ts)
+  - [`src/cr/config.ts`](../../src/cr/config.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`docs/noldor/autonomy.md`](../../docs/noldor/autonomy.md)
+- **Tests:**
+  - [`src/autonomous/__tests__/salvage.test.ts`](../../src/autonomous/__tests__/salvage.test.ts)
+  - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
+  - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
+  - [`src/autonomous/__tests__/notify.test.ts`](../../src/autonomous/__tests__/notify.test.ts)
+  - [`src/autonomous/__tests__/watch-args.test.ts`](../../src/autonomous/__tests__/watch-args.test.ts)
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+
+<!-- /generated: resources -->

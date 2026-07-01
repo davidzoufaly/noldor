@@ -24,7 +24,7 @@ links:
     - src/metrics/__tests__/facts.test.ts
     - src/metrics/__tests__/routing-accuracy.test.ts
   spec: >-
-    docs/superpowers/specs/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md
+    docs/superpowers/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md
   plan: >-
     docs/superpowers/plans/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md
 name: Outcome Telemetry and Effectiveness Metrics
@@ -34,6 +34,7 @@ phase: done
 since: '2026-06-11'
 noldor-tier: full
 ---
+
 ## Summary
 
 The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
@@ -87,3 +88,32 @@ pnpm noldor metrics compute --metric cycle-time
 <!-- @prs-since-last-release: outcome-telemetry-and-effectiveness-metrics -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md`](../../docs/superpowers/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md`](../../docs/superpowers/plans/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md)
+- **Code:**
+  - [`src/metrics/`](../../src/metrics/)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`src/dashboard/`](../../src/dashboard/)
+  - [`src/garden/`](../../src/garden/)
+  - [`docs/noldor/metrics.md`](../../docs/noldor/metrics.md)
+  - [`docs/noldor/script-catalog.md`](../../docs/noldor/script-catalog.md)
+- **Tests:**
+  - [`src/core/agent-runner/usage/__tests__/adapters.test.ts`](../../src/core/agent-runner/usage/__tests__/adapters.test.ts)
+  - [`src/dashboard/__tests__/metrics-view.test.ts`](../../src/dashboard/__tests__/metrics-view.test.ts)
+  - [`src/features/__tests__/feature-schema-since.test.ts`](../../src/features/__tests__/feature-schema-since.test.ts)
+  - [`src/garden/__tests__/sdd-report-metrics.test.ts`](../../src/garden/__tests__/sdd-report-metrics.test.ts)
+  - [`src/metrics/__tests__/compute-cli.test.ts`](../../src/metrics/__tests__/compute-cli.test.ts)
+  - [`src/metrics/__tests__/compute.test.ts`](../../src/metrics/__tests__/compute.test.ts)
+  - [`src/metrics/__tests__/cr-and-override.test.ts`](../../src/metrics/__tests__/cr-and-override.test.ts)
+  - [`src/metrics/__tests__/cycle-time.test.ts`](../../src/metrics/__tests__/cycle-time.test.ts)
+  - [`src/metrics/__tests__/drain-and-tokens.test.ts`](../../src/metrics/__tests__/drain-and-tokens.test.ts)
+  - [`src/metrics/__tests__/facts.test.ts`](../../src/metrics/__tests__/facts.test.ts)
+  - [`src/metrics/__tests__/routing-accuracy.test.ts`](../../src/metrics/__tests__/routing-accuracy.test.ts)
+
+<!-- /generated: resources -->
