@@ -33,11 +33,40 @@ Noldor can fan out parallel _build_ agents (the K-concurrent drain) but has no f
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a driving agent or operator facing several independent read-only questions (codebase research, multi-subsystem investigation, pre-spec understanding), I want to dispatch one context-isolated researcher agent per question in parallel and get back structured findings plus a synthesized index, so that wall-clock shrinks and my own context window stays clean for design work.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**CLI — quick questions**
+
+```bash
+pnpm noldor research fanout --task "How does the CR overwrite-guard decide archive vs skip?" --task "Where are drain eligibility rules enforced?"
+```
+
+**CLI — full task specs (+ synthesis)**
+
+```bash
+pnpm noldor research fanout --tasks tasks.json --synthesize --max 4 --timeout 900000
+# → .noldor/research/2026-07-01-142233/{INDEX.md,SYNTHESIS.md,<id>.findings.md,manifest.json}
+```
+
+`tasks.json`: `{ "tasks": [{ "id": "cr-guard", "question": "…", "scope": ["src/cr/"], "context": "…", "expects": "…" }] }`
+
+Exit code 0 means every agent ran and parsed — not that questions were answered; read the INDEX status column.
+
+**Skill (driving agent)**
+
+1. Invoke `noldor-research` when facing ≥ 2 independent read-only questions.
+2. Decompose into independent task specs (self-contained context, one question each) and write the tasks file.
+3. Run the fanout, read `INDEX.md` (+ `SYNTHESIS.md` / selected findings), synthesize into the spec/plan/audit being written.
+
+**Keyboard shortcut**
+
+_none — CLI/framework feature, no UI surface._
+
+**Agent API**
+
+_none — operates through the `pnpm noldor` CLI; agents invoke it via Bash._
 
 ## PRs
 
