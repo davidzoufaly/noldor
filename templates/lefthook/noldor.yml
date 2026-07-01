@@ -45,7 +45,11 @@ pre-commit:
           - name: fmt
             # No `md`: oxfmt ignores **/*.md (.oxfmtrc.json), so a markdown-only
             # commit would pass it nothing → "Expected at least one target file" → exit 1.
+            # Same reason for `exclude`: oxfmt ignores graphify-out/** (.oxfmtrc.json),
+            # so a generated-graph commit (graph.json/manifest.json) would pass it only
+            # ignored files → same hard error. Excluding here makes the step skip instead.
             glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,yml,yaml}'
+            exclude: 'graphify-out/'
             run: pnpm --silent fmt:check {staged_files}
           - name: shared-files
             run: pnpm noldor checks shared-files
