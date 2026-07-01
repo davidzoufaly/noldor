@@ -72,10 +72,11 @@ Directives ride the prompt, never env/flags (PR #33 rule, enforced at the `spawn
 
 Mirrors `src/prep/prep-fanout.ts` structure (parseArgs → validate → dry-run → concurrency spawn → collect → render → exit code):
 
-- **Args:** `--tasks <file.json>` (zod `tasksFileSchema`), repeatable `--task "<question>"` (sugar → `{ id: 'task-<n>', question }`); both sources concatenate. `--max <n>` (default 4), `--timeout <ms>` (default 900000, per task), `--synthesize`, `--dry-run`, `--json`. No tasks from either source → usage error. Unknown flag → throw (prep parity).
-- **Batch dir:** `.noldor/research/<YYYY-MM-DD-HHMMSS>/` (UTC, seconds-resolution — multiple fanouts per day must not collide; prep's date-only `batchDirFor` is not reused). Add `.noldor/research/` to `.gitignore`.
-- **Spawn:** `spawnAgent(prompt, { role: 'researcher', needsWrite: false, stdio: 'pipe', site: 'research.fanout', timeoutMs, cwd })` through `runWithConcurrency(tasks, max, …)`. Each completed spawn already appends an agent-event (runner, role, site, exitCode, durationMs, tokens) — no extra telemetry code.
-- **Collect:** per task, `parseResearchStdout`; write `<id>.findings.md` (findings + an HTML comment header carrying question/status/spawnStatus for grep-ability); timeout/non-zero exit recorded in `spawnStatus`, meta forced to fallback when stdout empty.
+- **Args:** `--tasks <file.json>` (zod `tasksFileSchema`), repeatable `--task "<question>"` (sugar → `{ id: 'cli-task-<n>', question }` — namespaced so a tasks file legitimately containing `task-1` never trips the duplicate-id error); both sources concatenate. `--max <n>` (default 4), `--timeout <ms>` (default 900000, per task), `--synthesize`, `--dry-run`, `--json`. No tasks from either source → usage error. Unknown flag → throw (prep parity).
+- **Batch dir:** `.noldor/research/<YYYY-MM-DD-HHMMSS>/` (UTC, seconds-resolution — multiple fanouts per day must not collide; prep's date-only `batchDirFor` is not reused). Same-second collision (two batches launched concurrently — the primary use case): create with an exists-check and retry with a `-2`, `-3`… suffix. Add `.noldor/research/` to `.gitignore`.
+- **Concurrency util hoist:** `runWithConcurrency` moves from `src/prep/spawn.ts` to `src/core/concurrency.ts`; prep call sites update their import (same relocation rationale as the PR #106 phase-flip move — a second consumer means the util belongs in core, and `src/research` must not couple to the prep module).
+- **Spawn:** `spawnAgent(prompt, { role: 'researcher', needsWrite: false, stdio: 'pipe', site: 'research.fanout', timeoutMs, cwd })` through `runWithConcurrency(tasks, max, …)`, each task body wrapped in try/catch (prep-fanout parity, `src/prep/prep-fanout.ts:145-152`): a rejected spawn (capability-mismatch, ENOENT `spawn-failed`) records `spawnStatus: 'error: <msg>'` + fallback meta and the batch continues — `runWithConcurrency` rejects the whole run on an uncaught throw, so one bad spawn must never lose the in-flight results. Each completed spawn already appends an agent-event (runner, role, site, exitCode, durationMs, tokens) — no extra telemetry code.
+- **Collect:** per task, `parseResearchStdout`; write `<id>.findings.md` (findings + an HTML comment header carrying question/status/spawnStatus for grep-ability; `--` sequences in the question are stripped so an embedded `-->` cannot break the comment); timeout/non-zero exit recorded in `spawnStatus`, meta forced to fallback when stdout empty.
 - **Guards:** `git status --porcelain` snapshot before/after spawn; diff → loud WARNING listing the delta (children are prompt-constrained LLMs with bash — verify, don't trust). Task-count > 8 → stderr cost warning (proceed anyway).
 - **Render:** `INDEX.md` — one table row per task: id, status, confidence, headline, findings link; failures flagged. `manifest.json` alongside.
 - **Exit code:** 0 when every task is `ok` (spawn succeeded + envelope parsed), 1 otherwise, throw → 1 with message (prep parity).
@@ -94,7 +95,7 @@ After collection, when ≥ 2 tasks are `ok`: one `spawnAgent` (same role/site `r
 - `src/cli/manifest.ts`: new top-level `research` group, sub `fanout` → `research/fanout.ts`.
 - Skill `.claude/skills/noldor-research/SKILL.md` + `templates/.claude/skills/noldor-research/SKILL.md` twin (shared-files guard: commit with `NOLDOR_ALLOW_SHARED`). Content: when to fan out (≥ 2 independent read-only questions), decomposition rules (independent — no task consumes another's output; self-contained context; one question each), tasks-file authoring, CLI invocation, reading INDEX/findings, synthesis discipline, and "never fan out write-work — that's the drain's job."
 - `docs/noldor/skill-catalog.md` row (+ twin) — `pnpm noldor validate skill-catalog` enforces the listing.
-- New `docs/noldor/research-fanout.md` page (+ twin, `noldor-page: research-fanout` frontmatter, `docs(noldor:research-fanout)` commit scope): CLI reference, envelope contract, integration points (gate spec-stage, plan investigation, garden deep-dives, standalone).
+- New `docs/noldor/research-fanout.md` page (+ twin, `noldor-page: research-fanout` frontmatter, `docs(noldor:research-fanout)` commit scope): CLI reference, envelope contract, integration points (gate spec-stage, plan investigation, garden deep-dives, standalone). Must state explicitly: exit code 0 means every agent ran and parsed, **not** that questions were answered — a batch of all-`blocked` findings still exits 0; headless callers read the INDEX status column, not just the exit code.
 
 ### Data flow
 
@@ -114,6 +115,7 @@ driving agent/operator
 ### Error handling
 
 - Bad tasks file / no tasks / duplicate ids / unknown flag → usage error, exit 1, nothing spawned.
+- Rejected spawn promise (capability-mismatch, `spawn-failed` ENOENT) → caught per task, `spawnStatus: 'error: <msg>'`, fallback meta, batch continues (never aborts the run).
 - Per-task timeout → SIGKILL process group (existing `spawnAgent` pattern), task marked failed, batch continues.
 - Unparseable child output → raw stdout preserved as findings, fallback meta, INDEX flags it, exit 1.
 - Dirty-tree delta after spawn → WARNING with `git status` output (never fatal — mirrors prep D3).
@@ -121,13 +123,14 @@ driving agent/operator
 
 ### Testing
 
-Vitest, mirroring prep's tests: pure units (`parseArgs`, task loading, `parseResearchStdout` happy/fence-missing/bad-JSON/bad-shape, INDEX render, batch-dir naming) get direct unit tests; `run()` gets an injected-spawn test double (DI seam like prep's `spawnClaude` import — export a `deps` param taking `spawnImpl`) covering: all-ok exit 0, one-failed exit 1, dry-run spawns nothing, `--synthesize` writes SYNTHESIS.md, duplicate-id rejection. Role addition: `resolveRunner('researcher', defaults)` → claude. No live-LLM tests; the `stub` runner covers any e2e appetite later.
+Vitest, mirroring prep's tests: pure units (`parseArgs`, task loading, `parseResearchStdout` happy/fence-missing/bad-JSON/bad-shape, INDEX render, batch-dir naming incl. same-second suffix) get direct unit tests; `run()` gets an injected-spawn test double (DI seam like prep's `spawnClaude` import — export a `deps` param taking `spawnImpl`) covering: all-ok exit 0, one-failed exit 1, one-**rejected**-spawn → batch still completes with `error:` status, dry-run spawns nothing, `--synthesize` writes SYNTHESIS.md, duplicate-id rejection. Role addition: `resolveRunner('researcher', defaults)` → claude. `runWithConcurrency` tests move to `src/core/__tests__/` with the hoist. No live-LLM tests; the `stub` runner covers any e2e appetite later.
 
 ## Acceptance criteria
 
 - `pnpm noldor research fanout --task "q1" --task "q2"` spawns 2 researcher agents (≤ 4 concurrent), writes `.noldor/research/<ts>/` with 2 findings files + `INDEX.md` + `manifest.json`, exits 0 when both parse.
 - `--tasks <file>` validates against `tasksFileSchema`; malformed file or duplicate ids → usage error, exit 1, no spawns.
 - Child output without a valid meta fence → raw findings preserved, fallback meta, flagged row in INDEX, exit 1.
+- A spawn that rejects outright (e.g. runner binary missing) fails only its own task; the batch completes and reports `error: <msg>` for that row.
 - `--synthesize` with ≥ 2 ok findings spawns exactly one synthesis agent and writes `SYNTHESIS.md`; its failure degrades to a warning.
 - `--dry-run` lists tasks + batch dir, spawns nothing, exits 0.
 - Agent-events log gains one row per spawn with `site: 'research.fanout'` / `'research.synthesize'`, `role: 'researcher'`.
