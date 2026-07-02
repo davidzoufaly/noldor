@@ -41,7 +41,7 @@ flowchart TD
     Plan --> Tests["🧪 *.test.ts<br/>// @tests: &lt;slug&gt;<br/>links.tests"]
     Plan --> Docs["📚 docs/user/tutorials/<br/>docs/user/explanation/<br/>&lt;!-- @feature: &lt;slug&gt; --&gt;<br/>links.docs"]
 
-    Code --> ReviewGate["🔍 review gate<br/>(noldor cr orchestrate --kind code)<br/>Noldor-Reviewed: &lt;tree-hash&gt;"]
+    Code --> ReviewGate["🔍 review gate<br/>(noldor cr orchestrate --kind code)<br/>Noldor-Reviewed-Subagent: &lt;tree-hash&gt;"]
     Tests --> ReviewGate
     Docs --> ReviewGate
 
@@ -61,7 +61,7 @@ The six gate paths map onto the diagram above. Every change picks exactly one pa
 5. **`full-new`** — new design AND plan decomposition warranted; new FD (`tier: full`) + worktree + spec + plan + reviewer.
 6. **`full-attach`** — substantial enhancement under an existing FD; worktree + spec + plan + reviewer (no new FD).
 
-Every commit on paths 2–6 carries `Noldor-Path: <path>` and `Noldor-Reviewed: <tree-hash>` trailers. The pre-push hook validates the review receipt against `HEAD^{tree}`.
+Every commit on paths 2–6 carries a `Noldor-Path: <path>` trailer (auto-injected from the session marker). The review receipt (`Noldor-Reviewed-Subagent: <tree-hash>`) is amended onto the tip commit at gate Step 4; the pre-push hook validates it against `HEAD^{tree}`.
 
 Commits land on `main` either directly (trunk-based) or via short-lived PR branches with agent auto-merge — the consumer chooses; see [`pr-flow.md`](pr-flow.md). Either way the pre-commit hook is the gate (`noldor validate features`, `noldor sync *`, `noldor checks invariants`, `noldor checks shared-files`, `noldor hooks pre-commit`).
 

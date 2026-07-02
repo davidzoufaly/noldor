@@ -17,12 +17,12 @@ introduced: 0.4.0
 | `git worktree remove [--force] .worktrees/<name>`   | Remove a worktree after merge. Pair with `git branch -D feat/<name>` (force: squash-merge leaves the branch's commits non-ancestor of main, so `-d` rejects). |
 | `NOLDOR_ALLOW_SHARED=1 git commit ...`              | Override `check:shared-files` block when intentionally editing a shared root file from a worktree.          |
 
-**Finish sequence (autonomous, no prompt):** tests pass → fast-forward into `main` → `git push origin main` → `git worktree remove` → `git branch -D`.
+**Finish sequence (autonomous, no prompt):** tests pass → gate Step 4 end-of-flow (code-stage CR → `pnpm noldor pr-flow` pushes the branch, opens the PR, auto-merges) → `git worktree remove` + `git branch -D` → sync local `main` (`git fetch origin main && git merge --ff-only origin/main`). Direct `git push origin main` is blocked by the pre-push hook — `main` moves only via merged PRs (release pushes excepted, see [`pr-flow.md`](pr-flow.md) "Override semantics").
 
 ## Always work in a worktree
 
 - **[`/gate`](../../.claude/skills/gate/SKILL.md) is the canonical worktree entry for paths 2–6** — it creates the worktree and sets the session marker in one step. `micro-chore` (path 1) is the documented exception: no worktree is needed because the diff scope is restricted to the allowlist, and the pre-commit hook validates it.
-- **Always work in a worktree** — `git worktree add .worktrees/<name> -b feat/<name>` from main before any implementation (or just run `/gate`). Worktrees over plain feature branches: enables parallel development on multiple features without branch-switching friction or stash juggling. `.worktrees/` is gitignored. Never commit implementation directly to main. Spec/plan commits on main are fine; only implementation goes on the worktree branch
+- **Always work in a worktree** — `git worktree add .worktrees/<name> -b feat/<name>` from main before any implementation (or just run `/gate`). Worktrees over plain feature branches: enables parallel development on multiple features without branch-switching friction or stash juggling. `.worktrees/` is gitignored. Never commit implementation directly to main. Spec, plan, and implementation all commit on the worktree branch (gate Step 2.5 commits each artifact at its review checkpoint) and land on `main` together via the feature PR
 
 ## Exceptions
 
@@ -58,4 +58,4 @@ See [release-sweep-process-hardening](../features/release-sweep-process-hardenin
 
 ## Finishing a worktree
 
-- **Finishing a worktree** — once tests pass, run the full sequence without asking: fast-forward merge into `main` → `git push origin main` → `git worktree remove [--force] .worktrees/<name>` → `git branch -D feat/<name>`. Skip the 4-option menu. Don't ask first — the user prefers autonomous finish; verify tests as the gate, not a prompt
+- **Finishing a worktree** — once tests pass, run the full sequence without asking: gate Step 4 end-of-flow (code-stage CR → `pnpm noldor pr-flow`: push branch + open PR + auto-squash-merge) → `git worktree remove [--force] .worktrees/<name>` → `git branch -D feat/<name>` (force — squash-merge leaves the branch's commits non-ancestor of `main`) → `git fetch origin main && git checkout main && git merge --ff-only origin/main`. Skip the 4-option menu. Don't ask first — the user prefers autonomous finish; verify tests as the gate, not a prompt. Never `git push origin main` directly — the pre-push hook blocks it
