@@ -14,30 +14,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Phase 2 — Enforcement Honesty
 
-#### Release Bypass Retirement
-
-- area: tooling
-- type: fix
-- since: 2026-07-01
-- size: M
-- impact: high
-- confidence: high
-
-Every release still requires `RELEASE_SKIP_GATE_COMPLIANCE=1` + `RELEASE_SKIP_CR_GATE=1` (`src/release/index.ts:178,193`) — "goes away once X ships" for several releases now. Two root causes: (a) the CR gate is unsatisfiable by design — `src/release/release-cr-gate.ts` checks squash commits on main for review receipts that squash-merge strips; rework it to check PR-branch commits or PR-body trailers instead. (b) Gate-compliance trips on historical short-scope trailers + the framework's own expected override usage; make the self-host expected-noise allowlist first-class instead of env-skipping the whole check. Also: write `RELEASE_SKIP_*` uses to `.noldor/overrides.log` the way `src/hooks/noldor-pre-commit.ts:33-42` logs overrides, so bypasses leave an audit trail. Acceptance: a clean `pnpm release` needs zero env bypasses.
-
-#### `pnpm release --resume`
-
-- area: tooling
-- type: feat
-- since: 2026-05-11
-- size: M
-- impact: high
-- parent: noldor
-
-`pnpm release` is not idempotent when the final `git commit` step fails. v0.4.0 release hit this when the release commit's pre-commit hook rejected the diff (micro-chore session active): all package.json bumps, CHANGELOG entry, release-notes entry, FD `introduced:` markers were already written + staged, but the commit failed. Re-running the script would derive a new (wrong) version. Manual recovery required (`git reset`, fix root cause, re-run). Fix: either (a) `pnpm release --resume` flag that skips precondition + version-derive and goes straight to commit-tag-push when staged files match the in-progress release shape, or (b) wrap the file-mutation phase in a temp staging area committed atomically only after precondition success — so a failed commit leaves an empty tree.
-
-- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
-
 #### Audit Gate Documentation
 
 - area: docs
