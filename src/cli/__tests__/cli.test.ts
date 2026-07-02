@@ -84,8 +84,19 @@ describe('noldor CLI', () => {
   it('leaf command dispatches with no subcommand (doctor)', () => {
     // doctor is a real leaf command now (template-sync check); assert it
     // dispatches and reports sync status rather than the old stub message.
-    const out = run(['doctor']);
-    expect(out).toContain('in sync');
+    // doctor also probes every configured agent runner (`claude --version`)
+    // on PATH — CI boxes don't ship claude, so shim one for hermeticity.
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-doctor-'));
+    try {
+      writeFileSync(join(dir, 'claude'), '#!/bin/sh\necho 1.0.0\n', { mode: 0o755 });
+      const out = execFileSync('node', [BIN, 'doctor'], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` },
+      });
+      expect(out).toContain('in sync');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('leaf command dispatches with flag in sub slot (init --update)', () => {
