@@ -198,10 +198,13 @@ function promoteOne(cwd: string, today: string, draft: FeatureDraft): PromoteRes
     }
 
     // Commits — one per artifact, each carrying Noldor-FD + Noldor-Path trailers (matches gate subjects).
-    const trailer = `Noldor-FD: ${draft.slug}`;
+    // Both trailers ride ONE `-m` paragraph: git interpret-trailers parses only the
+    // message's final paragraph, so separate `-m` flags hide all but the last trailer
+    // from the commit-msg validator.
+    const trailers = `Noldor-FD: ${draft.slug}\nNoldor-Path: ${noldorPath}`;
     const commit = (paths: string[], subject: string): void => {
       git(cwd, ['add', ...paths]);
-      git(cwd, ['commit', '-m', subject, '-m', trailer, '-m', `Noldor-Path: ${noldorPath}`]);
+      git(cwd, ['commit', '-m', subject, '-m', trailers]);
       commits.push(subject);
     };
     commit([fdRel, roadmapPath], `docs(features:${draft.slug}): promote ${draft.slug} to FD`);
