@@ -2,7 +2,7 @@
 // pre-commit stage: enforces micro-chore allowlist and hard-wall post-rollout session requirement.
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { readSession, isSessionStale, type SessionMarker } from '../core/session';
+import { readSession, isSessionStale, touchSession, type SessionMarker } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
 import { appendOverrideLog } from '../core/overrides-log';
@@ -18,6 +18,16 @@ export interface PreCommitResult {
    * stays pure (no file I/O).
    */
   overrideReason?: string;
+  /**
+   * Set when a green `release-sweep` commit should reset the session TTL clock.
+   * The entrypoint performs the actual `touchSession` write so `runPreCommit`
+   * stays pure (same split as {@link PreCommitResult.overrideReason}). Turns the
+   * TTL into an inactivity window for sweeps: only a sweep idle for the full
+   * TTL between commits goes stale, not one whose total runtime crosses it.
+   * micro-chore is deliberately excluded — its single-commit staleness guard
+   * is working as designed.
+   */
+  refreshSession?: boolean;
 }
 
 /**
@@ -87,7 +97,7 @@ export function runPreCommit(opts: {
         reason: `release-sweep diff includes files outside allowlist: ${staged.join(', ')}`,
       };
     }
-    return { ok: true };
+    return { ok: true, refreshSession: true };
   }
 
   // For non-micro-chore / non-release-sweep sessions (or no session), enforce hard wall only post-rollout.
@@ -125,14 +135,23 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   } catch {
     /* fail-open */
   }
+  const nowMs = Date.now();
   const r = runPreCommit({
     cwd,
     pathOverride: process.env.NOLDOR_PATH_OVERRIDE,
-    nowMs: Date.now(),
+    nowMs,
     ttlHours,
   });
   if (r.overrideReason) {
     logOverride(cwd, r.overrideReason);
+  }
+  if (r.ok && r.refreshSession) {
+    // Fail-open: a refresh failure must never block a commit the check passed.
+    try {
+      touchSession(cwd, nowMs);
+    } catch {
+      /* fail-open */
+    }
   }
   if (!r.ok) {
     console.error(`Noldor gate: ${r.reason}`);

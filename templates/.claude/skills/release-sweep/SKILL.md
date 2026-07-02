@@ -29,6 +29,8 @@ This skill runs the non-negotiable pre-release sweep documented in [`docs/noldor
 
    All sweep-step commits below land on this branch; `noldor-inject-trailers` reads the session marker and stamps `Noldor-Path: release-sweep` on every commit automatically. No manual `Noldor-Path-Override` trailers needed.
 
+   The marker's `gate.sessionTtlHours` TTL (default 24h) is an inactivity window for this path: every green pre-commit pass refreshes `startedAt` (`touchSession`, `src/core/session.ts`), so a sweep whose total runtime crosses the boundary stays fresh as long as it keeps committing — no manual `writeSession` re-run needed mid-sweep.
+
 If any check fails, stop and report. Do not proceed.
 
 ## Steps
