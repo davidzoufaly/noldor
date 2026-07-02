@@ -24,7 +24,13 @@ import {
   reportIsEmpty,
 } from './drain-reconcile.js';
 import { makeSalvage } from './salvage.js';
-import { applyCycleVerdict, loadPark, mapCycle, parkAwareSource } from './escalations.js';
+import {
+  applyCycleVerdict,
+  loadPark,
+  mapCycle,
+  parkAwareSource,
+  SUGGESTED_ACTIONS,
+} from './escalations.js';
 import {
   applyCycleToState,
   loadWatchState,
@@ -199,9 +205,11 @@ async function main(): Promise<void> {
 
       // Cycle-start reconciliation (mirrors queue-drain's startup pass): reap orphan
       // agents from a dead prior cycle/run, sync + divergence pre-flight, heal open
-      // PRs, prune shipped worktrees. A clean cycle is an all-empty no-op. A
-      // local-ahead-of-origin divergence is a persistent operator condition — trip
-      // loudly (pause + escalation row + notify) instead of spinning on it.
+      // PRs, prune shipped worktrees. A clean cycle is an all-empty no-op. Failure
+      // handling is two-tier: a local-ahead divergence is a persistent operator
+      // condition — trip immediately (pause + escalation + notify + exit 1). Any
+      // other reconcile throw (gh/network hiccup) rides the consecutiveFailures
+      // rail like a failed cycle, so one transient error can't kill the daemon.
       const baseSource = roadmapSource(cwd);
       try {
         const reconcileDeps = makeReconcileDeps(
@@ -215,11 +223,16 @@ async function main(): Promise<void> {
       } catch (e) {
         const now = new Date().toISOString();
         const evidence = e instanceof Error ? e.message : String(e);
-        try {
-          writeFileSync(join(cwd, PAUSE_REL), `reconcile-failed ${now}\n`, 'utf8');
-        } catch {
-          /* best-effort */
+        if (parsed.dryRun) {
+          // Mirror queue-drain's dry-run failure: report + exit, no state writes.
+          out(`watch: reconcile failed (dry-run) — ${evidence}`);
+          emitJson({ cycle: 'reconcile-failed', evidence });
+          exitCode = 1;
+          break;
         }
+        const divergence = evidence.includes('local main is ahead of origin/main');
+        const failures = state.consecutiveFailures + 1;
+        const trip = divergence || failures >= rails.maxConsecutiveFailures;
         applyCycleVerdict(
           cwd,
           baseSource.id,
@@ -232,8 +245,7 @@ async function main(): Promise<void> {
                 reason: 'reconcile-failed',
                 evidence,
                 stateSnapshot: { shipped: 0, skipped: [] },
-                suggestedAction:
-                  'resolve the divergence/reconcile error, then `rm .noldor/drain.pause`',
+                suggestedAction: SUGGESTED_ACTIONS['reconcile-failed'],
               },
             ],
             toPark: [],
@@ -243,10 +255,26 @@ async function main(): Promise<void> {
           now,
         );
         notify(notifyCommand, 'reconcile-failed', { evidence }, cwd);
-        out(`watch: reconcile failed — ${evidence}; .noldor/drain.pause written`);
-        emitJson({ cycle: 'reconcile-failed', evidence });
-        exitCode = 1;
-        break;
+        if (trip) {
+          try {
+            writeFileSync(join(cwd, PAUSE_REL), `reconcile-failed ${now}\n`, 'utf8');
+          } catch {
+            /* best-effort */
+          }
+          out(`watch: reconcile failed — ${evidence}; .noldor/drain.pause written`);
+          emitJson({ cycle: 'reconcile-failed', evidence, tripped: true });
+          exitCode = 1;
+          break;
+        }
+        state = { ...state, consecutiveFailures: failures, lastCycleAt: now };
+        saveWatchState(cwd, state);
+        out(
+          `watch: reconcile failed — ${evidence}; failures ${String(failures)}/${String(rails.maxConsecutiveFailures)}, retrying next cycle`,
+        );
+        emitJson({ cycle: 'reconcile-failed', evidence, consecutiveFailures: failures });
+        if (parsed.once) break;
+        await interruptibleSleep(parsed.intervalMinutes * 60_000, () => sigint || pauseExists());
+        continue;
       }
 
       const source = parkAwareSource(baseSource, () => loadPark(cwd));

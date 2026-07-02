@@ -1,6 +1,6 @@
 import type { DrainSource, DrainCandidate } from './drain-source.js';
 import type { MergeOutcome } from './drain-io.js';
-import type { InFlight } from './drain-state.js';
+import type { InFlight, DrainStateSnapshot } from './drain-state.js';
 
 export type DrainAction = 'spawn' | 'skip-out-of-scope' | 'done';
 
@@ -54,17 +54,9 @@ export interface DrainDeps {
    *  like the other git/gh deps). Absent → no salvage (existing behavior). */
   salvageStaleBase?: (slug: string, branch: string) => 'clean' | 'salvaged';
   /** Best-effort heartbeat write (never throws). Reports ALL in-flight slugs (building or
-   *  awaiting-merge) + the slug currently merging — the K>1 generalization of the old `currentSlug`. */
-  writeState: (s: {
-    phase: 'spawning' | 'awaiting-merge' | 'idle';
-    inFlight: InFlight[];
-    merging: string | null;
-    shipped: number;
-    skip: string[];
-    retries: Record<string, number>;
-    /** pgids of the gate children currently in flight — the orphan-reap carrier (spec Unit 2). */
-    agentPgids: number[];
-  }) => void;
+   *  awaiting-merge) + the slug currently merging — the K>1 generalization of the old `currentSlug`.
+   *  Runners project the snapshot via `projectDrainState`. */
+  writeState: (s: DrainStateSnapshot) => void;
   /** True when a stop has been requested (SIGINT / sentinel). */
   stopRequested: () => boolean;
 }
@@ -272,7 +264,13 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
           recordRetryOrSkip(candidate.slug);
         else abortRef.current = e instanceof Error ? e : new Error(String(e));
       } finally {
-        if (childPgid !== null) livePgids.delete(childPgid); // child settled — drop its pgid
+        if (childPgid !== null) {
+          livePgids.delete(childPgid); // child settled — drop its pgid
+          // Re-emit so the heartbeat never carries a settled child's pgid into the
+          // idle tail (a long-lived watcher's SIGTERM group-kill would otherwise
+          // fire at a stale — possibly recycled — pgid many minutes later).
+          emitState();
+        }
         if (!handedToCoordinator) dispatched.delete(candidate.slug);
       }
       if (abortRef.current) return;
