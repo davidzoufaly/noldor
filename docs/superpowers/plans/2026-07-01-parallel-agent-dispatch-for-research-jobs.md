@@ -16,8 +16,10 @@ Spec: `docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jo
 
 - `src/core/concurrency.ts` — create; hoisted `runWithConcurrency` worker-pool util (single responsibility: bounded parallel map)
 - `src/core/__tests__/concurrency.test.ts` — create; first-ever tests for the util
+- `src/core/git-porcelain.ts` — create; hoisted fail-open `gitStatusPorcelain` helper (copy #1 was `src/prep/prep-fanout.ts:21`)
+- `src/core/__tests__/git-porcelain.test.ts` — create; fail-open contract test
 - `src/prep/spawn.ts` — modify; drop `runWithConcurrency` (keeps `spawnClaude` only)
-- `src/prep/prep-fanout.ts` — modify; import `runWithConcurrency` from core
+- `src/prep/prep-fanout.ts` — modify; import `runWithConcurrency` + `gitStatusPorcelain` from core, drop the local helper
 - `src/core/agent-runner/types.ts` — modify; append `'researcher'` to `AGENT_ROLES`
 - `src/core/agent-runner/__tests__/registry.test.ts` — modify; researcher default-resolution test
 - `src/research/types.ts` — create; zod schemas (TaskSpec, tasks file, ResearchMeta) + result/manifest interfaces
@@ -41,12 +43,14 @@ Spec: `docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jo
 
 ---
 
-## Task 1: Hoist `runWithConcurrency` to `src/core/concurrency.ts`
+## Task 1: Hoist `runWithConcurrency` + `gitStatusPorcelain` to core
 
 **Files:**
 
 - Create: `src/core/concurrency.ts`
 - Create: `src/core/__tests__/concurrency.test.ts`
+- Create: `src/core/git-porcelain.ts`
+- Create: `src/core/__tests__/git-porcelain.test.ts`
 - Modify: `src/prep/spawn.ts`
 - Modify: `src/prep/prep-fanout.ts`
 
@@ -139,9 +143,60 @@ export async function runWithConcurrency<T>(
 }
 ```
 
-- [ ] **Step 4: Delete the util from `src/prep/spawn.ts`** — remove the `runWithConcurrency` function and its JSDoc (lines 33-57); the file ends after `spawnClaude`.
+- [ ] **Step 4: Write the failing git-porcelain test**
 
-- [ ] **Step 5: Update the prep import** — in `src/prep/prep-fanout.ts` replace:
+Create `src/core/__tests__/git-porcelain.test.ts`:
+
+```ts
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { gitStatusPorcelain } from '../git-porcelain';
+
+let dir: string;
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'git-porcelain-'));
+});
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
+
+describe('gitStatusPorcelain', () => {
+  it('fails open to empty string outside a git repo', () => {
+    expect(gitStatusPorcelain(dir)).toBe('');
+  });
+});
+```
+
+- [ ] **Step 5: Run to verify FAIL**
+
+```bash
+pnpm vitest run src/core/__tests__/git-porcelain.test.ts
+```
+
+Expected output: module-resolve failure for `../git-porcelain`.
+
+- [ ] **Step 6: Create `src/core/git-porcelain.ts`** (implementation moved verbatim from `src/prep/prep-fanout.ts:21-27`, doc generalized):
+
+```ts
+import { execFileSync } from 'node:child_process';
+
+/**
+ * `git status --porcelain` (tracked changes only). Returns '' when git is
+ * unavailable so callers' tree guards never block their run — fail-open by
+ * contract. Callers snapshot before/after a spawn batch and warn on delta.
+ */
+export function gitStatusPorcelain(cwd: string): string {
+  try {
+    return execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
+  } catch {
+    return '';
+  }
+}
+```
+
+- [ ] **Step 7: Delete the hoisted code from prep** — in `src/prep/spawn.ts` remove the `runWithConcurrency` function and its JSDoc (lines 33-57; the file ends after `spawnClaude`). In `src/prep/prep-fanout.ts` remove the local `gitStatusPorcelain` function and its JSDoc (lines 16-27) and replace:
 
 ```ts
 import { spawnClaude, runWithConcurrency } from './spawn.js';
@@ -151,22 +206,25 @@ with:
 
 ```ts
 import { runWithConcurrency } from '../core/concurrency.js';
+import { gitStatusPorcelain } from '../core/git-porcelain.js';
 import { spawnClaude } from './spawn.js';
 ```
 
-- [ ] **Step 6: Run to verify PASS**
+(Also drop the now-unused `execFileSync` import from `prep-fanout.ts` if nothing else in the file uses it.)
+
+- [ ] **Step 8: Run to verify PASS**
 
 ```bash
-pnpm vitest run src/core/__tests__/concurrency.test.ts src/prep && pnpm typecheck
+pnpm vitest run src/core/__tests__/concurrency.test.ts src/core/__tests__/git-porcelain.test.ts src/prep && pnpm typecheck
 ```
 
-Expected output: concurrency suite 4 passed; all prep suites pass; typecheck clean.
+Expected output: concurrency suite 4 passed, git-porcelain 1 passed; all prep suites pass; typecheck clean.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add src/core/concurrency.ts src/core/__tests__/concurrency.test.ts src/prep/spawn.ts src/prep/prep-fanout.ts
-git commit -m "refactor(core): hoist runWithConcurrency from prep to core" -m "Noldor-FD: parallel-agent-dispatch-for-research-jobs"
+git add src/core/concurrency.ts src/core/__tests__/concurrency.test.ts src/core/git-porcelain.ts src/core/__tests__/git-porcelain.test.ts src/prep/spawn.ts src/prep/prep-fanout.ts
+git commit -m "refactor(core): hoist runWithConcurrency + gitStatusPorcelain from prep to core" -m "Noldor-FD: parallel-agent-dispatch-for-research-jobs"
 ```
 
 ---
@@ -181,13 +239,14 @@ git commit -m "refactor(core): hoist runWithConcurrency from prep to core" -m "N
 - [ ] **Step 1: Write the failing test** — append to the existing `describe('resolveRunner', …)` block in `src/core/agent-runner/__tests__/registry.test.ts`:
 
 ```ts
-it('researcher role exists and defaults to claude', () => {
+it('researcher is a declared role that defaults to claude', () => {
+  expect(AGENT_ROLES).toContain('researcher');
   const cfg = agentsConfigSchema.parse({});
   expect(resolveRunner('researcher', cfg)).toEqual({ runner: 'claude' });
 });
 ```
 
-(`agentsConfigSchema` is already imported in that file via `../types`; if not, add `import { agentsConfigSchema } from '../types';`.)
+Add the needed imports: `import { AGENT_ROLES, agentsConfigSchema } from '../types';` (merge into the existing `../types` import if one exists). The `AGENT_ROLES` containment assertion is what makes this genuinely red: vitest transpiles without typechecking, and `resolveRunner('researcher', …)` alone would already return `{ runner: 'claude' }` today via the `cfg.default` fallback (`registry.ts:38-41`).
 
 - [ ] **Step 2: Run to verify FAIL**
 
@@ -195,7 +254,7 @@ it('researcher role exists and defaults to claude', () => {
 pnpm vitest run src/core/agent-runner/__tests__/registry.test.ts
 ```
 
-Expected output: TS type error / failing test — `'researcher'` is not assignable to `AgentRole`.
+Expected output: 1 failed — `expected [ 'implementer', 'reviewer', 'second-opinion', 'polish', 'verifier' ] to include 'researcher'`.
 
 - [ ] **Step 3: Append the role** — in `src/core/agent-runner/types.ts` change:
 
@@ -886,16 +945,16 @@ Expected output: module-resolve failure for `../fanout`.
 - [ ] **Step 3: Create `src/research/fanout.ts`**
 
 ```ts
-import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 
 import { runWithConcurrency } from '../core/concurrency.js';
+import { gitStatusPorcelain } from '../core/git-porcelain.js';
 import { spawnAgent } from '../core/agent-runner/registry.js';
 
 import { buildResearchPrompt, parseResearchStdout } from './prompt.js';
 import { createBatchDir, findingsFileName, renderIndex, writeManifest } from './staging.js';
-import { tasksFileSchema, type ResearchResult, type TaskSpec } from './types.js';
+import { FALLBACK_META, tasksFileSchema, type ResearchResult, type TaskSpec } from './types.js';
 
 export interface FanoutArgs {
   tasksFile?: string;
@@ -911,6 +970,12 @@ function intArg(value: string | undefined, name: string): number {
   const n = Number(value);
   if (!Number.isInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer`);
   return n;
+}
+
+/** Consume a flag's value; a missing value or a following `--flag` is a usage error. */
+function strArg(value: string | undefined, name: string): string {
+  if (value === undefined || value.startsWith('--')) throw new Error(`${name} requires a value`);
+  return value;
 }
 
 export function parseArgs(argv: readonly string[]): FanoutArgs {
@@ -929,12 +994,9 @@ export function parseArgs(argv: readonly string[]): FanoutArgs {
     else if (a === '--synthesize') args.synthesize = true;
     else if (a === '--max') args.max = intArg(argv[++i], '--max');
     else if (a === '--timeout') args.timeoutMs = intArg(argv[++i], '--timeout');
-    else if (a === '--tasks') args.tasksFile = argv[++i];
-    else if (a === '--task') {
-      const q = argv[++i];
-      if (!q) throw new Error('--task requires a question');
-      args.inlineTasks.push(q);
-    } else throw new Error(`unknown flag: ${a}`);
+    else if (a === '--tasks') args.tasksFile = strArg(argv[++i], '--tasks');
+    else if (a === '--task') args.inlineTasks.push(strArg(argv[++i], '--task'));
+    else throw new Error(`unknown flag: ${a}`);
   }
   return args;
 }
@@ -982,24 +1044,13 @@ export interface RunDeps {
 
 const COST_WARN_TASKS = 8;
 
-/**
- * `git status --porcelain`, '' when git is unavailable (never blocks a fanout).
- * Belt-and-braces for the read-only contract: children hold no write tools by
- * flag, but the prompt is the only fence around their bash — verify, don't trust.
- */
-function gitStatusPorcelain(cwd: string): string {
-  try {
-    return execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
-  } catch {
-    return '';
-  }
-}
-
 export async function run(argv: readonly string[], deps: RunDeps = {}): Promise<number> {
   const args = parseArgs(argv);
   const cwd = deps.cwd ?? process.cwd();
   const now = deps.now ?? (() => new Date());
-  const spawn: SpawnAgentLike = deps.spawnAgentImpl ?? (spawnAgent as unknown as SpawnAgentLike);
+  // spawnAgent is structurally assignable: SpawnAgentLike's opts are narrower
+  // than SpawnAgentOpts and AgentResult matches the return shape — no cast.
+  const spawn: SpawnAgentLike = deps.spawnAgentImpl ?? spawnAgent;
 
   const tasks = loadTasks(args, cwd);
 
@@ -1019,8 +1070,9 @@ export async function run(argv: readonly string[], deps: RunDeps = {}): Promise<
     );
   }
 
-  const startedAt = now().toISOString();
-  const batch = createBatchDir(cwd, now());
+  const startedDate = now(); // one capture — manifest.startedAt and the dir stamp must agree
+  const startedAt = startedDate.toISOString();
+  const batch = createBatchDir(cwd, startedDate);
   process.stderr.write(
     `research fanout: ${tasks.length} researcher(s) into ${batch.rel} (max ${args.max} concurrent)\n`,
   );
@@ -1029,36 +1081,51 @@ export async function run(argv: readonly string[], deps: RunDeps = {}): Promise<
   const results: ResearchResult[] = new Array(tasks.length);
   await runWithConcurrency(tasks, args.max, async (task, index) => {
     process.stderr.write(`  -> researching ${task.id}\n`);
-    let spawnStatus: string;
-    let stdout = '';
-    try {
-      const res = await spawn(buildResearchPrompt(task), {
-        role: 'researcher',
-        needsWrite: false,
-        stdio: 'pipe',
-        site: 'research.fanout',
-        timeoutMs: args.timeoutMs,
-        cwd,
-      });
-      stdout = res.stdout;
-      spawnStatus = res.timedOut ? 'timeout' : res.exitCode === 0 ? 'ok' : `exit ${res.exitCode}`;
-    } catch (err) {
-      // One rejected spawn (capability-mismatch, ENOENT) must never lose the
-      // in-flight batch — runWithConcurrency rejects the whole run on a throw.
-      spawnStatus = `error: ${(err as Error).message}`;
-    }
-    const parsed = parseResearchStdout(stdout);
     const file = findingsFileName(task.id);
-    const header = `<!-- research id:${task.id} status:${parsed.meta.status} spawn:${spawnStatus} -->`;
-    writeFileSync(join(batch.abs, file), `${header}\n\n${parsed.findings}\n`, 'utf8');
-    results[index] = {
-      id: task.id,
-      question: task.question,
-      ok: spawnStatus === 'ok' && parsed.parsed,
-      spawnStatus,
-      meta: parsed.meta,
-      findingsFile: file,
-    };
+    // Whole worker body guarded: ANY throw (spawn rejection, parse bug, disk
+    // error on write) must fail only this task — runWithConcurrency rejects
+    // the whole run on an uncaught throw and would lose the in-flight batch.
+    try {
+      let spawnStatus: string;
+      let stdout = '';
+      try {
+        const res = await spawn(buildResearchPrompt(task), {
+          role: 'researcher',
+          needsWrite: false,
+          stdio: 'pipe',
+          site: 'research.fanout',
+          timeoutMs: args.timeoutMs,
+          cwd,
+        });
+        stdout = res.stdout;
+        spawnStatus = res.timedOut ? 'timeout' : res.exitCode === 0 ? 'ok' : `exit ${res.exitCode}`;
+      } catch (err) {
+        spawnStatus = `error: ${(err as Error).message}`;
+      }
+      const parsed = parseResearchStdout(stdout);
+      // Comment header carries enum/kebab-safe fields only (id regex + status
+      // enum) — free text like spawnStatus could embed `-->`; it lives in the
+      // manifest and INDEX instead.
+      const header = `<!-- research id:${task.id} status:${parsed.meta.status} -->`;
+      writeFileSync(join(batch.abs, file), `${header}\n\n${parsed.findings}\n`, 'utf8');
+      results[index] = {
+        id: task.id,
+        question: task.question,
+        ok: spawnStatus === 'ok' && parsed.parsed,
+        spawnStatus,
+        meta: parsed.meta,
+        findingsFile: file,
+      };
+    } catch (err) {
+      results[index] = {
+        id: task.id,
+        question: task.question,
+        ok: false,
+        spawnStatus: `error: ${(err as Error).message}`,
+        meta: FALLBACK_META,
+        findingsFile: file,
+      };
+    }
   });
 
   // Post-batch tree diff: any change vs the pre-spawn snapshot means a child
