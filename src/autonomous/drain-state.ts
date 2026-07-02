@@ -31,6 +31,43 @@ export interface DrainState {
   agentPgids?: number[];
 }
 
+/** Per-heartbeat snapshot the drain loop reports (the `DrainDeps.writeState` argument). */
+export interface DrainStateSnapshot {
+  phase: 'spawning' | 'awaiting-merge' | 'idle';
+  inFlight: InFlight[];
+  merging: string | null;
+  shipped: number;
+  skip: string[];
+  retries: Record<string, number>;
+  /** pgids of the gate children currently in flight — the orphan-reap carrier. */
+  agentPgids: number[];
+}
+
+/**
+ * Project a loop snapshot into the persisted {@link DrainState} heartbeat.
+ * Shared by `run` and `watch` so no runner can silently drop a field —
+ * `watch` omitting `agentPgids` here is exactly what left its dead-run agent
+ * children invisible to the next startup's `reapOrphanAgents`.
+ */
+export function projectDrainState(
+  pid: number,
+  startedAt: string,
+  s: DrainStateSnapshot,
+): DrainState {
+  return {
+    pid,
+    startedAt,
+    phase: s.phase,
+    inFlight: s.inFlight,
+    merging: s.merging,
+    currentSlug: s.inFlight[0]?.slug ?? null, // back-compat projection
+    shipped: s.shipped,
+    skip: s.skip,
+    retries: s.retries,
+    agentPgids: s.agentPgids,
+  };
+}
+
 /**
  * Best-effort heartbeat write to `.noldor/drain-state.json`. A failure logs to
  * stderr but never throws — a state-write failure must not crash the loop (spec

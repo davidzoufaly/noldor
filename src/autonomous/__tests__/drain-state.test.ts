@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { writeState } from '../drain-state.js';
+import { writeState, projectDrainState } from '../drain-state.js';
 
 let dir: string;
 beforeEach(() => {
@@ -10,6 +10,47 @@ beforeEach(() => {
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
+});
+
+describe('projectDrainState', () => {
+  it('carries every loop-snapshot field into the heartbeat — including agentPgids', () => {
+    // watch used to hand-roll this mapping and silently dropped agentPgids,
+    // leaving its dead-run agent children invisible to reapOrphanAgents.
+    const s = projectDrainState(42, '2026-07-02T00:00:00Z', {
+      phase: 'spawning' as const,
+      inFlight: [{ slug: 'a', phase: 'building' as const }],
+      merging: 'b',
+      shipped: 3,
+      skip: ['c'],
+      retries: { a: 1 },
+      agentPgids: [111, 222],
+    });
+    expect(s).toEqual({
+      pid: 42,
+      startedAt: '2026-07-02T00:00:00Z',
+      phase: 'spawning',
+      inFlight: [{ slug: 'a', phase: 'building' }],
+      merging: 'b',
+      currentSlug: 'a',
+      shipped: 3,
+      skip: ['c'],
+      retries: { a: 1 },
+      agentPgids: [111, 222],
+    });
+  });
+
+  it('projects currentSlug null when nothing is in flight', () => {
+    const s = projectDrainState(1, 't', {
+      phase: 'idle' as const,
+      inFlight: [],
+      merging: null,
+      shipped: 0,
+      skip: [],
+      retries: {},
+      agentPgids: [],
+    });
+    expect(s.currentSlug).toBeNull();
+  });
 });
 
 describe('writeState', () => {

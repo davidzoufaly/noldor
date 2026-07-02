@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 
-export type NotifyKind = 'escalation' | 'cycle-summary' | 'watcher-tripped';
+export type NotifyKind = 'escalation' | 'cycle-summary' | 'watcher-tripped' | 'reconcile-failed';
 
 /**
  * Pluggable consumer notification hook (spec Unit 4). POSIX-only by
