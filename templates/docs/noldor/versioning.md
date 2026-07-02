@@ -63,10 +63,12 @@ skip the sweep; minor and major bumps MUST NOT.
    **Framework checks (always run, via the `noldor` CLI):**
    - `pnpm noldor garden detect --gate-compliance` — zero override-tier-mismatch
      findings required; aborts if any gate-compliance findings exist.
-     Bypass with `RELEASE_SKIP_GATE_COMPLIANCE=1 pnpm release` when a
-     release cycle ends with known scope-vs-FD-slug drift that can't be
-     fixed without rewriting public history. The bypass is loud (printed
-     in release output) and is intended as an escape hatch, not the norm.
+     Expected self-host override noise is declared per-entry in
+     `garden.overrideAudit.expected` (`.noldor/config.json`) so it stops
+     counting toward the override-audit WARN threshold — see
+     [`cr-pipeline.md`](cr-pipeline.md). `RELEASE_SKIP_GATE_COMPLIANCE=1
+     pnpm release` remains a logged break-glass hatch for findings that
+     can't be fixed without rewriting public history, not the norm.
    - `pnpm noldor garden sdd-report --release` — and `docs/sdd-report.md` must have no
      resulting diff (un-committed report regen aborts). The `--release`
      flag includes the Gate compliance section (tier distribution,
@@ -75,12 +77,16 @@ skip the sweep; minor and major bumps MUST NOT.
    - `checkCrGate(prev-tag..HEAD)` — every code-touching commit must
      show review evidence: a `Noldor-Reviewed(-Subagent|-Codex)` receipt
      or a non-empty override trailer, scanned across the whole squash
-     commit body. See [`cr-pipeline.md`](cr-pipeline.md). Bypass with
-     `RELEASE_SKIP_CR_GATE=1 pnpm release` when shipping a transition
-     release where the CR pipeline itself was added during the cycle and
-     pre-cycle commits never had a chance to carry the trailers. Same
-     escape-hatch discipline as `RELEASE_SKIP_GATE_COMPLIANCE`; both
-     skips append a `(release)`-tagged line to `.noldor/overrides.log`.
+     commit body. See [`cr-pipeline.md`](cr-pipeline.md). Individual
+     receipt-less historical commits are acknowledged per-SHA in
+     `release.crGateExemptCommits` (`.noldor/config.json`) with a
+     required reason, instead of skipping the whole check.
+     `RELEASE_SKIP_CR_GATE=1 pnpm release` remains a logged break-glass
+     hatch (e.g. a transition release where the CR pipeline itself was
+     added mid-cycle). Same escape-hatch discipline as
+     `RELEASE_SKIP_GATE_COMPLIANCE`; all three skips — the garden gate
+     included — append a `(release)`-tagged line to
+     `.noldor/overrides.log`.
 
    **Consumer quality gates (run only if declared in the consumer's
    `package.json`; a repo without one skips it loudly):** `pnpm typecheck`,

@@ -202,6 +202,18 @@ Failures abort the release with a per-commit diagnostic. Skipping via
 `RELEASE_SKIP_CR_GATE=1` appends a `(release)`-tagged line to
 `.noldor/overrides.log`.
 
+A known-bad historical commit is acknowledged per-SHA instead of
+skipping the whole gate: add a `release.crGateExemptCommits` entry
+(`sha` prefix, min 7 hex chars, plus a required `reason`) to
+`.noldor/config.json`. `checkCrGate` skips matching commits, reports
+them under `exempted`, and the release log echoes each one
+(`→ CR gate: exempted <sha> — <reason>`); the committed config diff is
+the audit trail. Expected self-host override noise is declared the same
+way under `garden.overrideAudit.expected` (matched by `shaPrefix`
+and/or `reasonIncludes`, with a required `note`); matched overrides
+stop counting toward the override-audit WARN threshold but stay listed
+in `/garden` output and the SDD report with an `(expected)` marker.
+
 ## Verify lane
 
 The `verify` lane (code artifacts only) is the behavioral third signal beside
