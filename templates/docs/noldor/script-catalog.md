@@ -98,21 +98,21 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 - **Trigger:** `pnpm noldor hooks inject-trailers <commit-msg-file>`. Runs in `prepare-commit-msg` (`noldor-inject-trailers` job).
 - **Inputs:** `.noldor/session.json`; commit message file path.
-- **Outputs:** injects `Noldor-Path`, `Noldor-FD` (if applicable), and (post-review) `Noldor-Reviewed` into the commit message via `git interpret-trailers --in-place`. Authors don't hand-type trailers when going through `/gate`.
+- **Outputs:** injects `Noldor-Path`, `Noldor-FD` (from the marker's `slug` or `parent`), and `Noldor-Enhancement` (attach paths) into the commit message via `git interpret-trailers --in-place`. The review receipt (`Noldor-Reviewed-Subagent`) is NOT injected here — gate Step 4 amends it onto the tip commit after the code-stage CR. Authors don't hand-type trailers when going through `/gate`.
 - **Source:** [`src/hooks/noldor-inject-trailers.ts`](../../src/hooks/noldor-inject-trailers.ts)
 
 ### `hook:noldor:validate-trailer`
 
 - **Trigger:** `pnpm noldor hooks validate-trailer <commit-msg-file>`. Runs in `commit-msg` (`noldor-validate-trailer` job).
 - **Inputs:** commit message file path.
-- **Outputs:** parses trailers via `git interpret-trailers --parse`. Rejects the commit when a `Noldor-*` trailer-shaped line in the final paragraph is invisible to git (a value wrapped to an unindented continuation line invalidates the whole trailer block — keep values single-line or indent continuations). Validates schema and trailer-vs-FD consistency. Accepts `Noldor-Path-Override: <reason>` (logs to `.noldor/overrides.log`); accepts `Noldor-Path: release-automation` unconditionally; otherwise requires a valid path trailer + per-path checks (FD existence, tier match, review receipt, spec existence). Exit 1 on invalid.
+- **Outputs:** parses trailers via `git interpret-trailers --parse`. Rejects the commit when a `Noldor-*` trailer-shaped line in the final paragraph is invisible to git (a value wrapped to an unindented continuation line invalidates the whole trailer block — keep values single-line or indent continuations). Validates schema and trailer-vs-FD consistency. Accepts `Noldor-Path-Override: <reason>` (logs to `.noldor/overrides.log`); validates `Noldor-Path: release-automation` via its own branch; otherwise requires a valid path trailer + per-path checks (allowlist re-check for `micro-chore`/`release-sweep`, FD existence, tier match, `Noldor-Enhancement` + spec existence on attach paths). The review receipt is NOT checked at commit-msg — that's the pre-push hook's job. Exit 1 on invalid.
 - **Source:** [`src/hooks/noldor-validate-trailer.ts`](../../src/hooks/noldor-validate-trailer.ts)
 
 ### `hook:noldor:enforce-review-receipt`
 
 - **Trigger:** `pnpm noldor hooks enforce-review-receipt`. Runs in `pre-push` (`noldor-enforce-review-receipt` job).
 - **Inputs:** tip commit trailers; `git rev-parse HEAD^{tree}`.
-- **Outputs:** for any tip commit on paths 2–6, validates `Noldor-Reviewed: <tree-hash>` equals `HEAD^{tree}`. Rejects the push when the tree hash mismatches (new code committed after the review receipt). Tip commits carrying `Noldor-Path-Override: <reason>` skip the check entirely (escape hatch wins over auto-injected `Noldor-Path`). Exit 1 with instructions to re-run review.
+- **Outputs:** for any tip commit on paths 2–6, validates the receipt trailer — `Noldor-Reviewed-Subagent: <tree-hash>` (current, amended at gate Step 4) or `Noldor-Reviewed` (legacy) — equals `HEAD^{tree}`. Rejects the push when the tree hash mismatches (new code committed after the review receipt). Tip commits carrying `Noldor-Path-Override: <reason>` skip the check entirely (escape hatch wins over auto-injected `Noldor-Path`). Exit 1 with instructions to re-run review.
 - **Source:** [`src/hooks/noldor-enforce-review-receipt.ts`](../../src/hooks/noldor-enforce-review-receipt.ts)
 
 ### `hook:noldor:pre-push`

@@ -22,7 +22,7 @@ Every change picks exactly one of six gate paths, chosen via [`/gate`](../../.cl
 
 A `specs-only` FD can receive a `full-attach` enhancement and vice versa. The parent FD's `noldor-tier` records its own creation depth, not the depth of subsequent attached work. Attach history is reconstructed from `Noldor-Path` trailers in attaching commits, not from the parent FD's frontmatter.
 
-There is also a 7th internal path `release-automation` reserved for the `pnpm release` script's `chore(release): v…` commit. It carries `Noldor-Path: release-automation` and is the only path the hook accepts without `Noldor-FD` or `Noldor-Reviewed`. Users cannot pick this path via `/gate`; the release script provisions the session marker and the `prepare-commit-msg` hook injects the trailer from it.
+There are also two internal paths users cannot pick via `/gate`: `release-automation`, reserved for the `pnpm release` script's `chore(release): v…` commit (validated by its own branch in the commit-msg hook), and `release-sweep`, used by the [`/release-sweep`](../../.claude/skills/release-sweep/SKILL.md) skill's pre-release regen commits (allowlist-enforced like `micro-chore`, see `RELEASE_SWEEP_GLOBS` in `src/core/allowlist.ts`). In both cases the script/skill provisions the session marker and the `prepare-commit-msg` hook injects the trailer from it.
 
 ## Size → path
 
@@ -40,11 +40,12 @@ The mapping is encoded once in [`sizeToPath()`](../../src/core/size-routing.ts) 
 
 ## Allowlist for `micro-chore`
 
-The pre-commit hook enforces that `micro-chore` diffs match this set of globs only:
+The pre-commit hook enforces that `micro-chore` diffs match this set of globs only (`MICRO_CHORE_GLOBS` in `src/core/allowlist.ts`):
 
 - `docs/**/*.md`
-- `.claude/**`
+- `.claude/**` and its template twins `templates/.claude/**`
 - Root `*.md` (e.g. `ideas.md`, `README.md`, `CLAUDE.md`)
+- `lefthook.yml`, `.gitignore`, `.noldor/rollout-marker` (framework config edits)
 
 Any diff that escapes the allowlist must use a heavier path (`fast-track` at minimum).
 

@@ -49,20 +49,31 @@ Commit-msg hook also enforces `validate:feature-slug-scope` and `validate:noldor
 
 ## Gate trailers
 
-Every commit on paths 2–6 (post-rollout) must carry `Noldor-*` trailers. The `commit-msg` hook (`src/hooks/noldor-validate-trailer.ts`) validates them.
+Every commit (post-rollout — the `.noldor/rollout-marker` is live in this repo) must carry `Noldor-*` trailers. The `commit-msg` hook (`src/hooks/noldor-validate-trailer.ts`) validates them.
 
 ### Trailer schema
 
 ```
-Noldor-Path: micro-chore | fast-track | specs-only-new | specs-only-attach | full-new | full-attach | release-automation
-Noldor-FD: <slug>                # required for paths 3–6
-Noldor-Reviewed: <tree-hash>     # required for paths 2–6 — git tree hash of the reviewed commit
+Noldor-Path: micro-chore | fast-track | specs-only-new | specs-only-attach | full-new | full-attach | release-sweep | release-automation
+Noldor-FD: <slug>                        # required for specs-only-* / full-* paths
+Noldor-Enhancement: <slug>               # required for attach paths (specs-only-attach, full-attach)
+Noldor-Reviewed-Subagent: <tree-hash>    # amended on the tip commit at gate Step 4 — validated pre-push, NOT at commit-msg
+Noldor-Phase-Revert: 1                   # phase-revert scaffold commits — bypasses the spec-file existence check (attach paths and specs-only-new)
 ```
 
-Override (emergency bypass — audited by `/garden`):
+Per-path `commit-msg` validation (what the hook actually checks):
+
+- `micro-chore` / `release-sweep` — re-validates the staged diff against the matching allowlist (`src/core/allowlist.ts`), so a hand-typed trailer can't launder a code change.
+- `fast-track` — path trailer only; no FD, no review receipt at commit time.
+- `specs-only-new` / `full-new` — `Noldor-FD` must resolve to an existing FD whose `noldor-tier` matches the path; `full-new` additionally requires `links.spec` in the FD frontmatter; `specs-only-new` requires a spec file on disk at `docs/superpowers/specs/<date>-<slug>-design.md` (existence check only — the hook doesn't verify it's committed). `Noldor-Phase-Revert: 1` bypasses the spec check on `specs-only-new`.
+- `specs-only-attach` / `full-attach` — require `Noldor-Enhancement` and a spec file on disk at `docs/superpowers/specs/<date>-<parent>-<enhancement>-design.md`. A `Noldor-Phase-Revert: 1` commit bypasses both (the revert scaffold commits before the spec exists).
+- `release-automation` — validated separately (release pipeline commits).
+
+Overrides (emergency bypass — both append to an audit log surfaced by `/garden`):
 
 ```
-Noldor-Path-Override: <human-readable reason>
+Noldor-Path-Override: <human-readable reason>        # → .noldor/overrides.log
+Noldor-CR-Override-Codex: <human-readable reason>    # → .noldor/cr-overrides.log
 ```
 
 ### Examples
@@ -75,29 +86,29 @@ docs(noldor): fix typo in lifecycle.md
 Noldor-Path: micro-chore
 ```
 
-`fast-track` — small code fix, review required, no FD:
+`fast-track` — small code fix, no FD. The review receipt is amended onto the tip commit at gate Step 4 (after the code-stage CR), so the pushed tip looks like:
 
 ```
 fix(engine): correct off-by-one in triangulation loop
 
 Noldor-Path: fast-track
-Noldor-Reviewed: 4a2f9c1e8d3b7f6a0e5c2d1b9a8f7e4c3d2b1a0f
+Noldor-Reviewed-Subagent: 4a2f9c1e8d3b7f6a0e5c2d1b9a8f7e4c3d2b1a0f
 ```
 
-`full-new` — new FD, spec, plan, review all required:
+`full-new` — new FD, spec, plan; receipt amended on the tip at Step 4:
 
 ```
 feat(engine:boolean-operations): implement union operator
 
 Noldor-Path: full-new
 Noldor-FD: boolean-operations
-Noldor-Reviewed: 7f3e2a1b9c8d4e5f6a7b8c9d0e1f2a3b4c5d6e7f
+Noldor-Reviewed-Subagent: 7f3e2a1b9c8d4e5f6a7b8c9d0e1f2a3b4c5d6e7f
 ```
 
 ### Auto-injection
 
-The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.noldor/session.json` and injects `Noldor-Path` and `Noldor-FD` automatically. Authors don't type them by hand when going through `/gate`.
+The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.noldor/session.json` and injects `Noldor-Path`, `Noldor-FD` (from `slug` or `parent`), and `Noldor-Enhancement` automatically. Authors don't type them by hand when going through `/gate`.
 
 ### Pre-push hook
 
-`src/hooks/noldor-enforce-review-receipt.ts` validates `Noldor-Reviewed: <tree-hash>` against `git rev-parse HEAD^{tree}`. If new code was committed after the review receipt, the tree hash mismatches and the push is rejected — re-run review.
+`src/hooks/noldor-enforce-review-receipt.ts` validates the review receipt on the **tip commit** for review-requiring paths (`fast-track`, `specs-only-*`, `full-*`): the trailer's tree hash must match `git rev-parse HEAD^{tree}`. Both trailer names are accepted — `Noldor-Reviewed-Subagent` (multi-reviewer gate Step 4, current) and `Noldor-Reviewed` (legacy single-reviewer). If new code was committed after the review receipt, the tree hash mismatches and the push is rejected — re-run review. Interim commits don't need a receipt; only the tip is checked.

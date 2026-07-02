@@ -5,14 +5,13 @@ introduced: 0.5.0
 
 # PR Flow + Agent Auto-Merge
 
-Every gate path lands `main` only via a GitHub PR opened by the controlling agent. The CR pipeline (Claude review + `pnpm noldor cr codex`) runs locally as a pre-merge gate; once green, the agent sets `gh pr merge --auto --squash` and polls until merged.
+Every gate path lands `main` only via a GitHub PR opened by the controlling agent. The CR pipeline (`pnpm noldor cr orchestrate --kind code`, subagent lane by default; codex opt-in via `crLanes.code` config) runs locally as a pre-merge gate; once green, the agent sets `gh pr merge --auto --squash` and polls until merged.
 
 ## Top-level flow
 
 ```
 gate end-of-flow (any path)
-  ├─ Claude review (noldor cr orchestrate --kind code, subagent lane) — address inline, no retry cap
-  ├─ codex CR retry loop (src/core/cr-retry.ts) — up to 3 retries
+  ├─ code-stage CR (noldor cr orchestrate --kind code, subagent lane; codex opt-in via crLanes.code) — address inline, no retry cap
   ├─ pnpm noldor pr-flow → openAndAutoMerge (src/core/pr-flow-cli.ts → pr-flow.ts):
   │    1. preflight: gh --version + gh auth status
   │    2. git push --force-with-lease --set-upstream origin <branch>
@@ -73,7 +72,7 @@ gh pr create --base main --head "$(git rev-parse --abbrev-ref HEAD)" \
 gh pr merge "$(gh pr view --json url --jq .url)" --auto --squash
 ```
 
-You lose the composed PR body (CR result table, scope block, spec/plan links) but the merge mechanics are identical. File the CLI regression as a follow-up against `framework-pr-flow-agent-auto-merge`. Do NOT skip the gate's review steps in the fallback path — the CR receipt + codex retry loop still run before this point.
+You lose the composed PR body (CR result table, scope block, spec/plan links) but the merge mechanics are identical. File the CLI regression as a follow-up against `framework-pr-flow-agent-auto-merge`. Do NOT skip the gate's review steps in the fallback path — the code-stage CR + receipt amend still run before this point.
 
 ## Auto-merge fallback
 
@@ -113,7 +112,7 @@ docs(features:<parent-slug>): revert phase done → in-progress for attach sessi
 
 These commits are written by `/gate` Step 2 scaffolding (see [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md) "Phase-revert lifecycle (attach paths)").
 
-The reverse (`phase: in-progress → done`) is auto-restored by `release-markers.ts:fillMarkers` at the next `pnpm release` — see [versioning.md](versioning.md) step 4 and the [changelog-pr-flow-integration spec](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3 for the asymmetric model.
+The reverse (`phase: in-progress → done`) is written by `/gate` Step 4 end-of-flow (`pnpm noldor features phase-flip-done`) so it lands on `main` inside the feature PR; `release-markers.ts:fillMarkers` remains the release-time safety net for FDs that missed the flip — see [versioning.md](versioning.md) step 4 and the [changelog-pr-flow-integration spec](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3 for the original (now superseded) asymmetric model.
 
 ## Open-only mode (parallel drain)
 
