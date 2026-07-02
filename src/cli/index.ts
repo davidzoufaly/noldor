@@ -2,6 +2,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MANIFEST } from './manifest.js';
 import { printHelp } from './help.js';
+import { installedFrameworkVersion } from '../migrations/pkg-version.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // `src/cli/` → `src/` (one level up).
@@ -25,7 +26,7 @@ async function main(): Promise<void> {
   const [, , group, sub, ...rest] = process.argv;
 
   if (group === '--version') {
-    console.log('noldor v0');
+    console.log(`noldor v${installedFrameworkVersion()}`);
     return;
   }
 

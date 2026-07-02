@@ -14,17 +14,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Phase 1 — Self-Truth Quick Fixes
 
-#### README and Version Output Staleness
-
-- area: docs
-- type: fix
-- since: 2026-07-01
-- size: XS
-- impact: med
-- confidence: high
-
-Adoption surface lies: README still says 0.3.0 and "migration chain tracked on roadmap" (shipped PR #104 — `noldor upgrade` + chain + doctor skew all live); `noldor --version` prints hardcoded `noldor v0` (`src/cli/index.ts:27-30` — derive from package.json). Same pass: `docs/noldor/testing-principles.md` claims `pnpm test:coverage` exists (it doesn't) and "pre-push runs `pnpm verify`" (false — CI runs it since PR #117, pre-push runs receipt/push-block/template-sync).
-
 #### Prep Promote Preflight Ignores Untracked Files
 
 - area: tooling

@@ -97,7 +97,8 @@ pnpm noldor validate features # framework: schema + @tests: cross-check
 | Event                    | Lanes                                                                       |
 | ------------------------ | --------------------------------------------------------------------------- |
 | Pre-commit               | `noldor sync test-links` + `noldor validate features` (+ the consumer's hook jobs) |
-| Pre-push (`pnpm verify`) | the consumer's composite gate (e.g. `lint && fmt:check && typecheck && test`) |
+| Pre-push                 | framework hooks only: review-receipt enforcement, push-block, template-sync |
+| CI (push/PR)             | `pnpm verify` — the consumer's composite gate (e.g. `lint && fmt:check && typecheck && test`) |
 | Release precondition     | framework checks (always) + the consumer's declared `test*`/`build`/`docs:build` (if present) |
 
 ## Flake policy
@@ -119,9 +120,10 @@ Determinism practices:
 
 ## Coverage
 
-`pnpm test:coverage` generates an HTML report in `./coverage/`. No
-threshold gate — coverage is a signal for where more tests might help, not a
-quota.
+No coverage tooling is wired up — there is no `test:coverage` script and no
+coverage provider installed. If a coverage report would help, add a vitest
+coverage provider and run it ad hoc. Either way, no threshold gate — coverage
+is a signal for where more tests might help, not a quota.
 
 ## Adding a new test
 
