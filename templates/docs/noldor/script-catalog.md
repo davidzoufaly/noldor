@@ -124,9 +124,9 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 ### `hook:noldor:pre-edit-guard`
 
-- **Trigger:** `pnpm noldor hooks pre-edit-guard`. Intended as a Claude Code **PreToolUse** guard (settings.json), not a git hook — it is **not** wired into `lefthook/noldor.yml`.
-- **Inputs:** the rollout marker + `.noldor/session.json` + the target file path.
-- **Outputs:** in soft mode (pre-rollout marker absent) it always passes; once the rollout marker exists, it blocks edits to tracked files unless a `/gate` session marker is present. Enforces "no edit without `/gate`".
+- **Trigger:** wired as a Claude Code **PreToolUse** hook on `Edit|Write|NotebookEdit` in `.claude/settings.json` (`pnpm --silent noldor hooks pre-edit-guard`), not a git hook — it is **not** wired into `lefthook/noldor.yml`. Direct form: `pnpm noldor hooks pre-edit-guard <path>`.
+- **Inputs:** PreToolUse JSON payload on stdin (`tool_input.file_path` / `notebook_path` / `path`, plus `cwd`), or a file path as argv. The enforcement root (rollout marker + `.noldor/session.json`) is resolved from the edited file's git toplevel, so worktree sessions read their own marker, not the main workspace's.
+- **Outputs:** exit 0 to allow, exit 2 + stderr to block (Claude Code blocking convention). Soft mode (no rollout marker) always passes. Deliberately open for untracked files (new-file scaffolding — the commit-stage gate owns those), files outside any git repo, a bare TTY invocation, and malformed payloads (fail-open — a guard bug must never brick the editor). Otherwise blocks edits to tracked files unless a `/gate` session marker is present. Enforces "no edit without `/gate`".
 - **Source:** [`src/hooks/noldor-pre-edit-guard.ts`](../../src/hooks/noldor-pre-edit-guard.ts)
 
 ## Sync (FD link populators)
