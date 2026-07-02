@@ -20,15 +20,15 @@ Refactoring without structure leads to silent breakage — a renamed export brea
 3. **Capture the baseline** — run typecheck and tests BEFORE any changes:
 
    ```bash
-   cd /Users/davidzoufaly/code/3d && pnpm typecheck 2>&1 | tail -5
-   cd /Users/davidzoufaly/code/3d && pnpm test 2>&1 | tail -20
+   pnpm typecheck 2>&1 | tail -5
+   pnpm test 2>&1 | tail -20
    ```
 
    Record pass/fail counts and any pre-existing failures. This is your "before" snapshot.
 
 4. **Save graph baseline** — snapshot current graph metrics for post-refactor comparison:
    ```bash
-   cd /Users/davidzoufaly/code/3d && cp graphify-out/graph.json graphify-out/.graphify_pre_refactor.json
+   cp graphify-out/graph.json graphify-out/.graphify_pre_refactor.json
    ```
    Also note from `GRAPH_REPORT.md`: god node edge counts, community cohesion scores for affected communities, and any cross-package bridges touching the refactoring target.
 
@@ -79,8 +79,8 @@ Make changes in a logical order:
 Run typecheck and tests AFTER changes:
 
 ```bash
-cd /Users/davidzoufaly/code/3d && pnpm typecheck 2>&1 | tail -5
-cd /Users/davidzoufaly/code/3d && pnpm test 2>&1 | tail -20
+pnpm typecheck 2>&1 | tail -5
+pnpm test 2>&1 | tail -20
 ```
 
 Compare against baseline. If new failures appear, fix them before proceeding.
@@ -186,7 +186,7 @@ Run `/graphify` on the project root. This rebuilds AST extraction (picks up rena
 Load the pre-refactor snapshot and the new graph. Evaluate these metrics:
 
 ```bash
-cd /Users/davidzoufaly/code/3d && $(cat graphify-out/.graphify_python) -c "
+$(cat graphify-out/.graphify_python) -c "
 import json
 from pathlib import Path
 from networkx.readwrite import json_graph
