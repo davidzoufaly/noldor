@@ -67,6 +67,20 @@ describe('noldor CLI', () => {
     expect(out).toContain('Usage: noldor autonomous run');
   });
 
+  it('release --help documents the --resume flag', () => {
+    const out = run(['release', '--help']);
+    expect(out).toContain('Usage: noldor release');
+    expect(out).toContain('--resume');
+  });
+
+  it('release run --help short-circuits before any release logic', () => {
+    // Acceptance: the help guard at src/cli/index.ts:75 must keep printing
+    // usage (now naming --resume) without dispatching into release/index.ts.
+    const out = run(['release', 'run', '--help']);
+    expect(out).toContain('Usage: noldor release run');
+    expect(out).toContain('--resume');
+  });
+
   it('leaf command dispatches with no subcommand (doctor)', () => {
     // doctor is a real leaf command now (template-sync check); assert it
     // dispatches and reports sync status rather than the old stub message.

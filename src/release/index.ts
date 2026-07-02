@@ -299,8 +299,17 @@ export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<v
 }
 
 async function main(): Promise<void> {
+  // Dispatch reshapes argv so this module sees `node <modPath> [--resume]`.
+  const resume = process.argv.slice(2).includes('--resume');
   await withReleaseSession(process.cwd(), async () => {
     const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
+    if (resume) {
+      // Resume re-enters withReleaseSession (fresh release-automation marker
+      // for the pre-commit hook) and skips every precondition, check, and
+      // version derivation — the ladder trusts only the state file.
+      await resumeRelease(process.cwd(), { lockstepPackages, name: cfgName });
+      return;
+    }
     assertNoInProgressRelease(process.cwd());
     await ensureCleanTreeOnMain();
     await ensureGhAvailable();
