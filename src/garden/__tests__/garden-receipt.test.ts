@@ -1,6 +1,6 @@
 // @tests: noldor, outcome-telemetry-and-effectiveness-metrics
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -132,11 +132,26 @@ describe(ensureGardenFresh, () => {
 
   it('short-circuits without throwing when RELEASE_SKIP_GARDEN_GATE=1 (bootstrap bypass)', () => {
     process.env.RELEASE_SKIP_GARDEN_GATE = '1';
-    // No receipt present, but bypass means we never read it. Pass a non-repo cwd to
-    // prove the function returns before touching the filesystem or spawning git.
+    // No receipt present, but bypass means we never read it. Pass a non-repo
+    // cwd to prove the function never reads the receipt or spawns git (it
+    // only appends the overrides.log breadcrumb, which fails open).
     const tmp = mkdtempSync(join(tmpdir(), 'garden-fresh-bypass-'));
     try {
       expect(() => ensureGardenFresh(tmp)).not.toThrow();
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('appends a (release)-tagged overrides.log line when bypassed', () => {
+    process.env.RELEASE_SKIP_GARDEN_GATE = '1';
+    const tmp = mkdtempSync(join(tmpdir(), 'garden-fresh-bypass-log-'));
+    try {
+      // appendOverrideLog does not mkdir — the real repo always has .noldor/.
+      mkdirSync(join(tmp, '.noldor'), { recursive: true });
+      ensureGardenFresh(tmp);
+      const log = readFileSync(join(tmp, '.noldor', 'overrides.log'), 'utf8');
+      expect(log).toMatch(/\tRELEASE_SKIP_GARDEN_GATE=1\t\(release\)\n$/);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

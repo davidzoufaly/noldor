@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
+import { appendOverrideLog } from '../core/overrides-log.js';
 
 /**
  * Stamp on disk attesting that `/garden` ran successfully against a given
@@ -117,12 +118,14 @@ export function resolveGardenScanPaths(cwd: string = process.cwd()): string[] {
  * to avoid a second config read.
  *
  * Bypass via `RELEASE_SKIP_GARDEN_GATE=1` for bootstrap commits (commits
- * that predate this gate's existence). The bypass is stdout-loud but has
- * no persistent audit ledger today — operators should treat each usage
- * as exceptional. Persistent override tracking is a candidate follow-up.
+ * that predate this gate's existence). Every bypass is stdout-loud AND
+ * appends a `(release)`-tagged breadcrumb to `.noldor/overrides.log` via
+ * {@link appendOverrideLog} — the same audit trail as the other release
+ * skip-vars (see `src/release/index.ts`).
  */
 export function ensureGardenFresh(cwd: string = process.cwd(), scanPaths?: string[]): void {
   if (process.env.RELEASE_SKIP_GARDEN_GATE === '1') {
+    appendOverrideLog(cwd, 'RELEASE_SKIP_GARDEN_GATE=1', 'release');
     console.log('→ ensureGardenFresh (SKIPPED via RELEASE_SKIP_GARDEN_GATE=1)');
     return;
   }
