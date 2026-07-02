@@ -13,8 +13,11 @@ function run(args: string[], cwd?: string): string {
 }
 
 describe('noldor CLI', () => {
-  it('prints version on --version', () => {
-    expect(run(['--version']).trim()).toBe('noldor v0');
+  it('prints the package.json version on --version', () => {
+    const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../../package.json'), 'utf8')) as {
+      version: string;
+    };
+    expect(run(['--version']).trim()).toBe(`noldor v${pkg.version}`);
   });
 
   it('--help lists command groups', () => {
