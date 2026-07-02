@@ -1,11 +1,18 @@
 // @tests: pnpm-release-resume
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertNoInProgressRelease, resumeRelease } from '../index.js';
-import { writeReleaseState } from '../release-state.js';
+import { readReleaseState, writeReleaseState } from '../release-state.js';
 
 const STATE = {
   version: '0.4.1',
@@ -176,5 +183,56 @@ describe('resumeRelease — commit + tag rungs', () => {
     expect(git(cwd, ['log', '-1', '--format=%s']).trim()).toBe('chore(release): v0.4.1');
     // Pre-existing tag untouched — still points at the seed commit.
     expect(git(cwd, ['rev-parse', 'v0.4.1^{}']).trim()).toBe(tagTarget);
+  });
+});
+
+describe('resumeRelease — push + gh-release rungs', () => {
+  it('pushes, creates the GitHub Release, and clears the state file', async () => {
+    const cwd = seedReleaseRepo();
+    addBareOrigin(cwd);
+    const { env, logFile } = fakeGh(cwd, { releaseExists: false });
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    const head = git(cwd, ['rev-parse', 'HEAD']).trim();
+    expect(git(cwd, ['rev-parse', 'origin/main']).trim()).toBe(head);
+    const ghLog = readFileSync(logFile, 'utf8');
+    expect(ghLog).toContain('release view v0.4.1');
+    expect(ghLog).toContain(
+      'release create v0.4.1 --notes-file /tmp/testpkg-release-notes-v0.4.1.md --latest --title v0.4.1',
+    );
+    expect(readReleaseState(cwd)).toBeNull();
+  });
+
+  it('re-running over a re-armed state file skips every rung (idempotent ladder)', async () => {
+    // Models `--resume` after a resume that died before clearing state (the
+    // spec's "twice in a row" acceptance case): the second walk must be a
+    // pure no-op — no second commit, no re-tag, no re-push, no second create.
+    const cwd = seedReleaseRepo();
+    addBareOrigin(cwd);
+    const { env, logFile } = fakeGh(cwd, { releaseExists: false });
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    const head = git(cwd, ['rev-parse', 'HEAD']).trim();
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    expect(git(cwd, ['rev-parse', 'HEAD']).trim()).toBe(head);
+    const creates = readFileSync(logFile, 'utf8')
+      .split('\n')
+      .filter((line) => line.startsWith('release create'));
+    expect(creates).toHaveLength(1);
+    expect(readReleaseState(cwd)).toBeNull();
+  });
+
+  it('skips the gh rung when the release already exists', async () => {
+    const cwd = seedReleaseRepo();
+    addBareOrigin(cwd);
+    const { env, logFile } = fakeGh(cwd, { releaseExists: true });
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    expect(readFileSync(logFile, 'utf8')).not.toContain('release create');
+    expect(readReleaseState(cwd)).toBeNull();
   });
 });

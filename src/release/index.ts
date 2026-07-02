@@ -115,8 +115,8 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function extractLatestReleaseNotes(): Promise<string> {
-  const raw = await readFile('docs/release-notes.md', 'utf8');
+async function extractLatestReleaseNotes(cwd: string = process.cwd()): Promise<string> {
+  const raw = await readFile(join(cwd, 'docs/release-notes.md'), 'utf8');
   const entries = raw.split(/^## /m).slice(1);
   if (entries.length === 0) {
     throw new Error('Release notes empty.');
@@ -253,7 +253,49 @@ export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<v
     await runIn('git', ['tag', '-a', tag, '-m', tag]);
     console.log(`→ tag: created ${tag}`);
   }
-  // Rungs 5-6 (push → gh release) land in the next task.
+  // Rung 5 — push: skip when origin/main already equals HEAD after a fetch
+  // (same rev-parse pair as ensureCleanTreeOnMain). Push carries the
+  // release-automation env stamp exactly like the normal path.
+  await runIn('git', ['fetch', 'origin', 'main']);
+  const local = await runIn('git', ['rev-parse', 'HEAD']);
+  const remote = await runIn('git', ['rev-parse', 'origin/main']);
+  if (local === remote) {
+    console.log('→ push: origin/main already at HEAD (skipped)');
+  } else {
+    await runIn('git', ['push', '--follow-tags', 'origin', 'main'], {
+      env: { NOLDOR_RELEASE_PUSH: '1' },
+    });
+    console.log('→ push: pushed commit + tag');
+  }
+
+  // Rung 6 — GitHub Release: skip when it already exists.
+  let releaseExists = true;
+  try {
+    await runIn('gh', ['release', 'view', tag], { captureOutput: true });
+  } catch {
+    releaseExists = false;
+  }
+  if (releaseExists) {
+    console.log(`→ gh release: ${tag} already exists (skipped)`);
+  } else {
+    const notesBody = await extractLatestReleaseNotes(cwd);
+    const notesTmp = `/tmp/${opts.name}-release-notes-${tag}.md`;
+    await writeFile(notesTmp, notesBody, 'utf8');
+    await runIn('gh', [
+      'release',
+      'create',
+      tag,
+      '--notes-file',
+      notesTmp,
+      '--latest',
+      '--title',
+      tag,
+    ]);
+    console.log(`→ gh release: created ${tag}`);
+  }
+
+  clearReleaseState(cwd);
+  console.log(`Resume complete: release ${tag} finished; state file cleared.`);
 }
 
 async function main(): Promise<void> {
