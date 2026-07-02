@@ -143,6 +143,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'features/migrate-fd-commits-to-prs.ts',
         desc: 'Migrate FD commit refs to PR refs',
       },
+      'migrate-link-rot': {
+        src: 'features/migrate-link-rot.ts',
+        desc: 'One-off: rewrite dead scripts/→src/ FD links, archive repoints, lost sentinels (--dry-run)',
+      },
       'phase-flip-done': {
         src: 'features/phase-flip-done-cli.ts',
         desc: 'Flip an FD phase in-progress → done (gate Step 4)',
