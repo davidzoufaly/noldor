@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { detectAllowlistDrift } from '../allowlist-drift.js';
 
-// @tests: noldor
+// @tests: noldor, outcome-telemetry-and-effectiveness-metrics
 
 function makeRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'allowlist-drift-'));

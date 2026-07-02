@@ -1,3 +1,4 @@
+// @tests: framework-pr-flow-agent-auto-merge
 import { describe, expect, it, vi } from 'vitest';
 
 import { runCrRetryLoop, type CodexRunFn, type AddressFindingsFn } from '../cr-retry.js';

@@ -1,4 +1,4 @@
-// @tests: outcome-telemetry-and-effectiveness-metrics
+// @tests: make-noldor-agent-agnostic, outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

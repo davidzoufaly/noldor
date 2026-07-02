@@ -9,6 +9,7 @@ links:
     - src/release/release-noise-types.ts
   spec: lost-pre-extraction
   tests:
+    - src/dashboard/__tests__/dashboard-render-markdown.test.ts
     - src/features/__tests__/migrate-fd-commits-to-prs.test.ts
     - src/release/__tests__/fd-prs-since-tag.test.ts
     - src/release/__tests__/release-noise-types.test.ts
@@ -60,6 +61,7 @@ _none for v1_ — the marker is a doc-side convention expanded by the dashboard'
   - [`src/release/fd-prs-since-tag.ts`](../../src/release/fd-prs-since-tag.ts)
   - [`src/release/release-noise-types.ts`](../../src/release/release-noise-types.ts)
 - **Tests:**
+  - [`src/dashboard/__tests__/dashboard-render-markdown.test.ts`](../../src/dashboard/__tests__/dashboard-render-markdown.test.ts)
   - [`src/features/__tests__/migrate-fd-commits-to-prs.test.ts`](../../src/features/__tests__/migrate-fd-commits-to-prs.test.ts)
   - [`src/release/__tests__/fd-prs-since-tag.test.ts`](../../src/release/__tests__/fd-prs-since-tag.test.ts)
   - [`src/release/__tests__/release-noise-types.test.ts`](../../src/release/__tests__/release-noise-types.test.ts)

@@ -19,9 +19,25 @@ links:
     - src/release/release-notes.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
+    - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
+    - src/dashboard/__tests__/dashboard-graph-health.test.ts
+    - src/dashboard/__tests__/dashboard-mermaid.test.ts
+    - src/dashboard/__tests__/dashboard-release-notes.test.ts
+    - src/dashboard/__tests__/dashboard-render-markdown.test.ts
+    - src/dashboard/__tests__/dashboard-skills.test.ts
+    - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
+    - src/dashboard/__tests__/dashboard-views.test.ts
+    - src/dashboard/__tests__/dashboard-worktrees.test.ts
+    - src/dashboard/__tests__/milestones-view.test.ts
     - src/features/__tests__/migrate-changelog-unreleased.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
+    - src/release/__tests__/release-changelog.test.ts
+    - src/release/__tests__/release-fd-changelog-in-progress.test.ts
+    - src/release/__tests__/release-fd-changelog-initial-release.test.ts
     - src/release/__tests__/release-fd-changelog.test.ts
+    - src/release/__tests__/release-fd-commits.test.ts
+    - src/release/__tests__/release-notes.test.ts
+    - src/release/__tests__/release-pr-bullets.test.ts
   spec: lost-pre-extraction
 noldor-tier: full
 introduced: 0.4.0
@@ -73,9 +89,25 @@ As a developer or agent reading an FD detail page, I want to see every commit at
   - [`src/release/release-notes.ts`](../../src/release/release-notes.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
+  - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)
+  - [`src/dashboard/__tests__/dashboard-graph-health.test.ts`](../../src/dashboard/__tests__/dashboard-graph-health.test.ts)
+  - [`src/dashboard/__tests__/dashboard-mermaid.test.ts`](../../src/dashboard/__tests__/dashboard-mermaid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-release-notes.test.ts`](../../src/dashboard/__tests__/dashboard-release-notes.test.ts)
+  - [`src/dashboard/__tests__/dashboard-render-markdown.test.ts`](../../src/dashboard/__tests__/dashboard-render-markdown.test.ts)
+  - [`src/dashboard/__tests__/dashboard-skills.test.ts`](../../src/dashboard/__tests__/dashboard-skills.test.ts)
+  - [`src/dashboard/__tests__/dashboard-test-pyramid.test.ts`](../../src/dashboard/__tests__/dashboard-test-pyramid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
+  - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
+  - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
   - [`src/features/__tests__/migrate-changelog-unreleased.test.ts`](../../src/features/__tests__/migrate-changelog-unreleased.test.ts)
   - [`src/release/__tests__/llm-polish-summary.test.ts`](../../src/release/__tests__/llm-polish-summary.test.ts)
+  - [`src/release/__tests__/release-changelog.test.ts`](../../src/release/__tests__/release-changelog.test.ts)
+  - [`src/release/__tests__/release-fd-changelog-in-progress.test.ts`](../../src/release/__tests__/release-fd-changelog-in-progress.test.ts)
+  - [`src/release/__tests__/release-fd-changelog-initial-release.test.ts`](../../src/release/__tests__/release-fd-changelog-initial-release.test.ts)
   - [`src/release/__tests__/release-fd-changelog.test.ts`](../../src/release/__tests__/release-fd-changelog.test.ts)
+  - [`src/release/__tests__/release-fd-commits.test.ts`](../../src/release/__tests__/release-fd-commits.test.ts)
+  - [`src/release/__tests__/release-notes.test.ts`](../../src/release/__tests__/release-notes.test.ts)
+  - [`src/release/__tests__/release-pr-bullets.test.ts`](../../src/release/__tests__/release-pr-bullets.test.ts)
 
 <!-- /generated: resources -->
 

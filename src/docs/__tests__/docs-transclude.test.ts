@@ -1,3 +1,4 @@
+// @tests: doc-gardening-skill
 import { transcludeMarkers } from '../docs-transclude.js';
 
 describe(transcludeMarkers, () => {

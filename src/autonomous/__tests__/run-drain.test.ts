@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, parallel-drain, plan-runner
 import { describe, expect, it, vi } from 'vitest';
 import { runDrain } from '../drain-loop.js';
 import type { DrainSource } from '../drain-source.js';

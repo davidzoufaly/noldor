@@ -1,4 +1,4 @@
-// @tests: sdd-co-tag-detector
+// @tests: doc-gardening-skill, sdd-co-tag-detector
 
 import { execSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

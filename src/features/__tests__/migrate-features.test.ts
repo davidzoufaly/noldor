@@ -6,7 +6,7 @@ import {
   yamlToFeatureMd,
 } from '../migrate-features.js';
 
-// @tests: feature-md-links-overhaul
+// @tests: dashboard-roadmap-drag-drop, feature-md-links-overhaul
 describe(slugify, () => {
   it('lowercases and replaces spaces with hyphens', () => {
     expect(slugify('Undo/Redo')).toBe('undo-redo');

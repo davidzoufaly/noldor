@@ -18,10 +18,33 @@ links:
     - src/utils/write-blocks.ts
   spec: lost-pre-extraction
   tests:
+    - src/core/__tests__/next-priority.test.ts
     - src/dashboard/__tests__/api-blocks.test.ts
     - src/dashboard/__tests__/dashboard-data.test.ts
+    - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
+    - src/dashboard/__tests__/dashboard-ensure.test.ts
+    - src/dashboard/__tests__/dashboard-graph-health.test.ts
     - src/dashboard/__tests__/dashboard-layout-body-styles.test.ts
+    - src/dashboard/__tests__/dashboard-layout-style-polish.test.ts
+    - src/dashboard/__tests__/dashboard-mermaid.test.ts
+    - src/dashboard/__tests__/dashboard-release-notes.test.ts
+    - src/dashboard/__tests__/dashboard-render-markdown.test.ts
     - src/dashboard/__tests__/dashboard-server.test.ts
+    - src/dashboard/__tests__/dashboard-skills.test.ts
+    - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
+    - src/dashboard/__tests__/dashboard-views.test.ts
+    - src/dashboard/__tests__/dashboard-worktrees.test.ts
+    - src/dashboard/__tests__/edge-scroll.test.ts
+    - src/dashboard/__tests__/metrics-view.test.ts
+    - src/dashboard/__tests__/milestones-view.test.ts
+    - src/dashboard/__tests__/server-cli.test.ts
+    - src/features/__tests__/migrate-features.test.ts
+    - src/garden/__tests__/backlog-demote.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
+    - src/garden/__tests__/sdd-report.test.ts
+    - src/utils/__tests__/parse-blocks.test.ts
+    - src/utils/__tests__/slugify.test.ts
+    - src/utils/__tests__/write-blocks.test.ts
 name: Dashboard Roadmap & Backlog Drag-and-Drop
 packages:
   - scripts
@@ -88,9 +111,32 @@ This release ships drag-and-drop reordering for the dashboard roadmap and backlo
   - [`src/utils/slugify.ts`](../../src/utils/slugify.ts)
   - [`src/utils/write-blocks.ts`](../../src/utils/write-blocks.ts)
 - **Tests:**
+  - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
   - [`src/dashboard/__tests__/api-blocks.test.ts`](../../src/dashboard/__tests__/api-blocks.test.ts)
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
+  - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)
+  - [`src/dashboard/__tests__/dashboard-ensure.test.ts`](../../src/dashboard/__tests__/dashboard-ensure.test.ts)
+  - [`src/dashboard/__tests__/dashboard-graph-health.test.ts`](../../src/dashboard/__tests__/dashboard-graph-health.test.ts)
   - [`src/dashboard/__tests__/dashboard-layout-body-styles.test.ts`](../../src/dashboard/__tests__/dashboard-layout-body-styles.test.ts)
+  - [`src/dashboard/__tests__/dashboard-layout-style-polish.test.ts`](../../src/dashboard/__tests__/dashboard-layout-style-polish.test.ts)
+  - [`src/dashboard/__tests__/dashboard-mermaid.test.ts`](../../src/dashboard/__tests__/dashboard-mermaid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-release-notes.test.ts`](../../src/dashboard/__tests__/dashboard-release-notes.test.ts)
+  - [`src/dashboard/__tests__/dashboard-render-markdown.test.ts`](../../src/dashboard/__tests__/dashboard-render-markdown.test.ts)
   - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)
+  - [`src/dashboard/__tests__/dashboard-skills.test.ts`](../../src/dashboard/__tests__/dashboard-skills.test.ts)
+  - [`src/dashboard/__tests__/dashboard-test-pyramid.test.ts`](../../src/dashboard/__tests__/dashboard-test-pyramid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
+  - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
+  - [`src/dashboard/__tests__/edge-scroll.test.ts`](../../src/dashboard/__tests__/edge-scroll.test.ts)
+  - [`src/dashboard/__tests__/metrics-view.test.ts`](../../src/dashboard/__tests__/metrics-view.test.ts)
+  - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
+  - [`src/dashboard/__tests__/server-cli.test.ts`](../../src/dashboard/__tests__/server-cli.test.ts)
+  - [`src/features/__tests__/migrate-features.test.ts`](../../src/features/__tests__/migrate-features.test.ts)
+  - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
+  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/utils/__tests__/parse-blocks.test.ts`](../../src/utils/__tests__/parse-blocks.test.ts)
+  - [`src/utils/__tests__/slugify.test.ts`](../../src/utils/__tests__/slugify.test.ts)
+  - [`src/utils/__tests__/write-blocks.test.ts`](../../src/utils/__tests__/write-blocks.test.ts)
 
 <!-- /generated: resources -->

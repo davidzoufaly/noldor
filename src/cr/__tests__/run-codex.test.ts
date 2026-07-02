@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor
 import { existsSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { runCodex, type Spawn } from '../run-codex.js';

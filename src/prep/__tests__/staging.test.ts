@@ -1,3 +1,4 @@
+// @tests: plan-runner
 import { describe, expect, it } from 'vitest';
 
 import { readApprovedSlugs } from '../staging.js';

@@ -15,12 +15,10 @@ links:
     - .claude/skills/noldor-research/SKILL.md
     - docs/noldor/research-fanout.md
   tests:
-    - src/research/__tests__/types.test.ts
-    - src/research/__tests__/prompt.test.ts
-    - src/research/__tests__/staging.test.ts
-    - src/research/__tests__/fanout.test.ts
-    - src/core/__tests__/concurrency.test.ts
-    - src/core/__tests__/git-porcelain.test.ts
+    - src/core/agent-runner/__tests__/doctor-runners.test.ts
+    - src/core/agent-runner/__tests__/registry.test.ts
+    - src/core/agent-runner/__tests__/types.test.ts
+    - src/testing/__tests__/stub-runner.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md
 name: Parallel-Agent Dispatch for Research Jobs
@@ -103,11 +101,9 @@ _none — operates through the `pnpm noldor` CLI; agents invoke it via Bash._
   - [`.claude/skills/noldor-research/SKILL.md`](../../.claude/skills/noldor-research/SKILL.md)
   - [`docs/noldor/research-fanout.md`](../../docs/noldor/research-fanout.md)
 - **Tests:**
-  - [`src/research/__tests__/types.test.ts`](../../src/research/__tests__/types.test.ts)
-  - [`src/research/__tests__/prompt.test.ts`](../../src/research/__tests__/prompt.test.ts)
-  - [`src/research/__tests__/staging.test.ts`](../../src/research/__tests__/staging.test.ts)
-  - [`src/research/__tests__/fanout.test.ts`](../../src/research/__tests__/fanout.test.ts)
-  - [`src/core/__tests__/concurrency.test.ts`](../../src/core/__tests__/concurrency.test.ts)
-  - [`src/core/__tests__/git-porcelain.test.ts`](../../src/core/__tests__/git-porcelain.test.ts)
+  - [`src/core/agent-runner/__tests__/doctor-runners.test.ts`](../../src/core/agent-runner/__tests__/doctor-runners.test.ts)
+  - [`src/core/agent-runner/__tests__/registry.test.ts`](../../src/core/agent-runner/__tests__/registry.test.ts)
+  - [`src/core/agent-runner/__tests__/types.test.ts`](../../src/core/agent-runner/__tests__/types.test.ts)
+  - [`src/testing/__tests__/stub-runner.test.ts`](../../src/testing/__tests__/stub-runner.test.ts)
 
 <!-- /generated: resources -->

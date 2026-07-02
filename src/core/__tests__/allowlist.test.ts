@@ -1,3 +1,4 @@
+// @tests: release-sweep-process-hardening
 import { describe, expect, it } from 'vitest';
 import {
   isMicroChoreAllowed,

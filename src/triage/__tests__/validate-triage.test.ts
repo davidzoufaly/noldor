@@ -1,3 +1,4 @@
+// @tests: replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 import { validateTriageInputs, type TriageValidationResult } from '../validate-triage.js';
 
 describe(validateTriageInputs, () => {

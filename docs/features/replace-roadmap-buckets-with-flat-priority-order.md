@@ -10,7 +10,24 @@ links:
     - src/dashboard/data.ts
     - src/triage/validate-triage.ts
     - src/utils/parse-blocks.ts
-  tests: []
+  tests:
+    - src/core/__tests__/next-priority.test.ts
+    - src/dashboard/__tests__/api-blocks.test.ts
+    - src/dashboard/__tests__/dashboard-data.test.ts
+    - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
+    - src/dashboard/__tests__/dashboard-graph-health.test.ts
+    - src/dashboard/__tests__/dashboard-mermaid.test.ts
+    - src/dashboard/__tests__/dashboard-release-notes.test.ts
+    - src/dashboard/__tests__/dashboard-render-markdown.test.ts
+    - src/dashboard/__tests__/dashboard-skills.test.ts
+    - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
+    - src/dashboard/__tests__/dashboard-views.test.ts
+    - src/dashboard/__tests__/dashboard-worktrees.test.ts
+    - src/dashboard/__tests__/milestones-view.test.ts
+    - src/garden/__tests__/backlog-demote.test.ts
+    - src/garden/__tests__/sdd-report.test.ts
+    - src/triage/__tests__/validate-triage.test.ts
+    - src/utils/__tests__/parse-blocks.test.ts
 name: Replace Roadmap Buckets with Flat Priority Order
 packages:
   - scripts
@@ -61,5 +78,23 @@ This release consolidates the dashboard roadmap around a flat, priority-ordered 
   - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)
   - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
+- **Tests:**
+  - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
+  - [`src/dashboard/__tests__/api-blocks.test.ts`](../../src/dashboard/__tests__/api-blocks.test.ts)
+  - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
+  - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)
+  - [`src/dashboard/__tests__/dashboard-graph-health.test.ts`](../../src/dashboard/__tests__/dashboard-graph-health.test.ts)
+  - [`src/dashboard/__tests__/dashboard-mermaid.test.ts`](../../src/dashboard/__tests__/dashboard-mermaid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-release-notes.test.ts`](../../src/dashboard/__tests__/dashboard-release-notes.test.ts)
+  - [`src/dashboard/__tests__/dashboard-render-markdown.test.ts`](../../src/dashboard/__tests__/dashboard-render-markdown.test.ts)
+  - [`src/dashboard/__tests__/dashboard-skills.test.ts`](../../src/dashboard/__tests__/dashboard-skills.test.ts)
+  - [`src/dashboard/__tests__/dashboard-test-pyramid.test.ts`](../../src/dashboard/__tests__/dashboard-test-pyramid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
+  - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
+  - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
+  - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
+  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/triage/__tests__/validate-triage.test.ts`](../../src/triage/__tests__/validate-triage.test.ts)
+  - [`src/utils/__tests__/parse-blocks.test.ts`](../../src/utils/__tests__/parse-blocks.test.ts)
 
 <!-- /generated: resources -->

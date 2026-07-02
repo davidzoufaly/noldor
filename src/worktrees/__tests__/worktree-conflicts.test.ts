@@ -1,4 +1,4 @@
-// @tests: parallel-worktree-workflow
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows, outcome-telemetry-and-effectiveness-metrics, parallel-worktree-workflow, sdd-co-tag-detector
 
 import { describe, expect, it } from 'vitest';
 

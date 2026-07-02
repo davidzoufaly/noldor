@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

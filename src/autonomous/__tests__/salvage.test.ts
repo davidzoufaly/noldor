@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, parallel-drain-roadmapmd-conflict-auto-resolution
 import { describe, expect, it } from 'vitest';
 import { detectStale, repair, type GitRunner } from '../salvage.js';
 

@@ -1,3 +1,4 @@
+// @tests: doc-gardening-skill
 import { addGeneratedHeader } from '../docs-api.js';
 
 describe(addGeneratedHeader, () => {

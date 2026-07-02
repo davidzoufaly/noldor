@@ -30,23 +30,27 @@ links:
     - .claude/skills/gate/SKILL.md
     - .noldor/config.json
   tests:
-    - src/cr/__tests__/findings-schema.test.ts
-    - src/cr/__tests__/filename.test.ts
-    - src/cr/__tests__/atomic-write.test.ts
-    - src/cr/__tests__/read-fd-summary.test.ts
-    - src/cr/__tests__/config.test.ts
-    - src/cr/__tests__/prompt-stdin.test.ts
     - src/cr/__tests__/aggregate.test.ts
-    - src/cr/__tests__/aggregate.cli.test.ts
-    - src/cr/__tests__/orchestrate.test.ts
-    - src/cr/__tests__/orchestrate.integration.test.ts
+    - src/cr/__tests__/atomic-write.test.ts
+    - src/cr/__tests__/codex.test.ts
+    - src/cr/__tests__/config.test.ts
+    - src/cr/__tests__/deep-review-spawn.test.ts
     - src/cr/__tests__/delta.test.ts
-    - src/cr/__tests__/overwrite-guard.test.ts
     - src/cr/__tests__/escalate.test.ts
-    - src/cr/__tests__/lanes/manual.test.ts
+    - src/cr/__tests__/filename.test.ts
+    - src/cr/__tests__/findings-schema.test.ts
     - src/cr/__tests__/lanes/codex.test.ts
+    - src/cr/__tests__/lanes/manual.test.ts
+    - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
+    - src/cr/__tests__/lanes/verify.test.ts
+    - src/cr/__tests__/orchestrate.integration.test.ts
+    - src/cr/__tests__/orchestrate.test.ts
+    - src/cr/__tests__/overwrite-guard.test.ts
+    - src/cr/__tests__/prompt-stdin.test.ts
+    - src/cr/__tests__/read-fd-summary.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
+    - src/metrics/__tests__/cr-and-override.test.ts
   spec: lost-pre-extraction
 name: Specs/Plan CR Gate — Multi-Reviewer + Multiterminal Bug Fix
 packages:
@@ -104,22 +108,26 @@ Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: ma
   - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
 - **Tests:**
-  - [`src/cr/__tests__/findings-schema.test.ts`](../../src/cr/__tests__/findings-schema.test.ts)
-  - [`src/cr/__tests__/filename.test.ts`](../../src/cr/__tests__/filename.test.ts)
-  - [`src/cr/__tests__/atomic-write.test.ts`](../../src/cr/__tests__/atomic-write.test.ts)
-  - [`src/cr/__tests__/read-fd-summary.test.ts`](../../src/cr/__tests__/read-fd-summary.test.ts)
-  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
-  - [`src/cr/__tests__/prompt-stdin.test.ts`](../../src/cr/__tests__/prompt-stdin.test.ts)
   - [`src/cr/__tests__/aggregate.test.ts`](../../src/cr/__tests__/aggregate.test.ts)
-  - [`src/cr/__tests__/aggregate.cli.test.ts`](../../src/cr/__tests__/aggregate.cli.test.ts)
-  - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
-  - [`src/cr/__tests__/orchestrate.integration.test.ts`](../../src/cr/__tests__/orchestrate.integration.test.ts)
+  - [`src/cr/__tests__/atomic-write.test.ts`](../../src/cr/__tests__/atomic-write.test.ts)
+  - [`src/cr/__tests__/codex.test.ts`](../../src/cr/__tests__/codex.test.ts)
+  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
+  - [`src/cr/__tests__/deep-review-spawn.test.ts`](../../src/cr/__tests__/deep-review-spawn.test.ts)
   - [`src/cr/__tests__/delta.test.ts`](../../src/cr/__tests__/delta.test.ts)
-  - [`src/cr/__tests__/overwrite-guard.test.ts`](../../src/cr/__tests__/overwrite-guard.test.ts)
   - [`src/cr/__tests__/escalate.test.ts`](../../src/cr/__tests__/escalate.test.ts)
-  - [`src/cr/__tests__/lanes/manual.test.ts`](../../src/cr/__tests__/lanes/manual.test.ts)
+  - [`src/cr/__tests__/filename.test.ts`](../../src/cr/__tests__/filename.test.ts)
+  - [`src/cr/__tests__/findings-schema.test.ts`](../../src/cr/__tests__/findings-schema.test.ts)
   - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
+  - [`src/cr/__tests__/lanes/manual.test.ts`](../../src/cr/__tests__/lanes/manual.test.ts)
+  - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
+  - [`src/cr/__tests__/lanes/verify.test.ts`](../../src/cr/__tests__/lanes/verify.test.ts)
+  - [`src/cr/__tests__/orchestrate.integration.test.ts`](../../src/cr/__tests__/orchestrate.integration.test.ts)
+  - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
+  - [`src/cr/__tests__/overwrite-guard.test.ts`](../../src/cr/__tests__/overwrite-guard.test.ts)
+  - [`src/cr/__tests__/prompt-stdin.test.ts`](../../src/cr/__tests__/prompt-stdin.test.ts)
+  - [`src/cr/__tests__/read-fd-summary.test.ts`](../../src/cr/__tests__/read-fd-summary.test.ts)
   - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
+  - [`src/metrics/__tests__/cr-and-override.test.ts`](../../src/metrics/__tests__/cr-and-override.test.ts)
 
 <!-- /generated: resources -->

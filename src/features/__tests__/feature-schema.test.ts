@@ -14,7 +14,7 @@ const base = {
   'noldor-tier': 'full' as const,
 };
 
-// @tests: feature-md-links-overhaul
+// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
 describe('FeatureFrontmatterSchema', () => {
   it('accepts a valid done feature', () => {
     expect(FeatureFrontmatterSchema.safeParse(base).success).toBeTruthy();

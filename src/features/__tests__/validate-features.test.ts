@@ -10,7 +10,7 @@ import {
   validateTierVsSpec,
 } from '../validate-features.js';
 
-// @tests: feature-md-links-overhaul
+// @tests: feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
 describe(validateFiles, () => {
   it('returns no errors for a valid fixture', async () => {
     const errors = await validateFiles(['src/fixtures/feature-valid.md']);

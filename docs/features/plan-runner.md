@@ -20,10 +20,18 @@ links:
     - src/prep/index-doc.ts
     - src/prep/spawn.ts
   tests:
+    - src/autonomous/__tests__/build-pool.test.ts
+    - src/autonomous/__tests__/decide-next.test.ts
+    - src/autonomous/__tests__/drain-reconcile.test.ts
     - src/autonomous/__tests__/drain-source.test.ts
-    - src/autonomous/__tests__/run-drain.test.ts
+    - src/autonomous/__tests__/escalations.test.ts
+    - src/autonomous/__tests__/merge-classify.test.ts
+    - src/autonomous/__tests__/merge-coordinator.test.ts
     - src/autonomous/__tests__/queue-drain-cli.test.ts
+    - src/autonomous/__tests__/run-drain.test.ts
+    - src/autonomous/__tests__/watch-state.test.ts
     - src/prep/__tests__/discover.test.ts
+    - src/prep/__tests__/formats.test.ts
     - src/prep/__tests__/index-doc.test.ts
     - src/prep/__tests__/prep-promote.test.ts
     - src/prep/__tests__/scaffold.test.ts
@@ -36,6 +44,7 @@ phase: done
 noldor-tier: full
 introduced: 0.3.0
 ---
+
 ## Summary
 
 The execution end of the autonomous-design pipeline. Generalizes the shipped queue-drain supervisor with an injected `DrainSource` seam (`src/autonomous/drain-source.ts`) so the loop is source-agnostic: `roadmapSource` reproduces queue-drain byte-for-byte (fast-track XS/S roadmap entries), while the new `plansSource` drains already-designed in-progress FDs (spec **and** plan committed) — taking on the M/L/XL work queue-drain refuses, one auto-merged `feat/<slug>` PR at a time, always-clear preserved. Exposed as `pnpm noldor autonomous run --source roadmap|plans`, with `queue-drain` retained as a `--source roadmap` alias. The authoring end of the same pipeline — the `prep` CLI (`noldor prep fanout` drafts specs+plans, `noldor prep promote` produces the in-progress FDs plan-runner consumes) — ships under this FD as the feeder. `--source specs` is reserved for phase 2 (needs an autonomous `writing-plans` step).
@@ -102,10 +111,18 @@ This release adds a parallel prep pipeline to the noldor CLI, introducing fanout
   - [`src/prep/index-doc.ts`](../../src/prep/index-doc.ts)
   - [`src/prep/spawn.ts`](../../src/prep/spawn.ts)
 - **Tests:**
+  - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
+  - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
+  - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
   - [`src/autonomous/__tests__/drain-source.test.ts`](../../src/autonomous/__tests__/drain-source.test.ts)
-  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
+  - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
+  - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
   - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
   - [`src/prep/__tests__/discover.test.ts`](../../src/prep/__tests__/discover.test.ts)
+  - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)
   - [`src/prep/__tests__/index-doc.test.ts`](../../src/prep/__tests__/index-doc.test.ts)
   - [`src/prep/__tests__/prep-promote.test.ts`](../../src/prep/__tests__/prep-promote.test.ts)
   - [`src/prep/__tests__/scaffold.test.ts`](../../src/prep/__tests__/scaffold.test.ts)

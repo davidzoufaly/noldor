@@ -17,7 +17,13 @@ links:
     - src/sync/sync-fd-resources.ts
     - src/triage/triage-list-untriaged.ts
   tests:
+    - src/docs/__tests__/docs-api.test.ts
+    - src/docs/__tests__/docs-check.test.ts
+    - src/docs/__tests__/docs-transclude.test.ts
     - src/garden/__tests__/garden-detect.test.ts
+    - src/sync/__tests__/sync-doc-links.test.ts
+    - src/sync/__tests__/sync-fd-resources.test.ts
+    - src/triage/__tests__/triage-list-untriaged.test.ts
   docs: []
 introduced: 0.1.0
 updated: 0.5.0
@@ -56,7 +62,13 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
   - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
   - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
 - **Tests:**
+  - [`src/docs/__tests__/docs-api.test.ts`](../../src/docs/__tests__/docs-api.test.ts)
+  - [`src/docs/__tests__/docs-check.test.ts`](../../src/docs/__tests__/docs-check.test.ts)
+  - [`src/docs/__tests__/docs-transclude.test.ts`](../../src/docs/__tests__/docs-transclude.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/sync/__tests__/sync-doc-links.test.ts`](../../src/sync/__tests__/sync-doc-links.test.ts)
+  - [`src/sync/__tests__/sync-fd-resources.test.ts`](../../src/sync/__tests__/sync-fd-resources.test.ts)
+  - [`src/triage/__tests__/triage-list-untriaged.test.ts`](../../src/triage/__tests__/triage-list-untriaged.test.ts)
 
 <!-- /generated: resources -->
 

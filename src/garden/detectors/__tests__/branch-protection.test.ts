@@ -1,3 +1,4 @@
+// @tests: framework-pr-flow-agent-auto-merge, outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkBranchProtection, type GhApiFn } from '../branch-protection.js';

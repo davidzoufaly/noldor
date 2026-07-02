@@ -1,3 +1,4 @@
+// @tests: feature-md-links-overhaul
 import { classifyCommit, classifyCommits, deriveBumpLevel } from '../release-commits.js';
 
 import type { Commit } from '../release-commits.js';

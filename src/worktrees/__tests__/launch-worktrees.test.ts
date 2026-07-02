@@ -1,4 +1,4 @@
-// @tests: parallel-worktree-workflow
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows, parallel-worktree-workflow
 
 import { describe, expect, it } from 'vitest';
 

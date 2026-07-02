@@ -11,8 +11,60 @@ links:
     - docs/noldor/adoption-guide.md
     - .noldor/config.json
   tests:
+    - src/autonomous/__tests__/build-pool.test.ts
+    - src/autonomous/__tests__/decide-next.test.ts
+    - src/autonomous/__tests__/drain-eligibility.test.ts
+    - src/autonomous/__tests__/drain-lock.test.ts
+    - src/autonomous/__tests__/drain-reconcile.test.ts
+    - src/autonomous/__tests__/drain-source.test.ts
+    - src/autonomous/__tests__/drain-state.test.ts
+    - src/autonomous/__tests__/escalations.test.ts
+    - src/autonomous/__tests__/merge-classify.test.ts
+    - src/autonomous/__tests__/merge-coordinator.test.ts
+    - src/autonomous/__tests__/notify.test.ts
+    - src/autonomous/__tests__/queue-drain-cli.test.ts
+    - src/autonomous/__tests__/resolve-roadmap-conflict.test.ts
+    - src/autonomous/__tests__/run-drain.test.ts
+    - src/autonomous/__tests__/salvage.test.ts
+    - src/autonomous/__tests__/watch-args.test.ts
+    - src/autonomous/__tests__/watch-detach.test.ts
+    - src/autonomous/__tests__/watch-state.test.ts
+    - src/core/__tests__/consumer-config.test.ts
+    - src/core/__tests__/framework-version.test.ts
+    - src/cr/__tests__/aggregate.test.ts
+    - src/cr/__tests__/amend-receipt.test.ts
+    - src/cr/__tests__/atomic-write.test.ts
+    - src/cr/__tests__/bootstrap-immunity.test.ts
+    - src/cr/__tests__/cli-args.test.ts
+    - src/cr/__tests__/codex.test.ts
+    - src/cr/__tests__/config.test.ts
+    - src/cr/__tests__/context.test.ts
+    - src/cr/__tests__/deep-review-spawn.test.ts
+    - src/cr/__tests__/delta.test.ts
+    - src/cr/__tests__/escalate.test.ts
+    - src/cr/__tests__/filename.test.ts
+    - src/cr/__tests__/findings-schema.test.ts
+    - src/cr/__tests__/gate-registry.test.ts
+    - src/cr/__tests__/lanes/codex.test.ts
+    - src/cr/__tests__/lanes/manual.test.ts
+    - src/cr/__tests__/lanes/subagent-dispatch.test.ts
+    - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/lanes/verify-dispatch.test.ts
     - src/cr/__tests__/lanes/verify.test.ts
+    - src/cr/__tests__/orchestrate.integration.test.ts
+    - src/cr/__tests__/orchestrate.test.ts
+    - src/cr/__tests__/overwrite-guard.test.ts
+    - src/cr/__tests__/prompt-stdin.test.ts
+    - src/cr/__tests__/read-fd-summary.test.ts
+    - src/cr/__tests__/review-profile.test.ts
+    - src/cr/__tests__/run-codex.test.ts
+    - src/cr/__tests__/schema-parity.test.ts
+    - src/cr/__tests__/sidecar.test.ts
+    - src/garden/detectors/__tests__/bootstrap-override-audit.test.ts
+    - src/metrics/__tests__/cr-and-override.test.ts
+    - src/release/__tests__/release-config-flow.test.ts
+    - src/testing/__tests__/consumer-fixture.test.ts
+    - src/testing/__tests__/drain-e2e.test.ts
     - src/verify/__tests__/port.test.ts
     - src/verify/__tests__/smoke.test.ts
   spec: docs/superpowers/specs/archive/2026-06-12-acceptance-verify-lane-design.md
@@ -74,8 +126,60 @@ As an operator running autonomous paths (drain, watch, gate autonomous mode), I 
   - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
 - **Tests:**
+  - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
+  - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
+  - [`src/autonomous/__tests__/drain-eligibility.test.ts`](../../src/autonomous/__tests__/drain-eligibility.test.ts)
+  - [`src/autonomous/__tests__/drain-lock.test.ts`](../../src/autonomous/__tests__/drain-lock.test.ts)
+  - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
+  - [`src/autonomous/__tests__/drain-source.test.ts`](../../src/autonomous/__tests__/drain-source.test.ts)
+  - [`src/autonomous/__tests__/drain-state.test.ts`](../../src/autonomous/__tests__/drain-state.test.ts)
+  - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
+  - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
+  - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
+  - [`src/autonomous/__tests__/notify.test.ts`](../../src/autonomous/__tests__/notify.test.ts)
+  - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
+  - [`src/autonomous/__tests__/resolve-roadmap-conflict.test.ts`](../../src/autonomous/__tests__/resolve-roadmap-conflict.test.ts)
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/salvage.test.ts`](../../src/autonomous/__tests__/salvage.test.ts)
+  - [`src/autonomous/__tests__/watch-args.test.ts`](../../src/autonomous/__tests__/watch-args.test.ts)
+  - [`src/autonomous/__tests__/watch-detach.test.ts`](../../src/autonomous/__tests__/watch-detach.test.ts)
+  - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
+  - [`src/core/__tests__/consumer-config.test.ts`](../../src/core/__tests__/consumer-config.test.ts)
+  - [`src/core/__tests__/framework-version.test.ts`](../../src/core/__tests__/framework-version.test.ts)
+  - [`src/cr/__tests__/aggregate.test.ts`](../../src/cr/__tests__/aggregate.test.ts)
+  - [`src/cr/__tests__/amend-receipt.test.ts`](../../src/cr/__tests__/amend-receipt.test.ts)
+  - [`src/cr/__tests__/atomic-write.test.ts`](../../src/cr/__tests__/atomic-write.test.ts)
+  - [`src/cr/__tests__/bootstrap-immunity.test.ts`](../../src/cr/__tests__/bootstrap-immunity.test.ts)
+  - [`src/cr/__tests__/cli-args.test.ts`](../../src/cr/__tests__/cli-args.test.ts)
+  - [`src/cr/__tests__/codex.test.ts`](../../src/cr/__tests__/codex.test.ts)
+  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
+  - [`src/cr/__tests__/context.test.ts`](../../src/cr/__tests__/context.test.ts)
+  - [`src/cr/__tests__/deep-review-spawn.test.ts`](../../src/cr/__tests__/deep-review-spawn.test.ts)
+  - [`src/cr/__tests__/delta.test.ts`](../../src/cr/__tests__/delta.test.ts)
+  - [`src/cr/__tests__/escalate.test.ts`](../../src/cr/__tests__/escalate.test.ts)
+  - [`src/cr/__tests__/filename.test.ts`](../../src/cr/__tests__/filename.test.ts)
+  - [`src/cr/__tests__/findings-schema.test.ts`](../../src/cr/__tests__/findings-schema.test.ts)
+  - [`src/cr/__tests__/gate-registry.test.ts`](../../src/cr/__tests__/gate-registry.test.ts)
+  - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
+  - [`src/cr/__tests__/lanes/manual.test.ts`](../../src/cr/__tests__/lanes/manual.test.ts)
+  - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
+  - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
   - [`src/cr/__tests__/lanes/verify-dispatch.test.ts`](../../src/cr/__tests__/lanes/verify-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/verify.test.ts`](../../src/cr/__tests__/lanes/verify.test.ts)
+  - [`src/cr/__tests__/orchestrate.integration.test.ts`](../../src/cr/__tests__/orchestrate.integration.test.ts)
+  - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
+  - [`src/cr/__tests__/overwrite-guard.test.ts`](../../src/cr/__tests__/overwrite-guard.test.ts)
+  - [`src/cr/__tests__/prompt-stdin.test.ts`](../../src/cr/__tests__/prompt-stdin.test.ts)
+  - [`src/cr/__tests__/read-fd-summary.test.ts`](../../src/cr/__tests__/read-fd-summary.test.ts)
+  - [`src/cr/__tests__/review-profile.test.ts`](../../src/cr/__tests__/review-profile.test.ts)
+  - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
+  - [`src/cr/__tests__/schema-parity.test.ts`](../../src/cr/__tests__/schema-parity.test.ts)
+  - [`src/cr/__tests__/sidecar.test.ts`](../../src/cr/__tests__/sidecar.test.ts)
+  - [`src/garden/detectors/__tests__/bootstrap-override-audit.test.ts`](../../src/garden/detectors/__tests__/bootstrap-override-audit.test.ts)
+  - [`src/metrics/__tests__/cr-and-override.test.ts`](../../src/metrics/__tests__/cr-and-override.test.ts)
+  - [`src/release/__tests__/release-config-flow.test.ts`](../../src/release/__tests__/release-config-flow.test.ts)
+  - [`src/testing/__tests__/consumer-fixture.test.ts`](../../src/testing/__tests__/consumer-fixture.test.ts)
+  - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
   - [`src/verify/__tests__/port.test.ts`](../../src/verify/__tests__/port.test.ts)
   - [`src/verify/__tests__/smoke.test.ts`](../../src/verify/__tests__/smoke.test.ts)
 

@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: acceptance-verify-lane, noldor
 import { describe, expect, it } from 'vitest';
 import { parseCliArgs } from '../cli-args.js';
 

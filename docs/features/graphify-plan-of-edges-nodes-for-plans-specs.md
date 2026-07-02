@@ -10,6 +10,8 @@ links:
     - src/cli/manifest.ts
   docs: []
   tests:
+    - src/garden/__tests__/garden-detect.test.ts
+    - src/garden/__tests__/plan-resolution.test.ts
     - src/graphify/__tests__/enrich-doc-nodes.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md
@@ -20,6 +22,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.4.0
 ---
+
 ## Summary
 
 Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superpowers/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `src/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it).
@@ -76,6 +79,8 @@ fd nodes + plan-of/spec-of edges added to graph, plus graph-adjacency stale fall
   - [`src/garden/plan-resolution.ts`](../../src/garden/plan-resolution.ts)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
 - **Tests:**
+  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/garden/__tests__/plan-resolution.test.ts`](../../src/garden/__tests__/plan-resolution.test.ts)
   - [`src/graphify/__tests__/enrich-doc-nodes.test.ts`](../../src/graphify/__tests__/enrich-doc-nodes.test.ts)
 
 <!-- /generated: resources -->

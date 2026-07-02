@@ -1,3 +1,4 @@
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';

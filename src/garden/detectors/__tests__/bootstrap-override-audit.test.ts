@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { detectBootstrapOverrideAudit } from '../bootstrap-override-audit.js';
 import { BOOTSTRAP_REASON } from '../../../cr/gate-registry.js';
 
-// @tests: bootstrap-immunity-for-self-gating-features
+// @tests: acceptance-verify-lane, bootstrap-immunity-for-self-gating-features, outcome-telemetry-and-effectiveness-metrics
 
 // A single-commit log block carrying a bootstrap codex override.
 const LOG_WITH_BOOTSTRAP = [

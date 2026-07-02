@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@inquirer/prompts', () => ({

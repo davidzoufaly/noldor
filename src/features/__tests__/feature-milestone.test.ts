@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FeatureFrontmatterSchema, type FeatureFrontmatter } from '../feature-schema.js';
 import { validateMilestoneRef } from '../validate-features.js';
 
-// @tests: framework-milestones-support-poc-mvp-100
+// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
 
 const BASE = {
   area: 'test',

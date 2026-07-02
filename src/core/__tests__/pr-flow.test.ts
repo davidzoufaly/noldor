@@ -1,3 +1,4 @@
+// @tests: autonomous-plan-to-pr-merge, framework-pr-flow-agent-auto-merge, noldor, parallel-drain
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import {

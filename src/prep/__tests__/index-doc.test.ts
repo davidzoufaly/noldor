@@ -1,3 +1,4 @@
+// @tests: plan-runner
 import { describe, expect, it } from 'vitest';
 
 import { renderIndex } from '../index-doc.js';

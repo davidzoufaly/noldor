@@ -1,4 +1,4 @@
-// @tests: dashboard-roadmap-backlog-polish
+// @tests: dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, outcome-telemetry-and-effectiveness-metrics
 
 import { describe, expect, it } from 'vitest';
 

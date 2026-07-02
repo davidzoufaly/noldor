@@ -1,4 +1,4 @@
-// @tests: project-tracking-dashboard, dashboard-hot-zones-page, dashboard-wip-age-page, dashboard-vision-surface, dynamic-fd-changelog, dashboard-roadmap-drag-drop, dashboard-roadmap-backlog-polish
+// @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';

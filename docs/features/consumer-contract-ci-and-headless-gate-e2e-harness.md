@@ -11,6 +11,24 @@ links:
     - docs/noldor/script-catalog.md
   docs: []
   tests:
+    - src/autonomous/__tests__/build-pool.test.ts
+    - src/autonomous/__tests__/decide-next.test.ts
+    - src/autonomous/__tests__/drain-eligibility.test.ts
+    - src/autonomous/__tests__/drain-lock.test.ts
+    - src/autonomous/__tests__/drain-reconcile.test.ts
+    - src/autonomous/__tests__/drain-source.test.ts
+    - src/autonomous/__tests__/drain-state.test.ts
+    - src/autonomous/__tests__/escalations.test.ts
+    - src/autonomous/__tests__/merge-classify.test.ts
+    - src/autonomous/__tests__/merge-coordinator.test.ts
+    - src/autonomous/__tests__/notify.test.ts
+    - src/autonomous/__tests__/queue-drain-cli.test.ts
+    - src/autonomous/__tests__/resolve-roadmap-conflict.test.ts
+    - src/autonomous/__tests__/run-drain.test.ts
+    - src/autonomous/__tests__/salvage.test.ts
+    - src/autonomous/__tests__/watch-args.test.ts
+    - src/autonomous/__tests__/watch-detach.test.ts
+    - src/autonomous/__tests__/watch-state.test.ts
     - src/testing/__tests__/consumer-fixture.test.ts
     - src/testing/__tests__/contract-harness.test.ts
     - src/testing/__tests__/drain-e2e.test.ts
@@ -110,6 +128,24 @@ Hermetic stub runner now register in agent registry (#99).
   - [`docs/noldor/testing-principles.md`](../../docs/noldor/testing-principles.md)
   - [`docs/noldor/script-catalog.md`](../../docs/noldor/script-catalog.md)
 - **Tests:**
+  - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
+  - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
+  - [`src/autonomous/__tests__/drain-eligibility.test.ts`](../../src/autonomous/__tests__/drain-eligibility.test.ts)
+  - [`src/autonomous/__tests__/drain-lock.test.ts`](../../src/autonomous/__tests__/drain-lock.test.ts)
+  - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
+  - [`src/autonomous/__tests__/drain-source.test.ts`](../../src/autonomous/__tests__/drain-source.test.ts)
+  - [`src/autonomous/__tests__/drain-state.test.ts`](../../src/autonomous/__tests__/drain-state.test.ts)
+  - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
+  - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
+  - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
+  - [`src/autonomous/__tests__/notify.test.ts`](../../src/autonomous/__tests__/notify.test.ts)
+  - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
+  - [`src/autonomous/__tests__/resolve-roadmap-conflict.test.ts`](../../src/autonomous/__tests__/resolve-roadmap-conflict.test.ts)
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/salvage.test.ts`](../../src/autonomous/__tests__/salvage.test.ts)
+  - [`src/autonomous/__tests__/watch-args.test.ts`](../../src/autonomous/__tests__/watch-args.test.ts)
+  - [`src/autonomous/__tests__/watch-detach.test.ts`](../../src/autonomous/__tests__/watch-detach.test.ts)
+  - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
   - [`src/testing/__tests__/consumer-fixture.test.ts`](../../src/testing/__tests__/consumer-fixture.test.ts)
   - [`src/testing/__tests__/contract-harness.test.ts`](../../src/testing/__tests__/contract-harness.test.ts)
   - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)

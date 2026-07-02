@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { detectMilestoneShippedIncomplete } from '../milestone-shipped-incomplete.js';
 
-// @tests: framework-milestones-support-poc-mvp-100
+// @tests: framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics
 
 async function makeRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'milestone-detector-'));

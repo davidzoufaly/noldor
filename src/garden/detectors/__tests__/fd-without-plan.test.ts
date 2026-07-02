@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { detectFdWithoutPlan } from '../fd-without-plan.js';
 
-// @tests: noldor
+// @tests: noldor, outcome-telemetry-and-effectiveness-metrics
 
 function makeRepoSync(root: string): void {
   spawnSync('git', ['init', '-b', 'main'], { cwd: root, stdio: 'ignore' });

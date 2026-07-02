@@ -11,9 +11,11 @@ links:
   code:
     - src/garden/graph-fd-lookup.ts
   tests:
+    - src/features/__tests__/propose-pointers.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/sync/__tests__/sync-fd-resources.test.ts
+    - src/worktrees/__tests__/worktree-conflicts.test.ts
 introduced: 0.3.0
 noldor-tier: full
 updated: 0.4.0
@@ -21,7 +23,7 @@ updated: 0.4.0
 
 ## Summary
 
-13th SDD detector flagging tests whose `// @tests:` tag list is incomplete given the FDs that own the source files the test imports. Today silent: `sample-gallery.spec.ts` tagged only `sample-scene-gallery` despite exercising `empty-scene-state`; `tree.test.ts` tagged only `zod-scene-schema` despite covering `group-node`; engine tests tagged only their primary FD without `manifold-wasm-integration`. Detector reads `graphify-out/graph.json` `imports_from` edges (graphify v0.7.8+, with the v0.4.20 path-normalization fix), maps target source files to owning FDs via `links.code`, diffs against declared tags. Staleness gate: graph mtime vs MAX(mtime) of `packages/ apps/ scripts/`; on stale, emits one meta-gap with regen instructions. Substrate (`loadFreshGraphOrWarn`, `buildFileToFdsMap`, `getFdOwnersForFile`) lives in `src/garden/graph-fd-lookup.ts`; reused by detectors 9 and 10 below.
+13th SDD detector flagging tests whose `// @tests:` tag list is incomplete given the FDs that own the source files the test imports. Today silent: `sample-gallery.spec.ts` tagged only `sample-scene-gallery` despite exercising `empty-scene-state`; `tree.test.ts` tagged only `zod-scene-schema` despite covering `group-node`; engine tests tagged only their primary FD without `manifold-wasm-integration`. Detector reads `graphify-out/graph.json` `imports_from` edges (graphify v0.7.8+, with the v0.4.20 path-normalization fix), maps target source files to owning FDs via `links.code`, diffs against declared tags. Staleness gate: graph mtime vs MAX(mtime) of the consumer's `scanPaths` (`.noldor/config.json`, via `scanRoots` from `src/sync/sync-code-links.ts` — falls back to the packages/apps/scripts/src union when unset); on stale, emits one meta-gap with regen instructions. The same scanPaths drive the report's test-file walk — the previously hardcoded `packages/ apps/ scripts/` trio left standalone `src/` repos with an empty declared-tag map, flagging every graph-known test as fully untagged. Substrate (`loadFreshGraphOrWarn`, `buildFileToFdsMap`, `getFdOwnersForFile`) lives in `src/garden/graph-fd-lookup.ts`; reused by detectors 9 and 10 below.
 
 Second batch (2026-05-11) — detectors 9 (orphan-owner suggestion), 10 (untagged-test slug suggestion), and 19 (done features without code, formerly tracked as "detector 14" in the roadmap; renumbered to avoid collision with the rule-contradiction detector already at slot 14) ship on the same substrate. Detector 19 is pure frontmatter (mirrors `links.docs` / `links.tests` `n/a` sentinel pattern); 9 + 10 use new helpers `getCommunityOwners` and `getImportOwnersForTest` in `src/garden/graph-fd-lookup.ts`. Both 9 and 10 fall back to the bare message in degraded mode (stale or missing graph).
 
@@ -58,9 +60,11 @@ When the graph is stale, the detector emits a single meta-gap with a regen instr
 - **Code:**
   - [`src/garden/graph-fd-lookup.ts`](../../src/garden/graph-fd-lookup.ts)
 - **Tests:**
+  - [`src/features/__tests__/propose-pointers.test.ts`](../../src/features/__tests__/propose-pointers.test.ts)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/sync/__tests__/sync-fd-resources.test.ts`](../../src/sync/__tests__/sync-fd-resources.test.ts)
+  - [`src/worktrees/__tests__/worktree-conflicts.test.ts`](../../src/worktrees/__tests__/worktree-conflicts.test.ts)
 
 <!-- /generated: resources -->
 

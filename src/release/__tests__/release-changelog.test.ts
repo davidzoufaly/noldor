@@ -1,3 +1,4 @@
+// @tests: dynamic-fd-changelog, feature-md-links-overhaul
 import { prependToChangelog, renderChangelogEntry } from '../release-changelog.js';
 
 import type { Commit } from '../release-commits.js';

@@ -1,4 +1,4 @@
-// @tests: feature-md-links-overhaul
+// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
 
 import { describe, expect, it } from 'vitest';
 

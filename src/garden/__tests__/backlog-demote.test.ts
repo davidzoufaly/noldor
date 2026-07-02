@@ -2,7 +2,7 @@ import { demoteStaleBacklog, STALE_BACKLOG_DAYS_DEFAULT } from '../backlog-demot
 
 import { parseBacklog } from '../../utils/parse-blocks.js';
 
-// @tests: noldor
+// @tests: dashboard-roadmap-drag-drop, noldor, outcome-telemetry-and-effectiveness-metrics, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 
 /** 2026-06-11T00:00:00Z — fixed clock so fixtures age deterministically. */
 const NOW_MS = Date.parse('2026-06-11T00:00:00Z');

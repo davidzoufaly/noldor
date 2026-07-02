@@ -12,8 +12,23 @@ links:
     - src/lib/area-category.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
+    - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
+    - src/dashboard/__tests__/dashboard-ensure.test.ts
+    - src/dashboard/__tests__/dashboard-graph-health.test.ts
+    - src/dashboard/__tests__/dashboard-layout-body-styles.test.ts
+    - src/dashboard/__tests__/dashboard-layout-style-polish.test.ts
+    - src/dashboard/__tests__/dashboard-mermaid.test.ts
+    - src/dashboard/__tests__/dashboard-release-notes.test.ts
+    - src/dashboard/__tests__/dashboard-render-markdown.test.ts
+    - src/dashboard/__tests__/dashboard-server.test.ts
+    - src/dashboard/__tests__/dashboard-skills.test.ts
+    - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
+    - src/dashboard/__tests__/dashboard-worktrees.test.ts
     - src/dashboard/__tests__/edge-scroll.test.ts
+    - src/dashboard/__tests__/metrics-view.test.ts
+    - src/dashboard/__tests__/milestones-view.test.ts
+    - src/dashboard/__tests__/server-cli.test.ts
     - src/lib/__tests__/area-category.test.ts
 name: Dashboard Roadmap/Backlog View Polish
 packages:
@@ -92,8 +107,23 @@ This release unifies filter widths across the roadmap, backlog, and features vie
   - [`src/lib/area-category.ts`](../../src/lib/area-category.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
+  - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)
+  - [`src/dashboard/__tests__/dashboard-ensure.test.ts`](../../src/dashboard/__tests__/dashboard-ensure.test.ts)
+  - [`src/dashboard/__tests__/dashboard-graph-health.test.ts`](../../src/dashboard/__tests__/dashboard-graph-health.test.ts)
+  - [`src/dashboard/__tests__/dashboard-layout-body-styles.test.ts`](../../src/dashboard/__tests__/dashboard-layout-body-styles.test.ts)
+  - [`src/dashboard/__tests__/dashboard-layout-style-polish.test.ts`](../../src/dashboard/__tests__/dashboard-layout-style-polish.test.ts)
+  - [`src/dashboard/__tests__/dashboard-mermaid.test.ts`](../../src/dashboard/__tests__/dashboard-mermaid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-release-notes.test.ts`](../../src/dashboard/__tests__/dashboard-release-notes.test.ts)
+  - [`src/dashboard/__tests__/dashboard-render-markdown.test.ts`](../../src/dashboard/__tests__/dashboard-render-markdown.test.ts)
+  - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)
+  - [`src/dashboard/__tests__/dashboard-skills.test.ts`](../../src/dashboard/__tests__/dashboard-skills.test.ts)
+  - [`src/dashboard/__tests__/dashboard-test-pyramid.test.ts`](../../src/dashboard/__tests__/dashboard-test-pyramid.test.ts)
   - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
+  - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
   - [`src/dashboard/__tests__/edge-scroll.test.ts`](../../src/dashboard/__tests__/edge-scroll.test.ts)
+  - [`src/dashboard/__tests__/metrics-view.test.ts`](../../src/dashboard/__tests__/metrics-view.test.ts)
+  - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
+  - [`src/dashboard/__tests__/server-cli.test.ts`](../../src/dashboard/__tests__/server-cli.test.ts)
   - [`src/lib/__tests__/area-category.test.ts`](../../src/lib/__tests__/area-category.test.ts)
 
 <!-- /generated: resources -->

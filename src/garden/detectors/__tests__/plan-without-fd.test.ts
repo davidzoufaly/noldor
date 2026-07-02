@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { detectPlanWithoutFd } from '../plan-without-fd.js';
 
-// @tests: noldor
+// @tests: noldor, outcome-telemetry-and-effectiveness-metrics
 
 const DONE_FD = `---
 name: My Feature

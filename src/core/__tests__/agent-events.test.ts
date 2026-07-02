@@ -1,4 +1,4 @@
-// @tests: make-noldor-agent-agnostic
+// @tests: continuous-drain-daemon-and-escalation-inbox, make-noldor-agent-agnostic
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

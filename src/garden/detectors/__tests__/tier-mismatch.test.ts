@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { detectTierMismatch } from '../tier-mismatch.js';
 
-// @tests: noldor
+// @tests: noldor, outcome-telemetry-and-effectiveness-metrics
 
 async function makeRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'tier-mismatch-'));

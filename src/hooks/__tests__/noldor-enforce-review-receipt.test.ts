@@ -1,3 +1,4 @@
+// @tests: release-sweep-process-hardening
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';

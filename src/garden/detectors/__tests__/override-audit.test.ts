@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { auditOverrides, auditOverrideTrailers } from '../override-audit.js';
 
-// @tests: noldor
+// @tests: framework-pr-flow-agent-auto-merge, noldor, outcome-telemetry-and-effectiveness-metrics, specs-cr-gate-multi-reviewer
 
 /** Initialise a minimal git repo in a temp dir and return its path. */
 function makeRepo(): string {

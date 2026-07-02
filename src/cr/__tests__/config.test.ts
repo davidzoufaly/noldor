@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, continuous-drain-daemon-and-escalation-inbox, specs-cr-gate-multi-reviewer
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

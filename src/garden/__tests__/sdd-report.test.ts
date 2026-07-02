@@ -1,4 +1,4 @@
-// @tests: feature-md-links-overhaul, sdd-co-tag-detector
+// @tests: bootstrap-immunity-for-self-gating-features, dashboard-roadmap-drag-drop, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, noldor, outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering, sdd-co-tag-detector
 
 import { execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';

@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: acceptance-verify-lane, noldor
 import { describe, expect, it, vi } from 'vitest';
 import { buildContext } from '../context.js';
 

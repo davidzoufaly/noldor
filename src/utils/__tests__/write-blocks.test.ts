@@ -1,3 +1,4 @@
+// @tests: dashboard-roadmap-drag-drop, parallel-drain-roadmapmd-conflict-auto-resolution
 import { countEntries, insertBlock, moveBlock, removeBlock } from '../write-blocks.js';
 
 const ROADMAP_FIX = `# Roadmap

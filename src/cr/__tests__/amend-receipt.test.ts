@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: acceptance-verify-lane, noldor
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

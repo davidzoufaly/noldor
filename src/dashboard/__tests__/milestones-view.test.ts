@@ -4,7 +4,7 @@ import { buildMilestoneGroups, type FeatureRecord } from '../data.js';
 import { renderMilestones } from '../views.js';
 import type { Milestone } from '../../milestones/lib.js';
 
-// @tests: framework-milestones-support-poc-mvp-100
+// @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 
 function milestone(slug: string, status: Milestone['frontmatter']['status']): Milestone {
   return { slug, frontmatter: { name: slug, status }, body: '' };

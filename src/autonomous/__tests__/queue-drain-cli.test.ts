@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, parallel-drain, plan-runner
 import { describe, expect, it } from 'vitest';
 import { parseArgs, assertConfig } from '../queue-drain.js';
 

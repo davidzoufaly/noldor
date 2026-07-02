@@ -1,4 +1,4 @@
-// @tests: parallel-worktree-workflow
+// @tests: dashboard-worktree-health-page, de-superpowers-vendor-spec-plan-and-worktree-flows, parallel-worktree-workflow
 
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';

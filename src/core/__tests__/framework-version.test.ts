@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, version-aware-upgrade-and-migration-chain
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

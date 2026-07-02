@@ -1,3 +1,4 @@
+// @tests: framework-pr-flow-agent-auto-merge
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

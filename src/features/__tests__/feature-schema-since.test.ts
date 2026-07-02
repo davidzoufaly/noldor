@@ -1,4 +1,4 @@
-// @tests: outcome-telemetry-and-effectiveness-metrics
+// @tests: bootstrap-immunity-for-self-gating-features, feature-md-links-overhaul, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it } from 'vitest';
 import { FeatureFrontmatterSchema } from '../feature-schema';
 

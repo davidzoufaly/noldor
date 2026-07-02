@@ -1,3 +1,4 @@
+// @tests: version-aware-upgrade-and-migration-chain
 import { describe, it, expect } from 'vitest';
 import { parseSemver, compareSemver } from '../semver.js';
 

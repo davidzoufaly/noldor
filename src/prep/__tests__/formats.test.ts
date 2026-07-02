@@ -1,3 +1,4 @@
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows, plan-runner
 import { describe, expect, it } from 'vitest';
 
 import { buildDraftPrompt } from '../draft.js';
