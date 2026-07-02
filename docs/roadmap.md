@@ -14,17 +14,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Phase 1 — Self-Truth Quick Fixes
 
-#### Prep Promote Preflight Ignores Untracked Files
-
-- area: tooling
-- type: fix
-- since: 2026-06-13
-- size: XS
-- impact: low
-- confidence: high
-
-`prep promote`'s preflight "working tree not clean" check uses bare `git status --porcelain` (`src/prep/prep-promote.ts:80`), which lists untracked (`??`) files — so a stray untracked artifact (report file, scratch note) blocks the whole promote with a confusing message. The preflight should ignore untracked files and block only on tracked (staged or modified) changes — matching what actually threatens a clean promote commit. (Gitignored files never appear in porcelain output, so ignored artifacts like `.noldor/prep-fanout.log` are already safe.)
-
 #### Prep Promote `--ship` Direct-Merge Fallback
 
 - area: tooling

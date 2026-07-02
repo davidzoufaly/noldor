@@ -77,8 +77,12 @@ function gh(cwd: string, args: string[]): string {
 function preflight(cwd: string): { ok: boolean; note: string } {
   const branch = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
   if (branch !== 'main') return { ok: false, note: `not on main (on ${branch})` };
-  if (git(cwd, ['status', '--porcelain']).trim().length > 0)
-    return { ok: false, note: 'working tree not clean' };
+  // Untracked (`??`) files can't leak into the promote commit — only tracked
+  // (staged or modified) changes threaten it, so only those block.
+  const tracked = git(cwd, ['status', '--porcelain'])
+    .split('\n')
+    .filter((l) => l.trim().length > 0 && !l.startsWith('??'));
+  if (tracked.length > 0) return { ok: false, note: 'working tree not clean' };
   try {
     git(cwd, ['fetch', 'origin', 'main']);
   } catch (e) {
@@ -460,4 +464,4 @@ function main(): void {
 const invokedDirect = /[\\/]prep-promote\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
 if (invokedDirect) main();
 
-export { parseArgs, promoteExitCode, promoteOne, run, selectApproved, toPrepEntry };
+export { parseArgs, preflight, promoteExitCode, promoteOne, run, selectApproved, toPrepEntry };
