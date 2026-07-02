@@ -164,6 +164,35 @@ describe('promoteOne (temp git repo)', () => {
     ).toBe('');
   });
 
+  it('commit trailers form ONE block visible to git interpret-trailers (Noldor-FD + Noldor-Path)', () => {
+    // Regression: trailers passed as separate `-m` paragraphs put Noldor-FD in
+    // an earlier paragraph — git interpret-trailers only parses the final one,
+    // so the commit-msg hook rejected every promote commit ("Missing Noldor-FD").
+    const dir = initRepo();
+    writeStagingSpec(dir, 'foo-bar');
+    const res = promoteOne(dir, '2026-06-10', draft({ slug: 'foo-bar' }));
+    expect(res.status).toBe('promoted');
+    const shas = execFileSync('git', ['rev-list', 'HEAD', '--max-count=2'], {
+      cwd: dir,
+      encoding: 'utf8',
+    })
+      .trim()
+      .split('\n');
+    expect(shas).toHaveLength(2);
+    for (const sha of shas) {
+      const msg = execFileSync('git', ['show', '-s', '--format=%B', sha], {
+        cwd: dir,
+        encoding: 'utf8',
+      });
+      const parsed = execFileSync('git', ['interpret-trailers', '--parse'], {
+        input: msg,
+        encoding: 'utf8',
+      });
+      expect(parsed).toContain('Noldor-FD: foo-bar');
+      expect(parsed).toContain('Noldor-Path: specs-only-new');
+    }
+  });
+
   it('rolls back fully when a full-tier plan is missing: status failed, roadmap UNCHANGED, no FD', () => {
     const dir = initRepo();
     writeStagingSpec(dir, 'big-thing'); // spec present, plan absent
