@@ -6,7 +6,13 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { promoteExitCode, promoteOne, selectApproved, toPrepEntry } from '../prep-promote.js';
+import {
+  preflight,
+  promoteExitCode,
+  promoteOne,
+  selectApproved,
+  toPrepEntry,
+} from '../prep-promote.js';
 
 import type { FeatureDraft, StagingManifest } from '../types.js';
 
@@ -178,5 +184,51 @@ describe('promoteOne (temp git repo)', () => {
     expect(readFileSync(join(dir, 'docs', 'roadmap.md'), 'utf8')).toBe(before);
     expect(readFileSync(join(dir, 'docs', 'roadmap.md'), 'utf8')).toContain('### Big Thing');
     expect(existsSync(join(dir, 'docs', 'features', 'big-thing.md'))).toBe(false);
+  });
+});
+
+describe('preflight (temp git repo)', () => {
+  const repos: string[] = [];
+  afterEach(() => {
+    for (const r of repos.splice(0)) rmSync(r, { recursive: true, force: true });
+  });
+
+  function initRepo(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'prep-preflight-'));
+    repos.push(dir);
+    const git = (args: string[]): void => {
+      execFileSync('git', args, { cwd: dir });
+    };
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.email', 't@t.t']);
+    git(['config', 'user.name', 't']);
+    git(['config', 'commit.gpgsign', 'false']);
+    writeFileSync(join(dir, 'tracked.txt'), 'v1\n', 'utf8');
+    git(['add', '-A']);
+    git(['commit', '-q', '-m', 'init']);
+    // Self-remote so `git fetch origin main` + the ahead check have an origin.
+    git(['remote', 'add', 'origin', dir]);
+    git(['fetch', '-q', 'origin', 'main']);
+    return dir;
+  }
+
+  it('passes with only untracked files present', () => {
+    const dir = initRepo();
+    writeFileSync(join(dir, 'scratch-note.md'), 'stray artifact\n', 'utf8');
+    expect(preflight(dir)).toEqual({ ok: true, note: 'clean' });
+  });
+
+  it('blocks on a modified tracked file', () => {
+    const dir = initRepo();
+    writeFileSync(join(dir, 'tracked.txt'), 'v2\n', 'utf8');
+    expect(preflight(dir)).toEqual({ ok: false, note: 'working tree not clean' });
+  });
+
+  it('blocks on a staged file even when untracked files are also present', () => {
+    const dir = initRepo();
+    writeFileSync(join(dir, 'scratch-note.md'), 'stray artifact\n', 'utf8');
+    writeFileSync(join(dir, 'staged.txt'), 'new\n', 'utf8');
+    execFileSync('git', ['add', 'staged.txt'], { cwd: dir });
+    expect(preflight(dir)).toEqual({ ok: false, note: 'working tree not clean' });
   });
 });
