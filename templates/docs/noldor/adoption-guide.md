@@ -10,9 +10,9 @@ Noldor is a standalone package. A consuming repo installs it as a dev dependency
 ## Bootstrap
 
 1. **Install** the package as a dev dependency (`noldor`).
-2. **Scaffold** the framework files into your repo: `pnpm noldor init`. This drops the `docs/noldor/` rule pages, the lefthook config, and the skill bundle into place. Re-run `pnpm noldor init --update` to pull template updates, or `pnpm noldor doctor` to diff your copy against the package templates.
-3. **Configure** `.noldor/config.json` with a `consumer:` block (see field table below).
-4. **Hooks** install automatically via the package's `postinstall` (`lefthook install`).
+2. **Scaffold** the framework files into your repo: `pnpm noldor init`. This drops the `docs/noldor/` rule pages, the lefthook config, the skill bundle, a starter `.noldor/config.json` (only when absent — never overwritten, even by `--update`), and `.noldor/rollout-marker` (arms the gate validators; commit it). Re-run `pnpm noldor init --update` to pull template updates, or `pnpm noldor doctor` to diff your copy against the package templates.
+3. **Configure** the scaffolded `.noldor/config.json`: fill the `consumer:` block with your repo's real values (see field table below).
+4. **Hooks** install automatically via the package's `postinstall` (`lefthook install`; skipped with a note when lefthook isn't present, e.g. registry installs without devDeps).
 
 After pulling a newer framework version, run `pnpm noldor doctor` — a
 `framework skew` warning means the consumer's tree is anchored to an older
