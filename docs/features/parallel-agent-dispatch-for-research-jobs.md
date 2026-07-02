@@ -4,12 +4,23 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/research/
-    - src/parallel/
+    - src/research/types.ts
+    - src/research/prompt.ts
+    - src/research/staging.ts
+    - src/research/fanout.ts
+    - src/core/concurrency.ts
+    - src/core/git-porcelain.ts
+    - src/core/agent-runner/types.ts
     - src/cli/manifest.ts
-    - src/autonomous/
-    - docs/noldor/
-  tests: []
+    - .claude/skills/noldor-research/SKILL.md
+    - docs/noldor/research-fanout.md
+  tests:
+    - src/research/__tests__/types.test.ts
+    - src/research/__tests__/prompt.test.ts
+    - src/research/__tests__/staging.test.ts
+    - src/research/__tests__/fanout.test.ts
+    - src/core/__tests__/concurrency.test.ts
+    - src/core/__tests__/git-porcelain.test.ts
   spec: docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md
 name: Parallel-Agent Dispatch for Research Jobs
 packages:
