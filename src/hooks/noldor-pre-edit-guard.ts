@@ -90,7 +90,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     result = runPreEditGuard({ cwd: process.cwd(), filePath: argPath });
   } else {
     // PreToolUse hook invocation: JSON payload on stdin. Fail open on any
-    // read/parse problem — a guard bug must never brick the editor.
+    // read/parse problem — a guard bug must never brick the editor. An
+    // interactive TTY (operator ran it bare) has no payload; don't block on
+    // a stdin read that will never complete.
+    if (process.stdin.isTTY) process.exit(0);
     let payload: PreToolUsePayload = {};
     try {
       payload = JSON.parse(readFileSync(0, 'utf8')) as PreToolUsePayload;

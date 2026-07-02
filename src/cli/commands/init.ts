@@ -77,7 +77,12 @@ try {
   const marker = ensureRolloutMarker(consumer);
   if (marker === 'created') {
     console.log(
-      'created    .noldor/rollout-marker (commit it — gate validators enforce from here)',
+      'created    .noldor/rollout-marker — gate validators enforce from here. Commit it via a ' +
+        "micro-chore /gate session (the marker path is micro-chore-allowlisted), or NOLDOR_PATH_OVERRIDE='arm rollout marker' git commit.",
+    );
+  } else if (marker === 'skipped-no-git') {
+    console.log(
+      'skipped    .noldor/rollout-marker (no git HEAD yet — validators stay in soft mode; re-run init after the first commit)',
     );
   }
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no

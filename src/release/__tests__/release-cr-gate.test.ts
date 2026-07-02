@@ -129,6 +129,21 @@ describe('checkCrGate', () => {
     expect(r.ok).toBe(true);
   });
 
+  it('does NOT exempt a mixed squash where only one embedded path is release-sweep', () => {
+    const commits: Commit[] = [
+      {
+        sha: 's1',
+        tree: 't1',
+        message:
+          'feat: mixed (#10)' + trailers('Noldor-Path: release-sweep', 'Noldor-Path: fast-track'),
+        paths: ['src/a.ts'],
+      },
+    ];
+    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    expect(r.ok).toBe(false);
+    expect(r.offenders[0].sha).toBe('s1');
+  });
+
   it('rejects a code-touching commit with no receipt and no override', () => {
     const commits: Commit[] = [
       {

@@ -57,8 +57,12 @@ export function checkCrGate(input: CrGateInput): CrGateResult {
     const message = git(['show', '-s', '--format=%B', sha]);
     const t = collectNoldorTrailerLines(message);
 
+    // Exempt only when EVERY embedded Noldor-Path is an exempt path — a mixed
+    // squash (one sweep-pathed commit among feature commits) must not launder
+    // the feature commits past the review check.
     const paths = t.get('Noldor-Path') ?? [];
-    if (paths.includes('release-automation') || paths.includes('release-sweep')) continue;
+    const EXEMPT_PATHS = new Set(['release-automation', 'release-sweep']);
+    if (paths.length > 0 && paths.every((p) => EXEMPT_PATHS.has(p))) continue;
 
     const files = git(['show', '--name-only', '--format=', sha])
       .split('\n')

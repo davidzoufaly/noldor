@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -87,5 +87,39 @@ describe('filePathFromPayload', () => {
     expect(filePathFromPayload({ tool_input: { notebook_path: '/b' } })).toBe('/b');
     expect(filePathFromPayload({ tool_input: { path: '/c' } })).toBe('/c');
     expect(filePathFromPayload({})).toBeUndefined();
+  });
+});
+
+describe('PreToolUse stdin entrypoint (spawn-level)', () => {
+  const ENTRY = join(process.cwd(), 'src/hooks/noldor-pre-edit-guard.ts');
+  const TSX = join(process.cwd(), 'node_modules/.bin/tsx');
+
+  function runHook(stdin: string): { status: number | null; stderr: string } {
+    const r = spawnSync(TSX, [ENTRY], { input: stdin, encoding: 'utf8' });
+    return { status: r.status, stderr: r.stderr };
+  }
+
+  it('exits 2 with a /gate message for a tracked file without a session', () => {
+    const dir = setupGitRepo();
+    const payload = JSON.stringify({
+      cwd: dir,
+      tool_input: { file_path: join(dir, 'tracked.ts') },
+    });
+    const r = runHook(payload);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/\/gate/);
+  });
+
+  it('exits 0 for an untracked file', () => {
+    const dir = setupGitRepo();
+    const payload = JSON.stringify({
+      cwd: dir,
+      tool_input: { file_path: join(dir, 'brand-new.ts') },
+    });
+    expect(runHook(payload).status).toBe(0);
+  });
+
+  it('exits 0 (fail-open) on malformed payload', () => {
+    expect(runHook('not json at all').status).toBe(0);
   });
 });
