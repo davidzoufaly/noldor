@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
+import { appendOverrideLog } from '../core/overrides-log.js';
 import { ensureGardenFresh } from '../garden/garden-receipt.js';
 import { autoStampOnCleanDetect } from './auto-restamp.js';
 import { ensureGraphFresh } from './graph-freshness.js';
@@ -175,6 +176,7 @@ async function main(): Promise<void> {
     await runOptionalCheck(scripts, 'build');
     await runCliCheck('noldor validate features', ['validate', 'features']);
     if (process.env.RELEASE_SKIP_GATE_COMPLIANCE === '1') {
+      appendOverrideLog(process.cwd(), 'RELEASE_SKIP_GATE_COMPLIANCE=1', 'release');
       console.log(
         '→ noldor garden detect --gate-compliance (SKIPPED via RELEASE_SKIP_GATE_COMPLIANCE=1)',
       );
@@ -189,11 +191,12 @@ async function main(): Promise<void> {
     const previousTag = await findPreviousTag();
     if (previousTag !== 'v0.0.0') {
       if (process.env.RELEASE_SKIP_CR_GATE === '1') {
-        console.log('→ Codex CR gate (SKIPPED via RELEASE_SKIP_CR_GATE=1)');
+        appendOverrideLog(process.cwd(), 'RELEASE_SKIP_CR_GATE=1', 'release');
+        console.log('→ release CR gate (SKIPPED via RELEASE_SKIP_CR_GATE=1)');
       } else {
         const crGate = checkCrGate({ from: previousTag, to: 'HEAD', cwd: process.cwd() });
         if (!crGate.ok) {
-          console.error('Codex CR gate failed:');
+          console.error('Release CR gate failed:');
           console.error(crGate.reason ?? '');
           process.exit(1);
         }

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, join } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
+import { readSession, writeSession, clearSession } from '../core/session.js';
 import { sizeToTier } from '../core/size-routing.js';
 import { parseRoadmap } from '../utils/parse-blocks.js';
 import { removeBlock } from '../utils/write-blocks.js';
@@ -336,29 +337,73 @@ function run(argv: readonly string[]): number {
 
   const today = manifest.today || todayUtc();
   const branch = `chore/promote-batch-${today}`;
-  git(cwd, ['fetch', 'origin', 'main']);
-  git(cwd, ['checkout', '-B', branch, 'origin/main']);
 
-  const results: PromoteResult[] = [];
-  for (const draft of selected) {
-    // SERIAL: each promoteOne removes a block from docs/roadmap.md — never parallelize.
-    let r: PromoteResult;
-    try {
-      r = promoteOne(cwd, today, draft);
-    } catch (e) {
-      r = {
-        slug: draft.slug,
-        status: 'failed',
-        commits: [],
-        note: `unexpected: ${(e as Error).message}`,
-      };
-    }
-    results.push(r);
-    process.stderr.write(`  ${r.slug} -> ${r.status}${r.note ? ` (${r.note})` : ''}\n`);
+  // Post-rollout, the pre-commit hard wall requires an active session for every
+  // hook-visible commit this loop makes. Refuse to clobber a live gate session;
+  // write our own and always clear it (mirrors withReleaseSession).
+  const existingSession = readSession(cwd);
+  if (existingSession) {
+    process.stderr.write(
+      `prep promote: an active /gate session is present (path=${existingSession.path}). ` +
+        `Finish it or rm .noldor/session.json before promoting.\n`,
+    );
+    return 1;
   }
+  writeSession(cwd, { path: 'fast-track', startedAt: new Date().toISOString() });
+  try {
+    git(cwd, ['fetch', 'origin', 'main']);
+    git(cwd, ['checkout', '-B', branch, 'origin/main']);
 
+    const results: PromoteResult[] = [];
+    for (const draft of selected) {
+      // SERIAL: each promoteOne removes a block from docs/roadmap.md — never parallelize.
+      let r: PromoteResult;
+      try {
+        r = promoteOne(cwd, today, draft);
+      } catch (e) {
+        r = {
+          slug: draft.slug,
+          status: 'failed',
+          commits: [],
+          note: `unexpected: ${(e as Error).message}`,
+        };
+      }
+      results.push(r);
+      process.stderr.write(`  ${r.slug} -> ${r.status}${r.note ? ` (${r.note})` : ''}\n`);
+    }
+
+    return finishRun(cwd, parsed, relBatchDir, absBatchDir, today, branch, results);
+  } finally {
+    clearSession(cwd);
+  }
+}
+
+function finishRun(
+  cwd: string,
+  parsed: PromoteArgs,
+  relBatchDir: string,
+  absBatchDir: string,
+  today: string,
+  branch: string,
+  results: PromoteResult[],
+): number {
   const promoted = results.filter((r) => r.status === 'promoted');
   const failedCount = results.filter((r) => r.status === 'failed').length;
+
+  if (promoted.length > 0) {
+    // Pre-push receipt gate: promote commits carry `Noldor-Path: *-new`, which
+    // requires a review receipt on the tip. These are draft promotions already
+    // operator-approved at the artifact stage — not code — so carry an audited
+    // override instead of a fake code-review receipt.
+    git(cwd, [
+      'commit',
+      '--amend',
+      '--no-edit',
+      '--trailer',
+      'Noldor-Path-Override: prep-promote batch (drafts operator-approved at artifact stage)',
+    ]);
+  }
+
   const recordPath = writeRecord(absBatchDir, today, branch, results);
 
   let ship: { prUrl: string; note: string } | null = null;
@@ -380,7 +425,7 @@ function run(argv: readonly string[]): number {
     );
   } else {
     process.stdout.write(
-      `prep promote: ${promoted.length}/${selected.length} promoted on ${branch}.\n`,
+      `prep promote: ${promoted.length}/${results.length} promoted on ${branch}.\n`,
     );
     if (ship) process.stdout.write(`  shipped: ${ship.prUrl}\n`);
     else

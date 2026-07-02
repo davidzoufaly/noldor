@@ -35,6 +35,9 @@ function isReleaseAutomationFile(file: string, cwd: string): boolean {
   return (
     file === 'CHANGELOG.md' ||
     file === 'docs/release-notes.md' ||
+    // sdd-report regen is folded into the release commit when only the
+    // review-skip count line changed (see release/index.ts).
+    file === 'docs/sdd-report.md' ||
     getReleasePackageFiles(cwd).has(file) ||
     (file.startsWith('docs/features/') && file.endsWith('.md')) ||
     (file.startsWith('docs/noldor/') && file.endsWith('.md'))

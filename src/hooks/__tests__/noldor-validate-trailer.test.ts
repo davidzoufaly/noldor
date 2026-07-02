@@ -103,6 +103,25 @@ describe('validateTrailer', () => {
     expect(r.reason).toMatch(/release subject/);
   });
 
+  it('accepts release-automation with a folded docs/sdd-report.md regen', () => {
+    const dir = setupRepo();
+    writeFileSync(join(dir, 'a'), 'init');
+    execSync('git add a && git commit -q -m init', { cwd: dir });
+    const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+    writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
+    writeFileSync(join(dir, 'b'), 'x');
+    execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
+    mkdirSync(join(dir, 'docs'), { recursive: true });
+    writeFileSync(join(dir, 'CHANGELOG.md'), '# Changelog\n');
+    writeFileSync(join(dir, 'docs', 'sdd-report.md'), '# SDD\n');
+    execSync('git add CHANGELOG.md docs/sdd-report.md', { cwd: dir });
+    const r = validateTrailer({
+      message: 'chore(release): v1.2.3\n\nNoldor-Path: release-automation\n',
+      cwd: dir,
+    });
+    expect(r.ok).toBe(true);
+  });
+
   it('rejects release-automation when staged files are not release outputs', () => {
     const dir = setupRepo();
     writeFileSync(join(dir, 'a'), 'init');

@@ -45,8 +45,12 @@ function writeFd(cwd: string, slug: string, gate?: string): void {
   );
 }
 
-/** A repo whose `origin/main..HEAD` has 3 feature commits (claude already satisfied, codex missing). */
-function makeRepo(slug: string, gate?: string): string {
+/**
+ * A repo whose `origin/main..HEAD` has 3 feature commits. By default each
+ * carries a `Noldor-Path-Override` (claude side satisfied); `bare: true`
+ * leaves them without any review evidence at all.
+ */
+function makeRepo(slug: string, gate?: string, opts: { bare?: boolean } = {}): string {
   const cwd = mkdtempSync(join(tmpdir(), 'bootstrap-imm-'));
   git(cwd, ['init', '-q', '-b', 'feat/x']);
   writeFd(cwd, slug, gate);
@@ -58,8 +62,10 @@ function makeRepo(slug: string, gate?: string): string {
   for (let i = 1; i <= 3; i++) {
     writeFileSync(join(cwd, `f${i}.ts`), `export const x${i} = ${i};`);
     git(cwd, ['add', '-A']);
-    // Claude side already satisfied via Noldor-Path-Override; codex deliberately absent.
-    git(cwd, ['commit', '-q', '-m', `feat: change ${i}\n\nNoldor-Path-Override: pre-existing`]);
+    const msg = opts.bare
+      ? `feat: change ${i}`
+      : `feat: change ${i}\n\nNoldor-Path-Override: pre-existing`;
+    git(cwd, ['commit', '-q', '-m', msg]);
   }
   return cwd;
 }
@@ -114,13 +120,19 @@ describe('injectBootstrapOverrides', () => {
     expect(r2.injected).toEqual([]);
   });
 
-  it('makes checkCrGate pass over the range (codex branch satisfied)', () => {
-    const before = checkCrGate({ from: 'origin/main', to: 'HEAD', cwd });
-    expect(before.ok).toBe(false); // codex missing pre-injection
+  it('makes checkCrGate pass over a range with no review evidence', () => {
+    // Bare commits: no receipt, no override — the gate must fail pre-injection.
+    const bare = makeRepo('feat', 'codex-cr', { bare: true });
+    try {
+      const before = checkCrGate({ from: 'origin/main', to: 'HEAD', cwd: bare });
+      expect(before.ok).toBe(false);
 
-    injectBootstrapOverrides({ cwd, slug: 'feat', range });
-    const after = checkCrGate({ from: 'origin/main', to: 'HEAD', cwd });
-    expect(after.ok).toBe(true);
+      injectBootstrapOverrides({ cwd: bare, slug: 'feat', range });
+      const after = checkCrGate({ from: 'origin/main', to: 'HEAD', cwd: bare });
+      expect(after.ok).toBe(true); // injected codex override counts as review evidence
+    } finally {
+      rmSync(bare, { recursive: true, force: true });
+    }
   });
 
   it('preserves a Noldor-Reviewed-Subagent tree receipt amended before injection', () => {

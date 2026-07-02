@@ -65,34 +65,39 @@ function commit(cwd: string, file: string, body: string, trailers: string[]): st
 // ---------------------------------------------------------------------------
 
 describe('release-cr-gate e2e', () => {
-  it('passes when both trailers tree-match', () => {
+  it('passes on a single review receipt (tree value not re-checked)', () => {
     const cwd = initRepo();
     const base = tagBase(cwd);
 
-    commit(cwd, 'src/a.ts', 'feat: add feature', [
-      'Noldor-Reviewed: <tree>',
-      'Noldor-Reviewed-Codex: <tree>',
-    ]);
+    commit(cwd, 'src/a.ts', 'feat: add feature', ['Noldor-Reviewed-Subagent: <tree>']);
 
     const r = checkCrGate({ from: base, to: 'HEAD', cwd });
     expect(r.ok).toBe(true);
     expect(r.offenders).toHaveLength(0);
   });
 
-  it('fails when codex trailer absent on a code-touching commit', () => {
+  it('passes when the receipt sits mid-body under a Co-authored-by tail (squash shape)', () => {
     const cwd = initRepo();
     const base = tagBase(cwd);
 
-    const sha = commit(cwd, 'src/b.ts', 'feat: partial review', [
-      'Noldor-Reviewed: <tree>',
-      // intentionally omitting Noldor-Reviewed-Codex
-    ]);
+    // Emulate a GitHub squash: trailers inlined mid-body, divider + co-author
+    // tail as the only real trailer block.
+    const body = [
+      'feat: squashed (#7)',
+      '',
+      '* feat: squashed',
+      '',
+      'Noldor-Path: fast-track',
+      'Noldor-Reviewed-Subagent: deadbeef',
+      '',
+      '---------',
+      '',
+      'Co-authored-by: t <t@t.io>',
+    ].join('\n');
+    commit(cwd, 'src/b.ts', body, []);
 
     const r = checkCrGate({ from: base, to: 'HEAD', cwd });
-    expect(r.ok).toBe(false);
-    expect(r.offenders).toHaveLength(1);
-    expect(r.offenders[0].sha).toBe(sha);
-    expect(r.offenders[0].missing).toEqual(['codex']);
+    expect(r.ok).toBe(true);
   });
 
   it('skips doc-only commits', () => {
@@ -107,18 +112,18 @@ describe('release-cr-gate e2e', () => {
     expect(r.offenders).toHaveLength(0);
   });
 
-  it('fails when both review trailers absent on a code-touching commit', () => {
+  it('fails when no review evidence exists on a code-touching commit', () => {
     const cwd = initRepo();
     const base = tagBase(cwd);
 
     const sha = commit(cwd, 'src/c.ts', 'feat: bare commit', [
-      // neither Noldor-Reviewed nor Noldor-Reviewed-Codex
+      // no receipt, no override
     ]);
 
     const r = checkCrGate({ from: base, to: 'HEAD', cwd });
     expect(r.ok).toBe(false);
     expect(r.offenders).toHaveLength(1);
     expect(r.offenders[0].sha).toBe(sha);
-    expect(r.offenders[0].missing).toEqual(['claude', 'codex']);
+    expect(r.offenders[0].subject).toBe('feat: bare commit');
   });
 });

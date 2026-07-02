@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readRolloutMarker, isPostRollout } from '../rollout-marker';
+import { readRolloutMarker, isPostRollout, ensureRolloutMarker } from '../rollout-marker';
 
 describe('rollout marker', () => {
   it('returns null when file absent', () => {
@@ -60,5 +60,44 @@ describe('rollout marker', () => {
     mkdirSync(join(dir, '.noldor'));
     writeFileSync(join(dir, '.noldor', 'rollout-marker'), secondSha + '\n');
     expect(isPostRollout(firstSha, dir)).toBe(false);
+  });
+
+  describe('ensureRolloutMarker', () => {
+    it('writes HEAD as the marker in a git repo without one', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'qfm-ensure-'));
+      execSync('git init -q', { cwd: dir });
+      execSync('git config user.email test@test.test', { cwd: dir });
+      execSync('git config user.name test', { cwd: dir });
+      writeFileSync(join(dir, 'a.txt'), 'first');
+      execSync('git add a.txt', { cwd: dir });
+      execSync('git commit -q -m "first"', { cwd: dir });
+      const head = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+
+      expect(ensureRolloutMarker(dir)).toBe('created');
+      expect(readRolloutMarker(dir)).toBe(head);
+      // HEAD itself is at-or-after the marker → enforcement arms immediately
+      expect(isPostRollout(head, dir)).toBe(true);
+    });
+
+    it('no-ops when a marker already exists', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'qfm-ensure2-'));
+      mkdirSync(join(dir, '.noldor'));
+      writeFileSync(join(dir, '.noldor', 'rollout-marker'), 'existing\n');
+      expect(ensureRolloutMarker(dir)).toBe('exists');
+      expect(readRolloutMarker(dir)).toBe('existing');
+    });
+
+    it('skips outside a git repo (soft mode stays)', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'qfm-ensure3-'));
+      expect(ensureRolloutMarker(dir)).toBe('skipped-no-git');
+      expect(readRolloutMarker(dir)).toBeNull();
+    });
+
+    it('skips in a git repo with no commits yet', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'qfm-ensure4-'));
+      execSync('git init -q', { cwd: dir });
+      expect(ensureRolloutMarker(dir)).toBe('skipped-no-git');
+      expect(readRolloutMarker(dir)).toBeNull();
+    });
   });
 });

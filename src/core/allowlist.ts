@@ -7,6 +7,7 @@ export const MICRO_CHORE_GLOBS = [
   'lefthook.yml', // framework hook config — single-line hook edits land via micro-chore
   '.gitignore', // ignore-policy edits (e.g. operator-local marker files) land via micro-chore
   'templates/.claude/**', // template twins of `.claude/**` skills — template-sync forces editing both, so the twin must share the micro-chore lane
+  '.noldor/rollout-marker', // arming commit: the marker must be committable through the wall it arms
 ] as const;
 
 /**
