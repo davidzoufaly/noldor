@@ -14,17 +14,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Phase 2 — Enforcement Honesty
 
-#### Audit Gate Documentation
-
-- area: docs
-- type: docs
-- since: 2026-06-12
-- size: S
-- impact: med
-- confidence: high
-
-Promoted from backlog 2026-07-02 — no longer speculative: the 2026-07 deep audit found 15 doc-says-code-doesn't + 11 code-does-docs-don't mismatches around the gate. Known concrete items: `docs/noldor/git-and-commits.md` schema missing the `Noldor-Enhancement` trailer and `release-sweep` path; `docs/noldor/worktree-discipline.md:20` instructs a `git push origin main` that the push hook blocks; `docs/noldor/pr-flow.md:16` documents the removed `cr-retry.ts` loop; the gate skill body itself still cites pre-reorg `scripts/noldor/*` paths (allowlist, phase-revert, session, pr-flow-cli — all live in `src/` now; template twin edits in lockstep). Sweep `/gate` docs (skill + `docs/noldor/`) against code and fix both directions.
-
 ### Phase 3 — Adoption Chain
 
 #### Registry Distribution for the Noldor Package
