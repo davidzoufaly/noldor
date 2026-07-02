@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
@@ -30,10 +31,10 @@ const execFileP = promisify(execFile);
 async function run(
   cmd: string,
   args: string[],
-  opts: { captureOutput?: boolean; env?: Record<string, string> } = {},
+  opts: { captureOutput?: boolean; env?: Record<string, string>; cwd?: string } = {},
 ): Promise<string> {
   const env = opts.env ? { ...process.env, ...opts.env } : process.env;
-  const { stdout, stderr } = await execFileP(cmd, args, { env });
+  const { stdout, stderr } = await execFileP(cmd, args, { env, cwd: opts.cwd });
   if (!opts.captureOutput && stderr) {
     process.stderr.write(stderr);
   }
@@ -137,6 +138,84 @@ export function assertNoInProgressRelease(cwd: string): void {
       'Run `pnpm release --resume` to finish it, or discard with ' +
       '`git reset --hard && rm .noldor/release-state.json`.',
   );
+}
+
+/** Options for {@link resumeRelease}. `main()` fills these from the consumer config. */
+export interface ResumeOptions {
+  /** Same lockstep list the normal-path `git add` stages. */
+  lockstepPackages: string[];
+  /** Consumer name — names the release-notes temp file, as on the normal path. */
+  name: string;
+  /** Extra env for every spawned command (tests prepend a fake-gh PATH). */
+  env?: Record<string, string>;
+}
+
+/** Exact release-owned files the pipeline mutates and commits. */
+const RELEASE_SURFACE_FILES = ['CHANGELOG.md', 'docs/release-notes.md', 'docs/sdd-report.md'];
+/** Release-owned directories (marker fills + noldor pages). */
+const RELEASE_SURFACE_PREFIXES = ['docs/features/', 'docs/noldor/'];
+
+/**
+ * Finish an interrupted release from wherever it died. Check-then-act ladder
+ * (commit → tag → push → GitHub Release) driven ONLY by the state file written
+ * at the mutation boundary — it never re-derives the version and never re-runs
+ * checks (the tree is byte-identical to when they passed; the shape check and
+ * version cross-check catch external tampering). Safe to re-run after a
+ * partial resume: every rung skips when its outcome already exists.
+ */
+export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<void> {
+  const runIn = (
+    cmd: string,
+    args: string[],
+    extra: { captureOutput?: boolean; env?: Record<string, string> } = {},
+  ): Promise<string> => run(cmd, args, { ...extra, cwd, env: { ...opts.env, ...extra.env } });
+
+  // Rung 1 — load + verify state. Branch must be main; the working-tree
+  // version must still equal the state version (guards a stale token left
+  // behind by an unrelated manual reset). Deliberately NO clean-tree or
+  // origin-sync check — the tree is intentionally dirty mid-release.
+  const state = readReleaseState(cwd);
+  if (state === null) {
+    throw new Error('Nothing to resume: .noldor/release-state.json not found.');
+  }
+  const branch = await runIn('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (branch !== 'main') {
+    throw new Error(`Resume must run from main branch (currently on ${branch}).`);
+  }
+  const pkg = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8')) as {
+    version?: string;
+  };
+  if (pkg.version !== state.version) {
+    throw new Error(
+      `Version mismatch: package.json has ${pkg.version ?? 'no version'} but ` +
+        `.noldor/release-state.json expects ${state.version}. The tree no longer matches the ` +
+        'in-progress release — discard with `git reset --hard && rm .noldor/release-state.json`.',
+    );
+  }
+
+  // Rung 2 — shape check: every dirty path must be release-owned. Never guess.
+  // run() trims stdout, so the first line may have lost the leading space of
+  // its two-char XY status column — strip the status token by pattern, not by
+  // fixed offset.
+  const porcelain = await runIn('git', ['status', '--porcelain']);
+  const dirty = porcelain
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.trimStart().replace(/^\S+\s+/, ''));
+  const offenders = dirty.filter(
+    (p) =>
+      !RELEASE_SURFACE_FILES.includes(p) &&
+      !opts.lockstepPackages.includes(p) &&
+      !RELEASE_SURFACE_PREFIXES.some((prefix) => p.startsWith(prefix)),
+  );
+  if (offenders.length > 0) {
+    throw new Error(
+      `Dirty paths outside the release surface: ${offenders.join(', ')}. ` +
+        'Refusing to fold them into the release commit. Clean them up, or discard the ' +
+        'in-progress release with `git reset --hard && rm .noldor/release-state.json`.',
+    );
+  }
+  // Rungs 3-6 (commit → tag → push → gh release) land in the next task.
 }
 
 async function main(): Promise<void> {
