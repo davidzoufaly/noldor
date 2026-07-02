@@ -73,13 +73,14 @@ skip the sweep; minor and major bumps MUST NOT.
      override usage, review-skip counter).
    - `pnpm noldor validate features`
    - `checkCrGate(prev-tag..HEAD)` — every code-touching commit must
-     carry tree-matched `Noldor-Reviewed` AND
-     `Noldor-Reviewed-Codex` trailers (or matching overrides). See
-     [`cr-pipeline.md`](cr-pipeline.md). Bypass with
+     show review evidence: a `Noldor-Reviewed(-Subagent|-Codex)` receipt
+     or a non-empty override trailer, scanned across the whole squash
+     commit body. See [`cr-pipeline.md`](cr-pipeline.md). Bypass with
      `RELEASE_SKIP_CR_GATE=1 pnpm release` when shipping a transition
      release where the CR pipeline itself was added during the cycle and
      pre-cycle commits never had a chance to carry the trailers. Same
-     escape-hatch discipline as `RELEASE_SKIP_GATE_COMPLIANCE`.
+     escape-hatch discipline as `RELEASE_SKIP_GATE_COMPLIANCE`; both
+     skips append a `(release)`-tagged line to `.noldor/overrides.log`.
 
    **Consumer quality gates (run only if declared in the consumer's
    `package.json`; a repo without one skips it loudly):** `pnpm typecheck`,

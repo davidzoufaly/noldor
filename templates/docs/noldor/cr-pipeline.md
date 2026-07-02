@@ -185,17 +185,22 @@ copy-paste repeats.
 ## Release gate
 
 `pnpm release` runs `checkCrGate({ from: <prev-tag>, to: HEAD })` after
-`pnpm noldor validate features`. The gate classifies each commit:
+`pnpm noldor validate features`. Main is squash-merge only, so PR-branch
+trailers land embedded in the squash commit body — the gate scans the
+whole message for `Noldor-*` lines, not just the final trailer block.
+It classifies each commit:
 
-- `Noldor-Path: release-automation` → skip.
+- `Noldor-Path: release-automation` or `release-sweep` → skip.
 - All paths within the micro-chore allowlist → skip.
-- Otherwise → require both `Noldor-Reviewed: <tree>` (or
-  `Noldor-Path-Override`) and `Noldor-Reviewed-Codex: <tree>`
-  (or `Noldor-CR-Override-Codex`). Trailer values must equal
-  `git rev-parse <sha>^{tree}`.
+- Otherwise → require review evidence: any of `Noldor-Reviewed`,
+  `Noldor-Reviewed-Subagent`, `Noldor-Reviewed-Codex` (receipt), or a
+  non-empty `Noldor-Path-Override` / `Noldor-CR-Override-Codex`. Tree
+  freshness is NOT re-checked here — the pre-push hook enforces it on
+  the branch tip, and a squash commit's tree legitimately differs.
 
-Failures abort the release with a per-commit diagnostic naming the
-missing side(s).
+Failures abort the release with a per-commit diagnostic. Skipping via
+`RELEASE_SKIP_CR_GATE=1` appends a `(release)`-tagged line to
+`.noldor/overrides.log`.
 
 ## Verify lane
 
