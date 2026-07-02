@@ -67,6 +67,11 @@ describe('features phase-revert CLI', () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('unchanged');
   });
+
+  it('exits 1 for a missing FD', () => {
+    const dir = fdRepo('done');
+    expect(run(REVERT, ['nope'], dir).status).toBe(1);
+  });
 });
 
 describe('roadmap remove-block CLI', () => {
@@ -121,5 +126,29 @@ describe('roadmap remove-block CLI', () => {
   it('exits 1 when the file is missing', () => {
     const dir = mkdtempSync(join(tmpdir(), 'remove-block-cli-'));
     expect(run(REMOVE, ['x'], dir).status).toBe(1);
+  });
+
+  it('targets docs/backlog.md with --backlog', () => {
+    // Backlog blocks are H3 entries (### Name + bullets), not roadmap's H4-under-category.
+    const BACKLOG = [
+      '# Backlog',
+      '',
+      '### My Entry',
+      '',
+      '- area: tooling',
+      '- since: 2026-01-01',
+      '- size: XS',
+      '- impact: low',
+      '',
+      'Body of the entry.',
+      '',
+    ].join('\n');
+    const dir = roadmapRepo();
+    writeFileSync(join(dir, 'docs', 'backlog.md'), BACKLOG);
+    const r = run(REMOVE, ['my-entry', '--backlog'], dir);
+    expect(r.status).toBe(0);
+    expect(readFileSync(join(dir, 'docs/backlog.md'), 'utf8')).not.toContain('My Entry');
+    // roadmap untouched
+    expect(readFileSync(join(dir, 'docs/roadmap.md'), 'utf8')).toContain('My Entry');
   });
 });
