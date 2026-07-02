@@ -84,7 +84,7 @@ The CLI is idempotent — an absent slug prints `nothing to do` and exits 0 (re-
 
 `git diff --quiet docs/roadmap.md || (git add docs/roadmap.md && git commit -m "docs(roadmap): retire <slug> — shipped via fast-track (no FD)")`
 
-The `prepare-commit-msg` hook injects `Noldor-Path: fast-track` from the session marker; `fast-track` carries no `Noldor-FD`. The block is removed on the feature branch and lands on `main` when the fast-track PR merges — keeping retirement atomic with the shipped change rather than a separate edit on `main`.
+The `prepare-commit-msg` hook injects `Noldor-Path: fast-track` from the session marker — and, when the marker carries a `slug`, a `Noldor-FD: <slug>` trailer too (the hook injects from `slug` unconditionally; the commit-msg validator ignores it on fast-track, where no FD file is required). The block is removed on the feature branch and lands on `main` when the fast-track PR merges — keeping retirement atomic with the shipped change rather than a separate edit on `main`.
 
 ### Phase-revert lifecycle (attach paths)
 
