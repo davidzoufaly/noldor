@@ -7,9 +7,22 @@ import { runDrain, type DrainDeps, type DrainResult } from './drain-loop.js';
 import { roadmapSource } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { detachWatch } from './watch-detach.js';
-import { writeState, type DrainState } from './drain-state.js';
-import { syncMainCleanState, openPrExistsFor, spawnGate, mergePr } from './drain-io.js';
+import { writeState, projectDrainState } from './drain-state.js';
+import {
+  assertQueueSourceSyncedAt,
+  syncMainCleanState,
+  openPrExistsFor,
+  spawnGate,
+  mergePr,
+} from './drain-io.js';
 import { assertConfig } from './queue-drain.js';
+import {
+  formatReconcile,
+  groupKillState,
+  makeReconcileDeps,
+  reconcileDeadRun,
+  reportIsEmpty,
+} from './drain-reconcile.js';
 import { makeSalvage } from './salvage.js';
 import { applyCycleVerdict, loadPark, mapCycle, parkAwareSource } from './escalations.js';
 import {
@@ -137,8 +150,18 @@ async function main(): Promise<void> {
   }
 
   let sigint = false;
+  // SIGINT stays graceful: flag a between-cycles stop and let in-flight children finish.
+  // SIGTERM is a hard stop — `kill $(cat .noldor/watch.pid)` must tear the detached
+  // bypassPermissions agent grandchildren down with the watcher instead of orphaning
+  // them (mirrors queue-drain). SIGKILL runs no handler; the next cycle/run's
+  // `reapOrphanAgents` is the backstop for that.
   process.on('SIGINT', () => {
     sigint = true;
+  });
+  process.on('SIGTERM', () => {
+    groupKillState(cwd);
+    releaseLock(cwd);
+    process.exit(130);
   });
   const pauseExists = (): boolean => existsSync(join(cwd, PAUSE_REL));
 
@@ -174,28 +197,68 @@ async function main(): Promise<void> {
         continue;
       }
 
-      const source = parkAwareSource(roadmapSource(cwd), () => loadPark(cwd));
+      // Cycle-start reconciliation (mirrors queue-drain's startup pass): reap orphan
+      // agents from a dead prior cycle/run, sync + divergence pre-flight, heal open
+      // PRs, prune shipped worktrees. A clean cycle is an all-empty no-op. A
+      // local-ahead-of-origin divergence is a persistent operator condition — trip
+      // loudly (pause + escalation row + notify) instead of spinning on it.
+      const baseSource = roadmapSource(cwd);
+      try {
+        const reconcileDeps = makeReconcileDeps(
+          cwd,
+          baseSource,
+          () => syncMainCleanState(cwd),
+          () => assertQueueSourceSyncedAt(cwd),
+        );
+        const report = await reconcileDeadRun(reconcileDeps, baseSource, parsed.dryRun);
+        if (!reportIsEmpty(report)) out(formatReconcile(report));
+      } catch (e) {
+        const now = new Date().toISOString();
+        const evidence = e instanceof Error ? e.message : String(e);
+        try {
+          writeFileSync(join(cwd, PAUSE_REL), `reconcile-failed ${now}\n`, 'utf8');
+        } catch {
+          /* best-effort */
+        }
+        applyCycleVerdict(
+          cwd,
+          baseSource.id,
+          {
+            escalations: [
+              {
+                ts: now,
+                slug: '-',
+                source: baseSource.id,
+                reason: 'reconcile-failed',
+                evidence,
+                stateSnapshot: { shipped: 0, skipped: [] },
+                suggestedAction:
+                  'resolve the divergence/reconcile error, then `rm .noldor/drain.pause`',
+              },
+            ],
+            toPark: [],
+            toUnpark: [],
+            nextPendingPr: state.pendingPr,
+          },
+          now,
+        );
+        notify(notifyCommand, 'reconcile-failed', { evidence }, cwd);
+        out(`watch: reconcile failed — ${evidence}; .noldor/drain.pause written`);
+        emitJson({ cycle: 'reconcile-failed', evidence });
+        exitCode = 1;
+        break;
+      }
+
+      const source = parkAwareSource(baseSource, () => loadPark(cwd));
       const deps: DrainDeps = {
         source,
-        spawnGate: (env, timeoutMs, prompt) => spawnGate(cwd, env, timeoutMs, prompt),
+        spawnGate: (env, timeoutMs, prompt, onSpawn) =>
+          spawnGate(cwd, env, timeoutMs, prompt, onSpawn),
         syncMainCleanState: () => syncMainCleanState(cwd),
         mergePr: (slug, branch) => mergePr(cwd, slug, branch),
         openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
         salvageStaleBase: makeSalvage(cwd, 'watch'),
-        writeState: (s) => {
-          const ds: DrainState = {
-            pid: process.pid,
-            startedAt,
-            phase: s.phase,
-            inFlight: s.inFlight,
-            merging: s.merging,
-            currentSlug: s.inFlight[0]?.slug ?? null,
-            shipped: s.shipped,
-            skip: s.skip,
-            retries: s.retries,
-          };
-          writeState(cwd, ds);
-        },
+        writeState: (s) => writeState(cwd, projectDrainState(process.pid, startedAt, s)),
         stopRequested: () => sigint || existsSync(join(cwd, STOP_REL)) || pauseExists(),
       };
 

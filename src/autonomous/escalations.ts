@@ -10,7 +10,8 @@ export type EscalationReason =
   | 'merge-conflict'
   | 'merge-timeout'
   | 'run-aborted'
-  | 'watcher-tripped';
+  | 'watcher-tripped'
+  | 'reconcile-failed';
 
 export interface EscalationRow {
   ts: string;
@@ -39,6 +40,8 @@ export const SUGGESTED_ACTIONS: Record<EscalationReason, string> = {
   'run-aborted': 'repo-level failure — fix the repo state (see evidence), then re-run',
   'watcher-tripped':
     'inspect recent escalations, clear the root cause, then `rm .noldor/drain.pause`',
+  'reconcile-failed':
+    'resolve the divergence/reconcile error (see evidence), then `rm .noldor/drain.pause`',
 };
 
 export interface CycleVerdict {

@@ -11,7 +11,7 @@ import {
   type DrainSource,
 } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
-import { writeState, type DrainState } from './drain-state.js';
+import { writeState, projectDrainState } from './drain-state.js';
 import {
   syncMainCleanState,
   openPrExistsFor,
@@ -171,21 +171,7 @@ async function main(): Promise<void> {
     mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
     salvageStaleBase: makeSalvage(cwd, 'run'),
-    writeState: (s) => {
-      const state: DrainState = {
-        pid: process.pid,
-        startedAt,
-        phase: s.phase,
-        inFlight: s.inFlight,
-        merging: s.merging,
-        currentSlug: s.inFlight[0]?.slug ?? null, // back-compat projection
-        shipped: s.shipped,
-        skip: s.skip,
-        retries: s.retries,
-        agentPgids: s.agentPgids,
-      };
-      writeState(cwd, state);
-    },
+    writeState: (s) => writeState(cwd, projectDrainState(process.pid, startedAt, s)),
     stopRequested: () => stop || existsSync(join(cwd, '.noldor/drain-stop')),
   };
 
