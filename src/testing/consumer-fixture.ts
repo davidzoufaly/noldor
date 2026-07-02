@@ -26,7 +26,6 @@ const CONSUMER_CONFIG = (name: string) => ({
     e2ePrefix: 'e2e/',
     samplesPath: 'samples',
     packagePrefix: '@fixture/',
-    pnpmStderrPrefix: 'fixture',
     appPathPrefix: 'src/',
     categories: ['Tooling'],
   },

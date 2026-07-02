@@ -74,11 +74,11 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
 
 When a `fast-track` session was entered from a Step 0 roadmap pick (XS/S `suggestedPath`), its session marker carries `slug`. Unlike `/promote` — which removes the source block as it scaffolds an FD — `fast-track` creates no FD, so the source roadmap block must be retired explicitly or the shipped entry re-surfaces at the next gate. Execute this on the worktree branch immediately after worktree creation + session-marker write (mirrors the phase-revert sequence). Skip entirely when the marker has no `slug` (ad-hoc fast-track not tied to a roadmap entry).
 
-**Step 1 — remove the block (guarded no-op when the slug is already absent):**
+**Step 1 — remove the block (built-in no-op when the slug is already absent):**
 
-`pnpm exec tsx -e "import {readFileSync as r, writeFileSync as w} from 'node:fs'; import {removeBlock} from './src/utils/write-blocks.ts'; import {parseRoadmap} from './src/utils/parse-blocks.ts'; const p='docs/roadmap.md'; const m=r(p,'utf8'); if (parseRoadmap(m).some((e)=>e.slug==='<slug>')) w(p, removeBlock(m,'<slug>').newRaw, 'utf8');"`
+`pnpm noldor roadmap remove-block <slug>`
 
-The `parseRoadmap(...).some(...)` guard prevents `removeBlock` from throwing when the block is already gone (re-run safety).
+The CLI is idempotent — an absent slug prints `nothing to do` and exits 0 (re-run safety). It works from any consumer repo; there is no `./src/` import to resolve.
 
 **Step 2 — commit only if the file changed:**
 
@@ -92,9 +92,9 @@ When `full-attach` or `specs-only-attach` runs, the parent FD's phase may need t
 
 **Step 1 — apply the revert (no-op when phase is already `in-progress` or `proposed`):**
 
-`pnpm exec tsx -e "import {readFileSync as r, writeFileSync as w} from 'node:fs'; import {revertPhaseForAttach as f} from './src/core/phase-revert.ts'; const p = 'docs/features/<parent-slug>.md'; const m = r(p, 'utf8'); const o = f(m); if (o !== m) w(p, o, 'utf8');"`
+`pnpm noldor features phase-revert <parent-slug>`
 
-The inline `if (o !== m)` guard prevents an empty-diff commit attempt.
+The CLI only writes when the phase actually changes (prevents an empty-diff commit attempt) and works from any consumer repo — no `./src/` import to resolve.
 
 **Step 2 — commit only if the file changed:**
 
@@ -172,9 +172,9 @@ This pause is the cheapest place to catch architectural drift, missing edge case
   - **Fast-track / micro-chore:** skip (no FD).
   `/draft-feature-md` never stages or commits — the flip step below commits the refreshed body together with `phase: done`. In autonomous mode `--yes` runs it non-interactively (no prompt). Because the flip commits the refreshed FD onto the branch, it rides the `origin/main..HEAD` diff that the code-stage CR reviews below (that step passes `--base-sha origin/main`) — that is the mechanism behind "reviewed by the code-stage CR".
 
-- **Flip FD `phase: in-progress → done`** for all FD-carrying paths (`specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`). Read `slug` (new-FD paths) or `parent` (attach paths) from `.noldor/session.json`. Apply `flipPhaseToDone` from `src/core/phase-flip-done.ts` to `docs/features/<slug>.md`. If the file changed, commit:
+- **Flip FD `phase: in-progress → done`** for all FD-carrying paths (`specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`). Read `slug` (new-FD paths) or `parent` (attach paths) from `.noldor/session.json`. If the file changed, commit:
 
-  `pnpm exec tsx -e "import {readFileSync as r, writeFileSync as w} from 'node:fs'; import {flipPhaseToDone as f} from './src/core/phase-flip-done.ts'; const p = 'docs/features/<slug>.md'; const m = r(p, 'utf8'); const o = f(m); if (o !== m) w(p, o, 'utf8');"`
+  `pnpm noldor features phase-flip-done <slug>`
 
   `git diff --quiet docs/features/<slug>.md || (git add docs/features/<slug>.md && git commit -m "docs(features:<slug>): mark phase=done + refresh User Story/Usage" -m "Noldor-FD: <slug>")`
 

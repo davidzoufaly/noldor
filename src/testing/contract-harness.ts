@@ -24,6 +24,18 @@ export function runConsumerCli(cwd: string, args: string[]): CliResult {
   return { exitCode: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
+/**
+ * Run the INSTALLED framework CLI (the fixture's `node_modules/.bin/noldor`,
+ * placed by {@link installFrameworkTarball}). This is what locks the
+ * `package.json` `files` whitelist: the packaged bin resolves templates and
+ * src from the tarball, not the working tree.
+ */
+export function runInstalledCli(cwd: string, args: string[]): CliResult {
+  const bin = join(cwd, 'node_modules', '.bin', 'noldor');
+  const r = spawnSync(bin, args, { cwd, encoding: 'utf8' });
+  return { exitCode: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+
 /** Build a tarball of the working tree and install it into the fixture (contract fidelity). */
 export function installFrameworkTarball(fixtureDir: string): void {
   const root = repoRoot();
@@ -39,13 +51,17 @@ export function installFrameworkTarball(fixtureDir: string): void {
 
 /** Drive the four read-only contract commands; return per-step exit codes. */
 export function runContractChecks(fixtureDir: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  // init runs from the INSTALLED bin so it scaffolds from the packaged
+  // templates — the in-tree doctor below then diffs the consumer against the
+  // full in-tree template list, so a template missing from the tarball
+  // surfaces as doctor drift instead of passing silently.
+  out['init'] = runInstalledCli(fixtureDir, ['init']).exitCode;
   const steps: [string, string[]][] = [
-    ['init', ['init']],
     ['doctor', ['doctor']],
     ['validate-features', ['validate', 'features']],
     ['garden-detect', ['garden', 'detect']],
   ];
-  const out: Record<string, number> = {};
   for (const [name, args] of steps) out[name] = runConsumerCli(fixtureDir, args).exitCode;
   return out;
 }

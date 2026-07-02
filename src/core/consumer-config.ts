@@ -82,7 +82,12 @@ export const ConsumerConfigSchema = z
     e2ePrefix: z.string(),
     samplesPath: z.string(),
     packagePrefix: z.string(),
-    pnpmStderrPrefix: z.string(),
+    /**
+     * @deprecated Dead key — nothing reads it. Tolerated (optional) so
+     * existing consumer configs keep parsing under the strict schema; drop it
+     * from your config. New scaffolds omit it.
+     */
+    pnpmStderrPrefix: z.string().optional(),
     appPathPrefix: z.string(),
     /** Release-notes categories. Grows over a project's life (see `/triage`). */
     categories: z

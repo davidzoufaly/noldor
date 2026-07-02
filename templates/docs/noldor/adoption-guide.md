@@ -10,9 +10,9 @@ Noldor is a standalone package. A consuming repo installs it as a dev dependency
 ## Bootstrap
 
 1. **Install** the package as a dev dependency (`noldor`).
-2. **Scaffold** the framework files into your repo: `pnpm noldor init`. This drops the `docs/noldor/` rule pages, the lefthook config, and the skill bundle into place. Re-run `pnpm noldor init --update` to pull template updates, or `pnpm noldor doctor` to diff your copy against the package templates.
-3. **Configure** `.noldor/config.json` with a `consumer:` block (see field table below).
-4. **Hooks** install automatically via the package's `postinstall` (`lefthook install`).
+2. **Scaffold** the framework files into your repo: `pnpm noldor init`. This drops the `docs/noldor/` rule pages, the lefthook config, the skill bundle, a starter `.noldor/config.json` (only when absent — never overwritten, even by `--update`), and `.noldor/rollout-marker` (arms the gate validators; commit it). Re-run `pnpm noldor init --update` to pull template updates, or `pnpm noldor doctor` to diff your copy against the package templates.
+3. **Configure** the scaffolded `.noldor/config.json`: fill the `consumer:` block with your repo's real values (see field table below).
+4. **Hooks** install automatically via the package's `postinstall` (`lefthook install`; skipped with a note when lefthook isn't present, e.g. registry installs without devDeps).
 
 After pulling a newer framework version, run `pnpm noldor doctor` — a
 `framework skew` warning means the consumer's tree is anchored to an older
@@ -33,7 +33,6 @@ diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
 | `e2ePrefix`         | Path prefix for e2e tests.                                                 |
 | `samplesPath`       | Path to sample/fixture assets, if any.                                     |
 | `packagePrefix`     | npm scope for workspace packages (e.g. `@acme/`).                          |
-| `pnpmStderrPrefix`  | The consumer's pnpm banner prefix, for log parsing.                        |
 | `appPathPrefix`     | Path prefix for the app, for FD `links.code` resolution.                   |
 | `categories`        | Release-notes categories (functional-domain axis, NOT commit types). Default `["Core","Tooling","Other"]`. Grows via `/triage` + `/promote`. |
 | `areaCategories`    | Maps an FD `area` slug → a category. Unmapped areas fall back to `Other`.   |
@@ -45,8 +44,7 @@ diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
 ```json
 { "consumer": { "name": "acme", "repoUrl": "https://github.com/acme/acme",
   "lockstepPackages": ["acme"], "scanPaths": ["src"], "appPathPrefix": "src",
-  "packagePrefix": "@acme/", "e2ePrefix": "e2e/", "samplesPath": "samples",
-  "pnpmStderrPrefix": "acme", "boundaries": [], "deprecatedPackages": [],
+  "packagePrefix": "@acme/", "e2ePrefix": "e2e/", "samplesPath": "samples", "boundaries": [], "deprecatedPackages": [],
   "categories": ["Core", "Tooling", "Other"], "areaCategories": { "core": "Core", "tooling": "Tooling" } } }
 ```
 

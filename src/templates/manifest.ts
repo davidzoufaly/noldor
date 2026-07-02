@@ -11,6 +11,14 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const TEMPLATES_ROOT = join(here, '..', '..', 'templates');
 
+/**
+ * Templates that are STARTERS, not synced twins: `init` copies them only when
+ * the consumer file is absent, `init --update` never overwrites them, `init
+ * --adopt` never snapshots them back (the live file holds consumer-specific
+ * values), and template-sync/doctor never report drift on them.
+ */
+export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set(['.noldor/config.json']);
+
 /** Enumerate every file under TEMPLATES_ROOT, returning paths relative to it. */
 export function templateFiles(root: string = TEMPLATES_ROOT): string[] {
   const out: string[] = [];
