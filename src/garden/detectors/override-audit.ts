@@ -38,12 +38,50 @@ export function commitOnlyTouchesReport(sha: string, cwd: string): boolean {
 export interface OverrideEntry {
   readonly sha: string;
   readonly reason: string;
+  /** True when a configured `garden.overrideAudit.expected` rule matched. */
+  readonly expected: boolean;
 }
 
 export interface OverrideAuditResult {
   readonly severity: 'OK' | 'INFO' | 'WARN';
+  /** Count of UNEXPECTED overrides — the only input to severity. */
   readonly count: number;
+  /** Count of overrides absorbed by an `expected` rule (still listed below). */
+  readonly expectedCount: number;
   readonly overrides: readonly OverrideEntry[];
+}
+
+/**
+ * One `garden.overrideAudit.expected` rule (schema-validated by
+ * `gardenConfigSchema` in `src/cr/config.ts`; kept structural here so the
+ * detector layer has no cr-module import). A rule matches when EVERY field it
+ * defines matches: `shaPrefix` as a prefix of the full commit SHA,
+ * `reasonIncludes` as a substring of the override reason. `note` is
+ * documentation-only.
+ */
+export interface ExpectedOverrideRule {
+  readonly shaPrefix?: string;
+  readonly reasonIncludes?: string;
+  readonly note: string;
+}
+
+/**
+ * True when any rule matches `entry`. A rule defining no matching field
+ * matches nothing (the config schema forbids that shape; this guard keeps the
+ * function safe for hand-built inputs).
+ */
+export function matchesExpectedOverride(
+  entry: { readonly sha: string; readonly reason: string },
+  rules: readonly ExpectedOverrideRule[],
+): boolean {
+  return rules.some((rule) => {
+    if (rule.shaPrefix === undefined && rule.reasonIncludes === undefined) return false;
+    if (rule.shaPrefix !== undefined && !entry.sha.startsWith(rule.shaPrefix)) return false;
+    if (rule.reasonIncludes !== undefined && !entry.reason.includes(rule.reasonIncludes)) {
+      return false;
+    }
+    return true;
+  });
 }
 
 /**
@@ -55,15 +93,19 @@ export interface OverrideAuditResult {
  * @param opts.cwd - Repository root.
  * @param opts.threshold - Override count that triggers WARN (default 3).
  * @param opts.daysBack - How many days of history to walk (default 30).
+ * @param opts.expected - Expected-noise rules; matched entries are listed but excluded from severity.
  * @returns Severity, total count, and per-commit details.
  */
 export function auditOverrides(opts: {
   cwd: string;
   threshold?: number;
   daysBack?: number;
+  /** Declared expected-noise rules (`garden.overrideAudit.expected`). */
+  expected?: readonly ExpectedOverrideRule[];
 }): OverrideAuditResult {
   const threshold = opts.threshold ?? 3;
   const daysBack = opts.daysBack ?? 30;
+  const expectedRules = opts.expected ?? [];
   const since = new Date(Date.now() - daysBack * 86_400_000).toISOString();
 
   // Use record separator (\x1e) between commits, NUL between SHA and body
@@ -103,14 +145,26 @@ export function auditOverrides(opts: {
 
     const overrideReason = trailers['Noldor-Path-Override'];
     if (overrideReason && !commitOnlyTouchesReport(sha, opts.cwd)) {
-      overrides.push({ sha, reason: overrideReason });
+      overrides.push({
+        sha,
+        reason: overrideReason,
+        expected: matchesExpectedOverride({ sha, reason: overrideReason }, expectedRules),
+      });
     }
   }
 
+  // Severity from UNEXPECTED entries only — declared noise never pushes the
+  // audit to WARN, but any override keeps it INFO-visible (never disappears).
+  const unexpectedCount = overrides.filter((o) => !o.expected).length;
   const severity: 'OK' | 'INFO' | 'WARN' =
-    overrides.length > threshold ? 'WARN' : overrides.length > 0 ? 'INFO' : 'OK';
+    unexpectedCount > threshold ? 'WARN' : overrides.length > 0 ? 'INFO' : 'OK';
 
-  return { severity, count: overrides.length, overrides };
+  return {
+    severity,
+    count: unexpectedCount,
+    expectedCount: overrides.length - unexpectedCount,
+    overrides,
+  };
 }
 
 /**
