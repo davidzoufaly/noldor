@@ -143,6 +143,23 @@ export const MANIFEST: Record<string, Group> = {
         src: 'features/migrate-fd-commits-to-prs.ts',
         desc: 'Migrate FD commit refs to PR refs',
       },
+      'phase-flip-done': {
+        src: 'features/phase-flip-done-cli.ts',
+        desc: 'Flip an FD phase in-progress → done (gate Step 4)',
+      },
+      'phase-revert': {
+        src: 'features/phase-revert-cli.ts',
+        desc: 'Revert an FD phase done → in-progress (attach scaffold)',
+      },
+    },
+  },
+  roadmap: {
+    desc: 'Roadmap/backlog block operations',
+    subs: {
+      'remove-block': {
+        src: 'triage/remove-block-cli.ts',
+        desc: 'Remove a schema-C block by slug (--backlog for docs/backlog.md; absent slug = no-op)',
+      },
     },
   },
   milestones: {

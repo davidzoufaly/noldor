@@ -9,8 +9,7 @@
     "dist",
     "src",
     "bin",
-    "templates",
-    "docs"
+    "templates"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -40,7 +39,7 @@
     "release": "node bin/noldor.mjs release run",
     "clean": "rm -rf dist .turbo",
     "prepare": "tsc",
-    "postinstall": "lefthook install"
+    "postinstall": "lefthook install || echo 'lefthook not found - skipping hook install (expected when installed as a dependency)'"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.3",

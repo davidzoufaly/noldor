@@ -5,7 +5,11 @@
 // 2. presence + version-floor check for every *configured* agent runner.
 // Exit 1 on any drift or runner problem; exit 0 with counts on clean.
 // Wired into `pnpm verify` at the consumer side (per spec).
-import { TEMPLATES_ROOT, templateFiles } from '../../templates/manifest.js';
+import {
+  TEMPLATES_ROOT,
+  templateFiles,
+  SCAFFOLD_ONLY_TEMPLATES,
+} from '../../templates/manifest.js';
 import { computeDrift } from '../../templates/diff.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
@@ -14,7 +18,10 @@ import { loadFrameworkVersion } from '../../core/consumer-config.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 
 const agentsCfg = loadAgentsConfig(process.cwd());
-const files = filterTemplatesByAgents(templateFiles(), agentsCfg.targets);
+// Scaffold-only starters (e.g. .noldor/config.json) legitimately diverge.
+const files = filterTemplatesByAgents(templateFiles(), agentsCfg.targets).filter(
+  (f) => !SCAFFOLD_ONLY_TEMPLATES.has(f),
+);
 const drift = computeDrift(TEMPLATES_ROOT, process.cwd(), files);
 
 let bad = 0;

@@ -11,7 +11,11 @@
 //                                    (default: agents.targets from config, else claude)
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { TEMPLATES_ROOT, templateFiles } from '../../templates/manifest.js';
+import {
+  TEMPLATES_ROOT,
+  templateFiles,
+  SCAFFOLD_ONLY_TEMPLATES,
+} from '../../templates/manifest.js';
 import { copyTemplate, adoptTemplate } from '../../templates/copy.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
@@ -50,17 +54,27 @@ function parseAgents(): RunnerName[] {
 
 if (adopt) {
   // Adopt snapshots pkg templates from the live consumer — it must see the
-  // full unfiltered manifest regardless of agent targets.
-  const all = templateFiles();
+  // full unfiltered manifest regardless of agent targets. Scaffold-only
+  // starters are excluded: the live file holds consumer-specific values that
+  // must never overwrite the generic starter.
+  const all = templateFiles().filter((f) => !SCAFFOLD_ONLY_TEMPLATES.has(f));
   adoptTemplate(TEMPLATES_ROOT, consumer, all);
   console.log(`adopt: snapshotted ${all.length} consumer files into ${TEMPLATES_ROOT}`);
   process.exit(0);
 }
 
-const files = filterTemplatesByAgents(templateFiles(), parseAgents());
+const manifest = filterTemplatesByAgents(templateFiles(), parseAgents());
+const files = manifest.filter((f) => !SCAFFOLD_ONLY_TEMPLATES.has(f));
+const scaffoldOnly = manifest.filter((f) => SCAFFOLD_ONLY_TEMPLATES.has(f));
 
 try {
   const results = copyTemplate(TEMPLATES_ROOT, consumer, files, { update });
+  // Starters: copy only when absent — never overwrite, never `--update`, never throw.
+  for (const rel of scaffoldOnly) {
+    if (!existsSync(join(consumer, rel))) {
+      results.push(...copyTemplate(TEMPLATES_ROOT, consumer, [rel], { update: false }));
+    }
+  }
   const counts = { added: 0, updated: 0, unchanged: 0 } as const as {
     added: number;
     updated: number;

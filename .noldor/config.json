@@ -9,7 +9,6 @@
     "e2ePrefix": "e2e/",
     "samplesPath": "samples",
     "packagePrefix": "@noldor/",
-    "pnpmStderrPrefix": "noldor",
     "appPathPrefix": "src",
     "categories": ["Core", "Tooling", "Agents", "Other"],
     "areaCategories": {

@@ -46,6 +46,7 @@ links:
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/schema-parity.test.ts
     - src/cr/__tests__/sidecar.test.ts
+    - src/features/__tests__/phase-cli.test.ts
     - src/garden/__tests__/backlog-demote.test.ts
     - src/garden/__tests__/garden-detect.test.ts
     - src/garden/__tests__/garden-receipt.test.ts
@@ -83,7 +84,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a

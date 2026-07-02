@@ -119,4 +119,21 @@ describe('checkTemplateSync', () => {
       cleanup();
     }
   });
+
+  it('never flags scaffold-only starters (.noldor/config.json diverges by design)', () => {
+    const { templatesRoot, cwd, cleanup } = makeRoots(
+      { '.noldor/config.json': '{"consumer":{"name":"my-project"}}\n' },
+      { '.noldor/config.json': '{"consumer":{"name":"real-values"}}\n' },
+    );
+    try {
+      const res = checkTemplateSync({
+        cwd,
+        templatesRoot,
+        changedFiles: ['.noldor/config.json', 'templates/.noldor/config.json'],
+      });
+      expect(res).toEqual({ ok: true, offenders: [] });
+    } finally {
+      cleanup();
+    }
+  });
 });

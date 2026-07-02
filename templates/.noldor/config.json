@@ -1,0 +1,21 @@
+{
+  "consumer": {
+    "name": "my-project",
+    "repoUrl": "https://github.com/OWNER/REPO",
+    "lockstepPackages": ["package.json"],
+    "scanPaths": ["src"],
+    "boundaries": [],
+    "deprecatedPackages": [],
+    "e2ePrefix": "e2e/",
+    "samplesPath": "samples",
+    "packagePrefix": "",
+    "appPathPrefix": "src",
+    "categories": ["Core", "Tooling", "Other"],
+    "areaCategories": {},
+    "scopeAliases": {},
+    "verifyCommands": {}
+  },
+  "crLanes": {
+    "code": ["subagent"]
+  }
+}

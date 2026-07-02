@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { loadAgentsConfig } from '../core/agent-runner/registry.js';
 import { filterTemplatesByAgents } from '../templates/agent-filter.js';
 import { computeDrift, type DriftEntry } from '../templates/diff.js';
-import { templateFiles, TEMPLATES_ROOT } from '../templates/manifest.js';
+import { templateFiles, TEMPLATES_ROOT, SCAFFOLD_ONLY_TEMPLATES } from '../templates/manifest.js';
 
 const TEMPLATES_PREFIX = 'templates/';
 
@@ -32,7 +32,10 @@ export function checkTemplateSync(opts: {
 }): TemplateSyncResult {
   const root = opts.templatesRoot ?? TEMPLATES_ROOT;
   const targeted = new Set(
-    filterTemplatesByAgents(templateFiles(root), loadAgentsConfig(opts.cwd).targets),
+    filterTemplatesByAgents(templateFiles(root), loadAgentsConfig(opts.cwd).targets).filter(
+      // Scaffold-only starters are expected to diverge from the consumer copy.
+      (f) => !SCAFFOLD_ONLY_TEMPLATES.has(f),
+    ),
   );
   const rels = new Set<string>();
   for (const f of opts.changedFiles) {
