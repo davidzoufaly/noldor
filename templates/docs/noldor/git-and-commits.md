@@ -58,15 +58,15 @@ Noldor-Path: micro-chore | fast-track | specs-only-new | specs-only-attach | ful
 Noldor-FD: <slug>                        # required for specs-only-* / full-* paths
 Noldor-Enhancement: <slug>               # required for attach paths (specs-only-attach, full-attach)
 Noldor-Reviewed-Subagent: <tree-hash>    # amended on the tip commit at gate Step 4 — validated pre-push, NOT at commit-msg
-Noldor-Phase-Revert: 1                   # attach-scaffold phase-revert commits — bypasses the spec-file existence check
+Noldor-Phase-Revert: 1                   # phase-revert scaffold commits — bypasses the spec-file existence check (attach paths and specs-only-new)
 ```
 
 Per-path `commit-msg` validation (what the hook actually checks):
 
 - `micro-chore` / `release-sweep` — re-validates the staged diff against the matching allowlist (`src/core/allowlist.ts`), so a hand-typed trailer can't launder a code change.
 - `fast-track` — path trailer only; no FD, no review receipt at commit time.
-- `specs-only-new` / `full-new` — `Noldor-FD` must resolve to an existing FD whose `noldor-tier` matches the path; `full-new` additionally requires `links.spec` in the FD frontmatter; `specs-only-new` requires a committed spec at `docs/superpowers/specs/<date>-<slug>-design.md`.
-- `specs-only-attach` / `full-attach` — require `Noldor-Enhancement` and a committed spec at `docs/superpowers/specs/<date>-<parent>-<enhancement>-design.md`. A `Noldor-Phase-Revert: 1` commit bypasses both (the revert scaffold commits before the spec exists).
+- `specs-only-new` / `full-new` — `Noldor-FD` must resolve to an existing FD whose `noldor-tier` matches the path; `full-new` additionally requires `links.spec` in the FD frontmatter; `specs-only-new` requires a spec file on disk at `docs/superpowers/specs/<date>-<slug>-design.md` (existence check only — the hook doesn't verify it's committed). `Noldor-Phase-Revert: 1` bypasses the spec check on `specs-only-new`.
+- `specs-only-attach` / `full-attach` — require `Noldor-Enhancement` and a spec file on disk at `docs/superpowers/specs/<date>-<parent>-<enhancement>-design.md`. A `Noldor-Phase-Revert: 1` commit bypasses both (the revert scaffold commits before the spec exists).
 - `release-automation` — validated separately (release pipeline commits).
 
 Overrides (emergency bypass — both append to an audit log surfaced by `/garden`):
