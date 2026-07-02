@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { loadConfig } from '../cr/config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
 import { INVARIANTS } from './garden-invariants.js';
@@ -12,6 +13,7 @@ import { parseBacklog } from '../utils/parse-blocks.js';
 import { slugify } from '../utils/slugify.js';
 import { STALE_BACKLOG_DAYS_DEFAULT } from './backlog-demote.js';
 import { auditOverrides } from './detectors/override-audit.js';
+import type { ExpectedOverrideRule } from './detectors/override-audit.js';
 import { auditCodexCrOverrides } from './detectors/codex-cr-override-audit.js';
 import { detectBootstrapOverrideAudit } from './detectors/bootstrap-override-audit.js';
 import { detectTierMismatch } from './detectors/tier-mismatch.js';
@@ -615,6 +617,26 @@ export interface GateComplianceFindings {
 }
 
 /**
+ * Resolve `garden.overrideAudit` tuning from `<repo>/.noldor/config.json`.
+ * Fail-open: a missing or malformed config yields no expected rules and the
+ * detector's built-in threshold (mirrors `resolveGardenScanPaths`) — a config
+ * typo must not crash `/garden` or the release gate-compliance check.
+ */
+export async function loadOverrideAuditOptions(
+  repo: string,
+): Promise<{ threshold?: number; expected: readonly ExpectedOverrideRule[] }> {
+  try {
+    const config = await loadConfig(join(repo, '.noldor', 'config.json'));
+    return {
+      threshold: config?.garden?.overrideAudit?.threshold,
+      expected: config?.garden?.overrideAudit?.expected ?? [],
+    };
+  } catch {
+    return { expected: [] };
+  }
+}
+
+/**
  * Run only the gate-compliance detectors (Phase 6 set).
  *
  * @param repo - Repository root.
@@ -628,7 +650,7 @@ export async function detectGateCompliance(repo: string): Promise<GateCompliance
       detectPlanWithoutFd(repo),
       detectFdWithoutPlan(repo),
     ]);
-  const overrideAudit = auditOverrides({ cwd: repo });
+  const overrideAudit = auditOverrides({ cwd: repo, ...(await loadOverrideAuditOptions(repo)) });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
   return {
@@ -763,7 +785,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // validator reported green — shape checks and working-dir scans never stat
   // the link targets themselves.
   sddGaps.push(...(await detectFdLinkRot(repo)));
-  const overrideAudit = auditOverrides({ cwd: repo });
+  const overrideAudit = auditOverrides({ cwd: repo, ...(await loadOverrideAuditOptions(repo)) });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
   // A schema-surface change in the release range with no accompanying migration

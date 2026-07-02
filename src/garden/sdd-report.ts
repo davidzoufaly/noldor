@@ -14,7 +14,9 @@ import { loadConsumerConfig } from '../core/consumer-config.js';
 import type { ConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
-import { commitOnlyTouchesReport } from './detectors/override-audit.js';
+import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/override-audit.js';
+import type { ExpectedOverrideRule } from './detectors/override-audit.js';
+import { loadConfigSync } from '../cr/config.js';
 import { scanRoots as resolveScanRoots } from '../sync/sync-code-links.js';
 import { renderMetricsSection, reviewSkipCountLine } from './sdd-report-format.js';
 import type { MetricsReport } from '../metrics/types.js';
@@ -853,6 +855,8 @@ export async function collectGaps(input: ReportInput): Promise<Gap[]> {
 export interface GateOverrideEntry {
   readonly sha: string;
   readonly reason: string;
+  /** True when a `garden.overrideAudit.expected` rule matched this entry. */
+  readonly expected: boolean;
 }
 
 /**
@@ -920,6 +924,17 @@ export function buildGateComplianceSection(
   const overrides: GateOverrideEntry[] = [];
   let reviewSkipCount = 0;
 
+  // Expected-noise rules from `garden.overrideAudit.expected` — render-side
+  // marking only; severity stays auditOverrides' concern. Fail-open on a
+  // missing/malformed config: worst case entries render without the marker.
+  let expectedRules: readonly ExpectedOverrideRule[] = [];
+  try {
+    expectedRules =
+      loadConfigSync(join(cwd, '.noldor', 'config.json'))?.garden?.overrideAudit?.expected ?? [];
+  } catch {
+    expectedRules = [];
+  }
+
   // Paths that require a Noldor-Reviewed trailer at pre-push.
   // fast-track, specs-only-*, and full-* paths are "gated" paths that the
   // pre-push hook would normally require a Noldor-Reviewed on.
@@ -956,7 +971,11 @@ export function buildGateComplianceSection(
     // Count override usage.
     const overrideReason = trailers['Noldor-Path-Override'];
     if (overrideReason && !commitOnlyTouchesReport(sha, cwd)) {
-      overrides.push({ sha, reason: overrideReason });
+      overrides.push({
+        sha,
+        reason: overrideReason,
+        expected: matchesExpectedOverride({ sha, reason: overrideReason }, expectedRules),
+      });
     }
 
     // Count review-skips: gated path with no Noldor-Reviewed trailer.
@@ -1047,7 +1066,7 @@ function renderReportMd(
       lines.push('No overrides in the last 30 days.');
     } else {
       for (const o of gateCompliance.overrides) {
-        lines.push(`- \`${o.sha.slice(0, 7)}\` — ${o.reason}`);
+        lines.push(`- \`${o.sha.slice(0, 7)}\` — ${o.reason}${o.expected ? ' (expected)' : ''}`);
       }
     }
     lines.push('');

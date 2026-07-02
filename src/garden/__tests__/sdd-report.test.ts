@@ -1152,4 +1152,31 @@ describe('buildGateComplianceSection', () => {
     expect(result.overrides).toHaveLength(1);
     expect(result.overrides[0]!.reason).toBe('mixed');
   });
+
+  it('marks overrides matched by garden.overrideAudit.expected with expected: true', () => {
+    commit(repo, 'fix(x): noisy\n\nNoldor-Path-Override: drain sprint batch alpha');
+    mkdirSync(join(repo, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(repo, '.noldor', 'config.json'),
+      JSON.stringify({
+        garden: {
+          overrideAudit: {
+            expected: [
+              { reasonIncludes: 'drain sprint batch alpha', note: 'declared self-host noise' },
+            ],
+          },
+        },
+      }),
+      'utf8',
+    );
+    const result = buildGateComplianceSection([], repo);
+    expect(result.overrides).toHaveLength(1);
+    expect(result.overrides[0]!.expected).toBe(true);
+  });
+
+  it('marks overrides expected: false when no config declares them', () => {
+    commit(repo, 'fix(y): plain\n\nNoldor-Path-Override: some new noise');
+    const result = buildGateComplianceSection([], repo);
+    expect(result.overrides[0]!.expected).toBe(false);
+  });
 });
