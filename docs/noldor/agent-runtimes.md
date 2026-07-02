@@ -46,7 +46,8 @@ Capability matrix as code: `src/core/agent-runner/capabilities.ts`.
 Roles: `implementer` (drain gate runs, prep fanout), `reviewer` (CR subagent
 lane), `second-opinion` (codex CR lane — pinned to the codex runner by name;
 role config cannot re-route it — plus FD-attribution classification), `polish`
-(release-notes summary). `targets` selects which driver shim sets
+(release-notes summary), `researcher` ([research fanout](research-fanout.md) —
+read-only, stdout-return). `targets` selects which driver shim sets
 `noldor init --agents` writes, which template subtrees `noldor doctor` and the
 template-sync check verify, and joins the runner presence/floor check set
 (a targeted runner is checked even when no role references it).
