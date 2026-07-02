@@ -185,3 +185,77 @@ describe('checkCrGate', () => {
     expect(r.ok).toBe(false);
   });
 });
+
+describe('checkCrGate exemptions (release.crGateExemptCommits)', () => {
+  const bareCommit: Commit = {
+    sha: '19a74a10e8e844e021b08fe616992eae1b56f977',
+    tree: 't1',
+    message:
+      'chore(ci): run pnpm verify on pull requests (#117)' + trailers('Noldor-Path: fast-track'),
+    paths: ['.github/workflows/verify.yml'],
+  };
+
+  it('skips a commit whose full SHA starts with an exemption prefix and reports it', () => {
+    const r = checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      runGit: makeGitFake([bareCommit]),
+      exemptions: [{ sha: '19a74a10e8', reason: 'pre-rollout-marker CI chore (#117)' }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.offenders).toEqual([]);
+    expect(r.exempted).toEqual([
+      {
+        sha: '19a74a10e8e844e021b08fe616992eae1b56f977',
+        subject: 'chore(ci): run pnpm verify on pull requests (#117)',
+        reason: 'pre-rollout-marker CI chore (#117)',
+      },
+    ]);
+  });
+
+  it('still fails when no exemption matches (gate not weakened)', () => {
+    const r = checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      runGit: makeGitFake([bareCommit]),
+      exemptions: [{ sha: 'aaaaaaaa', reason: 'unrelated entry' }],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.offenders[0].sha).toBe('19a74a10e8e844e021b08fe616992eae1b56f977');
+    expect(r.exempted).toEqual([]);
+  });
+
+  it('does not launder other offenders in the same range', () => {
+    const other: Commit = {
+      sha: 'faceb00cfaceb00cfaceb00cfaceb00cfaceb00c',
+      tree: 't2',
+      message: 'feat: bare' + trailers('Noldor-Path: fast-track'),
+      paths: ['src/a.ts'],
+    };
+    const r = checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      runGit: makeGitFake([bareCommit, other]),
+      exemptions: [{ sha: '19a74a10e8', reason: 'pre-rollout-marker CI chore (#117)' }],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.offenders).toEqual([
+      { sha: 'faceb00cfaceb00cfaceb00cfaceb00cfaceb00c', subject: 'feat: bare' },
+    ]);
+    expect(r.exempted).toHaveLength(1);
+  });
+
+  it('returns exempted: [] when no exemptions are configured', () => {
+    const r = checkCrGate({
+      from: 'v0',
+      to: 'HEAD',
+      cwd: '/tmp',
+      runGit: makeGitFake([bareCommit]),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.exempted).toEqual([]);
+  });
+});
