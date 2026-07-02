@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

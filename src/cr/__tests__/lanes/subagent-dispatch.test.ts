@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 import { buildPrompt } from '../../lanes/subagent-dispatch.js';
 import { DEFAULT_REVIEW_PROFILES } from '../../review-profile.js';

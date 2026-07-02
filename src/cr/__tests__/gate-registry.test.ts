@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GATE_REGISTRY, BOOTSTRAP_REASON, isBootstrapReason, gateEntry } from '../gate-registry.js';
 
-// @tests: bootstrap-immunity-for-self-gating-features
+// @tests: acceptance-verify-lane, bootstrap-immunity-for-self-gating-features
 
 describe('gate-registry', () => {
   it('maps codex-cr to the exact trailer checkCrGate reads', () => {

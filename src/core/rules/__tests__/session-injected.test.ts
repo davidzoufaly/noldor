@@ -1,3 +1,4 @@
+// @tests: autonomous-plan-to-pr-merge, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
 import { describe, expect, it } from 'vitest';
 import { SessionMarkerSchema } from '../../session.js';
 

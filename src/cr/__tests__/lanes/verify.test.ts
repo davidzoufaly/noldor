@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

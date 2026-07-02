@@ -1,4 +1,4 @@
-// @tests: dashboard-roadmap-drag-drop
+// @tests: dashboard-roadmap-drag-drop, outcome-telemetry-and-effectiveness-metrics, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 
 import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

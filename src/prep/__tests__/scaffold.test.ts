@@ -1,3 +1,4 @@
+// @tests: plan-runner
 import matter from 'gray-matter';
 import { describe, expect, it } from 'vitest';
 

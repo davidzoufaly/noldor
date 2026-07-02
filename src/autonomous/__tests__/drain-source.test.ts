@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, plan-runner
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

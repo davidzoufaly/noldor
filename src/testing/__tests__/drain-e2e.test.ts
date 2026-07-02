@@ -1,4 +1,4 @@
-// @tests: consumer-contract-ci-and-headless-gate-e2e-harness
+// @tests: acceptance-verify-lane, autonomous-plan-to-pr-merge, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, drain-startup-reconciliation-of-a-prior-dead-run, noldor, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildConsumerFixture, type ConsumerFixture } from '../consumer-fixture';
 import { applyStubGate } from '../stub-gate';

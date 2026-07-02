@@ -1,3 +1,4 @@
+// @tests: doc-gardening-skill
 import { buildSlugToDocsMap, extractFeatureTags } from '../sync-doc-links.js';
 
 describe(extractFeatureTags, () => {

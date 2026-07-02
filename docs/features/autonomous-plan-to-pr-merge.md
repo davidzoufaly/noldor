@@ -13,9 +13,15 @@ links:
     - src/core/set-autonomous.ts
   tests:
     - src/core/__tests__/pr-flow-cli.test.ts
+    - src/core/__tests__/pr-flow.test.ts
     - src/core/__tests__/session.test.ts
+    - src/core/rules/__tests__/session-injected.test.ts
+    - src/cr/__tests__/delta.test.ts
+    - src/cr/__tests__/orchestrate.integration.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/overwrite-guard.test.ts
+    - src/release/__tests__/release-session.test.ts
+    - src/testing/__tests__/drain-e2e.test.ts
 name: Autonomous Execution from Plan Confirm → PR Merge
 packages:
   - scripts
@@ -63,8 +69,14 @@ The autonomous flag persists for the rest of the session — there is no operato
   - [`src/core/set-autonomous.ts`](../../src/core/set-autonomous.ts)
 - **Tests:**
   - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)
+  - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
   - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)
+  - [`src/core/rules/__tests__/session-injected.test.ts`](../../src/core/rules/__tests__/session-injected.test.ts)
+  - [`src/cr/__tests__/delta.test.ts`](../../src/cr/__tests__/delta.test.ts)
+  - [`src/cr/__tests__/orchestrate.integration.test.ts`](../../src/cr/__tests__/orchestrate.integration.test.ts)
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
   - [`src/cr/__tests__/overwrite-guard.test.ts`](../../src/cr/__tests__/overwrite-guard.test.ts)
+  - [`src/release/__tests__/release-session.test.ts`](../../src/release/__tests__/release-session.test.ts)
+  - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
 
 <!-- /generated: resources -->

@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness
 import { describe, expect, it } from 'vitest';
 import { isDrainEligible } from '../drain-eligibility.js';
 

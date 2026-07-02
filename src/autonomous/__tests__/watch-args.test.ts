@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
 import { describe, expect, it } from 'vitest';
 import { parseWatchArgs, resolve130 } from '../watch.js';
 

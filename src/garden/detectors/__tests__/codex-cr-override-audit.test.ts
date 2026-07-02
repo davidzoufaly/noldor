@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: bootstrap-immunity-for-self-gating-features, noldor, outcome-telemetry-and-effectiveness-metrics
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

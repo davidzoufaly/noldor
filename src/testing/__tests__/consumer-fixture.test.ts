@@ -1,4 +1,4 @@
-// @tests: consumer-contract-ci-and-headless-gate-e2e-harness
+// @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, version-aware-upgrade-and-migration-chain
 import { afterEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

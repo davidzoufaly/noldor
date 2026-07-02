@@ -1,3 +1,4 @@
+// @tests: outcome-telemetry-and-effectiveness-metrics
 import { describe, it, expect } from 'vitest';
 import { evaluateCoverage } from '../migration-coverage.js';
 

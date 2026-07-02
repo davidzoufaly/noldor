@@ -17,11 +17,18 @@ links:
     - src/release/release-find-first-pr-commit.ts
   spec: lost-pre-extraction
   tests:
+    - src/core/__tests__/cr-retry.test.ts
     - src/core/__tests__/phase-revert.test.ts
+    - src/core/__tests__/pr-flow.test.ts
+    - src/garden/detectors/__tests__/branch-protection.test.ts
+    - src/garden/detectors/__tests__/override-audit.test.ts
+    - src/hooks/__tests__/noldor-pre-push.test.ts
     - src/release/__tests__/release-fd-changelog-in-progress.test.ts
     - src/release/__tests__/release-fd-changelog-initial-release.test.ts
+    - src/release/__tests__/release-fd-changelog.test.ts
     - src/release/__tests__/release-find-first-pr-commit.test.ts
     - src/release/__tests__/release-markers-auto-restore.test.ts
+    - src/release/__tests__/release-markers.test.ts
     - src/release/__tests__/release-pr-bullets.test.ts
 name: Framework PR Flow + Agent Auto-Merge
 packages:
@@ -146,11 +153,18 @@ This release fixes composeBody's Feature MD link falling through to session.pare
   - [`src/release/release-pr-bullets.ts`](../../src/release/release-pr-bullets.ts)
   - [`src/release/release-find-first-pr-commit.ts`](../../src/release/release-find-first-pr-commit.ts)
 - **Tests:**
+  - [`src/core/__tests__/cr-retry.test.ts`](../../src/core/__tests__/cr-retry.test.ts)
   - [`src/core/__tests__/phase-revert.test.ts`](../../src/core/__tests__/phase-revert.test.ts)
+  - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
+  - [`src/garden/detectors/__tests__/branch-protection.test.ts`](../../src/garden/detectors/__tests__/branch-protection.test.ts)
+  - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
+  - [`src/hooks/__tests__/noldor-pre-push.test.ts`](../../src/hooks/__tests__/noldor-pre-push.test.ts)
   - [`src/release/__tests__/release-fd-changelog-in-progress.test.ts`](../../src/release/__tests__/release-fd-changelog-in-progress.test.ts)
   - [`src/release/__tests__/release-fd-changelog-initial-release.test.ts`](../../src/release/__tests__/release-fd-changelog-initial-release.test.ts)
+  - [`src/release/__tests__/release-fd-changelog.test.ts`](../../src/release/__tests__/release-fd-changelog.test.ts)
   - [`src/release/__tests__/release-find-first-pr-commit.test.ts`](../../src/release/__tests__/release-find-first-pr-commit.test.ts)
   - [`src/release/__tests__/release-markers-auto-restore.test.ts`](../../src/release/__tests__/release-markers-auto-restore.test.ts)
+  - [`src/release/__tests__/release-markers.test.ts`](../../src/release/__tests__/release-markers.test.ts)
   - [`src/release/__tests__/release-pr-bullets.test.ts`](../../src/release/__tests__/release-pr-bullets.test.ts)
 
 <!-- /generated: resources -->

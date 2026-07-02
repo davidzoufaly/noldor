@@ -1,3 +1,4 @@
+// @tests: feature-md-links-overhaul
 import { buildSlugToTestsMap, extractTags } from '../sync-test-links.js';
 
 describe(extractTags, () => {

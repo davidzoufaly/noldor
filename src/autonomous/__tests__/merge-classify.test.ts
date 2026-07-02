@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-drain, parallel-drain-roadmapmd-conflict-auto-resolution, plan-runner
 import { describe, expect, it } from 'vitest';
 import { classifyMergeView } from '../drain-io.js';
 

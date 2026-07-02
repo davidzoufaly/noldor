@@ -14,7 +14,23 @@ links:
     - src/core/agent-runner/types.ts
   docs: []
   tests:
+    - src/autonomous/__tests__/build-pool.test.ts
+    - src/autonomous/__tests__/decide-next.test.ts
+    - src/autonomous/__tests__/drain-lock.test.ts
     - src/autonomous/__tests__/drain-reconcile.test.ts
+    - src/autonomous/__tests__/drain-state.test.ts
+    - src/autonomous/__tests__/escalations.test.ts
+    - src/autonomous/__tests__/merge-classify.test.ts
+    - src/autonomous/__tests__/merge-coordinator.test.ts
+    - src/autonomous/__tests__/queue-drain-cli.test.ts
+    - src/autonomous/__tests__/run-drain.test.ts
+    - src/autonomous/__tests__/watch-state.test.ts
+    - src/core/agent-runner/__tests__/doctor-runners.test.ts
+    - src/core/agent-runner/__tests__/registry.test.ts
+    - src/core/agent-runner/__tests__/types.test.ts
+    - src/testing/__tests__/consumer-fixture.test.ts
+    - src/testing/__tests__/drain-e2e.test.ts
+    - src/testing/__tests__/stub-runner.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md
 name: Drain Startup Reconciliation of a Prior Dead Run
@@ -24,6 +40,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.4.0
 ---
+
 ## Summary
 
 When a drain dies mid-run (session pause / crash / SIGKILL) it leaves orphaned `fast/<slug>` worktrees, leftover branches, open PRs (clean *and* DIRTY), and a stale `.noldor/drain.lock`. Today a fresh drain does not reconcile these — the operator must manually merge clean open PRs, close/rebuild DIRTY ones, prune worktrees, and clear the stale lock (done by hand 3× in one session). Add a startup reconciliation pass: for each in-roadmap slug with an open PR, merge it when CLEAN (advance the oracle) or close + flag-for-rebuild when DIRTY; `git worktree prune` + remove orphaned `fast/*` worktrees whose slug is already shipped; reclaim a stale lock whose pid is dead. Makes the drain crash-recoverable instead of leaving a mess. - Add a startup sync-check: an un-pushed local-`main`-ahead-of-`origin` commit (e.g. a triage commit on local main but not origin) blocks the whole drain — but only *after* the gate already did the work and tries to retire the entry. Pre-flight `origin/main == queue-source` before spawning the first gate, and surface the divergence loudly instead of failing deep.
@@ -77,6 +94,22 @@ Reconcile a prior dead drain run at startup (#107).
   - [`src/core/agent-runner/registry.ts`](../../src/core/agent-runner/registry.ts)
   - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
 - **Tests:**
+  - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
+  - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
+  - [`src/autonomous/__tests__/drain-lock.test.ts`](../../src/autonomous/__tests__/drain-lock.test.ts)
   - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
+  - [`src/autonomous/__tests__/drain-state.test.ts`](../../src/autonomous/__tests__/drain-state.test.ts)
+  - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
+  - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
+  - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
+  - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
+  - [`src/core/agent-runner/__tests__/doctor-runners.test.ts`](../../src/core/agent-runner/__tests__/doctor-runners.test.ts)
+  - [`src/core/agent-runner/__tests__/registry.test.ts`](../../src/core/agent-runner/__tests__/registry.test.ts)
+  - [`src/core/agent-runner/__tests__/types.test.ts`](../../src/core/agent-runner/__tests__/types.test.ts)
+  - [`src/testing/__tests__/consumer-fixture.test.ts`](../../src/testing/__tests__/consumer-fixture.test.ts)
+  - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
+  - [`src/testing/__tests__/stub-runner.test.ts`](../../src/testing/__tests__/stub-runner.test.ts)
 
 <!-- /generated: resources -->

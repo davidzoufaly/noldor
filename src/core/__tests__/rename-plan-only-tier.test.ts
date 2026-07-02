@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, rename-plan-only-tier-to-specs-only
 import { describe, it, expect } from 'vitest';
 import { renamePlanOnlyTier } from '../rename-plan-only-tier.js';
 

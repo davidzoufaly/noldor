@@ -1,3 +1,4 @@
+// @tests: dynamic-fd-changelog
 import { prependToReleaseNotes, renderReleaseNotesEntry } from '../release-notes.js';
 import type { ReleaseNotesFeature } from '../release-notes.js';
 

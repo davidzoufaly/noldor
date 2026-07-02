@@ -20,12 +20,19 @@ links:
   tests:
     - src/checks/__tests__/check-feature-slug-scope.test.ts
     - src/core/__tests__/extract-touches.test.ts
+    - src/features/__tests__/feature-milestone.test.ts
+    - src/features/__tests__/feature-schema-since.test.ts
     - src/features/__tests__/feature-schema.test.ts
     - src/features/__tests__/fill-links-code-gaps.test.ts
     - src/features/__tests__/migrate-features.test.ts
     - src/features/__tests__/validate-features.test.ts
+    - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
+    - src/release/__tests__/release-changelog.test.ts
+    - src/release/__tests__/release-commits.test.ts
     - src/release/__tests__/release-fd-commits.test.ts
+    - src/sync/__tests__/sync-spec-links.test.ts
+    - src/sync/__tests__/sync-test-links.test.ts
   spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
@@ -86,12 +93,19 @@ The proposal groups files by FD slug. Lines prefixed `#` are skipped on apply. T
 - **Tests:**
   - [`src/checks/__tests__/check-feature-slug-scope.test.ts`](../../src/checks/__tests__/check-feature-slug-scope.test.ts)
   - [`src/core/__tests__/extract-touches.test.ts`](../../src/core/__tests__/extract-touches.test.ts)
+  - [`src/features/__tests__/feature-milestone.test.ts`](../../src/features/__tests__/feature-milestone.test.ts)
+  - [`src/features/__tests__/feature-schema-since.test.ts`](../../src/features/__tests__/feature-schema-since.test.ts)
   - [`src/features/__tests__/feature-schema.test.ts`](../../src/features/__tests__/feature-schema.test.ts)
   - [`src/features/__tests__/fill-links-code-gaps.test.ts`](../../src/features/__tests__/fill-links-code-gaps.test.ts)
   - [`src/features/__tests__/migrate-features.test.ts`](../../src/features/__tests__/migrate-features.test.ts)
   - [`src/features/__tests__/validate-features.test.ts`](../../src/features/__tests__/validate-features.test.ts)
+  - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/release/__tests__/release-changelog.test.ts`](../../src/release/__tests__/release-changelog.test.ts)
+  - [`src/release/__tests__/release-commits.test.ts`](../../src/release/__tests__/release-commits.test.ts)
   - [`src/release/__tests__/release-fd-commits.test.ts`](../../src/release/__tests__/release-fd-commits.test.ts)
+  - [`src/sync/__tests__/sync-spec-links.test.ts`](../../src/sync/__tests__/sync-spec-links.test.ts)
+  - [`src/sync/__tests__/sync-test-links.test.ts`](../../src/sync/__tests__/sync-test-links.test.ts)
 
 <!-- /generated: resources -->
 

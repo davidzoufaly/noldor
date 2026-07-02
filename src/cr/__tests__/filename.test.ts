@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 import { inferLaneFromFilename } from '../filename.js';
 

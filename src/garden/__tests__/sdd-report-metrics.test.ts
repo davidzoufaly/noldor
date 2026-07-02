@@ -1,4 +1,4 @@
-// @tests: outcome-telemetry-and-effectiveness-metrics
+// @tests: outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed
 import { describe, expect, it } from 'vitest';
 import { renderMetricsSection } from '../sdd-report-format';
 import type { MetricsReport } from '../../metrics/types';

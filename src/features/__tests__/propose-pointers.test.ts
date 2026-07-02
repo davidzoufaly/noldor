@@ -1,4 +1,4 @@
-// @tests: dynamic-fd-file-pointers-via-frontmatter
+// @tests: dynamic-fd-file-pointers-via-frontmatter, outcome-telemetry-and-effectiveness-metrics, sdd-co-tag-detector
 
 import { describe, expect, it } from 'vitest';
 

@@ -1,5 +1,5 @@
 // packages/noldor/src/release/__tests__/release-fd-changelog.test.ts
-// @tests: dynamic-fd-changelog
+// @tests: dynamic-fd-changelog, framework-pr-flow-agent-auto-merge
 
 import { describe, expect, it } from 'vitest';
 

@@ -13,11 +13,17 @@ links:
     - src/core/pr-flow-cli.ts
     - .claude/skills/gate/SKILL.md
   tests:
-    - src/autonomous/__tests__/run-drain.test.ts
     - src/autonomous/__tests__/build-pool.test.ts
-    - src/autonomous/__tests__/merge-coordinator.test.ts
+    - src/autonomous/__tests__/decide-next.test.ts
+    - src/autonomous/__tests__/drain-reconcile.test.ts
+    - src/autonomous/__tests__/drain-state.test.ts
+    - src/autonomous/__tests__/escalations.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
+    - src/autonomous/__tests__/merge-coordinator.test.ts
     - src/autonomous/__tests__/queue-drain-cli.test.ts
+    - src/autonomous/__tests__/run-drain.test.ts
+    - src/autonomous/__tests__/watch-state.test.ts
+    - src/core/__tests__/pr-flow-cli.test.ts
     - src/core/__tests__/pr-flow.test.ts
   spec: docs/superpowers/specs/archive/2026-06-10-parallel-drain-design.md
 name: Parallel Drain
@@ -27,6 +33,7 @@ phase: done
 noldor-tier: full
 introduced: 0.3.0
 ---
+
 ## Summary
 
 Generalizes the autonomous drain supervisor from sequential (one feature at a time) to K-concurrent via `--concurrency N`: up to N features build in parallel, each in its own worktree and its own PR, while merges are serialized through a single coordinator so `main` never sees an N-way conflict. `--concurrency 1` (default) is byte-for-byte today's sequential drain; concurrency is opt-in.
@@ -71,11 +78,17 @@ As an operator draining a large queue (or a batch of designed plans), I want `--
   - [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts)
   - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
 - **Tests:**
-  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
-  - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
+  - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
+  - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
+  - [`src/autonomous/__tests__/drain-state.test.ts`](../../src/autonomous/__tests__/drain-state.test.ts)
+  - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
+  - [`src/autonomous/__tests__/merge-coordinator.test.ts`](../../src/autonomous/__tests__/merge-coordinator.test.ts)
   - [`src/autonomous/__tests__/queue-drain-cli.test.ts`](../../src/autonomous/__tests__/queue-drain-cli.test.ts)
+  - [`src/autonomous/__tests__/run-drain.test.ts`](../../src/autonomous/__tests__/run-drain.test.ts)
+  - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
+  - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)
   - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
 
 <!-- /generated: resources -->

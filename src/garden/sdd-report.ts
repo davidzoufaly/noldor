@@ -15,6 +15,7 @@ import type { ConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
 import { commitOnlyTouchesReport } from './detectors/override-audit.js';
+import { scanRoots as resolveScanRoots } from '../sync/sync-code-links.js';
 import { renderMetricsSection, reviewSkipCountLine } from './sdd-report-format.js';
 import type { MetricsReport } from '../metrics/types.js';
 import {
@@ -1101,10 +1102,15 @@ async function main(): Promise<void> {
   const specPaths = await listSpecs(loadDocRoots().specs);
   const planPaths = await listPlans(loadDocRoots().plans);
 
+  // Consumer `scanPaths` scope the walk (union-of-layouts fallback when
+  // unset) — the hardcoded packages/apps/scripts trio left standalone `src/`
+  // repos with an empty testInputs map, so every graph-known test read as
+  // untagged and detector 13 flagged all of them.
+  const scanRoots = resolveScanRoots();
   const allRepoPaths: string[] = [];
-  await walkRepo('packages', allRepoPaths);
-  await walkRepo('apps', allRepoPaths);
-  await walkRepo('scripts', allRepoPaths);
+  for (const root of scanRoots) {
+    await walkRepo(root, allRepoPaths);
+  }
 
   const testFiles = allRepoPaths.filter(
     (p) => /\.test\.(ts|tsx)$/.test(p) || /\.spec\.(ts|tsx)$/.test(p),
@@ -1160,7 +1166,7 @@ async function main(): Promise<void> {
     docInputs,
     features,
     graphPath: 'graphify-out/graph.json',
-    graphSrcRoots: ['packages', 'apps', 'scripts'],
+    graphSrcRoots: scanRoots,
     ideasMd,
     planPaths,
     readmeContent,

@@ -1,5 +1,5 @@
 // packages/noldor/src/release/__tests__/release-fd-commits.test.ts
-// @tests: feature-md-links-overhaul
+// @tests: dynamic-fd-changelog, feature-md-links-overhaul
 
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';

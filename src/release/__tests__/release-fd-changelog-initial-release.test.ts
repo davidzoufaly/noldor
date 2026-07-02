@@ -1,4 +1,4 @@
-// @tests: framework-pr-flow-agent-auto-merge
+// @tests: dynamic-fd-changelog, framework-pr-flow-agent-auto-merge
 
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

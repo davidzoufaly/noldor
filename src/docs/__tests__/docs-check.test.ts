@@ -1,3 +1,4 @@
+// @tests: doc-gardening-skill
 import { checkLinks, extractLinks, slugifyHeading } from '../docs-check.js';
 
 describe(extractLinks, () => {

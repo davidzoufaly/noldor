@@ -1,3 +1,4 @@
+// @tests: autonomous-queue-drain-runner, dashboard-roadmap-drag-drop, gate-flow-rework, noldor, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 import { describe, expect, it } from 'vitest';
 
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';

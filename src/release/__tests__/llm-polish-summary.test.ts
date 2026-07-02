@@ -1,5 +1,5 @@
 // packages/noldor/src/release/__tests__/llm-polish-summary.test.ts
-// @tests: dynamic-fd-changelog
+// @tests: dynamic-fd-changelog, make-noldor-agent-agnostic
 
 import { describe, expect, it } from 'vitest';
 

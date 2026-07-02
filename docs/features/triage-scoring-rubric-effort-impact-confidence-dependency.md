@@ -7,7 +7,8 @@ links:
     - .claude/skills/triage/SKILL.md
     - docs/noldor/triage.md
     - src/triage/score.ts
-  tests: []
+  tests:
+    - src/triage/__tests__/score.test.ts
 name: '`/triage` Scoring Rubric (effort × impact × confidence × dependency)'
 packages:
   - scripts
@@ -78,5 +79,7 @@ This release tolerates a missing `ideas.md` in `triage-list-untriaged` (#15), bo
   - [`.claude/skills/triage/SKILL.md`](../../.claude/skills/triage/SKILL.md)
   - [`docs/noldor/triage.md`](../../docs/noldor/triage.md)
   - [`src/triage/score.ts`](../../src/triage/score.ts)
+- **Tests:**
+  - [`src/triage/__tests__/score.test.ts`](../../src/triage/__tests__/score.test.ts)
 
 <!-- /generated: resources -->

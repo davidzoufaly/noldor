@@ -13,9 +13,47 @@ links:
     - docs/noldor/script-catalog.md
   tests:
     - src/core/agent-runner/usage/__tests__/adapters.test.ts
+    - src/dashboard/__tests__/api-blocks.test.ts
+    - src/dashboard/__tests__/dashboard-data.test.ts
+    - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
+    - src/dashboard/__tests__/dashboard-ensure.test.ts
+    - src/dashboard/__tests__/dashboard-graph-health.test.ts
+    - src/dashboard/__tests__/dashboard-layout-body-styles.test.ts
+    - src/dashboard/__tests__/dashboard-layout-style-polish.test.ts
+    - src/dashboard/__tests__/dashboard-mermaid.test.ts
+    - src/dashboard/__tests__/dashboard-release-notes.test.ts
+    - src/dashboard/__tests__/dashboard-render-markdown.test.ts
+    - src/dashboard/__tests__/dashboard-server.test.ts
+    - src/dashboard/__tests__/dashboard-skills.test.ts
+    - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
+    - src/dashboard/__tests__/dashboard-views.test.ts
+    - src/dashboard/__tests__/dashboard-worktrees.test.ts
+    - src/dashboard/__tests__/edge-scroll.test.ts
     - src/dashboard/__tests__/metrics-view.test.ts
+    - src/dashboard/__tests__/milestones-view.test.ts
+    - src/dashboard/__tests__/server-cli.test.ts
     - src/features/__tests__/feature-schema-since.test.ts
+    - src/features/__tests__/propose-pointers.test.ts
+    - src/garden/__tests__/backlog-demote.test.ts
+    - src/garden/__tests__/garden-detect-runner.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
+    - src/garden/__tests__/garden-receipt.test.ts
+    - src/garden/__tests__/graph-fd-lookup.test.ts
+    - src/garden/__tests__/plan-resolution.test.ts
     - src/garden/__tests__/sdd-report-metrics.test.ts
+    - src/garden/__tests__/sdd-report.test.ts
+    - src/garden/detectors/__tests__/allowlist-drift.test.ts
+    - src/garden/detectors/__tests__/bootstrap-override-audit.test.ts
+    - src/garden/detectors/__tests__/branch-protection.test.ts
+    - src/garden/detectors/__tests__/code-links-drift.test.ts
+    - src/garden/detectors/__tests__/codex-cr-override-audit.test.ts
+    - src/garden/detectors/__tests__/fd-without-plan.test.ts
+    - src/garden/detectors/__tests__/migration-coverage.test.ts
+    - src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts
+    - src/garden/detectors/__tests__/override-audit.test.ts
+    - src/garden/detectors/__tests__/plan-without-fd.test.ts
+    - src/garden/detectors/__tests__/tier-mismatch.test.ts
+    - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
     - src/metrics/__tests__/compute-cli.test.ts
     - src/metrics/__tests__/compute.test.ts
     - src/metrics/__tests__/cr-and-override.test.ts
@@ -23,6 +61,8 @@ links:
     - src/metrics/__tests__/drain-and-tokens.test.ts
     - src/metrics/__tests__/facts.test.ts
     - src/metrics/__tests__/routing-accuracy.test.ts
+    - src/release/__tests__/sdd-report-diff.test.ts
+    - src/worktrees/__tests__/worktree-conflicts.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md
   plan: >-
@@ -35,6 +75,7 @@ since: '2026-06-11'
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
@@ -105,9 +146,47 @@ pnpm noldor metrics compute --metric cycle-time
   - [`docs/noldor/script-catalog.md`](../../docs/noldor/script-catalog.md)
 - **Tests:**
   - [`src/core/agent-runner/usage/__tests__/adapters.test.ts`](../../src/core/agent-runner/usage/__tests__/adapters.test.ts)
+  - [`src/dashboard/__tests__/api-blocks.test.ts`](../../src/dashboard/__tests__/api-blocks.test.ts)
+  - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
+  - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)
+  - [`src/dashboard/__tests__/dashboard-ensure.test.ts`](../../src/dashboard/__tests__/dashboard-ensure.test.ts)
+  - [`src/dashboard/__tests__/dashboard-graph-health.test.ts`](../../src/dashboard/__tests__/dashboard-graph-health.test.ts)
+  - [`src/dashboard/__tests__/dashboard-layout-body-styles.test.ts`](../../src/dashboard/__tests__/dashboard-layout-body-styles.test.ts)
+  - [`src/dashboard/__tests__/dashboard-layout-style-polish.test.ts`](../../src/dashboard/__tests__/dashboard-layout-style-polish.test.ts)
+  - [`src/dashboard/__tests__/dashboard-mermaid.test.ts`](../../src/dashboard/__tests__/dashboard-mermaid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-release-notes.test.ts`](../../src/dashboard/__tests__/dashboard-release-notes.test.ts)
+  - [`src/dashboard/__tests__/dashboard-render-markdown.test.ts`](../../src/dashboard/__tests__/dashboard-render-markdown.test.ts)
+  - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)
+  - [`src/dashboard/__tests__/dashboard-skills.test.ts`](../../src/dashboard/__tests__/dashboard-skills.test.ts)
+  - [`src/dashboard/__tests__/dashboard-test-pyramid.test.ts`](../../src/dashboard/__tests__/dashboard-test-pyramid.test.ts)
+  - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
+  - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
+  - [`src/dashboard/__tests__/edge-scroll.test.ts`](../../src/dashboard/__tests__/edge-scroll.test.ts)
   - [`src/dashboard/__tests__/metrics-view.test.ts`](../../src/dashboard/__tests__/metrics-view.test.ts)
+  - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
+  - [`src/dashboard/__tests__/server-cli.test.ts`](../../src/dashboard/__tests__/server-cli.test.ts)
   - [`src/features/__tests__/feature-schema-since.test.ts`](../../src/features/__tests__/feature-schema-since.test.ts)
+  - [`src/features/__tests__/propose-pointers.test.ts`](../../src/features/__tests__/propose-pointers.test.ts)
+  - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
+  - [`src/garden/__tests__/garden-detect-runner.test.ts`](../../src/garden/__tests__/garden-detect-runner.test.ts)
+  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
+  - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
+  - [`src/garden/__tests__/plan-resolution.test.ts`](../../src/garden/__tests__/plan-resolution.test.ts)
   - [`src/garden/__tests__/sdd-report-metrics.test.ts`](../../src/garden/__tests__/sdd-report-metrics.test.ts)
+  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/garden/detectors/__tests__/allowlist-drift.test.ts`](../../src/garden/detectors/__tests__/allowlist-drift.test.ts)
+  - [`src/garden/detectors/__tests__/bootstrap-override-audit.test.ts`](../../src/garden/detectors/__tests__/bootstrap-override-audit.test.ts)
+  - [`src/garden/detectors/__tests__/branch-protection.test.ts`](../../src/garden/detectors/__tests__/branch-protection.test.ts)
+  - [`src/garden/detectors/__tests__/code-links-drift.test.ts`](../../src/garden/detectors/__tests__/code-links-drift.test.ts)
+  - [`src/garden/detectors/__tests__/codex-cr-override-audit.test.ts`](../../src/garden/detectors/__tests__/codex-cr-override-audit.test.ts)
+  - [`src/garden/detectors/__tests__/fd-without-plan.test.ts`](../../src/garden/detectors/__tests__/fd-without-plan.test.ts)
+  - [`src/garden/detectors/__tests__/migration-coverage.test.ts`](../../src/garden/detectors/__tests__/migration-coverage.test.ts)
+  - [`src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts`](../../src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts)
+  - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
+  - [`src/garden/detectors/__tests__/plan-without-fd.test.ts`](../../src/garden/detectors/__tests__/plan-without-fd.test.ts)
+  - [`src/garden/detectors/__tests__/tier-mismatch.test.ts`](../../src/garden/detectors/__tests__/tier-mismatch.test.ts)
+  - [`src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts`](../../src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts)
   - [`src/metrics/__tests__/compute-cli.test.ts`](../../src/metrics/__tests__/compute-cli.test.ts)
   - [`src/metrics/__tests__/compute.test.ts`](../../src/metrics/__tests__/compute.test.ts)
   - [`src/metrics/__tests__/cr-and-override.test.ts`](../../src/metrics/__tests__/cr-and-override.test.ts)
@@ -115,5 +194,7 @@ pnpm noldor metrics compute --metric cycle-time
   - [`src/metrics/__tests__/drain-and-tokens.test.ts`](../../src/metrics/__tests__/drain-and-tokens.test.ts)
   - [`src/metrics/__tests__/facts.test.ts`](../../src/metrics/__tests__/facts.test.ts)
   - [`src/metrics/__tests__/routing-accuracy.test.ts`](../../src/metrics/__tests__/routing-accuracy.test.ts)
+  - [`src/release/__tests__/sdd-report-diff.test.ts`](../../src/release/__tests__/sdd-report-diff.test.ts)
+  - [`src/worktrees/__tests__/worktree-conflicts.test.ts`](../../src/worktrees/__tests__/worktree-conflicts.test.ts)
 
 <!-- /generated: resources -->

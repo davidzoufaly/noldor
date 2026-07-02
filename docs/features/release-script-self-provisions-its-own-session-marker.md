@@ -7,7 +7,13 @@ links:
     - src/hooks/noldor-pre-commit.ts
     - src/core/session.ts
     - src/release/index.ts
-  tests: []
+  tests:
+    - src/core/__tests__/pr-flow-cli.test.ts
+    - src/core/__tests__/session.test.ts
+    - src/core/rules/__tests__/session-injected.test.ts
+    - src/hooks/__tests__/noldor-pre-commit.test.ts
+    - src/release/__tests__/release-session.test.ts
+    - src/testing/__tests__/drain-e2e.test.ts
 name: Release Script Self-Provisions Its Own Session Marker
 packages:
   - scripts
@@ -60,5 +66,12 @@ naming the marker path and the recovery command (`rm .noldor/session.json`).
   - [`src/hooks/noldor-pre-commit.ts`](../../src/hooks/noldor-pre-commit.ts)
   - [`src/core/session.ts`](../../src/core/session.ts)
   - [`src/release/index.ts`](../../src/release/index.ts)
+- **Tests:**
+  - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)
+  - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)
+  - [`src/core/rules/__tests__/session-injected.test.ts`](../../src/core/rules/__tests__/session-injected.test.ts)
+  - [`src/hooks/__tests__/noldor-pre-commit.test.ts`](../../src/hooks/__tests__/noldor-pre-commit.test.ts)
+  - [`src/release/__tests__/release-session.test.ts`](../../src/release/__tests__/release-session.test.ts)
+  - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
 
 <!-- /generated: resources -->

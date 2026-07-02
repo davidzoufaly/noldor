@@ -1,3 +1,4 @@
+// @tests: framework-pr-flow-agent-auto-merge
 import { fillMarkers } from '../release-markers.js';
 
 describe(fillMarkers, () => {

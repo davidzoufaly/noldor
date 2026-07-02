@@ -32,13 +32,16 @@ links:
   tests:
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts
+    - src/core/__tests__/next-priority.test.ts
     - src/core/__tests__/phase-flip-done.test.ts
+    - src/core/__tests__/pr-flow.test.ts
     - src/core/__tests__/release-markers.test.ts
     - src/core/__tests__/rename-plan-only-tier.test.ts
     - src/core/__tests__/validate-noldor-scope.test.ts
     - src/core/__tests__/validate-noldor.test.ts
     - src/core/__tests__/validate-skill-catalog.test.ts
     - src/cr/__tests__/amend-receipt.test.ts
+    - src/cr/__tests__/bootstrap-immunity.test.ts
     - src/cr/__tests__/cli-args.test.ts
     - src/cr/__tests__/codex.test.ts
     - src/cr/__tests__/context.test.ts
@@ -51,6 +54,8 @@ links:
     - src/garden/__tests__/backlog-demote.test.ts
     - src/garden/__tests__/garden-detect.test.ts
     - src/garden/__tests__/garden-receipt.test.ts
+    - src/garden/__tests__/graph-fd-lookup.test.ts
+    - src/garden/__tests__/sdd-report.test.ts
     - src/garden/detectors/__tests__/allowlist-drift.test.ts
     - src/garden/detectors/__tests__/codex-cr-override-audit.test.ts
     - src/garden/detectors/__tests__/fd-link-rot.test.ts
@@ -59,9 +64,11 @@ links:
     - src/garden/detectors/__tests__/plan-without-fd.test.ts
     - src/garden/detectors/__tests__/tier-mismatch.test.ts
     - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
+    - src/hooks/__tests__/noldor-pre-commit.test.ts
     - src/hooks/__tests__/noldor-validate-trailer.test.ts
     - src/release/__tests__/release-cr-gate-e2e.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
+    - src/testing/__tests__/drain-e2e.test.ts
   docs:
     - docs/noldor/README.md
     - docs/noldor/lifecycle.md
@@ -209,13 +216,16 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
 - **Tests:**
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
   - [`src/core/__tests__/lint-plan-snippets.test.ts`](../../src/core/__tests__/lint-plan-snippets.test.ts)
+  - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
   - [`src/core/__tests__/phase-flip-done.test.ts`](../../src/core/__tests__/phase-flip-done.test.ts)
+  - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
   - [`src/core/__tests__/release-markers.test.ts`](../../src/core/__tests__/release-markers.test.ts)
   - [`src/core/__tests__/rename-plan-only-tier.test.ts`](../../src/core/__tests__/rename-plan-only-tier.test.ts)
   - [`src/core/__tests__/validate-noldor-scope.test.ts`](../../src/core/__tests__/validate-noldor-scope.test.ts)
   - [`src/core/__tests__/validate-noldor.test.ts`](../../src/core/__tests__/validate-noldor.test.ts)
   - [`src/core/__tests__/validate-skill-catalog.test.ts`](../../src/core/__tests__/validate-skill-catalog.test.ts)
   - [`src/cr/__tests__/amend-receipt.test.ts`](../../src/cr/__tests__/amend-receipt.test.ts)
+  - [`src/cr/__tests__/bootstrap-immunity.test.ts`](../../src/cr/__tests__/bootstrap-immunity.test.ts)
   - [`src/cr/__tests__/cli-args.test.ts`](../../src/cr/__tests__/cli-args.test.ts)
   - [`src/cr/__tests__/codex.test.ts`](../../src/cr/__tests__/codex.test.ts)
   - [`src/cr/__tests__/context.test.ts`](../../src/cr/__tests__/context.test.ts)
@@ -228,6 +238,8 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
   - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
+  - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
+  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/garden/detectors/__tests__/allowlist-drift.test.ts`](../../src/garden/detectors/__tests__/allowlist-drift.test.ts)
   - [`src/garden/detectors/__tests__/codex-cr-override-audit.test.ts`](../../src/garden/detectors/__tests__/codex-cr-override-audit.test.ts)
   - [`src/garden/detectors/__tests__/fd-link-rot.test.ts`](../../src/garden/detectors/__tests__/fd-link-rot.test.ts)
@@ -236,9 +248,11 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/garden/detectors/__tests__/plan-without-fd.test.ts`](../../src/garden/detectors/__tests__/plan-without-fd.test.ts)
   - [`src/garden/detectors/__tests__/tier-mismatch.test.ts`](../../src/garden/detectors/__tests__/tier-mismatch.test.ts)
   - [`src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts`](../../src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts)
+  - [`src/hooks/__tests__/noldor-pre-commit.test.ts`](../../src/hooks/__tests__/noldor-pre-commit.test.ts)
   - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
   - [`src/release/__tests__/release-cr-gate-e2e.test.ts`](../../src/release/__tests__/release-cr-gate-e2e.test.ts)
   - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
+  - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
 - **Docs:**
   - [`docs/noldor/README.md`](../../docs/noldor/README.md)
   - [`docs/noldor/lifecycle.md`](../../docs/noldor/lifecycle.md)

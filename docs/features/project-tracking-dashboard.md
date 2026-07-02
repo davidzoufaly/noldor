@@ -15,6 +15,7 @@ links:
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
+    - src/dashboard/__tests__/dashboard-ensure.test.ts
     - src/dashboard/__tests__/dashboard-graph-health.test.ts
     - src/dashboard/__tests__/dashboard-layout-body-styles.test.ts
     - src/dashboard/__tests__/dashboard-layout-style-polish.test.ts
@@ -25,6 +26,10 @@ links:
     - src/dashboard/__tests__/dashboard-skills.test.ts
     - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
+    - src/dashboard/__tests__/dashboard-worktrees.test.ts
+    - src/dashboard/__tests__/metrics-view.test.ts
+    - src/dashboard/__tests__/milestones-view.test.ts
+    - src/dashboard/__tests__/server-cli.test.ts
   spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
@@ -77,6 +82,7 @@ As a maintainer (human or agent), I want to see live, filterable project state i
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)
+  - [`src/dashboard/__tests__/dashboard-ensure.test.ts`](../../src/dashboard/__tests__/dashboard-ensure.test.ts)
   - [`src/dashboard/__tests__/dashboard-graph-health.test.ts`](../../src/dashboard/__tests__/dashboard-graph-health.test.ts)
   - [`src/dashboard/__tests__/dashboard-layout-body-styles.test.ts`](../../src/dashboard/__tests__/dashboard-layout-body-styles.test.ts)
   - [`src/dashboard/__tests__/dashboard-layout-style-polish.test.ts`](../../src/dashboard/__tests__/dashboard-layout-style-polish.test.ts)
@@ -87,6 +93,10 @@ As a maintainer (human or agent), I want to see live, filterable project state i
   - [`src/dashboard/__tests__/dashboard-skills.test.ts`](../../src/dashboard/__tests__/dashboard-skills.test.ts)
   - [`src/dashboard/__tests__/dashboard-test-pyramid.test.ts`](../../src/dashboard/__tests__/dashboard-test-pyramid.test.ts)
   - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
+  - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
+  - [`src/dashboard/__tests__/metrics-view.test.ts`](../../src/dashboard/__tests__/metrics-view.test.ts)
+  - [`src/dashboard/__tests__/milestones-view.test.ts`](../../src/dashboard/__tests__/milestones-view.test.ts)
+  - [`src/dashboard/__tests__/server-cli.test.ts`](../../src/dashboard/__tests__/server-cli.test.ts)
 
 <!-- /generated: resources -->
 

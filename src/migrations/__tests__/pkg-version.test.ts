@@ -1,3 +1,4 @@
+// @tests: version-aware-upgrade-and-migration-chain
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';

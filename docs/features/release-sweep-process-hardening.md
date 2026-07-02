@@ -18,7 +18,16 @@ links:
     - lost-pre-extraction
     - lost-pre-extraction
   spec: lost-pre-extraction
-  tests: []
+  tests:
+    - src/core/__tests__/allowlist.test.ts
+    - src/core/__tests__/pr-flow-cli.test.ts
+    - src/core/__tests__/session.test.ts
+    - src/core/rules/__tests__/session-injected.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
+    - src/hooks/__tests__/noldor-enforce-review-receipt.test.ts
+    - src/hooks/__tests__/noldor-inject-trailers.test.ts
+    - src/release/__tests__/release-session.test.ts
+    - src/testing/__tests__/drain-e2e.test.ts
 name: Release-Sweep Process Hardening
 packages:
   - scripts
@@ -81,5 +90,15 @@ As an operator preparing a release, I want `/release-sweep` to run end-to-end un
   - [`src/core/allowlist.ts`](../../src/core/allowlist.ts)
   - [`src/core/session.ts`](../../src/core/session.ts)
   - [`src/release/index.ts`](../../src/release/index.ts)
+- **Tests:**
+  - [`src/core/__tests__/allowlist.test.ts`](../../src/core/__tests__/allowlist.test.ts)
+  - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)
+  - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)
+  - [`src/core/rules/__tests__/session-injected.test.ts`](../../src/core/rules/__tests__/session-injected.test.ts)
+  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/hooks/__tests__/noldor-enforce-review-receipt.test.ts`](../../src/hooks/__tests__/noldor-enforce-review-receipt.test.ts)
+  - [`src/hooks/__tests__/noldor-inject-trailers.test.ts`](../../src/hooks/__tests__/noldor-inject-trailers.test.ts)
+  - [`src/release/__tests__/release-session.test.ts`](../../src/release/__tests__/release-session.test.ts)
+  - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
 
 <!-- /generated: resources -->

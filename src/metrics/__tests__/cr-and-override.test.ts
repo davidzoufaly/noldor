@@ -1,4 +1,4 @@
-// @tests: outcome-telemetry-and-effectiveness-metrics
+// @tests: acceptance-verify-lane, outcome-telemetry-and-effectiveness-metrics, specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
 import { collectCrEffectiveness } from '../collect/cr-effectiveness';
 import { collectOverridePressure } from '../collect/override-pressure';

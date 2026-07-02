@@ -1,3 +1,4 @@
+// @tests: acceptance-verify-lane
 import { describe, expect, it } from 'vitest';
 import { ALL_DIMENSIONS, DEFAULT_REVIEW_PROFILES, reviewProfileSchema } from '../review-profile.js';
 

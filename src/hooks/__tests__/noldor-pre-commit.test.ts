@@ -1,3 +1,4 @@
+// @tests: noldor, release-script-self-provisions-its-own-session-marker
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';

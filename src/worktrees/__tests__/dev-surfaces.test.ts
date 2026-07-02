@@ -1,3 +1,4 @@
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows
 import { describe, it, expect, vi } from 'vitest';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

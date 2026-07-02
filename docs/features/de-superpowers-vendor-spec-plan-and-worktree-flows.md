@@ -14,7 +14,16 @@ links:
     - docs/noldor/complexity-gating.md
     - docs/noldor/workflow.md
     - docs/noldor/skill-catalog.md
-  tests: []
+  tests:
+    - src/prep/__tests__/formats.test.ts
+    - src/worktrees/__tests__/create-worktree.test.ts
+    - src/worktrees/__tests__/dev-surfaces.test.ts
+    - src/worktrees/__tests__/down-worktree.test.ts
+    - src/worktrees/__tests__/launch-worktrees.test.ts
+    - src/worktrees/__tests__/open-editor.test.ts
+    - src/worktrees/__tests__/up-worktree.test.ts
+    - src/worktrees/__tests__/worktree-conflicts.test.ts
+    - src/worktrees/__tests__/worktree-status.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-06-11-de-superpowers-vendor-spec-plan-and-worktree-flows-design.md
 name: 'De-Superpowers: Vendor Spec, Plan and Worktree Flows'
@@ -63,5 +72,15 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
   - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)
   - [`docs/noldor/workflow.md`](../../docs/noldor/workflow.md)
   - [`docs/noldor/skill-catalog.md`](../../docs/noldor/skill-catalog.md)
+- **Tests:**
+  - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)
+  - [`src/worktrees/__tests__/create-worktree.test.ts`](../../src/worktrees/__tests__/create-worktree.test.ts)
+  - [`src/worktrees/__tests__/dev-surfaces.test.ts`](../../src/worktrees/__tests__/dev-surfaces.test.ts)
+  - [`src/worktrees/__tests__/down-worktree.test.ts`](../../src/worktrees/__tests__/down-worktree.test.ts)
+  - [`src/worktrees/__tests__/launch-worktrees.test.ts`](../../src/worktrees/__tests__/launch-worktrees.test.ts)
+  - [`src/worktrees/__tests__/open-editor.test.ts`](../../src/worktrees/__tests__/open-editor.test.ts)
+  - [`src/worktrees/__tests__/up-worktree.test.ts`](../../src/worktrees/__tests__/up-worktree.test.ts)
+  - [`src/worktrees/__tests__/worktree-conflicts.test.ts`](../../src/worktrees/__tests__/worktree-conflicts.test.ts)
+  - [`src/worktrees/__tests__/worktree-status.test.ts`](../../src/worktrees/__tests__/worktree-status.test.ts)
 
 <!-- /generated: resources -->

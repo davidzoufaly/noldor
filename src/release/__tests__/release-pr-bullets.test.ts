@@ -1,4 +1,4 @@
-// @tests: framework-pr-flow-agent-auto-merge
+// @tests: dynamic-fd-changelog, framework-pr-flow-agent-auto-merge
 
 import { describe, expect, it } from 'vitest';
 

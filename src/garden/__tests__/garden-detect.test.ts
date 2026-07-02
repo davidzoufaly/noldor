@@ -19,7 +19,7 @@ import type { GateComplianceFindings } from '../garden-detect.js';
 import type { Invariant } from '../garden-invariants.js';
 import type { Invariant as ArchitectureInvariant } from '../../invariants/types.js';
 
-// @tests: doc-gardening-skill, architecture-invariants, noldor
+// @tests: architecture-invariants, bootstrap-immunity-for-self-gating-features, dashboard-roadmap-drag-drop, doc-gardening-skill, framework-milestones-support-poc-mvp-100, graphify-plan-of-edges-nodes-for-plans-specs, noldor, outcome-telemetry-and-effectiveness-metrics, release-sweep-process-hardening
 
 async function makeRepo() {
   const root = await mkdtemp(join(tmpdir(), 'garden-'));
