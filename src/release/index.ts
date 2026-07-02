@@ -22,6 +22,7 @@ import {
 } from './release-notes.js';
 import { bumpAllPackages } from './release-packages.js';
 import { withReleaseSession } from './release-session.js';
+import { clearReleaseState, readReleaseState, writeReleaseState } from './release-state.js';
 import { applyBump, findPreviousTag, getRepoUrl } from './release-version.js';
 
 const execFileP = promisify(execFile);
@@ -122,9 +123,26 @@ async function extractLatestReleaseNotes(): Promise<string> {
   return `## ${entries[0].trimEnd()}`;
 }
 
+/**
+ * Normal-path guard: a leftover release-state file means an earlier run died
+ * mid-release. Re-running the full pipeline would reject on the dirty tree —
+ * or, after a manual commit, re-derive the WRONG version because the release
+ * commit itself would enter the bump window — so name the two valid moves.
+ */
+export function assertNoInProgressRelease(cwd: string): void {
+  const state = readReleaseState(cwd);
+  if (state === null) return;
+  throw new Error(
+    `In-progress release v${state.version} detected (.noldor/release-state.json). ` +
+      'Run `pnpm release --resume` to finish it, or discard with ' +
+      '`git reset --hard && rm .noldor/release-state.json`.',
+  );
+}
+
 async function main(): Promise<void> {
   await withReleaseSession(process.cwd(), async () => {
     const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
+    assertNoInProgressRelease(process.cwd());
     await ensureCleanTreeOnMain();
     await ensureGhAvailable();
     await ensureGraphFresh(scanPaths);
@@ -230,6 +248,14 @@ async function main(): Promise<void> {
     }
 
     const releaseDate = todayIso();
+    // The run now commits to mutating files — drop the resume token first so a
+    // death anywhere between here and the GitHub Release leaves it behind.
+    writeReleaseState(process.cwd(), {
+      version: newVersion,
+      previousTag,
+      date: releaseDate,
+      startedAt: new Date().toISOString(),
+    });
     const repoUrl = await getRepoUrl();
 
     const changelogBlocks = await generateFdChangelogs({
@@ -316,11 +342,17 @@ async function main(): Promise<void> {
       `v${newVersion}`,
     ]);
     console.log(`Created GitHub Release v${newVersion}.`);
+    clearReleaseState(process.cwd());
   });
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`\nRelease aborted: ${message}`);
-  process.exitCode = 1;
-});
+// Execute only when dispatched as the CLI entrypoint (`noldor release run`
+// reshapes argv so argv[1] is this module's path). Importing this module in
+// tests must NOT fire a release run.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`\nRelease aborted: ${message}`);
+    process.exitCode = 1;
+  });
+}
