@@ -7,8 +7,7 @@ links:
     - src/features/migrate-fd-commits-to-prs.ts
     - src/release/fd-prs-since-tag.ts
     - src/release/release-noise-types.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
   tests:
     - src/features/__tests__/migrate-fd-commits-to-prs.test.ts
     - src/release/__tests__/fd-prs-since-tag.test.ts
@@ -55,7 +54,7 @@ _none for v1_ — the marker is a doc-side convention expanded by the dashboard'
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-22-fd-prs-since-last-release-section-design.md`](../../docs/superpowers/specs/archive/2026-05-22-fd-prs-since-last-release-section-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/features/migrate-fd-commits-to-prs.ts`](../../src/features/migrate-fd-commits-to-prs.ts)
   - [`src/release/fd-prs-since-tag.ts`](../../src/release/fd-prs-since-tag.ts)

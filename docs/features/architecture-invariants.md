@@ -38,7 +38,7 @@ Four commit-blocking architecture invariants enforced at pre-commit, with adviso
 - **rule-conflicts** — paired docs must agree on canonical phrasings; extends seed list in `src/garden/garden-invariants.ts`.
 - **keyboard-binding** — every UI feature MD (`area: web`, active phase) must be referenced in `docs/features/keyboard-shortcuts.md`, or carry `<!-- keyboard: not-applicable -->` opt-out.
 
-Plugin pattern under `scripts/invariants/`. Pre-commit runner `src/checks/check-invariants.ts` runs all plugins in parallel; exit 1 on any violation. Garden runner reuses the same plugins as advisory `invariantViolations` findings.
+Plugin pattern under `src/invariants/`. Pre-commit runner `src/checks/check-invariants.ts` runs all plugins in parallel; exit 1 on any violation. Garden runner reuses the same plugins as advisory `invariantViolations` findings.
 
 ## User Story
 
@@ -56,7 +56,7 @@ pnpm garden:detect        # advisory — emits invariantViolations as JSON
 
 Adding a new invariant:
 
-1. Create `scripts/invariants/<name>.ts` exporting an `Invariant` plugin (see `src/invariants/types.ts`).
+1. Create `src/invariants/<name>.ts` exporting an `Invariant` plugin (see `src/invariants/types.ts`).
 2. Add a unit test under `scripts/__tests__/invariants-<name>.test.ts` carrying `// @tests: architecture-invariants`.
 3. Register the plugin in `src/invariants/index.ts`.
 
@@ -66,7 +66,7 @@ Opting out of `keyboard-binding` for a passive UI feature: add `<!-- keyboard: n
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-04-29-architecture-invariants-design.md`](../../docs/superpowers/specs/archive/2026-04-29-architecture-invariants-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/checks/check-invariants.ts`](../../src/checks/check-invariants.ts)
   - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)

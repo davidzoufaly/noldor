@@ -46,7 +46,7 @@ As a maintainer (human or agent), I want a sortable list of the files that chang
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-04-dashboard-hot-zones-page-design.md`](../../docs/superpowers/specs/archive/2026-05-04-dashboard-hot-zones-page-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)

@@ -15,8 +15,7 @@ links:
     - src/release/release-markers.ts
     - src/release/release-pr-bullets.ts
     - src/release/release-find-first-pr-commit.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
   tests:
     - src/core/__tests__/phase-revert.test.ts
     - src/release/__tests__/release-fd-changelog-in-progress.test.ts
@@ -133,7 +132,7 @@ This release fixes composeBody's Feature MD link falling through to session.pare
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md`](../../docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
   - [`src/core/cr-retry.ts`](../../src/core/cr-retry.ts)

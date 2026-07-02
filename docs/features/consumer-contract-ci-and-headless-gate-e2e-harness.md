@@ -26,6 +26,7 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 164 unit-test files, zero end-to-end coverage of the flows autonomy actually depends on: the skill-markdown gate paths, drain loop against a real repo, init/upgrade against a real consumer tree. The PR #33 bug class (headless gate silently ignoring env-only signals) lived exactly in this blind spot and shipped broken. Build one harness that covers both needs: a fixture consumer repo as the *contract*, and headless skill-flow runs as the *e2e layer*.
@@ -103,7 +104,7 @@ Hermetic stub runner now register in agent registry (#99).
 - **Plan:**
   - [`docs/superpowers/plans/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md`](../../docs/superpowers/plans/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md)
 - **Code:**
-  - [`fixtures/`](../../fixtures/)
+  - [`src/testing/fixtures`](../../src/testing/fixtures)
   - [`src/testing/consumer-fixture.ts`](../../src/testing/consumer-fixture.ts)
   - [`src/autonomous/`](../../src/autonomous/)
   - [`docs/noldor/testing-principles.md`](../../docs/noldor/testing-principles.md)

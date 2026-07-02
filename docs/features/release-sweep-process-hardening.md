@@ -14,14 +14,10 @@ links:
     - src/core/session.ts
     - src/release/index.ts
   plan:
-    - >-
-      lost-pre-extraction
-    - >-
-      lost-pre-extraction
-    - >-
-      lost-pre-extraction
-  spec: >-
-    lost-pre-extraction
+    - lost-pre-extraction
+    - lost-pre-extraction
+    - lost-pre-extraction
+  spec: lost-pre-extraction
   tests: []
 name: Release-Sweep Process Hardening
 packages:
@@ -70,11 +66,11 @@ As an operator preparing a release, I want `/release-sweep` to run end-to-end un
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-17-release-sweep-process-hardening-design.md`](../../docs/superpowers/specs/archive/2026-05-17-release-sweep-process-hardening-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Plan:**
-  - [`docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part1.md`](../../docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part1.md)
-  - [`docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part2.md`](../../docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part2.md)
-  - [`docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part3.md`](../../docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part3.md)
+  - _lost-pre-extraction_
+  - _lost-pre-extraction_
+  - _lost-pre-extraction_
 - **Code:**
   - [`.claude/skills/release-sweep/SKILL.md`](../../.claude/skills/release-sweep/SKILL.md)
   - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)

@@ -26,8 +26,7 @@ links:
     - src/features/__tests__/validate-features.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/release/__tests__/release-fd-commits.test.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 updated: 0.4.0
@@ -73,7 +72,7 @@ The proposal groups files by FD slug. Lines prefixed `#` are skipped on apply. T
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-05-feature-md-links-overhaul-design.md`](../../docs/superpowers/specs/archive/2026-05-05-feature-md-links-overhaul-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/checks/check-feature-slug-scope.ts`](../../src/checks/check-feature-slug-scope.ts)
   - [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts)

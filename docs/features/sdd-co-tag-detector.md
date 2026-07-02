@@ -54,7 +54,7 @@ When the graph is stale, the detector emits a single meta-gap with a regen instr
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-07-sdd-co-tag-detector-design.md`](../../docs/superpowers/specs/archive/2026-05-07-sdd-co-tag-detector-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/garden/graph-fd-lookup.ts`](../../src/garden/graph-fd-lookup.ts)
 - **Tests:**

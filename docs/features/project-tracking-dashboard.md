@@ -25,8 +25,7 @@ links:
     - src/dashboard/__tests__/dashboard-skills.test.ts
     - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 updated: 0.5.0
@@ -69,7 +68,7 @@ As a maintainer (human or agent), I want to see live, filterable project state i
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-04-project-tracking-dashboard-design.md`](../../docs/superpowers/specs/archive/2026-05-04-project-tracking-dashboard-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
   - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)

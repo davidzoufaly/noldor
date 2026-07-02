@@ -60,7 +60,7 @@ As a developer or agent reading an FD detail page, I want to see every commit at
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/plans/archive/2026-05-09-dynamic-fd-changelog.md`](../../docs/superpowers/plans/archive/2026-05-09-dynamic-fd-changelog.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/features/migrate-changelog-unreleased.ts`](../../src/features/migrate-changelog-unreleased.ts)

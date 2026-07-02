@@ -45,7 +45,7 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-04-29-doc-gardening-skill-design.md`](../../docs/superpowers/specs/archive/2026-04-29-doc-gardening-skill-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/docs/docs-api.ts`](../../src/docs/docs-api.ts)
   - [`src/docs/docs-check.ts`](../../src/docs/docs-check.ts)

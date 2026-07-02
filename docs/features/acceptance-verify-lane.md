@@ -23,6 +23,7 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 Autonomous paths merge on tests + CR. Both have a structural blind spot: the implementer agent writes the code _and_ the tests, so a misunderstood requirement produces tests that assert the misunderstanding — green suite, wrong feature. CR reads diffs and can ratify the same error. Nobody runs the artifact and checks it against what the FD/entry actually promised. Add a `verify` lane: an independent agent that boots the real artifact and judges the shipped behavior against the acceptance text.
@@ -70,7 +71,7 @@ As an operator running autonomous paths (drain, watch, gate autonomous mode), I 
   - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`src/autonomous/`](../../src/autonomous/)
   - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
-  - [`docs/noldor/adoption-guide.md`](../noldor/adoption-guide.md)
+  - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
 - **Tests:**
   - [`src/cr/__tests__/lanes/verify-dispatch.test.ts`](../../src/cr/__tests__/lanes/verify-dispatch.test.ts)

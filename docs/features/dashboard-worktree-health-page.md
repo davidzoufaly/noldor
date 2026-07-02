@@ -15,8 +15,7 @@ links:
     - src/worktrees/worktree-status.ts
   tests:
     - src/dashboard/__tests__/dashboard-worktrees.test.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 ---
@@ -52,7 +51,7 @@ As a developer working in a parallel-worktree workflow, I want to view live work
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-04-dashboard-worktree-health-page-design.md`](../../docs/superpowers/specs/archive/2026-05-04-dashboard-worktree-health-page-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)

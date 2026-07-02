@@ -16,8 +16,7 @@ links:
     - src/utils/parse-blocks.ts
     - src/utils/slugify.ts
     - src/utils/write-blocks.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
   tests:
     - src/dashboard/__tests__/api-blocks.test.ts
     - src/dashboard/__tests__/dashboard-data.test.ts
@@ -74,7 +73,7 @@ This release ships drag-and-drop reordering for the dashboard roadmap and backlo
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-14-dashboard-roadmap-drag-drop-design.md`](../../docs/superpowers/specs/archive/2026-05-14-dashboard-roadmap-drag-drop-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/dashboard/api/atomic.ts`](../../src/dashboard/api/atomic.ts)
   - [`src/dashboard/api/blocks.ts`](../../src/dashboard/api/blocks.ts)

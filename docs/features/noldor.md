@@ -84,6 +84,7 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
+
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
@@ -181,7 +182,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-08-quickforge-framework-extraction-design.md`](../../docs/superpowers/specs/archive/2026-05-08-quickforge-framework-extraction-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/core/changelog.ts`](../../src/core/changelog.ts)
   - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
@@ -222,11 +223,14 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
   - [`src/cr/__tests__/schema-parity.test.ts`](../../src/cr/__tests__/schema-parity.test.ts)
   - [`src/cr/__tests__/sidecar.test.ts`](../../src/cr/__tests__/sidecar.test.ts)
+  - [`src/features/__tests__/migrate-link-rot.test.ts`](../../src/features/__tests__/migrate-link-rot.test.ts)
+  - [`src/features/__tests__/phase-cli.test.ts`](../../src/features/__tests__/phase-cli.test.ts)
   - [`src/garden/__tests__/backlog-demote.test.ts`](../../src/garden/__tests__/backlog-demote.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
   - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
   - [`src/garden/detectors/__tests__/allowlist-drift.test.ts`](../../src/garden/detectors/__tests__/allowlist-drift.test.ts)
   - [`src/garden/detectors/__tests__/codex-cr-override-audit.test.ts`](../../src/garden/detectors/__tests__/codex-cr-override-audit.test.ts)
+  - [`src/garden/detectors/__tests__/fd-link-rot.test.ts`](../../src/garden/detectors/__tests__/fd-link-rot.test.ts)
   - [`src/garden/detectors/__tests__/fd-without-plan.test.ts`](../../src/garden/detectors/__tests__/fd-without-plan.test.ts)
   - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
   - [`src/garden/detectors/__tests__/plan-without-fd.test.ts`](../../src/garden/detectors/__tests__/plan-without-fd.test.ts)

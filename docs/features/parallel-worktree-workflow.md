@@ -16,8 +16,7 @@ links:
     - src/worktrees/__tests__/launch-worktrees.test.ts
     - src/worktrees/__tests__/worktree-conflicts.test.ts
     - src/worktrees/__tests__/worktree-status.test.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 ---
@@ -51,7 +50,7 @@ _none — out-of-process tooling for human or agent-driven shell sessions._
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-04-parallel-worktree-workflow-design.md`](../../docs/superpowers/specs/archive/2026-05-04-parallel-worktree-workflow-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/checks/check-shared-files.ts`](../../src/checks/check-shared-files.ts)
   - [`src/worktrees/launch-worktrees.ts`](../../src/worktrees/launch-worktrees.ts)

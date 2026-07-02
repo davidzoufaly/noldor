@@ -10,8 +10,7 @@ links:
   code: []
   tests:
     - src/triage/__tests__/triage-list-untriaged.test.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 ---
@@ -36,7 +35,7 @@ The reorganization is structural — no end-user surface. Internal tools and pnp
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-06-scripts-reorganization-by-feature-area-design.md`](../../docs/superpowers/specs/archive/2026-05-06-scripts-reorganization-by-feature-area-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Tests:**
   - [`src/triage/__tests__/triage-list-untriaged.test.ts`](../../src/triage/__tests__/triage-list-untriaged.test.ts)
 

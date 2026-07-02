@@ -47,8 +47,7 @@ links:
     - src/cr/__tests__/lanes/codex.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
-  spec: >-
-    lost-pre-extraction
+  spec: lost-pre-extraction
 name: Specs/Plan CR Gate — Multi-Reviewer + Multiterminal Bug Fix
 packages:
   - scripts
@@ -79,7 +78,7 @@ Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: ma
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-23-specs-cr-gate-multi-reviewer-design.md`](../../docs/superpowers/specs/archive/2026-05-23-specs-cr-gate-multi-reviewer-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
   - [`src/cr/aggregate.ts`](../../src/cr/aggregate.ts)
