@@ -93,6 +93,20 @@ export function clearSession(cwd: string = process.cwd()): void {
   }
 }
 
+/**
+ * Rewrites {@link SessionMarker.startedAt} to `nowMs`, preserving every other
+ * field. No-op when no marker exists — refresh is best-effort and must never
+ * fail a caller that runs on every commit. Pure w.r.t. the clock: the caller
+ * injects `nowMs`, mirroring {@link isSessionStale}. Used by the pre-commit
+ * hook to make the `release-sweep` TTL measure inactivity rather than total
+ * session age, so a long sweep can't go stale mid-run between green commits.
+ */
+export function touchSession(cwd: string, nowMs: number): void {
+  const m = readSession(cwd);
+  if (m === null) return;
+  writeSession(cwd, { ...m, startedAt: new Date(nowMs).toISOString() });
+}
+
 export function setAutonomous(cwd: string = process.cwd()): void {
   const m = readSession(cwd);
   if (m === null) {

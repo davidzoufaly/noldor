@@ -112,7 +112,10 @@ describe('noldor pre-commit', () => {
     mkdirSync(join(dir, 'docs'), { recursive: true });
     writeFileSync(join(dir, 'docs', 'sdd-report.md'), 'x');
     execSync('git add graphify-out/graph.json docs/sdd-report.md', { cwd: dir });
-    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL })).toEqual({ ok: true });
+    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL })).toEqual({
+      ok: true,
+      refreshSession: true,
+    });
   });
 
   it('rejects release-sweep session when a staged path escapes RELEASE_SWEEP_GLOBS', () => {
@@ -243,6 +246,45 @@ describe('noldor pre-commit', () => {
         ttlHours: TTL,
       });
       expect(r).toEqual({ ok: true, overrideReason: 'shipping anyway' });
+    });
+
+    it('a green release-sweep result asks the entrypoint to refresh startedAt (activity-based TTL)', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'release-sweep', startedAt: STARTED }),
+      );
+      mkdirSync(join(dir, 'graphify-out'), { recursive: true });
+      writeFileSync(join(dir, 'graphify-out', 'graph.json'), '{}');
+      execSync('git add graphify-out/graph.json', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, nowMs: FRESH, ttlHours: TTL });
+      expect(r).toEqual({ ok: true, refreshSession: true });
+    });
+
+    it('a green micro-chore result does NOT carry the refresh flag (TTL semantics unchanged)', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'micro-chore', startedAt: STARTED }),
+      );
+      writeFileSync(join(dir, 'README.md'), 'x');
+      execSync('git add README.md', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, nowMs: FRESH, ttlHours: TTL });
+      expect(r).toEqual({ ok: true });
+    });
+
+    it('a stale release-sweep session is rejected without a refresh flag (staleness still wins)', () => {
+      const dir = setupRepo();
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'release-sweep', startedAt: STARTED }),
+      );
+      mkdirSync(join(dir, 'graphify-out'), { recursive: true });
+      writeFileSync(join(dir, 'graphify-out', 'graph.json'), '{}');
+      execSync('git add graphify-out/graph.json', { cwd: dir });
+      const r = runPreCommit({ cwd: dir, nowMs: STALE, ttlHours: TTL });
+      expect(r.ok).toBe(false);
+      expect(r.refreshSession).toBeUndefined();
     });
 
     it('a stale fast-track is unaffected (no allowlist branch — passes)', () => {

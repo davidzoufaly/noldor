@@ -14,17 +14,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Phase 1 — Self-Truth Quick Fixes
 
-#### Release-Sweep Session TTL Refresh
-
-- area: tooling
-- type: fix
-- since: 2026-07-01
-- size: XS
-- impact: med
-- confidence: high
-
-A long sweep crossing the 24h boundary trips `isSessionStale` (`src/core/session.ts:63-68`; `release-sweep` is stale-eligible) → pre-commit blocks mid-sweep, operator re-runs `writeSession` by hand. Options: auto-refresh `startedAt` on sweep step boundaries, exempt `release-sweep` from the TTL, or document + use the existing `gate.sessionTtlHours` config knob (`src/cr/config.ts`, currently undocumented). Keep micro-chore TTL semantics unchanged — its staleness guard is working as designed.
-
 #### README and Version Output Staleness
 
 - area: docs

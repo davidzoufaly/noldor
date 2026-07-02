@@ -172,6 +172,12 @@ release gate on every code-touching commit. Override:
   refresh.` instead of silently enforcing a cold allowlist. Paths without an
   allowlist branch never expire; a non-empty `NOLDOR_PATH_OVERRIDE` bypasses the
   check; a malformed config fails open to the 24h default.
+- For `release-sweep` the TTL is an inactivity window, not a total-age cap:
+  every green pre-commit pass rewrites `startedAt` to now
+  (`touchSession`, `src/core/session.ts`), so a long sweep whose runtime crosses
+  the 24h boundary stays fresh as long as it keeps passing pre-commit. Only a
+  sweep idle for the full TTL between passes goes stale. `micro-chore` keeps
+  total-age semantics (single-commit path — nothing mid-run to refresh).
 - A `micro-chore` session auto-clears once its PR merges (`pnpm noldor pr-flow`),
   so the marker can't linger into the next day. Worktree-backed paths already
   clear via worktree removal at end-of-flow.

@@ -8,6 +8,7 @@ import {
   writeSession,
   clearSession,
   setAutonomous,
+  touchSession,
   isSessionStale,
   SessionMarkerSchema,
   type SessionMarker,
@@ -104,6 +105,27 @@ describe('session marker', () => {
   it('setAutonomous throws when no marker exists', () => {
     const dir = mkdtempSync(join(tmpdir(), 'qfs-'));
     expect(() => setAutonomous(dir)).toThrow(/session marker/);
+  });
+  it('touchSession rewrites startedAt to nowMs and preserves every other field', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qfs-'));
+    mkdirSync(join(dir, '.noldor'));
+    writeSession(dir, {
+      path: 'release-sweep',
+      startedAt: '2026-05-17T08:00:00.000Z',
+      autonomous: true,
+    });
+    const now = Date.parse('2026-05-18T09:30:00.000Z');
+    touchSession(dir, now);
+    expect(readSession(dir)).toEqual({
+      path: 'release-sweep',
+      startedAt: '2026-05-18T09:30:00.000Z',
+      autonomous: true,
+    });
+  });
+  it('touchSession is a no-op when no marker exists (never throws, writes nothing)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qfs-'));
+    expect(() => touchSession(dir, Date.parse('2026-05-18T09:30:00.000Z'))).not.toThrow();
+    expect(existsSync(join(dir, '.noldor', 'session.json'))).toBe(false);
   });
 });
 
