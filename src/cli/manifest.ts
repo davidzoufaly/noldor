@@ -60,6 +60,15 @@ export const MANIFEST: Record<string, Group> = {
       },
     },
   },
+  research: {
+    desc: 'Parallel read-only research agents (fanout + opt-in synthesis)',
+    subs: {
+      fanout: {
+        src: 'research/fanout.ts',
+        desc: 'Spawn one researcher per task (--tasks file / --task sugar); findings + INDEX.md (+ --synthesize)',
+      },
+    },
+  },
   garden: {
     desc: 'Garden drift detection + SDD report + receipts',
     subs: {
