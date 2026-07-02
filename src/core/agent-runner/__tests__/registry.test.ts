@@ -65,6 +65,12 @@ describe('resolveRunner', () => {
   it('falls back to default', () => {
     expect(resolveRunner('reviewer', cfg)).toEqual({ runner: 'claude' });
   });
+  it('researcher is a declared role that defaults to claude', () => {
+    expect(AGENT_ROLES).toContain('researcher');
+    expect(resolveRunner('researcher', agentsConfigSchema.parse({}))).toEqual({
+      runner: 'claude',
+    });
+  });
 });
 
 describe('spawnAgent', () => {
