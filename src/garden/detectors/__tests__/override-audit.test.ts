@@ -289,3 +289,90 @@ describe('auditReleasePushes', () => {
     expect(result.severity).toBe('WARN');
   });
 });
+
+describe('auditOverrides — expected-noise exclusion', () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = makeRepo();
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  it('4 overrides with 2 expected → INFO not WARN; count/expectedCount split', () => {
+    addCommit(repo, 'fix(a): o1\n\nNoldor-Path-Override: drain sprint batch alpha');
+    addCommit(repo, 'fix(b): o2\n\nNoldor-Path-Override: drain sprint batch alpha again');
+    addCommit(repo, 'fix(c): o3\n\nNoldor-Path-Override: unrelated hotfix');
+    addCommit(repo, 'fix(d): o4\n\nNoldor-Path-Override: another unrelated');
+
+    const result = auditOverrides({
+      cwd: repo,
+      threshold: 3,
+      expected: [
+        { reasonIncludes: 'drain sprint batch alpha', note: 'operator-accepted 2026-06 sprint' },
+      ],
+    });
+    expect(result.severity).toBe('INFO');
+    expect(result.count).toBe(2);
+    expect(result.expectedCount).toBe(2);
+    expect(result.overrides).toHaveLength(4);
+  });
+
+  it('matches by SHA prefix and keeps the entry listed with expected: true', () => {
+    const sha = addCommit(repo, 'fix(e): sha-matched\n\nNoldor-Path-Override: some reason');
+
+    const result = auditOverrides({
+      cwd: repo,
+      expected: [{ shaPrefix: sha.slice(0, 10), note: 'known one-off' }],
+    });
+    expect(result.count).toBe(0);
+    expect(result.expectedCount).toBe(1);
+    expect(result.severity).toBe('INFO');
+    expect(result.overrides[0]).toMatchObject({ sha, expected: true });
+  });
+
+  it('unexpected overrides above threshold still WARN even when others are expected', () => {
+    for (let i = 0; i < 4; i++) {
+      addCommit(repo, `fix: u${i}\n\nNoldor-Path-Override: new noise ${i}`);
+    }
+    addCommit(repo, 'fix: e1\n\nNoldor-Path-Override: declared noise');
+
+    const result = auditOverrides({
+      cwd: repo,
+      threshold: 3,
+      expected: [{ reasonIncludes: 'declared noise', note: 'declared' }],
+    });
+    expect(result.severity).toBe('WARN');
+    expect(result.count).toBe(4);
+    expect(result.expectedCount).toBe(1);
+  });
+
+  it('marks expected: false on every entry when no rules are passed (back-compat)', () => {
+    addCommit(repo, 'fix: o\n\nNoldor-Path-Override: reason');
+
+    const result = auditOverrides({ cwd: repo });
+    expect(result.overrides[0]!.expected).toBe(false);
+    expect(result.expectedCount).toBe(0);
+    expect(result.count).toBe(1);
+  });
+
+  it('a dual-field rule requires both fields to match', () => {
+    const sha = addCommit(repo, 'fix: dual\n\nNoldor-Path-Override: alpha noise');
+
+    const both = auditOverrides({
+      cwd: repo,
+      expected: [{ shaPrefix: sha.slice(0, 10), reasonIncludes: 'alpha noise', note: 'both' }],
+    });
+    expect(both.expectedCount).toBe(1);
+
+    const reasonMismatch = auditOverrides({
+      cwd: repo,
+      expected: [
+        { shaPrefix: sha.slice(0, 10), reasonIncludes: 'DOES NOT APPEAR', note: 'mismatch' },
+      ],
+    });
+    expect(reasonMismatch.expectedCount).toBe(0);
+  });
+});

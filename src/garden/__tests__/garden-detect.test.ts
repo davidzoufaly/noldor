@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   detectContradictions,
+  loadOverrideAuditOptions,
   detectInvariants,
   detectStalePlans,
   detectStaleSpecs,
@@ -872,5 +873,51 @@ describe('hasBlockingFindings', () => {
       ],
     };
     expect(hasBlockingFindings(findings)).toBe(false);
+  });
+});
+
+describe('loadOverrideAuditOptions', () => {
+  let repo: string;
+
+  beforeEach(async () => {
+    repo = await makeRepo();
+  });
+
+  afterEach(async () => {
+    await rm(repo, { force: true, recursive: true });
+  });
+
+  it('returns no rules and no threshold when the config file is absent', async () => {
+    const opts = await loadOverrideAuditOptions(repo);
+    expect(opts.expected).toEqual([]);
+    expect(opts.threshold).toBeUndefined();
+  });
+
+  it('extracts threshold and expected rules from garden.overrideAudit', async () => {
+    await mkdir(join(repo, '.noldor'), { recursive: true });
+    await writeFile(
+      join(repo, '.noldor/config.json'),
+      JSON.stringify({
+        garden: {
+          overrideAudit: {
+            threshold: 6,
+            expected: [{ reasonIncludes: 'declared noise', note: 'operator-accepted' }],
+          },
+        },
+      }),
+      'utf8',
+    );
+    const opts = await loadOverrideAuditOptions(repo);
+    expect(opts.threshold).toBe(6);
+    expect(opts.expected).toEqual([
+      { reasonIncludes: 'declared noise', note: 'operator-accepted' },
+    ]);
+  });
+
+  it('fails open on a malformed config (no crash, no rules)', async () => {
+    await mkdir(join(repo, '.noldor'), { recursive: true });
+    await writeFile(join(repo, '.noldor/config.json'), '{ not json', 'utf8');
+    const opts = await loadOverrideAuditOptions(repo);
+    expect(opts.expected).toEqual([]);
   });
 });

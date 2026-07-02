@@ -168,3 +168,104 @@ describe('resolveReviewProfile', () => {
     });
   });
 });
+
+describe('release.crGateExemptCommits block', () => {
+  it('parses a valid exemption list', () => {
+    const parsed = noldorConfigSchema.parse({
+      release: {
+        crGateExemptCommits: [
+          {
+            sha: '19a74a10e8e844e021b08fe616992eae1b56f977',
+            reason: 'pre-rollout-marker CI chore (#117)',
+          },
+        ],
+      },
+    });
+    expect(parsed.release?.crGateExemptCommits).toHaveLength(1);
+    expect(parsed.release?.crGateExemptCommits[0]?.sha).toBe(
+      '19a74a10e8e844e021b08fe616992eae1b56f977',
+    );
+  });
+
+  it('keeps release optional and defaults crGateExemptCommits to []', () => {
+    expect(noldorConfigSchema.parse({}).release).toBeUndefined();
+    expect(noldorConfigSchema.parse({ release: {} }).release?.crGateExemptCommits).toEqual([]);
+  });
+
+  it('rejects a SHA prefix shorter than 7 hex chars', () => {
+    expect(() =>
+      noldorConfigSchema.parse({
+        release: { crGateExemptCommits: [{ sha: '19a74a', reason: 'too short' }] },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects a non-hex SHA and an empty reason', () => {
+    expect(() =>
+      noldorConfigSchema.parse({
+        release: { crGateExemptCommits: [{ sha: 'ZZZZZZZZ', reason: 'x' }] },
+      }),
+    ).toThrow();
+    expect(() =>
+      noldorConfigSchema.parse({
+        release: { crGateExemptCommits: [{ sha: '19a74a10e8', reason: '' }] },
+      }),
+    ).toThrow();
+  });
+
+  it('strips unknown keys (zod non-strict) so config-schema growth stays compatible', () => {
+    const parsed = noldorConfigSchema.parse({
+      release: { crGateExemptCommits: [], futureKnob: true },
+      unknownTopLevel: 1,
+    } as Record<string, unknown>);
+    expect(parsed.release?.crGateExemptCommits).toEqual([]);
+    expect('futureKnob' in (parsed.release ?? {})).toBe(false);
+  });
+});
+
+describe('garden.overrideAudit block', () => {
+  it('parses expected rules and an optional threshold', () => {
+    const parsed = noldorConfigSchema.parse({
+      garden: {
+        overrideAudit: {
+          threshold: 5,
+          expected: [
+            {
+              reasonIncludes: 'cr-red override acceptance-verify-lane',
+              note: 'operator-accepted residual risk, 2026-06',
+            },
+            { shaPrefix: 'ec7bf0b7c52', note: 'same acknowledgment, keyed by SHA' },
+          ],
+        },
+      },
+    });
+    expect(parsed.garden?.overrideAudit?.threshold).toBe(5);
+    expect(parsed.garden?.overrideAudit?.expected).toHaveLength(2);
+  });
+
+  it('keeps garden optional and defaults expected to []', () => {
+    expect(noldorConfigSchema.parse({}).garden).toBeUndefined();
+    expect(
+      noldorConfigSchema.parse({ garden: { overrideAudit: {} } }).garden?.overrideAudit?.expected,
+    ).toEqual([]);
+  });
+
+  it('rejects a rule with neither shaPrefix nor reasonIncludes', () => {
+    expect(() =>
+      noldorConfigSchema.parse({
+        garden: { overrideAudit: { expected: [{ note: 'matches nothing' }] } },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects a non-positive threshold and a rule without a note', () => {
+    expect(() =>
+      noldorConfigSchema.parse({ garden: { overrideAudit: { threshold: 0 } } }),
+    ).toThrow();
+    expect(() =>
+      noldorConfigSchema.parse({
+        garden: { overrideAudit: { expected: [{ reasonIncludes: 'x' }] } },
+      }),
+    ).toThrow();
+  });
+});

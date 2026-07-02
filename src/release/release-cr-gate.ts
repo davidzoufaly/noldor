@@ -6,9 +6,32 @@ export interface CrGateOffender {
   subject: string;
 }
 
+/**
+ * One configured per-SHA acknowledgment (`release.crGateExemptCommits` in
+ * `.noldor/config.json`, schema-validated there — kept structural here so this
+ * module needs no `cr/config` import). `sha` is a full-SHA prefix, min 7 hex
+ * chars enforced at the schema layer.
+ */
+export interface CrGateExemption {
+  sha: string;
+  reason: string;
+}
+
+/**
+ * A commit waved through by a configured exemption — reported (not silently
+ * dropped) so the release log prints what was skipped and why.
+ */
+export interface CrGateExemptedCommit {
+  sha: string;
+  subject: string;
+  reason: string;
+}
+
 export interface CrGateResult {
   ok: boolean;
   offenders: CrGateOffender[];
+  /** Commits skipped via {@link CrGateInput.exemptions}; empty when none applied. */
+  exempted: CrGateExemptedCommit[];
   reason?: string;
 }
 
@@ -17,6 +40,8 @@ export interface CrGateInput {
   to: string;
   cwd: string;
   runGit?: (args: string[]) => string;
+  /** Committed per-SHA acknowledgments (`release.crGateExemptCommits`). */
+  exemptions?: ReadonlyArray<CrGateExemption>;
 }
 
 /**
@@ -41,6 +66,8 @@ export interface CrGateInput {
  *   - `Noldor-Path: release-automation` / `release-sweep` (allowlist-guarded
  *     no-review paths)
  *   - a diff fully inside the micro-chore allowlist (doc/policy-only)
+ *   - a configured per-SHA exemption (`input.exemptions`, sourced from
+ *     `release.crGateExemptCommits`) — skipped AND reported in `exempted`
  */
 export function checkCrGate(input: CrGateInput): CrGateResult {
   const git =
@@ -52,6 +79,8 @@ export function checkCrGate(input: CrGateInput): CrGateResult {
     .filter(Boolean);
 
   const offenders: CrGateOffender[] = [];
+  const exemptions = input.exemptions ?? [];
+  const exempted: CrGateExemptedCommit[] = [];
 
   for (const sha of shas) {
     const message = git(['show', '-s', '--format=%B', sha]);
@@ -63,6 +92,17 @@ export function checkCrGate(input: CrGateInput): CrGateResult {
     const paths = t.get('Noldor-Path') ?? [];
     const EXEMPT_PATHS = new Set(['release-automation', 'release-sweep']);
     if (paths.length > 0 && paths.every((p) => EXEMPT_PATHS.has(p))) continue;
+
+    // Per-SHA acknowledgment from committed config: a commit whose full SHA
+    // starts with an exemption's prefix is waved through — and collected, so
+    // the release log prints what was skipped and why. This replaces the
+    // whole-check RELEASE_SKIP_CR_GATE=1 skip for known historical offenders.
+    const exemption = exemptions.find((e) => sha.startsWith(e.sha));
+    if (exemption) {
+      const subject = message.split(/\r?\n/, 1)[0]?.trim() ?? '';
+      exempted.push({ sha, subject, reason: exemption.reason });
+      continue;
+    }
 
     const files = git(['show', '--name-only', '--format=', sha])
       .split('\n')
@@ -80,8 +120,8 @@ export function checkCrGate(input: CrGateInput): CrGateResult {
     offenders.push({ sha, subject });
   }
 
-  if (offenders.length === 0) return { ok: true, offenders: [] };
-  return { ok: false, offenders, reason: formatReason(offenders) };
+  if (offenders.length === 0) return { ok: true, offenders: [], exempted };
+  return { ok: false, offenders, exempted, reason: formatReason(offenders) };
 }
 
 const REVIEW_RECEIPT_KEYS = [

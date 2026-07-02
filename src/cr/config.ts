@@ -61,12 +61,74 @@ export const crReviewConfigSchema = z.object({
   profiles: z.record(z.string(), reviewProfileSchema).optional(),
 });
 
+/**
+ * One acknowledged release-CR-gate offender: a commit that shipped without a
+ * review receipt (e.g. pre-rollout-marker history) which `checkCrGate` should
+ * wave through per-SHA instead of the whole-check `RELEASE_SKIP_CR_GATE=1`
+ * skip. `sha` is a hex prefix of the full commit SHA — min 7 chars so a typo
+ * cannot blanket-match — and `reason` is required: the committed config diff
+ * is the audit trail.
+ */
+export const crGateExemptionSchema = z.object({
+  sha: z.string().regex(/^[0-9a-f]{7,40}$/),
+  reason: z.string().min(1),
+});
+
+/** Release-enforcement tuning — the `release:` block of `.noldor/config.json`. */
+export const releaseConfigSchema = z.object({
+  crGateExemptCommits: z.array(crGateExemptionSchema).default([]),
+});
+
+/** One parsed {@link crGateExemptionSchema} entry. */
+export type CrGateExemption = z.infer<typeof crGateExemptionSchema>;
+/** Parsed `release:` block. */
+export type ReleaseConfig = z.infer<typeof releaseConfigSchema>;
+
+/**
+ * One expected-override declaration for the override-audit detector. Matches
+ * collected `Noldor-Path-Override` commits by SHA prefix and/or reason
+ * substring; when BOTH fields are set, both must match (narrower is safer — a
+ * broad `reasonIncludes` must not silently absorb unrelated overrides). At
+ * least one matching field is required. `note` documents why the noise is
+ * expected; the committed config diff is the audit trail.
+ */
+export const expectedOverrideSchema = z
+  .object({
+    shaPrefix: z
+      .string()
+      .regex(/^[0-9a-f]{7,40}$/)
+      .optional(),
+    reasonIncludes: z.string().min(1).optional(),
+    note: z.string().min(1),
+  })
+  .refine(
+    (e) => e.shaPrefix !== undefined || e.reasonIncludes !== undefined,
+    'need shaPrefix or reasonIncludes',
+  );
+
+/** Garden-detector tuning — the `garden:` block of `.noldor/config.json`. */
+export const gardenConfigSchema = z.object({
+  overrideAudit: z
+    .object({
+      threshold: z.number().int().positive().optional(),
+      expected: z.array(expectedOverrideSchema).default([]),
+    })
+    .optional(),
+});
+
+/** One parsed {@link expectedOverrideSchema} rule. */
+export type ExpectedOverride = z.infer<typeof expectedOverrideSchema>;
+/** Parsed `garden:` block. */
+export type GardenConfig = z.infer<typeof gardenConfigSchema>;
+
 export const noldorConfigSchema = z.object({
   crLanes: crLanesConfigSchema.optional(),
   crReview: crReviewConfigSchema.optional(),
   autonomous: autonomousConfigSchema.optional(),
   gate: gateConfigSchema.optional(),
   agents: agentsConfigSchema.optional(),
+  release: releaseConfigSchema.optional(),
+  garden: gardenConfigSchema.optional(),
 });
 export type NoldorConfig = z.infer<typeof noldorConfigSchema>;
 

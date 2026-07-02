@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
+import { loadConfigSync } from '../cr/config.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { appendOverrideLog } from '../core/overrides-log.js';
@@ -380,7 +381,18 @@ async function main(): Promise<void> {
         appendOverrideLog(process.cwd(), 'RELEASE_SKIP_CR_GATE=1', 'release');
         console.log('→ release CR gate (SKIPPED via RELEASE_SKIP_CR_GATE=1)');
       } else {
-        const crGate = checkCrGate({ from: previousTag, to: 'HEAD', cwd: process.cwd() });
+        const noldorConfig = loadConfigSync();
+        const crGate = checkCrGate({
+          from: previousTag,
+          to: 'HEAD',
+          cwd: process.cwd(),
+          exemptions: noldorConfig?.release?.crGateExemptCommits ?? [],
+        });
+        // Committed config is the audit trail for exemptions (reviewable in
+        // the PR diff) — echo applications loudly, but no overrides.log spam.
+        for (const e of crGate.exempted) {
+          console.log(`→ CR gate: exempted ${e.sha.slice(0, 10)} — ${e.reason}`);
+        }
         if (!crGate.ok) {
           console.error('Release CR gate failed:');
           console.error(crGate.reason ?? '');
