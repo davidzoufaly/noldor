@@ -14,19 +14,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Phase 2 — Enforcement Honesty
 
-#### `pnpm release --resume`
-
-- area: tooling
-- type: feat
-- since: 2026-05-11
-- size: M
-- impact: high
-- parent: noldor
-
-`pnpm release` is not idempotent when the final `git commit` step fails. v0.4.0 release hit this when the release commit's pre-commit hook rejected the diff (micro-chore session active): all package.json bumps, CHANGELOG entry, release-notes entry, FD `introduced:` markers were already written + staged, but the commit failed. Re-running the script would derive a new (wrong) version. Manual recovery required (`git reset`, fix root cause, re-run). Fix: either (a) `pnpm release --resume` flag that skips precondition + version-derive and goes straight to commit-tag-push when staged files match the in-progress release shape, or (b) wrap the file-mutation phase in a temp staging area committed atomically only after precondition success — so a failed commit leaves an empty tree.
-
-- triage 2026-05-11: relocated from `### UI Bugs & Polish` — misfiled at intake, semantically framework-scope.
-
 #### Audit Gate Documentation
 
 - area: docs
