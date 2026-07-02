@@ -6,52 +6,48 @@ deps:
   - fix-multiterminal-dev-flow-bug
 links:
   code:
-    - scripts/cr/orchestrate.ts
-    - scripts/cr/aggregate.ts
-    - scripts/cr/aggregate-cli.ts
-    - scripts/cr/escalate.ts
-    - scripts/cr/escalate-cli.ts
-    - scripts/cr/findings-schema.ts
-    - scripts/cr/lane-types.ts
-    - scripts/cr/filename.ts
-    - scripts/cr/atomic-write.ts
-    - scripts/cr/read-fd-summary.ts
-    - scripts/cr/config.ts
-    - scripts/cr/prompt-stdin.ts
-    - scripts/cr/orchestrate-args.ts
-    - scripts/cr/lanes/manual.ts
-    - scripts/cr/lanes/codex.ts
-    - scripts/cr/lanes/subagent.ts
-    - scripts/cr/lanes/subagent-dispatch.ts
-    - scripts/cr/lanes/standalone.ts
-    - scripts/cr/lanes/standalone-prompt.md
-    - scripts/cr/lanes/escalate-prompt.md
-    - scripts/validate/noldor-config.ts
-    - scripts/garden/detectors/override-audit.ts
+    - src/cr/orchestrate.ts
+    - src/cr/aggregate.ts
+    - src/cr/aggregate-cli.ts
+    - src/cr/escalate.ts
+    - src/cr/escalate-cli.ts
+    - src/cr/findings-schema.ts
+    - src/cr/lane-types.ts
+    - src/cr/filename.ts
+    - src/cr/atomic-write.ts
+    - src/cr/read-fd-summary.ts
+    - src/cr/config.ts
+    - src/cr/prompt-stdin.ts
+    - src/cr/orchestrate-args.ts
+    - src/cr/lanes/manual.ts
+    - src/cr/lanes/codex.ts
+    - src/cr/lanes/subagent.ts
+    - src/cr/lanes/subagent-dispatch.ts
+    - src/cr/standalone-prompt.md
+    - src/cr/lanes/escalate-prompt.md
+    - src/validate/noldor-config.ts
+    - src/garden/detectors/override-audit.ts
     - .claude/skills/gate/SKILL.md
     - .noldor/config.json
   tests:
-    - scripts/cr/__tests__/findings-schema.test.ts
-    - scripts/cr/__tests__/filename.test.ts
-    - scripts/cr/__tests__/atomic-write.test.ts
-    - scripts/cr/__tests__/read-fd-summary.test.ts
-    - scripts/cr/__tests__/config.test.ts
-    - scripts/cr/__tests__/prompt-stdin.test.ts
-    - scripts/cr/__tests__/aggregate.test.ts
-    - scripts/cr/__tests__/aggregate.cli.test.ts
-    - scripts/cr/__tests__/orchestrate.test.ts
-    - scripts/cr/__tests__/orchestrate.integration.test.ts
-    - scripts/cr/__tests__/delta.test.ts
-    - scripts/cr/__tests__/overwrite-guard.test.ts
-    - scripts/cr/__tests__/in-progress-guard.test.ts
-    - scripts/cr/__tests__/escalate.test.ts
-    - scripts/cr/__tests__/lanes/manual.test.ts
-    - scripts/cr/__tests__/lanes/codex.test.ts
-    - scripts/cr/__tests__/lanes/subagent.test.ts
-    - scripts/cr/__tests__/lanes/standalone.test.ts
-    - scripts/garden/detectors/__tests__/override-audit.test.ts
-  spec: >-
-    docs/superpowers/specs/archive/2026-05-23-specs-cr-gate-multi-reviewer-design.md
+    - src/cr/__tests__/findings-schema.test.ts
+    - src/cr/__tests__/filename.test.ts
+    - src/cr/__tests__/atomic-write.test.ts
+    - src/cr/__tests__/read-fd-summary.test.ts
+    - src/cr/__tests__/config.test.ts
+    - src/cr/__tests__/prompt-stdin.test.ts
+    - src/cr/__tests__/aggregate.test.ts
+    - src/cr/__tests__/aggregate.cli.test.ts
+    - src/cr/__tests__/orchestrate.test.ts
+    - src/cr/__tests__/orchestrate.integration.test.ts
+    - src/cr/__tests__/delta.test.ts
+    - src/cr/__tests__/overwrite-guard.test.ts
+    - src/cr/__tests__/escalate.test.ts
+    - src/cr/__tests__/lanes/manual.test.ts
+    - src/cr/__tests__/lanes/codex.test.ts
+    - src/cr/__tests__/lanes/subagent.test.ts
+    - src/garden/detectors/__tests__/override-audit.test.ts
+  spec: lost-pre-extraction
 name: Specs/Plan CR Gate — Multi-Reviewer + Multiterminal Bug Fix
 packages:
   - scripts
@@ -82,51 +78,48 @@ Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: ma
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-23-specs-cr-gate-multi-reviewer-design.md`](../../docs/superpowers/specs/archive/2026-05-23-specs-cr-gate-multi-reviewer-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`scripts/cr/orchestrate.ts`](../../scripts/cr/orchestrate.ts)
-  - [`scripts/cr/aggregate.ts`](../../scripts/cr/aggregate.ts)
-  - [`scripts/cr/aggregate-cli.ts`](../../scripts/cr/aggregate-cli.ts)
-  - [`scripts/cr/escalate.ts`](../../scripts/cr/escalate.ts)
-  - [`scripts/cr/escalate-cli.ts`](../../scripts/cr/escalate-cli.ts)
-  - [`scripts/cr/findings-schema.ts`](../../scripts/cr/findings-schema.ts)
-  - [`scripts/cr/lane-types.ts`](../../scripts/cr/lane-types.ts)
-  - [`scripts/cr/filename.ts`](../../scripts/cr/filename.ts)
-  - [`scripts/cr/atomic-write.ts`](../../scripts/cr/atomic-write.ts)
-  - [`scripts/cr/read-fd-summary.ts`](../../scripts/cr/read-fd-summary.ts)
-  - [`scripts/cr/config.ts`](../../scripts/cr/config.ts)
-  - [`scripts/cr/prompt-stdin.ts`](../../scripts/cr/prompt-stdin.ts)
-  - [`scripts/cr/orchestrate-args.ts`](../../scripts/cr/orchestrate-args.ts)
-  - [`scripts/cr/lanes/manual.ts`](../../scripts/cr/lanes/manual.ts)
-  - [`scripts/cr/lanes/codex.ts`](../../scripts/cr/lanes/codex.ts)
-  - [`scripts/cr/lanes/subagent.ts`](../../scripts/cr/lanes/subagent.ts)
-  - [`scripts/cr/lanes/subagent-dispatch.ts`](../../scripts/cr/lanes/subagent-dispatch.ts)
-  - [`scripts/cr/lanes/standalone.ts`](../../scripts/cr/lanes/standalone.ts)
-  - [`scripts/cr/lanes/standalone-prompt.md`](../../scripts/cr/lanes/standalone-prompt.md)
-  - [`scripts/cr/lanes/escalate-prompt.md`](../../scripts/cr/lanes/escalate-prompt.md)
-  - [`scripts/validate/noldor-config.ts`](../../scripts/validate/noldor-config.ts)
-  - [`scripts/garden/detectors/override-audit.ts`](../../scripts/garden/detectors/override-audit.ts)
+  - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
+  - [`src/cr/aggregate.ts`](../../src/cr/aggregate.ts)
+  - [`src/cr/aggregate-cli.ts`](../../src/cr/aggregate-cli.ts)
+  - [`src/cr/escalate.ts`](../../src/cr/escalate.ts)
+  - [`src/cr/escalate-cli.ts`](../../src/cr/escalate-cli.ts)
+  - [`src/cr/findings-schema.ts`](../../src/cr/findings-schema.ts)
+  - [`src/cr/lane-types.ts`](../../src/cr/lane-types.ts)
+  - [`src/cr/filename.ts`](../../src/cr/filename.ts)
+  - [`src/cr/atomic-write.ts`](../../src/cr/atomic-write.ts)
+  - [`src/cr/read-fd-summary.ts`](../../src/cr/read-fd-summary.ts)
+  - [`src/cr/config.ts`](../../src/cr/config.ts)
+  - [`src/cr/prompt-stdin.ts`](../../src/cr/prompt-stdin.ts)
+  - [`src/cr/orchestrate-args.ts`](../../src/cr/orchestrate-args.ts)
+  - [`src/cr/lanes/manual.ts`](../../src/cr/lanes/manual.ts)
+  - [`src/cr/lanes/codex.ts`](../../src/cr/lanes/codex.ts)
+  - [`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts)
+  - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
+  - [`src/cr/standalone-prompt.md`](../../src/cr/standalone-prompt.md)
+  - [`src/cr/lanes/escalate-prompt.md`](../../src/cr/lanes/escalate-prompt.md)
+  - [`src/validate/noldor-config.ts`](../../src/validate/noldor-config.ts)
+  - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
   - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
 - **Tests:**
-  - [`scripts/cr/__tests__/findings-schema.test.ts`](../../scripts/cr/__tests__/findings-schema.test.ts)
-  - [`scripts/cr/__tests__/filename.test.ts`](../../scripts/cr/__tests__/filename.test.ts)
-  - [`scripts/cr/__tests__/atomic-write.test.ts`](../../scripts/cr/__tests__/atomic-write.test.ts)
-  - [`scripts/cr/__tests__/read-fd-summary.test.ts`](../../scripts/cr/__tests__/read-fd-summary.test.ts)
-  - [`scripts/cr/__tests__/config.test.ts`](../../scripts/cr/__tests__/config.test.ts)
-  - [`scripts/cr/__tests__/prompt-stdin.test.ts`](../../scripts/cr/__tests__/prompt-stdin.test.ts)
-  - [`scripts/cr/__tests__/aggregate.test.ts`](../../scripts/cr/__tests__/aggregate.test.ts)
-  - [`scripts/cr/__tests__/aggregate.cli.test.ts`](../../scripts/cr/__tests__/aggregate.cli.test.ts)
-  - [`scripts/cr/__tests__/orchestrate.test.ts`](../../scripts/cr/__tests__/orchestrate.test.ts)
-  - [`scripts/cr/__tests__/orchestrate.integration.test.ts`](../../scripts/cr/__tests__/orchestrate.integration.test.ts)
-  - [`scripts/cr/__tests__/delta.test.ts`](../../scripts/cr/__tests__/delta.test.ts)
-  - [`scripts/cr/__tests__/overwrite-guard.test.ts`](../../scripts/cr/__tests__/overwrite-guard.test.ts)
-  - [`scripts/cr/__tests__/in-progress-guard.test.ts`](../../scripts/cr/__tests__/in-progress-guard.test.ts)
-  - [`scripts/cr/__tests__/escalate.test.ts`](../../scripts/cr/__tests__/escalate.test.ts)
-  - [`scripts/cr/__tests__/lanes/manual.test.ts`](../../scripts/cr/__tests__/lanes/manual.test.ts)
-  - [`scripts/cr/__tests__/lanes/codex.test.ts`](../../scripts/cr/__tests__/lanes/codex.test.ts)
-  - [`scripts/cr/__tests__/lanes/subagent.test.ts`](../../scripts/cr/__tests__/lanes/subagent.test.ts)
-  - [`scripts/cr/__tests__/lanes/standalone.test.ts`](../../scripts/cr/__tests__/lanes/standalone.test.ts)
-  - [`scripts/garden/detectors/__tests__/override-audit.test.ts`](../../scripts/garden/detectors/__tests__/override-audit.test.ts)
+  - [`src/cr/__tests__/findings-schema.test.ts`](../../src/cr/__tests__/findings-schema.test.ts)
+  - [`src/cr/__tests__/filename.test.ts`](../../src/cr/__tests__/filename.test.ts)
+  - [`src/cr/__tests__/atomic-write.test.ts`](../../src/cr/__tests__/atomic-write.test.ts)
+  - [`src/cr/__tests__/read-fd-summary.test.ts`](../../src/cr/__tests__/read-fd-summary.test.ts)
+  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
+  - [`src/cr/__tests__/prompt-stdin.test.ts`](../../src/cr/__tests__/prompt-stdin.test.ts)
+  - [`src/cr/__tests__/aggregate.test.ts`](../../src/cr/__tests__/aggregate.test.ts)
+  - [`src/cr/__tests__/aggregate.cli.test.ts`](../../src/cr/__tests__/aggregate.cli.test.ts)
+  - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
+  - [`src/cr/__tests__/orchestrate.integration.test.ts`](../../src/cr/__tests__/orchestrate.integration.test.ts)
+  - [`src/cr/__tests__/delta.test.ts`](../../src/cr/__tests__/delta.test.ts)
+  - [`src/cr/__tests__/overwrite-guard.test.ts`](../../src/cr/__tests__/overwrite-guard.test.ts)
+  - [`src/cr/__tests__/escalate.test.ts`](../../src/cr/__tests__/escalate.test.ts)
+  - [`src/cr/__tests__/lanes/manual.test.ts`](../../src/cr/__tests__/lanes/manual.test.ts)
+  - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
+  - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
+  - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
 
 <!-- /generated: resources -->

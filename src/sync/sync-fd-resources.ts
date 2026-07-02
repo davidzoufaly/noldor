@@ -4,6 +4,8 @@ import { basename, dirname, join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { LOST_SENTINEL } from '../features/feature-schema.js';
+
 const START_MARKER = '<!-- generated: resources -->';
 const END_MARKER = '<!-- /generated: resources -->';
 
@@ -58,7 +60,11 @@ export function buildResourcesBlock(fm: FdFrontmatter): string {
   const links = fm.links ?? {};
   const lines: string[] = [];
 
-  if (links.spec && links.spec.trim().length > 0) {
+  if (links.spec === LOST_SENTINEL) {
+    // Charuy-era artifact that never migrated (see migrate-link-rot) — plain
+    // text, not a link to a file that exists nowhere.
+    lines.push(`- **Spec:** _${LOST_SENTINEL}_`);
+  } else if (links.spec && links.spec.trim().length > 0) {
     lines.push(`- **Spec:** [\`${links.spec}\`](../../${links.spec})`);
   }
 
@@ -91,7 +97,9 @@ function appendList(
   }
   out.push(`- **${label}:**`);
   for (const e of entries) {
-    if (pathLink && !e.startsWith('http')) {
+    if (e === LOST_SENTINEL) {
+      out.push(`  - _${LOST_SENTINEL}_`);
+    } else if (pathLink && !e.startsWith('http')) {
       out.push(`  - [\`${e}\`](../../${e})`);
     } else {
       out.push(`  - ${e}`);

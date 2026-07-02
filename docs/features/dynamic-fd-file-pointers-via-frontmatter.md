@@ -17,7 +17,7 @@ links:
   spec: >-
     docs/superpowers/specs/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md
   plan: >-
-    docs/superpowers/plans/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md
+    docs/superpowers/plans/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md
 name: Dynamic FD ↔ File Pointers via Frontmatter
 packages:
   - scripts
@@ -105,7 +105,7 @@ feat tag parser for `// @fd:` code tags plus a slug→code map (#100).
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md`](../../docs/superpowers/specs/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md`](../../docs/superpowers/plans/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md)
+  - [`docs/superpowers/plans/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md`](../../docs/superpowers/plans/archive/2026-06-13-dynamic-fd-file-pointers-via-frontmatter.md)
 - **Code:**
   - [`src/features/migrate-code-tags.ts`](../../src/features/migrate-code-tags.ts)
   - [`src/features/propose-pointers.ts`](../../src/features/propose-pointers.ts)

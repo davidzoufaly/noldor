@@ -3,8 +3,7 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  spec: >-
-    docs/superpowers/specs/archive/2026-05-13-decouple-milestones-from-semver-design.md
+  spec: lost-pre-extraction
   code: []
   tests: []
 name: Decouple Milestones from Semver
@@ -64,6 +63,6 @@ This release applies code review fixes (skills count + YAML safety + triage buck
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-13-decouple-milestones-from-semver-design.md`](../../docs/superpowers/specs/archive/2026-05-13-decouple-milestones-from-semver-design.md)
+- **Spec:** _lost-pre-extraction_
 
 <!-- /generated: resources -->

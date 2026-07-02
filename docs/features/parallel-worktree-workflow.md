@@ -8,17 +8,15 @@ packages:
 deps: []
 links:
   code:
-    - apps/web/vite.config.ts
-    - scripts/checks/check-shared-files.ts
-    - scripts/worktrees/launch-worktrees.ts
-    - scripts/worktrees/worktree-status.ts
+    - src/checks/check-shared-files.ts
+    - src/worktrees/launch-worktrees.ts
+    - src/worktrees/worktree-status.ts
   tests:
     - src/checks/__tests__/check-shared-files.test.ts
     - src/worktrees/__tests__/launch-worktrees.test.ts
     - src/worktrees/__tests__/worktree-conflicts.test.ts
     - src/worktrees/__tests__/worktree-status.test.ts
-  spec: >-
-    docs/superpowers/specs/archive/2026-05-04-parallel-worktree-workflow-design.md
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 ---
@@ -52,12 +50,11 @@ _none — out-of-process tooling for human or agent-driven shell sessions._
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-04-parallel-worktree-workflow-design.md`](../../docs/superpowers/specs/archive/2026-05-04-parallel-worktree-workflow-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`apps/web/vite.config.ts`](../../apps/web/vite.config.ts)
-  - [`scripts/checks/check-shared-files.ts`](../../scripts/checks/check-shared-files.ts)
-  - [`scripts/worktrees/launch-worktrees.ts`](../../scripts/worktrees/launch-worktrees.ts)
-  - [`scripts/worktrees/worktree-status.ts`](../../scripts/worktrees/worktree-status.ts)
+  - [`src/checks/check-shared-files.ts`](../../src/checks/check-shared-files.ts)
+  - [`src/worktrees/launch-worktrees.ts`](../../src/worktrees/launch-worktrees.ts)
+  - [`src/worktrees/worktree-status.ts`](../../src/worktrees/worktree-status.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-shared-files.test.ts`](../../src/checks/__tests__/check-shared-files.test.ts)
   - [`src/worktrees/__tests__/launch-worktrees.test.ts`](../../src/worktrees/__tests__/launch-worktrees.test.ts)

@@ -7,9 +7,9 @@ packages:
   - scripts
 deps: []
 links:
-  spec: docs/superpowers/specs/archive/2026-05-07-sdd-co-tag-detector-design.md
+  spec: lost-pre-extraction
   code:
-    - scripts/garden/graph-fd-lookup.ts
+    - src/garden/graph-fd-lookup.ts
   tests:
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
@@ -21,9 +21,9 @@ updated: 0.4.0
 
 ## Summary
 
-13th SDD detector flagging tests whose `// @tests:` tag list is incomplete given the FDs that own the source files the test imports. Today silent: `sample-gallery.spec.ts` tagged only `sample-scene-gallery` despite exercising `empty-scene-state`; `tree.test.ts` tagged only `zod-scene-schema` despite covering `group-node`; engine tests tagged only their primary FD without `manifold-wasm-integration`. Detector reads `graphify-out/graph.json` `imports_from` edges (graphify v0.7.8+, with the v0.4.20 path-normalization fix), maps target source files to owning FDs via `links.code`, diffs against declared tags. Staleness gate: graph mtime vs MAX(mtime) of `packages/ apps/ scripts/`; on stale, emits one meta-gap with regen instructions. Substrate (`loadFreshGraphOrWarn`, `buildFileToFdsMap`, `getFdOwnersForFile`) lives in `scripts/garden/graph-fd-lookup.ts`; reused by detectors 9 and 10 below.
+13th SDD detector flagging tests whose `// @tests:` tag list is incomplete given the FDs that own the source files the test imports. Today silent: `sample-gallery.spec.ts` tagged only `sample-scene-gallery` despite exercising `empty-scene-state`; `tree.test.ts` tagged only `zod-scene-schema` despite covering `group-node`; engine tests tagged only their primary FD without `manifold-wasm-integration`. Detector reads `graphify-out/graph.json` `imports_from` edges (graphify v0.7.8+, with the v0.4.20 path-normalization fix), maps target source files to owning FDs via `links.code`, diffs against declared tags. Staleness gate: graph mtime vs MAX(mtime) of `packages/ apps/ scripts/`; on stale, emits one meta-gap with regen instructions. Substrate (`loadFreshGraphOrWarn`, `buildFileToFdsMap`, `getFdOwnersForFile`) lives in `src/garden/graph-fd-lookup.ts`; reused by detectors 9 and 10 below.
 
-Second batch (2026-05-11) — detectors 9 (orphan-owner suggestion), 10 (untagged-test slug suggestion), and 19 (done features without code, formerly tracked as "detector 14" in the roadmap; renumbered to avoid collision with the rule-contradiction detector already at slot 14) ship on the same substrate. Detector 19 is pure frontmatter (mirrors `links.docs` / `links.tests` `n/a` sentinel pattern); 9 + 10 use new helpers `getCommunityOwners` and `getImportOwnersForTest` in `scripts/garden/graph-fd-lookup.ts`. Both 9 and 10 fall back to the bare message in degraded mode (stale or missing graph).
+Second batch (2026-05-11) — detectors 9 (orphan-owner suggestion), 10 (untagged-test slug suggestion), and 19 (done features without code, formerly tracked as "detector 14" in the roadmap; renumbered to avoid collision with the rule-contradiction detector already at slot 14) ship on the same substrate. Detector 19 is pure frontmatter (mirrors `links.docs` / `links.tests` `n/a` sentinel pattern); 9 + 10 use new helpers `getCommunityOwners` and `getImportOwnersForTest` in `src/garden/graph-fd-lookup.ts`. Both 9 and 10 fall back to the bare message in degraded mode (stale or missing graph).
 
 ## User Story
 
@@ -54,9 +54,9 @@ When the graph is stale, the detector emits a single meta-gap with a regen instr
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-07-sdd-co-tag-detector-design.md`](../../docs/superpowers/specs/archive/2026-05-07-sdd-co-tag-detector-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`scripts/garden/graph-fd-lookup.ts`](../../scripts/garden/graph-fd-lookup.ts)
+  - [`src/garden/graph-fd-lookup.ts`](../../src/garden/graph-fd-lookup.ts)
 - **Tests:**
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)

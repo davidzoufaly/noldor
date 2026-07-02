@@ -20,6 +20,7 @@ import { detectTrailerScopeMismatch } from './detectors/trailer-scope-mismatch.j
 import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
 import { detectCodeLinksDrift } from './detectors/code-links-drift.js';
+import { detectFdLinkRot } from './detectors/fd-link-rot.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
@@ -757,6 +758,11 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   const scannedCode = buildSlugToCodeMap(await collectTaggedCode(repo));
   const cachedCode = await loadCachedCode(join(repo, 'docs/features'));
   sddGaps.push(...detectCodeLinksDrift(scannedCode, cachedCode));
+  // FD link targets: stat what every FD's frontmatter points at (code/tests/
+  // docs/spec/plan). The 2026-07 audit found 36/50 FDs link-rotted while every
+  // validator reported green — shape checks and working-dir scans never stat
+  // the link targets themselves.
+  sddGaps.push(...(await detectFdLinkRot(repo)));
   const overrideAudit = auditOverrides({ cwd: repo });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });

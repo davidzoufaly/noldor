@@ -7,9 +7,9 @@ links:
     - .claude/skills/promote/SKILL.md
     - .claude/skills/triage/SKILL.md
     - docs/roadmap.md
-    - scripts/dashboard/data.ts
-    - scripts/triage/validate-triage.ts
-    - scripts/utils/parse-blocks.ts
+    - src/dashboard/data.ts
+    - src/triage/validate-triage.ts
+    - src/utils/parse-blocks.ts
   tests: []
 name: Replace Roadmap Buckets with Flat Priority Order
 packages:
@@ -58,8 +58,8 @@ This release consolidates the dashboard roadmap around a flat, priority-ordered 
   - [`.claude/skills/promote/SKILL.md`](../../.claude/skills/promote/SKILL.md)
   - [`.claude/skills/triage/SKILL.md`](../../.claude/skills/triage/SKILL.md)
   - [`docs/roadmap.md`](../../docs/roadmap.md)
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/triage/validate-triage.ts`](../../scripts/triage/validate-triage.ts)
-  - [`scripts/utils/parse-blocks.ts`](../../scripts/utils/parse-blocks.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)
+  - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
 
 <!-- /generated: resources -->

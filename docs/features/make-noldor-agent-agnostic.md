@@ -13,7 +13,8 @@ links:
     - src/prep/spawn.ts
     - src/cr/lanes/subagent-dispatch.ts
     - src/release/llm-polish-summary.ts
-    - 'src/cli/commands/{init,doctor}.ts'
+    - src/cli/commands/init.ts
+    - src/cli/commands/doctor.ts
     - templates/.opencode/
     - templates/AGENTS.md
     - templates/opencode.json
@@ -90,7 +91,8 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
   - [`src/prep/spawn.ts`](../../src/prep/spawn.ts)
   - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
   - [`src/release/llm-polish-summary.ts`](../../src/release/llm-polish-summary.ts)
-  - [`src/cli/commands/{init,doctor}.ts`](../../src/cli/commands/{init,doctor}.ts)
+  - [`src/cli/commands/init.ts`](../../src/cli/commands/init.ts)
+  - [`src/cli/commands/doctor.ts`](../../src/cli/commands/doctor.ts)
   - [`templates/.opencode/`](../../templates/.opencode/)
   - [`templates/AGENTS.md`](../../templates/AGENTS.md)
   - [`templates/opencode.json`](../../templates/opencode.json)

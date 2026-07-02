@@ -29,6 +29,7 @@ packages:
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 Noldor can fan out parallel _build_ agents (the K-concurrent drain) but has no first-class primitive for fanning out parallel _read/research_ agents — codebase research, multi-subsystem investigation, cross-file audits, "understand X before we spec it." Today an operator (or a gate/spec/plan flow) investigates these sequentially in one context: wastes wall-clock and pollutes the driving session's context. Inspired by `superpowers:dispatching-parallel-agents` — dispatch one context-isolated subagent per independent problem domain, each with focused scope + self-contained context (never inherits session history) + a required structured return, then synthesize and integrate.
@@ -84,3 +85,29 @@ _none — operates through the `pnpm noldor` CLI; agents invoke it via Bash._
 <!-- @prs-since-last-release: parallel-agent-dispatch-for-research-jobs -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md`](../../docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md)
+- **Code:**
+  - [`src/research/types.ts`](../../src/research/types.ts)
+  - [`src/research/prompt.ts`](../../src/research/prompt.ts)
+  - [`src/research/staging.ts`](../../src/research/staging.ts)
+  - [`src/research/fanout.ts`](../../src/research/fanout.ts)
+  - [`src/core/concurrency.ts`](../../src/core/concurrency.ts)
+  - [`src/core/git-porcelain.ts`](../../src/core/git-porcelain.ts)
+  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`.claude/skills/noldor-research/SKILL.md`](../../.claude/skills/noldor-research/SKILL.md)
+  - [`docs/noldor/research-fanout.md`](../../docs/noldor/research-fanout.md)
+- **Tests:**
+  - [`src/research/__tests__/types.test.ts`](../../src/research/__tests__/types.test.ts)
+  - [`src/research/__tests__/prompt.test.ts`](../../src/research/__tests__/prompt.test.ts)
+  - [`src/research/__tests__/staging.test.ts`](../../src/research/__tests__/staging.test.ts)
+  - [`src/research/__tests__/fanout.test.ts`](../../src/research/__tests__/fanout.test.ts)
+  - [`src/core/__tests__/concurrency.test.ts`](../../src/core/__tests__/concurrency.test.ts)
+  - [`src/core/__tests__/git-porcelain.test.ts`](../../src/core/__tests__/git-porcelain.test.ts)
+
+<!-- /generated: resources -->

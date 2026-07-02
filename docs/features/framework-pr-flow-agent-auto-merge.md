@@ -4,19 +4,18 @@ category: Tooling
 deps: []
 links:
   code:
-    - scripts/noldor/pr-flow.ts
-    - scripts/noldor/cr-retry.ts
-    - scripts/noldor/phase-revert.ts
-    - scripts/hooks/noldor-pre-push.ts
-    - scripts/garden/detectors/branch-protection.ts
-    - scripts/garden/detectors/override-audit.ts
-    - scripts/release/index.ts
-    - scripts/release/release-fd-changelog.ts
-    - scripts/release/release-markers.ts
-    - scripts/release/release-pr-bullets.ts
-    - scripts/release/release-find-first-pr-commit.ts
-  spec: >-
-    docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md
+    - src/core/pr-flow.ts
+    - src/core/cr-retry.ts
+    - src/core/phase-revert.ts
+    - src/hooks/noldor-pre-push.ts
+    - src/garden/detectors/branch-protection.ts
+    - src/garden/detectors/override-audit.ts
+    - src/release/index.ts
+    - src/release/release-fd-changelog.ts
+    - src/release/release-markers.ts
+    - src/release/release-pr-bullets.ts
+    - src/release/release-find-first-pr-commit.ts
+  spec: lost-pre-extraction
   tests:
     - src/core/__tests__/phase-revert.test.ts
     - src/release/__tests__/release-fd-changelog-in-progress.test.ts
@@ -46,7 +45,7 @@ As an operator driving `/gate` (human or agent controlling the framework), I wan
 
 1. With session marker active and worktree branch ready, signal "ready to ship" to `/gate`.
 2. Gate runs Claude review + `pnpm cr:codex` + retry loop until clean (max 3 codex retries; on `exhausted`, surfaces findings via AskUserQuestion).
-3. Gate invokes `scripts/noldor/pr-flow.ts openAndAutoMerge()` — pushes branch, opens PR via `gh pr create`, sets `gh pr merge --auto --squash`, polls `gh pr view` until merged (timeout 10min, 20min if PR enters `BEHIND` state).
+3. Gate invokes `src/core/pr-flow.ts openAndAutoMerge()` — pushes branch, opens PR via `gh pr create`, sets `gh pr merge --auto --squash`, polls `gh pr view` until merged (timeout 10min, 20min if PR enters `BEHIND` state).
 4. On merge: gate cleans up via `ExitWorktree` (worktree removed, local branch deleted), prints the PR URL, hands off to Step 5 next-priority handoff.
 
 **`/gate` micro-chore path (no worktree)**
@@ -88,7 +87,7 @@ _none — operates through `gh` CLI, lefthook hooks, and `pnpm` scripts; no `win
 **`/gate full-attach` / `specs-only-attach` (enhancement on a done FD)**
 
 1. Operator selects `full-attach` or `specs-only-attach` in `/gate` Step 1 and supplies the parent FD slug.
-2. Gate scaffolding reads `docs/features/<parent>.md`. If `phase: done`, gate runs `scripts/noldor/phase-revert.ts:revertPhaseForAttach` on the file and commits the revert on the worktree branch as `docs(features:<parent>): revert phase done → in-progress for attach session`.
+2. Gate scaffolding reads `docs/features/<parent>.md`. If `phase: done`, gate runs `src/core/phase-revert.ts:revertPhaseForAttach` on the file and commits the revert on the worktree branch as `docs(features:<parent>): revert phase done → in-progress for attach session`.
 3. Enhancement spec / plan / implementation proceed normally on the worktree branch. No restore commit is written by `finishing-a-development-branch`.
 4. PR squash-merges to main. Main's parent FD now shows `phase: in-progress` (the revert is preserved through the squash).
 5. Next `pnpm release` runs. Step 3 renders a `### <X> (in-progress)` block under the parent FD's `## Changelog` (the (in-progress) label is permanent — historical signal). Step 4 (`fillMarkers`) detects `phase: in-progress` + `introduced` already set + changelog block → auto-flips `phase: done` + sets `updated: vX`.
@@ -133,19 +132,19 @@ This release fixes composeBody's Feature MD link falling through to session.pare
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md`](../../docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`scripts/noldor/pr-flow.ts`](../../scripts/noldor/pr-flow.ts)
-  - [`scripts/noldor/cr-retry.ts`](../../scripts/noldor/cr-retry.ts)
-  - [`scripts/noldor/phase-revert.ts`](../../scripts/noldor/phase-revert.ts)
-  - [`scripts/hooks/noldor-pre-push.ts`](../../scripts/hooks/noldor-pre-push.ts)
-  - [`scripts/garden/detectors/branch-protection.ts`](../../scripts/garden/detectors/branch-protection.ts)
-  - [`scripts/garden/detectors/override-audit.ts`](../../scripts/garden/detectors/override-audit.ts)
-  - [`scripts/release/index.ts`](../../scripts/release/index.ts)
-  - [`scripts/release/release-fd-changelog.ts`](../../scripts/release/release-fd-changelog.ts)
-  - [`scripts/release/release-markers.ts`](../../scripts/release/release-markers.ts)
-  - [`scripts/release/release-pr-bullets.ts`](../../scripts/release/release-pr-bullets.ts)
-  - [`scripts/release/release-find-first-pr-commit.ts`](../../scripts/release/release-find-first-pr-commit.ts)
+  - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
+  - [`src/core/cr-retry.ts`](../../src/core/cr-retry.ts)
+  - [`src/core/phase-revert.ts`](../../src/core/phase-revert.ts)
+  - [`src/hooks/noldor-pre-push.ts`](../../src/hooks/noldor-pre-push.ts)
+  - [`src/garden/detectors/branch-protection.ts`](../../src/garden/detectors/branch-protection.ts)
+  - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
+  - [`src/release/index.ts`](../../src/release/index.ts)
+  - [`src/release/release-fd-changelog.ts`](../../src/release/release-fd-changelog.ts)
+  - [`src/release/release-markers.ts`](../../src/release/release-markers.ts)
+  - [`src/release/release-pr-bullets.ts`](../../src/release/release-pr-bullets.ts)
+  - [`src/release/release-find-first-pr-commit.ts`](../../src/release/release-find-first-pr-commit.ts)
 - **Tests:**
   - [`src/core/__tests__/phase-revert.test.ts`](../../src/core/__tests__/phase-revert.test.ts)
   - [`src/release/__tests__/release-fd-changelog-in-progress.test.ts`](../../src/release/__tests__/release-fd-changelog-in-progress.test.ts)

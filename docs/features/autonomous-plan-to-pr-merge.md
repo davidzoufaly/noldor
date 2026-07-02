@@ -6,11 +6,11 @@ deps:
 links:
   code:
     - .claude/skills/gate/SKILL.md
-    - scripts/cr/orchestrate.ts
-    - scripts/noldor/pr-flow-cli.ts
-    - scripts/noldor/pr-flow.ts
-    - scripts/noldor/session.ts
-    - scripts/noldor/set-autonomous.ts
+    - src/cr/orchestrate.ts
+    - src/core/pr-flow-cli.ts
+    - src/core/pr-flow.ts
+    - src/core/session.ts
+    - src/core/set-autonomous.ts
   tests:
     - src/core/__tests__/pr-flow-cli.test.ts
     - src/core/__tests__/session.test.ts
@@ -56,11 +56,11 @@ The autonomous flag persists for the rest of the session — there is no operato
 
 - **Code:**
   - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
-  - [`scripts/cr/orchestrate.ts`](../../scripts/cr/orchestrate.ts)
-  - [`scripts/noldor/pr-flow-cli.ts`](../../scripts/noldor/pr-flow-cli.ts)
-  - [`scripts/noldor/pr-flow.ts`](../../scripts/noldor/pr-flow.ts)
-  - [`scripts/noldor/session.ts`](../../scripts/noldor/session.ts)
-  - [`scripts/noldor/set-autonomous.ts`](../../scripts/noldor/set-autonomous.ts)
+  - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
+  - [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts)
+  - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
+  - [`src/core/session.ts`](../../src/core/session.ts)
+  - [`src/core/set-autonomous.ts`](../../src/core/set-autonomous.ts)
 - **Tests:**
   - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)
   - [`src/core/__tests__/session.test.ts`](../../src/core/__tests__/session.test.ts)

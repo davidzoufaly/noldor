@@ -10,19 +10,18 @@ links:
   code: []
   tests:
     - src/triage/__tests__/triage-list-untriaged.test.ts
-  spec: >-
-    docs/superpowers/specs/archive/2026-05-06-scripts-reorganization-by-feature-area-design.md
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 ---
 
 ## Summary
 
-Reorganized `scripts/` from a flat ~50-file directory into per-feature subdirectories: `release/`, `sync/`, `docs/`, `checks/`, `garden/`, `triage/`, `features/`, `worktrees/`, `graphify/`, `utils/`, `samples/` plus the existing `dashboard/`. Tests moved alongside source (`<group>/__tests__/`). The orchestrator `scripts/release.ts` became `scripts/release/index.ts`. All `package.json` script paths and FD MD `links.code` references updated. Lefthook config unchanged because it routes through `package.json` scripts.
+Reorganized `scripts/` from a flat ~50-file directory into per-feature subdirectories: `release/`, `sync/`, `docs/`, `checks/`, `garden/`, `triage/`, `features/`, `worktrees/`, `graphify/`, `utils/`, `samples/` plus the existing `dashboard/`. Tests moved alongside source (`<group>/__tests__/`). The orchestrator `scripts/release.ts` became `src/release/index.ts`. All `package.json` script paths and FD MD `links.code` references updated. Lefthook config unchanged because it routes through `package.json` scripts.
 
 Each group landed in its own commit in dependency order (utils → features → consumers → release last) so any rollback is granular. No new functionality; no public API change beyond file paths.
 
-Unblocks broadening `scripts/garden/sdd-report.ts:detectCodeOrphans` to walk `scripts/` (separate follow-up — now meaningful per-script FD ownership exists).
+Unblocks broadening `src/garden/sdd-report.ts:detectCodeOrphans` to walk `scripts/` (separate follow-up — now meaningful per-script FD ownership exists).
 
 ## User Story
 
@@ -36,7 +35,7 @@ The reorganization is structural — no end-user surface. Internal tools and pnp
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-06-scripts-reorganization-by-feature-area-design.md`](../../docs/superpowers/specs/archive/2026-05-06-scripts-reorganization-by-feature-area-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Tests:**
   - [`src/triage/__tests__/triage-list-untriaged.test.ts`](../../src/triage/__tests__/triage-list-untriaged.test.ts)
 

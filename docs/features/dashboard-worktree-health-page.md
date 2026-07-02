@@ -8,15 +8,14 @@ packages:
 deps: []
 links:
   code:
-    - scripts/dashboard/data.ts
-    - scripts/dashboard/views.ts
-    - scripts/dashboard/server.ts
-    - scripts/dashboard/layout.ts
-    - scripts/worktrees/worktree-status.ts
+    - src/dashboard/data.ts
+    - src/dashboard/views.ts
+    - src/dashboard/server.ts
+    - src/dashboard/layout.ts
+    - src/worktrees/worktree-status.ts
   tests:
     - src/dashboard/__tests__/dashboard-worktrees.test.ts
-  spec: >-
-    docs/superpowers/specs/archive/2026-05-04-dashboard-worktree-health-page-design.md
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 ---
@@ -46,19 +45,19 @@ As a developer working in a parallel-worktree workflow, I want to view live work
 
 **Agent API**
 
-- _none — page is read-only; agents needing the same data call `loadWorktreeHealth()` from `scripts/dashboard/data.ts` directly, or run `pnpm worktree:status`._
+- _none — page is read-only; agents needing the same data call `loadWorktreeHealth()` from `src/dashboard/data.ts` directly, or run `pnpm worktree:status`._
 
 <!-- generated: resources -->
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-04-dashboard-worktree-health-page-design.md`](../../docs/superpowers/specs/archive/2026-05-04-dashboard-worktree-health-page-design.md)
+- **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/dashboard/views.ts`](../../scripts/dashboard/views.ts)
-  - [`scripts/dashboard/server.ts`](../../scripts/dashboard/server.ts)
-  - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
-  - [`scripts/worktrees/worktree-status.ts`](../../scripts/worktrees/worktree-status.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
+  - [`src/worktrees/worktree-status.ts`](../../src/worktrees/worktree-status.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-worktrees.test.ts`](../../src/dashboard/__tests__/dashboard-worktrees.test.ts)
 

@@ -8,7 +8,7 @@ links:
     - src/cli/__tests__/cli.test.ts
     - src/templates/__tests__/templates.test.ts
   spec: docs/superpowers/specs/archive/2026-05-26-noldor-package-lift-design.md
-  plan: docs/superpowers/plans/2026-05-26-noldor-package-lift.md
+  plan: docs/superpowers/plans/archive/2026-05-26-noldor-package-lift.md
 name: Noldor Package Lift
 packages:
   - noldor
@@ -67,7 +67,7 @@ The framework is now lifted into a dedicated `packages/noldor` workspace package
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-05-26-noldor-package-lift-design.md`](../../docs/superpowers/specs/archive/2026-05-26-noldor-package-lift-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/2026-05-26-noldor-package-lift.md`](../../docs/superpowers/plans/2026-05-26-noldor-package-lift.md)
+  - [`docs/superpowers/plans/archive/2026-05-26-noldor-package-lift.md`](../../docs/superpowers/plans/archive/2026-05-26-noldor-package-lift.md)
 - **Tests:**
   - [`src/cli/__tests__/cli.test.ts`](../../src/cli/__tests__/cli.test.ts)
   - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)

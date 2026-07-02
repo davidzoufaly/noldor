@@ -8,10 +8,10 @@ packages:
 deps: []
 links:
   code:
-    - scripts/dashboard/data.ts
-    - scripts/dashboard/views.ts
-    - scripts/dashboard/server.ts
-    - scripts/dashboard/layout.ts
+    - src/dashboard/data.ts
+    - src/dashboard/views.ts
+    - src/dashboard/server.ts
+    - src/dashboard/layout.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-server.test.ts
@@ -50,10 +50,10 @@ As a maintainer (human or agent), I want the dashboard to open with the current 
 ## Resources
 
 - **Code:**
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/dashboard/views.ts`](../../scripts/dashboard/views.ts)
-  - [`scripts/dashboard/server.ts`](../../scripts/dashboard/server.ts)
-  - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)

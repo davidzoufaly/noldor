@@ -13,6 +13,14 @@ const semver = z.string().regex(SEMVER_RE, 'Expected semver (major.minor.patch)'
  */
 export type Category = string;
 
+/**
+ * Sentinel value for `links.spec` / `links.plan` marking a Charuy-era design
+ * artifact that never migrated into this repo (written by
+ * `features migrate-link-rot`). Renderers show it as plain text and the
+ * fd-link-rot detector skips it — it is deliberately not a path.
+ */
+export const LOST_SENTINEL = 'lost-pre-extraction';
+
 const LinksSchema = z
   .object({
     code: z.array(z.string()).default([]),
