@@ -33,7 +33,6 @@ diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
 | `e2ePrefix`         | Path prefix for e2e tests.                                                 |
 | `samplesPath`       | Path to sample/fixture assets, if any.                                     |
 | `packagePrefix`     | npm scope for workspace packages (e.g. `@acme/`).                          |
-| `pnpmStderrPrefix`  | The consumer's pnpm banner prefix, for log parsing.                        |
 | `appPathPrefix`     | Path prefix for the app, for FD `links.code` resolution.                   |
 | `categories`        | Release-notes categories (functional-domain axis, NOT commit types). Default `["Core","Tooling","Other"]`. Grows via `/triage` + `/promote`. |
 | `areaCategories`    | Maps an FD `area` slug → a category. Unmapped areas fall back to `Other`.   |
@@ -45,8 +44,7 @@ diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
 ```json
 { "consumer": { "name": "acme", "repoUrl": "https://github.com/acme/acme",
   "lockstepPackages": ["acme"], "scanPaths": ["src"], "appPathPrefix": "src",
-  "packagePrefix": "@acme/", "e2ePrefix": "e2e/", "samplesPath": "samples",
-  "pnpmStderrPrefix": "acme", "boundaries": [], "deprecatedPackages": [],
+  "packagePrefix": "@acme/", "e2ePrefix": "e2e/", "samplesPath": "samples", "boundaries": [], "deprecatedPackages": [],
   "categories": ["Core", "Tooling", "Other"], "areaCategories": { "core": "Core", "tooling": "Tooling" } } }
 ```
 
