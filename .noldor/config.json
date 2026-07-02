@@ -36,5 +36,13 @@
     "skipLanePicker": true,
     "onFailure": "abort",
     "requireHumanPrApproval": false
+  },
+  "release": {
+    "crGateExemptCommits": [
+      {
+        "sha": "19a74a10e8e844e021b08fe616992eae1b56f977",
+        "reason": "pre-rollout-marker CI-workflow fast-track (#117); shipped before receipt enforcement armed"
+      }
+    ]
   }
 }
