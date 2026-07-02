@@ -201,7 +201,10 @@ export const MANIFEST: Record<string, Group> = {
   release: {
     desc: 'Release pipeline',
     subs: {
-      run: { src: 'release/index.ts', desc: 'Run pnpm release' },
+      run: {
+        src: 'release/index.ts',
+        desc: 'Run pnpm release (--resume finishes an interrupted release)',
+      },
     },
   },
   hooks: {

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
@@ -22,6 +23,7 @@ import {
 } from './release-notes.js';
 import { bumpAllPackages } from './release-packages.js';
 import { withReleaseSession } from './release-session.js';
+import { clearReleaseState, readReleaseState, writeReleaseState } from './release-state.js';
 import { applyBump, findPreviousTag, getRepoUrl } from './release-version.js';
 
 const execFileP = promisify(execFile);
@@ -29,10 +31,10 @@ const execFileP = promisify(execFile);
 async function run(
   cmd: string,
   args: string[],
-  opts: { captureOutput?: boolean; env?: Record<string, string> } = {},
+  opts: { captureOutput?: boolean; env?: Record<string, string>; cwd?: string } = {},
 ): Promise<string> {
   const env = opts.env ? { ...process.env, ...opts.env } : process.env;
-  const { stdout, stderr } = await execFileP(cmd, args, { env });
+  const { stdout, stderr } = await execFileP(cmd, args, { env, cwd: opts.cwd });
   if (!opts.captureOutput && stderr) {
     process.stderr.write(stderr);
   }
@@ -113,8 +115,8 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function extractLatestReleaseNotes(): Promise<string> {
-  const raw = await readFile('docs/release-notes.md', 'utf8');
+async function extractLatestReleaseNotes(cwd: string = process.cwd()): Promise<string> {
+  const raw = await readFile(join(cwd, 'docs/release-notes.md'), 'utf8');
   const entries = raw.split(/^## /m).slice(1);
   if (entries.length === 0) {
     throw new Error('Release notes empty.');
@@ -122,9 +124,193 @@ async function extractLatestReleaseNotes(): Promise<string> {
   return `## ${entries[0].trimEnd()}`;
 }
 
+/**
+ * Normal-path guard: a leftover release-state file means an earlier run died
+ * mid-release. Re-running the full pipeline would reject on the dirty tree —
+ * or, after a manual commit, re-derive the WRONG version because the release
+ * commit itself would enter the bump window — so name the two valid moves.
+ */
+export function assertNoInProgressRelease(cwd: string): void {
+  const state = readReleaseState(cwd);
+  if (state === null) return;
+  throw new Error(
+    `In-progress release v${state.version} detected (.noldor/release-state.json). ` +
+      'Run `pnpm release --resume` to finish it, or discard with ' +
+      '`git reset --hard && rm .noldor/release-state.json`.',
+  );
+}
+
+/** Options for {@link resumeRelease}. `main()` fills these from the consumer config. */
+export interface ResumeOptions {
+  /** Same lockstep list the normal-path `git add` stages. */
+  lockstepPackages: string[];
+  /** Consumer name — names the release-notes temp file, as on the normal path. */
+  name: string;
+  /** Extra env for every spawned command (tests prepend a fake-gh PATH). */
+  env?: Record<string, string>;
+}
+
+/** Exact release-owned files the pipeline mutates and commits. */
+const RELEASE_SURFACE_FILES = ['CHANGELOG.md', 'docs/release-notes.md', 'docs/sdd-report.md'];
+/** Release-owned directories (marker fills + noldor pages). */
+const RELEASE_SURFACE_PREFIXES = ['docs/features/', 'docs/noldor/'];
+
+/**
+ * Finish an interrupted release from wherever it died. Check-then-act ladder
+ * (commit → tag → push → GitHub Release) driven ONLY by the state file written
+ * at the mutation boundary — it never re-derives the version and never re-runs
+ * checks (the tree is byte-identical to when they passed; the shape check and
+ * version cross-check catch external tampering). Safe to re-run after a
+ * partial resume: every rung skips when its outcome already exists.
+ */
+export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<void> {
+  const runIn = (
+    cmd: string,
+    args: string[],
+    extra: { captureOutput?: boolean; env?: Record<string, string> } = {},
+  ): Promise<string> => run(cmd, args, { ...extra, cwd, env: { ...opts.env, ...extra.env } });
+
+  // Rung 1 — load + verify state. Branch must be main; the working-tree
+  // version must still equal the state version (guards a stale token left
+  // behind by an unrelated manual reset). Deliberately NO clean-tree or
+  // origin-sync check — the tree is intentionally dirty mid-release.
+  const state = readReleaseState(cwd);
+  if (state === null) {
+    throw new Error('Nothing to resume: .noldor/release-state.json not found.');
+  }
+  const branch = await runIn('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (branch !== 'main') {
+    throw new Error(`Resume must run from main branch (currently on ${branch}).`);
+  }
+  const pkg = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8')) as {
+    version?: string;
+  };
+  if (pkg.version !== state.version) {
+    throw new Error(
+      `Version mismatch: package.json has ${pkg.version ?? 'no version'} but ` +
+        `.noldor/release-state.json expects ${state.version}. The tree no longer matches the ` +
+        'in-progress release — discard with `git reset --hard && rm .noldor/release-state.json`.',
+    );
+  }
+
+  // Rung 2 — shape check: every dirty path must be release-owned. Never guess.
+  // run() trims stdout, so the first line may have lost the leading space of
+  // its two-char XY status column — strip the status token by pattern, not by
+  // fixed offset.
+  const porcelain = await runIn('git', ['status', '--porcelain']);
+  const dirty = porcelain
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.trimStart().replace(/^\S+\s+/, ''));
+  const offenders = dirty.filter(
+    (p) =>
+      !RELEASE_SURFACE_FILES.includes(p) &&
+      !opts.lockstepPackages.includes(p) &&
+      !RELEASE_SURFACE_PREFIXES.some((prefix) => p.startsWith(prefix)),
+  );
+  if (offenders.length > 0) {
+    throw new Error(
+      `Dirty paths outside the release surface: ${offenders.join(', ')}. ` +
+        'Refusing to fold them into the release commit. Clean them up, or discard the ' +
+        'in-progress release with `git reset --hard && rm .noldor/release-state.json`.',
+    );
+  }
+  // Rung 3 — commit: skip when HEAD already carries the release subject
+  // (same subject + `git add` list as the normal path). Runs inside
+  // withReleaseSession, so the pre-commit hook sees a fresh
+  // release-automation marker.
+  const subject = `chore(release): v${state.version}`;
+  const headSubject = await runIn('git', ['log', '-1', '--format=%s']);
+  if (headSubject === subject) {
+    console.log(`→ commit: HEAD is already "${subject}" (skipped)`);
+  } else {
+    await runIn('git', [
+      'add',
+      'CHANGELOG.md',
+      'docs/release-notes.md',
+      'docs/sdd-report.md',
+      'docs/features',
+      'docs/noldor',
+      ...opts.lockstepPackages,
+    ]);
+    await runIn('git', ['commit', '-m', subject]);
+    console.log(`→ commit: created "${subject}"`);
+  }
+
+  // Rung 4 — tag: skip when the tag already exists.
+  const tag = `v${state.version}`;
+  let tagExists = true;
+  try {
+    await runIn('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
+      captureOutput: true,
+    });
+  } catch {
+    tagExists = false;
+  }
+  if (tagExists) {
+    console.log(`→ tag: ${tag} already exists (skipped)`);
+  } else {
+    await runIn('git', ['tag', '-a', tag, '-m', tag]);
+    console.log(`→ tag: created ${tag}`);
+  }
+  // Rung 5 — push: skip when origin/main already equals HEAD after a fetch
+  // (same rev-parse pair as ensureCleanTreeOnMain). Push carries the
+  // release-automation env stamp exactly like the normal path.
+  await runIn('git', ['fetch', 'origin', 'main']);
+  const local = await runIn('git', ['rev-parse', 'HEAD']);
+  const remote = await runIn('git', ['rev-parse', 'origin/main']);
+  if (local === remote) {
+    console.log('→ push: origin/main already at HEAD (skipped)');
+  } else {
+    await runIn('git', ['push', '--follow-tags', 'origin', 'main'], {
+      env: { NOLDOR_RELEASE_PUSH: '1' },
+    });
+    console.log('→ push: pushed commit + tag');
+  }
+
+  // Rung 6 — GitHub Release: skip when it already exists.
+  let releaseExists = true;
+  try {
+    await runIn('gh', ['release', 'view', tag], { captureOutput: true });
+  } catch {
+    releaseExists = false;
+  }
+  if (releaseExists) {
+    console.log(`→ gh release: ${tag} already exists (skipped)`);
+  } else {
+    const notesBody = await extractLatestReleaseNotes(cwd);
+    const notesTmp = `/tmp/${opts.name}-release-notes-${tag}.md`;
+    await writeFile(notesTmp, notesBody, 'utf8');
+    await runIn('gh', [
+      'release',
+      'create',
+      tag,
+      '--notes-file',
+      notesTmp,
+      '--latest',
+      '--title',
+      tag,
+    ]);
+    console.log(`→ gh release: created ${tag}`);
+  }
+
+  clearReleaseState(cwd);
+  console.log(`Resume complete: release ${tag} finished; state file cleared.`);
+}
+
 async function main(): Promise<void> {
+  // Dispatch reshapes argv so this module sees `node <modPath> [--resume]`.
+  const resume = process.argv.slice(2).includes('--resume');
   await withReleaseSession(process.cwd(), async () => {
     const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
+    if (resume) {
+      // Resume re-enters withReleaseSession (fresh release-automation marker
+      // for the pre-commit hook) and skips every precondition, check, and
+      // version derivation — the ladder trusts only the state file.
+      await resumeRelease(process.cwd(), { lockstepPackages, name: cfgName });
+      return;
+    }
+    assertNoInProgressRelease(process.cwd());
     await ensureCleanTreeOnMain();
     await ensureGhAvailable();
     await ensureGraphFresh(scanPaths);
@@ -230,6 +416,14 @@ async function main(): Promise<void> {
     }
 
     const releaseDate = todayIso();
+    // The run now commits to mutating files — drop the resume token first so a
+    // death anywhere between here and the GitHub Release leaves it behind.
+    writeReleaseState(process.cwd(), {
+      version: newVersion,
+      previousTag,
+      date: releaseDate,
+      startedAt: new Date().toISOString(),
+    });
     const repoUrl = await getRepoUrl();
 
     const changelogBlocks = await generateFdChangelogs({
@@ -316,11 +510,17 @@ async function main(): Promise<void> {
       `v${newVersion}`,
     ]);
     console.log(`Created GitHub Release v${newVersion}.`);
+    clearReleaseState(process.cwd());
   });
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`\nRelease aborted: ${message}`);
-  process.exitCode = 1;
-});
+// Execute only when dispatched as the CLI entrypoint (`noldor release run`
+// reshapes argv so argv[1] is this module's path). Importing this module in
+// tests must NOT fire a release run.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`\nRelease aborted: ${message}`);
+    process.exitCode = 1;
+  });
+}
