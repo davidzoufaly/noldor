@@ -12,29 +12,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Noldor Framework
 
-#### Parallel-Agent Dispatch for Research Jobs
-
-- area: tooling
-- type: feat
-- since: 2026-06-14
-- size: L
-- impact: high
-- confidence: med
-- parent: noldor
-
-Noldor can fan out parallel *build* agents (the K-concurrent drain) but has no first-class primitive for fanning out parallel *read/research* agents — codebase research, multi-subsystem investigation, cross-file audits, "understand X before we spec it." Today an operator (or a gate/spec/plan flow) investigates these sequentially in one context: wastes wall-clock and pollutes the driving session's context. Inspired by `superpowers:dispatching-parallel-agents` — dispatch one context-isolated subagent per independent problem domain, each with focused scope + self-contained context (never inherits session history) + a required structured return, then synthesize and integrate.
-
-**What to build (for brainstorm/spec):**
-
-- A reusable dispatch primitive — a `noldor-dispatch-parallel` skill and/or `noldor research fanout` CLI — that takes N independent task specs, spawns one focused agent each (isolated context), enforces a structured return per agent, and synthesizes the results.
-- Plug-in points: gate spec-stage ("research the codebase before writing the spec"), plan-stage investigation, `/garden` deep-dives, standalone operator research.
-- Reuse existing parallel infra where it fits (drain concurrency cap, lane logging, [agent-events](#agent-events-log-and-agents-dashboard-page)) **without** coupling to the merge-coordinator — read agents don't write, so no worktree/merge serialization needed.
-- MVP fallback (size S): a skill-only version that just codifies the pattern for the driving agent (focused scope, structured return, synthesis) — vendoring superpowers' approach adapted to Noldor. The CLI fanout primitive is the part that compounds; the spec stage decides skill-only vs CLI vs both.
-
-**Open questions:** skill vs CLI vs both; synthesis model (one synth agent vs operator-reviewed findings table); concurrency cap + cost guardrails; relationship to harness-native Workflow/Agent tools vs a Noldor-owned wrapper; whether read-agents surface in the drain's agent-events log.
-
-**Touches:** new `src/research/` (or `src/parallel/`), new skill, `src/cli/manifest.ts`, reuse `src/autonomous/` concurrency util, `docs/noldor/`.
-
 #### Prep Promote `--ship` Direct-Merge Fallback
 
 - area: tooling

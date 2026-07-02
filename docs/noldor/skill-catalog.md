@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Skill Catalog
 
-Noldor ships 11 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
+Noldor ships 12 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
 
 > **Strict drift gate.** `pnpm noldor validate skill-catalog` (pre-commit, see [`garden-and-drift.md`](garden-and-drift.md) Detector 16) asserts that every `## /<slug>` heading on this page maps to a `<slug>.md` (or `<slug>/SKILL.md`) under `.claude/skills/`, and vice versa. Add or rename a skill → update this page in the same commit, or pre-commit blocks.
 
@@ -71,6 +71,13 @@ Noldor ships 11 user-invocable skills, each owned by a single concern. This page
 - **Inputs:** approved spec at `docs/superpowers/specs/*-<slug>-design.md`; every file the spec names; the format contract via `pnpm noldor prep format plan`.
 - **Outputs:** bite-size TDD plan at `docs/superpowers/plans/YYYY-MM-DD-<slug>.md` — complete code, exact commands, expected output per step; reports the path and stops — `/gate` Step 2.5 (`--kind plan`) owns commit + CR. Never commits.
 - **When to use:** the plan stage of `full-*` paths, or any multi-step work with a written spec. Vendored replacement for the third-party writing-plans flow — no plugin required.
+
+## /noldor-research
+
+- **Trigger:** `/noldor-research`. Manual, any time 2+ independent read-only questions pile up.
+- **Inputs:** independent research questions; optionally a `tasks.json` (`id`/`question`/`scope`/`context`/`expects` per task).
+- **Outputs:** a `.noldor/research/<stamp>/` batch — per-task `<id>.findings.md`, `INDEX.md`, `manifest.json`, optional `SYNTHESIS.md` (`--synthesize`). Read-only: researcher children return via stdout; the CLI is the only writer. See [`research-fanout.md`](research-fanout.md).
+- **When to use:** codebase research, multi-subsystem investigation, cross-file audits, "understand X before we spec it" — whenever the questions don't depend on each other. Never for write-work (that's the drain's job).
 
 
 

@@ -31,6 +31,7 @@ docs/ideas.md
 .noldor/agent-events.jsonl
 .noldor/ideas-recovery-*.md
 .noldor/prep-batch/
+.noldor/research/
 
 # Harness scheduler lock (operator-local runtime state)
 .claude/scheduled_tasks.lock

@@ -1,30 +1,18 @@
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { runWithConcurrency } from '../core/concurrency.js';
 import { loadDocRoots } from '../core/doc-roots.js';
+import { gitStatusPorcelain } from '../core/git-porcelain.js';
 
 import { buildDraftPrompt } from './draft.js';
 import { discoverPrepEntries, listFdSlugs, listSpecFiles } from './discover.js';
 import { renderIndex } from './index-doc.js';
-import { spawnClaude, runWithConcurrency } from './spawn.js';
+import { spawnClaude } from './spawn.js';
 import { batchDirFor, ensureDir, indexPath, manifestPath, writeManifest } from './staging.js';
 
 import { draftMetaSchema } from './types.js';
 import type { DraftMeta, FeatureDraft, StagingManifest } from './types.js';
-
-/**
- * `git status --porcelain` (tracked changes only — the staging batch dir under
- * `.noldor/` is gitignored, so output here means a change OUTSIDE the staging
- * area). Returns '' when git is unavailable so the tree guard never blocks fanout.
- */
-function gitStatusPorcelain(cwd: string): string {
-  try {
-    return execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }).trim();
-  } catch {
-    return '';
-  }
-}
 
 interface FanoutArgs {
   max: number;

@@ -43,5 +43,6 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 - [`script-catalog.md`](script-catalog.md) — every pnpm script the framework relies on, grouped by concern
 - [`garden-and-drift.md`](garden-and-drift.md) — what /garden detects + sentinel rules
 - [`graph-integration.md`](graph-integration.md) — graphify ↔ SDD substrate
+- [`research-fanout.md`](research-fanout.md) — parallel read-only research agents: task specs, envelope contract, INDEX/synthesis
 - [`adoption-guide.md`](adoption-guide.md) — stub; framework is WIP, standalone-package lift tracked in backlog
 - [`rules.md`](rules.md) — engineering-rules cascade: rule store, per-file/stage resolution, template-sync gate; raw principles live in [`.claude/engineering-rules.md`](../../.claude/engineering-rules.md)
