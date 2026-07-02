@@ -7,6 +7,7 @@ import {
   preflightGh,
   pollAutoMerge,
   openAndAutoMerge,
+  mergePrWithFallback,
   GhPreflightError,
   MergeTimeoutError,
   PrClosedWithoutMergeError,
@@ -706,5 +707,61 @@ describe('pollAutoMerge status streaming', () => {
       now: () => nowMs,
     });
     expect(lines).toEqual([]); // cycle 1 failed (no emit), cycle 2 merged (returns before emit)
+  });
+});
+
+describe('mergePrWithFallback', () => {
+  const prUrl = 'https://github.com/davidzoufaly/acme/pull/9';
+
+  it('queues auto-merge and polls to mergedAt when auto-merge is enabled', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'view') {
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-07-02T12:00:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await mergePrWithFallback({ prUrl, spawn });
+    expect(result.mergedAt).toBe('2026-07-02T12:00:00Z');
+  });
+
+  it('falls back to direct squash-merge when auto-merge is disabled', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'gh' && args[1] === 'merge' && args.includes('--auto'))
+        return { stdout: '', exitCode: 1 };
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'view') {
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-07-02T12:05:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await mergePrWithFallback({ prUrl, spawn });
+    expect(result.mergedAt).toBe('2026-07-02T12:05:00Z');
+    const mergeCalls = calls.filter((c) => c.args[1] === 'merge');
+    expect(mergeCalls).toHaveLength(2);
+    expect(mergeCalls[1].args).toContain('--squash');
+    expect(mergeCalls[1].args).toContain('--delete-branch');
+    expect(mergeCalls[1].args).not.toContain('--auto');
+  });
+
+  it('throws with both exit codes when both merge legs fail and PR stays open', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 1 };
+      if (cmd === 'gh' && args[1] === 'view') {
+        return { stdout: JSON.stringify({ mergedAt: null, state: 'OPEN' }), exitCode: 0 };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    await expect(mergePrWithFallback({ prUrl, spawn })).rejects.toThrow(
+      /gh pr merge --auto failed: exit 1; direct merge fallback exit 1; PR state is "OPEN"/,
+    );
   });
 });

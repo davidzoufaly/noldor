@@ -3,6 +3,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, join } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
+import { nodeSpawn } from '../core/pr-flow-cli.js';
+import { mergePrWithFallback } from '../core/pr-flow.js';
 import { readSession, writeSession, clearSession } from '../core/session.js';
 import { sizeToTier } from '../core/size-routing.js';
 import { parseRoadmap } from '../utils/parse-blocks.js';
@@ -248,12 +250,12 @@ function writeRecord(
   return path;
 }
 
-function shipBranch(
+async function shipBranch(
   cwd: string,
   branch: string,
   today: string,
   promoted: PromoteResult[],
-): { prUrl: string; note: string } {
+): Promise<{ prUrl: string; note: string }> {
   const checklist = promoted.map((r) => `- [x] ${r.slug}`).join('\n');
   const body = `${checklist}\n\nEach is now an in-progress FD carrying its spec (and plan for full-tier), ready for the autonomous plan-runner (\`autonomous run --source plans\`).`;
   git(cwd, ['push', '--force-with-lease', '--set-upstream', 'origin', branch]);
@@ -269,28 +271,43 @@ function shipBranch(
     '--body',
     body,
   ]).trim();
-  gh(cwd, ['pr', 'merge', prUrl, '--auto', '--squash']);
-  // PR is live + auto-merge queued. Local-main sync is best-effort — a non-fast-forward (e.g. main
-  // moved, or the squash-merge hasn't landed yet) must NOT be reported as a ship failure.
+  // Same merge path as the gate's end-of-flow: auto-merge queue + poll, with a
+  // direct squash-merge fallback when the repo has auto-merge disabled. Throws
+  // when both legs fail — surfaced by finishRun as a ship failure, PR left open.
+  const { mergedAt } = await mergePrWithFallback({
+    prUrl,
+    spawn: nodeSpawn({ cwd }),
+    // The auto-merge leg can poll for minutes on pending checks — stream
+    // status so --ship doesn't look hung (it used to return immediately).
+    onStatus: (line) => process.stderr.write(`${line}\n`),
+  });
+  // PR is merged. Local-main sync is best-effort — a non-fast-forward (e.g. main
+  // moved under us) must NOT be reported as a ship failure.
   try {
     git(cwd, ['checkout', 'main']);
+  } catch {
+    return { prUrl, note: `PR merged at ${mergedAt}; local main not yet synced` };
+  }
+  try {
+    git(cwd, ['branch', '-D', branch]);
+  } catch {
+    // The direct-merge fallback runs `gh pr merge --delete-branch`, which may
+    // have already deleted the local branch — not a failure.
+  }
+  try {
     git(cwd, ['fetch', 'origin', 'main']);
     git(cwd, ['merge', '--ff-only', 'origin/main']);
-    git(cwd, ['branch', '-D', branch]);
-    return { prUrl, note: 'PR opened + auto-merge queued; local main synced' };
   } catch {
-    return {
-      prUrl,
-      note: 'PR opened + auto-merge queued; local main not yet synced (merge lands async)',
-    };
+    return { prUrl, note: `PR merged at ${mergedAt}; local main not yet synced` };
   }
+  return { prUrl, note: `PR merged at ${mergedAt}; local main synced` };
 }
 
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function run(argv: readonly string[]): number {
+async function run(argv: readonly string[]): Promise<number> {
   const parsed = parseArgs(argv);
   const cwd = process.cwd();
 
@@ -376,13 +393,13 @@ function run(argv: readonly string[]): number {
       process.stderr.write(`  ${r.slug} -> ${r.status}${r.note ? ` (${r.note})` : ''}\n`);
     }
 
-    return finishRun(cwd, parsed, relBatchDir, absBatchDir, today, branch, results);
+    return await finishRun(cwd, parsed, relBatchDir, absBatchDir, today, branch, results);
   } finally {
     clearSession(cwd);
   }
 }
 
-function finishRun(
+async function finishRun(
   cwd: string,
   parsed: PromoteArgs,
   relBatchDir: string,
@@ -390,7 +407,7 @@ function finishRun(
   today: string,
   branch: string,
   results: PromoteResult[],
-): number {
+): Promise<number> {
   const promoted = results.filter((r) => r.status === 'promoted');
   const failedCount = results.filter((r) => r.status === 'failed').length;
 
@@ -411,14 +428,19 @@ function finishRun(
   const recordPath = writeRecord(absBatchDir, today, branch, results);
 
   let ship: { prUrl: string; note: string } | null = null;
+  let shipFailed = false;
   if (parsed.ship && promoted.length > 0 && failedCount > 0) {
     process.stderr.write(
       `prep promote: ${failedCount} draft(s) failed — NOT shipping. Resolve and rerun (branch ${branch} holds the ${promoted.length} promoted).\n`,
     );
   } else if (parsed.ship && promoted.length > 0) {
     try {
-      ship = shipBranch(cwd, branch, today, promoted);
+      ship = await shipBranch(cwd, branch, today, promoted);
     } catch (e) {
+      // Scripted callers must see a requested-but-failed ship in the exit
+      // code, not just `ship: null` — e.g. both merge legs failing leaves
+      // the promote PR open and needs operator attention.
+      shipFailed = true;
       process.stderr.write(`prep promote: ship failed — ${(e as Error).message}\n`);
     }
   }
@@ -438,6 +460,7 @@ function finishRun(
       );
     process.stdout.write(`  record: ${recordPath}\n`);
   }
+  if (shipFailed) return 1;
   return promoteExitCode(promoted.length, failedCount);
 }
 
@@ -445,7 +468,8 @@ function finishRun(
  * Exit code for `prep promote`. Non-zero on ANY failed promotion so scripted
  * callers (and the autonomous pipeline) can detect partial failure — a batch
  * where some drafts promoted and others failed must NOT report success. Also
- * non-zero when nothing was promoted (all skipped / none approved).
+ * non-zero when nothing was promoted (all skipped / none approved). A
+ * requested-but-failed `--ship` is handled separately in `finishRun` (exit 1).
  */
 function promoteExitCode(promoted: number, failed: number): number {
   if (failed > 0) return 1;
@@ -453,12 +477,13 @@ function promoteExitCode(promoted: number, failed: number): number {
 }
 
 function main(): void {
-  try {
-    process.exit(run(process.argv.slice(2)));
-  } catch (err) {
-    process.stderr.write(`prep promote: ${(err as Error).message}\n`);
-    process.exit(1);
-  }
+  run(process.argv.slice(2)).then(
+    (code) => process.exit(code),
+    (err: unknown) => {
+      process.stderr.write(`prep promote: ${(err as Error).message}\n`);
+      process.exit(1);
+    },
+  );
 }
 
 const invokedDirect = /[\\/]prep-promote\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
