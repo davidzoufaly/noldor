@@ -18,6 +18,7 @@ import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { RUNNER_NAMES, type RunnerName } from '../../core/agent-runner/types.js';
 import { loadFrameworkVersion, writeFrameworkVersion } from '../../core/consumer-config.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
+import { ensureRolloutMarker } from '../../core/rollout-marker.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -70,6 +71,15 @@ try {
     if (r.status !== 'unchanged') console.log(`${r.status.padEnd(10)} ${r.path}`);
   }
   console.log(`\n${counts.added} added, ${counts.updated} updated, ${counts.unchanged} unchanged`);
+  // Arm the gate validators (trailer / receipt / session hard wall) from the
+  // next commit onward. Without a committed marker every validator stays in
+  // soft mode — enforcement prose without enforcement.
+  const marker = ensureRolloutMarker(consumer);
+  if (marker === 'created') {
+    console.log(
+      'created    .noldor/rollout-marker (commit it — gate validators enforce from here)',
+    );
+  }
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no
   // existing anchor, scaffolded (not `--update`). A fresh scaffold is by
   // definition current, so it owes no migrations. `init --update` (re-pull on

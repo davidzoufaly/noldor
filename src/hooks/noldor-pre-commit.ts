@@ -1,11 +1,11 @@
 // src/hooks/noldor-pre-commit.ts
 // pre-commit stage: enforces micro-chore allowlist and hard-wall post-rollout session requirement.
 import { spawnSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readSession, isSessionStale, type SessionMarker } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
+import { appendOverrideLog } from '../core/overrides-log';
 import { DEFAULT_SESSION_TTL_HOURS, loadConfigSync, resolveSessionTtlHours } from '../cr/config';
 
 export interface PreCommitResult {
@@ -27,18 +27,9 @@ export interface PreCommitResult {
  * it from the 2-column untagged line `validate-trailer` writes at the commit-msg
  * layer. The cross-clone audit (git log, read by the `/garden` override detector)
  * still relies on the committed trailer; this is the local backstop.
- *
- * A failed write is swallowed: logging must never block the override itself.
  */
 export function logOverride(cwd: string, reason: string): void {
-  try {
-    appendFileSync(
-      join(cwd, '.noldor', 'overrides.log'),
-      `${new Date().toISOString()}\t${reason}\t(pre-commit)\n`,
-    );
-  } catch {
-    // logging failure must not block the override itself
-  }
+  appendOverrideLog(cwd, reason, 'pre-commit');
 }
 
 function getStagedPaths(cwd: string): string[] {
