@@ -14,7 +14,9 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
-export const LOST_SENTINEL = 'lost-pre-extraction';
+import { LOST_SENTINEL } from './feature-schema.js';
+
+export { LOST_SENTINEL };
 
 const SCRIPTS_PATH_RE = /scripts\/[A-Za-z0-9_\-./]+\.[a-z]+/g;
 

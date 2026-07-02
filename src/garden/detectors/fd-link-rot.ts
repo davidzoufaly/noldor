@@ -7,10 +7,11 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { LOST_SENTINEL } from '../../features/feature-schema.js';
 import type { Gap } from '../sdd-report.js';
 
 /** Link values that are deliberately not paths. */
-const SENTINELS = new Set(['n/a', 'lost-pre-extraction']);
+const SENTINELS = new Set(['n/a', LOST_SENTINEL]);
 
 function isCheckablePath(v: unknown): v is string {
   return (
