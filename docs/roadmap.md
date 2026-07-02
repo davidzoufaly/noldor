@@ -12,19 +12,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Phase 1 — Self-Truth Quick Fixes
-
-#### Prep Promote `--ship` Direct-Merge Fallback
-
-- area: tooling
-- type: fix
-- since: 2026-06-13
-- size: S
-- impact: med
-- confidence: high
-
-`prep promote --ship` opens a PR then runs `gh pr merge --auto --squash` with no error handling (`src/prep/prep-promote.ts:268`), but on a repo with GitHub auto-merge disabled (`enablePullRequestAutoMerge` off) that errors and the promote PR is left open + unmerged — the operator must merge by hand. `pr-flow`'s `openAndAutoMerge` already handles this by falling back to a direct squash-merge; `prep promote --ship` should mirror that fallback so a promote batch lands the same way the drain's PRs do. Reuse the `src/core/pr-flow.ts` merge path.
-
 ### Phase 2 — Enforcement Honesty
 
 #### Release Bypass Retirement

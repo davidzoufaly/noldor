@@ -314,59 +314,81 @@ export async function openAndAutoMerge(input: OpenAndAutoMergeInput): Promise<Pr
     return { prUrl, prNumber, mergedAt: null };
   }
 
-  const merge = await input.spawn('gh', ['pr', 'merge', prUrl, '--auto', '--squash']);
+  const { mergedAt } = await mergePrWithFallback({
+    prUrl,
+    spawn: input.spawn,
+    ...(input.intervalMs !== undefined ? { intervalMs: input.intervalMs } : {}),
+    ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
+    ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+  });
 
-  let mergedAt: string;
+  return { prUrl, prNumber, mergedAt };
+}
+
+export interface MergePrWithFallbackInput {
+  prUrl: string;
+  spawn: SpawnFn;
+  intervalMs?: number;
+  timeoutMs?: number;
+  onStatus?: (line: string) => void;
+}
+
+/** Merge an open PR: queue auto-merge and poll, falling back to a direct
+ *  squash-merge when the repo has auto-merge disabled. Shared by the gate's
+ *  `openAndAutoMerge` end-of-flow and `prep promote --ship` so promote batches
+ *  land the same way the drain's PRs do. */
+export async function mergePrWithFallback(
+  input: MergePrWithFallbackInput,
+): Promise<{ mergedAt: string }> {
+  const merge = await input.spawn('gh', ['pr', 'merge', input.prUrl, '--auto', '--squash']);
+
   if (merge.exitCode === 0) {
-    const polled = await pollAutoMerge({
-      prUrl,
+    return pollAutoMerge({
+      prUrl: input.prUrl,
       spawn: input.spawn,
       intervalMs: input.intervalMs ?? DEFAULT_POLL_INTERVAL_MS,
       timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      onStatus: input.onStatus,
+      ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
     });
-    mergedAt = polled.mergedAt;
-  } else {
-    // `gh pr merge --auto` fails with `enablePullRequestAutoMerge` when the
-    // repo does not have auto-merge enabled (common for solo-dev repos
-    // without branch protection). Retry with a synchronous squash — the
-    // merge happens immediately, no polling needed. If both legs fail,
-    // surface both exit codes.
-    process.stderr.write(
-      'pr-flow: gh pr merge --auto failed; falling back to direct squash-merge.\n',
-    );
-    const directMerge = await input.spawn('gh', [
-      'pr',
-      'merge',
-      prUrl,
-      '--squash',
-      '--delete-branch',
-    ]);
-    // gh may emit a non-zero exit from the post-merge local-checkout step
-    // (e.g. `'main' is already used by another worktree` when invoked from
-    // inside a worktree) even when the merge succeeded server-side. Trust
-    // `gh pr view` over `directMerge.exitCode` for the merge verdict.
-    const view = await input.spawn('gh', ['pr', 'view', prUrl, '--json', 'mergedAt,state']);
-    if (view.exitCode !== 0) {
-      throw new Error(
-        `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; gh pr view failed: exit ${view.exitCode}`,
-      );
-    }
-    let viewData: { mergedAt: string | null; state: string };
-    try {
-      viewData = JSON.parse(view.stdout) as { mergedAt: string | null; state: string };
-    } catch {
-      throw new Error(
-        `gh pr view returned unparseable JSON after direct merge fallback: ${view.stdout.slice(0, 200)}`,
-      );
-    }
-    if (viewData.state !== 'MERGED' || !viewData.mergedAt) {
-      throw new Error(
-        `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; PR state is "${viewData.state}".`,
-      );
-    }
-    mergedAt = viewData.mergedAt;
   }
 
-  return { prUrl, prNumber, mergedAt };
+  // `gh pr merge --auto` fails with `enablePullRequestAutoMerge` when the
+  // repo does not have auto-merge enabled (common for solo-dev repos
+  // without branch protection). Retry with a synchronous squash — the
+  // merge happens immediately, no polling needed. If both legs fail,
+  // surface both exit codes.
+  process.stderr.write(
+    'pr-flow: gh pr merge --auto failed; falling back to direct squash-merge.\n',
+  );
+  const directMerge = await input.spawn('gh', [
+    'pr',
+    'merge',
+    input.prUrl,
+    '--squash',
+    '--delete-branch',
+  ]);
+  // gh may emit a non-zero exit from the post-merge local-checkout step
+  // (e.g. `'main' is already used by another worktree` when invoked from
+  // inside a worktree) even when the merge succeeded server-side. Trust
+  // `gh pr view` over `directMerge.exitCode` for the merge verdict.
+  const view = await input.spawn('gh', ['pr', 'view', input.prUrl, '--json', 'mergedAt,state']);
+  if (view.exitCode !== 0) {
+    throw new Error(
+      `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; gh pr view failed: exit ${view.exitCode}`,
+    );
+  }
+  let viewData: { mergedAt: string | null; state: string };
+  try {
+    viewData = JSON.parse(view.stdout) as { mergedAt: string | null; state: string };
+  } catch {
+    throw new Error(
+      `gh pr view returned unparseable JSON after direct merge fallback: ${view.stdout.slice(0, 200)}`,
+    );
+  }
+  if (viewData.state !== 'MERGED' || !viewData.mergedAt) {
+    throw new Error(
+      `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; PR state is "${viewData.state}".`,
+    );
+  }
+  return { mergedAt: viewData.mergedAt };
 }

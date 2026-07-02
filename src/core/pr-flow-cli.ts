@@ -123,10 +123,13 @@ export function clearMicroChoreSession(cwd: string, session: SessionMarker): voi
   if (session.path === 'micro-chore') clearSession(cwd);
 }
 
-function nodeSpawn(): SpawnFn {
+export function nodeSpawn(opts?: { cwd?: string }): SpawnFn {
   return async (cmd, args, stdin) => {
     return new Promise((resolve, reject) => {
-      const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'inherit'] });
+      const child = spawn(cmd, args, {
+        stdio: ['pipe', 'pipe', 'inherit'],
+        ...(opts?.cwd !== undefined ? { cwd: opts.cwd } : {}),
+      });
       let stdout = '';
       child.stdout.on('data', (chunk: Buffer) => {
         stdout += chunk.toString('utf8');
