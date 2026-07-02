@@ -222,3 +222,50 @@ describe('release.crGateExemptCommits block', () => {
     expect('futureKnob' in (parsed.release ?? {})).toBe(false);
   });
 });
+
+describe('garden.overrideAudit block', () => {
+  it('parses expected rules and an optional threshold', () => {
+    const parsed = noldorConfigSchema.parse({
+      garden: {
+        overrideAudit: {
+          threshold: 5,
+          expected: [
+            {
+              reasonIncludes: 'cr-red override acceptance-verify-lane',
+              note: 'operator-accepted residual risk, 2026-06',
+            },
+            { shaPrefix: 'ec7bf0b7c52', note: 'same acknowledgment, keyed by SHA' },
+          ],
+        },
+      },
+    });
+    expect(parsed.garden?.overrideAudit?.threshold).toBe(5);
+    expect(parsed.garden?.overrideAudit?.expected).toHaveLength(2);
+  });
+
+  it('keeps garden optional and defaults expected to []', () => {
+    expect(noldorConfigSchema.parse({}).garden).toBeUndefined();
+    expect(
+      noldorConfigSchema.parse({ garden: { overrideAudit: {} } }).garden?.overrideAudit?.expected,
+    ).toEqual([]);
+  });
+
+  it('rejects a rule with neither shaPrefix nor reasonIncludes', () => {
+    expect(() =>
+      noldorConfigSchema.parse({
+        garden: { overrideAudit: { expected: [{ note: 'matches nothing' }] } },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects a non-positive threshold and a rule without a note', () => {
+    expect(() =>
+      noldorConfigSchema.parse({ garden: { overrideAudit: { threshold: 0 } } }),
+    ).toThrow();
+    expect(() =>
+      noldorConfigSchema.parse({
+        garden: { overrideAudit: { expected: [{ reasonIncludes: 'x' }] } },
+      }),
+    ).toThrow();
+  });
+});
