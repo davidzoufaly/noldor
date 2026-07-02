@@ -6,7 +6,7 @@ user_invocable: true
 
 # Release sweep — graphify → refactor → README → graphify → release
 
-This skill runs the non-negotiable pre-release sweep documented in `.claude/CLAUDE.md` `## Graphify` as a single continuous flow, instead of stopping after graphify like the bare `/graphify` skill does.
+This skill runs the non-negotiable pre-release sweep documented in [`docs/noldor/graph-integration.md`](../../../docs/noldor/graph-integration.md) as a single continuous flow, instead of stopping after graphify like the bare `/graphify` skill does.
 
 ## Pre-flight
 
@@ -24,7 +24,7 @@ This skill runs the non-negotiable pre-release sweep documented in `.claude/CLAU
    Then write `.noldor/session.json` via:
 
    ```bash
-   pnpm exec tsx -e "(async () => { const {writeSession} = await import('./scripts/noldor/session.ts'); writeSession(process.cwd(), { path: 'release-sweep', startedAt: new Date().toISOString() }); })()"
+   pnpm exec tsx -e "(async () => { const {writeSession} = await import('./src/core/session.ts'); writeSession(process.cwd(), { path: 'release-sweep', startedAt: new Date().toISOString() }); })()"
    ```
 
    All sweep-step commits below land on this branch; `noldor-inject-trailers` reads the session marker and stamps `Noldor-Path: release-sweep` on every commit automatically. No manual `Noldor-Path-Override` trailers needed.
@@ -57,11 +57,11 @@ After the refactor settles (skill returns), run `pnpm verify` again. The refacto
 
 Read `README.md`. Compare against current state:
 
-- **Architecture section** — does it list every package in `packages/` + `apps/`?
+- **Architecture / layout section** — does it reflect the current `src/` module layout and the `bin/noldor.mjs` CLI entry?
 - **Tech stack** — every major dep present?
 - **Getting Started commands** — every command actually exists in root `package.json` `scripts`?
 
-If you find drift, hand-edit the README. Stage but don't commit yet — bundle with the sweep commit in step 6.
+If you find drift, DO NOT edit the README on the sweep branch — `README.md` is not in the release-sweep allowlist (`src/core/allowlist.ts` `RELEASE_SWEEP_GLOBS`), so the pre-commit hook rejects any sweep commit that touches it. Note the drift in the sweep summary and ship the README fix as a separate micro-chore after the sweep merges.
 
 If README looks current, say so explicitly: "README reflects current state — no drift."
 
@@ -69,36 +69,34 @@ If README looks current, say so explicitly: "README reflects current state — n
 
 Invoke the `graphify` skill again to capture the refactor. Then `pnpm toon` again. The post-refactor graph is the snapshot that ships with the release tag.
 
-### 5.5. Drift pre-empt — docs:build + sdd:report
+### 5.5. Drift pre-empt — sdd:report
 
-Run the two regen steps that `pnpm release` itself enforces as gates:
+Run the regen step that `pnpm release` itself enforces as a gate:
 
 ```bash
-pnpm docs:build
 pnpm noldor garden sdd-report --release
 ```
 
 Then check the working tree:
 
 ```bash
-git status --short docs/user/ docs/sdd-report.md
+git status --short docs/sdd-report.md
 ```
 
-If either command produced a diff, stage and commit it on the current sweep branch using two separate commits so bisection stays clean if one of them later turns out to be non-idempotent:
+If the command produced a diff, stage and commit it on the current sweep branch:
 
 ```bash
-git add docs/user/
-git commit -m "chore(release-sweep): pre-empt docs:build drift"
-
 git add docs/sdd-report.md
 git commit -m "chore(release-sweep): pre-empt sdd:report drift"
 ```
 
-The `release-sweep` allowlist admits `docs/user/reference/api/**/*.md` (typedoc output) and `docs/sdd-report.md`. If `git status` shows nothing for either, skip the corresponding commit silently.
+The `release-sweep` allowlist admits `docs/sdd-report.md`. If `git status` shows nothing, skip the commit silently.
 
-**Why this step exists.** v0.5.0 shipped without these regens pre-empted; the release script's `ensureCleanTree`-after-`docs:build` gate at `scripts/release/index.ts:132-138` and the equivalent for `sdd:report` at `:140-146` aborted the release. Two follow-up PRs landed the regen output on `main`, then the release re-ran. Pre-empting in the sweep folds those two PRs into the sweep PR.
+(`pnpm docs:build` is not a script in this repo — the release pipeline treats it as an optional consumer check via `runOptionalCheck` in `src/release/index.ts` and skips it when absent, so there is nothing to pre-empt for it here.)
 
-**Known limitation — `sdd:report` non-idempotency.** `pnpm noldor garden sdd-report --release` is non-idempotent: the `Review-skip count (last 30 days)` line increments by 1 per branch commit (each sweep commit lacks `Noldor-Reviewed` and counts as a review-skip). Committing the regen here pre-empts `docs:build` drift fully, but `pnpm release`'s sdd:report gate will fire ONCE on the first release attempt after sweep PR merge — operator needs to `git pull main`, commit the regen on main, and re-run `pnpm release`. Tracked as roadmap entry `Release Script sdd:report Skip-If-Only-Count-Line-Changed`; eliminated once that ships.
+**Why this step exists.** v0.5.0 shipped without this regen pre-empted; the release script's sdd:report gate in `src/release/index.ts` (`runCliCheck('noldor garden sdd-report --release', …)` + the `docs/sdd-report.md` dirty-tree check) aborted the release. Follow-up PRs landed the regen output on `main`, then the release re-ran. Pre-empting in the sweep folds those PRs into the sweep PR.
+
+**Note on `sdd:report` count-line churn.** The `Review-skip count (last 30 days)` line increments per branch commit lacking `Noldor-Reviewed`, so the regen is not strictly idempotent. This no longer blocks releases: the release gate tolerates a diff where only that count line changed (`onlyReviewSkipCountChanged` in `src/release/sdd-report-diff.ts`, shipped as `release-script-sddreport-skip-if-only-count-line-changed`). Any other sdd-report drift still aborts the release, which is why this pre-empt step stays.
 
 ### 6. Commit sweep results
 
@@ -106,10 +104,10 @@ The `release-sweep` allowlist admits `docs/user/reference/api/**/*.md` (typedoc 
 git status --short
 ```
 
-Stage and commit anything the sweep produced — `graphify-out/`, README edits, refactor changes that haven't been committed yet (the refactor skill commits its own structural edits, but the toon + graph regen typically lands here). Use a single commit:
+Stage and commit anything the sweep produced — `graphify-out/` and refactor changes that haven't been committed yet (the refactor skill commits its own structural edits, but the toon + graph regen typically lands here). README edits stay out — see step 4. Use a single commit:
 
 ```bash
-git add graphify-out README.md  # plus any uncommitted refactor leftover
+git add graphify-out  # plus any uncommitted refactor leftover
 git commit -m "chore(release): pre-release graphify + refactor sweep"
 ```
 
@@ -117,7 +115,7 @@ If `git status --short` shows nothing, skip this step.
 
 ### 6.5. Garden pass
 
-Invoke the `garden` skill (Skill tool, name `garden`). It produces a checklist of stale plans/specs, unused backlog entries, rule contradictions, and SDD gaps. Confirm auto-actions; the regen chain at the end of the flow runs `pnpm noldor garden receipt` which stamps `.noldor/garden-receipt`. **Note:** `pnpm release` now auto-stamps the receipt at start when `garden:detect` is clean (see [release-sweep-process-hardening](../../../docs/features/release-sweep-process-hardening.md) §3.2), so the receipt may be stamped twice in a sweep+release run — that's harmless. The manual `/garden` step here remains useful for surfacing the operator-visible checklist of stale plans / unused backlog / SDD gaps.
+Invoke the `garden` skill (Skill tool, name `garden`). It produces a checklist of stale plans/specs, unused backlog entries, rule contradictions, and SDD gaps. Confirm auto-actions; the regen chain at the end of the flow runs `pnpm noldor garden receipt` which stamps `.noldor/garden-receipt`. **Note:** `pnpm release` now auto-stamps the receipt at start when `pnpm noldor garden detect` is clean (see [release-sweep-process-hardening](../../../docs/features/release-sweep-process-hardening.md) §3.2), so the receipt may be stamped twice in a sweep+release run — that's harmless. The manual `/garden` step here remains useful for surfacing the operator-visible checklist of stale plans / unused backlog / SDD gaps.
 
 ### 7. Final verify
 
@@ -129,7 +127,7 @@ Must pass. This is the last gate before opening the sweep PR.
 
 ### 8. Open + auto-merge the sweep PR
 
-Invoke `pnpm noldor pr-flow`. The CLI reads `.noldor/session.json` (written at pre-flight step 3), pushes the `release-sweep/<ts>` branch to `origin`, opens a PR with the release-sweep body template (see `scripts/noldor/pr-flow.ts:composeBody` release-sweep branch), and sets `gh pr merge --auto --squash`. It polls until merged or until the 10-minute timeout (20-minute when behind base) fires.
+Invoke `pnpm noldor pr-flow`. The CLI reads `.noldor/session.json` (written at pre-flight step 3), pushes the `release-sweep/<ts>` branch to `origin`, opens a PR with the release-sweep body template (see `src/core/pr-flow.ts:composeBody` release-sweep branch), and sets `gh pr merge --auto --squash`. It polls until merged or until the 10-minute timeout (20-minute when behind base) fires.
 
 After merge, run:
 
@@ -165,14 +163,14 @@ If anything else: tell the user the sweep PR is merged and they can run `pnpm re
 Regardless of release outcome (run, cancelled, deferred), clear the session marker:
 
 ```bash
-pnpm exec tsx -e "(async () => { const {clearSession} = await import('./scripts/noldor/session.ts'); clearSession(); })()"
+pnpm exec tsx -e "(async () => { const {clearSession} = await import('./src/core/session.ts'); clearSession(); })()"
 ```
 
 The release-sweep session ends here. The next gate path writes its own session marker; leaving the stale `release-sweep` marker would cause subsequent commits to be misclassified.
 
 ## Rules
 
-- **Never run `pnpm release` without `release now` confirmation.** Even if the user said "ready for release" earlier in the conversation. Even if they seem to expect it. The explicit gate is non-negotiable per CLAUDE.md.
+- **Never run `pnpm release` without `release now` confirmation.** Even if the user said "ready for release" earlier in the conversation. Even if they seem to expect it. The explicit gate is non-negotiable.
 - **Never `--no-verify` or `--amend`** at any stage.
 - **Don't engage with `/graphify`'s post-run exploration prompt.** The skill ends with "want me to trace [question]?" — answer no implicitly by moving on to step 2.
 - **If `pnpm verify` fails at step 1, 3, or 7** — stop. Don't paper over. The sweep can only ship a green main.
