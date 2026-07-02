@@ -21,14 +21,14 @@ links:
     - src/research/__tests__/fanout.test.ts
     - src/core/__tests__/concurrency.test.ts
     - src/core/__tests__/git-porcelain.test.ts
-  spec: docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md
+  spec: >-
+    docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md
 name: Parallel-Agent Dispatch for Research Jobs
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 ---
-
 ## Summary
 
 Noldor can fan out parallel _build_ agents (the K-concurrent drain) but has no first-class primitive for fanning out parallel _read/research_ agents — codebase research, multi-subsystem investigation, cross-file audits, "understand X before we spec it." Today an operator (or a gate/spec/plan flow) investigates these sequentially in one context: wastes wall-clock and pollutes the driving session's context. Inspired by `superpowers:dispatching-parallel-agents` — dispatch one context-isolated subagent per independent problem domain, each with focused scope + self-contained context (never inherits session history) + a required structured return, then synthesize and integrate.
