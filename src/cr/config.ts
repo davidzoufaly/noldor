@@ -61,12 +61,36 @@ export const crReviewConfigSchema = z.object({
   profiles: z.record(z.string(), reviewProfileSchema).optional(),
 });
 
+/**
+ * One acknowledged release-CR-gate offender: a commit that shipped without a
+ * review receipt (e.g. pre-rollout-marker history) which `checkCrGate` should
+ * wave through per-SHA instead of the whole-check `RELEASE_SKIP_CR_GATE=1`
+ * skip. `sha` is a hex prefix of the full commit SHA — min 7 chars so a typo
+ * cannot blanket-match — and `reason` is required: the committed config diff
+ * is the audit trail.
+ */
+export const crGateExemptionSchema = z.object({
+  sha: z.string().regex(/^[0-9a-f]{7,40}$/),
+  reason: z.string().min(1),
+});
+
+/** Release-enforcement tuning — the `release:` block of `.noldor/config.json`. */
+export const releaseConfigSchema = z.object({
+  crGateExemptCommits: z.array(crGateExemptionSchema).default([]),
+});
+
+/** One parsed {@link crGateExemptionSchema} entry. */
+export type CrGateExemption = z.infer<typeof crGateExemptionSchema>;
+/** Parsed `release:` block. */
+export type ReleaseConfig = z.infer<typeof releaseConfigSchema>;
+
 export const noldorConfigSchema = z.object({
   crLanes: crLanesConfigSchema.optional(),
   crReview: crReviewConfigSchema.optional(),
   autonomous: autonomousConfigSchema.optional(),
   gate: gateConfigSchema.optional(),
   agents: agentsConfigSchema.optional(),
+  release: releaseConfigSchema.optional(),
 });
 export type NoldorConfig = z.infer<typeof noldorConfigSchema>;
 

@@ -168,3 +168,57 @@ describe('resolveReviewProfile', () => {
     });
   });
 });
+
+describe('release.crGateExemptCommits block', () => {
+  it('parses a valid exemption list', () => {
+    const parsed = noldorConfigSchema.parse({
+      release: {
+        crGateExemptCommits: [
+          {
+            sha: '19a74a10e8e844e021b08fe616992eae1b56f977',
+            reason: 'pre-rollout-marker CI chore (#117)',
+          },
+        ],
+      },
+    });
+    expect(parsed.release?.crGateExemptCommits).toHaveLength(1);
+    expect(parsed.release?.crGateExemptCommits[0]?.sha).toBe(
+      '19a74a10e8e844e021b08fe616992eae1b56f977',
+    );
+  });
+
+  it('keeps release optional and defaults crGateExemptCommits to []', () => {
+    expect(noldorConfigSchema.parse({}).release).toBeUndefined();
+    expect(noldorConfigSchema.parse({ release: {} }).release?.crGateExemptCommits).toEqual([]);
+  });
+
+  it('rejects a SHA prefix shorter than 7 hex chars', () => {
+    expect(() =>
+      noldorConfigSchema.parse({
+        release: { crGateExemptCommits: [{ sha: '19a74a', reason: 'too short' }] },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects a non-hex SHA and an empty reason', () => {
+    expect(() =>
+      noldorConfigSchema.parse({
+        release: { crGateExemptCommits: [{ sha: 'ZZZZZZZZ', reason: 'x' }] },
+      }),
+    ).toThrow();
+    expect(() =>
+      noldorConfigSchema.parse({
+        release: { crGateExemptCommits: [{ sha: '19a74a10e8', reason: '' }] },
+      }),
+    ).toThrow();
+  });
+
+  it('strips unknown keys (zod non-strict) so config-schema growth stays compatible', () => {
+    const parsed = noldorConfigSchema.parse({
+      release: { crGateExemptCommits: [], futureKnob: true },
+      unknownTopLevel: 1,
+    } as Record<string, unknown>);
+    expect(parsed.release?.crGateExemptCommits).toEqual([]);
+    expect('futureKnob' in (parsed.release ?? {})).toBe(false);
+  });
+});
