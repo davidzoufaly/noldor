@@ -14,17 +14,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Phase 1 — Self-Truth Quick Fixes
 
-#### Release-Sweep Skill Path Audit
-
-- area: tooling
-- type: fix
-- since: 2026-07-01
-- size: XS
-- impact: med
-- confidence: high
-
-`.claude/skills/release-sweep/SKILL.md` drifted from the scripts→src reorg: lines 27 + 168 import `./scripts/noldor/session.ts` (moved to `src/core/session.ts`), lines 77 + 84 reference `pnpm docs:build` (no such script) and `pnpm garden:detect` (real form: `pnpm noldor garden detect`). Audit the whole skill against the current CLI manifest + src layout; edit the `templates/.claude/skills/release-sweep/` twin in lockstep (template-sync enforces). Broader pattern — skills drift from code after reorgs; a skill-vs-code drift detector is a candidate follow-up, not in scope here.
-
 #### Release-Sweep Session TTL Refresh
 
 - area: tooling
