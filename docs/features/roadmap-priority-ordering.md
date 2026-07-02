@@ -4,12 +4,12 @@ category: Tooling
 deps: []
 links:
   code:
-    - scripts/utils/parse-blocks.ts
-    - scripts/dashboard/data.ts
-    - scripts/triage/validate-triage.ts
+    - src/utils/parse-blocks.ts
+    - src/dashboard/data.ts
+    - src/triage/validate-triage.ts
   tests:
-    - scripts/utils/__tests__/parse-blocks.test.ts
-    - scripts/triage/__tests__/validate-triage.test.ts
+    - src/utils/__tests__/parse-blocks.test.ts
+    - src/triage/__tests__/validate-triage.test.ts
 name: Roadmap Priority Ordering
 packages:
   - scripts
@@ -60,11 +60,11 @@ This release tightens the schema discipline across the roadmap and backlog pipel
 ## Resources
 
 - **Code:**
-  - [`scripts/utils/parse-blocks.ts`](../../scripts/utils/parse-blocks.ts)
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/triage/validate-triage.ts`](../../scripts/triage/validate-triage.ts)
+  - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)
 - **Tests:**
-  - [`scripts/utils/__tests__/parse-blocks.test.ts`](../../scripts/utils/__tests__/parse-blocks.test.ts)
-  - [`scripts/triage/__tests__/validate-triage.test.ts`](../../scripts/triage/__tests__/validate-triage.test.ts)
+  - [`src/utils/__tests__/parse-blocks.test.ts`](../../src/utils/__tests__/parse-blocks.test.ts)
+  - [`src/triage/__tests__/validate-triage.test.ts`](../../src/triage/__tests__/validate-triage.test.ts)
 
 <!-- /generated: resources -->

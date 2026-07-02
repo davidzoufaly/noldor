@@ -7,9 +7,9 @@ links:
     - .claude/skills/gate/SKILL.md
     - docs/noldor/complexity-gating.md
     - docs/noldor/lifecycle.md
-    - scripts/noldor/next-priority.ts
+    - src/core/next-priority.ts
   tests:
-    - scripts/noldor/__tests__/next-priority.test.ts
+    - src/core/__tests__/next-priority.test.ts
 name: Gate Flow Rework
 packages:
   - scripts
@@ -67,8 +67,8 @@ The /gate flow was reworked with an overhaul of Step 0, Step 1.5, and Step 2.
   - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
   - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)
   - [`docs/noldor/lifecycle.md`](../../docs/noldor/lifecycle.md)
-  - [`scripts/noldor/next-priority.ts`](../../scripts/noldor/next-priority.ts)
+  - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
 - **Tests:**
-  - [`scripts/noldor/__tests__/next-priority.test.ts`](../../scripts/noldor/__tests__/next-priority.test.ts)
+  - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
 
 <!-- /generated: resources -->

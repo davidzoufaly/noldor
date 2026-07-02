@@ -4,11 +4,11 @@ category: Tooling
 deps: []
 links:
   code:
-    - scripts/features/migrate-fd-commits-to-prs.ts
-    - scripts/release/fd-prs-since-tag.ts
-    - scripts/release/release-noise-types.ts
+    - src/features/migrate-fd-commits-to-prs.ts
+    - src/release/fd-prs-since-tag.ts
+    - src/release/release-noise-types.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-05-22-fd-prs-since-last-release-section-design.md
+    lost-pre-extraction
   tests:
     - src/features/__tests__/migrate-fd-commits-to-prs.test.ts
     - src/release/__tests__/fd-prs-since-tag.test.ts
@@ -57,9 +57,9 @@ _none for v1_ — the marker is a doc-side convention expanded by the dashboard'
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-05-22-fd-prs-since-last-release-section-design.md`](../../docs/superpowers/specs/archive/2026-05-22-fd-prs-since-last-release-section-design.md)
 - **Code:**
-  - [`scripts/features/migrate-fd-commits-to-prs.ts`](../../scripts/features/migrate-fd-commits-to-prs.ts)
-  - [`scripts/release/fd-prs-since-tag.ts`](../../scripts/release/fd-prs-since-tag.ts)
-  - [`scripts/release/release-noise-types.ts`](../../scripts/release/release-noise-types.ts)
+  - [`src/features/migrate-fd-commits-to-prs.ts`](../../src/features/migrate-fd-commits-to-prs.ts)
+  - [`src/release/fd-prs-since-tag.ts`](../../src/release/fd-prs-since-tag.ts)
+  - [`src/release/release-noise-types.ts`](../../src/release/release-noise-types.ts)
 - **Tests:**
   - [`src/features/__tests__/migrate-fd-commits-to-prs.test.ts`](../../src/features/__tests__/migrate-fd-commits-to-prs.test.ts)
   - [`src/release/__tests__/fd-prs-since-tag.test.ts`](../../src/release/__tests__/fd-prs-since-tag.test.ts)

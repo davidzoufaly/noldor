@@ -8,7 +8,7 @@ links:
   tests: []
   spec: >-
     docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md
-  plan: docs/superpowers/plans/2026-06-13-per-task-dev-environment-bootstrap.md
+  plan: docs/superpowers/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md
 name: Per-Task Dev Environment Bootstrap
 packages:
   - scripts
@@ -85,6 +85,6 @@ Add a `consumer.dev` surface config block (#103).
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md`](../../docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/2026-06-13-per-task-dev-environment-bootstrap.md`](../../docs/superpowers/plans/2026-06-13-per-task-dev-environment-bootstrap.md)
+  - [`docs/superpowers/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md`](../../docs/superpowers/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md)
 
 <!-- /generated: resources -->

@@ -8,15 +8,15 @@ packages:
 deps: []
 links:
   code:
-    - scripts/dashboard/data.ts
-    - scripts/dashboard/views.ts
-    - scripts/dashboard/server.ts
-    - scripts/dashboard/layout.ts
+    - src/dashboard/data.ts
+    - src/dashboard/views.ts
+    - src/dashboard/server.ts
+    - src/dashboard/layout.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-server.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
-  spec: docs/superpowers/specs/archive/2026-05-04-dashboard-hot-zones-page-design.md
+  spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 ---
@@ -48,10 +48,10 @@ As a maintainer (human or agent), I want a sortable list of the files that chang
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-05-04-dashboard-hot-zones-page-design.md`](../../docs/superpowers/specs/archive/2026-05-04-dashboard-hot-zones-page-design.md)
 - **Code:**
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/dashboard/views.ts`](../../scripts/dashboard/views.ts)
-  - [`scripts/dashboard/server.ts`](../../scripts/dashboard/server.ts)
-  - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)

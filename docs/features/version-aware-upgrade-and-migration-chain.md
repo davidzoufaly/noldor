@@ -16,7 +16,7 @@ links:
   spec: >-
     docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md
   plan: >-
-    docs/superpowers/plans/2026-06-13-version-aware-upgrade-and-migration-chain.md
+    docs/superpowers/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md
 name: Version-Aware Upgrade and Migration Chain
 packages:
   - scripts
@@ -94,7 +94,7 @@ Added semver parse and compare helpers (#104).
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md`](../../docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/2026-06-13-version-aware-upgrade-and-migration-chain.md`](../../docs/superpowers/plans/2026-06-13-version-aware-upgrade-and-migration-chain.md)
+  - [`docs/superpowers/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md`](../../docs/superpowers/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md)
 - **Code:**
   - [`src/migrations/`](../../src/migrations/)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)

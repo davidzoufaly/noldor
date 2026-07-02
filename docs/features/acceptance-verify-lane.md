@@ -8,7 +8,7 @@ links:
     - src/core/consumer-config.ts
     - src/autonomous/
     - docs/noldor/cr-pipeline.md
-    - adoption-guide.md
+    - docs/noldor/adoption-guide.md
     - .noldor/config.json
   tests:
     - src/cr/__tests__/lanes/verify-dispatch.test.ts
@@ -70,7 +70,7 @@ As an operator running autonomous paths (drain, watch, gate autonomous mode), I 
   - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`src/autonomous/`](../../src/autonomous/)
   - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
-  - [`adoption-guide.md`](../../adoption-guide.md)
+  - [`docs/noldor/adoption-guide.md`](../noldor/adoption-guide.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
 - **Tests:**
   - [`src/cr/__tests__/lanes/verify-dispatch.test.ts`](../../src/cr/__tests__/lanes/verify-dispatch.test.ts)

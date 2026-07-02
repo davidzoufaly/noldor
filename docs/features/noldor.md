@@ -46,12 +46,14 @@ links:
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/schema-parity.test.ts
     - src/cr/__tests__/sidecar.test.ts
+    - src/features/__tests__/migrate-link-rot.test.ts
     - src/features/__tests__/phase-cli.test.ts
     - src/garden/__tests__/backlog-demote.test.ts
     - src/garden/__tests__/garden-detect.test.ts
     - src/garden/__tests__/garden-receipt.test.ts
     - src/garden/detectors/__tests__/allowlist-drift.test.ts
     - src/garden/detectors/__tests__/codex-cr-override-audit.test.ts
+    - src/garden/detectors/__tests__/fd-link-rot.test.ts
     - src/garden/detectors/__tests__/fd-without-plan.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
     - src/garden/detectors/__tests__/plan-without-fd.test.ts
@@ -76,10 +78,8 @@ links:
     - docs/noldor/garden-and-drift.md
     - docs/noldor/graph-integration.md
     - docs/noldor/adoption-guide.md
-    - docs/noldor/engineering-principles.md
     - docs/noldor/cr-pipeline.md
-  spec: >-
-    docs/superpowers/specs/archive/2026-05-08-quickforge-framework-extraction-design.md
+  spec: lost-pre-extraction
 noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
@@ -251,7 +251,6 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`docs/noldor/garden-and-drift.md`](../../docs/noldor/garden-and-drift.md)
   - [`docs/noldor/graph-integration.md`](../../docs/noldor/graph-integration.md)
   - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
-  - [`docs/noldor/engineering-principles.md`](../../docs/noldor/engineering-principles.md)
   - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
 
 <!-- /generated: resources -->

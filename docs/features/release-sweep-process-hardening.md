@@ -7,21 +7,21 @@ links:
     - .claude/skills/release-sweep/SKILL.md
     - docs/noldor/complexity-gating.md
     - docs/noldor/versioning.md
-    - scripts/garden/garden-detect.ts
-    - scripts/hooks/noldor-enforce-review-receipt.ts
-    - scripts/hooks/noldor-inject-trailers.ts
-    - scripts/noldor/allowlist.ts
-    - scripts/noldor/session.ts
-    - scripts/release/index.ts
+    - src/garden/garden-detect.ts
+    - src/hooks/noldor-enforce-review-receipt.ts
+    - src/hooks/noldor-inject-trailers.ts
+    - src/core/allowlist.ts
+    - src/core/session.ts
+    - src/release/index.ts
   plan:
     - >-
-      docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part1.md
+      lost-pre-extraction
     - >-
-      docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part2.md
+      lost-pre-extraction
     - >-
-      docs/superpowers/plans/archive/2026-05-17-release-sweep-process-hardening-part3.md
+      lost-pre-extraction
   spec: >-
-    docs/superpowers/specs/archive/2026-05-17-release-sweep-process-hardening-design.md
+    lost-pre-extraction
   tests: []
 name: Release-Sweep Process Hardening
 packages:
@@ -33,7 +33,7 @@ introduced: 0.5.1
 
 ## Summary
 
-Six-part overhaul of the pre-release sweep flow, surfaced during the v0.5.0 release where ~80% of operator time went into friction rather than the sweep itself. (a) **New `release-sweep` gate path** — add to `PATHS` in [scripts/noldor/session.ts](../../scripts/noldor/session.ts); allowlist `graphify-out/**`, `docs/sdd-report.md`, `docs/release-notes.md`, `docs/user/reference/api/**`, `docs/**/*.md`, `docs/superpowers/{plans,specs}/**`; multi-commit; auto-write session at skill start, auto-clear at end; skip Step 0 priority pickup. Replaces hand-written session marker + manual `Noldor-Path-Override` trailer on every sweep commit. (b) **Pre-empt release-script drift** — sweep step 6 runs `pnpm docs:build` + `pnpm sdd:report --release` and commits any drift before invoking release. Eliminates the 2 mid-release follow-up PRs the v0.5.0 sweep needed (broken-link drift + sdd-report regen drift). (c) **Path-Override trailer placement guardrail** — either `noldor-inject-trailers` moves `Noldor-Path-Override:` into the trailer block if found out-of-block, or `enforce-review-receipt` parses with `git interpret-trailers --parse` instead of regex on raw message. Closes the silent footgun where an override above `Co-Authored-By:` doesn't register. (d) **Auto re-stamp garden receipt** — release script auto-stamps at start when `garden:detect` was clean within a recent window; eliminates the manual 3× re-stamp loop after each follow-up PR merge. (e) **Garden manual-sweep detector smarter** — extend `garden-detect.ts` plan-staleness check to fall back to FD frontmatter `links.plan` and `graphify-out/graph.json` adjacency for multi-feature plans, infra plans, and `<parent>-partN` splits that today land in the manual sweep bucket (14 of 20 plans were unflagged in v0.5.0 sweep). (f) **Release-sweep skill automates PR-flow** — skill commits land on `release-sweep/<ts>` branch, pushed + auto-merged + ff-pulled before the release-confirmation prompt; folds the 4× manual temp-branch + PR dance into the skill.
+Six-part overhaul of the pre-release sweep flow, surfaced during the v0.5.0 release where ~80% of operator time went into friction rather than the sweep itself. (a) **New `release-sweep` gate path** — add to `PATHS` in [src/core/session.ts](../../src/core/session.ts); allowlist `graphify-out/**`, `docs/sdd-report.md`, `docs/release-notes.md`, `docs/user/reference/api/**`, `docs/**/*.md`, `docs/superpowers/{plans,specs}/**`; multi-commit; auto-write session at skill start, auto-clear at end; skip Step 0 priority pickup. Replaces hand-written session marker + manual `Noldor-Path-Override` trailer on every sweep commit. (b) **Pre-empt release-script drift** — sweep step 6 runs `pnpm docs:build` + `pnpm sdd:report --release` and commits any drift before invoking release. Eliminates the 2 mid-release follow-up PRs the v0.5.0 sweep needed (broken-link drift + sdd-report regen drift). (c) **Path-Override trailer placement guardrail** — either `noldor-inject-trailers` moves `Noldor-Path-Override:` into the trailer block if found out-of-block, or `enforce-review-receipt` parses with `git interpret-trailers --parse` instead of regex on raw message. Closes the silent footgun where an override above `Co-Authored-By:` doesn't register. (d) **Auto re-stamp garden receipt** — release script auto-stamps at start when `garden:detect` was clean within a recent window; eliminates the manual 3× re-stamp loop after each follow-up PR merge. (e) **Garden manual-sweep detector smarter** — extend `garden-detect.ts` plan-staleness check to fall back to FD frontmatter `links.plan` and `graphify-out/graph.json` adjacency for multi-feature plans, infra plans, and `<parent>-partN` splits that today land in the manual sweep bucket (14 of 20 plans were unflagged in v0.5.0 sweep). (f) **Release-sweep skill automates PR-flow** — skill commits land on `release-sweep/<ts>` branch, pushed + auto-merged + ff-pulled before the release-confirmation prompt; folds the 4× manual temp-branch + PR dance into the skill.
 
 ## User Story
 
@@ -79,11 +79,11 @@ As an operator preparing a release, I want `/release-sweep` to run end-to-end un
   - [`.claude/skills/release-sweep/SKILL.md`](../../.claude/skills/release-sweep/SKILL.md)
   - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)
   - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
-  - [`scripts/garden/garden-detect.ts`](../../scripts/garden/garden-detect.ts)
-  - [`scripts/hooks/noldor-enforce-review-receipt.ts`](../../scripts/hooks/noldor-enforce-review-receipt.ts)
-  - [`scripts/hooks/noldor-inject-trailers.ts`](../../scripts/hooks/noldor-inject-trailers.ts)
-  - [`scripts/noldor/allowlist.ts`](../../scripts/noldor/allowlist.ts)
-  - [`scripts/noldor/session.ts`](../../scripts/noldor/session.ts)
-  - [`scripts/release/index.ts`](../../scripts/release/index.ts)
+  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
+  - [`src/hooks/noldor-enforce-review-receipt.ts`](../../src/hooks/noldor-enforce-review-receipt.ts)
+  - [`src/hooks/noldor-inject-trailers.ts`](../../src/hooks/noldor-inject-trailers.ts)
+  - [`src/core/allowlist.ts`](../../src/core/allowlist.ts)
+  - [`src/core/session.ts`](../../src/core/session.ts)
+  - [`src/release/index.ts`](../../src/release/index.ts)
 
 <!-- /generated: resources -->

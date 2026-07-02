@@ -4,7 +4,7 @@ category: Tooling
 deps: []
 links:
   code:
-    - fixtures/
+    - src/testing/fixtures
     - src/testing/consumer-fixture.ts
     - src/autonomous/
     - docs/noldor/testing-principles.md
@@ -18,7 +18,7 @@ links:
   spec: >-
     docs/superpowers/specs/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness-design.md
   plan: >-
-    docs/superpowers/plans/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md
+    docs/superpowers/plans/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md
 name: Consumer-Contract CI and Headless Gate E2E Harness
 packages:
   - scripts
@@ -101,7 +101,7 @@ Hermetic stub runner now register in agent registry (#99).
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness-design.md`](../../docs/superpowers/specs/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md`](../../docs/superpowers/plans/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md)
+  - [`docs/superpowers/plans/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md`](../../docs/superpowers/plans/archive/2026-06-13-consumer-contract-ci-and-headless-gate-e2e-harness.md)
 - **Code:**
   - [`fixtures/`](../../fixtures/)
   - [`src/testing/consumer-fixture.ts`](../../src/testing/consumer-fixture.ts)

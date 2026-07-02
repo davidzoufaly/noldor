@@ -8,10 +8,10 @@ packages:
 deps: []
 links:
   code:
-    - scripts/dashboard/server.ts
-    - scripts/dashboard/data.ts
-    - scripts/dashboard/views.ts
-    - scripts/dashboard/layout.ts
+    - src/dashboard/server.ts
+    - src/dashboard/data.ts
+    - src/dashboard/views.ts
+    - src/dashboard/layout.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
@@ -26,7 +26,7 @@ links:
     - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-05-04-project-tracking-dashboard-design.md
+    lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
 updated: 0.5.0
@@ -71,10 +71,10 @@ As a maintainer (human or agent), I want to see live, filterable project state i
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-05-04-project-tracking-dashboard-design.md`](../../docs/superpowers/specs/archive/2026-05-04-project-tracking-dashboard-design.md)
 - **Code:**
-  - [`scripts/dashboard/server.ts`](../../scripts/dashboard/server.ts)
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/dashboard/views.ts`](../../scripts/dashboard/views.ts)
-  - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
+  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)

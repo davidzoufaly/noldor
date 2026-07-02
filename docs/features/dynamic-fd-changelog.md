@@ -8,21 +8,21 @@ packages:
 deps: []
 links:
   code:
-    - scripts/dashboard/data.ts
-    - scripts/features/migrate-changelog-unreleased.ts
-    - scripts/release/index.ts
-    - scripts/release/llm-polish-summary.ts
-    - scripts/release/release-changelog.ts
-    - scripts/release/release-dry-run.ts
-    - scripts/release/release-fd-changelog.ts
-    - scripts/release/release-fd-commits.ts
-    - scripts/release/release-notes.ts
+    - src/dashboard/data.ts
+    - src/features/migrate-changelog-unreleased.ts
+    - src/release/index.ts
+    - src/release/llm-polish-summary.ts
+    - src/release/release-changelog.ts
+    - src/release/release-dry-run.ts
+    - src/release/release-fd-changelog.ts
+    - src/release/release-fd-commits.ts
+    - src/release/release-notes.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/features/__tests__/migrate-changelog-unreleased.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
     - src/release/__tests__/release-fd-changelog.test.ts
-  spec: docs/superpowers/plans/archive/2026-05-09-dynamic-fd-changelog.md
+  spec: lost-pre-extraction
 noldor-tier: full
 introduced: 0.4.0
 ---
@@ -62,15 +62,15 @@ As a developer or agent reading an FD detail page, I want to see every commit at
 
 - **Spec:** [`docs/superpowers/plans/archive/2026-05-09-dynamic-fd-changelog.md`](../../docs/superpowers/plans/archive/2026-05-09-dynamic-fd-changelog.md)
 - **Code:**
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/features/migrate-changelog-unreleased.ts`](../../scripts/features/migrate-changelog-unreleased.ts)
-  - [`scripts/release/index.ts`](../../scripts/release/index.ts)
-  - [`scripts/release/llm-polish-summary.ts`](../../scripts/release/llm-polish-summary.ts)
-  - [`scripts/release/release-changelog.ts`](../../scripts/release/release-changelog.ts)
-  - [`scripts/release/release-dry-run.ts`](../../scripts/release/release-dry-run.ts)
-  - [`scripts/release/release-fd-changelog.ts`](../../scripts/release/release-fd-changelog.ts)
-  - [`scripts/release/release-fd-commits.ts`](../../scripts/release/release-fd-commits.ts)
-  - [`scripts/release/release-notes.ts`](../../scripts/release/release-notes.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/features/migrate-changelog-unreleased.ts`](../../src/features/migrate-changelog-unreleased.ts)
+  - [`src/release/index.ts`](../../src/release/index.ts)
+  - [`src/release/llm-polish-summary.ts`](../../src/release/llm-polish-summary.ts)
+  - [`src/release/release-changelog.ts`](../../src/release/release-changelog.ts)
+  - [`src/release/release-dry-run.ts`](../../src/release/release-dry-run.ts)
+  - [`src/release/release-fd-changelog.ts`](../../src/release/release-fd-changelog.ts)
+  - [`src/release/release-fd-commits.ts`](../../src/release/release-fd-commits.ts)
+  - [`src/release/release-notes.ts`](../../src/release/release-notes.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/features/__tests__/migrate-changelog-unreleased.test.ts`](../../src/features/__tests__/migrate-changelog-unreleased.test.ts)

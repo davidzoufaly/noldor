@@ -8,10 +8,10 @@ packages:
 deps: []
 links:
   code:
-    - scripts/dashboard/data.ts
-    - scripts/dashboard/layout.ts
-    - scripts/dashboard/server.ts
-    - scripts/dashboard/views.ts
+    - src/dashboard/data.ts
+    - src/dashboard/layout.ts
+    - src/dashboard/server.ts
+    - src/dashboard/views.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-server.test.ts
@@ -34,17 +34,17 @@ As the founder reviewing what's actually moving, I want to see every in-progress
 - The header counter strip shows total in-progress count plus per-bucket totals (fresh / aging / stale).
 - The table lists each feature once, sorted by age desc, with name (linked to its feature MD page), area, age in days, and a colored bucket badge. Stale rows (≥14d) get a tinted background.
 - Age comes from `git log --diff-filter=A --format=%ct -- docs/features/<slug>.md` — the timestamp of the first commit that introduced the feature MD. Features whose MD is uncommitted are skipped (no creation timestamp yet).
-- Thresholds live in `WIP_AGE_THRESHOLDS` (`scripts/dashboard/data.ts`); change once if the cadence shifts.
+- Thresholds live in `WIP_AGE_THRESHOLDS` (`src/dashboard/data.ts`); change once if the cadence shifts.
 
 <!-- generated: resources -->
 
 ## Resources
 
 - **Code:**
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
-  - [`scripts/dashboard/server.ts`](../../scripts/dashboard/server.ts)
-  - [`scripts/dashboard/views.ts`](../../scripts/dashboard/views.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)

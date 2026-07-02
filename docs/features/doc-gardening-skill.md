@@ -6,16 +6,16 @@ category: Tooling
 packages:
   - scripts
 links:
-  spec: docs/superpowers/specs/archive/2026-04-29-doc-gardening-skill-design.md
+  spec: lost-pre-extraction
   code:
-    - scripts/docs/docs-api.ts
-    - scripts/docs/docs-check.ts
-    - scripts/docs/docs-transclude.ts
-    - scripts/garden/garden-detect.ts
-    - scripts/garden/garden-invariants.ts
-    - scripts/sync/sync-doc-links.ts
-    - scripts/sync/sync-fd-resources.ts
-    - scripts/triage/triage-list-untriaged.ts
+    - src/docs/docs-api.ts
+    - src/docs/docs-check.ts
+    - src/docs/docs-transclude.ts
+    - src/garden/garden-detect.ts
+    - src/garden/garden-invariants.ts
+    - src/sync/sync-doc-links.ts
+    - src/sync/sync-fd-resources.ts
+    - src/triage/triage-list-untriaged.ts
   tests:
     - src/garden/__tests__/garden-detect.test.ts
   docs: []
@@ -26,7 +26,7 @@ noldor-tier: full
 
 ## Summary
 
-A `/garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`scripts/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
+A `/garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`src/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
 
 ## User Story
 
@@ -47,14 +47,14 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-04-29-doc-gardening-skill-design.md`](../../docs/superpowers/specs/archive/2026-04-29-doc-gardening-skill-design.md)
 - **Code:**
-  - [`scripts/docs/docs-api.ts`](../../scripts/docs/docs-api.ts)
-  - [`scripts/docs/docs-check.ts`](../../scripts/docs/docs-check.ts)
-  - [`scripts/docs/docs-transclude.ts`](../../scripts/docs/docs-transclude.ts)
-  - [`scripts/garden/garden-detect.ts`](../../scripts/garden/garden-detect.ts)
-  - [`scripts/garden/garden-invariants.ts`](../../scripts/garden/garden-invariants.ts)
-  - [`scripts/sync/sync-doc-links.ts`](../../scripts/sync/sync-doc-links.ts)
-  - [`scripts/sync/sync-fd-resources.ts`](../../scripts/sync/sync-fd-resources.ts)
-  - [`scripts/triage/triage-list-untriaged.ts`](../../scripts/triage/triage-list-untriaged.ts)
+  - [`src/docs/docs-api.ts`](../../src/docs/docs-api.ts)
+  - [`src/docs/docs-check.ts`](../../src/docs/docs-check.ts)
+  - [`src/docs/docs-transclude.ts`](../../src/docs/docs-transclude.ts)
+  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
+  - [`src/garden/garden-invariants.ts`](../../src/garden/garden-invariants.ts)
+  - [`src/sync/sync-doc-links.ts`](../../src/sync/sync-doc-links.ts)
+  - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
+  - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
 - **Tests:**
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
 

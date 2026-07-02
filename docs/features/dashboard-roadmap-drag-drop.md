@@ -4,20 +4,20 @@ category: Tooling
 deps: []
 links:
   code:
-    - scripts/dashboard/api/atomic.ts
-    - scripts/dashboard/api/blocks.ts
-    - scripts/dashboard/data.ts
-    - scripts/dashboard/layout.ts
-    - scripts/dashboard/server.ts
-    - scripts/dashboard/static/drag.ts
-    - scripts/dashboard/views.ts
-    - scripts/features/migrate-features.ts
-    - scripts/garden/garden-detect.ts
-    - scripts/utils/parse-blocks.ts
-    - scripts/utils/slugify.ts
-    - scripts/utils/write-blocks.ts
+    - src/dashboard/api/atomic.ts
+    - src/dashboard/api/blocks.ts
+    - src/dashboard/data.ts
+    - src/dashboard/layout.ts
+    - src/dashboard/server.ts
+    - src/dashboard/static/drag.ts
+    - src/dashboard/views.ts
+    - src/features/migrate-features.ts
+    - src/garden/garden-detect.ts
+    - src/utils/parse-blocks.ts
+    - src/utils/slugify.ts
+    - src/utils/write-blocks.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-05-14-dashboard-roadmap-drag-drop-design.md
+    lost-pre-extraction
   tests:
     - src/dashboard/__tests__/api-blocks.test.ts
     - src/dashboard/__tests__/dashboard-data.test.ts
@@ -76,18 +76,18 @@ This release ships drag-and-drop reordering for the dashboard roadmap and backlo
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-05-14-dashboard-roadmap-drag-drop-design.md`](../../docs/superpowers/specs/archive/2026-05-14-dashboard-roadmap-drag-drop-design.md)
 - **Code:**
-  - [`scripts/dashboard/api/atomic.ts`](../../scripts/dashboard/api/atomic.ts)
-  - [`scripts/dashboard/api/blocks.ts`](../../scripts/dashboard/api/blocks.ts)
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
-  - [`scripts/dashboard/server.ts`](../../scripts/dashboard/server.ts)
-  - [`scripts/dashboard/static/drag.ts`](../../scripts/dashboard/static/drag.ts)
-  - [`scripts/dashboard/views.ts`](../../scripts/dashboard/views.ts)
-  - [`scripts/features/migrate-features.ts`](../../scripts/features/migrate-features.ts)
-  - [`scripts/garden/garden-detect.ts`](../../scripts/garden/garden-detect.ts)
-  - [`scripts/utils/parse-blocks.ts`](../../scripts/utils/parse-blocks.ts)
-  - [`scripts/utils/slugify.ts`](../../scripts/utils/slugify.ts)
-  - [`scripts/utils/write-blocks.ts`](../../scripts/utils/write-blocks.ts)
+  - [`src/dashboard/api/atomic.ts`](../../src/dashboard/api/atomic.ts)
+  - [`src/dashboard/api/blocks.ts`](../../src/dashboard/api/blocks.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/static/drag.ts`](../../src/dashboard/static/drag.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
+  - [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts)
+  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
+  - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
+  - [`src/utils/slugify.ts`](../../src/utils/slugify.ts)
+  - [`src/utils/write-blocks.ts`](../../src/utils/write-blocks.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/api-blocks.test.ts`](../../src/dashboard/__tests__/api-blocks.test.ts)
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)

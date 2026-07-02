@@ -8,8 +8,12 @@ links:
     - .claude/skills/noldor-plan/
     - src/worktrees/
     - src/prep/draft.ts
-    - '.claude/skills/{gate,garden,draft-feature-md}/SKILL.md'
-    - 'docs/noldor/{complexity-gating,workflow,skill-catalog}.md'
+    - .claude/skills/gate/SKILL.md
+    - .claude/skills/garden/SKILL.md
+    - .claude/skills/draft-feature-md/SKILL.md
+    - docs/noldor/complexity-gating.md
+    - docs/noldor/workflow.md
+    - docs/noldor/skill-catalog.md
   tests: []
   spec: >-
     docs/superpowers/specs/archive/2026-06-11-de-superpowers-vendor-spec-plan-and-worktree-flows-design.md
@@ -52,7 +56,11 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
   - [`.claude/skills/noldor-plan/`](../../.claude/skills/noldor-plan/)
   - [`src/worktrees/`](../../src/worktrees/)
   - [`src/prep/draft.ts`](../../src/prep/draft.ts)
-  - [`.claude/skills/{gate,garden,draft-feature-md}/SKILL.md`](../../.claude/skills/{gate,garden,draft-feature-md}/SKILL.md)
-  - [`docs/noldor/{complexity-gating,workflow,skill-catalog}.md`](../../docs/noldor/{complexity-gating,workflow,skill-catalog}.md)
+  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`.claude/skills/garden/SKILL.md`](../../.claude/skills/garden/SKILL.md)
+  - [`.claude/skills/draft-feature-md/SKILL.md`](../../.claude/skills/draft-feature-md/SKILL.md)
+  - [`docs/noldor/complexity-gating.md`](../noldor/complexity-gating.md)
+  - [`docs/noldor/workflow.md`](../noldor/workflow.md)
+  - [`docs/noldor/skill-catalog.md`](../noldor/skill-catalog.md)
 
 <!-- /generated: resources -->

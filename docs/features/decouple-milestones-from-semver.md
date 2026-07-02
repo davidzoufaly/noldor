@@ -4,7 +4,7 @@ category: Tooling
 deps: []
 links:
   spec: >-
-    docs/superpowers/specs/archive/2026-05-13-decouple-milestones-from-semver-design.md
+    lost-pre-extraction
   code: []
   tests: []
 name: Decouple Milestones from Semver

@@ -4,12 +4,12 @@ category: Tooling
 deps: []
 links:
   code:
-    - scripts/dashboard/data.ts
-    - scripts/dashboard/layout.ts
-    - scripts/dashboard/server.ts
-    - scripts/dashboard/static/drag.ts
-    - scripts/dashboard/views.ts
-    - scripts/lib/area-category.ts
+    - src/dashboard/data.ts
+    - src/dashboard/layout.ts
+    - src/dashboard/server.ts
+    - src/dashboard/static/drag.ts
+    - src/dashboard/views.ts
+    - src/lib/area-category.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
@@ -84,12 +84,12 @@ This release unifies filter widths across the roadmap, backlog, and features vie
 ## Resources
 
 - **Code:**
-  - [`scripts/dashboard/data.ts`](../../scripts/dashboard/data.ts)
-  - [`scripts/dashboard/layout.ts`](../../scripts/dashboard/layout.ts)
-  - [`scripts/dashboard/server.ts`](../../scripts/dashboard/server.ts)
-  - [`scripts/dashboard/static/drag.ts`](../../scripts/dashboard/static/drag.ts)
-  - [`scripts/dashboard/views.ts`](../../scripts/dashboard/views.ts)
-  - [`scripts/lib/area-category.ts`](../../scripts/lib/area-category.ts)
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/dashboard/static/drag.ts`](../../src/dashboard/static/drag.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
+  - [`src/lib/area-category.ts`](../../src/lib/area-category.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-views.test.ts`](../../src/dashboard/__tests__/dashboard-views.test.ts)
