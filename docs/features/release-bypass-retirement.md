@@ -3,14 +3,30 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
-  docs: []
-  tests: []
+  code:
+    - src/cr/config.ts
+    - src/release/release-cr-gate.ts
+    - src/release/index.ts
+    - src/garden/detectors/override-audit.ts
+    - src/garden/garden-detect.ts
+    - src/garden/sdd-report.ts
+    - src/garden/garden-receipt.ts
+  docs:
+    - docs/noldor/cr-pipeline.md
+    - docs/noldor/versioning.md
+  tests:
+    - src/cr/__tests__/config.test.ts
+    - src/release/__tests__/release-cr-gate.test.ts
+    - src/garden/detectors/__tests__/override-audit.test.ts
+    - src/garden/__tests__/garden-detect.test.ts
+    - src/garden/__tests__/sdd-report.test.ts
+    - src/garden/__tests__/garden-receipt.test.ts
   spec: docs/superpowers/specs/2026-07-02-release-bypass-retirement-design.md
+  plan: docs/superpowers/plans/2026-07-02-release-bypass-retirement.md
 name: Release Bypass Retirement
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
