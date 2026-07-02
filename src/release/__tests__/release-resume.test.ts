@@ -1,7 +1,7 @@
 // @tests: pnpm-release-resume
 import { describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertNoInProgressRelease, resumeRelease } from '../index.js';
@@ -51,6 +51,45 @@ function seedReleaseRepo(): string {
 
 const RESUME_OPTS = { lockstepPackages: ['package.json'], name: 'testpkg' };
 
+/** Bare file remote wired up as `origin`, primed with the current main. */
+function addBareOrigin(cwd: string): string {
+  const bare = mkdtempSync(join(tmpdir(), 'release-resume-origin-'));
+  spawnSync('git', ['init', '-q', '--bare', '-b', 'main'], { cwd: bare });
+  git(cwd, ['remote', 'add', 'origin', bare]);
+  git(cwd, ['push', '-q', 'origin', 'main']);
+  return bare;
+}
+
+/**
+ * PATH-stubbed `gh` that records every invocation to a log file. `release
+ * view` fails until a `release create` has run (marker file), mirroring the
+ * real API surface, so the view-then-create rung behaves realistically.
+ */
+function fakeGh(
+  cwd: string,
+  opts: { releaseExists: boolean },
+): { env: { PATH: string }; logFile: string } {
+  const binDir = join(cwd, 'fake-bin');
+  mkdirSync(binDir, { recursive: true });
+  const logFile = join(cwd, 'gh-log.txt');
+  const marker = join(cwd, 'gh-release-created');
+  if (opts.releaseExists) writeFileSync(marker, '');
+  const script = [
+    '#!/bin/sh',
+    `echo "$@" >> ${logFile}`,
+    'if [ "$1" = "release" ] && [ "$2" = "view" ]; then',
+    `  [ -f ${marker} ] && exit 0`,
+    '  exit 1',
+    'fi',
+    `if [ "$1" = "release" ] && [ "$2" = "create" ]; then touch ${marker}; fi`,
+    'exit 0',
+    '',
+  ].join('\n');
+  writeFileSync(join(binDir, 'gh'), script);
+  chmodSync(join(binDir, 'gh'), 0o755);
+  return { env: { PATH: `${binDir}:${process.env.PATH ?? ''}` }, logFile };
+}
+
 describe('assertNoInProgressRelease', () => {
   it('passes silently when no release state exists', () => {
     const dir = mkdtempSync(join(tmpdir(), 'release-resume-'));
@@ -94,5 +133,48 @@ describe('resumeRelease — verification rungs', () => {
     await expect(resumeRelease(cwd, RESUME_OPTS)).rejects.toThrow(
       /outside the release surface: src-stray\.ts/,
     );
+  });
+});
+
+describe('resumeRelease — commit + tag rungs', () => {
+  it('commits the dirty release surface and tags it', async () => {
+    const cwd = seedReleaseRepo();
+    addBareOrigin(cwd);
+    const { env } = fakeGh(cwd, { releaseExists: true });
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    appendFileSync(join(cwd, 'docs/features/foo.md'), 'introduced: v0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    expect(git(cwd, ['log', '-1', '--format=%s']).trim()).toBe('chore(release): v0.4.1');
+    expect(git(cwd, ['status', '--porcelain']).trim()).toBe('');
+    expect(git(cwd, ['tag', '--list', 'v0.4.1']).trim()).toBe('v0.4.1');
+  });
+
+  it('skips the commit rung when HEAD already carries the release subject', async () => {
+    const cwd = seedReleaseRepo();
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    git(cwd, ['add', '.']);
+    git(cwd, ['commit', '-q', '-m', 'chore(release): v0.4.1']);
+    addBareOrigin(cwd);
+    const { env } = fakeGh(cwd, { releaseExists: true });
+    writeReleaseState(cwd, STATE);
+    const before = git(cwd, ['rev-list', '--count', 'HEAD']).trim();
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    expect(git(cwd, ['rev-list', '--count', 'HEAD']).trim()).toBe(before);
+    expect(git(cwd, ['tag', '--list', 'v0.4.1']).trim()).toBe('v0.4.1');
+  });
+
+  it('skips the tag rung when the tag already exists', async () => {
+    const cwd = seedReleaseRepo();
+    git(cwd, ['tag', '-a', 'v0.4.1', '-m', 'v0.4.1']);
+    const tagTarget = git(cwd, ['rev-parse', 'v0.4.1^{}']).trim();
+    addBareOrigin(cwd);
+    const { env } = fakeGh(cwd, { releaseExists: true });
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    expect(git(cwd, ['log', '-1', '--format=%s']).trim()).toBe('chore(release): v0.4.1');
+    // Pre-existing tag untouched — still points at the seed commit.
+    expect(git(cwd, ['rev-parse', 'v0.4.1^{}']).trim()).toBe(tagTarget);
   });
 });

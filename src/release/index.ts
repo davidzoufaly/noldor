@@ -215,7 +215,45 @@ export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<v
         'in-progress release with `git reset --hard && rm .noldor/release-state.json`.',
     );
   }
-  // Rungs 3-6 (commit → tag → push → gh release) land in the next task.
+  // Rung 3 — commit: skip when HEAD already carries the release subject
+  // (same subject + `git add` list as the normal path). Runs inside
+  // withReleaseSession, so the pre-commit hook sees a fresh
+  // release-automation marker.
+  const subject = `chore(release): v${state.version}`;
+  const headSubject = await runIn('git', ['log', '-1', '--format=%s']);
+  if (headSubject === subject) {
+    console.log(`→ commit: HEAD is already "${subject}" (skipped)`);
+  } else {
+    await runIn('git', [
+      'add',
+      'CHANGELOG.md',
+      'docs/release-notes.md',
+      'docs/sdd-report.md',
+      'docs/features',
+      'docs/noldor',
+      ...opts.lockstepPackages,
+    ]);
+    await runIn('git', ['commit', '-m', subject]);
+    console.log(`→ commit: created "${subject}"`);
+  }
+
+  // Rung 4 — tag: skip when the tag already exists.
+  const tag = `v${state.version}`;
+  let tagExists = true;
+  try {
+    await runIn('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
+      captureOutput: true,
+    });
+  } catch {
+    tagExists = false;
+  }
+  if (tagExists) {
+    console.log(`→ tag: ${tag} already exists (skipped)`);
+  } else {
+    await runIn('git', ['tag', '-a', tag, '-m', tag]);
+    console.log(`→ tag: created ${tag}`);
+  }
+  // Rungs 5-6 (push → gh release) land in the next task.
 }
 
 async function main(): Promise<void> {
