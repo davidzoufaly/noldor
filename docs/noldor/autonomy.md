@@ -17,10 +17,13 @@ and escalates the rest to a structured inbox instead of dying or blocking.
    run — including between cycles — is live operator intent and is honored, never cleared).
 3. Cycle: pause check → daily-cap check → **cycle-start reconciliation** (same pass as
    `run`'s startup: reap orphan agents from a dead prior cycle/run, sync + local-ahead
-   divergence pre-flight, heal open PRs, prune shipped worktrees; a reconcile failure
-   trips loudly — `drain.pause` + `reconcile-failed` escalation + notify + exit 1) →
-   bounded `runDrain` (`--max-features` per cycle, K=1) → escalation mapping → rails
-   update → notify → sleep `--interval` minutes.
+   divergence pre-flight, heal open PRs, prune shipped worktrees). A reconcile failure
+   always writes a `reconcile-failed` escalation + notify; a local-ahead **divergence**
+   (persistent operator condition) or a full `maxConsecutiveFailures` streak trips —
+   `drain.pause` + exit 1 — while any other throw (transient gh/network) just bumps the
+   failure streak and retries next cycle. Then: bounded `runDrain` (`--max-features`
+   per cycle, K=1) → escalation mapping → rails update → notify → sleep `--interval`
+   minutes.
 4. `--once` runs a single cycle and exits — cron mode is the same code.
 5. Signals mirror `run`: SIGINT = graceful between-cycles stop (in-flight children
    finish); SIGTERM (`kill $(cat .noldor/watch.pid)`) group-kills the in-flight agent
@@ -82,7 +85,7 @@ Item-scoped terminal failures park the slug and the loop continues (park-and-con
 | `merge-timeout`     | coordinator merge outcome                                              | yes   |
 | `run-aborted`       | repo-level abort (ff-only reject, gh failure) — bumps the trip rail   | no    |
 | `watcher-tripped`   | `maxConsecutiveFailures` reached                                      | no    |
-| `reconcile-failed`  | cycle-start reconciliation threw (e.g. local main ahead of origin)    | no    |
+| `reconcile-failed`  | cycle-start reconciliation threw (divergence trips; transients retry) | no    |
 
 Storage: `.noldor/escalations.jsonl` (append-only audit; rows carry `source`) +
 `.noldor/drain-park.json` (open set, keyed `"<source>:<slug>"`). Parks auto-resolve when the
