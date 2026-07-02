@@ -13,6 +13,7 @@ docs/ideas.md
 
 # Operator-local session + gate state (per-machine, never committed)
 .noldor/session.json
+.noldor/release-state.json
 .noldor/overrides.log
 .noldor/cr-overrides.log
 .noldor/dashboard.log
