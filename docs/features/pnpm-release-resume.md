@@ -5,12 +5,14 @@ deps: []
 links:
   code: []
   docs: []
-  tests: []
+  tests:
+    - src/release/__tests__/release-resume.test.ts
+    - src/release/__tests__/release-state.test.ts
   spec: docs/superpowers/specs/2026-07-02-pnpm-release-resume-design.md
 name: '`pnpm release --resume`'
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
