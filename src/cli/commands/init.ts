@@ -23,6 +23,7 @@ import { RUNNER_NAMES, type RunnerName } from '../../core/agent-runner/types.js'
 import { loadFrameworkVersion, writeFrameworkVersion } from '../../core/consumer-config.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 import { ensureRolloutMarker } from '../../core/rollout-marker.js';
+import { ensureGitignoreBlock } from '../../core/init-gitignore.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -85,6 +86,12 @@ try {
     if (r.status !== 'unchanged') console.log(`${r.status.padEnd(10)} ${r.path}`);
   }
   console.log(`\n${counts.added} added, ${counts.updated} updated, ${counts.unchanged} unchanged`);
+  // Transient .noldor state (session marker, CR sinks, drain state) must never
+  // land in consumer commits — append the ignore block before hooks go live.
+  const ignore = ensureGitignoreBlock(consumer);
+  if (ignore !== 'unchanged') {
+    console.log(`${ignore.padEnd(10)} .gitignore (.noldor transient-state block)`);
+  }
   // Arm the gate validators (trailer / receipt / session hard wall) from the
   // next commit onward. Without a committed marker every validator stays in
   // soft mode — enforcement prose without enforcement.

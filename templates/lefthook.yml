@@ -1,0 +1,5 @@
+# Consumer root lefthook config — starter, yours to extend.
+# The noldor framework hook block lives in ./lefthook/noldor.yml (template-
+# synced; don't edit that one). Append project-specific hooks below `extends`.
+extends:
+  - ./lefthook/noldor.yml

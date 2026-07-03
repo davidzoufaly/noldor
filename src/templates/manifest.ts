@@ -17,7 +17,15 @@ export const TEMPLATES_ROOT = join(here, '..', '..', 'templates');
  * --adopt` never snapshots them back (the live file holds consumer-specific
  * values), and template-sync/doctor never report drift on them.
  */
-export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set(['.noldor/config.json']);
+export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set([
+  '.noldor/config.json',
+  // Consumer root lefthook.yml: the extends-shim starter — the consumer owns
+  // it and appends project hooks (framework jobs live in lefthook/noldor.yml).
+  'lefthook.yml',
+  // Formatter config starter: scaffolded hooks invoke `pnpm fmt` / `fmt:check`
+  // (oxfmt), which hard-errors without a config file.
+  '.oxfmtrc.json',
+]);
 
 /** Enumerate every file under TEMPLATES_ROOT, returning paths relative to it. */
 export function templateFiles(root: string = TEMPLATES_ROOT): string[] {

@@ -106,4 +106,15 @@ describe('keyboard-binding plugin', () => {
     const result = await inv.run();
     expect(result.violations).toHaveLength(0);
   });
+
+  it('passes (not crashes) when docs/features does not exist yet', async () => {
+    const bare = await mkdtemp(join(tmpdir(), 'inv-kb-bare-'));
+    try {
+      const inv = makeKeyboardBindingInvariant(bare);
+      const result = await inv.run();
+      expect(result.violations).toHaveLength(0);
+    } finally {
+      await rm(bare, { force: true, recursive: true });
+    }
+  });
 });
