@@ -8,6 +8,7 @@ import { roadmapSource } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { detachWatch } from './watch-detach.js';
 import { writeState, projectDrainState } from './drain-state.js';
+import { makePhaseTap } from './phase-events.js';
 import {
   assertQueueSourceSyncedAt,
   syncMainCleanState,
@@ -290,7 +291,9 @@ async function main(): Promise<void> {
         mergePr: (slug, branch) => mergePr(cwd, slug, branch),
         openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
         salvageStaleBase: makeSalvage(cwd, 'watch'),
-        writeState: (s) => writeState(cwd, projectDrainState(process.pid, startedAt, s)),
+        writeState: makePhaseTap(cwd, runId, (s) =>
+          writeState(cwd, projectDrainState(process.pid, startedAt, s)),
+        ),
         stopRequested: () => sigint || existsSync(join(cwd, STOP_REL)) || pauseExists(),
       };
 
