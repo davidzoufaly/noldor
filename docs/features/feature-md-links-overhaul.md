@@ -9,6 +9,7 @@ deps: []
 links:
   code:
     - src/checks/check-feature-slug-scope.ts
+    - src/core/extract-touches.ts
     - src/features/feature-schema.ts
     - src/features/fill-links-code-gaps.ts
     - src/features/migrate-features.ts

@@ -15,6 +15,7 @@ links:
     - src/release/llm-polish-summary.ts
     - src/cli/commands/init.ts
     - src/cli/commands/doctor.ts
+    - src/checks/check-template-sync.ts
     - templates/.opencode/
     - templates/AGENTS.md
     - templates/opencode.json
@@ -22,6 +23,7 @@ links:
   tests:
     - src/autonomous/__tests__/drain-reconcile.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
+    - src/checks/__tests__/check-template-sync.test.ts
     - src/core/__tests__/agent-events.test.ts
     - src/core/agent-runner/__tests__/doctor-runners.test.ts
     - src/core/agent-runner/__tests__/no-stray-spawns.test.ts

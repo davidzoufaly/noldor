@@ -1,3 +1,4 @@
+// @tests: per-task-dev-environment-bootstrap
 import { describe, it, expect } from 'vitest';
 import { waitForHttp200 } from '../health.js';
 

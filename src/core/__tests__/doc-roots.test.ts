@@ -1,3 +1,4 @@
+// @tests: framework-doc-extraction
 import { describe, expect, it } from 'vitest';
 import { loadDocRoots } from '../doc-roots.js';
 

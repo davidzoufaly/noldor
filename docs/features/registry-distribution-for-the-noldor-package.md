@@ -16,8 +16,6 @@ links:
     - src/release/__tests__/publish-workflow.test.ts
     - src/release/__tests__/release-publish-cli.test.ts
     - src/release/__tests__/release-publish.test.ts
-    - src/release/__tests__/release-resume.test.ts
-    - src/cr/__tests__/config.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-registry-distribution-for-the-noldor-package-design.md
 name: Registry Distribution for the Noldor Package

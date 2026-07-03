@@ -8,6 +8,7 @@ links:
     - src/migrations/
     - src/cli/manifest.ts
     - src/cli/commands/init.ts
+    - src/cli/commands/upgrade.ts
     - src/core/consumer-config.ts
     - docs/noldor/adoption-guide.md
     - docs/noldor/versioning.md

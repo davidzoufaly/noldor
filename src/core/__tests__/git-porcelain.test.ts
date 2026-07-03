@@ -1,3 +1,4 @@
+// @tests: parallel-agent-dispatch-for-research-jobs
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

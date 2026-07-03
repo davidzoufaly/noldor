@@ -3,9 +3,11 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/verify/health.ts
   docs: []
-  tests: []
+  tests:
+    - src/verify/__tests__/health.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md
   plan: docs/superpowers/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md

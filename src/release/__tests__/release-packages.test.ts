@@ -1,3 +1,4 @@
+// @tests: noldor
 import { bumpPackageJson } from '../release-packages.js';
 
 describe(bumpPackageJson, () => {

@@ -7,6 +7,9 @@ links:
     - src/cr/
     - src/core/consumer-config.ts
     - src/autonomous/
+    - src/verify/port.ts
+    - src/verify/smoke.ts
+    - src/verify/smoke-cli.ts
     - docs/noldor/cr-pipeline.md
     - docs/noldor/adoption-guide.md
     - .noldor/config.json

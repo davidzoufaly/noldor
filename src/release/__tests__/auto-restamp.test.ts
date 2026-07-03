@@ -1,3 +1,4 @@
+// @tests: noldor
 import { describe, it, expect, vi } from 'vitest';
 import { autoStampOnCleanDetect } from '../auto-restamp';
 
