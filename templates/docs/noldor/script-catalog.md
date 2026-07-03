@@ -286,6 +286,7 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 | `pnpm noldor autonomous watch`  | [`src/autonomous/watch.ts`](../../src/autonomous/watch.ts)               | Continuous drain daemon; `--once` = cron mode, `--detach` = unattended. See [`autonomy.md`](autonomy.md).    |
 | `pnpm noldor autonomous inbox`  | [`src/autonomous/inbox-cli.ts`](../../src/autonomous/inbox-cli.ts)       | List open escalations (parked slugs) with evidence + suggested action.              |
 | `pnpm noldor autonomous unpark` | [`src/autonomous/unpark-cli.ts`](../../src/autonomous/unpark-cli.ts)     | Resolve an escalation: `unpark <slug> [--source <id>]`.                             |
+| `pnpm noldor autonomous status` | [`src/autonomous/status-cli.ts`](../../src/autonomous/status-cli.ts)     | Runner liveness (lock pid + `kill -0`) plus shipped/skip/in-flight (`--json`).      |
 
 ## Utilities
 
