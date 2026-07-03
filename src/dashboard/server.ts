@@ -8,6 +8,7 @@ import {
   getBacklogPath,
   getRoadmapPath,
   loadActiveMilestone,
+  loadAgentActivity,
   loadMilestoneGroups,
   loadBacklogWithHash,
   loadCounts,
@@ -131,6 +132,7 @@ function matchRoute(method: string, pathname: string): RouteMatch | null {
     if (pathname === '/test-pyramid') return { handler: handleTestPyramid, pathParams: {} };
     if (pathname === '/graph-health') return { handler: handleGraphHealth, pathParams: {} };
     if (pathname === '/worktrees') return { handler: handleWorktrees, pathParams: {} };
+    if (pathname === '/api/agents') return { handler: handleApiAgents, pathParams: {} };
     if (pathname === '/metrics') return { handler: handleMetrics, pathParams: {} };
     if (pathname === '/framework') return { handler: handleFrameworkIndex, pathParams: {} };
     const fwMatch = /^\/framework\/([a-z0-9-]+)$/.exec(pathname);
@@ -759,6 +761,11 @@ async function handleWorktrees(): Promise<RouteResult> {
     title: 'Worktrees',
     activeNav: '/worktrees',
   };
+}
+
+/** Read-only JSON for the /agents poller — no CSRF/atomic concerns (mutations only). */
+async function handleApiAgents(): Promise<RouteResult> {
+  return jsonResult(200, await loadAgentActivity());
 }
 
 async function handleMetrics(): Promise<RouteResult> {
