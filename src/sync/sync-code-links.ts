@@ -5,13 +5,12 @@ import { basename, join, relative } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { loadConsumerConfig } from '../core/consumer-config.js';
+import { scanRoots } from '../core/repo-paths.js';
 
 const TAG_RE = /^\/\/\s*@fd:\s*(.+?)\s*$/m;
 const CODE_FILE_RE = /\.(ts|tsx|js|jsx)$/;
 const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx)$/;
 const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git', '__tests__']);
-const DEFAULT_SCAN_ROOTS = ['packages', 'apps', 'scripts', 'src'];
 
 /** A code file path paired with the FD slugs it tagged via `// @fd:`. */
 export interface TaggedCode {
@@ -59,11 +58,10 @@ export function buildSlugToCodeMap(tagged: TaggedCode[]): Map<string, string[]> 
   return map;
 }
 
-/** Scan roots: consumer `scanPaths` when configured, else the default roster. */
-export function scanRoots(): string[] {
-  const { scanPaths } = loadConsumerConfig();
-  return scanPaths.length > 0 ? scanPaths : DEFAULT_SCAN_ROOTS;
-}
+// Compatibility re-export: the provider moved to src/core/repo-paths.ts
+// (single definition). Existing importers keep this path; new code should
+// import from '../core/repo-paths.js' directly.
+export { scanRoots };
 
 async function walkCode(dir: string, out: string[]): Promise<void> {
   let entries;
