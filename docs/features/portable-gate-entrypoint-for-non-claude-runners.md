@@ -4,10 +4,16 @@ category: Tooling
 deps: []
 links:
   code:
+    - src/autonomous/drain-io.ts
     - src/autonomous/drain-source.ts
-  docs: []
+    - src/autonomous/gate-prompt.ts
+    - src/core/agent-runner/capabilities.ts
+    - src/core/agent-runner/types.ts
+  docs:
+    - docs/noldor/drain-mode.md
   tests:
     - src/autonomous/__tests__/drain-source.test.ts
+    - src/autonomous/__tests__/gate-prompt.test.ts
     - src/core/agent-runner/__tests__/runners.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md
