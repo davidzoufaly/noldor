@@ -1,6 +1,6 @@
 ---
 name: release-sweep
-description: Orchestrate the full pre-release sweep — /graphify → pnpm toon → /refactor against the new GRAPH_REPORT.md → README drift check → /graphify + pnpm toon to capture the refactor → commit sweep results → pause for explicit user confirmation → pnpm release. Use when the user signals they're ready to release. Never runs pnpm release without explicit confirmation.
+description: Orchestrate the full pre-release sweep — /graphify (AST-only by default) → pnpm toon → /refactor against the new GRAPH_REPORT.md → README drift check → /graphify + pnpm toon to capture the refactor → commit sweep results → pause for explicit user confirmation → pnpm release. Full-semantic graphify is an explicit opt-in (--full-semantic). Use when the user signals they're ready to release. Never runs pnpm release without explicit confirmation.
 user_invocable: true
 ---
 
@@ -35,9 +35,13 @@ If any check fails, stop and report. Do not proceed.
 
 ## Steps
 
-### 1. First graphify pass
+### 1. First graphify pass (AST-only by default)
 
-Invoke the `graphify` skill (Skill tool, name `graphify`). Wait for it to finish — it generates `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md`, and the HTML graph. Do NOT engage with its trailing "want me to trace it?" exploration prompt — you have downstream work to do.
+Invoke the `graphify` skill (Skill tool, name `graphify`) with args `--ast-only (structural extraction only: run the AST part and merge with an empty semantic result; do NOT dispatch semantic extraction subagents)`. Wait for it to finish — it generates `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md`, and the HTML graph. Do NOT engage with its trailing "want me to trace it?" exploration prompt — you have downstream work to do.
+
+**Why AST-only.** `/refactor` keys off god nodes, community cohesion, and dead exports — all of which come from the AST structural graph. The v0.4.0 full-semantic sweep fanned out 31 background subagents over 669 files; roughly half died mid-run (session-pause kills, API disconnects, stream-watchdog stalls), two chunks never landed, and the marginal value for the sweep was near zero. AST-only runs in seconds, is deterministic, and needs no agents.
+
+**Full-semantic opt-in.** Run the full semantic pipeline only when the operator explicitly asks for a deep pass — `/release-sweep --full-semantic` or an equivalent in-conversation request. In that case invoke `graphify` with no mode args (its default full pipeline). Never escalate to full-semantic on your own.
 
 ### 2. Toon files
 
@@ -69,7 +73,7 @@ If README looks current, say so explicitly: "README reflects current state — n
 
 ### 5. Second graphify pass + toon
 
-Invoke the `graphify` skill again to capture the refactor. Then `pnpm toon` again. The post-refactor graph is the snapshot that ships with the release tag.
+Invoke the `graphify` skill again — same mode as step 1 (AST-only by default; full-semantic only if the operator opted in there) — to capture the refactor. Then `pnpm toon` again. The post-refactor graph is the snapshot that ships with the release tag.
 
 ### 5.5. Drift pre-empt — sdd:report
 
@@ -175,6 +179,7 @@ The release-sweep session ends here. The next gate path writes its own session m
 ## Rules
 
 - **Never run `pnpm release` without `release now` confirmation.** Even if the user said "ready for release" earlier in the conversation. Even if they seem to expect it. The explicit gate is non-negotiable.
+- **AST-only is the default graph mode.** Never dispatch the semantic subagent fan-out unless the operator explicitly opted into `--full-semantic`. The AST graph already carries everything `/refactor` consumes.
 - **Never `--no-verify` or `--amend`** at any stage.
 - **Don't engage with `/graphify`'s post-run exploration prompt.** The skill ends with "want me to trace [question]?" — answer no implicitly by moving on to step 2.
 - **If `pnpm verify` fails at step 1, 3, or 7** — stop. Don't paper over. The sweep can only ship a green main.

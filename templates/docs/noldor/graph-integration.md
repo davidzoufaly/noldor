@@ -50,6 +50,12 @@ required before any minor or major `pnpm release`. See
 [`versioning.md`](versioning.md) "Pre-release sweep" for the release-flow
 contract.
 
+Both graphify passes in the sweep run **AST-only by default** (structural
+extraction, no semantic subagent fan-out): `/refactor` keys off god nodes,
+cohesion, and dead exports, which all come from the AST graph, and AST-only
+is deterministic and takes seconds. The full-semantic pipeline is an explicit
+operator opt-in (`/release-sweep --full-semantic`) reserved for deep passes.
+
 ## graph-fd-lookup substrate
 
 Detectors that need to map a code file to its owning FD use the path → FD
