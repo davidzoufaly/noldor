@@ -2,6 +2,9 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { proposeCandidates, rankCandidates } from '../propose-pointers.js';
 import type { GraphifyGraph } from '../../garden/graph-fd-lookup.js';
 
@@ -67,5 +70,20 @@ describe('proposeCandidates', () => {
 
   it('returns [] when the FD owns nothing in the graph', () => {
     expect(proposeCandidates('unknown-fd', graph, fileToFds)).toEqual([]);
+  });
+});
+
+describe('root resolution', () => {
+  // Guards the PR #122 CR lesson at the call site: roots handed to
+  // requireFreshGraph must come from the shared union provider, not a
+  // module-private src-only fallback that regresses unconfigured monorepos.
+  it('delegates to the core scanRoots provider with no private src-only fallback', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src', 'features', 'propose-pointers.ts'),
+      'utf8',
+    );
+    expect(source).toContain("from '../core/repo-paths.js'");
+    expect(source).toContain('scanRoots()');
+    expect(source).not.toContain("['src']");
   });
 });
