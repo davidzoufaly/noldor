@@ -47,17 +47,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 ### Phase 6 — Structural
 
-#### Stable Entry IDs for Roadmap + Backlog
-
-- area: tooling
-- type: feat
-- since: 2026-05-22
-- size: M
-- impact: med
-- parent: noldor
-
-Every roadmap and backlog entry is identified today by its kebab-slug derived from the heading. Slugs are rename-fragile — renaming an entry breaks every `deps:`, `parent:`, commit trailer, and dashboard link that targets it; moving an entry between roadmap ↔ backlog preserves the slug but loses heading-evolution traceability. Introduce a stable short ID minted at first triage and never rewritten: e.g. `R-0042` for roadmap and `B-0042` for backlog, or a single `Q-0042` namespace that survives cross-file moves. The ID becomes the canonical reference for `blocked-by:` / `parent:` / commit trailers / dashboard links / garden detectors. Slug stays a human-readable alias that can be rewritten without breakage. Counter persists in `.noldor/id-counter.json`; `/triage` and `/new-feature` mint IDs at creation. Migration: one-sweep backfill across current entries (~25 roadmap + ~7 backlog as of 2026-07-02). Touches: `docs/roadmap.md` + `docs/backlog.md` preambles, `.claude/skills/triage/SKILL.md`, `src/triage/score.ts`, `src/triage/validate-triage.ts`, `docs/noldor/triage.md`, `docs/noldor/feature-md-schema.md`.
-
 #### First-Class `blocked-by` Field
 
 - area: tooling
@@ -69,52 +58,6 @@ Every roadmap and backlog entry is identified today by its kebab-slug derived fr
 - parent: noldor
 
 `docs/noldor/triage.md:64` describes a `deps:` bullet (comma-separated kebab slugs) that `src/triage/score.ts` reads for dependency-weight scoring, but the field is silently optional in v1, undocumented in both `docs/roadmap.md` and `docs/backlog.md` preambles, and nearly unused across current entries. Promote it to a first-class `blocked-by:` field — name matches GitHub-issue + Jira convention and reads better in prose than `deps`. Document it in both file preambles, surface it on the dashboard as a dependency graph view, validate that each referenced ID exists, and have `/garden` flag circular chains. Accept `deps:` ↔ `blocked-by:` as aliases during a migration window, then deprecate `deps:`. Blocked by Stable Entry IDs — `blocked-by:` references should target stable IDs, not rename-fragile slugs. Touches: `docs/roadmap.md` + `docs/backlog.md` preambles, `.claude/skills/triage/SKILL.md`, `src/triage/validate-triage.ts`, `src/garden/detectors/*` (new circular-blocked-by detector), `docs/noldor/triage.md`.
-
-#### Self-Boundaries Declaration and Cycle Break
-
-- area: tooling
-- type: refactor
-- since: 2026-07-01
-- size: M
-- impact: med
-- confidence: high
-
-Replaces the retired Charuy-premise `runtime-architecture-invariant-expansion` with the noldor-native version the 2026-07 audit surfaced: `pnpm noldor invariants run` passes 4/4 but the `boundaries` check sources rules from `.noldor/config.json` = `[]` — dependency-cruiser runs with zero rules while 4 real prod cycles exist (core↔cr via `src/core/pr-flow-cli.ts` importing `cr/config` — the repo-wide config loader lives in the wrong module; features↔garden via `sdd-report.ts` doubling as shared FD-loading lib; garden↔sync; garden↔invariants). Declare real boundary rules for the framework's own module graph, then break the cycles (move the config loader out of `src/cr/`, extract the FD-loading lib from `sdd-report.ts`). The framework preaches boundary discipline; it should declare some for itself. Also retire the Charuy-inherited `keyboard-binding` invariant (slowest check, 922ms, UI concern in a CLI framework).
-
-#### Framework Script + Test Migration Cleanup
-
-- area: tooling
-- type: chore
-- since: 2026-05-10
-- size: M
-- impact: low
-- parent: noldor
-
-Audit `scripts/` and the framework's test corpus to identify scripts/tests that were only needed during migration (FD frontmatter shape changes, gate path additions, garden detector rollouts) and can now be deleted. Conversely, identify gaps where shipped framework features lack test coverage. The 2026-07 audit's cruft inventory is the shopping list: dead `cr-retry.ts`, `src/graphify-out/junk.ts` litter, empty `src/index.ts` as package main, duplicate semver impls (`src/migrations/semver.ts` vs npm `semver` in release), stale `packages/noldor/` + `scripts/release/` path comments (`src/core/consumer-config.ts:7`, `src/core/release-markers.ts:9`), `ideas.md` at repo root while `src/core/doc-roots.ts:28` expects `docs/ideas.md`. One-pass sweep — possibly a `/garden` detector that flags scripts referenced only in migration-era commits and not in any current pipeline.
-
-#### Scope Sibling Trailer for Doc-Sync Commits
-
-- area: tooling
-- type: feat
-- since: 2026-05-12
-- size: M
-- impact: med
-- parent: noldor
-
-The noldor-scope validator (`src/core/validate-noldor-scope.ts`) can force one logically-coherent change (feat in code, tests, sibling doc syncs in `docs/noldor/<page>.md` and `docs/features/<slug>.md`) to split into separate commits per scope. Mechanically correct, but the same logical change becomes 3 entries in `git log` and 3× the gate dance (session, hook, trailer). 2026-05-12 roadmap-priority follow-up hit this. Proposal: introduce a `Noldor-Sibling-Scope: <scope-list>` trailer that lets the validator accept files mapping to listed sibling scopes, keeping the work as one atomic commit. Alternative: validator auto-detects "doc-sync-for-this-feat" patterns and waives the split heuristically. **Re-verify pain before spec'ing** (2026-07-02 note): the validator moved to `src/core/` and appears laxer than this entry claims — multi-page edits pass under a plain `noldor` scope; confirm the forced-split still bites on current code before spending an M on it.
-
-#### Framework Auto-Split Suggestion for Big Features and Plans
-
-- area: tooling
-- type: feat
-- since: 2026-05-10
-- size: M
-- impact: med
-- parent: noldor
-
-When a feature or plan grows past size thresholds, the framework should suggest a split rather than letting work calcify around an oversized FD or unwieldy plan. Heuristics: word count, scope-bullet count, file-touch breadth (from `links.code`), or for plans the row count. The suggestion surfaces in `/promote` (feature) and the plan skill before the operator commits to the path. Today the operator is on their own to spot oversized scope — live example: `prefix-skills-with-noldor` sat mislabeled S for weeks until a drain attempt revealed an L-sized self-referential mega-rename (now parked in backlog, re-sized).
-
-- Plan threshold — suggest split when a plan exceeds ~1000 rows (one part = ~1000 rows). Use this as the initial heuristic and tune with experience.
 
 ### Trigger-Parked (revisit when the named trigger fires)
 
