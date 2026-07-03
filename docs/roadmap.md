@@ -16,28 +16,6 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 ### Phase 3 — Adoption Chain
 
-#### Stack-Assumption Audit and Declared Prerequisites
-
-- area: tooling
-- type: chore
-- since: 2026-06-11
-- size: S
-- impact: med
-- parent: noldor
-
-Noldor hard-assumes its home stack: pnpm, lefthook, TypeScript + vitest, Conventional Commits, `gh` CLI, Claude Code as the driving agent. Opinionated is the stated posture ("opinionated, not configurable" — vision.md), but the opinions are currently *undocumented*, so a mismatched adopter discovers them one runtime error at a time, mid-gate.
-
-**What to do:**
-
-- Sweep `src/` + skills + lefthook templates for every environmental assumption: package manager invocations, hook runner, test runner, formatter (oxfmt), commit-format parsing, `gh` calls, Claude-specific paths (`.claude/`, skill names, transcript layout). Output: a prerequisites matrix — tool, where assumed, hard requirement vs swappable, failure mode if absent.
-- Publish the matrix as a **Prerequisites** section at the top of `docs/noldor/adoption-guide.md`: "Noldor requires: pnpm ≥X, lefthook, vitest, Conventional Commits, gh, Claude Code. Not negotiable pre-1.0."
-- Teach `noldor doctor` to check each prerequisite explicitly (binary present, version floor) and fail with the matrix link — adoption failures move from mid-gate mystery to minute-one diagnosis.
-- Explicitly do NOT abstract anything in this entry — abstraction decisions (other package managers, other agents) stay with `portable-gate-entrypoint-for-non-claude-runners`. This entry only makes the floor visible.
-
-**What it enables:** honest adoption surface; failed adoptions fail fast at `doctor` with a named missing prerequisite; the matrix becomes the scoping document for any future portability work.
-
-**Acceptance sketch:** removing `gh` from PATH → `doctor` names it + links the matrix; matrix lists ≥6 prerequisites with where-assumed pointers.
-
 #### Real Consumer #2 Adoption Dogfood
 
 - area: tooling

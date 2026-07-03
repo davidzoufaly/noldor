@@ -1,9 +1,11 @@
-// `noldor doctor` — two phases:
-// 1. diff every template-managed file (under the pkg's `templates/` asset
+// `noldor doctor` — three phases:
+// 1. presence + version-floor check for every declared stack prerequisite
+//    (binaries + consumer package scripts the hooks invoke).
+// 2. diff every template-managed file (under the pkg's `templates/` asset
 //    dir, filtered to the consumer's `agents.targets`) against the consumer
 //    copy at the same relative path under `process.cwd()`.
-// 2. presence + version-floor check for every *configured* agent runner.
-// Exit 1 on any drift or runner problem; exit 0 with counts on clean.
+// 3. presence + version-floor check for every *configured* agent runner.
+// Exit 1 on any prerequisite, drift, or runner problem; exit 0 with counts on clean.
 // Wired into `pnpm verify` at the consumer side (per spec).
 import {
   TEMPLATES_ROOT,
@@ -14,8 +16,20 @@ import { computeDrift } from '../../templates/diff.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { checkRunners } from '../../core/agent-runner/doctor-runners.js';
+import {
+  MATRIX_LINK,
+  checkBinaryPrerequisites,
+  checkConsumerScripts,
+} from '../../core/prerequisites.js';
 import { loadFrameworkVersion } from '../../core/consumer-config.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
+
+let prereqBad = 0;
+for (const c of [...checkBinaryPrerequisites(), ...checkConsumerScripts(process.cwd())]) {
+  if (c.status === 'ok') continue;
+  prereqBad++;
+  console.log(`${c.status.padEnd(12)} prerequisite ${c.id}: ${c.detail}`);
+}
 
 const agentsCfg = loadAgentsConfig(process.cwd());
 // Scaffold-only starters (e.g. .noldor/config.json) legitimately diverge.
@@ -50,11 +64,16 @@ if (anchored !== installed) {
   );
 }
 
-if (bad === 0 && runnerBad === 0) {
-  console.log(`OK — ${files.length} template files in sync, ${checks.length} runner(s) healthy`);
+if (prereqBad === 0 && bad === 0 && runnerBad === 0) {
+  console.log(
+    `OK — prerequisites healthy, ${files.length} template files in sync, ${checks.length} runner(s) healthy`,
+  );
   process.exit(0);
 }
 
+if (prereqBad > 0) {
+  console.error(`\n${prereqBad} prerequisite problem(s). See ${MATRIX_LINK} for the full matrix.`);
+}
 if (bad > 0) {
   console.error(
     `\n${bad} drift entries. Run 'noldor init --update' to sync consumer paths, or 'noldor init --adopt' if the pkg should adopt consumer state.`,
