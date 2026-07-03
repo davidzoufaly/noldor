@@ -11,7 +11,6 @@ links:
   tests:
     - src/release/__tests__/release-resume.test.ts
     - src/release/__tests__/release-state.test.ts
-    - src/cli/__tests__/cli.test.ts
   spec: docs/superpowers/specs/2026-07-02-pnpm-release-resume-design.md
 name: '`pnpm release --resume`'
 packages:
