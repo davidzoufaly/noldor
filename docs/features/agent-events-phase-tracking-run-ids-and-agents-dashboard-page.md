@@ -34,7 +34,7 @@ links:
 name: 'Agent-Events Phase Tracking, Run IDs and `/agents` Dashboard Page'
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
