@@ -205,6 +205,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'release/index.ts',
         desc: 'Run pnpm release (--resume finishes an interrupted release)',
       },
+      publish: {
+        src: 'release/release-publish.ts',
+        desc: 'Tarball pre-flight + registry wait: --verify-tarball (default) / --wait <version> / --local (emergency, no provenance, logged)',
+      },
     },
   },
   hooks: {

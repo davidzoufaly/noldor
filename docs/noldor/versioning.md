@@ -138,6 +138,31 @@ Preconditions failing aborts before any writes. A failed push or GitHub
 Release creation leaves the local tag/commit in place; the error message
 prints the one-line recovery command.
 
+## Registry publishing
+
+The framework package itself ships to the public npm registry. Every release
+tag `vX.Y.Z` maps 1:1 to npm version `X.Y.Z` of `noldor`; `latest` is the
+only dist-tag pre-1.0. The publish executor is the tag-triggered
+`.github/workflows/publish.yml` workflow (npm Trusted Publishing / CI OIDC —
+works from a private repo; `--provenance` attestation is gated on
+`release.publish.provenance`, default `false`, because it requires a public
+repo — flip it on after open-sourcing); the local `pnpm release` pipeline
+only polls the registry until the new version is visible, and the
+`.noldor/release-state.json` resume token is cleared only after that
+(interruption → `pnpm release --resume`, rung 7). Publishing is opt-in via
+`release.publish.enabled` in `.noldor/config.json` (default `false`), so
+consumer repos running this same vendored pipeline never touch npm.
+Emergency hatches: `pnpm noldor release publish --wait <version>` re-attaches
+to an in-flight publish; `--local` publishes without provenance and logs to
+`.noldor/overrides.log`.
+
+Consumer upgrade flow is unchanged: `pnpm up noldor && pnpm noldor doctor &&
+pnpm noldor upgrade` (see [Version-aware upgrade](#version-aware-upgrade)).
+
+Packaging note: the published bin runs `src/` through tsx at runtime, so
+`src` must stay in the package.json `files` whitelist — dropping it breaks
+every registry install.
+
 ## Who owns `introduced` / `updated`?
 
 The release script. Authors never set these fields manually. Normal flow:

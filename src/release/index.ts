@@ -24,6 +24,7 @@ import {
 } from './release-notes.js';
 import { bumpAllPackages } from './release-packages.js';
 import { withReleaseSession } from './release-session.js';
+import { awaitPublish, isVersionOnRegistry, readPkgIdentity } from './release-publish.js';
 import { clearReleaseState, readReleaseState, writeReleaseState } from './release-state.js';
 import { applyBump, findPreviousTag, getRepoUrl } from './release-version.js';
 
@@ -42,7 +43,7 @@ async function run(
   return stdout.trim();
 }
 
-async function ensureCleanTreeOnMain(): Promise<void> {
+export async function ensureCleanTreeOnMain(): Promise<void> {
   const branch = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
   if (branch !== 'main') {
     throw new Error(`Release must be run from main branch (currently on ${branch}).`);
@@ -158,7 +159,7 @@ const RELEASE_SURFACE_PREFIXES = ['docs/features/', 'docs/noldor/'];
 
 /**
  * Finish an interrupted release from wherever it died. Check-then-act ladder
- * (commit → tag → push → GitHub Release) driven ONLY by the state file written
+ * (commit → tag → push → GitHub Release → publish wait) driven ONLY by the state file written
  * at the mutation boundary — it never re-derives the version and never re-runs
  * checks (the tree is byte-identical to when they passed; the shape check and
  * version cross-check catch external tampering). Safe to re-run after a
@@ -184,6 +185,7 @@ export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<v
     throw new Error(`Resume must run from main branch (currently on ${branch}).`);
   }
   const pkg = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8')) as {
+    name?: string;
     version?: string;
   };
   if (pkg.version !== state.version) {
@@ -293,6 +295,32 @@ export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<v
       tag,
     ]);
     console.log(`→ gh release: created ${tag}`);
+  }
+
+  // Rung 7 — publish: opt-in (`release.publish.enabled`). The tag push from
+  // rung 5 already triggered publish.yml — this rung only VERIFIES registry
+  // visibility, it never publishes. Skip-if-done: the version already
+  // resolves. A timeout throws BEFORE clearReleaseState, so the resume token
+  // survives and the ladder stays re-runnable.
+  const publishCfg = loadConfigSync(join(cwd, '.noldor/config.json'))?.release?.publish;
+  if (publishCfg?.enabled) {
+    const pkgName = pkg.name;
+    if (!pkgName) {
+      throw new Error('package.json has no name — cannot verify the registry publish.');
+    }
+    const probe = {
+      pkgName,
+      version: state.version,
+      registry: publishCfg.registry,
+      env: opts.env,
+    };
+    if (await isVersionOnRegistry(probe)) {
+      console.log(`→ publish: ${pkgName}@${state.version} already on registry (skipped)`);
+    } else {
+      console.log(`→ publish: waiting for ${pkgName}@${state.version} on ${publishCfg.registry} …`);
+      await awaitPublish(probe);
+      console.log(`→ publish: ${pkgName}@${state.version} visible on ${publishCfg.registry}.`);
+    }
   }
 
   clearReleaseState(cwd);
@@ -522,6 +550,29 @@ async function main(): Promise<void> {
       `v${newVersion}`,
     ]);
     console.log(`Created GitHub Release v${newVersion}.`);
+
+    // Publish-verification rung — opt-in via `release.publish.enabled`
+    // (default false: consumers running this vendored pipeline never touch
+    // npm). The v-tag push above already fired publish.yml; this rung only
+    // waits for registry visibility. It runs BEFORE clearReleaseState so a
+    // publish failure leaves the resume token — the operator lands in
+    // `pnpm release --resume` (rung 7), never in half-released limbo.
+    const publishCfg = loadConfigSync()?.release?.publish;
+    if (publishCfg?.enabled) {
+      const pkgName = readPkgIdentity(process.cwd()).name;
+      console.log(
+        `→ publish: waiting for ${pkgName}@${newVersion} on ${publishCfg.registry} ` +
+          `(dist-tag ${publishCfg.distTag}) …`,
+      );
+      const { elapsedMs } = await awaitPublish({
+        pkgName,
+        version: newVersion,
+        registry: publishCfg.registry,
+      });
+      console.log(
+        `→ publish: ${pkgName}@${newVersion} visible after ${Math.round(elapsedMs / 1000)}s.`,
+      );
+    }
     clearReleaseState(process.cwd());
   });
 }

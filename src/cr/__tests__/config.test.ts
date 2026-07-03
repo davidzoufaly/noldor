@@ -223,6 +223,43 @@ describe('release.crGateExemptCommits block', () => {
   });
 });
 
+describe('release.publish block', () => {
+  it('defaults enabled=false, npmjs registry, latest dist-tag, provenance off', () => {
+    const parsed = noldorConfigSchema.parse({ release: { publish: {} } });
+    expect(parsed.release?.publish).toEqual({
+      enabled: false,
+      registry: 'https://registry.npmjs.org',
+      distTag: 'latest',
+      provenance: false,
+    });
+  });
+
+  it('stays absent when not configured (no synthesized block)', () => {
+    expect(noldorConfigSchema.parse({ release: {} }).release?.publish).toBeUndefined();
+  });
+
+  it('parses an opt-in block and fills the other defaults', () => {
+    const parsed = noldorConfigSchema.parse({ release: { publish: { enabled: true } } });
+    expect(parsed.release?.publish?.enabled).toBe(true);
+    expect(parsed.release?.publish?.registry).toBe('https://registry.npmjs.org');
+    expect(parsed.release?.publish?.distTag).toBe('latest');
+    expect(parsed.release?.publish?.provenance).toBe(false);
+  });
+
+  it('parses the provenance opt-in (public-repo-only attestation knob)', () => {
+    const parsed = noldorConfigSchema.parse({
+      release: { publish: { enabled: true, provenance: true } },
+    });
+    expect(parsed.release?.publish?.provenance).toBe(true);
+  });
+
+  it('rejects a non-URL registry', () => {
+    expect(() =>
+      noldorConfigSchema.parse({ release: { publish: { registry: 'not-a-url' } } }),
+    ).toThrow();
+  });
+});
+
 describe('garden.overrideAudit block', () => {
   it('parses expected rules and an optional threshold', () => {
     const parsed = noldorConfigSchema.parse({

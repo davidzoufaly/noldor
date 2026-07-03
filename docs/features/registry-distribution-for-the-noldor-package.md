@@ -3,15 +3,27 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
-  docs: []
-  tests: []
+  code:
+    - src/release/release-publish.ts
+    - src/release/index.ts
+    - src/cr/config.ts
+    - src/cli/manifest.ts
+    - .github/workflows/publish.yml
+  docs:
+    - docs/noldor/versioning.md
+    - docs/noldor/adoption-guide.md
+  tests:
+    - src/release/__tests__/publish-workflow.test.ts
+    - src/release/__tests__/release-publish-cli.test.ts
+    - src/release/__tests__/release-publish.test.ts
+    - src/release/__tests__/release-resume.test.ts
+    - src/cr/__tests__/config.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-registry-distribution-for-the-noldor-package-design.md
 name: Registry Distribution for the Noldor Package
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary

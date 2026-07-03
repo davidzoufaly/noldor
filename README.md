@@ -4,21 +4,15 @@ Discipline framework for agent-driven software development. Single gate, doc-anc
 
 ## Status
 
-Standalone repo (`github.com/davidzoufaly/noldor`), lifted out of the Charuy monorepo. Pre-1.0 (see `package.json` for the current version, also printed by `noldor --version`) and self-hosting — Noldor dogfoods its own gate, drain, and release framework. Distribution is still `file:`-dependency based; npm publication is tracked on the roadmap. Version migrations ship via `noldor upgrade` (migration chain + `noldor doctor` skew detection).
+Standalone repo (`github.com/davidzoufaly/noldor`), lifted out of the Charuy monorepo. Pre-1.0 (see `package.json` for the current version, also printed by `noldor --version`) and self-hosting — Noldor dogfoods its own gate, drain, and release framework. Distributed on the public npm registry as [`noldor`](https://www.npmjs.com/package/noldor) — tag-driven publishes via npm Trusted Publishing (provenance attestation arrives with `release.publish.provenance` once the repo is public). Version migrations ship via `noldor upgrade` (migration chain + `noldor doctor` skew detection).
 
 ## Quick start
 
-Consumers add a `file:` dependency:
-
-```json
-{
-  "dependencies": {
-    "noldor": "file:../noldor"
-  }
-}
+```bash
+pnpm add -D noldor    # public npm registry — no clone needed
+pnpm noldor init      # scaffold docs/noldor, hooks, .noldor/config.json
+pnpm noldor doctor    # health check → green
 ```
-
-Filesystem assumption: `noldor/` is a sibling directory of the consumer repo (e.g. `~/code/noldor/` next to `~/code/charuy/`).
 
 ## Configuration
 
@@ -32,6 +26,16 @@ Two **optional** blocks unlock unsupervised code review and PR-merge — the aut
 Both default sanely; you only add them to override. See [`docs/noldor/cr-pipeline.md`](docs/noldor/cr-pipeline.md) for the full reference and an annotated example.
 
 ## Development
+
+Framework contributors work against a clone. A consumer repo on the same machine can point at it with a `file:` dependency instead of the registry (assumes `noldor/` is a sibling directory of the consumer repo, e.g. `~/code/noldor/` next to `~/code/charuy/`):
+
+```json
+{
+  "devDependencies": {
+    "noldor": "file:../noldor"
+  }
+}
+```
 
 ```bash
 pnpm install

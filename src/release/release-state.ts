@@ -5,7 +5,8 @@ import { z } from 'zod';
 /**
  * Resume token for an interrupted `pnpm release`. Written by `main()` the
  * moment the run commits to mutating files (right after the dry-run early
- * return), removed after `gh release create` succeeds. A run that dies
+ * return), removed after the final rung succeeds (`gh release create`, plus
+ * the registry-visibility wait when `release.publish.enabled`). A run that dies
  * anywhere in between leaves it behind; `pnpm release --resume` drives the
  * finish ladder from these values alone — the version is never re-derived.
  */

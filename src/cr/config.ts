@@ -74,9 +74,30 @@ export const crGateExemptionSchema = z.object({
   reason: z.string().min(1),
 });
 
+/**
+ * Registry-publish verification block. `enabled` defaults FALSE so every
+ * consumer running the vendored release pipeline (Charuy, the contract
+ * fixture) keeps byte-identical behaviour with no config change; only the
+ * framework repo opts in. The tag-triggered publish.yml workflow is the
+ * publish EXECUTOR — it reads `provenance` from this checked-in block, while
+ * the other values drive the local pipeline's registry poll target and log
+ * lines (`distTag` is echoed; the workflow hard-codes `latest` pre-1.0).
+ */
+export const releasePublishConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  registry: z.string().url().default('https://registry.npmjs.org'),
+  distTag: z.string().default('latest'),
+  /** Provenance attestation requires a PUBLIC repo; flip on after open-sourcing. */
+  provenance: z.boolean().default(false),
+});
+
+/** Parsed `release.publish` block. */
+export type ReleasePublishConfig = z.infer<typeof releasePublishConfigSchema>;
+
 /** Release-enforcement tuning — the `release:` block of `.noldor/config.json`. */
 export const releaseConfigSchema = z.object({
   crGateExemptCommits: z.array(crGateExemptionSchema).default([]),
+  publish: releasePublishConfigSchema.optional(),
 });
 
 /** One parsed {@link crGateExemptionSchema} entry. */

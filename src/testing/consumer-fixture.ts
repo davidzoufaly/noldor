@@ -79,7 +79,19 @@ export function buildConsumerFixture(opts: BuildFixtureOpts = {}): ConsumerFixtu
   );
   writeFileSync(
     join(dir, 'package.json'),
-    JSON.stringify({ name: 'fixture-consumer', private: true, version: '0.0.0' }, null, 2),
+    JSON.stringify(
+      {
+        name: 'fixture-consumer',
+        private: true,
+        version: '0.0.0',
+        // Doctor's prerequisite probe (checkConsumerScripts) requires every
+        // script the scaffolded lefthook config invokes; a real consumer
+        // declares these, so the fixture models that with no-op stubs.
+        scripts: { lint: 'true', fmt: 'true', 'fmt:check': 'true', test: 'true' },
+      },
+      null,
+      2,
+    ),
   );
 
   git(['init', '-q', '-b', 'main']);
