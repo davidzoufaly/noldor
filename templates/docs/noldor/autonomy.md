@@ -49,6 +49,9 @@ clean — parked items are operator-owned.
 
 ## Pause / resume / stop
 
+- `pnpm noldor autonomous status` — runner liveness (lock pid + `kill -0`) plus
+  shipped / skip / in-flight from the drain-state heartbeat (`--json` for machines);
+  no more reading `.noldor/drain-state.json` + `.noldor/drain.lock` by hand.
 - `touch .noldor/drain.pause` — honored mid-cycle (between iterations) and at cycle start.
   The daemon holds and re-checks each interval; `--once` exits 0.
 - `rm .noldor/drain.pause` — resume. A **tripped** watcher writes this file itself: triage the

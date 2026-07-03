@@ -45,17 +45,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 ### Phase 5 — Autonomy Observability
 
-#### `noldor autonomous status`
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: XS
-- impact: low
-- parent: autonomous-queue-drain-runner
-
-Delta rewrite 2026-07-02 — the robust-lock-read half already shipped: `liveLockPid` (`src/autonomous/drain-lock.ts:41-50`) catches empty/partial JSON and validates the pid field, and PR #120's startup reconcile + pgid heartbeat closed the incident class that motivated it. Remaining delta: the `status` subcommand itself — `noldor autonomous status` reporting liveness from the actual process (lock pid + `kill -0`) plus shipped / skip / in-flight from drain-state, so operators stop reading `.noldor/drain-state.json` + `.noldor/drain.lock` by hand. Implementation is a `src/cli/manifest.ts` registration plus a thin reader over `src/autonomous/drain-state.ts` and `drain-lock.ts`.
-
 #### Graphify AST-Only Sweep Default
 
 - area: tooling
