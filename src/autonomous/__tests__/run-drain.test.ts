@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, parallel-drain, plan-runner
+// @tests: acceptance-verify-lane, agent-events-phase-tracking-run-ids-and-agents-dashboard-page, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, parallel-drain, plan-runner
 import { describe, expect, it, vi } from 'vitest';
 import { runDrain } from '../drain-loop.js';
 import type { DrainSource } from '../drain-source.js';
@@ -36,7 +36,13 @@ function harness(
       }),
   );
   const spawnGate = vi.fn(
-    async (_env: Record<string, string>, _timeoutMs: number, _prompt: string) => {
+    async (
+      _env: Record<string, string>,
+      _timeoutMs: number,
+      _prompt: string,
+      _onSpawn?: (pgid: number) => void,
+      _slug?: string,
+    ) => {
       const code = (opts.spawnImpl ?? (() => 0))(); // may throw (timeout) → no removal
       if (lastTarget !== null && ships(lastTarget))
         roadmap = roadmap.filter((s) => s !== lastTarget);
@@ -174,6 +180,13 @@ describe('runDrain', () => {
     const r = await runDrain(h.deps, opts);
     expect(r.exitCode).toBe(1);
     expect(h.spawnGate).toHaveBeenCalledTimes(1); // aborts on the first failure, no churn
+  });
+
+  it('passes the candidate slug to spawnGate (agent-event slug stamping)', async () => {
+    const h = harness(['a']);
+    await runDrain(h.deps, opts);
+    expect(h.spawnGate).toHaveBeenCalledTimes(1);
+    expect(h.spawnGate.mock.calls[0]![4]).toBe('a');
   });
 });
 

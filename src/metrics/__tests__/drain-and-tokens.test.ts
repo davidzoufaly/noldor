@@ -4,6 +4,7 @@ import { collectDrainReliability } from '../collect/drain-reliability';
 import { collectTokensPerFeature } from '../collect/tokens-per-feature';
 import { emptyFacts } from './fixtures';
 import type { AgentEvent } from '../../core/agent-events';
+import type { EscalationRow } from '../../autonomous/escalations';
 
 const EV = (over: Partial<AgentEvent>): AgentEvent => ({
   ts: '2026-06-12T00:00:00Z',
@@ -12,6 +13,17 @@ const EV = (over: Partial<AgentEvent>): AgentEvent => ({
   exitCode: 0,
   durationMs: 60_000,
   timedOut: false,
+  ...over,
+});
+
+const ESC = (over: Partial<EscalationRow>): EscalationRow => ({
+  ts: '2026-07-03T01:00:00Z',
+  slug: 'c',
+  source: 'roadmap',
+  reason: 'retries-exhausted',
+  evidence: 'e',
+  stateSnapshot: { shipped: 0, skipped: [] },
+  suggestedAction: 'x',
   ...over,
 });
 
@@ -71,6 +83,14 @@ describe('collectDrainReliability', () => {
       history: { meanDurationMs: number };
     };
     expect(v.history.meanDurationMs).toBe(90_000);
+  });
+
+  it('keys samples with runId and no longer lists the run-id blind spot', () => {
+    const facts = emptyFacts({ escalations: [ESC({ runId: 'r-1' }), ESC({ slug: 'd' })] });
+    const r = collectDrainReliability(facts);
+    expect(r.blindSpots.join(' ')).not.toMatch(/no run identifier|out of v1 scope/i);
+    expect(r.samples[0]).toMatchObject({ slug: 'c', runId: 'r-1' });
+    expect('runId' in (r.samples[1] as Record<string, unknown>)).toBe(false);
   });
 });
 

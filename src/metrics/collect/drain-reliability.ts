@@ -32,12 +32,17 @@ export const collectDrainReliability: Collector = (facts: RepoFacts): MetricResu
     unit: 'runs / events',
     value: { lastRun, history },
     formula:
-      'lastRun: shipped/skip/retries from .noldor/drain-state.json (live snapshot, overwritten per run). history: salvaged = agent-events kind=salvaged; escalated = escalations.jsonl counts (total/per-slug — rows carry no run id); mean duration over all agent-events.',
+      'lastRun: shipped/skip/retries from .noldor/drain-state.json (live snapshot, overwritten per run). history: salvaged = agent-events kind=salvaged; escalated = escalations.jsonl counts (total/per-slug); mean duration over exited agent-events (spawned/phase rows excluded).',
     blindSpots: [
       'drain-state.json is the LATEST run only — it cannot yield per-run history or trends.',
       'Event/escalation history starts at the event-log epoch (2026-06-12); earlier drains are invisible.',
-      'EscalationRow has no run identifier — per-run escalation grouping is not derivable (run-id is out of v1 scope).',
+      'Rows written before run ids shipped carry no runId — they group under "(no run id)".',
     ],
-    samples: facts.escalations.map((e) => ({ slug: e.slug, reason: e.reason, ts: e.ts })),
+    samples: facts.escalations.map((e) => ({
+      slug: e.slug,
+      reason: e.reason,
+      ts: e.ts,
+      ...(e.runId !== undefined ? { runId: e.runId } : {}),
+    })),
   };
 };

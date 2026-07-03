@@ -278,10 +278,14 @@ async function main(): Promise<void> {
       }
 
       const source = parkAwareSource(baseSource, () => loadPark(cwd));
+      // Per-CYCLE run id (spec D7): each cycle is one runDrain with its own
+      // outcome totals. The ambient env copy feeds salvage + nested spawns.
+      const runId = `${new Date().toISOString()}.${String(process.pid)}`;
+      process.env.NOLDOR_RUN_ID = runId;
       const deps: DrainDeps = {
         source,
-        spawnGate: (env, timeoutMs, prompt, onSpawn) =>
-          spawnGate(cwd, env, timeoutMs, prompt, onSpawn),
+        spawnGate: (env, timeoutMs, prompt, onSpawn, slug) =>
+          spawnGate(cwd, { ...env, NOLDOR_RUN_ID: runId }, timeoutMs, prompt, onSpawn, slug),
         syncMainCleanState: () => syncMainCleanState(cwd),
         mergePr: (slug, branch) => mergePr(cwd, slug, branch),
         openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
@@ -313,6 +317,7 @@ async function main(): Promise<void> {
           : {}),
         queueUniverse: source.parseAll(),
         now,
+        runId,
       });
       applyCycleVerdict(cwd, source.id, verdict, now);
       for (const rowItem of verdict.escalations) notify(notifyCommand, 'escalation', rowItem, cwd);

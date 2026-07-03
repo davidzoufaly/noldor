@@ -21,6 +21,8 @@ export interface EscalationRow {
   evidence: string;
   stateSnapshot: { shipped: number; skipped: string[] };
   suggestedAction: string;
+  /** Drain-run correlation id (mirrors agent-event rows); absent on pre-run-id rows. */
+  runId?: string;
 }
 
 /** Open-incident set, keyed `"<source>:<slug>"` so cross-source slugs never collide. */
@@ -72,8 +74,11 @@ export function mapCycle(input: {
   prevRunAbortError?: string;
   queueUniverse: readonly string[];
   now: string;
+  /** The shell's run/cycle id — stamped on every row of this verdict. */
+  runId?: string;
 }): CycleVerdict {
-  const { result, mode, source, parked, pendingPr, prevRunAbortError, queueUniverse, now } = input;
+  const { result, mode, source, parked, pendingPr, prevRunAbortError, queueUniverse, now, runId } =
+    input;
   const escalations: EscalationRow[] = [];
   const toPark: Array<{ slug: string; reason: EscalationReason }> = [];
   const nextPendingPr: string[] = [];
@@ -87,6 +92,7 @@ export function mapCycle(input: {
     evidence,
     stateSnapshot: snapshot,
     suggestedAction: SUGGESTED_ACTIONS[reason],
+    ...(runId !== undefined ? { runId } : {}),
   });
 
   // Auto-resolve: matching-source parks whose slug left the universe (PR merged / entry gone).
