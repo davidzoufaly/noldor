@@ -81,6 +81,18 @@ describe('noldor CLI', () => {
     expect(out).toContain('--resume');
   });
 
+  it('release --help lists the publish subcommand', () => {
+    const out = run(['release', '--help']);
+    expect(out).toContain('publish');
+    expect(out).toContain('--verify-tarball');
+  });
+
+  it('release publish --help short-circuits before any publish logic', () => {
+    const out = run(['release', 'publish', '--help']);
+    expect(out).toContain('Usage: noldor release publish');
+    expect(out).toContain('--wait');
+  });
+
   it('leaf command dispatches with no subcommand (doctor)', () => {
     // doctor is a real leaf command now (template-sync check); assert it
     // dispatches and reports sync status rather than the old stub message.

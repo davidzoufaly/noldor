@@ -3,6 +3,16 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
+// `./index.js` ↔ this module is a deliberate ESM cycle — both sides export
+// hoisted function declarations referenced only at call time, and index.ts's
+// own entry guard keys on `process.argv[1]`, so importing it here never fires
+// a release run.
+import { loadConfigSync } from '../cr/config.js';
+import { appendOverrideLog } from '../core/overrides-log.js';
+import { buildConsumerFixture } from '../testing/consumer-fixture.js';
+import { installFrameworkTarball, runContractChecks } from '../testing/contract-harness.js';
+import { ensureCleanTreeOnMain } from './index.js';
+
 const execFileP = promisify(execFile);
 
 /** Default poll target; overridable per-consumer via `release.publish.registry`. */
@@ -109,4 +119,100 @@ export function readPkgIdentity(cwd: string): PkgIdentity {
     throw new Error('package.json must declare both name and version.');
   }
   return { name: raw.name, version: raw.version };
+}
+
+const USAGE = 'usage: noldor release publish [--verify-tarball | --wait <version> | --local]\n';
+
+/**
+ * `--verify-tarball` (default mode): pack the working tree, install the
+ * tarball into a scratch consumer fixture, and run the contract checks — the
+ * same fidelity loop as `pnpm test:contract`, exposed as the operator
+ * pre-flight before tagging a release.
+ */
+async function verifyTarball(): Promise<void> {
+  const fx = buildConsumerFixture();
+  try {
+    installFrameworkTarball(fx.dir);
+    const results = runContractChecks(fx.dir);
+    const failed = Object.entries(results).filter(([, code]) => code !== 0);
+    if (failed.length > 0) {
+      console.error('verify-tarball: contract checks FAILED:', failed);
+      process.exitCode = 1;
+      return;
+    }
+    console.log('verify-tarball: pack + scratch install + contract checks passed:', results);
+  } finally {
+    fx.cleanup();
+  }
+}
+
+/**
+ * `--local`: CI-down emergency executor. Provenance is impossible outside CI
+ * OIDC, so this is loud + logged (`.noldor/overrides.log`, surfaced by the
+ * garden override-audit) and guarded by the release pipeline's own preflight
+ * (main branch, clean tree, synced origin) plus a HEAD-tag check.
+ */
+async function publishLocal(cwd: string): Promise<void> {
+  await ensureCleanTreeOnMain();
+  const { name, version } = readPkgIdentity(cwd);
+  const { stdout } = await execFileP('git', ['tag', '--points-at', 'HEAD'], { cwd });
+  const headTags = stdout.split('\n').map((t) => t.trim());
+  if (!headTags.includes(`v${version}`)) {
+    throw new Error(
+      `HEAD is not tagged v${version} — run pnpm release first; --local only ` +
+        're-executes the publish of an already-tagged release.',
+    );
+  }
+  console.warn(
+    'WARNING: --local publishes WITHOUT provenance (emergency hatch for CI-down). ' +
+      'Prefer re-running the publish.yml workflow.',
+  );
+  appendOverrideLog(cwd, 'release publish --local', 'release');
+  await execFileP('npm', ['publish', '--access', 'public'], { cwd });
+  console.log(`Published ${name}@${version} to the registry (no provenance).`);
+}
+
+/** `--wait <version>`: bare awaitPublish, for a release whose state file is gone. */
+async function waitForVersion(cwd: string, version: string): Promise<void> {
+  const publishCfg = loadConfigSync(join(cwd, '.noldor/config.json'))?.release?.publish;
+  const { name } = readPkgIdentity(cwd);
+  const { elapsedMs } = await awaitPublish({
+    pkgName: name,
+    version,
+    registry: publishCfg?.registry,
+  });
+  console.log(`${name}@${version} visible after ${Math.round(elapsedMs / 1000)}s.`);
+}
+
+async function cliMain(): Promise<void> {
+  const args = process.argv.slice(2);
+  const cwd = process.cwd();
+  if (args.includes('--local')) {
+    await publishLocal(cwd);
+    return;
+  }
+  const waitIdx = args.indexOf('--wait');
+  if (waitIdx !== -1) {
+    const version = args[waitIdx + 1];
+    if (!version || version.startsWith('--')) {
+      process.stderr.write(USAGE);
+      process.exitCode = 1;
+      return;
+    }
+    await waitForVersion(cwd, version);
+    return;
+  }
+  await verifyTarball(); // default mode; also the explicit --verify-tarball
+}
+
+// Execute only when dispatched as the CLI entrypoint (`noldor release publish`
+// reshapes argv so argv[1] is this module's path). Importing this module —
+// including from ./index.ts — must NOT fire the CLI.
+const invokedDirect = /[\\/]release-publish\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
+if (invokedDirect) {
+  cliMain().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`release publish failed: ${message}`);
+    process.exitCode = 1;
+  });
 }
