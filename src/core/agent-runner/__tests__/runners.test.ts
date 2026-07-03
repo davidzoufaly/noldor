@@ -1,4 +1,4 @@
-// @tests: make-noldor-agent-agnostic
+// @tests: make-noldor-agent-agnostic, portable-gate-entrypoint-for-non-claude-runners
 import { describe, expect, it } from 'vitest';
 import { CAPABILITIES } from '../capabilities';
 import { CLAUDE_BIN, buildClaudeArgv } from '../runners/claude';
@@ -13,6 +13,16 @@ describe('capability matrix', () => {
     expect(CAPABILITIES.opencode.supportsLocalModels).toBe(true);
     expect(CAPABILITIES.claude.supportsLocalModels).toBe(false);
     expect(CAPABILITIES.codex.rulesFile).toBe('AGENTS.md');
+  });
+
+  it('declares promptDispatch for every runner (portable gate entry, spec Unit 1)', () => {
+    expect(CAPABILITIES.claude.promptDispatch).toBe('slash-command');
+    expect(CAPABILITIES.codex.promptDispatch).toBe('prose');
+    expect(CAPABILITIES.opencode.promptDispatch).toBe('prose');
+    // stub mirrors claude: the consumer-contract CI drain e2e replays canned
+    // work against today's prompt shapes — keeping stub on the claude shape
+    // leaves those fixtures byte-identical (spec D5).
+    expect(CAPABILITIES.stub.promptDispatch).toBe('slash-command');
   });
 });
 

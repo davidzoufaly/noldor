@@ -8,6 +8,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     supportsLocalModels: false,
     questionSuppression: 'flag',
     rulesFile: 'CLAUDE.md',
+    promptDispatch: 'slash-command',
   },
   codex: {
     structuredOutput: 'schema',
@@ -15,6 +16,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     supportsLocalModels: false,
     questionSuppression: 'non-interactive',
     rulesFile: 'AGENTS.md',
+    promptDispatch: 'prose',
   },
   opencode: {
     structuredOutput: 'events',
@@ -22,6 +24,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     supportsLocalModels: true,
     questionSuppression: 'permission-config',
     rulesFile: 'AGENTS.md',
+    promptDispatch: 'prose',
   },
   // Hermetic in-repo test double: no LLM, no network, scripted canned work.
   stub: {
@@ -30,5 +33,7 @@ export const CAPABILITIES: Record<RunnerName, RunnerCapabilities> = {
     supportsLocalModels: true,
     questionSuppression: 'flag',
     rulesFile: 'CLAUDE.md',
+    // Mirrors claude so contract-CI drain fixtures stay byte-identical (spec D5).
+    promptDispatch: 'slash-command',
   },
 };
