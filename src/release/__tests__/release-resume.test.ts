@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import {
   appendFileSync,
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -95,6 +96,37 @@ function fakeGh(
   writeFileSync(join(binDir, 'gh'), script);
   chmodSync(join(binDir, 'gh'), 0o755);
   return { env: { PATH: `${binDir}:${process.env.PATH ?? ''}` }, logFile };
+}
+
+/**
+ * PATH-stubbed `npm` for the publish rung, sharing fakeGh's fake-bin dir (call
+ * fakeGh first — its env.PATH already covers this shim). `visible: true` →
+ * every `npm view` exits 0 (version on registry); `visible: false` → always
+ * exits 1, so the rung's awaitPublish must time out. The log lives inside the
+ * gitignored fake-bin/ so a re-run's shape check never sees it as dirty.
+ */
+function fakeNpm(cwd: string, opts: { visible: boolean }): { logFile: string } {
+  const binDir = join(cwd, 'fake-bin');
+  mkdirSync(binDir, { recursive: true });
+  const logFile = join(binDir, 'npm-log.txt');
+  const script = [
+    '#!/bin/sh',
+    `echo "$@" >> ${logFile}`,
+    opts.visible ? 'exit 0' : 'exit 1',
+    '',
+  ].join('\n');
+  writeFileSync(join(binDir, 'npm'), script);
+  chmodSync(join(binDir, 'npm'), 0o755);
+  return { logFile };
+}
+
+/** Opt the scratch repo into the publish rung (`.noldor/` is gitignored). */
+function enablePublish(cwd: string): void {
+  mkdirSync(join(cwd, '.noldor'), { recursive: true });
+  writeFileSync(
+    join(cwd, '.noldor', 'config.json'),
+    JSON.stringify({ release: { publish: { enabled: true } } }, null, 2),
+  );
 }
 
 describe('assertNoInProgressRelease', () => {
@@ -234,5 +266,48 @@ describe('resumeRelease — push + gh-release rungs', () => {
     await resumeRelease(cwd, { ...RESUME_OPTS, env });
     expect(readFileSync(logFile, 'utf8')).not.toContain('release create');
     expect(readReleaseState(cwd)).toBeNull();
+  });
+});
+
+describe('resumeRelease — publish rung (rung 7)', () => {
+  it('never invokes npm when release.publish is not enabled', async () => {
+    const cwd = seedReleaseRepo();
+    addBareOrigin(cwd);
+    const { env } = fakeGh(cwd, { releaseExists: true });
+    const { logFile } = fakeNpm(cwd, { visible: true });
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    expect(existsSync(logFile)).toBe(false);
+    expect(readReleaseState(cwd)).toBeNull();
+  });
+
+  it('skips rung 7 when the version is already on the registry, then clears state', async () => {
+    const cwd = seedReleaseRepo();
+    enablePublish(cwd);
+    addBareOrigin(cwd);
+    const { env } = fakeGh(cwd, { releaseExists: true });
+    const { logFile } = fakeNpm(cwd, { visible: true });
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    await resumeRelease(cwd, { ...RESUME_OPTS, env });
+    expect(readFileSync(logFile, 'utf8')).toContain('view testpkg@0.4.1 version --json');
+    expect(readReleaseState(cwd)).toBeNull();
+  });
+
+  it('leaves the state file behind when the version never becomes visible', async () => {
+    const cwd = seedReleaseRepo();
+    enablePublish(cwd);
+    addBareOrigin(cwd);
+    const { env } = fakeGh(cwd, { releaseExists: true });
+    fakeNpm(cwd, { visible: false });
+    appendFileSync(join(cwd, 'CHANGELOG.md'), '\n## v0.4.1\n');
+    writeReleaseState(cwd, STATE);
+    const opts = {
+      ...RESUME_OPTS,
+      env: { ...env, NOLDOR_PUBLISH_TIMEOUT_MS: '60', NOLDOR_PUBLISH_POLL_MS: '20' },
+    };
+    await expect(resumeRelease(cwd, opts)).rejects.toThrow(/publish\.yml/);
+    expect(readReleaseState(cwd)).not.toBeNull();
   });
 });
