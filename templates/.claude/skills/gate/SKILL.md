@@ -331,6 +331,11 @@ Once autonomous:
 
 ## Drain mode (`NOLDOR_DRAIN=1`)
 
+Runner-neutral twin: [`docs/noldor/drain-mode.md`](../../../docs/noldor/drain-mode.md) restates
+this drain contract for prose-dispatch runners (a codex/opencode implementer child receives a
+self-contained prose directive pointing there instead of `/gate --drain <slug>`). Keep the two
+renderings in sync.
+
 The [Autonomous Queue-Drain Runner](../../../docs/features/autonomous-queue-drain-runner.md)
 (`pnpm noldor autonomous queue-drain`) is an external supervisor that spawns one fresh headless
 `claude --print "/gate --drain <slug>"` per fast-track roadmap entry, also setting `NOLDOR_DRAIN=1` in the child's
