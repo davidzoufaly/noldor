@@ -43,19 +43,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 ### Phase 4 — Consumer-Layout Correctness
 
-#### Scan-Roots Repo-Paths Provider
-
-- area: tooling
-- type: fix
-- since: 2026-07-02
-- size: M
-- impact: high
-- confidence: high
-
-Remaining hardcoded Charuy-layout scan roots (`packages`/`apps`/`scripts`) outside sdd-report: `src/features/fill-links-code-gaps.ts` (walkRepo ×2, lines 399-401 + 475-477) and `src/dashboard/data.ts` (walkRepo lines 1052-1056 + `readdir('packages')` line 1079) still walk the monorepo trio instead of consumer `scanPaths`, so on a standalone `src/` repo (self-host included) they see nothing. Also hardcoded: `readdir('packages')` for actualPackages in sdd-report main() and dashboard data. Mirror the `scanRoots()` fix shipped for sdd-report in PR #122 (`src/sync/sync-code-links.ts`), and unify the divergent fallbacks into one repo-paths provider — `src/features/propose-pointers.ts` falls back to `['src']` while `scanRoots()` falls back to the 4-dir union; the union semantics must win (PR #122 CR lesson: a `['src']` fallback regresses unconfigured monorepo consumers).
-
-Separate operator-assisted follow-up surfaced by the PR #122 fix: 29 test files without `@tests:` tag (no import-owner hint derivable) and 51 src files unreferenced by any FD `links.code` (detector-9 probable-owner hints in sdd-report) — both need a judgment pass, not mechanical apply.
-
 ### Phase 5 — Autonomy Observability
 
 #### Agent-Events Phase Tracking, Run IDs and `/agents` Dashboard Page
