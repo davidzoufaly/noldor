@@ -15,7 +15,7 @@ Package hygiene already shipped (PR #119: `files` whitelist `["dist","src","bin"
 ## Goals
 
 - `pnpm add -D noldor` works from any machine — package resolvable on the public npm registry.
-- Publishing is a tag-driven, provenance-attested step that fires only after the existing commit→tag→push→GitHub-Release chain succeeds, respects every existing release gate, and never touches a dirty tree.
+- Publishing is a tag-driven, provenance-capable step (attestation is gated on release.publish.provenance, default off — provenance requires a public repo; flip on after open-sourcing) that fires only after the existing commit→tag→push→GitHub-Release chain succeeds, respects every existing release gate, and never touches a dirty tree.
 - `pnpm release` (and `pnpm release --resume`) treats "version visible on the registry" as the new final rung, so an interrupted release cannot silently end unpublished.
 - Consumer repos that vendor the same release pipeline (Charuy) can never publish by accident — publish is opt-in via config.
 - README Quick start and adoption-guide Bootstrap §1 lead with the registry path; `file:` stays documented as the contributor/dev path.
@@ -43,9 +43,9 @@ New `.github/workflows/publish.yml` beside `contract-e2e.yml`, triggered on `pus
 3. version guard: fail if `package.json` `version` ≠ tag minus `v` (protects against a hand-made tag on the wrong commit),
 4. `pnpm install --frozen-lockfile` (runs `prepare` → `tsc` → `dist/`),
 5. `pnpm test:contract` — the tarball-shape check (`installFrameworkTarball` + `runContractChecks`) is the "final pack + scratch-dir install verification" from the entry body, run against the exact bits about to publish,
-6. `npm publish --provenance --access public`.
+6. `npm publish --access public`, adding `--provenance` only when `release.publish.provenance` is true (requires a public repo; the repo is private for now, so the default is off).
 
-Provenance requires CI OIDC — `npm publish --provenance` errors outside CI, which is why the executor is a workflow, not local code (D3). Workflow declares `permissions: { id-token: write, contents: read }`. Auth via npm **Trusted Publishing** (one-time manual setup on npmjs.com linking repo + workflow filename) — no `NPM_TOKEN` secret to rotate or leak.
+Provenance requires CI OIDC — `npm publish --provenance` errors outside CI, which is why the executor is a workflow, not local code (D3). Provenance additionally requires a public repo, so the flag is config-gated (release.publish.provenance, default false) while the repo stays private; Trusted Publishing itself works from private repos. Workflow declares `permissions: { id-token: write, contents: read }`. Auth via npm **Trusted Publishing** (one-time manual setup on npmjs.com linking repo + workflow filename) — no `NPM_TOKEN` secret to rotate or leak.
 
 ### Unit 3 — publish-verification rung in `src/release/index.ts`
 
@@ -65,6 +65,7 @@ publish: z
     enabled: z.boolean().default(false),
     registry: z.string().url().default('https://registry.npmjs.org'),
     distTag: z.string().default('latest'),
+    provenance: z.boolean().default(false),
   })
   .optional(),
 ```
@@ -90,7 +91,7 @@ Add to the `release` group in `src/cli/manifest.ts:201` (today only `run`):
 ## Acceptance criteria
 
 - Fresh temp dir on a machine (or scratch dir) with no sibling clone: `pnpm init && pnpm add -D noldor && pnpm noldor init && pnpm noldor doctor` → doctor green.
-- `npm view noldor version` resolves to the released version; npm package page shows a provenance attestation.
+- `npm view noldor version` resolves to the released version; npm package page shows a provenance attestation once release.publish.provenance is enabled after open-sourcing (private repos cannot attest).
 - `pnpm release` on Noldor main runs every existing gate unchanged, and only reaches `awaitPublish` after commit+tag+push+GitHub-Release succeed; `.noldor/release-state.json` is cleared only after the version is visible on the registry.
 - With `release.publish` absent or `enabled: false` (contract fixture / Charuy), `pnpm release` output is byte-identical to today — no `npm` invocation, state cleared right after `gh release create`.
 - Killing the pipeline between tag-push and registry visibility, then `pnpm release --resume`, skips rungs 3–6 and completes rung 7 (verified in a test alongside `src/release/__tests__/` release-state tests, with `npm view` stubbed).
