@@ -3,7 +3,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -23,6 +23,7 @@ import {
   loadGaps,
   loadHotZones,
   loadRoadmapWithHash,
+  loadSddInput,
   loadVelocity,
   loadVision,
   loadWipAge,
@@ -35,6 +36,8 @@ import {
   WIP_AGE_THRESHOLDS,
   wipAgeRowSchema,
 } from '../data.js';
+
+import { DEFAULT_SCAN_ROOTS } from '../../core/repo-paths.js';
 
 import type { FeatureCommit } from '../../release/release-fd-commits.js';
 
@@ -788,5 +791,48 @@ describe(loadBacklogWithHash, () => {
     expect(rawHash).toMatch(/^[a-f0-9]{64}$/);
     const expected = createHash('sha256').update(readFileSync('docs/backlog.md')).digest('hex');
     expect(rawHash).toBe(expected);
+  });
+});
+
+describe('loadSddInput layout parity', () => {
+  // Regression: the hardcoded packages/apps(+scripts) walk left allRepoPaths
+  // empty on a standalone src/ repo and graphSrcRoots pinned to the Charuy
+  // trio, so dashboard gaps diverged from sdd-report main() (post-#122).
+  it('walks scanRoots() and mirrors them into graphSrcRoots on a standalone layout', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'noldor-dash-standalone-'));
+    await mkdir(join(dir, '.noldor'), { recursive: true });
+    await writeFile(
+      join(dir, '.noldor', 'config.json'),
+      JSON.stringify({
+        consumer: {
+          name: 'acme',
+          repoUrl: 'https://github.com/x/y',
+          lockstepPackages: ['package.json'],
+          scanPaths: [],
+          boundaries: [],
+          deprecatedPackages: [],
+          e2ePrefix: '',
+          samplesPath: '',
+          packagePrefix: '',
+          appPathPrefix: '',
+        },
+      }),
+    );
+    await mkdir(join(dir, 'src'), { recursive: true });
+    await writeFile(join(dir, 'src', 'widget.ts'), 'export const widget = 1;\n');
+    await writeFile(join(dir, 'src', 'widget.test.ts'), 'export {};\n');
+    const previousCwd = process.cwd();
+    process.chdir(dir);
+    try {
+      const input = await loadSddInput();
+      expect(input.allRepoPaths).toContain('src/widget.ts');
+      expect(input.allRepoPaths).toContain('src/widget.test.ts');
+      expect(input.testInputs.map((t) => t.path)).toEqual(['src/widget.test.ts']);
+      expect(input.graphSrcRoots).toEqual(DEFAULT_SCAN_ROOTS);
+      expect(input.actualPackages).toEqual([]);
+    } finally {
+      process.chdir(previousCwd);
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

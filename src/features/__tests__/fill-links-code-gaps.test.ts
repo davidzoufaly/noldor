@@ -2,12 +2,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
   backupFeatures,
+  collectCandidateFiles,
   generateProposal,
   parseLlmResponse,
   parseProposal,
@@ -297,5 +298,61 @@ describe('backupFeatures', () => {
 
     expect(existsSync(join(backupDir, 'foo.md'))).toBe(true);
     expect(existsSync(join(backupDir, 'README.txt'))).toBe(false);
+  });
+});
+
+function makeStandaloneRepo(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'noldor-standalone-'));
+  mkdirSync(join(dir, '.noldor'), { recursive: true });
+  writeFileSync(
+    join(dir, '.noldor', 'config.json'),
+    JSON.stringify({
+      consumer: {
+        name: 'acme',
+        repoUrl: 'https://github.com/x/y',
+        lockstepPackages: ['package.json'],
+        scanPaths: [],
+        boundaries: [],
+        deprecatedPackages: [],
+        e2ePrefix: '',
+        samplesPath: '',
+        packagePrefix: '',
+        appPathPrefix: '',
+      },
+    }),
+  );
+  mkdirSync(join(dir, 'src'), { recursive: true });
+  writeFileSync(join(dir, 'src', 'widget.ts'), 'export const widget = 1;\n');
+  writeFileSync(join(dir, 'src', 'widget.test.ts'), 'export {};\n');
+  return dir;
+}
+
+describe('collectCandidateFiles', () => {
+  // Regression: the hardcoded packages/apps/scripts trio saw nothing on a
+  // standalone src/ layout, so the gap filler silently proposed nothing.
+  it('sees a standalone src/ layout via the scanRoots union (empty scanPaths)', async () => {
+    const dir = makeStandaloneRepo();
+    const previousCwd = process.cwd();
+    process.chdir(dir);
+    try {
+      const files = await collectCandidateFiles(new Set());
+      expect(files).toEqual(['src/widget.ts']);
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('drops files already referenced in some FD links.code', async () => {
+    const dir = makeStandaloneRepo();
+    const previousCwd = process.cwd();
+    process.chdir(dir);
+    try {
+      const files = await collectCandidateFiles(new Set(['src/widget.ts']));
+      expect(files).toEqual([]);
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

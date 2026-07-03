@@ -2,8 +2,8 @@
 
 import { basename } from 'node:path';
 
-import { loadConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
+import { scanRoots } from '../core/repo-paths.js';
 import {
   getFdOwnersForFile,
   requireFreshGraph,
@@ -115,8 +115,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { scanPaths } = loadConsumerConfig();
-  const srcRoots = scanPaths.length > 0 ? scanPaths : ['src'];
+  // Union fallback must match the roots the graph/receipt were built with
+  // (PR #90/#122 semantics); a private src-only fallback regressed
+  // unconfigured monorepo consumers and made requireFreshGraph compare the
+  // wrong tree.
+  const srcRoots = scanRoots();
   const features = await loadSddFeatures(loadDocRoots().features);
   const ctx = requireFreshGraph('graphify-out/graph.json', srcRoots, features);
   if (!ctx) {

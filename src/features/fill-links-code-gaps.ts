@@ -17,6 +17,7 @@ import matter from 'gray-matter';
 import { isInfraFile, loadSddFeatures, walkRepo } from '../garden/sdd-report.js';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
+import { scanRoots } from '../core/repo-paths.js';
 
 import type { FeatureFrontmatter } from './feature-schema.js';
 
@@ -395,23 +396,7 @@ async function main(): Promise<void> {
     for (const c of f.frontmatter.links.code) referenced.add(c);
   }
 
-  const allPaths: string[] = [];
-  await walkRepo('packages', allPaths);
-  await walkRepo('apps', allPaths);
-  await walkRepo('scripts', allPaths);
-
-  const candidateFiles = allPaths.filter(
-    (p) =>
-      (p.endsWith('.ts') || p.endsWith('.tsx')) &&
-      !p.includes('/__tests__/') &&
-      !p.includes('/node_modules/') &&
-      !p.endsWith('.test.ts') &&
-      !p.endsWith('.test.tsx') &&
-      !p.endsWith('.spec.ts') &&
-      !p.includes('/dist/') &&
-      !isInfraFile(p) &&
-      !referenced.has(p),
-  );
+  const candidateFiles = await collectCandidateFiles(referenced);
 
   const featureRows = features.map((f) => ({ slug: f.slug, frontmatter: f.frontmatter }));
   const summaryByFd = new Map<string, string>();
@@ -457,6 +442,33 @@ async function main(): Promise<void> {
 }
 
 /**
+ * Walk the consumer scan roots and return unreferenced candidate code files
+ * for links-code gap filling. Shared by the interactive proposal flow and
+ * `--auto-high`; exported for the standalone-layout regression tests.
+ *
+ * @param referenced - Code paths already present in some FD's `links.code`
+ * @returns Repo-relative candidate file paths
+ */
+export async function collectCandidateFiles(referenced: Set<string>): Promise<string[]> {
+  const allPaths: string[] = [];
+  for (const root of scanRoots()) {
+    await walkRepo(root, allPaths);
+  }
+  return allPaths.filter(
+    (p) =>
+      (p.endsWith('.ts') || p.endsWith('.tsx')) &&
+      !p.includes('/__tests__/') &&
+      !p.includes('/node_modules/') &&
+      !p.endsWith('.test.ts') &&
+      !p.endsWith('.test.tsx') &&
+      !p.endsWith('.spec.ts') &&
+      !p.includes('/dist/') &&
+      !isInfraFile(p) &&
+      !referenced.has(p),
+  );
+}
+
+/**
  * Non-interactive backfill: deterministically assign code files to FDs
  * when `resolveByPath` returns a single high-confidence match. Skip
  * everything else (zero / multi-candidate / LLM-needed) silently.
@@ -471,23 +483,7 @@ async function runAutoHigh(): Promise<void> {
     for (const c of f.frontmatter.links.code) referenced.add(c);
   }
 
-  const allPaths: string[] = [];
-  await walkRepo('packages', allPaths);
-  await walkRepo('apps', allPaths);
-  await walkRepo('scripts', allPaths);
-
-  const candidateFiles = allPaths.filter(
-    (p) =>
-      (p.endsWith('.ts') || p.endsWith('.tsx')) &&
-      !p.includes('/__tests__/') &&
-      !p.includes('/node_modules/') &&
-      !p.endsWith('.test.ts') &&
-      !p.endsWith('.test.tsx') &&
-      !p.endsWith('.spec.ts') &&
-      !p.includes('/dist/') &&
-      !isInfraFile(p) &&
-      !referenced.has(p),
-  );
+  const candidateFiles = await collectCandidateFiles(referenced);
 
   const featureRows = features.map((f) => ({ slug: f.slug, frontmatter: f.frontmatter }));
   const proposal = new Map<string, string[]>();

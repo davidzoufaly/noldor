@@ -17,7 +17,7 @@ import { loadDocRoots } from '../core/doc-roots.js';
 import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/override-audit.js';
 import type { ExpectedOverrideRule } from './detectors/override-audit.js';
 import { loadConfigSync } from '../cr/config.js';
-import { scanRoots as resolveScanRoots } from '../sync/sync-code-links.js';
+import { actualPackageNames, scanRoots as resolveScanRoots } from '../core/repo-paths.js';
 import { renderMetricsSection, reviewSkipCountLine } from './sdd-report-format.js';
 import type { MetricsReport } from '../metrics/types.js';
 import {
@@ -1151,29 +1151,7 @@ async function main(): Promise<void> {
   }
   const docInputs = await readTextFiles(docFiles);
 
-  const actualPackages: string[] = [];
-  try {
-    const pkgEntries = await readdir('packages', { withFileTypes: true });
-    for (const e of pkgEntries) {
-      if (!e.isDirectory()) {
-        continue;
-      }
-      try {
-        const pkgJson = JSON.parse(
-          await readFile(join('packages', e.name, 'package.json'), 'utf8'),
-        ) as {
-          name?: string;
-        };
-        if (pkgJson.name) {
-          actualPackages.push(pkgJson.name);
-        }
-      } catch {
-        // Skip dirs without package.json
-      }
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
+  const actualPackages = await actualPackageNames();
   const readmeContent = await readFile('README.md', 'utf8').catch(() => '');
 
   const staleDays = Number(process.env.SDD_STALE_DAYS ?? '90');
