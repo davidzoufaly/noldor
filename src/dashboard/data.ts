@@ -17,6 +17,7 @@ import { areaToCategory } from '../lib/area-category.js';
 import { loadMilestoneBySlug, loadMilestones, type Milestone } from '../milestones/lib.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
 import { loadDocRoots } from '../core/doc-roots.js';
+import { actualPackageNames, scanRoots } from '../core/repo-paths.js';
 import {
   collectGaps,
   listPlans,
@@ -1030,7 +1031,7 @@ export async function loadBacklog(): Promise<BacklogEntry[]> {
 /**
  * Build a full SDD `ReportInput` and run every detector via `collectGaps`.
  *
- * Mirrors `scripts/sdd-report.ts` `main()` so dashboard gap output stays
+ * Mirrors `src/garden/sdd-report.ts` `main()` so dashboard gap output stays
  * consistent with `pnpm sdd:report`.
  *
  * @returns All gaps surfaced by the SDD detectors
@@ -1040,7 +1041,13 @@ export async function loadGaps(): Promise<Gap[]> {
   return collectGaps(input);
 }
 
-async function loadSddInput(): Promise<ReportInput> {
+/**
+ * Build the SDD `ReportInput` the same way `sdd-report` `main()` does — scan
+ * roots and package discovery via `src/core/repo-paths.ts` — so dashboard gap
+ * output matches `pnpm noldor garden sdd-report` on any layout. Exported for
+ * the layout-parity regression tests; production callers use {@link loadGaps}.
+ */
+export async function loadSddInput(): Promise<ReportInput> {
   const features = await loadSddFeatures('docs/features');
   const ideasMd = await readFile('ideas.md', 'utf8').catch(() => '');
   const backlogRaw = await readFile('docs/backlog.md', 'utf8').catch(() => '');
@@ -1048,13 +1055,13 @@ async function loadSddInput(): Promise<ReportInput> {
   const specPaths = await listSpecs('docs/superpowers/specs');
   const planPaths = await listPlans('docs/superpowers/plans');
 
+  const roots = scanRoots();
   const allRepoPaths: string[] = [];
-  await walkRepo('packages', allRepoPaths);
-  await walkRepo('apps', allRepoPaths);
+  for (const root of roots) {
+    await walkRepo(root, allRepoPaths);
+  }
 
-  const testRepoPaths = [...allRepoPaths];
-  await walkRepo('scripts', testRepoPaths);
-  const testFiles = testRepoPaths.filter(
+  const testFiles = allRepoPaths.filter(
     (p) => /\.test\.(ts|tsx)$/.test(p) || /\.spec\.(ts|tsx)$/.test(p),
   );
   const testInputs = await readTextFiles(testFiles);
@@ -1074,23 +1081,7 @@ async function loadSddInput(): Promise<ReportInput> {
   }
   const docInputs = await readTextFiles(docFiles);
 
-  const actualPackages: string[] = [];
-  try {
-    const pkgEntries = await readdir('packages', { withFileTypes: true });
-    for (const e of pkgEntries) {
-      if (!e.isDirectory()) continue;
-      try {
-        const pkgJson = JSON.parse(
-          await readFile(join('packages', e.name, 'package.json'), 'utf8'),
-        ) as { name?: string };
-        if (pkgJson.name) actualPackages.push(pkgJson.name);
-      } catch {
-        // Skip dirs without package.json
-      }
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
+  const actualPackages = await actualPackageNames();
 
   const readmeContent = await readFile('README.md', 'utf8').catch(() => '');
   const staleDays = Number(process.env.SDD_STALE_DAYS ?? '90');
@@ -1102,7 +1093,7 @@ async function loadSddInput(): Promise<ReportInput> {
     docInputs,
     features,
     graphPath: 'graphify-out/graph.json',
-    graphSrcRoots: ['packages', 'apps', 'scripts'],
+    graphSrcRoots: roots,
     ideasMd,
     planPaths,
     readmeContent,
