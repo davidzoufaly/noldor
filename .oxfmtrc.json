@@ -13,6 +13,9 @@
     "**/*.pen",
     "**/*.md",
     "graphify-out/**",
-    "**/graphify-out/**"
+    "**/graphify-out/**",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock"
   ]
 }
