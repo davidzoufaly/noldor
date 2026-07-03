@@ -20,7 +20,7 @@ links:
 name: Portable Gate Entrypoint for Non-Claude Runners
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
