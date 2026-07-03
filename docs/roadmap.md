@@ -59,17 +59,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 `docs/noldor/triage.md:64` describes a `deps:` bullet (comma-separated kebab slugs) that `src/triage/score.ts` reads for dependency-weight scoring, but the field is silently optional in v1, undocumented in both `docs/roadmap.md` and `docs/backlog.md` preambles, and nearly unused across current entries. Promote it to a first-class `blocked-by:` field — name matches GitHub-issue + Jira convention and reads better in prose than `deps`. Document it in both file preambles, surface it on the dashboard as a dependency graph view, validate that each referenced ID exists, and have `/garden` flag circular chains. Accept `deps:` ↔ `blocked-by:` as aliases during a migration window, then deprecate `deps:`. Blocked by Stable Entry IDs — `blocked-by:` references should target stable IDs, not rename-fragile slugs. Touches: `docs/roadmap.md` + `docs/backlog.md` preambles, `.claude/skills/triage/SKILL.md`, `src/triage/validate-triage.ts`, `src/garden/detectors/*` (new circular-blocked-by detector), `docs/noldor/triage.md`.
 
-#### Self-Boundaries Declaration and Cycle Break
-
-- area: tooling
-- type: refactor
-- since: 2026-07-01
-- size: M
-- impact: med
-- confidence: high
-
-Replaces the retired Charuy-premise `runtime-architecture-invariant-expansion` with the noldor-native version the 2026-07 audit surfaced: `pnpm noldor invariants run` passes 4/4 but the `boundaries` check sources rules from `.noldor/config.json` = `[]` — dependency-cruiser runs with zero rules while 4 real prod cycles exist (core↔cr via `src/core/pr-flow-cli.ts` importing `cr/config` — the repo-wide config loader lives in the wrong module; features↔garden via `sdd-report.ts` doubling as shared FD-loading lib; garden↔sync; garden↔invariants). Declare real boundary rules for the framework's own module graph, then break the cycles (move the config loader out of `src/cr/`, extract the FD-loading lib from `sdd-report.ts`). The framework preaches boundary discipline; it should declare some for itself. Also retire the Charuy-inherited `keyboard-binding` invariant (slowest check, 922ms, UI concern in a CLI framework).
-
 #### Framework Script + Test Migration Cleanup
 
 - area: tooling
