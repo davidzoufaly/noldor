@@ -45,17 +45,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 ### Phase 5 — Autonomy Observability
 
-#### Graphify AST-Only Sweep Default
-
-- area: tooling
-- type: feat
-- since: 2026-07-01
-- size: S
-- impact: med
-- confidence: high
-
-Full-semantic graphify on the repo = 669 files → 31 background subagents; roughly half died mid-run (session-pause kills, API disconnects, stream-watchdog stalls), 2 chunks never landed, and marginal value was near-zero because `/refactor` keys off god-nodes/cohesion from the AST structural graph. Make release-sweep invoke graphify in AST-only mode by default (seconds, deterministic, no agents); full-semantic becomes an explicit opt-in for a deep pass. The v0.4.0 sweep DID reach a fresh graph via AST-only in the end — make that the sweep's normal path.
-
 ### Phase 6 — Structural
 
 #### Stable Entry IDs for Roadmap + Backlog
