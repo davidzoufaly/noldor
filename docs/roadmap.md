@@ -45,24 +45,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 ### Phase 5 — Autonomy Observability
 
-#### Agent-Events Phase Tracking, Run IDs and `/agents` Dashboard Page
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: M
-- impact: high
-- parent: project-tracking-dashboard
-
-Delta rewrite 2026-07-02 — the original entry's data spine already shipped: `src/core/agent-events.ts` appends to `.noldor/agent-events.jsonl` (fail-open), every spawner writes exit events via the agent-runner registry, and `src/metrics/collect/drain-reliability.ts` already aggregates salvage counts + durations. Remaining delta:
-
-- **Run IDs:** events lack a drain-run id, so per-run grouping is not derivable (noted blind spot in `drain-reliability.ts:35`); escalation rows share the gap. Mint a run id at drain start, thread it through spawn/exit events + escalations.
-- **Phase events:** today only spawn/exit are recorded; add coarse phase events (gate stage, CR lane, merge) from the drain loop heartbeat.
-- **Dashboard `/agents` page** (`src/dashboard/`): **Live board** — currently-running agents (spawned without exited, pid-liveness-checked): kind, slug, lane, phase, runtime, retry count; link per row to a log-tail view. **Run timeline** — per drain-run grouped history: spawned→exited bars, outcomes color-coded, shipped/skipped/escalated totals. Poll every ~2s in v1; SSE noted as follow-up.
-- **Escalation inbox surface:** the CLI-only inbox (`noldor autonomous inbox`) gets a dashboard panel on the same page — escalations are the events an unattended operator most needs to see.
-
-**Acceptance sketch:** run `noldor autonomous run --concurrency 2 --max-features 2`; `/agents` shows 2 live implementer rows with distinct lanes, then a timeline with 2 shipped outcomes grouped under one run id; events file has spawned/exited pairs for every agent incl. CR lanes.
-
 #### `noldor autonomous status`
 
 - area: tooling
