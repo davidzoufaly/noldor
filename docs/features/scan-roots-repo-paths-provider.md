@@ -5,7 +5,8 @@ deps: []
 links:
   code: []
   docs: []
-  tests: []
+  tests:
+    - src/core/__tests__/repo-paths.test.ts
   spec: docs/superpowers/specs/2026-07-03-scan-roots-repo-paths-provider-design.md
 name: Scan-Roots Repo-Paths Provider
 packages:
