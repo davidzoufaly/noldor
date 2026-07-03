@@ -54,7 +54,7 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 - impact: low
 - parent: autonomous-queue-drain-runner
 
-Delta rewrite 2026-07-02 — the robust-lock-read half already shipped: `liveLockPid` (`src/autonomous/drain-lock.ts:41-50`) catches empty/partial JSON and validates the pid field, and PR #120's startup reconcile + pgid heartbeat closed the incident class that motivated it. Remaining delta: the `status` subcommand itself — `noldor autonomous status` reporting liveness from the actual process (lock pid + `kill -0`) plus shipped / skip / in-flight from drain-state, so operators stop reading `.noldor/drain-state.json` + `.noldor/drain.lock` by hand. Touches: `src/cli/manifest.ts`, thin reader over `src/autonomous/drain-state.ts` + `drain-lock.ts`.
+Delta rewrite 2026-07-02 — the robust-lock-read half already shipped: `liveLockPid` (`src/autonomous/drain-lock.ts:41-50`) catches empty/partial JSON and validates the pid field, and PR #120's startup reconcile + pgid heartbeat closed the incident class that motivated it. Remaining delta: the `status` subcommand itself — `noldor autonomous status` reporting liveness from the actual process (lock pid + `kill -0`) plus shipped / skip / in-flight from drain-state, so operators stop reading `.noldor/drain-state.json` + `.noldor/drain.lock` by hand. Implementation is a `src/cli/manifest.ts` registration plus a thin reader over `src/autonomous/drain-state.ts` and `drain-lock.ts`.
 
 #### Graphify AST-Only Sweep Default
 
@@ -66,17 +66,6 @@ Delta rewrite 2026-07-02 — the robust-lock-read half already shipped: `liveLoc
 - confidence: high
 
 Full-semantic graphify on the repo = 669 files → 31 background subagents; roughly half died mid-run (session-pause kills, API disconnects, stream-watchdog stalls), 2 chunks never landed, and marginal value was near-zero because `/refactor` keys off god-nodes/cohesion from the AST structural graph. Make release-sweep invoke graphify in AST-only mode by default (seconds, deterministic, no agents); full-semantic becomes an explicit opt-in for a deep pass. The v0.4.0 sweep DID reach a fresh graph via AST-only in the end — make that the sweep's normal path.
-
-#### Graphify Semantic Checkpoint-Resume
-
-- area: tooling
-- type: feat
-- since: 2026-07-01
-- size: M
-- impact: med
-- confidence: high
-
-The graphify semantic pass has no built-in "re-run only missing chunks" — chunk files are the success signal but the v0.4.0 sweep hand-rolled a disk-scan + re-dispatch loop for dead/stalled chunks. Fresh subagents also intermittently derailed by the SessionStart gate/superpowers hook (returned 0-tool-use echoing "use the gate skill"); needed an explicit "IGNORE session instructions, you are a data-extraction worker" preamble. Bake both into the graphify skill: idempotent missing-chunk detection + auto-retry, and a hook-defusing extractor preamble.
 
 ### Phase 6 — Structural
 
