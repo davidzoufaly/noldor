@@ -6,6 +6,8 @@ links:
   code:
     - src/testing/fixtures
     - src/testing/consumer-fixture.ts
+    - src/testing/contract-harness.ts
+    - src/testing/stub-gate.ts
     - src/autonomous/
     - docs/noldor/testing-principles.md
     - docs/noldor/script-catalog.md

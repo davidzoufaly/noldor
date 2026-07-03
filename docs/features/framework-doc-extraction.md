@@ -5,8 +5,12 @@ deps: []
 links:
   spec: >-
     docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md
-  code: []
-  tests: []
+  code:
+    - src/core/doc-roots.ts
+    - src/hooks/noldor-validate-trailer.ts
+  tests:
+    - src/core/__tests__/doc-roots.test.ts
+    - src/dashboard/__tests__/server-static.test.ts
 name: Framework Doc Extraction
 packages:
   - noldor

@@ -3,9 +3,13 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/cr/review-profile.ts
+    - src/cr/config.ts
   docs: []
-  tests: []
+  tests:
+    - src/cr/__tests__/review-profile.test.ts
+    - src/cr/__tests__/config.test.ts
   spec: docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md
   plan: docs/superpowers/plans/archive/2026-06-13-code-reviewer-20.md
 name: Code Reviewer 2.0

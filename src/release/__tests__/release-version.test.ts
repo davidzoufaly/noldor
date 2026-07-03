@@ -1,3 +1,4 @@
+// @tests: noldor
 import { applyBump } from '../release-version.js';
 
 describe(applyBump, () => {

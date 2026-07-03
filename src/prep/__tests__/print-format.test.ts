@@ -1,3 +1,4 @@
+// @tests: de-superpowers-vendor-spec-plan-and-worktree-flows
 import { describe, expect, it } from 'vitest';
 
 import { PLAN_FORMAT, SPEC_FORMAT } from '../formats.js';

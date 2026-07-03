@@ -1,3 +1,4 @@
+// @tests: rules-cascade-v1
 import { describe, expect, it } from 'vitest';
 import { RuleFrontmatterSchema, frontmatterToRule } from '../types.js';
 

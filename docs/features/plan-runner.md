@@ -19,6 +19,7 @@ links:
     - src/prep/staging.ts
     - src/prep/index-doc.ts
     - src/prep/spawn.ts
+    - src/prep/types.ts
   tests:
     - src/autonomous/__tests__/build-pool.test.ts
     - src/autonomous/__tests__/decide-next.test.ts

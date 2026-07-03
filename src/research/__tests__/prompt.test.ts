@@ -1,3 +1,4 @@
+// @tests: parallel-agent-dispatch-for-research-jobs
 import { describe, expect, it } from 'vitest';
 import { buildResearchPrompt, parseResearchStdout } from '../prompt';
 import { FALLBACK_META, taskSpecSchema } from '../types';

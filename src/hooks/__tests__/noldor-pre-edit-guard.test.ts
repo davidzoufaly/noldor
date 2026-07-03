@@ -1,3 +1,4 @@
+// @tests: noldor
 import { describe, expect, it } from 'vitest';
 import { execSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';

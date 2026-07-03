@@ -1,3 +1,4 @@
+// @tests: framework-doc-extraction
 import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';

@@ -25,7 +25,30 @@ links:
     - src/garden/detectors/override-audit.ts
     - src/garden/sdd-report.ts
     - src/core/pr-flow.ts
+    - src/core/bump-session-marker.ts
+    - src/core/noldor-cli.ts
+    - src/core/overrides-log.ts
+    - src/core/phase-flip-done.ts
+    - src/core/rollout-marker.ts
+    - src/core/size-routing.ts
+    - src/core/trailers.ts
+    - src/cli/help.ts
+    - src/cli/index.ts
+    - src/features/migrate-link-rot.ts
+    - src/features/phase-flip-done-cli.ts
+    - src/features/phase-revert-cli.ts
+    - src/triage/remove-block-cli.ts
+    - src/graphify/graph-to-toon.ts
+    - src/templates/copy.ts
+    - src/templates/diff.ts
+    - src/templates/manifest.ts
+    - src/release/auto-restamp.ts
+    - src/release/graph-freshness.ts
+    - src/release/release-packages.ts
+    - src/release/release-session.ts
+    - src/release/release-version.ts
     - src/hooks/noldor-pre-commit.ts
+    - src/hooks/noldor-pre-edit-guard.ts
     - .claude/skills/gate/SKILL.md
     - .claude/skills/promote/SKILL.md
     - docs/noldor/pr-flow.md
@@ -37,9 +60,13 @@ links:
     - src/core/__tests__/pr-flow.test.ts
     - src/core/__tests__/release-markers.test.ts
     - src/core/__tests__/rename-plan-only-tier.test.ts
+    - src/core/__tests__/rollout-marker.test.ts
+    - src/core/__tests__/size-routing.test.ts
+    - src/core/__tests__/trailers.test.ts
     - src/core/__tests__/validate-noldor-scope.test.ts
     - src/core/__tests__/validate-noldor.test.ts
     - src/core/__tests__/validate-skill-catalog.test.ts
+    - src/cr/__tests__/aggregate.cli.test.ts
     - src/cr/__tests__/amend-receipt.test.ts
     - src/cr/__tests__/bootstrap-immunity.test.ts
     - src/cr/__tests__/cli-args.test.ts
@@ -65,9 +92,14 @@ links:
     - src/garden/detectors/__tests__/tier-mismatch.test.ts
     - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
     - src/hooks/__tests__/noldor-pre-commit.test.ts
+    - src/hooks/__tests__/noldor-pre-edit-guard.test.ts
     - src/hooks/__tests__/noldor-validate-trailer.test.ts
+    - src/release/__tests__/auto-restamp.test.ts
+    - src/release/__tests__/graph-freshness.test.ts
     - src/release/__tests__/release-cr-gate-e2e.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
+    - src/release/__tests__/release-packages.test.ts
+    - src/release/__tests__/release-version.test.ts
     - src/testing/__tests__/drain-e2e.test.ts
   docs:
     - docs/noldor/README.md
@@ -91,7 +123,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a

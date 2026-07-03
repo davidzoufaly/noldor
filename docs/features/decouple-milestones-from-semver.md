@@ -4,8 +4,13 @@ category: Tooling
 deps: []
 links:
   spec: lost-pre-extraction
-  code: []
-  tests: []
+  code:
+    - src/milestones/cli.ts
+    - src/milestones/lib.ts
+    - src/milestones/validate-milestones.ts
+  tests:
+    - src/milestones/__tests__/lib.test.ts
+    - src/milestones/__tests__/validate-milestones.test.ts
 name: Decouple Milestones from Semver
 packages:
   - tooling

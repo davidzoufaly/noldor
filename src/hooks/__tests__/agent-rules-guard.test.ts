@@ -1,3 +1,4 @@
+// @tests: rules-cascade-v1
 import { describe, expect, it } from 'vitest';
 import { runAgentRulesGuard } from '../agent-rules-guard';
 

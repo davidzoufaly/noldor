@@ -8,6 +8,8 @@ links:
     - .claude/skills/noldor-plan/
     - src/worktrees/
     - src/prep/draft.ts
+    - src/prep/formats.ts
+    - src/prep/print-format.ts
     - .claude/skills/gate/SKILL.md
     - .claude/skills/garden/SKILL.md
     - .claude/skills/draft-feature-md/SKILL.md
@@ -16,6 +18,7 @@ links:
     - docs/noldor/skill-catalog.md
   tests:
     - src/prep/__tests__/formats.test.ts
+    - src/prep/__tests__/print-format.test.ts
     - src/worktrees/__tests__/create-worktree.test.ts
     - src/worktrees/__tests__/dev-surfaces.test.ts
     - src/worktrees/__tests__/down-worktree.test.ts
