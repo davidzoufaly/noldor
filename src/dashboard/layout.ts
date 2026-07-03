@@ -16,6 +16,7 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/test-pyramid', label: 'Test pyramid' },
   { href: '/graph-health', label: 'Graph health' },
   { href: '/worktrees', label: 'Worktrees' },
+  { href: '/agents', label: 'Agents' },
   { href: '/metrics', label: 'Metrics' },
 ];
 
@@ -271,6 +272,23 @@ const STYLE = `
     .hljs-deletion { color: #f87171; background: rgba(248,113,113,0.10); }
     .hljs-addition { color: #4ade80; background: rgba(74,222,128,0.10); }
   }
+  /* --- /agents page: run-timeline bars + outcome badges --- */
+  .agents-bar-track { position: relative; background: var(--line); border-radius: 3px; height: 10px; min-width: 8rem; }
+  .agents-bar { position: absolute; top: 0; height: 100%; border-radius: 3px; }
+  .agents-bar--ok { background: #16a34a; }
+  .agents-bar--failed { background: #dc2626; }
+  .agents-bar--timeout { background: #d97706; }
+  .agents-bar--salvaged { background: #7c3aed; }
+  .badge.outcome-ok { background: rgba(22,163,74,0.15); color: #15803d; }
+  .badge.outcome-failed { background: rgba(220,38,38,0.18); color: #b91c1c; }
+  .badge.outcome-timeout { background: rgba(217,119,6,0.18); color: #b45309; }
+  .badge.outcome-salvaged { background: rgba(124,58,237,0.18); color: #6d28d9; }
+  @media (prefers-color-scheme: dark) {
+    .badge.outcome-ok { color: #4ade80; }
+    .badge.outcome-failed { color: #f87171; }
+    .badge.outcome-timeout { color: #fbbf24; }
+    .badge.outcome-salvaged { color: #c4b5fd; }
+  }
 `;
 
 /**
@@ -327,5 +345,5 @@ export function renderLayout(opts: {
   const combinedEtagMeta = opts.combinedEtag
     ? `<meta name="combined-etag" content="${escapeHtml(opts.combinedEtag)}">`
     : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${combinedEtagMeta}<title>${escapeHtml(opts.title)}</title><style>${STYLE}</style></head><body><nav>${navHtml}</nav><main>${opts.body}</main>${MERMAID_SCRIPT}<script src="/static/drag.js" type="module"></script></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${combinedEtagMeta}<title>${escapeHtml(opts.title)}</title><style>${STYLE}</style></head><body><nav>${navHtml}</nav><main>${opts.body}</main>${MERMAID_SCRIPT}<script src="/static/drag.js" type="module"></script><script src="/static/agents.js" type="module"></script></body></html>`;
 }

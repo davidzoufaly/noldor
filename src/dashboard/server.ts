@@ -9,6 +9,7 @@ import {
   getRoadmapPath,
   loadActiveMilestone,
   loadAgentActivity,
+  loadWatchLogTail,
   loadMilestoneGroups,
   loadBacklogWithHash,
   loadCounts,
@@ -37,6 +38,8 @@ import {
 import { renderLayout } from './layout.js';
 import {
   parseMultiParam,
+  renderAgents,
+  renderAgentsLog,
   renderBacklog,
   renderFeatureDetail,
   renderFeatures,
@@ -133,6 +136,8 @@ function matchRoute(method: string, pathname: string): RouteMatch | null {
     if (pathname === '/graph-health') return { handler: handleGraphHealth, pathParams: {} };
     if (pathname === '/worktrees') return { handler: handleWorktrees, pathParams: {} };
     if (pathname === '/api/agents') return { handler: handleApiAgents, pathParams: {} };
+    if (pathname === '/agents') return { handler: handleAgents, pathParams: {} };
+    if (pathname === '/agents/log') return { handler: handleAgentsLog, pathParams: {} };
     if (pathname === '/metrics') return { handler: handleMetrics, pathParams: {} };
     if (pathname === '/framework') return { handler: handleFrameworkIndex, pathParams: {} };
     const fwMatch = /^\/framework\/([a-z0-9-]+)$/.exec(pathname);
@@ -766,6 +771,26 @@ async function handleWorktrees(): Promise<RouteResult> {
 /** Read-only JSON for the /agents poller — no CSRF/atomic concerns (mutations only). */
 async function handleApiAgents(): Promise<RouteResult> {
   return jsonResult(200, await loadAgentActivity());
+}
+
+async function handleAgents(): Promise<RouteResult> {
+  const activity = await loadAgentActivity();
+  return {
+    status: 200,
+    body: renderAgents(activity),
+    title: 'Agents',
+    activeNav: '/agents',
+  };
+}
+
+async function handleAgentsLog(): Promise<RouteResult> {
+  const tail = await loadWatchLogTail();
+  return {
+    status: 200,
+    body: renderAgentsLog(tail),
+    title: 'Watch log',
+    activeNav: '/agents',
+  };
 }
 
 async function handleMetrics(): Promise<RouteResult> {

@@ -5,8 +5,10 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadAgentActivity, loadWatchLogTail, NO_RUN_ID } from '../data.js';
+import { loadAgentActivity, loadWatchLogTail, NO_RUN_ID, type AgentActivity } from '../data.js';
 import { startServer } from '../server.js';
+import { renderAgents, renderAgentsLog } from '../views.js';
+import { formatRuntime } from '../static/agents.js';
 
 import type { Server } from 'node:http';
 
@@ -299,5 +301,182 @@ describe('GET /api/agents', () => {
     expect(Array.isArray(body.live)).toBe(true);
     expect(Array.isArray(body.runs)).toBe(true);
     expect(Array.isArray(body.inbox)).toBe(true);
+  });
+});
+
+const sampleActivity: AgentActivity = {
+  live: [
+    {
+      spawnId: 'live-1',
+      runId: 'r-1',
+      kind: 'implementer',
+      slug: 'feat-a',
+      lane: 'drain.spawnGate',
+      phase: 'building',
+      pid: 111,
+      startedTs: T0,
+      runtimeMs: 272_000,
+      retries: 1,
+      stale: false,
+    },
+  ],
+  runs: [
+    {
+      runId: 'r-1',
+      startTs: T0,
+      endTs: '2026-07-03T10:10:00.000Z',
+      bars: [
+        {
+          kind: 'implementer',
+          slug: 'feat-b',
+          lane: 'drain.spawnGate',
+          startMs: Date.parse(T0),
+          durationMs: 300_000,
+          outcome: 'ok',
+        },
+        {
+          kind: 'reviewer',
+          slug: null,
+          lane: 'cr.subagent-dispatch',
+          startMs: Date.parse(T0) + 60_000,
+          durationMs: 120_000,
+          outcome: 'failed',
+        },
+      ],
+      totals: { shipped: 1, unfinished: 0, escalated: 2 },
+    },
+  ],
+  inbox: [
+    {
+      slug: 'feat-c',
+      source: 'roadmap',
+      reason: 'retries-exhausted',
+      ts: T0,
+      evidence: 'skip reason: retries-exhausted',
+      suggestedAction: 'inspect sinks, then unpark',
+    },
+  ],
+};
+
+describe('renderAgents', () => {
+  it('renders the three sections with poller anchor ids', () => {
+    const html = renderAgents(sampleActivity);
+    expect(html).toContain('<h1>Agents</h1>');
+    expect(html).toContain('Live board');
+    expect(html).toContain('Run timeline');
+    expect(html).toContain('Escalation inbox');
+    expect(html).toContain('id="agents-live-body"');
+    expect(html).toContain('id="agents-inbox-body"');
+    expect(html).toContain('id="agents-live-count"');
+    expect(html).toContain('id="agents-inbox-count"');
+  });
+
+  it('renders live rows with slug link, lane, phase, runtime, retries and a log link', () => {
+    const html = renderAgents(sampleActivity);
+    expect(html).toContain('href="/features/feat-a"');
+    expect(html).toContain('drain.spawnGate');
+    expect(html).toContain('building');
+    expect(html).toContain('4m 32s');
+    expect(html).toContain('href="/agents/log"');
+  });
+
+  it('renders timeline bars with outcome classes and a totals line', () => {
+    const html = renderAgents(sampleActivity);
+    expect(html).toContain('agents-bar--ok');
+    expect(html).toContain('agents-bar--failed');
+    expect(html).toContain('<code>r-1</code>');
+    expect(html).toContain('1 shipped · 0 unfinished · 2 escalated');
+  });
+
+  it('renders inbox rows mirroring the CLI columns', () => {
+    const html = renderAgents(sampleActivity);
+    expect(html).toContain('roadmap');
+    expect(html).toContain('feat-c');
+    expect(html).toContain('retries-exhausted');
+    expect(html).toContain('inspect sinks, then unpark');
+  });
+
+  it('renders empty states for no live agents, no runs, and an empty inbox', () => {
+    const html = renderAgents({ live: [], runs: [], inbox: [] });
+    expect(html).toContain('no agents running');
+    expect(html).toContain('no recorded runs');
+    expect(html).toContain('inbox empty');
+  });
+
+  it('escapes HTML in event-sourced strings', () => {
+    const evil: AgentActivity = {
+      live: [
+        {
+          ...sampleActivity.live[0]!,
+          slug: null,
+          lane: '<script>alert(1)</script>',
+          phase: null,
+        },
+      ],
+      runs: [],
+      inbox: [],
+    };
+    const html = renderAgents(evil);
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+});
+
+describe('renderAgentsLog', () => {
+  it('renders the friendly empty state when the log is absent', () => {
+    const html = renderAgentsLog(null);
+    expect(html).toContain('no watch log — drain running attached?');
+    expect(html).not.toContain('<pre>');
+  });
+
+  it('renders the tail inside a pre, escaped', () => {
+    const html = renderAgentsLog('cycle done <ok>');
+    expect(html).toContain('<pre>');
+    expect(html).toContain('cycle done &lt;ok&gt;');
+    expect(html).toContain('shared');
+  });
+});
+
+describe('formatRuntime (poller module, DOM-guarded import)', () => {
+  it('formats seconds, minutes, and hours', () => {
+    expect(formatRuntime(12_000)).toBe('12s');
+    expect(formatRuntime(272_000)).toBe('4m 32s');
+    expect(formatRuntime(3_840_000)).toBe('1h 04m');
+  });
+});
+
+describe('GET /agents + /agents/log', () => {
+  let server: Server;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    ({ server, baseUrl } = await startServer({ port: 0 }));
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('serves the page with the Agents nav marked current', async () => {
+    const res = await fetch(`${baseUrl}/agents`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const body = await res.text();
+    expect(body).toContain('<h1>Agents</h1>');
+    expect(body).toMatch(/<a href="\/agents" aria-current="page">/);
+    expect(body).toContain('/static/agents.js');
+  });
+
+  it('serves the log tail page', async () => {
+    const res = await fetch(`${baseUrl}/agents/log`);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('Watch log');
+  });
+
+  it('GET /static/agents.js returns the compiled poller', async () => {
+    const res = await fetch(`${baseUrl}/static/agents.js`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/javascript');
   });
 });
