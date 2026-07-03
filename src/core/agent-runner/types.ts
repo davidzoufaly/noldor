@@ -20,6 +20,9 @@ export interface RunnerCapabilities {
   supportsLocalModels: boolean;
   questionSuppression: 'flag' | 'non-interactive' | 'permission-config';
   rulesFile: 'CLAUDE.md' | 'AGENTS.md';
+  /** How framework entry prompts are dispatched: 'slash-command' expands a
+   *  vendored skill/command; 'prose' must be self-contained instructions. */
+  promptDispatch: 'slash-command' | 'prose';
 }
 
 export const roleConfigSchema = z

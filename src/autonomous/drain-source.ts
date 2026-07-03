@@ -4,6 +4,9 @@ import { getSuggestions, loadInProgressFds, loadMilestoneGate } from '../core/ne
 import { loadDocRoots } from '../core/doc-roots.js';
 import { parseRoadmap } from '../utils/parse-blocks.js';
 import { isDrainEligible } from './drain-eligibility.js';
+import { CAPABILITIES } from '../core/agent-runner/capabilities.js';
+import { loadAgentsConfig, resolveRunner } from '../core/agent-runner/registry.js';
+import { buildDrainGatePrompt, buildResumeGatePrompt, type PromptDispatch } from './gate-prompt.js';
 
 export type SourceId = 'roadmap' | 'plans' | 'specs';
 
@@ -33,7 +36,7 @@ export interface DrainSource {
   nextItem(skip: ReadonlySet<string>): DrainCandidate | null;
   /** success-oracle universe: ALL items (unfiltered); absence === shipped */
   parseAll(): string[];
-  /** prompt handed to `claude --print` for this slug */
+  /** gate entry prompt for this slug (shape follows the implementer runner's promptDispatch) */
   gatePrompt(slug: string): string;
   /** branch the shipped PR lives on, for `openPrExistsFor` */
   branchFor(slug: string): string;
@@ -45,15 +48,28 @@ function escapeRe(s: string): string {
 }
 
 /**
+ * Resolve the gate-prompt dispatch ONCE at source construction (spec D2): the
+ * implementer runner's `promptDispatch` capability picks slash-command vs
+ * prose. The drain spawn path never pins `opts.runner` (`spawnGate` passes
+ * only `role: 'implementer'`), so construction-time and spawn-time resolution
+ * cannot diverge. A malformed `agents:` block throws loudly here — same
+ * posture as the registry.
+ */
+function implementerDispatch(cwd: string): PromptDispatch {
+  return CAPABILITIES[resolveRunner('implementer', loadAgentsConfig(cwd)).runner].promptDispatch;
+}
+
+/**
  * Reproduces queue-drain selection behavior: `nextItem` is today's
  * `getSuggestions(...).topPriority[0]` with `eligible = fast-track && isDrainEligible`;
- * `parseAll` is the full roadmap slug list (the success oracle); the gate prompt is
- * `/gate --drain <slug>` — an explicit drain entry that short-circuits the interactive Step 0
- * (a headless model ignores an env-var-only signal, so the assigned slug must ride the prompt
- * itself, mirroring how `plansSource` uses `--resume <slug>`); the branch is `fast/<slug>`.
+ * `parseAll` is the full roadmap slug list (the success oracle); the gate prompt comes from
+ * `buildDrainGatePrompt` with the dispatch resolved once at construction from the implementer
+ * runner (claude/stub → `/gate --drain <slug>` verbatim, codex/opencode → self-contained prose
+ * directive — see src/autonomous/gate-prompt.ts); the branch is `fast/<slug>`.
  */
 export function roadmapSource(cwd: string): DrainSource {
   const read = (): string => readFileSync(loadDocRoots(cwd).roadmap, 'utf8');
+  const dispatch = implementerDispatch(cwd);
   return {
     id: 'roadmap',
     nextItem(skip) {
@@ -95,7 +111,7 @@ export function roadmapSource(cwd: string): DrainSource {
       return parseRoadmap(read()).map((e) => e.slug);
     },
     gatePrompt(slug) {
-      return `/gate --drain ${slug}`;
+      return buildDrainGatePrompt(slug, dispatch);
     },
     branchFor(slug) {
       return `fast/${slug}`;
@@ -114,6 +130,7 @@ export function roadmapSource(cwd: string): DrainSource {
  */
 export function plansSource(cwd: string): DrainSource {
   const roots = loadDocRoots(cwd);
+  const dispatch = implementerDispatch(cwd);
   const inProgressSlugs = (): string[] => loadInProgressFds(cwd).map((f) => f.slug);
 
   const planDate = (slug: string): string | null => {
@@ -168,22 +185,7 @@ export function plansSource(cwd: string): DrainSource {
       return inProgressSlugs();
     },
     gatePrompt(slug) {
-      // Plan-drain is headless: the resumed gate MUST run autonomously or it
-      // stalls at the autonomous-vs-interactive / lane-picker / PR-approval
-      // seams a `claude --print` child can't answer. Per the PR #33 rule the
-      // directive rides the prompt (never env): the `--autonomous` flag plus
-      // explicit prose tell the gate to set `session.autonomous` immediately
-      // and ship end-to-end without pausing.
-      return [
-        `/gate --resume ${slug} --autonomous`,
-        '',
-        'Autonomous plan-drain context: run this resume end-to-end with NO interactive prompts.',
-        'Immediately set autonomous mode (`pnpm noldor noldor set-autonomous`) right after the',
-        'session marker is written — do NOT ask autonomous-vs-interactive. Implement the plan',
-        'inline, run code-stage CR, and ship via pr-flow. On CR-red or test-red run',
-        '`cr escalate --autonomous` (config `autonomous.onFailure` governs). Never pause for a',
-        'lane picker or PR approval.',
-      ].join('\n');
+      return buildResumeGatePrompt(slug, dispatch);
     },
     branchFor(slug) {
       return `feat/${slug}`;

@@ -13,3 +13,9 @@ Run the Noldor gate flow for this repo. Read `docs/noldor/workflow.md` and
 
 Commit messages need a `Noldor-FD: <slug>` trailer (lefthook injects it when a
 session marker exists).
+
+Headless drain / resume: the autonomous drain supervisor does not invoke this
+command — non-Claude runners receive a self-contained prose directive whose
+canonical contract is `docs/noldor/drain-mode.md` (slug binding, `fast/<slug>`
+branch discipline, roadmap retirement, autonomous end-of-flow, exit codes).
+Driving a drain-style run by hand? Read that page and follow it exactly.

@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, plan-runner
+// @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, plan-runner, portable-gate-entrypoint-for-non-claude-runners
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -264,6 +264,94 @@ describe('plansSource', () => {
     const dir = tmpPlansRepo([{ slug: 'designed' }]);
     try {
       expect(plansSource(dir).nextItem(new Set(['designed']))).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * Byte lock for the claude-default gate prompts (portable-gate-entrypoint spec,
+ * acceptance criterion 3): with no `agents:` block the drain children must
+ * receive strings byte-identical to pre-change main. Written GREEN against the
+ * pre-refactor code on purpose — the extraction into gate-prompt.ts must not
+ * churn a single byte of the battle-tested claude path.
+ */
+describe('gatePrompt byte lock (claude default — no agents config)', () => {
+  const RESUME_LITERAL = [
+    '/gate --resume designed --autonomous',
+    '',
+    'Autonomous plan-drain context: run this resume end-to-end with NO interactive prompts.',
+    'Immediately set autonomous mode (`pnpm noldor noldor set-autonomous`) right after the',
+    'session marker is written — do NOT ask autonomous-vs-interactive. Implement the plan',
+    'inline, run code-stage CR, and ship via pr-flow. On CR-red or test-red run',
+    '`cr escalate --autonomous` (config `autonomous.onFailure` governs). Never pause for a',
+    'lane picker or PR approval.',
+  ].join('\n');
+
+  it('roadmapSource emits the exact drain literal', () => {
+    const dir = tmpRepo(block('alpha', 'XS'));
+    try {
+      expect(roadmapSource(dir).gatePrompt('alpha')).toBe('/gate --drain alpha');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('plansSource emits the exact resume literal', () => {
+    const dir = tmpPlansRepo([{ slug: 'designed' }]);
+    try {
+      expect(plansSource(dir).gatePrompt('designed')).toBe(RESUME_LITERAL);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/** Pin the implementer role to a runner via a fixture `.noldor/config.json`. */
+function writeImplementerRunner(dir: string, runner: string): void {
+  mkdirSync(join(dir, '.noldor'), { recursive: true });
+  writeFileSync(
+    join(dir, '.noldor', 'config.json'),
+    JSON.stringify({ agents: { roles: { implementer: { runner } } } }),
+    'utf8',
+  );
+}
+
+describe('gatePrompt dispatch follows the implementer runner (spec Unit 3)', () => {
+  it('codex implementer → prose drain directive (slug, fast/<slug>, drain-mode.md, no /gate)', () => {
+    const dir = tmpRepo(block('alpha', 'XS'));
+    try {
+      writeImplementerRunner(dir, 'codex');
+      const p = roadmapSource(dir).gatePrompt('alpha');
+      expect(p).toContain("'alpha'");
+      expect(p).toContain('fast/alpha');
+      expect(p).toContain('docs/noldor/drain-mode.md');
+      expect(p).not.toContain('/gate');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('opencode implementer → prose resume directive (slug, feat/<slug>, drain-mode.md, no /gate)', () => {
+    const dir = tmpPlansRepo([{ slug: 'designed' }]);
+    try {
+      writeImplementerRunner(dir, 'opencode');
+      const p = plansSource(dir).gatePrompt('designed');
+      expect(p).toContain("'designed'");
+      expect(p).toContain('feat/designed');
+      expect(p).toContain('docs/noldor/drain-mode.md');
+      expect(p).not.toContain('/gate');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('stub implementer keeps the claude (slash-command) shape — contract-CI fixtures unchanged (spec D5)', () => {
+    const dir = tmpRepo(block('alpha', 'XS'));
+    try {
+      writeImplementerRunner(dir, 'stub');
+      expect(roadmapSource(dir).gatePrompt('alpha')).toBe('/gate --drain alpha');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

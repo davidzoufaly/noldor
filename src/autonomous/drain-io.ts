@@ -187,14 +187,15 @@ export function openPrExistsFor(cwd: string, slug: string, branch: string): bool
  * forgotten prose branch fails fast instead of hanging) and bypassPermissions
  * so git/gh/pnpm/Edit run unattended. A systemic spawn error (e.g. ENOENT —
  * runner not on PATH) rejects `spawn-failed: …` so the loop aborts the whole
- * drain instead of churning retries across every entry. `prompt` defaults to
- * `/gate` (roadmap source); plans source passes `/gate --resume <slug>`.
+ * drain instead of churning retries across every entry. `prompt` is required —
+ * the drain sources build it via src/autonomous/gate-prompt.ts, so no `/gate`
+ * literal survives outside that builder.
  */
 export async function spawnGate(
   cwd: string,
   env: Record<string, string>,
   timeoutMs: number,
-  prompt = '/gate',
+  prompt: string,
   onSpawn?: (pgid: number) => void,
   slug?: string,
 ): Promise<number> {
