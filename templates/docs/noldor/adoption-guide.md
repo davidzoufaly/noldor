@@ -7,6 +7,23 @@ introduced: 0.4.0
 
 Noldor is a standalone package. A consuming repo installs it as a dev dependency and is driven entirely through the `noldor` CLI plus a single `.noldor/config.json` — no framework paths are hard-coded to any one project.
 
+## Prerequisites
+
+Noldor is opinionated, not configurable (vision). It hard-assumes its home stack; the floor below is **not negotiable pre-1.0**. `pnpm noldor doctor` probes every row with a floor and fails with a pointer here, so a mismatched adopter finds out at minute one, not mid-gate. Source of truth: `src/core/prerequisites.ts`.
+
+| Prerequisite | Floor | Where assumed | If absent |
+| ------------ | ----- | ------------- | --------- |
+| Node.js | ≥ 20 | `bin/noldor.mjs` + tsx runtime execute every CLI surface | nothing runs |
+| pnpm | ≥ 9 | every scaffolded lefthook job and the gate/release/prep pipelines shell out via `pnpm …` | hooks and pipelines error mid-run |
+| git | ≥ 2.30 | worktrees, `interpret-trailers`, porcelain parsing across `src/` | drain/gate/pr-flow fail on git verbs |
+| gh CLI | ≥ 2 | pr-flow PR create/merge, release, drain salvage | ship steps fail at PR creation |
+| lefthook | ≥ 1 | runs every commit/push hook | gate enforcement silently never fires |
+| agent runner | per `agents.versionFloors` | driving agent for gate/drain/CR (`claude` default; `codex`/`opencode` per `agents` config) | drain spawns nothing; probed by the existing runner check |
+| package scripts `lint`, `fmt`, `fmt:check`, `test` | — | the scaffolded lefthook config invokes them (`pnpm lint`, `pnpm fmt`, `pnpm --silent fmt:check`); verify lane + release run `pnpm test` (vitest assumed) | pre-commit jobs fail with "missing script" |
+| Conventional Commits | — | commit-msg validators (`noldor-scope`, `feature-slug-scope`, trailer schema) and changelog derivation parse `type(scope): subject` | every commit is rejected at commit-msg |
+
+Swappability is out of scope here by design — abstraction decisions (other package managers, other agents, other hook runners) belong to the `portable-gate-entrypoint-for-non-claude-runners` roadmap entry. This matrix only makes the floor visible.
+
 ## Bootstrap
 
 1. **Install** the package as a dev dependency (`noldor`).
