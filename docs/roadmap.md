@@ -59,17 +59,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 `docs/noldor/triage.md:64` describes a `deps:` bullet (comma-separated kebab slugs) that `src/triage/score.ts` reads for dependency-weight scoring, but the field is silently optional in v1, undocumented in both `docs/roadmap.md` and `docs/backlog.md` preambles, and nearly unused across current entries. Promote it to a first-class `blocked-by:` field — name matches GitHub-issue + Jira convention and reads better in prose than `deps`. Document it in both file preambles, surface it on the dashboard as a dependency graph view, validate that each referenced ID exists, and have `/garden` flag circular chains. Accept `deps:` ↔ `blocked-by:` as aliases during a migration window, then deprecate `deps:`. Blocked by Stable Entry IDs — `blocked-by:` references should target stable IDs, not rename-fragile slugs. Touches: `docs/roadmap.md` + `docs/backlog.md` preambles, `.claude/skills/triage/SKILL.md`, `src/triage/validate-triage.ts`, `src/garden/detectors/*` (new circular-blocked-by detector), `docs/noldor/triage.md`.
 
-#### Framework Script + Test Migration Cleanup
-
-- area: tooling
-- type: chore
-- since: 2026-05-10
-- size: M
-- impact: low
-- parent: noldor
-
-Audit `scripts/` and the framework's test corpus to identify scripts/tests that were only needed during migration (FD frontmatter shape changes, gate path additions, garden detector rollouts) and can now be deleted. Conversely, identify gaps where shipped framework features lack test coverage. The 2026-07 audit's cruft inventory is the shopping list: dead `cr-retry.ts`, `src/graphify-out/junk.ts` litter, empty `src/index.ts` as package main, duplicate semver impls (`src/migrations/semver.ts` vs npm `semver` in release), stale `packages/noldor/` + `scripts/release/` path comments (`src/core/consumer-config.ts:7`, `src/core/release-markers.ts:9`), `ideas.md` at repo root while `src/core/doc-roots.ts:28` expects `docs/ideas.md`. One-pass sweep — possibly a `/garden` detector that flags scripts referenced only in migration-era commits and not in any current pipeline.
-
 #### Scope Sibling Trailer for Doc-Sync Commits
 
 - area: tooling
