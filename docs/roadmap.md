@@ -45,24 +45,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 ### Phase 5 — Autonomy Observability
 
-#### Agent-Events Phase Tracking, Run IDs and `/agents` Dashboard Page
-
-- area: tooling
-- type: feat
-- since: 2026-06-11
-- size: M
-- impact: high
-- parent: project-tracking-dashboard
-
-Delta rewrite 2026-07-02 — the original entry's data spine already shipped: `src/core/agent-events.ts` appends to `.noldor/agent-events.jsonl` (fail-open), every spawner writes exit events via the agent-runner registry, and `src/metrics/collect/drain-reliability.ts` already aggregates salvage counts + durations. Remaining delta:
-
-- **Run IDs:** events lack a drain-run id, so per-run grouping is not derivable (noted blind spot in `drain-reliability.ts:35`); escalation rows share the gap. Mint a run id at drain start, thread it through spawn/exit events + escalations.
-- **Phase events:** today only spawn/exit are recorded; add coarse phase events (gate stage, CR lane, merge) from the drain loop heartbeat.
-- **Dashboard `/agents` page** (`src/dashboard/`): **Live board** — currently-running agents (spawned without exited, pid-liveness-checked): kind, slug, lane, phase, runtime, retry count; link per row to a log-tail view. **Run timeline** — per drain-run grouped history: spawned→exited bars, outcomes color-coded, shipped/skipped/escalated totals. Poll every ~2s in v1; SSE noted as follow-up.
-- **Escalation inbox surface:** the CLI-only inbox (`noldor autonomous inbox`) gets a dashboard panel on the same page — escalations are the events an unattended operator most needs to see.
-
-**Acceptance sketch:** run `noldor autonomous run --concurrency 2 --max-features 2`; `/agents` shows 2 live implementer rows with distinct lanes, then a timeline with 2 shipped outcomes grouped under one run id; events file has spawned/exited pairs for every agent incl. CR lanes.
-
 #### `noldor autonomous status`
 
 - area: tooling
@@ -73,17 +55,6 @@ Delta rewrite 2026-07-02 — the original entry's data spine already shipped: `s
 - parent: autonomous-queue-drain-runner
 
 Delta rewrite 2026-07-02 — the robust-lock-read half already shipped: `liveLockPid` (`src/autonomous/drain-lock.ts:41-50`) catches empty/partial JSON and validates the pid field, and PR #120's startup reconcile + pgid heartbeat closed the incident class that motivated it. Remaining delta: the `status` subcommand itself — `noldor autonomous status` reporting liveness from the actual process (lock pid + `kill -0`) plus shipped / skip / in-flight from drain-state, so operators stop reading `.noldor/drain-state.json` + `.noldor/drain.lock` by hand. Touches: `src/cli/manifest.ts`, thin reader over `src/autonomous/drain-state.ts` + `drain-lock.ts`.
-
-#### Portable Gate Entrypoint for Non-Claude Runners
-
-- area: tooling
-- type: feat
-- since: 2026-06-12
-- size: M
-- impact: high
-- confidence: med
-
-The autonomous drain's spawn layer is agent-agnostic (the registry resolves bin + argv for `claude` / `codex` / `opencode`), but the *prompt* it spawns is `/gate --drain <slug>` — a Claude Code slash-command (`src/autonomous/drain-source.ts:98`). On `codex` (prompt via stdin, no slash-command system) the string is treated as literal text → no gate runs. On `opencode` it only works if a `/gate` command is vendored into `.opencode/command/` (not present). So the multi-runner promise stops short of the autonomous drain: only claude can actually drive the gate headlessly. PR #119's portable CLIs (`features phase-flip-done`, `phase-revert`, `roadmap remove-block`) cover the gate's *manual steps* but not the drain entrypoint itself. Options: (a) a portable `noldor gate --drain <slug>` CLI entrypoint the drain spawns instead of a slash-command, with the agent CLI wrapping it; or (b) per-runtime vendoring of a `/gate` command alongside the existing skill. Strategic per the 2026-07 audit: harness-neutrality is the defensible layer. Touches: `src/autonomous/drain-source.ts`, the runner argv builders, gate skill/CLI surface.
 
 #### Graphify AST-Only Sweep Default
 
