@@ -10,7 +10,6 @@
   "ignorePatterns": [
     "dist/**",
     "node_modules/**",
-    "**/*.pen",
     "**/*.md",
     "graphify-out/**",
     "**/graphify-out/**",

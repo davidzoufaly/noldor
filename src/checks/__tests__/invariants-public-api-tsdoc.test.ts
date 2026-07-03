@@ -69,4 +69,15 @@ describe('public-api-tsdoc plugin', () => {
     const result = await inv.run();
     expect(result.violations).toHaveLength(0);
   });
+
+  it('passes without loading typescript when no package indices exist (JS consumer shape)', async () => {
+    const bare = await mkdtemp(join(tmpdir(), 'inv-tsdoc-bare-'));
+    try {
+      const inv = makePublicApiTsdocInvariant(bare);
+      const result = await inv.run();
+      expect(result.violations).toHaveLength(0);
+    } finally {
+      await rm(bare, { force: true, recursive: true });
+    }
+  });
 });

@@ -15,7 +15,9 @@ interface UiFeature {
 }
 
 async function listUiFeatures(featuresDir: string): Promise<UiFeature[]> {
-  const entries = await readdir(featuresDir);
+  // A consumer without docs/features yet (fresh adoption, pre-first-feature)
+  // must pass, not crash with ENOENT.
+  const entries = await readdir(featuresDir).catch(() => [] as string[]);
   const out: UiFeature[] = [];
   for (const entry of entries) {
     if (!entry.endsWith('.md')) {
