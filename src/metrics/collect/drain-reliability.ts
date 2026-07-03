@@ -9,7 +9,11 @@ export const collectDrainReliability: Collector = (facts: RepoFacts): MetricResu
       }
     : null;
   const hasHistory = facts.agentEvents.length > 0 || facts.escalations.length > 0;
-  const durations = facts.agentEvents.map((e) => e.durationMs);
+  // `event` absent ⇒ exited (pre-vocabulary rows): only completed spawns carry
+  // a duration — a `spawned`/`phase` row has none and must not drag the mean to 0.
+  const durations = facts.agentEvents
+    .filter((e) => e.event === 'exited' || e.event === undefined)
+    .map((e) => e.durationMs ?? 0);
   const escalatedBySlug: Record<string, number> = {};
   for (const e of facts.escalations) escalatedBySlug[e.slug] = (escalatedBySlug[e.slug] ?? 0) + 1;
   const history = hasHistory

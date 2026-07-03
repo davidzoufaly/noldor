@@ -1,4 +1,4 @@
-// @tests: outcome-telemetry-and-effectiveness-metrics
+// @tests: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it } from 'vitest';
 import { collectDrainReliability } from '../collect/drain-reliability';
 import { collectTokensPerFeature } from '../collect/tokens-per-feature';
@@ -56,6 +56,21 @@ describe('collectDrainReliability', () => {
     const v = collectDrainReliability(emptyFacts()).value as { lastRun: null; history: null };
     expect(v.lastRun).toBeNull();
     expect(v.history).toBeNull();
+  });
+
+  it('mean duration ignores spawned/phase rows; event-absent rows count as exited', () => {
+    const facts = emptyFacts({
+      agentEvents: [
+        EV({}), // legacy row, no `event` field → exited, 60_000
+        EV({ event: 'exited', durationMs: 120_000 }),
+        { ts: 't', runner: 'claude', role: 'implementer', event: 'spawned', spawnId: 's', pid: 1 },
+        { ts: 't', runner: '-', role: 'drain', event: 'phase', slug: 'a', phase: 'building' },
+      ],
+    });
+    const v = collectDrainReliability(facts).value as {
+      history: { meanDurationMs: number };
+    };
+    expect(v.history.meanDurationMs).toBe(90_000);
   });
 });
 

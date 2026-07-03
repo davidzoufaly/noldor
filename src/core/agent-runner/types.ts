@@ -65,6 +65,8 @@ export interface SpawnAgentOpts {
   needsWrite?: boolean;
   /** Caller tag for agent-events, e.g. 'drain.spawnGate'. */
   site?: string;
+  /** Slug the spawn concerns — stamped on its spawned/exited event rows (drain candidate). */
+  slug?: string;
   /**
    * Called synchronously right after a successful spawn with the child's process-
    * group id (`pgid === child.pid`, since the child is spawned `detached: true`).

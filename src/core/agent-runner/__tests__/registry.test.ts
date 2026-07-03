@@ -1,4 +1,4 @@
-// @tests: drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-agent-dispatch-for-research-jobs
+// @tests: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-agent-dispatch-for-research-jobs
 import { describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -202,6 +202,100 @@ describe('spawnAgent', () => {
       'ollama/x',
     ]);
     expect(existsSync(join(dir, '.noldor', 'agent-events.jsonl'))).toBe(true);
+  });
+});
+
+describe('agent-event vocabulary (spawned/exited pairing + runId)', () => {
+  function pidChild(pid: number): FakeChild {
+    const child = new FakeChild();
+    (child as unknown as { pid: number }).pid = pid;
+    return child;
+  }
+  function readRows(dir: string): Array<Record<string, unknown>> {
+    return readFileSync(join(dir, '.noldor', 'agent-events.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+  }
+
+  it('writes a spawned and an exited row sharing one spawnId, with pid and slug', async () => {
+    const dir = tmpConfig();
+    const child = pidChild(7777);
+    const impl = vi.fn(() => child as never);
+    const p = spawnAgent(
+      'hello',
+      { role: 'implementer', cwd: dir, site: 'drain.spawnGate', slug: 'my-slug' },
+      { spawnImpl: impl as never },
+    );
+    child.emit('close', 0);
+    await p;
+    const rows = readRows(dir);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      event: 'spawned',
+      runner: 'claude',
+      role: 'implementer',
+      site: 'drain.spawnGate',
+      slug: 'my-slug',
+      pid: 7777,
+    });
+    expect(rows[1]).toMatchObject({ event: 'exited', exitCode: 0, slug: 'my-slug' });
+    expect(typeof rows[0]!.spawnId).toBe('string');
+    expect(rows[1]!.spawnId).toBe(rows[0]!.spawnId);
+    expect(rows[0]!.exitCode).toBeUndefined();
+    expect(rows[0]!.durationMs).toBeUndefined();
+  });
+
+  it('stamps runId from opts.env.NOLDOR_RUN_ID on both rows', async () => {
+    const dir = tmpConfig();
+    const child = pidChild(4001);
+    const impl = vi.fn(() => child as never);
+    const p = spawnAgent(
+      'x',
+      { role: 'implementer', cwd: dir, env: { NOLDOR_RUN_ID: 'opts-run' } },
+      { spawnImpl: impl as never },
+    );
+    child.emit('close', 0);
+    await p;
+    const rows = readRows(dir);
+    expect(rows[0]).toMatchObject({ event: 'spawned', runId: 'opts-run' });
+    expect(rows[1]).toMatchObject({ event: 'exited', runId: 'opts-run' });
+  });
+
+  it('falls back to process.env.NOLDOR_RUN_ID (nested-spawn transport, spec D1)', async () => {
+    vi.stubEnv('NOLDOR_RUN_ID', 'ambient-run');
+    try {
+      const dir = tmpConfig();
+      const child = pidChild(4002);
+      const impl = vi.fn(() => child as never);
+      const p = spawnAgent('x', { role: 'implementer', cwd: dir }, { spawnImpl: impl as never });
+      child.emit('close', 0);
+      await p;
+      const rows = readRows(dir);
+      expect(rows[0]).toMatchObject({ event: 'spawned', runId: 'ambient-run' });
+      expect(rows[1]).toMatchObject({ event: 'exited', runId: 'ambient-run' });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('mints a fresh spawnId per call (no cross-spawn pairing)', async () => {
+    const dir = tmpConfig();
+    const a = pidChild(5001);
+    const b = pidChild(5002);
+    const children = [a, b];
+    const impl = vi.fn(() => children.shift() as never);
+    const pa = spawnAgent('a', { role: 'implementer', cwd: dir }, { spawnImpl: impl as never });
+    a.emit('close', 0);
+    await pa;
+    const pb = spawnAgent('b', { role: 'implementer', cwd: dir }, { spawnImpl: impl as never });
+    b.emit('close', 0);
+    await pb;
+    const rows = readRows(dir);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]!.spawnId).toBe(rows[1]!.spawnId);
+    expect(rows[2]!.spawnId).toBe(rows[3]!.spawnId);
+    expect(rows[0]!.spawnId).not.toBe(rows[2]!.spawnId);
   });
 });
 
