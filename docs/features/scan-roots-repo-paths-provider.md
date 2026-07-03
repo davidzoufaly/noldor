@@ -11,7 +11,7 @@ links:
 name: Scan-Roots Repo-Paths Provider
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
