@@ -1,4 +1,4 @@
-// @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, parallel-drain, plan-runner
+// @tests: acceptance-verify-lane, agent-events-phase-tracking-run-ids-and-agents-dashboard-page, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, parallel-drain, plan-runner
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -174,6 +174,23 @@ describe('mapCycle', () => {
     );
     expect(v.toPark).toEqual([]);
     expect(v.escalations).toEqual([]);
+  });
+
+  it('stamps the cycle runId on escalation rows when provided', () => {
+    const v = mapCycle(
+      input({
+        result: result({ skipped: ['a'], skipReasons: { a: 'retries-exhausted' } }),
+        queueUniverse: ['a'],
+        runId: '2026-07-03T10:00:00.000Z.42',
+      }),
+    );
+    expect(v.escalations[0]).toMatchObject({ runId: '2026-07-03T10:00:00.000Z.42' });
+  });
+
+  it('omits runId entirely when not provided (back-compat rows)', () => {
+    const v = mapCycle(input({ result: result({ error: 'boom' }) }));
+    expect(v.escalations).toHaveLength(1);
+    expect('runId' in v.escalations[0]!).toBe(false);
   });
 });
 

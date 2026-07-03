@@ -1,4 +1,4 @@
-// @tests: continuous-drain-daemon-and-escalation-inbox, make-noldor-agent-agnostic
+// @tests: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, continuous-drain-daemon-and-escalation-inbox, make-noldor-agent-agnostic
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -30,6 +30,26 @@ describe('appendAgentEvent', () => {
 
   it('fails open on unwritable target', () => {
     expect(() => appendAgentEvent('/dev/null/nope', EVENT)).not.toThrow();
+  });
+
+  it('serializes a phase row without exit fields (vocabulary extension)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'agent-events-'));
+    appendAgentEvent(dir, {
+      event: 'phase',
+      ts: '2026-07-03T00:00:00.000Z',
+      runner: '-',
+      role: 'drain',
+      site: 'drain.heartbeat',
+      runId: '2026-07-03T00:00:00.000Z.123',
+      slug: 'foo',
+      phase: 'building',
+    });
+    const parsed = JSON.parse(
+      readFileSync(join(dir, '.noldor/agent-events.jsonl'), 'utf8').trim(),
+    ) as Record<string, unknown>;
+    expect(parsed).toMatchObject({ event: 'phase', phase: 'building', slug: 'foo' });
+    expect(parsed.exitCode).toBeUndefined();
+    expect(parsed.timedOut).toBeUndefined();
   });
 
   it('serializes optional kind and slug when present', () => {

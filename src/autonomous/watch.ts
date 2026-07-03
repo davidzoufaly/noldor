@@ -8,6 +8,7 @@ import { roadmapSource } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { detachWatch } from './watch-detach.js';
 import { writeState, projectDrainState } from './drain-state.js';
+import { makePhaseTap } from './phase-events.js';
 import {
   assertQueueSourceSyncedAt,
   syncMainCleanState,
@@ -278,15 +279,21 @@ async function main(): Promise<void> {
       }
 
       const source = parkAwareSource(baseSource, () => loadPark(cwd));
+      // Per-CYCLE run id (spec D7): each cycle is one runDrain with its own
+      // outcome totals. The ambient env copy feeds salvage + nested spawns.
+      const runId = `${new Date().toISOString()}.${String(process.pid)}`;
+      process.env.NOLDOR_RUN_ID = runId;
       const deps: DrainDeps = {
         source,
-        spawnGate: (env, timeoutMs, prompt, onSpawn) =>
-          spawnGate(cwd, env, timeoutMs, prompt, onSpawn),
+        spawnGate: (env, timeoutMs, prompt, onSpawn, slug) =>
+          spawnGate(cwd, { ...env, NOLDOR_RUN_ID: runId }, timeoutMs, prompt, onSpawn, slug),
         syncMainCleanState: () => syncMainCleanState(cwd),
         mergePr: (slug, branch) => mergePr(cwd, slug, branch),
         openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
         salvageStaleBase: makeSalvage(cwd, 'watch'),
-        writeState: (s) => writeState(cwd, projectDrainState(process.pid, startedAt, s)),
+        writeState: makePhaseTap(cwd, runId, (s) =>
+          writeState(cwd, projectDrainState(process.pid, startedAt, s)),
+        ),
         stopRequested: () => sigint || existsSync(join(cwd, STOP_REL)) || pauseExists(),
       };
 
@@ -313,6 +320,7 @@ async function main(): Promise<void> {
           : {}),
         queueUniverse: source.parseAll(),
         now,
+        runId,
       });
       applyCycleVerdict(cwd, source.id, verdict, now);
       for (const rowItem of verdict.escalations) notify(notifyCommand, 'escalation', rowItem, cwd);

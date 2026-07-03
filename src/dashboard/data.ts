@@ -36,6 +36,8 @@ import {
   parseWorktreeList,
   readPort,
 } from '../worktrees/worktree-status.js';
+import { readInboxRows, type InboxRow } from '../autonomous/escalations.js';
+import { WATCH_LOG_REL } from '../autonomous/watch-detach.js';
 
 marked.use(
   markedHighlight({
@@ -62,6 +64,8 @@ import type { MetricsReport } from '../metrics/types.js';
 import type { FeatureRecord as SddFeatureRecord, Gap, ReportInput } from '../garden/sdd-report.js';
 import type { FeatureCommit } from '../release/release-fd-commits.js';
 import type { Warning } from '../worktrees/worktree-status.js';
+import type { AgentEvent } from '../core/agent-events.js';
+import type { DrainState } from '../autonomous/drain-state.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -2004,6 +2008,245 @@ export async function loadMetricsReport(): Promise<MetricsReport | null> {
   try {
     const { compute } = await import('../metrics/compute.js');
     return await compute(getDocRoot());
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent activity (/agents page + /api/agents)
+
+/** Timeline bucket for event rows written before run ids existed (spec D6). */
+export const NO_RUN_ID = '(no run id)';
+
+/**
+ * Live rows spawned longer ago than this are flagged stale, not live —
+ * pid-liveness can false-positive on a recycled pid (spec risk #2). Generous
+ * vs the 30-min default iteration timeout to tolerate raised timeouts.
+ */
+export const LIVE_STALE_CEILING_MS = 2 * 60 * 60 * 1000;
+
+export type { InboxRow };
+
+export interface LiveAgentRow {
+  spawnId: string;
+  runId: string | null;
+  /** Agent role — the board's "kind" column. */
+  kind: string;
+  slug: string | null;
+  /** Spawn site (e.g. drain.spawnGate, cr.verify-dispatch) — the "lane" column. */
+  lane: string | null;
+  /** Latest phase row for the slug, when any. */
+  phase: string | null;
+  pid: number;
+  startedTs: string;
+  runtimeMs: number;
+  retries: number;
+  stale: boolean;
+}
+
+export interface AgentRunBar {
+  kind: string;
+  slug: string | null;
+  lane: string | null;
+  /** Epoch ms of the paired spawned row (fallback: exited ts − duration). */
+  startMs: number | null;
+  durationMs: number;
+  outcome: 'ok' | 'failed' | 'timeout' | 'salvaged';
+}
+
+export interface AgentRunGroup {
+  runId: string;
+  startTs: string;
+  endTs: string;
+  bars: AgentRunBar[];
+  totals: { shipped: number; unfinished: number; escalated: number };
+}
+
+export interface AgentActivity {
+  live: LiveAgentRow[];
+  runs: AgentRunGroup[];
+  inbox: InboxRow[];
+}
+
+export interface AgentActivityDeps {
+  /** Liveness probe; default = signal-0. Injectable so tests exercise dead pids. */
+  isPidAlive?: (pid: number) => boolean;
+  /** Clock (epoch ms); injectable for runtime/staleness tests. */
+  nowMs?: () => number;
+}
+
+function defaultPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Line-tolerant JSONL read (same posture as the metrics facts reader): corrupt lines skipped. */
+async function readJsonlRows<T>(path: string): Promise<T[]> {
+  let raw: string;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch {
+    return [];
+  }
+  const rows: T[] = [];
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      rows.push(JSON.parse(line) as T);
+    } catch {
+      // skip corrupt line — the writer is fail-open, the reader is line-tolerant
+    }
+  }
+  return rows;
+}
+
+/**
+ * Derive the `/agents` payload from `.noldor/agent-events.jsonl` (+ drain-state
+ * retries + the escalation inbox via {@link readInboxRows}, reused verbatim —
+ * no logic duplication). Back-compat by contract: `event` absent ⇒ 'exited',
+ * `runId` absent ⇒ the {@link NO_RUN_ID} bucket at the bottom of the timeline.
+ */
+export async function loadAgentActivity(
+  cwd: string = getDocRoot(),
+  deps: AgentActivityDeps = {},
+): Promise<AgentActivity> {
+  const isPidAlive = deps.isPidAlive ?? defaultPidAlive;
+  const nowMs = deps.nowMs ?? Date.now;
+  const events = await readJsonlRows<AgentEvent>(join(cwd, '.noldor', 'agent-events.jsonl'));
+  const escalations = await readJsonlRows<{ runId?: string; resolved?: boolean }>(
+    join(cwd, '.noldor', 'escalations.jsonl'),
+  );
+  let retries: Record<string, number> = {};
+  try {
+    const state = JSON.parse(
+      await readFile(join(cwd, '.noldor', 'drain-state.json'), 'utf8'),
+    ) as DrainState;
+    retries = state.retries ?? {};
+  } catch {
+    retries = {};
+  }
+
+  const eventOf = (e: AgentEvent): 'spawned' | 'exited' | 'phase' => e.event ?? 'exited';
+
+  const exitedSpawnIds = new Set(
+    events.filter((e) => eventOf(e) === 'exited' && e.spawnId !== undefined).map((e) => e.spawnId),
+  );
+  const latestPhase = new Map<string, string>();
+  for (const e of events) {
+    if (eventOf(e) === 'phase' && e.slug !== undefined && e.phase !== undefined) {
+      latestPhase.set(e.slug, e.phase);
+    }
+  }
+
+  const live: LiveAgentRow[] = [];
+  for (const e of events) {
+    if (eventOf(e) !== 'spawned' || e.spawnId === undefined || e.pid === undefined) continue;
+    if (exitedSpawnIds.has(e.spawnId)) continue; // paired — completed
+    if (!isPidAlive(e.pid)) continue; // dead process — not live
+    const runtimeMs = Math.max(0, nowMs() - Date.parse(e.ts));
+    live.push({
+      spawnId: e.spawnId,
+      runId: e.runId ?? null,
+      kind: e.role,
+      slug: e.slug ?? null,
+      lane: e.site ?? null,
+      phase: (e.slug !== undefined ? latestPhase.get(e.slug) : undefined) ?? null,
+      pid: e.pid,
+      startedTs: e.ts,
+      runtimeMs,
+      retries: (e.slug !== undefined ? retries[e.slug] : undefined) ?? 0,
+      stale: runtimeMs > LIVE_STALE_CEILING_MS,
+    });
+  }
+
+  const spawnedById = new Map<string, AgentEvent>();
+  for (const e of events) {
+    if (eventOf(e) === 'spawned' && e.spawnId !== undefined) spawnedById.set(e.spawnId, e);
+  }
+  const groups = new Map<string, AgentEvent[]>();
+  for (const e of events) {
+    const key = e.runId ?? NO_RUN_ID;
+    const list = groups.get(key) ?? [];
+    list.push(e);
+    groups.set(key, list);
+  }
+  const runs: AgentRunGroup[] = [...groups.entries()].map(([runId, rows]) => {
+    const bars: AgentRunBar[] = rows
+      .filter((e) => eventOf(e) === 'exited')
+      .map((e) => {
+        const spawned = e.spawnId !== undefined ? spawnedById.get(e.spawnId) : undefined;
+        const durationMs = e.durationMs ?? 0;
+        const startMs =
+          spawned !== undefined ? Date.parse(spawned.ts) : Date.parse(e.ts) - durationMs;
+        return {
+          kind: e.kind ?? e.role,
+          slug: e.slug ?? null,
+          lane: e.site ?? null,
+          startMs: Number.isNaN(startMs) ? null : startMs,
+          durationMs,
+          outcome:
+            e.kind === 'salvaged'
+              ? ('salvaged' as const)
+              : e.timedOut === true
+                ? ('timeout' as const)
+                : (e.exitCode ?? 0) === 0
+                  ? ('ok' as const)
+                  : ('failed' as const),
+        };
+      });
+    const finalPhase = new Map<string, string>();
+    for (const e of rows) {
+      if (eventOf(e) === 'phase' && e.slug !== undefined && e.phase !== undefined) {
+        finalPhase.set(e.slug, e.phase);
+      }
+    }
+    let shipped = 0;
+    let unfinished = 0;
+    for (const phase of finalPhase.values()) {
+      if (phase === 'merged') shipped += 1;
+      else unfinished += 1;
+    }
+    const escalated = escalations.filter(
+      (r) => r.resolved === undefined && (r.runId ?? NO_RUN_ID) === runId,
+    ).length;
+    const tss = rows.map((r) => r.ts).toSorted();
+    return {
+      runId,
+      startTs: tss[0] ?? '',
+      endTs: tss[tss.length - 1] ?? '',
+      bars,
+      totals: { shipped, unfinished, escalated },
+    };
+  });
+  // Newest first; the legacy bucket always sinks to the bottom (spec D6).
+  runs.sort((a, b) => {
+    if (a.runId === NO_RUN_ID) return 1;
+    if (b.runId === NO_RUN_ID) return -1;
+    return b.startTs.localeCompare(a.startTs);
+  });
+
+  return { live, runs, inbox: readInboxRows(cwd) };
+}
+
+/**
+ * Last `maxLines` lines of the SHARED watch log (`.noldor/watch.log`,
+ * {@link WATCH_LOG_REL}) — agents run `stdio: 'inherit'`, so there is no
+ * per-agent file (spec D3); rows interleave at K>1 and the UI labels it as
+ * shared. Absent file → null (route renders a friendly empty state).
+ */
+export async function loadWatchLogTail(
+  cwd: string = getDocRoot(),
+  maxLines = 200,
+): Promise<string | null> {
+  try {
+    const raw = await readFile(join(cwd, WATCH_LOG_REL), 'utf8');
+    const lines = raw.split('\n');
+    return lines.slice(Math.max(0, lines.length - maxLines)).join('\n');
   } catch {
     return null;
   }

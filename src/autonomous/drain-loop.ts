@@ -33,12 +33,14 @@ export interface DrainDeps {
    *  Rejects with 'iteration-timeout' on a per-entry timeout, or 'spawn-failed: …' on a systemic
    *  spawn error. Async so the build pool can keep K children in flight at once. `onSpawn` is
    *  called synchronously with the child's process-group id so the loop can record it for the
-   *  next run's orphan-reap (spec Unit 2). */
+   *  next run's orphan-reap (spec Unit 2). `slug` is the candidate being built — stamped on the
+   *  spawn's agent-event rows (K=1 has no `NOLDOR_DRAIN_SLUG`, so the loop passes it explicitly). */
   spawnGate: (
     env: Record<string, string>,
     timeoutMs: number,
     prompt: string,
     onSpawn?: (pgid: number) => void,
+    slug?: string,
   ) => Promise<number>;
   /** Sync local main to origin + clean leftover worktrees/branches. May throw → abort (ff-only reject).
    *  At K>1 the coordinator also calls this after each merge to advance local main before the oracle. */
@@ -256,6 +258,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
             livePgids.add(pgid);
             emitState(); // heartbeat now carries the live pgid for the next run's reap
           },
+          candidate.slug,
         );
         handedToCoordinator = settleShipVerdict(candidate.slug, branch, code);
       } catch (e) {

@@ -7,6 +7,9 @@ import type { MetricsReport } from '../metrics/types.js';
 import type { Gap } from '../garden/sdd-report.js';
 import type {
   ActiveMilestonePayload,
+  AgentActivity,
+  AgentRunGroup,
+  LiveAgentRow,
   DashboardCounts,
   FeatureDetail,
   FeatureRecord,
@@ -1346,6 +1349,140 @@ export function renderWorktrees(health: WorktreeHealth): string {
           .join('')}</ul>`;
 
   return `<h1>Worktrees</h1>${counterStrip}${table}${emptyNote}${warningsSection}`;
+}
+
+/** Human-compact duration for agent runtimes: "12s", "4m 32s", "1h 04m". */
+export function formatAgentDuration(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+const LIVE_EMPTY_ROW = '<tr><td colspan="7" class="empty">no agents running</td></tr>';
+const INBOX_EMPTY_ROW =
+  '<tr><td colspan="5" class="empty">inbox empty — nothing needs you</td></tr>';
+
+function renderLiveRows(live: LiveAgentRow[]): string {
+  if (live.length === 0) return LIVE_EMPTY_ROW;
+  return live
+    .map((r) => {
+      const slugCell =
+        r.slug === null
+          ? '—'
+          : `<a href="/features/${escapeHtml(r.slug)}">${escapeHtml(r.slug)}</a>`;
+      const staleBadge = r.stale ? ' <span class="badge stale">stale</span>' : '';
+      return `<tr${r.stale ? ' class="row-stale"' : ''}>
+        <td>${escapeHtml(r.kind)}</td>
+        <td>${slugCell}</td>
+        <td>${r.lane === null ? '—' : `<code>${escapeHtml(r.lane)}</code>`}</td>
+        <td>${r.phase === null ? '—' : escapeHtml(r.phase)}</td>
+        <td>${escapeHtml(formatAgentDuration(r.runtimeMs))}${staleBadge}</td>
+        <td>${r.retries}</td>
+        <td><a href="/agents/log">log</a></td>
+      </tr>`;
+    })
+    .join('');
+}
+
+function renderRunGroup(g: AgentRunGroup): string {
+  const starts = g.bars.map((b) => b.startMs).filter((v): v is number => v !== null);
+  const fallbackStart = Date.parse(g.startTs);
+  const runStart = starts.length > 0 ? Math.min(...starts) : fallbackStart;
+  const runEnd = Math.max(
+    runStart + 1,
+    ...g.bars.map((b) => (b.startMs ?? runStart) + b.durationMs),
+  );
+  const span = runEnd - runStart;
+  const rows = g.bars
+    .map((b) => {
+      const left = (((b.startMs ?? runStart) - runStart) / span) * 100;
+      const width = Math.min(100, Math.max(2, (b.durationMs / span) * 100));
+      const label = [b.kind, b.slug, b.lane].filter((v): v is string => v !== null).join(' · ');
+      return `<tr>
+        <td>${escapeHtml(label)}</td>
+        <td style="width:55%"><div class="agents-bar-track"><div class="agents-bar agents-bar--${b.outcome}" style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%" title="${escapeHtml(formatAgentDuration(b.durationMs))}"></div></div></td>
+        <td>${escapeHtml(formatAgentDuration(b.durationMs))}</td>
+        <td><span class="badge outcome-${b.outcome}">${b.outcome}</span></td>
+      </tr>`;
+    })
+    .join('');
+  const totals = `${g.totals.shipped} shipped · ${g.totals.unfinished} unfinished · ${g.totals.escalated} escalated`;
+  const barsTable =
+    g.bars.length === 0
+      ? '<p class="empty">no completed spawns in this run</p>'
+      : `<table><thead><tr><th>Agent</th><th>Timeline</th><th>Duration</th><th>Outcome</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<div class="milestone-group">
+    <div class="status">${escapeHtml(g.startTs)}${g.endTs !== g.startTs ? ` → ${escapeHtml(g.endTs)}` : ''}</div>
+    <h3><code>${escapeHtml(g.runId)}</code></h3>
+    <p class="muted">${escapeHtml(totals)}</p>
+    ${barsTable}
+  </div>`;
+}
+
+function renderInboxRows(inbox: AgentActivity['inbox']): string {
+  if (inbox.length === 0) return INBOX_EMPTY_ROW;
+  return inbox
+    .map(
+      (r) => `<tr>
+      <td><code>${escapeHtml(r.source)}:${escapeHtml(r.slug)}</code></td>
+      <td>${escapeHtml(r.reason)}</td>
+      <td><time>${escapeHtml(r.ts)}</time></td>
+      <td>${escapeHtml(r.evidence || '(none)')}</td>
+      <td>${escapeHtml(r.suggestedAction)}</td>
+    </tr>`,
+    )
+    .join('');
+}
+
+/**
+ * Render the /agents page: live board (running agents), per-run timeline
+ * (spawned→exited bars, outcome-colored), and the escalation inbox (same rows
+ * as `noldor autonomous inbox`). The static poller (`/static/agents.js`)
+ * patches `#agents-live-body`, `#agents-inbox-body` and both counters in
+ * place every ~2s; first paint is fully server-side (no-JS safe).
+ */
+export function renderAgents(activity: AgentActivity): string {
+  const counterStrip = `<div class="counter-strip">
+    <div class="counter"><div class="v" id="agents-live-count">${activity.live.length}</div><div class="l">running</div></div>
+    <div class="counter"><div class="v">${activity.runs.length}</div><div class="l">runs</div></div>
+    <div class="counter"><div class="v" id="agents-inbox-count">${activity.inbox.length}</div><div class="l">open escalations</div></div>
+  </div>`;
+  const liveTable = `<table>
+    <thead><tr><th>Kind</th><th>Slug</th><th>Lane</th><th>Phase</th><th>Runtime</th><th>Retries</th><th>Log</th></tr></thead>
+    <tbody id="agents-live-body">${renderLiveRows(activity.live)}</tbody>
+  </table>`;
+  const timeline =
+    activity.runs.length === 0
+      ? '<p class="empty">no recorded runs</p>'
+      : activity.runs.map(renderRunGroup).join('');
+  const inboxTable = `<table>
+    <thead><tr><th>Entry</th><th>Reason</th><th>Since</th><th>Evidence</th><th>Suggested action</th></tr></thead>
+    <tbody id="agents-inbox-body">${renderInboxRows(activity.inbox)}</tbody>
+  </table>`;
+  return `<h1>Agents</h1>
+  ${counterStrip}
+  <h2>Live board</h2>
+  <p class="muted">Self-refreshes every ~2s via <code>/api/agents</code>. Log links tail the shared <code>.noldor/watch.log</code>.</p>
+  ${liveTable}
+  <h2>Run timeline</h2>
+  ${timeline}
+  <h2>Escalation inbox</h2>
+  ${inboxTable}`;
+}
+
+/**
+ * Render the /agents/log tail. The log is SHARED across agents (children run
+ * stdio-inherit — spec D3): rows interleave at K>1, labelled as such.
+ */
+export function renderAgentsLog(tail: string | null): string {
+  const back = `<p><a href="/agents">← back to agents</a> · <code>.noldor/watch.log</code> <span class="muted">(shared across agents — rows interleave at K&gt;1)</span></p>`;
+  if (tail === null) {
+    return `<h1>Watch log</h1>${back}<p class="empty">no watch log — drain running attached?</p>`;
+  }
+  return `<h1>Watch log</h1>${back}<pre>${escapeHtml(tail)}</pre>`;
 }
 
 /**

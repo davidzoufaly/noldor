@@ -12,6 +12,7 @@ import {
 } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { writeState, projectDrainState } from './drain-state.js';
+import { makePhaseTap } from './phase-events.js';
 import {
   syncMainCleanState,
   openPrExistsFor,
@@ -115,6 +116,11 @@ async function main(): Promise<void> {
   }
 
   const startedAt = new Date().toISOString();
+  // Run correlation id (spec Unit 1): sortable, collision-free, human-legible.
+  // Exported into our own env so direct appendAgentEvent writers in this
+  // process (salvage) and the registry's ambient fallback resolve the same id.
+  const runId = `${startedAt}.${String(process.pid)}`;
+  process.env.NOLDOR_RUN_ID = runId;
   const lock = acquireLock(cwd, startedAt);
   if (!lock.ok) {
     process.stderr.write(`drain: ${lock.reason}\n`);
@@ -166,12 +172,15 @@ async function main(): Promise<void> {
   const drainSource = parkAwareSource(source, () => loadPark(cwd));
   const deps: DrainDeps = {
     source: drainSource,
-    spawnGate: (env, timeoutMs, prompt, onSpawn) => spawnGate(cwd, env, timeoutMs, prompt, onSpawn),
+    spawnGate: (env, timeoutMs, prompt, onSpawn, slug) =>
+      spawnGate(cwd, { ...env, NOLDOR_RUN_ID: runId }, timeoutMs, prompt, onSpawn, slug),
     syncMainCleanState: () => syncMainCleanState(cwd),
     mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
     salvageStaleBase: makeSalvage(cwd, 'run'),
-    writeState: (s) => writeState(cwd, projectDrainState(process.pid, startedAt, s)),
+    writeState: makePhaseTap(cwd, runId, (s) =>
+      writeState(cwd, projectDrainState(process.pid, startedAt, s)),
+    ),
     stopRequested: () => stop || existsSync(join(cwd, '.noldor/drain-stop')),
   };
 
@@ -194,6 +203,7 @@ async function main(): Promise<void> {
     pendingPr: [],
     queueUniverse: drainSource.parseAll(),
     now: runNow,
+    runId,
   });
   applyCycleVerdict(cwd, parsed.source, verdict, runNow);
 

@@ -1,4 +1,5 @@
 import { spawn as nodeSpawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { appendAgentEvent } from '../agent-events.js';
@@ -87,7 +88,7 @@ export interface SpawnAgentDeps {
 /**
  * The one spawn seam for agent CLIs. Resolves `opts.runner ?? resolveRunner(role, config)`
  * (pin wins), enforces capability fit, spawns with the timeout-SIGKILL pattern,
- * and appends one agent-event per completed spawn (fail-open). Directives ride
+ * and appends paired `spawned`/`exited` agent-events (fail-open; shared spawnId). Directives ride
  * the prompt, never env/flags (PR #33 rule, all runners).
  */
 export function spawnAgent(
@@ -113,6 +114,14 @@ export function spawnAgent(
   const plan = planSpawn(resolved, prompt, opts);
   const spawnImpl = deps.spawnImpl ?? nodeSpawn;
   const started = Date.now();
+  // Pairing id for this spawn's `spawned`/`exited` event rows — pid alone is
+  // unsafe (reuse). Minted per call, stamped on both rows.
+  const spawnId = randomUUID();
+  // Passive telemetry correlation, NOT a directive: directives ride the prompt
+  // (PR #33 rule) — runId rides env DELIBERATELY so nested registry spawns
+  // inside a gate child (CR lanes, prep) inherit the same id with zero
+  // call-site changes. Do not "fix" this onto the prompt.
+  const runId = opts.env?.NOLDOR_RUN_ID ?? process.env.NOLDOR_RUN_ID;
   return new Promise<AgentResult>((resolve, reject) => {
     const outMode = opts.stdio === 'inherit' ? 'inherit' : 'pipe';
     const child = spawnImpl(plan.bin, plan.argv, {
@@ -128,7 +137,20 @@ export function spawnAgent(
     // pgid === child.pid under `detached: true`. Surface it so the drain loop can record
     // it for the next run's orphan-reap (spec Unit 2 carrier). Guard: a spawn that never got
     // a pid (immediate ENOENT, surfaced via 'error') has `child.pid === undefined`.
-    if (child.pid !== undefined) opts.onSpawn?.(child.pid);
+    if (child.pid !== undefined) {
+      appendAgentEvent(cwd, {
+        event: 'spawned',
+        ts: new Date().toISOString(),
+        runner: resolved.runner,
+        role: opts.role,
+        site: opts.site,
+        ...(opts.slug !== undefined ? { slug: opts.slug } : {}),
+        ...(runId !== undefined ? { runId } : {}),
+        spawnId,
+        pid: child.pid,
+      });
+      opts.onSpawn?.(child.pid);
+    }
     if (plan.promptVia === 'stdin') {
       child.stdin?.on('error', () => {});
       child.stdin?.end(prompt);
@@ -170,10 +192,14 @@ export function spawnAgent(
       const exitCode = code ?? -1;
       const usage = USAGE_ADAPTERS[resolved.runner]({ cwd, startedAtMs: started });
       appendAgentEvent(cwd, {
+        event: 'exited',
         ts: new Date().toISOString(),
         runner: resolved.runner,
         role: opts.role,
         site: opts.site,
+        ...(opts.slug !== undefined ? { slug: opts.slug } : {}),
+        ...(runId !== undefined ? { runId } : {}),
+        spawnId,
         exitCode,
         durationMs: Date.now() - started,
         timedOut,

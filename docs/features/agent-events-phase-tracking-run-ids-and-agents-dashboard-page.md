@@ -3,15 +3,38 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/core/agent-events.ts
+    - src/core/agent-runner/registry.ts
+    - src/core/agent-runner/types.ts
+    - src/autonomous/phase-events.ts
+    - src/autonomous/queue-drain.ts
+    - src/autonomous/watch.ts
+    - src/autonomous/drain-io.ts
+    - src/autonomous/drain-loop.ts
+    - src/autonomous/escalations.ts
+    - src/autonomous/salvage.ts
+    - src/metrics/collect/drain-reliability.ts
+    - src/dashboard/data.ts
+    - src/dashboard/server.ts
+    - src/dashboard/views.ts
+    - src/dashboard/layout.ts
+    - src/dashboard/static/agents.ts
   docs: []
-  tests: []
+  tests:
+    - src/autonomous/__tests__/escalations.test.ts
+    - src/autonomous/__tests__/phase-events.test.ts
+    - src/autonomous/__tests__/run-drain.test.ts
+    - src/core/__tests__/agent-events.test.ts
+    - src/core/agent-runner/__tests__/registry.test.ts
+    - src/dashboard/__tests__/dashboard-agents.test.ts
+    - src/metrics/__tests__/drain-and-tokens.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md
 name: 'Agent-Events Phase Tracking, Run IDs and `/agents` Dashboard Page'
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
