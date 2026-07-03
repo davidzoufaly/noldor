@@ -307,3 +307,53 @@ describe('gatePrompt byte lock (claude default — no agents config)', () => {
     }
   });
 });
+
+/** Pin the implementer role to a runner via a fixture `.noldor/config.json`. */
+function writeImplementerRunner(dir: string, runner: string): void {
+  mkdirSync(join(dir, '.noldor'), { recursive: true });
+  writeFileSync(
+    join(dir, '.noldor', 'config.json'),
+    JSON.stringify({ agents: { roles: { implementer: { runner } } } }),
+    'utf8',
+  );
+}
+
+describe('gatePrompt dispatch follows the implementer runner (spec Unit 3)', () => {
+  it('codex implementer → prose drain directive (slug, fast/<slug>, drain-mode.md, no /gate)', () => {
+    const dir = tmpRepo(block('alpha', 'XS'));
+    try {
+      writeImplementerRunner(dir, 'codex');
+      const p = roadmapSource(dir).gatePrompt('alpha');
+      expect(p).toContain("'alpha'");
+      expect(p).toContain('fast/alpha');
+      expect(p).toContain('docs/noldor/drain-mode.md');
+      expect(p).not.toContain('/gate');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('opencode implementer → prose resume directive (slug, feat/<slug>, drain-mode.md, no /gate)', () => {
+    const dir = tmpPlansRepo([{ slug: 'designed' }]);
+    try {
+      writeImplementerRunner(dir, 'opencode');
+      const p = plansSource(dir).gatePrompt('designed');
+      expect(p).toContain("'designed'");
+      expect(p).toContain('feat/designed');
+      expect(p).toContain('docs/noldor/drain-mode.md');
+      expect(p).not.toContain('/gate');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('stub implementer keeps the claude (slash-command) shape — contract-CI fixtures unchanged (spec D5)', () => {
+    const dir = tmpRepo(block('alpha', 'XS'));
+    try {
+      writeImplementerRunner(dir, 'stub');
+      expect(roadmapSource(dir).gatePrompt('alpha')).toBe('/gate --drain alpha');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
