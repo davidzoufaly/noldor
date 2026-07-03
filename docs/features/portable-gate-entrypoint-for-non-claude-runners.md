@@ -6,7 +6,9 @@ links:
   code:
     - src/autonomous/drain-source.ts
   docs: []
-  tests: []
+  tests:
+    - src/autonomous/__tests__/drain-source.test.ts
+    - src/core/agent-runner/__tests__/runners.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md
 name: Portable Gate Entrypoint for Non-Claude Runners
