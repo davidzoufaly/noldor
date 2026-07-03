@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface InFlight {
@@ -73,6 +73,19 @@ export function projectDrainState(
  * stderr but never throws — a state-write failure must not crash the loop (spec
  * Error handling). Not a cross-run cache; a fresh drain run overwrites it.
  */
+/**
+ * Read the latest `.noldor/drain-state.json` heartbeat, or `null` when the file
+ * is missing or holds a garbage payload. Callers own liveness interpretation —
+ * the returned state may belong to a dead run (check `pid` against the lock).
+ */
+export function readState(cwd: string): DrainState | null {
+  try {
+    return JSON.parse(readFileSync(join(cwd, '.noldor/drain-state.json'), 'utf8')) as DrainState;
+  } catch {
+    return null; // missing or garbage payload — no readable prior state
+  }
+}
+
 export function writeState(cwd: string, state: DrainState): void {
   try {
     mkdirSync(join(cwd, '.noldor'), { recursive: true });
