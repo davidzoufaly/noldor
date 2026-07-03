@@ -56,17 +56,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 Delta rewrite 2026-07-02 — the robust-lock-read half already shipped: `liveLockPid` (`src/autonomous/drain-lock.ts:41-50`) catches empty/partial JSON and validates the pid field, and PR #120's startup reconcile + pgid heartbeat closed the incident class that motivated it. Remaining delta: the `status` subcommand itself — `noldor autonomous status` reporting liveness from the actual process (lock pid + `kill -0`) plus shipped / skip / in-flight from drain-state, so operators stop reading `.noldor/drain-state.json` + `.noldor/drain.lock` by hand. Touches: `src/cli/manifest.ts`, thin reader over `src/autonomous/drain-state.ts` + `drain-lock.ts`.
 
-#### Portable Gate Entrypoint for Non-Claude Runners
-
-- area: tooling
-- type: feat
-- since: 2026-06-12
-- size: M
-- impact: high
-- confidence: med
-
-The autonomous drain's spawn layer is agent-agnostic (the registry resolves bin + argv for `claude` / `codex` / `opencode`), but the *prompt* it spawns is `/gate --drain <slug>` — a Claude Code slash-command (`src/autonomous/drain-source.ts:98`). On `codex` (prompt via stdin, no slash-command system) the string is treated as literal text → no gate runs. On `opencode` it only works if a `/gate` command is vendored into `.opencode/command/` (not present). So the multi-runner promise stops short of the autonomous drain: only claude can actually drive the gate headlessly. PR #119's portable CLIs (`features phase-flip-done`, `phase-revert`, `roadmap remove-block`) cover the gate's *manual steps* but not the drain entrypoint itself. Options: (a) a portable `noldor gate --drain <slug>` CLI entrypoint the drain spawns instead of a slash-command, with the agent CLI wrapping it; or (b) per-runtime vendoring of a `/gate` command alongside the existing skill. Strategic per the 2026-07 audit: harness-neutrality is the defensible layer. Touches: `src/autonomous/drain-source.ts`, the runner argv builders, gate skill/CLI surface.
-
 #### Graphify AST-Only Sweep Default
 
 - area: tooling
