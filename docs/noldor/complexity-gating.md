@@ -38,6 +38,22 @@ The `-attach` variant is chosen when the entry declares a `parent:` FD. A missin
 
 The mapping is encoded once in [`sizeToPath()`](../../src/core/size-routing.ts) (with `sizeToTier()` and `sizeSkipsSpec()`); `getSuggestions()` stamps each entry surfaced at `/gate` Step 0 with a `suggestedPath` so the gate reads the verdict instead of re-deriving it in prose. Because XS/S route to `fast-track` (no FD, no `/promote`), `/gate` retires the source roadmap block itself when the fast-track ships — see the gate skill's "Roadmap-entry retirement" step.
 
+### Split suggestion
+
+`sizeToPath` routes on the operator's `size:` label; nothing above cross-checks the label against the body it describes. The split-suggestion layer ([`src/core/split-suggestion.ts`](../../src/core/split-suggestion.ts), surfaced via `pnpm noldor noldor split-check`) measures the artifact itself at each commit point and *suggests* a split when a threshold trips — it never auto-splits and never re-sizes. All comparisons are strictly greater-than; a body exactly at a threshold is clean.
+
+| Rule | Measures                                        | Threshold    | Surfaces at                                       |
+| ---- | ----------------------------------------------- | ------------ | ------------------------------------------------- |
+| `E1` | entry-body word count                           | > 300 words  | `/promote` step 1.7; headless drain entry         |
+| `E2` | entry-body scope bullets (`- ` lines)           | > 6 bullets  | `/promote` step 1.7; headless drain entry         |
+| `E3` | `Touches:` path count (via `extractTouches`)    | > 8 paths    | `/promote` step 1.7; headless drain entry         |
+| `F1` | parent FD `links.code` ∪ attach touches, deduped | > 30 paths   | `/promote` step 1.7 attach branch                 |
+| `P1` | plan row count (raw markdown lines)             | > 1000 rows  | `noldor-plan` post-save; `/gate` Step 2.5 `plan`  |
+
+The CLI's exit contract mirrors `lint-plan-snippets` exactly — 0 = clean, 2 = signals (one stdout line per signal), 1 = infra error — so skills shell out to both uniformly and never block on checker infra. Modes: `split-check --entry <slug>` (roadmap-then-backlog body heuristics), `split-check --fd <slug> --add <path>...` (attach breadth), `split-check --plan <path>` (row count; the P1 message names the suggested part count, one part ≈ 1000 rows).
+
+**Informational vs drain.** Wherever an operator is present the signals are informational: `/promote` offers proceed / split-first / abort-and-re-size, the `noldor-plan` skill restructures oversized plans into `-part<N>` files before reporting done, and gate Step 2.5 shows split findings alongside lint findings in the continue-dialog. The one hard stop is the headless drain — no operator can absorb the signal there, so a drain entry whose body trips E1/E2/E3 exits without scaffolding and surfaces on the escalation channel instead of shipping (the `prefix-skills-with-noldor` mislabeled-`S` failure mode). Thresholds are exported constants in `split-suggestion.ts`, deliberately not config (`docs/vision.md` posture: opinionated, not configurable); tuning is a one-line diff.
+
 ## Allowlist for `micro-chore`
 
 The pre-commit hook enforces that `micro-chore` diffs match this set of globs only (`MICRO_CHORE_GLOBS` in `src/core/allowlist.ts`):

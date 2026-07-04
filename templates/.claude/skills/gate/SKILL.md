@@ -110,7 +110,7 @@ See [`docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-chang
 
 2.5. **Multi-reviewer CR gate (mandatory pause after every spec/plan artifact).** Don't auto-chain into the next skill (implementation, draft-feature-md, etc.).
 
-**Lint pass first.** Run `pnpm noldor noldor lint-plan-snippets <artifact-path>` and capture stdout + exit code. Exit code 0 = clean; exit code 2 = findings present (include the captured stdout verbatim in the AskUserQuestion description so the operator sees them before choosing); exit code 1 = script error (mention the error in the description but still proceed to the prompt — never block on linter infra). Findings are informational; they do not gate the choice.
+**Lint pass first.** Run `pnpm noldor noldor lint-plan-snippets <artifact-path>` and capture stdout + exit code. When the artifact kind is `plan`, also run `pnpm noldor noldor split-check --plan <artifact-path>` (same 0/2/1 exit contract) and append its stdout to the captured lint output. Exit code 0 = clean; exit code 2 = findings present (include the captured stdout verbatim in the AskUserQuestion description so the operator sees them before choosing); exit code 1 = script error (mention the error in the description but still proceed to the prompt — never block on linter infra). Findings are informational; they do not gate the choice. This Step 2.5 pass is the authoritative split checkpoint: autonomous/plans-drain paths execute committed plans without re-invoking the `noldor-plan` skill, so its post-save self-check may never have run.
 
 **Commit the artifact first.** Surface the artifact path in one sentence, then stage + commit it (no confirm — recoverable via `git reset --soft HEAD~1` if the round needs unwinding) before any lane runs — subagent needs a `BASE_SHA..HEAD_SHA` range, standalone needs the file on disk, codex+orchestrator need a stable `artifactSha` to record in `LaneFindings`.
 
@@ -350,7 +350,13 @@ loop / retry / skip / lock; each gate run only ships its one entry. Step overrid
   `--drain` is absent: the `NOLDOR_DRAIN_SLUG` env var if set, else `topPriority[0]`. Either way, honor
   `NOLDOR_DRAIN_SKIP` (the comma-separated skip-set the supervisor passes through) and, if the chosen
   entry's `suggestedPath !== 'fast-track'`, exit without scaffolding (defensive — the supervisor
-  pre-filters scope, so this should not happen).
+  pre-filters scope, so this should not happen). Then run
+  `pnpm noldor noldor split-check --entry <slug>` and capture stdout + exit code. On exit 2, **exit
+  without scaffolding**: echo the captured signal lines to stderr and exit non-zero so the
+  supervisor's retry-then-skip surfaces them on the escalation channel. An entry whose *label*
+  routes to fast-track but whose *body* trips the oversize signals is the mislabeled-`S` failure
+  mode (`prefix-skills-with-noldor`) — a human must re-size or split it; never ship it headless.
+  On exit 1 (checker infra error), continue — never block a drain on checker infra.
 - **Steps 1 / 1.5:** skip path-pick + path-confirm. Force `fast-track`, carrying `entry.slug`. Name
   the branch **`fast/<slug>`** (deterministic — vs ordinary fast-track's `fast/<short-desc>`) so the
   supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly. Before `git worktree add`,

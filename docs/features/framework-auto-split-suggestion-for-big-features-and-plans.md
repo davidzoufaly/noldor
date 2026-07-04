@@ -3,15 +3,20 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/core/split-suggestion.ts
+    - src/core/split-check-cli.ts
+    - src/cli/manifest.ts
   docs: []
-  tests: []
+  tests:
+    - src/core/__tests__/split-check-cli.test.ts
+    - src/core/__tests__/split-suggestion.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md
 name: Framework Auto-Split Suggestion for Big Features and Plans
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary

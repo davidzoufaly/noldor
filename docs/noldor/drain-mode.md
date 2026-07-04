@@ -24,6 +24,13 @@ dependency, so the prompt stays a thin pointer.
   set, else the top entry from `pnpm noldor next-priority --suggestions --json`.
 - Honor `NOLDOR_DRAIN_SKIP` (comma-separated slugs the supervisor already
   skipped): never pick a listed entry.
+- **Oversize guard:** before scaffolding anything, run
+  `pnpm noldor noldor split-check --entry <slug>` and capture stdout + exit
+  code. On exit 2, exit non-zero without scaffolding and echo the signal
+  lines to stderr — an entry whose *label* routes to fast-track but whose
+  *body* trips the oversize heuristics needs a human re-size or split, never
+  a headless ship. On exit 1 (checker infra error), continue — never block a
+  drain on checker infra.
 - The supervisor sets `NOLDOR_DRAIN=1` in the child environment; treat its
   presence as confirmation you are a drain child.
 - **Never ask interactive questions.** Runners enforce this via their
