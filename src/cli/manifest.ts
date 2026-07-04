@@ -333,6 +333,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'core/lint-plan-snippets.ts',
         desc: 'Lint code snippets in plans',
       },
+      'split-check': {
+        src: 'core/split-check-cli.ts',
+        desc: 'Suggest a split when an entry/FD/plan exceeds size thresholds',
+      },
       'rename-plan-only-tier': {
         src: 'core/rename-plan-only-tier.ts',
         desc: 'Rename plan-only tier docs',
