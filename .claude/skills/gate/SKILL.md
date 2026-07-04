@@ -350,7 +350,13 @@ loop / retry / skip / lock; each gate run only ships its one entry. Step overrid
   `--drain` is absent: the `NOLDOR_DRAIN_SLUG` env var if set, else `topPriority[0]`. Either way, honor
   `NOLDOR_DRAIN_SKIP` (the comma-separated skip-set the supervisor passes through) and, if the chosen
   entry's `suggestedPath !== 'fast-track'`, exit without scaffolding (defensive — the supervisor
-  pre-filters scope, so this should not happen).
+  pre-filters scope, so this should not happen). Then run
+  `pnpm noldor noldor split-check --entry <slug>` and capture stdout + exit code. On exit 2, **exit
+  without scaffolding**: echo the captured signal lines to stderr and exit non-zero so the
+  supervisor's retry-then-skip surfaces them on the escalation channel. An entry whose *label*
+  routes to fast-track but whose *body* trips the oversize signals is the mislabeled-`S` failure
+  mode (`prefix-skills-with-noldor`) — a human must re-size or split it; never ship it headless.
+  On exit 1 (checker infra error), continue — never block a drain on checker infra.
 - **Steps 1 / 1.5:** skip path-pick + path-confirm. Force `fast-track`, carrying `entry.slug`. Name
   the branch **`fast/<slug>`** (deterministic — vs ordinary fast-track's `fast/<short-desc>`) so the
   supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly. Before `git worktree add`,
