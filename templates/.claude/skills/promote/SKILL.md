@@ -39,6 +39,23 @@ Pick 1/2/3:
 If the operator picks (1) or (2): execute the attach branch (step 6.alt).
 If (3) or no candidates fired: continue to step 2 (existing scaffold flow).
 
+1.7. **Split suggestion (oversize check).** Run `pnpm noldor noldor split-check --entry <slug>` and capture stdout + exit code. On the attach branch (a parent was picked at step 1.5), additionally run `pnpm noldor noldor split-check --fd <parent-slug> --add <path>...` with one `--add` per path in the source block's `Touches:` clause (run `extractTouches` over the block body now — the same helper step 6.4 uses later). Exit 0 = clean → continue silently. Exit 1 = infra error → mention it and continue; never block on checker infra. Exit 2 = signals present → present ONE AskUserQuestion with every captured signal line verbatim:
+
+```
+Split suggested for "<heading>":
+  <split-check stdout, one line per signal — includes the F1 parent-breadth line on attach>
+
+Choose:
+  (a) proceed anyway — accept the scope as one FD / one attach
+  (b) split first — split the source block into sibling blocks (same write-back
+      mechanics as residue disposition 6.5(b): H3/H4 placement per source level,
+      carried `- area:`/`- type:`/`- size:`/`- impact:` bullets, and
+      `- recovered: YYYY-MM-DD` provenance), then re-run /promote on one slice
+  (c) abort and re-size — leave the block in place; fix its `- size:` label
+```
+
+On (a) continue to step 2 (or step 6.alt on the attach branch); for an F1 signal the (b) remedy is instead: scaffold a child FD rather than attaching. On (b) or (c) stop this promotion after any sibling write-backs — no FD is scaffolded and the source block is not removed. Signals are informational — the operator decides; the framework never auto-splits.
+
 2. Parse the block's bullet fields: `area`, `since?`, `deps?`, `parent?`, `milestone?`. Source roadmap section determines current bucket but is not carried into the feature MD.
 3. If `docs/features/<slug>.md` already exists, stop and tell the user to either edit that file in-place or choose a different slug.
 4. Prompt the user for the user-facing release-notes **category**. The valid set is consumer-owned: read `consumer.categories` from `.noldor/config.json` and offer those. Suggest a default via the consumer's `consumer.areaCategories[area]` map (falls back to `Other`); `src/lib/area-category.ts` is the shared helper the dashboard `/backlog` Category column uses too.
