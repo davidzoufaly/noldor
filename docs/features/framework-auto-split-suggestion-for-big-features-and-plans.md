@@ -16,7 +16,7 @@ links:
 name: Framework Auto-Split Suggestion for Big Features and Plans
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
