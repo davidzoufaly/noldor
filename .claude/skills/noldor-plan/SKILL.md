@@ -15,7 +15,8 @@ Write an implementation plan for an engineer with zero context for this codebase
 3. **Format contract.** Run `pnpm noldor prep format plan` and structure the document exactly per the printed contract, header blockquote included verbatim.
 4. **Tasks.** Each task: a **Files:** block (Create:/Modify:/Test: exact paths), then checkbox steps. One step = one 2-5 minute action. TDD order: write the failing test → run to verify FAIL (exact command + expected output) → implement → run to verify PASS → commit (fenced bash with a conventional-commit subject and the `Noldor-FD: <slug>` trailer).
 5. **Self-review against the spec, fix inline:** every spec requirement maps to a task (add tasks for gaps); zero placeholders; types, signatures, and names consistent across tasks.
-6. **Save** to `docs/superpowers/plans/YYYY-MM-DD-<slug>.md`, report the path, and stop. The gate owns sequencing (Step 2.5 `--kind plan`: lint → commit → CR lanes).
+6. **Save + split check.** Save to `docs/superpowers/plans/YYYY-MM-DD-<slug>.md`, then run `pnpm noldor noldor split-check --plan <path>` and capture stdout + exit code. Exit 0 → continue. Exit 1 = infra error → note it and continue; never block on checker infra. Exit 2 → report the P1 signal verbatim, then restructure the plan into `docs/superpowers/plans/YYYY-MM-DD-<slug>-part<N>.md` parts — each part independently shippable software (same bar as step 1's one-plan-per-subsystem rule) — delete the monolith file, and re-run the split check on each part before continuing.
+7. **Report** the saved path(s) and stop. The gate owns sequencing (Step 2.5 `--kind plan`: lint → commit → CR lanes).
 
 ## Plan failures — never write these
 
