@@ -5,7 +5,9 @@ deps: []
 links:
   code: []
   docs: []
-  tests: []
+  tests:
+    - src/invariants/__tests__/boundaries.test.ts
+    - src/invariants/__tests__/rule-conflicts.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-framework-script-test-migration-cleanup-design.md
 name: Framework Script + Test Migration Cleanup
