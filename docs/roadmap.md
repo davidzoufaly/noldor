@@ -20,19 +20,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Phase 3 — Adoption Chain
 
-#### Consumer Rule-Conflicts Graceful Degradation
-
-- id: Q-0017
-- area: tooling
-- type: fix
-- since: 2026-07-05
-- size: S
-- impact: med
-- confidence: med
-- parent: noldor
-
-The `rule-conflicts` invariant demands the consumer README reference `pnpm test` (`src/invariants/rule-pairs.ts:53-58` — "docs/noldor/git-and-commits.md and README.md must both reference `pnpm test`"), which fails on a domain README that has no such section (friction #11) — imposing the self-host repo shape on fresh consumers. The other halves of friction #11 already shipped: the `keyboard-binding` invariant was retired (#156) and the `docs/features` ENOENT + tsdoc `typescript` crashes were made graceful in #140. Remaining: make `rule-conflicts` (and peer rule-pairs) skip or soft-warn when the consumer legitimately lacks the referenced section, rather than hard-failing the commit.
-
 #### Init Scaffold Noldor-Scope Allowlist
 
 - id: Q-0015
