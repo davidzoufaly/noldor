@@ -14,7 +14,7 @@ links:
 name: Framework Script + Test Migration Cleanup
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
