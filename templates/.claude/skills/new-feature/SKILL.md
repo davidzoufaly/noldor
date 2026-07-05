@@ -24,13 +24,15 @@ fields interactively or accepts them inline.
 
 1. If --tier was not passed, prompt the user via AskUserQuestion: "FD creation depth — specs-only (spec, no plan) or full (spec + plan)?" Validate response is `specs-only` or `full`.
 2. If file `docs/features/<slug>.md` exists, stop and tell the user.
-3. Write the file with this template:
+2.5. **Mint a stable entry ID.** Run `pnpm noldor triage mint-id` (prints one `Q-NNNN`, bumps `.noldor/id-counter.json`). Use its output for the `entry-id:` frontmatter field below. This carries the same never-rewritten ID a triaged entry would have — so a `/new-feature`-born FD is addressable by ID like any other.
+3. Write the file with this template (substitute the minted ID into `entry-id:`):
 
 ```markdown
 ---
 area: <area>
 category: <one of consumer.categories>
 deps: []
+entry-id: <minted Q-NNNN>
 links:
   code: []
   tests: []
@@ -75,3 +77,4 @@ Replace `<slug>` in the `<!-- @prs-since-last-release: <slug> -->` marker with t
 - Never overwrite existing feature MDs — error out and tell the user to edit
   in-place or choose a different slug.
 - Do not commit the scaffold — leave staging/commit to the user.
+- The minted `entry-id` is never rewritten. If minting fails (no `.noldor/id-counter.json` writable), omit the `entry-id:` line rather than blocking — it is optional frontmatter; the FD stays addressable by slug.

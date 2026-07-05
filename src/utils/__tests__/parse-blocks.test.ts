@@ -453,3 +453,49 @@ Body.
     expect(entries[0]?.slug).toBe('trailer-scope-alias-map');
   });
 });
+
+describe('stable entry id parsing', () => {
+  it('records the id field on roadmap entries and keeps it out of the description', () => {
+    const raw = `# Roadmap
+
+#### Entry A
+
+- id: Q-0042
+- area: tooling
+- type: feat
+
+Body text.
+`;
+    const entries = parseRoadmap(raw);
+    expect(entries[0]?.id).toBe('Q-0042');
+    expect(entries[0]?.description).toBe('Body text.');
+  });
+
+  it('records the id field on backlog entries and keeps it out of the description', () => {
+    const raw = `# Backlog
+
+### Entry B
+
+- id: Q-0007
+- area: tooling
+- since: 2026-05-11
+
+Body text.
+`;
+    const entries = parseBacklog(raw);
+    expect(entries[0]?.id).toBe('Q-0007');
+    expect(entries[0]?.description).toBe('Body text.');
+  });
+
+  it('leaves id undefined when absent', () => {
+    const raw = `# Backlog
+
+### No Id Entry
+
+- area: tooling
+
+Body.
+`;
+    expect(parseBacklog(raw)[0]?.id).toBeUndefined();
+  });
+});

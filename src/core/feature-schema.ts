@@ -76,6 +76,15 @@ export const FeatureFrontmatterSchema = z
      *  Drives `/gate` Step 4 bootstrap-immunity (auto-stamps the matching override
      *  on the branch's commits). Absent by default. */
     'introduces-gate': z.string().min(1).optional(),
+    /** Optional stable entry ID (`Q-NNNN`) lifted from the source roadmap/backlog
+     *  block's `- id:` by `/promote` (or minted fresh by `/new-feature`). Lets
+     *  `resolveEntryRef` map an ID `deps:` reference to a shipped feature, and
+     *  carries the ID across the roadmap → FD hop so it survives promotion.
+     *  Absent on historical FDs. See `src/triage/entry-id.ts`. */
+    'entry-id': z
+      .string()
+      .regex(/^Q-\d{4,}$/, 'Expected stable entry ID (Q-NNNN)')
+      .optional(),
   })
   .strict()
   .superRefine((data, ctx) => {

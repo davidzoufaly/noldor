@@ -21,6 +21,14 @@ function warnOnce(key: string, message: string): void {
 export interface BacklogEntry {
   name: string;
   /**
+   * Stable entry ID (`- id: Q-0042` bullet), minted once at triage and never
+   * rewritten — survives heading renames and roadmap ↔ backlog moves, unlike
+   * {@link BacklogEntry.slug}. Absent on entries created before the backfill or
+   * in consumer repos that haven't run `triage backfill-ids`. See
+   * `src/triage/entry-id.ts`.
+   */
+  id?: string;
+  /**
    * Slug derived from `name` via shared slugify rule. Unique within file for
    * non-empty slugs (collisions get `-2`, `-3`, ... in source order). Headings
    * whose name slugifies to an empty string (all-punctuation) always emit `''`
@@ -146,6 +154,7 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
       area: parsed.area,
       description: parsed.body,
       name: pending.name,
+      id: parsed.id,
       slug: trackSlug(pending.name, `line ${pending.sourceLine}`),
       parent: parsed.parent,
       since: parsed.since,
@@ -198,6 +207,7 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
 
 function parseBlockBody(lines: string[]): {
   area: string;
+  id?: string;
   type?: string;
   since?: string;
   parent?: string;
@@ -209,6 +219,7 @@ function parseBlockBody(lines: string[]): {
   body: string;
 } {
   let area = '';
+  let id: string | undefined;
   let type: string | undefined;
   let since: string | undefined;
   let parent: string | undefined;
@@ -220,10 +231,11 @@ function parseBlockBody(lines: string[]): {
   const bodyLines: string[] = [];
   for (const line of lines) {
     const fieldMatch =
-      /^-\s+(area|type|since|parent|size|impact|confidence|deps|phase):\s*(.+?)\s*$/.exec(line);
+      /^-\s+(area|id|type|since|parent|size|impact|confidence|deps|phase):\s*(.+?)\s*$/.exec(line);
     if (fieldMatch) {
       const [, key, value] = fieldMatch;
       if (key === 'area') area = value;
+      else if (key === 'id') id = value;
       else if (key === 'type') type = value;
       else if (key === 'since') since = value;
       else if (key === 'parent') parent = value;
@@ -246,6 +258,7 @@ function parseBlockBody(lines: string[]): {
     body: bodyLines.join('\n').trim(),
     confidence,
     deps,
+    id,
     impact,
     parent,
     phase,
@@ -289,6 +302,7 @@ function parseEntries(raw: string): BacklogEntry[] {
       area: fields.area,
       description,
       name,
+      id: fields.id,
       slug: trackSlug(name, `block ${blockIndex}`),
       parent: fields.parent,
       since: fields.since,

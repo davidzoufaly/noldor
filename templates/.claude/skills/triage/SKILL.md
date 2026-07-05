@@ -61,19 +61,20 @@ For roadmap targets, the proposal includes an insert position: `(top)`, `(after 
 
 Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you override per row (including flipping merge ↔ new)."
 
-6. **On confirm**, for each accepted row:
-   - **`backlog`** target → append a phase-less schema-C block to `docs/backlog.md`:
+6. **On confirm**, first **mint stable IDs** for the accepted **new-entry** rows (both `backlog` and `roadmap`/`now` targets — merge rows never mint; the host block keeps its ID). Count the accepted new-entry rows and make one call: `pnpm noldor triage mint-id --count <n>`. It prints one `Q-NNNN` per line and bumps `.noldor/id-counter.json`. Assign the minted IDs to the new-entry rows in table order. Rejected rows never burn an ID. Then, for each accepted row:
+   - **`backlog`** target → append a phase-less schema-C block to `docs/backlog.md` (the minted `- id:` is the **first** bullet):
 
    ```markdown
    ### <name>
 
+   - id: <minted Q-NNNN>
    - area: <area>
    - type: <type>
    - since: <today>
    - size: <size-or-omit>
    - impact: <impact-or-omit>
    - confidence: <confidence-or-omit>
-   - deps: <slug,slug-or-omit>
+   - deps: <slug|Q-id,…-or-omit>
 
    <one-paragraph description, polished from the original bullet>
    ```
@@ -84,13 +85,14 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
    ```markdown
    #### <name>
 
+   - id: <minted Q-NNNN>
    - area: <area>
    - type: <type>
    - since: <today>
    - size: <size>
    - impact: <impact>
    - confidence: <confidence-or-omit>
-   - deps: <slug,slug-or-omit>
+   - deps: <slug|Q-id,…-or-omit>
 
    <one-paragraph description, polished from the original bullet>
    ```
@@ -146,5 +148,6 @@ When ambiguous, prefer the more specific type over `feat` (e.g. a perf-targeted 
 - **Optional `parent: <existing-fd-slug>` field** in schema-C blocks signals attach intent at `/promote` time. `/triage` doesn't enforce parent existence; `/promote` validates and presents attach-to-parent option to operator.
 - **Always** run the regen chain in step 8, even if zero ideas triaged (catches drift from manual edits).
 - **Confidence + deps are silently optional in v1.** Missing `confidence` defaults to `med` at scoring time. Missing `deps` means the dependency factor is `1.0` (no discount). `validate:triage` does NOT complain when either is missing. Both fields can be backfilled by hand later — `/triage` will pick them up on the next run.
+- **Stable IDs are minted, never hand-written.** Every accepted new entry gets a `- id: Q-NNNN` first bullet minted via `pnpm noldor triage mint-id` after confirmation. Never write `- id:` by hand (except resolving a counter merge conflict), never renumber, never reuse. The ID survives heading renames and roadmap ↔ backlog moves — the slug is now a renameable alias. `deps:` bullets may reference an ID or a slug interchangeably. Gaps in the sequence (rejected/dropped rows) are permanent and harmless. Once `.noldor/id-counter.json` exists, `validate:triage` errors on any entry missing an `id`.
 - **Score is derived, not stored.** The score column in the confirmation table is recomputed from bullet fields on every `/triage` run. Do not write `- score: <int>` into schema-C blocks. If the formula in `scripts/triage/score.ts` tunes, the new score takes effect on the next run without rewriting the markdown.
 - If the user types `edit` at confirmation, walk row-by-row asking for overrides on target / area / slug / merge-host, then re-present the final table for one last yes/no.

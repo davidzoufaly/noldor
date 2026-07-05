@@ -56,7 +56,7 @@ Choose:
 
 On (a) continue to step 2 (or step 6.alt on the attach branch); for an F1 signal the (b) remedy is instead: scaffold a child FD rather than attaching. On (b) or (c) stop this promotion after any sibling write-backs — no FD is scaffolded and the source block is not removed. Signals are informational — the operator decides; the framework never auto-splits.
 
-2. Parse the block's bullet fields: `area`, `since?`, `deps?`, `parent?`, `milestone?`. Source roadmap section determines current bucket but is not carried into the feature MD.
+2. Parse the block's bullet fields: `id?`, `area`, `since?`, `deps?`, `parent?`, `milestone?`. Source roadmap section determines current bucket but is not carried into the feature MD. The source block's `- id:` (when present) is lifted verbatim into the FD's `entry-id:` frontmatter (step 6) so the stable ID survives the roadmap → FD hop.
 3. If `docs/features/<slug>.md` already exists, stop and tell the user to either edit that file in-place or choose a different slug.
 4. Prompt the user for the user-facing release-notes **category**. The valid set is consumer-owned: read `consumer.categories` from `.noldor/config.json` and offer those. Suggest a default via the consumer's `consumer.areaCategories[area]` map (falls back to `Other`); `src/lib/area-category.ts` is the shared helper the dashboard `/backlog` Category column uses too.
 
@@ -69,6 +69,7 @@ On (a) continue to step 2 (or step 6.alt on the attach branch); for an F1 signal
 area: <area>
 category: <category>
 deps: <deps-or-empty-array>
+entry-id: <id-from-source-block — copy the source's `- id:` verbatim; omit the line entirely when the source has no `- id:`>
 links:
   code: []
   tests: []

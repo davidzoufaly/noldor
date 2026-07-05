@@ -7,12 +7,21 @@ links:
     - docs/roadmap.md
     - docs/backlog.md
     - .claude/skills/triage/SKILL.md
+    - .claude/skills/new-feature/SKILL.md
+    - .claude/skills/promote/SKILL.md
+    - src/triage/entry-id.ts
+    - src/triage/mint-id-cli.ts
+    - src/triage/backfill-ids-cli.ts
     - src/triage/score.ts
     - src/triage/validate-triage.ts
+    - src/utils/parse-blocks.ts
+    - src/core/feature-schema.ts
+    - src/cli/manifest.ts
     - docs/noldor/triage.md
     - docs/noldor/feature-md-schema.md
   docs: []
-  tests: []
+  tests:
+    - src/triage/__tests__/entry-id.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md
 name: Stable Entry IDs for Roadmap + Backlog
@@ -21,6 +30,7 @@ packages:
 phase: in-progress
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 Every roadmap and backlog entry is identified today by its kebab-slug derived from the heading. Slugs are rename-fragile — renaming an entry breaks every `deps:`, `parent:`, commit trailer, and dashboard link that targets it; moving an entry between roadmap ↔ backlog preserves the slug but loses heading-evolution traceability. Introduce a stable short ID minted at first triage and never rewritten: e.g. `R-0042` for roadmap and `B-0042` for backlog, or a single `Q-0042` namespace that survives cross-file moves. The ID becomes the canonical reference for `blocked-by:` / `parent:` / commit trailers / dashboard links / garden detectors. Slug stays a human-readable alias that can be rewritten without breakage. Counter persists in `.noldor/id-counter.json`; `/triage` and `/new-feature` mint IDs at creation. Migration: one-sweep backfill across current entries (~25 roadmap + ~7 backlog as of 2026-07-02).
@@ -51,3 +61,29 @@ pnpm noldor triage score --deps=Q-0042   # deps accept IDs or slugs interchangea
 <!-- @prs-since-last-release: stable-entry-ids-for-roadmap-backlog -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md`](../../docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md)
+- **Code:**
+  - [`docs/roadmap.md`](../../docs/roadmap.md)
+  - [`docs/backlog.md`](../../docs/backlog.md)
+  - [`.claude/skills/triage/SKILL.md`](../../.claude/skills/triage/SKILL.md)
+  - [`.claude/skills/new-feature/SKILL.md`](../../.claude/skills/new-feature/SKILL.md)
+  - [`.claude/skills/promote/SKILL.md`](../../.claude/skills/promote/SKILL.md)
+  - [`src/triage/entry-id.ts`](../../src/triage/entry-id.ts)
+  - [`src/triage/mint-id-cli.ts`](../../src/triage/mint-id-cli.ts)
+  - [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts)
+  - [`src/triage/score.ts`](../../src/triage/score.ts)
+  - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)
+  - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
+  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`docs/noldor/triage.md`](../../docs/noldor/triage.md)
+  - [`docs/noldor/feature-md-schema.md`](../../docs/noldor/feature-md-schema.md)
+- **Tests:**
+  - [`src/triage/__tests__/entry-id.test.ts`](../../src/triage/__tests__/entry-id.test.ts)
+
+<!-- /generated: resources -->
