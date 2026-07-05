@@ -39,7 +39,7 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 - **Trigger:** `pnpm noldor validate noldor-scope <commit-msg-file>`. Runs in `commit-msg` (`noldor-scope` job).
 - **Inputs:** commit message file path; staged file list (`git diff --cached --name-only`); `docs/noldor/*.md` slug set.
-- **Outputs:** exit 0 unless the commit touches `docs/noldor/*.md` without a `noldor` or `noldor:<slug>` scope, where `<slug>` matches an existing page.
+- **Outputs:** exit 0 unless the commit touches `docs/noldor/*.md` without a `noldor` or `noldor:<slug>` scope, where `<slug>` matches an existing page. A mixed code+doc commit may instead keep its code scope and declare the pages via a `Noldor-Sibling-Scope: <noldor scope-list>` trailer — honored only when at least one staged file is outside `docs/noldor/`; every staged page must be covered; unknown slugs rejected. See [`git-and-commits.md`](git-and-commits.md) § Sibling doc-sync commits.
 - **When to use:** automatic gate on every commit that touches framework pages.
 - **Source:** [`src/core/validate-noldor-scope.ts`](../../src/core/validate-noldor-scope.ts)
 
