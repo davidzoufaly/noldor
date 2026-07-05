@@ -52,6 +52,19 @@ Validation runs via `pnpm noldor validate triage`. Required fields differ per fi
 
 The pre-commit hook runs the validator (default mode) on any commit touching `docs/roadmap.md` or `docs/backlog.md`.
 
+## Stable entry IDs
+
+Every roadmap and backlog entry carries a `- id: Q-NNNN` bullet — a **stable ID minted once at triage and never rewritten**. Unlike the slug (derived from the heading, so a rename silently changes it), the ID survives heading renames *and* roadmap ↔ backlog moves. It is the canonical machine reference; the slug is a human-readable alias.
+
+- **Format** — `Q-NNNN`, a single `Q-` namespace shared by both files (a per-file `R-`/`B-` prefix would lie after a cross-file move). Zero-padded to 4 digits, width grows past `Q-9999` without a format break. Regex: `^Q-\d{4,}$`.
+- **Counter** — `.noldor/id-counter.json` (`{ "next": N }`; missing ⇒ starts at `Q-0001`). Minting bumps it. The file is a real merge conflict under parallel drains — that plus the `duplicate-entry-id` validator error is the two-layer guard against mint races; there is no lock.
+- **Minting** — `/triage` mints IDs for confirmed **new-entry** rows after batch confirmation (one `pnpm noldor triage mint-id --count <n>` call for all accepted rows; rejected rows never burn an ID; merge rows keep the host's ID). `/new-feature` mints one into FD frontmatter `entry-id:`; `/promote` lifts the source block's `- id:` into the same field.
+- **Backfill** — `pnpm noldor triage backfill-ids` stamps every id-less entry exactly once (roadmap order first, then backlog); idempotent, so a re-run is a no-op. Run it once at adoption.
+- **Validation** — once `.noldor/id-counter.json` exists, `validate:triage` errors on a missing `id` (`missing-entry-id`), a malformed `id` (`malformed-entry-id`), and the same `id` in two entries across both files (`duplicate-entry-id`). With no counter file, missing `id` is silent — a consumer that hasn't opted in isn't blocked.
+- **References** — `deps:` bullets may reference an ID (`Q-0042`) or a slug interchangeably; `resolveEntryRef` (`src/triage/entry-id.ts`) resolves an ID to its slug (scanning roadmap + backlog, then FD `entry-id:` frontmatter). An unknown ID resolves to itself and counts as unshipped, the same failure mode as a typo'd slug.
+
+**Authoring rule:** never write `- id:` by hand (except resolving a counter merge conflict), never renumber, never reuse. Gaps in the sequence (rejected/dropped rows) are permanent and harmless.
+
 ## Scoring rubric
 
 `/triage` proposes a numeric score per row, computed from four bullet fields:
@@ -61,7 +74,7 @@ The pre-commit hook runs the validator (default mode) on any commit touching `do
 | `size`       | `- size: <XS \| S \| M \| L \| XL>` bullet                                     | `XS=0.5, S=1, M=2, L=3, XL=5` (denominator — smaller = faster)    |
 | `impact`     | `- impact: <low \| med \| high \| critical>` bullet                            | `low=1, med=2, high=4, critical=8` (numerator — geometric)        |
 | `confidence` | `- confidence: <low \| med \| high>` bullet (silently optional; default `med`) | `low=0.5, med=0.75, high=1.0` (multiplier on impact)              |
-| `deps`       | `- deps: <slug, slug>` bullet (silently optional; default empty)               | `1 / (1 + unshipped_dep_count)` factor; unshipped = slug not done |
+| `deps`       | `- deps: <slug\|Q-id, …>` bullet (silently optional; default empty)            | `1 / (1 + unshipped_dep_count)` factor; unshipped = ref not done  |
 
 Formula: `score = round(100 × (impact × confidence × dependency_factor) / effort)`. Range ≈ 10-1600 (max: `XS / critical / high / no deps = 1600`; min above the dep floor: `XL / low / low / no deps = 10`). Higher = higher priority.
 
@@ -69,7 +82,7 @@ Example — `size: M, impact: high, confidence: med, deps: []` → `round(100 ×
 
 The score is **derived**, not persisted. `/triage` recomputes on every run from the bullet fields, so a tuning of the formula in `src/triage/score.ts` takes effect without rewriting any markdown. The score column in the confirmation table guides the operator's insert-position pick (`top` / `after:<slug>` / `bottom`); the operator can override.
 
-Dependency-weight reads the `- deps:` bullet (comma-separated kebab slugs). For each listed slug, the resolver in `src/triage/score.ts` calls `resolveIsShipped`, which returns true iff `docs/features/<slug>.md` exists AND its frontmatter `phase` field reads exactly `done`. Every other state — file missing, file present with `phase: in-progress`, slug only in roadmap, slug only in backlog, unknown slug — counts as unshipped. Items with multiple unshipped blockers are discounted proportionally.
+Dependency-weight reads the `- deps:` bullet (comma-separated refs — each a kebab slug or a `Q-NNNN` entry ID). For each ref, the resolver in `src/triage/score.ts` first maps an ID to its slug via `resolveEntryRef`, then `resolveIsShipped` returns true iff `docs/features/<slug>.md` exists AND its frontmatter `phase` field reads exactly `done`. Every other state — file missing, `phase: in-progress`, ref only in roadmap, ref only in backlog, unknown ref — counts as unshipped. Items with multiple unshipped blockers are discounted proportionally.
 
 Backwards compatibility: entries without `- confidence:` default to `med`. Entries without `- deps:` default to no discount. `validate:triage` does not warn or error on either missing field in v1 — backfill is gradual.
 
@@ -84,6 +97,10 @@ Update `vision.md` when milestone goals shift. Triage decisions made before the 
 ```bash
 /triage                       # bulk triage skill
 pnpm noldor triage list-untriaged    # JSON of untagged bullets
+pnpm noldor triage mint-id [--count N]   # print next N stable IDs, bump .noldor/id-counter.json
+pnpm noldor triage backfill-ids          # idempotent one-sweep stamp of `- id:` on all entries
+pnpm noldor triage score --deps=Q-0042   # deps accept IDs or slugs interchangeably
+pnpm noldor validate triage              # enforces id presence/format/cross-file uniqueness (once counter exists)
 ```
 
 For `/promote` (roadmap/backlog → feature MD) see [`workflow.md`](workflow.md). For `/garden`, `pnpm noldor garden sdd-report`, and the 13-detector contract see [`garden-and-drift.md`](garden-and-drift.md).
