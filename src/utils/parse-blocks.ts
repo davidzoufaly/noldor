@@ -310,8 +310,11 @@ function parseEntries(raw: string): BacklogEntry[] {
     const name = block.slice(0, firstNewline).trim();
     const body = block.slice(firstNewline + 1);
 
-    // `[\w-]` (not `\w`) so hyphenated field keys like `blocked-by` are captured.
-    const fieldRe = /^- ([\w-]+): (.+)$/gm;
+    // Explicit key whitelist (mirrors parseBlockBody) — NOT `[\w-]+`, so a
+    // hyphenated description bullet like `- opt-in: …` is left in the body
+    // instead of being harvested as a field and stripped from the description.
+    const fieldRe =
+      /^- (area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase): (.+)$/gm;
     const fields: Record<string, string> = {};
     let match: RegExpExecArray | null;
     while ((match = fieldRe.exec(body)) !== null) {

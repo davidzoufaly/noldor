@@ -418,6 +418,25 @@ Body.
     const [entry] = parseBacklog(raw);
     expect(entry.deps).toEqual(['alpha', 'beta', 'gamma']);
   });
+
+  it('does not strip a hyphenated non-field bullet from a backlog description', () => {
+    // Regression: broadening the field regex to [\w-]+ must not swallow
+    // description bullets shaped like `- word-word: text` (only real fields).
+    const raw = `### Backlog Entry
+
+- area: tooling
+- type: feat
+- since: 2026-05-14
+
+Notes:
+
+- opt-in: users must enable this
+- plain line
+`;
+    const [entry] = parseBacklog(raw);
+    expect(entry.description).toContain('- opt-in: users must enable this');
+    expect(entry.description).toContain('- plain line');
+  });
 });
 
 describe(`${parseBacklog.name} slug derivation`, () => {
