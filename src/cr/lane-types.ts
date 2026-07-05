@@ -1,6 +1,6 @@
 // scripts/cr/lane-types.ts
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
-import type { ReviewProfile } from './review-profile.js';
+import type { ReviewProfile } from '../core/review-profile.js';
 
 export interface LaneInput {
   slug: string;

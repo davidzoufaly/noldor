@@ -1,6 +1,6 @@
 import { spawnAgent } from '../../core/agent-runner/registry.js';
-import { DEFAULT_REVIEW_PROFILES } from '../review-profile.js';
-import type { ReviewDimension, ReviewEffort, ReviewProfile } from '../review-profile.js';
+import { DEFAULT_REVIEW_PROFILES } from '../../core/review-profile.js';
+import type { ReviewDimension, ReviewEffort, ReviewProfile } from '../../core/review-profile.js';
 
 export interface DispatchInput {
   artifact: string;

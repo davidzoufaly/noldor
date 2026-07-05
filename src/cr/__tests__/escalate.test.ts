@@ -9,7 +9,7 @@ const { promptSelect, promptText, runStandalone } = vi.hoisted(() => ({
   promptText: vi.fn(),
   runStandalone: vi.fn(async () => ({ lane: 'standalone', sinkPath: 'x', ok: false })),
 }));
-vi.mock('../prompt-stdin.js', () => ({ promptSelect, promptText }));
+vi.mock('../../core/prompt-stdin.js', () => ({ promptSelect, promptText }));
 vi.mock('../deep-review-spawn.js', () => ({
   runStandalone,
   claudeSupportsMaxThinking: async () => false,

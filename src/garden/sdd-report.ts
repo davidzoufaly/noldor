@@ -16,7 +16,7 @@ import { loadDocRoots } from '../core/doc-roots.js';
 
 import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/override-audit.js';
 import type { ExpectedOverrideRule } from './detectors/override-audit.js';
-import { loadConfigSync } from '../cr/config.js';
+import { loadConfigSync } from '../core/config.js';
 import { actualPackageNames, scanRoots as resolveScanRoots } from '../core/repo-paths.js';
 import { renderMetricsSection, reviewSkipCountLine } from './sdd-report-format.js';
 import type { MetricsReport } from '../metrics/types.js';

@@ -8,7 +8,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LaneInput } from './lane-types.js';
 import { runStandalone } from './deep-review-spawn.js';
-import { promptSelect } from './prompt-stdin.js';
+import { promptSelect } from '../core/prompt-stdin.js';
 
 export type EscalateReason = 'test-red' | 'cr-red';
 export type OnFailure = 'prompt' | 'spawn-deep-review' | 'abort';

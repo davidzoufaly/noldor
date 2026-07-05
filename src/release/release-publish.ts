@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 // hoisted function declarations referenced only at call time, and index.ts's
 // own entry guard keys on `process.argv[1]`, so importing it here never fires
 // a release run.
-import { loadConfigSync } from '../cr/config.js';
+import { loadConfigSync } from '../core/config.js';
 import { appendOverrideLog } from '../core/overrides-log.js';
 import { buildConsumerFixture } from '../testing/consumer-fixture.js';
 import { installFrameworkTarball, runContractChecks } from '../testing/contract-harness.js';

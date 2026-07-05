@@ -3,8 +3,8 @@ import { spawnSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
 
 import { readSession, clearSession, type SessionMarker } from './session.js';
-import { loadConfig, type NoldorConfig } from '../cr/config.js';
-import { promptSelect } from '../cr/prompt-stdin.js';
+import { loadConfig, type NoldorConfig } from './config.js';
+import { promptSelect } from './prompt-stdin.js';
 import { openAndAutoMerge, type FdSummary, type CrResultSummary, type SpawnFn } from './pr-flow.js';
 
 const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;

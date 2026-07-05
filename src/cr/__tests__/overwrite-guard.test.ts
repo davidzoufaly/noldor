@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { promptSelect } = vi.hoisted(() => ({ promptSelect: vi.fn() }));
-vi.mock('../prompt-stdin.js', () => ({ promptSelect, promptText: vi.fn() }));
+vi.mock('../../core/prompt-stdin.js', () => ({ promptSelect, promptText: vi.fn() }));
 
 import { guardLaneOverwrite } from '../orchestrate.js';
 

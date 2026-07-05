@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { loadConfigSync } from '../cr/config.js';
+import { loadConfigSync } from '../core/config.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { appendOverrideLog } from '../core/overrides-log.js';

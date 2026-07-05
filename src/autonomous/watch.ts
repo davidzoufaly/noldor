@@ -2,7 +2,7 @@ import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { loadConfigSync } from '../cr/config.js';
+import { loadConfigSync } from '../core/config.js';
 import { runDrain, type DrainDeps, type DrainResult } from './drain-loop.js';
 import { roadmapSource } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';

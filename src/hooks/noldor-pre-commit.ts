@@ -6,7 +6,7 @@ import { readSession, isSessionStale, touchSession, type SessionMarker } from '.
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
 import { appendOverrideLog } from '../core/overrides-log';
-import { DEFAULT_SESSION_TTL_HOURS, loadConfigSync, resolveSessionTtlHours } from '../cr/config';
+import { DEFAULT_SESSION_TTL_HOURS, loadConfigSync, resolveSessionTtlHours } from '../core/config';
 
 export interface PreCommitResult {
   ok: boolean;

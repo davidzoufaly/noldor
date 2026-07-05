@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { loadConfig } from '../cr/config.js';
+import { loadConfig } from '../core/config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
 import { INVARIANTS } from './garden-invariants.js';

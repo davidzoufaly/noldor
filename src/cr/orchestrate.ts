@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
-import { DEFAULT_CR_LANES, loadConfig, resolveReviewProfile } from './config.js';
-import type { NoldorConfig } from './config.js';
+import { DEFAULT_CR_LANES, loadConfig, resolveReviewProfile } from '../core/config.js';
+import type { NoldorConfig } from '../core/config.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult } from './lane-types.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
@@ -11,7 +11,7 @@ import { runManual } from './lanes/manual.js';
 import { codexSupportsBaseSha, runCodex } from './lanes/codex.js';
 import { runSubagent } from './lanes/subagent.js';
 import { runVerify } from './lanes/verify.js';
-import { promptSelect } from './prompt-stdin.js';
+import { promptSelect } from '../core/prompt-stdin.js';
 import { amendSubagentReceipt } from './amend-receipt.js';
 
 // Hand-rolled promise wrapper around execFile (NOT promisify) — keeps parity

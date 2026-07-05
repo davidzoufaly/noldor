@@ -9,7 +9,7 @@ export interface CrGateOffender {
 /**
  * One configured per-SHA acknowledgment (`release.crGateExemptCommits` in
  * `.noldor/config.json`, schema-validated there — kept structural here so this
- * module needs no `cr/config` import). `sha` is a full-SHA prefix, min 7 hex
+ * module needs no `core/config` import). `sha` is a full-SHA prefix, min 7 hex
  * chars enforced at the schema layer.
  */
 export interface CrGateExemption {

@@ -9,7 +9,7 @@ const { promptText, promptSelect } = vi.hoisted(() => ({
   promptSelect: vi.fn(),
 }));
 
-vi.mock('../../prompt-stdin.js', () => ({ promptText, promptSelect }));
+vi.mock('../../../core/prompt-stdin.js', () => ({ promptText, promptSelect }));
 
 import { runManual } from '../../lanes/manual.js';
 import type { LaneInput } from '../../lane-types.js';
