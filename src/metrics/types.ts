@@ -2,7 +2,7 @@ import type { AgentEvent } from '../core/agent-events.js';
 import type { EscalationRow } from '../autonomous/escalations.js';
 import type { DrainState } from '../autonomous/drain-state.js';
 import type { LaneFindings } from '../cr/findings-schema.js';
-import type { FeatureFrontmatter } from '../features/feature-schema.js';
+import type { FeatureFrontmatter } from '../core/feature-schema.js';
 
 export interface CommitFact {
   sha: string;

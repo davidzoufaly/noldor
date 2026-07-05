@@ -1,5 +1,5 @@
 import type { CommitFact, FeatureFact, RepoFacts } from '../types';
-import type { FeatureFrontmatter } from '../../features/feature-schema';
+import type { FeatureFrontmatter } from '../../core/feature-schema';
 
 export function emptyFacts(overrides: Partial<RepoFacts> = {}): RepoFacts {
   return {

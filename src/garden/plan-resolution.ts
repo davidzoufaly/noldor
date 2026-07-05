@@ -4,8 +4,8 @@ import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 
 import { loadDocRoots } from '../core/doc-roots.js';
-import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
-import type { FeatureFrontmatter } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
+import type { FeatureFrontmatter } from '../core/feature-schema.js';
 
 export interface ResolvedOwner {
   slug: string;

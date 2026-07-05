@@ -6,7 +6,7 @@ import matter from 'gray-matter';
 import { loadCategories } from '../core/consumer-config.js';
 import { howtoFrontmatterSchema } from './howto-schema.js';
 
-import type { Category } from '../features/feature-schema.js';
+import type { Category } from '../core/feature-schema.js';
 import type { HowtoFrontmatter } from './howto-schema.js';
 
 /**

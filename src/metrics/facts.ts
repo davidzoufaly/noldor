@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
-import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { laneFindingsSchema } from '../cr/findings-schema.js';
 import { slugify } from '../utils/slugify.js';
 import type { AgentEvent } from '../core/agent-events.js';

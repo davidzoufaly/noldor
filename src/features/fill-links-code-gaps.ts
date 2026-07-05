@@ -19,7 +19,7 @@ import { isInfraFile, loadSddFeatures, walkRepo } from '../garden/sdd-report.js'
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { scanRoots } from '../core/repo-paths.js';
 
-import type { FeatureFrontmatter } from './feature-schema.js';
+import type { FeatureFrontmatter } from '../core/feature-schema.js';
 
 /**
  * One candidate-FD match for an unreferenced code file. Confidence indicates

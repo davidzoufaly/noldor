@@ -6,7 +6,7 @@ import matter from 'gray-matter';
 
 import { loadConfig } from '../core/config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
-import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { INVARIANTS } from './garden-invariants.js';
 import { makeInvariants, runInvariants } from '../invariants/index.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
@@ -33,7 +33,7 @@ import {
 } from './plan-resolution.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
-import type { FeatureFrontmatter } from '../features/feature-schema.js';
+import type { FeatureFrontmatter } from '../core/feature-schema.js';
 import type { Invariant } from './garden-invariants.js';
 import type { Invariant as ArchitectureInvariant, InvariantResult } from '../invariants/types.js';
 import type { OverrideAuditResult } from './detectors/override-audit.js';
@@ -472,7 +472,7 @@ export interface SourceDriftPair {
 /** Default source-of-truth ↔ Noldor page pairs. */
 export const SOURCE_DRIFT_PAIRS: readonly SourceDriftPair[] = [
   {
-    sources: ['src/features/feature-schema.ts'],
+    sources: ['src/core/feature-schema.ts'],
     page: 'docs/noldor/feature-md-schema.md',
   },
   { sources: ['.claude/skills'], page: 'docs/noldor/skill-catalog.md' },

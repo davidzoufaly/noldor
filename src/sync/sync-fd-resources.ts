@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { LOST_SENTINEL } from '../features/feature-schema.js';
+import { LOST_SENTINEL } from '../core/feature-schema.js';
 
 const START_MARKER = '<!-- generated: resources -->';
 const END_MARKER = '<!-- /generated: resources -->';

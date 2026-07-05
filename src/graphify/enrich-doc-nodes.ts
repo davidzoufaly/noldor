@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 
 import { loadDocRoots } from '../core/doc-roots.js';
-import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { planSlugFromFilename, specSlugFromFilename } from '../garden/garden-detect.js';
 
 /**

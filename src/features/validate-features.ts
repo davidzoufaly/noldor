@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { FeatureFrontmatterSchema, type FeatureFrontmatter } from './feature-schema.js';
+import { FeatureFrontmatterSchema, type FeatureFrontmatter } from '../core/feature-schema.js';
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
 import { loadConsumerConfig, loadCategories } from '../core/consumer-config.js';

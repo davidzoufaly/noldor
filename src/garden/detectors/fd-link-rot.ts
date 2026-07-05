@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { LOST_SENTINEL } from '../../features/feature-schema.js';
+import { LOST_SENTINEL } from '../../core/feature-schema.js';
 import type { Gap } from '../sdd-report.js';
 
 /** Link values that are deliberately not paths. */

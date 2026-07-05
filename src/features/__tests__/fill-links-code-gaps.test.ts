@@ -14,7 +14,7 @@ import {
   parseProposal,
   resolveByPath,
 } from '../fill-links-code-gaps.js';
-import type { FeatureFrontmatter } from '../feature-schema.js';
+import type { FeatureFrontmatter } from '../../core/feature-schema.js';
 
 type FeatureRow = { slug: string; frontmatter: FeatureFrontmatter };
 

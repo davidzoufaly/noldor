@@ -14,7 +14,7 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
-import { LOST_SENTINEL } from './feature-schema.js';
+import { LOST_SENTINEL } from '../core/feature-schema.js';
 
 export { LOST_SENTINEL };
 

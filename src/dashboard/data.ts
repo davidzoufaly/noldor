@@ -11,7 +11,7 @@ import { markedHighlight } from 'marked-highlight';
 import { z } from 'zod';
 
 import { escapeHtml } from './layout.js';
-import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { loadCategories, loadConsumerConfig } from '../core/consumer-config.js';
 import { areaToCategory } from '../lib/area-category.js';
 import { loadMilestoneBySlug, loadMilestones, type Milestone } from '../milestones/lib.js';

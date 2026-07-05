@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { FeatureFrontmatterSchema } from '../../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
 import { isPostRollout } from '../../core/rollout-marker.js';
 
 export interface FdWithoutPlanFinding {

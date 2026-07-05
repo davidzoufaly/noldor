@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { FeatureFrontmatterSchema } from '../../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
 import { loadMilestones } from '../../milestones/lib.js';
 
 export interface MilestoneShippedIncompleteFinding {

@@ -30,7 +30,7 @@ import {
 } from '../sdd-report.js';
 import type { FeatureRecord } from '../sdd-report.js';
 
-import type { FeatureFrontmatter } from '../../features/feature-schema.js';
+import type { FeatureFrontmatter } from '../../core/feature-schema.js';
 import type { BacklogEntry } from '../../utils/parse-blocks.js';
 
 const fmDoneNoTests: FeatureFrontmatter = {

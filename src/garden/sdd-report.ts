@@ -4,7 +4,7 @@ import { basename, join, relative } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { extractTags } from '../sync/sync-test-links.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
 import { extractUntriagedBullets } from '../triage/triage-list-untriaged.js';
@@ -30,7 +30,7 @@ import {
 
 import type { Dirent } from 'node:fs';
 
-import type { FeatureFrontmatter } from '../features/feature-schema.js';
+import type { FeatureFrontmatter } from '../core/feature-schema.js';
 import type { BacklogEntry } from '../utils/parse-blocks.js';
 
 /**
