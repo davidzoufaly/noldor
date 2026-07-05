@@ -878,7 +878,7 @@ export function resolveReportOutPath(argv: string[], env: NodeJS.ProcessEnv): st
 
 async function main(): Promise<void> {
   const features = await loadSddFeatures(loadDocRoots().features);
-  const ideasMd = await readFile('ideas.md', 'utf8').catch(() => '');
+  const ideasMd = await readFile(loadDocRoots().ideas, 'utf8').catch(() => '');
   const backlogRaw = await readFile(loadDocRoots().backlog, 'utf8').catch(() => '');
   const backlog = parseBacklog(backlogRaw);
   const specPaths = await listSpecs(loadDocRoots().specs);

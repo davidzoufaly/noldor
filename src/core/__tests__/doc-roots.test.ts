@@ -9,7 +9,7 @@ describe('loadDocRoots', () => {
     expect(r.roadmap).toBe('/tmp/example/docs/roadmap.md');
     expect(r.backlog).toBe('/tmp/example/docs/backlog.md');
     expect(r.vision).toBe('/tmp/example/docs/vision.md');
-    expect(r.ideas).toBe('/tmp/example/docs/ideas.md');
+    expect(r.ideas).toBe('/tmp/example/ideas.md');
     expect(r.milestones).toBe('/tmp/example/docs/milestones');
     expect(r.plans).toBe('/tmp/example/docs/superpowers/plans');
     expect(r.specs).toBe('/tmp/example/docs/superpowers/specs');
