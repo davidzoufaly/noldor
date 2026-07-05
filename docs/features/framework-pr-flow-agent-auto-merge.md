@@ -5,7 +5,6 @@ deps: []
 links:
   code:
     - src/core/pr-flow.ts
-    - src/core/cr-retry.ts
     - src/core/phase-revert.ts
     - src/hooks/noldor-pre-push.ts
     - src/garden/detectors/branch-protection.ts
@@ -17,7 +16,6 @@ links:
     - src/release/release-find-first-pr-commit.ts
   spec: lost-pre-extraction
   tests:
-    - src/core/__tests__/cr-retry.test.ts
     - src/core/__tests__/phase-revert.test.ts
     - src/core/__tests__/pr-flow.test.ts
     - src/garden/detectors/__tests__/branch-protection.test.ts
@@ -142,7 +140,6 @@ This release fixes composeBody's Feature MD link falling through to session.pare
 - **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
-  - [`src/core/cr-retry.ts`](../../src/core/cr-retry.ts)
   - [`src/core/phase-revert.ts`](../../src/core/phase-revert.ts)
   - [`src/hooks/noldor-pre-push.ts`](../../src/hooks/noldor-pre-push.ts)
   - [`src/garden/detectors/branch-protection.ts`](../../src/garden/detectors/branch-protection.ts)
@@ -153,7 +150,6 @@ This release fixes composeBody's Feature MD link falling through to session.pare
   - [`src/release/release-pr-bullets.ts`](../../src/release/release-pr-bullets.ts)
   - [`src/release/release-find-first-pr-commit.ts`](../../src/release/release-find-first-pr-commit.ts)
 - **Tests:**
-  - [`src/core/__tests__/cr-retry.test.ts`](../../src/core/__tests__/cr-retry.test.ts)
   - [`src/core/__tests__/phase-revert.test.ts`](../../src/core/__tests__/phase-revert.test.ts)
   - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
   - [`src/garden/detectors/__tests__/branch-protection.test.ts`](../../src/garden/detectors/__tests__/branch-protection.test.ts)
