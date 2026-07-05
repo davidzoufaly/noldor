@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
+import { loadDocRoots } from '../core/doc-roots.js';
+
 const HEADING_RE = /^(#{2,4})\s+(.+)$/;
 const TOP_LEVEL_BULLET_RE = /^-\s+(.+)$/;
 const TRIAGED_MARKER_RE = /\[triaged\s+\d{4}-\d{2}-\d{2}\s+→/;
@@ -70,12 +72,13 @@ export function extractUntriagedBullets(content: string): Untriaged[] {
 }
 
 async function main(): Promise<void> {
-  // ideas.md is a per-user local inbox (gitignored since PR #14). Treat a
-  // missing file as "no untriaged bullets" rather than crashing — matches the
-  // pattern in scripts/garden/sdd-report.ts and scripts/dashboard/data.ts.
-  const raw = await readFile('ideas.md', 'utf8').catch(() => '');
+  // ideas.md is a per-user local inbox (gitignored since PR #14) at the repo
+  // root. Treat a missing file as "no untriaged bullets" rather than crashing —
+  // matches the pattern in src/garden/sdd-report.ts.
+  const ideasPath = loadDocRoots().ideas;
+  const raw = await readFile(ideasPath, 'utf8').catch(() => '');
   const untriaged = extractUntriagedBullets(raw);
-  const payload = { ideasMd: 'ideas.md', untriaged };
+  const payload = { ideasMd: ideasPath, untriaged };
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 }
 

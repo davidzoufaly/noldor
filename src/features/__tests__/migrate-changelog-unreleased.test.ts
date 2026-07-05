@@ -1,4 +1,4 @@
-// packages/noldor/src/features/__tests__/migrate-changelog-unreleased.test.ts
+// src/features/__tests__/migrate-changelog-unreleased.test.ts
 // @tests: dynamic-fd-changelog
 
 import { describe, expect, it } from 'vitest';

@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 // Package-asset resolution: TEMPLATES_ROOT is computed from this module's own
 // on-disk location, never from process.cwd(). Works identically whether the
-// package is consumed via `workspace:*` (this file lives at
-// `packages/noldor/src/templates/manifest.ts`) or installed flat under
+// package is consumed via `workspace:*` (this file lives under the consumer
+// monorepo's `packages/<pkg>/src/templates/manifest.ts`) or installed flat under
 // `node_modules/noldor/` (then under the pkg's `dist/` or `src/`). The 2-level
 // walk reaches the pkg root, where `templates/` lives.
 const here = dirname(fileURLToPath(import.meta.url));

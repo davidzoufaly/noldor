@@ -1,4 +1,4 @@
-// scripts/release/fd-prs-since-tag.ts
+// src/release/fd-prs-since-tag.ts
 // @tests: fd-prs-since-last-release-section
 
 import { commitsForFeature } from './release-fd-commits.js';

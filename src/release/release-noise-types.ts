@@ -1,4 +1,4 @@
-// scripts/release/release-noise-types.ts
+// src/release/release-noise-types.ts
 // @tests: fd-prs-since-last-release-section
 
 /**

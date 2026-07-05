@@ -1,4 +1,4 @@
-// scripts/release/release-fd-changelog.ts
+// src/release/release-fd-changelog.ts
 // @tests: feature-md-links-overhaul
 
 import { readFile, readdir, writeFile } from 'node:fs/promises';

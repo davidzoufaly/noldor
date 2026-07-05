@@ -150,7 +150,7 @@ describe('noldor pre-commit', () => {
       JSON.stringify({ path: 'release-automation', startedAt: '2026-05-22T00:00:00Z' }),
     );
 
-    // Stage the real release-commit spread (mirror packages/noldor/src/release/index.ts:249-256).
+    // Stage the real release-commit spread (mirror src/release/index.ts:249-256).
     writeFileSync(join(dir, 'CHANGELOG.md'), 'changes\n');
     mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
     writeFileSync(join(dir, 'docs', 'release-notes.md'), 'notes\n');

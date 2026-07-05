@@ -1,4 +1,4 @@
-// packages/noldor/src/release/__tests__/release-fd-commits.test.ts
+// src/release/__tests__/release-fd-commits.test.ts
 // @tests: dynamic-fd-changelog, feature-md-links-overhaul
 
 import { execFile } from 'node:child_process';

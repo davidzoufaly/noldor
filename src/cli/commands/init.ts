@@ -5,7 +5,7 @@
 // Flags:
 //   --update                         re-copy templates and overwrite any drifted consumer files
 //   --adopt                          reverse direction: copy consumer files INTO
-//                                    packages/noldor/templates/ (writes the pkg's own
+//                                    the package's own templates/ dir (writes the pkg's
 //                                    templates from the live consumer state)
 //   --agents claude,codex,opencode   select which driver shim sets to write
 //                                    (default: agents.targets from config, else claude)

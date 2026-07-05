@@ -3,15 +3,24 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/core/doc-roots.ts
+    - src/migrations/chain.ts
+    - src/garden/sdd-report.ts
+    - src/triage/triage-list-untriaged.ts
+    - src/core/release-markers.ts
+    - package.json
   docs: []
-  tests: []
+  tests:
+    - src/invariants/__tests__/boundaries.test.ts
+    - src/invariants/__tests__/rule-conflicts.test.ts
+    - src/validate/__tests__/noldor-config.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-framework-script-test-migration-cleanup-design.md
 name: Framework Script + Test Migration Cleanup
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary

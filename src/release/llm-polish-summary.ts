@@ -1,4 +1,4 @@
-// scripts/release/llm-polish-summary.ts
+// src/release/llm-polish-summary.ts
 // @tests: dynamic-fd-changelog
 
 import { spawnAgent } from '../core/agent-runner/registry.js';
