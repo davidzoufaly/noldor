@@ -11,7 +11,7 @@ Periodic audit that detects framework drift: features without tests, plans witho
 
 | Trigger                                            | What it does                                                                                                |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `/garden`                                          | Interactive audit; walks all 19 detectors + 4 doc-maintenance signals                                       |
+| `/garden`                                          | Interactive audit; walks all 20 detectors + 4 doc-maintenance signals                                       |
 | `pnpm noldor garden detect`                        | Same as `/garden` non-interactive; JSON report (`category`, `itemId`, `message` per gap)                    |
 | `pnpm noldor garden sdd-report`                    | Walks SDD detectors (1-13 + 19), writes `docs/sdd-report.md`. Informational — never blocks                  |
 | `pnpm noldor garden sdd-report --json`             | Machine-readable output (no file write)                                                                     |
@@ -44,6 +44,7 @@ Periodic audit that detects framework drift: features without tests, plans witho
 | 17  | FD without plan                       | FD (non-grandfathered) with no matching plan file glob hit                                                                                                          | Author a plan; FDs created before the rollout marker are grandfathered                                     |
 | 18  | Codex CR override audit               | `.noldor/cr-overrides.log` shows ≥ 3 overrides in 14 days, reasons < 10 chars, or repeated identical reasons                                                        | Investigate why codex CR is being skipped; rerun or fix the underlying issue                               |
 | 19  | Done features without code            | `phase: done` and `links.code` empty (no opt-out unless `['n/a']` sentinel; pre-MVP grandfathered)                                                                  | Populate `links.code` via `pnpm noldor sync fd-resources` or hand-edit; sentinel for rare pure-content FDs |
+| 20  | Circular `blocked-by` chain           | A cycle in the roadmap+backlog `blocked-by` graph (`deps:` alias unioned; ID and slug refs resolved to slugs; self-loops included)                                   | Break the cycle by removing one `blocked-by` ref (`manual-edit`)                                            |
 
 `/garden` adds 4 doc-maintenance signals on top (not in `pnpm noldor garden sdd-report`): stale plans (move to `docs/superpowers/plans/archive/` once matching feature is `done`), stale specs (same trigger, `docs/superpowers/specs/archive/`), unused backlog entries (drop or merge), and a deterministic-seed rule-contradiction sweep with an LLM false-positive filter.
 

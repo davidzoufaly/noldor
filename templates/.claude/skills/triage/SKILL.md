@@ -42,7 +42,7 @@ In-progress work (FDs with `phase: in-progress`) is tracked via FD frontmatter, 
      - **size** — `XS | S | M | L | XL`. **Required** when `target` is `roadmap` (validator gates on it); advisory on `backlog`. Skill estimates from bullet text + similar prior entries; operator overrides per row.
      - **impact** — `low | med | high | critical`. Same gating as `size`: required on roadmap, advisory on backlog.
      - **confidence** — `low | med | high`. How sure the proposer is about the `size` + `impact` estimate. Default to `med`; lower to `low` if the bullet text is fuzzy or the work needs spike-level exploration; raise to `high` only when the work has a clear, well-understood shape. Silently optional in v1 — `validate:triage` does NOT complain when missing.
-     - **deps** — comma-separated kebab slugs of unshipped roadmap/backlog/in-progress entries this work blocks on. Empty when no blockers known. The slug list feeds dependency-weight at scoring time. Silently optional in v1; operator can supply or leave empty.
+     - **blocked-by** — comma-separated refs (kebab slug or `Q-NNNN` ID) of unshipped roadmap/backlog/in-progress entries this work waits on. Empty when no blockers known. Feeds dependency-weight at scoring time; `validate:triage` flags refs resolving to nothing (`unknown-blocked-by-ref`) and `/garden` flags cycles. Silently optional; operator can supply or leave empty. (`deps` is the accepted legacy alias, unioned with `blocked-by` — prefer `blocked-by` in new entries.)
      - **milestone** — slug of the milestone this work belongs to (a `docs/milestones/<slug>.md` file). Propose `- milestone: <active-slug>` **only** when `docs/vision.md` has an active `current-milestone:` AND the bullet aligns with that milestone's `## Gate`; otherwise omit the line entirely. Never infer from score. Operator overrides or drops per row. Silently optional, exactly like `confidence`/`deps` — written into the schema-C block only when proposed/confirmed; `validate:triage` does NOT complain when absent. `/promote` lifts the line into the FD frontmatter.
 5. **Present** the proposal table to the user for batch confirmation. Merge rows show the matched host block's heading + current section so the operator can spot bad matches:
 
@@ -55,7 +55,7 @@ add second logo variant                | merge: brand-identity (backlog) — sub
 rozpracovat vizi a roadmapu            | new: refine-vision-roadmap → backlog            | process  | chore   | S    | low    | low  | 50
 ```
 
-The `score` column is computed by shelling out to `scripts/triage/score.ts` (or the `pnpm noldor triage score` alias) for each new-entry row. Pass the bullet fields as flags: `pnpm noldor triage score --size=<...> --impact=<...> --confidence=<...> --deps=<slug,slug>`. The helper returns one integer; capture it for the table column. Dependency-weight is `1 / (1 + unshipped_dep_count)` where **shipped = the slug names a `docs/features/<slug>.md` with frontmatter `phase: done`**; every other state (file missing, file present with non-done phase, slug only in roadmap or backlog) counts as unshipped. Higher score = higher priority. Merge rows do not carry size/impact/confidence/score (the host block's values stand). The score is **not** persisted to the schema-C block — it is recomputed on every `/triage` run from the bullet fields.
+The `score` column is computed by shelling out to `scripts/triage/score.ts` (or the `pnpm noldor triage score` alias) for each new-entry row. Pass the bullet fields as flags: `pnpm noldor triage score --size=<...> --impact=<...> --confidence=<...> --blocked-by=<slug,slug>` (`--deps` is the accepted legacy alias, unioned with `--blocked-by`). The helper returns one integer; capture it for the table column. Dependency-weight is `1 / (1 + unshipped_dep_count)` where **shipped = the slug names a `docs/features/<slug>.md` with frontmatter `phase: done`**; every other state (file missing, file present with non-done phase, slug only in roadmap or backlog) counts as unshipped. Higher score = higher priority. Merge rows do not carry size/impact/confidence/score (the host block's values stand). The score is **not** persisted to the schema-C block — it is recomputed on every `/triage` run from the bullet fields.
 
 For roadmap targets, the proposal includes an insert position: `(top)`, `(after <existing-slug>)`, or `(bottom)`, plus `size` (XS/S/M/L/XL) and `impact` (low/med/high/critical) — both required for roadmap inserts because `validate:triage` errors on missing `size` or `impact` for roadmap entries. The computed `score` informs the suggested insert position (higher score → closer to top; lower score → bottom; comparable scores → `after:<slug>` near peers), but the operator can override per row. Backlog targets may propose `size` + `impact` (advisory there). Merge rows do not carry size/impact (the host block's values stand). Operator confirms or edits per row.
 
@@ -74,12 +74,12 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
    - size: <size-or-omit>
    - impact: <impact-or-omit>
    - confidence: <confidence-or-omit>
-   - deps: <slug|Q-id,…-or-omit>
+   - blocked-by: <slug|Q-id,…-or-omit>
 
    <one-paragraph description, polished from the original bullet>
    ```
 
-   (`size` / `impact` / `confidence` / `deps` lines are all silently optional on backlog — emit when the proposal supplied them, omit otherwise. For `deps`, only emit the bullet when the slug list is non-empty.)
+   (`size` / `impact` / `confidence` / `blocked-by` lines are all silently optional on backlog — emit when the proposal supplied them, omit otherwise. For `blocked-by`, only emit the bullet when the ref list is non-empty. `deps:` is the legacy alias, still accepted.)
    - **`roadmap`** target → insert a schema-C block into `docs/roadmap.md` at the position indicated by the proposal (`top` = before the first existing H3/H4 entry; `after:<slug>` = immediately after the matching block; `bottom` = at end of file). `size` and `impact` lines are **required** on roadmap blocks — emit both. If the entry slots under an existing H3 category, render as `#### <Entry Name>` under that category; if it's a standalone direct entry, render as `### <Entry Name>`:
 
    ```markdown
@@ -92,12 +92,12 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
    - size: <size>
    - impact: <impact>
    - confidence: <confidence-or-omit>
-   - deps: <slug|Q-id,…-or-omit>
+   - blocked-by: <slug|Q-id,…-or-omit>
 
    <one-paragraph description, polished from the original bullet>
    ```
 
-   (`size` and `impact` are required on roadmap; `confidence` and `deps` are silently optional — emit `confidence` when the proposal supplied it, omit otherwise. For `deps`, only emit the bullet when the slug list is non-empty.)
+   (`size` and `impact` are required on roadmap; `confidence` and `blocked-by` are silently optional — emit `confidence` when the proposal supplied it, omit otherwise. For `blocked-by`, only emit the bullet when the ref list is non-empty. `deps:` is the legacy alias, still accepted.)
    - **`merge:<existing-slug>`** target → locate the host block in roadmap or backlog. Append a sub-bullet under the host's body paragraph (or after the last existing sub-bullet) preserving the new bullet's wording lightly polished. Do NOT rewrite the host paragraph. Do NOT update the host's `since`. If the operator confirmed `promote-to:<position>`, also relocate the entire host block (heading + bullet fields + body + new sub-bullet) to the indicated position in `docs/roadmap.md` (or move to `docs/backlog.md` if `promote-to:backlog`). When the host move targets roadmap and the host originally came from backlog, the host block's `size` / `impact` lines must be present on arrival — if absent, prompt the operator to supply them as part of the confirmation row. Cross-file moves between roadmap and backlog mirror the patterns logged in commits `08a509c` / `c46f560` / `22719c6`.
 
    - **`now`** target → write the block exactly as a `roadmap` insert at `top` (same required fields — `size` and `impact` gate it). With multiple `now` rows, insert in reverse confirmation-table order so the final roadmap order matches the table. The auto-chain to `/promote` happens in step 8, never here — a failed validation must abort the chain.
@@ -147,7 +147,7 @@ When ambiguous, prefer the more specific type over `feat` (e.g. a perf-targeted 
 - **Cross-section moves** triggered by `promote-to:<section>` follow the symmetric backlog ↔ roadmap pattern from commits `08a509c` / `c46f560` / `22719c6` — move the whole block, never split.
 - **Optional `parent: <existing-fd-slug>` field** in schema-C blocks signals attach intent at `/promote` time. `/triage` doesn't enforce parent existence; `/promote` validates and presents attach-to-parent option to operator.
 - **Always** run the regen chain in step 8, even if zero ideas triaged (catches drift from manual edits).
-- **Confidence + deps are silently optional in v1.** Missing `confidence` defaults to `med` at scoring time. Missing `deps` means the dependency factor is `1.0` (no discount). `validate:triage` does NOT complain when either is missing. Both fields can be backfilled by hand later — `/triage` will pick them up on the next run.
-- **Stable IDs are minted, never hand-written.** Every accepted new entry gets a `- id: Q-NNNN` first bullet minted via `pnpm noldor triage mint-id` after confirmation. Never write `- id:` by hand (except resolving a counter merge conflict), never renumber, never reuse. The ID survives heading renames and roadmap ↔ backlog moves — the slug is now a renameable alias. `deps:` bullets may reference an ID or a slug interchangeably. Gaps in the sequence (rejected/dropped rows) are permanent and harmless. Once `.noldor/id-counter.json` exists, `validate:triage` errors on any entry missing an `id`.
+- **Confidence + blocked-by are silently optional.** Missing `confidence` defaults to `med` at scoring time. A missing `blocked-by:`/`deps:` bullet means the dependency factor is `1.0` (no discount). `validate:triage` does NOT complain when either is missing — but a `blocked-by` ref that is *present* yet resolves to no known target is flagged (`unknown-blocked-by-ref`). Both fields can be backfilled by hand later — `/triage` will pick them up on the next run.
+- **Stable IDs are minted, never hand-written.** Every accepted new entry gets a `- id: Q-NNNN` first bullet minted via `pnpm noldor triage mint-id` after confirmation. Never write `- id:` by hand (except resolving a counter merge conflict), never renumber, never reuse. The ID survives heading renames and roadmap ↔ backlog moves — the slug is now a renameable alias. `blocked-by:` bullets (alias `deps:`) may reference an ID or a slug interchangeably. Gaps in the sequence (rejected/dropped rows) are permanent and harmless. Once `.noldor/id-counter.json` exists, `validate:triage` errors on any entry missing an `id`.
 - **Score is derived, not stored.** The score column in the confirmation table is recomputed from bullet fields on every `/triage` run. Do not write `- score: <int>` into schema-C blocks. If the formula in `scripts/triage/score.ts` tunes, the new score takes effect on the next run without rewriting the markdown.
 - If the user types `edit` at confirmation, walk row-by-row asking for overrides on target / area / slug / merge-host, then re-present the final table for one last yes/no.
