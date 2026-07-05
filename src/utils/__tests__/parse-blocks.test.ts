@@ -352,6 +352,74 @@ Body.
   });
 });
 
+describe('parse-blocks blocked-by alias', () => {
+  it('parses a `blocked-by:` bullet into deps on a roadmap entry', () => {
+    const raw = `### Cat
+
+#### Entry
+
+- area: tooling
+- type: feat
+- since: 2026-05-14
+- size: S
+- impact: med
+- blocked-by: foo-slug, Q-0042
+
+Body.
+`;
+    const [entry] = parseRoadmap(raw);
+    expect(entry.deps).toEqual(['foo-slug', 'Q-0042']);
+  });
+
+  it('parses a `blocked-by:` bullet into deps on a backlog entry (level-3)', () => {
+    const raw = `### Backlog Entry
+
+- area: tooling
+- type: feat
+- since: 2026-05-14
+- blocked-by: alpha, beta
+
+Body.
+`;
+    const [entry] = parseBacklog(raw);
+    expect(entry.deps).toEqual(['alpha', 'beta']);
+  });
+
+  it('unions `deps:` and `blocked-by:` (dedup, source order) on a roadmap entry', () => {
+    const raw = `### Cat
+
+#### Entry
+
+- area: tooling
+- type: feat
+- since: 2026-05-14
+- size: S
+- impact: med
+- deps: foo, bar
+- blocked-by: bar, baz
+
+Body.
+`;
+    const [entry] = parseRoadmap(raw);
+    expect(entry.deps).toEqual(['foo', 'bar', 'baz']);
+  });
+
+  it('unions `deps:` and `blocked-by:` (dedup) on a backlog entry', () => {
+    const raw = `### Backlog Entry
+
+- area: tooling
+- type: feat
+- since: 2026-05-14
+- deps: alpha, beta
+- blocked-by: beta, gamma
+
+Body.
+`;
+    const [entry] = parseBacklog(raw);
+    expect(entry.deps).toEqual(['alpha', 'beta', 'gamma']);
+  });
+});
+
 describe(`${parseBacklog.name} slug derivation`, () => {
   it('emits slug field derived via slugify(name)', () => {
     const raw = `# Backlog
