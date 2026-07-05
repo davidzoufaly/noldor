@@ -249,3 +249,41 @@ describe('validateScope — Noldor-Sibling-Scope trailer', () => {
     expect(result.error).toMatch(/no scope/);
   });
 });
+
+describe('validateScope — sibling-trailer teaching in the failure message', () => {
+  it('names the exact trailer line for a single-page mixed diff', () => {
+    const result = validateScope({
+      message: 'feat(sdd): mixed change',
+      stagedFiles: ['src/garden/sdd-report.ts', 'docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/keep "feat\(sdd\)"/);
+    expect(result.error).toMatch(/Noldor-Sibling-Scope: noldor:workflow/);
+  });
+
+  it('suggests the precise comma-joined slug list on a multi-page mixed diff, never bare noldor', () => {
+    const result = validateScope({
+      message: 'feat(sdd): multi-page edit',
+      stagedFiles: [
+        'src/garden/sdd-report.ts',
+        'docs/noldor/workflow.md',
+        'docs/noldor/lifecycle.md',
+      ],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Noldor-Sibling-Scope: noldor:lifecycle, noldor:workflow/);
+    expect(result.error).not.toMatch(/Noldor-Sibling-Scope: noldor(?!:)/);
+  });
+
+  it('does not suggest the trailer on a doc-only diff (it would bounce off the doc-only guard)', () => {
+    const result = validateScope({
+      message: 'docs(engine): tidy',
+      stagedFiles: ['docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).not.toMatch(/Noldor-Sibling-Scope/);
+  });
+});

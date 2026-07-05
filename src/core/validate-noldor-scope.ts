@@ -74,6 +74,18 @@ function renderAffected(noldorFiles: string[]): string {
 }
 
 /**
+ * Build the precise `Noldor-Sibling-Scope` value covering the staged noldor
+ * pages — always the enumerated `noldor:<slug>` form (comma-joined, sorted),
+ * never bare `noldor`, so the error message doesn't teach laziness.
+ */
+function buildSiblingTrailerValue(noldorFiles: string[]): string {
+  return [...new Set(noldorFiles.map(pathToSlug))]
+    .toSorted()
+    .map((s) => `noldor:${s}`)
+    .join(', ');
+}
+
+/**
  * Apply the `Noldor-Sibling-Scope` trailer branch. Called only from the
  * subject-scope FAILURE branches (no scope, or a non-noldor scope): the
  * trailer lets a mixed code+doc commit keep its real code scope while the
@@ -225,9 +237,13 @@ export function validateScope(input: ValidateScopeInput): ValidateScopeResult {
   if (!scope.startsWith('noldor:')) {
     const sibling = applySiblingTrailer(input, trailers['Noldor-Sibling-Scope'], noldorFiles);
     if (sibling) return sibling;
+    const isMixedDiff = input.stagedFiles.some((f) => !noldorFiles.includes(f));
+    const trailerHint = isMixedDiff
+      ? `; or keep "${type}(${scope})" and add trailer "Noldor-Sibling-Scope: ${buildSiblingTrailerValue(noldorFiles)}"`
+      : '';
     return {
       success: false,
-      error: `commit touches docs/noldor/ but scope is "${scope}". ${affected}. Suggested: ${suggestion}: <subject> (or split: keep "${scope}" on non-doc files, retitle the doc-only commit with the suggestion).`,
+      error: `commit touches docs/noldor/ but scope is "${scope}". ${affected}. Suggested: ${suggestion}: <subject> (or split: keep "${scope}" on non-doc files, retitle the doc-only commit with the suggestion${trailerHint}).`,
     };
   }
 
