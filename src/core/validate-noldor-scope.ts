@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
+import { templateFiles } from '../templates/manifest';
 import { parseTrailers } from './trailers';
 
 const execFileP = promisify(execFile);
@@ -16,6 +17,21 @@ export interface ValidateScopeInput {
   stagedFiles: string[];
   /** Set of valid Noldor page slugs (e.g. `index`, `workflow`). */
   knownSlugs: Set<string>;
+  /**
+   * True when HEAD already tracks one or more `docs/noldor/*.md` pages. The
+   * init-scaffold bootstrap allowlist fires ONLY when this is explicitly
+   * `false` — i.e. the genuine first-adoption commit on a pristine tree.
+   * Absent → treated as "pages exist" (fail-closed: allowlist disabled), so
+   * legacy callers and doc-edit commits keep requiring a scope.
+   */
+  headHasNoldorPages?: boolean;
+  /**
+   * Slugs of the init-scaffold page set (the `docs/noldor/*.md` templates
+   * shipped by the package). A first-adoption commit that stages only pages
+   * drawn from this set passes unscoped. Absent (or empty) disables the
+   * allowlist.
+   */
+  scaffoldSlugs?: Set<string>;
 }
 
 /** Result of scope validation against a commit. */
@@ -178,6 +194,23 @@ export function validateScope(input: ValidateScopeInput): ValidateScopeResult {
     return { success: true };
   }
 
+  // Init-scaffold bootstrap allowlist. The first adoption commit stages the
+  // whole `docs/noldor/**` scaffold set (~25 pages) via `git add -A`, with no
+  // gate session to teach the required `(noldor)` scope (friction #13). The
+  // allowlist fires ONLY on that genuine first-adoption commit — HEAD tracks
+  // no `docs/noldor/*.md` pages yet (`headHasNoldorPages === false`) — and
+  // only when every staged noldor page is drawn from the known init scaffold
+  // set. Once the tree is adopted (HEAD has pages), the operator has a gate
+  // session and any doc-edit — including re-adding a deleted page — requires a
+  // scope again, so this never degrades into a general doc-scope bypass.
+  const scaffoldSlugs = input.scaffoldSlugs;
+  if (input.headHasNoldorPages === false && scaffoldSlugs && scaffoldSlugs.size > 0) {
+    const allScaffold = noldorFiles.every((f) => scaffoldSlugs.has(pathToSlug(f)));
+    if (allScaffold) {
+      return { success: true };
+    }
+  }
+
   // release-automation commits intentionally touch docs/noldor/*.md
   // to stamp `introduced` / `updated` markers across the framework page
   // set. The scope check would force an artificial split; the
@@ -278,6 +311,47 @@ async function loadStagedFiles(): Promise<string[]> {
   return stdout.split('\n').filter(Boolean);
 }
 
+/**
+ * True when HEAD already tracks one or more `docs/noldor/*.md` pages — the
+ * signal that this is NOT a first-adoption commit. On an unborn branch (no
+ * HEAD yet) or any git error the tree is treated as pristine (no pages), which
+ * is the correct fail-open for the genuine first-commit case.
+ */
+async function headHasNoldorPages(): Promise<boolean> {
+  try {
+    const { stdout } = await execFileP('git', [
+      'ls-tree',
+      '-r',
+      '--name-only',
+      'HEAD',
+      '--',
+      'docs/noldor',
+    ]);
+    return stdout.split('\n').some((f) => f.endsWith('.md'));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Slugs of the init-scaffold page set, derived from the package's shipped
+ * `templates/docs/noldor/*.md` templates. On any error (templates dir absent
+ * in an odd install) the set is empty, which safely disables the allowlist.
+ */
+function loadScaffoldSlugs(): Set<string> {
+  try {
+    const slugs = new Set<string>();
+    for (const rel of templateFiles()) {
+      if (rel.startsWith('docs/noldor/') && rel.endsWith('.md')) {
+        slugs.add(pathToSlug(rel));
+      }
+    }
+    return slugs;
+  } catch {
+    return new Set<string>();
+  }
+}
+
 async function main(): Promise<void> {
   const messageFile = process.argv[2];
   if (!messageFile) {
@@ -288,9 +362,17 @@ async function main(): Promise<void> {
 
   const message = await readFile(messageFile, 'utf8');
   const stagedFiles = await loadStagedFiles();
+  const hasPages = await headHasNoldorPages();
   const knownSlugs = await loadKnownSlugs();
+  const scaffoldSlugs = loadScaffoldSlugs();
 
-  const result = validateScope({ message, stagedFiles, knownSlugs });
+  const result = validateScope({
+    message,
+    stagedFiles,
+    headHasNoldorPages: hasPages,
+    knownSlugs,
+    scaffoldSlugs,
+  });
   if (!result.success) {
     console.error(`✗ commit-msg gate: ${result.error}`);
     process.exitCode = 1;
