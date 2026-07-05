@@ -25,6 +25,7 @@ import { detectCodeLinksDrift } from './detectors/code-links-drift.js';
 import { detectFdLinkRot } from './detectors/fd-link-rot.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
+import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
 import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
 import {
   resolveByLinksPlan,
@@ -46,6 +47,7 @@ import type { PlanWithoutFdFinding } from './detectors/plan-without-fd.js';
 import type { FdWithoutPlanFinding } from './detectors/fd-without-plan.js';
 import type { MigrationCoverageFinding } from './detectors/migration-coverage.js';
 import type { MilestoneShippedIncompleteFinding } from './detectors/milestone-shipped-incomplete.js';
+import type { CircularBlockedByFinding } from './detectors/circular-blocked-by.js';
 
 // --- Defaults ---
 /** Age threshold (in days) for plans with no matching feature MD. */
@@ -599,6 +601,7 @@ export interface GardenFindings {
   readonly migrationCoverage: readonly MigrationCoverageFinding[];
   readonly milestoneShippedIncomplete: readonly MilestoneShippedIncompleteFinding[];
   readonly bootstrapOverrideAudit: readonly BootstrapOverrideFinding[];
+  readonly circularBlockedBy: readonly CircularBlockedByFinding[];
 }
 
 /**
@@ -773,6 +776,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     detectFdWithoutPlan(repo),
   ]);
   const milestoneShippedIncomplete = await detectMilestoneShippedIncomplete(repo);
+  const circularBlockedBy = await detectCircularBlockedBy(repo);
   const sddGaps = loadSddGaps(repo);
   // Append the file-side `// @fd:` tag drift: an FD whose cached links.code
   // diverges from what the tag scan would write. Reuses diffProjection so this
@@ -809,6 +813,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     migrationCoverage: migration ? [migration] : [],
     milestoneShippedIncomplete,
     bootstrapOverrideAudit,
+    circularBlockedBy,
   };
 }
 
