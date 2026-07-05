@@ -284,10 +284,12 @@ describe('loadCounts', () => {
     expect(sum).toBe(counts.features.total);
   });
 
-  it('skills and scripts counts are positive integers', async () => {
+  it('skills count is a positive integer, scripts count a nonnegative integer', async () => {
     const counts = await loadCounts();
     expect(counts.skills).toBeGreaterThan(0);
-    expect(counts.scripts).toBeGreaterThan(0);
+    // scripts/ holds only test-contract.mjs now — every framework script
+    // migrated into src/, so a zero .ts count here is correct, not a bug.
+    expect(counts.scripts).toBeGreaterThanOrEqual(0);
     expect(Number.isInteger(counts.skills)).toBe(true);
     expect(Number.isInteger(counts.scripts)).toBe(true);
   });
