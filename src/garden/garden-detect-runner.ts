@@ -80,7 +80,7 @@ function extractJsonLine(stdout: string): string | null {
  * Run `pnpm garden:detect --json` as a subprocess. Flattens the
  * categorical `GardenFindings` output into a single `findings` array,
  * each entry tagged with `kind: <category>`. Used by the release
- * script's auto-restamp gate (`scripts/release/index.ts`) to decide
+ * script's auto-restamp gate (`src/release/index.ts`) to decide
  * whether to stamp the garden receipt at release start.
  *
  * `overrideAudit.severity === 'WARN'` (or `'CRITICAL'`) surfaces as a

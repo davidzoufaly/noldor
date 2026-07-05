@@ -1,4 +1,4 @@
-// packages/noldor/src/checks/__tests__/check-feature-slug-scope.test.ts
+// src/checks/__tests__/check-feature-slug-scope.test.ts
 // @tests: feature-md-links-overhaul
 
 import { describe, expect, it } from 'vitest';

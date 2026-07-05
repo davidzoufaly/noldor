@@ -1,4 +1,4 @@
-// packages/noldor/src/release/__tests__/release-noise-types.test.ts
+// src/release/__tests__/release-noise-types.test.ts
 // @tests: fd-prs-since-last-release-section
 
 import { describe, expect, it } from 'vitest';

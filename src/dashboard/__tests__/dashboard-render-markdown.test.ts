@@ -6,7 +6,7 @@ import { renderMarkdown } from '../data.js';
 import type { PrRef } from '../../release/fd-prs-since-tag.js';
 
 // Mock prsSinceLastTag so we don't shell git in unit tests. The helper is
-// independently tested in packages/noldor/src/release/__tests__/fd-prs-since-tag.test.ts.
+// independently tested in src/release/__tests__/fd-prs-since-tag.test.ts.
 vi.mock('../../release/fd-prs-since-tag.js', () => ({
   prsSinceLastTag: vi.fn(),
 }));

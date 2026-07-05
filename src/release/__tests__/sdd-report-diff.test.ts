@@ -1,4 +1,4 @@
-// packages/noldor/src/release/__tests__/sdd-report-diff.test.ts
+// src/release/__tests__/sdd-report-diff.test.ts
 // @tests: outcome-telemetry-and-effectiveness-metrics, release-script-sddreport-skip-if-only-count-line-changed
 
 import { describe, expect, it } from 'vitest';

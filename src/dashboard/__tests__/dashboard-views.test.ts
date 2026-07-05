@@ -924,7 +924,7 @@ describe('renderFeatureDetail', () => {
 
   // Commit/code/test/doc links now live in the FD body's auto-generated
   // `## Resources` block, populated by `pnpm sync:fd-resources`. See
-  // `packages/noldor/src/sync/__tests__/sync-fd-resources.test.ts`.
+  // `src/sync/__tests__/sync-fd-resources.test.ts`.
 });
 
 describe('renderHotZones', () => {

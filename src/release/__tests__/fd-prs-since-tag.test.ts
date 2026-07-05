@@ -1,4 +1,4 @@
-// packages/noldor/src/release/__tests__/fd-prs-since-tag.test.ts
+// src/release/__tests__/fd-prs-since-tag.test.ts
 // @tests: fd-prs-since-last-release-section
 
 import { execFile } from 'node:child_process';

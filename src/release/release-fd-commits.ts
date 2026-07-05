@@ -1,4 +1,4 @@
-// scripts/release/release-fd-commits.ts
+// src/release/release-fd-commits.ts
 // @tests: feature-md-links-overhaul
 
 import { execFile } from 'node:child_process';

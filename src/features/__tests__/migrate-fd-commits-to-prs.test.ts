@@ -1,4 +1,4 @@
-// packages/noldor/src/features/__tests__/migrate-fd-commits-to-prs.test.ts
+// src/features/__tests__/migrate-fd-commits-to-prs.test.ts
 // @tests: fd-prs-since-last-release-section
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';

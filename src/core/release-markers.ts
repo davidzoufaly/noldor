@@ -6,7 +6,7 @@ import matter from 'gray-matter';
 /**
  * Fill the `introduced` field on a Noldor page's frontmatter when missing.
  *
- * Differs from `scripts/release/release-markers.ts` (FD-only, phase=done-gated):
+ * Differs from `src/release/release-markers.ts` (FD-only, phase=done-gated):
  * Noldor pages have no `phase` field. Per-page change history lives in
  * `git log --follow`; there is no `updated` semantics.
  *
