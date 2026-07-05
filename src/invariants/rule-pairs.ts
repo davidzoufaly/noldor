@@ -8,6 +8,8 @@
  * Operators add new invariants here as drift incidents recur.
  */
 
+import type { InvariantSeverity } from './types.js';
+
 /**
  * One rule-pair invariant. Both docs must agree on the canonical phrasing.
  *
@@ -16,6 +18,13 @@
  * - both patterns match → consistent (not flagged)
  * - exactly one matches → flagged (action: manual-edit)
  * - neither matches → silent (rule absent in both, out of scope)
+ *
+ * `severity` governs the graceful-degradation path when exactly one side
+ * matches. Pairs that reference a consumer-owned doc (e.g. `README.md`) can
+ * legitimately be asymmetric in a fresh consumer repo — the noldor-scaffolded
+ * side carries the phrasing, the domain doc has no such section. Marking such a
+ * pair `warn` surfaces the drift without hard-failing the commit. Absent →
+ * `error` (blocking), preserving the strict gate for noldor-owned doc pairs.
  */
 export interface RulePairInvariant {
   readonly name: string;
@@ -24,6 +33,7 @@ export interface RulePairInvariant {
   readonly patternA: RegExp;
   readonly patternB: RegExp;
   readonly message: string;
+  readonly severity?: InvariantSeverity;
 }
 
 /**
@@ -56,5 +66,9 @@ export const INVARIANTS: readonly RulePairInvariant[] = [
     name: 'bootstrap commands',
     patternA: /pnpm test\b/,
     patternB: /pnpm test\b/,
+    // docB is the consumer-owned README; a fresh consumer whose domain README
+    // has no test section is a legitimate asymmetry, not drift. Soft-warn so
+    // the bootstrap commit is not hard-failed (friction #11 / Q-0017).
+    severity: 'warn',
   },
 ] as const;
