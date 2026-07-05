@@ -294,3 +294,88 @@ Body.
     );
   });
 });
+
+describe('blocked-by reference validation', () => {
+  const roadmapWithBlockedBy = (ref: string): string => `### Cat
+
+#### Entry A
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- size: S
+- impact: med
+- blocked-by: ${ref}
+
+Body.
+`;
+  const targetBacklog = `# Backlog
+
+### Some Target
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- size: S
+- impact: med
+
+Body.
+`;
+
+  it('advises on a blocked-by ref that resolves to no known entry or feature', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithBlockedBy('does-not-exist'),
+      backlogRaw: '# Backlog\n',
+      strict: false,
+      counterExists: false,
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.advisories).toContainEqual(
+      expect.objectContaining({ rule: 'unknown-blocked-by-ref', file: 'docs/roadmap.md' }),
+    );
+  });
+
+  it('promotes an unknown blocked-by ref to an error in strict mode', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithBlockedBy('does-not-exist'),
+      backlogRaw: '# Backlog\n',
+      strict: true,
+      counterExists: false,
+    });
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ rule: 'unknown-blocked-by-ref' }),
+    );
+  });
+
+  it('accepts a blocked-by ref that names another entry by slug', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithBlockedBy('some-target'),
+      backlogRaw: targetBacklog,
+      strict: true,
+      counterExists: false,
+    });
+    expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
+  });
+
+  it('accepts a blocked-by ref that names a shipped feature (by slug) not in the queue', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithBlockedBy('shipped-thing'),
+      backlogRaw: '# Backlog\n',
+      strict: true,
+      counterExists: false,
+      featureSlugs: ['shipped-thing'],
+    });
+    expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
+  });
+
+  it('accepts a blocked-by ref that names a feature by entry-id', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithBlockedBy('Q-0099'),
+      backlogRaw: '# Backlog\n',
+      strict: true,
+      counterExists: false,
+      featureEntryIds: ['Q-0099'],
+    });
+    expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
+  });
+});
