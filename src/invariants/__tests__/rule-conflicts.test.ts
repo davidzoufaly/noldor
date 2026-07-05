@@ -42,7 +42,26 @@ describe('makeRuleConflictsInvariant', () => {
     writeFileSync(join(root, 'docs', 'a.md'), 'run pnpm test before pushing\n');
     writeFileSync(join(root, 'docs', 'b.md'), 'CI runs the suite\n');
     const result = await makeRuleConflictsInvariant(root, [pair]).run();
-    expect(result.violations).toEqual([{ file: 'docs/b.md', message: pair.message }]);
+    expect(result.violations).toEqual([
+      { file: 'docs/b.md', message: pair.message, severity: 'error' },
+    ]);
+  });
+
+  it('defaults to error severity when the pair omits it', async () => {
+    writeFileSync(join(root, 'docs', 'a.md'), 'run pnpm test before pushing\n');
+    writeFileSync(join(root, 'docs', 'b.md'), 'CI runs the suite\n');
+    const result = await makeRuleConflictsInvariant(root, [pair]).run();
+    expect(result.violations[0]?.severity).toBe('error');
+  });
+
+  it('carries a warn severity from the pair onto the violation', async () => {
+    writeFileSync(join(root, 'docs', 'a.md'), 'run pnpm test before pushing\n');
+    writeFileSync(join(root, 'docs', 'b.md'), 'CI runs the suite\n');
+    const warnPair: RulePairInvariant = { ...pair, severity: 'warn' };
+    const result = await makeRuleConflictsInvariant(root, [warnPair]).run();
+    expect(result.violations).toEqual([
+      { file: 'docs/b.md', message: pair.message, severity: 'warn' },
+    ]);
   });
 
   it('stays silent when neither doc matches (rule absent in both)', async () => {
@@ -55,6 +74,8 @@ describe('makeRuleConflictsInvariant', () => {
   it('treats a missing doc as non-matching (missing-file tolerance)', async () => {
     writeFileSync(join(root, 'docs', 'a.md'), 'run pnpm test before pushing\n');
     const result = await makeRuleConflictsInvariant(root, [pair]).run();
-    expect(result.violations).toEqual([{ file: 'docs/b.md', message: pair.message }]);
+    expect(result.violations).toEqual([
+      { file: 'docs/b.md', message: pair.message, severity: 'error' },
+    ]);
   });
 });

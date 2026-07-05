@@ -35,6 +35,7 @@ export function makeRuleConflictsInvariant(
           violations.push({
             file: matchesA ? pair.docB : pair.docA,
             message: pair.message,
+            severity: pair.severity ?? 'error',
           });
         }
       }

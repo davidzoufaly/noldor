@@ -1,10 +1,23 @@
 /**
+ * Severity of an invariant violation.
+ *
+ * - `error` (default) — blocking; the runner exits non-zero.
+ * - `warn` — surfaced but non-blocking; the runner still exits zero.
+ */
+export type InvariantSeverity = 'error' | 'warn';
+
+/**
  * One invariant violation. Plugins emit zero or more per run.
+ *
+ * @remarks
+ * `severity` is optional; the runner treats an absent value as `error`
+ * (blocking), so existing plugins keep their hard-fail behavior.
  */
 export interface InvariantViolation {
   readonly file?: string;
   readonly line?: number;
   readonly message: string;
+  readonly severity?: InvariantSeverity;
 }
 
 /**
