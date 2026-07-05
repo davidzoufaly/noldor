@@ -76,7 +76,7 @@ if (prereqBad > 0) {
 }
 if (bad > 0) {
   console.error(
-    `\n${bad} drift entries. Run 'noldor init --update' to sync consumer paths, or 'noldor init --adopt' if the pkg should adopt consumer state.`,
+    `\n${bad} drift entries. Run 'noldor init --update' to re-sync your files from the package templates. (--adopt is a first-party/monorepo maintainer flag that snapshots consumer files back INTO the package templates — never a consumer drift remedy.)`,
   );
 }
 if (runnerBad > 0) {
