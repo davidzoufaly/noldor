@@ -1,6 +1,6 @@
 // scripts/cr/escalate-cli.ts
 import { readFile } from 'node:fs/promises';
-import { loadConfig } from './config.js';
+import { loadConfig } from '../core/config.js';
 import { escalate } from './escalate.js';
 import type { EscalateInput } from './escalate.js';
 

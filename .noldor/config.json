@@ -4,7 +4,29 @@
     "repoUrl": "https://github.com/davidzoufaly/noldor",
     "lockstepPackages": ["package.json"],
     "scanPaths": ["src"],
-    "boundaries": [],
+    "boundaries": [
+      { "name": "no-module-cycles", "severity": "error", "from": {}, "to": { "circular": true } },
+      {
+        "name": "core-is-foundation",
+        "severity": "error",
+        "from": { "path": "^src/core" },
+        "to": {
+          "path": "^src/(cr|garden|sync|features|invariants|release|autonomous|dashboard|prep|triage|verify|metrics|research|worktrees|hooks|checks|cli)"
+        }
+      },
+      {
+        "name": "invariants-not-into-garden",
+        "severity": "error",
+        "from": { "path": "^src/invariants" },
+        "to": { "path": "^src/garden" }
+      },
+      {
+        "name": "sync-not-into-garden",
+        "severity": "error",
+        "from": { "path": "^src/sync" },
+        "to": { "path": "^src/garden" }
+      }
+    ],
     "deprecatedPackages": [],
     "e2ePrefix": "e2e/",
     "samplesPath": "samples",

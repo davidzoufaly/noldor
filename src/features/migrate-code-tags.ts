@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 
-import { loadSddFeatures } from '../garden/sdd-report.js';
+import { loadSddFeatures } from '../core/fd-load.js';
 
 // Trailing match is horizontal whitespace only ([^\S\n]) so the replace path
 // can't swallow the newline(s) that follow the tag line.

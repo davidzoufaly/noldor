@@ -3,11 +3,11 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { loadCategories } from '../core/consumer-config.js';
 import { EMPTY_SUMMARY_PLACEHOLDER } from './release-fd-changelog.js';
 
-import type { Category } from '../features/feature-schema.js';
+import type { Category } from '../core/feature-schema.js';
 
 /**
  * One feature's contribution to a release-notes entry.

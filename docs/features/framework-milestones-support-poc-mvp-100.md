@@ -16,6 +16,8 @@ links:
   docs:
     - docs/noldor/milestones.md
   tests:
+    - src/core/__tests__/feature-schema-since.test.ts
+    - src/core/__tests__/feature-schema.test.ts
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
     - src/dashboard/__tests__/dashboard-ensure.test.ts
@@ -34,8 +36,6 @@ links:
     - src/dashboard/__tests__/milestones-view.test.ts
     - src/dashboard/__tests__/server-cli.test.ts
     - src/features/__tests__/feature-milestone.test.ts
-    - src/features/__tests__/feature-schema-since.test.ts
-    - src/features/__tests__/feature-schema.test.ts
     - src/features/__tests__/fill-links-code-gaps.test.ts
     - src/features/__tests__/validate-features.test.ts
     - src/garden/__tests__/garden-detect-runner.test.ts
@@ -52,7 +52,6 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.4.0
 ---
-
 ## Summary
 
 Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.

@@ -32,15 +32,17 @@ links:
     - src/autonomous/__tests__/watch-args.test.ts
     - src/autonomous/__tests__/watch-detach.test.ts
     - src/autonomous/__tests__/watch-state.test.ts
+    - src/core/__tests__/config.test.ts
     - src/core/__tests__/consumer-config.test.ts
     - src/core/__tests__/framework-version.test.ts
+    - src/core/__tests__/prompt-stdin.test.ts
+    - src/core/__tests__/review-profile.test.ts
     - src/cr/__tests__/aggregate.test.ts
     - src/cr/__tests__/amend-receipt.test.ts
     - src/cr/__tests__/atomic-write.test.ts
     - src/cr/__tests__/bootstrap-immunity.test.ts
     - src/cr/__tests__/cli-args.test.ts
     - src/cr/__tests__/codex.test.ts
-    - src/cr/__tests__/config.test.ts
     - src/cr/__tests__/context.test.ts
     - src/cr/__tests__/deep-review-spawn.test.ts
     - src/cr/__tests__/delta.test.ts
@@ -57,9 +59,7 @@ links:
     - src/cr/__tests__/orchestrate.integration.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/overwrite-guard.test.ts
-    - src/cr/__tests__/prompt-stdin.test.ts
     - src/cr/__tests__/read-fd-summary.test.ts
-    - src/cr/__tests__/review-profile.test.ts
     - src/cr/__tests__/run-codex.test.ts
     - src/cr/__tests__/schema-parity.test.ts
     - src/cr/__tests__/sidecar.test.ts
@@ -78,7 +78,6 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
-
 ## Summary
 
 Autonomous paths merge on tests + CR. Both have a structural blind spot: the implementer agent writes the code _and_ the tests, so a misunderstood requirement produces tests that assert the misunderstanding — green suite, wrong feature. CR reads diffs and can ratify the same error. Nobody runs the artifact and checks it against what the FD/entry actually promised. Add a `verify` lane: an independent agent that boots the real artifact and judges the shipped behavior against the acceptance text.

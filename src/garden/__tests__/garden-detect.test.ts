@@ -17,7 +17,7 @@ import {
 
 import type { GateComplianceFindings } from '../garden-detect.js';
 
-import type { Invariant } from '../garden-invariants.js';
+import type { RulePairInvariant as Invariant } from '../../invariants/rule-pairs.js';
 import type { Invariant as ArchitectureInvariant } from '../../invariants/types.js';
 
 // @tests: architecture-invariants, bootstrap-immunity-for-self-gating-features, dashboard-roadmap-drag-drop, doc-gardening-skill, framework-milestones-support-poc-mvp-100, graphify-plan-of-edges-nodes-for-plans-specs, noldor, outcome-telemetry-and-effectiveness-metrics, release-sweep-process-hardening
@@ -471,45 +471,11 @@ describe(detectInvariants, () => {
   it('uses the repo argument instead of process.cwd()', async () => {
     const repo = await makeRepo();
     try {
-      await writeFile(
-        join(repo, 'docs/features/passive-ui.md'),
-        `---
-name: Passive UI
-phase: done
-area: web
-category: Tooling
-packages: ['web']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
-## Summary
-No opt-out here.
-`,
-      );
-      await writeFile(
-        join(repo, 'docs/features/keyboard-shortcuts.md'),
-        `---
-name: Keyboard Shortcuts
-phase: done
-area: web
-category: Tooling
-packages: ['web']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
-## Usage
-No feature coverage.
-`,
-      );
-
+      // The bare temp repo has no .noldor/config.json, so the boundaries
+      // invariant fails there — but only if `repo` is actually forwarded
+      // (this workspace's own config parses clean and passes).
       const result = await detectInvariants(repo);
-      expect(result.map((r) => r.invariant)).toContain('keyboard-binding');
+      expect(result.map((r) => r.invariant)).toContain('boundaries');
     } finally {
       await rm(repo, { force: true, recursive: true });
     }

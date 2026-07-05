@@ -17,8 +17,8 @@ import {
 
 import type { GraphifyGraph } from '../graph-fd-lookup.js';
 
-import type { FeatureRecord } from '../sdd-report.js';
-import type { FeatureFrontmatter } from '../../features/feature-schema.js';
+import type { FeatureRecord } from '../../core/fd-load.js';
+import type { FeatureFrontmatter } from '../../core/feature-schema.js';
 
 const baseFm: FeatureFrontmatter = {
   area: 'engine',

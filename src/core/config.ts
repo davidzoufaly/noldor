@@ -1,17 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
-import { artifactKindSchema, laneSchema } from './findings-schema.js';
-import type { ArtifactKind, Lane } from './findings-schema.js';
-import { agentsConfigSchema } from '../core/agent-runner/types.js';
+import { artifactKindSchema, laneSchema } from './lanes.js';
+import type { ArtifactKind, Lane } from './lanes.js';
+import { agentsConfigSchema } from './agent-runner/types.js';
 import { DEFAULT_REVIEW_PROFILES, reviewProfileSchema } from './review-profile.js';
 import type { ReviewProfile } from './review-profile.js';
 
 /**
  * Default session-marker time-to-live, in hours. A stale-eligible session
  * (`micro-chore` / `release-sweep`) older than this reads as stale at
- * pre-commit. Lives here, beside {@link resolveSessionTtlHours}, rather than in
- * `core/session.ts` so `session.ts` keeps no `core → cr` import edge.
+ * pre-commit. Lives beside {@link resolveSessionTtlHours} in the core config
+ * loader, naturally next to its `core/session.ts` consumers.
  */
 export const DEFAULT_SESSION_TTL_HOURS = 24;
 

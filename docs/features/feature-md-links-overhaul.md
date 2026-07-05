@@ -21,9 +21,9 @@ links:
   tests:
     - src/checks/__tests__/check-feature-slug-scope.test.ts
     - src/core/__tests__/extract-touches.test.ts
+    - src/core/__tests__/feature-schema-since.test.ts
+    - src/core/__tests__/feature-schema.test.ts
     - src/features/__tests__/feature-milestone.test.ts
-    - src/features/__tests__/feature-schema-since.test.ts
-    - src/features/__tests__/feature-schema.test.ts
     - src/features/__tests__/fill-links-code-gaps.test.ts
     - src/features/__tests__/migrate-features.test.ts
     - src/features/__tests__/validate-features.test.ts
@@ -39,7 +39,6 @@ introduced: 0.3.0
 noldor-tier: full
 updated: 0.4.0
 ---
-
 ## Summary
 
 Cleans up the `links.*` fields on feature MDs so `pnpm sdd:report` produces actionable signal instead of 90+ lines of noise. Five coupled changes shipped:

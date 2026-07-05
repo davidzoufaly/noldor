@@ -13,14 +13,12 @@ links:
     - src/garden/garden-detect.ts
     - src/invariants/boundaries.ts
     - src/invariants/index.ts
-    - src/invariants/keyboard-binding.ts
     - src/invariants/public-api-tsdoc.ts
     - src/invariants/rule-conflicts.ts
     - src/invariants/types.ts
   tests:
     - src/checks/__tests__/check-invariants.test.ts
     - src/checks/__tests__/invariants-boundaries.test.ts
-    - src/checks/__tests__/invariants-keyboard-binding.test.ts
     - src/checks/__tests__/invariants-public-api-tsdoc.test.ts
     - src/checks/__tests__/invariants-rule-conflicts.test.ts
     - src/garden/__tests__/garden-detect.test.ts
@@ -31,12 +29,11 @@ noldor-tier: full
 
 ## Summary
 
-Four commit-blocking architecture invariants enforced at pre-commit, with advisory mirror in `/garden`:
+Three commit-blocking architecture invariants enforced at pre-commit, with advisory mirror in `/garden`:
 
-- **boundaries** — forbidden cross-package imports (`engine → web/viewport`, `viewport → web`, `format → other internal packages/apps`) via `dependency-cruiser`.
+- **boundaries** — forbidden imports per `consumer.boundaries` rules in `.noldor/config.json` (dependency-cruiser forbidden-rule shape, including the `{from: {}, to: {circular: true}}` no-cycle backstop).
 - **public-api-tsdoc** — every symbol re-exported from `packages/*/src/index.ts` must carry TSDoc (or `@internal`).
-- **rule-conflicts** — paired docs must agree on canonical phrasings; extends seed list in `src/garden/garden-invariants.ts`.
-- **keyboard-binding** — every UI feature MD (`area: web`, active phase) must be referenced in `docs/features/keyboard-shortcuts.md`, or carry `<!-- keyboard: not-applicable -->` opt-out.
+- **rule-conflicts** — paired docs must agree on canonical phrasings; extends seed list in `src/invariants/rule-pairs.ts`.
 
 Plugin pattern under `src/invariants/`. Pre-commit runner `src/checks/check-invariants.ts` runs all plugins in parallel; exit 1 on any violation. Garden runner reuses the same plugins as advisory `invariantViolations` findings.
 
@@ -60,8 +57,6 @@ Adding a new invariant:
 2. Add a unit test under `scripts/__tests__/invariants-<name>.test.ts` carrying `// @tests: architecture-invariants`.
 3. Register the plugin in `src/invariants/index.ts`.
 
-Opting out of `keyboard-binding` for a passive UI feature: add `<!-- keyboard: not-applicable -->` to the feature MD body.
-
 <!-- generated: resources -->
 
 ## Resources
@@ -72,14 +67,12 @@ Opting out of `keyboard-binding` for a passive UI feature: add `<!-- keyboard: n
   - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
   - [`src/invariants/boundaries.ts`](../../src/invariants/boundaries.ts)
   - [`src/invariants/index.ts`](../../src/invariants/index.ts)
-  - [`src/invariants/keyboard-binding.ts`](../../src/invariants/keyboard-binding.ts)
   - [`src/invariants/public-api-tsdoc.ts`](../../src/invariants/public-api-tsdoc.ts)
   - [`src/invariants/rule-conflicts.ts`](../../src/invariants/rule-conflicts.ts)
   - [`src/invariants/types.ts`](../../src/invariants/types.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-invariants.test.ts`](../../src/checks/__tests__/check-invariants.test.ts)
   - [`src/checks/__tests__/invariants-boundaries.test.ts`](../../src/checks/__tests__/invariants-boundaries.test.ts)
-  - [`src/checks/__tests__/invariants-keyboard-binding.test.ts`](../../src/checks/__tests__/invariants-keyboard-binding.test.ts)
   - [`src/checks/__tests__/invariants-public-api-tsdoc.test.ts`](../../src/checks/__tests__/invariants-public-api-tsdoc.test.ts)
   - [`src/checks/__tests__/invariants-rule-conflicts.test.ts`](../../src/checks/__tests__/invariants-rule-conflicts.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
@@ -87,6 +80,8 @@ Opting out of `keyboard-binding` for a passive UI feature: add `<!-- keyboard: n
 <!-- /generated: resources -->
 
 ## Changelog
+
+- keyboard-binding invariant retired (Charuy-only UI concern; registry is rule-conflicts + public-api-tsdoc + boundaries) — see self-boundaries-declaration-and-cycle-break.
 
 ### 0.3.0
 

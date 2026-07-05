@@ -6,7 +6,7 @@ import matter from 'gray-matter';
 
 import { loadDocRoots } from './doc-roots.js';
 import { sizeToPath, type GatePath } from './size-routing.js';
-import { FeatureFrontmatterSchema } from '../features/feature-schema.js';
+import { FeatureFrontmatterSchema } from './feature-schema.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 
 /**

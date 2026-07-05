@@ -1,7 +1,7 @@
 // @fd: dynamic-fd-file-pointers-via-frontmatter
 
 import { diffProjection } from '../../sync/sync-code-links.js';
-import type { Gap } from '../sdd-report.js';
+import type { Gap } from '../../core/fd-load.js';
 
 /**
  * Emit a Gap per FD whose cached `links.code` diverges from the `// @fd:` tag

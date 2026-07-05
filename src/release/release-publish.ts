@@ -3,15 +3,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-// `./index.js` ↔ this module is a deliberate ESM cycle — both sides export
-// hoisted function declarations referenced only at call time, and index.ts's
-// own entry guard keys on `process.argv[1]`, so importing it here never fires
-// a release run.
-import { loadConfigSync } from '../cr/config.js';
+import { loadConfigSync } from '../core/config.js';
 import { appendOverrideLog } from '../core/overrides-log.js';
 import { buildConsumerFixture } from '../testing/consumer-fixture.js';
 import { installFrameworkTarball, runContractChecks } from '../testing/contract-harness.js';
-import { ensureCleanTreeOnMain } from './index.js';
+import { ensureCleanTreeOnMain } from './clean-tree.js';
 
 const execFileP = promisify(execFile);
 

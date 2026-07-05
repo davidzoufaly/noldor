@@ -1,4 +1,4 @@
-import { loadConfig } from '../cr/config.js';
+import { loadConfig } from '../core/config.js';
 
 async function main() {
   try {

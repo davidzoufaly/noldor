@@ -9,7 +9,7 @@ import {
   requireFreshGraph,
   type GraphifyGraph,
 } from '../garden/graph-fd-lookup.js';
-import { loadSddFeatures } from '../garden/sdd-report.js';
+import { loadSddFeatures } from '../core/fd-load.js';
 
 /** A proposed code-file pointer with a confidence score + human reason. */
 export interface RankedCandidate {

@@ -17,7 +17,7 @@
  * - exactly one matches → flagged (action: manual-edit)
  * - neither matches → silent (rule absent in both, out of scope)
  */
-export interface Invariant {
+export interface RulePairInvariant {
   readonly name: string;
   readonly docA: string;
   readonly docB: string;
@@ -29,7 +29,7 @@ export interface Invariant {
 /**
  * Seed list, v1. Order is not significant.
  */
-export const INVARIANTS: readonly Invariant[] = [
+export const INVARIANTS: readonly RulePairInvariant[] = [
   {
     docA: 'docs/noldor/workflow.md',
     docB: 'docs/noldor/versioning.md',

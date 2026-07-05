@@ -97,4 +97,28 @@ describe('boundaries plugin', () => {
     expect(result.violations.length).toBeGreaterThanOrEqual(1);
     expect(result.violations[0]?.message).toMatch(/format.*non-format|forbidden/i);
   });
+
+  it('flags a two-file import cycle via a circular backstop rule', async () => {
+    await writeFile(
+      join(repo, '.noldor/config.json'),
+      JSON.stringify({
+        consumer: {
+          ...TEST_CONFIG.consumer,
+          boundaries: [{ name: 'no-cycles', severity: 'error', from: {}, to: { circular: true } }],
+        },
+      }),
+    );
+    await writeFile(
+      join(repo, 'packages/engine/src/a.ts'),
+      `import { b } from './b.js';\nexport const a: number = b;\n`,
+    );
+    await writeFile(
+      join(repo, 'packages/engine/src/b.ts'),
+      `import { a } from './a.js';\nexport const b: number = a;\n`,
+    );
+    const inv = makeBoundariesInvariant(repo);
+    const result = await inv.run();
+    expect(result.violations.length).toBeGreaterThanOrEqual(1);
+    expect(result.violations[0]?.message).toContain('no-cycles');
+  });
 });

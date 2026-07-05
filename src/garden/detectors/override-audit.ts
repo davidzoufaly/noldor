@@ -53,7 +53,7 @@ export interface OverrideAuditResult {
 
 /**
  * One `garden.overrideAudit.expected` rule (schema-validated by
- * `gardenConfigSchema` in `src/cr/config.ts`; kept structural here so the
+ * `gardenConfigSchema` in `src/core/config.ts`; kept structural here so the
  * detector layer has no cr-module import). A rule matches when EVERY field it
  * defines matches: `shaPrefix` as a prefix of the full commit SHA,
  * `reasonIncludes` as a substring of the override reason. `note` is

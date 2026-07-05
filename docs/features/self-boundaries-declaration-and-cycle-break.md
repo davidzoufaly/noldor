@@ -5,13 +5,14 @@ deps: []
 links:
   code: []
   docs: []
-  tests: []
+  tests:
+    - src/core/__tests__/consumer-config-boundaries.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md
 name: Self-Boundaries Declaration and Cycle Break
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary

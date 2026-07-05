@@ -12,6 +12,7 @@ links:
     - docs/noldor/metrics.md
     - docs/noldor/script-catalog.md
   tests:
+    - src/core/__tests__/feature-schema-since.test.ts
     - src/core/agent-runner/usage/__tests__/adapters.test.ts
     - src/dashboard/__tests__/api-blocks.test.ts
     - src/dashboard/__tests__/dashboard-data.test.ts
@@ -32,7 +33,6 @@ links:
     - src/dashboard/__tests__/metrics-view.test.ts
     - src/dashboard/__tests__/milestones-view.test.ts
     - src/dashboard/__tests__/server-cli.test.ts
-    - src/features/__tests__/feature-schema-since.test.ts
     - src/features/__tests__/propose-pointers.test.ts
     - src/garden/__tests__/backlog-demote.test.ts
     - src/garden/__tests__/garden-detect-runner.test.ts
@@ -75,7 +75,6 @@ since: '2026-06-11'
 noldor-tier: full
 introduced: 0.4.0
 ---
-
 ## Summary
 
 The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.

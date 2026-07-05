@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { FeatureRecord, Gap } from './sdd-report.js';
+import type { FeatureRecord, Gap } from '../core/fd-load.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
 /**

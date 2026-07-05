@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { writeJsonAtomic } from '../atomic-write.js';
-import { loadConfig } from '../config.js';
+import { loadConfig } from '../../core/config.js';
 import { loadVerifyCommands } from '../../core/consumer-config.js';
 import type { Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';

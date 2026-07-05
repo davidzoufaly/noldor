@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+import { artifactKindSchema, laneSchema } from '../core/lanes.js';
+
+export { artifactKindSchema, laneSchema };
+export type { ArtifactKind, Lane } from '../core/lanes.js';
+
 export const severitySchema = z.enum(['high', 'med', 'low']);
 export type Severity = z.infer<typeof severitySchema>;
 
@@ -12,9 +17,6 @@ export const findingSchema = z.object({
 });
 export type Finding = z.infer<typeof findingSchema>;
 
-export const laneSchema = z.enum(['manual', 'codex', 'subagent', 'standalone', 'verify']);
-export type Lane = z.infer<typeof laneSchema>;
-
 export const verifyVerdictValueSchema = z.enum(['pass', 'fail', 'cannot-verify']);
 export type VerifyVerdictValue = z.infer<typeof verifyVerdictValueSchema>;
 
@@ -23,9 +25,6 @@ export const verifyEvidenceSchema = z.object({
   observed: z.string(),
 });
 export type VerifyEvidence = z.infer<typeof verifyEvidenceSchema>;
-
-export const artifactKindSchema = z.enum(['spec', 'plan', 'code']);
-export type ArtifactKind = z.infer<typeof artifactKindSchema>;
 
 export const laneFindingsSchema = z.object({
   lane: laneSchema,

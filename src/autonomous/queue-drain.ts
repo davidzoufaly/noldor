@@ -1,7 +1,7 @@
 import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { loadConfigSync, type NoldorConfig } from '../cr/config.js';
+import { loadConfigSync, type NoldorConfig } from '../core/config.js';
 import { runDrain, type DrainDeps, type DrainResult } from './drain-loop.js';
 import {
   roadmapSource,

@@ -10,7 +10,7 @@
 
 import { loadAreaCategories } from '../core/consumer-config.js';
 
-import type { Category } from '../features/feature-schema.js';
+import type { Category } from '../core/feature-schema.js';
 
 /**
  * Map an `area` slug to its user-facing release-notes {@link Category} using
