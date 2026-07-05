@@ -8,6 +8,12 @@ export interface Commit {
   hash: string;
   subject: string;
   files: string[];
+  /**
+   * `Noldor-Sibling-Scope` trailer tokens (`noldor` / `noldor:<slug>`),
+   * `[]` when the commit carries no such trailer. Optional so hand-built
+   * commit lists without the field stay valid; `loadCommits` always fills it.
+   */
+  siblingScopes?: string[];
 }
 
 /** Parsed Conventional Commits subject. */
@@ -41,24 +47,26 @@ export function parseScope(subject: string): ParsedScope {
 
 /**
  * Filter commits down to those that should appear in a given page's
- * changelog. A commit qualifies when:
- * - its scope is `noldor` (framework-wide) AND it touched the page file
- * - its scope is `noldor:<pageSlug>` AND it touched the page file
+ * changelog. A commit qualifies when it touched the page file AND any of:
+ * - its subject scope is `noldor` (framework-wide)
+ * - its subject scope is `noldor:<pageSlug>`
+ * - its `Noldor-Sibling-Scope` trailer lists `noldor` or `noldor:<pageSlug>`
+ *   (mixed code+doc commits keep their code scope in the subject)
  *
  * @param commits - Candidate commits (typically from `loadCommits`)
  * @param pageSlug - Page slug (`workflow`, `lifecycle`, ..., or `index` for README)
  * @returns Filtered list of commits
  */
 export function filterCommitsForPage(commits: Commit[], pageSlug: string): Commit[] {
+  const pagePath = pageSlug === 'index' ? 'docs/noldor/README.md' : `docs/noldor/${pageSlug}.md`;
   return commits.filter((c) => {
-    const parsed = parseScope(c.subject);
-    if (parsed.scope === null) return false;
-    const isFrameworkWide = parsed.scope === 'noldor';
-    const slugMatches = parsed.slug === pageSlug;
-    if (!isFrameworkWide && !slugMatches) return false;
+    if (!c.files.includes(pagePath)) return false;
 
-    const pagePath = pageSlug === 'index' ? 'docs/noldor/README.md' : `docs/noldor/${pageSlug}.md`;
-    return c.files.includes(pagePath);
+    const parsed = parseScope(c.subject);
+    if (parsed.scope === 'noldor' || parsed.slug === pageSlug) return true;
+
+    const siblings = c.siblingScopes ?? [];
+    return siblings.includes('noldor') || siblings.includes(`noldor:${pageSlug}`);
   });
 }
 
@@ -72,7 +80,11 @@ export async function loadCommits(pagePath: string): Promise<Commit[]> {
   const { stdout } = await execFileP('git', [
     'log',
     '--follow',
-    '--format=%H%x09%s',
+    // %(trailers:key=…) needs git >= 2.22. `unfold` joins indent-folded
+    // trailer values onto one line so the tab-split line parse stays safe
+    // (an indented continuation is legal per detectDroppedTrailers and would
+    // otherwise emit a literal newline into the log line).
+    '--format=%H%x09%s%x09%(trailers:key=Noldor-Sibling-Scope,valueonly,separator=%x2C,unfold)',
     '--name-only',
     '--',
     pagePath,
@@ -83,8 +95,19 @@ export async function loadCommits(pagePath: string): Promise<Commit[]> {
   for (const line of stdout.split('\n')) {
     if (COMMIT_LINE_RE.test(line)) {
       if (current) commits.push(current);
-      const [hash, subject] = line.split('\t');
-      current = { hash, subject, files: [] };
+      const [hash, subject, siblingRaw] = line.split('\t');
+      current = {
+        hash,
+        subject,
+        files: [],
+        // Handles all three shapes uniformly: a single trailer value
+        // containing ", ", multiple trailer lines joined by the %x2C
+        // separator, and the empty third field when the trailer is absent.
+        siblingScopes: (siblingRaw ?? '')
+          .split(',')
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0),
+      };
     } else if (line.trim().length > 0 && current) {
       current.files.push(line);
     }
