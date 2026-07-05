@@ -20,6 +20,76 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Phase 3 — Adoption Chain
 
+#### Init --adopt Flag Drift Reconciliation
+
+- id: Q-0014
+- area: tooling
+- type: fix
+- since: 2026-07-05
+- size: XS
+- impact: med
+- confidence: med
+- parent: noldor
+
+`init --adopt` is described three different ways: the roadmap dogfood entry says `pnpm noldor init --adopt`, `docs/noldor/adoption-guide.md` says plain `pnpm noldor init`, and `doctor`'s drift hint describes `--adopt` with the opposite meaning (friction #4). Plain `init` worked in the dogfood. Reconcile all three texts to one source of truth for what `--adopt` does and when to pass it.
+
+#### Consumer Rule-Conflicts Graceful Degradation
+
+- id: Q-0017
+- area: tooling
+- type: fix
+- since: 2026-07-05
+- size: S
+- impact: med
+- confidence: med
+- parent: noldor
+
+The `rule-conflicts` invariant demands the consumer README reference `pnpm test` (`src/invariants/rule-pairs.ts:53-58` — "docs/noldor/git-and-commits.md and README.md must both reference `pnpm test`"), which fails on a domain README that has no such section (friction #11) — imposing the self-host repo shape on fresh consumers. The other halves of friction #11 already shipped: the `keyboard-binding` invariant was retired (#156) and the `docs/features` ENOENT + tsdoc `typescript` crashes were made graceful in #140. Remaining: make `rule-conflicts` (and peer rule-pairs) skip or soft-warn when the consumer legitimately lacks the referenced section, rather than hard-failing the commit.
+
+#### Init Scaffold Noldor-Scope Allowlist
+
+- id: Q-0015
+- area: tooling
+- type: fix
+- since: 2026-07-05
+- size: S
+- impact: med
+- confidence: med
+- parent: noldor
+
+The first adoption commit necessarily stages `docs/noldor/**` (24 scaffolded pages), which trips the `noldor-scope` hook demanding a `(noldor)` scope — with nothing in the guide telling the operator to commit as `chore(noldor):` (friction #13). Either allowlist the known `init` scaffold set in the `noldor-scope` hook so the bootstrap commit passes unscoped, or document the required `chore(noldor):` scope for the bootstrap commit.
+
+#### Lockstep-Packages Scaffold vs Doc
+
+- id: Q-0016
+- area: tooling
+- type: fix
+- since: 2026-07-05
+- size: XS
+- impact: low
+- confidence: med
+- parent: noldor
+
+The starter `.noldor/config.json` ships `"lockstepPackages": ["package.json"]` (a filename), while the field-table doc, the example config, and `new-feature`'s schema all treat the field as package *names* (`docs/noldor/adoption-guide.md:46,63`; ps-offsite scaffolded the wrong default) — friction #6. Fix the scaffold default (a package name or a clear placeholder) so it agrees with the docs.
+
+#### Adoption-Guide Accuracy Sweep
+
+- id: Q-0013
+- area: tooling
+- type: docs
+- since: 2026-07-05
+- size: S
+- impact: low
+- confidence: med
+- parent: noldor
+
+Residual `docs/noldor/adoption-guide.md` walkthrough gaps the consumer-2 dogfood surfaced, after the Prerequisites matrix (#137) and #140 closed the bigger ones. The matrix now names pnpm, lefthook, and the lint/fmt/fmt:check/test scripts as floors, so `doctor` catches them at minute one — but the numbered Bootstrap walkthrough still omits them plus a couple of live-enforcement surprises. Fix in one prose pass:
+
+- friction #2 — add an explicit "add `lefthook` as your own devDep (`pnpm add -D lefthook`)" bootstrap step; §4 only notes postinstall skips it when absent.
+- friction #10 — warn that the first edit after `git add -A` needs a gate session (the pre-edit guard arms itself against the now-tracked bootstrap files).
+- friction #12 — document incremental lint adoption (an oxlint ignore ramp); `oxlint --deny-warnings` over the whole repo blocks the bootstrap commit on pre-existing warnings in legacy code.
+- friction #1 / #5 (minor) — mirror the matrix into the numbered walkthrough (name pnpm before the first `pnpm add`; say "add the lint/fmt scripts if you lack them").
+
 #### Real Consumer #2 Adoption Dogfood
 
 - id: Q-0001
