@@ -3,9 +3,16 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
-  docs: []
-  tests: []
+  code:
+    - src/core/validate-noldor-scope.ts
+    - src/core/changelog.ts
+  docs:
+    - docs/noldor/git-and-commits.md
+    - docs/noldor/script-catalog.md
+  tests:
+    - src/core/__tests__/changelog.test.ts
+    - src/core/__tests__/validate-noldor-scope.test.ts
+    - src/hooks/__tests__/noldor-validate-trailer.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-scope-sibling-trailer-for-doc-sync-commits-design.md
 name: Scope Sibling Trailer for Doc-Sync Commits

@@ -12,6 +12,23 @@ introduced: 0.4.0
 - Use the slug form whenever the commit maps cleanly to one feature MD. Cross-cutting commits drop the slug.
 - The slug after `:` MUST resolve to an existing `docs/features/<slug>.md`. The `feature-slug-scope` commit-msg hook enforces this.
 
+### Sibling doc-sync commits (`Noldor-Sibling-Scope`)
+
+A commit that changes code **and** syncs `docs/noldor/` pages would otherwise fail the `noldor-scope` commit-msg gate — the subject carries the code scope, not `noldor`. Keep the real scope and declare the doc pages as siblings via a trailer:
+
+```
+feat(prep): add dispatch runner
+
+Noldor-Sibling-Scope: noldor:workflow, noldor:script-catalog
+Noldor-Path: fast-track
+```
+
+- Honored only on **mixed diffs** — at least one staged file outside `docs/noldor/`. On a doc-only commit the trailer is rejected: put the scope in the subject instead.
+- Tokens are `noldor` (any page set) or `noldor:<slug>` with `<slug>` an existing page; every staged page must be covered by a token. Prefer the precise slug form.
+- Unknown slugs and malformed tokens fail the commit, same as subject scopes.
+- Page changelog derivation (`pnpm noldor changelog`) reads the trailer, so sibling pages keep their history.
+- Never auto-injected — add it deliberately; the `noldor-scope` failure message prints the exact trailer line to add.
+
 ## Integration — direct-to-main or PR flow
 
 - The consumer chooses the integration model. **Trunk-based**: every commit lands directly on `main`, no PRs. **PR flow**: short-lived branches open a PR with agent auto-merge — see [`pr-flow.md`](pr-flow.md). The hook stack is the gate in both models.
@@ -59,6 +76,7 @@ Noldor-FD: <slug>                        # required for specs-only-* / full-* pa
 Noldor-Enhancement: <slug>               # required for attach paths (specs-only-attach, full-attach)
 Noldor-Reviewed-Subagent: <tree-hash>    # amended on the tip commit at gate Step 4 — validated pre-push, NOT at commit-msg
 Noldor-Phase-Revert: 1                   # phase-revert scaffold commits — bypasses the spec-file existence check (attach paths and specs-only-new)
+Noldor-Sibling-Scope: <noldor scope-list>  # optional; mixed code+doc-sync commits — see "Sibling doc-sync commits"
 ```
 
 Per-path `commit-msg` validation (what the hook actually checks):
