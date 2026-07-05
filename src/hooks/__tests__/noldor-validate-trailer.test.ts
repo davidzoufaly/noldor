@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, scope-sibling-trailer-for-doc-sync-commits
 import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -199,6 +199,22 @@ describe('validateTrailer', () => {
     execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
     const r = validateTrailer({
       message: 'fix: x\n\nNoldor-Path: fast-track\n',
+      cwd: dir,
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('tolerates a Noldor-Sibling-Scope trailer alongside a valid Noldor-Path (no key whitelist)', () => {
+    const dir = setupRepo();
+    writeFileSync(join(dir, 'a'), 'init');
+    execSync('git add a && git commit -q -m init', { cwd: dir });
+    const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+    writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
+    writeFileSync(join(dir, 'b'), 'x');
+    execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
+    const r = validateTrailer({
+      message:
+        'feat(prep): add dispatch runner\n\nNoldor-Sibling-Scope: noldor:workflow\nNoldor-Path: fast-track\n',
       cwd: dir,
     });
     expect(r.ok).toBe(true);
