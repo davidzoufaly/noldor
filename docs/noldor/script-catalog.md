@@ -55,7 +55,7 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 - **Trigger:** `pnpm noldor checks invariants`. Runs in `pre-commit` (`validate.invariants` job).
 - **Inputs:** rule definitions in `src/invariants/`.
-- **Outputs:** exit 0 when every invariant passes (rule conflicts, keyboard-binding collisions, public-API tsdoc coverage, package boundaries); exit 1 with the violating rule named.
+- **Outputs:** exit 0 when every invariant passes (rule conflicts, public-API tsdoc coverage, package boundaries); exit 1 with the violating rule named.
 - **When to use:** automatic on every commit. Fast (~1s).
 - **Source:** [`src/checks/check-invariants.ts`](../../src/checks/check-invariants.ts)
 
