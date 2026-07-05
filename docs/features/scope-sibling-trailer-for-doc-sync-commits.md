@@ -18,7 +18,7 @@ links:
 name: Scope Sibling Trailer for Doc-Sync Commits
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
