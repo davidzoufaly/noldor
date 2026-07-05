@@ -105,6 +105,18 @@ describe(resolveIsShipped, () => {
   it('returns false for an unknown slug', () => {
     expect(isShipped('does-not-exist-anywhere')).toBe(false);
   });
+
+  it('resolves a Q-id pointing at a phase: done FD (via entry-id) as shipped', () => {
+    expect(isShipped('Q-0500')).toBe(true);
+  });
+
+  it('returns false for a Q-id that resolves only to a roadmap entry', () => {
+    expect(isShipped('Q-0100')).toBe(false);
+  });
+
+  it('returns false for an unknown Q-id', () => {
+    expect(isShipped('Q-9999')).toBe(false);
+  });
 });
 
 describe('score.ts CLI', () => {

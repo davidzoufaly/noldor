@@ -7,18 +7,27 @@ links:
     - docs/roadmap.md
     - docs/backlog.md
     - .claude/skills/triage/SKILL.md
+    - .claude/skills/new-feature/SKILL.md
+    - .claude/skills/promote/SKILL.md
+    - src/triage/entry-id.ts
+    - src/triage/mint-id-cli.ts
+    - src/triage/backfill-ids-cli.ts
     - src/triage/score.ts
     - src/triage/validate-triage.ts
+    - src/utils/parse-blocks.ts
+    - src/core/feature-schema.ts
+    - src/cli/manifest.ts
     - docs/noldor/triage.md
     - docs/noldor/feature-md-schema.md
   docs: []
-  tests: []
+  tests:
+    - src/triage/__tests__/entry-id.test.ts
   spec: >-
     docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md
 name: Stable Entry IDs for Roadmap + Backlog
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
@@ -51,3 +60,29 @@ pnpm noldor triage score --deps=Q-0042   # deps accept IDs or slugs interchangea
 <!-- @prs-since-last-release: stable-entry-ids-for-roadmap-backlog -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md`](../../docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md)
+- **Code:**
+  - [`docs/roadmap.md`](../../docs/roadmap.md)
+  - [`docs/backlog.md`](../../docs/backlog.md)
+  - [`.claude/skills/triage/SKILL.md`](../../.claude/skills/triage/SKILL.md)
+  - [`.claude/skills/new-feature/SKILL.md`](../../.claude/skills/new-feature/SKILL.md)
+  - [`.claude/skills/promote/SKILL.md`](../../.claude/skills/promote/SKILL.md)
+  - [`src/triage/entry-id.ts`](../../src/triage/entry-id.ts)
+  - [`src/triage/mint-id-cli.ts`](../../src/triage/mint-id-cli.ts)
+  - [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts)
+  - [`src/triage/score.ts`](../../src/triage/score.ts)
+  - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)
+  - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
+  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`docs/noldor/triage.md`](../../docs/noldor/triage.md)
+  - [`docs/noldor/feature-md-schema.md`](../../docs/noldor/feature-md-schema.md)
+- **Tests:**
+  - [`src/triage/__tests__/entry-id.test.ts`](../../src/triage/__tests__/entry-id.test.ts)
+
+<!-- /generated: resources -->

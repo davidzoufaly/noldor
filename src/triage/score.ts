@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
+import { resolveEntryRef } from './entry-id.js';
+
 export const sizeSchema = z.enum(['XS', 'S', 'M', 'L', 'XL']);
 export const impactSchema = z.enum(['low', 'med', 'high', 'critical']);
 export const confidenceSchema = z.enum(['low', 'med', 'high']);
@@ -19,13 +21,13 @@ export interface ScoringInputs {
   confidence?: Confidence;
   deps: readonly string[];
   /**
-   * Returns true iff the slug names shipped work — concretely, a feature MD at
-   * `<featuresDir>/<slug>.md` with frontmatter `phase: done`. Every other state
-   * (file missing, file present with `phase != done`, slug only in roadmap or
-   * backlog, unknown slug) returns false. See `resolveIsShipped` below for the
-   * canonical FS-backed implementation.
+   * Returns true iff the reference (a slug or a `Q-NNNN` entry ID) names shipped
+   * work — concretely, a feature MD with frontmatter `phase: done`. An ID is
+   * resolved to its slug first. Every other state (file missing, `phase != done`,
+   * ref only in roadmap or backlog, unknown ref) returns false. See
+   * `resolveIsShipped` below for the canonical FS-backed implementation.
    */
-  isShipped: (slug: string) => boolean;
+  isShipped: (ref: string) => boolean;
 }
 
 const EFFORT: Record<Size, number> = { XS: 0.5, S: 1, M: 2, L: 3, XL: 5 };
@@ -54,22 +56,28 @@ export function scoreEntry(input: ScoringInputs): number {
 
 export interface ResolverPaths {
   featuresDir: string;
-  /** Unused in the lookup but accepted so the caller can document the full data set. Reserved for future extensions. */
+  /** Read once to resolve `Q-NNNN` entry-ID `deps:` references to slugs via `resolveEntryRef`. */
   roadmapPath: string;
-  /** Unused in the lookup. Reserved for future extensions. */
+  /** Read once alongside `roadmapPath` for the same ID→slug resolution. */
   backlogPath: string;
 }
 
 /**
- * Build an `isShipped(slug)` function backed by the file system. Returns true
- * iff `<featuresDir>/<slug>.md` exists AND its frontmatter `phase` field reads
- * exactly `done`. Any other state — file absent, frontmatter missing, phase
- * value other than `done` — returns false. The roadmap / backlog paths are
- * deliberately not consulted: an entry's mere presence in those lists never
- * counts as shipped under the v1 rule.
+ * Build an `isShipped(ref)` function backed by the file system. `ref` may be a
+ * slug or a stable entry ID (`Q-NNNN`) — an ID is first resolved to its slug via
+ * `resolveEntryRef` (scanning roadmap + backlog entries, then FD `entry-id`
+ * frontmatter). Returns true iff the resolved `<featuresDir>/<slug>.md` exists
+ * AND its frontmatter `phase` reads exactly `done`. Every other state — file
+ * absent, frontmatter missing, non-`done` phase, unknown ID, slug present only
+ * in roadmap/backlog — returns false. Roadmap/backlog are consulted only for
+ * ID resolution, never as a shipped signal on their own. The two doc files are
+ * read once at build time, not per-dep.
  */
-export function resolveIsShipped(paths: ResolverPaths): (slug: string) => boolean {
-  return (slug: string): boolean => {
+export function resolveIsShipped(paths: ResolverPaths): (ref: string) => boolean {
+  const roadmapRaw = existsSync(paths.roadmapPath) ? readFileSync(paths.roadmapPath, 'utf8') : '';
+  const backlogRaw = existsSync(paths.backlogPath) ? readFileSync(paths.backlogPath, 'utf8') : '';
+  return (ref: string): boolean => {
+    const slug = resolveEntryRef(ref, { roadmapRaw, backlogRaw, featuresDir: paths.featuresDir });
     const fdPath = join(paths.featuresDir, `${slug}.md`);
     if (!existsSync(fdPath)) return false;
     const raw = readFileSync(fdPath, 'utf8');
@@ -79,7 +87,7 @@ export function resolveIsShipped(paths: ResolverPaths): (slug: string) => boolea
 }
 
 const USAGE =
-  'usage: tsx score.ts --size=<XS|S|M|L|XL> --impact=<low|med|high|critical> [--confidence=<low|med|high>] [--deps=<slug,slug>] [--features-dir=<path>]\n';
+  'usage: tsx score.ts --size=<XS|S|M|L|XL> --impact=<low|med|high|critical> [--confidence=<low|med|high>] [--deps=<slug|Q-id,…>] [--features-dir=<path>]\n';
 
 /**
  * CLI entrypoint. Run via:

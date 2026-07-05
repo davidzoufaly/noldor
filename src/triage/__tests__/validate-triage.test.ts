@@ -55,6 +55,7 @@ Body.
       roadmapRaw: okRoadmap,
       backlogRaw: okBacklog,
       strict: false,
+      counterExists: false,
     });
     expect(result.errors).toEqual([]);
     expect(result.advisories).toEqual([]);
@@ -91,7 +92,12 @@ Body.
 
 Second copy.
 `;
-    const result = validateTriageInputs({ roadmapRaw: raw, backlogRaw: okBacklog, strict: false });
+    const result = validateTriageInputs({
+      roadmapRaw: raw,
+      backlogRaw: okBacklog,
+      strict: false,
+      counterExists: false,
+    });
     expect(result.errors).toContainEqual(
       expect.objectContaining({
         file: 'docs/roadmap.md',
@@ -116,7 +122,12 @@ Body.
 
 Body.
 `;
-    const result = validateTriageInputs({ roadmapRaw: okRoadmap, backlogRaw: raw, strict: false });
+    const result = validateTriageInputs({
+      roadmapRaw: okRoadmap,
+      backlogRaw: raw,
+      strict: false,
+      counterExists: false,
+    });
     expect(result.errors).toContainEqual(
       expect.objectContaining({ file: 'docs/backlog.md', rule: 'duplicate-name' }),
     );
@@ -131,7 +142,12 @@ Body.
 
 Body.
 `;
-    const result = validateTriageInputs({ roadmapRaw: raw, backlogRaw: okBacklog, strict: false });
+    const result = validateTriageInputs({
+      roadmapRaw: raw,
+      backlogRaw: okBacklog,
+      strict: false,
+      counterExists: false,
+    });
     expect(result.errors).toContainEqual(
       expect.objectContaining({
         rule: 'missing-required-field',
@@ -145,6 +161,7 @@ Body.
       roadmapRaw: roadmapMissingSizeImpact,
       backlogRaw: okBacklog,
       strict: false,
+      counterExists: false,
     });
     expect(
       result.errors.some((e) => e.rule === 'missing-required-field' && e.message.includes('size')),
@@ -161,6 +178,7 @@ Body.
       roadmapRaw: okRoadmap,
       backlogRaw: advisoryBacklog,
       strict: false,
+      counterExists: false,
     });
     expect(result.advisories.some((a) => a.rule === 'missing-optional-field')).toBe(true);
     expect(result.errors).toEqual([]);
@@ -171,7 +189,108 @@ Body.
       roadmapRaw: okRoadmap,
       backlogRaw: advisoryBacklog,
       strict: true,
+      counterExists: false,
     });
     expect(result.errors.some((e) => e.rule === 'missing-optional-field')).toBe(true);
+  });
+});
+
+describe('entry-id validation', () => {
+  const roadmapWithId = (id: string): string => `#### Entry A
+
+- id: ${id}
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- size: M
+- impact: high
+
+Body.
+`;
+  const backlogWithId = (id: string): string => `# Backlog
+
+### Backlog Entry
+
+- id: ${id}
+- area: tooling
+- type: feat
+- since: 2026-05-11
+
+Body.
+`;
+  // No `- id:` bullet on either entry.
+  const roadmapNoId = `#### Entry A
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- size: M
+- impact: high
+
+Body.
+`;
+  const backlogNoId = `# Backlog
+
+### Backlog Entry
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+
+Body.
+`;
+
+  it('is silent on missing ids when the counter file does not exist', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapNoId,
+      backlogRaw: backlogNoId,
+      strict: false,
+      counterExists: false,
+    });
+    expect(result.errors.some((e) => e.rule === 'missing-entry-id')).toBe(false);
+  });
+
+  it('errors on missing ids once the counter file exists', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapNoId,
+      backlogRaw: backlogNoId,
+      strict: false,
+      counterExists: true,
+    });
+    expect(result.errors.filter((e) => e.rule === 'missing-entry-id')).toHaveLength(2);
+  });
+
+  it('accepts well-formed unique ids across both files', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithId('Q-0001'),
+      backlogRaw: backlogWithId('Q-0002'),
+      strict: false,
+      counterExists: true,
+    });
+    expect(result.errors).toEqual([]);
+  });
+
+  it('errors on a malformed id regardless of the counter file', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithId('Q-42'),
+      backlogRaw: backlogWithId('Q-0002'),
+      strict: false,
+      counterExists: false,
+    });
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ rule: 'malformed-entry-id', file: 'docs/roadmap.md' }),
+    );
+  });
+
+  it('errors on the same id appearing in both roadmap and backlog', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithId('Q-0007'),
+      backlogRaw: backlogWithId('Q-0007'),
+      strict: false,
+      counterExists: true,
+    });
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ rule: 'duplicate-entry-id', file: 'docs/backlog.md' }),
+    );
   });
 });

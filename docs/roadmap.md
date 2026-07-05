@@ -2,6 +2,8 @@
 
 Flat priority-ordered list (file order = priority); H3 headings group related entries.
 
+Each entry carries a `- id: Q-NNNN` bullet — a stable ID minted at triage and never rewritten; it survives heading renames and roadmap ↔ backlog moves, so `deps:` references target it, not the rename-fragile slug (the slug is a human-readable alias). See [triage.md → Stable entry IDs](noldor/triage.md#stable-entry-ids).
+
 > **Routing policy — prep scales with `size:`. Don't spec the small ones.**
 >
 > - **XS / S** → no spec, no plan. `/gate` routes these to `fast-track` (code) or `micro-chore` (pure-doc) and retires the entry on ship — the drain-runner's bread and butter.
@@ -18,6 +20,7 @@ Flat priority-ordered list (file order = priority); H3 headings group related en
 
 #### Real Consumer #2 Adoption Dogfood
 
+- id: Q-0001
 - area: tooling
 - type: chore
 - since: 2026-06-11
@@ -49,6 +52,7 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 #### First-Class `blocked-by` Field
 
+- id: Q-0002
 - area: tooling
 - type: refactor
 - since: 2026-05-22
@@ -63,6 +67,7 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 #### SDD Detector 5 — Idea-Merge Semantic Similarity
 
+- id: Q-0003
 - area: tooling
 - type: feat
 - since: 2026-05-07
@@ -76,6 +81,7 @@ Standalone graphify enhancement (not in the substrate family). When `/triage` pr
 
 #### Noldor Section-Age Staleness Detector
 
+- id: Q-0004
 - area: tooling
 - type: feat
 - since: 2026-05-08
@@ -87,6 +93,7 @@ Was originally Detector 14 in the Noldor extraction spec (`docs/superpowers/spec
 
 #### Real-Codex Integration Smoke Test
 
+- id: Q-0005
 - area: tooling
 - type: test
 - since: 2026-05-10
@@ -98,6 +105,7 @@ Was originally Detector 14 in the Noldor extraction spec (`docs/superpowers/spec
 
 #### Path Rename: docs/superpowers to docs/design
 
+- id: Q-0006
 - area: tooling
 - type: refactor
 - since: 2026-06-11

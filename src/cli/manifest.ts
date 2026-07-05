@@ -113,6 +113,14 @@ export const MANIFEST: Record<string, Group> = {
       score: { src: 'triage/score.ts', desc: 'Score a backlog entry' },
       'list-untriaged': { src: 'triage/triage-list-untriaged.ts', desc: 'List untriaged ideas' },
       validate: { src: 'triage/validate-triage.ts', desc: 'Validate triage docs' },
+      'mint-id': {
+        src: 'triage/mint-id-cli.ts',
+        desc: 'Mint N stable entry IDs (--count N); bumps .noldor/id-counter.json',
+      },
+      'backfill-ids': {
+        src: 'triage/backfill-ids-cli.ts',
+        desc: 'Idempotent one-sweep stamp of `- id:` onto all id-less roadmap/backlog entries',
+      },
     },
   },
   rules: {

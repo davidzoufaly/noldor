@@ -1,7 +1,10 @@
 # Backlog
 
+Parking lot for items not on the roadmap. Each entry carries a `- id: Q-NNNN` bullet — a stable ID minted at triage and never rewritten; it survives heading renames and the roadmap ↔ backlog move, so references target it, not the rename-fragile slug (the slug is a human-readable alias). See [triage.md → Stable entry IDs](noldor/triage.md#stable-entry-ids).
+
 ### Does SQL in a Framework Make Sense?
 
+- id: Q-0007
 - area: tooling
 - type: feat
 - since: 2026-06-12
@@ -13,6 +16,7 @@ Open question — does it make sense to introduce SQL into the framework? Explor
 
 ### Idempotent Drain Delivery Guard
 
+- id: Q-0008
 - area: tooling
 - type: fix
 - since: 2026-06-12
@@ -24,6 +28,7 @@ A triage commit that lived un-pushed on local `main` got delivered twice — onc
 
 ### Prefix Skills with noldor-
 
+- id: Q-0009
 - area: tooling
 - type: refactor
 - since: 2026-06-12
@@ -35,6 +40,7 @@ Prefix the framework's skill names with `noldor-` to namespace them and avoid co
 
 ### Noldor-Native Wait Primitive
 
+- id: Q-0010
 - area: tooling
 - type: feat
 - since: 2026-07-02
@@ -46,6 +52,7 @@ Runner-agnostic alternative to the harness `Monitor` tool, consumer side only: `
 
 ### Graph-Freshness / Fmt-Collision Follow-Ups
 
+- id: Q-0011
 - area: tooling
 - type: fix
 - since: 2026-07-01
