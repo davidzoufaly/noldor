@@ -1,5 +1,8 @@
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import matter from 'gray-matter';
 
 import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 import { COUNTER_PATH_DEFAULT, ENTRY_ID_RE } from './entry-id.js';
@@ -13,7 +16,8 @@ export interface TriageIssue {
     | 'unknown-type-value'
     | 'missing-entry-id'
     | 'malformed-entry-id'
-    | 'duplicate-entry-id';
+    | 'duplicate-entry-id'
+    | 'unknown-blocked-by-ref';
   message: string;
   entryName: string;
 }
@@ -35,6 +39,19 @@ export interface ValidateTriageInputs {
    * regardless. The CLI injects `existsSync(...)`; tests pass it directly.
    */
   counterExists: boolean;
+  /**
+   * Slugs of existing feature MDs (`docs/features/*.md` basenames). Widens the
+   * known-ref set for `unknown-blocked-by-ref` so a `blocked-by:` ref pointing at
+   * already-shipped work whose queue entry was retired still resolves. The CLI
+   * fills this from `readdir`; tests pass it directly. Defaults to empty.
+   */
+  featureSlugs?: readonly string[];
+  /**
+   * `entry-id:` frontmatter values of existing feature MDs. Same purpose as
+   * {@link ValidateTriageInputs.featureSlugs} but for ID-shaped `blocked-by:`
+   * refs (`Q-NNNN`) that target a shipped feature. Defaults to empty.
+   */
+  featureEntryIds?: readonly string[];
 }
 
 const REQUIRED_FIELDS_BACKLOG: ReadonlyArray<keyof BacklogEntry> = ['area', 'type', 'since'];
@@ -78,8 +95,59 @@ export function validateTriageInputs(input: ValidateTriageInputs): TriageValidat
   );
 
   pushIdIssues(roadmap, backlog, input.counterExists, errors);
+  pushBlockedByIssues(
+    roadmap,
+    backlog,
+    input.featureSlugs ?? [],
+    input.featureEntryIds ?? [],
+    input.strict,
+    errors,
+    advisories,
+  );
 
   return { errors, advisories };
+}
+
+/**
+ * Validate that every `blocked-by:` ref (the first-class field; `deps:` is its
+ * legacy alias — both land in {@link BacklogEntry.deps}) resolves to a known
+ * entry: an entry ID or slug present in roadmap/backlog, or the slug/`entry-id`
+ * of an existing feature MD (covers refs on already-shipped work whose queue
+ * entry was retired). Unknown refs are advisory by default (adoption-safe:
+ * pre-existing stale refs must not hard-break `validate:triage`) and promoted to
+ * errors under `--strict`, mirroring the missing-optional-field policy.
+ */
+function pushBlockedByIssues(
+  roadmap: BacklogEntry[],
+  backlog: BacklogEntry[],
+  featureSlugs: readonly string[],
+  featureEntryIds: readonly string[],
+  strict: boolean,
+  errors: TriageIssue[],
+  advisories: TriageIssue[],
+): void {
+  const known = new Set<string>([...featureSlugs, ...featureEntryIds]);
+  for (const entry of [...roadmap, ...backlog]) {
+    if (entry.id !== undefined) known.add(entry.id);
+    if (entry.slug.length > 0) known.add(entry.slug);
+  }
+  const scan = (entries: BacklogEntry[], file: TriageIssue['file']): void => {
+    for (const entry of entries) {
+      for (const ref of entry.deps ?? []) {
+        if (known.has(ref)) continue;
+        const issue: TriageIssue = {
+          entryName: entry.name,
+          file,
+          message: `Entry '${entry.name}' has \`blocked-by\` ref '${ref}' that matches no known entry ID, slug, or feature MD.`,
+          rule: 'unknown-blocked-by-ref',
+        };
+        if (strict) errors.push(issue);
+        else advisories.push(issue);
+      }
+    }
+  };
+  scan(roadmap, 'docs/roadmap.md');
+  scan(backlog, 'docs/backlog.md');
 }
 
 /**
@@ -210,6 +278,27 @@ function parseArgv(argv: string[]): CliOptions {
   };
 }
 
+/**
+ * Scan `docs/features` for existing feature MDs, returning their slugs (file
+ * basenames) and `entry-id:` frontmatter values. Feeds the known-ref set for
+ * `unknown-blocked-by-ref`. A missing directory yields empty arrays.
+ */
+async function loadFeatureRefs(
+  featuresDir: string,
+): Promise<{ featureSlugs: string[]; featureEntryIds: string[] }> {
+  if (!existsSync(featuresDir)) return { featureSlugs: [], featureEntryIds: [] };
+  const featureSlugs: string[] = [];
+  const featureEntryIds: string[] = [];
+  for (const file of await readdir(featuresDir)) {
+    if (!file.endsWith('.md')) continue;
+    featureSlugs.push(file.slice(0, -3));
+    const parsed = matter(await readFile(join(featuresDir, file), 'utf8'));
+    const entryId = (parsed.data as { 'entry-id'?: unknown })['entry-id'];
+    if (typeof entryId === 'string') featureEntryIds.push(entryId);
+  }
+  return { featureSlugs, featureEntryIds };
+}
+
 async function main(): Promise<void> {
   const opts = parseArgv(process.argv.slice(2));
   const [roadmapRaw, backlogRaw] = await Promise.all([
@@ -217,11 +306,14 @@ async function main(): Promise<void> {
     readFile(`${opts.cwd}/docs/backlog.md`, 'utf8'),
   ]);
   const counterExists = existsSync(`${opts.cwd}/${COUNTER_PATH_DEFAULT}`);
+  const { featureSlugs, featureEntryIds } = await loadFeatureRefs(`${opts.cwd}/docs/features`);
   const result = validateTriageInputs({
     roadmapRaw,
     backlogRaw,
     strict: opts.strict,
     counterExists,
+    featureSlugs,
+    featureEntryIds,
   });
   for (const advisory of result.advisories) {
     console.warn(`advisory [${advisory.rule}] ${advisory.file}: ${advisory.message}`);

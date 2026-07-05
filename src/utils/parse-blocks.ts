@@ -205,6 +205,42 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
   return entries;
 }
 
+/**
+ * Recognized schema-C field-bullet keys, as a regex alternation. Single source
+ * of truth for both block parsers ({@link parseBlockBody} and `parseEntries`) —
+ * a new field key is added here once. Deliberately explicit (not `[\w-]+`) so a
+ * hyphenated description bullet like `- opt-in: …` stays in the body instead of
+ * being harvested as a field. Any change must stay in sync with the key
+ * dispatch in {@link parseBlockBody}.
+ */
+const FIELD_KEYS = 'area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase';
+
+/**
+ * Split a comma-separated ref bullet (`deps:` / `blocked-by:`) into trimmed,
+ * non-empty refs. Each ref is a kebab slug or a `Q-NNNN` entry ID.
+ */
+function parseRefList(value: string): string[] {
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * Merge a `deps:` list with a `blocked-by:` list into one dependency array,
+ * preserving source order and dropping duplicates. `blocked-by:` is the
+ * first-class field; `deps:` is the legacy alias accepted during the migration
+ * window (see the roadmap/backlog preambles). Returns `undefined` when neither
+ * bullet is present so callers can distinguish "no deps" from "empty deps".
+ */
+function mergeDepFields(
+  deps: string[] | undefined,
+  blockedBy: string[] | undefined,
+): string[] | undefined {
+  if (deps === undefined && blockedBy === undefined) return undefined;
+  return [...new Set([...(deps ?? []), ...(blockedBy ?? [])])];
+}
+
 function parseBlockBody(lines: string[]): {
   area: string;
   id?: string;
@@ -227,11 +263,11 @@ function parseBlockBody(lines: string[]): {
   let impact: string | undefined;
   let confidence: string | undefined;
   let deps: string[] | undefined;
+  let blockedBy: string[] | undefined;
   let phase: string | undefined;
   const bodyLines: string[] = [];
   for (const line of lines) {
-    const fieldMatch =
-      /^-\s+(area|id|type|since|parent|size|impact|confidence|deps|phase):\s*(.+?)\s*$/.exec(line);
+    const fieldMatch = new RegExp(`^-\\s+(${FIELD_KEYS}):\\s*(.+?)\\s*$`).exec(line);
     if (fieldMatch) {
       const [, key, value] = fieldMatch;
       if (key === 'area') area = value;
@@ -243,12 +279,8 @@ function parseBlockBody(lines: string[]): {
       else if (key === 'impact') impact = value;
       else if (key === 'confidence') confidence = value;
       else if (key === 'phase') phase = value;
-      else if (key === 'deps') {
-        deps = value
-          .split(',')
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
-      }
+      else if (key === 'deps') deps = parseRefList(value);
+      else if (key === 'blocked-by') blockedBy = parseRefList(value);
       continue;
     }
     bodyLines.push(line);
@@ -257,7 +289,7 @@ function parseBlockBody(lines: string[]): {
     area,
     body: bodyLines.join('\n').trim(),
     confidence,
-    deps,
+    deps: mergeDepFields(deps, blockedBy),
     id,
     impact,
     parent,
@@ -285,7 +317,10 @@ function parseEntries(raw: string): BacklogEntry[] {
     const name = block.slice(0, firstNewline).trim();
     const body = block.slice(firstNewline + 1);
 
-    const fieldRe = /^- (\w+): (.+)$/gm;
+    // Shared FIELD_KEYS whitelist (see parseBlockBody) — NOT `[\w-]+`, so a
+    // hyphenated description bullet like `- opt-in: …` is left in the body
+    // instead of being harvested as a field and stripped from the description.
+    const fieldRe = new RegExp(`^- (${FIELD_KEYS}): (.+)$`, 'gm');
     const fields: Record<string, string> = {};
     let match: RegExpExecArray | null;
     while ((match = fieldRe.exec(body)) !== null) {
@@ -313,12 +348,10 @@ function parseEntries(raw: string): BacklogEntry[] {
       impact: fields.impact,
       confidence: fields.confidence,
       phase: fields.phase,
-      deps: fields.deps
-        ? fields.deps
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0)
-        : undefined,
+      deps: mergeDepFields(
+        fields.deps !== undefined ? parseRefList(fields.deps) : undefined,
+        fields['blocked-by'] !== undefined ? parseRefList(fields['blocked-by']) : undefined,
+      ),
     });
   }
 

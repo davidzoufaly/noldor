@@ -2,7 +2,9 @@
 
 Flat priority-ordered list (file order = priority); H3 headings group related entries.
 
-Each entry carries a `- id: Q-NNNN` bullet — a stable ID minted at triage and never rewritten; it survives heading renames and roadmap ↔ backlog moves, so `deps:` references target it, not the rename-fragile slug (the slug is a human-readable alias). See [triage.md → Stable entry IDs](noldor/triage.md#stable-entry-ids).
+Each entry carries a `- id: Q-NNNN` bullet — a stable ID minted at triage and never rewritten; it survives heading renames and roadmap ↔ backlog moves, so `blocked-by:` references target it, not the rename-fragile slug (the slug is a human-readable alias). See [triage.md → Stable entry IDs](noldor/triage.md#stable-entry-ids).
+
+An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet (comma-separated) — the entries this work waits on. It feeds dependency-weight scoring, and `validate:triage` flags refs that resolve to no known entry (`unknown-blocked-by-ref`; advisory, error under `--strict`) while `/garden` flags circular chains. `- deps:` is the legacy alias, still accepted during the migration window and unioned with `blocked-by:`; prefer `blocked-by:` in new entries.
 
 > **Routing policy — prep scales with `size:`. Don't spec the small ones.**
 >
@@ -49,19 +51,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 ### Phase 5 — Autonomy Observability
 
 ### Phase 6 — Structural
-
-#### First-Class `blocked-by` Field
-
-- id: Q-0002
-- area: tooling
-- type: refactor
-- since: 2026-05-22
-- size: S
-- impact: med
-- deps: stable-entry-ids-for-roadmap-backlog
-- parent: noldor
-
-`docs/noldor/triage.md:64` describes a `deps:` bullet (comma-separated kebab slugs) that `src/triage/score.ts` reads for dependency-weight scoring, but the field is silently optional in v1, undocumented in both `docs/roadmap.md` and `docs/backlog.md` preambles, and nearly unused across current entries. Promote it to a first-class `blocked-by:` field — name matches GitHub-issue + Jira convention and reads better in prose than `deps`. Document it in both file preambles, surface it on the dashboard as a dependency graph view, validate that each referenced ID exists, and have `/garden` flag circular chains. Accept `deps:` ↔ `blocked-by:` as aliases during a migration window, then deprecate `deps:`. Blocked by Stable Entry IDs — `blocked-by:` references should target stable IDs, not rename-fragile slugs. Work lands in the roadmap/backlog preambles, the triage skill, `src/triage/validate-triage.ts`, a new circular-blocked-by garden detector, and `docs/noldor/triage.md`.
 
 ### Trigger-Parked (revisit when the named trigger fires)
 
