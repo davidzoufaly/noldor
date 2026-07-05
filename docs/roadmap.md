@@ -20,19 +20,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Phase 3 — Adoption Chain
 
-#### Init --adopt Flag Drift Reconciliation
-
-- id: Q-0014
-- area: tooling
-- type: fix
-- since: 2026-07-05
-- size: XS
-- impact: med
-- confidence: med
-- parent: noldor
-
-`init --adopt` is described three different ways: the roadmap dogfood entry says `pnpm noldor init --adopt`, `docs/noldor/adoption-guide.md` says plain `pnpm noldor init`, and `doctor`'s drift hint describes `--adopt` with the opposite meaning (friction #4). Plain `init` worked in the dogfood. Reconcile all three texts to one source of truth for what `--adopt` does and when to pass it.
-
 #### Consumer Rule-Conflicts Graceful Degradation
 
 - id: Q-0017
@@ -105,7 +92,7 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 **What to do:**
 
 - Pick the repo: criteria — actively developed, single package (not a monorepo, to stress the `lockstepPackages: [one]` shape), TS or close enough that stack assumptions hold (this dogfood validates the *adoption flow*, not yet stack-portability — that's `stack-assumption-audit-and-declared-prerequisites`).
-- Run the documented path verbatim: install (registry if `registry-distribution-for-the-noldor-package` has shipped, `file:` otherwise), `pnpm noldor init --adopt`, fill `.noldor/config.json` `consumer:` block, `pnpm noldor doctor`. Every deviation from the adoption guide goes in the friction log — do not silently fix and move on.
+- Run the documented path verbatim: install (registry if `registry-distribution-for-the-noldor-package` has shipped, `file:` otherwise), `pnpm noldor init`, fill `.noldor/config.json` `consumer:` block, `pnpm noldor doctor`. Every deviation from the adoption guide goes in the friction log — do not silently fix and move on.
 - Drive ≥3 changes through the full lifecycle: one micro-chore, one fast-track, one specs-only or full feature with FD + spec. At least one of them via the autonomous drain (`noldor autonomous run --source roadmap`) end-to-end to PR merge.
 - Maintain `friction.md` in the consumer repo during the run: every prompt that confused, every command that assumed Charuy/self-host context, every hard-coded path, every doc that lied. Date + exact error text.
 - Close-out: `/triage` the friction log into Noldor's `ideas.md` → roadmap; fix the adoption-guide lies immediately (micro-chore class).
