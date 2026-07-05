@@ -3,7 +3,13 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/core/doc-roots.ts
+    - src/migrations/chain.ts
+    - src/garden/sdd-report.ts
+    - src/triage/triage-list-untriaged.ts
+    - src/core/release-markers.ts
+    - package.json
   docs: []
   tests:
     - src/invariants/__tests__/boundaries.test.ts
