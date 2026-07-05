@@ -12,7 +12,7 @@ links:
 name: Self-Boundaries Declaration and Cycle Break
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
