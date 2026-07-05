@@ -19,7 +19,6 @@ links:
     - src/core/__tests__/framework-version.test.ts
     - src/migrations/__tests__/chain.test.ts
     - src/migrations/__tests__/pkg-version.test.ts
-    - src/migrations/__tests__/semver.test.ts
     - src/release/__tests__/release-config-flow.test.ts
     - src/testing/__tests__/consumer-fixture.test.ts
   spec: >-
@@ -33,7 +32,6 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
-
 ## Summary
 
 `noldor init --update` re-pulls current templates, but nothing handles *schema* evolution between framework versions: FD frontmatter shape changes, `consumer:` config field renames, skill-twin contract changes, trailer-format changes. With one consumer that's hand-migration; with N consumers on mixed pinned versions it's the biggest structural risk of the multi-project goal. Build `noldor upgrade`: a version-aware chain that takes a consumer from its current framework version to the installed one by running ordered codemods.

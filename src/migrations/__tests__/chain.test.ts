@@ -58,6 +58,9 @@ describe('resolveChain', () => {
   it('throws on a chain gap', () => {
     expect(() => resolveChain([m040], '0.2.0', '0.4.0')).toThrow(/gap/);
   });
+  it('rejects malformed versions via npm semver (Invalid Version)', () => {
+    expect(() => resolveChain(ALL, 'not-a-version', '0.4.0')).toThrow(/Invalid Version/);
+  });
 });
 
 describe('runChain', () => {

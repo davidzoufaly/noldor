@@ -1,6 +1,7 @@
+import semver from 'semver';
+
 import type { ConsumerConfig } from '../core/consumer-config.js';
 import type { ChainResult, Migration, MigrationStep } from './types.js';
-import { compareSemver } from './semver.js';
 
 /**
  * Select the migrations needed to move a consumer from `from` to `to`:
@@ -13,15 +14,15 @@ export function resolveChain(
   from: string,
   to: string,
 ): Migration[] {
-  if (compareSemver(from, to) > 0) {
+  if (semver.compare(from, to) > 0) {
     throw new Error(`downgrade unsupported: anchored ${from} > installed ${to}`);
   }
   const selected = migrations
-    .filter((m) => compareSemver(m.to, from) > 0 && compareSemver(m.to, to) <= 0)
-    .toSorted((a, b) => compareSemver(a.to, b.to));
+    .filter((m) => semver.compare(m.to, from) > 0 && semver.compare(m.to, to) <= 0)
+    .toSorted((a, b) => semver.compare(a.to, b.to));
   let cursor = from;
   for (const m of selected) {
-    if (compareSemver(m.from, cursor) !== 0) {
+    if (semver.compare(m.from, cursor) !== 0) {
       throw new Error(
         `migration chain gap: expected a migration from ${cursor}, got ${m.from} (→${m.to})`,
       );
