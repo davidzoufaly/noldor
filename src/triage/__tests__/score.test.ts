@@ -146,6 +146,23 @@ describe('score.ts CLI', () => {
     expect(Number(unshipped)).toBe(75);
   });
 
+  it('honors --blocked-by as an alias of --deps', () => {
+    const unshipped = execSync(
+      'pnpm tsx src/triage/score.ts --size=M --impact=high --confidence=med --blocked-by=does-not-exist-anywhere',
+      { cwd: repoRoot, encoding: 'utf8' },
+    ).trim();
+    expect(Number(unshipped)).toBe(75);
+  });
+
+  it('unions --deps and --blocked-by (dedup) for the dep factor', () => {
+    // Two distinct unshipped refs → factor 1/3 → round(100*4*0.75/2 * 1/3) = 50.
+    const out = execSync(
+      'pnpm tsx src/triage/score.ts --size=M --impact=high --confidence=med --deps=nope-one --blocked-by=nope-one,nope-two',
+      { cwd: repoRoot, encoding: 'utf8' },
+    ).trim();
+    expect(Number(out)).toBe(50);
+  });
+
   it('exits with code 2 and prints usage when --size is invalid', () => {
     let exitCode = 0;
     let stderr = '';

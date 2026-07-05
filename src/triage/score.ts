@@ -87,7 +87,7 @@ export function resolveIsShipped(paths: ResolverPaths): (ref: string) => boolean
 }
 
 const USAGE =
-  'usage: tsx score.ts --size=<XS|S|M|L|XL> --impact=<low|med|high|critical> [--confidence=<low|med|high>] [--deps=<slug|Q-id,…>] [--features-dir=<path>]\n';
+  'usage: tsx score.ts --size=<XS|S|M|L|XL> --impact=<low|med|high|critical> [--confidence=<low|med|high>] [--blocked-by=<slug|Q-id,…>] [--deps=<slug|Q-id,…> (alias)] [--features-dir=<path>]\n';
 
 /**
  * CLI entrypoint. Run via:
@@ -105,7 +105,10 @@ function main(argv: readonly string[]): number {
   const sizeArg = args.get('size');
   const impactArg = args.get('impact');
   const confidenceArg = args.get('confidence');
-  const depsArg = args.get('deps') ?? '';
+  // `blocked-by` is the first-class flag; `deps` is the legacy alias — union both.
+  const depsArg = [args.get('deps'), args.get('blocked-by')]
+    .filter((v): v is string => v !== undefined)
+    .join(',');
   const featuresDir = args.get('features-dir') ?? 'docs/features';
 
   const sizeParse = sizeSchema.safeParse(sizeArg);
@@ -125,10 +128,14 @@ function main(argv: readonly string[]): number {
     confidence = confidenceParse.data;
   }
 
-  const deps = depsArg
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  const deps = [
+    ...new Set(
+      depsArg
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    ),
+  ];
   const isShipped = resolveIsShipped({
     featuresDir,
     roadmapPath: 'docs/roadmap.md',
