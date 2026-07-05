@@ -206,6 +206,16 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
 }
 
 /**
+ * Recognized schema-C field-bullet keys, as a regex alternation. Single source
+ * of truth for both block parsers ({@link parseBlockBody} and `parseEntries`) —
+ * a new field key is added here once. Deliberately explicit (not `[\w-]+`) so a
+ * hyphenated description bullet like `- opt-in: …` stays in the body instead of
+ * being harvested as a field. Any change must stay in sync with the key
+ * dispatch in {@link parseBlockBody}.
+ */
+const FIELD_KEYS = 'area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase';
+
+/**
  * Split a comma-separated ref bullet (`deps:` / `blocked-by:`) into trimmed,
  * non-empty refs. Each ref is a kebab slug or a `Q-NNNN` entry ID.
  */
@@ -257,10 +267,7 @@ function parseBlockBody(lines: string[]): {
   let phase: string | undefined;
   const bodyLines: string[] = [];
   for (const line of lines) {
-    const fieldMatch =
-      /^-\s+(area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase):\s*(.+?)\s*$/.exec(
-        line,
-      );
+    const fieldMatch = new RegExp(`^-\\s+(${FIELD_KEYS}):\\s*(.+?)\\s*$`).exec(line);
     if (fieldMatch) {
       const [, key, value] = fieldMatch;
       if (key === 'area') area = value;
@@ -310,11 +317,10 @@ function parseEntries(raw: string): BacklogEntry[] {
     const name = block.slice(0, firstNewline).trim();
     const body = block.slice(firstNewline + 1);
 
-    // Explicit key whitelist (mirrors parseBlockBody) — NOT `[\w-]+`, so a
+    // Shared FIELD_KEYS whitelist (see parseBlockBody) — NOT `[\w-]+`, so a
     // hyphenated description bullet like `- opt-in: …` is left in the body
     // instead of being harvested as a field and stripped from the description.
-    const fieldRe =
-      /^- (area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase): (.+)$/gm;
+    const fieldRe = new RegExp(`^- (${FIELD_KEYS}): (.+)$`, 'gm');
     const fields: Record<string, string> = {};
     let match: RegExpExecArray | null;
     while ((match = fieldRe.exec(body)) !== null) {
