@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { extractSpecSlug } from '../garden/sdd-report.js';
+import { extractSpecSlug } from '../core/fd-load.js';
 
 /**
  * A spec file path paired with the feature slug derived from its filename.

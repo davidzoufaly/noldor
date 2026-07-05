@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { loadConfigSync } from '../core/config.js';
+import { ensureCleanTreeOnMain } from './clean-tree.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { appendOverrideLog } from '../core/overrides-log.js';
@@ -41,23 +42,6 @@ async function run(
     process.stderr.write(stderr);
   }
   return stdout.trim();
-}
-
-export async function ensureCleanTreeOnMain(): Promise<void> {
-  const branch = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
-  if (branch !== 'main') {
-    throw new Error(`Release must be run from main branch (currently on ${branch}).`);
-  }
-  const status = await run('git', ['status', '--porcelain']);
-  if (status.length > 0) {
-    throw new Error('Working tree is not clean. Commit or stash first.');
-  }
-  await run('git', ['fetch', 'origin', 'main']);
-  const local = await run('git', ['rev-parse', 'HEAD']);
-  const remote = await run('git', ['rev-parse', 'origin/main']);
-  if (local !== remote) {
-    throw new Error('Local main is not up to date with origin/main.');
-  }
 }
 
 async function ensureGhAvailable(): Promise<void> {

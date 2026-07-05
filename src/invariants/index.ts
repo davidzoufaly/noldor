@@ -1,5 +1,4 @@
 import { boundaries, makeBoundariesInvariant } from './boundaries.js';
-import { keyboardBinding, makeKeyboardBindingInvariant } from './keyboard-binding.js';
 import { makePublicApiTsdocInvariant, publicApiTsdoc } from './public-api-tsdoc.js';
 import { makeRuleConflictsInvariant, ruleConflicts } from './rule-conflicts.js';
 
@@ -11,7 +10,6 @@ import type { Invariant, InvariantResult } from './types.js';
  */
 export const invariants: readonly Invariant[] = [
   ruleConflicts,
-  keyboardBinding,
   publicApiTsdoc,
   boundaries,
 ] as const;
@@ -25,7 +23,6 @@ export const invariants: readonly Invariant[] = [
 export function makeInvariants(repoRoot: string): readonly Invariant[] {
   return [
     makeRuleConflictsInvariant(repoRoot),
-    makeKeyboardBindingInvariant(repoRoot),
     makePublicApiTsdocInvariant(repoRoot),
     makeBoundariesInvariant(repoRoot),
   ] as const;

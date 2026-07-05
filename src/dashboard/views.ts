@@ -4,7 +4,7 @@ import { loadConsumerConfig } from '../core/consumer-config.js';
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
 import type { MetricsReport } from '../metrics/types.js';
-import type { Gap } from '../garden/sdd-report.js';
+import type { Gap } from '../core/fd-load.js';
 import type {
   ActiveMilestonePayload,
   AgentActivity,

@@ -7,7 +7,7 @@ import matter from 'gray-matter';
 import { loadConfig } from '../core/config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
-import { INVARIANTS } from './garden-invariants.js';
+import { INVARIANTS } from '../invariants/rule-pairs.js';
 import { makeInvariants, runInvariants } from '../invariants/index.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
 import { slugify } from '../utils/slugify.js';
@@ -34,7 +34,7 @@ import {
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
 import type { FeatureFrontmatter } from '../core/feature-schema.js';
-import type { Invariant } from './garden-invariants.js';
+import type { RulePairInvariant as Invariant } from '../invariants/rule-pairs.js';
 import type { Invariant as ArchitectureInvariant, InvariantResult } from '../invariants/types.js';
 import type { OverrideAuditResult } from './detectors/override-audit.js';
 import type { Finding as CodexCrOverrideFinding } from './detectors/codex-cr-override-audit.js';
@@ -429,7 +429,7 @@ async function readDocOrNull(repo: string, rel: string): Promise<string | null> 
  *
  * @param repo - Repository root.
  * @param invariants - List of invariants to evaluate. Defaults to the seed
- *   list in `garden-invariants.ts`.
+ *   list in `src/invariants/rule-pairs.ts`.
  * @returns One Contradiction per flagged invariant pair.
  */
 export async function detectContradictions(

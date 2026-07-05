@@ -7,7 +7,6 @@ import { dirname, join } from 'node:path';
 
 import {
   buildGateComplianceSection,
-  compareSemver,
   detectCodeOrphans,
   detectDoneFeaturesMissingCode,
   detectDoneFeaturesMissingIntroduced,
@@ -22,13 +21,16 @@ import {
   detectUntaggedDocs,
   detectUntaggedTests,
   detectUntriagedIdeas,
+  resolveReportOutPath,
+} from '../sdd-report.js';
+import {
+  compareSemver,
   extractPlanSlug,
   extractSpecSlug,
   isInfraFile,
   isLinkEnforced,
-  resolveReportOutPath,
-} from '../sdd-report.js';
-import type { FeatureRecord } from '../sdd-report.js';
+} from '../../core/fd-load.js';
+import type { FeatureRecord } from '../../core/fd-load.js';
 
 import type { FeatureFrontmatter } from '../../core/feature-schema.js';
 import type { BacklogEntry } from '../../utils/parse-blocks.js';

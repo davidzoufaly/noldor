@@ -14,7 +14,7 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { isInfraFile, loadSddFeatures, walkRepo } from '../garden/sdd-report.js';
+import { isInfraFile, loadSddFeatures, walkRepo } from '../core/fd-load.js';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { scanRoots } from '../core/repo-paths.js';

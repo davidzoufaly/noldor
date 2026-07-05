@@ -1,14 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { INVARIANTS } from '../garden/garden-invariants.js';
+import { INVARIANTS } from './rule-pairs.js';
 
-import type { Invariant as RuleInvariant } from '../garden/garden-invariants.js';
+import type { RulePairInvariant as RuleInvariant } from './rule-pairs.js';
 import type { Invariant, InvariantResult, InvariantViolation } from './types.js';
 
 /**
  * Build a rule-conflicts invariant plugin. Wraps the existing
- * `garden-invariants.ts` data — exactly-one-side-matches → violation.
+ * `rule-pairs.ts` seed data — exactly-one-side-matches → violation.
  *
  * @param repoRoot - Absolute path to repo root (where `docA`/`docB` paths resolve from).
  * @param pairs - Rule pairs to check. Defaults to seed list.

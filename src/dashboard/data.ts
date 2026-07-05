@@ -18,14 +18,8 @@ import { loadMilestoneBySlug, loadMilestones, type Milestone } from '../mileston
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { actualPackageNames, scanRoots } from '../core/repo-paths.js';
-import {
-  collectGaps,
-  listPlans,
-  listSpecs,
-  loadSddFeatures,
-  readTextFiles,
-  walkRepo,
-} from '../garden/sdd-report.js';
+import { collectGaps } from '../garden/sdd-report.js';
+import { listPlans, listSpecs, loadSddFeatures, readTextFiles, walkRepo } from '../core/fd-load.js';
 import { commitsForFeature } from '../release/release-fd-commits.js';
 import { prsSinceLastTag, type PrRef } from '../release/fd-prs-since-tag.js';
 import { getRepoUrl } from '../release/release-version.js';
@@ -61,7 +55,8 @@ marked.use({
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
 import type { MetricsReport } from '../metrics/types.js';
-import type { FeatureRecord as SddFeatureRecord, Gap, ReportInput } from '../garden/sdd-report.js';
+import type { ReportInput } from '../garden/sdd-report.js';
+import type { FeatureRecord as SddFeatureRecord, Gap } from '../core/fd-load.js';
 import type { FeatureCommit } from '../release/release-fd-commits.js';
 import type { Warning } from '../worktrees/worktree-status.js';
 import type { AgentEvent } from '../core/agent-events.js';

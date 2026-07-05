@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 
 import { LOST_SENTINEL } from '../../core/feature-schema.js';
-import type { Gap } from '../sdd-report.js';
+import type { Gap } from '../../core/fd-load.js';
 
 /** Link values that are deliberately not paths. */
 const SENTINELS = new Set(['n/a', LOST_SENTINEL]);

@@ -3,17 +3,27 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 // Boundary rules mirror dependency-cruiser's forbidden-rule shape.
-// `from.path` / `to.path` are REGEX STRINGS consumed by dep-cruiser,
-// not glob patterns. See packages/noldor/src/invariants/boundaries.ts
-// FORBIDDEN_RULES for canonical examples.
+// `from.path` / `to.path` are REGEX STRINGS consumed by dep-cruiser, not
+// globs. `from` may be empty (`{}` = "any module") and `to.circular: true`
+// expresses dep-cruiser's canonical no-cycle backstop
+// (`{from: {}, to: {circular: true}}`). Each rule must still constrain the
+// `to` side — a rule that forbids nothing is a config typo, not a rule.
+// See this repo's own `.noldor/config.json` consumer.boundaries for live examples.
 export const BoundaryRuleSchema = z
   .object({
     name: z.string().min(1),
     severity: z.enum(['error', 'warn', 'info']),
-    from: z.object({ path: z.string().min(1) }),
-    to: z.object({ path: z.string().min(1) }),
+    from: z.object({ path: z.string().min(1).optional() }),
+    to: z.object({
+      path: z.string().min(1).optional(),
+      circular: z.boolean().optional(),
+    }),
   })
-  .strict();
+  .strict()
+  .refine((rule) => rule.to.path !== undefined || rule.to.circular !== undefined, {
+    message: 'boundary rule must constrain `to`: set to.path and/or to.circular',
+    path: ['to'],
+  });
 
 /**
  * Functional release-notes categories seeded into a fresh consumer. These are
