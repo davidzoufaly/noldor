@@ -44,6 +44,8 @@ Friction hit while cutting v0.4.0 via `/release-sweep`. Each bullet is a candida
 
 #### Later
 
+- Dashboard `blocked-by` dependency-graph view — surface the roadmap+backlog `blocked-by` graph as a visual dependency view on the tracking dashboard (nodes = entries, edges = blocked-by; highlight cycles flagged by the `circular-blocked-by` garden detector). Split out of the shipped `first-class-blocked-by-field` entry (the data model, validation, and cycle detector landed; the dashboard visualization was deferred as its own larger piece).
+
 ### Core Product
 
 #### Now

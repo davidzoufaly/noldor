@@ -52,19 +52,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 ### Phase 6 — Structural
 
-#### First-Class `blocked-by` Field
-
-- id: Q-0002
-- area: tooling
-- type: refactor
-- since: 2026-05-22
-- size: S
-- impact: med
-- deps: stable-entry-ids-for-roadmap-backlog
-- parent: noldor
-
-`docs/noldor/triage.md:64` describes a `deps:` bullet (comma-separated kebab slugs) that `src/triage/score.ts` reads for dependency-weight scoring, but the field is silently optional in v1, undocumented in both `docs/roadmap.md` and `docs/backlog.md` preambles, and nearly unused across current entries. Promote it to a first-class `blocked-by:` field — name matches GitHub-issue + Jira convention and reads better in prose than `deps`. Document it in both file preambles, surface it on the dashboard as a dependency graph view, validate that each referenced ID exists, and have `/garden` flag circular chains. Accept `deps:` ↔ `blocked-by:` as aliases during a migration window, then deprecate `deps:`. Blocked by Stable Entry IDs — `blocked-by:` references should target stable IDs, not rename-fragile slugs. Work lands in the roadmap/backlog preambles, the triage skill, `src/triage/validate-triage.ts`, a new circular-blocked-by garden detector, and `docs/noldor/triage.md`.
-
 ### Trigger-Parked (revisit when the named trigger fires)
 
 #### SDD Detector 5 — Idea-Merge Semantic Similarity
