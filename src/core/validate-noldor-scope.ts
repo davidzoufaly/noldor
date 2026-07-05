@@ -73,6 +73,91 @@ function renderAffected(noldorFiles: string[]): string {
   return `affected: ${[...noldorFiles].toSorted().join(', ')}`;
 }
 
+/**
+ * Apply the `Noldor-Sibling-Scope` trailer branch. Called only from the
+ * subject-scope FAILURE branches (no scope, or a non-noldor scope): the
+ * trailer lets a mixed code+doc commit keep its real code scope while the
+ * staged `docs/noldor/` pages are validated as declared siblings.
+ *
+ * @param input - The full validation input (staged files + known slugs)
+ * @param trailerValue - Raw `Noldor-Sibling-Scope` value from parseTrailers
+ * @param noldorFiles - The staged `docs/noldor/*.md` files
+ * @returns `null` when the trailer is absent (caller falls through to its
+ *   normal error); a terminal {@link ValidateScopeResult} otherwise.
+ */
+function applySiblingTrailer(
+  input: ValidateScopeInput,
+  trailerValue: string | undefined,
+  noldorFiles: string[],
+): ValidateScopeResult | null {
+  if (trailerValue === undefined) return null;
+
+  // Mixed-diff guard: the trailer exists solely to preserve a meaningful
+  // code scope on a mixed diff. Doc-only commits must carry the scope in
+  // the subject — otherwise the trailer becomes a general scope bypass.
+  const nonNoldorFiles = input.stagedFiles.filter((f) => !noldorFiles.includes(f));
+  if (nonNoldorFiles.length === 0) {
+    return {
+      success: false,
+      error:
+        'Noldor-Sibling-Scope on a doc-only commit: put the scope in the subject (e.g. "docs(noldor:<slug>): <subject>"), not in the trailer.',
+    };
+  }
+
+  const tokens = trailerValue
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  if (tokens.length === 0) {
+    return {
+      success: false,
+      error:
+        'empty Noldor-Sibling-Scope trailer; expected "noldor" or a comma-separated list of "noldor:<slug>" tokens.',
+    };
+  }
+
+  // Validate ALL tokens first (a malformed token fails the commit even when
+  // a bare `noldor` is also present), then let bare `noldor` accept any
+  // staged page set — parity with the subject-scope semantics.
+  let bareNoldor = false;
+  const covered = new Set<string>();
+  for (const token of tokens) {
+    if (token === 'noldor') {
+      bareNoldor = true;
+      continue;
+    }
+    if (!token.startsWith('noldor:')) {
+      return {
+        success: false,
+        error: `Noldor-Sibling-Scope token "${token}" is not "noldor" or "noldor:<slug>".`,
+      };
+    }
+    const slug = token.slice('noldor:'.length);
+    if (!input.knownSlugs.has(slug)) {
+      return {
+        success: false,
+        error: `unknown noldor slug "${slug}" in Noldor-Sibling-Scope; valid slugs: ${[...input.knownSlugs].toSorted().join(', ')}`,
+      };
+    }
+    covered.add(slug);
+  }
+  if (bareNoldor) return { success: true };
+
+  const uncovered = noldorFiles.filter((f) => !covered.has(pathToSlug(f)));
+  if (uncovered.length > 0) {
+    const missing = [...new Set(uncovered.map(pathToSlug))]
+      .toSorted()
+      .map((s) => `noldor:${s}`)
+      .join(', ');
+    return {
+      success: false,
+      error: `Noldor-Sibling-Scope does not cover every staged noldor page. ${renderAffected(uncovered)}. Add: ${missing}`,
+    };
+  }
+
+  return { success: true };
+}
+
 export function validateScope(input: ValidateScopeInput): ValidateScopeResult {
   const noldorFiles = input.stagedFiles.filter(
     (f) => f.startsWith('docs/noldor/') && f.endsWith('.md'),
@@ -125,6 +210,8 @@ export function validateScope(input: ValidateScopeInput): ValidateScopeResult {
 
   const scope = match.groups?.scope ?? null;
   if (scope === null) {
+    const sibling = applySiblingTrailer(input, trailers['Noldor-Sibling-Scope'], noldorFiles);
+    if (sibling) return sibling;
     return {
       success: false,
       error: `commit touches docs/noldor/ but has no scope. ${affected}. Suggested: ${suggestion}: <subject>`,
@@ -136,6 +223,8 @@ export function validateScope(input: ValidateScopeInput): ValidateScopeResult {
   }
 
   if (!scope.startsWith('noldor:')) {
+    const sibling = applySiblingTrailer(input, trailers['Noldor-Sibling-Scope'], noldorFiles);
+    if (sibling) return sibling;
     return {
       success: false,
       error: `commit touches docs/noldor/ but scope is "${scope}". ${affected}. Suggested: ${suggestion}: <subject> (or split: keep "${scope}" on non-doc files, retitle the doc-only commit with the suggestion).`,

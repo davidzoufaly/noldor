@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, scope-sibling-trailer-for-doc-sync-commits
 import { describe, it, expect } from 'vitest';
 
 import { validateScope } from '../validate-noldor-scope.js';
@@ -153,5 +153,99 @@ describe('validateScope', () => {
       knownSlugs: KNOWN_SLUGS,
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('validateScope — Noldor-Sibling-Scope trailer', () => {
+  it('passes a mixed diff when the trailer covers every staged page', () => {
+    const result = validateScope({
+      message:
+        'feat(prep): add dispatch runner\n\nNoldor-Sibling-Scope: noldor:workflow\nNoldor-Path: fast-track\n',
+      stagedFiles: ['src/prep/dispatch.ts', 'docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('passes a mixed diff on the no-scope branch too', () => {
+    const result = validateScope({
+      message: 'feat: add dispatch runner\n\nNoldor-Sibling-Scope: noldor:workflow\n',
+      stagedFiles: ['src/prep/dispatch.ts', 'docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('passes a multi-page mixed diff with a comma-separated token list', () => {
+    const result = validateScope({
+      message:
+        'feat(core): rework markers\n\nNoldor-Sibling-Scope: noldor:workflow, noldor:lifecycle\n',
+      stagedFiles: ['src/core/session.ts', 'docs/noldor/workflow.md', 'docs/noldor/lifecycle.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('bare noldor token accepts any staged page set (subject-scope parity)', () => {
+    const result = validateScope({
+      message: 'feat(core): rework markers\n\nNoldor-Sibling-Scope: noldor\n',
+      stagedFiles: ['src/core/session.ts', 'docs/noldor/workflow.md', 'docs/noldor/lifecycle.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('fails when the trailer leaves a staged page uncovered', () => {
+    const result = validateScope({
+      message: 'feat(core): rework markers\n\nNoldor-Sibling-Scope: noldor:workflow\n',
+      stagedFiles: ['src/core/session.ts', 'docs/noldor/workflow.md', 'docs/noldor/lifecycle.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/docs\/noldor\/lifecycle\.md/);
+    expect(result.error).toMatch(/noldor:lifecycle/);
+  });
+
+  it('fails on an unknown slug in the trailer, listing valid slugs', () => {
+    const result = validateScope({
+      message: 'feat(core): rework markers\n\nNoldor-Sibling-Scope: noldor:nonexistent\n',
+      stagedFiles: ['src/core/session.ts', 'docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/unknown noldor slug "nonexistent"/);
+    expect(result.error).toMatch(/valid slugs: complexity-gating/);
+  });
+
+  it('fails on a token that is not noldor-shaped', () => {
+    const result = validateScope({
+      message: 'feat(core): rework markers\n\nNoldor-Sibling-Scope: engine\n',
+      stagedFiles: ['src/core/session.ts', 'docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/"engine"/);
+  });
+
+  it('rejects the trailer on a doc-only diff with the dedicated guard message', () => {
+    const result = validateScope({
+      message: 'docs: tidy\n\nNoldor-Sibling-Scope: noldor:workflow\n',
+      stagedFiles: ['docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/doc-only/);
+    expect(result.error).toMatch(/subject/);
+  });
+
+  it('ignores a sibling trailer stranded mid-body (not in the trailer block)', () => {
+    const result = validateScope({
+      message:
+        'feat: add dispatch\n\nNoldor-Sibling-Scope: noldor:workflow\n\nUnrelated body line.\n\nCo-Authored-By: Bot <bot@example.com>\n',
+      stagedFiles: ['src/prep/dispatch.ts', 'docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/no scope/);
   });
 });
