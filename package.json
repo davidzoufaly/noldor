@@ -1,5 +1,5 @@
 {
-  "name": "noldor",
+  "name": "@davidzoufaly/noldor",
   "version": "0.4.0",
   "private": false,
   "bin": {
@@ -14,6 +14,9 @@
   "type": "module",
   "exports": {
     "./templates/*": "./templates/*"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "tsc",

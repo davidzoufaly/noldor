@@ -3,8 +3,8 @@ on:
   push:
     tags: ['v*']
 permissions:
-  id-token: write
   contents: read
+  packages: write
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -15,7 +15,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          registry-url: https://npm.pkg.github.com
+          scope: '@davidzoufaly'
       - name: version guard — tag must equal package.json version
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
@@ -26,7 +27,7 @@ jobs:
           fi
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:contract
-      - name: publish (provenance gated on release.publish.provenance — needs public repo)
-        run: |
-          PROVENANCE_FLAG="$(node -p "require('./.noldor/config.json')?.release?.publish?.provenance ? '--provenance' : ''")"
-          npm publish $PROVENANCE_FLAG --access public
+      - name: publish to GitHub Packages (private, scoped → restricted access)
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

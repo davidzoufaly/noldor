@@ -43,25 +43,28 @@ Package hygiene largely shipped in PR #119 (tarball `files` filter drops the sel
 
 ## User Story
 
-As a maintainer of any repository on any machine, I want to install Noldor with `pnpm add -D noldor` from the public npm registry, so that I can adopt the framework with pinned, resolvable versions and no sibling clone of the framework repo.
+As a maintainer of any repository on any machine, I want to install Noldor from a private registry with `pnpm add -D @davidzoufaly/noldor` (GitHub Packages, authed with a `read:packages` token), so that I can adopt the framework with pinned, resolvable versions and no sibling clone — without the framework's source going public.
 
 ## Usage
 
 **Adopter (any repo, any machine):**
 
 ```bash
-pnpm init                     # or an existing repo
-pnpm add -D noldor            # registry install — no sibling clone
-pnpm noldor init              # scaffold docs/noldor, hooks, .noldor/config.json
-pnpm noldor doctor            # health check → green
+pnpm init                              # or an existing repo
+# project .npmrc:
+#   @davidzoufaly:registry=https://npm.pkg.github.com
+#   //npm.pkg.github.com/:_authToken=${NPM_TOKEN}   # read:packages token
+pnpm add -D @davidzoufaly/noldor       # private GitHub Packages — no sibling clone
+pnpm noldor init                       # scaffold docs/noldor, hooks, .noldor/config.json
+pnpm noldor doctor                     # health check → green
 ```
 
 **Releasing operator (Noldor repo):**
 
 ```bash
 pnpm release                  # existing gates → commit → tag → push → GH release
-                              # → tag triggers publish.yml (npm publish --provenance)
-                              # → pipeline polls registry until noldor@<v> visible
+                              # → tag triggers publish.yml (npm publish via GITHUB_TOKEN)
+                              # → pipeline polls GH Packages until @davidzoufaly/noldor@<v> visible
 pnpm release --resume         # after any interruption; rung 7 verifies/waits on publish
 ```
 
@@ -70,7 +73,7 @@ pnpm release --resume         # after any interruption; rung 7 verifies/waits on
 ```bash
 pnpm noldor release publish --verify-tarball   # local pack + scratch install check
 pnpm noldor release publish --wait 0.5.0       # re-attach to an in-flight publish
-pnpm noldor release publish --local            # CI-down emergency, no provenance, logged
+pnpm noldor release publish --local            # CI-down emergency (bypasses workflow), logged
 ```
 
 **Agent API:** none beyond the CLI — the gate/drain machinery is unaffected; publish is release-pipeline-only.

@@ -219,7 +219,7 @@ export const MANIFEST: Record<string, Group> = {
       },
       publish: {
         src: 'release/release-publish.ts',
-        desc: 'Tarball pre-flight + registry wait: --verify-tarball (default) / --wait <version> / --local (emergency, no provenance, logged)',
+        desc: 'Tarball pre-flight + registry wait: --verify-tarball (default) / --wait <version> / --local (emergency, bypasses workflow, logged)',
       },
     },
   },

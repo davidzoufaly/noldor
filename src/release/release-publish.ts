@@ -12,7 +12,7 @@ import { ensureCleanTreeOnMain } from './clean-tree.js';
 const execFileP = promisify(execFile);
 
 /** Default poll target; overridable per-consumer via `release.publish.registry`. */
-export const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
+export const DEFAULT_REGISTRY = 'https://npm.pkg.github.com';
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 const DEFAULT_POLL_MS = 10_000;
 
@@ -37,7 +37,27 @@ export interface RegistryProbe {
   exec?: ExecFn;
 }
 
-/** One registry probe: does `<pkg>@<version>` resolve? npm non-zero = not yet. */
+/** npm surfaces auth failures as `E401` / `401 Unauthorized` / `ENEEDAUTH`. */
+function isRegistryAuthError(error: unknown): boolean {
+  const parts: string[] = [];
+  if (error instanceof Error) parts.push(error.message);
+  if (typeof error === 'object' && error !== null) {
+    const stderr = (error as { stderr?: unknown }).stderr;
+    if (typeof stderr === 'string') parts.push(stderr);
+  }
+  const text = parts.join('\n');
+  return /\bE?401\b/.test(text) || /\bENEEDAUTH\b/.test(text) || /unauthorized/i.test(text);
+}
+
+/**
+ * One registry probe: does `<pkg>@<version>` resolve? A clean `npm view` = yes.
+ * npm does the `@scope%2Fname` path-encoding GH Packages wants, so the scoped
+ * spec is passed through untouched. A 404 (or any non-auth npm failure) → false
+ * (not published yet; keep polling). A **401** is different: on a private GH
+ * Packages registry it means the environment lacks a `read:packages` token, so
+ * the probe can never succeed — throw a clear error instead of polling to a
+ * misleading "publish failed" timeout.
+ */
 export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean> {
   const exec = probe.exec ?? realExec;
   const registry = probe.registry ?? DEFAULT_REGISTRY;
@@ -48,7 +68,15 @@ export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean
       probe.env,
     );
     return true;
-  } catch {
+  } catch (error) {
+    if (isRegistryAuthError(error)) {
+      throw new Error(
+        `${registry} returned 401 Unauthorized for ${probe.pkgName}@${probe.version}. ` +
+          'GitHub Packages needs a token with `read:packages` scope to see a private ' +
+          'package — set NODE_AUTH_TOKEN (or an `.npmrc` _authToken) in the release ' +
+          'environment. A 401 here is a missing/invalid token, NOT a failed publish.',
+      );
+    }
     return false;
   }
 }
@@ -74,9 +102,8 @@ function envTuning(env: Record<string, string> | undefined, key: string, fallbac
 
 /**
  * Poll the registry until `<pkg>@<version>` is visible. The publish itself is
- * executed by the tag-triggered publish.yml workflow (npm Trusted Publishing
- * via CI OIDC; `--provenance` only when `release.publish.provenance` is on —
- * attestation needs a public repo) — the release pipeline only WAITS here.
+ * executed by the tag-triggered publish.yml workflow (GitHub Packages, authed
+ * with the built-in `GITHUB_TOKEN`) — the release pipeline only WAITS here.
  * Timeout throws with the two recovery moves; the caller keeps
  * `.noldor/release-state.json` behind so `pnpm release --resume` can finish.
  */
@@ -143,10 +170,12 @@ async function verifyTarball(): Promise<void> {
 }
 
 /**
- * `--local`: CI-down emergency executor. Provenance is impossible outside CI
- * OIDC, so this is loud + logged (`.noldor/overrides.log`, surfaced by the
- * garden override-audit) and guarded by the release pipeline's own preflight
- * (main branch, clean tree, synced origin) plus a HEAD-tag check.
+ * `--local`: CI-down emergency executor. Bypasses the tag-triggered
+ * publish.yml workflow, so it's loud + logged (`.noldor/overrides.log`,
+ * surfaced by the garden override-audit) and guarded by the release pipeline's
+ * own preflight (main branch, clean tree, synced origin) plus a HEAD-tag check.
+ * Needs a GH Packages token with `write:packages` in the local `.npmrc` /
+ * NODE_AUTH_TOKEN.
  */
 async function publishLocal(cwd: string): Promise<void> {
   await ensureCleanTreeOnMain();
@@ -160,12 +189,12 @@ async function publishLocal(cwd: string): Promise<void> {
     );
   }
   console.warn(
-    'WARNING: --local publishes WITHOUT provenance (emergency hatch for CI-down). ' +
-      'Prefer re-running the publish.yml workflow.',
+    'WARNING: --local publishes from your workstation, bypassing publish.yml ' +
+      '(emergency hatch for CI-down). Prefer re-running the workflow.',
   );
   appendOverrideLog(cwd, 'release publish --local', 'release');
-  await execFileP('npm', ['publish', '--access', 'public'], { cwd });
-  console.log(`Published ${name}@${version} to the registry (no provenance).`);
+  await execFileP('npm', ['publish'], { cwd });
+  console.log(`Published ${name}@${version} to ${DEFAULT_REGISTRY}.`);
 }
 
 /** `--wait <version>`: bare awaitPublish, for a release whose state file is gone. */

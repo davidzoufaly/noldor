@@ -48,6 +48,17 @@ describe('isVersionOnRegistry', () => {
     ).resolves.toBe(false);
   });
 
+  it('throws a clear read:packages error on a 401 (missing token ≠ not published)', async () => {
+    const exec: ExecFn = async () => {
+      throw new Error(
+        'Command failed: npm view …\nnpm error code E401\nnpm error 401 Unauthorized - GET https://npm.pkg.github.com/@davidzoufaly%2fnoldor',
+      );
+    };
+    await expect(
+      isVersionOnRegistry({ pkgName: '@davidzoufaly/noldor', version: '0.5.0', exec }),
+    ).rejects.toThrow(/401[\s\S]*read:packages/);
+  });
+
   it('honours a configured registry', async () => {
     const fake = fakeExec(0);
     await isVersionOnRegistry({
