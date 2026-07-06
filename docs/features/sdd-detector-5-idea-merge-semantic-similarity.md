@@ -25,11 +25,19 @@ Scope carried from the source roadmap block:
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator (or triage agent) running `/triage`, I want the merge-candidate hosts surfaced as an explicit ranked shortlist drawn from all FDs, roadmap, and backlog entries — with FD matches proposed as parent-linked new entries — so that I fold new ideas into existing work instead of scattering near-duplicate entries that `/garden` later flags.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**CLI**
+
+- `pnpm noldor triage merge-candidates` — print a human-readable table of every merge candidate (`kind · slug · name · disposition`) for eyeballing.
+- `pnpm noldor triage merge-candidates --json` — emit the candidate corpus as JSON; consumed by `/triage`.
+
+**Triage integration**
+
+- `/triage` calls `merge-candidates --json` once per run. For each untriaged idea it ranks the corpus and surfaces the top-3 considered hosts as a `cands: a, b, c` annotation in the confirmation table.
+- Disposition per match: a roadmap/backlog host → `merge:<slug>` (sub-bullet append); an FD host → a new entry carrying `parent:<fd-slug>` (attach intent for a later `/promote`); no match → a parent-less new entry.
 
 ## PRs
 
