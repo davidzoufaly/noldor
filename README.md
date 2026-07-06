@@ -4,14 +4,23 @@ Discipline framework for agent-driven software development. Single gate, doc-anc
 
 ## Status
 
-Standalone repo (`github.com/davidzoufaly/noldor`), lifted out of the Charuy monorepo. Pre-1.0 (see `package.json` for the current version, also printed by `noldor --version`) and self-hosting — Noldor dogfoods its own gate, drain, and release framework. Distributed on the public npm registry as [`noldor`](https://www.npmjs.com/package/noldor) — tag-driven publishes via npm Trusted Publishing (provenance attestation arrives with `release.publish.provenance` once the repo is public). Version migrations ship via `noldor upgrade` (migration chain + `noldor doctor` skew detection).
+Standalone repo (`github.com/davidzoufaly/noldor`), lifted out of the Charuy monorepo. Pre-1.0 (see `package.json` for the current version, also printed by `noldor --version`) and self-hosting — Noldor dogfoods its own gate, drain, and release framework. Distributed as a **private GitHub Packages** npm package, `@davidzoufaly/noldor` — tag-driven publishes authed with the built-in `GITHUB_TOKEN`. Distribution is closed-source by design: the tarball ships readable `src/` (tsx-on-source runtime), so a public registry is not an option. Version migrations ship via `noldor upgrade` (migration chain + `noldor doctor` skew detection).
 
 ## Quick start
 
+Noldor is a **private** package on GitHub Packages, so first authenticate npm to that registry. In your project `.npmrc`:
+
+```
+@davidzoufaly:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NPM_TOKEN}
+```
+
+`NPM_TOKEN` is a GitHub token with `read:packages` and access to the noldor repo (fine-grained recommended). Then:
+
 ```bash
-pnpm add -D noldor    # public npm registry — no clone needed
-pnpm noldor init      # scaffold docs/noldor, hooks, .noldor/config.json
-pnpm noldor doctor    # health check → green
+pnpm add -D @davidzoufaly/noldor   # private GitHub Packages — no clone needed
+pnpm noldor init                   # scaffold docs/noldor, hooks, .noldor/config.json
+pnpm noldor doctor                 # health check → green
 ```
 
 ## Configuration
@@ -32,7 +41,7 @@ Framework contributors work against a clone. A consumer repo on the same machine
 ```json
 {
   "devDependencies": {
-    "noldor": "file:../noldor"
+    "@davidzoufaly/noldor": "file:../noldor"
   }
 }
 ```

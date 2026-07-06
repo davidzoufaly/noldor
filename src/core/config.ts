@@ -79,16 +79,14 @@ export const crGateExemptionSchema = z.object({
  * consumer running the vendored release pipeline (Charuy, the contract
  * fixture) keeps byte-identical behaviour with no config change; only the
  * framework repo opts in. The tag-triggered publish.yml workflow is the
- * publish EXECUTOR — it reads `provenance` from this checked-in block, while
- * the other values drive the local pipeline's registry poll target and log
+ * publish EXECUTOR (GitHub Packages, authed with the built-in `GITHUB_TOKEN`);
+ * the values here drive the local pipeline's registry poll target and log
  * lines (`distTag` is echoed; the workflow hard-codes `latest` pre-1.0).
  */
 export const releasePublishConfigSchema = z.object({
   enabled: z.boolean().default(false),
-  registry: z.string().url().default('https://registry.npmjs.org'),
+  registry: z.string().url().default('https://npm.pkg.github.com'),
   distTag: z.string().default('latest'),
-  /** Provenance attestation requires a PUBLIC repo; flip on after open-sourcing. */
-  provenance: z.boolean().default(false),
 });
 
 /** Parsed `release.publish` block. */
