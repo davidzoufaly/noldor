@@ -17,7 +17,7 @@ links:
 name: SDD Detector 5 — Idea-Merge Semantic Similarity
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 entry-id: Q-0003
 ---
