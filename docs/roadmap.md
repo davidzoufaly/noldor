@@ -20,50 +20,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Phase 3 — Adoption Chain
 
-#### Init Scaffold Noldor-Scope Allowlist
-
-- id: Q-0015
-- area: tooling
-- type: fix
-- since: 2026-07-05
-- size: S
-- impact: med
-- confidence: med
-- parent: noldor
-
-The first adoption commit necessarily stages `docs/noldor/**` (24 scaffolded pages), which trips the `noldor-scope` hook demanding a `(noldor)` scope — with nothing in the guide telling the operator to commit as `chore(noldor):` (friction #13). Either allowlist the known `init` scaffold set in the `noldor-scope` hook so the bootstrap commit passes unscoped, or document the required `chore(noldor):` scope for the bootstrap commit.
-
-#### Lockstep-Packages Scaffold vs Doc
-
-- id: Q-0016
-- area: tooling
-- type: fix
-- since: 2026-07-05
-- size: XS
-- impact: low
-- confidence: med
-- parent: noldor
-
-The starter `.noldor/config.json` ships `"lockstepPackages": ["package.json"]` (a filename), while the field-table doc, the example config, and `new-feature`'s schema all treat the field as package *names* (`docs/noldor/adoption-guide.md:46,63`; ps-offsite scaffolded the wrong default) — friction #6. Fix the scaffold default (a package name or a clear placeholder) so it agrees with the docs.
-
-#### Adoption-Guide Accuracy Sweep
-
-- id: Q-0013
-- area: tooling
-- type: docs
-- since: 2026-07-05
-- size: S
-- impact: low
-- confidence: med
-- parent: noldor
-
-Residual `docs/noldor/adoption-guide.md` walkthrough gaps the consumer-2 dogfood surfaced, after the Prerequisites matrix (#137) and #140 closed the bigger ones. The matrix now names pnpm, lefthook, and the lint/fmt/fmt:check/test scripts as floors, so `doctor` catches them at minute one — but the numbered Bootstrap walkthrough still omits them plus a couple of live-enforcement surprises. Fix in one prose pass:
-
-- friction #2 — add an explicit "add `lefthook` as your own devDep (`pnpm add -D lefthook`)" bootstrap step; §4 only notes postinstall skips it when absent.
-- friction #10 — warn that the first edit after `git add -A` needs a gate session (the pre-edit guard arms itself against the now-tracked bootstrap files).
-- friction #12 — document incremental lint adoption (an oxlint ignore ramp); `oxlint --deny-warnings` over the whole repo blocks the bootstrap commit on pre-existing warnings in legacy code.
-- friction #1 / #5 (minor) — mirror the matrix into the numbered walkthrough (name pnpm before the first `pnpm add`; say "add the lint/fmt scripts if you lack them").
-
 #### Real Consumer #2 Adoption Dogfood
 
 - id: Q-0001

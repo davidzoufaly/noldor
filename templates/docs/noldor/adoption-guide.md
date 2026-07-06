@@ -37,13 +37,15 @@ schema version. Run `pnpm noldor upgrade --dry-run` to review the migration
 diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
 [versioning.md](versioning.md#version-aware-upgrade).
 
+> **First commit & gotchas.** The scaffolded lefthook jobs shell out to your `lint` / `fmt` / `fmt:check` / `test` scripts and to `lefthook` itself — add any you lack (`pnpm add -D lefthook`; add the four package scripts if missing) so the first commit's hooks don't fail with "missing script". The bootstrap commit stages `docs/noldor/**`, but the `noldor-scope` hook allowlists the `init` scaffold set, so it lands clean (no `(noldor)` scope required). Once those files are tracked, the pre-edit guard arms: the **next** edit to a tracked file needs a `/gate` session. Adopting the lint floor (`oxlint --deny-warnings`) on a repo that already has warnings will block that first commit — fix them, or stage an oxlint ignore ramp before adopting.
+
 ## `.noldor/config.json` → `consumer:` block
 
 | Field               | Meaning                                                                    |
 | ------------------- | -------------------------------------------------------------------------- |
 | `name`              | Consumer project name (used in logs and release output).                   |
 | `repoUrl`           | Repository URL (used for changelog/PR links).                              |
-| `lockstepPackages`  | Packages bumped together each release. A single-package repo lists one.    |
+| `lockstepPackages`  | Paths to the `package.json` file(s) version-bumped together each release (each is read and rewritten in place). A single-package repo lists `["package.json"]`. |
 | `scanPaths`         | Source roots the SDD detectors + graph-freshness scan (e.g. `["src"]`).    |
 | `boundaries`        | dependency-cruiser forbidden-rule shapes for the invariants check.         |
 | `deprecatedPackages`| Packages flagged on import.                                                |
@@ -60,12 +62,12 @@ diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
 
 ```json
 { "consumer": { "name": "acme", "repoUrl": "https://github.com/acme/acme",
-  "lockstepPackages": ["acme"], "scanPaths": ["src"], "appPathPrefix": "src",
+  "lockstepPackages": ["package.json"], "scanPaths": ["src"], "appPathPrefix": "src",
   "packagePrefix": "@acme/", "e2ePrefix": "e2e/", "samplesPath": "samples", "boundaries": [], "deprecatedPackages": [],
   "categories": ["Core", "Tooling", "Other"], "areaCategories": { "core": "Core", "tooling": "Tooling" } } }
 ```
 
-A monorepo lists multiple `lockstepPackages` and broader `scanPaths` (e.g. `["packages", "apps"]`).
+A monorepo lists one `package.json` path per package in `lockstepPackages` (e.g. `["packages/app/package.json", "packages/lib/package.json"]`) and broader `scanPaths` (e.g. `["packages", "apps"]`).
 
 ## Optional: autonomous CR config
 
