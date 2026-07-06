@@ -23,7 +23,7 @@ entry-id: Q-0003
 ---
 ## Summary
 
-Standalone graphify enhancement (not in the substrate family). When `/triage` proposes targets for ideas in `ideas.md`, compute semantic similarity between idea text and existing FD names + community labels via graphify; surface top-3 `merge:<slug>` candidates ranked by similarity. Reduces hand-judgment burden in `/triage` and biases toward merging into existing host FDs (per CLAUDE.md `/triage` rubric). Trigger: when next batch of ideas accumulates and triage feels noisy.
+When `/triage` proposes targets for ideas in `ideas.md`, a `triage merge-candidates` CLI emits the full merge-candidate corpus — every FD, roadmap block, and backlog block — as structured JSON, and `/triage`'s LLM ranks the top-3 `merge:<slug>` hosts per idea and surfaces them in the confirmation table. Reduces hand-judgment burden in `/triage` and biases toward merging into existing host FDs (per CLAUDE.md `/triage` rubric). The original "semantic similarity via graphify / community labels" framing was dropped at spec time — graphify's AST graph carries no feature-level embeddings, and Noldor's offline/deterministic posture rules out an external embedding model; ranking is deterministic-corpus + in-skill LLM judgment, no embeddings or network (see the linked spec). Trigger: when next batch of ideas accumulates and triage feels noisy.
 
 Scope carried from the source roadmap block:
 
