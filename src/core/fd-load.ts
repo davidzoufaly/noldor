@@ -169,6 +169,24 @@ export async function loadSddFeatures(dir: string): Promise<FeatureRecord[]> {
 }
 
 /**
+ * Extract the trimmed body of an FD's `## Summary` section, or `''` when the
+ * section is absent. Pure — operates on the raw markdown (gray-matter
+ * frontmatter has no `## ` heading so it never matches). Mirrors the Summary
+ * regex in `src/cr/read-fd-summary.ts` (that copy throws on absence; this one
+ * returns `''` so a stub FD contributes an empty summary rather than crashing
+ * a corpus build). Consolidating the two copies onto this core helper is a
+ * deferred follow-up — `cr → core` is an allowed edge.
+ *
+ * @param md - Raw feature-MD file contents (frontmatter included).
+ * @returns Trimmed `## Summary` body, or `''` when there is no Summary section.
+ */
+export function extractSummary(md: string): string {
+  // `(?=^## |$(?![\s\S]))` = next H2 OR end-of-input (JS has no `\Z`).
+  const m = md.match(/^## Summary\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
+  return m ? m[1]!.trim() : '';
+}
+
+/**
  * List spec markdown files in a directory as cwd-relative paths.
  *
  * @param dir - Directory containing spec MDs (typically

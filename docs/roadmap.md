@@ -54,20 +54,6 @@ Both existing consumers are degenerate cases: Charuy is the origin monorepo Nold
 
 ### Trigger-Parked (revisit when the named trigger fires)
 
-#### SDD Detector 5 — Idea-Merge Semantic Similarity
-
-- id: Q-0003
-- area: tooling
-- type: feat
-- since: 2026-05-07
-- size: M
-- impact: med
-
-Standalone graphify enhancement (not in the substrate family). When `/triage` proposes targets for ideas in `ideas.md`, compute semantic similarity between idea text and existing FD names + community labels via graphify; surface top-3 `merge:<slug>` candidates ranked by similarity. Reduces hand-judgment burden in `/triage` and biases toward merging into existing host FDs (per CLAUDE.md `/triage` rubric). Trigger: when next batch of ideas accumulates and triage feels noisy.
-
-- Strengthen merge-first behavior — `/triage` should propose merging into existing roadmap/backlog blocks before suggesting new entries, with the candidate-host list surfaced explicitly in the confirmation table (today the bias is implicit).
-- When checking an FD, also scan backlog for other candidates for the same FD → suggest a new FD with higher confidence so it stays useful later too.
-
 #### Noldor Section-Age Staleness Detector
 
 - id: Q-0004

@@ -121,6 +121,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'triage/backfill-ids-cli.ts',
         desc: 'Idempotent one-sweep stamp of `- id:` onto all id-less roadmap/backlog entries',
       },
+      'merge-candidates': {
+        src: 'triage/merge-candidates-cli.ts',
+        desc: 'Emit the merge-candidate corpus (FDs + roadmap + backlog) for /triage; --json for machine output',
+      },
     },
   },
   rules: {

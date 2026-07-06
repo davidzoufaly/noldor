@@ -28,9 +28,14 @@ In-progress work (FDs with `phase: in-progress`) is tracked via FD frontmatter, 
 
 1. **Read** `docs/vision.md` (frontmatter + body) for strategic context.
 2. **Read** `docs/roadmap.md` and `docs/backlog.md` in full — both for area conventions AND to enumerate existing schema-C blocks (heading + summary paragraph) as merge candidates for step 4.
-3. **Run** `pnpm noldor triage list-untriaged`. Capture the JSON output. If `untriaged` is empty, report "Nothing to triage" and stop.
+3. **Run** `pnpm noldor triage list-untriaged`. Capture the JSON output. If `untriaged` is empty, report "Nothing to triage" and stop. Then **run** `pnpm noldor triage merge-candidates --json` and capture the corpus — every FD, roadmap block, and backlog block as `{ kind, slug, id?, name, summary, phase?, disposition }`. On non-zero exit, note it and fall back to the manual scan of step 2 (the corpus is an aid, never a gate).
 4. **For each** untriaged bullet, first decide: **new entry** or **merge into existing**?
-   - Scan the schema-C blocks enumerated in step 2. Use LLM judgment on the bullet text vs. each block's heading + summary paragraph: same capability, same problem, same component? If yes → propose `merge:<existing-slug>`. Bias toward merge when overlap is plausible — operator can reject in confirmation.
+   - Rank the merge-candidate corpus (step 3) against the bullet text by judged overlap (name + summary): same capability, same problem, same component? Take the **top-3** as the candidate shortlist. Bias toward merge when overlap is plausible — operator can reject in confirmation. (On corpus fallback, scan the schema-C blocks enumerated in step 2 by hand instead.)
+   - **Disposition follows the candidate `kind`:**
+     - `roadmap` / `backlog` (disposition `merge`) → propose `merge:<slug>` (sub-bullet append, as below).
+     - `feature` (disposition `parent`) → the idea overlaps an already-promoted FD; propose a **new entry** (roadmap/backlog per the rubric) carrying `- parent: <fd-slug>` so a later `/promote` attaches it (`*-attach`). Never sub-bullet-merge into an FD.
+     - no candidate clears the bar → parent-less **new entry**.
+   - **Surface the shortlist:** annotate each idea's row in the confirmation table with `cands: <slug1>, <slug2>, <slug3>` — the top-3 considered — so the (previously implicit) merge bias is visible and the operator can force a different host via `edit`.
    - On a merge proposal, also check whether the host block belongs in its current position (priority within the roadmap) or its current file (roadmap vs backlog). If the new bullet implies the host should move (e.g. matched a low-priority entry but the new idea makes it more urgent; matched a `backlog` block that should now be on the roadmap), propose a `promote-to:<position>` or `promote-to:roadmap` annotation alongside the merge.
    - On a **new entry**, propose:
      - **slug** — kebab-case derived from the bullet text (lowercase, replace spaces/slashes with hyphens, strip non-alphanumerics, max 60 chars)
