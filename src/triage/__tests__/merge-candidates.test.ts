@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildMergeCandidates } from '../merge-candidates.js';
+import { formatTable } from '../merge-candidates-cli.js';
 
 // @tests: sdd-detector-5-idea-merge-semantic-similarity
 
@@ -139,5 +140,25 @@ describe(buildMergeCandidates, () => {
     // no roadmap.md, no backlog.md written
     const out = await buildMergeCandidates(root);
     expect(out.map((c) => c.kind)).toStrictEqual(['feature']);
+  });
+});
+
+describe(formatTable, () => {
+  it('renders one aligned row per candidate (kind, disposition, slug, name)', () => {
+    const out = formatTable([
+      { kind: 'feature', slug: 'foo', name: 'Foo Feature', summary: '', disposition: 'parent' },
+      { kind: 'roadmap', slug: 'bar-thing', name: 'Bar Thing', summary: '', disposition: 'merge' },
+    ]);
+    const lines = out.split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('feature');
+    expect(lines[0]).toContain('parent');
+    expect(lines[0]).toContain('foo');
+    expect(lines[0]).toContain('Foo Feature');
+    expect(lines[1]).toContain('roadmap');
+  });
+
+  it('renders a placeholder for an empty corpus', () => {
+    expect(formatTable([])).toBe('(no merge candidates)');
   });
 });
