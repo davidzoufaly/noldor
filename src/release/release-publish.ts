@@ -37,7 +37,15 @@ export interface RegistryProbe {
   exec?: ExecFn;
 }
 
-/** npm surfaces auth failures as `E401` / `401 Unauthorized` / `ENEEDAUTH`. */
+/**
+ * npm surfaces registry auth failures as an error CODE (`E401` / `E403` /
+ * `ENEEDAUTH`) plus a status phrase (`Unauthorized` / `Forbidden`). GH Packages
+ * answers a token that lacks `read:packages` — or exists but isn't SAML/SSO
+ * authorized for the org — with **403**, so both 401 and 403 count. Match the
+ * codes and phrases, never a bare `\b401\b`: the scanned text includes the
+ * package spec (`name@version`), so a bare-digit match would fire on a version
+ * like `pkg@0.401.0` and turn a genuine 404 into a spurious "missing token".
+ */
 function isRegistryAuthError(error: unknown): boolean {
   const parts: string[] = [];
   if (error instanceof Error) parts.push(error.message);
@@ -46,17 +54,17 @@ function isRegistryAuthError(error: unknown): boolean {
     if (typeof stderr === 'string') parts.push(stderr);
   }
   const text = parts.join('\n');
-  return /\bE?401\b/.test(text) || /\bENEEDAUTH\b/.test(text) || /unauthorized/i.test(text);
+  return /\bE(401|403|NEEDAUTH)\b/i.test(text) || /\b(unauthorized|forbidden)\b/i.test(text);
 }
 
 /**
  * One registry probe: does `<pkg>@<version>` resolve? A clean `npm view` = yes.
  * npm does the `@scope%2Fname` path-encoding GH Packages wants, so the scoped
  * spec is passed through untouched. A 404 (or any non-auth npm failure) → false
- * (not published yet; keep polling). A **401** is different: on a private GH
- * Packages registry it means the environment lacks a `read:packages` token, so
- * the probe can never succeed — throw a clear error instead of polling to a
- * misleading "publish failed" timeout.
+ * (not published yet; keep polling). A **401 or 403** is different: on a private
+ * GH Packages registry it means the environment lacks a usable `read:packages`
+ * token, so the probe can never succeed — throw a clear error instead of polling
+ * to a misleading "publish failed" timeout.
  */
 export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean> {
   const exec = probe.exec ?? realExec;
@@ -71,10 +79,11 @@ export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean
   } catch (error) {
     if (isRegistryAuthError(error)) {
       throw new Error(
-        `${registry} returned 401 Unauthorized for ${probe.pkgName}@${probe.version}. ` +
-          'GitHub Packages needs a token with `read:packages` scope to see a private ' +
-          'package — set NODE_AUTH_TOKEN (or an `.npmrc` _authToken) in the release ' +
-          'environment. A 401 here is a missing/invalid token, NOT a failed publish.',
+        `${registry} returned an auth error (401/403) for ${probe.pkgName}@${probe.version}. ` +
+          'GitHub Packages needs a token with `read:packages` (and, for an org, SSO ' +
+          'authorization) to see a private package — configure an `.npmrc` for ' +
+          'npm.pkg.github.com with a `_authToken` that the release environment resolves. ' +
+          'An auth error here is a missing/invalid token, NOT a failed publish.',
       );
     }
     return false;
@@ -194,7 +203,7 @@ async function publishLocal(cwd: string): Promise<void> {
   );
   appendOverrideLog(cwd, 'release publish --local', 'release');
   await execFileP('npm', ['publish'], { cwd });
-  console.log(`Published ${name}@${version} to ${DEFAULT_REGISTRY}.`);
+  console.log(`Published ${name}@${version} to the package.json publishConfig registry.`);
 }
 
 /** `--wait <version>`: bare awaitPublish, for a release whose state file is gone. */

@@ -56,7 +56,32 @@ describe('isVersionOnRegistry', () => {
     };
     await expect(
       isVersionOnRegistry({ pkgName: '@davidzoufaly/noldor', version: '0.5.0', exec }),
-    ).rejects.toThrow(/401[\s\S]*read:packages/);
+    ).rejects.toThrow(/401\/403[\s\S]*read:packages/);
+  });
+
+  it('throws on a 403 Forbidden (token lacks read:packages / not SSO-authorized)', async () => {
+    const exec: ExecFn = async () => {
+      throw new Error(
+        'npm error code E403\nnpm error 403 Forbidden - GET https://npm.pkg.github.com/@davidzoufaly%2fnoldor',
+      );
+    };
+    await expect(
+      isVersionOnRegistry({ pkgName: '@davidzoufaly/noldor', version: '0.5.0', exec }),
+    ).rejects.toThrow(/401\/403[\s\S]*read:packages/);
+  });
+
+  it('does NOT treat a 404 whose spec carries 401-like digits as an auth error', async () => {
+    // The scanned error text includes `name@version`; a bare `\b401\b` would
+    // fire on a version segment like `0.401.0`. A genuine 404 must keep polling
+    // (→ false), never throw the missing-token error.
+    const exec: ExecFn = async () => {
+      throw new Error(
+        'npm error code E404\nnpm error 404 Not Found - GET https://npm.pkg.github.com/noldor - noldor@0.401.0',
+      );
+    };
+    await expect(
+      isVersionOnRegistry({ pkgName: 'noldor', version: '0.401.0', exec }),
+    ).resolves.toBe(false);
   });
 
   it('honours a configured registry', async () => {
