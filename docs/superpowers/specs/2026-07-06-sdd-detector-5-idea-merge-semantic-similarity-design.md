@@ -52,11 +52,15 @@ All paths come from `const roots = loadDocRoots(docRoot)` ([src/core/doc-roots.t
 - **Backlog** — `parseBacklog(await readFile(roots.backlog, 'utf8'))` (same module) → same mapping with `kind:'backlog'`, plus `phase: entry.phase`.
 - **Features** — `loadSddFeatures(roots.features)` from [src/core/fd-load.ts](../../../src/core/fd-load.ts) (`loadSddFeatures(dir)` takes the **features directory**, not the repo root — mirrors `src/garden/sdd-report.ts:880`, `src/features/propose-pointers.ts:123`) → `FeatureRecord[]` gives `{slug, frontmatter}`. Map: `kind:'feature'`, `slug`, `id: frontmatter['entry-id']`, `name: frontmatter.name`, `phase: frontmatter.phase`, `disposition:'parent'`, `summary: <see Unit 2>`.
 
-Missing `roadmap`/`backlog` file → `readFile` rejects; wrap each in a catch → `''` (empty raw → `parse*` returns `[]`), matching the tolerant "missing file = empty" pattern in `triage-list-untriaged.ts:79` and `loadSddFeatures`' own ENOENT→`[]`.
+Missing `roadmap`/`backlog` file → treat as empty: catch **only** `ENOENT` and return `''` (empty raw → `parse*` returns `[]`); **rethrow every other error** (EACCES, EISDIR, …) so real I/O faults surface instead of silently emptying the corpus. Mirror `loadSddFeatures`' own `ENOENT`→`[]` guard ([src/core/fd-load.ts:155](../../../src/core/fd-load.ts)) — not the broader bare `.catch(() => '')` at `triage-list-untriaged.ts:79`.
+
+**Empty-slug guard:** `parseRoadmap`/`parseBacklog` emit `slug: ''` for all-punctuation headings (documented at [src/utils/parse-blocks.ts:32-38](../../../src/utils/parse-blocks.ts)). Skip any entry whose `slug` is empty — an empty slug can't form a valid `merge:<slug>` proposal and the HTTP layer already 400s on it. FDs are keyed by filename stem so never hit this.
 
 ### Unit 2 — `extractSummary(md: string): string` (add to `src/core/fd-load.ts`)
 
 `FeatureRecord` carries only `{slug, frontmatter}` — not the body. Add a **pure** `extractSummary(md: string): string` to [src/core/fd-load.ts](../../../src/core/fd-load.ts) (co-located with `loadSddFeatures`/`FeatureRecord` — the natural home for FD-body helpers): match the `## Summary` section body and return it trimmed, `''` when absent. The builder reads each FD file (`await readFile(join(roots.features, slug + '.md'), 'utf8')`) and calls `extractSummary` on it. Matching on Summary (not just the terse `name`, e.g. "SDD Detector 5 — Idea-Merge Semantic Similarity") gives the ranking LLM real signal; re-reading ≤~100 small FD files is negligible.
+
+This **double-reads** each FD body — `loadSddFeatures` already read the file (`raw` at [src/core/fd-load.ts:164](../../../src/core/fd-load.ts)) and discarded everything but `{slug, frontmatter}`. Accepted over the alternative of widening the shared `FeatureRecord` type / `loadSddFeatures` signature to carry the body, which would ripple through every consumer (`sdd-report`, `propose-pointers`, `dashboard/data`, …) for a one-caller need. The extra reads are trivial at this corpus size; revisit only if a hot path ever needs both.
 
 **Why not reuse `readFdSummary`** ([src/cr/read-fd-summary.ts:3](../../../src/cr/read-fd-summary.ts)): it has the exact regex, but lives in `src/cr` — importing it into `src/triage` creates a `triage → cr` edge that Noldor's boundary rules forbid (self-boundaries, PR #156). Placing `extractSummary` in `core` keeps the dependency `triage → core` (allowed) and, since `cr → core` is also allowed, lets `read-fd-summary.ts` optionally delegate to it later. That consolidation (removing the duplicated regex) is a **known, acknowledged** follow-up — deferred here to avoid touching the verify lane's dependency in this slice, not silently ignored.
 
@@ -90,6 +94,8 @@ Error handling: CLI failure (non-zero exit) is surfaced by the skill and it fall
 - `disposition` is `'parent'` for `kind:'feature'`, `'merge'` for `kind:'roadmap'|'backlog'`.
 - `extractSummary` returns the trimmed `## Summary` body, and `''` when the section is absent — both covered by unit tests.
 - `buildMergeCandidates` unit test: fixture docRoot with ≥1 FD + ≥1 roadmap block + ≥1 backlog block asserts count, kinds, dispositions, summary extraction, and empty-summary fallback.
+- Entries with an empty `slug` (all-punctuation headings) are excluded from the corpus — covered by a fixture block with a punctuation-only heading.
+- A missing `roadmap.md`/`backlog.md` contributes zero candidates (no throw); a non-`ENOENT` read error propagates — covered by a fixture with the file absent.
 - Default (non-`--json`) invocation prints a human-readable table.
 - `.claude/skills/triage/SKILL.md` step 4 references the new CLI + disposition rule + `cands:` surfacing; `pnpm noldor validate skill-catalog`, `pnpm noldor sync doc-links`, and `pnpm noldor validate features` stay green.
 - No new runtime dependency; no network call; output is deterministic for a fixed doc tree.
