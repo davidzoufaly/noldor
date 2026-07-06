@@ -11,6 +11,15 @@ const KNOWN_SLUGS = new Set([
   'feature-md-schema',
 ]);
 
+// Representative init-scaffold page set (a subset of the real ~25 templates).
+const SCAFFOLD_SLUGS = new Set([
+  'index',
+  'lifecycle',
+  'workflow',
+  'complexity-gating',
+  'feature-md-schema',
+]);
+
 describe('validateScope', () => {
   it('passes when no noldor files staged (regardless of scope)', () => {
     const result = validateScope({
@@ -285,5 +294,81 @@ describe('validateScope — sibling-trailer teaching in the failure message', ()
     });
     expect(result.success).toBe(false);
     expect(result.error).not.toMatch(/Noldor-Sibling-Scope/);
+  });
+});
+
+describe('validateScope — init-scaffold bootstrap allowlist', () => {
+  it('passes an unscoped first-adoption commit when every staged noldor page is scaffold', () => {
+    const result = validateScope({
+      message: 'chore: bootstrap noldor',
+      stagedFiles: [
+        'docs/noldor/README.md',
+        'docs/noldor/workflow.md',
+        'docs/noldor/lifecycle.md',
+        '.noldor/config.json',
+        'lefthook.yml',
+      ],
+      headHasNoldorPages: false,
+      knownSlugs: KNOWN_SLUGS,
+      scaffoldSlugs: SCAFFOLD_SLUGS,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('passes an agent-filtered bootstrap (only a subset of scaffold pages staged)', () => {
+    const result = validateScope({
+      message: 'chore: bootstrap noldor',
+      stagedFiles: ['docs/noldor/workflow.md', 'docs/noldor/lifecycle.md'],
+      headHasNoldorPages: false,
+      knownSlugs: KNOWN_SLUGS,
+      scaffoldSlugs: SCAFFOLD_SLUGS,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('still gates a doc commit once the tree is adopted (HEAD already has pages)', () => {
+    const result = validateScope({
+      message: 'docs: tweak workflow',
+      stagedFiles: ['docs/noldor/workflow.md'],
+      headHasNoldorPages: true,
+      knownSlugs: KNOWN_SLUGS,
+      scaffoldSlugs: SCAFFOLD_SLUGS,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/no scope/);
+  });
+
+  it('gates a delete-then-readd rewrite on an adopted tree (no general bypass)', () => {
+    // Regression: re-adding a scaffold-named page on a tree that still tracks
+    // other noldor pages must NOT slip through unscoped.
+    const result = validateScope({
+      message: 'chore: readd workflow',
+      stagedFiles: ['docs/noldor/workflow.md'],
+      headHasNoldorPages: true,
+      knownSlugs: KNOWN_SLUGS,
+      scaffoldSlugs: SCAFFOLD_SLUGS,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('still gates a first-adoption commit that stages a non-scaffold page', () => {
+    const result = validateScope({
+      message: 'chore: add pages',
+      stagedFiles: ['docs/noldor/workflow.md', 'docs/noldor/my-custom.md'],
+      headHasNoldorPages: false,
+      knownSlugs: new Set([...KNOWN_SLUGS, 'my-custom']),
+      scaffoldSlugs: SCAFFOLD_SLUGS,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('does not fire the allowlist when headHasNoldorPages is absent (fail-closed)', () => {
+    const result = validateScope({
+      message: 'docs: tidy',
+      stagedFiles: ['docs/noldor/workflow.md'],
+      knownSlugs: KNOWN_SLUGS,
+      scaffoldSlugs: SCAFFOLD_SLUGS,
+    });
+    expect(result.success).toBe(false);
   });
 });
