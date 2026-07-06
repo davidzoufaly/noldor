@@ -21,7 +21,7 @@ links:
 name: Registry Distribution for the Noldor Package
 packages:
   - scripts
-phase: done
+phase: in-progress
 noldor-tier: specs-only
 ---
 ## Summary
