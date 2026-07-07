@@ -1,7 +1,7 @@
 ---
 noldor-page: research-fanout
+introduced: 0.5.0
 ---
-
 # Research Fanout
 
 Parallel read-only research agents: `pnpm noldor research fanout` takes N independent task specs, spawns one context-isolated `researcher` agent per task through the [agent-runner registry](agent-runtimes.md) (max K concurrent), and writes findings + a deterministic `INDEX.md` to a gitignored staging dir. The build-side twin of this read-side primitive is the K-concurrent drain.

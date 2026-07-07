@@ -1,7 +1,7 @@
 ---
 noldor-page: drain-mode
+introduced: 0.5.0
 ---
-
 <!-- @feature: portable-gate-entrypoint-for-non-claude-runners -->
 
 # Drain Mode
