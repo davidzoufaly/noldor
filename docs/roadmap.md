@@ -20,32 +20,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Phase 3 — Adoption Chain
 
-#### Real Consumer #2 Adoption Dogfood
-
-- id: Q-0001
-- area: tooling
-- type: chore
-- since: 2026-06-11
-- size: M
-- impact: high
-- parent: noldor
-
-Both existing consumers are degenerate cases: Charuy is the origin monorepo Noldor was extracted from, and self-host is the framework itself. Neither exercises the adoption path the way a foreign repo would. Adopt Noldor into one real, structurally different project (single-package repo, different domain, ideally an existing repo of the operator's with live development) and drive real work through it. Template-layer blockers cleared by PR #119 (portable gate CLIs `features phase-flip-done` / `phase-revert` / `roadmap remove-block`, config scaffold, tolerant postinstall) — the documented path is now plausible end-to-end.
-
-**What to do:**
-
-- Pick the repo: criteria — actively developed, single package (not a monorepo, to stress the `lockstepPackages: [one]` shape), TS or close enough that stack assumptions hold (this dogfood validates the *adoption flow*, not yet stack-portability — that's `stack-assumption-audit-and-declared-prerequisites`).
-- Run the documented path verbatim: install (registry if `registry-distribution-for-the-noldor-package` has shipped, `file:` otherwise), `pnpm noldor init`, fill `.noldor/config.json` `consumer:` block, `pnpm noldor doctor`. Every deviation from the adoption guide goes in the friction log — do not silently fix and move on.
-- Drive ≥3 changes through the full lifecycle: one micro-chore, one fast-track, one specs-only or full feature with FD + spec. At least one of them via the autonomous drain (`noldor autonomous run --source roadmap`) end-to-end to PR merge.
-- Maintain `friction.md` in the consumer repo during the run: every prompt that confused, every command that assumed Charuy/self-host context, every hard-coded path, every doc that lied. Date + exact error text.
-- Close-out: `/triage` the friction log into Noldor's `ideas.md` → roadmap; fix the adoption-guide lies immediately (micro-chore class).
-
-**What it enables:** ground-truth adoption backlog instead of speculation — this entry *generates* the precise work items for the rest of the adoption block; validates the guide line-by-line; produces the first consumer whose breakage matters for contract-CI fixture design.
-
-**Open questions:** which repo (operator decision); whether the consumer keeps Noldor after the experiment or rolls back (rollback procedure is itself an undocumented gap — note it in the friction log).
-
-**Acceptance sketch:** friction log exists with ≥10 dated entries; ≥3 changes shipped in consumer incl. ≥1 autonomous drain ship; ≥5 entries triaged back into Noldor's queue.
-
 ### Phase 4 — Consumer-Layout Correctness
 
 ### Phase 5 — Autonomy Observability
