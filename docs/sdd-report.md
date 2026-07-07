@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-07-02 by `pnpm sdd:report`.
+Generated: 2026-07-07 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -10,10 +10,32 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Summary
 
-- Total features: 51
+- Total features: 64
 - Untriaged ideas: 0
-- Backlog entries: 4
+- Backlog entries: 6
 - Gap categories with issues: 7 / 14
+
+## Gate compliance
+
+### Tier distribution
+
+- `full` (brainstorm + spec + plan): 35
+- `specs-only` (no brainstorm): 29
+
+### Override usage (last 30 days)
+
+- `a890954` — prep-promote batch (drafts operator-approved at artifact stage)
+- `d015f16` — prep-promote batch (drafts operator-approved at artifact stage)
+- `7001d1e` — prep-promote batch (drafts operator-approved at artifact stage)
+- `cfb750a` — prep-promote batch (drafts operator-approved at artifact stage)
+- `4404525` — prep-promote batch (drafts operator-approved at artifact stage)
+- `ec7bf0b` — cr-red override acceptance-verify-lane - operator accepted residual med risk-notes after 5 CR rounds; 4 substantive fixes landed; verify lane pass
+- `1f08bd2` — fast-track framework chore, no FD; spans gate SKILL.md twins + docs/noldor + docs/features so no single conventional scope fits. Controller-reviewed; /garden audits the override.
+- `211e3ae` — fast-track framework chore, no FD; cr:orchestrate is slug-based so no review-receipt path fits; allowlist + doc changes controller-reviewed, /garden audits the override.
+
+### Review-skip count (last 30 days)
+
+Gated commits missing `Noldor-Reviewed` trailer: 112
 
 ## Metrics
 
@@ -29,7 +51,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
     "specs-only-new": 25.8
   },
   "excluded": {
-    "noIntake": 19,
+    "noIntake": 20,
     "noTag": 14
   }
 }
@@ -67,7 +89,12 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
 
 ```json
 {
-  "perLane": {},
+  "perLane": {
+    "subagent": {
+      "blockers": 7,
+      "suggestions": 19
+    }
+  },
   "correctiveBySlug": {},
   "windowDays": 14
 }
@@ -80,13 +107,28 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 
 ```json
 {
-  "lastRun": null,
-  "history": null
+  "lastRun": {
+    "shipped": 0,
+    "skipped": 0,
+    "retried": 0
+  },
+  "history": {
+    "salvaged": 2,
+    "escalatedTotal": 10,
+    "escalatedBySlug": {
+      "trailer-scope-alias-map": 2,
+      "prefix-skills-with-noldor": 2,
+      "framework-script-test-migration-cleanup": 3,
+      "scope-sibling-trailer-for-doc-sync-commits": 1,
+      "-": 2
+    },
+    "meanDurationMs": 1533278
+  }
 }
 ```
 
-formula: lastRun: shipped/skip/retries from .noldor/drain-state.json (live snapshot, overwritten per run). history: salvaged = agent-events kind=salvaged; escalated = escalations.jsonl counts (total/per-slug — rows carry no run id); mean duration over all agent-events.
-blind spots: drain-state.json is the LATEST run only — it cannot yield per-run history or trends. | Event/escalation history starts at the event-log epoch (2026-06-12); earlier drains are invisible. | EscalationRow has no run identifier — per-run escalation grouping is not derivable (run-id is out of v1 scope).
+formula: lastRun: shipped/skip/retries from .noldor/drain-state.json (live snapshot, overwritten per run). history: salvaged = agent-events kind=salvaged; escalated = escalations.jsonl counts (total/per-slug); mean duration over exited agent-events (spawned/phase rows excluded).
+blind spots: drain-state.json is the LATEST run only — it cannot yield per-run history or trends. | Event/escalation history starts at the event-log epoch (2026-06-12); earlier drains are invisible. | Rows written before run ids shipped carry no runId — they group under "(no run id)".
 
 ### override-pressure [override commits]
 
@@ -100,7 +142,18 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
 ### tokens-per-feature [raw tokens (NEVER cost)]
 
 ```json
-{}
+{
+  "graphify-ast-only-sweep-default": null,
+  "framework-auto-split-suggestion-for-big-features-and-plans": 105051,
+  "framework-script-test-migration-cleanup": 827485,
+  "scope-sibling-trailer-for-doc-sync-commits": 272153,
+  "self-boundaries-declaration-and-cycle-break": 215653,
+  "stable-entry-ids-for-roadmap-backlog": 394863,
+  "first-class-blocked-by-field": 507049,
+  "init-adopt-flag-drift-reconciliation": 124900,
+  "consumer-rule-conflicts-graceful-degradation": 200457,
+  "init-scaffold-noldor-scope-allowlist": 1076721
+}
 ```
 
 formula: Sum of agent-event tokens.total per slug. Tokens are read verbatim from runner usage records (claude-jsonl / codex-session / opencode-session); events without trustworthy usage carry no tokens.
@@ -110,10 +163,6 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Done features without tests
 
-- `code-reviewer-20` — Code Reviewer 2.0 (tooling) has no tests in links.tests
-- `decouple-milestones-from-semver` — Decouple Milestones from Semver (tooling) has no tests in links.tests
-- `framework-doc-extraction` — Framework Doc Extraction (tooling) has no tests in links.tests
-- `per-task-dev-environment-bootstrap` — Per-Task Dev Environment Bootstrap (tooling) has no tests in links.tests
 - `trailer-scope-alias-map` — Trailer Scope-Alias Map (tooling) has no tests in links.tests
 
 ### Done features without docs
@@ -123,7 +172,19 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Done features missing introduced
 
+- `agent-events-phase-tracking-run-ids-and-agents-dashboard-page` — Agent-Events Phase Tracking, Run IDs and `/agents` Dashboard Page is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `framework-auto-split-suggestion-for-big-features-and-plans` — Framework Auto-Split Suggestion for Big Features and Plans is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `framework-script-test-migration-cleanup` — Framework Script + Test Migration Cleanup is phase=done but introduced is unset (release script should fill on next pnpm release)
 - `parallel-agent-dispatch-for-research-jobs` — Parallel-Agent Dispatch for Research Jobs is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `pnpm-release-resume` — `pnpm release --resume` is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `portable-gate-entrypoint-for-non-claude-runners` — Portable Gate Entrypoint for Non-Claude Runners is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `registry-distribution-for-the-noldor-package` — Registry Distribution for the Noldor Package is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `release-bypass-retirement` — Release Bypass Retirement is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `scan-roots-repo-paths-provider` — Scan-Roots Repo-Paths Provider is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `scope-sibling-trailer-for-doc-sync-commits` — Scope Sibling Trailer for Doc-Sync Commits is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `sdd-detector-5-idea-merge-semantic-similarity` — SDD Detector 5 — Idea-Merge Semantic Similarity is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `self-boundaries-declaration-and-cycle-break` — Self-Boundaries Declaration and Cycle Break is phase=done but introduced is unset (release script should fill on next pnpm release)
+- `stable-entry-ids-for-roadmap-backlog` — Stable Entry IDs for Roadmap + Backlog is phase=done but introduced is unset (release script should fill on next pnpm release)
 
 ### Plans without matching spec
 
@@ -131,96 +192,24 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Code files not referenced by any feature
 
-- `src/checks/check-template-sync.ts` — src/checks/check-template-sync.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, version-aware-upgrade-and-migration-chain, acceptance-verify-lane
-- `src/cli/commands/upgrade.ts` — src/cli/commands/upgrade.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain, dynamic-fd-changelog, howto-index-pipeline
-- `src/cli/help.ts` — src/cli/help.ts is not referenced by any feature MD links.code — probable owner: autonomous-queue-drain-runner, bootstrap-immunity-for-self-gating-features, continuous-drain-daemon-and-escalation-inbox
-- `src/cli/index.ts` — src/cli/index.ts is not referenced by any feature MD links.code — probable owner: autonomous-queue-drain-runner, bootstrap-immunity-for-self-gating-features, continuous-drain-daemon-and-escalation-inbox
-- `src/core/bump-session-marker.ts` — src/core/bump-session-marker.ts is not referenced by any feature MD links.code
-- `src/core/doc-roots.ts` — src/core/doc-roots.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, autonomous-queue-drain-runner, gate-flow-rework
-- `src/core/extract-touches.ts` — src/core/extract-touches.ts is not referenced by any feature MD links.code — probable owner: plan-runner, dashboard-roadmap-backlog-polish, de-superpowers-vendor-spec-plan-and-worktree-flows
-- `src/core/noldor-cli.ts` — src/core/noldor-cli.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, framework-milestones-support-poc-mvp-100
-- `src/core/overrides-log.ts` — src/core/overrides-log.ts is not referenced by any feature MD links.code
-- `src/core/phase-flip-done.ts` — src/core/phase-flip-done.ts is not referenced by any feature MD links.code
-- `src/core/rollout-marker.ts` — src/core/rollout-marker.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, noldor, release-sweep-process-hardening
-- `src/core/rules/stage.ts` — src/core/rules/stage.ts is not referenced by any feature MD links.code
-- `src/core/size-routing.ts` — src/core/size-routing.ts is not referenced by any feature MD links.code — probable owner: plan-runner, dashboard-roadmap-backlog-polish, de-superpowers-vendor-spec-plan-and-worktree-flows
-- `src/core/trailers.ts` — src/core/trailers.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, noldor, release-sweep-process-hardening
-- `src/features/migrate-link-rot.ts` — src/features/migrate-link-rot.ts is not referenced by any feature MD links.code
-- `src/features/phase-flip-done-cli.ts` — src/features/phase-flip-done-cli.ts is not referenced by any feature MD links.code
-- `src/features/phase-revert-cli.ts` — src/features/phase-revert-cli.ts is not referenced by any feature MD links.code
-- `src/graphify/graph-to-toon.ts` — src/graphify/graph-to-toon.ts is not referenced by any feature MD links.code
-- `src/hooks/agent-rules-guard.ts` — src/hooks/agent-rules-guard.ts is not referenced by any feature MD links.code
-- `src/hooks/noldor-pre-edit-guard.ts` — src/hooks/noldor-pre-edit-guard.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, noldor, release-sweep-process-hardening
-- `src/hooks/noldor-validate-trailer.ts` — src/hooks/noldor-validate-trailer.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, noldor, release-sweep-process-hardening
-- `src/index.ts` — src/index.ts is not referenced by any feature MD links.code
-- `src/milestones/cli.ts` — src/milestones/cli.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, framework-milestones-support-poc-mvp-100
-- `src/milestones/lib.ts` — src/milestones/lib.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, framework-milestones-support-poc-mvp-100
-- `src/milestones/validate-milestones.ts` — src/milestones/validate-milestones.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, framework-milestones-support-poc-mvp-100
-- `src/prep/formats.ts` — src/prep/formats.ts is not referenced by any feature MD links.code — probable owner: plan-runner, dashboard-roadmap-backlog-polish, de-superpowers-vendor-spec-plan-and-worktree-flows
-- `src/prep/print-format.ts` — src/prep/print-format.ts is not referenced by any feature MD links.code — probable owner: plan-runner, dashboard-roadmap-backlog-polish, de-superpowers-vendor-spec-plan-and-worktree-flows
-- `src/prep/types.ts` — src/prep/types.ts is not referenced by any feature MD links.code — probable owner: plan-runner, dashboard-roadmap-backlog-polish, de-superpowers-vendor-spec-plan-and-worktree-flows
-- `src/release/auto-restamp.ts` — src/release/auto-restamp.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics
-- `src/release/graph-freshness.ts` — src/release/graph-freshness.ts is not referenced by any feature MD links.code
-- `src/release/release-packages.ts` — src/release/release-packages.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain, dynamic-fd-changelog, howto-index-pipeline
-- `src/release/release-session.ts` — src/release/release-session.ts is not referenced by any feature MD links.code — probable owner: autonomous-plan-to-pr-merge, framework-pr-flow-agent-auto-merge, parallel-drain
-- `src/release/release-version.ts` — src/release/release-version.ts is not referenced by any feature MD links.code — probable owner: dynamic-fd-changelog, framework-pr-flow-agent-auto-merge, noldor
-- `src/rules/cli-cores.ts` — src/rules/cli-cores.ts is not referenced by any feature MD links.code
-- `src/rules/cli-list.ts` — src/rules/cli-list.ts is not referenced by any feature MD links.code
-- `src/rules/cli-resolve.ts` — src/rules/cli-resolve.ts is not referenced by any feature MD links.code
-- `src/rules/cli-validate.ts` — src/rules/cli-validate.ts is not referenced by any feature MD links.code
-- `src/rules/index-cache.ts` — src/rules/index-cache.ts is not referenced by any feature MD links.code
-- `src/rules/load.ts` — src/rules/load.ts is not referenced by any feature MD links.code
-- `src/rules/resolve.ts` — src/rules/resolve.ts is not referenced by any feature MD links.code
-- `src/rules/types.ts` — src/rules/types.ts is not referenced by any feature MD links.code
-- `src/templates/copy.ts` — src/templates/copy.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, version-aware-upgrade-and-migration-chain, acceptance-verify-lane
-- `src/templates/diff.ts` — src/templates/diff.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, version-aware-upgrade-and-migration-chain, acceptance-verify-lane
-- `src/templates/manifest.ts` — src/templates/manifest.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, version-aware-upgrade-and-migration-chain, acceptance-verify-lane
-- `src/testing/contract-harness.ts` — src/testing/contract-harness.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, version-aware-upgrade-and-migration-chain, acceptance-verify-lane
-- `src/testing/stub-gate.ts` — src/testing/stub-gate.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, version-aware-upgrade-and-migration-chain, acceptance-verify-lane
-- `src/triage/remove-block-cli.ts` — src/triage/remove-block-cli.ts is not referenced by any feature MD links.code
-- `src/verify/health.ts` — src/verify/health.ts is not referenced by any feature MD links.code
-- `src/verify/port.ts` — src/verify/port.ts is not referenced by any feature MD links.code
-- `src/verify/smoke-cli.ts` — src/verify/smoke-cli.ts is not referenced by any feature MD links.code
-- `src/verify/smoke.ts` — src/verify/smoke.ts is not referenced by any feature MD links.code
+- `src/core/config.ts` — src/core/config.ts is not referenced by any feature MD links.code
+- `src/core/init-gitignore.ts` — src/core/init-gitignore.ts is not referenced by any feature MD links.code
+- `src/core/lanes.ts` — src/core/lanes.ts is not referenced by any feature MD links.code
+- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code
+- `src/core/prompt-stdin.ts` — src/core/prompt-stdin.ts is not referenced by any feature MD links.code
+- `src/core/review-profile.ts` — src/core/review-profile.ts is not referenced by any feature MD links.code
+- `src/invariants/rule-pairs.ts` — src/invariants/rule-pairs.ts is not referenced by any feature MD links.code
+- `src/release/clean-tree.ts` — src/release/clean-tree.ts is not referenced by any feature MD links.code
 
 ### Test files without @tests: tag
 
-- `src/checks/__tests__/check-template-sync.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/core/__tests__/concurrency.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/core/__tests__/doc-roots.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/core/__tests__/git-porcelain.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/core/__tests__/rollout-marker.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/core/__tests__/size-routing.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/core/__tests__/trailers.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/core/rules/__tests__/stage.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/cr/__tests__/aggregate.cli.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/dashboard/__tests__/server-static.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/hooks/__tests__/agent-rules-guard.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/hooks/__tests__/noldor-pre-edit-guard.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/milestones/__tests__/lib.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/milestones/__tests__/validate-milestones.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/prep/__tests__/print-format.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/release/__tests__/auto-restamp.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/release/__tests__/graph-freshness.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/release/__tests__/release-packages.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/release/__tests__/release-version.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/research/__tests__/fanout.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/research/__tests__/prompt.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/research/__tests__/staging.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/research/__tests__/types.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/rules/__tests__/cli.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/rules/__tests__/index-cache.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/rules/__tests__/load.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/rules/__tests__/resolve.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/rules/__tests__/types.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
-- `src/verify/__tests__/health.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
+- `src/core/__tests__/init-gitignore.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
+- `src/core/__tests__/prerequisites.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
+- `src/garden/detectors/__tests__/circular-blocked-by.test.ts` — missing required `// @tests: <slug>` tag (validator hard-fails on this)
 
 ### Done features without code
 
-- `code-reviewer-20` — Code Reviewer 2.0 (tooling) has no entries in links.code
-- `decouple-milestones-from-semver` — Decouple Milestones from Semver (tooling) has no entries in links.code
-- `framework-doc-extraction` — Framework Doc Extraction (tooling) has no entries in links.code
 - `noldor-package-lift` — Noldor Package Lift (tooling) has no entries in links.code
-- `per-task-dev-environment-bootstrap` — Per-Task Dev Environment Bootstrap (tooling) has no entries in links.code
 - `scripts-reorganization-by-feature-area` — Scripts Reorganization By Feature/Area (tooling) has no entries in links.code
+- `self-boundaries-declaration-and-cycle-break` — Self-Boundaries Declaration and Cycle Break (tooling) has no entries in links.code
 - `trailer-scope-alias-map` — Trailer Scope-Alias Map (tooling) has no entries in links.code
