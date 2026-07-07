@@ -180,6 +180,34 @@ export function openPrExistsFor(cwd: string, slug: string, branch: string): bool
 }
 
 /**
+ * True when a MERGED PR exists for the source's drain branch. A fast-track ship
+ * lands `fast/<slug>` without editing docs/roadmap.md, so the drain's
+ * "absence-on-re-read = shipped" oracle never fires and the entry re-selects;
+ * the loop uses this to recognize the ship and skip instead of re-spawning a
+ * rebuild. Throws on `gh` failure — the caller treats that as a fail-closed abort.
+ *
+ * A merged PR lives in GitHub history forever (unlike an open PR, which closes
+ * out), so the drain loop consults this ONLY post-spawn — after it has dispatched
+ * the slug this run — never at selection. That scoping stops a stale historical
+ * merge from blocking SELECTION of new work; it does not, on its own, prove the
+ * merge is this run's ship. Correctness for the residual (a reused `<prefix>/<slug>`
+ * branch name) rests on the framework invariant that a shipped branch name is
+ * never reused (retire-on-ship + stable Q-NNNN IDs). See drain-loop settleShipVerdict.
+ */
+export function mergedPrExistsFor(cwd: string, slug: string, branch: string): boolean {
+  void slug;
+  const out = execFileSync(
+    'gh',
+    ['pr', 'list', '--state', 'merged', '--head', branch, '--json', 'number'],
+    {
+      cwd,
+      encoding: 'utf8',
+    },
+  );
+  return (JSON.parse(out) as unknown[]).length > 0;
+}
+
+/**
  * Spawn a headless gate run via the agent-runner registry (implementer role —
  * claude unless the consumer's agents config remaps it). Returns the child
  * exit code; throws `iteration-timeout` when the child exceeds `timeoutMs`.

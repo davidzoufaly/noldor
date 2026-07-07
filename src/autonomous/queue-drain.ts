@@ -16,6 +16,7 @@ import { makePhaseTap } from './phase-events.js';
 import {
   syncMainCleanState,
   openPrExistsFor,
+  mergedPrExistsFor,
   spawnGate,
   mergePr,
   assertQueueSourceSyncedAt,
@@ -182,6 +183,7 @@ async function main(): Promise<void> {
     syncMainCleanState: () => syncMainCleanState(cwd),
     mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
+    mergedPrExistsFor: (slug, branch) => mergedPrExistsFor(cwd, slug, branch),
     salvageStaleBase: makeSalvage(cwd, 'run'),
     writeState: makePhaseTap(cwd, runId, (s) =>
       writeState(cwd, projectDrainState(process.pid, startedAt, s)),
