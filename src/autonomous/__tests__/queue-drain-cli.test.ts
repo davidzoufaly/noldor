@@ -66,4 +66,8 @@ describe('queue-drain CLI helpers', () => {
   it('assertConfig rejects a missing autonomous block', () => {
     expect(() => assertConfig({})).toThrow(/autonomous/);
   });
+
+  it('missing-block error shows the headless-safe block to add', () => {
+    expect(() => assertConfig({})).toThrow(/skipLanePicker.*true[\s\S]*onFailure.*abort/);
+  });
 });

@@ -17,5 +17,11 @@
   },
   "crLanes": {
     "code": ["subagent"]
+  },
+  "autonomous": {
+    "skipLanePicker": true,
+    "onFailure": "abort",
+    "requireHumanPrApproval": false,
+    "verifyMode": "advisory"
   }
 }
