@@ -28,18 +28,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Trigger-Parked (revisit when the named trigger fires)
 
-#### Noldor Section-Age Staleness Detector
-
-- id: Q-0004
-- area: tooling
-- type: feat
-- since: 2026-05-08
-- size: M
-- impact: low
-- parent: noldor
-
-Was originally Detector 14 in the Noldor extraction spec (`docs/superpowers/specs/2026-05-08-noldor-framework-extraction-design.md`); deferred during review because the value depends on actual drift accumulating, and the section-boundary detection is fiddly (header renames break the heuristic). Trigger: revisit if Detectors 14 (stub regrowth) + 15 (rule contradiction) prove insufficient — i.e. if framework drift slips past both gates and shows up as user-reported confusion or `/garden` blind spots. Implementation sketch: parse CLAUDE.md / README headers, run `git log -L /^## <Section>/,/^## /` per section, compare last-touched dates between CLAUDE.md side and `noldor/<page>.md` side, flag >30 day gaps in either direction.
-
 #### Real-Codex Integration Smoke Test
 
 - id: Q-0005
