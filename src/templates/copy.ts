@@ -22,6 +22,11 @@ function sha256(buf: Buffer): string {
  * consumer copy already exists and content matches, the entry is reported as
  * `unchanged`. When content differs, the function throws unless `update: true`
  * (then reports `updated`). New files report `added`.
+ *
+ * Plan-then-apply: the full set is classified first, so without `--update` the
+ * error enumerates EVERY conflicting path at once (a partial-residual repo shows
+ * its whole blast radius instead of one file per failed run) and nothing is
+ * written when the copy would abort.
  */
 export function copyTemplate(
   templateRoot: string,
@@ -29,25 +34,33 @@ export function copyTemplate(
   relativePaths: readonly string[],
   opts: CopyOptions,
 ): CopyEntry[] {
-  return relativePaths.map((rel) => {
-    const src = join(templateRoot, rel);
+  interface Plan {
+    rel: string;
+    dest: string;
+    tpl: Buffer;
+    action: 'add' | 'update' | 'unchanged' | 'conflict';
+  }
+  const plans: Plan[] = relativePaths.map((rel) => {
     const dest = join(consumerRoot, rel);
-    const tpl = readFileSync(src);
+    const tpl = readFileSync(join(templateRoot, rel));
+    if (!existsSync(dest)) return { rel, dest, tpl, action: 'add' };
+    if (sha256(tpl) === sha256(readFileSync(dest))) return { rel, dest, tpl, action: 'unchanged' };
+    return { rel, dest, tpl, action: opts.update ? 'update' : 'conflict' };
+  });
 
-    if (!existsSync(dest)) {
-      mkdirSync(dirname(dest), { recursive: true });
-      writeFileSync(dest, tpl);
-      return { path: rel, status: 'added' as const };
-    }
+  const conflicts = plans.filter((p) => p.action === 'conflict');
+  if (conflicts.length > 0) {
+    const list = conflicts.map((c) => `  ${c.rel}`).join('\n');
+    throw new Error(
+      `Refusing to overwrite ${conflicts.length} existing file(s) (use --update to replace):\n${list}`,
+    );
+  }
 
-    const cur = readFileSync(dest);
-    if (sha256(tpl) === sha256(cur)) return { path: rel, status: 'unchanged' as const };
-
-    if (!opts.update) {
-      throw new Error(`Refusing to overwrite ${rel} (use --update to replace)`);
-    }
-    writeFileSync(dest, tpl);
-    return { path: rel, status: 'updated' as const };
+  return plans.map((p) => {
+    if (p.action === 'unchanged') return { path: p.rel, status: 'unchanged' as const };
+    mkdirSync(dirname(p.dest), { recursive: true });
+    writeFileSync(p.dest, p.tpl);
+    return { path: p.rel, status: p.action === 'add' ? ('added' as const) : ('updated' as const) };
   });
 }
 
