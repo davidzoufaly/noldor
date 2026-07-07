@@ -79,6 +79,28 @@ describe('copyTemplate', () => {
     const out = copyTemplate(join(dir, 'tpl'), join(dir, 'consumer'), ['a.md'], { update: true });
     expect(out).toEqual([{ path: 'a.md', status: 'unchanged' }]);
   });
+
+  it('enumerates ALL conflicts at once and writes nothing when aborting', () => {
+    for (const f of ['a.md', 'b.md', 'c.md']) {
+      writeFileSync(join(dir, 'tpl', f), 'new');
+    }
+    writeFileSync(join(dir, 'consumer', 'a.md'), 'old'); // conflict
+    writeFileSync(join(dir, 'consumer', 'b.md'), 'old'); // conflict
+    // c.md absent → would be added, but the abort must not write it
+    let msg = '';
+    try {
+      copyTemplate(join(dir, 'tpl'), join(dir, 'consumer'), ['a.md', 'b.md', 'c.md'], {
+        update: false,
+      });
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/Refusing to overwrite 2 existing file/);
+    expect(msg).toContain('a.md');
+    expect(msg).toContain('b.md');
+    // no partial write: the would-be-added c.md was not created
+    expect(existsSync(join(dir, 'consumer', 'c.md'))).toBe(false);
+  });
 });
 
 describe('adoptTemplate', () => {
