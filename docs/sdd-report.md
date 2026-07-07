@@ -24,6 +24,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `bbbc88d` — mechanical doc-frontmatter twin sync; zero code delta; templates/docs/noldor twins fall outside micro-chore/release-sweep allowlists (framework gap)
 - `a890954` — prep-promote batch (drafts operator-approved at artifact stage)
 - `d015f16` — prep-promote batch (drafts operator-approved at artifact stage)
 - `7001d1e` — prep-promote batch (drafts operator-approved at artifact stage)
@@ -35,7 +36,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 112
+Gated commits missing `Noldor-Reviewed` trailer: 111
 
 ## Metrics
 
@@ -92,7 +93,11 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
   "perLane": {
     "subagent": {
       "blockers": 7,
-      "suggestions": 19
+      "suggestions": 20
+    },
+    "verify": {
+      "blockers": 0,
+      "suggestions": 0
     }
   },
   "correctiveBySlug": {},
@@ -122,7 +127,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "scope-sibling-trailer-for-doc-sync-commits": 1,
       "-": 2
     },
-    "meanDurationMs": 1533278
+    "meanDurationMs": 1375406
   }
 }
 ```
