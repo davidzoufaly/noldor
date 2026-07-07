@@ -29,6 +29,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -60,6 +61,16 @@ pnpm noldor triage score --deps=Q-0042   # deps accept IDs or slugs interchangea
 <!-- @prs-since-last-release: stable-entry-ids-for-roadmap-backlog -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+Introduces stable entry IDs (Q-NNNN) for roadmap + backlog (#157).
+
+#### PRs
+
+- #157: stable entry IDs (Q-NNNN) for roadmap + backlog ([link](https://github.com/davidzoufaly/noldor/pull/157))
 
 <!-- generated: resources -->
 

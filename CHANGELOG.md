@@ -1,5 +1,73 @@
 # Changelog
 
+## v0.5.0 — 2026-07-07
+
+### Features
+
+- feat(triage): parse blocked-by: as first-class alias of deps: (#161) ([7e9e5d8](https://github.com/davidzoufaly/noldor/commit/7e9e5d8e87e15864dab2e347728f8acd80169d6a)) ([#161](https://github.com/davidzoufaly/noldor/pull/161))
+- feat(core): accept Noldor-Sibling-Scope trailer in noldor-scope validation (#158) ([f9af1f6](https://github.com/davidzoufaly/noldor/commit/f9af1f684509735ec9379ad352690b5d9ddf3517)) ([#158](https://github.com/davidzoufaly/noldor/pull/158))
+- feat(triage): stable entry IDs (Q-NNNN) for roadmap + backlog (#157) ([511734d](https://github.com/davidzoufaly/noldor/commit/511734d9114143d9550a99943929dacf3a122974)) ([#157](https://github.com/davidzoufaly/noldor/pull/157))
+- feat(core): add split-suggestion oversize heuristics (E1-E3, F1, P1) (#155) ([52d2209](https://github.com/davidzoufaly/noldor/commit/52d2209b9686cac2c304ef7e9827e4f9fede0a99)) ([#155](https://github.com/davidzoufaly/noldor/pull/155))
+- feat(agents): add promptDispatch runner capability (#151) ([c63f3c1](https://github.com/davidzoufaly/noldor/commit/c63f3c121bfb65d1c10a2467f9365894a2abb53f)) ([#151](https://github.com/davidzoufaly/noldor/pull/151))
+- feat(core): agent-event vocabulary — paired spawned/exited rows with spawnId (#150) ([4c1b10b](https://github.com/davidzoufaly/noldor/commit/4c1b10b0896f5a8e47ae36efacdd2a34318b43b6)) ([#150](https://github.com/davidzoufaly/noldor/pull/150))
+- feat(noldor): release-sweep graphify passes default to AST-only, full-semantic opt-in (#148) ([17071c1](https://github.com/davidzoufaly/noldor/commit/17071c1c1f1feb692b1a205736b3ca0341638be2)) ([#148](https://github.com/davidzoufaly/noldor/pull/148))
+- feat(autonomous): add noldor autonomous status subcommand (#147) ([6cf47de](https://github.com/davidzoufaly/noldor/commit/6cf47de7bae5cc4b162759ff1b8ece9931897022)) ([#147](https://github.com/davidzoufaly/noldor/pull/147))
+- feat(core): add repo-paths provider (scanRoots + actualPackageNames) (#144) ([f88c8a9](https://github.com/davidzoufaly/noldor/commit/f88c8a9a213494870544f0f820f58a843b476571)) ([#144](https://github.com/davidzoufaly/noldor/pull/144))
+- feat(init): unblock JS-consumer bootstrap (lazy tsdoc import, graceful invariants, starters) (#140) ([b33efc7](https://github.com/davidzoufaly/noldor/commit/b33efc782ec5385412bc74b95f429a36668e2729)) ([#140](https://github.com/davidzoufaly/noldor/pull/140))
+- feat(release): add release.publish config block (default-off consumer safety) (#139) ([0a1d4f4](https://github.com/davidzoufaly/noldor/commit/0a1d4f42b22852ea3f675623c50c181bd08e380c)) ([#139](https://github.com/davidzoufaly/noldor/pull/139))
+- feat(doctor): probe declared stack prerequisites before template drift (#137) ([fbd8bd0](https://github.com/davidzoufaly/noldor/commit/fbd8bd025ea6aa91d383659979a0fcd5b6a53244)) ([#137](https://github.com/davidzoufaly/noldor/pull/137))
+- feat(release): add release.crGateExemptCommits config schema (#133) ([0961d4c](https://github.com/davidzoufaly/noldor/commit/0961d4c647dcffdd5197abf2b486d847dcd48cdf)) ([#133](https://github.com/davidzoufaly/noldor/pull/133))
+- feat(release): add release-state persistence for interrupted releases (#132) ([7a8cd17](https://github.com/davidzoufaly/noldor/commit/7a8cd1741c9f0cc55519ed67e002be1118670729)) ([#132](https://github.com/davidzoufaly/noldor/pull/132))
+- feat(garden): derive sdd-report scan roots from consumer scanPaths + backfill test co-tags (#122) ([d57aacc](https://github.com/davidzoufaly/noldor/commit/d57aaccda05ba5e3ba0092e965d730645db118b5)) ([#122](https://github.com/davidzoufaly/noldor/pull/122))
+- feat(garden): fd-link-rot detector + one-shot link-rot migration CLI (#121) ([1c76f0e](https://github.com/davidzoufaly/noldor/commit/1c76f0e3fdd59c5712ce4c3001c04242a8cc65af)) ([#121](https://github.com/davidzoufaly/noldor/pull/121))
+- feat(autonomous): port run hardening into watch — cycle reconcile, SIGTERM group-kill, pgid heartbeat (#120) ([bc26f66](https://github.com/davidzoufaly/noldor/commit/bc26f6623d109a18609cdc85a4a4188ddf5df934)) ([#120](https://github.com/davidzoufaly/noldor/pull/120))
+- feat(cli): portable gate CLIs + config scaffold + consumer install fixes (#119) ([0dba987](https://github.com/davidzoufaly/noldor/commit/0dba987c955d941c7ae37d2fd12b535782015834)) ([#119](https://github.com/davidzoufaly/noldor/pull/119))
+- feat(core): arm gate enforcement via committed rollout marker (#118) ([18050da](https://github.com/davidzoufaly/noldor/commit/18050da9eb349b4f2ef4de6c760f9d8771ab1137)) ([#118](https://github.com/davidzoufaly/noldor/pull/118))
+
+### Fixes
+
+- fix(core): allowlist first-adoption commit in noldor-scope hook (#166) ([3b39269](https://github.com/davidzoufaly/noldor/commit/3b39269aebfdb1e91874e72fa6fa9472eda9707b)) ([#166](https://github.com/davidzoufaly/noldor/pull/166))
+- fix(invariants): soft-warn rule-pairs referencing consumer-owned docs (#164) ([dc20b81](https://github.com/davidzoufaly/noldor/commit/dc20b8146cdf0135bb1ccced5da62e5226f560e4)) ([#164](https://github.com/davidzoufaly/noldor/pull/164))
+- fix(cli): reconcile init --adopt drift to one source of truth (#163) ([490fa84](https://github.com/davidzoufaly/noldor/commit/490fa84dbc84ed809e7346bee0db98f25c80f7c5)) ([#163](https://github.com/davidzoufaly/noldor/pull/163))
+- fix(ci): declare packageManager so pnpm/action-setup resolves a pnpm version (#135) ([1d21d3a](https://github.com/davidzoufaly/noldor/commit/1d21d3a1331cf548edfcbfad7456aeae2557ef24)) ([#135](https://github.com/davidzoufaly/noldor/pull/135))
+- fix(prep): promote commit trailers ride one paragraph so interpret-trailers sees them (#129) ([ef39664](https://github.com/davidzoufaly/noldor/commit/ef396643d8df97a63007738f82257d4f05936995)) ([#129](https://github.com/davidzoufaly/noldor/pull/129))
+- fix(prep): prep promote --ship mirrors pr-flow direct squash-merge fallback (#128) ([2c05cf7](https://github.com/davidzoufaly/noldor/commit/2c05cf72277db632e404790c4fde6f4fcdc24ee0)) ([#128](https://github.com/davidzoufaly/noldor/pull/128))
+- fix(prep): preflight ignores untracked files, blocks only on tracked changes (#127) ([6b24251](https://github.com/davidzoufaly/noldor/commit/6b242512e3c7289a2aac480049d5e34ae47cfcff)) ([#127](https://github.com/davidzoufaly/noldor/pull/127))
+- fix(cli): derive --version from package.json; refresh stale README status (#126) ([28d850b](https://github.com/davidzoufaly/noldor/commit/28d850b117fec767593726de1f00ff8bc14a10f4)) ([#126](https://github.com/davidzoufaly/noldor/pull/126))
+- fix(gate): refresh release-sweep session startedAt on every green pre-commit pass (#125) ([293c2ae](https://github.com/davidzoufaly/noldor/commit/293c2aea20d3a9b345045ddb057dc5f163a920dc)) ([#125](https://github.com/davidzoufaly/noldor/pull/125))
+- fix(skills): audit release-sweep skill against post-reorg CLI + src layout (#124) ([b6be521](https://github.com/davidzoufaly/noldor/commit/b6be5218e2f16e7fea241cefbc4f195bca43afc8)) ([#124](https://github.com/davidzoufaly/noldor/pull/124))
+
+### Other changes
+
+- chore(release): pre-empt sdd-report drift (override-audit + CR metrics) (#172) ([5b904a3](https://github.com/davidzoufaly/noldor/commit/5b904a3786c60236580b95adfcdb15ca82371b4b)) ([#172](https://github.com/davidzoufaly/noldor/pull/172))
+- chore(noldor): sync introduced-fill twins for drain-mode + research-fanout (#171) ([bbbc88d](https://github.com/davidzoufaly/noldor/commit/bbbc88deefc82c8fa15cc3c2c4ffb30f730a22ae)) ([#171](https://github.com/davidzoufaly/noldor/pull/171))
+- chore(release): pre-release graphify sweep (AST-only) (#170) ([a18b52b](https://github.com/davidzoufaly/noldor/commit/a18b52b2f4f4bbdbdee23965153e3fbde37e7134)) ([#170](https://github.com/davidzoufaly/noldor/pull/170))
+- docs(features:sdd-detector-5-idea-merge-semantic-similarity): add spec for sdd-detector-5-idea-merge-semantic-similarity (#169) ([4906c98](https://github.com/davidzoufaly/noldor/commit/4906c98d4cc04e5d584e5a23d8b0328d876250bc)) ([#169](https://github.com/davidzoufaly/noldor/pull/169))
+- docs(features:registry-distribution-for-the-noldor-package): revert phase done → in-progress for attach session (#168) ([d3bc2b0](https://github.com/davidzoufaly/noldor/commit/d3bc2b08039a41d4237d7d311882935198066682)) ([#168](https://github.com/davidzoufaly/noldor/pull/168))
+- docs(noldor): adoption-guide sweep — lockstep=paths + bootstrap gotchas; retire Q-0013/0015/0016 (#167) ([90a0046](https://github.com/davidzoufaly/noldor/commit/90a0046fcc435b1154dd8885dd35f5b7cee94332)) ([#167](https://github.com/davidzoufaly/noldor/pull/167))
+- chore(roadmap): retire Q-0017 consumer-rule-conflicts-graceful-degradation (shipped #164) (#165) ([a7f270e](https://github.com/davidzoufaly/noldor/commit/a7f270ee5b50ce77f7aa94b458ac6eaee2f82ced)) ([#165](https://github.com/davidzoufaly/noldor/pull/165))
+- chore(triage): consumer-2 dogfood friction → roadmap Q-0013..Q-0017 + backlog Q-0018 (#162) ([d94c1db](https://github.com/davidzoufaly/noldor/commit/d94c1dba8ae8107499476338d49b9efaad89aca0)) ([#162](https://github.com/davidzoufaly/noldor/pull/162))
+- chore(core): delete dead cr-retry loop, drop gate survives-on-disk note (#159) ([8368f57](https://github.com/davidzoufaly/noldor/commit/8368f570ebc03cceadae97cebe718fd6330b71f7)) ([#159](https://github.com/davidzoufaly/noldor/pull/159))
+- refactor(core): relocate repo config loader, review profiles, and stdin prompts out of src/cr (#156) ([007e4e3](https://github.com/davidzoufaly/noldor/commit/007e4e3719ce05e0a4915e025511f46f7ab4fd5f)) ([#156](https://github.com/davidzoufaly/noldor/pull/156))
+- docs(plans): add implementation plans for phase-6 structural batch (5 FDs) (#154) ([8bcac84](https://github.com/davidzoufaly/noldor/commit/8bcac84856ff01aaa946da1e1181b45b9dff46d9)) ([#154](https://github.com/davidzoufaly/noldor/pull/154))
+- docs(roadmap): rephrase blocked-by Touches clause as prose for drain eligibility (#153) ([1cb7558](https://github.com/davidzoufaly/noldor/commit/1cb7558e0f58148a5473a8bd88693e5e50ca16dc)) ([#153](https://github.com/davidzoufaly/noldor/pull/153))
+- docs: promote prep-batch 2026-07-03 phase-6 (5 FDs) (#152) ([a890954](https://github.com/davidzoufaly/noldor/commit/a890954e225056f59bf3bbb4a2bd288348fa5e05)) ([#152](https://github.com/davidzoufaly/noldor/pull/152))
+- docs(plans): add implementation plans for agent-events dashboard + portable gate entrypoint (#149) ([5ed6e20](https://github.com/davidzoufaly/noldor/commit/5ed6e2052932bc762732d6b4a9844f08e7e195dc)) ([#149](https://github.com/davidzoufaly/noldor/pull/149))
+- docs(roadmap): phase-5 queue hygiene — drain-eligible status entry, retire checkpoint-resume (#146) ([e2ebf85](https://github.com/davidzoufaly/noldor/commit/e2ebf855fb6f9052b3604b3f0547af0d1ada2332)) ([#146](https://github.com/davidzoufaly/noldor/pull/146))
+- docs: promote prep-batch 2026-07-03 (2 FDs) (#145) ([d015f16](https://github.com/davidzoufaly/noldor/commit/d015f167f028ac6faf3c54da561de8e0ba53ff45)) ([#145](https://github.com/davidzoufaly/noldor/pull/145))
+- chore(features): backfill @tests tags and links.code ownership (tag judgment pass) (#143) ([1eb43c6](https://github.com/davidzoufaly/noldor/commit/1eb43c692d6e9aaba44d6e8e1ad9ae8d4467df56)) ([#143](https://github.com/davidzoufaly/noldor/pull/143))
+- docs(plans): add implementation plan for scan-roots-repo-paths-provider (#142) ([24d7886](https://github.com/davidzoufaly/noldor/commit/24d78868aace0a11ce4ad84e03df4e3cfc371536)) ([#142](https://github.com/davidzoufaly/noldor/pull/142))
+- docs(features): promote scan-roots-repo-paths-provider (prep batch 2026-07-03b) (#141) ([7001d1e](https://github.com/davidzoufaly/noldor/commit/7001d1e1a80181782f012c7b20dcc89308d0531d)) ([#141](https://github.com/davidzoufaly/noldor/pull/141))
+- docs(plans): add implementation plan for registry-distribution-for-the-noldor-package (#138) ([4e09878](https://github.com/davidzoufaly/noldor/commit/4e0987848da34229d89247044926af34fbbfcb16)) ([#138](https://github.com/davidzoufaly/noldor/pull/138))
+- docs: promote prep-batch 2026-07-03 (1 FDs) (#136) ([cfb750a](https://github.com/davidzoufaly/noldor/commit/cfb750a01f7d3f6acc963c74e77eb480bd6b0f8a)) ([#136](https://github.com/davidzoufaly/noldor/pull/136))
+- docs(noldor): sync gate docs with code — trailer schema, PR-only finish, retired cr-retry loop (#134) ([d077109](https://github.com/davidzoufaly/noldor/commit/d0771091681652dab108bfca2aec700d16bdea52)) ([#134](https://github.com/davidzoufaly/noldor/pull/134))
+- docs(plans): add implementation plans for release-bypass-retirement and pnpm-release-resume (#131) ([7490095](https://github.com/davidzoufaly/noldor/commit/7490095e62722dd6e7d83059d0865a3b3293d874)) ([#131](https://github.com/davidzoufaly/noldor/pull/131))
+- docs: promote prep-batch 2026-07-02 (2 FDs) (#130) ([4404525](https://github.com/davidzoufaly/noldor/commit/4404525e46a54f8f85fdb1a206a5df8543b08a19)) ([#130](https://github.com/davidzoufaly/noldor/pull/130))
+- docs(triage): phase-0 queue hygiene — verify relevancy, retire shipped/stale, reorder by execution phases (#123) ([4b955b6](https://github.com/davidzoufaly/noldor/commit/4b955b6885a325e49542601bc80aab9f57aa2a37)) ([#123](https://github.com/davidzoufaly/noldor/pull/123))
+- chore(ci): run pnpm verify on pull requests (#117) ([19a74a1](https://github.com/davidzoufaly/noldor/commit/19a74a10e8e844e021b08fe616992eae1b56f977)) ([#117](https://github.com/davidzoufaly/noldor/pull/117))
+- docs(features:parallel-agent-dispatch-for-research-jobs): add spec for parallel-agent-dispatch-for-research-jobs (#116) ([bc1893a](https://github.com/davidzoufaly/noldor/commit/bc1893a909005b6d34fdec250a30d37d83c9d4a4)) ([#116](https://github.com/davidzoufaly/noldor/pull/116))
+- docs(ideas): add v0.4.0 release-sweep retrospective (#115) ([a76b7b2](https://github.com/davidzoufaly/noldor/commit/a76b7b269f68e19efed3e0d2f597d9716fa1e078)) ([#115](https://github.com/davidzoufaly/noldor/pull/115))
+
 ## v0.4.0 — 2026-07-01
 
 ### Features

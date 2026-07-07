@@ -32,6 +32,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: full
+introduced: 0.5.0
 ---
 ## Summary
 

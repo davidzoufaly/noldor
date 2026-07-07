@@ -1,5 +1,143 @@
 # Release Notes
 
+## v0.5.0 — 2026-07-07
+
+### Tooling
+
+#### `pnpm release --resume`
+
+Release-state persistence added so interrupted releases can resume (#132).
+
+[Feature page](/features/pnpm-release-resume)
+
+#### Agent-Events Phase Tracking, Run IDs and `/agents` Dashboard Page
+
+Agent-event vocabulary now emits paired spawned/exited rows linked by a shared `spawnId` (#150).
+
+[Feature page](/features/agent-events-phase-tracking-run-ids-and-agents-dashboard-page)
+
+#### Dashboard Roadmap & Backlog Drag-and-Drop
+
+Drag-and-drop UI on the dashboard's `/roadmap` and `/backlog` pages, plus per-row "Promote ↑" / "Demote ↓" buttons for cross-section moves. Sits on top of the shipped Path 1 schema (file-order = priority); does NOT introduce an explicit `- priority: <int>` bullet — the explicit-field path was considered and dropped in brainstorming. Dashboard server gains its first write surface: POST endpoints that rewrite `docs/roadmap.md` / `docs/backlog.md` with per-file atomic tmp+rename writes, protected by ETag / If-Match concurrency. Drag is enabled only when the table renders in source-file order (no filters, no non-priority sort); filtered/sorted views show dimmed handles with a tooltip pointing at the activation rule. Trigger: hand-editing priorities in markdown is the friction point most worth automating now.
+
+[Feature page](/features/dashboard-roadmap-drag-drop)
+
+#### Decouple Milestones from Semver
+
+`docs/vision.md`'s `current-milestone: 1.0.0` ties milestone identity to semver. The two have different cadences: a milestone is a strategic gate ("public release with house-modeling agent"); semver tracks API/format compatibility. Conflating them forces premature version commitments and leaks strategic naming into the changelog. Proposal: introduce a separate milestone-naming taxonomy (codenames? phases?) and a new skill (`/milestone` or similar) for crafting milestone definitions independent of releases. Vision keeps a milestone reference; release notes keep semver. Trigger: live now — milestone vs version drift already confuses `/triage` decisions ("is this v1.0 or post-MVP?").
+
+[Feature page](/features/decouple-milestones-from-semver)
+
+#### Doc Gardening Skill *(updated)*
+
+A `/garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`src/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
+
+[Feature page](/features/doc-gardening-skill)
+
+#### Framework Auto-Split Suggestion for Big Features and Plans
+
+Added split-suggestion oversize heuristics covering E1-E3, F1, and P1 (#155).
+
+[Feature page](/features/framework-auto-split-suggestion-for-big-features-and-plans)
+
+#### Framework Script + Test Migration Cleanup
+
+Audit `scripts/` and the framework's test corpus to identify scripts/tests that were only needed during migration (FD frontmatter shape changes, gate path additions, garden detector rollouts) and can now be deleted. Conversely, identify gaps where shipped framework features lack test coverage. The 2026-07 audit's cruft inventory is the shopping list: dead `cr-retry.ts`, `src/graphify-out/junk.ts` litter, empty `src/index.ts` as package main, duplicate semver impls (`src/migrations/semver.ts` vs npm `semver` in release), stale `packages/noldor/` + `scripts/release/` path comments (`src/core/consumer-config.ts:7`, `src/core/release-markers.ts:9`), `ideas.md` at repo root while `src/core/doc-roots.ts:28` expects `docs/ideas.md`. One-pass sweep — possibly a `/garden` detector that flags scripts referenced only in migration-era commits and not in any current pipeline.
+
+[Feature page](/features/framework-script-test-migration-cleanup)
+
+#### Gate Flow Rework
+
+Three-part rework of `/gate` flow combining tightly coupled changes to the gate-step ordering. (1) Step 0 priority pickup checks in-progress FDs first (FDs with `phase: in-progress` in frontmatter); if none, surface a structured suggestion set: 3 top-of-roadmap entries + 2 small×high-impact entries (XS/S size, high/critical impact) + 1 milestone-aligned high-impact entry (matches `docs/milestones/<active>.md` gate criteria) + an explicit "other" / free-form option. Today Step 0 surfaces only the single top-of-roadmap entry, which biases against quick wins and milestone alignment. (2) Every non-`micro-chore` path requires explicit confirmation after the path picker (today `AskUserQuestion` selection is implicit OK — operator sees no "are you sure?" beat before the heavy scaffolding starts; `full-new` in particular kicks off `/promote` + worktree + spec brainstorm in sequence and is expensive to abort). (3) Move worktree creation BEFORE FD scaffold (today `/promote` or `/new-feature` runs first inside `/gate` Step 2, then the worktree — an aborted gate leaves an orphaned FD on main with no worktree to host follow-up work). Bundled into one FD because all three changes touch the same gate-step ordering and a single PR is cheaper than three independent reviews.
+
+[Feature page](/features/gate-flow-rework)
+
+#### Noldor Framework *(updated)*
+
+Noldor is the Charuy-internal dev-loop framework extracted into a
+dedicated `docs/noldor/` folder so the project-agnostic rules
+(complexity gating, worktree discipline, /promote /triage /garden,
+SDD audit, graphify integration, FD schema, doc & test conventions,
+engineering principles) live separately from Charuy's product-specific
+overlays. Tracked as a single FD with all 17 framework pages in
+`links.docs`; per-page change history is recovered via
+`pnpm noldor:changelog` walking commit scopes
+(`noldor:<slug>` / `noldor`).
+
+[Feature page](/features/noldor)
+
+#### Parallel-Agent Dispatch for Research Jobs
+
+Noldor can fan out parallel _build_ agents (the K-concurrent drain) but has no first-class primitive for fanning out parallel _read/research_ agents — codebase research, multi-subsystem investigation, cross-file audits, "understand X before we spec it." Today an operator (or a gate/spec/plan flow) investigates these sequentially in one context: wastes wall-clock and pollutes the driving session's context. Inspired by `superpowers:dispatching-parallel-agents` — dispatch one context-isolated subagent per independent problem domain, each with focused scope + self-contained context (never inherits session history) + a required structured return, then synthesize and integrate.
+
+[Feature page](/features/parallel-agent-dispatch-for-research-jobs)
+
+#### Portable Gate Entrypoint for Non-Claude Runners
+
+This release adds the `promptDispatch` runner capability (#151).
+
+[Feature page](/features/portable-gate-entrypoint-for-non-claude-runners)
+
+#### Project Tracking Dashboard *(updated)*
+
+Internal-only browser dashboard for project tracking. Live Node server reads filesystem per request — feature MDs (counts, drill-down with frontmatter table + rendered markdown body), roadmap (Now/Next/Later, full block detail with name + category + area + type badge + since + paragraph per entry), backlog (full block detail with name + area + type badge + since + paragraph), SDD gaps (13 detector categories including spec/plan orphans, plans without spec, features without spec), plus filesystem-derived counts (skills, scripts) and realtime git velocity stats (commits 7d/30d/90d, by type, by scope, releases timeline), and a test-pyramid page (per-module source/test/case counts with test-to-code ratio, worst-covered modules first). Overview KPIs split into Project / Activity / Health sections, with Health surfacing stale WIP and worktree drift. Routes (`/`, `/roadmap`, `/backlog`, `/features`, `/features/:slug`, `/gaps`, `/velocity`, `/hot-zones`, `/wip-age`, `/test-pyramid`, `/worktrees`) with querystring filters. Implemented as a single tsx script in `scripts/dashboard/`. Zero hardcoded data — HTML shell + per-request renders. Promoted 2026-05-04 once read-only project visibility outgrew the markdown SDD report.
+
+[Feature page](/features/project-tracking-dashboard)
+
+#### Registry Distribution for the Noldor Package
+
+Added a `release.publish` config block that ships default-off for consumer safety (#139).
+
+[Feature page](/features/registry-distribution-for-the-noldor-package)
+
+#### Release Bypass Retirement
+
+Added a `release.crGateExemptCommits` config schema (#133).
+
+[Feature page](/features/release-bypass-retirement)
+
+#### Replace Roadmap Buckets with Flat Priority Order
+
+Drop the `## Now / ## Next / ## Later` section split from `docs/roadmap.md` in favor of a single flat priority-ordered list. File order = priority already lives in `docs/noldor/triage.md:38`; the remaining buckets are vestigial — `## Now` is empty (the `/promote` skill suspended Now-entry creation per step 8 pending this restructure), and the Next/Later split duplicates milestone semantics that `vision.md`'s current-milestone field already carries. In-progress work is discoverable via `phase: in-progress` in FD frontmatter; milestone bucketing belongs in a future `milestone:` FD field (see `Framework Milestones Support` entry below).
+
+[Feature page](/features/replace-roadmap-buckets-with-flat-priority-order)
+
+#### Roadmap Priority Ordering
+
+Add a framework-level priority for roadmap and backlog items: file-order = priority. Before the 2026-05-13 restructure (`replace-roadmap-buckets-with-flat-priority-order`) this FD shipped against per-section scopes (`## Now` / `## Next` / `## Later`) on the roadmap; that section split was later retired in favor of a single whole-file flat list. The current contract is: priority is whole-file (no sub-buckets), and cross-file moves between roadmap ↔ backlog are first-class and bidirectional (a backlog item promotes onto the roadmap, a roadmap item demotes back to the parking lot). The move preserves the body and re-derives priority from the new location.
+
+[Feature page](/features/roadmap-priority-ordering)
+
+#### Scan-Roots Repo-Paths Provider
+
+Added a repo-paths provider exposing `scanRoots` and `actualPackageNames` (#144).
+
+[Feature page](/features/scan-roots-repo-paths-provider)
+
+#### Scope Sibling Trailer for Doc-Sync Commits
+
+`noldor-scope` validation now accepts the `Noldor-Sibling-Scope` trailer (#158).
+
+[Feature page](/features/scope-sibling-trailer-for-doc-sync-commits)
+
+#### SDD Detector 5 — Idea-Merge Semantic Similarity
+
+When `/triage` proposes targets for ideas in `ideas.md`, a `triage merge-candidates` CLI emits the full merge-candidate corpus — every FD, roadmap block, and backlog block — as structured JSON, and `/triage`'s LLM ranks the top-3 `merge:<slug>` hosts per idea and surfaces them in the confirmation table. Reduces hand-judgment burden in `/triage` and biases toward merging into existing host FDs (per CLAUDE.md `/triage` rubric). The original "semantic similarity via graphify / community labels" framing was dropped at spec time — graphify's AST graph carries no feature-level embeddings, and Noldor's offline/deterministic posture rules out an external embedding model; ranking is deterministic-corpus + in-skill LLM judgment, no embeddings or network (see the linked spec). Trigger: when next batch of ideas accumulates and triage feels noisy.
+
+[Feature page](/features/sdd-detector-5-idea-merge-semantic-similarity)
+
+#### Self-Boundaries Declaration and Cycle Break
+
+refactor relocating repo config loader, review profiles, and stdin prompts out of `src/cr` (#156).
+
+[Feature page](/features/self-boundaries-declaration-and-cycle-break)
+
+#### Stable Entry IDs for Roadmap + Backlog
+
+Introduces stable entry IDs (Q-NNNN) for roadmap + backlog (#157).
+
+[Feature page](/features/stable-entry-ids-for-roadmap-backlog)
+
 ## v0.4.0 — 2026-07-01
 
 ### Tooling

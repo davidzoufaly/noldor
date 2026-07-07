@@ -17,6 +17,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -46,3 +47,14 @@ git reset --hard && rm .noldor/release-state.json
 <!-- @prs-since-last-release: pnpm-release-resume -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+Release-state persistence added so interrupted releases can resume (#132).
+
+#### PRs
+
+- #132: add release-state persistence for interrupted releases ([link](https://github.com/davidzoufaly/noldor/pull/132))
+

@@ -28,6 +28,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -80,3 +81,14 @@ RELEASE_SKIP_GARDEN_GATE=1 pnpm release    # now also appends (U3)
 <!-- @prs-since-last-release: release-bypass-retirement -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+Added a `release.crGateExemptCommits` config schema (#133).
+
+#### PRs
+
+- #133: add release.crGateExemptCommits config schema ([link](https://github.com/davidzoufaly/noldor/pull/133))
+

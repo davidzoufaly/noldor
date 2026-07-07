@@ -20,6 +20,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -53,3 +54,14 @@ On failure, the validator error itself prints the exact trailer line to add.
 <!-- @prs-since-last-release: scope-sibling-trailer-for-doc-sync-commits -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+`noldor-scope` validation now accepts the `Noldor-Sibling-Scope` trailer (#158).
+
+#### PRs
+
+- #158: accept Noldor-Sibling-Scope trailer in noldor-scope validation ([link](https://github.com/davidzoufaly/noldor/pull/158))
+

@@ -14,6 +14,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -39,3 +40,14 @@ Rules live in `.noldor/config.json` under `consumer.boundaries` (dependency-crui
 <!-- @prs-since-last-release: self-boundaries-declaration-and-cycle-break -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+refactor relocating repo config loader, review profiles, and stdin prompts out of `src/cr` (#156).
+
+#### PRs
+
+- #156: relocate repo config loader, review profiles, and stdin prompts out of src/cr ([link](https://github.com/davidzoufaly/noldor/pull/156))
+

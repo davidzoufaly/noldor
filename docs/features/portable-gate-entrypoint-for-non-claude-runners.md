@@ -22,6 +22,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -55,3 +56,14 @@ Agent API: none new — `DrainSource.gatePrompt(slug)` keeps its signature; `bui
 <!-- @prs-since-last-release: portable-gate-entrypoint-for-non-claude-runners -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+This release adds the `promptDispatch` runner capability (#151).
+
+#### PRs
+
+- #151: add promptDispatch runner capability ([link](https://github.com/davidzoufaly/noldor/pull/151))
+

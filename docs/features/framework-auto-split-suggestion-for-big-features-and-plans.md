@@ -18,6 +18,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -55,3 +56,14 @@ Exit 0 = clean, 2 = signals on stdout (one per line), 1 = infra error.
 <!-- @prs-since-last-release: framework-auto-split-suggestion-for-big-features-and-plans -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+Added split-suggestion oversize heuristics covering E1-E3, F1, and P1 (#155).
+
+#### PRs
+
+- #155: add split-suggestion oversize heuristics (E1-E3, F1, P1) ([link](https://github.com/davidzoufaly/noldor/pull/155))
+

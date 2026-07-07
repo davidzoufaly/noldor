@@ -23,6 +23,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -83,3 +84,14 @@ pnpm noldor release publish --local            # CI-down emergency (bypasses wor
 <!-- @prs-since-last-release: registry-distribution-for-the-noldor-package -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+Added a `release.publish` config block that ships default-off for consumer safety (#139).
+
+#### PRs
+
+- #139: add release.publish config block (default-off consumer safety) ([link](https://github.com/davidzoufaly/noldor/pull/139))
+

@@ -19,6 +19,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -48,3 +49,14 @@ Agent API: import `scanRoots()` / `actualPackageNames()` from `src/core/repo-pat
 <!-- @prs-since-last-release: scan-roots-repo-paths-provider -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+Added a repo-paths provider exposing `scanRoots` and `actualPackageNames` (#144).
+
+#### PRs
+
+- #144: add repo-paths provider (scanRoots + actualPackageNames) ([link](https://github.com/davidzoufaly/noldor/pull/144))
+

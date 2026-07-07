@@ -20,6 +20,7 @@ packages:
 phase: done
 noldor-tier: full
 entry-id: Q-0003
+introduced: 0.5.0
 ---
 ## Summary
 

@@ -36,6 +36,7 @@ packages:
   - scripts
 phase: done
 noldor-tier: specs-only
+introduced: 0.5.0
 ---
 ## Summary
 
@@ -76,3 +77,14 @@ As an operator running unattended drains, I want a live `/agents` dashboard page
 <!-- @prs-since-last-release: agent-events-phase-tracking-run-ids-and-agents-dashboard-page -->
 
 ## Changelog
+
+### Initial Release (v0.5.0)
+
+#### Summary
+
+Agent-event vocabulary now emits paired spawned/exited rows linked by a shared `spawnId` (#150).
+
+#### PRs
+
+- #150: agent-event vocabulary — paired spawned/exited rows with spawnId ([link](https://github.com/davidzoufaly/noldor/pull/150))
+
