@@ -51,6 +51,13 @@ export interface DrainDeps {
   mergePr?: (slug: string, branch: string) => Promise<MergeOutcome>;
   /** True when an open PR exists for the source's branch. May throw → abort (fail-closed). */
   openPrExistsFor: (slug: string, branch: string) => boolean;
+  /** True when a MERGED PR exists for the source's branch. A fast-track ship (branch `fast/<slug>`)
+   *  doesn't remove the roadmap entry, so the "absence-on-re-read = shipped" oracle misses it and the
+   *  entry re-selects; without this the loop re-spawns an implementer to rebuild already-merged work
+   *  (each spawn ~13min / ~170k tokens). Consulted ONLY post-spawn in settleShipVerdict (never at
+   *  selection) so a stale historical merge on a reused branch can't silently drop new work. Optional:
+   *  absent → old behavior. May throw → abort. */
+  mergedPrExistsFor?: (slug: string, branch: string) => boolean;
   /** Optional pre-spawn clean-room: detect + repair a stale `fast/<slug>` base (leftover local/remote
    *  branch or closed-unmerged PR) before the gate child spawns. Throws → systemic abort (fail-closed,
    *  like the other git/gh deps). Absent → no salvage (existing behavior). */
@@ -187,12 +194,41 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
         retries.delete(slug);
         return false;
       }
+      // Post-spawn only. We just dispatched THIS slug this run, so a merged PR
+      // on its branch is the ship we (or a concurrent run) just landed — a
+      // fast-track ship leaves the roadmap entry in place, so the absence oracle
+      // above missed it. Count it shipped instead of re-spawning a rebuild.
+      // This NARROWS but does not fully eliminate the "stale historical merge"
+      // hazard: gating on having-spawned-this-iteration keeps an unrelated old
+      // merge from blocking SELECTION, but if a branch name were reused (same
+      // slug re-added after a prior ship) a stale merge could still be misread
+      // here as this run's ship. That residual rests on the retire-on-ship +
+      // stable-Q-NNNN-ID invariant that a shipped `<prefix>/<slug>` branch name
+      // is never reused; if that ever breaks, scope this to a run-relative
+      // `mergedAt` window.
+      if (deps.mergedPrExistsFor?.(slug, branch)) {
+        shipped += 1;
+        retries.delete(slug);
+        skip.add(slug);
+        skipReasons[slug] = 'already-merged (fast-track ship left the roadmap entry in place)';
+        return false;
+      }
       if (deps.openPrExistsFor(slug, branch)) {
         skip.add(slug); // PR landed in-flight; never re-spawn a duplicate
         skipReasons[slug] = 'pr-open-unmerged';
         return false;
       }
       recordRetryOrSkip(slug);
+      return false;
+    }
+    // K>1: same post-spawn merged recognition as K=1 — a fast-track ship that left the roadmap
+    // entry behind has a MERGED (not open) PR, so the open-only handoff below would miss it and fall
+    // through to a retry re-spawn. Count it shipped; the worker settles it (coordinator never sees it).
+    if (deps.mergedPrExistsFor?.(slug, branch)) {
+      shipped += 1;
+      retries.delete(slug);
+      skip.add(slug);
+      skipReasons[slug] = 'already-merged (fast-track ship left the roadmap entry in place)';
       return false;
     }
     // K>1: hand off to the coordinator ONLY when the child exited cleanly AND opened a PR. A non-zero
@@ -231,6 +267,13 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
         continue;
       }
       const branch = deps.source.branchFor(candidate.slug);
+      // NB: the merged-PR check is deliberately NOT applied here (pre-spawn). A
+      // merged PR lives in GitHub history forever, so skipping selection on it
+      // would let a stale historical merge on a reused branch name silently drop
+      // genuinely new same-slug work — never even spawning it. The check runs only
+      // in settleShipVerdict (post-spawn), where it is scoped to work we just
+      // dispatched this run: it turns a retry re-spawn into a recognized ship
+      // without ever gating selection on ancient history.
       if (deps.openPrExistsFor(candidate.slug, branch)) {
         skip.add(candidate.slug); // restart-safety: a prior run's PR is in-flight
         skipReasons[candidate.slug] = 'pr-open-unmerged';

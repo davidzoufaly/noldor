@@ -16,6 +16,7 @@ function harness(
     ships?: (slug: string) => boolean;
     spawnImpl?: () => number;
     openPr?: () => boolean;
+    mergedPr?: () => boolean;
     stop?: () => boolean;
     eligibleFor?: (slug: string) => boolean;
     nextItemImpl?: (skip: ReadonlySet<string>) => ReturnType<DrainSource['nextItem']>;
@@ -62,6 +63,8 @@ function harness(
       spawnGate,
       syncMainCleanState: vi.fn(),
       openPrExistsFor: vi.fn(opts.openPr ?? (() => false)),
+      mergedPrExistsFor: vi.fn(opts.mergedPr ?? (() => false)),
+      mergePr: vi.fn(async () => 'merged' as const),
       writeState: vi.fn(),
       stopRequested: vi.fn(opts.stop ?? (() => false)),
     },
@@ -116,6 +119,25 @@ describe('runDrain', () => {
     const r = await runDrain(h.deps, opts);
     expect(r.shipped).toBe(1);
     expect(h.spawnGate).toHaveBeenCalledTimes(1);
+  });
+
+  it('(d2) fast-track-shipped slug still on roadmap but with a MERGED PR → counts shipped, never re-spawns (#11)', async () => {
+    // ships:false → spawn would NOT remove the entry (mimics fast-track leaving it in place);
+    // mergedPr:true → a merged fast/<slug> PR exists. The merged check is post-spawn only, so the
+    // slug is built once this run and then RECOGNIZED as shipped at settle — the key property is that
+    // it is NOT re-spawned on retry (without the fix each retry re-spawns ~170k tokens).
+    const h = harness(['a'], { ships: () => false, mergedPr: () => true });
+    const r = await runDrain(h.deps, opts);
+    expect(r.shipped).toBe(1);
+    expect(h.spawnGate).toHaveBeenCalledTimes(1); // built once, recognized at settle — no retry re-spawn
+  });
+
+  it('(d3) K>1: merged fast-track PR at settle → shipped, not handed to coordinator, no re-spawn (#11)', async () => {
+    const h = harness(['a'], { ships: () => false, mergedPr: () => true });
+    const r = await runDrain(h.deps, { ...opts, concurrency: 2, startupStaggerMs: 0 });
+    expect(r.shipped).toBe(1);
+    expect(h.spawnGate).toHaveBeenCalledTimes(1); // built once, recognized at settle
+    expect(h.deps.mergePr).not.toHaveBeenCalled(); // never handed a merged PR to the coordinator
   });
 
   it('(e) dry-run never spawns', async () => {

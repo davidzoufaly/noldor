@@ -13,6 +13,7 @@ import {
   assertQueueSourceSyncedAt,
   syncMainCleanState,
   openPrExistsFor,
+  mergedPrExistsFor,
   spawnGate,
   mergePr,
 } from './drain-io.js';
@@ -290,6 +291,7 @@ async function main(): Promise<void> {
         syncMainCleanState: () => syncMainCleanState(cwd),
         mergePr: (slug, branch) => mergePr(cwd, slug, branch),
         openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
+        mergedPrExistsFor: (slug, branch) => mergedPrExistsFor(cwd, slug, branch),
         salvageStaleBase: makeSalvage(cwd, 'watch'),
         writeState: makePhaseTap(cwd, runId, (s) =>
           writeState(cwd, projectDrainState(process.pid, startedAt, s)),
