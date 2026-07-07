@@ -1,53 +1,53 @@
 # Domain Knowledge Graph — Summary
-# 1656 nodes, 3989 edges, 95 communities
+# 1855 nodes, 4560 edges, 120 communities
 
 directed: false
 
 ## community index (top 20 by size)
-  c0 (89): detectors
-  c1 (83): agent-runner / runners
-  c2 (79): detectors
-  c3 (78): collect
-  c4 (60): dev-surfaces.ts · bootDevSurfaces() · worktree-conflicts.ts
-  c5 (55): commands
-  c6 (49): collect
-  c7 (49): rules
-  c8 (39): walkTokens() · views.ts · deriveRepoSlug()
-  c9 (37): detectors
-  c10 (36): check-invariants.ts · runAll() · formatResults()
-  c11 (36): data.ts · highlight() · getDocRoot()
-  c12 (34): rules
-  c13 (33): validate-features.ts · walkDir() · collectTestFiles()
-  c14 (32): context.ts · buildContext() · diffArgs()
-  c15 (32): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
-  c16 (28): release-fd-commits.ts · parseCommitLine() · gitLogShas()
-  c17 (27): detectors
-  c18 (25): detectors
-  c19 (25): buildSource() · drain-loop.ts · decideNext()
+  c0 (109): fd-load.ts · compareSemver() · isLinkEnforced()
+  c1 (83): 0.4.0.ts · types.ts · registry.ts
+  c2 (50): dev-surfaces.ts · bootDevSurfaces() · worktree-conflicts.ts
+  c3 (49): release-fd-commits.ts · parseCommitLine() · gitLogShas()
+  c4 (48): compute.ts · compute() · types.ts
+  c5 (41): prsSinceLastTag() · getRepoUrl() · data.ts
+  c6 (40): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
+  c7 (39): walkTokens() · views.ts · deriveRepoSlug()
+  c8 (38): context.ts · buildContext() · diffArgs()
+  c9 (34): stage.ts · pathToStage() · stage.test.ts
+  c10 (32): garden-detect.ts · planSlugFromFilename() · loadFeatureBySlug()
+  c11 (31): getFeaturesDir() · getSkillsDir() · parseRoadmapFromString()
+  c12 (31): buildSource() · drain-loop.ts · decideNext()
+  c13 (29): fanout.ts · intArg() · strArg()
+  c14 (29): draft.ts · buildDraftPrompt() · staging.ts
+  c15 (27): milestone-shipped-incomplete.ts · detectMilestoneShippedIncomplete() · milestone-shipped-incomplete.test.ts
+  c16 (26): write-blocks.ts · scanBlocks() · countEntries()
+  c17 (24): extract-touches.ts · looksLikePath() · normalizePath()
+  c18 (24): clean-tree.ts · git() · ensureCleanTreeOnMain()
+  c19 (24): drain-io.ts · classifyMergeView() · mergePr()
 
 ## cross-community edges (top 25)
-  classify-feature-track.ts [c45] --imports_from-- sdd-report.ts [c0]
-  classify-feature-track.ts [c45] --imports-- loadSddFeatures() [c0]
-  classify-feature-track.ts [c45] --imports_from-- parse-blocks.ts [c22]
-  classify-feature-track.ts [c45] --imports-- parseBacklog() [c22]
-  classify-feature-track.ts [c45] --imports-- parseRoadmap() [c22]
-  main() [c45] --calls-- loadSddFeatures() [c0]
-  main() [c45] --calls-- parseBacklog() [c22]
-  compute.ts [c6] --imports_from-- routing-accuracy.ts [c3]
-  compute.ts [c6] --imports-- collectRoutingAccuracy() [c3]
-  main() [c0] --imports_from-- compute.ts [c6]
-  loadMetricsReport() [c15] --imports_from-- compute.ts [c6]
-  main() [c0] --calls-- compute() [c6]
-  loadMetricsReport() [c15] --calls-- compute() [c6]
-  types.ts [c6] --imports_from-- agent-events.ts [c1]
-  types.ts [c6] --imports_from-- escalations.ts [c31]
-  types.ts [c6] --imports_from-- drain-state.ts [c34]
-  types.ts [c6] --imports_from-- findings-schema.ts [c46]
-  types.ts [c6] --imports_from-- feature-schema.ts [c0]
-  routing-accuracy.ts [c3] --imports_from-- types.ts [c6]
-  sdd-report.ts [c0] --imports_from-- types.ts [c6]
-  data.ts [c11] --imports_from-- types.ts [c6]
-  views.ts [c8] --imports_from-- types.ts [c6]
-  metrics-view.test.ts [c8] --imports_from-- types.ts [c6]
-  facts.ts [c6] --imports_from-- feature-schema.ts [c0]
-  facts.ts [c6] --imports_from-- findings-schema.ts [c46]
+  fanout.ts [c13] --imports_from-- registry.ts [c37]
+  fanout.ts [c13] --imports-- spawnAgent() [c37]
+  compute.ts [c4] --imports_from-- routing-accuracy.ts [c84]
+  compute.ts [c4] --imports-- collectRoutingAccuracy() [c84]
+  main() [c0] --imports_from-- compute.ts [c4]
+  loadMetricsReport() [c5] --imports_from-- compute.ts [c4]
+  main() [c0] --calls-- compute() [c4]
+  loadMetricsReport() [c5] --calls-- compute() [c4]
+  types.ts [c4] --imports_from-- agent-events.ts [c39]
+  types.ts [c4] --imports_from-- escalations.ts [c29]
+  types.ts [c4] --imports_from-- drain-state.ts [c63]
+  types.ts [c4] --imports_from-- findings-schema.ts [c49]
+  types.ts [c4] --imports_from-- feature-schema.ts [c58]
+  routing-accuracy.ts [c84] --imports_from-- types.ts [c4]
+  sdd-report.ts [c0] --imports_from-- types.ts [c4]
+  data.ts [c5] --imports_from-- types.ts [c4]
+  views.ts [c7] --imports_from-- types.ts [c4]
+  metrics-view.test.ts [c7] --imports_from-- types.ts [c4]
+  facts.ts [c4] --imports_from-- feature-schema.ts [c58]
+  facts.ts [c4] --imports_from-- findings-schema.ts [c49]
+  facts.ts [c4] --imports_from-- slugify.ts [c35]
+  facts.ts [c4] --imports-- slugify() [c35]
+  facts.ts [c4] --imports_from-- agent-events.ts [c39]
+  facts.ts [c4] --imports_from-- escalations.ts [c29]
+  facts.ts [c4] --imports_from-- drain-state.ts [c63]
