@@ -63,25 +63,47 @@ export interface PrereqCheck {
   detail: string;
 }
 
-function defaultProbe(bin: string): string | null {
-  try {
-    const out = execFileSync(bin, ['--version'], { encoding: 'utf8', timeout: 5000 });
-    const m = out.match(/\d+(\.\d+)+/);
-    return m ? m[0] : out.trim() || '0';
-  } catch {
-    return null;
-  }
+function versionFrom(out: string): string {
+  const m = out.match(/\d+(\.\d+)+/);
+  return m ? m[0] : out.trim() || '0';
 }
 
-/** Presence + version-floor check for every declared binary prerequisite. */
-export function checkBinaryPrerequisites(probe: VersionProbe = defaultProbe): PrereqCheck[] {
+/**
+ * Probe `<bin> --version` on PATH; on failure, retry the project-local
+ * `node_modules/.bin/<bin>` (relative to `cwd`). A dev-dep-only binary — most
+ * notably `lefthook`, which the git-hook shim resolves out of `node_modules`
+ * without ever being on PATH — is genuinely present and MUST NOT report missing.
+ */
+export function makeDefaultProbe(cwd: string): VersionProbe {
+  return (bin: string): string | null => {
+    try {
+      return versionFrom(execFileSync(bin, ['--version'], { encoding: 'utf8', timeout: 5000 }));
+    } catch {
+      // fall through to the project-local binary
+    }
+    try {
+      const local = join(cwd, 'node_modules', '.bin', bin);
+      return versionFrom(execFileSync(local, ['--version'], { encoding: 'utf8', timeout: 5000 }));
+    } catch {
+      return null;
+    }
+  };
+}
+
+/**
+ * Presence + version-floor check for every declared binary prerequisite.
+ * `probe` defaults to a PATH-then-`node_modules/.bin` resolver rooted at `cwd`.
+ */
+export function checkBinaryPrerequisites(
+  probe: VersionProbe = makeDefaultProbe(process.cwd()),
+): PrereqCheck[] {
   return BINARY_PREREQUISITES.map((p) => {
     const version = probe(p.id);
     if (version === null) {
       return {
         id: p.id,
         status: 'missing' as const,
-        detail: `'${p.id}' not found on PATH (${p.whereAssumed})`,
+        detail: `'${p.id}' not found on PATH or node_modules/.bin (${p.whereAssumed})`,
       };
     }
     if (compareDotted(version, p.floor) < 0) {

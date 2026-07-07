@@ -33,7 +33,7 @@ Swappability is out of scope here by design — abstraction decisions (other pac
    //npm.pkg.github.com/:_authToken=${NPM_TOKEN}
    ```
 
-   `NPM_TOKEN` is a GitHub PAT (classic or fine-grained) with **`read:packages`** and access to the noldor repo — fine-grained (per-repo package read) is recommended. Then install as a dev dependency: `pnpm add -D @davidzoufaly/noldor`. (Framework contributors point at a sibling clone instead: `"@davidzoufaly/noldor": "file:../noldor"`.)
+   `NPM_TOKEN` is a GitHub PAT (classic or fine-grained) with **`read:packages`** and access to the noldor repo — fine-grained (per-repo package read) is recommended. Then install as a dev dependency: `pnpm add -D @davidzoufaly/noldor` (in a **pnpm workspace / monorepo**, add `-w` to install at the root: `pnpm add -Dw @davidzoufaly/noldor` — a bare `pnpm add -D` at a workspace root fails with `ERR_PNPM_ADDING_TO_ROOT`). (Framework contributors point at a sibling clone instead: `"@davidzoufaly/noldor": "file:../noldor"`.)
 2. **Scaffold** the framework files into your repo: `pnpm noldor init`. This drops the `docs/noldor/` rule pages, the lefthook config, the skill bundle, a starter `.noldor/config.json` (only when absent — never overwritten, even by `--update`), and `.noldor/rollout-marker` (arms the gate validators; commit it). Re-run `pnpm noldor init --update` to pull template updates, or `pnpm noldor doctor` to diff your copy against the package templates.
 3. **Configure** the scaffolded `.noldor/config.json`: fill the `consumer:` block with your repo's real values (see field table below).
 4. **Hooks** install automatically via the package's `postinstall` (`lefthook install`; skipped with a note when lefthook isn't present, e.g. registry installs without devDeps).

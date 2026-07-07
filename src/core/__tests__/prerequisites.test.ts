@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -8,6 +8,7 @@ import {
   REQUIRED_CONSUMER_SCRIPTS,
   checkBinaryPrerequisites,
   checkConsumerScripts,
+  makeDefaultProbe,
 } from '../prerequisites';
 
 describe('BINARY_PREREQUISITES', () => {
@@ -48,6 +49,24 @@ describe('checkBinaryPrerequisites', () => {
 
   it('names the matrix link so doctor output can point at the adoption guide', () => {
     expect(MATRIX_LINK).toBe('docs/noldor/adoption-guide.md#prerequisites');
+  });
+});
+
+describe('makeDefaultProbe', () => {
+  it('resolves a dev-dep-only binary from node_modules/.bin when it is not on PATH', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-probe-'));
+    const binDir = join(dir, 'node_modules', '.bin');
+    mkdirSync(binDir, { recursive: true });
+    const fake = join(binDir, 'faketool-xyz');
+    writeFileSync(fake, '#!/bin/sh\necho "faketool 1.13.0"\n');
+    chmodSync(fake, 0o755);
+    // Not on PATH (unique name) → PATH probe fails, node_modules/.bin fallback hits.
+    expect(makeDefaultProbe(dir)('faketool-xyz')).toBe('1.13.0');
+  });
+
+  it('returns null when the binary is neither on PATH nor in node_modules/.bin', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-probe-empty-'));
+    expect(makeDefaultProbe(dir)('definitely-not-a-real-binary-xyz')).toBeNull();
   });
 });
 

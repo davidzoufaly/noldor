@@ -57,20 +57,30 @@ function loadConfigTolerant(cwd: string): ConsumerConfig {
 /** Resolve + run the chain. Pure w.r.t. process state; throws on guard failures. */
 export function runUpgrade(input: UpgradeInput): UpgradeResult {
   const config = loadConfigTolerant(input.cwd);
-  const from = input.from ?? loadFrameworkVersion(input.cwd);
+  const onDiskAnchor = loadFrameworkVersion(input.cwd);
+  const from = input.from ?? onDiskAnchor;
   if (from === null) {
     throw new Error(
-      'no frameworkVersion anchor in .noldor/config.json — run `noldor init`, or pass --from <version> to bootstrap an existing tree',
+      'no frameworkVersion anchor in `.noldor/config.json` (field: `consumer.frameworkVersion`) — run `noldor init`, or pass --from <version> to bootstrap an existing tree',
     );
   }
   const chain = resolveChain(input.migrations, from, input.installed);
   if (chain.length === 0) {
+    // Nothing to migrate. Normally a no-op, but a fresh adopt that reaches this
+    // via `upgrade --from <installed>` (e.g. after `init --update`, which does
+    // not stamp the anchor) has an UNSET on-disk anchor that must still be
+    // persisted — otherwise `doctor` warns skew forever and there is no command
+    // that ever writes the anchor. Bootstrap it here.
+    const bootstrapped = onDiskAnchor === null && !input.dryRun;
+    if (bootstrapped) writeFrameworkVersion(input.cwd, input.installed);
     return {
       from,
       to: input.installed,
       steps: 0,
-      applied: false,
-      report: `already at ${input.installed} — nothing to do`,
+      applied: bootstrapped,
+      report: bootstrapped
+        ? `already at ${input.installed} — anchor bootstrapped (consumer.frameworkVersion set to ${input.installed})`
+        : `already at ${input.installed} — nothing to do`,
     };
   }
   if (!input.dryRun && !input.force && isDirty(input.cwd)) {

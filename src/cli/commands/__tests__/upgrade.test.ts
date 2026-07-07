@@ -82,6 +82,41 @@ describe('runUpgrade', () => {
     expect(r.applied).toBe(false);
   });
 
+  it('bootstraps the anchor when --from equals installed on an unset tree (fresh adopt via init --update)', () => {
+    // No frameworkVersion anchor (init --update never stamps it).
+    writeFileSync(
+      join(dir, '.noldor/config.json'),
+      JSON.stringify({ consumer: { name: 'x' } }, null, 2),
+    );
+    git('add', '.');
+    git('commit', '-m', 'drop anchor');
+    const r = runUpgrade({
+      cwd: dir,
+      migrations: [m030],
+      installed: '0.5.0',
+      from: '0.5.0',
+      dryRun: false,
+      force: false,
+    });
+    expect(r.steps).toBe(0);
+    expect(r.applied).toBe(true);
+    const raw = JSON.parse(readFileSync(join(dir, '.noldor/config.json'), 'utf8'));
+    expect(raw.consumer.frameworkVersion).toBe('0.5.0');
+  });
+
+  it('does NOT rewrite an already-set current anchor (empty chain stays a no-op)', () => {
+    const r = runUpgrade({
+      cwd: dir,
+      migrations: [m030],
+      installed: '0.2.0', // equals the on-disk anchor from beforeEach
+      dryRun: false,
+      force: false,
+    });
+    expect(r.steps).toBe(0);
+    expect(r.applied).toBe(false);
+    expect(r.report).toContain('nothing to do');
+  });
+
   it('refuses on a dirty tree without force', () => {
     writeFileSync(join(dir, 'dirty.txt'), 'x');
     expect(() =>
