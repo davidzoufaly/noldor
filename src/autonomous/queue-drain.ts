@@ -84,7 +84,12 @@ export function parseArgs(args: readonly string[]): ParsedArgs {
  */
 export function assertConfig(cfg: Partial<NoldorConfig>): void {
   const a = cfg.autonomous;
-  if (!a) throw new Error('drain requires an `autonomous` block in .noldor/config.json');
+  if (!a)
+    throw new Error(
+      'drain requires an `autonomous` block in .noldor/config.json. Fresh scaffolds ' +
+        '(noldor v0.5.1+) include it; older ones must add the headless-safe block:\n' +
+        '  "autonomous": { "skipLanePicker": true, "onFailure": "abort", "requireHumanPrApproval": false }',
+    );
   const bad: string[] = [];
   if (a.onFailure !== 'abort') bad.push('autonomous.onFailure must be "abort"');
   if (a.skipLanePicker !== true) bad.push('autonomous.skipLanePicker must be true');
