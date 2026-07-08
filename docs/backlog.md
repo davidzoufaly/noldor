@@ -16,63 +16,94 @@ Dependencies are declared with a `- blocked-by: <slug|Q-id, …>` bullet (the en
 
 Open question — does it make sense to introduce SQL into the framework? Explore use cases (dashboard queries, metrics, entry indexing) before committing.
 
-### Idempotent Drain Delivery Guard
+### Plans-Source Drain Deps Gating
 
-- id: Q-0008
+- id: Q-0019
 - area: tooling
 - type: fix
-- since: 2026-06-12
+- since: 2026-07-07
 - size: S
 - impact: med
-- confidence: low
+- parent: noldor
+- confidence: high
 
-A triage commit that lived un-pushed on local `main` got delivered twice — once by a concurrent process and once by the operator (PRs #76 + #77, identical content) — because nothing detected that the local commit was already mirrored on `origin` under a different sha. Add an idempotency guard before re-delivering: when about to push/PR a local commit, check whether its tree/content already landed on `origin/main` (e.g. patch-id match) and skip the redundant delivery. Niche trigger (requires a concurrent delivery race), hence parked.
+`plansSource` in `src/autonomous/drain-source.ts` gates eligibility only on spec+plan file existence (`r.date !== null && r.spec`), so the plans-source drain can spawn an in-progress FD whose `blocked-by:`/`deps:` are still unshipped — the deps-in-queue guard added in PR #83 lives only in `roadmapSource` (lines 91-93). Mirror that guard into `plansSource`: mark an FD ineligible when any of its deps still names an unshipped/queued entry, with a precise skip reason. Optionally extend both sources beyond direct-deps to catch transitive/`feat/`-branch deps that currently read as absent-therefore-shipped. Verified against live code 2026-07-07.
 
-### Prefix Skills with noldor-
+### Test-Tag Presence On src/ Layout
 
-- id: Q-0009
-- area: tooling
-- type: refactor
-- since: 2026-06-12
-- size: L
-- impact: low
-- confidence: med
-
-Prefix the framework's skill names with `noldor-` to namespace them and avoid collisions with consumer-side or vendored skills. Parked 2026-07-02, re-sized S→L: a 2026-06-13 drain attempt revealed this is a self-referential mega-rename — 9 unprefixed skills (`gate`, `garden`, `triage`, `promote`, `milestone`, `new-feature`, `draft-feature-md`, `refactor`, `release-sweep`) plus template twins, the drain's `gatePrompt` in `src/autonomous/drain-source.ts`, and back-compat aliases for consumer repos that already vendored the old names. Only `noldor-spec` / `noldor-plan` / `noldor-research` were born prefixed. Needs the full spec+plan path if picked up; never fast-track.
-
-### Noldor-Native Wait Primitive
-
-- id: Q-0010
-- area: tooling
-- type: feat
-- since: 2026-07-02
-- size: M
-- impact: low
-- confidence: med
-
-Runner-agnostic alternative to the harness `Monitor` tool, consumer side only: `noldor wait <state-file> --until <terminal-cond> [--emit <jsonpath>]` that polls until a job reaches a terminal state and surfaces progress. Do NOT invent a new progress format — reuse the existing producer-side state files (`.noldor/drain-state.json` heartbeat, `.noldor/cr/<slug>-<kind>-<lane>.json` sinks). The "write one side / read other" channel already exists; the gap is a portable wait/poll the controller calls instead of the host harness's Monitor (which can be blocked + isn't cross-runner). Parked: background-task completion notifications already cover most waiting. Touches: `src/autonomous/` (watch shares the poll loop), a `noldor wait` CLI.
-
-### Graph-Freshness / Fmt-Collision Follow-Ups
-
-- id: Q-0011
+- id: Q-0020
 - area: tooling
 - type: fix
-- since: 2026-07-01
+- since: 2026-07-07
 - size: S
-- impact: low
-- confidence: med
+- impact: med
+- parent: noldor
+- confidence: high
 
-The v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json`, but the fmt lefthook step fed oxfmt an all-ignored file set for a graph-only commit → hard error → couldn't commit the graph) was fixed immediately in PR #114 (`exclude: 'graphify-out/'`). Parked design follow-ups: (a) a broader guard so any all-ignored fmt invocation no-ops instead of erroring; (b) have the release-sweep own the graph commit end-to-end so the two gates can't deadlock; (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step. Pick up only if the collision class recurs.
+`validateTestTagPresence` hardcodes `TEST_WALK_ROOTS = ['apps', 'packages']` (`src/features/validate-features.ts:65`), so the `// @tests: <slug>` presence check never fires on standalone / self-host `src/` layouts even though `docs/noldor/feature-md-schema.md` documents it as enforced (a doc lie for src-layout repos). Route the walk through the shipped `scanRoots()` / consumer `scanPaths` provider (`src/core/repo-paths.ts`) so presence enforcement works on src-layout consumers — same consumer-layout class as the shipped scan-roots provider. Verified against live code 2026-07-07.
 
-### Dashboard Blocked-By Graph View
+### PR-Flow Fallback Merges On Red CI
 
-- id: Q-0018
+- id: Q-0021
+- area: tooling
+- type: fix
+- since: 2026-07-07
+- size: S
+- impact: med
+- parent: noldor
+- confidence: high
+
+`mergePrWithFallback` (`src/core/pr-flow.ts:363-369`) runs a direct `gh pr merge --squash --delete-branch` when `--auto` fails (repo has auto-merge disabled) with **no** CI-check polling, so a PR can land on red when there is no branch protection to stop it. The `--auto` path polls `mergeStateStatus`; the fallback path does not. Harden the fallback to poll checks (or query `mergeStateStatus`/`statusCheckRollup`) before the synchronous merge and refuse to merge a failing PR. Verified against live code 2026-07-07.
+
+### Verify-Lane Bake-In: Blocking Mode + PR Evidence
+
+- id: Q-0022
 - area: tooling
 - type: feat
-- since: 2026-07-05
+- since: 2026-07-07
+- size: S
+- impact: low
+- parent: noldor
+- confidence: med
+
+The acceptance verify lane shipped in advisory mode (PR #74); `autonomous.verifyMode` still defaults to `advisory` (`src/core/config.ts`). Two intended bake-in follow-ups were never tracked: (1) flip the self-host `autonomous.verifyMode` from `advisory` → `blocking` now that the lane has baked for several releases; (2) implement spec item D3 — attach the verify lane's evidence array (command/observed pairs) to the PR body so reviewers see behavioral proof. Both are low-risk hardening of an already-shipped lane.
+
+### Private-Package Org-Move + ps-offsite .npmrc Wiring
+
+- id: Q-0024
+- area: tooling
+- type: chore
+- since: 2026-07-07
+- size: S
+- impact: med
+- parent: noldor
+- confidence: low
+
+Deferred config follow-ups from the private-GH-Packages switch (PR #168, v0.5.0 publish): (1) **Phase B** — wire the ps-offsite consumer's project `.npmrc` (`@davidzoufaly:registry=https://npm.pkg.github.com` + `//npm.pkg.github.com/:_authToken=${NPM_TOKEN}`) and a CI `NPM_TOKEN` secret with `read:packages`, then swap its dep to `@davidzoufaly/noldor` and install (blocked on a user-provided PAT with `read:packages`); (2) move the repo to the GoodData org, which re-scopes the package name and requires updating `publish.yml` scope + every consumer `.npmrc`. Both are operator/config tasks, no framework code.
+
+### Non-Claude Runner Parity Follow-Ups
+
+- id: Q-0025
+- area: tooling
+- type: feat
+- since: 2026-07-07
 - size: M
 - impact: low
-- confidence: med
 - parent: noldor
+- confidence: med
 
-Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on the tracking dashboard (nodes = entries, edges = blocked-by; highlight cycles flagged by the `circular-blocked-by` garden detector). Split out of the shipped `first-class-blocked-by-field` entry — the data model, validation, and cycle detector landed; the dashboard visualization was deferred as its own larger piece.
+Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, three peer runtimes: Claude Code / Codex / opencode): (a) deep skill parity for non-Claude implementers; (b) opencode `--format json` event parsing (today reserved, treated as prose v1); (c) `crLanes` → role-ref vocabulary migration. Elective — pick up only when a non-Claude implementer runtime is actually exercised end-to-end.
+
+### Memory-Intake / Lessons-Learned Pipeline
+
+- id: Q-0026
+- area: tooling
+- type: feat
+- since: 2026-07-07
+- size: M
+- impact: med
+- parent: noldor
+- confidence: low
+
+Systemic self-capture so the framework routinely absorbs ephemeral operator/agent knowledge into itself instead of depending on an out-of-repo assistant memory (the 2026-07-07 audit that produced Q-0019..Q-0025 was a one-time manual sweep). Design a lightweight intake: a place to drop a lesson/gotcha, a classifier (shipped-historical drop / gotcha → docs / actionable → roadmap-backlog / feedback → docs), and a `noldor` command that files it. Goal: framework stays self-aware and self-owned with zero dependency on any single assistant's private memory. Speculative — validate the manual sweep pays off before automating.
+

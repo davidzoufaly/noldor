@@ -59,3 +59,31 @@ See [release-sweep-process-hardening](../features/release-sweep-process-hardenin
 ## Finishing a worktree
 
 - **Finishing a worktree** — once tests pass, run the full sequence without asking: gate Step 4 end-of-flow (code-stage CR → `pnpm noldor pr-flow`: push branch + open PR + auto-squash-merge) → `git worktree remove [--force] .worktrees/<name>` → `git branch -D feat/<name>` (force — squash-merge leaves the branch's commits non-ancestor of `main`) → `git fetch origin main && git checkout main && git merge --ff-only origin/main`. Skip the 4-option menu. Don't ask first — the user prefers autonomous finish; verify tests as the gate, not a prompt. Never `git push origin main` directly — the pre-push hook blocks it
+
+## Split-brain traps
+
+- **Agent Edit/Read/Write need worktree-ABSOLUTE paths.** In a worktree gate
+  session the cwd is the worktree, but the Edit/Read/Write tools resolve the
+  literal path you pass. Passing a main-repo absolute path
+  (`/…/noldor/docs/…`) edits **main's** working copy while `Bash`/`tsx` with
+  relative paths resolve against the worktree — a split-brain where doc edits
+  land uncommitted on main, validators/commits run clean in the worktree, and
+  the worktree `git status` shows fewer changes than expected. Always prefix
+  Edit/Read/Write with the worktree root (`.worktrees/<slug>/…`) and sanity-check
+  `git status --short` in the worktree after the first edit. Recovery:
+  `git -C <main> checkout -- <files>`, then re-apply with worktree-absolute paths.
+- **Native `EnterWorktree` worktrees live at `.claude/worktrees/<name>`.** The
+  shared-files pre-commit guard only matches paths containing `/.worktrees/`, so
+  it is INACTIVE inside a native worktree — skill/template twins commit there
+  WITHOUT `NOLDOR_ALLOW_SHARED=1` (that env var is needed only when editing twins
+  from the main workspace).
+- **Concurrent process dirtying shared `main` aborts gate Step 4 main-sync.** If
+  `git merge --ff-only origin/main` aborts ("commit your changes or stash
+  them"), run `git status` FIRST: if `docs/roadmap.md` / `docs/backlog.md` (files
+  you didn't touch) show modified, do NOT stash/discard — that's another
+  process's (e.g. a scheduled `/triage`) in-flight work. The PR already merged on
+  `origin/main` is the real deliverable; leave local main behind and surface the
+  divergence. Step 0 variant: `next-priority` reads main's dirty working copy
+  while a worktree branches from `origin/main`, so re-read the roadmap inside the
+  worktree before any `promote` edit; if the picked entry is absent, abort +
+  reconcile main rather than carrying the block in by hand.

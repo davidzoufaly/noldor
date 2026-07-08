@@ -21,6 +21,7 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 | Finishing a feature (PR + auto-merge) | [`pr-flow.md`](pr-flow.md)                                                                                                                                                                  |
 | Writing docs                          | [`doc-conventions.md`](doc-conventions.md)                                                                                                                                                  |
 | Auditing the framework                | [`garden-and-drift.md`](garden-and-drift.md), [`triage.md`](triage.md)                                                                                                                      |
+| Hitting a weird operational trap      | [`gotchas.md`](gotchas.md)                                                                                                                                                                  |
 | Looking up a pnpm script              | [`script-catalog.md`](script-catalog.md)                                                                                                                                                    |
 | Bootstrapping Noldor in another repo  | [`adoption-guide.md`](adoption-guide.md) (stub — framework still WIP)                                                                                                                       |
 
@@ -42,6 +43,7 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 - [`skill-catalog.md`](skill-catalog.md) — /promote, /triage, /garden, /draft-feature-md, /new-feature reference
 - [`script-catalog.md`](script-catalog.md) — every pnpm script the framework relies on, grouped by concern
 - [`garden-and-drift.md`](garden-and-drift.md) — what /garden detects + sentinel rules
+- [`gotchas.md`](gotchas.md) — operational traps not obvious from code (docs/templates, CR sinks, tests, dashboard, drain)
 - [`graph-integration.md`](graph-integration.md) — graphify ↔ SDD substrate
 - [`research-fanout.md`](research-fanout.md) — parallel read-only research agents: task specs, envelope contract, INDEX/synthesis
 - [`adoption-guide.md`](adoption-guide.md) — stub; framework is WIP, standalone-package lift tracked in backlog

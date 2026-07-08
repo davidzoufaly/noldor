@@ -26,6 +26,87 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Phase 6 — Structural
 
+### Promoted from Backlog
+
+#### Idempotent Drain Delivery Guard
+
+- id: Q-0008
+- area: tooling
+- type: fix
+- since: 2026-06-12
+- size: S
+- impact: med
+- confidence: low
+- parent: noldor
+
+A triage commit that lived un-pushed on local `main` got delivered twice — once by a concurrent process and once by the operator (PRs #76 + #77, identical content) — because nothing detected that the local commit was already mirrored on `origin` under a different sha. Add an idempotency guard before re-delivering: when about to push/PR a local commit, check whether its tree/content already landed on `origin/main` (e.g. patch-id match) and skip the redundant delivery. Niche trigger (requires a concurrent delivery race), hence parked.
+
+#### Prefix Skills with noldor-
+
+- id: Q-0009
+- area: tooling
+- type: refactor
+- since: 2026-06-12
+- size: L
+- impact: low
+- confidence: med
+- parent: noldor
+
+Prefix the framework's skill names with `noldor-` to namespace them and avoid collisions with consumer-side or vendored skills. Parked 2026-07-02, re-sized S→L: a 2026-06-13 drain attempt revealed this is a self-referential mega-rename — 9 unprefixed skills (`gate`, `garden`, `triage`, `promote`, `milestone`, `new-feature`, `draft-feature-md`, `refactor`, `release-sweep`) plus template twins, the drain's `gatePrompt` in `src/autonomous/drain-source.ts`, and back-compat aliases for consumer repos that already vendored the old names. Only `noldor-spec` / `noldor-plan` / `noldor-research` were born prefixed. Needs the full spec+plan path if picked up; never fast-track.
+
+#### Noldor-Native Wait Primitive
+
+- id: Q-0010
+- area: tooling
+- type: feat
+- since: 2026-07-02
+- size: M
+- impact: low
+- confidence: med
+- parent: noldor
+
+Runner-agnostic alternative to the harness `Monitor` tool, consumer side only: `noldor wait <state-file> --until <terminal-cond> [--emit <jsonpath>]` that polls until a job reaches a terminal state and surfaces progress. Do NOT invent a new progress format — reuse the existing producer-side state files (`.noldor/drain-state.json` heartbeat, `.noldor/cr/<slug>-<kind>-<lane>.json` sinks). The "write one side / read other" channel already exists; the gap is a portable wait/poll the controller calls instead of the host harness's Monitor (which can be blocked + isn't cross-runner). Parked: background-task completion notifications already cover most waiting. Touches: `src/autonomous/` (watch shares the poll loop), a `noldor wait` CLI.
+
+#### Graph-Freshness / Fmt-Collision Follow-Ups
+
+- id: Q-0011
+- area: tooling
+- type: fix
+- since: 2026-07-01
+- size: S
+- impact: low
+- confidence: med
+- parent: noldor
+
+The v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json`, but the fmt lefthook step fed oxfmt an all-ignored file set for a graph-only commit → hard error → couldn't commit the graph) was fixed immediately in PR #114 (`exclude: 'graphify-out/'`). Parked design follow-ups: (a) a broader guard so any all-ignored fmt invocation no-ops instead of erroring; (b) have the release-sweep own the graph commit end-to-end so the two gates can't deadlock; (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step. Pick up only if the collision class recurs.
+
+#### Dashboard Blocked-By Graph View
+
+- id: Q-0018
+- area: tooling
+- type: feat
+- since: 2026-07-05
+- size: M
+- impact: low
+- confidence: med
+- parent: noldor
+
+Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on the tracking dashboard (nodes = entries, edges = blocked-by; highlight cycles flagged by the `circular-blocked-by` garden detector). Split out of the shipped `first-class-blocked-by-field` entry — the data model, validation, and cycle detector landed; the dashboard visualization was deferred as its own larger piece.
+
+### Framework Self-Ownership
+
+#### Add templates/docs To Micro-Chore And Release-Sweep Allowlists
+
+- id: Q-0023
+- area: tooling
+- type: fix
+- since: 2026-07-07
+- size: XS
+- impact: med
+- parent: noldor
+
+Frontmatter/doc twin edits under `templates/docs/noldor/**` (and `templates/docs/**`) match no allowlist in `src/core/allowlist.ts`, so the `docs/noldor` ↔ `templates/docs/noldor` twin syncs that `check-template-sync` forces cannot land via micro-chore or release-sweep — they require a fast-track PR with a `Noldor-Path-Override:` trailer, which needlessly spins the acceptance-verify (dashboard-boot) CR lane for a pure frontmatter mirror. This drift is hit every release when `release-markers` adds `introduced:` to `docs/noldor/*.md` but not its template twin. Add `templates/docs/**/*.md` to `MICRO_CHORE_GLOBS` (mirroring the existing `templates/.claude/**` carve-out) and to `RELEASE_SWEEP_GLOBS` (mirroring `docs/noldor/**/*.md`), with `allowlist.test.ts` coverage.
+
 ### Trigger-Parked (revisit when the named trigger fires)
 
 #### Real-Codex Integration Smoke Test

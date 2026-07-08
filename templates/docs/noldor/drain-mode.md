@@ -105,3 +105,24 @@ headless-safe config set (`autonomous.onFailure: "abort"`,
 `skipLanePicker: true`, `requireHumanPrApproval: false`) — the supervisor
 refuses to start otherwise. The Claude-path rendering of this contract lives
 in the gate skill's Drain-mode section; keep the two in sync.
+
+## Double-skip salvage
+
+A drain iteration can double-skip (auto-park "retries-exhausted") for reasons
+that are NOT real blockers: transient connection drops, and — recurring every
+cycle — the verify lane running `oxfmt --check` against the worktree's
+**untracked** `.claude/settings.local.json`.
+
+When the branch work is actually sound, salvage by hand:
+
+1. Worktree the feat branch → `git rebase main`.
+2. `oxfmt .claude/settings.local.json` in place (clears the untracked-file fmt red).
+3. `pnpm verify`.
+4. `cr orchestrate --kind code --autonomous` (mints the receipt).
+5. `cr aggregate --kind code`.
+6. `pnpm pr-flow` from the worktree.
+7. `autonomous unpark <slug>` — a by-hand ship leaves the park entry behind.
+
+Note: with no `agents` block in `.noldor/config.json`, spawned subagents inherit
+the `~/.claude/settings.json` model default (opus), never the orchestrator's env
+default.

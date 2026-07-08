@@ -27,6 +27,18 @@ block — lockstep packages, repo URL, package prefix, app path prefix,
 boundary rules. The framework runtime reads them through
 `loadConsumerConfig()`; no Charuy literal survives in framework code.
 
+## Noldor is a product
+
+Noldor is intended for adoption by other projects, not a personal substrate.
+When ranking framework work, weight **adoption blockers** — distribution,
+upgrade/migration, consumer-contract testing, real external-adoption runs —
+above internal-only polish. This is the standing prioritization tie-breaker.
+
+The framework must also be **self-owned**: every load-bearing fact lives in this
+repo, not in any single assistant's private memory. Operational knowledge that
+would otherwise be memory-bound belongs in [`noldor/gotchas.md`](noldor/gotchas.md)
+and the runbooks beside it.
+
 ## Editing this file
 
 Vision is the strategic frame: paragraph-level intent, no schedules, no
