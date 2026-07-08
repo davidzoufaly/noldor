@@ -250,3 +250,30 @@ from config.
 - PR-based granularity (waiting on Noldor PR adoption).
 - Auto-pruning old sidecars.
 - Codex CR running inside CI.
+
+## Review gotchas
+
+- **Never comma-join `--artifact` for `--kind code`.** `cr orchestrate --kind code
+  --artifact <x>` runs the empty-delta short-circuit (`isEmptyDiffDefault`,
+  `src/cr/orchestrate.ts`) with the artifact string as a **single git pathspec**.
+  A comma-joined file list matches nothing → `git diff --quiet` exit 0 →
+  "synthetic OK (empty delta)" → every lane skipped with a fake approve →
+  merging ships unreviewed code. Pass ONE pathspec (`.` for whole-diff review).
+  Treat any "synthetic OK (empty delta)" on a branch you KNOW changed as a bug
+  signal, not a pass.
+- **`phase: done` does NOT mean code-stage CR ran.** An in-progress FD whose
+  implementation is "done" and phase flipped can still have never run code-stage
+  CR (empty `.noldor/cr/`, no `Noldor-Reviewed-Subagent` trailer) — seen on
+  resume across several features. Verify CR actually ran before `pr-flow`; don't
+  trust the phase.
+- **Exclude the `verify` lane for features with no HTTP/runtime surface.** Use
+  `cr orchestrate --lanes subagent`. `noldor doctor` exits 1 on a
+  lefthook-not-on-PATH check (a false positive — lefthook works via
+  `pnpm exec`), which reds the verify-lane smoke floor and, under
+  `onFailure: abort`, halts the drain.
+- **`cr orchestrate --autonomous` with a missing `crLanes.<kind>` does NOT
+  hard-error.** Despite the gate skill's claim, it silently falls back to the
+  subagent lane. Set `crLanes.<kind>` explicitly if you want a specific lane set.
+
+Sink-file mechanics (stale sink after amend, archive-to-subdir, headless
+overwrite crash) live in [`gotchas.md`](gotchas.md#cr-sinks).

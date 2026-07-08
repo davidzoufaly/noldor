@@ -130,3 +130,10 @@ The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.no
 ### Pre-push hook
 
 `src/hooks/noldor-enforce-review-receipt.ts` validates the review receipt on the **tip commit** for review-requiring paths (`fast-track`, `specs-only-*`, `full-*`): the trailer's tree hash must match `git rev-parse HEAD^{tree}`. Both trailer names are accepted — `Noldor-Reviewed-Subagent` (multi-reviewer gate Step 4, current) and `Noldor-Reviewed` (legacy single-reviewer). If new code was committed after the review receipt, the tree hash mismatches and the push is rejected — re-run review. Interim commits don't need a receipt; only the tip is checked.
+
+### Scripted commits: one `-m` paragraph for all trailers
+
+When any script or tool composes a commit message, put **all** `Noldor-*`
+trailers in a SINGLE `-m` paragraph. `git interpret-trailers --parse` reads only
+the final paragraph, so splitting trailers across separate `-m` args silently
+drops them and fails the commit-msg validator (this was the latent PR #129 bug).

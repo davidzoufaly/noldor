@@ -154,3 +154,37 @@ detach needed. A systemd `OnCalendar=` timer wrapping the same command works the
 
 > A **CI-cron** variant (run the watcher from CI on a schedule) is still out of scope — it waits on
 > consumer-contract CI for the secrets + checkout strategy.
+
+## Operator gotchas
+
+- **Run the roadmap drain at `--concurrency 1`.** Every fast-track PR removes its
+  own `docs/roadmap.md` block; under K>1 git cannot auto-merge adjacent block
+  removals → the PRs go DIRTY and get orphaned. K=1 is conflict-free by
+  construction.
+- **micro-chore's `git reset --hard origin/main` silently nukes uncommitted
+  edits to OTHER tracked files.** `git stash push <dirty-files>` before the reset
+  (hit `ideas.md` twice this way).
+- **Verify drain liveness with `pgrep -f 'noldor.mjs autonomous run'`, not by
+  reading `.noldor/drain.lock`.** A partial pid read reads as dead → you kill a
+  live drain.
+- **Never run an interactive `/gate --resume`/`--drain <slug>` while a background
+  drain is live on that slug.** They collide on the shared `feat/<slug>` branch +
+  worktree. Check `ps aux | grep -E 'plans-drain|autonomous run'` first.
+- **An in-conversation `/gate --drain <slug>` fast-track does not `/promote`,** so
+  retire the roadmap block by hand as a second micro-chore PR (removeBlock →
+  temp-branch handoff → checkout temp → `pr-flow`).
+
+## Salvaging a leftover branch
+
+- **Run `git merge-base origin/main fast/<slug>` FIRST.** If the base equals the
+  current main tip the branch is NOT stale (the prior child just died mid-flow) —
+  reuse it and finish. Only when the base is old do you rebuild from fresh main.
+- **Re-apply content via `Edit`, never `cherry-pick`.** A cherry-picked
+  `Noldor-Reviewed-Subagent` trailer was computed against the old tree and FAILS
+  the pre-push receipt check against `HEAD^{tree}` — let end-of-flow CR mint a
+  fresh receipt.
+- **A stale base makes `git diff origin/main..<branch>` show already-merged work
+  as mass DELETIONS.** Inspect per-commit `git show --stat <sha>` (the real
+  change is tiny) rather than merging as-is.
+- **Fast-track test files must drop any `@tests: <slug>` tag** — with no FD they
+  fail the pre-commit `validate:features` check.

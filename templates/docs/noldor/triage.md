@@ -104,3 +104,23 @@ pnpm noldor validate triage              # enforces id presence/format/cross-fil
 ```
 
 For `/promote` (roadmap/backlog → feature MD) see [`workflow.md`](workflow.md). For `/garden`, `pnpm noldor garden sdd-report`, and the 13-detector contract see [`garden-and-drift.md`](garden-and-drift.md).
+
+## Triage gotchas
+
+- **Verify a friction/bug report against the CURRENT code before triaging or
+  fixing** — grep the actual seam, not the report's own text. A phase-3 pass
+  mis-marked a "typescript → deps" item critical when a lazy-import had already
+  fixed it. Reports describe the state when written; code moves.
+- **Watch for inherited/stale premises.** Some entries were authored against a
+  parent repo before extraction and can describe debt/state that no longer
+  exists here. Before scaffolding an entry that cites historical counts, file
+  paths, or "discovered during vX", verify the premise against live code + a
+  fresh `pnpm noldor garden detect` + a `git log` grep. If the described state is
+  absent, confirm supersession before committing to the work. Retire-only items
+  → retire via micro-chore, not a build.
+- **`pnpm noldor triage list-untriaged` only scans `## Verticals → Now|Next|Later`
+  in `ideas.md`** — NOT `## Priority` or `## Not groomed`. Bullets pasted under
+  those headings are invisible to the CLI; triage them in place with a
+  `[triaged YYYY-MM-DD → slug]` marker.
+- **`lockstepPackages` entries are `package.json` PATHS**, not package names —
+  `release-packages.ts` `readFile`s them.
