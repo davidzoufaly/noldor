@@ -24,7 +24,7 @@ introduced: 0.6.0
 
 ## Summary
 
-`src/release/index.ts:257-263` runs `git commit -m "chore(release): vX.Y.Z" -m "Noldor-Path: release-automation"` without first writing `.noldor/session.json`. Post-rollout, `src/hooks/noldor-pre-commit.ts:58-63` hard-walls any commit lacking a session, rejecting the release commit with "No /gate session. Run /gate before committing: CHANGELOG.md, …". Discovered 2026-05-17 during v0.5.1 release sweep: operator had to manually write a `fast-track` session marker before `pnpm release` succeeded, because `release-automation` is not a valid value in the session-path enum (`src/core/session.ts` zod schema rejects it). Fix candidates: (a) extend session-path enum to include `release-automation` and have the release script write the marker itself before staging, with cleanup in a `finally`; (b) teach `noldor-pre-commit.ts` to short-circuit when the pending `.git/COMMIT_EDITMSG` already carries `Noldor-Path: release-automation` (peek-at-msg pattern, similar to override-trailer fix candidate at line 592); (c) `noldor-inject-trailers.ts` writes a transient session marker for the release commit. Without this fix, every `pnpm release` invocation requires the operator to remember the `fast-track` workaround — a quiet rollout-era regression no one has documented yet.
+`src/release/index.ts:257-263` runs `git commit -m "chore(release): vX.Y.Z" -m "Noldor-Path: release-automation"` without first writing `.noldor/session.json`. Post-rollout, `src/hooks/noldor-pre-commit.ts:58-63` hard-walls any commit lacking a session, rejecting the release commit with "No /noldor-gate session. Run /noldor-gate before committing: CHANGELOG.md, …". Discovered 2026-05-17 during v0.5.1 release sweep: operator had to manually write a `fast-track` session marker before `pnpm release` succeeded, because `release-automation` is not a valid value in the session-path enum (`src/core/session.ts` zod schema rejects it). Fix candidates: (a) extend session-path enum to include `release-automation` and have the release script write the marker itself before staging, with cleanup in a `finally`; (b) teach `noldor-pre-commit.ts` to short-circuit when the pending `.git/COMMIT_EDITMSG` already carries `Noldor-Path: release-automation` (peek-at-msg pattern, similar to override-trailer fix candidate at line 592); (c) `noldor-inject-trailers.ts` writes a transient session marker for the release commit. Without this fix, every `pnpm release` invocation requires the operator to remember the `fast-track` workaround — a quiet rollout-era regression no one has documented yet.
 
 ## User Story
 
@@ -48,7 +48,7 @@ manually provision a `fast-track` session marker every time I run a release.
 
 If a prior release crashed mid-flow and left a stale `release-automation`
 marker behind, the helper overwrites it with a fresh `startedAt` on the next
-run (crash-recovery branch). If an active `/gate` session marker is present
+run (crash-recovery branch). If an active `/noldor-gate` session marker is present
 (any non-release-automation path), the helper throws with a clear error
 naming the marker path and the recovery command (`rm .noldor/session.json`).
 

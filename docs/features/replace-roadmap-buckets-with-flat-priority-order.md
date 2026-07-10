@@ -4,8 +4,8 @@ category: Tooling
 deps: []
 links:
   code:
-    - .claude/skills/promote/SKILL.md
-    - .claude/skills/triage/SKILL.md
+    - .claude/skills/noldor-promote/SKILL.md
+    - .claude/skills/noldor-triage/SKILL.md
     - docs/roadmap.md
     - src/dashboard/data.ts
     - src/triage/validate-triage.ts
@@ -38,7 +38,7 @@ introduced: 0.5.0
 
 ## Summary
 
-Drop the `## Now / ## Next / ## Later` section split from `docs/roadmap.md` in favor of a single flat priority-ordered list. File order = priority already lives in `docs/noldor/triage.md:38`; the remaining buckets are vestigial — `## Now` is empty (the `/promote` skill suspended Now-entry creation per step 8 pending this restructure), and the Next/Later split duplicates milestone semantics that `vision.md`'s current-milestone field already carries. In-progress work is discoverable via `phase: in-progress` in FD frontmatter; milestone bucketing belongs in a future `milestone:` FD field (see `Framework Milestones Support` entry below).
+Drop the `## Now / ## Next / ## Later` section split from `docs/roadmap.md` in favor of a single flat priority-ordered list. File order = priority already lives in `docs/noldor/triage.md:38`; the remaining buckets are vestigial — `## Now` is empty (the `/noldor-promote` skill suspended Now-entry creation per step 8 pending this restructure), and the Next/Later split duplicates milestone semantics that `vision.md`'s current-milestone field already carries. In-progress work is discoverable via `phase: in-progress` in FD frontmatter; milestone bucketing belongs in a future `milestone:` FD field (see `Framework Milestones Support` entry below).
 
 ## User Story
 
@@ -46,10 +46,10 @@ As an operator triaging work, I want a single priority-ordered list in `docs/roa
 
 ## Usage
 
-Operators interact with the roadmap exactly as before — add entries via `/triage`, promote via `/promote`, view via the dashboard. The visible differences:
+Operators interact with the roadmap exactly as before — add entries via `/noldor-triage`, promote via `/noldor-promote`, view via the dashboard. The visible differences:
 
 - `docs/roadmap.md` opens as a single flat list under category headings, no section split.
-- `/triage` proposes a position (`top` / `after:<slug>` / `bottom`) instead of a bucket.
+- `/noldor-triage` proposes a position (`top` / `after:<slug>` / `bottom`) instead of a bucket.
 - The dashboard's overview "In progress" widget reads from FD `phase: in-progress` instead of `roadmap.now`.
 - Validation surfaces duplicate-name errors file-wide instead of per-section.
 
@@ -72,8 +72,8 @@ This release consolidates the dashboard roadmap around a flat, priority-ordered 
 ## Resources
 
 - **Code:**
-  - [`.claude/skills/promote/SKILL.md`](../../.claude/skills/promote/SKILL.md)
-  - [`.claude/skills/triage/SKILL.md`](../../.claude/skills/triage/SKILL.md)
+  - [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md)
+  - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
   - [`docs/roadmap.md`](../../docs/roadmap.md)
   - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)

@@ -27,7 +27,7 @@ links:
     - src/cr/lanes/escalate-prompt.md
     - src/validate/noldor-config.ts
     - src/garden/detectors/override-audit.ts
-    - .claude/skills/gate/SKILL.md
+    - .claude/skills/noldor-gate/SKILL.md
     - .noldor/config.json
   tests:
     - src/core/__tests__/config.test.ts
@@ -61,7 +61,7 @@ introduced: 0.6.0
 ---
 ## Summary
 
-Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: manual operator pass; codex via `pnpm cr:codex --plan` (lands with [[codex-cr-plan-review-mode]]); Claude-in-same-terminal via a subagent + `superpowers:requesting-code-review` skill against `{{spec-or-plan-path}}`; Claude-standalone via a spawned separate terminal running `claude` with max-thinking and prompt `review: {{path-to-spec-or-plan}}`. Reuses the existing multiterminal-development flow (which has a known bug — tracked separately as [[fix-multiterminal-dev-flow-bug]] and required before this can ship). Outcomes feed back into the spec/plan before promotion to code. Closes the early-feedback gap at `/gate` Step 2.5.
+Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: manual operator pass; codex via `pnpm cr:codex --plan` (lands with [[codex-cr-plan-review-mode]]); Claude-in-same-terminal via a subagent + `superpowers:requesting-code-review` skill against `{{spec-or-plan-path}}`; Claude-standalone via a spawned separate terminal running `claude` with max-thinking and prompt `review: {{path-to-spec-or-plan}}`. Reuses the existing multiterminal-development flow (which has a known bug — tracked separately as [[fix-multiterminal-dev-flow-bug]] and required before this can ship). Outcomes feed back into the spec/plan before promotion to code. Closes the early-feedback gap at `/noldor-gate` Step 2.5.
 
 ## User Story
 
@@ -104,7 +104,7 @@ Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: ma
   - [`src/cr/lanes/escalate-prompt.md`](../../src/cr/lanes/escalate-prompt.md)
   - [`src/validate/noldor-config.ts`](../../src/validate/noldor-config.ts)
   - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
-  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
 - **Tests:**
   - [`src/cr/__tests__/aggregate.test.ts`](../../src/cr/__tests__/aggregate.test.ts)

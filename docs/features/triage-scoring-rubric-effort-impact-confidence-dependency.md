@@ -4,12 +4,12 @@ category: Tooling
 deps: []
 links:
   code:
-    - .claude/skills/triage/SKILL.md
+    - .claude/skills/noldor-triage/SKILL.md
     - docs/noldor/triage.md
     - src/triage/score.ts
   tests:
     - src/triage/__tests__/score.test.ts
-name: '`/triage` Scoring Rubric (effort × impact × confidence × dependency)'
+name: '`/noldor-triage` Scoring Rubric (effort × impact × confidence × dependency)'
 packages:
   - scripts
   - skills
@@ -21,11 +21,11 @@ introduced: 0.5.1
 
 ## Summary
 
-Replace the now/next/later bucket heuristic in `/triage` with a derived integer score from an `effort × impact × confidence × dependency-weight` matrix. Effort = build cost (S/M/L or 1-5; mirrors existing `- size:` field). Impact = user usefulness / strategic value (mirrors existing `- impact:` field). Confidence = how sure we are about effort + impact at triage time. Dependency-weight discounts items blocked on unshipped work. `/triage` proposes the score, operator confirms; the score feeds priority — either ordering the file directly (current Path 1 convention) or filling the explicit `- priority:` field if Path 2 lands. Folds in the former `Multi-Factor Triage Value Scoring` entry (was `## Later → Tooling`, since 2026-04-28, dropped on 2026-05-11 fold).
+Replace the now/next/later bucket heuristic in `/noldor-triage` with a derived integer score from an `effort × impact × confidence × dependency-weight` matrix. Effort = build cost (S/M/L or 1-5; mirrors existing `- size:` field). Impact = user usefulness / strategic value (mirrors existing `- impact:` field). Confidence = how sure we are about effort + impact at triage time. Dependency-weight discounts items blocked on unshipped work. `/noldor-triage` proposes the score, operator confirms; the score feeds priority — either ordering the file directly (current Path 1 convention) or filling the explicit `- priority:` field if Path 2 lands. Folds in the former `Multi-Factor Triage Value Scoring` entry (was `## Later → Tooling`, since 2026-04-28, dropped on 2026-05-11 fold).
 
 ## User Story
 
-As a Noldor operator running `/triage` on a fresh batch of ideas, I want each row in the confirmation table to show a computed score, so I can pick insert positions from a numeric ranking instead of pure judgment — and so the same input always produces the same ordering.
+As a Noldor operator running `/noldor-triage` on a fresh batch of ideas, I want each row in the confirmation table to show a computed score, so I can pick insert positions from a numeric ranking instead of pure judgment — and so the same input always produces the same ordering.
 
 ## Usage
 
@@ -34,7 +34,7 @@ Set the new bullet fields when triaging:
 - `- confidence: low | med | high` — how sure the size + impact estimate is.
 - `- deps: <slug>, <slug>` — comma-separated kebab slugs of unshipped blockers; empty when none.
 
-`/triage` proposes both per row and prints a `score` column in the confirmation table:
+`/noldor-triage` proposes both per row and prints a `score` column in the confirmation table:
 
 ```
 Idea                  | proposal | size | impact | conf | score
@@ -43,7 +43,7 @@ new perf tracking     | roadmap  | M    | high   | med  | 150
 brand identity        | merge    | L    | high   | high | 133
 ```
 
-Higher score = higher priority. The operator uses the score to pick `top` / `after:<slug>` / `bottom` insert positions. Score is recomputed on every `/triage` run; it is not persisted to the schema-C block.
+Higher score = higher priority. The operator uses the score to pick `top` / `after:<slug>` / `bottom` insert positions. Score is recomputed on every `/noldor-triage` run; it is not persisted to the schema-C block.
 
 ## PRs
 
@@ -76,7 +76,7 @@ This release tolerates a missing `ideas.md` in `triage-list-untriaged` (#15), bo
 ## Resources
 
 - **Code:**
-  - [`.claude/skills/triage/SKILL.md`](../../.claude/skills/triage/SKILL.md)
+  - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
   - [`docs/noldor/triage.md`](../../docs/noldor/triage.md)
   - [`src/triage/score.ts`](../../src/triage/score.ts)
 - **Tests:**

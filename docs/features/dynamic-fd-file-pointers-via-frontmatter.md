@@ -71,7 +71,7 @@ pnpm noldor sync code-links --check      # prove the projection reproduces prior
 pnpm noldor features propose-pointers --slug <new-slug>
 ```
 
-Invoked optionally from `/new-feature` and `/promote` after the FD is
+Invoked optionally from `/noldor-new-feature` and `/noldor-promote` after the FD is
 scaffolded; reviews import + community signal, proposes `// @fd:` tags, writes
 them on confirm.
 

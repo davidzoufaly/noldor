@@ -57,7 +57,7 @@ describe('withReleaseSession', () => {
       withReleaseSession(dir, async () => {
         /* should never run */
       }),
-    ).rejects.toThrow(/active \/?gate session/i);
+    ).rejects.toThrow(/active \/?noldor-gate session/i);
     // Operator's gate session left intact — never overwritten.
     expect(readSession(dir)?.path).toBe('fast-track');
   });

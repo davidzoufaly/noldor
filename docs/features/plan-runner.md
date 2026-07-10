@@ -10,7 +10,7 @@ links:
     - src/autonomous/drain-io.ts
     - src/autonomous/queue-drain.ts
     - src/cli/manifest.ts
-    - .claude/skills/gate/SKILL.md
+    - .claude/skills/noldor-gate/SKILL.md
     - src/prep/prep-fanout.ts
     - src/prep/prep-promote.ts
     - src/prep/discover.ts
@@ -52,7 +52,7 @@ The execution end of the autonomous-design pipeline. Generalizes the shipped que
 
 ## User Story
 
-As an operator (human or agent) with a stack of already-designed in-progress FDs — each carrying a CR-approved spec **and** plan — I want one command, `pnpm noldor autonomous run --source plans`, that resumes and ships them autonomously, one auto-merged PR at a time in a fresh always-cleared context, so that I drain my designed backlog without sitting at every feature to `/gate --resume` and `/clear` between them.
+As an operator (human or agent) with a stack of already-designed in-progress FDs — each carrying a CR-approved spec **and** plan — I want one command, `pnpm noldor autonomous run --source plans`, that resumes and ships them autonomously, one auto-merged PR at a time in a fresh always-cleared context, so that I drain my designed backlog without sitting at every feature to `/noldor-gate --resume` and `/clear` between them.
 
 ## Usage
 
@@ -102,7 +102,7 @@ This release adds a parallel prep pipeline to the noldor CLI, introducing fanout
   - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
   - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
-  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`src/prep/prep-fanout.ts`](../../src/prep/prep-fanout.ts)
   - [`src/prep/prep-promote.ts`](../../src/prep/prep-promote.ts)
   - [`src/prep/discover.ts`](../../src/prep/discover.ts)

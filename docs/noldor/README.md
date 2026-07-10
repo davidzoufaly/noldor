@@ -5,14 +5,14 @@ introduced: 0.4.0
 
 # Noldor
 
-Noldor is the dev-loop framework that ships embedded in this repo: complexity-gated feature pipeline, worktree discipline, /promote /triage /garden skills, SDD audit, graphify integration. The pages in this folder are the single source of truth for framework rules — the consumer repo's CLAUDE.md and README.md hold only project-specific overlays.
+Noldor is the dev-loop framework that ships embedded in this repo: complexity-gated feature pipeline, worktree discipline, /noldor-promote /noldor-triage /noldor-garden skills, SDD audit, graphify integration. The pages in this folder are the single source of truth for framework rules — the consumer repo's CLAUDE.md and README.md hold only project-specific overlays.
 
 ## When to read
 
 | You are...                            | Read                                                                                                                                                                                        |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | New to the framework                  | [`lifecycle.md`](lifecycle.md), then [`complexity-gating.md`](complexity-gating.md)                                                                                                         |
-| Starting a feature                    | Run [`/gate`](../../.claude/skills/gate/SKILL.md) first — then [`complexity-gating.md`](complexity-gating.md), [`workflow.md`](workflow.md), [`feature-md-schema.md`](feature-md-schema.md) |
+| Starting a feature                    | Run [`/noldor-gate`](../../.claude/skills/noldor-gate/SKILL.md) first — then [`complexity-gating.md`](complexity-gating.md), [`workflow.md`](workflow.md), [`feature-md-schema.md`](feature-md-schema.md) |
 | Working in parallel branches          | [`worktree-discipline.md`](worktree-discipline.md), [`git-and-commits.md`](git-and-commits.md)                                                                                              |
 | Writing tests                         | [`testing-principles.md`](testing-principles.md)                                                                                                                                            |
 | Releasing                             | [`versioning.md`](versioning.md)                                                                                                                                                            |
@@ -34,15 +34,15 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 - [`feature-md-schema.md`](feature-md-schema.md) — FD frontmatter + body structure
 - [`worktree-discipline.md`](worktree-discipline.md) — always-worktree, parallel cap, port-per-tree
 - [`git-and-commits.md`](git-and-commits.md) — Conventional Commits, semver, granular commits
-- [`workflow.md`](workflow.md) — /promote, /draft-feature-md, after-feature update, defer-past-milestone
+- [`workflow.md`](workflow.md) — /noldor-promote, /noldor-draft-feature-md, after-feature update, defer-past-milestone
 - [`doc-conventions.md`](doc-conventions.md) — @feature: / @tests: tags, transclude, generated markers
-- [`triage.md`](triage.md) — `/triage` skill flow + roadmap/backlog/ideas buckets
+- [`triage.md`](triage.md) — `/noldor-triage` skill flow + roadmap/backlog/ideas buckets
 - [`testing-principles.md`](testing-principles.md) — testing layers, fixtures, e2e seeding
 - [`versioning.md`](versioning.md) — semver policy + release flow
-- [`milestones.md`](milestones.md) — optional strategic gates: lifecycle, FD `milestone:` field, /triage proposal, garden detector, dashboard page
-- [`skill-catalog.md`](skill-catalog.md) — /promote, /triage, /garden, /draft-feature-md, /new-feature reference
+- [`milestones.md`](milestones.md) — optional strategic gates: lifecycle, FD `milestone:` field, /noldor-triage proposal, garden detector, dashboard page
+- [`skill-catalog.md`](skill-catalog.md) — /noldor-promote, /noldor-triage, /noldor-garden, /noldor-draft-feature-md, /noldor-new-feature reference
 - [`script-catalog.md`](script-catalog.md) — every pnpm script the framework relies on, grouped by concern
-- [`garden-and-drift.md`](garden-and-drift.md) — what /garden detects + sentinel rules
+- [`garden-and-drift.md`](garden-and-drift.md) — what /noldor-garden detects + sentinel rules
 - [`gotchas.md`](gotchas.md) — operational traps not obvious from code (docs/templates, CR sinks, tests, dashboard, drain)
 - [`graph-integration.md`](graph-integration.md) — graphify ↔ SDD substrate
 - [`research-fanout.md`](research-fanout.md) — parallel read-only research agents: task specs, envelope contract, INDEX/synthesis

@@ -80,7 +80,7 @@ describe('composeBody', () => {
     expect(body).toContain('| 1 | claude | `abc123` | 0 | ✅ |');
     expect(body).toContain('| 2 | codex | `abc123` | 0 | ✅ |');
     expect(body).toContain('## Test Plan');
-    expect(body).toContain('Opened by Noldor `/gate` end-of-flow.');
+    expect(body).toContain('Opened by Noldor `/noldor-gate` end-of-flow.');
   });
 
   it('omits Spec/Plan lines for micro-chore (null paths)', () => {

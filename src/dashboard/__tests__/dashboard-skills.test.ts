@@ -117,10 +117,10 @@ describe('skills surface (fixture)', () => {
 });
 
 describe('skills surface (live repo)', () => {
-  it('loads the project-local skills including gate', async () => {
+  it('loads the project-local skills including noldor-gate', async () => {
     const skills = await loadSkills();
     expect(skills.length).toBeGreaterThanOrEqual(8);
-    expect(skills.map((s) => s.slug)).toContain('gate');
+    expect(skills.map((s) => s.slug)).toContain('noldor-gate');
   });
 });
 

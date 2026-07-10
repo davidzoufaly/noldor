@@ -580,7 +580,7 @@ export interface SddGap {
 }
 
 /**
- * Unified output of `pnpm garden:detect` — consumed by the /garden skill.
+ * Unified output of `pnpm garden:detect` — consumed by the /noldor-garden skill.
  */
 export interface GardenFindings {
   readonly stalePlans: readonly StalePlan[];
@@ -623,7 +623,7 @@ export interface GateComplianceFindings {
  * Resolve `garden.overrideAudit` tuning from `<repo>/.noldor/config.json`.
  * Fail-open: a missing or malformed config yields no expected rules and the
  * detector's built-in threshold (mirrors `resolveGardenScanPaths`) — a config
- * typo must not crash `/garden` or the release gate-compliance check.
+ * typo must not crash `/noldor-garden` or the release gate-compliance check.
  */
 export async function loadOverrideAuditOptions(
   repo: string,

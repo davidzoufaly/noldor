@@ -16,7 +16,7 @@ registry builds the runner-specific argv. Absent config ≡ claude everywhere.
 | Noldor need | Claude Code | Codex | opencode |
 | --- | --- | --- | --- |
 | headless spawn | `claude --print "<prompt>"` | `codex exec` (prompt via stdin) | `opencode run "<prompt>"` |
-| drain entry prompt | slash-command: `/gate --drain <slug>` / `/gate --resume <slug>` | prose directive → [drain-mode.md](drain-mode.md) | prose directive → [drain-mode.md](drain-mode.md) |
+| drain entry prompt | slash-command: `/noldor-gate --drain <slug>` / `/noldor-gate --resume <slug>` | prose directive → [drain-mode.md](drain-mode.md) | prose directive → [drain-mode.md](drain-mode.md) |
 | auto-permissions | `--permission-mode bypassPermissions` | `--sandbox workspace-write` (read-only for review roles) | `--dangerously-skip-permissions` (respects explicit `deny`) |
 | no-questions kill-switch | `--disallowed-tools AskUserQuestion` | non-interactive by design | `permission.question: "deny"` in `opencode.json` |
 | model / role selection | `--model` | `--model` / `config.toml` | `--model <provider/model>` |
@@ -60,7 +60,7 @@ win), CR lanes second, `implementer` last — and only per-runner once outcome
 telemetry shows ship/retry/revert parity. v1 shims are thin command pointers
 (fat CLI, thin skills); a non-Claude implementer drain child now receives a
 self-contained prose entry ([drain-mode.md](drain-mode.md)) instead of the
-`/gate` skill — the hard blocker is gone, the caution stands.
+`/noldor-gate` skill — the hard blocker is gone, the caution stands.
 
 ## Events and doctor
 

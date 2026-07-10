@@ -20,11 +20,11 @@ const REJECTION_MESSAGE = `Direct push to origin/main is blocked by Noldor PR fl
 
 All paths land on main via PR. Use the gate end-of-flow:
   1. Ensure session marker is set (.noldor/session.json).
-  2. /gate end-of-flow runs PR creation + auto-merge automatically.
+  2. /noldor-gate end-of-flow runs PR creation + auto-merge automatically.
 
 Bypass (release script only): set NOLDOR_RELEASE_PUSH=1 in the
 invoking environment. Audited via the .noldor/release-pushes.log
-receipt and /garden override detector.`;
+receipt and /noldor-garden override detector.`;
 
 function pushesMain(refLines: string[]): boolean {
   // Per `git help githooks`, each line is:

@@ -54,7 +54,7 @@ export function resolveLanes(
     const configured = cfg?.crLanes?.[args.kind];
     return configured && configured.length > 0 ? configured : DEFAULT_CR_LANES[args.kind];
   }
-  // 3. Interactive mode, no CLI flag: empty signals the /gate skill to prompt.
+  // 3. Interactive mode, no CLI flag: empty signals the /noldor-gate skill to prompt.
   return [];
 }
 

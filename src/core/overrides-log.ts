@@ -4,7 +4,7 @@ import { join } from 'node:path';
 /**
  * Append a `(source)`-tagged breadcrumb to `.noldor/overrides.log` so every
  * enforcement bypass — trailer override, pre-commit env override, release
- * skip-env — leaves the same durable, `/garden`-auditable record.
+ * skip-env — leaves the same durable, `/noldor-garden`-auditable record.
  *
  * Line shape: `<ISO timestamp>\t<reason>\t(<source>)`. The untagged 2-column
  * variant written by `validate-trailer` at the commit-msg layer predates this

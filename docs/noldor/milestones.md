@@ -17,9 +17,9 @@ never forces the abstraction on a project that grows organically.
   slug today.
 - **Frontmatter:** `name`, `status` (`draft` | `active` | `shipped`), optional
   `description`. Body sections (`## Gate`, `## Out of Scope`, `## Success Criteria`)
-  feed `/triage` bucketing and the `milestoneAligned` next-priority suggestion.
+  feed `/noldor-triage` bucketing and the `milestoneAligned` next-priority suggestion.
 - **Active pointer:** `docs/vision.md` frontmatter `current-milestone: <slug>`,
-  written by `/milestone activate`.
+  written by `/noldor-milestone activate`.
 
 ## Lifecycle
 
@@ -27,13 +27,13 @@ never forces the abstraction on a project that grows organically.
 draft ──activate──▶ active ──(next activate)──▶ shipped
 ```
 
-`/milestone activate <slug>` is atomic: it flips the previously-active milestone
+`/noldor-milestone activate <slug>` is atomic: it flips the previously-active milestone
 to `shipped`, sets the target to `active`, and updates vision's
 `current-milestone:` — preflighting all state before any write so a partial
 failure leaves the filesystem unchanged. The state machine lives in
 [`src/milestones/lib.ts`](../../src/milestones/lib.ts) and never changes here.
 
-Manage milestones with the [`/milestone`](../../.claude/skills/milestone/SKILL.md)
+Manage milestones with the [`/noldor-milestone`](../../.claude/skills/noldor-milestone/SKILL.md)
 skill (`draft` | `activate` | `edit` | `list`) — see the
 [skill catalog](skill-catalog.md#milestone).
 
@@ -51,9 +51,9 @@ milestone: mvp # slug of a docs/milestones/<slug>.md file
   declares `milestone: ghost` but `docs/milestones/ghost.md` does not exist
   (consistent with Noldor's strict-frontmatter posture). The check only fires
   when the field is present.
-- `/triage` proposes `- milestone: <active-slug>` per roadmap bullet **only**
+- `/noldor-triage` proposes `- milestone: <active-slug>` per roadmap bullet **only**
   when an active milestone is set and the bullet aligns with its `## Gate`;
-  override or drop per row, exactly like `confidence` / `deps`. `/promote` copies
+  override or drop per row, exactly like `confidence` / `deps`. `/noldor-promote` copies
   the line verbatim into the scaffolded FD frontmatter.
 
 ## What gets surfaced
@@ -71,7 +71,7 @@ milestone: mvp # slug of a docs/milestones/<slug>.md file
 ## What milestones are NOT
 
 - Not coupled to semver — names are arbitrary.
-- Not auto-assigned — the operator (via `/triage`) chooses; membership is never
+- Not auto-assigned — the operator (via `/noldor-triage`) chooses; membership is never
   inferred from score.
 - Not mandatory — no migration back-fills `milestone:` onto existing FDs, and the
   framework validates green with zero milestones declared.

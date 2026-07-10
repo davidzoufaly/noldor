@@ -64,7 +64,7 @@ function implementerDispatch(cwd: string): PromptDispatch {
  * `getSuggestions(...).topPriority[0]` with `eligible = fast-track && isDrainEligible`;
  * `parseAll` is the full roadmap slug list (the success oracle); the gate prompt comes from
  * `buildDrainGatePrompt` with the dispatch resolved once at construction from the implementer
- * runner (claude/stub → `/gate --drain <slug>` verbatim, codex/opencode → self-contained prose
+ * runner (claude/stub → `/noldor-gate --drain <slug>` verbatim, codex/opencode → self-contained prose
  * directive — see src/autonomous/gate-prompt.ts); the branch is `fast/<slug>`.
  */
 export function roadmapSource(cwd: string): DrainSource {
@@ -98,7 +98,7 @@ export function roadmapSource(cwd: string): DrainSource {
         : depsBlocked
           ? `blocked by unshipped dep(s) still in queue: ${unmetDeps.join(', ')}`
           : !drainOk
-            ? 'multi-scope or Touches-bearing entry — needs human /promote residue disposition'
+            ? 'multi-scope or Touches-bearing entry — needs human /noldor-promote residue disposition'
             : undefined;
       return {
         slug: top.slug,

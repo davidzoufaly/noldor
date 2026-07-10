@@ -8,8 +8,8 @@ const USAGE = 'usage: noldor triage mint-id [--count N]\n';
 
 /**
  * CLI entrypoint for `noldor triage mint-id`. Prints one minted ID per line and
- * bumps `.noldor/id-counter.json`. `--count` defaults to 1. Called by `/triage`
- * (one batch call for all accepted new-entry rows) and `/new-feature`.
+ * bumps `.noldor/id-counter.json`. `--count` defaults to 1. Called by `/noldor-triage`
+ * (one batch call for all accepted new-entry rows) and `/noldor-new-feature`.
  */
 export function main(argv: readonly string[]): number {
   let count = 1;

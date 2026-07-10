@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Triage
 
-This page describes how raw ideas advance onto the engineering queue. The SDD detector contract, garden audit, and `/promote` skill that picks up from here all live on dedicated pages — see the [README route table](README.md) for navigation.
+This page describes how raw ideas advance onto the engineering queue. The SDD detector contract, garden audit, and `/noldor-promote` skill that picks up from here all live on dedicated pages — see the [README route table](README.md) for navigation.
 
 ## Roadmap, Backlog, Ideas — three files
 
@@ -13,25 +13,25 @@ This page describes how raw ideas advance onto the engineering queue. The SDD de
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ideas.md`        | Raw human-generated bullets. Source for triage.                                                                                                                                                                                                                                 |
 | `docs/roadmap.md` | Triaged work, hand-edited. Flat priority-ordered list — file order is priority. H3 categories (e.g. `### Noldor Framework`) group H4 entries semantically without carrying priority themselves. In-progress work is tracked via FD `phase: in-progress`, not a roadmap section. |
-| `docs/backlog.md` | Parking lot. Items not on the roadmap — out-of-scope per vision, speculative, or waiting for a trigger. No `phase` field; promotion to roadmap is a `/triage` decision.                                                                                                         |
+| `docs/backlog.md` | Parking lot. Items not on the roadmap — out-of-scope per vision, speculative, or waiting for a trigger. No `phase` field; promotion to roadmap is a `/noldor-triage` decision.                                                                                                         |
 
 When a feature ships (`phase: done` in its feature MD), the corresponding entry in `docs/roadmap.md` is removed. Done features live in `docs/release-notes.md` and the [How-to index](../user/how-to/index.md).
 
 ## Triage flow
 
-`/triage` is a bulk operation. Run it when `ideas.md` accumulates new top-level bullets and you want to advance them onto the engineering queue.
+`/noldor-triage` is a bulk operation. Run it when `ideas.md` accumulates new top-level bullets and you want to advance them onto the engineering queue.
 
 The skill:
 
 1. Reads `docs/vision.md` for North Star + Posture. If `current-milestone:` is set, additionally reads `docs/milestones/<slug>.md` for gate + success criteria + out-of-scope. When the slug is absent, triage falls back to vision-only scoring (single bucket; no roadmap-next vs roadmap-later distinction).
 2. Calls `pnpm noldor triage list-untriaged` to find bullets without a `[triaged …]` marker.
-3. Proposes `target | area | since | slug` per untriaged bullet, where `target` is `roadmap` (with a position annotation: `top`, `after:<slug>`, or `bottom`), `backlog`, or `now`. Vision-aligned work inside the current milestone → `roadmap` (priority position chosen relative to existing entries); clearly past the current milestone → `roadmap` at a lower position or `backlog`; speculative or out-of-scope → `backlog`. `now` is the ship-next shortcut: the row lands as a roadmap insert at `top`, and after the validation chain passes the skill auto-chains `/promote <slug>` (tier `full` for size L/XL, `specs-only` otherwise) — closing the old two-step seam where the operator picked "now" intent during triage and then had to chain `/promote` by hand. Proposed only when the bullet explicitly signals immediate work, never inferred from score.
+3. Proposes `target | area | since | slug` per untriaged bullet, where `target` is `roadmap` (with a position annotation: `top`, `after:<slug>`, or `bottom`), `backlog`, or `now`. Vision-aligned work inside the current milestone → `roadmap` (priority position chosen relative to existing entries); clearly past the current milestone → `roadmap` at a lower position or `backlog`; speculative or out-of-scope → `backlog`. `now` is the ship-next shortcut: the row lands as a roadmap insert at `top`, and after the validation chain passes the skill auto-chains `/noldor-promote <slug>` (tier `full` for size L/XL, `specs-only` otherwise) — closing the old two-step seam where the operator picked "now" intent during triage and then had to chain `/noldor-promote` by hand. Proposed only when the bullet explicitly signals immediate work, never inferred from score.
 4. Asks for batch confirmation. You can override per-row.
 5. Writes schema-C blocks (no `phase` — roadmap is a flat priority list and backlog is a parking lot; `phase: in-progress` lives on FDs once work starts) to the chosen file. Appends `[triaged YYYY-MM-DD → <slug>]` markers to `ideas.md`.
 
 The skill **never commits**. Stage and commit yourself after reviewing.
 
-**Triage does not pre-assign a gate path or `noldor-tier`.** Roadmap and backlog blocks are tier-agnostic — they represent what should be done, not how. The gate path is chosen when work starts, via [`/gate`](../../.claude/skills/gate/SKILL.md). The complexity question (brainstorm needed? new FD? attach?) is answered at that point, not during triage. The `now` target is the one deliberate exception: it carries the operator's ship-next intent through to `/promote` (tier derived from `size`: `full` for L/XL, `specs-only` otherwise — note this is deliberately coarser than `/gate` Step 0's three-way routing, which sends XS/S to `fast-track` with no FD at all), so the FD exists when the work session starts — the gate path itself is still picked at `/gate` time.
+**Triage does not pre-assign a gate path or `noldor-tier`.** Roadmap and backlog blocks are tier-agnostic — they represent what should be done, not how. The gate path is chosen when work starts, via [`/noldor-gate`](../../.claude/skills/noldor-gate/SKILL.md). The complexity question (brainstorm needed? new FD? attach?) is answered at that point, not during triage. The `now` target is the one deliberate exception: it carries the operator's ship-next intent through to `/noldor-promote` (tier derived from `size`: `full` for L/XL, `specs-only` otherwise — note this is deliberately coarser than `/noldor-gate` Step 0's three-way routing, which sends XS/S to `fast-track` with no FD at all), so the FD exists when the work session starts — the gate path itself is still picked at `/noldor-gate` time.
 
 ## Priority is file order
 
@@ -58,16 +58,16 @@ Every roadmap and backlog entry carries a `- id: Q-NNNN` bullet — a **stable I
 
 - **Format** — `Q-NNNN`, a single `Q-` namespace shared by both files (a per-file `R-`/`B-` prefix would lie after a cross-file move). Zero-padded to 4 digits, width grows past `Q-9999` without a format break. Regex: `^Q-\d{4,}$`.
 - **Counter** — `.noldor/id-counter.json` (`{ "next": N }`; missing ⇒ starts at `Q-0001`). Minting bumps it. The file is a real merge conflict under parallel drains — that plus the `duplicate-entry-id` validator error is the two-layer guard against mint races; there is no lock.
-- **Minting** — `/triage` mints IDs for confirmed **new-entry** rows after batch confirmation (one `pnpm noldor triage mint-id --count <n>` call for all accepted rows; rejected rows never burn an ID; merge rows keep the host's ID). `/new-feature` mints one into FD frontmatter `entry-id:`; `/promote` lifts the source block's `- id:` into the same field.
+- **Minting** — `/noldor-triage` mints IDs for confirmed **new-entry** rows after batch confirmation (one `pnpm noldor triage mint-id --count <n>` call for all accepted rows; rejected rows never burn an ID; merge rows keep the host's ID). `/noldor-new-feature` mints one into FD frontmatter `entry-id:`; `/noldor-promote` lifts the source block's `- id:` into the same field.
 - **Backfill** — `pnpm noldor triage backfill-ids` stamps every id-less entry exactly once (roadmap order first, then backlog); idempotent, so a re-run is a no-op. Run it once at adoption.
 - **Validation** — once `.noldor/id-counter.json` exists, `validate:triage` errors on a missing `id` (`missing-entry-id`), a malformed `id` (`malformed-entry-id`), and the same `id` in two entries across both files (`duplicate-entry-id`). With no counter file, missing `id` is silent — a consumer that hasn't opted in isn't blocked.
-- **References** — `blocked-by:` bullets (legacy alias: `deps:`) may reference an ID (`Q-0042`) or a slug interchangeably; `resolveEntryRef` (`src/triage/entry-id.ts`) resolves an ID to its slug (scanning roadmap + backlog, then FD `entry-id:` frontmatter). An unknown ID resolves to itself and counts as unshipped, the same failure mode as a typo'd slug. `validate:triage` additionally flags refs that resolve to no known entry ID, entry slug, or feature MD (`unknown-blocked-by-ref` — advisory, error under `--strict`), and `/garden`'s `circular-blocked-by` detector flags cycles in the blocked-by graph.
+- **References** — `blocked-by:` bullets (legacy alias: `deps:`) may reference an ID (`Q-0042`) or a slug interchangeably; `resolveEntryRef` (`src/triage/entry-id.ts`) resolves an ID to its slug (scanning roadmap + backlog, then FD `entry-id:` frontmatter). An unknown ID resolves to itself and counts as unshipped, the same failure mode as a typo'd slug. `validate:triage` additionally flags refs that resolve to no known entry ID, entry slug, or feature MD (`unknown-blocked-by-ref` — advisory, error under `--strict`), and `/noldor-garden`'s `circular-blocked-by` detector flags cycles in the blocked-by graph.
 
 **Authoring rule:** never write `- id:` by hand (except resolving a counter merge conflict), never renumber, never reuse. Gaps in the sequence (rejected/dropped rows) are permanent and harmless.
 
 ## Scoring rubric
 
-`/triage` proposes a numeric score per row, computed from four bullet fields:
+`/noldor-triage` proposes a numeric score per row, computed from four bullet fields:
 
 | Field        | Source                                                                         | Weights                                                           |
 | ------------ | ------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
@@ -80,7 +80,7 @@ Formula: `score = round(100 × (impact × confidence × dependency_factor) / eff
 
 Example — `size: M, impact: high, confidence: med, deps: []` → `round(100 × 4 × 0.75 × 1 / 2) = 150`.
 
-The score is **derived**, not persisted. `/triage` recomputes on every run from the bullet fields, so a tuning of the formula in `src/triage/score.ts` takes effect without rewriting any markdown. The score column in the confirmation table guides the operator's insert-position pick (`top` / `after:<slug>` / `bottom`); the operator can override.
+The score is **derived**, not persisted. `/noldor-triage` recomputes on every run from the bullet fields, so a tuning of the formula in `src/triage/score.ts` takes effect without rewriting any markdown. The score column in the confirmation table guides the operator's insert-position pick (`top` / `after:<slug>` / `bottom`); the operator can override.
 
 Dependency-weight reads the `- blocked-by:` bullet — its legacy alias `- deps:` is still accepted and the two are unioned (dedup) at parse time (comma-separated refs — each a kebab slug or a `Q-NNNN` entry ID). For each ref, the resolver in `src/triage/score.ts` first maps an ID to its slug via `resolveEntryRef`, then `resolveIsShipped` returns true iff `docs/features/<slug>.md` exists AND its frontmatter `phase` field reads exactly `done`. Every other state — file missing, `phase: in-progress`, ref only in roadmap, ref only in backlog, unknown ref — counts as unshipped. Items with multiple unshipped blockers are discounted proportionally.
 
@@ -95,7 +95,7 @@ Update `vision.md` when milestone goals shift. Triage decisions made before the 
 ## Commands
 
 ```bash
-/triage                       # bulk triage skill
+/noldor-triage                       # bulk triage skill
 pnpm noldor triage list-untriaged    # JSON of untagged bullets
 pnpm noldor triage mint-id [--count N]   # print next N stable IDs, bump .noldor/id-counter.json
 pnpm noldor triage backfill-ids          # idempotent one-sweep stamp of `- id:` on all entries
@@ -103,7 +103,7 @@ pnpm noldor triage score --blocked-by=Q-0042  # refs accept IDs or slugs (--deps
 pnpm noldor validate triage              # enforces id presence/format/cross-file uniqueness (once counter exists)
 ```
 
-For `/promote` (roadmap/backlog → feature MD) see [`workflow.md`](workflow.md). For `/garden`, `pnpm noldor garden sdd-report`, and the 13-detector contract see [`garden-and-drift.md`](garden-and-drift.md).
+For `/noldor-promote` (roadmap/backlog → feature MD) see [`workflow.md`](workflow.md). For `/noldor-garden`, `pnpm noldor garden sdd-report`, and the 13-detector contract see [`garden-and-drift.md`](garden-and-drift.md).
 
 ## Triage gotchas
 

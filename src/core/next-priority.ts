@@ -11,7 +11,7 @@ import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 
 /**
  * Return the top-priority entry from a parsed roadmap (file order =
- * priority). Used by `pnpm next-priority` and consumed by `/gate` Step 0
+ * priority). Used by `pnpm next-priority` and consumed by `/noldor-gate` Step 0
  * (surface) and Step 5 (queue-empty exit-code gate).
  *
  * @param roadmapRaw - Raw contents of `docs/roadmap.md`.
@@ -32,7 +32,7 @@ interface FormatOpts {
  * Render the top-priority entry for human or JSON consumption.
  *
  * @param entry - Output of {@link getTopPriorityNext}, or `null` when empty.
- * @param opts - `json: true` for machine-readable output (consumed by `/gate` Step 0).
+ * @param opts - `json: true` for machine-readable output (consumed by `/noldor-gate` Step 0).
  * @returns Stringified rendering ready to print to stdout.
  */
 export function formatEntry(entry: BacklogEntry | null, opts: FormatOpts): string {
@@ -98,7 +98,7 @@ export interface SuggestionsInput {
 
 /**
  * A roadmap entry stamped with the gate path the size→path policy recommends
- * for it (see {@link sizeToPath}). `/gate` Step 0 reads `suggestedPath` directly
+ * for it (see {@link sizeToPath}). `/noldor-gate` Step 0 reads `suggestedPath` directly
  * instead of re-deriving the size→tier mapping in prose.
  */
 export interface SuggestedEntry extends BacklogEntry {
@@ -113,7 +113,7 @@ export interface Suggestions {
 }
 
 /**
- * Compute the structured suggestion set surfaced by `/gate` Step 0.
+ * Compute the structured suggestion set surfaced by `/noldor-gate` Step 0.
  *
  * Bucketing rules:
  * - `topPriority` — first 3 entries in file order (file order = priority).
@@ -209,7 +209,7 @@ function findMilestoneMatch(
  * Frontmatter is validated via {@link FeatureFrontmatterSchema}; malformed FDs
  * are skipped silently (the validator hook catches them elsewhere). FDs with
  * no `noldor-tier` are also skipped — `tier` is required on the in-progress
- * surface so /gate Step 0 can label correctly.
+ * surface so /noldor-gate Step 0 can label correctly.
  *
  * @param cwd - Repo root. Tests use a tmpdir; the CLI uses `process.cwd()`.
  */
@@ -263,7 +263,7 @@ async function main(): Promise<void> {
   const argv = new Set(process.argv.slice(2));
   if (isWritePendingDeprecated(argv)) {
     process.stderr.write(
-      'warning: --write-pending is deprecated and ignored (the pending-priority file was removed; /gate reads top-of-roadmap directly).\n',
+      'warning: --write-pending is deprecated and ignored (the pending-priority file was removed; /noldor-gate reads top-of-roadmap directly).\n',
     );
   }
   const cwd = process.cwd();

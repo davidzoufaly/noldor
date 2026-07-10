@@ -26,7 +26,7 @@ introduced: 0.5.0
 ---
 ## Summary
 
-The autonomous drain's spawn layer is agent-agnostic (the registry resolves bin + argv for `claude` / `codex` / `opencode`), but the *prompt* it spawns is `/gate --drain <slug>` — a Claude Code slash-command (`src/autonomous/drain-source.ts:98`). On `codex` (prompt via stdin, no slash-command system) the string is treated as literal text → no gate runs. On `opencode` it only works if a `/gate` command is vendored into `.opencode/command/` (not present). So the multi-runner promise stops short of the autonomous drain: only claude can actually drive the gate headlessly. PR #119's portable CLIs (`features phase-flip-done`, `phase-revert`, `roadmap remove-block`) cover the gate's *manual steps* but not the drain entrypoint itself. Options: (a) a portable `noldor gate --drain <slug>` CLI entrypoint the drain spawns instead of a slash-command, with the agent CLI wrapping it; or (b) per-runtime vendoring of a `/gate` command alongside the existing skill. Strategic per the 2026-07 audit: harness-neutrality is the defensible layer.
+The autonomous drain's spawn layer is agent-agnostic (the registry resolves bin + argv for `claude` / `codex` / `opencode`), but the *prompt* it spawns is `/noldor-gate --drain <slug>` — a Claude Code slash-command (`src/autonomous/drain-source.ts:98`). On `codex` (prompt via stdin, no slash-command system) the string is treated as literal text → no gate runs. On `opencode` it only works if a `/noldor-gate` command is vendored into `.opencode/command/` (not present). So the multi-runner promise stops short of the autonomous drain: only claude can actually drive the gate headlessly. PR #119's portable CLIs (`features phase-flip-done`, `phase-revert`, `roadmap remove-block`) cover the gate's *manual steps* but not the drain entrypoint itself. Options: (a) a portable `noldor gate --drain <slug>` CLI entrypoint the drain spawns instead of a slash-command, with the agent CLI wrapping it; or (b) per-runtime vendoring of a `/noldor-gate` command alongside the existing skill. Strategic per the 2026-07 audit: harness-neutrality is the defensible layer.
 
 ## User Story
 
@@ -43,7 +43,7 @@ pnpm noldor autonomous run --source roadmap        # codex child gets prose drai
 pnpm noldor autonomous run --source plans          # prose resume directive (feat/<slug>)
 pnpm noldor autonomous run --source roadmap --dry-run   # unchanged; prompts not spawned
 
-# Claude consumers: zero change — children still get `/gate --drain <slug>`.
+# Claude consumers: zero change — children still get `/noldor-gate --drain <slug>`.
 
 # Canonical prose referent (what a non-claude child is told to read):
 docs/noldor/drain-mode.md

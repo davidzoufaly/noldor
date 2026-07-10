@@ -4,7 +4,7 @@
  * Encodes the rule that prep effort should scale with entry size: small
  * entries are mechanical and ship without a design spec, while medium-and-up
  * entries warrant one. This is the single source of truth for the size→path
- * mapping that `/gate` Step 0 prose used to compute inline; {@link getSuggestions}
+ * mapping that `/noldor-gate` Step 0 prose used to compute inline; {@link getSuggestions}
  * stamps each surfaced roadmap entry with its {@link sizeToPath} result so the
  * gate reads a value instead of re-deriving it.
  *

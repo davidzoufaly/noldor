@@ -83,7 +83,7 @@ export async function validateFiles(paths: string[]): Promise<FileError[]> {
       // If frontmatter is valid, run additional checks
       const slug = basename(path, '.md');
       // Category must be one the consumer has declared. Unknown categories are
-      // the self-evolving hook: `/triage` + `/promote` propose new categories
+      // the self-evolving hook: `/noldor-triage` + `/noldor-promote` propose new categories
       // to the operator and append them to `.noldor/config.json`.
       if (!categories.includes(result.data.category)) {
         fileErrors.push(

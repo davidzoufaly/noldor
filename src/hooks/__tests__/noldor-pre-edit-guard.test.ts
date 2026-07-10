@@ -34,7 +34,7 @@ describe('noldor pre-edit guard', () => {
     expect(runPreEditGuard({ cwd: dir, filePath: 'packages/web/src/foo.ts' }).ok).toBe(true);
   });
 
-  it('passes post-rollout when a /gate session exists', () => {
+  it('passes post-rollout when a /noldor-gate session exists', () => {
     const dir = setupRepo();
     writeFileSync(join(dir, '.noldor', 'rollout-marker'), 'abc123\n');
     writeFileSync(
@@ -49,14 +49,14 @@ describe('noldor pre-edit guard', () => {
     writeFileSync(join(dir, '.noldor', 'rollout-marker'), 'abc123\n');
     const r = runPreEditGuard({ cwd: dir, filePath: 'README.md' });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/\/gate/);
+    expect(r.reason).toMatch(/\/noldor-gate/);
   });
 
   it('blocks an absolute-path edit to a tracked file without a session', () => {
     const dir = setupGitRepo();
     const r = runPreEditGuard({ cwd: '/', filePath: join(dir, 'tracked.ts') });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/\/gate/);
+    expect(r.reason).toMatch(/\/noldor-gate/);
   });
 
   it('resolves the session from the file repo, not the process cwd', () => {
@@ -100,7 +100,7 @@ describe('PreToolUse stdin entrypoint (spawn-level)', () => {
     return { status: r.status, stderr: r.stderr };
   }
 
-  it('exits 2 with a /gate message for a tracked file without a session', () => {
+  it('exits 2 with a /noldor-gate message for a tracked file without a session', () => {
     const dir = setupGitRepo();
     const payload = JSON.stringify({
       cwd: dir,
@@ -108,7 +108,7 @@ describe('PreToolUse stdin entrypoint (spawn-level)', () => {
     });
     const r = runHook(payload);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/\/gate/);
+    expect(r.stderr).toMatch(/\/noldor-gate/);
   });
 
   it('exits 0 for an untracked file', () => {

@@ -92,7 +92,7 @@ const USAGE =
 /**
  * CLI entrypoint. Run via:
  *   pnpm tsx scripts/triage/score.ts --size=M --impact=high --confidence=med --deps=foo,bar
- * Prints the integer score to stdout. The `/triage` skill prose shells out
+ * Prints the integer score to stdout. The `/noldor-triage` skill prose shells out
  * to this for each proposal row. Bad/missing input prints USAGE to stderr
  * and returns exit code 2 (no stack trace).
  */

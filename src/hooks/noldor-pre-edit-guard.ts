@@ -1,6 +1,6 @@
 // src/hooks/noldor-pre-edit-guard.ts
 // PreToolUse guard: post-rollout, edits to tracked files require an active
-// /gate session. Wired in .claude/settings.json as a PreToolUse hook on
+// /noldor-gate session. Wired in .claude/settings.json as a PreToolUse hook on
 // Edit|Write|NotebookEdit; also invocable as `noldor hooks pre-edit-guard <path>`.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -27,7 +27,7 @@ function isTracked(root: string, filePath: string): boolean {
 }
 
 /**
- * Post-rollout, block Edit/Write to a tracked file unless a /gate session is
+ * Post-rollout, block Edit/Write to a tracked file unless a /noldor-gate session is
  * active. The enforcement root is resolved FROM THE FILE being edited (its
  * repo's toplevel), not from the process cwd — the harness may run hooks from
  * the main workspace while the session edits inside a worktree, and each
@@ -63,7 +63,7 @@ export function runPreEditGuard(opts: { cwd: string; filePath?: string }): PreEd
 
   return {
     ok: false,
-    reason: `edits to "${target}" require /gate. Run /gate before editing.`,
+    reason: `edits to "${target}" require /noldor-gate. Run /noldor-gate before editing.`,
   };
 }
 

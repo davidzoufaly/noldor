@@ -216,7 +216,7 @@ export function mergedPrExistsFor(cwd: string, slug: string, branch: string): bo
  * so git/gh/pnpm/Edit run unattended. A systemic spawn error (e.g. ENOENT —
  * runner not on PATH) rejects `spawn-failed: …` so the loop aborts the whole
  * drain instead of churning retries across every entry. `prompt` is required —
- * the drain sources build it via src/autonomous/gate-prompt.ts, so no `/gate`
+ * the drain sources build it via src/autonomous/gate-prompt.ts, so no `/noldor-gate`
  * literal survives outside that builder.
  */
 export async function spawnGate(

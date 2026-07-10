@@ -5,7 +5,7 @@ import matter from 'gray-matter';
  * Pure function — takes the raw MD string, returns the (possibly updated) MD
  * string. Returns the input unchanged when phase is not `done`.
  *
- * Called from the `/gate` skill's `full-attach` / `specs-only-attach`
+ * Called from the `/noldor-gate` skill's `full-attach` / `specs-only-attach`
  * scaffolding step on the worktree branch. The reverse transition
  * (`in-progress → done`) is NOT this module's responsibility — it's handled
  * by `fillMarkers` in `release-markers.ts` at release time, per the

@@ -37,13 +37,13 @@ gate end-of-flow (any path)
    - ☐ Require status checks (off initially; flip on when `pnpm verify` lands as a GH Action)
    - ☑ Restrict who can push to matching branches: empty
    - ☑ Do not allow bypassing the above settings (admin included)
-5. **Confirm via /garden.** `pnpm noldor garden detect` runs the `branch-protection.ts` detector and surfaces drift as a WARN finding.
+5. **Confirm via /noldor-garden.** `pnpm noldor garden detect` runs the `branch-protection.ts` detector and surfaces drift as a WARN finding.
 
 ## Override semantics
 
 The only allowed bypass of the local pre-push hook is `NOLDOR_RELEASE_PUSH=1`. `pnpm release` sets this env var immediately before `git push origin main`. Every release push appends a receipt line to `.noldor/release-pushes.log` (`<iso> <sha> <pkg-version>`) — audited by `pnpm noldor garden detect` via `auditReleasePushes` in `override-audit.ts`.
 
-Any other bypass attempt (e.g., `--no-verify`) leaves no receipt and surfaces in `/garden` review.
+Any other bypass attempt (e.g., `--no-verify`) leaves no receipt and surfaces in `/noldor-garden` review.
 
 **Note:** `.noldor/release-pushes.log` is machine-local (gitignored). `pnpm noldor garden detect` surfaces audit data only when run on the same machine as `pnpm release`. The log is volatile state, similar to `.noldor/session.json`.
 
@@ -62,7 +62,7 @@ Each blind retry forks another zombie hook chain and amplifies wasted time. The 
 
 ### `pnpm noldor pr-flow` recovery — when the CLI itself is broken
 
-The `/gate` Step 4 path invokes `pnpm noldor pr-flow`. If the CLI exits non-zero for a reason unrelated to the pre-push hook (e.g. a regression in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts), an upstream `gh` change, a malformed FD that `loadFdSummary` can't parse), fall back to the manual three-step ship — the same one the framework used pre-CLI:
+The `/noldor-gate` Step 4 path invokes `pnpm noldor pr-flow`. If the CLI exits non-zero for a reason unrelated to the pre-push hook (e.g. a regression in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts), an upstream `gh` change, a malformed FD that `loadFdSummary` can't parse), fall back to the manual three-step ship — the same one the framework used pre-CLI:
 
 ```bash
 git push --force-with-lease --set-upstream origin "$(git rev-parse --abbrev-ref HEAD)"
@@ -89,7 +89,7 @@ The fallback prints `pr-flow: gh pr merge --auto failed; falling back to direct 
 
 | Symptom                                            | Diagnosis                                                                             | Fix                                                                                                                                                         |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Direct push to origin/main is blocked …`          | Pre-push hook rejected a non-release push.                                            | Ensure `/gate` end-of-flow is invoked; or set `NOLDOR_RELEASE_PUSH=1` if this IS a release push (`pnpm release` should set it automatically).               |
+| `Direct push to origin/main is blocked …`          | Pre-push hook rejected a non-release push.                                            | Ensure `/noldor-gate` end-of-flow is invoked; or set `NOLDOR_RELEASE_PUSH=1` if this IS a release push (`pnpm release` should set it automatically).               |
 | `GhPreflightError: gh CLI not installed`           | `gh` binary missing from PATH.                                                        | `brew install gh` then `gh auth login`.                                                                                                                     |
 | `GhPreflightError: gh CLI is unauthenticated`      | `gh auth status` returned non-zero.                                                   | `gh auth login`.                                                                                                                                            |
 | `gh pr create failed: exit N`                      | Network, 403 (scope), or pre-receive hook rejection on origin.                        | `gh auth status` to check scopes; check origin's pre-receive logs in repo settings → Hooks.                                                                 |
@@ -110,9 +110,9 @@ Attach-session PRs additionally carry a phase-revert commit (`phase: done → in
 docs(features:<parent-slug>): revert phase done → in-progress for attach session
 ```
 
-These commits are written by `/gate` Step 2 scaffolding (see [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md) "Phase-revert lifecycle (attach paths)").
+These commits are written by `/noldor-gate` Step 2 scaffolding (see [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md) "Phase-revert lifecycle (attach paths)").
 
-The reverse (`phase: in-progress → done`) is written by `/gate` Step 4 end-of-flow (`pnpm noldor features phase-flip-done`) so it lands on `main` inside the feature PR; `release-markers.ts:fillMarkers` remains the release-time safety net for FDs that missed the flip — see [versioning.md](versioning.md) step 4 and the [changelog-pr-flow-integration spec](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3 for the original (now superseded) asymmetric model.
+The reverse (`phase: in-progress → done`) is written by `/noldor-gate` Step 4 end-of-flow (`pnpm noldor features phase-flip-done`) so it lands on `main` inside the feature PR; `release-markers.ts:fillMarkers` remains the release-time safety net for FDs that missed the flip — see [versioning.md](versioning.md) step 4 and the [changelog-pr-flow-integration spec](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3 for the original (now superseded) asymmetric model.
 
 ## Open-only mode (parallel drain)
 

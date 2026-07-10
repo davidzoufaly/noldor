@@ -69,7 +69,7 @@ export function liftSpecSections(specMd: string, fdMd: string): string {
   return out;
 }
 
-/** Build a feature MD (frontmatter + body stubs) for a roadmap entry. Mirrors /promote. */
+/** Build a feature MD (frontmatter + body stubs) for a roadmap entry. Mirrors /noldor-promote. */
 export function scaffoldFd(entry: PrepEntry, opts: ScaffoldOpts): string {
   const { paths, stripped } = extractTouches(entry.body);
   const category = areaToCategory(entry.area, loadAreaCategories(opts.cwd));

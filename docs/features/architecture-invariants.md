@@ -29,7 +29,7 @@ noldor-tier: full
 
 ## Summary
 
-Three commit-blocking architecture invariants enforced at pre-commit, with advisory mirror in `/garden`:
+Three commit-blocking architecture invariants enforced at pre-commit, with advisory mirror in `/noldor-garden`:
 
 - **boundaries** — forbidden imports per `consumer.boundaries` rules in `.noldor/config.json` (dependency-cruiser forbidden-rule shape, including the `{from: {}, to: {circular: true}}` no-cycle backstop).
 - **public-api-tsdoc** — every symbol re-exported from `packages/*/src/index.ts` must carry TSDoc (or `@internal`).
@@ -40,7 +40,7 @@ Plugin pattern under `src/invariants/`. Pre-commit runner `src/checks/check-inva
 ## User Story
 
 - As an agent committing changes, I want forbidden cross-package imports, missing public-API TSDoc, doc rule contradictions, and unbound UI features rejected at commit time, so framework drift is caught before review instead of at audit time.
-- As a maintainer running `/garden`, I want the same checks surfaced as advisory findings, so bypassed (or pre-existing) violations stay visible and can be batch-reviewed.
+- As a maintainer running `/noldor-garden`, I want the same checks surfaced as advisory findings, so bypassed (or pre-existing) violations stay visible and can be batch-reviewed.
 
 ## Usage
 

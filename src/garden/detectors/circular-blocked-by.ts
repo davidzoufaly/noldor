@@ -6,7 +6,7 @@ import { parseBacklog, parseRoadmap, type BacklogEntry } from '../../utils/parse
 /**
  * One circular `blocked-by` chain flagged by the detector. `cycle` lists the
  * member slugs in the order Tarjan surfaced the strongly-connected component
- * (a self-loop is a single-element cycle). `/garden` renders these as
+ * (a self-loop is a single-element cycle). `/noldor-garden` renders these as
  * manual-edit findings — a cycle can never resolve automatically since any
  * member is a defensible edge to cut.
  */

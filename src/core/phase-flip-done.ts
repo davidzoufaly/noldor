@@ -6,7 +6,7 @@ import matter from 'gray-matter';
  * returns the (possibly updated) MD string. Returns the input unchanged when
  * phase is not `in-progress`.
  *
- * Called from the `/gate` skill's Step 4 end-of-flow on FD-carrying paths
+ * Called from the `/noldor-gate` skill's Step 4 end-of-flow on FD-carrying paths
  * (`specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`) right
  * before requesting code review. The flip lands `phase: done` on `main` as
  * part of the feature's PR rather than waiting for `pnpm release` to flip

@@ -19,7 +19,7 @@ import {
  * Exit contract mirrors `lint-plan-snippets` exactly so skills shell out to
  * both uniformly: 0 = clean, 2 = signals present (one stdout line per
  * signal), 1 = infra error (unknown slug, unreadable path, bad usage).
- * Errors emit on stdout (not stderr) so /gate Step 2.5 and the skills can
+ * Errors emit on stdout (not stderr) so /noldor-gate Step 2.5 and the skills can
  * surface them in prompt descriptions; the CLI's consumers capture stdout.
  */
 export interface SplitCheckResult {

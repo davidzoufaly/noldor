@@ -6,9 +6,9 @@ links:
   code:
     - docs/roadmap.md
     - docs/backlog.md
-    - .claude/skills/triage/SKILL.md
-    - .claude/skills/new-feature/SKILL.md
-    - .claude/skills/promote/SKILL.md
+    - .claude/skills/noldor-triage/SKILL.md
+    - .claude/skills/noldor-new-feature/SKILL.md
+    - .claude/skills/noldor-promote/SKILL.md
     - src/triage/entry-id.ts
     - src/triage/mint-id-cli.ts
     - src/triage/backfill-ids-cli.ts
@@ -33,7 +33,7 @@ introduced: 0.5.0
 ---
 ## Summary
 
-Every roadmap and backlog entry is identified today by its kebab-slug derived from the heading. Slugs are rename-fragile — renaming an entry breaks every `deps:`, `parent:`, commit trailer, and dashboard link that targets it; moving an entry between roadmap ↔ backlog preserves the slug but loses heading-evolution traceability. Introduce a stable short ID minted at first triage and never rewritten: e.g. `R-0042` for roadmap and `B-0042` for backlog, or a single `Q-0042` namespace that survives cross-file moves. The ID becomes the canonical reference for `blocked-by:` / `parent:` / commit trailers / dashboard links / garden detectors. Slug stays a human-readable alias that can be rewritten without breakage. Counter persists in `.noldor/id-counter.json`; `/triage` and `/new-feature` mint IDs at creation. Migration: one-sweep backfill across current entries (~25 roadmap + ~7 backlog as of 2026-07-02).
+Every roadmap and backlog entry is identified today by its kebab-slug derived from the heading. Slugs are rename-fragile — renaming an entry breaks every `deps:`, `parent:`, commit trailer, and dashboard link that targets it; moving an entry between roadmap ↔ backlog preserves the slug but loses heading-evolution traceability. Introduce a stable short ID minted at first triage and never rewritten: e.g. `R-0042` for roadmap and `B-0042` for backlog, or a single `Q-0042` namespace that survives cross-file moves. The ID becomes the canonical reference for `blocked-by:` / `parent:` / commit trailers / dashboard links / garden detectors. Slug stays a human-readable alias that can be rewritten without breakage. Counter persists in `.noldor/id-counter.json`; `/noldor-triage` and `/noldor-new-feature` mint IDs at creation. Migration: one-sweep backfill across current entries (~25 roadmap + ~7 backlog as of 2026-07-02).
 
 ## User Story
 
@@ -41,7 +41,7 @@ As an operator (or autonomous drain agent) managing the Noldor queue, I want eve
 
 ## Usage
 
-**Minting (automatic)** — `/triage` mints IDs for confirmed new-entry rows and writes `- id: Q-NNNN` as the first bullet of each schema-C block; `/new-feature` and `/promote` carry the ID into FD frontmatter as `entry-id`.
+**Minting (automatic)** — `/noldor-triage` mints IDs for confirmed new-entry rows and writes `- id: Q-NNNN` as the first bullet of each schema-C block; `/noldor-new-feature` and `/noldor-promote` carry the ID into FD frontmatter as `entry-id`.
 
 **CLI**
 
@@ -80,9 +80,9 @@ Introduces stable entry IDs (Q-NNNN) for roadmap + backlog (#157).
 - **Code:**
   - [`docs/roadmap.md`](../../docs/roadmap.md)
   - [`docs/backlog.md`](../../docs/backlog.md)
-  - [`.claude/skills/triage/SKILL.md`](../../.claude/skills/triage/SKILL.md)
-  - [`.claude/skills/new-feature/SKILL.md`](../../.claude/skills/new-feature/SKILL.md)
-  - [`.claude/skills/promote/SKILL.md`](../../.claude/skills/promote/SKILL.md)
+  - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
+  - [`.claude/skills/noldor-new-feature/SKILL.md`](../../.claude/skills/noldor-new-feature/SKILL.md)
+  - [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md)
   - [`src/triage/entry-id.ts`](../../src/triage/entry-id.ts)
   - [`src/triage/mint-id-cli.ts`](../../src/triage/mint-id-cli.ts)
   - [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts)

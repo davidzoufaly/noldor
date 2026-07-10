@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # CR Pipeline
 
-Code review runs in two contexts: per-stage during `/gate` (Step 2.5
+Code review runs in two contexts: per-stage during `/noldor-gate` (Step 2.5
 across spec/plan/code) and as a release-gate audit at `pnpm release`.
 The per-stage flow is multi-reviewer (four lanes, parallel writes,
 schema-validated sinks); the release gate still demands a tree-matched
@@ -31,7 +31,7 @@ feedback-only.
 
 ## Multi-reviewer Step 2.5
 
-Step 2.5 of `/gate` runs four lanes in parallel: `manual` (operator
+Step 2.5 of `/noldor-gate` runs four lanes in parallel: `manual` (operator
 verdict + finding loop), `codex` (`pnpm noldor cr codex` wrapper), `subagent`
 (Task-tool dispatch with markdown→JSON parser), and `standalone`
 (iTerm2-spawned headless Claude). Each lane writes its findings to
@@ -47,7 +47,7 @@ clean union of blockers.
 
 ### Artifact kind semantics
 
-The orchestrator's `--kind` flag accepts `spec`, `plan`, or `code` (see `src/cr/findings-schema.ts:artifactKindSchema`). Path-to-kind mapping at `/gate` Step 2.5:
+The orchestrator's `--kind` flag accepts `spec`, `plan`, or `code` (see `src/cr/findings-schema.ts:artifactKindSchema`). Path-to-kind mapping at `/noldor-gate` Step 2.5:
 
 | Path                | Step 2.5 invocations                    |
 | ------------------- | --------------------------------------- |
@@ -61,7 +61,7 @@ The orchestrator's `--kind` flag accepts `spec`, `plan`, or `code` (see `src/cr/
 ## Step 4 collapse
 
 Step 4 (code review) used to be a subagent + codex retry loop driven
-by `/gate`. It is now a single subagent lane by default — the code
+by `/noldor-gate`. It is now a single subagent lane by default — the code
 stage runs the same multi-reviewer machinery as spec/plan, just with
 `crLanes.code: ['subagent']` baked in. Codex remains opt-in: set
 `crLanes.code: ['subagent', 'codex']` in `.noldor/config.json` to add
@@ -179,7 +179,7 @@ Noldor-CR-Override-Codex: <human-readable reason>
 
 Empty reasons are rejected by `noldor-validate-trailer.ts`. Each
 override is appended to `.noldor/cr-overrides.log` (separate from
-the path-override log). `/garden` audits frequency, short reasons, and
+the path-override log). `/noldor-garden` audits frequency, short reasons, and
 copy-paste repeats.
 
 ## Release gate
@@ -212,7 +212,7 @@ the audit trail. Expected self-host override noise is declared the same
 way under `garden.overrideAudit.expected` (matched by `shaPrefix`
 and/or `reasonIncludes`, with a required `note`); matched overrides
 stop counting toward the override-audit WARN threshold but stay listed
-in `/garden` output and the SDD report with an `(expected)` marker.
+in `/noldor-garden` output and the SDD report with an `(expected)` marker.
 
 ## Verify lane
 

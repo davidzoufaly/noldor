@@ -156,7 +156,7 @@ export function composeBody(input: PrFlowInput): string {
     '',
     '---',
     '',
-    '*Opened by Noldor `/gate` end-of-flow. CR run locally; trailers recorded on each commit.*',
+    '*Opened by Noldor `/noldor-gate` end-of-flow. CR run locally; trailers recorded on each commit.*',
     '',
   ].join('\n');
 }

@@ -45,7 +45,7 @@ The primitive is caller-agnostic; invoke it from:
 
 - **Gate spec-stage** — "understand X before we spec it" (via the `noldor-research` skill)
 - **Plan-stage investigation** — survey the files a plan will touch
-- **`/garden` deep-dives** — parallel audits of drift candidates
+- **`/noldor-garden` deep-dives** — parallel audits of drift candidates
 - **Standalone operator research** — quick `--task` one-liners
 
 Auto-wiring these flows is deliberately out of scope; each adoption is its own roadmap entry.

@@ -11,10 +11,10 @@ Every user-visible capability in the project is tracked as one feature MD (FD) u
 
 | Trigger                                 | What it does                                                                                                                                                           |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/new-feature <slug>`                   | Scaffold a blank FD from scratch. Prompts for `category`. Use when not in roadmap/backlog.                                                                             |
-| `/promote <slug>`                       | Move a roadmap/backlog block into a new FD with `phase: in-progress`. No roadmap-side tracker — in-progress work is discoverable via `phase: in-progress` frontmatter. |
-| `/draft-feature-md <slug> --from-spec`  | Fill `<!-- TODO -->` stubs in FD body from approved spec.                                                                                                              |
-| `/draft-feature-md <slug> --refresh`    | Rewrite FD User Story / Usage to match what shipped.                                                                                                                   |
+| `/noldor-new-feature <slug>`                   | Scaffold a blank FD from scratch. Prompts for `category`. Use when not in roadmap/backlog.                                                                             |
+| `/noldor-promote <slug>`                       | Move a roadmap/backlog block into a new FD with `phase: in-progress`. No roadmap-side tracker — in-progress work is discoverable via `phase: in-progress` frontmatter. |
+| `/noldor-draft-feature-md <slug> --from-spec`  | Fill `<!-- TODO -->` stubs in FD body from approved spec.                                                                                                              |
+| `/noldor-draft-feature-md <slug> --refresh`    | Rewrite FD User Story / Usage to match what shipped.                                                                                                                   |
 | `pnpm noldor validate features`         | Schema check + cross-checks (`packages` ↔ `links.code`, `@tests:` slugs, `@feature:` slugs). Pre-commit hook.                                                          |
 | `pnpm noldor sync test-links`           | Populate `links.tests` from `// @tests: <slug>` directives. Pre-commit hook.                                                                                           |
 | `pnpm noldor sync code-links`           | Populate `links.code` from `// @fd: <slug>` directives. `--check` flags drift without writing.                                                                         |
@@ -45,9 +45,9 @@ The Zod schema is `.strict()`: unknown keys are rejected. Every FD frontmatter m
 | `introduced`  | `string` matching `^\d+\.\d+\.\d+$` | Product release the feature shipped in. **Set by `pnpm release`, never by hand.** Absent on `phase: in-progress`; populated when phase flips to `done` and a release cuts. |
 | `updated`     | `string` matching `^\d+\.\d+\.\d+$` | Latest product release that modified the feature. **Set by `pnpm release`, never by hand.**                                                                                |
 | `deps`        | `string[]` (each non-empty)         | Slugs of prereq features. Defaults to `[]`.                                                                                                                                |
-| `noldor-tier` | enum: `specs-only \| full`          | Records the FD's creation depth. Set by `/gate` (or `--tier` flag on `/promote`/`/new-feature`). Immutable post-rollout. See [Tier transitions](#tier-transitions) below.  |
-| `introduces-gate` | `string` (min 1)                | Marks an FD whose work adds a release-time gate its own commits cannot satisfy. Value is a gate-registry key (`src/cr/gate-registry.ts`, e.g. `codex-cr`). Drives `/gate` Step 4 bootstrap-immunity (`pnpm noldor cr bootstrap`), which stamps the matching override on the branch's commits so the new gate can't block its own merge. Hand-added; absent by default. |
-| `entry-id`    | `string` matching `^Q-\d{4,}$`  | Stable entry ID carried from the source roadmap/backlog block. Lifted by `/promote` from the block's `- id:`, or minted fresh by `/new-feature`. Lets `resolveEntryRef` map an ID `deps:` reference to this shipped feature and keeps the ID stable across the roadmap → FD hop. Never rewritten. Absent on historical FDs. See [triage.md → Stable entry IDs](triage.md#stable-entry-ids). |
+| `noldor-tier` | enum: `specs-only \| full`          | Records the FD's creation depth. Set by `/noldor-gate` (or `--tier` flag on `/noldor-promote`/`/noldor-new-feature`). Immutable post-rollout. See [Tier transitions](#tier-transitions) below.  |
+| `introduces-gate` | `string` (min 1)                | Marks an FD whose work adds a release-time gate its own commits cannot satisfy. Value is a gate-registry key (`src/cr/gate-registry.ts`, e.g. `codex-cr`). Drives `/noldor-gate` Step 4 bootstrap-immunity (`pnpm noldor cr bootstrap`), which stamps the matching override on the branch's commits so the new gate can't block its own merge. Hand-added; absent by default. |
+| `entry-id`    | `string` matching `^Q-\d{4,}$`  | Stable entry ID carried from the source roadmap/backlog block. Lifted by `/noldor-promote` from the block's `- id:`, or minted fresh by `/noldor-new-feature`. Lets `resolveEntryRef` map an ID `deps:` reference to this shipped feature and keeps the ID stable across the roadmap → FD hop. Never rewritten. Absent on historical FDs. See [triage.md → Stable entry IDs](triage.md#stable-entry-ids). |
 
 Example minimum-viable frontmatter (in-progress, no deps yet):
 
@@ -69,7 +69,7 @@ links:
 
 ## Tier transitions
 
-`noldor-tier` is set once at FD creation (via `/gate`, `/promote --tier`, or `/new-feature --tier`) and is immutable post-rollout. It records the FD's _own creation depth_:
+`noldor-tier` is set once at FD creation (via `/noldor-gate`, `/noldor-promote --tier`, or `/noldor-new-feature --tier`) and is immutable post-rollout. It records the FD's _own creation depth_:
 
 - `specs-only` — FD created on path `specs-only-new`: mechanical work, no brainstorm/spec.
 - `full` — FD created on path `full-new`: design dialogue, spec produced and linked.
@@ -80,7 +80,7 @@ Attach history is reconstructed from trailers, not from the parent FD's frontmat
 
 ## category — drives release-notes grouping
 
-Per the Workflow rules: every new feature MD requires a `category` field — one of the categories configured in `.noldor/config.json` (`consumer.categories`; default `Core | Tooling | Other`). Drives release-notes grouping. `/promote` prompts for this; `/new-feature` requires it.
+Per the Workflow rules: every new feature MD requires a `category` field — one of the categories configured in `.noldor/config.json` (`consumer.categories`; default `Core | Tooling | Other`). Drives release-notes grouping. `/noldor-promote` prompts for this; `/noldor-new-feature` requires it.
 
 This is coarser than the internal `area` taxonomy. `area` can be free-form (`history`, `viewport`, `persistence`); `category` is the configured set above (a closed set per repo, sourced from `.noldor/config.json` — not a hardcoded enum).
 
@@ -158,7 +158,7 @@ A page-by-page reference of every detector and its sentinel is in [`garden-and-d
 - Every slug in a `<!-- @feature: <slug> -->` doc tag must correspond to an existing `docs/features/<slug>.md` (`validateDocFeatureSlugs`).
 - Every test file body must carry a `// @tests: <slug>` line (`validateTestTagPresence`).
 
-## /new-feature and /promote
+## /noldor-new-feature and /noldor-promote
 
-- **`/new-feature <slug>`** — scaffolds a blank FD from scratch. Use when the feature isn't already in roadmap/backlog. Required: `category`.
-- **`/promote <slug>`** — moves a roadmap or backlog block into a new FD with `phase: in-progress`. Source block removed; no roadmap-side tracker is added (the FD's `phase: in-progress` frontmatter is the canonical in-progress signal). See [`workflow.md`](workflow.md) for the broader rules.
+- **`/noldor-new-feature <slug>`** — scaffolds a blank FD from scratch. Use when the feature isn't already in roadmap/backlog. Required: `category`.
+- **`/noldor-promote <slug>`** — moves a roadmap or backlog block into a new FD with `phase: in-progress`. Source block removed; no roadmap-side tracker is added (the FD's `phase: in-progress` frontmatter is the canonical in-progress signal). See [`workflow.md`](workflow.md) for the broader rules.

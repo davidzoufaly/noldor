@@ -87,7 +87,7 @@ function extractJsonLine(stdout: string): string | null {
  * `overrideAudit.severity === 'WARN'` (or `'CRITICAL'`) surfaces as a
  * synthetic finding `{ kind: 'overrideAudit', severity: '...' }` so
  * auto-restamp gates on the same notion of "clean" that the operator-
- * facing `/garden` skill uses — operator-acknowledged-but-unresolved
+ * facing `/noldor-garden` skill uses — operator-acknowledged-but-unresolved
  * overrides should not silently stamp a release-ready receipt.
  *
  * Failure modes (non-zero exitCode + empty findings):

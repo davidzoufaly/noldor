@@ -5,7 +5,7 @@ import { buildMergeCandidates, type MergeCandidate } from './merge-candidates.js
 /**
  * Render the corpus as an aligned, human-readable table (kind · disposition ·
  * slug · name) for eyeballing. The `--json` path bypasses this and emits the
- * raw array for `/triage`.
+ * raw array for `/noldor-triage`.
  */
 export function formatTable(candidates: MergeCandidate[]): string {
   if (candidates.length === 0) return '(no merge candidates)';

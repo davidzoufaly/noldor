@@ -1,5 +1,5 @@
 // Single source of truth for the area → user-facing release-notes Category
-// mapping. The /promote skill (`.claude/skills/promote/SKILL.md` step 4)
+// mapping. The /noldor-promote skill (`.claude/skills/noldor-promote/SKILL.md` step 4)
 // uses this as the default category suggestion when scaffolding an FD; the
 // dashboard `/backlog` view uses it to derive a category column for entries
 // that ship only the `- area:` bullet (no explicit `- category:`).

@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Workflow
 
-This page collects the framework's per-task workflow rules: when to run `/promote`, how to update the feature MD at completion, when to use `/draft-feature-md`, the keyboard-shortcut proposal mandate, defer-past-milestone discipline, and the spec-length precaution.
+This page collects the framework's per-task workflow rules: when to run `/noldor-promote`, how to update the feature MD at completion, when to use `/noldor-draft-feature-md`, the keyboard-shortcut proposal mandate, defer-past-milestone discipline, and the spec-length precaution.
 
 ## Check in-progress work first
 
@@ -15,33 +15,33 @@ When the user gives a vague "let's work" / "what next?" intent, surface in-progr
 2. **Roadmap next.** Top of the flat priority list in `docs/roadmap.md` (file order = priority).
 3. **Backlog last.** `docs/backlog.md` only if 1+2 empty or the user explicitly wants alternatives.
 
-## /gate — canonical entry for every change
+## /noldor-gate — canonical entry for every change
 
-**[`/gate`](../../.claude/skills/gate/SKILL.md) is mandatory before any code edit.** It picks the gate path (one of six), scaffolds the appropriate artifacts, and sets the session marker that hooks depend on.
+**[`/noldor-gate`](../../.claude/skills/noldor-gate/SKILL.md) is mandatory before any code edit.** It picks the gate path (one of six), scaffolds the appropriate artifacts, and sets the session marker that hooks depend on.
 
-Order is: `/gate` → path-specific scaffold → implement → review → push.
+Order is: `/noldor-gate` → path-specific scaffold → implement → review → push.
 
-Do not start implementation without running `/gate` first. If the hook genuinely cannot run, use `Noldor-Path-Override: <reason>` in the commit instead of `--no-verify`. The override is logged to `.noldor/overrides.log` and audited by `/garden`.
+Do not start implementation without running `/noldor-gate` first. If the hook genuinely cannot run, use `Noldor-Path-Override: <reason>` in the commit instead of `--no-verify`. The override is logged to `.noldor/overrides.log` and audited by `/noldor-garden`.
 
-## /promote — run before non-trivial implementation
+## /noldor-promote — run before non-trivial implementation
 
-- **Before any non-trivial implementation work that's already in `docs/roadmap.md` or `docs/backlog.md`, run `/promote <slug>` first.** Non-negotiable for anything that earns a feature MD per the complexity gate. `/promote` atomically scaffolds the feature MD with `phase: in-progress`, runs a residue check on the source block (surfaces sub-items beyond the FD scope so the operator can fold them into the FD body, write them back as new roadmap entries, or explicitly drop them — see the skill body for the full rule), and removes the source block. No roadmap-side tracker is added — the FD's `phase: in-progress` frontmatter is the canonical in-progress signal (the dashboard's overview surface reads that frontmatter directly). Skipping `/promote` for non-trivial work leaves the source block orphaned; mid-implementation pre-commit hooks will then force ad-hoc feature MD creation, leaving redundant-with-feature drift that `/garden` flags later. `/gate` calls `/promote` (or `/new-feature`) for you on paths 3–6 — don't invoke it separately when using `/gate`.
+- **Before any non-trivial implementation work that's already in `docs/roadmap.md` or `docs/backlog.md`, run `/noldor-promote <slug>` first.** Non-negotiable for anything that earns a feature MD per the complexity gate. `/noldor-promote` atomically scaffolds the feature MD with `phase: in-progress`, runs a residue check on the source block (surfaces sub-items beyond the FD scope so the operator can fold them into the FD body, write them back as new roadmap entries, or explicitly drop them — see the skill body for the full rule), and removes the source block. No roadmap-side tracker is added — the FD's `phase: in-progress` frontmatter is the canonical in-progress signal (the dashboard's overview surface reads that frontmatter directly). Skipping `/noldor-promote` for non-trivial work leaves the source block orphaned; mid-implementation pre-commit hooks will then force ad-hoc feature MD creation, leaving redundant-with-feature drift that `/noldor-garden` flags later. `/noldor-gate` calls `/noldor-promote` (or `/noldor-new-feature`) for you on paths 3–6 — don't invoke it separately when using `/noldor-gate`.
 
 ## After every feature, update the feature MD
 
-- **For all FD-carrying paths (`full-new`, `full-attach`, `specs-only-new`, `specs-only-attach`), `/gate` Step 4 auto-flips the feature MD (`docs/features/<slug>.md`) `phase: in-progress → done`** in the last commit before merge via `src/core/phase-flip-done.ts`. `phase: done` lands on `main` as part of the feature PR — not at `pnpm release`. That same Step 4 also refreshes `User Story` / `Usage` automatically via `/draft-feature-md --refresh` (see the `/draft-feature-md` section below) — no manual body update needed; `Summary` stays user-curated. **Never set `introduced` or `updated` manually** — `pnpm release` owns those fields (see `docs/noldor/versioning.md`).
+- **For all FD-carrying paths (`full-new`, `full-attach`, `specs-only-new`, `specs-only-attach`), `/noldor-gate` Step 4 auto-flips the feature MD (`docs/features/<slug>.md`) `phase: in-progress → done`** in the last commit before merge via `src/core/phase-flip-done.ts`. `phase: done` lands on `main` as part of the feature PR — not at `pnpm release`. That same Step 4 also refreshes `User Story` / `Usage` automatically via `/noldor-draft-feature-md --refresh` (see the `/noldor-draft-feature-md` section below) — no manual body update needed; `Summary` stays user-curated. **Never set `introduced` or `updated` manually** — `pnpm release` owns those fields (see `docs/noldor/versioning.md`).
 - **`release-markers.ts:fillMarkers` remains the release-time safety net** for any FD that didn't get flipped at end-of-flow (forgot, manual commits). Its phase-restore branch (`phase: in-progress + introduced + hasChangelogBlock`) still triggers for leftovers. Trade-off: the `### <version> (in-progress)` changelog label no longer renders for enhancement cycles whose Step 4 flip succeeded — superseding the original asymmetric phase-revert design from `framework-pr-flow-agent-auto-merge` spec §3. The label still renders for FDs caught by the safety net.
 - The roadmap has no in-progress tracker to clean up — `phase: in-progress` in FD frontmatter is the canonical signal, and release notes pick up done features from the FD itself. The canonical feature index lives in `docs/user/how-to/index.md` (regenerated by `pnpm noldor docs howto`); README has no auto-generated feature listing. Never wait for the user to ask; never batch multiple features into one catch-up update.
 
-## Use /draft-feature-md, not yourself
+## Use /noldor-draft-feature-md, not yourself
 
-- **Use `/draft-feature-md` to write User Story + Usage, not yourself.** After a spec is approved (via `noldor-spec`), invoke `/draft-feature-md <slug> --from-spec` before invoking noldor-plan — this fills the feature MD's `<!-- TODO -->` stubs from the spec while it's fresh. This `--from-spec` pass is the one manual invocation. The `--refresh` pass (rewriting User Story / Usage to reflect what actually shipped, not just what the spec claimed) is **not** manual — `/gate` Step 4 runs it automatically before the shipping commit (`--yes` in autonomous mode; scoped to changed files + `--usage-only` on attach paths). The skill drafts proposals and asks you to confirm — you don't write the prose yourself.
+- **Use `/noldor-draft-feature-md` to write User Story + Usage, not yourself.** After a spec is approved (via `noldor-spec`), invoke `/noldor-draft-feature-md <slug> --from-spec` before invoking noldor-plan — this fills the feature MD's `<!-- TODO -->` stubs from the spec while it's fresh. This `--from-spec` pass is the one manual invocation. The `--refresh` pass (rewriting User Story / Usage to reflect what actually shipped, not just what the spec claimed) is **not** manual — `/noldor-gate` Step 4 runs it automatically before the shipping commit (`--yes` in autonomous mode; scoped to changed files + `--usage-only` on attach paths). The skill drafts proposals and asks you to confirm — you don't write the prose yourself.
 
 For agentic operators who want to chain through to PR-merge without checkpoints, pick `proceed-autonomous` at the plan-stage Step 2.5 continue-dialog — see [`complexity-gating.md`](complexity-gating.md#autonomous-mode-post-plan-confirm).
 
 ## category field is required on every new feature MD
 
-- **Every new feature MD requires a `category` field** — one of the categories configured in `.noldor/config.json` (`consumer.categories`; default `Core | Tooling | Other`). Drives release-notes grouping. `/promote` prompts for this; `/new-feature` requires it.
+- **Every new feature MD requires a `category` field** — one of the categories configured in `.noldor/config.json` (`consumer.categories`; default `Core | Tooling | Other`). Drives release-notes grouping. `/noldor-promote` prompts for this; `/noldor-new-feature` requires it.
 
 ## Defer-past-Milestone — log to backlog immediately
 

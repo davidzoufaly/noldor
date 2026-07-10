@@ -34,7 +34,7 @@ export const SessionMarkerSchema = z
         code: z.ZodIssueCode.custom,
         message:
           `Session marker for path '${m.path}' must declare markerVersion: 2. ` +
-          `Pre-flip markers without the field have stale semantics — re-pick path via /gate, ` +
+          `Pre-flip markers without the field have stale semantics — re-pick path via /noldor-gate, ` +
           `or run 'pnpm noldor:bump-session-marker' from the worktree root.`,
         path: ['markerVersion'],
       });
@@ -110,7 +110,7 @@ export function touchSession(cwd: string, nowMs: number): void {
 export function setAutonomous(cwd: string = process.cwd()): void {
   const m = readSession(cwd);
   if (m === null) {
-    throw new Error(`setAutonomous: no session marker at ${cwd}/${FILE}; run /gate first.`);
+    throw new Error(`setAutonomous: no session marker at ${cwd}/${FILE}; run /noldor-gate first.`);
   }
   writeSession(cwd, { ...m, autonomous: true });
 }
