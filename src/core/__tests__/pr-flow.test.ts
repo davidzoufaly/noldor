@@ -7,6 +7,7 @@ import {
   preflightGh,
   pollAutoMerge,
   openAndAutoMerge,
+  checkRedundantDelivery,
   mergePrWithFallback,
   GhPreflightError,
   MergeTimeoutError,
@@ -350,6 +351,9 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'gh version 2.50', exitCode: 0 };
       if (cmd === 'gh' && args.join(' ') === 'auth status')
         return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      // `+ ` ⇒ genuine new content ⇒ idempotency guard lets delivery proceed.
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/42', exitCode: 0 };
@@ -365,12 +369,15 @@ describe('openAndAutoMerge', () => {
       return { stdout: '', exitCode: 1 };
     });
     const result = await openAndAutoMerge({ ...baseInput, spawn });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.prUrl).toBe('https://github.com/davidzoufaly/acme/pull/42');
     expect(result.prNumber).toBe(42);
     expect(result.mergedAt).toBe('2026-05-15T10:01:00Z');
     expect(calls.map((c) => `${c.cmd} ${c.args[0]}`)).toEqual([
       'gh --version',
       'gh auth',
+      'git fetch',
+      'git cherry',
       'git push',
       'gh pr',
       'gh pr',
@@ -386,12 +393,15 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'gh version 2.50', exitCode: 0 };
       if (cmd === 'gh' && args.join(' ') === 'auth status')
         return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create')
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/7', exitCode: 0 };
       return { stdout: '', exitCode: 1 };
     });
     const result = await openAndAutoMerge({ ...baseInput, spawn, openOnly: true });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.prUrl).toBe('https://github.com/davidzoufaly/acme/pull/7');
     expect(result.prNumber).toBe(7);
     expect(result.mergedAt).toBeNull();
@@ -415,6 +425,8 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'gh version 2.50', exitCode: 0 };
       if (cmd === 'gh' && args.join(' ') === 'auth status')
         return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/77', exitCode: 0 };
@@ -436,6 +448,7 @@ describe('openAndAutoMerge', () => {
       return { stdout: '', exitCode: 1 };
     });
     const result = await openAndAutoMerge({ ...baseInput, spawn });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.prNumber).toBe(77);
     expect(result.mergedAt).toBe('2026-05-16T19:55:13Z');
     // Verify the call sequence: preflight, push, create, merge --auto, merge --squash (direct), pr view.
@@ -457,6 +470,8 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'gh version 2.50', exitCode: 0 };
       if (cmd === 'gh' && args.join(' ') === 'auth status')
         return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/88', exitCode: 0 };
@@ -477,6 +492,7 @@ describe('openAndAutoMerge', () => {
       return { stdout: '', exitCode: 1 };
     });
     const result = await openAndAutoMerge({ ...baseInput, spawn });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.mergedAt).toBe('2026-05-16T20:00:00Z');
   });
 
@@ -486,6 +502,8 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'gh version 2.50', exitCode: 0 };
       if (cmd === 'gh' && args.join(' ') === 'auth status')
         return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ deadbeef\n', exitCode: 0 };
       if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
       if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create') {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/99', exitCode: 0 };
@@ -505,6 +523,153 @@ describe('openAndAutoMerge', () => {
     await expect(openAndAutoMerge({ ...baseInput, spawn })).rejects.toThrow(
       /direct merge fallback exit 1; PR state is "OPEN"/,
     );
+  });
+
+  it('SKIPS delivery (no push/create/merge) when every branch commit already on origin (all `-`)', async () => {
+    // The PR #76+#77 race: the branch commit was already squash-merged by a
+    // concurrent process, so `git cherry` reports it patch-id-equivalent (`-`).
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'gh' && args[0] === '--version')
+        return { stdout: 'gh version 2.50', exitCode: 0 };
+      if (cmd === 'gh' && args.join(' ') === 'auth status')
+        return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry')
+        return { stdout: '- 1111111\n- 2222222\n', exitCode: 0 };
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    if (!('skipped' in result)) throw new Error('expected skip, got delivery');
+    expect(result.skipped).toBe(true);
+    expect(result.reason).toMatch(/already exist on origin\/main \(patch-id match\)/);
+    // No push, no PR create, no merge — the whole delivery is short-circuited.
+    expect(calls.some((c) => c.cmd === 'git' && c.args[0] === 'push')).toBe(false);
+    expect(calls.some((c) => c.cmd === 'gh' && c.args[1] === 'create')).toBe(false);
+    expect(calls.some((c) => c.cmd === 'gh' && c.args[1] === 'merge')).toBe(false);
+  });
+
+  it('DELIVERS when the branch mixes already-landed (`-`) and new (`+`) commits', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'gh' && args[0] === '--version')
+        return { stdout: 'gh version 2.50', exitCode: 0 };
+      if (cmd === 'gh' && args.join(' ') === 'auth status')
+        return { stdout: 'Logged in', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry')
+        return { stdout: '- 1111111\n+ 3333333\n', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create')
+        return { stdout: 'https://github.com/davidzoufaly/acme/pull/50', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge')
+        return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view')
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-05-15T10:01:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
+    expect(result.prNumber).toBe(50);
+  });
+
+  it('fail-open: DELIVERS when the guard fetch fails (offline), guard never wedges a real ship', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'gh' && args[0] === '--version')
+        return { stdout: 'gh version 2.50', exitCode: 0 };
+      if (cmd === 'gh' && args.join(' ') === 'auth status')
+        return { stdout: 'Logged in', exitCode: 0 };
+      // Fetch fails (e.g. offline) — guard must fail-open and let delivery proceed.
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 128 };
+      if (cmd === 'git' && args[0] === 'push') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'create')
+        return { stdout: 'https://github.com/davidzoufaly/acme/pull/51', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'merge')
+        return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view')
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-05-15T10:01:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    if ('skipped' in result) throw new Error('expected delivery, got skip');
+    expect(result.prNumber).toBe(51);
+    // Fetch failed ⇒ `git cherry` is never attempted.
+    expect(calls.some((c) => c.cmd === 'git' && c.args[0] === 'cherry')).toBe(false);
+  });
+});
+
+describe('checkRedundantDelivery', () => {
+  it('skips (empty cherry output) when the branch has no commits ahead of upstream', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '\n', exitCode: 0 };
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await checkRedundantDelivery({ branch: 'feat/x', base: 'main', spawn });
+    expect(result?.skipped).toBe(true);
+    expect(result?.reason).toMatch(/no commits ahead of origin\/main \(already merged\)/);
+  });
+
+  it('skips when every cherry line is `-` (patch-id equivalent upstream)', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '- aaaaaaa\n', exitCode: 0 };
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await checkRedundantDelivery({ branch: 'feat/x', base: 'main', spawn });
+    expect(result?.skipped).toBe(true);
+    expect(result?.reason).toMatch(/all 1 commit\(s\) on feat\/x already exist/);
+  });
+
+  it('returns null (deliver) on a `+` line', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ bbbbbbb\n', exitCode: 0 };
+      return { stdout: '', exitCode: 1 };
+    });
+    expect(await checkRedundantDelivery({ branch: 'feat/x', base: 'main', spawn })).toBeNull();
+  });
+
+  it('fail-open (null) when fetch fails', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 1 };
+      return { stdout: '', exitCode: 1 };
+    });
+    expect(await checkRedundantDelivery({ branch: 'feat/x', base: 'main', spawn })).toBeNull();
+  });
+
+  it('fail-open (null) when git cherry errors', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '', exitCode: 129 };
+      return { stdout: '', exitCode: 1 };
+    });
+    expect(await checkRedundantDelivery({ branch: 'feat/x', base: 'main', spawn })).toBeNull();
+  });
+
+  it('queries the correct upstream ref and branch', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'git' && args[0] === 'fetch') return { stdout: '', exitCode: 0 };
+      if (cmd === 'git' && args[0] === 'cherry') return { stdout: '+ ccccccc\n', exitCode: 0 };
+      return { stdout: '', exitCode: 1 };
+    });
+    await checkRedundantDelivery({ branch: 'worktree-foo', base: 'develop', spawn });
+    expect(calls.find((c) => c.args[0] === 'fetch')?.args).toEqual(['fetch', 'origin', 'develop']);
+    expect(calls.find((c) => c.args[0] === 'cherry')?.args).toEqual([
+      'cherry',
+      'origin/develop',
+      'worktree-foo',
+    ]);
   });
 });
 

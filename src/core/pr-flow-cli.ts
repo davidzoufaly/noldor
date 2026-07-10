@@ -206,6 +206,15 @@ export async function runCli(cwd: string): Promise<number> {
     openOnly: process.env.NOLDOR_DRAIN_OPEN_ONLY === '1',
   });
 
+  // Idempotency guard fired: the branch's commits already reached origin/main
+  // (patch-id match) — a concurrent process delivered them. Report the no-op and
+  // exit clean; nothing was pushed. See checkRedundantDelivery / the PR #76+#77 race.
+  if ('skipped' in result) {
+    process.stdout.write(`pnpm pr-flow: ${result.reason}\n`);
+    clearMicroChoreSession(cwd, session);
+    return 0;
+  }
+
   process.stdout.write(
     result.mergedAt === null
       ? `PR opened (merge deferred to drain coordinator): ${result.prUrl}\n`
