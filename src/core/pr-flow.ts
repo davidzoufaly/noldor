@@ -39,6 +39,15 @@ export interface PrFlowResult {
   mergedAt: string | null;
 }
 
+/** Returned by {@link openAndAutoMerge} instead of {@link PrFlowResult} when the
+ *  idempotency guard short-circuits the delivery: the branch's commits already
+ *  landed on `origin/<base>`, so no push / PR was made. Discriminated by the
+ *  `skipped` field so callers narrow with `'skipped' in result`. */
+export interface RedundantDelivery {
+  skipped: true;
+  reason: string;
+}
+
 export function composeTitle(input: PrFlowInput): string {
   return input.firstCommitSubject;
 }
@@ -270,8 +279,92 @@ export interface OpenAndAutoMergeInput extends PrFlowInput {
   openOnly?: boolean;
 }
 
-export async function openAndAutoMerge(input: OpenAndAutoMergeInput): Promise<PrFlowResult> {
+/**
+ * Idempotency guard for the delivery chokepoint. Returns a {@link RedundantDelivery}
+ * when every commit the branch would introduce is already patch-id-equivalent to a
+ * commit on `origin/<base>` — i.e. the change already landed (typically because a
+ * concurrent process squash-merged the same local commit) and pushing / opening a PR
+ * now would deliver a redundant duplicate. This is the PR #76 + #77 race: a triage
+ * commit that lived un-pushed on local `main` got shipped twice because nothing
+ * detected it had already reached `origin` under a different sha. Returns `null` when
+ * there is genuinely new content to deliver.
+ *
+ * Mechanism: `git cherry origin/<base> <branch>` leans on git's own patch-id
+ * equivalence — each examined commit is prefixed `-` when an equivalent patch already
+ * exists upstream, `+` otherwise. All `-` (or empty output ⇒ nothing ahead) means the
+ * whole branch is redundant. A single `+` means real new content ⇒ deliver.
+ *
+ * A `git fetch origin <base>` refreshes the remote-tracking ref first: the race hinges
+ * on the local `origin/<base>` being stale (the operator hasn't fetched since the
+ * concurrent squash-merge), so without the fetch the guard would compare against a
+ * pre-duplicate `origin/<base>` and miss the match.
+ *
+ * Fail-open: if the fetch or `git cherry` errors (offline, missing ref, …) the guard
+ * declines to block and returns `null`. A best-effort dedupe must never wedge a
+ * legitimate delivery — delivering (the pre-existing behaviour) is the safe default.
+ *
+ * Coverage boundaries (deliberate, both fail toward delivering — never toward a false skip):
+ * - Per-commit patch-id: a concurrent *squash-merge of a multi-commit branch* collapses to
+ *   one upstream commit whose patch-id matches none of the individual branch commits, so
+ *   `git cherry` reports all `+` and the guard delivers. Only the single-commit shape (the
+ *   observed PR #76+#77 case) is caught. Widening this needs a range/tree diff, not cherry.
+ * - This guard prevents the redundant *push + PR* only. A headless drain child that skips
+ *   here exits 0 with no PR on its branch, which the drain's ship-accounting
+ *   (`settleShipVerdict` in `src/autonomous/drain-loop.ts`) reads as a non-ship and retries.
+ *   That retry is pre-existing (previously the child's `gh pr create` failed "no commits
+ *   between …" and retried anyway) and bounded by the spawn cap — but teaching the drain to
+ *   recognize a redundant-skip as a landed ship is a separate drain-state change, not here.
+ */
+export async function checkRedundantDelivery(opts: {
+  branch: string;
+  base: string;
+  spawn: SpawnFn;
+}): Promise<RedundantDelivery | null> {
+  const upstream = `origin/${opts.base}`;
+  const fetch = await opts.spawn('git', ['fetch', 'origin', opts.base]);
+  if (fetch.exitCode !== 0) {
+    process.stderr.write(
+      `pr-flow: idempotency guard could not fetch ${upstream} (exit ${fetch.exitCode}); proceeding with delivery.\n`,
+    );
+    return null;
+  }
+  const cherry = await opts.spawn('git', ['cherry', upstream, opts.branch]);
+  if (cherry.exitCode !== 0) {
+    process.stderr.write(
+      `pr-flow: idempotency guard: 'git cherry ${upstream} ${opts.branch}' failed (exit ${cherry.exitCode}); proceeding with delivery.\n`,
+    );
+    return null;
+  }
+  const lines = cherry.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  // Any `+ ` line ⇒ at least one commit introduces content not yet upstream ⇒ deliver.
+  if (lines.some((l) => l.startsWith('+'))) return null;
+  const reason =
+    lines.length === 0
+      ? `delivery skipped — branch ${opts.branch} has no commits ahead of ${upstream} (already merged).`
+      : `delivery skipped — all ${lines.length} commit(s) on ${opts.branch} already exist on ${upstream} (patch-id match); no PR opened.`;
+  return { skipped: true, reason };
+}
+
+export async function openAndAutoMerge(
+  input: OpenAndAutoMergeInput,
+): Promise<PrFlowResult | RedundantDelivery> {
   await preflightGh({ spawn: input.spawn });
+
+  // Idempotency guard: skip the push/PR when the branch's commits already landed on
+  // origin/<base> (patch-id equivalence). Sits at the single delivery chokepoint, so it
+  // prevents the redundant push + duplicate PR for every caller that reaches it — the
+  // operator gate, the drain child (ships via `pnpm noldor pr-flow`), and the openOnly
+  // parallel-drain child. (What the drain does *with* a redundant-skip is out of scope —
+  // see the coverage-boundary note on checkRedundantDelivery.)
+  const redundant = await checkRedundantDelivery({
+    branch: input.branch,
+    base: input.base,
+    spawn: input.spawn,
+  });
+  if (redundant) return redundant;
 
   const push = await input.spawn('git', [
     'push',
