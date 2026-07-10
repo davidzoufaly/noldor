@@ -28,10 +28,10 @@ a breaking change inside a regular `feat:` or `fix:`.
 ## Pre-release sweep — mandatory
 
 Before invoking `pnpm release` for any minor or major bump, run
-[`/release-sweep`](../../.claude/skills/release-sweep/SKILL.md). The sweep:
+[`/noldor-release-sweep`](../../.claude/skills/noldor-release-sweep/SKILL.md). The sweep:
 
 1. `/graphify` + `pnpm toon` — fresh structural snapshot of the codebase.
-2. `/refactor` against the new `GRAPH_REPORT.md` — fix god nodes,
+2. `/noldor-refactor` against the new `GRAPH_REPORT.md` — fix god nodes,
    low-cohesion communities, dead exports flagged by the audit.
 3. README drift check.
 4. `/graphify` + `pnpm toon` again — capture the post-refactor graph.
@@ -55,7 +55,7 @@ skip the sweep; minor and major bumps MUST NOT.
    postdate the latest commit under the configured `scanPaths`), garden fresh
    (`ensureGardenFresh` — `.noldor/garden-receipt` must postdate the latest
    commit under the configured `scanPaths`; stamped by `pnpm noldor garden
-   receipt` at the end of every `/garden` flow). Bypass with
+   receipt` at the end of every `/noldor-garden` flow). Bypass with
    `RELEASE_SKIP_GARDEN_GATE=1 pnpm release` for bootstrap commits that
    predate this gate's existence — same escape-hatch discipline as the
    other `RELEASE_SKIP_*` env vars. The following must pass:
@@ -117,7 +117,7 @@ skip the sweep; minor and major bumps MUST NOT.
    - `phase: in-progress` + `introduced` set + had changelog block →
      auto-restore `phase: done` + set `updated = newVersion`
      (enhancement-cycle restore — completes the asymmetric phase-revert
-     state machine driven from `/gate`; see
+     state machine driven from `/noldor-gate`; see
      [`docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md`](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3).
    - `phase: done` + `introduced` set + `introduced !== newVersion` + had
      changelog block → set `updated = newVersion` (maintenance update;

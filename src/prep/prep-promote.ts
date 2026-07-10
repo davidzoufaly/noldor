@@ -368,7 +368,7 @@ async function run(argv: readonly string[]): Promise<number> {
   const existingSession = readSession(cwd);
   if (existingSession) {
     process.stderr.write(
-      `prep promote: an active /gate session is present (path=${existingSession.path}). ` +
+      `prep promote: an active /noldor-gate session is present (path=${existingSession.path}). ` +
         `Finish it or rm .noldor/session.json before promoting.\n`,
     );
     return 1;

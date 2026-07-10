@@ -49,7 +49,7 @@ Commit-msg hook also enforces `validate:feature-slug-scope` and `validate:noldor
 ## Granular commits — one per logical change
 
 - **Granular commits** — one commit per logical change. Never squash into a single commit
-- **Commit at every confirmed checkpoint.** On paths that produce a spec or plan artifact, `/gate` commits the artifact at the Step 2.5 review-handoff confirmation (before the next skill runs) — see [`gate/SKILL.md`](../../.claude/skills/gate/SKILL.md) Step 2.5 and [`complexity-gating.md`](complexity-gating.md) "Review handoff after spec/plan". A worktree branch thus contains spec, then plan, then implementation as separate commits; rolling back to a prior checkpoint is a single `git reset`.
+- **Commit at every confirmed checkpoint.** On paths that produce a spec or plan artifact, `/noldor-gate` commits the artifact at the Step 2.5 review-handoff confirmation (before the next skill runs) — see [`gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md) Step 2.5 and [`complexity-gating.md`](complexity-gating.md) "Review handoff after spec/plan". A worktree branch thus contains spec, then plan, then implementation as separate commits; rolling back to a prior checkpoint is a single `git reset`.
 
 ## Never amend; always create a new commit
 
@@ -87,7 +87,7 @@ Per-path `commit-msg` validation (what the hook actually checks):
 - `specs-only-attach` / `full-attach` — require `Noldor-Enhancement` and a spec file on disk at `docs/superpowers/specs/<date>-<parent>-<enhancement>-design.md`. A `Noldor-Phase-Revert: 1` commit bypasses both (the revert scaffold commits before the spec exists).
 - `release-automation` — validated separately (release pipeline commits).
 
-Overrides (emergency bypass — both append to an audit log surfaced by `/garden`):
+Overrides (emergency bypass — both append to an audit log surfaced by `/noldor-garden`):
 
 ```
 Noldor-Path-Override: <human-readable reason>        # → .noldor/overrides.log
@@ -125,7 +125,7 @@ Noldor-Reviewed-Subagent: 7f3e2a1b9c8d4e5f6a7b8c9d0e1f2a3b4c5d6e7f
 
 ### Auto-injection
 
-The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.noldor/session.json` and injects `Noldor-Path`, `Noldor-FD` (from `slug` or `parent`), and `Noldor-Enhancement` automatically. Authors don't type them by hand when going through `/gate`.
+The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.noldor/session.json` and injects `Noldor-Path`, `Noldor-FD` (from `slug` or `parent`), and `Noldor-Enhancement` automatically. Authors don't type them by hand when going through `/noldor-gate`.
 
 ### Pre-push hook
 

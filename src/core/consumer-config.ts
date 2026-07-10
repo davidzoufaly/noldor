@@ -31,7 +31,7 @@ export const BoundaryRuleSchema = z
  * (`feat`/`fix`/`docs`/…) — those classify a change's KIND and already drive
  * the CHANGELOG grouping + bump level. Categories classify which part of the
  * project a feature belongs to. The set is intentionally minimal; projects
- * grow it via `/triage` + `/promote` (which propose new categories to the
+ * grow it via `/noldor-triage` + `/noldor-promote` (which propose new categories to the
  * operator and append them to `.noldor/config.json` on approval).
  */
 export const DEFAULT_CATEGORIES = ['Core', 'Tooling', 'Other'] as const;
@@ -99,7 +99,7 @@ export const ConsumerConfigSchema = z
      */
     pnpmStderrPrefix: z.string().optional(),
     appPathPrefix: z.string(),
-    /** Release-notes categories. Grows over a project's life (see `/triage`). */
+    /** Release-notes categories. Grows over a project's life (see `/noldor-triage`). */
     categories: z
       .array(z.string().min(1))
       .min(1)

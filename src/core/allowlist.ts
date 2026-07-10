@@ -25,7 +25,7 @@ export const RELEASE_SWEEP_GLOBS = [
   'docs/features/**/*.md',
   'docs/superpowers/plans/**/*.md',
   'docs/superpowers/specs/**/*.md',
-  '.claude/skills/release-sweep/**',
+  '.claude/skills/noldor-release-sweep/**',
 ] as const;
 
 /**

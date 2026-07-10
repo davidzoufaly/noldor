@@ -35,7 +35,7 @@ function retireRoadmapEntry(roadmap: string, slug: string): string {
   return out.join('\n');
 }
 
-/** Perform the deterministic fast-track gate work a real /gate run would, sans LLM. */
+/** Perform the deterministic fast-track gate work a real /noldor-gate run would, sans LLM. */
 export function applyStubGate(opts: StubGateOpts): void {
   const { cwd, slug } = opts;
   const plan = JSON.parse(readFileSync(cannedPath(slug), 'utf8')) as CannedPlan;
@@ -62,7 +62,7 @@ export function applyStubGate(opts: StubGateOpts): void {
   git(['commit', '-q', '--no-verify', '-m', msg]);
 }
 
-/** Parse the slug from the gate prompt (`/gate --resume <slug>`) or env. */
+/** Parse the slug from the gate prompt (`/noldor-gate --resume <slug>`) or env. */
 function slugFromPrompt(prompt: string): string | null {
   const m = prompt.match(/--resume\s+(\S+)/);
   if (m) return m[1];
@@ -71,7 +71,7 @@ function slugFromPrompt(prompt: string): string | null {
 
 /** CLI entrypoint (invoked via bin/noldor-stub-gate.mjs). */
 export function main(argv: string[]): number {
-  const prompt = argv[2] ?? '/gate';
+  const prompt = argv[2] ?? '/noldor-gate';
   const slug = slugFromPrompt(prompt);
   if (!slug) {
     process.stderr.write('stub-gate: no slug (set NOLDOR_STUB_SLUG or pass --resume <slug>)\n');

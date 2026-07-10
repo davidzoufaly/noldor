@@ -13,7 +13,7 @@ links:
     - src/autonomous/drain-io.ts
     - src/core/next-priority.ts
     - src/cli/manifest.ts
-    - .claude/skills/gate/SKILL.md
+    - .claude/skills/noldor-gate/SKILL.md
   tests:
     - src/autonomous/__tests__/build-pool.test.ts
     - src/autonomous/__tests__/decide-next.test.ts
@@ -41,11 +41,11 @@ introduced: 0.3.0
 ---
 ## Summary
 
-An external supervisor that drains the roadmap's fast-track (XS/S) queue autonomously — spawning a fresh `claude --print "/gate --drain <slug>"` per entry, one auto-merged PR at a time, with retry-then-skip, a concurrency lock, and a per-iteration timeout. Each feature runs in a clean context, so always-clear is preserved without a human between features.
+An external supervisor that drains the roadmap's fast-track (XS/S) queue autonomously — spawning a fresh `claude --print "/noldor-gate --drain <slug>"` per entry, one auto-merged PR at a time, with retry-then-skip, a concurrency lock, and a per-iteration timeout. Each feature runs in a clean context, so always-clear is preserved without a human between features.
 
 ## User Story
 
-As an operator with a backlog of small (XS/S) roadmap entries, I want one command that ships them autonomously — one auto-merged PR at a time, each in a fresh always-cleared `claude --print` context — so that I can drain the fast-track queue without sitting between every feature to `/clear` and re-run `/gate`.
+As an operator with a backlog of small (XS/S) roadmap entries, I want one command that ships them autonomously — one auto-merged PR at a time, each in a fresh always-cleared `claude --print` context — so that I can drain the fast-track queue without sitting between every feature to `/clear` and re-run `/noldor-gate`.
 
 ## Usage
 
@@ -59,7 +59,7 @@ As an operator with a backlog of small (XS/S) roadmap entries, I want one comman
 
 **Agent API**
 
-- None. The runner is the agent driver — it spawns `NOLDOR_DRAIN=1 claude --print "/gate --drain <slug>"` per entry; there is no in-editor API surface.
+- None. The runner is the agent driver — it spawns `NOLDOR_DRAIN=1 claude --print "/noldor-gate --drain <slug>"` per entry; there is no in-editor API surface.
 
 **Exit codes**
 
@@ -73,7 +73,7 @@ kill-switch), and `--permission-mode bypassPermissions` (so `git`/`gh`/`pnpm`/Ed
 These are wired in [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts) `spawnGate`.
 
 **Still to verify by a live integration run (not yet exercised — no real drain has shipped a PR):**
-that `claude --print "/gate --drain <slug>"` resolves the `/gate` *skill* in print mode (vs treating the string as a
+that `claude --print "/noldor-gate --drain <slug>"` resolves the `/noldor-gate` *skill* in print mode (vs treating the string as a
 literal prompt) and that Ctrl-C propagates SIGINT to the spawned child. Runbook: on a scratch branch,
 seed `docs/roadmap.md` with one standalone XS/S entry, set the `autonomous` config block
 (`onFailure: "abort"`, `skipLanePicker: true`, `requireHumanPrApproval: false`), run
@@ -100,7 +100,7 @@ a merged PR (not merely a clean child exit).
   - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
   - [`src/core/next-priority.ts`](../../src/core/next-priority.ts)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
-  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
 - **Tests:**
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)

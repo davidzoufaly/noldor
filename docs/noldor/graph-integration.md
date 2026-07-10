@@ -43,18 +43,18 @@ scanning replicates.
 
 ## Pre-release sweep
 
-The pre-release sweep — `/graphify` → `/refactor` against the new
+The pre-release sweep — `/graphify` → `/noldor-refactor` against the new
 `GRAPH_REPORT.md` → verify README → `/graphify` again — is encoded in
-the [`/release-sweep`](../../.claude/skills/release-sweep/SKILL.md) skill and
+the [`/noldor-release-sweep`](../../.claude/skills/noldor-release-sweep/SKILL.md) skill and
 required before any minor or major `pnpm release`. See
 [`versioning.md`](versioning.md) "Pre-release sweep" for the release-flow
 contract.
 
 Both graphify passes in the sweep run **AST-only by default** (structural
-extraction, no semantic subagent fan-out): `/refactor` keys off god nodes,
+extraction, no semantic subagent fan-out): `/noldor-refactor` keys off god nodes,
 cohesion, and dead exports, which all come from the AST graph, and AST-only
 is deterministic and takes seconds. The full-semantic pipeline is an explicit
-operator opt-in (`/release-sweep --full-semantic`) reserved for deep passes.
+operator opt-in (`/noldor-release-sweep --full-semantic`) reserved for deep passes.
 
 ## graph-fd-lookup substrate
 
@@ -100,7 +100,7 @@ consumption.
 | 2   | Done features without docs         | Medium     | Community-based doc co-tag suggestion.                                                                 |
 | 3   | Features without spec              | None       | Pure metadata.                                                                                         |
 | 4   | Done features missing `introduced` | None       | Pure metadata.                                                                                         |
-| 5   | Untriaged ideas                    | **Strong** | Semantic-similarity match idea text vs FD names → propose auto-`merge:<slug>` for `/triage`.           |
+| 5   | Untriaged ideas                    | **Strong** | Semantic-similarity match idea text vs FD names → propose auto-`merge:<slug>` for `/noldor-triage`.           |
 | 6   | Stale backlog entries              | None       | Pure age check.                                                                                        |
 | 7   | Spec files not referenced          | Medium     | Spec content vs FD community match.                                                                    |
 | 8   | Plan files without matching spec   | None       | Pure filename match.                                                                                   |
@@ -112,7 +112,7 @@ consumption.
 Strong-lift family: 9, 10, 13 — same "path → FD" substrate (see
 [graph-fd-lookup](#graph-fd-lookup-substrate) above), same staleness
 gate. Standalone strong-lift: 5 (idea-merge suggestions, touches
-`/triage`). Medium-lift candidates (2, 7, 11) only worth chasing if
+`/noldor-triage`). Medium-lift candidates (2, 7, 11) only worth chasing if
 false-negatives accumulate.
 
 ## Staleness gate — graph older than latest source commit

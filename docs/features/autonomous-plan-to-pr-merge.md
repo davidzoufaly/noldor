@@ -5,7 +5,7 @@ deps:
   - specs-cr-gate-multi-reviewer
 links:
   code:
-    - .claude/skills/gate/SKILL.md
+    - .claude/skills/noldor-gate/SKILL.md
     - src/cr/orchestrate.ts
     - src/core/pr-flow-cli.ts
     - src/core/pr-flow.ts
@@ -36,12 +36,12 @@ After the operator confirms the `superpowers:writing-plans` output, execution pr
 
 ## User Story
 
-As an agentic operator running `/gate` on a specs-only or full feature, I want to mark the session as autonomous at the plan-stage Step 2.5 continue-dialog so that all downstream prompts (commit-confirm, code-stage lane picker, address-blockers dialog, overwrite/in-progress guards, PR-approval gate) are auto-defaulted through PR-merge — leaving only the safety-rail `cr:escalate` dialog (configurable via `autonomous.onFailure`) interactive on red.
+As an agentic operator running `/noldor-gate` on a specs-only or full feature, I want to mark the session as autonomous at the plan-stage Step 2.5 continue-dialog so that all downstream prompts (commit-confirm, code-stage lane picker, address-blockers dialog, overwrite/in-progress guards, PR-approval gate) are auto-defaulted through PR-merge — leaving only the safety-rail `cr:escalate` dialog (configurable via `autonomous.onFailure`) interactive on red.
 
 ## Usage
 
 ```
-/gate                                              # interactive path picker (or --resume <slug>)
+/noldor-gate                                              # interactive path picker (or --resume <slug>)
 # ... brainstorming/spec/plan flow per path ...
 # At plan-stage Step 2.5 continue-dialog, pick `proceed-autonomous`
 # → runs `pnpm noldor:set-autonomous` (sets `session.autonomous = true` in `.noldor/session.json`)
@@ -61,7 +61,7 @@ The autonomous flag persists for the rest of the session — there is no operato
 ## Resources
 
 - **Code:**
-  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts)
   - [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts)
   - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)

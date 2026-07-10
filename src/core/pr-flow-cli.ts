@@ -146,7 +146,7 @@ export async function runCli(cwd: string): Promise<number> {
   const session: SessionMarker | null = readSession(cwd);
   if (session === null) {
     process.stderr.write(
-      'pnpm pr-flow: no .noldor/session.json found. Run /gate first to set the session marker.\n',
+      'pnpm pr-flow: no .noldor/session.json found. Run /noldor-gate first to set the session marker.\n',
     );
     return 1;
   }

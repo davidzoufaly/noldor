@@ -35,7 +35,7 @@ export interface PreCommitResult {
  * env-var pre-commit bypass always leaves a local audit record — even when the
  * commit carries no `Noldor-Path-Override` trailer. The trailing tag distinguishes
  * it from the 2-column untagged line `validate-trailer` writes at the commit-msg
- * layer. The cross-clone audit (git log, read by the `/garden` override detector)
+ * layer. The cross-clone audit (git log, read by the `/noldor-garden` override detector)
  * still relies on the committed trailer; this is the local backstop.
  */
 export function logOverride(cwd: string, reason: string): void {
@@ -52,7 +52,7 @@ function staleResult(session: SessionMarker, ttlHours: number): PreCommitResult 
     ok: false,
     reason:
       `session stale: '${session.path}' started ${session.startedAt} ` +
-      `(older than ${ttlHours}h). Run /gate again to refresh.`,
+      `(older than ${ttlHours}h). Run /noldor-gate again to refresh.`,
   };
 }
 
@@ -117,7 +117,7 @@ export function runPreCommit(opts: {
   if (!session) {
     return {
       ok: false,
-      reason: `No /gate session. Run /gate before committing: ${staged.join(', ')}`,
+      reason: `No /noldor-gate session. Run /noldor-gate before committing: ${staged.join(', ')}`,
     };
   }
 

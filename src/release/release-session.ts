@@ -4,7 +4,7 @@ export async function withReleaseSession<T>(cwd: string, work: () => Promise<T>)
   const existing = readSession(cwd);
   if (existing && existing.path !== 'release-automation') {
     throw new Error(
-      `Cannot start release: an active /gate session is present at .noldor/session.json ` +
+      `Cannot start release: an active /noldor-gate session is present at .noldor/session.json ` +
         `(path=${existing.path}${existing.slug ? `, slug=${existing.slug}` : ''}). ` +
         `Finish the gate flow or delete the marker (rm .noldor/session.json) before running pnpm release.`,
     );

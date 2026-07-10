@@ -211,7 +211,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     if (!enhancement) {
       return {
         ok: false,
-        reason: `${path} requires Noldor-Enhancement trailer (session marker's enhancement field). Re-run /gate to scaffold the marker.`,
+        reason: `${path} requires Noldor-Enhancement trailer (session marker's enhancement field). Re-run /noldor-gate to scaffold the marker.`,
       };
     }
     const expectedSuffix = `-${slug}-${enhancement}-design.md`;

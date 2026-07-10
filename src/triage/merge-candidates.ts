@@ -6,7 +6,7 @@ import { extractSummary, loadSddFeatures } from '../core/fd-load.js';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 
 /**
- * One merge target for `/triage` to rank an untriaged idea against.
+ * One merge target for `/noldor-triage` to rank an untriaged idea against.
  * `disposition` is derived from `kind`: roadmap/backlog blocks accept a
  * sub-bullet merge (`merge`); FDs are already promoted, so an overlap becomes
  * a new entry carrying `parent: <slug>` (`parent`).

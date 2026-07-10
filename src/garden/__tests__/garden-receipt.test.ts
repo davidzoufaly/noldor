@@ -35,7 +35,7 @@ describe(evaluateGardenFreshness, () => {
   it('rejects when no receipt is present', () => {
     const r = evaluateGardenFreshness({ receipt: null, latestSrcTs: 1_000 });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/No \/garden receipt/);
+    expect(r.reason).toMatch(/No \/noldor-garden receipt/);
   });
 
   it('rejects when receipt timestamp predates the latest src commit', () => {

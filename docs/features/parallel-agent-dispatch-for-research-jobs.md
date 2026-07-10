@@ -41,7 +41,7 @@ Noldor can fan out parallel _build_ agents (the K-concurrent drain) but has no f
 **What to build (for brainstorm/spec):**
 
 - A reusable dispatch primitive — a `noldor-dispatch-parallel` skill and/or `noldor research fanout` CLI — that takes N independent task specs, spawns one focused agent each (isolated context), enforces a structured return per agent, and synthesizes the results.
-- Plug-in points: gate spec-stage ("research the codebase before writing the spec"), plan-stage investigation, `/garden` deep-dives, standalone operator research.
+- Plug-in points: gate spec-stage ("research the codebase before writing the spec"), plan-stage investigation, `/noldor-garden` deep-dives, standalone operator research.
 - Reuse existing parallel infra where it fits (drain concurrency cap, lane logging, agent-events) **without** coupling to the merge-coordinator — read agents don't write, so no worktree/merge serialization needed.
 - MVP fallback (size S): a skill-only version that just codifies the pattern for the driving agent (focused scope, structured return, synthesis) — vendoring superpowers' approach adapted to Noldor. The CLI fanout primitive is the part that compounds; the spec stage decides skill-only vs CLI vs both.
 

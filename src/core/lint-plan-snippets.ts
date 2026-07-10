@@ -253,7 +253,7 @@ function main(argv: readonly string[]): number {
   const positional = args.filter((a) => !a.startsWith('--'));
   const path = positional[0];
   if (path === undefined) {
-    // Errors emit on stdout (not stderr) so /gate Step 2.5 surfaces them in the
+    // Errors emit on stdout (not stderr) so /noldor-gate Step 2.5 surfaces them in the
     // review-handoff prompt; the CLI's only consumer captures stdout.
     process.stdout.write('usage: pnpm lint:plan-snippets <artifact-path> [--json]\n');
     return 1;

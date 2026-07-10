@@ -21,7 +21,7 @@ introduced: 0.5.0
 
 ## Summary
 
-`docs/vision.md`'s `current-milestone: 1.0.0` ties milestone identity to semver. The two have different cadences: a milestone is a strategic gate ("public release with house-modeling agent"); semver tracks API/format compatibility. Conflating them forces premature version commitments and leaks strategic naming into the changelog. Proposal: introduce a separate milestone-naming taxonomy (codenames? phases?) and a new skill (`/milestone` or similar) for crafting milestone definitions independent of releases. Vision keeps a milestone reference; release notes keep semver. Trigger: live now — milestone vs version drift already confuses `/triage` decisions ("is this v1.0 or post-MVP?").
+`docs/vision.md`'s `current-milestone: 1.0.0` ties milestone identity to semver. The two have different cadences: a milestone is a strategic gate ("public release with house-modeling agent"); semver tracks API/format compatibility. Conflating them forces premature version commitments and leaks strategic naming into the changelog. Proposal: introduce a separate milestone-naming taxonomy (codenames? phases?) and a new skill (`/noldor-milestone` or similar) for crafting milestone definitions independent of releases. Vision keeps a milestone reference; release notes keep semver. Trigger: live now — milestone vs version drift already confuses `/noldor-triage` decisions ("is this v1.0 or post-MVP?").
 
 ## User Story
 
@@ -34,10 +34,10 @@ Milestone tracking is optional — the framework validates green without any act
 
 **Skill commands**
 
-- `/milestone draft [<slug>]` — scaffold a new milestone at `docs/milestones/<slug>.md` with `status: draft`. Without a slug, the skill proposes a codename based on a theme or vision body and asks the operator to confirm or rename.
-- `/milestone activate <slug>` — promote a draft to active; flip the previous active (if any) to shipped; update `docs/vision.md` frontmatter `current-milestone: <slug>`. Preflights all state before any write.
-- `/milestone edit <slug>` — open `docs/milestones/<slug>.md` for body edits (gate, success criteria, out of scope). No status mutation.
-- `/milestone list` — print all milestones grouped by status (active, draft, shipped).
+- `/noldor-milestone draft [<slug>]` — scaffold a new milestone at `docs/milestones/<slug>.md` with `status: draft`. Without a slug, the skill proposes a codename based on a theme or vision body and asks the operator to confirm or rename.
+- `/noldor-milestone activate <slug>` — promote a draft to active; flip the previous active (if any) to shipped; update `docs/vision.md` frontmatter `current-milestone: <slug>`. Preflights all state before any write.
+- `/noldor-milestone edit <slug>` — open `docs/milestones/<slug>.md` for body edits (gate, success criteria, out of scope). No status mutation.
+- `/noldor-milestone list` — print all milestones grouped by status (active, draft, shipped).
 
 **Validation**
 

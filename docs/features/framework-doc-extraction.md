@@ -40,7 +40,7 @@ As a Noldor framework maintainer, I want framework artifacts (FDs, roadmap, back
 
 **Skill flags** (Phase 6):
 
-- `/gate`, `/garden`, `/promote`, `/triage`, `/release-sweep` accept `--track framework|product`. Default = inferred from `area:` + slug-prefix; ambiguous cases prompt.
+- `/noldor-gate`, `/noldor-garden`, `/noldor-promote`, `/noldor-triage`, `/noldor-release-sweep` accept `--track framework|product`. Default = inferred from `area:` + slug-prefix; ambiguous cases prompt.
 
 **No UI, no keyboard shortcut, no `window.charuy.*` agent API** — this feature is operator-tier infrastructure; consumed only via CLI + skills.
 

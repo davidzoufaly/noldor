@@ -167,10 +167,10 @@ detach needed. A systemd `OnCalendar=` timer wrapping the same command works the
 - **Verify drain liveness with `pgrep -f 'noldor.mjs autonomous run'`, not by
   reading `.noldor/drain.lock`.** A partial pid read reads as dead → you kill a
   live drain.
-- **Never run an interactive `/gate --resume`/`--drain <slug>` while a background
+- **Never run an interactive `/noldor-gate --resume`/`--drain <slug>` while a background
   drain is live on that slug.** They collide on the shared `feat/<slug>` branch +
   worktree. Check `ps aux | grep -E 'plans-drain|autonomous run'` first.
-- **An in-conversation `/gate --drain <slug>` fast-track does not `/promote`,** so
+- **An in-conversation `/noldor-gate --drain <slug>` fast-track does not `/noldor-promote`,** so
   retire the roadmap block by hand as a second micro-chore PR (removeBlock →
   temp-branch handoff → checkout temp → `pr-flow`).
 

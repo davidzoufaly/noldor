@@ -11,7 +11,7 @@ const END_MARKER = '<!-- /generated: resources -->';
 
 /**
  * Compute the rewrite target for a FD `links.spec` path when the source has
- * been moved to its sibling `archive/` directory (the convention `/garden`
+ * been moved to its sibling `archive/` directory (the convention `/noldor-garden`
  * uses via `git mv <path> <dirname>/archive/<basename>`). Returns `null`
  * when no rewrite is appropriate — either because the current path still
  * exists, the input is empty, or no archive variant exists either.

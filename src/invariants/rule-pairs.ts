@@ -1,5 +1,5 @@
 /**
- * Seed list of rule-pair invariants for the /garden contradiction detector.
+ * Seed list of rule-pair invariants for the /noldor-garden contradiction detector.
  *
  * Each invariant declares a canonical phrasing (`patternA`/`patternB`) that
  * must appear in BOTH documents if either is present. If exactly one side

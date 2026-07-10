@@ -21,7 +21,7 @@ function defaultStamp({ cwd }: { cwd: string }): void {
 /**
  * Release-start auto-restamp gate: runs `garden:detect` inline; if clean,
  * stamps the garden receipt at the current HEAD SHA. Eliminates the 3×
- * manual `/garden` re-stamp loop that plagued v0.5.0 — each follow-up PR
+ * manual `/noldor-garden` re-stamp loop that plagued v0.5.0 — each follow-up PR
  * merge invalidated the SHA-anchored receipt, forcing operators to re-run
  * garden then re-stamp before the release script's {@link ensureGardenFresh}
  * gate would let them through.

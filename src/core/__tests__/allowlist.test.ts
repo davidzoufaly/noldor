@@ -30,7 +30,7 @@ describe('micro-chore allowlist', () => {
     expect(isMicroChoreAllowed(['lefthook.yml'])).toBe(true);
   });
   it('accepts lefthook.yml mixed with .claude/**', () => {
-    expect(isMicroChoreAllowed(['lefthook.yml', '.claude/skills/gate/SKILL.md'])).toBe(true);
+    expect(isMicroChoreAllowed(['lefthook.yml', '.claude/skills/noldor-gate/SKILL.md'])).toBe(true);
   });
   it('rejects lefthook.yml + code file (tainted)', () => {
     expect(isMicroChoreAllowed(['lefthook.yml', 'packages/web/src/foo.ts'])).toBe(false);
@@ -47,8 +47,8 @@ describe('micro-chore allowlist', () => {
   it('accepts a templated skill edited alongside its .claude twin', () => {
     expect(
       isMicroChoreAllowed([
-        '.claude/skills/gate/SKILL.md',
-        'templates/.claude/skills/gate/SKILL.md',
+        '.claude/skills/noldor-gate/SKILL.md',
+        'templates/.claude/skills/noldor-gate/SKILL.md',
       ]),
     ).toBe(true);
   });
@@ -98,8 +98,8 @@ describe('isReleaseSweepAllowed', () => {
     expect(isReleaseSweepAllowed(['docs/superpowers/specs/2026-05-17-foo-design.md'])).toBe(true);
   });
 
-  it('admits self-edits to .claude/skills/release-sweep/SKILL.md', () => {
-    expect(isReleaseSweepAllowed(['.claude/skills/release-sweep/SKILL.md'])).toBe(true);
+  it('admits self-edits to .claude/skills/noldor-release-sweep/SKILL.md', () => {
+    expect(isReleaseSweepAllowed(['.claude/skills/noldor-release-sweep/SKILL.md'])).toBe(true);
   });
 
   it('rejects source code', () => {

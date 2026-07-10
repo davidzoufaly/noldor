@@ -370,7 +370,7 @@ export function renderMilestoneBanner(
  */
 export function renderMilestones(groups: MilestoneGroup[]): string {
   if (groups.length === 0) {
-    return `<h1>Milestones</h1><p class="empty">No milestones declared — milestones are optional. Create one with <code>/milestone draft</code>.</p>`;
+    return `<h1>Milestones</h1><p class="empty">No milestones declared — milestones are optional. Create one with <code>/noldor-milestone draft</code>.</p>`;
   }
   const sections = groups
     .map((g) => {

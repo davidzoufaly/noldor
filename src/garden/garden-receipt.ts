@@ -8,7 +8,7 @@ import { loadConsumerConfig } from '../core/consumer-config.js';
 import { appendOverrideLog } from '../core/overrides-log.js';
 
 /**
- * Stamp on disk attesting that `/garden` ran successfully against a given
+ * Stamp on disk attesting that `/noldor-garden` ran successfully against a given
  * repo state. Read at release-time by {@link ensureGardenFresh} to refuse
  * publishing when nothing has run a doc-gardening pass since the last
  * tracked-file change. The shape is JSON so future fields (operator, host)
@@ -60,15 +60,15 @@ export function evaluateGardenFreshness(input: FreshnessInputs): FreshnessResult
     return {
       ok: false,
       reason:
-        'No /garden receipt found. Run `/garden` (then `pnpm garden:receipt` lands at end-of-flow) before releasing.',
+        'No /noldor-garden receipt found. Run `/noldor-garden` (then `pnpm garden:receipt` lands at end-of-flow) before releasing.',
     };
   }
   if (input.receipt.timestamp < input.latestSrcTs) {
     return {
       ok: false,
       reason:
-        `Garden receipt is stale: tracked files were committed after the last /garden run. ` +
-        `Run /garden again before releasing (receipt @ ${new Date(
+        `Garden receipt is stale: tracked files were committed after the last /noldor-garden run. ` +
+        `Run /noldor-garden again before releasing (receipt @ ${new Date(
           input.receipt.timestamp * 1000,
         ).toISOString()}, latest commit @ ${new Date(input.latestSrcTs * 1000).toISOString()}).`,
     };
@@ -93,11 +93,11 @@ export function evaluateGardenFreshness(input: FreshnessInputs): FreshnessResult
  * opt-in (no graph tracked OR empty `scanPaths` → gate skipped). The garden
  * gate is NOT opt-out via empty config: an empty/absent `scanPaths` falls back
  * to `['src']` and still gates, so a config typo can't silently disable the
- * "did /garden run?" check. Disable it only via `RELEASE_SKIP_GARDEN_GATE=1`.
+ * "did /noldor-garden run?" check. Disable it only via `RELEASE_SKIP_GARDEN_GATE=1`.
  *
  * Scoping is the load-bearing detail — without it, garden's own regen-chain
  * commits would re-stale the receipt the moment they land, forcing operators
- * into a `/garden` loop or routine `RELEASE_SKIP_GARDEN_GATE=1` use.
+ * into a `/noldor-garden` loop or routine `RELEASE_SKIP_GARDEN_GATE=1` use.
  */
 export function resolveGardenScanPaths(cwd: string = process.cwd()): string[] {
   try {
@@ -109,7 +109,7 @@ export function resolveGardenScanPaths(cwd: string = process.cwd()): string[] {
 }
 
 /**
- * Release-time gate: refuses to proceed unless `/garden` has been run since
+ * Release-time gate: refuses to proceed unless `/noldor-garden` has been run since
  * the last commit under the consumer's configured scan paths (see
  * {@link resolveGardenScanPaths}). Mirrors `ensureGraphFresh()`'s shape.
  *

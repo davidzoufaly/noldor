@@ -123,7 +123,7 @@ export const MANIFEST: Record<string, Group> = {
       },
       'merge-candidates': {
         src: 'triage/merge-candidates-cli.ts',
-        desc: 'Emit the merge-candidate corpus (FDs + roadmap + backlog) for /triage; --json for machine output',
+        desc: 'Emit the merge-candidate corpus (FDs + roadmap + backlog) for /noldor-triage; --json for machine output',
       },
     },
   },

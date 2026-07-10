@@ -83,7 +83,7 @@ describe('noldor pre-commit', () => {
     execSync('git add packages/web/src/bar.ts', { cwd: dir });
     const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/\/gate|allowlist/);
+    expect(r.reason).toMatch(/\/noldor-gate|allowlist/);
   });
 
   it('fails post-rollout when no session even if diff is allowlisted', () => {
@@ -98,7 +98,7 @@ describe('noldor pre-commit', () => {
     execSync('git add README.md', { cwd: dir });
     const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/\/gate/);
+    expect(r.reason).toMatch(/\/noldor-gate/);
   });
 
   it('admits release-sweep session when staged paths match RELEASE_SWEEP_GLOBS', () => {
@@ -180,7 +180,7 @@ describe('noldor pre-commit', () => {
     execSync('git add CHANGELOG.md', { cwd: dir });
     const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/\/gate/);
+    expect(r.reason).toMatch(/\/noldor-gate/);
   });
 
   describe('staleness expiry', () => {

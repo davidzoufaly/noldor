@@ -9,7 +9,7 @@ introduced: 0.5.0
 The runner-neutral contract for one headless gate child spawned by the
 autonomous drain supervisor (`pnpm noldor autonomous run` / `noldor autonomous
 watch`). The supervisor owns the loop, retries, skips, and the lock; each child
-ships exactly one entry and exits. Claude children receive `/gate --drain
+ships exactly one entry and exits. Claude children receive `/noldor-gate --drain
 <slug>` and follow the gate skill's drain-mode section; prose-dispatch runners
 (codex, opencode — see the [flag mapping](agent-runtimes.md)) receive a
 self-contained directive that points here. This page is that directive's

@@ -119,12 +119,12 @@ describe('roadmapSource', () => {
     }
   });
 
-  it('parseAll returns every roadmap slug; gatePrompt is /gate --drain <slug>; branchFor is fast/<slug>', () => {
+  it('parseAll returns every roadmap slug; gatePrompt is /noldor-gate --drain <slug>; branchFor is fast/<slug>', () => {
     const dir = tmpRepo(block('alpha', 'XS') + block('beta', 'L'));
     try {
       const s = roadmapSource(dir);
       expect(s.parseAll().sort()).toEqual(['alpha', 'beta']);
-      expect(s.gatePrompt('alpha')).toBe('/gate --drain alpha');
+      expect(s.gatePrompt('alpha')).toBe('/noldor-gate --drain alpha');
       expect(s.branchFor('alpha')).toBe('fast/alpha');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -251,7 +251,7 @@ describe('plansSource', () => {
       // the `--autonomous` flag plus prose so the headless gate never stalls at an
       // interactive seam. Assert the resume command + the autonomous signal.
       const prompt = s.gatePrompt('designed');
-      expect(prompt).toContain('/gate --resume designed --autonomous');
+      expect(prompt).toContain('/noldor-gate --resume designed --autonomous');
       expect(prompt).toMatch(/set-autonomous|autonomous mode/);
       expect(prompt).toContain('NO interactive prompts');
       expect(s.branchFor('designed')).toBe('feat/designed');
@@ -279,7 +279,7 @@ describe('plansSource', () => {
  */
 describe('gatePrompt byte lock (claude default — no agents config)', () => {
   const RESUME_LITERAL = [
-    '/gate --resume designed --autonomous',
+    '/noldor-gate --resume designed --autonomous',
     '',
     'Autonomous plan-drain context: run this resume end-to-end with NO interactive prompts.',
     'Immediately set autonomous mode (`pnpm noldor noldor set-autonomous`) right after the',
@@ -292,7 +292,7 @@ describe('gatePrompt byte lock (claude default — no agents config)', () => {
   it('roadmapSource emits the exact drain literal', () => {
     const dir = tmpRepo(block('alpha', 'XS'));
     try {
-      expect(roadmapSource(dir).gatePrompt('alpha')).toBe('/gate --drain alpha');
+      expect(roadmapSource(dir).gatePrompt('alpha')).toBe('/noldor-gate --drain alpha');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -327,7 +327,7 @@ describe('gatePrompt dispatch follows the implementer runner (spec Unit 3)', () 
       expect(p).toContain("'alpha'");
       expect(p).toContain('fast/alpha');
       expect(p).toContain('docs/noldor/drain-mode.md');
-      expect(p).not.toContain('/gate');
+      expect(p).not.toContain('/noldor-gate');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -341,7 +341,7 @@ describe('gatePrompt dispatch follows the implementer runner (spec Unit 3)', () 
       expect(p).toContain("'designed'");
       expect(p).toContain('feat/designed');
       expect(p).toContain('docs/noldor/drain-mode.md');
-      expect(p).not.toContain('/gate');
+      expect(p).not.toContain('/noldor-gate');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -351,7 +351,7 @@ describe('gatePrompt dispatch follows the implementer runner (spec Unit 3)', () 
     const dir = tmpRepo(block('alpha', 'XS'));
     try {
       writeImplementerRunner(dir, 'stub');
-      expect(roadmapSource(dir).gatePrompt('alpha')).toBe('/gate --drain alpha');
+      expect(roadmapSource(dir).gatePrompt('alpha')).toBe('/noldor-gate --drain alpha');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

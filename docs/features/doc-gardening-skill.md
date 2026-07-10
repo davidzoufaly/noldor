@@ -32,7 +32,7 @@ noldor-tier: full
 
 ## Summary
 
-A `/garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`src/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
+A `/noldor-garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`src/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
 
 ## User Story
 
@@ -42,7 +42,7 @@ A `/garden` skill that bundles the recurring doc-cleanup pass into a single oper
 ## Usage
 
 ```bash
-/garden
+/noldor-garden
 ```
 
 The skill runs `pnpm garden:detect`, presents a unified checklist grouped by signal type, and executes confirmed safe actions (git mv for stale plans, removal of backlog entries). Rule contradictions, SDD gaps, and architecture invariant violations stay manual-review only.

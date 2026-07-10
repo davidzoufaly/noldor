@@ -15,7 +15,7 @@ export interface FillOptions {
  * - `phase=done` && no `introduced` → set `introduced = newVersion` (first-done)
  * - `phase=in-progress` && `introduced` set && `hasChangelogBlock` → flip
  *   `phase=done` + set `updated = newVersion` (enhancement-cycle auto-restore;
- *   completes the asymmetric phase-revert state machine where `/gate` writes
+ *   completes the asymmetric phase-revert state machine where `/noldor-gate` writes
  *   the revert commit on the worktree branch and `fillMarkers` writes the
  *   restore at release time)
  * - `phase=done` && `introduced` set && `introduced !== newVersion` &&

@@ -11,7 +11,7 @@ links:
     - src/autonomous/drain-state.ts
     - src/core/pr-flow.ts
     - src/core/pr-flow-cli.ts
-    - .claude/skills/gate/SKILL.md
+    - .claude/skills/noldor-gate/SKILL.md
   tests:
     - src/autonomous/__tests__/build-pool.test.ts
     - src/autonomous/__tests__/decide-next.test.ts
@@ -76,7 +76,7 @@ As an operator draining a large queue (or a batch of designed plans), I want `--
   - [`src/autonomous/drain-state.ts`](../../src/autonomous/drain-state.ts)
   - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
   - [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts)
-  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
+  - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
 - **Tests:**
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)

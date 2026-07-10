@@ -49,8 +49,8 @@ links:
     - src/release/release-version.ts
     - src/hooks/noldor-pre-commit.ts
     - src/hooks/noldor-pre-edit-guard.ts
-    - .claude/skills/gate/SKILL.md
-    - .claude/skills/promote/SKILL.md
+    - .claude/skills/noldor-gate/SKILL.md
+    - .claude/skills/noldor-promote/SKILL.md
     - docs/noldor/pr-flow.md
   tests:
     - src/core/__tests__/changelog.test.ts
@@ -127,7 +127,7 @@ updated: 0.5.0
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
 dedicated `docs/noldor/` folder so the project-agnostic rules
-(complexity gating, worktree discipline, /promote /triage /garden,
+(complexity gating, worktree discipline, /noldor-promote /noldor-triage /noldor-garden,
 SDD audit, graphify integration, FD schema, doc & test conventions,
 engineering principles) live separately from Charuy's product-specific
 overlays. Tracked as a single FD with all 17 framework pages in
@@ -180,7 +180,7 @@ pages.
   surface correctly.
 - `pnpm noldor:changelog --page <slug>` — single-page view.
 
-**Two-pass code review** — `/gate` end-of-flow runs Claude review (writes
+**Two-pass code review** — `/noldor-gate` end-of-flow runs Claude review (writes
 `Noldor-Reviewed`); `pnpm cr:codex` runs Codex as a second pass
 (writes `Noldor-Reviewed-Codex`). Both trailers are required by the
 release gate on every code-touching commit. Override:
@@ -196,10 +196,10 @@ release gate on every code-touching commit. Override:
 
 **Session-marker expiry**
 
-- A `/gate` session marker (`.noldor/session.json`) on a `micro-chore` or
+- A `/noldor-gate` session marker (`.noldor/session.json`) on a `micro-chore` or
   `release-sweep` path goes stale after `gate.sessionTtlHours` hours (default
   24; configurable in `.noldor/config.json`). Once stale, pre-commit fails with
-  `session stale: '<path>' started <ts> (older than Nh). Run /gate again to
+  `session stale: '<path>' started <ts> (older than Nh). Run /noldor-gate again to
   refresh.` instead of silently enforcing a cold allowlist. Paths without an
   allowlist branch never expire; a non-empty `NOLDOR_PATH_OVERRIDE` bypasses the
   check; a malformed config fails open to the 24h default.
@@ -247,8 +247,8 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
   - [`src/core/pr-flow.ts`](../../src/core/pr-flow.ts)
   - [`src/hooks/noldor-pre-commit.ts`](../../src/hooks/noldor-pre-commit.ts)
-  - [`.claude/skills/gate/SKILL.md`](../../.claude/skills/gate/SKILL.md)
-  - [`.claude/skills/promote/SKILL.md`](../../.claude/skills/promote/SKILL.md)
+  - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
+  - [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md)
   - [`docs/noldor/pr-flow.md`](../../docs/noldor/pr-flow.md)
 - **Tests:**
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
@@ -313,7 +313,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
 ## Enhancements
 
 - **Specs-only tier produces a spec file** (2026-05-25): flipped tier behavior to match the rename's original intent — `specs-only` paths now invoke `superpowers:brainstorming` and produce a spec file (no plan). Roster stays at 2 tiers (`specs-only`, `full`). See [spec](../superpowers/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md) + [plan](../superpowers/plans/2026-05-25-noldor-specs-only-tier-produces-spec.md).
-- **Pre-commit honors `NOLDOR_PATH_OVERRIDE`** (2026-06-07): the pre-commit hook runs before the commit message exists, so the `Noldor-Path-Override:` trailer (a commit-msg-layer escape) could not release a pre-commit block such as a stale `micro-chore` allowlist. `runPreCommit` now reads a `NOLDOR_PATH_OVERRIDE` env var: a non-empty value releases both the allowlist check and the no-`/gate`-session hard wall, and always writes a `(pre-commit)`-tagged breadcrumb to `.noldor/overrides.log` (via `logOverride`). `runPreCommit` stays pure — it returns `overrideReason`; the CLI entrypoint does the append. Pair the env var with the `Noldor-Path-Override:` trailer for cross-clone git-log audit. See [spec](../superpowers/specs/2026-06-07-noldor-pre-commit-path-override-design.md).
+- **Pre-commit honors `NOLDOR_PATH_OVERRIDE`** (2026-06-07): the pre-commit hook runs before the commit message exists, so the `Noldor-Path-Override:` trailer (a commit-msg-layer escape) could not release a pre-commit block such as a stale `micro-chore` allowlist. `runPreCommit` now reads a `NOLDOR_PATH_OVERRIDE` env var: a non-empty value releases both the allowlist check and the no-`/noldor-gate`-session hard wall, and always writes a `(pre-commit)`-tagged breadcrumb to `.noldor/overrides.log` (via `logOverride`). `runPreCommit` stays pure — it returns `overrideReason`; the CLI entrypoint does the append. Pair the env var with the `Noldor-Path-Override:` trailer for cross-clone git-log audit. See [spec](../superpowers/specs/2026-06-07-noldor-pre-commit-path-override-design.md).
 
 ## Changelog
 

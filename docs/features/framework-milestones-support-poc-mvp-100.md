@@ -54,11 +54,11 @@ introduced: 0.4.0
 ---
 ## Summary
 
-Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
+Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/noldor-triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/noldor-garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
 
 - Optional, not mandatory — apps can grow organically without a milestone plan; the framework should not force the abstraction. When milestones are declared, the rest of the wiring activates; otherwise the field stays absent and detectors stay silent.
 - Surface milestones on the dashboard web UI.
-- Document where milestones live (the `/milestone` skill + `docs/milestones/<slug>.md`) — answers the recurring "where are milestones documented?".
+- Document where milestones live (the `/noldor-milestone` skill + `docs/milestones/<slug>.md`) — answers the recurring "where are milestones documented?".
 
 ## User Story
 
@@ -66,15 +66,15 @@ As an operator running a milestone-planned Noldor project, I want each feature t
 
 ## Usage
 
-**Declare membership** — add `milestone: mvp` to an FD's frontmatter (or let `/promote` copy it from a triaged roadmap block). The slug must match a `docs/milestones/<slug>.md` file.
+**Declare membership** — add `milestone: mvp` to an FD's frontmatter (or let `/noldor-promote` copy it from a triaged roadmap block). The slug must match a `docs/milestones/<slug>.md` file.
 
-**Triage** — `/triage` proposes `- milestone: <active-slug>` per roadmap bullet when an active milestone is set; override or drop per row. `/promote` lifts the line into the FD.
+**Triage** — `/noldor-triage` proposes `- milestone: <active-slug>` per roadmap bullet when an active milestone is set; override or drop per row. `/noldor-promote` lifts the line into the FD.
 
 **Garden** — `pnpm garden:detect` flags any feature whose milestone is `status: shipped` but `phase != done`.
 
 **Dashboard** — open `/milestones` (nav: **Milestones**) for milestones grouped by status with member-feature roll-ups; the `/features` list shows a milestone chip per feature. Empty-state shown when no milestones exist.
 
-**Manage milestones** — unchanged: `/milestone draft|activate|edit|list` (see `docs/noldor/milestones.md`).
+**Manage milestones** — unchanged: `/noldor-milestone draft|activate|edit|list` (see `docs/noldor/milestones.md`).
 
 **Keyboard shortcut** — _none._
 **Agent API** — _none; operates through FD frontmatter, `pnpm` scripts, and the dashboard HTTP routes._

@@ -72,4 +72,4 @@ Files Noldor ships into a consumer repo from [`templates/`](../../templates/) (e
 
 - Baseline principles are reviewed at code-write time; the executable gate (`lint`, `fmt:check`, `typecheck`, `test`) is the automated half — see [`.claude/engineering-rules.md`](../../.claude/engineering-rules.md) § Commands.
 - The scoped store narrows what's relevant per edit. `.claude/CLAUDE.md` overlays carry project-specific rules on top of both.
-- `/garden`'s rule-contradiction sweep (Detector 14, see [garden-and-drift.md](garden-and-drift.md)) flags genuine mismatches between `.claude/CLAUDE.md` and the Noldor pages.
+- `/noldor-garden`'s rule-contradiction sweep (Detector 14, see [garden-and-drift.md](garden-and-drift.md)) flags genuine mismatches between `.claude/CLAUDE.md` and the Noldor pages.

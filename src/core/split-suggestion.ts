@@ -6,7 +6,7 @@
  * label against the body it describes — a mislabeled `S` with an L-sized body
  * sails through to a doomed drain iteration (the `prefix-skills-with-noldor`
  * incident). These heuristics measure the artifact itself at each commit
- * point (/promote step 1.7, noldor-plan post-save, gate Step 2.5 kind=plan,
+ * point (/noldor-promote step 1.7, noldor-plan post-save, gate Step 2.5 kind=plan,
  * headless drain entry) and *suggest* a split; the framework never
  * auto-splits and never re-sizes.
  *

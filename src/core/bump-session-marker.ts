@@ -8,7 +8,7 @@ const FILE = '.noldor/session.json';
 /**
  * Hand-fixes a stale `.noldor/session.json` by adding `markerVersion: 2`.
  *
- * Used to migrate a pre-flip session marker (written by an older `/gate`
+ * Used to migrate a pre-flip session marker (written by an older `/noldor-gate`
  * before `specs-only-*` paths gained the `markerVersion` requirement) in
  * a known-state worktree. Idempotent — running twice is a no-op.
  */

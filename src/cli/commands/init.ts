@@ -99,7 +99,7 @@ try {
   if (marker === 'created') {
     console.log(
       'created    .noldor/rollout-marker — gate validators enforce from here. Commit it via a ' +
-        "micro-chore /gate session (the marker path is micro-chore-allowlisted), or NOLDOR_PATH_OVERRIDE='arm rollout marker' git commit.",
+        "micro-chore /noldor-gate session (the marker path is micro-chore-allowlisted), or NOLDOR_PATH_OVERRIDE='arm rollout marker' git commit.",
     );
   } else if (marker === 'skipped-no-git') {
     console.log(

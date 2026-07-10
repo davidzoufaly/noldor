@@ -4,7 +4,7 @@ category: Tooling
 deps: []
 links:
   code:
-    - .claude/skills/release-sweep/SKILL.md
+    - .claude/skills/noldor-release-sweep/SKILL.md
     - docs/noldor/complexity-gating.md
     - docs/noldor/versioning.md
     - src/garden/garden-detect.ts
@@ -42,18 +42,18 @@ Six-part overhaul of the pre-release sweep flow, surfaced during the v0.5.0 rele
 
 ## User Story
 
-As an operator preparing a release, I want `/release-sweep` to run end-to-end unattended — graphify, refactor sweep, README drift, `docs:build` + `sdd:report --release` pre-empt, post-refactor graphify, PR open + auto-merge, ff-pull main — so that I return to a merged sweep PR with zero mid-sweep prompts and only confirm the final `pnpm release` gate.
+As an operator preparing a release, I want `/noldor-release-sweep` to run end-to-end unattended — graphify, refactor sweep, README drift, `docs:build` + `sdd:report --release` pre-empt, post-refactor graphify, PR open + auto-merge, ff-pull main — so that I return to a merged sweep PR with zero mid-sweep prompts and only confirm the final `pnpm release` gate.
 
 ## Usage
 
 **CLI / Skill flow**
 
-1. From `main` workspace, signal readiness: `/release-sweep`.
+1. From `main` workspace, signal readiness: `/noldor-release-sweep`.
 2. Skill writes `.noldor/session.json` with `{ path: 'release-sweep', startedAt: <ISO> }` and creates branch `release-sweep/<ts>` from `main`. No worktree (named carve-out from worktree-discipline; see spec §4.1).
-3. Skill auto-runs the sweep pipeline: `/graphify` → `pnpm toon` → `/refactor` against new `GRAPH_REPORT.md` → README drift check → `pnpm docs:build` + `pnpm sdd:report --release` → second `/graphify` + `pnpm toon` capturing the refactor. Each step commits with `chore(release-sweep): <step>` subject; `Noldor-Path: release-sweep` injected automatically.
+3. Skill auto-runs the sweep pipeline: `/graphify` → `pnpm toon` → `/noldor-refactor` against new `GRAPH_REPORT.md` → README drift check → `pnpm docs:build` + `pnpm sdd:report --release` → second `/graphify` + `pnpm toon` capturing the refactor. Each step commits with `chore(release-sweep): <step>` subject; `Noldor-Path: release-sweep` injected automatically.
 4. Skill invokes `pnpm pr-flow` — pushes branch, opens PR with templated body listing every sweep commit, sets `gh pr merge --auto --squash`, polls until merged, ff-pulls `main`.
 5. Skill pauses with `AskUserQuestion`: "Sweep PR merged. Run `pnpm release` now?" — Yes / No / Defer.
-6. On Yes: `pnpm release` runs. Release-script step 0 (new) runs `garden:detect` inline and auto-stamps the receipt on clean — no manual `/garden` re-stamp loop.
+6. On Yes: `pnpm release` runs. Release-script step 0 (new) runs `garden:detect` inline and auto-stamps the receipt on clean — no manual `/noldor-garden` re-stamp loop.
 7. On No / Defer: skill exits without releasing; operator can re-invoke `pnpm release` later.
 8. Skill auto-clears `.noldor/session.json` regardless of release outcome.
 
@@ -81,7 +81,7 @@ As an operator preparing a release, I want `/release-sweep` to run end-to-end un
   - _lost-pre-extraction_
   - _lost-pre-extraction_
 - **Code:**
-  - [`.claude/skills/release-sweep/SKILL.md`](../../.claude/skills/release-sweep/SKILL.md)
+  - [`.claude/skills/noldor-release-sweep/SKILL.md`](../../.claude/skills/noldor-release-sweep/SKILL.md)
   - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)
   - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
   - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
