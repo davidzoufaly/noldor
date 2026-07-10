@@ -20,11 +20,15 @@ Prefix the framework's skill names with `noldor-` to namespace them and avoid co
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a Noldor operator (human or agent) working across multiple repos, I want every framework skill to live under the `noldor-` namespace, so that framework skills never collide with consumer-side or vendored skills of the same generic word and the whole skill surface reads as one coherent, discoverable namespace.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Skill invocation** — invoke any framework skill by its `noldor-` name: `/noldor-gate`, `/noldor-promote`, `/noldor-triage`, `/noldor-garden`, `/noldor-milestone`, `/noldor-new-feature`, `/noldor-draft-feature-md`, `/noldor-refactor`, `/noldor-release-sweep` (joining the already-prefixed `/noldor-spec`, `/noldor-plan`, `/noldor-research`).
+
+**Consumer upgrade** — `noldor upgrade --dry-run` previews the 0.5.0 → 0.6.0 step (adds the `noldor-*` skill dirs + rewritten `docs/noldor` twins, removes the 9 old vendored dirs); `noldor upgrade` applies it, idempotent on re-run.
+
+**No new CLI surface** — the drain/gate entrypoints are unchanged except the emitted slash string (`/noldor-gate --drain <slug>`).
 
 ## PRs
 
