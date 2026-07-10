@@ -28,19 +28,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Promoted from Backlog
 
-#### Idempotent Drain Delivery Guard
-
-- id: Q-0008
-- area: tooling
-- type: fix
-- since: 2026-06-12
-- size: S
-- impact: med
-- confidence: low
-- parent: noldor
-
-A triage commit that lived un-pushed on local `main` got delivered twice — once by a concurrent process and once by the operator (PRs #76 + #77, identical content) — because nothing detected that the local commit was already mirrored on `origin` under a different sha. Add an idempotency guard before re-delivering: when about to push/PR a local commit, check whether its tree/content already landed on `origin/main` (e.g. patch-id match) and skip the redundant delivery. Niche trigger (requires a concurrent delivery race), hence parked.
-
 #### Prefix Skills with noldor-
 
 - id: Q-0009
