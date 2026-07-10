@@ -22,7 +22,7 @@ export type PromptDispatch = 'slash-command' | 'prose';
  * the assigned slug must ride the prompt itself.
  */
 export function buildDrainGatePrompt(slug: string, dispatch: PromptDispatch): string {
-  if (dispatch === 'slash-command') return `/gate --drain ${slug}`;
+  if (dispatch === 'slash-command') return `/noldor-gate --drain ${slug}`;
   return [
     'Autonomous Noldor drain run. Read docs/noldor/drain-mode.md and follow it exactly.',
     '',
@@ -48,7 +48,7 @@ export function buildDrainGatePrompt(slug: string, dispatch: PromptDispatch): st
 export function buildResumeGatePrompt(slug: string, dispatch: PromptDispatch): string {
   if (dispatch === 'slash-command') {
     return [
-      `/gate --resume ${slug} --autonomous`,
+      `/noldor-gate --resume ${slug} --autonomous`,
       '',
       'Autonomous plan-drain context: run this resume end-to-end with NO interactive prompts.',
       'Immediately set autonomous mode (`pnpm noldor noldor set-autonomous`) right after the',
