@@ -1,5 +1,45 @@
 # Release Notes
 
+## v0.5.1 — 2026-07-11
+
+### Tooling
+
+#### `/noldor-triage` Scoring Rubric (effort × impact × confidence × dependency)
+
+Replace the now/next/later bucket heuristic in `/noldor-triage` with a derived integer score from an `effort × impact × confidence × dependency-weight` matrix. Effort = build cost (S/M/L or 1-5; mirrors existing `- size:` field). Impact = user usefulness / strategic value (mirrors existing `- impact:` field). Confidence = how sure we are about effort + impact at triage time. Dependency-weight discounts items blocked on unshipped work. `/noldor-triage` proposes the score, operator confirms; the score feeds priority — either ordering the file directly (current Path 1 convention) or filling the explicit `- priority:` field if Path 2 lands. Folds in the former `Multi-Factor Triage Value Scoring` entry (was `## Later → Tooling`, since 2026-04-28, dropped on 2026-05-11 fold).
+
+[Feature page](/features/triage-scoring-rubric-effort-impact-confidence-dependency)
+
+#### Dashboard Roadmap/Backlog View Polish
+
+Bundle of five polish items on the dashboard `/roadmap` and `/backlog` surfaces — surfacing size + impact columns, surfacing category on backlog, auto-scrolling during drag-and-drop, truncating long descriptions with click-to-expand, and unifying filter apply-on-change vs apply-button behavior.
+
+[Feature page](/features/dashboard-roadmap-backlog-polish)
+
+#### Framework PR Flow + Agent Auto-Merge
+
+Add first-class PR support to Noldor: feature work on a worktree branch lands via PR rather than direct merge to main. Agent-side question: can the controlling agent open the PR, run the CR pipeline (Claude + Codex), and auto-merge once green? Today merge is a manual operator step. Encode the GitHub PR flow in the framework (separate from `/noldor-gate`'s commit gating) and explore agent permissions for `gh pr create` + `gh pr merge --auto`. Pairs with the existing CR pipeline — review gate becomes the merge gate.
+
+[Feature page](/features/framework-pr-flow-agent-auto-merge)
+
+#### Noldor-Native Wait Primitive
+
+Runner-agnostic alternative to the harness `Monitor` tool, consumer side only: `noldor wait <state-file> --until <terminal-cond> [--emit <jsonpath>]` that polls until a job reaches a terminal state and surfaces progress. Do NOT invent a new progress format — reuse the existing producer-side state files (`.noldor/drain-state.json` heartbeat, `.noldor/cr/<slug>-<kind>-<lane>.json` sinks). The "write one side / read other" channel already exists; the gap is a portable wait/poll the controller calls instead of the host harness's Monitor (which can be blocked + isn't cross-runner). Parked: background-task completion notifications already cover most waiting.
+
+[Feature page](/features/noldor-native-wait-primitive)
+
+#### Prefix Skills with noldor-
+
+Prefix the framework's skill names with `noldor-` to namespace them and avoid collisions with consumer-side or vendored skills. Parked 2026-07-02, re-sized S→L: a 2026-06-13 drain attempt revealed this is a self-referential mega-rename — 9 unprefixed skills (`gate`, `garden`, `triage`, `promote`, `milestone`, `new-feature`, `draft-feature-md`, `refactor`, `release-sweep`) plus template twins, the drain's `gatePrompt` in `src/autonomous/drain-source.ts`, and back-compat aliases for consumer repos that already vendored the old names. Only `noldor-spec` / `noldor-plan` / `noldor-research` were born prefixed. Needs the full spec+plan path if picked up; never fast-track.
+
+[Feature page](/features/prefix-skills-with-noldor)
+
+#### Release-Sweep Process Hardening
+
+Six-part overhaul of the pre-release sweep flow, surfaced during the v0.5.0 release where ~80% of operator time went into friction rather than the sweep itself. (a) **New `release-sweep` gate path** — add to `PATHS` in [src/core/session.ts](../../src/core/session.ts); allowlist `graphify-out/**`, `docs/sdd-report.md`, `docs/release-notes.md`, `docs/user/reference/api/**`, `docs/**/*.md`, `docs/superpowers/{plans,specs}/**`; multi-commit; auto-write session at skill start, auto-clear at end; skip Step 0 priority pickup. Replaces hand-written session marker + manual `Noldor-Path-Override` trailer on every sweep commit. (b) **Pre-empt release-script drift** — sweep step 6 runs `pnpm docs:build` + `pnpm sdd:report --release` and commits any drift before invoking release. Eliminates the 2 mid-release follow-up PRs the v0.5.0 sweep needed (broken-link drift + sdd-report regen drift). (c) **Path-Override trailer placement guardrail** — either `noldor-inject-trailers` moves `Noldor-Path-Override:` into the trailer block if found out-of-block, or `enforce-review-receipt` parses with `git interpret-trailers --parse` instead of regex on raw message. Closes the silent footgun where an override above `Co-Authored-By:` doesn't register. (d) **Auto re-stamp garden receipt** — release script auto-stamps at start when `garden:detect` was clean within a recent window; eliminates the manual 3× re-stamp loop after each follow-up PR merge. (e) **Garden manual-sweep detector smarter** — extend `garden-detect.ts` plan-staleness check to fall back to FD frontmatter `links.plan` and `graphify-out/graph.json` adjacency for multi-feature plans, infra plans, and `<parent>-partN` splits that today land in the manual sweep bucket (14 of 20 plans were unflagged in v0.5.0 sweep). (f) **Release-sweep skill automates PR-flow** — skill commits land on `release-sweep/<ts>` branch, pushed + auto-merged + ff-pulled before the release-confirmation prompt; folds the 4× manual temp-branch + PR dance into the skill.
+
+[Feature page](/features/release-sweep-process-hardening)
+
 ## v0.5.0 — 2026-07-07
 
 ### Tooling

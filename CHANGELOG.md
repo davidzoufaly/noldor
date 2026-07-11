@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.5.1 — 2026-07-11
+
+### Fixes
+
+- fix(core): centralize all-ignored fmt no-op guard behind `noldor fmt` (#184) ([1061f98](https://github.com/davidzoufaly/noldor/commit/1061f98e242feb45171def1c8c788b3eec89c759)) ([#184](https://github.com/davidzoufaly/noldor/pull/184))
+- fix(core): idempotent delivery guard skips push/PR when branch already on origin (#180) ([0b1435c](https://github.com/davidzoufaly/noldor/commit/0b1435ceb4cd62fdcf4658956e66529c2d8d10d1)) ([#180](https://github.com/davidzoufaly/noldor/pull/180))
+- fix(autonomous): drain recognizes a merged fast-track PR → no re-spawn loop (#176) ([48884a8](https://github.com/davidzoufaly/noldor/commit/48884a8dd337ac3765c27ead23488e2b0d4dc807)) ([#176](https://github.com/davidzoufaly/noldor/pull/176))
+- fix(core): init enumerates all template conflicts + capture consumer-3 friction (#175) ([5bfc4dd](https://github.com/davidzoufaly/noldor/commit/5bfc4dd15d07bc8fe975170b2af2e42cdf3f2220)) ([#175](https://github.com/davidzoufaly/noldor/pull/175))
+- fix(core): fmt no-target guard + scaffold autonomous config block (#174) ([c2ce358](https://github.com/davidzoufaly/noldor/commit/c2ce3582ebe2f070a0f15a7d30d202179623537d)) ([#174](https://github.com/davidzoufaly/noldor/pull/174))
+- fix(core): adoption UX — upgrade anchor bootstrap, doctor node_modules probe, guide -w (#173) ([1c45035](https://github.com/davidzoufaly/noldor/commit/1c4503584537d10da51be49e10d9d9b56e572720)) ([#173](https://github.com/davidzoufaly/noldor/pull/173))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift (#185) ([1833951](https://github.com/davidzoufaly/noldor/commit/18339514c5a2fa834ad373fd2e6aba5d45c96cf0)) ([#185](https://github.com/davidzoufaly/noldor/pull/185))
+- docs(features:noldor-native-wait-primitive): add spec for noldor-native-wait-primitive (#183) ([6513550](https://github.com/davidzoufaly/noldor/commit/6513550323c7a6a5e718366651d1aca4d00d47ab)) ([#183](https://github.com/davidzoufaly/noldor/pull/183))
+- docs(features:prefix-skills-with-noldor): add spec for prefix-skills-with-noldor (#182) ([9a2e52e](https://github.com/davidzoufaly/noldor/commit/9a2e52e46def10e5e4d42a21aafa9fc17b171a35)) ([#182](https://github.com/davidzoufaly/noldor/pull/182))
+- docs(roadmap): retire Q-0008 idempotent-drain-delivery-guard (shipped PR #180) (#181) ([8333be5](https://github.com/davidzoufaly/noldor/commit/8333be5354fcea016dc649fa69267c93193712d7)) ([#181](https://github.com/davidzoufaly/noldor/pull/181))
+- chore(noldor): absorb Claude memory into framework docs + queue entries (#179) ([026845f](https://github.com/davidzoufaly/noldor/commit/026845fba4d104e1dd7cb0da1279e2fed4ed22dd)) ([#179](https://github.com/davidzoufaly/noldor/pull/179))
+- docs(roadmap): retire Q-0004 section-age-staleness-detector (subsumed by Detector 15) (#178) ([3e3fcae](https://github.com/davidzoufaly/noldor/commit/3e3fcae5b658e36fb140f45f32c7d13803647d06)) ([#178](https://github.com/davidzoufaly/noldor/pull/178))
+- docs(roadmap): retire Q-0001 real-consumer-2-adoption-dogfood (met by consumer-3 charuy dogfood) (#177) ([c9a2293](https://github.com/davidzoufaly/noldor/commit/c9a229353cf5172d99b9ad469af94c497411812d)) ([#177](https://github.com/davidzoufaly/noldor/pull/177))
+
 ## v0.5.0 — 2026-07-07
 
 ### Features
