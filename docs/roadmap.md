@@ -45,19 +45,6 @@ Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on th
 
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
-#### PR-Flow Fallback Merges On Red CI
-
-- id: Q-0021
-- area: tooling
-- type: fix
-- since: 2026-07-07
-- size: S
-- impact: med
-- parent: noldor
-- confidence: high
-
-`mergePrWithFallback` (`src/core/pr-flow.ts:363-369`) runs a direct `gh pr merge --squash --delete-branch` when `--auto` fails (repo has auto-merge disabled) with **no** CI-check polling, so a PR can land on red when there is no branch protection to stop it. The `--auto` path polls `mergeStateStatus`; the fallback path does not. Harden the fallback to poll checks (or query `mergeStateStatus`/`statusCheckRollup`) before the synchronous merge and refuse to merge a failing PR. Verified against live code 2026-07-07.
-
 #### Plans-Source Drain Deps Gating
 
 - id: Q-0019
