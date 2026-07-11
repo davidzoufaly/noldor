@@ -122,7 +122,10 @@ The acceptance verify lane shipped in advisory mode (PR #74); `autonomous.verify
 - confidence: med
 - parent: noldor
 
-Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json` vs fmt lefthook erroring on an all-ignored file set; immediate fix PR #114, broader all-ignored no-op guard shipped as `noldor fmt` in PR #184): (b) have the release-sweep own the graph commit end-to-end so the two gates can't deadlock; (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step. Trigger: pick up only if the fmt/graph gate collision class recurs despite the PR #184 guard.
+Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json` vs fmt lefthook erroring on an all-ignored file set; immediate fix PR #114, broader all-ignored no-op guard shipped as `noldor fmt` in PR #184). Trigger: pick up only if the fmt/graph gate collision class recurs despite the PR #184 guard.
+
+- (b) have the release-sweep own the graph commit end-to-end so the two gates can't deadlock.
+- (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step.
 
 #### Real-Codex Integration Smoke Test
 
