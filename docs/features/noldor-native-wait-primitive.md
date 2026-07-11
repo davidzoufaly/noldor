@@ -12,7 +12,7 @@ links:
 name: Noldor-Native Wait Primitive
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 
