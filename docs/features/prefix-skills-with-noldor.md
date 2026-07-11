@@ -12,13 +12,15 @@ links:
   tests:
     - src/core/__tests__/prefix-skills-codemod.test.ts
     - src/migrations/__tests__/0.6.0.test.ts
-  spec: docs/superpowers/specs/2026-07-10-prefix-skills-with-noldor-design.md
+  spec: >-
+    docs/superpowers/specs/archive/2026-07-10-prefix-skills-with-noldor-design.md
 name: Prefix Skills with noldor-
 packages:
   - scripts
 phase: done
 noldor-tier: full
 ---
+
 ## Summary
 
 Prefix the framework's skill names with `noldor-` to namespace them and avoid collisions with consumer-side or vendored skills. Parked 2026-07-02, re-sized S→L: a 2026-06-13 drain attempt revealed this is a self-referential mega-rename — 9 unprefixed skills (`gate`, `garden`, `triage`, `promote`, `milestone`, `new-feature`, `draft-feature-md`, `refactor`, `release-sweep`) plus template twins, the drain's `gatePrompt` in `src/autonomous/drain-source.ts`, and back-compat aliases for consumer repos that already vendored the old names. Only `noldor-spec` / `noldor-plan` / `noldor-research` were born prefixed. Needs the full spec+plan path if picked up; never fast-track.
@@ -40,3 +42,20 @@ As a Noldor operator (human or agent) working across multiple repos, I want ever
 <!-- @prs-since-last-release: prefix-skills-with-noldor -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-07-10-prefix-skills-with-noldor-design.md`](../../docs/superpowers/specs/archive/2026-07-10-prefix-skills-with-noldor-design.md)
+- **Code:**
+  - [`src/core/prefix-skills-codemod.ts`](../../src/core/prefix-skills-codemod.ts)
+  - [`src/migrations/0.6.0.ts`](../../src/migrations/0.6.0.ts)
+  - [`src/migrations/0.5.0.ts`](../../src/migrations/0.5.0.ts)
+  - [`src/autonomous/gate-prompt.ts`](../../src/autonomous/gate-prompt.ts)
+  - [`src/core/allowlist.ts`](../../src/core/allowlist.ts)
+- **Tests:**
+  - [`src/core/__tests__/prefix-skills-codemod.test.ts`](../../src/core/__tests__/prefix-skills-codemod.test.ts)
+  - [`src/migrations/__tests__/0.6.0.test.ts`](../../src/migrations/__tests__/0.6.0.test.ts)
+
+<!-- /generated: resources -->

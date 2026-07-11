@@ -111,6 +111,7 @@ This release adds a parallel prep pipeline to the noldor CLI, introducing fanout
   - [`src/prep/staging.ts`](../../src/prep/staging.ts)
   - [`src/prep/index-doc.ts`](../../src/prep/index-doc.ts)
   - [`src/prep/spawn.ts`](../../src/prep/spawn.ts)
+  - [`src/prep/types.ts`](../../src/prep/types.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)

@@ -45,6 +45,7 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 Every autonomous stage is one-shot and operator-fired: someone types `noldor autonomous run`, watches (or returns later), handles failures by reading logs, salvages stale bases by hand from a memory recipe. The vision sentence — agents ship unsupervised — currently means "unsupervised per invocation". Make autonomy *continuous*: a long-running (or cron-fired) mode that keeps draining the queue, repairs its own known failure modes, and escalates the rest to a structured inbox instead of dying or blocking.
@@ -130,6 +131,6 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
   - [`src/autonomous/__tests__/watch-args.test.ts`](../../src/autonomous/__tests__/watch-args.test.ts)
   - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
   - [`src/core/__tests__/agent-events.test.ts`](../../src/core/__tests__/agent-events.test.ts)
-  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
+  - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
 
 <!-- /generated: resources -->

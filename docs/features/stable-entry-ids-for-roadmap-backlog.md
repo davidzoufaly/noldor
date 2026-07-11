@@ -23,7 +23,7 @@ links:
   tests:
     - src/triage/__tests__/entry-id.test.ts
   spec: >-
-    docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md
+    docs/superpowers/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md
 name: Stable Entry IDs for Roadmap + Backlog
 packages:
   - scripts
@@ -31,6 +31,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 Every roadmap and backlog entry is identified today by its kebab-slug derived from the heading. Slugs are rename-fragile — renaming an entry breaks every `deps:`, `parent:`, commit trailer, and dashboard link that targets it; moving an entry between roadmap ↔ backlog preserves the slug but loses heading-evolution traceability. Introduce a stable short ID minted at first triage and never rewritten: e.g. `R-0042` for roadmap and `B-0042` for backlog, or a single `Q-0042` namespace that survives cross-file moves. The ID becomes the canonical reference for `blocked-by:` / `parent:` / commit trailers / dashboard links / garden detectors. Slug stays a human-readable alias that can be rewritten without breakage. Counter persists in `.noldor/id-counter.json`; `/noldor-triage` and `/noldor-new-feature` mint IDs at creation. Migration: one-sweep backfill across current entries (~25 roadmap + ~7 backlog as of 2026-07-02).
@@ -76,7 +77,7 @@ Introduces stable entry IDs (Q-NNNN) for roadmap + backlog (#157).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md`](../../docs/superpowers/specs/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md)
+- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md`](../../docs/superpowers/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md)
 - **Code:**
   - [`docs/roadmap.md`](../../docs/roadmap.md)
   - [`docs/backlog.md`](../../docs/backlog.md)

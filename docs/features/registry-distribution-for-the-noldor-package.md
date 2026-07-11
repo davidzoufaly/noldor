@@ -17,7 +17,7 @@ links:
     - src/release/__tests__/release-publish-cli.test.ts
     - src/release/__tests__/release-publish.test.ts
   spec: >-
-    docs/superpowers/specs/2026-07-03-registry-distribution-for-the-noldor-package-design.md
+    docs/superpowers/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md
 name: Registry Distribution for the Noldor Package
 packages:
   - scripts
@@ -25,6 +25,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 Today a consumer installs Noldor as a `file:` dependency and must keep a clone of `noldor/` as a sibling directory of their repo. That is the single hardest blocker for any project that is not on this machine. Publish the package to a registry so adoption starts with `pnpm add -D noldor`.
@@ -95,3 +96,23 @@ Added a `release.publish` config block that ships default-off for consumer safet
 
 - #139: add release.publish config block (default-off consumer safety) ([link](https://github.com/davidzoufaly/noldor/pull/139))
 
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md`](../../docs/superpowers/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md)
+- **Code:**
+  - [`src/release/release-publish.ts`](../../src/release/release-publish.ts)
+  - [`src/release/index.ts`](../../src/release/index.ts)
+  - [`src/cr/config.ts`](../../src/cr/config.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`.github/workflows/publish.yml`](../../.github/workflows/publish.yml)
+- **Tests:**
+  - [`src/release/__tests__/publish-workflow.test.ts`](../../src/release/__tests__/publish-workflow.test.ts)
+  - [`src/release/__tests__/release-publish-cli.test.ts`](../../src/release/__tests__/release-publish-cli.test.ts)
+  - [`src/release/__tests__/release-publish.test.ts`](../../src/release/__tests__/release-publish.test.ts)
+- **Docs:**
+  - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
+  - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
+
+<!-- /generated: resources -->

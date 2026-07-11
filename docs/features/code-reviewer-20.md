@@ -19,6 +19,7 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Raise review quality beyond the current CR lane.
@@ -78,5 +79,11 @@ Added a review-profile schema along with built-in profiles (#98).
 - **Spec:** [`docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md`](../../docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md)
 - **Plan:**
   - [`docs/superpowers/plans/archive/2026-06-13-code-reviewer-20.md`](../../docs/superpowers/plans/archive/2026-06-13-code-reviewer-20.md)
+- **Code:**
+  - [`src/cr/review-profile.ts`](../../src/cr/review-profile.ts)
+  - [`src/cr/config.ts`](../../src/cr/config.ts)
+- **Tests:**
+  - [`src/cr/__tests__/review-profile.test.ts`](../../src/cr/__tests__/review-profile.test.ts)
+  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
 
 <!-- /generated: resources -->
