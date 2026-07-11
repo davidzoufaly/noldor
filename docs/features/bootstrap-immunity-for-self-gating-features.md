@@ -35,6 +35,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.4.0
 ---
+
 ## Summary
 
 When a feature adds a new release-time gate, the feature's own implementation commits cannot satisfy that gate (the enforcement code didn't exist when they were authored). Hit live during automated-cr-pipeline: the new `release-cr-gate.ts` requires `Noldor-Reviewed-Codex` on every code-touching commit in the release range, but none of the 22 feature-branch commits have it because `pnpm cr:codex` was added by those very commits. Operator currently must hand-add `Noldor-CR-Override-Codex: bootstrap` to each commit before next release, or extend the gate to skip pre-feature SHAs. Framework-level fix: when a gate-introducing FD is detected (graph annotation? FD frontmatter `introduces-gate: <name>`?), `/noldor-gate` end-of-flow auto-injects matching `Noldor-<gate>-Override: bootstrap — feature added the gate that would block its own commits` on every commit on the worktree branch. Audited by `/noldor-garden`'s override detectors so it can't be silently abused on non-bootstrap work.
@@ -112,11 +113,11 @@ This release adds bootstrap-immunity for self-gating features (#110), allowing f
   - [`src/garden/detectors/codex-cr-override-audit.ts`](../../src/garden/detectors/codex-cr-override-audit.ts)
   - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
 - **Tests:**
+  - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
+  - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
   - [`src/cr/__tests__/bootstrap-immunity.test.ts`](../../src/cr/__tests__/bootstrap-immunity.test.ts)
   - [`src/cr/__tests__/gate-registry.test.ts`](../../src/cr/__tests__/gate-registry.test.ts)
   - [`src/features/__tests__/feature-milestone.test.ts`](../../src/features/__tests__/feature-milestone.test.ts)
-  - [`src/features/__tests__/feature-schema-since.test.ts`](../../src/features/__tests__/feature-schema-since.test.ts)
-  - [`src/features/__tests__/feature-schema.test.ts`](../../src/features/__tests__/feature-schema.test.ts)
   - [`src/features/__tests__/fill-links-code-gaps.test.ts`](../../src/features/__tests__/fill-links-code-gaps.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)

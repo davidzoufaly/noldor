@@ -12,7 +12,7 @@ links:
     - src/core/__tests__/split-check-cli.test.ts
     - src/core/__tests__/split-suggestion.test.ts
   spec: >-
-    docs/superpowers/specs/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md
+    docs/superpowers/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md
 name: Framework Auto-Split Suggestion for Big Features and Plans
 packages:
   - scripts
@@ -20,6 +20,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 When a feature or plan grows past size thresholds, the framework should suggest a split rather than letting work calcify around an oversized FD or unwieldy plan. Heuristics: word count, scope-bullet count, file-touch breadth (from `links.code`), or for plans the row count. The suggestion surfaces in `/noldor-promote` (feature) and the plan skill before the operator commits to the path. Today the operator is on their own to spot oversized scope — live example: `prefix-skills-with-noldor` sat mislabeled S for weeks until a drain attempt revealed an L-sized self-referential mega-rename (now parked in backlog, re-sized).
@@ -67,3 +68,17 @@ Added split-suggestion oversize heuristics covering E1-E3, F1, and P1 (#155).
 
 - #155: add split-suggestion oversize heuristics (E1-E3, F1, P1) ([link](https://github.com/davidzoufaly/noldor/pull/155))
 
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md`](../../docs/superpowers/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md)
+- **Code:**
+  - [`src/core/split-suggestion.ts`](../../src/core/split-suggestion.ts)
+  - [`src/core/split-check-cli.ts`](../../src/core/split-check-cli.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+- **Tests:**
+  - [`src/core/__tests__/split-check-cli.test.ts`](../../src/core/__tests__/split-check-cli.test.ts)
+  - [`src/core/__tests__/split-suggestion.test.ts`](../../src/core/__tests__/split-suggestion.test.ts)
+
+<!-- /generated: resources -->

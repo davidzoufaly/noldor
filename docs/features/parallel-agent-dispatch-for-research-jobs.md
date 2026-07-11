@@ -26,7 +26,7 @@ links:
     - src/research/__tests__/types.test.ts
     - src/testing/__tests__/stub-runner.test.ts
   spec: >-
-    docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md
+    docs/superpowers/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md
 name: Parallel-Agent Dispatch for Research Jobs
 packages:
   - scripts
@@ -34,6 +34,7 @@ phase: done
 noldor-tier: full
 introduced: 0.5.0
 ---
+
 ## Summary
 
 Noldor can fan out parallel _build_ agents (the K-concurrent drain) but has no first-class primitive for fanning out parallel _read/research_ agents — codebase research, multi-subsystem investigation, cross-file audits, "understand X before we spec it." Today an operator (or a gate/spec/plan flow) investigates these sequentially in one context: wastes wall-clock and pollutes the driving session's context. Inspired by `superpowers:dispatching-parallel-agents` — dispatch one context-isolated subagent per independent problem domain, each with focused scope + self-contained context (never inherits session history) + a required structured return, then synthesize and integrate.
@@ -94,7 +95,7 @@ _none — operates through the `pnpm noldor` CLI; agents invoke it via Bash._
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md`](../../docs/superpowers/specs/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md)
+- **Spec:** [`docs/superpowers/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md`](../../docs/superpowers/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md)
 - **Code:**
   - [`src/research/types.ts`](../../src/research/types.ts)
   - [`src/research/prompt.ts`](../../src/research/prompt.ts)
@@ -107,9 +108,15 @@ _none — operates through the `pnpm noldor` CLI; agents invoke it via Bash._
   - [`.claude/skills/noldor-research/SKILL.md`](../../.claude/skills/noldor-research/SKILL.md)
   - [`docs/noldor/research-fanout.md`](../../docs/noldor/research-fanout.md)
 - **Tests:**
+  - [`src/core/__tests__/concurrency.test.ts`](../../src/core/__tests__/concurrency.test.ts)
+  - [`src/core/__tests__/git-porcelain.test.ts`](../../src/core/__tests__/git-porcelain.test.ts)
   - [`src/core/agent-runner/__tests__/doctor-runners.test.ts`](../../src/core/agent-runner/__tests__/doctor-runners.test.ts)
   - [`src/core/agent-runner/__tests__/registry.test.ts`](../../src/core/agent-runner/__tests__/registry.test.ts)
   - [`src/core/agent-runner/__tests__/types.test.ts`](../../src/core/agent-runner/__tests__/types.test.ts)
+  - [`src/research/__tests__/fanout.test.ts`](../../src/research/__tests__/fanout.test.ts)
+  - [`src/research/__tests__/prompt.test.ts`](../../src/research/__tests__/prompt.test.ts)
+  - [`src/research/__tests__/staging.test.ts`](../../src/research/__tests__/staging.test.ts)
+  - [`src/research/__tests__/types.test.ts`](../../src/research/__tests__/types.test.ts)
   - [`src/testing/__tests__/stub-runner.test.ts`](../../src/testing/__tests__/stub-runner.test.ts)
 
 <!-- /generated: resources -->

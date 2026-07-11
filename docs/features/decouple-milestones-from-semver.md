@@ -69,5 +69,12 @@ This release applies code review fixes (skills count + YAML safety + triage buck
 ## Resources
 
 - **Spec:** _lost-pre-extraction_
+- **Code:**
+  - [`src/milestones/cli.ts`](../../src/milestones/cli.ts)
+  - [`src/milestones/lib.ts`](../../src/milestones/lib.ts)
+  - [`src/milestones/validate-milestones.ts`](../../src/milestones/validate-milestones.ts)
+- **Tests:**
+  - [`src/milestones/__tests__/lib.test.ts`](../../src/milestones/__tests__/lib.test.ts)
+  - [`src/milestones/__tests__/validate-milestones.test.ts`](../../src/milestones/__tests__/validate-milestones.test.ts)
 
 <!-- /generated: resources -->

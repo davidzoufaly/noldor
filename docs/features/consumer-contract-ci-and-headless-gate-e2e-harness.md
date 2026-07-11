@@ -126,6 +126,8 @@ Hermetic stub runner now register in agent registry (#99).
 - **Code:**
   - [`src/testing/fixtures`](../../src/testing/fixtures)
   - [`src/testing/consumer-fixture.ts`](../../src/testing/consumer-fixture.ts)
+  - [`src/testing/contract-harness.ts`](../../src/testing/contract-harness.ts)
+  - [`src/testing/stub-gate.ts`](../../src/testing/stub-gate.ts)
   - [`src/autonomous/`](../../src/autonomous/)
   - [`docs/noldor/testing-principles.md`](../../docs/noldor/testing-principles.md)
   - [`docs/noldor/script-catalog.md`](../../docs/noldor/script-catalog.md)

@@ -21,7 +21,8 @@ links:
     - src/garden/__tests__/garden-detect.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/garden/__tests__/garden-receipt.test.ts
-  spec: docs/superpowers/specs/2026-07-02-release-bypass-retirement-design.md
+  spec: >-
+    docs/superpowers/specs/archive/2026-07-02-release-bypass-retirement-design.md
   plan: docs/superpowers/plans/2026-07-02-release-bypass-retirement.md
 name: Release Bypass Retirement
 packages:
@@ -30,6 +31,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 Every release still requires `RELEASE_SKIP_GATE_COMPLIANCE=1` + `RELEASE_SKIP_CR_GATE=1` (`src/release/index.ts:178,193`) — "goes away once X ships" for several releases now. Two root causes: (a) the CR gate is unsatisfiable by design — `src/release/release-cr-gate.ts` checks squash commits on main for review receipts that squash-merge strips; rework it to check PR-branch commits or PR-body trailers instead. (b) Gate-compliance trips on historical short-scope trailers + the framework's own expected override usage; make the self-host expected-noise allowlist first-class instead of env-skipping the whole check. Also: write `RELEASE_SKIP_*` uses to `.noldor/overrides.log` the way `src/hooks/noldor-pre-commit.ts:33-42` logs overrides, so bypasses leave an audit trail. Acceptance: a clean `pnpm release` needs zero env bypasses.
@@ -92,3 +94,30 @@ Added a `release.crGateExemptCommits` config schema (#133).
 
 - #133: add release.crGateExemptCommits config schema ([link](https://github.com/davidzoufaly/noldor/pull/133))
 
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-07-02-release-bypass-retirement-design.md`](../../docs/superpowers/specs/archive/2026-07-02-release-bypass-retirement-design.md)
+- **Plan:**
+  - [`docs/superpowers/plans/2026-07-02-release-bypass-retirement.md`](../../docs/superpowers/plans/2026-07-02-release-bypass-retirement.md)
+- **Code:**
+  - [`src/cr/config.ts`](../../src/cr/config.ts)
+  - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
+  - [`src/release/index.ts`](../../src/release/index.ts)
+  - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
+  - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
+  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
+  - [`src/garden/garden-receipt.ts`](../../src/garden/garden-receipt.ts)
+- **Tests:**
+  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
+  - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
+  - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
+  - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
+- **Docs:**
+  - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
+  - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
+
+<!-- /generated: resources -->

@@ -69,6 +69,8 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
   - [`.claude/skills/noldor-plan/`](../../.claude/skills/noldor-plan/)
   - [`src/worktrees/`](../../src/worktrees/)
   - [`src/prep/draft.ts`](../../src/prep/draft.ts)
+  - [`src/prep/formats.ts`](../../src/prep/formats.ts)
+  - [`src/prep/print-format.ts`](../../src/prep/print-format.ts)
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`.claude/skills/noldor-garden/SKILL.md`](../../.claude/skills/noldor-garden/SKILL.md)
   - [`.claude/skills/noldor-draft-feature-md/SKILL.md`](../../.claude/skills/noldor-draft-feature-md/SKILL.md)
@@ -77,6 +79,7 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
   - [`docs/noldor/skill-catalog.md`](../../docs/noldor/skill-catalog.md)
 - **Tests:**
   - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)
+  - [`src/prep/__tests__/print-format.test.ts`](../../src/prep/__tests__/print-format.test.ts)
   - [`src/worktrees/__tests__/create-worktree.test.ts`](../../src/worktrees/__tests__/create-worktree.test.ts)
   - [`src/worktrees/__tests__/dev-surfaces.test.ts`](../../src/worktrees/__tests__/dev-surfaces.test.ts)
   - [`src/worktrees/__tests__/down-worktree.test.ts`](../../src/worktrees/__tests__/down-worktree.test.ts)

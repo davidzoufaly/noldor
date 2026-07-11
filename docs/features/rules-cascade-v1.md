@@ -56,3 +56,30 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
 ### 0.2.0
 
 - Rules Cascade v1 substrate: load/resolve/cache/stage pipeline, 4 CLI wrappers, agent-rules-guard hook (PR #2).
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** _lost-pre-extraction_
+- **Code:**
+  - [`src/rules/cli-cores.ts`](../../src/rules/cli-cores.ts)
+  - [`src/rules/cli-list.ts`](../../src/rules/cli-list.ts)
+  - [`src/rules/cli-resolve.ts`](../../src/rules/cli-resolve.ts)
+  - [`src/rules/cli-validate.ts`](../../src/rules/cli-validate.ts)
+  - [`src/rules/index-cache.ts`](../../src/rules/index-cache.ts)
+  - [`src/rules/load.ts`](../../src/rules/load.ts)
+  - [`src/rules/resolve.ts`](../../src/rules/resolve.ts)
+  - [`src/rules/types.ts`](../../src/rules/types.ts)
+  - [`src/core/rules/stage.ts`](../../src/core/rules/stage.ts)
+  - [`src/hooks/agent-rules-guard.ts`](../../src/hooks/agent-rules-guard.ts)
+- **Tests:**
+  - [`src/rules/__tests__/cli.test.ts`](../../src/rules/__tests__/cli.test.ts)
+  - [`src/rules/__tests__/index-cache.test.ts`](../../src/rules/__tests__/index-cache.test.ts)
+  - [`src/rules/__tests__/load.test.ts`](../../src/rules/__tests__/load.test.ts)
+  - [`src/rules/__tests__/resolve.test.ts`](../../src/rules/__tests__/resolve.test.ts)
+  - [`src/rules/__tests__/types.test.ts`](../../src/rules/__tests__/types.test.ts)
+  - [`src/core/rules/__tests__/stage.test.ts`](../../src/core/rules/__tests__/stage.test.ts)
+  - [`src/hooks/__tests__/agent-rules-guard.test.ts`](../../src/hooks/__tests__/agent-rules-guard.test.ts)
+
+<!-- /generated: resources -->

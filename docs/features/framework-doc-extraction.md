@@ -18,6 +18,7 @@ phase: done
 noldor-tier: full
 introduced: 0.2.0
 ---
+
 ## Summary
 
 Extracted the Noldor framework from the Charuy monorepo into its own standalone repository (`github.com/davidzoufaly/noldor`), preserving per-file git history via `git filter-repo`. Charuy now consumes Noldor as a `file:../noldor` sibling dependency, and all framework artifacts (FDs, roadmap, backlog, plans, specs, vision) live in this repo's `docs/`. Delivered across Phase A (de-Charuy-fication of the runtime), Phase B (doc staging), and Phase C (extract + retarget).
@@ -55,5 +56,11 @@ As a Noldor framework maintainer, I want framework artifacts (FDs, roadmap, back
 ## Resources
 
 - **Spec:** [`docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md`](../../docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md)
+- **Code:**
+  - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
+  - [`src/hooks/noldor-validate-trailer.ts`](../../src/hooks/noldor-validate-trailer.ts)
+- **Tests:**
+  - [`src/core/__tests__/doc-roots.test.ts`](../../src/core/__tests__/doc-roots.test.ts)
+  - [`src/dashboard/__tests__/server-static.test.ts`](../../src/dashboard/__tests__/server-static.test.ts)
 
 <!-- /generated: resources -->

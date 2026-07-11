@@ -39,6 +39,7 @@ introduced: 0.3.0
 noldor-tier: full
 updated: 0.4.0
 ---
+
 ## Summary
 
 Cleans up the `links.*` fields on feature MDs so `pnpm sdd:report` produces actionable signal instead of 90+ lines of noise. Five coupled changes shipped:
@@ -82,6 +83,7 @@ The proposal groups files by FD slug. Lines prefixed `#` are skipped on apply. T
 - **Spec:** _lost-pre-extraction_
 - **Code:**
   - [`src/checks/check-feature-slug-scope.ts`](../../src/checks/check-feature-slug-scope.ts)
+  - [`src/core/extract-touches.ts`](../../src/core/extract-touches.ts)
   - [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts)
   - [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts)
   - [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts)
@@ -93,9 +95,9 @@ The proposal groups files by FD slug. Lines prefixed `#` are skipped on apply. T
 - **Tests:**
   - [`src/checks/__tests__/check-feature-slug-scope.test.ts`](../../src/checks/__tests__/check-feature-slug-scope.test.ts)
   - [`src/core/__tests__/extract-touches.test.ts`](../../src/core/__tests__/extract-touches.test.ts)
+  - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
+  - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
   - [`src/features/__tests__/feature-milestone.test.ts`](../../src/features/__tests__/feature-milestone.test.ts)
-  - [`src/features/__tests__/feature-schema-since.test.ts`](../../src/features/__tests__/feature-schema-since.test.ts)
-  - [`src/features/__tests__/feature-schema.test.ts`](../../src/features/__tests__/feature-schema.test.ts)
   - [`src/features/__tests__/fill-links-code-gaps.test.ts`](../../src/features/__tests__/fill-links-code-gaps.test.ts)
   - [`src/features/__tests__/migrate-features.test.ts`](../../src/features/__tests__/migrate-features.test.ts)
   - [`src/features/__tests__/validate-features.test.ts`](../../src/features/__tests__/validate-features.test.ts)

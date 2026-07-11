@@ -13,7 +13,7 @@ links:
     - src/core/__tests__/fd-load.test.ts
     - src/triage/__tests__/merge-candidates.test.ts
   spec: >-
-    docs/superpowers/specs/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md
+    docs/superpowers/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md
 name: SDD Detector 5 — Idea-Merge Semantic Similarity
 packages:
   - scripts
@@ -22,6 +22,7 @@ noldor-tier: full
 entry-id: Q-0003
 introduced: 0.5.0
 ---
+
 ## Summary
 
 When `/noldor-triage` proposes targets for ideas in `ideas.md`, a `triage merge-candidates` CLI emits the full merge-candidate corpus — every FD, roadmap block, and backlog block — as structured JSON, and `/noldor-triage`'s LLM ranks the top-3 `merge:<slug>` hosts per idea and surfaces them in the confirmation table. Reduces hand-judgment burden in `/noldor-triage` and biases toward merging into existing host FDs (per CLAUDE.md `/noldor-triage` rubric). The original "semantic similarity via graphify / community labels" framing was dropped at spec time — graphify's AST graph carries no feature-level embeddings, and Noldor's offline/deterministic posture rules out an external embedding model; ranking is deterministic-corpus + in-skill LLM judgment, no embeddings or network (see the linked spec). Trigger: when next batch of ideas accumulates and triage feels noisy.
@@ -52,3 +53,20 @@ As an operator (or triage agent) running `/noldor-triage`, I want the merge-cand
 <!-- @prs-since-last-release: sdd-detector-5-idea-merge-semantic-similarity -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md`](../../docs/superpowers/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md)
+- **Code:**
+  - [`src/triage/merge-candidates.ts`](../../src/triage/merge-candidates.ts)
+  - [`src/triage/merge-candidates-cli.ts`](../../src/triage/merge-candidates-cli.ts)
+  - [`src/core/fd-load.ts`](../../src/core/fd-load.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
+  - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
+- **Tests:**
+  - [`src/core/__tests__/fd-load.test.ts`](../../src/core/__tests__/fd-load.test.ts)
+  - [`src/triage/__tests__/merge-candidates.test.ts`](../../src/triage/__tests__/merge-candidates.test.ts)
+
+<!-- /generated: resources -->

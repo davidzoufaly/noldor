@@ -16,7 +16,7 @@ links:
     - src/invariants/__tests__/rule-conflicts.test.ts
     - src/validate/__tests__/noldor-config.test.ts
   spec: >-
-    docs/superpowers/specs/2026-07-03-framework-script-test-migration-cleanup-design.md
+    docs/superpowers/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md
 name: Framework Script + Test Migration Cleanup
 packages:
   - scripts
@@ -24,6 +24,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 Audit `scripts/` and the framework's test corpus to identify scripts/tests that were only needed during migration (FD frontmatter shape changes, gate path additions, garden detector rollouts) and can now be deleted. Conversely, identify gaps where shipped framework features lack test coverage. The 2026-07 audit's cruft inventory is the shopping list: dead `cr-retry.ts`, `src/graphify-out/junk.ts` litter, empty `src/index.ts` as package main, duplicate semver impls (`src/migrations/semver.ts` vs npm `semver` in release), stale `packages/noldor/` + `scripts/release/` path comments (`src/core/consumer-config.ts:7`, `src/core/release-markers.ts:9`), `ideas.md` at repo root while `src/core/doc-roots.ts:28` expects `docs/ideas.md`. One-pass sweep — possibly a `/noldor-garden` detector that flags scripts referenced only in migration-era commits and not in any current pipeline.
@@ -47,3 +48,22 @@ As a framework maintainer, I want migration-era scripts, dead code, duplicate im
 <!-- @prs-since-last-release: framework-script-test-migration-cleanup -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md`](../../docs/superpowers/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md)
+- **Code:**
+  - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
+  - [`src/migrations/chain.ts`](../../src/migrations/chain.ts)
+  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
+  - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
+  - [`src/core/release-markers.ts`](../../src/core/release-markers.ts)
+  - [`package.json`](../../package.json)
+- **Tests:**
+  - [`src/invariants/__tests__/boundaries.test.ts`](../../src/invariants/__tests__/boundaries.test.ts)
+  - [`src/invariants/__tests__/rule-conflicts.test.ts`](../../src/invariants/__tests__/rule-conflicts.test.ts)
+  - [`src/validate/__tests__/noldor-config.test.ts`](../../src/validate/__tests__/noldor-config.test.ts)
+
+<!-- /generated: resources -->

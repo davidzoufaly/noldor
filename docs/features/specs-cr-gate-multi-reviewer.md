@@ -59,6 +59,7 @@ phase: done
 noldor-tier: full
 introduced: 0.6.0
 ---
+
 ## Summary
 
 Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: manual operator pass; codex via `pnpm cr:codex --plan` (lands with [[codex-cr-plan-review-mode]]); Claude-in-same-terminal via a subagent + `superpowers:requesting-code-review` skill against `{{spec-or-plan-path}}`; Claude-standalone via a spawned separate terminal running `claude` with max-thinking and prompt `review: {{path-to-spec-or-plan}}`. Reuses the existing multiterminal-development flow (which has a known bug — tracked separately as [[fix-multiterminal-dev-flow-bug]] and required before this can ship). Outcomes feed back into the spec/plan before promotion to code. Closes the early-feedback gap at `/noldor-gate` Step 2.5.
@@ -107,10 +108,11 @@ Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: ma
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`.noldor/config.json`](../../.noldor/config.json)
 - **Tests:**
+  - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
+  - [`src/core/__tests__/prompt-stdin.test.ts`](../../src/core/__tests__/prompt-stdin.test.ts)
   - [`src/cr/__tests__/aggregate.test.ts`](../../src/cr/__tests__/aggregate.test.ts)
   - [`src/cr/__tests__/atomic-write.test.ts`](../../src/cr/__tests__/atomic-write.test.ts)
   - [`src/cr/__tests__/codex.test.ts`](../../src/cr/__tests__/codex.test.ts)
-  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
   - [`src/cr/__tests__/deep-review-spawn.test.ts`](../../src/cr/__tests__/deep-review-spawn.test.ts)
   - [`src/cr/__tests__/delta.test.ts`](../../src/cr/__tests__/delta.test.ts)
   - [`src/cr/__tests__/escalate.test.ts`](../../src/cr/__tests__/escalate.test.ts)
@@ -124,7 +126,6 @@ Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: ma
   - [`src/cr/__tests__/orchestrate.integration.test.ts`](../../src/cr/__tests__/orchestrate.integration.test.ts)
   - [`src/cr/__tests__/orchestrate.test.ts`](../../src/cr/__tests__/orchestrate.test.ts)
   - [`src/cr/__tests__/overwrite-guard.test.ts`](../../src/cr/__tests__/overwrite-guard.test.ts)
-  - [`src/cr/__tests__/prompt-stdin.test.ts`](../../src/cr/__tests__/prompt-stdin.test.ts)
   - [`src/cr/__tests__/read-fd-summary.test.ts`](../../src/cr/__tests__/read-fd-summary.test.ts)
   - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
   - [`src/metrics/__tests__/cr-and-override.test.ts`](../../src/metrics/__tests__/cr-and-override.test.ts)

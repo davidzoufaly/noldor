@@ -32,6 +32,7 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 `noldor init --update` re-pulls current templates, but nothing handles *schema* evolution between framework versions: FD frontmatter shape changes, `consumer:` config field renames, skill-twin contract changes, trailer-format changes. With one consumer that's hand-migration; with N consumers on mixed pinned versions it's the biggest structural risk of the multi-project goal. Build `noldor upgrade`: a version-aware chain that takes a consumer from its current framework version to the installed one by running ordered codemods.
@@ -107,6 +108,7 @@ Added semver parse and compare helpers (#104).
   - [`src/migrations/`](../../src/migrations/)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`src/cli/commands/init.ts`](../../src/cli/commands/init.ts)
+  - [`src/cli/commands/upgrade.ts`](../../src/cli/commands/upgrade.ts)
   - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
   - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
@@ -116,7 +118,6 @@ Added semver parse and compare helpers (#104).
   - [`src/core/__tests__/framework-version.test.ts`](../../src/core/__tests__/framework-version.test.ts)
   - [`src/migrations/__tests__/chain.test.ts`](../../src/migrations/__tests__/chain.test.ts)
   - [`src/migrations/__tests__/pkg-version.test.ts`](../../src/migrations/__tests__/pkg-version.test.ts)
-  - [`src/migrations/__tests__/semver.test.ts`](../../src/migrations/__tests__/semver.test.ts)
   - [`src/release/__tests__/release-config-flow.test.ts`](../../src/release/__tests__/release-config-flow.test.ts)
   - [`src/testing/__tests__/consumer-fixture.test.ts`](../../src/testing/__tests__/consumer-fixture.test.ts)
 

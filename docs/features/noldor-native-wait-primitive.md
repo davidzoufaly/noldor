@@ -48,3 +48,16 @@ noldor wait .noldor/cr/my-feature-spec-subagent.json \
 <!-- @prs-since-last-release: noldor-native-wait-primitive -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`src/core/wait.ts`](../../src/core/wait.ts)
+  - [`src/core/wait-cli.ts`](../../src/core/wait-cli.ts)
+- **Tests:**
+  - [`src/core/__tests__/wait.test.ts`](../../src/core/__tests__/wait.test.ts)
+  - [`src/core/__tests__/wait.cli.test.ts`](../../src/core/__tests__/wait.cli.test.ts)
+
+<!-- /generated: resources -->
