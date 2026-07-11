@@ -45,19 +45,6 @@ Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on th
 
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
-#### Test-Tag Presence On src/ Layout
-
-- id: Q-0020
-- area: tooling
-- type: fix
-- since: 2026-07-07
-- size: S
-- impact: med
-- parent: noldor
-- confidence: high
-
-`validateTestTagPresence` hardcodes `TEST_WALK_ROOTS = ['apps', 'packages']` (`src/features/validate-features.ts:65`), so the `// @tests: <slug>` presence check never fires on standalone / self-host `src/` layouts even though `docs/noldor/feature-md-schema.md` documents it as enforced (a doc lie for src-layout repos). Route the walk through the shipped `scanRoots()` / consumer `scanPaths` provider (`src/core/repo-paths.ts`) so presence enforcement works on src-layout consumers — same consumer-layout class as the shipped scan-roots provider. Verified against live code 2026-07-07.
-
 #### Verify-Lane Bake-In: Blocking Mode + PR Evidence
 
 - id: Q-0022

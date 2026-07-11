@@ -1,3 +1,4 @@
+// @tests: version-aware-upgrade-and-migration-chain
 import { describe, it, expect } from 'vitest';
 import { migration_0_5_0 } from '../0.5.0.js';
 import { resolveChain } from '../chain.js';
