@@ -367,6 +367,12 @@ export const MANIFEST: Record<string, Group> = {
       '': { src: 'core/pr-flow-cli.ts', desc: 'Run pr-flow' },
     },
   },
+  wait: {
+    desc: 'Poll a state file until a predicate matches',
+    subs: {
+      '': { src: 'core/wait-cli.ts', desc: 'Wait until <state-file> satisfies --until' },
+    },
+  },
   changelog: {
     desc: 'Generate changelog (hoisted)',
     subs: {
