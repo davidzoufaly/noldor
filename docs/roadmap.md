@@ -28,19 +28,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 ### Promoted from Backlog
 
-#### Graph-Freshness / Fmt-Collision Follow-Ups
-
-- id: Q-0011
-- area: tooling
-- type: fix
-- since: 2026-07-01
-- size: S
-- impact: low
-- confidence: med
-- parent: noldor
-
-The v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json`, but the fmt lefthook step fed oxfmt an all-ignored file set for a graph-only commit → hard error → couldn't commit the graph) was fixed immediately in PR #114 (`exclude: 'graphify-out/'`). Parked design follow-ups: (a) a broader guard so any all-ignored fmt invocation no-ops instead of erroring; (b) have the release-sweep own the graph commit end-to-end so the two gates can't deadlock; (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step. Pick up only if the collision class recurs.
-
 #### Dashboard Blocked-By Graph View
 
 - id: Q-0018
@@ -68,7 +55,74 @@ Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on th
 
 Frontmatter/doc twin edits under `templates/docs/noldor/**` (and `templates/docs/**`) match no allowlist in `src/core/allowlist.ts`, so the `docs/noldor` ↔ `templates/docs/noldor` twin syncs that `check-template-sync` forces cannot land via micro-chore or release-sweep — they require a fast-track PR with a `Noldor-Path-Override:` trailer, which needlessly spins the acceptance-verify (dashboard-boot) CR lane for a pure frontmatter mirror. This drift is hit every release when `release-markers` adds `introduced:` to `docs/noldor/*.md` but not its template twin. Add `templates/docs/**/*.md` to `MICRO_CHORE_GLOBS` (mirroring the existing `templates/.claude/**` carve-out) and to `RELEASE_SWEEP_GLOBS` (mirroring `docs/noldor/**/*.md`), with `allowlist.test.ts` coverage.
 
+### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
+
+#### PR-Flow Fallback Merges On Red CI
+
+- id: Q-0021
+- area: tooling
+- type: fix
+- since: 2026-07-07
+- size: S
+- impact: med
+- parent: noldor
+- confidence: high
+
+`mergePrWithFallback` (`src/core/pr-flow.ts:363-369`) runs a direct `gh pr merge --squash --delete-branch` when `--auto` fails (repo has auto-merge disabled) with **no** CI-check polling, so a PR can land on red when there is no branch protection to stop it. The `--auto` path polls `mergeStateStatus`; the fallback path does not. Harden the fallback to poll checks (or query `mergeStateStatus`/`statusCheckRollup`) before the synchronous merge and refuse to merge a failing PR. Verified against live code 2026-07-07.
+
+#### Plans-Source Drain Deps Gating
+
+- id: Q-0019
+- area: tooling
+- type: fix
+- since: 2026-07-07
+- size: S
+- impact: med
+- parent: noldor
+- confidence: high
+
+`plansSource` in `src/autonomous/drain-source.ts` gates eligibility only on spec+plan file existence (`r.date !== null && r.spec`), so the plans-source drain can spawn an in-progress FD whose `blocked-by:`/`deps:` are still unshipped — the deps-in-queue guard added in PR #83 lives only in `roadmapSource` (lines 91-93). Mirror that guard into `plansSource`: mark an FD ineligible when any of its deps still names an unshipped/queued entry, with a precise skip reason. Optionally extend both sources beyond direct-deps to catch transitive/`feat/`-branch deps that currently read as absent-therefore-shipped. Verified against live code 2026-07-07.
+
+#### Test-Tag Presence On src/ Layout
+
+- id: Q-0020
+- area: tooling
+- type: fix
+- since: 2026-07-07
+- size: S
+- impact: med
+- parent: noldor
+- confidence: high
+
+`validateTestTagPresence` hardcodes `TEST_WALK_ROOTS = ['apps', 'packages']` (`src/features/validate-features.ts:65`), so the `// @tests: <slug>` presence check never fires on standalone / self-host `src/` layouts even though `docs/noldor/feature-md-schema.md` documents it as enforced (a doc lie for src-layout repos). Route the walk through the shipped `scanRoots()` / consumer `scanPaths` provider (`src/core/repo-paths.ts`) so presence enforcement works on src-layout consumers — same consumer-layout class as the shipped scan-roots provider. Verified against live code 2026-07-07.
+
+#### Verify-Lane Bake-In: Blocking Mode + PR Evidence
+
+- id: Q-0022
+- area: tooling
+- type: feat
+- since: 2026-07-07
+- size: S
+- impact: low
+- parent: noldor
+- confidence: med
+
+The acceptance verify lane shipped in advisory mode (PR #74); `autonomous.verifyMode` still defaults to `advisory` (`src/core/config.ts`). Two intended bake-in follow-ups were never tracked: (1) flip the self-host `autonomous.verifyMode` from `advisory` → `blocking` now that the lane has baked for several releases; (2) implement spec item D3 — attach the verify lane's evidence array (command/observed pairs) to the PR body so reviewers see behavioral proof. Both are low-risk hardening of an already-shipped lane.
+
 ### Trigger-Parked (revisit when the named trigger fires)
+
+#### Graph-Freshness / Fmt-Collision Follow-Ups
+
+- id: Q-0011
+- area: tooling
+- type: fix
+- since: 2026-07-01
+- size: S
+- impact: low
+- confidence: med
+- parent: noldor
+
+Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json` vs fmt lefthook erroring on an all-ignored file set; immediate fix PR #114, broader all-ignored no-op guard shipped as `noldor fmt` in PR #184): (b) have the release-sweep own the graph commit end-to-end so the two gates can't deadlock; (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step. Trigger: pick up only if the fmt/graph gate collision class recurs despite the PR #184 guard.
 
 #### Real-Codex Integration Smoke Test
 

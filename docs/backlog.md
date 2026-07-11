@@ -16,58 +16,6 @@ Dependencies are declared with a `- blocked-by: <slug|Q-id, …>` bullet (the en
 
 Open question — does it make sense to introduce SQL into the framework? Explore use cases (dashboard queries, metrics, entry indexing) before committing.
 
-### Plans-Source Drain Deps Gating
-
-- id: Q-0019
-- area: tooling
-- type: fix
-- since: 2026-07-07
-- size: S
-- impact: med
-- parent: noldor
-- confidence: high
-
-`plansSource` in `src/autonomous/drain-source.ts` gates eligibility only on spec+plan file existence (`r.date !== null && r.spec`), so the plans-source drain can spawn an in-progress FD whose `blocked-by:`/`deps:` are still unshipped — the deps-in-queue guard added in PR #83 lives only in `roadmapSource` (lines 91-93). Mirror that guard into `plansSource`: mark an FD ineligible when any of its deps still names an unshipped/queued entry, with a precise skip reason. Optionally extend both sources beyond direct-deps to catch transitive/`feat/`-branch deps that currently read as absent-therefore-shipped. Verified against live code 2026-07-07.
-
-### Test-Tag Presence On src/ Layout
-
-- id: Q-0020
-- area: tooling
-- type: fix
-- since: 2026-07-07
-- size: S
-- impact: med
-- parent: noldor
-- confidence: high
-
-`validateTestTagPresence` hardcodes `TEST_WALK_ROOTS = ['apps', 'packages']` (`src/features/validate-features.ts:65`), so the `// @tests: <slug>` presence check never fires on standalone / self-host `src/` layouts even though `docs/noldor/feature-md-schema.md` documents it as enforced (a doc lie for src-layout repos). Route the walk through the shipped `scanRoots()` / consumer `scanPaths` provider (`src/core/repo-paths.ts`) so presence enforcement works on src-layout consumers — same consumer-layout class as the shipped scan-roots provider. Verified against live code 2026-07-07.
-
-### PR-Flow Fallback Merges On Red CI
-
-- id: Q-0021
-- area: tooling
-- type: fix
-- since: 2026-07-07
-- size: S
-- impact: med
-- parent: noldor
-- confidence: high
-
-`mergePrWithFallback` (`src/core/pr-flow.ts:363-369`) runs a direct `gh pr merge --squash --delete-branch` when `--auto` fails (repo has auto-merge disabled) with **no** CI-check polling, so a PR can land on red when there is no branch protection to stop it. The `--auto` path polls `mergeStateStatus`; the fallback path does not. Harden the fallback to poll checks (or query `mergeStateStatus`/`statusCheckRollup`) before the synchronous merge and refuse to merge a failing PR. Verified against live code 2026-07-07.
-
-### Verify-Lane Bake-In: Blocking Mode + PR Evidence
-
-- id: Q-0022
-- area: tooling
-- type: feat
-- since: 2026-07-07
-- size: S
-- impact: low
-- parent: noldor
-- confidence: med
-
-The acceptance verify lane shipped in advisory mode (PR #74); `autonomous.verifyMode` still defaults to `advisory` (`src/core/config.ts`). Two intended bake-in follow-ups were never tracked: (1) flip the self-host `autonomous.verifyMode` from `advisory` → `blocking` now that the lane has baked for several releases; (2) implement spec item D3 — attach the verify lane's evidence array (command/observed pairs) to the PR body so reviewers see behavioral proof. Both are low-risk hardening of an already-shipped lane.
-
 ### Private-Package Org-Move + ps-offsite .npmrc Wiring
 
 - id: Q-0024
