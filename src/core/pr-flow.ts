@@ -182,6 +182,27 @@ export class PrClosedWithoutMergeError extends Error {
   }
 }
 
+export class ChecksFailedError extends Error {
+  constructor(
+    public prUrl: string,
+    public failing: string[],
+  ) {
+    super(
+      `Refusing to merge ${prUrl}: failing status checks — ${failing.join(', ')}. Fix CI (or re-run the failed checks) and retry.`,
+    );
+    this.name = 'ChecksFailedError';
+  }
+}
+
+export class ChecksPendingTimeoutError extends Error {
+  constructor(public prUrl: string) {
+    super(
+      `Status checks for ${prUrl} did not settle within the poll window; refusing direct merge with unverified CI.`,
+    );
+    this.name = 'ChecksPendingTimeoutError';
+  }
+}
+
 export interface SpawnResult {
   stdout: string;
   exitCode: number;
@@ -267,6 +288,82 @@ export async function pollAutoMerge(opts: {
     await new Promise<void>((resolve) => setTimeout(resolve, opts.intervalMs));
   }
   throw new MergeTimeoutError(opts.prUrl);
+}
+
+/** One entry of `gh pr view --json statusCheckRollup` — a union of CheckRun
+ *  (Checks API / GitHub Actions) and StatusContext (legacy commit statuses). */
+interface StatusCheck {
+  name?: string; // CheckRun
+  context?: string; // StatusContext
+  status?: string; // CheckRun: QUEUED | IN_PROGRESS | COMPLETED | ...
+  conclusion?: string; // CheckRun (when COMPLETED): SUCCESS | FAILURE | NEUTRAL | SKIPPED | ...
+  state?: string; // StatusContext: SUCCESS | FAILURE | ERROR | PENDING | EXPECTED
+}
+
+const FAILING_CONCLUSIONS = new Set([
+  'FAILURE',
+  'CANCELLED',
+  'TIMED_OUT',
+  'ACTION_REQUIRED',
+  'STARTUP_FAILURE',
+]);
+const FAILING_STATES = new Set(['FAILURE', 'ERROR']);
+
+function checkLabel(c: StatusCheck): string {
+  return c.name ?? c.context ?? 'unknown-check';
+}
+
+function isFailingCheck(c: StatusCheck): boolean {
+  if (c.conclusion !== undefined && FAILING_CONCLUSIONS.has(c.conclusion)) return true;
+  return c.state !== undefined && FAILING_STATES.has(c.state);
+}
+
+function isPendingCheck(c: StatusCheck): boolean {
+  // StatusContext carries `state`, CheckRun carries `status`.
+  if (c.state !== undefined) return c.state === 'PENDING' || c.state === 'EXPECTED';
+  return c.status !== 'COMPLETED';
+}
+
+/** Poll `statusCheckRollup` until every check settles. Returns when all checks
+ *  passed (or the PR has no checks at all — repos without CI merge as before).
+ *  Throws {@link ChecksFailedError} as soon as any check reports failure and
+ *  {@link ChecksPendingTimeoutError} when checks are still pending at the
+ *  deadline — in both cases the caller must NOT merge. */
+export async function pollChecksBeforeMerge(opts: {
+  prUrl: string;
+  spawn: SpawnFn;
+  intervalMs: number;
+  timeoutMs: number;
+  onStatus?: (line: string) => void;
+  now?: () => number;
+}): Promise<void> {
+  const now = opts.now ?? Date.now;
+  const start = now();
+  while (now() - start < opts.timeoutMs) {
+    const r = await opts.spawn('gh', ['pr', 'view', opts.prUrl, '--json', 'statusCheckRollup']);
+    if (r.exitCode === 0) {
+      let checks: StatusCheck[] | null = null;
+      try {
+        const data = JSON.parse(r.stdout) as { statusCheckRollup: StatusCheck[] | null };
+        checks = data.statusCheckRollup ?? [];
+      } catch {
+        // Unparseable stdout — treat as a transient fetch failure and re-poll.
+      }
+      if (checks !== null) {
+        const failing = checks.filter(isFailingCheck);
+        if (failing.length > 0) {
+          throw new ChecksFailedError(opts.prUrl, failing.map(checkLabel));
+        }
+        const pending = checks.filter(isPendingCheck);
+        if (pending.length === 0) return;
+        opts.onStatus?.(
+          `Checks: ${pending.length} pending (${pending.map(checkLabel).join(', ')}), elapsed=${Math.floor((now() - start) / 1000)}s`,
+        );
+      }
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, opts.intervalMs));
+  }
+  throw new ChecksPendingTimeoutError(opts.prUrl);
 }
 
 export interface OpenAndAutoMergeInput extends PrFlowInput {
@@ -453,6 +550,16 @@ export async function mergePrWithFallback(
   process.stderr.write(
     'pr-flow: gh pr merge --auto failed; falling back to direct squash-merge.\n',
   );
+  // Unlike the --auto path (GitHub only merges when mergeStateStatus allows),
+  // a direct `gh pr merge --squash` merges whatever is there — red CI included
+  // when no branch protection blocks it. Wait for checks and refuse a red PR.
+  await pollChecksBeforeMerge({
+    prUrl: input.prUrl,
+    spawn: input.spawn,
+    intervalMs: input.intervalMs ?? DEFAULT_POLL_INTERVAL_MS,
+    timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+  });
   const directMerge = await input.spawn('gh', [
     'pr',
     'merge',
