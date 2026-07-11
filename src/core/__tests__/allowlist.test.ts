@@ -55,6 +55,14 @@ describe('micro-chore allowlist', () => {
   it('rejects non-.claude templates paths (only template twins of skills qualify)', () => {
     expect(isMicroChoreAllowed(['templates/src/foo.ts'])).toBe(false);
   });
+  it('accepts a docs page edited alongside its templates/docs twin', () => {
+    expect(
+      isMicroChoreAllowed(['docs/noldor/release.md', 'templates/docs/noldor/release.md']),
+    ).toBe(true);
+  });
+  it('rejects non-md files under templates/docs', () => {
+    expect(isMicroChoreAllowed(['templates/docs/noldor/diagram.svg'])).toBe(false);
+  });
 });
 
 describe('isReleaseSweepAllowed', () => {
@@ -77,6 +85,17 @@ describe('isReleaseSweepAllowed', () => {
   it('admits framework + feature MD drift', () => {
     expect(isReleaseSweepAllowed(['docs/noldor/release.md'])).toBe(true);
     expect(isReleaseSweepAllowed(['docs/features/example.md'])).toBe(true);
+  });
+
+  it('admits templates/docs twin drift (release-markers stamps both sides)', () => {
+    expect(isReleaseSweepAllowed(['templates/docs/noldor/release.md'])).toBe(true);
+    expect(
+      isReleaseSweepAllowed(['docs/noldor/release.md', 'templates/docs/noldor/release.md']),
+    ).toBe(true);
+  });
+
+  it('rejects non-md files under templates/docs', () => {
+    expect(isReleaseSweepAllowed(['templates/docs/noldor/diagram.svg'])).toBe(false);
   });
 
   it('rejects non-md typedoc output (json/html) under docs/user/reference/api', () => {
