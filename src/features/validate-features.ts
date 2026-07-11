@@ -9,6 +9,7 @@ import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
 import { loadConsumerConfig, loadCategories } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
+import { scanRoots } from '../core/repo-paths.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
 export interface FileError {
@@ -17,10 +18,10 @@ export interface FileError {
 }
 
 const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx)$/;
-// `noldor` excluded so the framework package's own tests don't trip the
-// tag-presence validator — those tests cover the framework itself, not
+// `noldor` excluded so a consumer's vendored `packages/noldor` tests don't trip
+// the tag-presence validator — those tests cover the framework itself, not
 // individual feature slugs the way product tests do (matches pre-migration
-// behavior when these tests lived under scripts/ and were outside TEST_WALK_ROOTS).
+// behavior when these tests lived under scripts/ and were outside the walk roots).
 const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git', 'noldor']);
 
 async function walkDir(dir: string): Promise<string[]> {
@@ -61,8 +62,6 @@ async function collectTestFiles(dir: string, out: string[]): Promise<void> {
     }
   }
 }
-
-const TEST_WALK_ROOTS = ['apps', 'packages'];
 
 /** Validate feature MD frontmatter for the given files; returns one FileError per failing file. */
 export async function validateFiles(paths: string[]): Promise<FileError[]> {
@@ -339,8 +338,11 @@ async function main(): Promise<void> {
   const errors = await validateFiles(files);
   const packagesFieldErrors = await validatePackagesField(files);
 
+  // Walk consumer scanPaths (fallback: union-of-layouts DEFAULT_SCAN_ROOTS) so
+  // `// @tests:` presence enforcement fires on standalone/self-host `src/`
+  // layouts, not just monorepo `apps`/`packages` (Q-0020).
   const presenceTestFiles: string[] = [];
-  for (const root of TEST_WALK_ROOTS) {
+  for (const root of scanRoots()) {
     await collectTestFiles(root, presenceTestFiles);
   }
   const testTagPresenceErrors = await validateTestTagPresence(presenceTestFiles);

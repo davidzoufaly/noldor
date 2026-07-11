@@ -1,3 +1,4 @@
+// @tests: prefix-skills-with-noldor
 import { describe, it, expect } from 'vitest';
 import { prefixSkills } from '../prefix-skills-codemod.js';
 

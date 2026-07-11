@@ -1,3 +1,4 @@
+// @tests: noldor
 import { findBlockedByCycles } from '../circular-blocked-by.js';
 
 /** Minimal roadmap block builder for the pure cycle finder. */
