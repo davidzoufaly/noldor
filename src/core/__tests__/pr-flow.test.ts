@@ -9,9 +9,12 @@ import {
   openAndAutoMerge,
   checkRedundantDelivery,
   mergePrWithFallback,
+  pollChecksBeforeMerge,
   GhPreflightError,
   MergeTimeoutError,
   PrClosedWithoutMergeError,
+  ChecksFailedError,
+  ChecksPendingTimeoutError,
 } from '../pr-flow.js';
 import type { PrFlowInput, SpawnFn } from '../pr-flow.js';
 
@@ -928,5 +931,169 @@ describe('mergePrWithFallback', () => {
     await expect(mergePrWithFallback({ prUrl, spawn })).rejects.toThrow(
       /gh pr merge --auto failed: exit 1; direct merge fallback exit 1; PR state is "OPEN"/,
     );
+  });
+
+  it('refuses the direct-merge fallback when a check has failed', async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      calls.push({ cmd, args });
+      if (cmd === 'gh' && args[1] === 'merge' && args.includes('--auto'))
+        return { stdout: '', exitCode: 1 };
+      if (cmd === 'gh' && args[1] === 'view' && args.includes('statusCheckRollup')) {
+        return {
+          stdout: JSON.stringify({
+            statusCheckRollup: [
+              { name: 'verify', status: 'COMPLETED', conclusion: 'FAILURE' },
+              { name: 'lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
+            ],
+          }),
+          exitCode: 0,
+        };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    await expect(mergePrWithFallback({ prUrl, spawn })).rejects.toThrow(ChecksFailedError);
+    // The direct squash-merge must never have been attempted.
+    const directMerges = calls.filter((c) => c.args[1] === 'merge' && !c.args.includes('--auto'));
+    expect(directMerges).toHaveLength(0);
+  });
+
+  it('waits for pending checks to settle green before the direct-merge fallback', async () => {
+    let rollupCalls = 0;
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'gh' && args[1] === 'merge' && args.includes('--auto'))
+        return { stdout: '', exitCode: 1 };
+      if (cmd === 'gh' && args[1] === 'view' && args.includes('statusCheckRollup')) {
+        rollupCalls += 1;
+        return {
+          stdout: JSON.stringify({
+            statusCheckRollup: [
+              rollupCalls === 1
+                ? { name: 'verify', status: 'IN_PROGRESS' }
+                : { name: 'verify', status: 'COMPLETED', conclusion: 'SUCCESS' },
+            ],
+          }),
+          exitCode: 0,
+        };
+      }
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'view') {
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-07-11T12:00:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await mergePrWithFallback({ prUrl, spawn, intervalMs: 1 });
+    expect(result.mergedAt).toBe('2026-07-11T12:00:00Z');
+    expect(rollupCalls).toBe(2);
+  });
+
+  it('merges via fallback when the PR has no checks at all', async () => {
+    const spawn: SpawnFn = vi.fn(async (cmd, args) => {
+      if (cmd === 'gh' && args[1] === 'merge' && args.includes('--auto'))
+        return { stdout: '', exitCode: 1 };
+      if (cmd === 'gh' && args[1] === 'view' && args.includes('statusCheckRollup')) {
+        return { stdout: JSON.stringify({ statusCheckRollup: [] }), exitCode: 0 };
+      }
+      if (cmd === 'gh' && args[1] === 'merge') return { stdout: '', exitCode: 0 };
+      if (cmd === 'gh' && args[1] === 'view') {
+        return {
+          stdout: JSON.stringify({ mergedAt: '2026-07-11T12:05:00Z', state: 'MERGED' }),
+          exitCode: 0,
+        };
+      }
+      return { stdout: '', exitCode: 1 };
+    });
+    const result = await mergePrWithFallback({ prUrl, spawn });
+    expect(result.mergedAt).toBe('2026-07-11T12:05:00Z');
+  });
+});
+
+describe('pollChecksBeforeMerge', () => {
+  const prUrl = 'https://github.com/davidzoufaly/acme/pull/9';
+
+  it('throws ChecksFailedError naming the failing checks', async () => {
+    const spawn: SpawnFn = vi.fn(async () => ({
+      stdout: JSON.stringify({
+        statusCheckRollup: [
+          { name: 'verify', status: 'COMPLETED', conclusion: 'FAILURE' },
+          { context: 'legacy-ci', state: 'ERROR' },
+          { name: 'lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
+        ],
+      }),
+      exitCode: 0,
+    }));
+    await expect(
+      pollChecksBeforeMerge({ prUrl, spawn, intervalMs: 1, timeoutMs: 1000 }),
+    ).rejects.toThrow(/failing status checks — verify, legacy-ci/);
+  });
+
+  it('treats a null statusCheckRollup as no checks and returns', async () => {
+    const spawn: SpawnFn = vi.fn(async () => ({
+      stdout: JSON.stringify({ statusCheckRollup: null }),
+      exitCode: 0,
+    }));
+    await expect(
+      pollChecksBeforeMerge({ prUrl, spawn, intervalMs: 1, timeoutMs: 1000 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('accepts SKIPPED and NEUTRAL conclusions as settled', async () => {
+    const spawn: SpawnFn = vi.fn(async () => ({
+      stdout: JSON.stringify({
+        statusCheckRollup: [
+          { name: 'optional', status: 'COMPLETED', conclusion: 'SKIPPED' },
+          { name: 'advisory', status: 'COMPLETED', conclusion: 'NEUTRAL' },
+          { context: 'legacy-ci', state: 'SUCCESS' },
+        ],
+      }),
+      exitCode: 0,
+    }));
+    await expect(
+      pollChecksBeforeMerge({ prUrl, spawn, intervalMs: 1, timeoutMs: 1000 }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('throws ChecksPendingTimeoutError when checks never settle', async () => {
+    let nowMs = 0;
+    const spawn: SpawnFn = vi.fn(async () => {
+      nowMs += 10_000;
+      return {
+        stdout: JSON.stringify({
+          statusCheckRollup: [{ name: 'verify', status: 'IN_PROGRESS' }],
+        }),
+        exitCode: 0,
+      };
+    });
+    await expect(
+      pollChecksBeforeMerge({
+        prUrl,
+        spawn,
+        intervalMs: 1,
+        timeoutMs: 30_000,
+        now: () => nowMs,
+      }),
+    ).rejects.toThrow(ChecksPendingTimeoutError);
+  });
+
+  it('re-polls through transient gh failures and unparseable stdout', async () => {
+    let cycle = 0;
+    const spawn: SpawnFn = vi.fn(async () => {
+      cycle += 1;
+      if (cycle === 1) return { stdout: '', exitCode: 1 };
+      if (cycle === 2) return { stdout: 'not-json', exitCode: 0 };
+      return {
+        stdout: JSON.stringify({
+          statusCheckRollup: [{ name: 'verify', status: 'COMPLETED', conclusion: 'SUCCESS' }],
+        }),
+        exitCode: 0,
+      };
+    });
+    await expect(
+      pollChecksBeforeMerge({ prUrl, spawn, intervalMs: 1, timeoutMs: 60_000 }),
+    ).resolves.toBeUndefined();
+    expect(cycle).toBe(3);
   });
 });
