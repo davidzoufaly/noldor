@@ -332,7 +332,9 @@ links:
 `,
       );
       const result = loadInProgressFds(dir);
-      expect(result).toEqual([{ slug: 'alpha', name: 'Alpha Feature', tier: 'specs-only' }]);
+      expect(result).toEqual([
+        { slug: 'alpha', name: 'Alpha Feature', tier: 'specs-only', deps: [] },
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

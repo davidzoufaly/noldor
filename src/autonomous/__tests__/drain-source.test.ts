@@ -138,12 +138,16 @@ describe('roadmapSource', () => {
  * REQUIRED) or `loadInProgressFds` silently skips it.
  */
 function tmpPlansRepo(
-  fds: Array<{ slug: string; spec?: boolean; planDate?: string | null }>,
+  fds: Array<{ slug: string; spec?: boolean; planDate?: string | null; deps?: string[] }>,
+  opts: { roadmap?: string } = {},
 ): string {
   const dir = mkdtempSync(join(tmpdir(), 'drain-plans-'));
   mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
   mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
   mkdirSync(join(dir, 'docs', 'superpowers', 'plans'), { recursive: true });
+  if (opts.roadmap !== undefined) {
+    writeFileSync(join(dir, 'docs', 'roadmap.md'), opts.roadmap, 'utf8');
+  }
   for (const fd of fds) {
     const fm = [
       '---',
@@ -157,6 +161,9 @@ function tmpPlansRepo(
       '  tests: []',
       'phase: in-progress',
       'noldor-tier: full',
+      ...(fd.deps !== undefined && fd.deps.length > 0
+        ? ['deps:', ...fd.deps.map((d) => `  - ${d}`)]
+        : []),
       '---',
       '',
       '## Summary',
@@ -264,6 +271,81 @@ describe('plansSource', () => {
     const dir = tmpPlansRepo([{ slug: 'designed' }]);
     try {
       expect(plansSource(dir).nextItem(new Set(['designed']))).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marks a designed FD ineligible when a deps: slug is still in the roadmap queue', () => {
+    const dir = tmpPlansRepo([{ slug: 'designed', deps: ['alpha'] }], {
+      roadmap: block('alpha', 'XS', 'base'),
+    });
+    try {
+      const c = plansSource(dir).nextItem(new Set());
+      expect(c!.slug).toBe('designed');
+      expect(c!.eligible).toBe(false);
+      expect(c!.reason).toMatch(/dep|blocked|queue/i);
+      expect(c!.reason).toContain('alpha');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marks a designed FD ineligible when a deps: slug names another in-progress FD', () => {
+    const dir = tmpPlansRepo([
+      { slug: 'downstream', deps: ['upstream'], planDate: '2026-06-02' },
+      { slug: 'upstream', planDate: null, spec: false },
+    ]);
+    try {
+      const c = plansSource(dir).nextItem(new Set());
+      expect(c!.slug).toBe('downstream');
+      expect(c!.eligible).toBe(false);
+      expect(c!.reason).toContain('upstream');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('eligible when a deps: ref is absent everywhere (already shipped — fast-track leaves no FD)', () => {
+    const dir = tmpPlansRepo([{ slug: 'designed', deps: ['shipped-thing'] }]);
+    try {
+      const c = plansSource(dir).nextItem(new Set());
+      expect(c!.slug).toBe('designed');
+      expect(c!.eligible).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves a Q-NNNN entry-ID dep to its queued roadmap slug (ineligible)', () => {
+    const idBlock = [
+      '### alpha',
+      '',
+      '- area: tooling',
+      '- id: Q-0042',
+      '- size: XS',
+      '- impact: high',
+      '',
+      'base',
+      '',
+    ].join('\n');
+    const dir = tmpPlansRepo([{ slug: 'designed', deps: ['Q-0042'] }], { roadmap: idBlock });
+    try {
+      const c = plansSource(dir).nextItem(new Set());
+      expect(c!.slug).toBe('designed');
+      expect(c!.eligible).toBe(false);
+      expect(c!.reason).toContain('alpha');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('prefers an eligible FD over a deps-blocked one', () => {
+    const dir = tmpPlansRepo([{ slug: 'blocked', deps: ['alpha'] }, { slug: 'free' }], {
+      roadmap: block('alpha', 'XS', 'base'),
+    });
+    try {
+      expect(plansSource(dir).nextItem(new Set())!.slug).toBe('free');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

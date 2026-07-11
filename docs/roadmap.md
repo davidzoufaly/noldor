@@ -45,19 +45,6 @@ Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on th
 
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
-#### Plans-Source Drain Deps Gating
-
-- id: Q-0019
-- area: tooling
-- type: fix
-- since: 2026-07-07
-- size: S
-- impact: med
-- parent: noldor
-- confidence: high
-
-`plansSource` in `src/autonomous/drain-source.ts` gates eligibility only on spec+plan file existence (`r.date !== null && r.spec`), so the plans-source drain can spawn an in-progress FD whose `blocked-by:`/`deps:` are still unshipped — the deps-in-queue guard added in PR #83 lives only in `roadmapSource` (lines 91-93). Mirror that guard into `plansSource`: mark an FD ineligible when any of its deps still names an unshipped/queued entry, with a precise skip reason. Optionally extend both sources beyond direct-deps to catch transitive/`feat/`-branch deps that currently read as absent-therefore-shipped. Verified against live code 2026-07-07.
-
 #### Test-Tag Presence On src/ Layout
 
 - id: Q-0020
