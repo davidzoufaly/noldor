@@ -379,6 +379,12 @@ export const MANIFEST: Record<string, Group> = {
       '': { src: 'core/changelog.ts', desc: 'Generate changelog' },
     },
   },
+  fmt: {
+    desc: 'Run oxfmt with the all-ignored no-op guard',
+    subs: {
+      '': { src: 'core/fmt-guard-cli.ts', desc: 'Format (or --check) with the no-target guard' },
+    },
+  },
   init: {
     desc: 'Scaffold framework files into the consumer repo',
     subs: {
