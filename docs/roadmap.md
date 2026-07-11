@@ -45,19 +45,6 @@ Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on th
 
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
-#### Verify-Lane Bake-In: Blocking Mode + PR Evidence
-
-- id: Q-0022
-- area: tooling
-- type: feat
-- since: 2026-07-07
-- size: S
-- impact: low
-- parent: noldor
-- confidence: med
-
-The acceptance verify lane shipped in advisory mode (PR #74); `autonomous.verifyMode` still defaults to `advisory` (`src/core/config.ts`). Two intended bake-in follow-ups were never tracked: (1) flip the self-host `autonomous.verifyMode` from `advisory` → `blocking` now that the lane has baked for several releases; (2) implement spec item D3 — attach the verify lane's evidence array (command/observed pairs) to the PR body so reviewers see behavioral proof. Both are low-risk hardening of an already-shipped lane.
-
 ### Trigger-Parked (revisit when the named trigger fires)
 
 #### Graph-Freshness / Fmt-Collision Follow-Ups
