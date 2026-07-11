@@ -43,18 +43,6 @@ Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on th
 
 ### Framework Self-Ownership
 
-#### Add templates/docs To Micro-Chore And Release-Sweep Allowlists
-
-- id: Q-0023
-- area: tooling
-- type: fix
-- since: 2026-07-07
-- size: XS
-- impact: med
-- parent: noldor
-
-Frontmatter/doc twin edits under `templates/docs/noldor/**` (and `templates/docs/**`) match no allowlist in `src/core/allowlist.ts`, so the `docs/noldor` ↔ `templates/docs/noldor` twin syncs that `check-template-sync` forces cannot land via micro-chore or release-sweep — they require a fast-track PR with a `Noldor-Path-Override:` trailer, which needlessly spins the acceptance-verify (dashboard-boot) CR lane for a pure frontmatter mirror. This drift is hit every release when `release-markers` adds `introduced:` to `docs/noldor/*.md` but not its template twin. Add `templates/docs/**/*.md` to `MICRO_CHORE_GLOBS` (mirroring the existing `templates/.claude/**` carve-out) and to `RELEASE_SWEEP_GLOBS` (mirroring `docs/noldor/**/*.md`), with `allowlist.test.ts` coverage.
-
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
 #### PR-Flow Fallback Merges On Red CI
