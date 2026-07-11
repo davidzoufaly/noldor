@@ -57,7 +57,8 @@
   "autonomous": {
     "skipLanePicker": true,
     "onFailure": "abort",
-    "requireHumanPrApproval": false
+    "requireHumanPrApproval": false,
+    "verifyMode": "blocking"
   },
   "release": {
     "publish": { "enabled": true },

@@ -17,6 +17,20 @@ export interface CrResultSummary {
   status: 'clean' | 'exhausted';
 }
 
+/** Verify-lane outcome lifted from the `.noldor/cr/<slug>-code-verify.json`
+ *  sink. Shaped locally (not imported from `src/cr/findings-schema.ts`)
+ *  because the `core-is-foundation` boundary forbids `src/core` → `src/cr`
+ *  imports. */
+export interface VerifyEvidencePair {
+  command: string;
+  observed: string;
+}
+
+export interface VerifySummary {
+  verdict: string;
+  evidence: VerifyEvidencePair[];
+}
+
 export interface PrFlowInput {
   cwd: string;
   branch: string;
@@ -27,6 +41,7 @@ export interface PrFlowInput {
   specPath: string | null;
   planPath: string | null;
   crResults: CrResultSummary;
+  verify: VerifySummary | null;
   headSha: string;
   firstCommitSubject: string;
 }
@@ -62,6 +77,27 @@ function renderCrTable(passes: CrPass[]): string {
     '| --- | --- | --- | --- | --- |',
     ...rows,
   ].join('\n');
+}
+
+/** Spec item D3 (acceptance-verify-lane): surface the verify lane's
+ *  command/observed pairs on the PR so reviewers see behavioral proof, not
+ *  just a verdict word. Omitted entirely when no verify sink was found. */
+function renderVerifySection(verify: VerifySummary | null): string {
+  if (verify === null) return '';
+  const pairs = verify.evidence.map((e, i) =>
+    [
+      `${i + 1}. \`${e.command}\``,
+      '',
+      '   ```',
+      ...e.observed.split('\n').map((l) => `   ${l}`),
+      '   ```',
+    ].join('\n'),
+  );
+  const body =
+    pairs.length > 0 ? pairs.join('\n') : '_No command/observed pairs recorded for this verdict._';
+  return ['## Verify Evidence', '', `Lane verdict: \`${verify.verdict}\``, '', body, '', ''].join(
+    '\n',
+  );
 }
 
 function renderLinksSection(input: PrFlowInput): string {
@@ -150,7 +186,7 @@ export function composeBody(input: PrFlowInput): string {
     '',
     crTable,
     '',
-    '## Test Plan',
+    renderVerifySection(input.verify) + '## Test Plan',
     '',
     testPlanItems.join('\n'),
     '',

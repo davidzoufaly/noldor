@@ -42,6 +42,7 @@ const baseInput: PrFlowInput = {
     ],
     status: 'clean',
   },
+  verify: null,
   headSha: 'abc123',
   firstCommitSubject: 'feat(scripts:test-feature): scaffold',
 };
@@ -187,6 +188,48 @@ describe('composeBody', () => {
     const crHeadingIdx = body.indexOf('## CR Results');
     expect(bannerIdx).toBeLessThan(crHeadingIdx);
   });
+
+  it('renders Verify Evidence with verdict + command/observed pairs between CR Results and Test Plan', () => {
+    const input: PrFlowInput = {
+      ...baseInput,
+      verify: {
+        verdict: 'pass',
+        evidence: [
+          { command: 'pnpm noldor --help', observed: 'exit 0' },
+          {
+            command: 'curl -s localhost:5174/',
+            observed: 'GET http://localhost:5174/ → 200\nsecond line',
+          },
+        ],
+      },
+    };
+    const body = composeBody(input);
+    expect(body).toContain('## Verify Evidence');
+    expect(body).toContain('Lane verdict: `pass`');
+    expect(body).toContain('1. `pnpm noldor --help`');
+    expect(body).toContain('2. `curl -s localhost:5174/`');
+    expect(body).toContain('   GET http://localhost:5174/ → 200');
+    expect(body).toContain('   second line');
+    const crIdx = body.indexOf('## CR Results');
+    const verifyIdx = body.indexOf('## Verify Evidence');
+    const testPlanIdx = body.indexOf('## Test Plan');
+    expect(crIdx).toBeLessThan(verifyIdx);
+    expect(verifyIdx).toBeLessThan(testPlanIdx);
+  });
+
+  it('renders a placeholder line when the verdict carries no evidence pairs', () => {
+    const input: PrFlowInput = {
+      ...baseInput,
+      verify: { verdict: 'cannot-verify', evidence: [] },
+    };
+    const body = composeBody(input);
+    expect(body).toContain('Lane verdict: `cannot-verify`');
+    expect(body).toContain('_No command/observed pairs recorded for this verdict._');
+  });
+
+  it('omits the Verify Evidence section entirely when verify is null', () => {
+    expect(composeBody(baseInput)).not.toContain('## Verify Evidence');
+  });
 });
 
 describe('composeBody — release-sweep template', () => {
@@ -200,6 +243,7 @@ describe('composeBody — release-sweep template', () => {
     specPath: null,
     planPath: null,
     crResults: { passes: [], status: 'clean' },
+    verify: null,
     headSha: 'abc123',
     firstCommitSubject: 'chore(release-sweep): graphify output',
   };

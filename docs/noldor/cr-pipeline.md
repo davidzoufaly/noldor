@@ -242,7 +242,14 @@ never blocks. Spawn failure, timeout, or malformed verifier output is one
 `cannot-verify` note in advisory.
 
 Opt in via `crLanes.code: ["subagent", "verify"]`; drain and watch inherit it
-from config.
+from config. The noldor repo itself runs `verifyMode: "blocking"` (flipped
+after the advisory bake-in period); the schema default stays `advisory` so new
+consumers adopt the lane observation-first.
+
+`pnpm noldor pr-flow` lifts the sink's verdict + evidence array into a
+`## Verify Evidence` PR-body section (command/observed pairs — spec item D3),
+so reviewers see behavioral proof on the PR itself. Missing or off-shape sink
+⇒ the section is omitted; the PR still opens.
 
 ## Deferred (post-MVP)
 
