@@ -54,10 +54,13 @@ links:
     - docs/noldor/pr-flow.md
   tests:
     - src/core/__tests__/changelog.test.ts
+    - src/core/__tests__/fmt-guard.test.ts
+    - src/core/__tests__/init-gitignore.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts
     - src/core/__tests__/next-priority.test.ts
     - src/core/__tests__/phase-flip-done.test.ts
     - src/core/__tests__/pr-flow.test.ts
+    - src/core/__tests__/prerequisites.test.ts
     - src/core/__tests__/release-markers.test.ts
     - src/core/__tests__/rename-plan-only-tier.test.ts
     - src/core/__tests__/rollout-marker.test.ts
@@ -84,6 +87,7 @@ links:
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/garden/detectors/__tests__/allowlist-drift.test.ts
+    - src/garden/detectors/__tests__/circular-blocked-by.test.ts
     - src/garden/detectors/__tests__/codex-cr-override-audit.test.ts
     - src/garden/detectors/__tests__/fd-link-rot.test.ts
     - src/garden/detectors/__tests__/fd-without-plan.test.ts
@@ -123,7 +127,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a

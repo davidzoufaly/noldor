@@ -16,6 +16,57 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
+### Dashboard Broken-Pages Audit
+
+- id: Q-0027
+- area: tooling
+- type: fix
+- since: 2026-07-11
+- size: M
+- impact: high
+- confidence: low
+
+Many dashboard pages are currently broken, and the live drain-observation view is missing from the main menu (and not working when reached directly). Audit every dashboard route, fix the broken pages, and surface live drain observation as a first-class main-menu item.
+
+### Dashboard Task ID Under Task Title
+
+- id: Q-0028
+- area: tooling
+- type: feat
+- since: 2026-07-11
+- size: XS
+- impact: low
+- confidence: high
+
+In the dashboard table, move the task ID (Q-NNNN) so it renders under the task title instead of its current position — tightens the table layout.
+
+### Dashboard Entry Move-To-Top/Bottom Actions
+
+- id: Q-0029
+- area: tooling
+- type: feat
+- since: 2026-07-11
+- size: S
+- impact: low
+- confidence: med
+
+Remove the global "add entry to the top" / "add entry to the bottom" controls from the roadmap view and replace them with two per-entry buttons in the action column, so any entry can be moved straight to the top or bottom of the priority order.
+
+### Memory-Intake / Lessons-Learned Pipeline
+
+- id: Q-0026
+- area: tooling
+- type: feat
+- since: 2026-07-07
+- size: M
+- impact: med
+- parent: noldor
+- confidence: low
+
+Systemic self-capture so the framework routinely absorbs ephemeral operator/agent knowledge into itself instead of depending on an out-of-repo assistant memory (the 2026-07-07 audit that produced Q-0019..Q-0025 was a one-time manual sweep). Design a lightweight intake: a place to drop a lesson/gotcha, a classifier (shipped-historical drop / gotcha → docs / actionable → roadmap-backlog / feedback → docs), and a `noldor` command that files it. Goal: framework stays self-aware and self-owned with zero dependency on any single assistant's private memory. Speculative — validate the manual sweep pays off before automating.
+
+- Work through all existing Claude memories and fold them directly into the framework (docs/gotchas/runbooks) so the assistant memories are no longer needed.
+
 ### Phase 2 — Enforcement Honesty
 
 ### Phase 3 — Adoption Chain
@@ -42,6 +93,18 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on the tracking dashboard (nodes = entries, edges = blocked-by; highlight cycles flagged by the `circular-blocked-by` garden detector). Split out of the shipped `first-class-blocked-by-field` entry — the data model, validation, and cycle detector landed; the dashboard visualization was deferred as its own larger piece.
 
 ### Framework Self-Ownership
+
+#### Skill-vs-Code Drift Detector
+
+- id: Q-0030
+- area: tooling
+- type: feat
+- since: 2026-07-11
+- size: M
+- impact: med
+- confidence: med
+
+Skills reference CLI commands, `package.json` scripts, and `src/` paths that rot after reorgs (release-sweep needed a full path audit, PR #124; the gate skill body carried the same class of drift). Add a garden detector that scans `.claude/skills/**/SKILL.md` + `templates/.claude/skills/**` for `pnpm <script>` invocations not in `package.json` scripts, `noldor <sub>` commands not in the CLI manifest, and repo-relative paths that don't exist. Carried out of the drained release-sweep-skill-path-audit roadmap entry.
 
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 

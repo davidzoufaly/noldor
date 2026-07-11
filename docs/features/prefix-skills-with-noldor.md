@@ -11,7 +11,6 @@ links:
     - src/core/allowlist.ts
   tests:
     - src/core/__tests__/prefix-skills-codemod.test.ts
-    - src/migrations/__tests__/0.6.0.test.ts
   spec: >-
     docs/superpowers/specs/archive/2026-07-10-prefix-skills-with-noldor-design.md
 name: Prefix Skills with noldor-
