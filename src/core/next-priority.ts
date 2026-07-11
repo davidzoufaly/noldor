@@ -89,6 +89,8 @@ export interface InProgressFd {
   slug: string;
   name: string;
   tier: 'specs-only' | 'full';
+  /** Frontmatter `deps:` refs (slugs or Q-NNNN entry IDs); [] when absent. */
+  deps: string[];
 }
 
 export interface SuggestionsInput {
@@ -225,7 +227,12 @@ export function loadInProgressFds(cwd: string): InProgressFd[] {
     if (parsed.data.phase !== 'in-progress') continue;
     const tier = parsed.data['noldor-tier'];
     if (tier === undefined) continue;
-    out.push({ slug: filename.replace(/\.md$/, ''), name: parsed.data.name, tier });
+    out.push({
+      slug: filename.replace(/\.md$/, ''),
+      name: parsed.data.name,
+      tier,
+      deps: parsed.data.deps,
+    });
   }
   return out;
 }

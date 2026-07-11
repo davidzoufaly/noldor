@@ -1,8 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 
-import { getSuggestions, loadInProgressFds, loadMilestoneGate } from '../core/next-priority.js';
+import {
+  getSuggestions,
+  loadInProgressFds,
+  loadMilestoneGate,
+  type InProgressFd,
+} from '../core/next-priority.js';
 import { loadDocRoots } from '../core/doc-roots.js';
-import { parseRoadmap } from '../utils/parse-blocks.js';
+import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
+import { resolveEntryRef } from '../triage/entry-id.js';
 import { isDrainEligible } from './drain-eligibility.js';
 import { CAPABILITIES } from '../core/agent-runner/capabilities.js';
 import { loadAgentsConfig, resolveRunner } from '../core/agent-runner/registry.js';
@@ -121,7 +127,10 @@ export function roadmapSource(cwd: string): DrainSource {
 
 /**
  * Drains already-designed in-progress FDs. Eligible iff the FD has BOTH a
- * committed spec (`<date>-<slug>-design.md`) and a plan (`<date>-<slug>.md`).
+ * committed spec (`<date>-<slug>-design.md`) and a plan (`<date>-<slug>.md`),
+ * AND none of its frontmatter `deps:` refs still names a queued/unshipped
+ * entry (mirrors roadmapSource's deps-in-queue guard — spawning a dep-blocked
+ * FD lets the gate child fail deliberately and burns `--max-retries`).
  * Eligible FDs are ordered by ascending plan-file date (FIFO — oldest-designed-
  * first). A non-eligible in-progress FD is surfaced with a precise reason so
  * dry-run logs it and the loop skips — never fails, never silently drops — it.
@@ -131,7 +140,8 @@ export function roadmapSource(cwd: string): DrainSource {
 export function plansSource(cwd: string): DrainSource {
   const roots = loadDocRoots(cwd);
   const dispatch = implementerDispatch(cwd);
-  const inProgressSlugs = (): string[] => loadInProgressFds(cwd).map((f) => f.slug);
+  const inProgressFds = (): InProgressFd[] => loadInProgressFds(cwd);
+  const inProgressSlugs = (): string[] => inProgressFds().map((f) => f.slug);
 
   const planDate = (slug: string): string | null => {
     if (!existsSync(roots.plans)) return null;
@@ -154,13 +164,37 @@ export function plansSource(cwd: string): DrainSource {
   return {
     id: 'plans',
     nextItem(skip) {
-      const rows = inProgressSlugs()
-        .filter((slug) => !skip.has(slug))
-        .toSorted((a, b) => a.localeCompare(b)) // deterministic blocked-pick order
-        .map((slug) => ({ slug, date: planDate(slug), spec: hasSpec(slug) }));
+      const fds = inProgressFds();
+      const inProgressSet = new Set(fds.map((f) => f.slug));
+      const roadmapRaw = existsSync(roots.roadmap) ? readFileSync(roots.roadmap, 'utf8') : '';
+      const backlogRaw = existsSync(roots.backlog) ? readFileSync(roots.backlog, 'utf8') : '';
+      const queued = new Set([
+        ...parseRoadmap(roadmapRaw).map((e) => e.slug),
+        ...parseBacklog(backlogRaw).map((e) => e.slug),
+      ]);
+      // A dep is unmet only when it positively resolves to a still-queued entry
+      // or another in-progress FD. An absent ref reads as shipped — fast-track
+      // ships leave no FD behind, so absence must never block. (Self-reference
+      // is excluded defensively, matching roadmapSource.)
+      const unmetDepsOf = (fd: InProgressFd): string[] =>
+        fd.deps
+          .map((ref) =>
+            resolveEntryRef(ref, { roadmapRaw, backlogRaw, featuresDir: roots.features }),
+          )
+          .filter((d) => d !== fd.slug && (queued.has(d) || inProgressSet.has(d)));
+
+      const rows = fds
+        .filter((f) => !skip.has(f.slug))
+        .toSorted((a, b) => a.slug.localeCompare(b.slug)) // deterministic blocked-pick order
+        .map((f) => ({
+          slug: f.slug,
+          date: planDate(f.slug),
+          spec: hasSpec(f.slug),
+          unmetDeps: unmetDepsOf(f),
+        }));
 
       const eligible = rows
-        .filter((r) => r.date !== null && r.spec)
+        .filter((r) => r.date !== null && r.spec && r.unmetDeps.length === 0)
         .toSorted((a, b) => a.date!.localeCompare(b.date!)); // FIFO oldest-plan-first
       if (eligible.length > 0) {
         return { slug: eligible[0]!.slug, description: '', eligible: true };
@@ -176,7 +210,9 @@ export function plansSource(cwd: string): DrainSource {
             ? blocked.spec
               ? 'no plan — specs source (phase 2)'
               : 'no spec or plan — not designed yet'
-            : 'no spec — not eligible (plan present, spec missing)';
+            : !blocked.spec
+              ? 'no spec — not eligible (plan present, spec missing)'
+              : `blocked by unshipped dep(s) still in queue: ${blocked.unmetDeps.join(', ')}`;
         return { slug: blocked.slug, description: '', eligible: false, reason };
       }
       return null;
