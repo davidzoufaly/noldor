@@ -43,21 +43,16 @@ pre-commit:
             glob: '*.{ts,tsx,js,jsx,mjs,cjs}'
             run: pnpm lint
           - name: fmt
-            # glob/exclude narrow the staged set, but oxfmt ALSO applies its own
-            # .oxfmtrc.json ignores (**/*.md, graphify-out/**, lockfiles). When the
-            # staged set resolves to only oxfmt-ignored files, `oxfmt --check` exits 1
-            # with "Expected at least one target file" — a graph-only / lockfile-only
-            # commit would be blocked with nothing actually wrong. The run guard treats
-            # that specific no-target error as a pass; real format failures still block.
+            # oxfmt applies its own .oxfmtrc.json ignores (**/*.md, graphify-out/**,
+            # lockfiles) on top of this glob/exclude. When the staged set resolves to
+            # only ignored files, plain oxfmt exits 1 with "Expected at least one target
+            # file" — a graph-only / lockfile-only commit would be blocked with nothing
+            # wrong. `noldor fmt` wraps oxfmt with the shared no-target guard
+            # (src/core/fmt-guard.ts): that specific error becomes a pass; real format
+            # failures still block.
             glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,yml,yaml}'
             exclude: '(graphify-out/|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)'
-            run: |
-              out="$(pnpm --silent fmt:check {staged_files} 2>&1)" || {
-                printf '%s\n' "$out" | grep -q 'Expected at least one target file' && exit 0
-                printf '%s\n' "$out" >&2
-                exit 1
-              }
-              printf '%s\n' "$out"
+            run: pnpm noldor fmt --check {staged_files}
           - name: shared-files
             run: pnpm noldor checks shared-files
           - name: noldor
