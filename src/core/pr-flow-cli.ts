@@ -5,7 +5,13 @@ import { join } from 'node:path';
 import { readSession, clearSession, type SessionMarker } from './session.js';
 import { loadConfig, type NoldorConfig } from './config.js';
 import { promptSelect } from './prompt-stdin.js';
-import { openAndAutoMerge, type FdSummary, type CrResultSummary, type SpawnFn } from './pr-flow.js';
+import {
+  openAndAutoMerge,
+  type FdSummary,
+  type CrResultSummary,
+  type SpawnFn,
+  type VerifySummary,
+} from './pr-flow.js';
 
 const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
 
@@ -91,6 +97,35 @@ function loadFdSummary(cwd: string, slug: string): FdSummary | null {
     return null;
   }
   return { name: nameMatch[1].trim(), summary: summaryMatch[1].trim() };
+}
+
+/**
+ * Lift the verify lane's verdict + evidence from its code-stage sink so the
+ * PR body can show behavioral proof (acceptance-verify-lane spec item D3).
+ * Best-effort by design: a missing sink (verify lane not in `crLanes.code`),
+ * unreadable JSON, or an off-shape payload all return `null` — the PR body
+ * simply omits the section. The shape check is hand-rolled because the
+ * `core-is-foundation` boundary forbids importing `src/cr/findings-schema.ts`.
+ */
+export function loadVerifyEvidence(cwd: string, slug: string): VerifySummary | null {
+  const sinkPath = join(cwd, '.noldor', 'cr', `${slug}-code-verify.json`);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(sinkPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const sink = parsed as { verdict?: unknown; evidence?: unknown };
+  if (typeof sink.verdict !== 'string') return null;
+  const rawEvidence = Array.isArray(sink.evidence) ? sink.evidence : [];
+  const evidence = rawEvidence.flatMap((e: unknown) => {
+    if (typeof e !== 'object' || e === null) return [];
+    const pair = e as { command?: unknown; observed?: unknown };
+    if (typeof pair.command !== 'string' || typeof pair.observed !== 'string') return [];
+    return [{ command: pair.command, observed: pair.observed }];
+  });
+  return { verdict: sink.verdict, evidence };
 }
 
 function discoverAddedFiles(prefix: string): string[] {
@@ -179,6 +214,7 @@ export async function runCli(cwd: string): Promise<number> {
 
   const fdSlug = session.parent ?? session.slug;
   const fd = fdSlug !== undefined ? loadFdSummary(cwd, fdSlug) : null;
+  const verify = fdSlug !== undefined ? loadVerifyEvidence(cwd, fdSlug) : null;
 
   const planPath = pickMostRecentByDatePrefix(discoverAddedFiles('docs/superpowers/plans/'));
   const specPath = pickMostRecentByDatePrefix(discoverAddedFiles('docs/superpowers/specs/'));
@@ -198,6 +234,7 @@ export async function runCli(cwd: string): Promise<number> {
     specPath,
     planPath,
     crResults,
+    verify,
     headSha,
     firstCommitSubject,
     spawn: nodeSpawn(),

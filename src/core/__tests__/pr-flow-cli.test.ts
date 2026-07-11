@@ -1,6 +1,6 @@
 // @tests: autonomous-plan-to-pr-merge, parallel-drain, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -10,6 +10,7 @@ import {
   normalizeRepoUrl,
   shouldPromptForPrApproval,
   clearMicroChoreSession,
+  loadVerifyEvidence,
 } from '../pr-flow-cli.js';
 import { writeSession } from '../session.js';
 
@@ -168,6 +169,67 @@ describe('clearMicroChoreSession', () => {
     writeSession(dir, marker);
     clearMicroChoreSession(dir, marker);
     expect(existsSync(sessionFile(dir))).toBe(true);
+  });
+});
+
+describe('loadVerifyEvidence', () => {
+  const setup = (): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'prf-'));
+    mkdirSync(join(dir, '.noldor', 'cr'), { recursive: true });
+    return dir;
+  };
+  const sink = (dir: string, slug: string, payload: unknown): void => {
+    writeFileSync(join(dir, '.noldor', 'cr', `${slug}-code-verify.json`), JSON.stringify(payload));
+  };
+
+  it('lifts verdict + evidence pairs from the code-verify sink', () => {
+    const dir = setup();
+    sink(dir, 'my-feature', {
+      lane: 'verify',
+      verdict: 'pass',
+      evidence: [{ command: 'pnpm noldor --help', observed: 'exit 0' }],
+    });
+    expect(loadVerifyEvidence(dir, 'my-feature')).toEqual({
+      verdict: 'pass',
+      evidence: [{ command: 'pnpm noldor --help', observed: 'exit 0' }],
+    });
+  });
+
+  it('returns null when the sink file is absent (verify lane not configured)', () => {
+    expect(loadVerifyEvidence(setup(), 'my-feature')).toBeNull();
+  });
+
+  it('returns null on unparseable JSON', () => {
+    const dir = setup();
+    writeFileSync(join(dir, '.noldor', 'cr', 'my-feature-code-verify.json'), '{nope');
+    expect(loadVerifyEvidence(dir, 'my-feature')).toBeNull();
+  });
+
+  it('returns null when the sink has no string verdict (non-verify lane shape)', () => {
+    const dir = setup();
+    sink(dir, 'my-feature', { lane: 'subagent', blockers: [] });
+    expect(loadVerifyEvidence(dir, 'my-feature')).toBeNull();
+  });
+
+  it('drops malformed evidence entries but keeps well-formed ones', () => {
+    const dir = setup();
+    sink(dir, 'my-feature', {
+      verdict: 'fail',
+      evidence: [{ command: 'curl /', observed: '500' }, { command: 42 }, 'garbage', null],
+    });
+    expect(loadVerifyEvidence(dir, 'my-feature')).toEqual({
+      verdict: 'fail',
+      evidence: [{ command: 'curl /', observed: '500' }],
+    });
+  });
+
+  it('defaults evidence to [] when the sink omits the array (cannot-verify verdicts)', () => {
+    const dir = setup();
+    sink(dir, 'my-feature', { verdict: 'cannot-verify' });
+    expect(loadVerifyEvidence(dir, 'my-feature')).toEqual({
+      verdict: 'cannot-verify',
+      evidence: [],
+    });
   });
 });
 
