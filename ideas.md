@@ -39,6 +39,8 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 #### Later
 
+- One-time migration of the existing Claude assistant memories (~90 files under the per-project memory dir) into the framework via the `/noldor-absorb` loop — fold live-value gotchas/feedback into `docs/noldor/` runbooks, classify shipped-historical markers as `drop`, report which memories are redundant (no source deletion). Split out of `memory-intake-lessons-learned-pipeline` (Q-0026), which shipped the mechanism only.
+
 ### Core Product
 
 #### Now
