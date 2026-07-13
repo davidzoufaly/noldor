@@ -282,5 +282,17 @@ so reviewers see behavioral proof on the PR itself. Missing or off-shape sink
   hard-error.** Despite the gate skill's claim, it silently falls back to the
   subagent lane. Set `crLanes.<kind>` explicitly if you want a specific lane set.
 
+Two more sink/receipt traps:
+
+- **Transient verify-lane `verify dispatch failed: exit -1`.** The verify lane
+  occasionally dies on spawn rather than on substance — re-run the lane once
+  before treating the aggregate as red.
+- **ANY commit after the code-stage CR strips the receipt**, not just an amend —
+  `Noldor-Reviewed-Subagent` is `HEAD^{tree}`, so a post-CR nit-fix commit
+  leaves the tip unreceipted and pre-push rejects. Remove the code sink
+  (`rm .noldor/cr/<slug>-code-*.json`) and re-run
+  `cr orchestrate --kind code --base-sha origin/main` to review the new tree
+  and mint a fresh receipt on the tip.
+
 Sink-file mechanics (stale sink after amend, archive-to-subdir, headless
 overwrite crash) live in [`gotchas.md`](gotchas.md#cr-sinks).

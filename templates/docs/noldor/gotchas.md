@@ -79,3 +79,28 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 - **Manual `pnpm noldor sync fd-resources` rewrites ~26+ drifted FDs on main.**
   Only staged FDs ride commits (via `stage_fixed`); discard the non-staged drift
   with `git checkout -- docs/features/`.
+
+## Shell & tooling traps
+
+- **zsh eats a bare `===` / `====`** inside a compound command (parses as the
+  `==` command → "=== not found"). Quote separator strings: `echo "==="`.
+- **`tsx -e` cannot top-level await** ("not supported with cjs output"). Write
+  a `.mts` script file to the scratchpad and run `pnpm exec tsx <file>.mts`.
+- **`lsof -ti tcp:<port>` matches CLIENT sockets too** (undici keep-alive), so
+  a `kill` on its output can reap the caller itself. Filter listeners:
+  `lsof -ti tcp:<port> -sTCP:LISTEN`.
+- **The literal `**/` inside a JSDoc block comment closes the comment** (it
+  contains `*/`) → esbuild syntax error far from the edit. Reword comments;
+  glob strings in code are fine.
+- **`??` misses empty arrays.** `config.scanPaths ?? fallback` keeps `[]`
+  (the schema default) and skips the fallback — use
+  `x?.length ? x : fallback` when empty-array means "unset".
+- **`pnpm pack --pack-destination` prints an ABSOLUTE tarball path** —
+  `join(dir, output)` doubles it. Guard with `isAbsolute` before joining.
+- **`git checkout <sha> -- <paths>` STAGES the paths** — a later selective
+  `git add` + commit silently picks them all up.
+- **oxlint `--deny-warnings` rejects `new Array(n)`** (unicorn/no-new-array) —
+  use `Array.from({ length: n })`.
+- **Roadmap/backlog block headings are Title-Case names, not slugs** — a grep
+  for the slug finds nothing. Derive the heading from the slug or grep
+  `ideas.md` for its `[triaged → <slug>]` marker.
