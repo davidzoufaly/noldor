@@ -132,6 +132,13 @@ export function detectClones(
         const sb = streams[b.stream]!;
         const na = sa.tokens;
         const nb = sb.tokens;
+        // Left-maximality pre-check FIRST (O(1) vs the O(minTokens) verify
+        // below): a seed whose predecessors also match is an interior window
+        // of a run another seed already covers — drop it whether the window
+        // verifies or is a hash collision; either way the pair is not used.
+        if (a.start > 0 && b.start > 0 && na[a.start - 1]!.norm === nb[b.start - 1]!.norm) {
+          continue;
+        }
         // Hash-collision guard: rolling-hash equality is not window equality.
         let windowsEqual = true;
         for (let k = 0; k < minTokens; k++) {
@@ -141,12 +148,6 @@ export function detectClones(
           }
         }
         if (!windowsEqual) continue;
-        // Left-maximality pre-check: a seed whose predecessors also match is
-        // an interior window of a run another seed already covers; skipping
-        // it turns quadratic re-extension per maximal clone into linear.
-        if (a.start > 0 && b.start > 0 && na[a.start - 1]!.norm === nb[b.start - 1]!.norm) {
-          continue;
-        }
 
         // 3. Greedy extension left/right over normalized tokens.
         let aS = a.start;
