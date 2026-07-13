@@ -47,13 +47,15 @@ export interface SkillDriftFinding {
 export async function detectSkillCodeDrift(repo: string): Promise<SkillDriftFinding[]>
 ```
 
-**Corpus.** Recursive walk of `<repo>/.claude/skills/` and `<repo>/templates/.claude/skills/` collecting `SKILL.md` plus sibling `*.md` reference files (skills ship `references/*.md`). Missing roots are skipped silently (consumer repos may have neither).
+**Corpus.** Recursive walk of `<repo>/.claude/skills/` and `<repo>/templates/.claude/skills/` collecting `SKILL.md` plus sibling `*.md` reference files (skills ship `references/*.md`). Missing roots are skipped silently (consumer repos may have neither). Reuse note: `src/core/validate-skill-catalog.ts` (`listSkillSlugs`) already enumerates `.claude/skills/*/SKILL.md` — reuse it for the SKILL.md leg where it fits; the walk extends it with `templates/` roots and sibling `*.md` files, which that helper does not cover.
 
-**Extraction — per line, fenced-block aware.** The scanner walks lines, tracking fenced-code state (` ``` ` toggles). Tokens are extracted from BOTH prose (inline backticks) and fenced blocks — command snippets live in both.
+**Extraction — code contexts only.** The scanner walks lines, tracking fenced-code state (` ``` ` toggles). Classes 1 and 2 extract ONLY from code contexts — inline backtick spans and fenced-block lines — never from bare prose. This kills the prose-bigram false-positive class outright (e.g. "noldor then does X" in prose can't flag; a `noldor <word>` sequence inside backticks is a command reference by convention). Class 3 is already code-context-limited (backtick spans + markdown link targets).
 
-- **Class 1, pnpm scripts:** regex `\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_.-]+)\b`. The captured name is checked against the union of `package.json` `scripts` keys (read once from `<repo>/package.json`). Skip list: pnpm built-ins (`install`, `add`, `remove`, `exec`, `dlx`, `pack`, `publish`, `test`, `link`, `create`, `why`, `update`, `-*` flag tokens) and `noldor` (handled by class 2). A `pnpm` hit inside a `templates/` twin is checked against the ROOT `package.json` — templates describe consumer repos, but self-host is the only tree we can stat; accepted imprecision, documented in the detector TSDoc.
-- **Class 2, noldor subcommands:** regex `\b(?:pnpm\s+)?noldor\s+([a-z-]+)(?:\s+([a-z][a-z0-9:-]*))?\b` over the same lines. Validate `group` exists as a `MANIFEST` key (static import of `MANIFEST` from `../../cli/manifest.js` — same-repo import, no subprocess). When the group's subs are not the single `''` leaf, also validate the captured `sub`. A missing/flag-like second capture (starts with `-`) validates group-existence only. Skip pseudo-groups used in prose (`noldor` alone, `<sub>` placeholders).
-- **Class 3, repo-relative paths:** candidate tokens are backtick-inline code spans and markdown link targets that (a) contain `/`, (b) match `^(src|docs|scripts|templates|bin|e2e|samples|\.claude|\.github)/` after resolution, or are relative (`../`-prefixed, resolved from the skill file's directory). Resolution: relative targets resolve against the skill file dir then re-relativize to repo root. Check `existsSync`. Skip when the token contains placeholder/glob chars (`<`, `>`, `*`, `{`, `}`, `$`, `NNNN`, `YYYY`), points under transient roots (`.noldor/`, `.worktrees/`, `graphify-out/`, `node_modules/`), or ends with `/` and the directory exists.
+**Suppression marker.** Any line whose content includes `noldor-skill-drift-ignore` (conventionally as an HTML comment, `<!-- noldor-skill-drift-ignore -->`, at end of line or alone on the preceding line) is excluded from all three classes. This is the affordance for *intentional negative references* — e.g. `.claude/skills/noldor-release-sweep/SKILL.md` legitimately documents that `pnpm docs:build` is NOT a script in this repo; that line gets the marker rather than a reword. The marker is deliberately verbose/greppable; each use is self-documenting at the use site.
+
+- **Class 1, pnpm scripts:** regex `\bpnpm\s+(?:run\s+)?([A-Za-z0-9:_.-]+)\b` within code contexts. Validation order: (1) captured name ∈ `package.json` `scripts` keys (read once from `<repo>/package.json`) → OK; (2) else name ∈ pnpm built-in skip list (`install`, `add`, `remove`, `exec`, `dlx`, `pack`, `publish`, `link`, `create`, `why`, `update`, `-*` flag tokens) or `noldor` (class 2's job) → skip; (3) else → finding. Scripts-first ordering means a name that is BOTH a real script and a pnpm builtin (`test`) validates as a script — the skip list can't shadow genuine scripts. A `pnpm` hit inside a `templates/` twin is checked against the ROOT `package.json` — templates describe consumer repos, but self-host is the only tree we can stat; accepted imprecision, documented in the detector TSDoc.
+- **Class 2, noldor subcommands:** regex `\b(?:pnpm\s+)?noldor\s+([a-z-]+)(?:\s+([a-z][a-z0-9:-]*))?\b` within code contexts only. Validate `group` exists as a `MANIFEST` key (static import of `MANIFEST` from `../../cli/manifest.js` — same-repo import, no subprocess). When the group's subs are not the single `''` leaf, also validate the captured `sub`. A missing/flag-like second capture (starts with `-`) validates group-existence only. Skip `<sub>`-style placeholder captures (placeholder chars, same set as class 3).
+- **Class 3, repo-relative paths:** candidate tokens are backtick-inline code spans and markdown link targets that contain `/` and either (a) match `^(src|docs|scripts|templates|bin|e2e|samples|\.claude|\.github)/`, or (b) resolve to an in-repo path from the skill file's directory (covers both `../`-prefixed and same-dir relatives like `references/foo.md`). Resolution: try repo-root-anchored first; else resolve against the skill file dir and re-relativize; a resolution escaping the repo root is skipped. Check `existsSync`. Skip when the token contains placeholder/glob chars (`<`, `>`, `*`, `{`, `}`, `$`, `NNNN`, `YYYY`), points under transient roots (`.noldor/`, `.worktrees/`, `graphify-out/`, `node_modules/`), or ends with `/` and the directory exists.
 
 **Ordering:** findings sorted by `skillPath`, then `line` — deterministic output for tests and diffs.
 
@@ -80,10 +82,11 @@ export async function detectSkillCodeDrift(repo: string): Promise<SkillDriftFind
 1. Skill referencing a `pnpm` script absent from `package.json` → one `pnpm-script` finding; a present script → none.
 2. `pnpm noldor bogus subcmd` → `noldor-subcommand` finding; valid `garden detect` / leaf group (`init`) → none; flag-only tail validates group only.
 3. Backtick path to a missing `src/…` file → `missing-path`; existing path, placeholder (`docs/features/<slug>.md`), glob, and `.noldor/` transient → none.
-4. Relative `../../../src/…` link resolved from skill dir.
-5. Fenced-block extraction: command inside ``` fence is scanned.
-6. Missing `.claude/skills/` root → `[]`.
-7. Self-scan smoke: `detectSkillCodeDrift(<repo root>)` over the real tree returns `[]` (guards both detector precision and the skills themselves; failing hits are fixed in this PR).
+4. Relative `../../../src/…` link resolved from skill dir; same-dir `references/foo.md` link with missing target → `missing-path`.
+5. Fenced-block extraction: command inside ``` fence is scanned; the SAME command in bare prose (no backticks) is NOT scanned (classes 1–2 code-context rule).
+6. Suppression: a line carrying `noldor-skill-drift-ignore` produces no finding for any class.
+7. Missing `.claude/skills/` root → `[]`.
+8. Self-scan smoke: `detectSkillCodeDrift(<repo root>)` over the real tree returns `[]` (guards both detector precision and the skills themselves; hits found while landing this PR are fixed by reword or the suppression marker in the same PR — the known one is `noldor-release-sweep/SKILL.md`'s intentional `pnpm docs:build` negative reference).
 
 Plus one-line assertions in existing `garden-detect` tests that `GardenFindings.skillDrift` is present and `FINDING_CATEGORIES` includes it.
 
@@ -91,13 +94,13 @@ Plus one-line assertions in existing `garden-detect` tests that `GardenFindings.
 
 - `pnpm noldor garden detect --json` emits a `skillDrift` array; introducing a bogus `pnpm nope` / `noldor nope` / dead path into any SKILL.md makes exactly one finding appear with correct `skillPath`, `line`, `kind`, `token`.
 - Placeholders (`<slug>`, `Q-NNNN`, globs) and transient paths produce zero findings.
-- Real-tree self-scan is clean at merge (test 7 enforces).
+- Real-tree self-scan is clean at merge (test 8 enforces; intentional negative references carry the suppression marker).
 - `runGardenDetectViaCli` counts skillDrift findings toward the auto-restamp gate.
 - `pnpm vitest run` + `pnpm typecheck` green; no new module-boundary violation (garden → cli import allowed: `core-is-foundation` restricts `src/core` only, and no existing rule forbids `garden → cli`; verified against `.noldor/config.json` boundaries).
 
 ## Risks / trade-offs
 
-- **False positives in prose** (e.g. a historical mention of a removed script). Mitigated by placeholder/transient skips + the self-scan test forcing a clean baseline; residual hits are advisory-only and cheap to fix or reword.
+- **False positives** across all three classes (prose mentions, intentional negative references, docs of removed commands). Mitigated in layers: classes 1–2 only read code contexts (prose can never flag); the `noldor-skill-drift-ignore` marker suppresses intentional negative references; placeholder/transient skips cover templated tokens; and the self-scan test forces a clean baseline at merge. Residual hits are advisory-only and cheap to fix, reword, or suppress.
 - **Template twins checked against self-host tree** — a template referencing consumer-only scripts would flag. Accepted: templates today mirror self-host skills 1:1 (template-sync check enforces); revisit if consumer-divergent templates appear.
 - **`garden → cli` import direction** is new (manifest import). It's a leaf `const` with no side effects; boundaries config permits it. Alternative (spawn `noldor --help` and parse) rejected: slower, brittler.
 
