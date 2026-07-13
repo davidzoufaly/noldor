@@ -284,7 +284,7 @@ function handleApiMove(): (
     const result = await handleMove({
       path: getRoadmapPath(),
       ifMatch,
-      body: (body ?? {}) as { slug?: unknown; targetIndex?: unknown },
+      body: (body ?? {}) as { slug?: unknown; targetIndex?: unknown; position?: unknown },
     });
     return jsonResult(result.status, result.body, result.body.etag);
   };

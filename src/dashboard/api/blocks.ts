@@ -190,24 +190,36 @@ export async function handleAdd(args: {
 
 /**
  * Reorder one block within `path` to `targetIndex` (0-based among same-section
- * entries). The caller supplies `ifMatch = sha256(currentFileContents)`;
- * mismatch returns 412 to surface a concurrent edit before we clobber.
+ * entries) or to a named `position` (`'top'` = index 0, `'bottom'` = last
+ * index, resolved server-side against the current file so a filtered client
+ * view never has to know the total entry count). Exactly one of
+ * `targetIndex` / `position` must be present. The caller supplies
+ * `ifMatch = sha256(currentFileContents)`; mismatch returns 412 to surface a
+ * concurrent edit before we clobber.
  *
- * Status codes: 200 on write; 400 on bad slug or out-of-range targetIndex;
- * 404 if slug isn't present; 412 on If-Match miss; bubbles other writer
- * errors as 5xx via the caller's try/catch.
+ * Status codes: 200 on write; 400 on bad slug, bad position, or
+ * out-of-range targetIndex; 404 if slug isn't present; 412 on If-Match miss;
+ * bubbles other writer errors as 5xx via the caller's try/catch.
  */
 export async function handleMove(args: {
   path: string;
   ifMatch: string | undefined;
-  body: { slug?: unknown; targetIndex?: unknown };
+  body: { slug?: unknown; targetIndex?: unknown; position?: unknown };
 }): Promise<ApiResult> {
   const { path, ifMatch, body } = args;
 
   if (typeof body.slug !== 'string' || !SLUG_RE.test(body.slug)) {
     return { status: 400, body: { ok: false, error: 'invalid slug' } };
   }
-  if (typeof body.targetIndex !== 'number' || !Number.isInteger(body.targetIndex)) {
+  const hasPosition = body.position !== undefined;
+  if (hasPosition) {
+    if (body.position !== 'top' && body.position !== 'bottom') {
+      return { status: 400, body: { ok: false, error: 'invalid position' } };
+    }
+    if (body.targetIndex !== undefined) {
+      return { status: 400, body: { ok: false, error: 'targetIndex and position are exclusive' } };
+    }
+  } else if (typeof body.targetIndex !== 'number' || !Number.isInteger(body.targetIndex)) {
     return { status: 400, body: { ok: false, error: 'invalid targetIndex' } };
   }
 
@@ -218,9 +230,15 @@ export async function handleMove(args: {
     return { status: 412, body: { ok: false, error: 'etag mismatch' } };
   }
 
+  const targetIndex = hasPosition
+    ? body.position === 'top'
+      ? 0
+      : Math.max(0, countEntries(raw) - 1)
+    : (body.targetIndex as number);
+
   let next: string;
   try {
-    next = moveBlock(raw, body.slug, body.targetIndex);
+    next = moveBlock(raw, body.slug, targetIndex);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/not found/.test(msg)) return { status: 404, body: { ok: false, error: msg } };

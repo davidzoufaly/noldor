@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Dashboard Entry Move-To-Top/Bottom Actions
-
-- id: Q-0029
-- area: tooling
-- type: feat
-- since: 2026-07-11
-- size: S
-- impact: low
-- confidence: med
-
-Remove the global "add entry to the top" / "add entry to the bottom" controls from the roadmap view and replace them with two per-entry buttons in the action column, so any entry can be moved straight to the top or bottom of the priority order.
-
 ### Memory-Intake / Lessons-Learned Pipeline
 
 - id: Q-0026
