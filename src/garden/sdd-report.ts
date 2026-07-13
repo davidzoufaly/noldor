@@ -830,10 +830,8 @@ function renderReportMd(
       `- ${cloneReport.groups.length} clone group(s), ${cloneReport.duplicationPct.toFixed(2)}% duplicated tokens across ${cloneReport.filesScanned} file(s)`,
     );
     for (const g of cloneReport.groups.slice(0, 5)) {
-      const [a, b] = g.instances;
-      lines.push(
-        `- ${a?.file}:${a?.startLine}-${a?.endLine} and ${b?.file}:${b?.startLine}-${b?.endLine} (${g.tokens} tokens)`,
-      );
+      const spans = g.instances.map((i) => `${i.file}:${i.startLine}-${i.endLine}`);
+      lines.push(`- ${spans.join(' and ')} (${g.tokens} tokens)`);
     }
     lines.push('');
   }

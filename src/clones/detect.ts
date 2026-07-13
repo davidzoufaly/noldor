@@ -270,8 +270,37 @@ export function detectClones(
     duplicatedTokens += curE - curS + 1;
   }
 
-  const groups: CloneGroup[] = kept
-    .map((g) => ({ tokens: g.tokens, lines: g.lines, instances: g.inst }))
+  // 8. Class-merge: a block duplicated in n places arrives as C(n,2) pairs;
+  // union pairs sharing an exact token range into one clone class so group
+  // counts scale linearly with copies instead of quadratically.
+  const rangeKey = (r: { file: string; s: number; e: number }): string =>
+    `${r.file}\u0000${r.s}-${r.e}`;
+  const classOf = new Map<string, number>();
+  const classes: Array<{
+    tokens: number;
+    lines: number;
+    members: Map<string, CloneInstance>;
+  }> = [];
+  for (const g of kept) {
+    const keys = g.ranges.map(rangeKey);
+    const hit = keys.map((k) => classOf.get(k)).find((idx) => idx !== undefined);
+    const idx = hit ?? classes.push({ tokens: g.tokens, lines: g.lines, members: new Map() }) - 1;
+    const cls = classes[idx]!;
+    cls.tokens = Math.max(cls.tokens, g.tokens);
+    for (let k = 0; k < keys.length; k++) {
+      classOf.set(keys[k]!, idx);
+      if (!cls.members.has(keys[k]!)) cls.members.set(keys[k]!, g.inst[k]!);
+    }
+  }
+
+  const groups: CloneGroup[] = classes
+    .map((c) => ({
+      tokens: c.tokens,
+      lines: c.lines,
+      instances: [...c.members.values()].sort(
+        (a, b) => a.file.localeCompare(b.file) || a.startLine - b.startLine,
+      ),
+    }))
     .sort(
       (a, b) =>
         b.tokens - a.tokens ||

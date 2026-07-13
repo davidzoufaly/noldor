@@ -69,10 +69,8 @@ function renderSummary(report: CloneReport): string {
     `clones: ${report.groups.length} group(s), ${report.duplicationPct.toFixed(2)}% duplicated tokens across ${report.filesScanned} file(s)`,
   ];
   for (const g of report.groups.slice(0, 10)) {
-    const [a, b] = g.instances;
-    lines.push(
-      `  ${a!.file}:${a!.startLine}-${a!.endLine} and ${b!.file}:${b!.startLine}-${b!.endLine} (${g.tokens} tokens)`,
-    );
+    const spans = g.instances.map((i) => `${i.file}:${i.startLine}-${i.endLine}`);
+    lines.push(`  ${spans.join(' and ')} (${g.tokens} tokens)`);
   }
   return lines.join('\n');
 }

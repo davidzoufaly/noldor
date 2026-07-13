@@ -52,7 +52,7 @@ describe('detectClones', () => {
       ['c.ts', fn('five') + gapLarge + fn('six')],
     ]);
     const crossFile = (r: ReturnType<typeof detectClones>) =>
-      r.groups.filter((g) => g.instances[0]!.file !== g.instances[1]!.file);
+      r.groups.filter((g) => new Set(g.instances.map((i) => i.file)).size > 1);
     const smallPair = detectClones(
       new Map([
         ['a.ts', files.get('a.ts')!],
@@ -134,5 +134,18 @@ describe('detectClones', () => {
       duplicatedTokens: 0,
       duplicationPct: 0,
     });
+  });
+});
+
+describe('clone classes', () => {
+  it('a block duplicated in 3 files yields ONE group with 3 instances', () => {
+    const files = new Map([
+      ['a.ts', fn('first')],
+      ['b.ts', fn('second')],
+      ['c.ts', fn('third')],
+    ]);
+    const report = detectClones(files, OPTS);
+    expect(report.groups).toHaveLength(1);
+    expect(report.groups[0]!.instances.map((i) => i.file)).toEqual(['a.ts', 'b.ts', 'c.ts']);
   });
 });

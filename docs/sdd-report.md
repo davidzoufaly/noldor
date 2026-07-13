@@ -17,10 +17,10 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Code clones
 
-- 432 clone group(s), 13.39% duplicated tokens across 283 file(s)
+- 280 clone group(s), 13.32% duplicated tokens across 283 file(s)
 - src/garden/garden-detect.ts:97-203 and src/garden/garden-detect.ts:220-326 (388 tokens)
 - src/dashboard/views.ts:748-799 and src/dashboard/views.ts:826-925 (269 tokens)
-- src/dashboard/data.ts:1058-1089 and src/garden/sdd-report.ts:906-941 (259 tokens)
+- src/dashboard/data.ts:1058-1089 and src/garden/sdd-report.ts:908-943 (259 tokens)
 - src/dashboard/views.ts:667-676 and src/dashboard/views.ts:935-944 (252 tokens)
 - src/sync/sync-code-links.ts:13-59 and src/sync/sync-test-links.ts:8-56 (227 tokens)
 
@@ -68,8 +68,12 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
 {
   "perLane": {
     "subagent": {
-      "blockers": 11,
-      "suggestions": 22
+      "blockers": 15,
+      "suggestions": 30
+    },
+    "verify": {
+      "blockers": 0,
+      "suggestions": 0
     }
   },
   "correctiveBySlug": {},
@@ -89,7 +93,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
     "salvaged": 0,
     "escalatedTotal": 0,
     "escalatedBySlug": {},
-    "meanDurationMs": 120243
+    "meanDurationMs": 137050
   }
 }
 ```
@@ -129,6 +133,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Done features missing introduced
 
+- `code-clone-detector` — Code-Clone Detector is phase=done but introduced is unset (release script should fill on next pnpm release)
 - `dashboard-blocked-by-graph-view` — Dashboard Blocked-By Graph View is phase=done but introduced is unset (release script should fill on next pnpm release)
 - `dashboard-broken-pages-audit` — Dashboard Broken-Pages Audit is phase=done but introduced is unset (release script should fill on next pnpm release)
 - `memory-intake-lessons-learned-pipeline` — Memory-Intake / Lessons-Learned Pipeline is phase=done but introduced is unset (release script should fill on next pnpm release)
@@ -140,10 +145,6 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Code files not referenced by any feature
 
-- `src/clones/clones-cli.ts` — src/clones/clones-cli.ts is not referenced by any feature MD links.code
-- `src/clones/detect.ts` — src/clones/detect.ts is not referenced by any feature MD links.code
-- `src/clones/tokenize.ts` — src/clones/tokenize.ts is not referenced by any feature MD links.code
-- `src/core/config.ts` — src/core/config.ts is not referenced by any feature MD links.code
 - `src/core/fmt-guard-cli.ts` — src/core/fmt-guard-cli.ts is not referenced by any feature MD links.code
 - `src/core/fmt-guard.ts` — src/core/fmt-guard.ts is not referenced by any feature MD links.code
 - `src/core/init-gitignore.ts` — src/core/init-gitignore.ts is not referenced by any feature MD links.code
