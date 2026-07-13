@@ -6,7 +6,7 @@ import { loadConfigSync } from '../core/config.js';
 import { runDrain, type DrainDeps, type DrainResult } from './drain-loop.js';
 import { roadmapSource } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
-import { detachWatch } from './watch-detach.js';
+import { detachWatch, WATCH_LOG_REL } from './watch-detach.js';
 import { writeState, projectDrainState } from './drain-state.js';
 import { makePhaseTap } from './phase-events.js';
 import {
@@ -284,10 +284,23 @@ async function main(): Promise<void> {
       // outcome totals. The ambient env copy feeds salvage + nested spawns.
       const runId = `${new Date().toISOString()}.${String(process.pid)}`;
       process.env.NOLDOR_RUN_ID = runId;
+      // Attached (foreground) watch tees child output into the shared watch log for
+      // the dashboard's live drain pane; the detached daemon's stdio is already
+      // redirected into that file, so its children must not tee (double lines).
+      const logSink =
+        process.env.NOLDOR_WATCH_DETACHED === '1' ? undefined : join(cwd, WATCH_LOG_REL);
       const deps: DrainDeps = {
         source,
         spawnGate: (env, timeoutMs, prompt, onSpawn, slug) =>
-          spawnGate(cwd, { ...env, NOLDOR_RUN_ID: runId }, timeoutMs, prompt, onSpawn, slug),
+          spawnGate(
+            cwd,
+            { ...env, NOLDOR_RUN_ID: runId },
+            timeoutMs,
+            prompt,
+            onSpawn,
+            slug,
+            logSink,
+          ),
         syncMainCleanState: () => syncMainCleanState(cwd),
         mergePr: (slug, branch) => mergePr(cwd, slug, branch),
         openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),

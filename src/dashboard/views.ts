@@ -10,6 +10,7 @@ import type {
   AgentActivity,
   AgentRunGroup,
   LiveAgentRow,
+  DrainObservation,
   DashboardCounts,
   FeatureDetail,
   FeatureRecord,
@@ -1444,7 +1445,7 @@ function renderInboxRows(inbox: AgentActivity['inbox']): string {
  * patches `#agents-live-body`, `#agents-inbox-body` and both counters in
  * place every ~2s; first paint is fully server-side (no-JS safe).
  */
-export function renderAgents(activity: AgentActivity): string {
+export function renderAgents(activity: AgentActivity, drain: DrainObservation): string {
   const counterStrip = `<div class="counter-strip">
     <div class="counter"><div class="v" id="agents-live-count">${activity.live.length}</div><div class="l">running</div></div>
     <div class="counter"><div class="v">${activity.runs.length}</div><div class="l">runs</div></div>
@@ -1464,6 +1465,7 @@ export function renderAgents(activity: AgentActivity): string {
   </table>`;
   return `<h1>Agents</h1>
   ${counterStrip}
+  ${renderDrainSection(drain)}
   <h2>Live board</h2>
   <p class="muted">Self-refreshes every ~2s via <code>/api/agents</code>. Log links tail the shared <code>.noldor/watch.log</code>.</p>
   ${liveTable}
@@ -1473,16 +1475,84 @@ export function renderAgents(activity: AgentActivity): string {
   ${inboxTable}`;
 }
 
+/** One-line drain status summary — patched in place by the /agents poller. */
+export function drainStatusLine(state: DrainObservation['state']): string {
+  if (state === null) return 'no drain recorded';
+  const parts = [
+    `drain ${state.pidAlive ? 'running' : 'dead'} (pid ${String(state.pid)})`,
+    `phase ${state.phase}`,
+    `shipped ${String(state.shipped)}`,
+    `started ${state.startedAt}`,
+  ];
+  if (state.merging !== null) parts.push(`merging ${state.merging}`);
+  if (state.skip.length > 0) parts.push(`skipped: ${state.skip.join(', ')}`);
+  return parts.join(' · ');
+}
+
+/** In-flight tbody rows (slug → phase → retries); exported for the poller's server-side twin tests. */
+export function renderDrainInFlightRows(state: DrainObservation['state']): string {
+  if (state === null || state.inFlight.length === 0) {
+    return `<tr><td colspan="3" class="empty">nothing in flight</td></tr>`;
+  }
+  return state.inFlight
+    .map(
+      (f) => `<tr>
+        <td><a href="/features/${encodeURIComponent(f.slug)}">${escapeHtml(f.slug)}</a></td>
+        <td>${escapeHtml(f.phase)}</td>
+        <td>${String(state.retries[f.slug] ?? 0)}</td>
+      </tr>`,
+    )
+    .join('');
+}
+
+/** Parked tbody rows (entry → reason → since). */
+export function renderDrainParkedRows(parked: DrainObservation['parked']): string {
+  if (parked.length === 0) {
+    return `<tr><td colspan="3" class="empty">nothing parked</td></tr>`;
+  }
+  return parked
+    .map(
+      (p) => `<tr>
+        <td><code>${escapeHtml(p.source)}:${escapeHtml(p.slug)}</code></td>
+        <td>${escapeHtml(p.reason)}</td>
+        <td>${escapeHtml(p.ts)}</td>
+      </tr>`,
+    )
+    .join('');
+}
+
+/** Copy shown in the log pane before any drain has written the shared log. */
+export const DRAIN_LOG_EMPTY_COPY = 'no watch log yet — appears once a drain starts';
+
+/**
+ * The /agents Drain section: status line, in-flight + parked tables, and the
+ * auto-tailing shared-log pane. Every dynamic element carries an id the
+ * `/static/agents.js` poller patches in place (~2s).
+ */
+export function renderDrainSection(drain: DrainObservation): string {
+  return `<h2>Drain</h2>
+  <p class="muted" id="drain-status">${escapeHtml(drainStatusLine(drain.state))}</p>
+  <table>
+    <thead><tr><th>In flight</th><th>Phase</th><th>Retries</th></tr></thead>
+    <tbody id="drain-inflight-body">${renderDrainInFlightRows(drain.state)}</tbody>
+  </table>
+  <h3>Parked</h3>
+  <table>
+    <thead><tr><th>Entry</th><th>Reason</th><th>Since</th></tr></thead>
+    <tbody id="drain-parked-body">${renderDrainParkedRows(drain.parked)}</tbody>
+  </table>
+  <h3>Live log</h3>
+  <p class="muted">Shared <code>.noldor/watch.log</code> — tail auto-refreshes every ~2s. <a href="/agents/log">Full page</a>.</p>
+  <pre id="drain-log-pane" class="drain-log">${escapeHtml(drain.logTail ?? DRAIN_LOG_EMPTY_COPY)}</pre>`;
+}
+
 /**
  * Render the /agents/log tail. The log is SHARED across agents (children run
  * stdio-inherit — spec D3): rows interleave at K>1, labelled as such.
  */
 export function renderAgentsLog(tail: string | null): string {
-  const back = `<p><a href="/agents">← back to agents</a> · <code>.noldor/watch.log</code> <span class="muted">(shared across agents — rows interleave at K&gt;1)</span></p>`;
-  if (tail === null) {
-    return `<h1>Watch log</h1>${back}<p class="empty">no watch log — drain running attached?</p>`;
-  }
-  return `<h1>Watch log</h1>${back}<pre>${escapeHtml(tail)}</pre>`;
+  const back = `<p><a href="/agents">← back to agents</a> · <code>.noldor/watch.log</code> <span class="muted">(shared across agents — rows interleave at K&gt;1; tail auto-refreshes every ~2s)</span></p>`;
+  return `<h1>Watch log</h1>${back}<pre id="drain-log-pane" class="drain-log">${escapeHtml(tail ?? DRAIN_LOG_EMPTY_COPY)}</pre>`;
 }
 
 /**

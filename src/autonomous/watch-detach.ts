@@ -77,7 +77,10 @@ export function detachWatch(
     cwd,
     detached: true,
     stdio: ['ignore', fd, fd],
-    env: process.env,
+    // Marker read by the drain loop's logSink wiring: this child's whole stdio
+    // already lands in WATCH_LOG_REL via the fd redirect above, so its gate
+    // children must NOT tee (every line would appear twice).
+    env: { ...process.env, NOLDOR_WATCH_DETACHED: '1' },
   });
   child.unref();
 

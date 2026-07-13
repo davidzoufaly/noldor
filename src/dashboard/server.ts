@@ -13,6 +13,7 @@ import {
   loadMilestoneGroups,
   loadBacklogWithHash,
   loadCounts,
+  loadDrainObservation,
   loadFeatureDetail,
   loadFeatureGitTimestamps,
   loadFeatures,
@@ -114,39 +115,48 @@ interface RouteMatch {
   pathParams: Record<string, string>;
 }
 
+const STATIC_GET_HANDLERS: Record<string, RouteMatch['handler']> = {
+  '/health': async () => ({ status: 200, body: 'OK', title: 'health', activeNav: null }),
+  '/': handleOverview,
+  '/vision': handleVision,
+  '/milestones': handleMilestones,
+  '/roadmap': handleRoadmap,
+  '/backlog': handleBacklog,
+  '/features': handleFeatures,
+  '/gaps': handleGaps,
+  '/velocity': handleVelocity,
+  '/hot-zones': handleHotZones,
+  '/wip-age': handleWipAge,
+  '/test-pyramid': handleTestPyramid,
+  '/graph-health': handleGraphHealth,
+  '/worktrees': handleWorktrees,
+  '/api/agents': handleApiAgents,
+  '/agents': handleAgents,
+  '/agents/log': handleAgentsLog,
+  '/metrics': handleMetrics,
+  '/framework': handleFrameworkIndex,
+  '/skills': handleSkillsIndex,
+  '/docs': handleUserDocsIndex,
+  '/release-notes': handleReleaseNotes,
+};
+
+/**
+ * Every static GET path the dashboard serves — sourced from the SAME map the
+ * router dispatches on, so the route-sweep regression test can't drift from
+ * the real routing table.
+ */
+export const GET_ROUTES: string[] = Object.keys(STATIC_GET_HANDLERS);
+
 function matchRoute(method: string, pathname: string): RouteMatch | null {
   if (method === 'GET') {
-    if (pathname === '/health') {
-      return {
-        handler: async () => ({ status: 200, body: 'OK', title: 'health', activeNav: null }),
-        pathParams: {},
-      };
-    }
-    if (pathname === '/') return { handler: handleOverview, pathParams: {} };
-    if (pathname === '/vision') return { handler: handleVision, pathParams: {} };
-    if (pathname === '/milestones') return { handler: handleMilestones, pathParams: {} };
-    if (pathname === '/roadmap') return { handler: handleRoadmap, pathParams: {} };
-    if (pathname === '/backlog') return { handler: handleBacklog, pathParams: {} };
-    if (pathname === '/features') return { handler: handleFeatures, pathParams: {} };
-    if (pathname === '/gaps') return { handler: handleGaps, pathParams: {} };
-    if (pathname === '/velocity') return { handler: handleVelocity, pathParams: {} };
-    if (pathname === '/hot-zones') return { handler: handleHotZones, pathParams: {} };
-    if (pathname === '/wip-age') return { handler: handleWipAge, pathParams: {} };
-    if (pathname === '/test-pyramid') return { handler: handleTestPyramid, pathParams: {} };
-    if (pathname === '/graph-health') return { handler: handleGraphHealth, pathParams: {} };
-    if (pathname === '/worktrees') return { handler: handleWorktrees, pathParams: {} };
-    if (pathname === '/api/agents') return { handler: handleApiAgents, pathParams: {} };
-    if (pathname === '/agents') return { handler: handleAgents, pathParams: {} };
-    if (pathname === '/agents/log') return { handler: handleAgentsLog, pathParams: {} };
-    if (pathname === '/metrics') return { handler: handleMetrics, pathParams: {} };
-    if (pathname === '/framework') return { handler: handleFrameworkIndex, pathParams: {} };
+    const staticHandler = Object.hasOwn(STATIC_GET_HANDLERS, pathname)
+      ? STATIC_GET_HANDLERS[pathname]
+      : undefined;
+    if (staticHandler) return { handler: staticHandler, pathParams: {} };
     const fwMatch = /^\/framework\/([a-z0-9-]+)$/.exec(pathname);
     if (fwMatch) return { handler: handleFrameworkPage, pathParams: { slug: fwMatch[1] } };
-    if (pathname === '/skills') return { handler: handleSkillsIndex, pathParams: {} };
     const skillMatch = /^\/skills\/([a-z0-9-]+)$/.exec(pathname);
     if (skillMatch) return { handler: handleSkillPage, pathParams: { slug: skillMatch[1] } };
-    if (pathname === '/docs') return { handler: handleUserDocsIndex, pathParams: {} };
-    if (pathname === '/release-notes') return { handler: handleReleaseNotes, pathParams: {} };
     const docsDocMatch = /^\/docs\/(tutorials|how-to|reference|explanation)\/([a-z0-9-]+)$/.exec(
       pathname,
     );
@@ -770,14 +780,20 @@ async function handleWorktrees(): Promise<RouteResult> {
 
 /** Read-only JSON for the /agents poller — no CSRF/atomic concerns (mutations only). */
 async function handleApiAgents(): Promise<RouteResult> {
-  return jsonResult(200, await loadAgentActivity());
+  // Drain observation is read first so its parsed retries feed loadAgentActivity —
+  // one drain-state.json read per poll. `?? {}` (not undefined) even when no drain
+  // is recorded, so the fallback read never fires on this path.
+  const drain = await loadDrainObservation();
+  const activity = await loadAgentActivity(undefined, { retries: drain.state?.retries ?? {} });
+  return jsonResult(200, { ...activity, drain });
 }
 
 async function handleAgents(): Promise<RouteResult> {
-  const activity = await loadAgentActivity();
+  const drain = await loadDrainObservation();
+  const activity = await loadAgentActivity(undefined, { retries: drain.state?.retries ?? {} });
   return {
     status: 200,
-    body: renderAgents(activity),
+    body: renderAgents(activity, drain),
     title: 'Agents',
     activeNav: '/agents',
   };

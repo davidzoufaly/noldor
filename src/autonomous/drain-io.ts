@@ -226,6 +226,7 @@ export async function spawnGate(
   prompt: string,
   onSpawn?: (pgid: number) => void,
   slug?: string,
+  logSink?: string,
 ): Promise<number> {
   const r = await spawnAgent(prompt, {
     role: 'implementer',
@@ -237,6 +238,7 @@ export async function spawnGate(
     site: 'drain.spawnGate',
     onSpawn,
     slug,
+    ...(logSink !== undefined ? { logSink } : {}),
   });
   if (r.timedOut) throw new Error('iteration-timeout'); // per-entry failure → retry/skip
   return r.exitCode;

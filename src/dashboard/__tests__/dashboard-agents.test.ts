@@ -5,10 +5,23 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadAgentActivity, loadWatchLogTail, NO_RUN_ID, type AgentActivity } from '../data.js';
+import {
+  loadAgentActivity,
+  loadDrainObservation,
+  loadWatchLogTail,
+  NO_RUN_ID,
+  type AgentActivity,
+  type DrainObservation,
+} from '../data.js';
 import { startServer } from '../server.js';
-import { renderAgents, renderAgentsLog } from '../views.js';
-import { formatRuntime } from '../static/agents.js';
+import {
+  DRAIN_LOG_EMPTY_COPY,
+  drainStatusLine,
+  renderAgents,
+  renderAgentsLog,
+  renderDrainSection,
+} from '../views.js';
+import { drainStatusText, formatRuntime } from '../static/agents.js';
 
 import type { Server } from 'node:http';
 
@@ -358,10 +371,29 @@ const sampleActivity: AgentActivity = {
   ],
 };
 
+const emptyDrain: DrainObservation = { state: null, parked: [], logTail: null };
+
+const sampleDrain: DrainObservation = {
+  state: {
+    pid: 4242,
+    pidAlive: true,
+    startedAt: T0,
+    phase: 'spawning',
+    inFlight: [{ slug: 'feat-a', phase: 'building' }],
+    merging: null,
+    shipped: 2,
+    skip: ['feat-z'],
+    retries: { 'feat-a': 1 },
+  },
+  parked: [{ slug: 'feat-p', source: 'roadmap', reason: 'retries-exhausted', ts: T0 }],
+  logTail: 'cycle start\nspawn feat-a <ok>',
+};
+
 describe('renderAgents', () => {
-  it('renders the three sections with poller anchor ids', () => {
-    const html = renderAgents(sampleActivity);
+  it('renders the four sections with poller anchor ids', () => {
+    const html = renderAgents(sampleActivity, emptyDrain);
     expect(html).toContain('<h1>Agents</h1>');
+    expect(html).toContain('<h2>Drain</h2>');
     expect(html).toContain('Live board');
     expect(html).toContain('Run timeline');
     expect(html).toContain('Escalation inbox');
@@ -369,10 +401,14 @@ describe('renderAgents', () => {
     expect(html).toContain('id="agents-inbox-body"');
     expect(html).toContain('id="agents-live-count"');
     expect(html).toContain('id="agents-inbox-count"');
+    expect(html).toContain('id="drain-status"');
+    expect(html).toContain('id="drain-inflight-body"');
+    expect(html).toContain('id="drain-parked-body"');
+    expect(html).toContain('id="drain-log-pane"');
   });
 
   it('renders live rows with slug link, lane, phase, runtime, retries and a log link', () => {
-    const html = renderAgents(sampleActivity);
+    const html = renderAgents(sampleActivity, emptyDrain);
     expect(html).toContain('href="/features/feat-a"');
     expect(html).toContain('drain.spawnGate');
     expect(html).toContain('building');
@@ -381,7 +417,7 @@ describe('renderAgents', () => {
   });
 
   it('renders timeline bars with outcome classes and a totals line', () => {
-    const html = renderAgents(sampleActivity);
+    const html = renderAgents(sampleActivity, emptyDrain);
     expect(html).toContain('agents-bar--ok');
     expect(html).toContain('agents-bar--failed');
     expect(html).toContain('<code>r-1</code>');
@@ -389,7 +425,7 @@ describe('renderAgents', () => {
   });
 
   it('renders inbox rows mirroring the CLI columns', () => {
-    const html = renderAgents(sampleActivity);
+    const html = renderAgents(sampleActivity, emptyDrain);
     expect(html).toContain('roadmap');
     expect(html).toContain('feat-c');
     expect(html).toContain('retries-exhausted');
@@ -397,7 +433,7 @@ describe('renderAgents', () => {
   });
 
   it('renders empty states for no live agents, no runs, and an empty inbox', () => {
-    const html = renderAgents({ live: [], runs: [], inbox: [] });
+    const html = renderAgents({ live: [], runs: [], inbox: [] }, emptyDrain);
     expect(html).toContain('no agents running');
     expect(html).toContain('no recorded runs');
     expect(html).toContain('inbox empty');
@@ -416,24 +452,116 @@ describe('renderAgents', () => {
       runs: [],
       inbox: [],
     };
-    const html = renderAgents(evil);
+    const html = renderAgents(evil, emptyDrain);
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;');
   });
 });
 
 describe('renderAgentsLog', () => {
-  it('renders the friendly empty state when the log is absent', () => {
+  it('renders the empty-state copy inside the poller-patchable pane when the log is absent', () => {
     const html = renderAgentsLog(null);
-    expect(html).toContain('no watch log — drain running attached?');
-    expect(html).not.toContain('<pre>');
+    expect(html).toContain(DRAIN_LOG_EMPTY_COPY);
+    expect(html).toContain('id="drain-log-pane"');
   });
 
   it('renders the tail inside a pre, escaped', () => {
     const html = renderAgentsLog('cycle done <ok>');
-    expect(html).toContain('<pre>');
+    expect(html).toContain('id="drain-log-pane"');
     expect(html).toContain('cycle done &lt;ok&gt;');
     expect(html).toContain('shared');
+  });
+});
+
+// @tests: dashboard-broken-pages-audit
+describe('drain observation (loadDrainObservation + drain section rendering)', () => {
+  it('loads state, parked (key split), and log tail from .noldor files', async () => {
+    const dir = eventsFixture([]);
+    writeFileSync(
+      join(dir, '.noldor', 'drain-state.json'),
+      JSON.stringify({
+        pid: 4242,
+        startedAt: T0,
+        phase: 'spawning',
+        inFlight: [{ slug: 'feat-a', phase: 'building' }],
+        merging: null,
+        currentSlug: 'feat-a',
+        shipped: 2,
+        skip: ['feat-z'],
+        retries: { 'feat-a': 1 },
+      }),
+    );
+    writeFileSync(
+      join(dir, '.noldor', 'drain-park.json'),
+      JSON.stringify({ 'roadmap:feat-p': { reason: 'retries-exhausted', ts: T0 } }),
+    );
+    writeFileSync(join(dir, '.noldor', 'watch.log'), 'line-1\nline-2\n', 'utf8');
+    const obs = await loadDrainObservation(dir, { isPidAlive: () => true });
+    expect(obs.state).toMatchObject({
+      pid: 4242,
+      pidAlive: true,
+      phase: 'spawning',
+      shipped: 2,
+      merging: null,
+      skip: ['feat-z'],
+    });
+    expect(obs.state!.inFlight).toEqual([{ slug: 'feat-a', phase: 'building' }]);
+    expect(obs.parked).toEqual([
+      { source: 'roadmap', slug: 'feat-p', reason: 'retries-exhausted', ts: T0 },
+    ]);
+    expect(obs.logTail).toContain('line-1');
+  });
+
+  it('is failure-tolerant: no files → null state, empty park, null tail', async () => {
+    const dir = eventsFixture([]);
+    const obs = await loadDrainObservation(dir, { isPidAlive: () => true });
+    expect(obs).toEqual({ state: null, parked: [], logTail: null });
+  });
+
+  it('marks a dead drain pid via the injected liveness probe', async () => {
+    const dir = eventsFixture([]);
+    writeFileSync(
+      join(dir, '.noldor', 'drain-state.json'),
+      JSON.stringify({
+        pid: 9,
+        startedAt: T0,
+        phase: 'idle',
+        inFlight: [],
+        merging: null,
+        currentSlug: null,
+        shipped: 0,
+        skip: [],
+        retries: {},
+      }),
+    );
+    const obs = await loadDrainObservation(dir, { isPidAlive: () => false });
+    expect(obs.state!.pidAlive).toBe(false);
+  });
+
+  it('renders the drain section with status, in-flight retries, parked rows and the log pane', () => {
+    const html = renderDrainSection(sampleDrain);
+    expect(html).toContain('drain running (pid 4242)');
+    expect(html).toContain('phase spawning');
+    expect(html).toContain('shipped 2');
+    expect(html).toContain('skipped: feat-z');
+    expect(html).toContain('href="/features/feat-a"');
+    expect(html).toContain('<code>roadmap:feat-p</code>');
+    expect(html).toContain('retries-exhausted');
+    // log tail is escaped into the pane
+    expect(html).toContain('spawn feat-a &lt;ok&gt;');
+  });
+
+  it('renders explicit empty states when nothing is recorded', () => {
+    const html = renderDrainSection(emptyDrain);
+    expect(html).toContain('no drain recorded');
+    expect(html).toContain('nothing in flight');
+    expect(html).toContain('nothing parked');
+    expect(html).toContain(DRAIN_LOG_EMPTY_COPY);
+  });
+
+  it('drainStatusText (poller) mirrors the server-side drainStatusLine', () => {
+    expect(drainStatusText(sampleDrain.state)).toBe(drainStatusLine(sampleDrain.state));
+    expect(drainStatusText(null)).toBe(drainStatusLine(null));
   });
 });
 
@@ -472,6 +600,18 @@ describe('GET /agents + /agents/log', () => {
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain('Watch log');
+    expect(body).toContain('id="drain-log-pane"');
+  });
+
+  it('renders the Drain section on /agents and ships drain in the /api/agents payload', async () => {
+    const page = await (await fetch(`${baseUrl}/agents`)).text();
+    expect(page).toContain('<h2>Drain</h2>');
+    expect(page).toContain('id="drain-status"');
+    const api = (await (await fetch(`${baseUrl}/api/agents`)).json()) as {
+      drain?: { parked: unknown[]; logTail: string | null };
+    };
+    expect(api.drain).toBeDefined();
+    expect(Array.isArray(api.drain!.parked)).toBe(true);
   });
 
   it('GET /static/agents.js returns the compiled poller', async () => {

@@ -1,6 +1,6 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createWriteStream, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { appendAgentEvent } from '../agent-events.js';
 import { CAPABILITIES } from './capabilities.js';
@@ -123,7 +123,12 @@ export function spawnAgent(
   // call-site changes. Do not "fix" this onto the prompt.
   const runId = opts.env?.NOLDOR_RUN_ID ?? process.env.NOLDOR_RUN_ID;
   return new Promise<AgentResult>((resolve, reject) => {
-    const outMode = opts.stdio === 'inherit' ? 'inherit' : 'pipe';
+    // Tee mode (logSink): both output streams piped, chunks forwarded to the
+    // parent's stdio AND appended to the sink file — never accumulated into
+    // `result.stdout` (the `'' under inherit` contract holds for tee callers).
+    const tee = opts.logSink !== undefined;
+    const outMode = !tee && opts.stdio === 'inherit' ? 'inherit' : 'pipe';
+    const errMode = tee ? 'pipe' : 'inherit';
     const child = spawnImpl(plan.bin, plan.argv, {
       cwd: opts.cwd,
       env: opts.env ? { ...process.env, ...opts.env } : process.env,
@@ -131,9 +136,25 @@ export function spawnAgent(
       // so a group-kill (`process.kill(-pgid)`) reaches the real agent process the CLI spawns
       // — not just the thin wrapper. Without it, a runner SIGKILL orphans the grandchild.
       detached: true,
-      // stdin owned by prompt delivery; stdout per opts.stdio; stderr always live.
-      stdio: [plan.promptVia === 'stdin' ? 'pipe' : 'ignore', outMode, 'inherit'],
+      // stdin owned by prompt delivery; stdout per opts.stdio (tee forces pipe);
+      // stderr live unless tee needs a copy of it too.
+      stdio: [plan.promptVia === 'stdin' ? 'pipe' : 'ignore', outMode, errMode],
     });
+    let sink = tee ? createWriteStream(opts.logSink!, { flags: 'a' }) : null;
+    if (sink) {
+      sink.on('error', (err: Error) => {
+        process.stderr.write(`agent-runner: logSink write failed (dropped): ${err.message}\n`);
+        sink = null;
+      });
+      child.stdout?.on('data', (chunk: Buffer) => {
+        process.stdout.write(chunk);
+        sink?.write(chunk);
+      });
+      child.stderr?.on('data', (chunk: Buffer) => {
+        process.stderr.write(chunk);
+        sink?.write(chunk);
+      });
+    }
     // pgid === child.pid under `detached: true`. Surface it so the drain loop can record
     // it for the next run's orphan-reap (spec Unit 2 carrier). Guard: a spawn that never got
     // a pid (immediate ENOENT, surfaced via 'error') has `child.pid === undefined`.
@@ -180,15 +201,19 @@ export function spawnAgent(
             killTree();
           }, opts.timeoutMs)
         : null;
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8');
-    });
+    if (!tee) {
+      child.stdout?.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8');
+      });
+    }
     child.on('error', (err) => {
       if (timer) clearTimeout(timer);
+      sink?.end();
       reject(new Error(`spawn-failed: ${err.message}`));
     });
     child.on('close', (code) => {
       if (timer) clearTimeout(timer);
+      sink?.end();
       const exitCode = code ?? -1;
       const usage = USAGE_ADAPTERS[resolved.runner]({ cwd, startedAtMs: started });
       appendAgentEvent(cwd, {

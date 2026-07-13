@@ -31,6 +31,7 @@ import {
 } from './drain-reconcile.js';
 import { makeSalvage } from './salvage.js';
 import { applyCycleVerdict, loadPark, mapCycle, parkAwareSource } from './escalations.js';
+import { WATCH_LOG_REL } from './watch-detach.js';
 
 export interface ParsedArgs {
   maxFeatures: number;
@@ -176,10 +177,16 @@ async function main(): Promise<void> {
   }
 
   const drainSource = parkAwareSource(source, () => loadPark(cwd));
+  // Attached runs tee child output into the shared watch log so the dashboard's
+  // live drain pane works in every mode. The detached watch daemon already has
+  // whole-process stdio redirected into the same file (watch-detach.ts) and
+  // marks its children via NOLDOR_WATCH_DETACHED — skip the tee there or every
+  // line would land twice.
+  const logSink = process.env.NOLDOR_WATCH_DETACHED === '1' ? undefined : join(cwd, WATCH_LOG_REL);
   const deps: DrainDeps = {
     source: drainSource,
     spawnGate: (env, timeoutMs, prompt, onSpawn, slug) =>
-      spawnGate(cwd, { ...env, NOLDOR_RUN_ID: runId }, timeoutMs, prompt, onSpawn, slug),
+      spawnGate(cwd, { ...env, NOLDOR_RUN_ID: runId }, timeoutMs, prompt, onSpawn, slug, logSink),
     syncMainCleanState: () => syncMainCleanState(cwd),
     mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
