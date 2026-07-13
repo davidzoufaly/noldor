@@ -49,7 +49,11 @@ export interface BlockedByGraph {
 }
 ```
 
-Reads `docs/roadmap.md` + `docs/backlog.md` (same `readFile` + `parseRoadmapBlocks`/`parseBacklog` pattern the existing loaders use — cf. `parseRoadmapFromString` at `src/dashboard/data.ts:280`). Ref resolution copies the detector's rule: `Q-id → slug` map first, then slug identity; a ref resolving to nothing becomes a `dangling` edge (rendered distinctly, since `unknown-blocked-by-ref` validation is advisory). Cycles come from calling `findBlockedByCycles(roadmapRaw, backlogRaw)` directly — single source of truth with the garden detector; no reimplementation. Nodes with no edges are counted in `unlinked` but excluded from `nodes` (a fully-disconnected scatter of every queue entry is noise; the page states the count).
+Reads `docs/roadmap.md` + `docs/backlog.md` (same `readFile` + `parseRoadmapBlocks`/`parseBacklog` pattern the existing loaders use — cf. `parseRoadmapFromString` at `src/dashboard/data.ts:280`).
+
+**Shared graph build — no hand-copy.** `circular-blocked-by.ts` currently builds ref resolution (`Q-id → slug` map, then slug identity) and the adjacency list inline inside `findBlockedByCycles` (lines 32–51), unexported. Extract that block into an exported `buildBlockedByGraph(roadmapRaw, backlogRaw)` in `circular-blocked-by.ts` returning `{ entries, resolve, adj, dangling }` (dangling = per-entry refs that resolved to nothing — the detector currently drops these silently; the loader needs them for dashed edges). `findBlockedByCycles` is refactored to consume it (`tarjanCycles(build.adj)`) — behavior-identical, existing detector tests must stay green unchanged. The dashboard loader consumes the SAME build for nodes + edges and derives cycles from `findBlockedByCycles` — displayed edges and detected cycles come from one construction, so they cannot drift and every cycle-member slug is guaranteed to have a node.
+
+Nodes with no edges are counted in `unlinked` but excluded from `nodes` (a fully-disconnected scatter of every queue entry is noise; the page states the count).
 
 ### Unit 2 — view: `renderBlockedBy(graph)` in `src/dashboard/views.ts`
 
