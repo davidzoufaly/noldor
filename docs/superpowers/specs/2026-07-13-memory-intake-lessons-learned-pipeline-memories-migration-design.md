@@ -7,7 +7,7 @@
 
 ## Problem
 
-The parent FD shipped the intake mechanism (`## Lessons` in `ideas.md` + `/noldor-absorb`) but explicitly split out the one-time migration of the existing Claude assistant memories: ~96 files under the per-project memory dir (`~/.claude/projects/-Users-davidzoufaly-code-noldor/memory/`). Their live-value operational knowledge (worktree traps, commit-hook gotchas, drain recipes) exists ONLY in one assistant's private memory — the exact dependency the parent FD's vision invariant ("self-owned") closes. Until migrated, a fresh agent or non-Claude runner starts blind to ~2 months of hard-won operational lessons.
+The parent FD shipped the intake mechanism (`## Lessons` in `ideas.md` + `/noldor-absorb`) but explicitly split out the one-time migration of the existing Claude assistant memories: every memory file under the per-project memory dir (~95 at spec time, growing per session) (`~/.claude/projects/-Users-davidzoufaly-code-noldor/memory/`). Their live-value operational knowledge (worktree traps, commit-hook gotchas, drain recipes) exists ONLY in one assistant's private memory — the exact dependency the parent FD's vision invariant ("self-owned") closes. Until migrated, a fresh agent or non-Claude runner starts blind to ~2 months of hard-won operational lessons.
 
 ## Goals
 
@@ -26,7 +26,7 @@ The parent FD shipped the intake mechanism (`## Lessons` in `ideas.md` + `/noldo
 
 ### Unit 1 — classification pass (rubric = `/noldor-absorb` classes, adapted to memory files)
 
-Read all `*.md` memory files (MEMORY.md index is the map). Classify each file:
+Read every `*.md` memory file present at migration time (the `MEMORY.md` index is the map, not itself a migration subject). Classify each file:
 
 1. **`drop` (expected majority)** — shipped-FD markers whose body is: what shipped, PR number, "do not re-triage". Redundant with git history/release notes; their residual value (re-triage guard) lives where it's consumed — the assistant's recall. Listed in the report only.
 2. **`gotcha-extract`** — the file is a shipped-marker BUT carries embedded operational traps with ongoing value (e.g. `git commit | tail` masking fmt-hook red; bg-Bash cwd drift in worktree sessions; stash-pop conflict recipes). The gotcha (not the shipping fact) is extracted into a runbook.
@@ -48,7 +48,7 @@ Entries match each page's existing style (gotchas.md: bold-headline bullet namin
 
 ### Unit 3 — batch-confirm + report
 
-Following the absorb skill's safety rail, present ONE disposition table (all 96 rows: file → class → destination) in chat with a single batch-confirm before any write. After writes, the same table (plus per-row "already in <page>" notes) becomes the PR body's migration report.
+Following the absorb skill's safety rail, present ONE disposition table (one row per memory file: file → class → destination) in chat with a single batch-confirm before any write. After writes, the same table (plus per-row "already in <page>" notes) becomes the PR body's migration report.
 
 ### Data flow
 
@@ -65,7 +65,7 @@ No new code → no new tests. Existing `check-template-sync` + doc-links hooks v
 
 ## Acceptance criteria
 
-- Disposition table covers every memory file (96/96), each with class + destination (or `drop` + reason).
+- Disposition table covers every `*.md` file present in the memory dir at migration time, excluding the `MEMORY.md` index (it is a generated map, not a memory), each with class + destination (or `drop` + reason).
 - All `gotcha`/`feedback`/`gotcha-extract` rows produce runbook entries in both twins; template-sync green.
 - Zero writes to the memory dir.
 - `actionable` rows (if any) appended to `ideas.md` Verticals `#### Later`.
