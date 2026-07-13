@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Metrics Page UI Improvements
-
-- id: Q-0038
-- area: tooling
-- type: feat
-- since: 2026-07-13
-- size: M
-- impact: med
-- confidence: low
-- parent: metrics
-
-Better UI for the /metrics dashboard page. Fuzzy one-liner — needs a short design pass to define what "better" means (layout, charts, grouping) before implementation.
-
 ### Code-Clone Detector
 
 - id: Q-0033
