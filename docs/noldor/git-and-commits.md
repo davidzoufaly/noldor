@@ -131,6 +131,18 @@ The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.no
 
 `src/hooks/noldor-enforce-review-receipt.ts` validates the review receipt on the **tip commit** for review-requiring paths (`fast-track`, `specs-only-*`, `full-*`): the trailer's tree hash must match `git rev-parse HEAD^{tree}`. Both trailer names are accepted — `Noldor-Reviewed-Subagent` (multi-reviewer gate Step 4, current) and `Noldor-Reviewed` (legacy single-reviewer). If new code was committed after the review receipt, the tree hash mismatches and the push is rejected — re-run review. Interim commits don't need a receipt; only the tip is checked.
 
+### Piped commits mask hook failures
+
+- **Never judge a commit by `git commit ... | tail` (or `| tail && echo DONE`).**
+  The pipe exit code is `tail`'s, so a pre-commit red (typically the fmt check)
+  reports success while everything stays staged and NO commit landed. Run
+  commits unpiped (or in a background task whose full log you read) and verify
+  with `git log --oneline origin/main..HEAD` — the `🥊`-marked hook step vs a
+  `[branch hash]` line tells the truth.
+- **The pre-commit fmt step is `--check` only — it never auto-fixes.** Freshly
+  written files routinely exceed the print width; run
+  `pnpm noldor fmt <files>` before committing new or heavily-edited files.
+
 ### Scripted commits: one `-m` paragraph for all trailers
 
 When any script or tool composes a commit message, put **all** `Noldor-*`

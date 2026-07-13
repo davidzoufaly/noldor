@@ -101,16 +101,3 @@ Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates 
 Separable last step split out of `de-superpowers-vendor-spec-plan-and-worktree-flows` at its promotion: rename `docs/superpowers/` → `docs/design/{specs,plans}`. `src/core/doc-roots.ts:30-31` is the single code seam; everything else is prose/links. Ship as a migration (via the shipped `noldor upgrade` chain) that moves files and rewrites links; keep a transition alias in doc-roots for one release. Trigger: bundle with the next migration-bearing release rather than shipping alone — the rename is cheap but touches every spec/plan link, so ride a release that already asks consumers to run `noldor upgrade`.
 
 - Still using the superpowers worktree path → move specs/plan out of the `superpowers/` folder as part of this rename.
-
-### Claude Memories One-Time Migration
-
-- id: Q-0039
-- area: tooling
-- type: chore
-- since: 2026-07-13
-- size: M
-- impact: med
-- confidence: med
-- parent: memory-intake-lessons-learned-pipeline
-
-One-time migration of the existing Claude assistant memories (~90 files under the per-project memory dir) into the framework via the `/noldor-absorb` loop — fold live-value gotchas/feedback into `docs/noldor/` runbooks, classify shipped-historical markers as `drop`, report which memories are redundant (no source deletion). Split out of `memory-intake-lessons-learned-pipeline` (Q-0026), which shipped the mechanism only.

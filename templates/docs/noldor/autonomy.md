@@ -174,6 +174,20 @@ detach needed. A systemd `OnCalendar=` timer wrapping the same command works the
   retire the roadmap block by hand as a second micro-chore PR (removeBlock →
   temp-branch handoff → checkout temp → `pr-flow`).
 
+- **Resume discipline — trust commits, not plan checkboxes.** At any
+  `--resume`/drain-resume start: `git log --oneline origin/main..HEAD` and
+  `git worktree list`, and inspect every `fast/`+`feat/` branch matching the
+  slug (a prior attempt may hold a complete implementation, or a wrong-path
+  husk). `git merge-base origin/main <branch>` tells stale from fresh; before
+  re-implementing anything, `git fetch origin main` and compare the squash
+  tree — the work may already be merged. Plan checkbox state is an unreliable
+  signal; committed work + `.noldor/cr/` sinks are authoritative.
+- **Background Bash tasks inherit a drifting cwd.** Always `cd <worktree> && …`
+  inside the command itself for worktree sessions — a misrouted
+  `cr orchestrate`/`cr aggregate` run from the main workspace writes a bogus
+  sink into MAIN's `.noldor/cr/` (or returns a false `ok=true` with no matching
+  sink). Delete any sink written to the wrong tree.
+
 ## Salvaging a leftover branch
 
 - **Run `git merge-base origin/main fast/<slug>` FIRST.** If the base equals the

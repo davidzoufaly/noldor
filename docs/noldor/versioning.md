@@ -138,6 +138,32 @@ Preconditions failing aborts before any writes. A failed push or GitHub
 Release creation leaves the local tag/commit in place; the error message
 prints the one-line recovery command.
 
+## Release-day operational traps
+
+Hit repeatedly on live releases (v0.4.0–v0.5.1); each aborts `pnpm release`
+until handled:
+
+- **Clear the gate session marker BEFORE `pnpm release`.** Release refuses to
+  start while `.noldor/session.json` exists — including the release-sweep's own
+  marker. Delete it first (the sweep is merged by then; the marker's job is
+  done), then run release.
+- **`ensureCleanTreeOnMain` counts `??` untracked lines.** Stash or move
+  uncommitted operator files (`ideas.md` edits, stray root MDs) before the run:
+  `git stash push -u -- ideas.md`. Dry-run first with
+  `NOLDOR_RELEASE_DRY_RUN=1` to surface every gate blocker without writing.
+- **`introduced`-fill twin drift.** Release stamps `introduced: <v>` into
+  `docs/noldor/*.md` pages but NOT their `templates/docs/noldor/` twins, and it
+  refuses to fold template paths into the release commit. Pre-empt any unset
+  pages in a separate PR that mirrors the fill onto BOTH copies.
+- **sdd-report drift loop.** Each merged PR re-drifts `docs/sdd-report.md`;
+  commit the substantive regen once (release-sweep path), after which the
+  residual count-line-only diff is tolerated (`onlyReviewSkipCountChanged`)
+  and folds into the release commit.
+- **The final registry poll can 401/403 locally — AFTER tag+push+publish.** The
+  local token usually lacks `read:packages`; the actual publish runs in CI.
+  Confirm via `gh run list --workflow=publish.yml` (not the release exit code),
+  then remove the leftover `.noldor/release-state.json`.
+
 ## Registry publishing
 
 The framework package itself ships to **private GitHub Packages** as
