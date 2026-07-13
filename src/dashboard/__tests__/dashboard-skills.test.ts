@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadSkill, loadSkills, setDocRootsOverride } from '../data.js';
-import { renderSkillPage, renderSkillsIndex } from '../views.js';
+import { renderFrameworkIndex, renderSkillPage } from '../views.js';
 
 // The skills surface reads .claude/skills/<name>/SKILL.md from the doc root.
 // Tests run against a temp fixture tree via setDocRootsOverride so they are
@@ -72,17 +72,18 @@ describe('skills surface (fixture)', () => {
     });
   });
 
-  describe('renderSkillsIndex', () => {
-    it('renders one row per skill with trigger link to /skills/<slug>', async () => {
-      const html = renderSkillsIndex(await loadSkills());
-      expect(html).toContain('<h1>Skills</h1>');
+  describe('renderFrameworkIndex (merged skills subsection)', () => {
+    it('renders a Skills subsection with one row per skill linking to /skills/<slug>', async () => {
+      const html = renderFrameworkIndex([], await loadSkills());
+      expect(html).toContain('<h1>Framework</h1>');
+      expect(html).toContain('<h2 id="skills">Skills</h2>');
       expect(html).toContain('href="/skills/gate"');
       expect(html).toContain('/gate');
       expect(html).toContain('Single mandatory entry for any code change.');
     });
 
     it('cross-links the skill-catalog framework page', async () => {
-      const html = renderSkillsIndex(await loadSkills());
+      const html = renderFrameworkIndex([], await loadSkills());
       expect(html).toContain('href="/framework/skill-catalog"');
     });
   });
@@ -109,7 +110,7 @@ describe('skills surface (fixture)', () => {
       const skill = await loadSkill('gate');
       const html = renderSkillPage(skill!);
       expect(html).toContain('class="body"');
-      expect(html).toContain('href="/skills"');
+      expect(html).toContain('href="/framework#skills"');
       expect(html).toContain('href="/framework/skill-catalog"');
       expect(html).toContain('<code>.claude/skills/gate/SKILL.md</code>');
     });
@@ -125,12 +126,14 @@ describe('skills surface (live repo)', () => {
 });
 
 describe('dashboard nav and overview wiring', () => {
-  it('renders the Skills nav link', async () => {
+  it('drops the top-level Skills nav link (merged into Framework)', async () => {
     const { renderLayout } = await import('../layout.js');
-    expect(renderLayout({ title: 't', body: '', activeNav: null })).toContain('href="/skills"');
+    const nav = renderLayout({ title: 't', body: '', activeNav: null });
+    expect(nav).not.toContain('href="/skills"');
+    expect(nav).toContain('href="/framework"');
   });
 
-  it('links the overview skills counter to /skills', async () => {
+  it('links the overview skills counter to the framework skills subsection', async () => {
     const { renderOverview } = await import('../views.js');
     const kpis = {
       project: {
@@ -151,6 +154,6 @@ describe('dashboard nav and overview wiring', () => {
       health: { staleWip: 0, dirtyWorktrees: 0, behindWorktrees: 0, warnings: 0 },
     };
     const html = renderOverview(kpis, [], [], { frontmatter: {}, bodyHtml: '' } as never, null);
-    expect(html).toContain('<a class="counter-link" href="/skills">');
+    expect(html).toContain('<a class="counter-link" href="/framework#skills">');
   });
 });

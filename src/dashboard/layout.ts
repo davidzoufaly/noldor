@@ -4,7 +4,6 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/milestones', label: 'Milestones' },
   { href: '/framework', label: 'Framework' },
   { href: '/docs', label: 'Docs' },
-  { href: '/skills', label: 'Skills' },
   { href: '/release-notes', label: 'Releases' },
   { href: '/roadmap', label: 'Roadmap' },
   { href: '/backlog', label: 'Backlog' },
