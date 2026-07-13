@@ -422,7 +422,7 @@ export function renderOverview(
     ${renderCounter(kpis.project.gaps, 'gaps')}
     ${renderCounter(kpis.project.roadmap.total, 'roadmap')}
     ${renderCounter(kpis.project.backlog, 'backlog')}
-    ${renderCounter(kpis.project.skills, 'skills', '/skills')}
+    ${renderCounter(kpis.project.skills, 'skills', '/framework#skills')}
     ${renderCounter(kpis.project.scripts, 'scripts')}
   </div></div>`;
 
@@ -504,17 +504,29 @@ export function renderReleaseNotes(notes: ReleaseNotes): string {
 }
 
 /**
- * Render the framework index — one row per `docs/noldor/` page in
- * route-table order, link to `/framework/<slug>`.
+ * Render the framework index — the `docs/noldor/` page table followed by a
+ * merged Skills subsection (skills are framework surface; a separate page
+ * split related signal). One page row per `docs/noldor/` page linking to
+ * `/framework/<slug>`; one skill row per project-local skill linking to
+ * `/skills/<slug>`.
  *
  * @param pages - Pages from `loadFrameworkPages`
+ * @param skills - Skills from `loadSkills`
  * @returns HTML body string
  */
-export function renderFrameworkIndex(pages: FrameworkPage[]): string {
-  const rows = pages
+export function renderFrameworkIndex(pages: FrameworkPage[], skills: SkillPage[]): string {
+  const pageRows = pages
     .map(
       (p) => `<tr>
       <td><a href="/framework/${escapeHtml(p.slug)}"><strong>${escapeHtml(p.title)}</strong></a></td>
+    </tr>`,
+    )
+    .join('');
+  const skillRows = skills
+    .map(
+      (s) => `<tr>
+      <td><a href="/skills/${escapeHtml(s.slug)}"><strong>/${escapeHtml(s.name)}</strong></a></td>
+      <td>${escapeHtml(s.description)}</td>
     </tr>`,
     )
     .join('');
@@ -522,7 +534,13 @@ export function renderFrameworkIndex(pages: FrameworkPage[]): string {
     <p>Noldor framework pages (${pages.length}). Source: <code>docs/noldor/</code>.</p>
     <table>
       <thead><tr><th>Page</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody>${pageRows}</tbody>
+    </table>
+    <h2 id="skills">Skills</h2>
+    <p>Project-local skills (${skills.length}). Source: <code>.claude/skills/&lt;name&gt;/SKILL.md</code> · operator summaries in <a href="/framework/skill-catalog">skill-catalog</a>.</p>
+    <table>
+      <thead><tr><th>Trigger</th><th>Description</th></tr></thead>
+      <tbody>${skillRows}</tbody>
     </table>`;
 }
 
@@ -541,42 +559,17 @@ export function renderFrameworkPage(page: FrameworkPageDetail): string {
 }
 
 /**
- * Render the skills index — one row per project-local skill with its
- * trigger (`/<name>`) and one-line frontmatter description, link to
- * `/skills/<slug>`. A footer link points at the skill-catalog framework
- * page, the operator-summary source-of-truth paired with SKILL.md.
- *
- * @param skills - Skills from `loadSkills`
- * @returns HTML body string
- */
-export function renderSkillsIndex(skills: SkillPage[]): string {
-  const rows = skills
-    .map(
-      (s) => `<tr>
-      <td><a href="/skills/${escapeHtml(s.slug)}"><strong>/${escapeHtml(s.name)}</strong></a></td>
-      <td>${escapeHtml(s.description)}</td>
-    </tr>`,
-    )
-    .join('');
-  return `<h1>Skills</h1>
-    <p>Project-local skills (${skills.length}). Source: <code>.claude/skills/&lt;name&gt;/SKILL.md</code> · operator summaries in <a href="/framework/skill-catalog">skill-catalog</a>.</p>
-    <table>
-      <thead><tr><th>Trigger</th><th>Description</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
-/**
- * Render a single skill: trigger title, breadcrumb back to the index,
- * source-file path, cross-link to its skill-catalog block, and the
- * rendered SKILL.md body in `.body` for markdown styling.
+ * Render a single skill: trigger title, breadcrumb back to the merged
+ * framework index (skills live there now), source-file path, cross-link to
+ * its skill-catalog block, and the rendered SKILL.md body in `.body` for
+ * markdown styling.
  *
  * @param skill - Detail from `loadSkill`
  * @returns HTML body string
  */
 export function renderSkillPage(skill: SkillPageDetail): string {
   return `<h1>/${escapeHtml(skill.name)}</h1>
-    <p><a href="/skills">← back to skills</a> · <code>.claude/skills/${escapeHtml(skill.slug)}/SKILL.md</code> · <a href="/framework/skill-catalog">operator summary →</a></p>
+    <p><a href="/framework#skills">← back to framework</a> · <code>.claude/skills/${escapeHtml(skill.slug)}/SKILL.md</code> · <a href="/framework/skill-catalog">operator summary →</a></p>
     <div class="body">${skill.bodyHtml}</div>`;
 }
 

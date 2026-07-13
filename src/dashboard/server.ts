@@ -53,7 +53,6 @@ import {
   renderReleaseNotes,
   renderRoadmap,
   renderSkillPage,
-  renderSkillsIndex,
   renderTestPyramid,
   renderUserDoc,
   renderUserDocsIndex,
@@ -134,7 +133,6 @@ const STATIC_GET_HANDLERS: Record<string, RouteMatch['handler']> = {
   '/agents/log': handleAgentsLog,
   '/metrics': handleMetrics,
   '/framework': handleFrameworkIndex,
-  '/skills': handleSkillsIndex,
   '/docs': handleUserDocsIndex,
   '/release-notes': handleReleaseNotes,
 };
@@ -496,10 +494,10 @@ async function handleMilestones(): Promise<RouteResult> {
 }
 
 async function handleFrameworkIndex(): Promise<RouteResult> {
-  const pages = await loadFrameworkPages();
+  const [pages, skills] = await Promise.all([loadFrameworkPages(), loadSkills()]);
   return {
     status: 200,
-    body: renderFrameworkIndex(pages),
+    body: renderFrameworkIndex(pages, skills),
     title: 'framework',
     activeNav: '/framework',
   };
@@ -526,16 +524,6 @@ async function handleFrameworkPage(
   };
 }
 
-async function handleSkillsIndex(): Promise<RouteResult> {
-  const skills = await loadSkills();
-  return {
-    status: 200,
-    body: renderSkillsIndex(skills),
-    title: 'skills',
-    activeNav: '/skills',
-  };
-}
-
 async function handleSkillPage(
   _params: URLSearchParams,
   pathParams: Record<string, string>,
@@ -546,14 +534,14 @@ async function handleSkillPage(
       status: 404,
       body: `<h1>Not found</h1><p>No skill named <code>${pathParams.slug}</code>.</p>`,
       title: '404',
-      activeNav: '/skills',
+      activeNav: '/framework',
     };
   }
   return {
     status: 200,
     body: renderSkillPage(skill),
     title: `skills / ${skill.slug}`,
-    activeNav: '/skills',
+    activeNav: '/framework',
   };
 }
 
