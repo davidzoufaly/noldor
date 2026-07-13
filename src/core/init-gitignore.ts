@@ -10,6 +10,7 @@ export const GITIGNORE_SENTINEL = '# noldor transient state';
 export const GITIGNORE_BLOCK = `${GITIGNORE_SENTINEL} (added by noldor init)
 .noldor/session.json
 .noldor/agent-events.jsonl
+.noldor/agent-events.archive.jsonl
 .noldor/cr/
 .noldor/drain-state.json
 .noldor/drain.lock
