@@ -1125,7 +1125,7 @@ export function renderGaps(gaps: Gap[], filters: { category: string }): string {
  */
 function barTable(title: string, data: Record<string, number>, tag: 'h2' | 'h3' = 'h2'): string {
   const entries = Object.entries(data).toSorted(([, a], [, b]) => b - a);
-  const max = entries[0]?.[1] ?? 1;
+  const max = Math.max(1, entries[0]?.[1] ?? 1);
   if (entries.length === 0)
     return `<${tag}>${escapeHtml(title)}</${tag}><p class="empty">No data.</p>`;
   return `<${tag}>${escapeHtml(title)}</${tag}><table>${entries
@@ -1888,10 +1888,8 @@ function renderTokensPerFeatureBody(m: MetricResult): MetricBody {
     if (typeof val === 'number') totals[slug] = val;
     else noUsage.push(slug);
   }
-  const bars =
-    Object.keys(totals).length === 0
-      ? metricEmpty('no agent-events with usage records')
-      : barTable('Tokens by feature', totals, 'h3');
+  // All-null map ≠ no events: the null-slug line below already tells the story.
+  const bars = Object.keys(totals).length === 0 ? '' : barTable('Tokens by feature', totals, 'h3');
   const nulls =
     noUsage.length === 0
       ? ''
@@ -1939,8 +1937,7 @@ function renderMetricCard(m: MetricResult): string {
 }
 
 /** Page-top headline counters. Guarded per counter — a missing/odd metric renders '—'. */
-function renderMetricsHeadline(report: MetricsReport): string {
-  const byId = new Map(report.metrics.map((m) => [m.id, m]));
+function renderMetricsHeadline(byId: Map<string, MetricResult>): string {
   let median = '—';
   let p90 = '—';
   let share = '—';
@@ -1986,5 +1983,5 @@ export function renderMetrics(report: MetricsReport | null): string {
     report.factsWarnings.length > 0
       ? `<p class="muted">warnings: ${escapeHtml(report.factsWarnings.join(' | '))}</p>`
       : '';
-  return `<h1>Metrics</h1><p class="muted">head ${escapeHtml(report.head.slice(0, 7))} · ${escapeHtml(report.generatedAt)}</p>${warnings}${renderMetricsHeadline(report)}${sections.join('\n')}`;
+  return `<h1>Metrics</h1><p class="muted">head ${escapeHtml(report.head.slice(0, 7))} · ${escapeHtml(report.generatedAt)}</p>${warnings}${renderMetricsHeadline(byId)}${sections.join('\n')}`;
 }
