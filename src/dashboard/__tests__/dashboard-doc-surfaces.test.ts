@@ -51,7 +51,7 @@ describe('loadFrameworkPages', () => {
 
 describe('renderFrameworkIndex', () => {
   it('renders one row per page with link to /framework/<slug>', async () => {
-    const html = renderFrameworkIndex(await loadFrameworkPages());
+    const html = renderFrameworkIndex(await loadFrameworkPages(), []);
     expect(html).toContain('<h1>Framework</h1>');
     expect(html).toContain('href="/framework/lifecycle"');
     expect(html).toContain('href="/framework/complexity-gating"');

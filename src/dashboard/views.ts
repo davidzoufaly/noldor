@@ -3,7 +3,7 @@ import { escapeHtml } from './layout.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
-import type { MetricsReport } from '../metrics/types.js';
+import type { MetricResult, MetricsReport } from '../metrics/types.js';
 import type { Gap } from '../core/fd-load.js';
 import type {
   ActiveMilestonePayload,
@@ -1119,6 +1119,24 @@ export function renderGaps(gaps: Gap[], filters: { category: string }): string {
 }
 
 /**
+ * Sorted horizontal-bar table (label / bar / count). Shared by /velocity and the
+ * /metrics per-metric renderers; `tag` picks the heading level so the table nests
+ * under a page heading (`h2`) or inside a metric card (`h3`).
+ */
+function barTable(title: string, data: Record<string, number>, tag: 'h2' | 'h3' = 'h2'): string {
+  const entries = Object.entries(data).toSorted(([, a], [, b]) => b - a);
+  const max = Math.max(1, entries[0]?.[1] ?? 1);
+  if (entries.length === 0)
+    return `<${tag}>${escapeHtml(title)}</${tag}><p class="empty">No data.</p>`;
+  return `<${tag}>${escapeHtml(title)}</${tag}><table>${entries
+    .map(
+      ([k, v]) =>
+        `<tr><td style="width:8rem">${escapeHtml(k)}</td><td><div class="bar"><div style="width:${Math.round((v / max) * 100)}%"></div></div></td><td style="width:3rem;text-align:right">${v}</td></tr>`,
+    )
+    .join('')}</table>`;
+}
+
+/**
  * Render git velocity stats: counter strip, by-type/by-scope bars, releases table, top authors.
  *
  * @param stats - Velocity stats
@@ -1133,17 +1151,7 @@ export function renderVelocity(stats: VelocityStats): string {
     <div class="counter"><div class="v">${stats.activeBranches}</div><div class="l">active branches</div></div>
   </div>`;
 
-  const bars = (title: string, data: Record<string, number>): string => {
-    const entries = Object.entries(data).toSorted(([, a], [, b]) => b - a);
-    const max = entries[0]?.[1] ?? 1;
-    if (entries.length === 0) return `<h2>${title}</h2><p class="empty">No data.</p>`;
-    return `<h2>${title}</h2><table>${entries
-      .map(
-        ([k, v]) =>
-          `<tr><td style="width:8rem">${escapeHtml(k)}</td><td><div class="bar"><div style="width:${Math.round((v / max) * 100)}%"></div></div></td><td style="width:3rem;text-align:right">${v}</td></tr>`,
-      )
-      .join('')}</table>`;
-  };
+  const bars = (title: string, data: Record<string, number>): string => barTable(title, data);
 
   const releasesTable =
     stats.releases.length === 0
@@ -1694,28 +1702,286 @@ export function renderGraphHealth(snapshot: GraphHealthSnapshot | null): string 
   return `<h1>Graph health</h1>${counterStrip}${caption}${cohesionTable}${godTable}`;
 }
 
+/** Labeled empty-state line for a metric with no underlying data. Escapes internally. */
+function metricEmpty(hint: string): string {
+  return `<p class="muted">no data yet — ${escapeHtml(hint)}</p>`;
+}
+
+/** Generic JSON body — fallback for unknown metric ids and value-shape drift. */
+function genericMetricBody(m: MetricResult): string {
+  return `<pre>${escapeHtml(JSON.stringify(m.value, null, 2))}</pre>`;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Narrow to a string→number map (numeric values only); throws on mismatch so the card falls back. */
+function numberMap(v: unknown): Record<string, number> {
+  if (!isRecord(v)) throw new Error('not a record');
+  const out: Record<string, number> = {};
+  for (const [k, val] of Object.entries(v)) {
+    if (typeof val !== 'number') throw new Error('non-numeric value');
+    out[k] = val;
+  }
+  return out;
+}
+
+interface MetricBody {
+  body: string;
+  /** Extra audit markup appended inside the formula/blind-spots expander. */
+  audit?: string;
+}
+
+function renderCycleTimeBody(m: MetricResult): MetricBody {
+  const v = m.value;
+  if (!isRecord(v) || typeof v.medianDays !== 'number' || typeof v.p90Days !== 'number') {
+    throw new Error('cycle-time shape');
+  }
+  const samples = Array.isArray(m.samples) ? m.samples : [];
+  const median = samples.length === 0 ? '—' : String(v.medianDays);
+  const p90 = samples.length === 0 ? '—' : String(v.p90Days);
+  const counters = `<div class="counter-strip">
+    <div class="counter"><div class="v">${escapeHtml(median)}</div><div class="l">median days</div></div>
+    <div class="counter"><div class="v">${escapeHtml(p90)}</div><div class="l">p90 days</div></div>
+  </div>`;
+  const excluded = isRecord(v.excluded)
+    ? `<p class="muted">excluded: ${Number(v.excluded.noIntake ?? 0)} no intake · ${Number(v.excluded.noTag ?? 0)} no tag</p>`
+    : '';
+  const byPath = isRecord(v.medianByPath)
+    ? barTable('Median days by path', numberMap(v.medianByPath), 'h3')
+    : '';
+  const rows = samples
+    .filter(isRecord)
+    .map(
+      (s) =>
+        `<tr><td>${escapeHtml(String(s.slug ?? ''))}</td><td>${Number(s.days ?? 0)}</td><td>${escapeHtml(String(s.path ?? ''))}</td><td>${escapeHtml(String(s.provenance ?? ''))}</td></tr>`,
+    )
+    .join('');
+  const audit =
+    rows === ''
+      ? undefined
+      : `<h3>Samples</h3><table><thead><tr><th>Slug</th><th>Days</th><th>Path</th><th>Provenance</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return { body: `${counters}${excluded}${byPath}`, audit };
+}
+
+function renderRoutingAccuracyBody(m: MetricResult): MetricBody {
+  const v = m.value;
+  if (!isRecord(v) || typeof v.total !== 'number' || typeof v.matches !== 'number') {
+    throw new Error('routing-accuracy shape');
+  }
+  if (v.total === 0) {
+    return {
+      body: metricEmpty(
+        'no shipped entries with a recoverable roadmap size and Noldor-Path trailer in the window',
+      ),
+    };
+  }
+  const table = isRecord(v.table) ? v.table : {};
+  const suggestedKeys = Object.keys(table);
+  const actualKeys = [
+    ...new Set(suggestedKeys.flatMap((k) => (isRecord(table[k]) ? Object.keys(table[k]) : []))),
+  ].toSorted();
+  const head = `<tr><th>suggested \\ actual</th>${actualKeys.map((a) => `<th>${escapeHtml(a)}</th>`).join('')}</tr>`;
+  const body = suggestedKeys
+    .map((s) => {
+      const row = isRecord(table[s]) ? (table[s] as Record<string, unknown>) : {};
+      return `<tr><td>${escapeHtml(s)}</td>${actualKeys.map((a) => `<td>${Number(row[a] ?? 0)}</td>`).join('')}</tr>`;
+    })
+    .join('');
+  const matrix = `<h3>Suggested vs actual</h3><table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  const headline = `<p><strong>${v.matches}/${v.total}</strong> routed as suggested (last ${Number(v.window ?? 0)} shipped)</p>`;
+  const excluded =
+    Number(v.excluded ?? 0) > 0 ? `<p class="muted">excluded: ${Number(v.excluded)}</p>` : '';
+  return { body: `${headline}${matrix}${excluded}` };
+}
+
+function renderCrEffectivenessBody(m: MetricResult): MetricBody {
+  const v = m.value;
+  if (!isRecord(v) || !isRecord(v.perLane) || !isRecord(v.correctiveBySlug)) {
+    throw new Error('cr-effectiveness shape');
+  }
+  const lanes = Object.entries(v.perLane).filter((e): e is [string, Record<string, unknown>] =>
+    isRecord(e[1]),
+  );
+  const corrective = numberMap(v.correctiveBySlug);
+  if (lanes.length === 0 && Object.keys(corrective).length === 0) {
+    return { body: metricEmpty('no `.noldor/cr` lane findings in this checkout') };
+  }
+  const maxBlockers = Math.max(1, ...lanes.map(([, l]) => Number(l.blockers ?? 0)));
+  const laneRows = lanes
+    .map(
+      ([lane, l]) =>
+        `<tr><td>${escapeHtml(lane)}</td><td><div class="bar"><div style="width:${Math.round((Number(l.blockers ?? 0) / maxBlockers) * 100)}%"></div></div></td><td style="text-align:right">${Number(l.blockers ?? 0)}</td><td style="text-align:right">${Number(l.suggestions ?? 0)}</td></tr>`,
+    )
+    .join('');
+  const laneTable =
+    lanes.length === 0
+      ? metricEmpty('no lane findings')
+      : `<h3>Findings per lane</h3><table><thead><tr><th>Lane</th><th></th><th>Blockers</th><th>Suggestions</th></tr></thead><tbody>${laneRows}</tbody></table>`;
+  const correctiveTable =
+    Object.keys(corrective).length === 0
+      ? `<p class="muted">no corrective fix:/revert: commits within ${Number(v.windowDays ?? 0)} days of release</p>`
+      : `${barTable(`Corrective commits within ${Number(v.windowDays ?? 0)}d of release`, corrective, 'h3')}`;
+  return { body: `${laneTable}${correctiveTable}` };
+}
+
+function renderDrainReliabilityBody(m: MetricResult): MetricBody {
+  const v = m.value;
+  if (!isRecord(v) || !('lastRun' in v) || !('history' in v)) {
+    throw new Error('drain-reliability shape');
+  }
+  const lastRun = isRecord(v.lastRun)
+    ? `<div class="counter-strip">
+    <div class="counter"><div class="v">${Number(v.lastRun.shipped ?? 0)}</div><div class="l">shipped (last run)</div></div>
+    <div class="counter"><div class="v">${Number(v.lastRun.skipped ?? 0)}</div><div class="l">skipped</div></div>
+    <div class="counter"><div class="v">${Number(v.lastRun.retried ?? 0)}</div><div class="l">retried</div></div>
+  </div>`
+    : metricEmpty('no drain-state.json in this checkout (written per drain run)');
+  let history = '<p class="muted">no event/escalation history</p>';
+  if (isRecord(v.history)) {
+    const mean = Number(v.history.meanDurationMs ?? 0);
+    const perSlug = isRecord(v.history.escalatedBySlug) ? numberMap(v.history.escalatedBySlug) : {};
+    const perSlugTable =
+      Object.keys(perSlug).length === 0 ? '' : barTable('Escalations by slug', perSlug, 'h3');
+    history = `<p>salvaged <strong>${Number(v.history.salvaged ?? 0)}</strong> · escalated <strong>${Number(v.history.escalatedTotal ?? 0)}</strong> · mean agent duration <strong>${escapeHtml(formatAgentDuration(mean))}</strong></p>${perSlugTable}`;
+  }
+  return { body: `${lastRun}${history}` };
+}
+
+function renderOverridePressureBody(m: MetricResult): MetricBody {
+  const v = m.value;
+  if (!isRecord(v)) throw new Error('override-pressure shape');
+  const windows = Object.entries(v).filter((e): e is [string, Record<string, unknown>] =>
+    isRecord(e[1]),
+  );
+  if (windows.length === 0) {
+    return { body: metricEmpty('no Noldor-Override trailers in commit history') };
+  }
+  const trailerKeys = [...new Set(windows.flatMap(([, row]) => Object.keys(row)))].toSorted();
+  const maxTotal = Math.max(
+    1,
+    ...windows.map(([, row]) => trailerKeys.reduce((a, k) => a + Number(row[k] ?? 0), 0)),
+  );
+  const head = `<tr><th>release window</th>${trailerKeys.map((k) => `<th>${escapeHtml(k)}</th>`).join('')}<th>total</th></tr>`;
+  const rows = windows
+    .map(([w, row]) => {
+      const total = trailerKeys.reduce((a, k) => a + Number(row[k] ?? 0), 0);
+      return `<tr><td>${escapeHtml(w)}</td>${trailerKeys.map((k) => `<td>${Number(row[k] ?? 0)}</td>`).join('')}<td><div class="bar"><div style="width:${Math.round((total / maxTotal) * 100)}%"></div></div>${total}</td></tr>`;
+    })
+    .join('');
+  return {
+    body: `<h3>Override commits by release window</h3><table><thead>${head}</thead><tbody>${rows}</tbody></table><p class="muted">windows listed in bucket-insertion order, not chronological</p>`,
+  };
+}
+
+function renderTokensPerFeatureBody(m: MetricResult): MetricBody {
+  const v = m.value;
+  if (!isRecord(v)) throw new Error('tokens-per-feature shape');
+  const entries = Object.entries(v);
+  if (entries.length === 0) {
+    return { body: metricEmpty('no agent-events with usage records') };
+  }
+  const totals: Record<string, number> = {};
+  const noUsage: string[] = [];
+  for (const [slug, val] of entries) {
+    if (typeof val === 'number') totals[slug] = val;
+    else noUsage.push(slug);
+  }
+  // All-null map ≠ no events: the null-slug line below already tells the story.
+  const bars = Object.keys(totals).length === 0 ? '' : barTable('Tokens by feature', totals, 'h3');
+  const nulls =
+    noUsage.length === 0
+      ? ''
+      : `<p class="muted">no usage data (null ≠ zero): ${noUsage.map((s) => escapeHtml(s)).join(', ')}</p>`;
+  return { body: `${bars}${nulls}` };
+}
+
+const METRIC_RENDERERS: Record<string, (m: MetricResult) => MetricBody> = {
+  'cycle-time': renderCycleTimeBody,
+  'routing-accuracy': renderRoutingAccuracyBody,
+  'cr-effectiveness': renderCrEffectivenessBody,
+  'drain-reliability': renderDrainReliabilityBody,
+  'override-pressure': renderOverridePressureBody,
+  'tokens-per-feature': renderTokensPerFeatureBody,
+};
+
+/** Fixed group layout; report metrics missing from it render under a trailing Other group. */
+const METRIC_GROUPS: [string, string[]][] = [
+  ['Delivery', ['cycle-time', 'routing-accuracy']],
+  ['Quality', ['cr-effectiveness', 'override-pressure']],
+  ['Autonomy', ['drain-reliability', 'tokens-per-feature']],
+];
+
+function renderMetricCard(m: MetricResult): string {
+  let rendered: MetricBody;
+  try {
+    const renderer = METRIC_RENDERERS[m.id];
+    rendered = renderer ? renderer(m) : { body: genericMetricBody(m) };
+  } catch {
+    // Value-shape drift (collector changed under the view): degrade, never break the page.
+    rendered = { body: genericMetricBody(m) };
+  }
+  const blind = m.blindSpots.map((b) => `<li>${escapeHtml(b)}</li>`).join('');
+  return [
+    '<section class="card">',
+    `<h3>${escapeHtml(m.id)} <small>[${escapeHtml(m.unit)}]</small></h3>`,
+    rendered.body,
+    '<details><summary>formula + blind spots</summary>',
+    `<p><strong>Formula:</strong> ${escapeHtml(m.formula)}</p>`,
+    `<ul>${blind}</ul>`,
+    rendered.audit ?? '',
+    '</details>',
+    '</section>',
+  ].join('\n');
+}
+
+/** Page-top headline counters. Guarded per counter — a missing/odd metric renders '—'. */
+function renderMetricsHeadline(byId: Map<string, MetricResult>): string {
+  let median = '—';
+  let p90 = '—';
+  let share = '—';
+  let shipped = '—';
+  const ct = byId.get('cycle-time');
+  if (ct && isRecord(ct.value) && Array.isArray(ct.samples) && ct.samples.length > 0) {
+    if (typeof ct.value.medianDays === 'number') median = String(ct.value.medianDays);
+    if (typeof ct.value.p90Days === 'number') p90 = String(ct.value.p90Days);
+    const autonomous = ct.samples.filter(
+      (s) => isRecord(s) && s.provenance === 'autonomous',
+    ).length;
+    share = `${Math.round((autonomous / ct.samples.length) * 100)}%`;
+  }
+  const dr = byId.get('drain-reliability');
+  if (dr && isRecord(dr.value) && isRecord(dr.value.lastRun)) {
+    const s = dr.value.lastRun.shipped;
+    if (typeof s === 'number') shipped = String(s);
+  }
+  return `<div class="counter-strip">
+    <div class="counter"><div class="v">${escapeHtml(median)}</div><div class="l">median cycle (d)</div></div>
+    <div class="counter"><div class="v">${escapeHtml(p90)}</div><div class="l">p90 cycle (d)</div></div>
+    <div class="counter"><div class="v">${escapeHtml(share)}</div><div class="l">autonomous share</div></div>
+    <div class="counter"><div class="v">${escapeHtml(shipped)}</div><div class="l">drain shipped (last run)</div></div>
+  </div>`;
+}
+
 export function renderMetrics(report: MetricsReport | null): string {
   if (!report) {
     return '<section class="card"><h2>Metrics</h2><p>metrics unavailable: compute failed — run <code>pnpm noldor metrics compute</code> for the error.</p></section>';
   }
-  const cards = report.metrics
-    .map((m) => {
-      const blind = m.blindSpots.map((b) => `<li>${escapeHtml(b)}</li>`).join('');
-      return [
-        '<section class="card">',
-        `<h2>${escapeHtml(m.id)} <small>[${escapeHtml(m.unit)}]</small></h2>`,
-        `<pre>${escapeHtml(JSON.stringify(m.value, null, 2))}</pre>`,
-        '<details><summary>formula + blind spots</summary>',
-        `<p><strong>Formula:</strong> ${escapeHtml(m.formula)}</p>`,
-        `<ul>${blind}</ul>`,
-        '</details>',
-        '</section>',
-      ].join('\n');
-    })
-    .join('\n');
+  const byId = new Map(report.metrics.map((m) => [m.id, m]));
+  const groupedIds = new Set(METRIC_GROUPS.flatMap(([, ids]) => ids));
+  const sections: string[] = [];
+  for (const [title, ids] of METRIC_GROUPS) {
+    const cards = ids.filter((id) => byId.has(id)).map((id) => renderMetricCard(byId.get(id)!));
+    if (cards.length > 0) sections.push(`<h2>${title}</h2>\n${cards.join('\n')}`);
+  }
+  const other = report.metrics.filter((m) => !groupedIds.has(m.id));
+  if (other.length > 0) {
+    sections.push(`<h2>Other</h2>\n${other.map((m) => renderMetricCard(m)).join('\n')}`);
+  }
   const warnings =
     report.factsWarnings.length > 0
       ? `<p class="muted">warnings: ${escapeHtml(report.factsWarnings.join(' | '))}</p>`
       : '';
-  return `<h1>Metrics</h1><p class="muted">head ${escapeHtml(report.head.slice(0, 7))} · ${escapeHtml(report.generatedAt)}</p>${warnings}${cards}`;
+  return `<h1>Metrics</h1><p class="muted">head ${escapeHtml(report.head.slice(0, 7))} · ${escapeHtml(report.generatedAt)}</p>${warnings}${renderMetricsHeadline(byId)}${sections.join('\n')}`;
 }

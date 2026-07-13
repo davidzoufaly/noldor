@@ -75,7 +75,6 @@ since: '2026-06-11'
 noldor-tier: full
 introduced: 0.4.0
 ---
-
 ## Summary
 
 The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
@@ -118,7 +117,7 @@ pnpm noldor metrics compute --metric cycle-time
 **Dashboard**
 
 1. Run `pnpm noldor dashboard server`.
-2. Open `http://localhost:4321/metrics` — headline cards, per-path breakdown, per-release trend, formula + blind-spots expander per metric.
+2. Open `http://localhost:4321/metrics` — headline counter-strip (median/p90 cycle time, autonomous share, drain shipped last run), metric cards grouped Delivery / Quality / Autonomy (bar tables, counters, confusion matrix), formula + blind-spots expander per card, labeled "no data yet" empty-states; unknown metric ids degrade to a generic JSON card under Other.
 
 **Release**
 
