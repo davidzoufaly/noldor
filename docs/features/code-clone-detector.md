@@ -20,7 +20,7 @@ links:
 name: Code-Clone Detector
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-07-11T00:00:00.000Z
 noldor-tier: full
 ---
