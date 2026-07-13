@@ -158,6 +158,50 @@ describe(handleMove, () => {
     });
     expect(result.status).toBe(400);
   });
+
+  it('moves beta to the top via position: top', async () => {
+    const hash = createHash('sha256').update(ROADMAP_FIX).digest('hex');
+    const result = await handleMove({
+      path: roadmapPath,
+      ifMatch: hash,
+      body: { slug: 'beta', position: 'top' },
+    });
+    expect(result.status).toBe(200);
+    const out = readFileSync(roadmapPath, 'utf8');
+    expect(out.indexOf('### Beta')).toBeLessThan(out.indexOf('### Alpha'));
+  });
+
+  it('moves alpha to the bottom via position: bottom', async () => {
+    const hash = createHash('sha256').update(ROADMAP_FIX).digest('hex');
+    const result = await handleMove({
+      path: roadmapPath,
+      ifMatch: hash,
+      body: { slug: 'alpha', position: 'bottom' },
+    });
+    expect(result.status).toBe(200);
+    const out = readFileSync(roadmapPath, 'utf8');
+    expect(out.indexOf('### Beta')).toBeLessThan(out.indexOf('### Alpha'));
+  });
+
+  it('returns 400 on unknown position value', async () => {
+    const hash = createHash('sha256').update(ROADMAP_FIX).digest('hex');
+    const result = await handleMove({
+      path: roadmapPath,
+      ifMatch: hash,
+      body: { slug: 'alpha', position: 'middle' },
+    });
+    expect(result.status).toBe(400);
+  });
+
+  it('returns 400 when both targetIndex and position are supplied', async () => {
+    const hash = createHash('sha256').update(ROADMAP_FIX).digest('hex');
+    const result = await handleMove({
+      path: roadmapPath,
+      ifMatch: hash,
+      body: { slug: 'alpha', targetIndex: 0, position: 'top' },
+    });
+    expect(result.status).toBe(400);
+  });
 });
 
 describe(handlePromote, () => {

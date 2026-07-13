@@ -1746,24 +1746,34 @@ describe('roadmap/backlog row actions', () => {
     );
   });
 
-  it('renders add-entry forms at the top and bottom of the roadmap, carrying the file etag', async () => {
+  it('renders Top and Bottom move buttons on each roadmap row', async () => {
     const html = await renderRoadmap(roadmapEntries, noFilters, {
       rawHash: 'deadbeef',
       dragEnabled: false,
     });
-    expect(html).toContain('data-position="top"');
-    expect(html).toContain('data-position="bottom"');
-    // Both forms carry the roadmap file hash for the If-Match precondition.
-    expect((html.match(/class="add-entry__form"[^>]*data-etag="deadbeef"/g) ?? []).length).toBe(2);
-    // Top form precedes the table; bottom form follows it.
-    expect(html.indexOf('data-position="top"')).toBeLessThan(html.indexOf('<table'));
-    expect(html.indexOf('data-position="bottom"')).toBeGreaterThan(html.indexOf('</table>'));
+    expect(html).toContain('class="move-chip" data-action="move-top" data-slug="alpha"');
+    expect(html).toContain('class="move-chip" data-action="move-bottom" data-slug="alpha"');
+    // Chip order in the actions cell: Top, Bottom, Demote, Remove.
+    const cellMatch = /<td class="actions">([\s\S]*?)<\/td>/.exec(html);
+    expect(cellMatch).toBeTruthy();
+    const cell = cellMatch![1];
+    expect(cell.indexOf('data-action="move-top"')).toBeLessThan(
+      cell.indexOf('data-action="move-bottom"'),
+    );
+    expect(cell.indexOf('data-action="move-bottom"')).toBeLessThan(
+      cell.indexOf('data-action="demote"'),
+    );
+    expect(cell.indexOf('data-action="demote"')).toBeLessThan(cell.indexOf('data-action="remove"'));
   });
 
-  it('renders add-entry forms even when the roadmap is empty', async () => {
-    const html = await renderRoadmap([], noFilters, { rawHash: 'feed', dragEnabled: false });
-    expect(html).toContain('data-position="top"');
-    expect(html).toContain('data-position="bottom"');
-    expect(html).not.toContain('<table');
+  it('renders no global add-entry forms (replaced by per-entry Top/Bottom buttons)', async () => {
+    const html = await renderRoadmap(roadmapEntries, noFilters, {
+      rawHash: 'deadbeef',
+      dragEnabled: false,
+    });
+    expect(html).not.toContain('add-entry');
+    const emptyHtml = await renderRoadmap([], noFilters, { rawHash: 'feed', dragEnabled: false });
+    expect(emptyHtml).not.toContain('add-entry');
+    expect(emptyHtml).not.toContain('<table');
   });
 });

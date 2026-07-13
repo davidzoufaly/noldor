@@ -679,45 +679,11 @@ async function renderRoadmapRows(entries: RoadmapEntry[], dragEnabled: boolean):
         <td>${escapeHtml(e.impact ?? '—')}</td>
         <td>${escapeHtml(e.since ?? '—')}</td>
         <td class="description"><span class="description--clamped">${escapeHtml(plainTextPreview(e.body))}</span><div id="${descId}" class="body description-full">${descHtml}</div><button type="button" class="description-toggle" aria-expanded="false" aria-controls="${descId}">Show more</button></td>
-        <td class="actions"><button type="button" class="move-chip" data-action="demote" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">↓</span>Demote</button><button type="button" class="remove-chip" data-action="remove" data-section="roadmap" data-slug="${slug}">Remove</button></td>
+        <td class="actions"><button type="button" class="move-chip" data-action="move-top" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">⤒</span>Top</button><button type="button" class="move-chip" data-action="move-bottom" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">⤓</span>Bottom</button><button type="button" class="move-chip" data-action="demote" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">↓</span>Demote</button><button type="button" class="remove-chip" data-action="remove" data-section="roadmap" data-slug="${slug}">Remove</button></td>
       </tr>`;
     }),
   );
   return rows.join('');
-}
-
-/**
- * Render the collapsible "add roadmap entry" control for the given list
- * position. `rawHash` is stamped onto the form's `data-etag` so the client can
- * send the `If-Match` precondition even when no roadmap table is present (the
- * empty-filter branch returns without a table). `position` distinguishes the
- * top and bottom instances so the client knows where to insert.
- *
- * `since` is omitted — the server stamps today's date on submit.
- */
-function renderAddEntryForm(position: 'top' | 'bottom', rawHash: string): string {
-  const typeOptions = ['', 'feat', 'fix', 'refactor', 'chore', 'docs']
-    .map((t) => `<option value="${t}">${t === '' ? 'type…' : escapeHtml(t)}</option>`)
-    .join('');
-  const sizeOptions = ['', ...SIZE_ORDER]
-    .map((s) => `<option value="${escapeHtml(s)}">${s === '' ? 'size…' : escapeHtml(s)}</option>`)
-    .join('');
-  const impactOptions = ['', ...IMPACT_ORDER]
-    .map((i) => `<option value="${escapeHtml(i)}">${i === '' ? 'impact…' : escapeHtml(i)}</option>`)
-    .join('');
-  const label = position === 'top' ? 'Add entry to top' : 'Add entry to bottom';
-  return `<details class="add-entry" data-position="${position}">
-    <summary>${label}</summary>
-    <form class="add-entry__form" data-position="${position}" data-etag="${escapeHtml(rawHash)}">
-      <input type="text" name="name" placeholder="Name" required />
-      <input type="text" name="area" placeholder="Area (e.g. web)" pattern="[\\w-]+" required />
-      <select name="type">${typeOptions}</select>
-      <select name="size">${sizeOptions}</select>
-      <select name="impact">${impactOptions}</select>
-      <textarea name="description" placeholder="Description (optional)" rows="2"></textarea>
-      <button type="submit">${label}</button>
-    </form>
-  </details>`;
 }
 
 /**
@@ -733,8 +699,10 @@ function renderAddEntryForm(position: 'top' | 'bottom', rawHash: string): string
  * file's content hash for optimistic-concurrency checks against the move
  * API), and `data-drag-enabled` (the spec §1 activation predicate, computed
  * in the caller). Each row carries `data-slug`, a conditional `draggable`
- * attribute, a leading drag-handle cell, and a trailing Demote button that
- * the client-side script (Task 7) wires up. When `dragEnabled` is false the
+ * attribute, a leading drag-handle cell, and trailing Top / Bottom / Demote
+ * buttons that the client-side script (Task 7) wires up. Top / Bottom resolve
+ * against the full file order server-side, so they work from filtered and
+ * sorted views where drag is disabled. When `dragEnabled` is false the
  * drag handle is dimmed via the `drag-handle--disabled` CSS class.
  *
  * @param roadmap - Parsed roadmap (flat array in priority order)
@@ -832,18 +800,16 @@ export async function renderRoadmap(
     otherParams: buildOther('impact'),
   });
   const resetLink = `<a class="reset" href="?">Reset</a>`;
-  const topForm = renderAddEntryForm('top', meta.rawHash);
-  const bottomForm = renderAddEntryForm('bottom', meta.rawHash);
 
   if (filtered.length === 0) {
-    return `<h1>Roadmap</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p>${topForm}<p class="empty">No matching entries (0 of ${roadmap.length}).</p>${bottomForm}`;
+    return `<h1>Roadmap</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="empty">No matching entries (0 of ${roadmap.length}).</p>`;
   }
   const dragEnabledAttr = meta.dragEnabled ? 'true' : 'false';
   const tbody = await renderRoadmapRows(filtered, meta.dragEnabled);
-  return `<h1>Roadmap</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="count">(${filtered.length} of ${roadmap.length})</p>${topForm}<table data-section="roadmap" data-etag="${escapeHtml(meta.rawHash)}" data-drag-enabled="${dragEnabledAttr}">
+  return `<h1>Roadmap</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="count">(${filtered.length} of ${roadmap.length})</p><table data-section="roadmap" data-etag="${escapeHtml(meta.rawHash)}" data-drag-enabled="${dragEnabledAttr}">
     <thead><tr><th class="drag-col" aria-hidden="true"></th><th>Name</th><th>Category</th><th>Area</th><th>Type</th><th>Size</th><th>Impact</th><th>Since</th><th>Description</th><th class="action-col">Actions</th></tr></thead>
     <tbody>${tbody}</tbody>
-  </table>${bottomForm}`;
+  </table>`;
 }
 
 /**

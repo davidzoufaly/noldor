@@ -1,7 +1,8 @@
 // Vanilla TS dashboard drag client — compiled to dist/drag.js and served by
 // /static/<file>. Wires HTML5 drag-and-drop on roadmap/backlog rows plus the
-// Promote/Demote buttons. Optimistic DOM splice on drag; reload on any fetch
-// failure (server is the source of truth — see spec §6 error semantics).
+// Top/Bottom/Promote/Demote buttons. Optimistic DOM splice on drag; reload on
+// any fetch failure (server is the source of truth — see spec §6 error
+// semantics).
 
 /**
  * Compute a vertical scroll velocity (px/frame) given the cursor's clientY
@@ -222,6 +223,21 @@ function wireButtons(): void {
       return;
     }
 
+    // Move-to-top/bottom is a within-roadmap reorder: same single-file
+    // If-Match as drag (the table's own data-etag). The server resolves the
+    // named position against the full file order, so the buttons work from
+    // filtered/sorted views where the client can't compute the target index.
+    if (action === 'move-top' || action === 'move-bottom') {
+      const table = btn.closest<HTMLTableElement>('table[data-section="roadmap"]');
+      const tableEtag = table?.dataset.etag;
+      if (tableEtag === undefined) {
+        window.location.reload();
+        return;
+      }
+      void sendMoveToEdge(btn, action === 'move-top' ? 'top' : 'bottom', slug, tableEtag);
+      return;
+    }
+
     if (action !== 'promote' && action !== 'demote') return;
     const etag = combinedEtag();
     if (etag === null) {
@@ -251,43 +267,21 @@ async function sendRemove(
   }
 }
 
-// Wire the top/bottom "add roadmap entry" forms. Native constraint validation
-// runs before `submit` fires, so name/area are guaranteed present here. The
-// If-Match etag rides on the form's own `data-etag` (the roadmap file hash),
-// which is available even when the roadmap table isn't rendered (empty filter).
-function wireAddForms(): void {
-  document.addEventListener('submit', (ev) => {
-    const form = (ev.target as HTMLElement).closest<HTMLFormElement>('form.add-entry__form');
-    if (!form) return;
-    ev.preventDefault();
-    const position = form.dataset.position === 'bottom' ? 'bottom' : 'top';
-    const etag = form.dataset.etag ?? '';
-    const fd = new FormData(form);
-    const payload = {
-      position,
-      name: String(fd.get('name') ?? ''),
-      area: String(fd.get('area') ?? ''),
-      type: String(fd.get('type') ?? ''),
-      size: String(fd.get('size') ?? ''),
-      impact: String(fd.get('impact') ?? ''),
-      description: String(fd.get('description') ?? ''),
-    };
-    void sendAdd(form, payload, etag);
-  });
-}
-
-async function sendAdd(
-  form: HTMLFormElement,
-  payload: Record<string, string>,
+// Send a move-to-top/bottom reorder. Reload regardless of success/failure —
+// the view may be filtered or sorted, so an optimistic DOM splice could lie
+// about the resulting order; the server-rendered page is authoritative.
+async function sendMoveToEdge(
+  btn: HTMLButtonElement,
+  position: 'top' | 'bottom',
+  slug: string,
   etag: string,
 ): Promise<void> {
-  const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
-  if (submit) submit.disabled = true;
+  btn.disabled = true;
   try {
-    await fetch('/api/roadmap/add', {
+    await fetch('/api/roadmap/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'If-Match': etag },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ slug, position }),
     });
   } finally {
     window.location.reload();
@@ -368,7 +362,6 @@ function init(): void {
     if (ctx) wireDrag(ctx);
   });
   wireButtons();
-  wireAddForms();
   wireDescriptionToggles();
   wireDescriptionOverflow();
 }

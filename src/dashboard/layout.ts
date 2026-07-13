@@ -173,13 +173,6 @@ const STYLE = `
     .remove-chip { background: rgba(248,113,113,0.1); color: #f87171; }
     .remove-chip:hover { background: rgba(248,113,113,0.2); }
   }
-  /* --- Add roadmap entry (top + bottom of roadmap list) --- */
-  .add-entry { margin: 0.75rem 0; }
-  .add-entry > summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; font-weight: 500; }
-  .add-entry__form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start; margin-top: 0.5rem; padding: 0.75rem; border: 1px solid var(--line); border-radius: 0.5rem; }
-  .add-entry__form input, .add-entry__form select, .add-entry__form textarea { font: inherit; font-size: 0.85rem; padding: 0.3rem 0.45rem; border: 1px solid var(--line); border-radius: 0.35rem; background: var(--bg); color: inherit; }
-  .add-entry__form textarea { flex: 1 1 100%; resize: vertical; }
-  .add-entry__form button[type="submit"] { padding: 0.3rem 0.8rem; border: 1px solid var(--accent); border-radius: 0.35rem; background: var(--accent); color: #fff; font: inherit; font-size: 0.85rem; cursor: pointer; }
   /* --- Markdown body surfaces (scoped to .body wrapper) --- */
   .body { font-size: 0.95rem; }
   .body h1 { font-size: 1.4rem; margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--line); padding-bottom: 0.25rem; }
