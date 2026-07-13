@@ -11,7 +11,7 @@ links:
 name: Dashboard Broken-Pages Audit
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-07-11T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -21,11 +21,22 @@ Many dashboard pages are currently broken, and the live drain-observation view i
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator running an autonomous drain, I want the dashboard's `/agents` page to show the live drain state (queue progress, in-flight slugs, retries, parked entries) and a self-updating log tail for every drain mode, so that I can observe and diagnose a drain from the browser without attaching a terminal or reloading pages.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**UI**
+
+1. Start the dashboard (`pnpm dashboard`) and open the **Agents & Drain** nav item (`/agents`).
+2. The **Drain** section shows the status line (running/dead pid, phase, shipped count), the in-flight table with retries, parked entries, and a live log pane — all self-refreshing every ~2s.
+3. Deep-link `/agents/log` for the full-page auto-tailing watch log.
+4. Works for attached (`pnpm noldor autonomous run`, foreground `watch`) and detached (`watch --detach`) drains alike; before any drain has run, the pane reads "no watch log yet — appears once a drain starts".
+
+**Agent/Programmatic API**
+
+- `GET /api/agents` — JSON payload now carries `drain: { state, parked, logTail }` beside `live`/`runs`/`inbox`.
+- `spawnAgent(prompt, { logSink: <path> })` — tee child stdout+stderr to an append-only file; terminal output unchanged, `result.stdout` stays `''`.
+- `GET_ROUTES` (exported from `src/dashboard/server.ts`) — the routing table the route-sweep regression test iterates: `npx vitest run src/dashboard/__tests__/route-sweep.test.ts`.
 
 ## PRs
 
