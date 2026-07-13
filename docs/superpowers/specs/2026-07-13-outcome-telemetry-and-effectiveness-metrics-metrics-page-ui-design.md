@@ -25,7 +25,7 @@ The `/metrics` dashboard page renders every metric as a raw `JSON.stringify` dum
 - No collector/compute changes — `src/metrics/collect/*` and `MetricsReport`/`MetricResult` types stay untouched. View-layer only.
 - No trend-over-releases section (needs per-release data the cycle-time samples don't carry; deferred until a collector change is on the table).
 - No client-side JS, no chart library, no new static assets.
-- No route/API changes — `handleMetrics` (`src/dashboard/server.ts:134`) and `data.ts` plumbing unchanged.
+- No route/API changes — `handleMetrics` (`src/dashboard/server.ts:793`, route-map registration at `server.ts:134`) and `data.ts` plumbing unchanged.
 - No changes to `noldor metrics compute` CLI output.
 
 ## Design
@@ -41,7 +41,7 @@ Counter-strip (same markup idiom as `renderVelocity`'s `counter-strip`): four co
 - **autonomous share** — % of `cycle-time` `samples` with `provenance === 'autonomous'` (shape per `Row` in `src/metrics/collect/cycle-time.ts`); `—` when zero samples.
 - **drain shipped (last run)** — `drain-reliability` `value.lastRun.shipped`; `—` when `lastRun === null`.
 
-Any missing metric id or malformed value → `—` for that counter (never throws).
+Any missing metric id or malformed value → `—` for that counter (never throws). Median/p90 counters also render `—` when `samples.length === 0`: `percentile([])` returns `0`, and a literal "0 d" would be indistinguishable from a genuine zero-day median.
 
 ### Unit 2 — per-metric renderers + dispatch
 
@@ -53,12 +53,16 @@ Per-metric bodies (shapes verified against `src/metrics/collect/*.ts`):
 - **routing-accuracy** — headline `matches/total (last <window> shipped)` + confusion matrix table: rows = suggested path, columns = actual path, cell = count (from `value.table`); muted excluded count. Empty when `total === 0`.
 - **cr-effectiveness** — per-lane table (lane / blockers / suggestions with bar on blockers) from `value.perLane` + corrective-commits table (slug / count) from `value.correctiveBySlug`, captioned with `windowDays`.
 - **drain-reliability** — last-run counters (shipped / skipped / retried) or empty-state when `lastRun === null`; history block (salvaged, escalatedTotal, mean duration via existing `formatAgentDuration`) + `escalatedBySlug` table, or empty-state when `history === null`.
-- **override-pressure** — table: rows = release window (report order), columns = trailer keys, cell = count; per-window total bar. Empty when no buckets.
+- **override-pressure** — table: rows = release window in bucket-insertion order (commit-iteration order per `collectOverridePressure` — deliberately NOT relabeled as chronological), columns = trailer keys, cell = count; per-window total bar. Empty when no buckets.
 - **tokens-per-feature** — bar table of per-slug totals (numeric entries only), plus a muted list of slugs with `null` ("no usage data"). Empty when object is empty.
 
 ### Unit 3 — shared `barTable` helper
 
 `renderVelocity` has a local `bars(title, data)` closure (`src/dashboard/views.ts:1136`). Lift it to a module-level `barTable(title: string, data: Record<string, number>): string` and reuse from both `renderVelocity` and the new metric renderers — identical markup (`<table>` rows with `.bar` divs, right-aligned counts), no behavior change for `/velocity`.
+
+### Escaping contract (all new markup)
+
+Every repo-derived string interpolated by the new renderers — slugs, `Noldor-Path` values, CR lane names, override trailer keys, provenance labels, sample-row fields, empty-state hints containing data — passes through the existing `escapeHtml` helper before entering markup, matching the current `renderMetrics`/`renderVelocity` posture (`escapeHtml` is used on every interpolation in `src/dashboard/views.ts`). Only compile-time string literals and formatted numbers may be interpolated raw. A dedicated test feeds a report containing a `<script>`-bearing slug and lane name and asserts the output contains the escaped form and not the raw tag.
 
 ### Unit 4 — empty-state helper
 
@@ -80,7 +84,8 @@ Extend `src/dashboard/__tests__/metrics-view.test.ts` (carries `// @tests:` tag 
 
 - headline strip renders median/p90/autonomous-share/drain counters from a populated report; `—` fallbacks on missing metrics.
 - one populated-body assertion per metric renderer (e.g. cycle-time bar table contains path label; routing confusion matrix contains suggested path; override table contains trailer key).
-- empty-value report (`{}` / `null` / zero totals) → labeled empty-states, no `{}` in output.
+- empty-value report (`{}` / `null` / zero totals) → labeled empty-states, no `{}` in output; zero-sample cycle-time → `—` headline counters.
+- escaping: `<`-bearing slug/lane in a populated report renders escaped (`&lt;`), raw tag absent.
 - unknown metric id → generic `<pre>` fallback under Other group.
 - existing tests stay green (formula + blind-spots text still present; null-report degraded state unchanged).
 - `barTable` extraction: `/velocity` snapshot-ish assertions in `dashboard-views.test.ts` still pass unchanged.
@@ -90,6 +95,7 @@ Extend `src/dashboard/__tests__/metrics-view.test.ts` (carries `// @tests:` tag 
 - `/metrics` shows a page-top counter-strip with median cycle, p90, autonomous share, drain last-run shipped; `—` for unavailable values.
 - No metric renders raw `JSON.stringify` when its value matches the known collector shape; all 6 ids have bespoke bodies grouped under Delivery / Quality / Autonomy.
 - Every metric card retains the formula + blind-spots expander.
+- All repo-derived strings in new markup are `escapeHtml`-escaped (escaping test green).
 - Empty metrics render a labeled "no data yet" line — the string `{}` appears nowhere on the page.
 - A metric id absent from the layout map still renders (generic fallback, Other group).
 - `pnpm vitest run src/dashboard/__tests__/metrics-view.test.ts` green; full dashboard test suite green; `/velocity` output unchanged.
