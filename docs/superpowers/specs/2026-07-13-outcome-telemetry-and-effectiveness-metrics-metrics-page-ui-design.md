@@ -38,7 +38,7 @@ Counter-strip (same markup idiom as `renderVelocity`'s `counter-strip`): four co
 
 - **median cycle (d)** — `cycle-time` `value.medianDays`.
 - **p90 cycle (d)** — `cycle-time` `value.p90Days`.
-- **autonomous share** — % of `cycle-time` `samples` with `provenance === 'autonomous'` (shape per `Row` in `src/metrics/collect/cycle-time.ts`); `—` when zero samples.
+- **autonomous share** — % of `cycle-time` `samples` with `provenance === 'autonomous'` over ALL samples, including `unknown-provenance` rows (shape per `Row` in `src/metrics/collect/cycle-time.ts`) — deliberately conservative: unknowns count against the share, so the number can only understate autonomy; `—` when zero samples.
 - **drain shipped (last run)** — `drain-reliability` `value.lastRun.shipped`; `—` when `lastRun === null`.
 
 Any missing metric id or malformed value → `—` for that counter (never throws). Median/p90 counters also render `—` when `samples.length === 0`: `percentile([])` returns `0`, and a literal "0 d" would be indistinguishable from a genuine zero-day median.
@@ -66,7 +66,7 @@ Every repo-derived string interpolated by the new renderers — slugs, `Noldor-P
 
 ### Unit 4 — empty-state helper
 
-`metricEmpty(hint: string): string` → `<p class="muted">no data yet — ${hint}</p>`. Hints name the data source, e.g. cr-effectiveness: "no `.noldor/cr` lane findings in this checkout"; tokens-per-feature: "no agent-events with usage records".
+`metricEmpty(hint: string): string` → `<p class="muted">no data yet — ${escapeHtml(hint)}</p>`. The helper escapes internally so a data-bearing hint can never leak raw markup (keeps the escaping contract single-sited). Hints name the data source, e.g. cr-effectiveness: "no `.noldor/cr` lane findings in this checkout"; tokens-per-feature: "no agent-events with usage records".
 
 ### Data flow (unchanged)
 
