@@ -30,7 +30,7 @@ import {
   parseWorktreeList,
   readPort,
 } from '../worktrees/worktree-status.js';
-import { readInboxRows, type InboxRow } from '../autonomous/escalations.js';
+import { loadPark, readInboxRows, type InboxRow } from '../autonomous/escalations.js';
 import { WATCH_LOG_REL } from '../autonomous/watch-detach.js';
 
 marked.use(
@@ -2069,6 +2069,13 @@ export interface AgentActivityDeps {
   isPidAlive?: (pid: number) => boolean;
   /** Clock (epoch ms); injectable for runtime/staleness tests. */
   nowMs?: () => number;
+  /**
+   * Pre-parsed drain-state retries. `handleApiAgents` passes the map already
+   * read by {@link loadDrainObservation} so `drain-state.json` is parsed once
+   * per poll, not twice. Absent → this loader reads the file itself (existing
+   * callers/tests unchanged).
+   */
+  retries?: Record<string, number>;
 }
 
 function defaultPidAlive(pid: number): boolean {
@@ -2116,14 +2123,18 @@ export async function loadAgentActivity(
   const escalations = await readJsonlRows<{ runId?: string; resolved?: boolean }>(
     join(cwd, '.noldor', 'escalations.jsonl'),
   );
-  let retries: Record<string, number> = {};
-  try {
-    const state = JSON.parse(
-      await readFile(join(cwd, '.noldor', 'drain-state.json'), 'utf8'),
-    ) as DrainState;
-    retries = state.retries ?? {};
-  } catch {
-    retries = {};
+  let retries: Record<string, number>;
+  if (deps.retries !== undefined) {
+    retries = deps.retries;
+  } else {
+    try {
+      const state = JSON.parse(
+        await readFile(join(cwd, '.noldor', 'drain-state.json'), 'utf8'),
+      ) as DrainState;
+      retries = state.retries ?? {};
+    } catch {
+      retries = {};
+    }
   }
 
   const eventOf = (e: AgentEvent): 'spawned' | 'exited' | 'phase' => e.event ?? 'exited';
@@ -2228,11 +2239,95 @@ export async function loadAgentActivity(
   return { live, runs, inbox: readInboxRows(cwd) };
 }
 
+export interface DrainObservationState {
+  pid: number;
+  pidAlive: boolean;
+  startedAt: string;
+  phase: 'spawning' | 'awaiting-merge' | 'idle';
+  inFlight: Array<{ slug: string; phase: string }>;
+  merging: string | null;
+  shipped: number;
+  skip: string[];
+  retries: Record<string, number>;
+}
+
+export interface ParkedRow {
+  slug: string;
+  source: string;
+  reason: string;
+  ts: string;
+}
+
+export interface DrainObservation {
+  /** null ⇒ no drain-state.json ⇒ "no drain recorded". */
+  state: DrainObservationState | null;
+  parked: ParkedRow[];
+  /** loadWatchLogTail — null ⇒ no watch.log yet. */
+  logTail: string | null;
+}
+
+export interface DrainObservationDeps {
+  /** Liveness probe; default = signal-0. Injectable so tests exercise dead pids. */
+  isPidAlive?: (pid: number) => boolean;
+}
+
+/**
+ * Drain-level observation payload for the /agents page: the drain-state
+ * heartbeat, parked entries, and the shared watch-log tail. Every source file
+ * is individually failure-tolerant — missing or corrupt ⇒ that section renders
+ * its empty state, never a 500.
+ */
+export async function loadDrainObservation(
+  cwd: string = getDocRoot(),
+  deps: DrainObservationDeps = {},
+): Promise<DrainObservation> {
+  const isPidAlive = deps.isPidAlive ?? defaultPidAlive;
+  let state: DrainObservationState | null = null;
+  try {
+    const raw = JSON.parse(
+      await readFile(join(cwd, '.noldor', 'drain-state.json'), 'utf8'),
+    ) as DrainState;
+    state = {
+      pid: raw.pid,
+      pidAlive: isPidAlive(raw.pid),
+      startedAt: raw.startedAt,
+      phase: raw.phase,
+      inFlight: raw.inFlight ?? [],
+      merging: raw.merging ?? null,
+      shipped: raw.shipped,
+      skip: raw.skip ?? [],
+      retries: raw.retries ?? {},
+    };
+  } catch {
+    state = null;
+  }
+  // On disk the park file is a ParkMap keyed `"${source}:${slug}"` — slug and
+  // source are not stored fields, so split the key. A colon-free key (unreachable
+  // via parkKey, defensive) maps to source '' + the whole key as slug.
+  let parked: ParkedRow[] = [];
+  try {
+    parked = Object.entries(loadPark(cwd)).map(([key, v]) => {
+      const i = key.indexOf(':');
+      return {
+        source: i === -1 ? '' : key.slice(0, i),
+        slug: i === -1 ? key : key.slice(i + 1),
+        reason: v.reason,
+        ts: v.ts,
+      };
+    });
+  } catch {
+    parked = [];
+  }
+  return { state, parked, logTail: await loadWatchLogTail(cwd) };
+}
+
 /**
  * Last `maxLines` lines of the SHARED watch log (`.noldor/watch.log`,
- * {@link WATCH_LOG_REL}) — agents run `stdio: 'inherit'`, so there is no
- * per-agent file (spec D3); rows interleave at K>1 and the UI labels it as
- * shared. Absent file → null (route renders a friendly empty state).
+ * {@link WATCH_LOG_REL}) — a single file for all drain modes: the detached
+ * daemon redirects its whole stdio there, attached drains tee child output
+ * into it via `spawnAgent`'s `logSink`. Rows interleave at K>1 and the UI
+ * labels it as shared. Absent file → null (route renders a friendly empty
+ * state).
  */
 export async function loadWatchLogTail(
   cwd: string = getDocRoot(),

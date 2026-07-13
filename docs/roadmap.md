@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Dashboard Broken-Pages Audit
-
-- id: Q-0027
-- area: tooling
-- type: fix
-- since: 2026-07-11
-- size: M
-- impact: high
-- confidence: low
-
-Many dashboard pages are currently broken, and the live drain-observation view is missing from the main menu (and not working when reached directly). Audit every dashboard route, fix the broken pages, and surface live drain observation as a first-class main-menu item.
-
 ### Dashboard Task ID Under Task Title
 
 - id: Q-0028

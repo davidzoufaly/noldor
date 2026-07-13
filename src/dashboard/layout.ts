@@ -16,9 +16,20 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/test-pyramid', label: 'Test pyramid' },
   { href: '/graph-health', label: 'Graph health' },
   { href: '/worktrees', label: 'Worktrees' },
-  { href: '/agents', label: 'Agents' },
+  { href: '/agents', label: 'Agents & Drain' },
   { href: '/metrics', label: 'Metrics' },
 ];
+
+/**
+ * Inline data-URI favicon (accent-colored "N" glyph) — no asset file, no extra
+ * route, and it silences the browser's /favicon.ico 404, the only console
+ * error the 2026-07-11 dashboard audit found.
+ */
+export const FAVICON_HREF =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="3" fill="#2563eb"/><text x="8" y="12" font-size="11" font-family="sans-serif" font-weight="700" fill="#fff" text-anchor="middle">N</text></svg>`,
+  );
 
 const STYLE = `
   :root { color-scheme: light dark; --fg: #1a1a1a; --bg: #fafafa; --muted: #6b6b6b; --accent: #2563eb; --line: #e0e0e0; }
@@ -99,6 +110,7 @@ const STYLE = `
   .empty { color: var(--muted); font-style: italic; padding: 1rem 0; }
   .muted { color: var(--muted); font-size: 0.85rem; }
   pre { overflow-x: auto; padding: 0.5rem; background: rgba(0,0,0,0.04); border-radius: 4px; }
+  pre.drain-log { max-height: 24rem; overflow-y: auto; }
   a { color: var(--accent); }
   ul.links { list-style: none; padding: 0; }
   ul.links li { padding: 0.15rem 0; }
@@ -345,5 +357,5 @@ export function renderLayout(opts: {
   const combinedEtagMeta = opts.combinedEtag
     ? `<meta name="combined-etag" content="${escapeHtml(opts.combinedEtag)}">`
     : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${combinedEtagMeta}<title>${escapeHtml(opts.title)}</title><style>${STYLE}</style></head><body><nav>${navHtml}</nav><main>${opts.body}</main>${MERMAID_SCRIPT}<script src="/static/drag.js" type="module"></script><script src="/static/agents.js" type="module"></script></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${combinedEtagMeta}<title>${escapeHtml(opts.title)}</title><link rel="icon" href="${FAVICON_HREF}"><style>${STYLE}</style></head><body><nav>${navHtml}</nav><main>${opts.body}</main>${MERMAID_SCRIPT}<script src="/static/drag.js" type="module"></script><script src="/static/agents.js" type="module"></script></body></html>`;
 }

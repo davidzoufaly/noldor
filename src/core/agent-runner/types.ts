@@ -71,6 +71,16 @@ export interface SpawnAgentOpts {
   /** Slug the spawn concerns — stamped on its spawned/exited event rows (drain candidate). */
   slug?: string;
   /**
+   * Absolute path of an append-only file receiving a copy of the child's stdout
+   * AND stderr (tee). When set, both streams are piped and every chunk is
+   * forwarded to the parent's stdout/stderr — terminal behavior matches
+   * `stdio: 'inherit'` (minus TTY-ness) — and appended to this file. Tee chunks
+   * are NEVER accumulated into `AgentResult.stdout` (stays `''`), so an
+   * hours-long child can't buffer its output in memory. A sink write error is
+   * non-fatal: one stderr warning, then the sink is dropped for that child.
+   */
+  logSink?: string;
+  /**
    * Called synchronously right after a successful spawn with the child's process-
    * group id (`pgid === child.pid`, since the child is spawned `detached: true`).
    * The drain loop uses this to register the pgid into its live set so a dead
