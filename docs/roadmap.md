@@ -53,19 +53,6 @@ Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, thre
 
 ### Promoted from Backlog
 
-#### Dashboard Blocked-By Graph View
-
-- id: Q-0018
-- area: tooling
-- type: feat
-- since: 2026-07-05
-- size: M
-- impact: low
-- confidence: med
-- parent: noldor
-
-Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on the tracking dashboard (nodes = entries, edges = blocked-by; highlight cycles flagged by the `circular-blocked-by` garden detector). Split out of the shipped `first-class-blocked-by-field` entry — the data model, validation, and cycle detector landed; the dashboard visualization was deferred as its own larger piece.
-
 ### Framework Self-Ownership
 
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
