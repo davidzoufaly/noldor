@@ -16,6 +16,93 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
+### Dashboard Actions Row Full Height
+
+- id: Q-0035
+- area: tooling
+- type: fix
+- since: 2026-07-13
+- size: XS
+- impact: low
+- confidence: high
+- parent: dashboard-entry-move-to-top-bottom-actions
+
+Actions row on the roadmap / backlog dashboard pages lost its full row height — it renders shorter than the other cells and the four action controls are not aligned vertically. Restore full-height rendering and vertical alignment of the action buttons.
+
+### Dashboard Merge Hot Zones Into WIP Age
+
+- id: Q-0036
+- area: tooling
+- type: refactor
+- since: 2026-07-13
+- size: S
+- impact: med
+- confidence: med
+
+Merge the hot-zones dashboard page into the WIP-age dashboard page — one consolidated view instead of two overlapping activity/staleness pages.
+
+### Dashboard Merge Skills Into Framework
+
+- id: Q-0037
+- area: tooling
+- type: refactor
+- since: 2026-07-13
+- size: S
+- impact: low
+- confidence: med
+
+Merge the skills dashboard page into the framework dashboard page — skills are framework surface; a separate page splits related signal.
+
+### Metrics Page UI Improvements
+
+- id: Q-0038
+- area: tooling
+- type: feat
+- since: 2026-07-13
+- size: M
+- impact: med
+- confidence: low
+- parent: metrics
+
+Better UI for the /metrics dashboard page. Fuzzy one-liner — needs a short design pass to define what "better" means (layout, charts, grouping) before implementation.
+
+### Code-Clone Detector
+
+- id: Q-0033
+- area: tooling
+- type: feat
+- since: 2026-07-11
+- size: L
+- impact: med
+- confidence: med
+
+Token/AST-based Type-1/2/3 clone detection (copy-paste dups, à la `jscpd`). Deterministic corpus over `scanPaths`, no LLM. Surface duplicate blocks as a new signal in `sdd-report` + feed `/refactor`; optional CR-gate block above a configurable clone threshold. Fits the "deterministic detector + optional LLM triage" pattern (same shape as detector-5 idea-merge). Distinct from existing pieces: `/refactor` finds consolidation opportunities from god-nodes/cohesion but doesn't do line/token clone matching; `graphify` AST graph has structural similarity signal but no clone report. Semantic (Type-4) clones out of scope — that's the embeddings-infra entry.
+
+### Non-Claude Runner Parity Follow-Ups
+
+- id: Q-0025
+- area: tooling
+- type: feat
+- since: 2026-07-07
+- size: M
+- impact: low
+- parent: noldor
+- confidence: med
+
+Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, three peer runtimes: Claude Code / Codex / opencode): (a) deep skill parity for non-Claude implementers; (b) opencode `--format json` event parsing (today reserved, treated as prose v1); (c) `crLanes` → role-ref vocabulary migration. Elective — pick up only when a non-Claude implementer runtime is actually exercised end-to-end.
+
+### Agent-Events Log Rotation
+
+- id: Q-0031
+- area: tooling
+- type: chore
+- since: 2026-07-11
+- size: S
+- impact: low
+- confidence: med
+
+`.noldor/agent-events.jsonl` grows without bound (phase rows add ~4 lines per slug per run). Deferred from the /agents entry (spec D5): rotation adds file-swap complexity to a fail-open writer, so design size-or-age-based rotation (keep last N runs readable for the /agents timeline) as its own piece. Touches `src/core/agent-events.ts` and `src/dashboard/data.ts` readers.
+
 ### Phase 2 — Enforcement Honesty
 
 ### Phase 3 — Adoption Chain
@@ -101,3 +188,16 @@ Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates 
 Separable last step split out of `de-superpowers-vendor-spec-plan-and-worktree-flows` at its promotion: rename `docs/superpowers/` → `docs/design/{specs,plans}`. `src/core/doc-roots.ts:30-31` is the single code seam; everything else is prose/links. Ship as a migration (via the shipped `noldor upgrade` chain) that moves files and rewrites links; keep a transition alias in doc-roots for one release. Trigger: bundle with the next migration-bearing release rather than shipping alone — the rename is cheap but touches every spec/plan link, so ride a release that already asks consumers to run `noldor upgrade`.
 
 - Still using the superpowers worktree path → move specs/plan out of the `superpowers/` folder as part of this rename.
+
+### Claude Memories One-Time Migration
+
+- id: Q-0039
+- area: tooling
+- type: chore
+- since: 2026-07-13
+- size: M
+- impact: med
+- confidence: med
+- parent: memory-intake-lessons-learned-pipeline
+
+One-time migration of the existing Claude assistant memories (~90 files under the per-project memory dir) into the framework via the `/noldor-absorb` loop — fold live-value gotchas/feedback into `docs/noldor/` runbooks, classify shipped-historical markers as `drop`, report which memories are redundant (no source deletion). Split out of `memory-intake-lessons-learned-pipeline` (Q-0026), which shipped the mechanism only.
