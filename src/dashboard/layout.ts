@@ -51,6 +51,7 @@ const STYLE = `
   tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
   tbody tr:hover td { background: rgba(37,99,235,0.05); }
   td { max-width: 40rem; word-break: break-word; }
+  .entry-id { display: block; margin-top: 0.15rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; color: var(--muted); }
   td.description { font-size: 0.88rem; vertical-align: top; }
   td.description .body { font-size: inherit; }
   td.description .body > :first-child { margin-top: 0; }

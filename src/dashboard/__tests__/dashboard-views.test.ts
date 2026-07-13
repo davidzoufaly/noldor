@@ -189,6 +189,7 @@ describe('renderRoadmap', () => {
       area: 'tooling',
       type: 'feat',
       since: '2026-05-04',
+      id: 'Q-0042',
       body: 'Live feature description paragraph.',
     },
     {
@@ -261,6 +262,13 @@ describe('renderRoadmap', () => {
     expect(html).toContain('class="badge type-feat">feat</span>');
     expect(html).toContain('Edge Beveling');
     expect(html).toContain('No metadata.');
+  });
+
+  it('renders the entry ID under the name, omitting it when absent', async () => {
+    const html = await renderRoadmap(populated, noFilters);
+    expect(html).toContain('<strong>Live Feature</strong><span class="entry-id">Q-0042</span>');
+    // Entries without an ID render the bare name — no empty entry-id span.
+    expect(html).toContain('<strong>Edge Beveling</strong></td>');
   });
 
   it('renders area + type + category filter forms', async () => {
@@ -458,6 +466,7 @@ describe('renderBacklog', () => {
       area: 'tooling',
       type: 'feat',
       since: '2026-05-04',
+      id: 'Q-0007',
       description: 'A reasonably long description of why this matters.',
     },
     {
@@ -488,6 +497,9 @@ describe('renderBacklog', () => {
     expect(html).toContain('class="badge type-feat">feat</span>');
     expect(html).toContain('2026-05-04');
     expect(html).toContain('A reasonably long description of why this matters.');
+    expect(html).toContain('<strong>Sample Feat</strong><span class="entry-id">Q-0007</span>');
+    // Entry without an ID renders the bare name.
+    expect(html).toContain('<strong>Sample Fix</strong></td>');
   });
 
   it('respects type filter', async () => {
