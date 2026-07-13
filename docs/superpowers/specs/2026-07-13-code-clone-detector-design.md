@@ -20,7 +20,7 @@ Nothing in the framework detects copy-paste duplication. `/noldor-refactor` find
 ## Non-goals
 
 - Semantic (Type-4) clones — explicitly the embeddings-infra entry, out of scope.
-- Cross-language support — TS/JS/TSX/JSX/MTS/CTS only (the corpus `scanRoots` yields in this ecosystem); other extensions skipped.
+- Cross-language support — `.ts`/`.tsx`/`.js`/`.jsx` only, exactly the reused `CODE_FILE_RE` extension set (`src/sync/sync-code-links.ts:11`); `.mts`/`.cts` and other extensions are skipped (none exist under this repo's `scanPaths`; extending the shared regex is a one-line follow-up when a consumer needs it).
 - Auto-fix/consolidation — the report feeds `/noldor-refactor`; no codemod.
 - CR-lane integration — the gate surface is the `clones check` exit-code contract (wire into lefthook/CI as desired), not a new CR lane.
 
@@ -37,7 +37,7 @@ Nothing in the framework detects copy-paste duplication. `/noldor-refactor` find
 - Per file: tokenize → normalized token stream with line mapping.
 - Rabin-Karp rolling hash over windows of `minTokens` (default 50) normalized tokens; hash → list of `(file, tokenIndex)` occurrences.
 - Windows sharing a hash are verified token-by-token (hash-collision guard), then extended greedily left/right to the maximal common run; overlapping/adjacent fragments in the same file pair with a gap ≤ `gapTokens` (default 10) merge into one clone (the Type-3 approximation).
-- Self-overlap within one file counts (duplication inside a single file is a real signal), **but the two instances of a pair must be token-range DISJOINT** — a match whose occurrences overlap (offsets `i` and `i+k`, `k <` window, the repetitive-run case: long enums, import blocks) is discarded before extension, the standard jscpd-style guard. Without it, greedy extension inflates `duplicatedTokens` with degenerate self-overlapping groups. A clone must additionally span ≥ `minLines` (default 5) source lines on each side to filter trivial runs.
+- Self-overlap within one file counts (duplication inside a single file is a real signal), **but the two instances of a pair must be token-range DISJOINT** — a match whose occurrences overlap (offsets `i` and `i+k`, `k <` window, the repetitive-run case: long enums, import blocks) is discarded before extension, AND the guard is re-checked AFTER extension — in a periodic run, two disjoint seeds (offsets `i`, `i+k`, `k ≥` window) each extend to near-full-run instances that then overlap; a pair whose EXTENDED ranges overlap is likewise discarded. Both checks together are the jscpd-style guard; without them greedy extension inflates `duplicatedTokens` with degenerate self-overlapping groups. A clone must additionally span ≥ `minLines` (default 5) source lines on each side to filter trivial runs.
 - Output:
 
 ```ts
@@ -82,7 +82,7 @@ Config: new optional top-level `clones` block in `src/core/config.ts` (non-stric
 2. Type-1: two identical 60-token functions in different files → one group, correct line ranges.
 3. Type-2: same shape with renamed identifiers + changed literals → still one group.
 4. Type-3 merge: two fragments split by a small insertion (≤ gapTokens) merge into one clone; a large gap keeps them separate groups.
-5. Below `minTokens`/`minLines` → no group. Test-file exclusion honored; `--include-tests` includes. Repetitive single run (long identical-line block, self-overlapping windows) → zero groups (disjointness guard).
+5. Below `minTokens`/`minLines` → no group. Test-file exclusion honored; `--include-tests` includes. Repetitive single run (long identical-line block, self-overlapping windows) → zero groups (disjointness guard, both pre- and post-extension — include a periodic run whose disjoint seeds would extend into overlap).
 6. duplicationPct math: dedup of overlapping group coverage.
 7. CLI: `report --json` shape; `check` exit 0/1 vs threshold; unset threshold always 0.
 8. Determinism: same input twice → deep-equal reports.
