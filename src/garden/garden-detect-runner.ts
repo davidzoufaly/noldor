@@ -49,6 +49,7 @@ const FINDING_CATEGORIES = [
   'milestoneShippedIncomplete',
   'bootstrapOverrideAudit',
   'circularBlockedBy',
+  'skillDrift',
 ] as const;
 
 interface ParsedGardenJson {

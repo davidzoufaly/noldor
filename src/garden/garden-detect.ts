@@ -26,6 +26,7 @@ import { detectFdLinkRot } from './detectors/fd-link-rot.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
+import { detectSkillCodeDrift } from './detectors/skill-code-drift.js';
 import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
 import {
   resolveByLinksPlan,
@@ -48,6 +49,7 @@ import type { FdWithoutPlanFinding } from './detectors/fd-without-plan.js';
 import type { MigrationCoverageFinding } from './detectors/migration-coverage.js';
 import type { MilestoneShippedIncompleteFinding } from './detectors/milestone-shipped-incomplete.js';
 import type { CircularBlockedByFinding } from './detectors/circular-blocked-by.js';
+import type { SkillDriftFinding } from './detectors/skill-code-drift.js';
 
 // --- Defaults ---
 /** Age threshold (in days) for plans with no matching feature MD. */
@@ -602,6 +604,7 @@ export interface GardenFindings {
   readonly milestoneShippedIncomplete: readonly MilestoneShippedIncompleteFinding[];
   readonly bootstrapOverrideAudit: readonly BootstrapOverrideFinding[];
   readonly circularBlockedBy: readonly CircularBlockedByFinding[];
+  readonly skillDrift: readonly SkillDriftFinding[];
 }
 
 /**
@@ -762,6 +765,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     trailerScopeMismatch,
     planWithoutFd,
     fdWithoutPlan,
+    skillDrift,
   ] = await Promise.all([
     detectStalePlans(repo),
     detectStaleSpecs(repo),
@@ -774,6 +778,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     detectTrailerScopeMismatch({ cwd: repo }),
     detectPlanWithoutFd(repo),
     detectFdWithoutPlan(repo),
+    detectSkillCodeDrift(repo),
   ]);
   const milestoneShippedIncomplete = await detectMilestoneShippedIncomplete(repo);
   const circularBlockedBy = await detectCircularBlockedBy(repo);
@@ -814,6 +819,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     milestoneShippedIncomplete,
     bootstrapOverrideAudit,
     circularBlockedBy,
+    skillDrift,
   };
 }
 

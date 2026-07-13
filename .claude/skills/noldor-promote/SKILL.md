@@ -12,7 +12,7 @@ user_invocable: true
   feature will land at (e.g. `cloud-sync`). The source heading is the
   human-readable name (e.g. `### Cloud Sync`); the slug is derived by
   lowercasing + replacing spaces/slashes with hyphens + stripping other
-  punctuation (mirror `slugify()` in `scripts/migrate-features.ts`).
+  punctuation (mirror `slugify()` in `src/features/migrate-features.ts`).
 - **--tier** (required) — `specs-only` or `full`. Records the FD's creation depth. Set automatically by `/noldor-gate`; prompted interactively when invoked directly.
 
 ## Steps
@@ -103,7 +103,7 @@ noldor-tier: <specs-only | full>
 
 Replace `<slug>` in the `<!-- @prs-since-last-release: <slug> -->` marker with the actual slug value before writing the file.
 
-6.4. **Touches extraction (runs on both scaffold and attach branches).** Before residue check (step 6.5), parse the trailing `Touches: <paths>` clause from the source block's body using the `extractTouches` helper at [`scripts/noldor/extract-touches.ts`](../../../scripts/noldor/extract-touches.ts).
+6.4. **Touches extraction (runs on both scaffold and attach branches).** Before residue check (step 6.5), parse the trailing `Touches: <paths>` clause from the source block's body using the `extractTouches` helper at [`src/core/extract-touches.ts`](../../../src/core/extract-touches.ts).
 
 - On **scaffold branch:** use the `stripped` body as the `## Summary` content (replaces the verbatim copy in step 6). Write the extracted `paths` into the new FD's frontmatter `links.code` array (deduplicated against any operator-provided entries).
 - On **attach branch:** the parent FD already has Summary; do **not** mutate it. Instead, merge the extracted `paths` into the parent FD's `links.code` array (preserving existing entries; deduplicating). Surface the extracted paths to the operator via `AskUserQuestion` ("Extracted N paths from source's `Touches:` clause — append to parent `links.code`? [Yes / No / Edit]") so the operator can reject ambiguous attributions.

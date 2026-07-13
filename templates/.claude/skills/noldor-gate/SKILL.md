@@ -106,7 +106,7 @@ The reverse transition `in-progress → done` is written by `/noldor-gate` Step 
 
 Trade-off: the `### <version> (in-progress)` changelog label no longer renders for enhancement cycles whose Step 4 flip succeeded — the original asymmetric design from `framework-pr-flow-agent-auto-merge` spec §3 (gate writes revert; release-markers writes restore) is superseded. The label still renders for FDs caught by the safety net (Step 4 flip skipped or forgotten).
 
-See [`docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md`](../../../docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3 for the full asymmetric state-machine rationale.
+See the `framework-pr-flow-agent-auto-merge` changelog-integration spec §3 (2026-05-15; since pruned from `docs/superpowers/specs/`) for the full asymmetric state-machine rationale.
 
 2.5. **Multi-reviewer CR gate (mandatory pause after every spec/plan artifact).** Don't auto-chain into the next skill (implementation, draft-feature-md, etc.).
 

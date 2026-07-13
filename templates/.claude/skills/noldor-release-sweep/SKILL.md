@@ -98,7 +98,7 @@ git commit -m "chore(release-sweep): pre-empt sdd:report drift"
 
 The `release-sweep` allowlist admits `docs/sdd-report.md`. If `git status` shows nothing, skip the commit silently.
 
-(`pnpm docs:build` is not a script in this repo — the release pipeline treats it as an optional consumer check via `runOptionalCheck` in `src/release/index.ts` and skips it when absent, so there is nothing to pre-empt for it here.)
+(`pnpm docs:build` is not a script in this repo <!-- noldor-skill-drift-ignore --> — the release pipeline treats it as an optional consumer check via `runOptionalCheck` in `src/release/index.ts` and skips it when absent, so there is nothing to pre-empt for it here.)
 
 **Why this step exists.** v0.5.0 shipped without this regen pre-empted; the release script's sdd:report gate in `src/release/index.ts` (`runCliCheck('noldor garden sdd-report --release', …)` + the `docs/sdd-report.md` dirty-tree check) aborted the release. Follow-up PRs landed the regen output on `main`, then the release re-ran. Pre-empting in the sweep folds those PRs into the sweep PR.
 
