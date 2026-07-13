@@ -15,6 +15,8 @@ export interface Token {
   readonly norm: string;
   /** 1-based source line the token starts on. */
   readonly line: number;
+  /** 1-based source line the token ends on (> line for multi-line literals). */
+  readonly endLine: number;
 }
 
 const KEYWORDS = new Set([
@@ -136,7 +138,7 @@ export function tokenize(source: string): Token[] {
       }
       const stop = Math.min(j + 1, n);
       countLines(source.slice(i, stop));
-      tokens.push({ text: source.slice(i, stop), norm: 'LIT', line: startLine });
+      tokens.push({ text: source.slice(i, stop), norm: 'LIT', line: startLine, endLine: line });
       i = stop;
       continue;
     }
@@ -168,7 +170,7 @@ export function tokenize(source: string): Token[] {
       }
       const stop = Math.min(j + 1, n);
       countLines(source.slice(i, stop));
-      tokens.push({ text: source.slice(i, stop), norm: 'LIT', line: startLine });
+      tokens.push({ text: source.slice(i, stop), norm: 'LIT', line: startLine, endLine: line });
       i = stop;
       continue;
     }
@@ -178,7 +180,7 @@ export function tokenize(source: string): Token[] {
       let j = i + 1;
       while (j < n && isIdentPart(source[j]!)) j++;
       const text = source.slice(i, j);
-      tokens.push({ text, norm: KEYWORDS.has(text) ? text : 'ID', line });
+      tokens.push({ text, norm: KEYWORDS.has(text) ? text : 'ID', line, endLine: line });
       i = j;
       continue;
     }
@@ -187,13 +189,13 @@ export function tokenize(source: string): Token[] {
     if (isDigit(c)) {
       let j = i + 1;
       while (j < n && /[\w.]/.test(source[j]!)) j++;
-      tokens.push({ text: source.slice(i, j), norm: 'LIT', line });
+      tokens.push({ text: source.slice(i, j), norm: 'LIT', line, endLine: line });
       i = j;
       continue;
     }
 
     // Punctuation — single char (multi-char operators split; fine for matching)
-    tokens.push({ text: c, norm: c, line });
+    tokens.push({ text: c, norm: c, line, endLine: line });
     i++;
   }
 

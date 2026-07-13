@@ -263,7 +263,7 @@ export function detectClones(
   const streamByFile = new Map(streams.map((s) => [s.file, s]));
   const toInstance = (file: string, start: number, end: number): CloneInstance => {
     const toks = streamByFile.get(file)!.tokens;
-    return { file, startLine: toks[start]!.line, endLine: toks[end]!.line };
+    return { file, startLine: toks[start]!.line, endLine: toks[end]!.endLine };
   };
   interface Built {
     tokens: number;
@@ -320,32 +320,6 @@ export function detectClones(
       }
     }
     if (!dominated) kept.push(g2);
-  }
-
-  // 7. Coverage-deduped duplication math over token ranges.
-  const coverage = new Map<string, Array<[number, number]>>();
-  for (const g of kept) {
-    for (const r of g.ranges) {
-      const list = coverage.get(r.file) ?? [];
-      list.push([r.s, r.e]);
-      coverage.set(r.file, list);
-    }
-  }
-  let duplicatedTokens = 0;
-  for (const ranges of coverage.values()) {
-    ranges.sort((a, b) => a[0] - b[0]);
-    let curS = -1;
-    let curE = -2;
-    for (const [s, e] of ranges) {
-      if (s > curE + 1) {
-        duplicatedTokens += curE - curS + 1;
-        curS = s;
-        curE = e;
-      } else {
-        curE = Math.max(curE, e);
-      }
-    }
-    duplicatedTokens += curE - curS + 1;
   }
 
   // 8. Class-merge: a block duplicated in n places arrives as C(n,2) pairs;
@@ -452,6 +426,35 @@ export function detectClones(
       c2.spans.clear();
       break;
     }
+  }
+
+  // Coverage-deduped duplication math — computed from SURVIVING class spans
+  // (after the step-9/10 family collapses), so duplicationPct never counts
+  // tokens that no reported group covers.
+  const coverage = new Map<string, Array<[number, number]>>();
+  for (const c of classes) {
+    if (c.members.size === 0) continue;
+    for (const r of c.spans.values()) {
+      const list = coverage.get(r.file) ?? [];
+      list.push([r.s, r.e]);
+      coverage.set(r.file, list);
+    }
+  }
+  let duplicatedTokens = 0;
+  for (const ranges of coverage.values()) {
+    ranges.sort((a, b) => a[0] - b[0]);
+    let curS = -1;
+    let curE = -2;
+    for (const [s, e] of ranges) {
+      if (s > curE + 1) {
+        duplicatedTokens += curE - curS + 1;
+        curS = s;
+        curE = e;
+      } else {
+        curE = Math.max(curE, e);
+      }
+    }
+    duplicatedTokens += curE - curS + 1;
   }
 
   const groups: CloneGroup[] = classes
