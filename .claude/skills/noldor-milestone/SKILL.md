@@ -17,13 +17,13 @@ user_invocable: true
 
 1. If `<slug>` omitted: ask the operator for a theme (one-line seed describing the milestone's strategic intent), then propose a kebab-case codename and confirm via `AskUserQuestion` ("Use `<proposed>`? Or rename to: \_\_\_\_"). Iterate until the operator accepts.
 2. Ask the operator for an optional `description` (one-liner) via `AskUserQuestion` ("Add a description? Or leave blank.").
-3. Run `tsx scripts/milestones/cli.ts draft <slug> [<description>]` from the repo root.
+3. Run `tsx src/milestones/cli.ts draft <slug> [<description>]` from the repo root.
 4. Tell the operator: `Drafted docs/milestones/<slug>.md with status: draft. Edit it to fill in ## Gate, ## Success Criteria, ## Out of Scope.`
 5. Do NOT stage or commit.
 
 ### `/noldor-milestone activate <slug>`
 
-1. Run `tsx scripts/milestones/cli.ts activate <slug>` from the repo root.
+1. Run `tsx src/milestones/cli.ts activate <slug>` from the repo root.
 2. On success, surface: `Activated <slug>. Previous active milestone (if any) flipped to shipped. docs/vision.md frontmatter updated.`
 3. On error (target missing, shipped, multi-active corruption, etc.), surface the CLI's stderr message and stop. Do NOT attempt manual workarounds.
 4. Do NOT stage or commit.
@@ -38,7 +38,7 @@ user_invocable: true
 
 ### `/noldor-milestone list`
 
-1. Run `tsx scripts/milestones/cli.ts list` from the repo root.
+1. Run `tsx src/milestones/cli.ts list` from the repo root.
 2. Surface the output verbatim.
 
 ## Rules
@@ -53,6 +53,6 @@ user_invocable: true
 
 - `docs/milestones/<slug>.md` — per-milestone definition.
 - `docs/vision.md` — frontmatter `current-milestone: <slug>` points at the active milestone (optional).
-- `scripts/milestones/cli.ts` — CLI dispatcher invoked by this skill.
-- `scripts/milestones/lib.ts` — pure functions backing the CLI.
-- `scripts/milestones/validate-milestones.ts` — snapshot validator (pre-commit).
+- `src/milestones/cli.ts` — CLI dispatcher invoked by this skill.
+- `src/milestones/lib.ts` — pure functions backing the CLI.
+- `src/milestones/validate-milestones.ts` — snapshot validator (pre-commit).

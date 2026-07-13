@@ -8,7 +8,8 @@ user_invocable: true
 
 ## Inputs
 
-- `pnpm noldor garden detect` — JSON of `{ stalePlans, staleSpecs, unusedBacklog, contradictions, sourceDrift, sddGaps, invariantViolations }`. Defined in `scripts/garden-detect.ts`.
+- `pnpm noldor garden detect` — JSON of `{ stalePlans, staleSpecs, unusedBacklog, contradictions, sourceDrift, sddGaps, invariantViolations, skillDrift, ... }`. Defined in `src/garden/garden-detect.ts`.
+- `skillDrift` rows (`src/garden/detectors/skill-code-drift.ts`) flag skill markdown referencing dead `pnpm` scripts, unknown `noldor` subcommands, or missing repo paths. Investigate-only — fix the skill body (or mark an intentional negative reference with `noldor-skill-drift-ignore`); never auto-edit skills.
 - For each `contradictions` entry: read ~50 lines of context around the matched/unmatched pattern in each doc to judge whether the candidate is a real divergence.
 
 ## Steps
