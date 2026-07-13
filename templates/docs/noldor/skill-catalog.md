@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Skill Catalog
 
-Noldor ships 12 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
+Noldor ships 13 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
 
 > **Strict drift gate.** `pnpm noldor validate skill-catalog` (pre-commit, see [`garden-and-drift.md`](garden-and-drift.md) Detector 16) asserts that every `## /<slug>` heading on this page maps to a `<slug>.md` (or `<slug>/SKILL.md`) under `.claude/skills/`, and vice versa. Add or rename a skill → update this page in the same commit, or pre-commit blocks.
 
