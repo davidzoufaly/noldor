@@ -4,17 +4,26 @@ category: Tooling
 deps: []
 entry-id: Q-0033
 links:
-  code: []
-  tests: []
+  code:
+    - src/clones/tokenize.ts
+    - src/clones/detect.ts
+    - src/clones/clones-cli.ts
+    - src/core/config.ts
+    - src/core/repo-paths.ts
+    - src/cli/manifest.ts
+    - src/garden/sdd-report.ts
+  tests:
+    - src/clones/__tests__/clones-cli.test.ts
+    - src/clones/__tests__/detect.test.ts
+    - src/clones/__tests__/tokenize.test.ts
   spec: docs/superpowers/specs/2026-07-13-code-clone-detector-design.md
 name: Code-Clone Detector
 packages:
   - scripts
 phase: in-progress
-since: 2026-07-11
+since: 2026-07-11T00:00:00.000Z
 noldor-tier: full
 ---
-
 ## Summary
 
 Token/AST-based Type-1/2/3 clone detection (copy-paste dups, à la `jscpd`). Deterministic corpus over `scanPaths`, no LLM. Surface duplicate blocks as a new signal in `sdd-report` + feed `/refactor`; optional CR-gate block above a configurable clone threshold. Fits the "deterministic detector + optional LLM triage" pattern (same shape as detector-5 idea-merge). Distinct from existing pieces: `/refactor` finds consolidation opportunities from god-nodes/cohesion but doesn't do line/token clone matching; `graphify` AST graph has structural similarity signal but no clone report. Semantic (Type-4) clones out of scope — that's the embeddings-infra entry.
