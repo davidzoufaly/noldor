@@ -75,48 +75,48 @@ describe('dashboard server', () => {
     expect(res.status).toBe(404);
   });
 
-  it('GET /hot-zones returns 200 with HTML', async () => {
+  // The hot-zones page merged into /wip-age (Q-0036): its subsection, filter
+  // form, clamping, and JSON affordance are all served by /wip-age now.
+  it('GET /hot-zones returns 404 (merged into /wip-age)', async () => {
     const res = await fetch(`${baseUrl}/hot-zones`);
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/html');
-    const body = await res.text();
-    expect(body).toContain('Hot zones');
+    expect(res.status).toBe(404);
   });
 
-  it('GET /hot-zones?days=7&limit=5 reflects filters in form', async () => {
-    const res = await fetch(`${baseUrl}/hot-zones?days=7&limit=5`);
+  it('GET /wip-age?days=7&limit=5 reflects hot-zones filters in the form', async () => {
+    const res = await fetch(`${baseUrl}/wip-age?days=7&limit=5`);
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain('<option value="7" selected');
     expect(body).toContain('value="5"');
   });
 
-  it('GET /hot-zones?days=42 clamps to 30', async () => {
-    const res = await fetch(`${baseUrl}/hot-zones?days=42`);
+  it('GET /wip-age?days=42 clamps to 30', async () => {
+    const res = await fetch(`${baseUrl}/wip-age?days=42`);
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain('<option value="30" selected');
   });
 
-  it('GET /hot-zones?limit=999 clamps to 100; limit=0 to 1; limit=abc to 10', async () => {
-    const high = await (await fetch(`${baseUrl}/hot-zones?limit=999`)).text();
+  it('GET /wip-age?limit=999 clamps to 100; limit=0 to 1; limit=abc to 10', async () => {
+    const high = await (await fetch(`${baseUrl}/wip-age?limit=999`)).text();
     expect(high).toContain('value="100"');
-    const zero = await (await fetch(`${baseUrl}/hot-zones?limit=0`)).text();
+    const zero = await (await fetch(`${baseUrl}/wip-age?limit=0`)).text();
     expect(zero).toContain('value="1"');
-    const nan = await (await fetch(`${baseUrl}/hot-zones?limit=abc`)).text();
+    const nan = await (await fetch(`${baseUrl}/wip-age?limit=abc`)).text();
     expect(nan).toContain('value="10"');
   });
 
-  it('GET /hot-zones?format=json returns the bare HotZoneRow[] array as application/json', async () => {
-    const res = await fetch(`${baseUrl}/hot-zones?format=json`);
+  it('GET /wip-age?format=json returns { wipAge, hotZones } as application/json', async () => {
+    const res = await fetch(`${baseUrl}/wip-age?format=json`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('application/json');
     const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
-    // Self-host repo always has churn, so the array is non-empty; each row
+    expect(Array.isArray(body.wipAge)).toBe(true);
+    expect(Array.isArray(body.hotZones)).toBe(true);
+    // Self-host repo always has churn, so hotZones is non-empty; each row
     // carries the documented HotZoneRow shape rather than HTML chrome.
-    if (body.length > 0) {
-      const row = body[0];
+    if (body.hotZones.length > 0) {
+      const row = body.hotZones[0];
       expect(typeof row.rank).toBe('number');
       expect(typeof row.path).toBe('string');
       expect(typeof row.changeCount).toBe('number');
@@ -126,31 +126,27 @@ describe('dashboard server', () => {
     expect(JSON.stringify(body)).not.toContain('<html');
   });
 
-  it('GET /hot-zones?format=json&limit=3 clamps the JSON array to the limit', async () => {
-    const res = await fetch(`${baseUrl}/hot-zones?format=json&limit=3`);
+  it('GET /wip-age?format=json&limit=3 clamps the hotZones array to the limit', async () => {
+    const res = await fetch(`${baseUrl}/wip-age?format=json&limit=3`);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
-    expect(body.length).toBeLessThanOrEqual(3);
+    expect(Array.isArray(body.hotZones)).toBe(true);
+    expect(body.hotZones.length).toBeLessThanOrEqual(3);
   });
 
-  it('GET /hot-zones without format still returns HTML (default branch unchanged)', async () => {
-    const res = await fetch(`${baseUrl}/hot-zones`);
-    expect(res.headers.get('content-type')).toContain('text/html');
-  });
-
-  it('GET / nav contains a link to /hot-zones', async () => {
+  it('GET / nav no longer links to /hot-zones', async () => {
     const res = await fetch(`${baseUrl}/`);
     const body = await res.text();
-    expect(body).toContain('href="/hot-zones"');
+    expect(body).not.toContain('href="/hot-zones"');
   });
 
-  it('GET /wip-age returns 200 with HTML and the page heading', async () => {
+  it('GET /wip-age returns 200 with HTML, the page heading, and the hot-zones subsection', async () => {
     const res = await fetch(`${baseUrl}/wip-age`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
     const body = await res.text();
     expect(body).toContain('WIP age');
+    expect(body).toContain('Hot zones');
   });
 
   it('GET /wip-age renders bucket counters', async () => {
