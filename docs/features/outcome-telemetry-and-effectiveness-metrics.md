@@ -70,7 +70,7 @@ links:
 name: Outcome Telemetry and Effectiveness Metrics
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: '2026-06-11'
 noldor-tier: full
 introduced: 0.4.0
@@ -117,7 +117,7 @@ pnpm noldor metrics compute --metric cycle-time
 **Dashboard**
 
 1. Run `pnpm noldor dashboard server`.
-2. Open `http://localhost:4321/metrics` — headline cards, per-path breakdown, per-release trend, formula + blind-spots expander per metric.
+2. Open `http://localhost:4321/metrics` — headline counter-strip (median/p90 cycle time, autonomous share, drain shipped last run), metric cards grouped Delivery / Quality / Autonomy (bar tables, counters, confusion matrix), formula + blind-spots expander per card, labeled "no data yet" empty-states; unknown metric ids degrade to a generic JSON card under Other.
 
 **Release**
 
