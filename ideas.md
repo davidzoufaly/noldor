@@ -9,8 +9,10 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 ## Priority
 
-- merge hot zones to wip age dashboard
-- merge skills to framework
+- full height of actions row in roadmap / backlog dashboard pages -> now it's shorter and four actions are not aligned vertically [triaged 2026-07-13 → dashboard-actions-row-full-height]
+- merge hot zones to wip age dashboard [triaged 2026-07-13 → dashboard-merge-hot-zones-into-wip-age]
+- merge skills to framework [triaged 2026-07-13 → dashboard-merge-skills-into-framework]
+- better UI for metrics page [triaged 2026-07-13 → metrics-page-ui-improvements]
 - task ID move under task title in dashboard table [triaged 2026-07-11 → dashboard-task-id-under-task-title]
 - fix dashboard many pages are broken + live drain observation is not in main menu? and not working anyway [triaged 2026-07-11 → dashboard-broken-pages-audit]
 - odebrat add entry to the top and add entry to the bottom z roadmapy -> přesunout je do action column jako 2 tlačítka u každého entry (může se posunout úplně nahoru nebo úplně dolů) [triaged 2026-07-11 → dashboard-entry-move-to-top-bottom-actions]
@@ -43,7 +45,7 @@ Raw capture point for operator/agent lessons + gotchas. `/noldor-absorb` classif
 
 #### Later
 
-- One-time migration of the existing Claude assistant memories (~90 files under the per-project memory dir) into the framework via the `/noldor-absorb` loop — fold live-value gotchas/feedback into `docs/noldor/` runbooks, classify shipped-historical markers as `drop`, report which memories are redundant (no source deletion). Split out of `memory-intake-lessons-learned-pipeline` (Q-0026), which shipped the mechanism only.
+- One-time migration of the existing Claude assistant memories (~90 files under the per-project memory dir) into the framework via the `/noldor-absorb` loop — fold live-value gotchas/feedback into `docs/noldor/` runbooks, classify shipped-historical markers as `drop`, report which memories are redundant (no source deletion). Split out of `memory-intake-lessons-learned-pipeline` (Q-0026), which shipped the mechanism only. [triaged 2026-07-13 → claude-memories-one-time-migration]
 
 ### Core Product
 
