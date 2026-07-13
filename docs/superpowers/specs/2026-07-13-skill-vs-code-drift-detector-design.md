@@ -47,7 +47,7 @@ export interface SkillDriftFinding {
 export async function detectSkillCodeDrift(repo: string): Promise<SkillDriftFinding[]>
 ```
 
-**Corpus.** Recursive walk of `<repo>/.claude/skills/` and `<repo>/templates/.claude/skills/` collecting `SKILL.md` plus sibling `*.md` reference files (skills ship `references/*.md`). Missing roots are skipped silently (consumer repos may have neither). Reuse note: `src/core/validate-skill-catalog.ts` (`listSkillSlugs`) already enumerates `.claude/skills/*/SKILL.md` — reuse it for the SKILL.md leg where it fits; the walk extends it with `templates/` roots and sibling `*.md` files, which that helper does not cover.
+**Corpus.** Recursive walk of `<repo>/.claude/skills/` and `<repo>/templates/.claude/skills/` collecting `SKILL.md` plus sibling `*.md` reference files (skills ship `references/*.md`). Missing roots are skipped silently (consumer repos may have neither). Reuse note: no existing helper fits — `src/core/validate-skill-catalog.ts`'s walk (`loadSkillSlugs`) is private, returns slug names rather than file paths, and models a different corpus (top-level `<slug>.md` counts as a skill); build the recursive walk fresh in the detector.
 
 **Extraction — code contexts only.** The scanner walks lines, tracking fenced-code state (` ``` ` toggles). Classes 1 and 2 extract ONLY from code contexts — inline backtick spans and fenced-block lines — never from bare prose. This kills the prose-bigram false-positive class outright (e.g. "noldor then does X" in prose can't flag; a `noldor <word>` sequence inside backticks is a command reference by convention). Class 3 is already code-context-limited (backtick spans + markdown link targets).
 
