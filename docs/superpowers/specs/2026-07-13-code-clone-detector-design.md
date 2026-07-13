@@ -37,7 +37,7 @@ Nothing in the framework detects copy-paste duplication. `/noldor-refactor` find
 - Per file: tokenize → normalized token stream with line mapping.
 - Rabin-Karp rolling hash over windows of `minTokens` (default 50) normalized tokens; hash → list of `(file, tokenIndex)` occurrences.
 - Windows sharing a hash are verified token-by-token (hash-collision guard), then extended greedily left/right to the maximal common run; overlapping/adjacent fragments in the same file pair with a gap ≤ `gapTokens` (default 10) merge into one clone (the Type-3 approximation).
-- Self-overlap within one file counts (duplication inside a single file is a real signal); a clone must span ≥ `minLines` (default 5) source lines on each side to filter trivial runs.
+- Self-overlap within one file counts (duplication inside a single file is a real signal), **but the two instances of a pair must be token-range DISJOINT** — a match whose occurrences overlap (offsets `i` and `i+k`, `k <` window, the repetitive-run case: long enums, import blocks) is discarded before extension, the standard jscpd-style guard. Without it, greedy extension inflates `duplicatedTokens` with degenerate self-overlapping groups. A clone must additionally span ≥ `minLines` (default 5) source lines on each side to filter trivial runs.
 - Output:
 
 ```ts
@@ -56,9 +56,9 @@ export interface CloneReport {
 
 ### Unit 3 — CLI: `src/clones/clones-cli.ts` + manifest group
 
-`clones` group in `src/cli/manifest.ts` (`report` + `check` subs). `report`: walks `scanRoots(cwd)` (matching extensions), prints human summary (top-10 groups as `file:start-end ⇄ file:start-end (N tokens)`) or full JSON with `--json`. `check`: same scan; exit 0 when `duplicationPct <= threshold` or no threshold configured; exit 1 with the offending percentage + top groups when above.
+`clones` group in `src/cli/manifest.ts` (`report` + `check` subs). **Corpus walk is REUSED, not re-created:** the walker + filters already exist in `src/sync/sync-code-links.ts` (`CODE_FILE_RE`, `TEST_FILE_RE`, `EXCLUDED_DIRS`, and the recursive walk at line 76) — currently module-private and duplicated ~5× across the repo (fd-load, migrate-code-tags, validate-features, sdd-report). This feature EXPORTS a `walkCodeFiles(root, { includeTests })` helper from `src/core/repo-paths.ts` (the declared single source for path policy) built from those regex/exclusion constants, and the clones CLI consumes `scanRoots(cwd)` + `walkCodeFiles`. Migrating the other 5 duplicate walkers is explicitly OUT of scope (separate refactor entry); the new helper just stops the count growing. `report`: prints human summary (top-10 groups as `file:start-end ⇄ file:start-end (N tokens)`) or full JSON with `--json`. `check`: same scan; exit 0 when `duplicationPct <= threshold` or no threshold configured; exit 1 with the offending percentage + top groups when above.
 
-Config: new optional top-level `clones` block in `src/core/config.ts` (non-strict side, like `crReview`): `{ minTokens?, minLines?, gapTokens?, thresholdPct? }` — flags override config, config overrides defaults.
+Config: new optional top-level `clones` block in `src/core/config.ts` (non-strict side, like `crReview`): `{ minTokens?, minLines?, gapTokens?, thresholdPct? }`, each field `z.number().positive().optional().catch(undefined)` — a malformed value degrades that field to unset instead of throwing out of `loadConfig` (which `noldorConfigSchema.parse` would otherwise do for every caller). Flags override config, config overrides defaults.
 
 ### Unit 4 — sdd-report section
 
@@ -72,7 +72,7 @@ Config: new optional top-level `clones` block in `src/core/config.ts` (non-stric
 
 - Unreadable file → skipped silently (consistent with detector conventions), counted out of `filesScanned`.
 - Tokenizer never throws on malformed source — unknown chars emit punctuation tokens; worst case is a noisier stream, never a crash.
-- `check` with malformed config threshold (non-number) → treated as unset (fail-open, config error surfaces via config validation elsewhere).
+- `check` with malformed config threshold (non-number) → the schema's per-field `.catch(undefined)` degrades it to unset (check green); `loadConfig` never throws for it.
 
 ### Testing
 
@@ -82,7 +82,7 @@ Config: new optional top-level `clones` block in `src/core/config.ts` (non-stric
 2. Type-1: two identical 60-token functions in different files → one group, correct line ranges.
 3. Type-2: same shape with renamed identifiers + changed literals → still one group.
 4. Type-3 merge: two fragments split by a small insertion (≤ gapTokens) merge into one clone; a large gap keeps them separate groups.
-5. Below `minTokens`/`minLines` → no group. Test-file exclusion honored; `--include-tests` includes.
+5. Below `minTokens`/`minLines` → no group. Test-file exclusion honored; `--include-tests` includes. Repetitive single run (long identical-line block, self-overlapping windows) → zero groups (disjointness guard).
 6. duplicationPct math: dedup of overlapping group coverage.
 7. CLI: `report --json` shape; `check` exit 0/1 vs threshold; unset threshold always 0.
 8. Determinism: same input twice → deep-equal reports.
