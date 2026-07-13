@@ -9,7 +9,7 @@ links:
 name: Memory-Intake / Lessons-Learned Pipeline
 packages:
   - scripts
-phase: done
+phase: in-progress
 since: 2026-07-07T00:00:00.000Z
 noldor-tier: specs-only
 ---
