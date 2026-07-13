@@ -100,10 +100,14 @@ describe('detectClones', () => {
     expect(flat.groups).toEqual([]);
   });
 
-  it('repetitive run: no overlapping instances, at most one group after dedup', () => {
+  it('repetitive run: no overlapping instances, bounded group family', () => {
     const run = Array.from({ length: 30 }, () => 'doWork(alpha, beta, gamma, delta);').join('\n');
     const report = detectClones(new Map([['a.ts', run]]), OPTS);
-    expect(report.groups.length).toBeLessThanOrEqual(1);
+    // The maximal half-split pair plus nested half-scale splits — each is
+    // real internal repetition per the containment-dedup invariant (both
+    // instances inside ONE larger instance are KEPT); the staggered family
+    // is collapsed, so the count stays log-bounded, never the raw O(n) fan.
+    expect(report.groups.length).toBeLessThanOrEqual(3);
     for (const g of report.groups) {
       const [x, y] = g.instances;
       const disjoint = x!.endLine < y!.startLine || y!.endLine < x!.startLine;
@@ -182,5 +186,27 @@ describe('tandem copies in one file', () => {
   it('fractional minTokens is rejected by the CLI parser and config schema', async () => {
     const { parseClonesArgs } = await import('../clones-cli');
     expect(() => parseClonesArgs(['report', '--min-tokens', '30.5'])).toThrow(/integer/);
+  });
+});
+
+describe('inner repetition inside duplicated outers', () => {
+  it('keeps an inner clone class nested cleanly inside a bigger same-file class', () => {
+    const inner = [
+      '  const chunk = alpha + beta + gamma + delta;',
+      '  const twice = chunk + chunk + alpha + beta;',
+      '  const thrice = twice + chunk + gamma + delta;',
+      '  const final = thrice + twice + chunk + alpha;',
+      '  register(final, thrice, twice, chunk);',
+    ].join('\n');
+    const outer = (n: string) =>
+      [`function ${n}() {`, inner, inner, `  return done(${n.length});`, '}', ''].join('\n');
+    const report = detectClones(new Map([['a.ts', outer('first') + outer('second')]]), {
+      minTokens: 30,
+      minLines: 4,
+      gapTokens: 2,
+    });
+    // outer pair reported AND the inner-block repetition inside each outer
+    // survives (step-9 must not drop clean nesting).
+    expect(report.groups.length).toBeGreaterThanOrEqual(2);
   });
 });

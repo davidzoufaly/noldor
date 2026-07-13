@@ -353,11 +353,20 @@ export function detectClones(
       if (c1 === c2 || c1.members.size === 0 || c1.tokens < c2.tokens) continue;
       const u1 = unionOf(c1);
       if (!u1 || u1.file !== u2.file) continue;
-      if (u1.s <= u2.s && u2.e <= u1.e && (u1.s < u2.s || u2.e < u1.e || c1.tokens > c2.tokens)) {
-        c2.members.clear();
-        c2.spans.clear();
-        break;
-      }
+      if (!(u1.s <= u2.s && u2.e <= u1.e)) continue;
+      if (u1.s === u2.s && u2.e === u1.e && c1.tokens === c2.tokens) continue;
+      // Family test: a staggered sub-pair of a periodic run CROSSES the
+      // maximal pair's span boundaries (some span partially overlaps a c1
+      // span without being contained by it). A class nested cleanly inside
+      // ONE c1 span is legitimate inner repetition (step-6 invariant) — keep.
+      const spans1 = [...c1.spans.values()];
+      const crossesBoundary = [...c2.spans.values()].some((r2) =>
+        spans1.some((r1) => r1.s <= r2.e && r2.s <= r1.e && !(r1.s <= r2.s && r2.e <= r1.e)),
+      );
+      if (!crossesBoundary) continue;
+      c2.members.clear();
+      c2.spans.clear();
+      break;
     }
   }
 
