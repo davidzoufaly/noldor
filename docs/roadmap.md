@@ -41,18 +41,6 @@ Token/AST-based Type-1/2/3 clone detection (copy-paste dups, à la `jscpd`). Det
 
 Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, three peer runtimes: Claude Code / Codex / opencode): (a) deep skill parity for non-Claude implementers; (b) opencode `--format json` event parsing (today reserved, treated as prose v1); (c) `crLanes` → role-ref vocabulary migration. Elective — pick up only when a non-Claude implementer runtime is actually exercised end-to-end.
 
-### Agent-Events Log Rotation
-
-- id: Q-0031
-- area: tooling
-- type: chore
-- since: 2026-07-11
-- size: S
-- impact: low
-- confidence: med
-
-`.noldor/agent-events.jsonl` grows without bound (phase rows add ~4 lines per slug per run). Deferred from the /agents entry (spec D5): rotation adds file-swap complexity to a fail-open writer, so design size-or-age-based rotation (keep last N runs readable for the /agents timeline) as its own piece. Touches `src/core/agent-events.ts` and `src/dashboard/data.ts` readers.
-
 ### Phase 2 — Enforcement Honesty
 
 ### Phase 3 — Adoption Chain
