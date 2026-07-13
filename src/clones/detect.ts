@@ -283,9 +283,22 @@ export function detectClones(
   }> = [];
   for (const g of kept) {
     const keys = g.ranges.map(rangeKey);
-    const hit = keys.map((k) => classOf.get(k)).find((idx) => idx !== undefined);
-    const idx = hit ?? classes.push({ tokens: g.tokens, lines: g.lines, members: new Map() }) - 1;
+    const hits = [...new Set(keys.map((k) => classOf.get(k)).filter((i) => i !== undefined))];
+    const idx =
+      hits[0] ?? classes.push({ tokens: g.tokens, lines: g.lines, members: new Map() }) - 1;
     const cls = classes[idx]!;
+    // A pair can BRIDGE two previously-separate classes — fold the losers'
+    // members into the winner and remap their keys (plain first-hit adoption
+    // would leave a split class with a duplicated bridging instance).
+    for (const loserIdx of hits.slice(1)) {
+      const loser = classes[loserIdx]!;
+      for (const [k, inst] of loser.members) {
+        classOf.set(k, idx);
+        if (!cls.members.has(k)) cls.members.set(k, inst);
+      }
+      cls.tokens = Math.max(cls.tokens, loser.tokens);
+      loser.members.clear();
+    }
     cls.tokens = Math.max(cls.tokens, g.tokens);
     for (let k = 0; k < keys.length; k++) {
       classOf.set(keys[k]!, idx);
@@ -294,6 +307,7 @@ export function detectClones(
   }
 
   const groups: CloneGroup[] = classes
+    .filter((c) => c.members.size > 0)
     .map((c) => ({
       tokens: c.tokens,
       lines: c.lines,

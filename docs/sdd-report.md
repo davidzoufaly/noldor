@@ -17,7 +17,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Code clones
 
-- 280 clone group(s), 13.32% duplicated tokens across 283 file(s)
+- 279 clone group(s), 13.31% duplicated tokens across 283 file(s)
 - src/garden/garden-detect.ts:97-203 and src/garden/garden-detect.ts:220-326 (388 tokens)
 - src/dashboard/views.ts:748-799 and src/dashboard/views.ts:826-925 (269 tokens)
 - src/dashboard/data.ts:1058-1089 and src/garden/sdd-report.ts:908-943 (259 tokens)
@@ -93,7 +93,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
     "salvaged": 0,
     "escalatedTotal": 0,
     "escalatedBySlug": {},
-    "meanDurationMs": 137050
+    "meanDurationMs": 144136
   }
 }
 ```

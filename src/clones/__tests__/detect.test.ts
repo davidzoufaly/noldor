@@ -149,3 +149,23 @@ describe('clone classes', () => {
     expect(report.groups[0]!.instances.map((i) => i.file)).toEqual(['a.ts', 'b.ts', 'c.ts']);
   });
 });
+
+describe('class bridging', () => {
+  it('a pair bridging two classes folds them into one group without duplicate instances', () => {
+    // 4 copies force many pairwise edges; whatever subset survives dedup,
+    // every instance must appear in exactly one group.
+    const files = new Map([
+      ['f1.ts', fn('one')],
+      ['f2.ts', fn('two')],
+      ['f3.ts', fn('three')],
+      ['f4.ts', fn('four')],
+    ]);
+    const report = detectClones(files, OPTS);
+    const spans = report.groups.flatMap((g) =>
+      g.instances.map((i) => `${i.file}:${i.startLine}-${i.endLine}`),
+    );
+    expect(new Set(spans).size).toBe(spans.length);
+    expect(report.groups).toHaveLength(1);
+    expect(report.groups[0]!.instances).toHaveLength(4);
+  });
+});
