@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Dashboard Actions Row Full Height
-
-- id: Q-0035
-- area: tooling
-- type: fix
-- since: 2026-07-13
-- size: XS
-- impact: low
-- confidence: high
-- parent: dashboard-entry-move-to-top-bottom-actions
-
-Actions row on the roadmap / backlog dashboard pages lost its full row height — it renders shorter than the other cells and the four action controls are not aligned vertically. Restore full-height rendering and vertical alignment of the action buttons.
-
 ### Dashboard Merge Hot Zones Into WIP Age
 
 - id: Q-0036
