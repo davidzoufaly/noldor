@@ -152,7 +152,10 @@ const STYLE = `
   /* --- Drag handle + move chip (roadmap / backlog reorder) --- */
   th.drag-col, td.drag-handle { width: 1.5rem; padding-left: 0.4rem; padding-right: 0.2rem; }
   th.action-col, td.actions { width: 9.5rem; white-space: nowrap; text-align: right; }
-  td.actions { display: flex; gap: 0.3rem; justify-content: flex-end; flex-wrap: wrap; }
+  /* Keep td.actions a normal table-cell so it stretches to the full row height;
+     flex lives on the inner wrapper so the buttons stay vertically centred. */
+  td.actions { vertical-align: middle; }
+  td.actions .actions-inner { display: flex; gap: 0.3rem; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
   td.drag-handle { color: var(--muted); cursor: grab; user-select: none; vertical-align: middle; }
   td.drag-handle:active { cursor: grabbing; }
   td.drag-handle svg { display: block; margin: 0 auto; }
