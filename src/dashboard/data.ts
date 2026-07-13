@@ -255,6 +255,7 @@ export const roadmapEntrySchema = z
     // (parse-blocks warns + emits `''`); the HTTP write layer rejects empty
     // slugs with 400 so callers don't need a separate skip path.
     slug: z.string().regex(/^[a-z0-9-]*$/),
+    id: z.string().optional(),
     area: z.string().min(1),
     type: z.string().optional(),
     since: z.string().optional(),
@@ -285,6 +286,7 @@ export function parseRoadmapFromString(raw: string): Roadmap {
       area: block.area,
       body: block.description,
     };
+    if (block.id !== undefined) entry.id = block.id;
     if (block.type !== undefined) entry.type = block.type;
     if (block.since !== undefined) entry.since = block.since;
     if (block.category !== undefined) entry.category = block.category;

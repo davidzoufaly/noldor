@@ -649,6 +649,15 @@ export function renderUserDoc(category: string, doc: UserDocDetail): string {
 
 const DRAG_GRIP_SVG = `<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg>`;
 
+/**
+ * Render the stable entry ID (Q-NNNN) as a muted line under the entry name.
+ * Empty string when the entry carries no ID (consumer repos that haven't run
+ * `triage backfill-ids`).
+ */
+function renderEntryId(id: string | undefined): string {
+  return id ? `<span class="entry-id">${escapeHtml(id)}</span>` : '';
+}
+
 async function renderRoadmapRows(entries: RoadmapEntry[], dragEnabled: boolean): Promise<string> {
   const dragAttr = dragEnabled ? 'true' : 'false';
   const handleClass = dragEnabled ? 'drag-handle' : 'drag-handle drag-handle--disabled';
@@ -662,7 +671,7 @@ async function renderRoadmapRows(entries: RoadmapEntry[], dragEnabled: boolean):
       const descHtml = await renderDescription(e.body);
       return `<tr data-slug="${slug}" draggable="${dragAttr}">
         <td class="${handleClass}" aria-label="Drag to reorder">${DRAG_GRIP_SVG}</td>
-        <td><strong>${escapeHtml(e.name)}</strong></td>
+        <td><strong>${escapeHtml(e.name)}</strong>${renderEntryId(e.id)}</td>
         <td>${escapeHtml(e.category ?? '—')}</td>
         <td>${escapeHtml(e.area)}</td>
         <td>${typeBadge}</td>
@@ -964,7 +973,7 @@ export async function renderBacklog(
     const descId = `desc-${slug}`;
     const descHtml = await renderDescription(e.description);
     return `<tr data-slug="${slug}">
-        <td><strong>${escapeHtml(e.name)}</strong></td>
+        <td><strong>${escapeHtml(e.name)}</strong>${renderEntryId(e.id)}</td>
         <td>${escapeHtml(e.category ?? '—')}</td>
         <td>${escapeHtml(e.area)}</td>
         <td>${typeBadge}</td>
