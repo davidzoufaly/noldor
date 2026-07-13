@@ -679,7 +679,7 @@ async function renderRoadmapRows(entries: RoadmapEntry[], dragEnabled: boolean):
         <td>${escapeHtml(e.impact ?? '—')}</td>
         <td>${escapeHtml(e.since ?? '—')}</td>
         <td class="description"><span class="description--clamped">${escapeHtml(plainTextPreview(e.body))}</span><div id="${descId}" class="body description-full">${descHtml}</div><button type="button" class="description-toggle" aria-expanded="false" aria-controls="${descId}">Show more</button></td>
-        <td class="actions"><button type="button" class="move-chip" data-action="move-top" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">⤒</span>Top</button><button type="button" class="move-chip" data-action="move-bottom" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">⤓</span>Bottom</button><button type="button" class="move-chip" data-action="demote" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">↓</span>Demote</button><button type="button" class="remove-chip" data-action="remove" data-section="roadmap" data-slug="${slug}">Remove</button></td>
+        <td class="actions"><div class="actions-inner"><button type="button" class="move-chip" data-action="move-top" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">⤒</span>Top</button><button type="button" class="move-chip" data-action="move-bottom" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">⤓</span>Bottom</button><button type="button" class="move-chip" data-action="demote" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">↓</span>Demote</button><button type="button" class="remove-chip" data-action="remove" data-section="roadmap" data-slug="${slug}">Remove</button></div></td>
       </tr>`;
     }),
   );
@@ -947,7 +947,7 @@ export async function renderBacklog(
         <td>${escapeHtml(e.impact ?? '—')}</td>
         <td>${escapeHtml(e.since ?? '—')}</td>
         <td class="description"><span class="description--clamped">${escapeHtml(plainTextPreview(e.description))}</span><div id="${descId}" class="body description-full">${descHtml}</div><button type="button" class="description-toggle" aria-expanded="false" aria-controls="${descId}">Show more</button></td>
-        <td class="actions"><button type="button" class="move-chip" data-action="promote" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">↑</span>Promote</button><button type="button" class="remove-chip" data-action="remove" data-section="backlog" data-slug="${slug}">Remove</button></td>
+        <td class="actions"><div class="actions-inner"><button type="button" class="move-chip" data-action="promote" data-slug="${slug}"><span class="move-chip__arrow" aria-hidden="true">↑</span>Promote</button><button type="button" class="remove-chip" data-action="remove" data-section="backlog" data-slug="${slug}">Remove</button></div></td>
       </tr>`;
   };
 
