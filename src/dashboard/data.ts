@@ -19,10 +19,7 @@ import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse
 import { loadDocRoots } from '../core/doc-roots.js';
 import { actualPackageNames, scanRoots } from '../core/repo-paths.js';
 import { collectGaps } from '../garden/sdd-report.js';
-import {
-  buildBlockedByGraph,
-  findBlockedByCycles,
-} from '../garden/detectors/circular-blocked-by.js';
+import { buildBlockedByGraph, findCyclesInBuild } from '../garden/detectors/circular-blocked-by.js';
 import { listPlans, listSpecs, loadSddFeatures, readTextFiles, walkRepo } from '../core/fd-load.js';
 import { commitsForFeature } from '../release/release-fd-commits.js';
 import { prsSinceLastTag, type PrRef } from '../release/fd-prs-since-tag.js';
@@ -2034,7 +2031,7 @@ export async function loadBlockedByGraph(): Promise<BlockedByGraphView> {
     readOr(getBacklogPath()),
   ]);
   const build = buildBlockedByGraph(roadmapRaw, backlogRaw);
-  const cycles = findBlockedByCycles(roadmapRaw, backlogRaw);
+  const cycles = findCyclesInBuild(build);
   const inCycle = new Set(cycles.flat());
 
   const edges: BlockedByEdge[] = [];

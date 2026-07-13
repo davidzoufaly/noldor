@@ -1563,7 +1563,11 @@ export function renderBlockedBy(graph: BlockedByGraphView): string {
   // Synthetic mermaid ids (s_<n> / d_<n>) sidestep slug-vs-mermaid-syntax
   // collisions; labels are quoted with quotes stripped.
   const idOf = new Map(graph.nodes.map((n, i) => [n.slug, `s_${i}`]));
-  const label = (text: string): string => text.replace(/["`]/g, "'");
+  // Mermaid (securityLevel 'loose') renders inline HTML from the DECODED
+  // textContent of the <pre>, so the outer escapeHtml does not protect
+  // labels — strip HTML brackets too, or an entry named `<img onerror=…>`
+  // (creatable via the roadmap add API) executes on this page.
+  const label = (text: string): string => text.replace(/["`<>]/g, "'");
   const lines: string[] = ['flowchart LR'];
   for (const n of graph.nodes) {
     const idSuffix = n.id !== undefined ? ` (${n.id})` : '';

@@ -75,13 +75,22 @@ export function buildBlockedByGraph(roadmapRaw: string, backlogRaw: string): Blo
 }
 
 /**
+ * Cycles in an already-built graph — for callers that hold a
+ * {@link BlockedByBuild} (the dashboard loader) and must not re-parse.
+ * Returns one member-slug list per cycle (Tarjan SCC; self-loops included),
+ * deduplicated so a shared cycle is reported once.
+ */
+export function findCyclesInBuild(build: BlockedByBuild): string[][] {
+  return tarjanCycles(build.adj);
+}
+
+/**
  * Find every circular `blocked-by` chain across the roadmap + backlog (see
- * {@link buildBlockedByGraph} for ref-resolution rules). Returns one
- * member-slug list per cycle (Tarjan SCC; self-loops included), deduplicated
- * so a shared cycle is reported once.
+ * {@link buildBlockedByGraph} for ref-resolution rules; cycle semantics per
+ * {@link findCyclesInBuild}).
  */
 export function findBlockedByCycles(roadmapRaw: string, backlogRaw: string): string[][] {
-  return tarjanCycles(buildBlockedByGraph(roadmapRaw, backlogRaw).adj);
+  return findCyclesInBuild(buildBlockedByGraph(roadmapRaw, backlogRaw));
 }
 
 /**
