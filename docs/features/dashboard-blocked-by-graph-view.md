@@ -5,26 +5,35 @@ deps: []
 entry-id: Q-0018
 links:
   code: []
-  tests: []
+  tests:
+    - src/dashboard/__tests__/blocked-by.test.ts
 name: Dashboard Blocked-By Graph View
 packages:
   - scripts
-phase: in-progress
-since: 2026-07-05
+phase: done
+since: 2026-07-05T00:00:00.000Z
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on the tracking dashboard (nodes = entries, edges = blocked-by; highlight cycles flagged by the `circular-blocked-by` garden detector). Split out of the shipped `first-class-blocked-by-field` entry — the data model, validation, and cycle detector landed; the dashboard visualization was deferred as its own larger piece.
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator triaging the queue, I want the roadmap+backlog blocked-by graph rendered visually on the dashboard with cycles highlighted, so that I can read dependency structure and spot deadlocks at a glance instead of cross-scanning bullet lists in two files.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**UI**
+
+1. Open the tracking dashboard (`pnpm noldor dashboard server`).
+2. Click **Blocked-by** in the nav (after Backlog).
+3. Read the graph: arrows point blocked → blocker; red nodes are cycle members; muted dashed nodes live in the backlog; dotted arrows mark dangling refs. Cycle chains are also listed as text under the graph.
+
+**Agent/Programmatic API**
+
+- `GET /blocked-by?format=json` → `{ nodes, edges, cycles, unlinked }` (`loadBlockedByGraph()` in `src/dashboard/data.ts`).
+- `buildBlockedByGraph(roadmapRaw, backlogRaw)` (`src/garden/detectors/circular-blocked-by.ts`) — shared graph construction consumed by both the page and the `circular-blocked-by` garden detector.
 
 ## PRs
 
