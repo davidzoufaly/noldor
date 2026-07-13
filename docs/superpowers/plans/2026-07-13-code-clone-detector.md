@@ -63,7 +63,7 @@ export const clonesConfigSchema = z.object({
 });
 ```
 
-and add `clones: clonesConfigSchema.optional(),` to `noldorConfigSchema`.
+and add `clones: clonesConfigSchema.optional().catch(undefined),` to `noldorConfigSchema` — the block-level `.catch` covers a malformed BLOCK (`"clones": "aggressive"`, `"clones": []`), which per-field catches alone would let throw out of `loadConfig`. Extend the Task 1 test with `{ clones: [] }` → `cfg?.clones` undefined, parse does not throw.
 
 - [ ] **Step 4: run to PASS** — same command → green.
 - [ ] **Step 5: Commit**
@@ -210,7 +210,7 @@ git commit -m "feat(cli): noldor clones report/check subcommands" -m "Noldor-FD:
 - Modify: `src/garden/sdd-report.ts`
 - Test: existing sdd-report tests stay green; regen `docs/sdd-report.md`
 
-- [ ] **Step 1: implement** — in `main()` after the Summary block: read corpus via `resolveScanRoots` + `walkCodeFiles`, `detectClones` with config/default opts, push `## Code clones` + `- N clone groups, X.Y% duplicated tokens across M files` + top-5 groups as `- path:start-end and path:start-end (N tokens)` bullets (no `_`/`*` in generated strings — oxfmt gotcha).
+- [ ] **Step 1: implement** — in `main()` after the Summary block: REUSE the already-walked `allRepoPaths` corpus (sdd-report.ts:891-896 walks every scan root once) — filter it with the same `CODE_FILE_RE`/`TEST_FILE_RE` policy (export the two regexes alongside `walkCodeFiles` in repo-paths.ts and filter `allRepoPaths` by them; no second tree walk, no divergent exclusion policy), read the surviving files, `detectClones` with config/default opts, push `## Code clones` + `- N clone groups, X.Y% duplicated tokens across M files` + top-5 groups as `- path:start-end and path:start-end (N tokens)` bullets (no `_`/`*` in generated strings — oxfmt gotcha).
 - [ ] **Step 2: verify** — `pnpm vitest run src/garden` green; `pnpm noldor garden sdd-report` regen → section present, `pnpm noldor fmt --check docs/sdd-report.md` clean; commit regen with the code.
 - [ ] **Step 3: Commit**
 
