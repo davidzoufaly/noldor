@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_SCAN_ROOTS, actualPackageNames, scanRoots } from '../repo-paths.js';
+import { DEFAULT_SCAN_ROOTS, actualPackageNames, scanRoots, walkCodeFiles } from '../repo-paths.js';
 import { scanRoots as legacyScanRoots } from '../../sync/sync-code-links.js';
 
 const MINIMAL_CONSUMER = {
@@ -94,5 +94,26 @@ describe('actualPackageNames', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('walkCodeFiles', () => {
+  it('collects code files, skipping tests/dist by default, including with flag', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-walk-'));
+    mkdirSync(join(dir, 'a', '__tests__'), { recursive: true });
+    mkdirSync(join(dir, 'dist'), { recursive: true });
+    writeFileSync(join(dir, 'a', 'x.ts'), 'export {};\n');
+    writeFileSync(join(dir, 'a', 'y.test.ts'), 'export {};\n');
+    writeFileSync(join(dir, 'a', '__tests__', 'z.ts'), 'export {};\n');
+    writeFileSync(join(dir, 'dist', 'd.ts'), 'export {};\n');
+    writeFileSync(join(dir, 'a', 'n.md'), '# no\n');
+    const rel = (xs: string[]) => xs.map((p) => p.slice(dir.length + 1)).sort();
+    expect(rel(walkCodeFiles(dir, { includeTests: false }))).toEqual(['a/x.ts']);
+    expect(rel(walkCodeFiles(dir, { includeTests: true }))).toEqual([
+      'a/__tests__/z.ts',
+      'a/x.ts',
+      'a/y.test.ts',
+    ]);
+    expect(walkCodeFiles(join(dir, 'missing'), { includeTests: false })).toEqual([]);
   });
 });

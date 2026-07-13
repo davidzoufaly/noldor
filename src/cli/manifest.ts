@@ -367,6 +367,15 @@ export const MANIFEST: Record<string, Group> = {
       '': { src: 'core/pr-flow-cli.ts', desc: 'Run pr-flow' },
     },
   },
+  clones: {
+    desc: 'Token-based code-clone detection (Type-1/2/3)',
+    subs: {
+      '': {
+        src: 'clones/clones-cli.ts',
+        desc: 'clones <report|check> [--json --min-tokens N --min-lines N --gap-tokens N --include-tests]',
+      },
+    },
+  },
   wait: {
     desc: 'Poll a state file until a predicate matches',
     subs: {

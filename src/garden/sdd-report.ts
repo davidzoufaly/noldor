@@ -27,8 +27,15 @@ import { loadDocRoots } from '../core/doc-roots.js';
 import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/override-audit.js';
 import type { ExpectedOverrideRule } from './detectors/override-audit.js';
 import { loadConfigSync } from '../core/config.js';
-import { actualPackageNames, scanRoots as resolveScanRoots } from '../core/repo-paths.js';
+import {
+  actualPackageNames,
+  scanRoots as resolveScanRoots,
+  walkCodeFiles,
+} from '../core/repo-paths.js';
 import { renderMetricsSection, reviewSkipCountLine } from './sdd-report-format.js';
+import { DEFAULT_CLONE_OPTIONS, detectClones } from '../clones/detect.js';
+import type { CloneReport } from '../clones/detect.js';
+import { readFileSync } from 'node:fs';
 import type { MetricsReport } from '../metrics/types.js';
 import {
   buildFileToFdsMap,
@@ -791,6 +798,7 @@ function renderReportMd(
   totalBacklog: number,
   gateCompliance: GateComplianceSection | null,
   metricsReport: MetricsReport | null,
+  cloneReport: CloneReport | null,
 ): string {
   const date = new Date().toISOString().slice(0, 10);
   const lines = [
@@ -812,6 +820,21 @@ function renderReportMd(
   lines.push(`- Backlog entries: ${totalBacklog}`);
   lines.push(`- Gap categories with issues: ${grouped.size} / 14`);
   lines.push('');
+
+  // Code clones — deterministic token-based duplication signal. Strings avoid
+  // underscore/asterisk characters (oxfmt mangles them in generated md).
+  if (cloneReport) {
+    lines.push('## Code clones');
+    lines.push('');
+    lines.push(
+      `- ${cloneReport.groups.length} clone group(s), ${cloneReport.duplicationPct.toFixed(2)}% duplicated tokens across ${cloneReport.filesScanned} file(s)`,
+    );
+    for (const g of cloneReport.groups.slice(0, 5)) {
+      const spans = g.instances.map((i) => `${i.file}:${i.startLine}-${i.endLine}`);
+      lines.push(`- ${spans.join(' and ')} (${g.tokens} tokens)`);
+    }
+    lines.push('');
+  }
 
   // Gate compliance section — only at release time. Without --release, the
   // counter ticks per-commit and pollutes diffs without conveying signal.
@@ -956,6 +979,30 @@ async function main(): Promise<void> {
   } catch {
     metricsReport = null;
   }
+  // Clone corpus deliberately uses walkCodeFiles over the scan roots rather
+  // than filtering allRepoPaths (walkRepo has a different directory-exclusion
+  // policy) — one extra sub-second walk buys a single policy source.
+  let cloneReport: CloneReport | null;
+  try {
+    const corpus = new Map<string, string>();
+    for (const root of scanRoots) {
+      for (const abs of walkCodeFiles(root, { includeTests: false })) {
+        try {
+          corpus.set(abs, readFileSync(abs, 'utf8'));
+        } catch {
+          // unreadable file — skip
+        }
+      }
+    }
+    const clonesConfig = loadConfigSync(join(process.cwd(), '.noldor', 'config.json'))?.clones;
+    cloneReport = detectClones(corpus, {
+      minTokens: clonesConfig?.minTokens ?? DEFAULT_CLONE_OPTIONS.minTokens,
+      minLines: clonesConfig?.minLines ?? DEFAULT_CLONE_OPTIONS.minLines,
+      gapTokens: clonesConfig?.gapTokens ?? DEFAULT_CLONE_OPTIONS.gapTokens,
+    });
+  } catch {
+    cloneReport = null;
+  }
   const reportMd = renderReportMd(
     grouped,
     features.length,
@@ -963,6 +1010,7 @@ async function main(): Promise<void> {
     backlog.length,
     gateCompliance,
     metricsReport,
+    cloneReport,
   );
   const outPath = resolveReportOutPath(process.argv.slice(2), process.env);
   await writeFile(outPath, `${reportMd.replace(/\n*$/, '')}\n`, 'utf8');

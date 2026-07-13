@@ -297,3 +297,22 @@ describe('garden.overrideAudit block', () => {
     ).toThrow();
   });
 });
+
+describe('clones config block', () => {
+  it('parses a valid clones block and degrades malformed fields to undefined', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'noldor-config-clones-'));
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ clones: { minTokens: 40, thresholdPct: 'nope' } }));
+    const cfg = await loadConfig(path);
+    expect(cfg?.clones?.minTokens).toBe(40);
+    expect(cfg?.clones?.thresholdPct).toBeUndefined();
+  });
+
+  it('degrades a malformed clones BLOCK to undefined without throwing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'noldor-config-clones-'));
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ clones: [] }));
+    const cfg = await loadConfig(path);
+    expect(cfg?.clones).toBeUndefined();
+  });
+});

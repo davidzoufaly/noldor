@@ -140,6 +140,23 @@ export type ExpectedOverride = z.infer<typeof expectedOverrideSchema>;
 /** Parsed `garden:` block. */
 export type GardenConfig = z.infer<typeof gardenConfigSchema>;
 
+/**
+ * Clone-detector knobs — the `clones:` block of `.noldor/config.json`.
+ * Every field (and the block itself, at the `noldorConfigSchema` key) degrades
+ * to unset on malformed input via `.catch(undefined)` so a config typo cannot
+ * throw out of every `loadConfig` caller — `clones check` treats an unset
+ * threshold as green.
+ */
+export const clonesConfigSchema = z.object({
+  minTokens: z.number().int().positive().optional().catch(undefined),
+  minLines: z.number().int().positive().optional().catch(undefined),
+  gapTokens: z.number().int().positive().optional().catch(undefined),
+  thresholdPct: z.number().positive().optional().catch(undefined),
+});
+
+/** Parsed `clones:` block. */
+export type ClonesConfig = z.infer<typeof clonesConfigSchema>;
+
 export const noldorConfigSchema = z.object({
   crLanes: crLanesConfigSchema.optional(),
   crReview: crReviewConfigSchema.optional(),
@@ -148,6 +165,7 @@ export const noldorConfigSchema = z.object({
   agents: agentsConfigSchema.optional(),
   release: releaseConfigSchema.optional(),
   garden: gardenConfigSchema.optional(),
+  clones: clonesConfigSchema.optional().catch(undefined),
 });
 export type NoldorConfig = z.infer<typeof noldorConfigSchema>;
 
