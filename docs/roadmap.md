@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Dashboard Task ID Under Task Title
-
-- id: Q-0028
-- area: tooling
-- type: feat
-- since: 2026-07-11
-- size: XS
-- impact: low
-- confidence: high
-
-In the dashboard table, move the task ID (Q-NNNN) so it renders under the task title instead of its current position — tightens the table layout.
-
 ### Dashboard Entry Move-To-Top/Bottom Actions
 
 - id: Q-0029
