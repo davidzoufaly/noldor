@@ -17,6 +17,21 @@ This page describes how raw ideas advance onto the engineering queue. The SDD de
 
 When a feature ships (`phase: done` in its feature MD), the corresponding entry in `docs/roadmap.md` is removed. Done features live in `docs/release-notes.md` and the [How-to index](../user/how-to/index.md).
 
+### The `## Lessons` section (absorb loop)
+
+`ideas.md` also carries a `## Lessons` section — the capture point for
+operator/agent lessons and gotchas (as opposed to future-work ideas). Drop a
+top-level `-` bullet there; `/noldor-absorb` classifies each unfiled bullet
+(`drop` shipped-historical / `gotcha` → runbooks / `actionable` → the triage
+queue / `feedback` → runbooks), files it, and stamps
+`[absorbed YYYY-MM-DD → <dest>]` on the source bullet. The section is invisible
+to triage tooling — `extractUntriagedBullets` walks only
+`## Verticals → #### Now|Next|Later`, so lessons never surface as untriaged
+ideas (a regression test locks this in). `actionable` lessons re-enter this
+page's flow as ordinary `#### Later` bullets. Stamped bullets may be pruned;
+git history is the audit trail. See the [skill catalog](skill-catalog.md) for
+the `/noldor-absorb` contract.
+
 ## Triage flow
 
 `/noldor-triage` is a bulk operation. Run it when `ideas.md` accumulates new top-level bullets and you want to advance them onto the engineering queue.

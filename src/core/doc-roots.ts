@@ -14,7 +14,7 @@ export interface DocRoots {
 /**
  * Returns absolute paths to the standard noldor doc locations anchored at
  * `cwd`: features/ (feature MDs), roadmap.md, backlog.md, vision.md,
- * ideas.md (repo ROOT, not docs/ — the per-user untracked triage inbox),
+ * ideas.md (repo ROOT, not docs/ — tracked here; consumers may gitignore theirs),
  * milestones/ (milestone MDs), plans/ (superpowers/plans), and
  * specs/ (superpowers/specs). Default is `process.cwd()`. Use as a single
  * source of truth instead of scattering `process.cwd()/docs/...` strings

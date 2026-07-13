@@ -72,9 +72,9 @@ export function extractUntriagedBullets(content: string): Untriaged[] {
 }
 
 async function main(): Promise<void> {
-  // ideas.md is a per-user local inbox (gitignored since PR #14) at the repo
-  // root. Treat a missing file as "no untriaged bullets" rather than crashing —
-  // matches the pattern in src/garden/sdd-report.ts.
+  // ideas.md lives at the repo root (tracked here; consumers may gitignore
+  // theirs). Treat a missing file as "no untriaged bullets" rather than
+  // crashing — matches the pattern in src/garden/sdd-report.ts.
   const ideasPath = loadDocRoots().ideas;
   const raw = await readFile(ideasPath, 'utf8').catch(() => '');
   const untriaged = extractUntriagedBullets(raw);

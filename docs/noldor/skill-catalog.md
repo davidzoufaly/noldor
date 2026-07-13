@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Skill Catalog
 
-Noldor ships 12 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
+Noldor ships 13 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
 
 > **Strict drift gate.** `pnpm noldor validate skill-catalog` (pre-commit, see [`garden-and-drift.md`](garden-and-drift.md) Detector 16) asserts that every `## /<slug>` heading on this page maps to a `<slug>.md` (or `<slug>/SKILL.md`) under `.claude/skills/`, and vice versa. Add or rename a skill → update this page in the same commit, or pre-commit blocks.
 
@@ -22,6 +22,13 @@ Noldor ships 12 user-invocable skills, each owned by a single concern. This page
 - **Inputs:** untagged top-level bullets in `ideas.md`; `docs/vision.md` for strategic rubric; existing schema-C blocks in `docs/roadmap.md` + `docs/backlog.md` for merge-candidate matching.
 - **Outputs:** schema-C blocks inserted into `docs/roadmap.md` (flat priority list — position chosen via `top` / `after:<slug>` / `bottom`) or appended to `docs/backlog.md`; sub-bullets appended to host blocks for `merge:<slug>` proposals; `[triaged YYYY-MM-DD → <slug>]` markers appended to source bullets in `ideas.md`. Never commits.
 - **When to use:** when raw ideas have piled up and you want to advance them onto the engineering queue. Bias toward `merge` when an existing block plausibly covers the idea. Promotion of a roadmap entry to a feature MD is `/noldor-promote`'s territory, not `/noldor-triage`'s.
+
+## /noldor-absorb
+
+- **Trigger:** `/noldor-absorb`. Run when `ideas.md`'s `## Lessons` section accumulates unfiled bullets.
+- **Inputs:** top-level `## Lessons` bullets without an `[absorbed …]` marker; `docs/noldor/*.md` runbooks as destinations; `docs/release-notes.md` + git history as `drop` evidence.
+- **Outputs:** entries appended to `docs/noldor/` pages (always both template twins) for `gotcha`/`feedback`; raw bullets appended to `## Verticals → #### Later` for `actionable`; `[absorbed YYYY-MM-DD → <dest>]` stamps on source bullets (`<dest>` pinned to `drop` | `ideas` | the page's `noldor-page` slug). Never commits.
+- **When to use:** to keep operational knowledge in-repo instead of any assistant's private memory (the vision's self-ownership invariant). Batch-confirm gates every write. Future-work ideas belong in `## Verticals` (triage material), not `## Lessons`.
 
 ## /noldor-garden
 
