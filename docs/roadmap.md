@@ -68,18 +68,6 @@ Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on th
 
 ### Framework Self-Ownership
 
-#### Skill-vs-Code Drift Detector
-
-- id: Q-0030
-- area: tooling
-- type: feat
-- since: 2026-07-11
-- size: M
-- impact: med
-- confidence: med
-
-Skills reference CLI commands, `package.json` scripts, and `src/` paths that rot after reorgs (release-sweep needed a full path audit, PR #124; the gate skill body carried the same class of drift). Add a garden detector that scans `.claude/skills/**/SKILL.md` + `templates/.claude/skills/**` for `pnpm <script>` invocations not in `package.json` scripts, `noldor <sub>` commands not in the CLI manifest, and repo-relative paths that don't exist. Carried out of the drained release-sweep-skill-path-audit roadmap entry.
-
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
 ### Trigger-Parked (revisit when the named trigger fires)
