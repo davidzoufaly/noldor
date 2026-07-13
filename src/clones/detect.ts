@@ -75,17 +75,39 @@ export function detectClones(
 
   const totalTokens = streams.reduce((acc, s) => acc + s.tokens.length, 0);
 
-  // 1. Window hashes → occurrence lists. Plain string keys (join of norms)
-  // stand in for a rolling hash: identical windows collide exactly, no
-  // verification false-positives, and corpus sizes here keep it fast.
-  const occurrences = new Map<string, Array<{ stream: number; start: number }>>();
+  // 1. Rolling-hash window index — O(n) time and O(n) numeric keys instead
+  // of one materialized minTokens-length string per position. Norm strings
+  // first intern to small ints (few distinct norms), then a polynomial hash
+  // rolls across each stream. Hash equality is verified token-by-token at
+  // seed time (collision guard) before any pair is accepted.
+  const normId = new Map<string, number>();
+  const idOfNorm = (n: string): number => {
+    let id = normId.get(n);
+    if (id === undefined) {
+      id = normId.size + 1;
+      normId.set(n, id);
+    }
+    return id;
+  };
+  // 26-bit prime modulus keeps every intermediate product exact in float64
+  // ((2*MOD)*BASE ~ 1.8e10 << 2^53); the verify step absorbs the higher
+  // collision rate a small modulus brings.
+  const BASE = 131;
+  const MOD = 67_108_859;
+  let topPow = 1;
+  for (let k = 1; k < minTokens; k++) topPow = (topPow * BASE) % MOD;
+  const occurrences = new Map<number, Array<{ stream: number; start: number }>>();
   streams.forEach((stream, sIdx) => {
-    const norms = stream.tokens.map((t) => t.norm);
-    for (let start = 0; start + minTokens <= norms.length; start++) {
-      const key = norms.slice(start, start + minTokens).join('\u0000');
-      const list = occurrences.get(key);
+    const ids = stream.tokens.map((t) => idOfNorm(t.norm));
+    if (ids.length < minTokens) return;
+    let h = 0;
+    for (let k = 0; k < minTokens; k++) h = (h * BASE + ids[k]!) % MOD;
+    for (let start = 0; ; start++) {
+      const list = occurrences.get(h);
       if (list) list.push({ stream: sIdx, start });
-      else occurrences.set(key, [{ stream: sIdx, start }]);
+      else occurrences.set(h, [{ stream: sIdx, start }]);
+      if (start + minTokens >= ids.length) break;
+      h = ((h - ((ids[start]! * topPow) % MOD) + MOD) * BASE + ids[start + minTokens]!) % MOD;
     }
   });
 
@@ -106,6 +128,15 @@ export function detectClones(
         const sb = streams[b.stream]!;
         const na = sa.tokens;
         const nb = sb.tokens;
+        // Hash-collision guard: rolling-hash equality is not window equality.
+        let windowsEqual = true;
+        for (let k = 0; k < minTokens; k++) {
+          if (na[a.start + k]!.norm !== nb[b.start + k]!.norm) {
+            windowsEqual = false;
+            break;
+          }
+        }
+        if (!windowsEqual) continue;
         // Left-maximality pre-check: a seed whose predecessors also match is
         // an interior window of a run another seed already covers; skipping
         // it turns quadratic re-extension per maximal clone into linear.
@@ -169,23 +200,26 @@ export function detectClones(
   }
   const merged: Pair[] = [];
   for (const list of byFilePair.values()) {
-    // Fixpoint merge: any two fragments whose BOTH sides sit gap-close in the
-    // same order coalesce; repeat until stable (pairs interleave in seed
-    // order, so a single adjacent-scan pass misses combinations).
-    let changed = true;
-    while (changed) {
-      changed = false;
-      outer: for (let x = 0; x < list.length; x++) {
+    // Per-anchor absorb: for each fragment, repeatedly swallow any fragment
+    // that continues it gap-close on BOTH sides, rescanning only until the
+    // current anchor stops growing — amortized O(m²) per file pair, without
+    // the full-restart fixpoint (O(m³)) this replaced. Pairs interleave in
+    // seed order, so a single adjacent-scan pass would miss combinations.
+    for (let x = 0; x < list.length; x++) {
+      const p = list[x]!;
+      let grew = true;
+      while (grew) {
+        grew = false;
         for (let y = 0; y < list.length; y++) {
           if (x === y) continue;
-          const p = list[x]!;
           const q = list[y]!;
           if (gapOk(p.aEnd, q.aStart) && gapOk(p.bEnd, q.bStart)) {
             p.aEnd = q.aEnd;
             p.bEnd = q.bEnd;
             list.splice(y, 1);
-            changed = true;
-            break outer;
+            if (y < x) x--;
+            grew = true;
+            break;
           }
         }
       }
