@@ -19,6 +19,10 @@ import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse
 import { loadDocRoots } from '../core/doc-roots.js';
 import { actualPackageNames, scanRoots } from '../core/repo-paths.js';
 import { collectGaps } from '../garden/sdd-report.js';
+import {
+  buildBlockedByGraph,
+  findBlockedByCycles,
+} from '../garden/detectors/circular-blocked-by.js';
 import { listPlans, listSpecs, loadSddFeatures, readTextFiles, walkRepo } from '../core/fd-load.js';
 import { commitsForFeature } from '../release/release-fd-commits.js';
 import { prsSinceLastTag, type PrRef } from '../release/fd-prs-since-tag.js';
@@ -1982,6 +1986,82 @@ export function parseGraphReport(raw: string): GraphHealthSnapshot {
     lowCohesionCommunities,
     deadExportCount: parseDeadExports(raw),
   });
+}
+
+/** One entry node on the `/blocked-by` page (only entries touching an edge render). */
+export interface BlockedByNode {
+  slug: string;
+  name: string;
+  id?: string;
+  source: 'roadmap' | 'backlog';
+  size?: string;
+  inCycle: boolean;
+}
+
+/** One `blocked-by` edge: `from` is blocked by `to` (or by an unresolvable `dangling` ref). */
+export interface BlockedByEdge {
+  from: string;
+  to?: string;
+  dangling?: string;
+}
+
+export interface BlockedByGraphView {
+  nodes: BlockedByNode[];
+  edges: BlockedByEdge[];
+  cycles: string[][];
+  /** Entries with no in- or out-edges — counted, not rendered. */
+  unlinked: number;
+}
+
+/**
+ * Load the roadmap+backlog `blocked-by` graph for the `/blocked-by` page.
+ * Nodes/edges and cycles all derive from the garden detector's
+ * `buildBlockedByGraph` construction (single source of truth — the page can
+ * never disagree with `garden detect`'s `circularBlockedBy` findings).
+ * Missing roadmap/backlog files read as empty (fail-open, consistent with the
+ * other loaders).
+ */
+export async function loadBlockedByGraph(): Promise<BlockedByGraphView> {
+  const readOr = async (path: string): Promise<string> => {
+    try {
+      return await readFile(path, 'utf8');
+    } catch {
+      return '';
+    }
+  };
+  const [roadmapRaw, backlogRaw] = await Promise.all([
+    readOr(getRoadmapPath()),
+    readOr(getBacklogPath()),
+  ]);
+  const build = buildBlockedByGraph(roadmapRaw, backlogRaw);
+  const cycles = findBlockedByCycles(roadmapRaw, backlogRaw);
+  const inCycle = new Set(cycles.flat());
+
+  const edges: BlockedByEdge[] = [];
+  for (const [from, targets] of build.adj) {
+    for (const to of targets) edges.push({ from, to });
+  }
+  for (const [from, refs] of build.dangling) {
+    for (const ref of refs) edges.push({ from, dangling: ref });
+  }
+
+  const linked = new Set<string>();
+  for (const e of edges) {
+    linked.add(e.from);
+    if (e.to !== undefined) linked.add(e.to);
+  }
+  const named = build.entries.filter((e) => e.slug.length > 0);
+  const nodes: BlockedByNode[] = named
+    .filter((e) => linked.has(e.slug))
+    .map((e) => ({
+      slug: e.slug,
+      name: e.name,
+      ...(e.id !== undefined ? { id: e.id } : {}),
+      source: e.source,
+      ...(e.size !== undefined ? { size: e.size } : {}),
+      inCycle: inCycle.has(e.slug),
+    }));
+  return { nodes, edges, cycles, unlinked: named.length - nodes.length };
 }
 
 /**

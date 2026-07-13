@@ -17,17 +17,36 @@ export interface CircularBlockedByFinding {
   readonly action: 'manual-edit';
 }
 
+/** One queue entry tagged with the file it was parsed from. */
+export type SourcedEntry = BacklogEntry & { readonly source: 'roadmap' | 'backlog' };
+
 /**
- * Find every circular `blocked-by` chain across the roadmap + backlog. Refs
+ * The shared `blocked-by` graph construction: merged roadmap+backlog entries
+ * (tagged with their origin file), the slug-keyed adjacency list (refs — slug
+ * or entry ID — resolved to target slugs), and the refs that resolved to
+ * nothing (`dangling`, keyed by the referencing entry's slug). Consumed by
+ * BOTH {@link findBlockedByCycles} and the dashboard `/blocked-by` loader so
+ * displayed edges and detected cycles can never drift apart.
+ */
+export interface BlockedByBuild {
+  readonly entries: readonly SourcedEntry[];
+  readonly adj: Map<string, string[]>;
+  readonly dangling: Map<string, string[]>;
+}
+
+/**
+ * Build the `blocked-by` graph across the roadmap + backlog. Refs
  * (`blocked-by:`, or its legacy `deps:` alias) may be entry IDs or slugs; both
  * resolve to the target entry's slug before graph construction, so an ID→slug
- * cross-reference still closes a cycle. Dangling refs (no matching entry) are
- * ignored here — {@link validateTriageInputs}'s `unknown-blocked-by-ref` owns
- * that signal. Returns one member-slug list per cycle (Tarjan SCC; self-loops
- * included), deduplicated so a shared cycle is reported once.
+ * cross-reference still closes a cycle. Refs matching no entry land in
+ * `dangling` — {@link validateTriageInputs}'s `unknown-blocked-by-ref` owns
+ * that validation signal; the dashboard renders them as dashed edges.
  */
-export function findBlockedByCycles(roadmapRaw: string, backlogRaw: string): string[][] {
-  const entries: BacklogEntry[] = [...parseRoadmap(roadmapRaw), ...parseBacklog(backlogRaw)];
+export function buildBlockedByGraph(roadmapRaw: string, backlogRaw: string): BlockedByBuild {
+  const entries: SourcedEntry[] = [
+    ...parseRoadmap(roadmapRaw).map((e) => ({ ...e, source: 'roadmap' as const })),
+    ...parseBacklog(backlogRaw).map((e) => ({ ...e, source: 'backlog' as const })),
+  ];
 
   const idToSlug = new Map<string, string>();
   const slugs = new Set<string>();
@@ -41,16 +60,28 @@ export function findBlockedByCycles(roadmapRaw: string, backlogRaw: string): str
     idToSlug.get(ref) ?? (slugs.has(ref) ? ref : null);
 
   const adj = new Map<string, string[]>();
+  const dangling = new Map<string, string[]>();
   for (const s of slugs) adj.set(s, []);
   for (const e of entries) {
     if (e.slug.length === 0) continue;
     for (const dep of e.deps ?? []) {
       const target = resolve(dep);
       if (target !== null) adj.get(e.slug)?.push(target);
+      else dangling.set(e.slug, [...(dangling.get(e.slug) ?? []), dep]);
     }
   }
 
-  return tarjanCycles(adj);
+  return { entries, adj, dangling };
+}
+
+/**
+ * Find every circular `blocked-by` chain across the roadmap + backlog (see
+ * {@link buildBlockedByGraph} for ref-resolution rules). Returns one
+ * member-slug list per cycle (Tarjan SCC; self-loops included), deduplicated
+ * so a shared cycle is reported once.
+ */
+export function findBlockedByCycles(roadmapRaw: string, backlogRaw: string): string[][] {
+  return tarjanCycles(buildBlockedByGraph(roadmapRaw, backlogRaw).adj);
 }
 
 /**

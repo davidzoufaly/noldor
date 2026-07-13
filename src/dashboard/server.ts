@@ -20,6 +20,7 @@ import {
   loadFrameworkPage,
   loadFrameworkPages,
   loadGaps,
+  loadBlockedByGraph,
   loadGraphHealth,
   loadHotZones,
   loadReleaseNotes,
@@ -47,6 +48,7 @@ import {
   renderFrameworkIndex,
   renderFrameworkPage,
   renderGaps,
+  renderBlockedBy,
   renderGraphHealth,
   renderHotZones,
   renderOverview,
@@ -121,6 +123,7 @@ const STATIC_GET_HANDLERS: Record<string, RouteMatch['handler']> = {
   '/milestones': handleMilestones,
   '/roadmap': handleRoadmap,
   '/backlog': handleBacklog,
+  '/blocked-by': handleBlockedBy,
   '/features': handleFeatures,
   '/gaps': handleGaps,
   '/velocity': handleVelocity,
@@ -736,6 +739,18 @@ async function handleTestPyramid(): Promise<RouteResult> {
     body: renderTestPyramid(rows),
     title: 'Test pyramid',
     activeNav: '/test-pyramid',
+  };
+}
+
+async function handleBlockedBy(params: URLSearchParams): Promise<RouteResult> {
+  const graph = await loadBlockedByGraph();
+  // `?format=json` skips HTML for agent workflows, mirroring /wip-age.
+  if (params.get('format') === 'json') return jsonResult(200, graph);
+  return {
+    status: 200,
+    body: renderBlockedBy(graph),
+    title: 'Blocked-by',
+    activeNav: '/blocked-by',
   };
 }
 

@@ -3,6 +3,7 @@ import { escapeHtml } from './layout.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
 import type { BacklogEntry } from '../utils/parse-blocks.js';
+import type { BlockedByGraphView } from './data.js';
 import type { MetricResult, MetricsReport } from '../metrics/types.js';
 import type { Gap } from '../core/fd-load.js';
 import type {
@@ -1540,6 +1541,71 @@ export function renderAgentsLog(tail: string | null): string {
  * @param rows - WIP age rows pre-sorted by age desc
  * @returns HTML body string
  */
+/**
+ * Render the `/blocked-by` page: counter strip + client-rendered mermaid
+ * flowchart of the roadmap+backlog dependency graph (arrows point blocked →
+ * blocker), plus a server-rendered cycle list so the critical signal survives
+ * without JS/CDN. Cycle members are styled red, backlog nodes muted, dangling
+ * refs dashed.
+ */
+export function renderBlockedBy(graph: BlockedByGraphView): string {
+  const counterStrip = `<div class="counter-strip">
+    <div class="counter"><div class="v">${graph.nodes.length}</div><div class="l">entries in graph</div></div>
+    <div class="counter"><div class="v">${graph.edges.length}</div><div class="l">blocked-by edges</div></div>
+    <div class="counter"><div class="v">${graph.cycles.length}</div><div class="l">cycles</div></div>
+    <div class="counter"><div class="v">${graph.unlinked}</div><div class="l">unlinked entries</div></div>
+  </div>`;
+
+  if (graph.edges.length === 0 && graph.cycles.length === 0) {
+    return `<h1>Blocked-by graph</h1>${counterStrip}<p class="empty">No blocked-by edges declared — the queue is dependency-free.</p>`;
+  }
+
+  // Synthetic mermaid ids (s_<n> / d_<n>) sidestep slug-vs-mermaid-syntax
+  // collisions; labels are quoted with quotes stripped.
+  const idOf = new Map(graph.nodes.map((n, i) => [n.slug, `s_${i}`]));
+  const label = (text: string): string => text.replace(/["`]/g, "'");
+  const lines: string[] = ['flowchart LR'];
+  for (const n of graph.nodes) {
+    const idSuffix = n.id !== undefined ? ` (${n.id})` : '';
+    lines.push(`  ${idOf.get(n.slug)}["${label(n.name + idSuffix)}"]`);
+  }
+  let danglingSeq = 0;
+  for (const e of graph.edges) {
+    const from = idOf.get(e.from);
+    if (from === undefined) continue;
+    if (e.to !== undefined) {
+      const to = idOf.get(e.to);
+      if (to !== undefined) lines.push(`  ${from} --> ${to}`);
+    } else if (e.dangling !== undefined) {
+      const dId = `d_${danglingSeq++}`;
+      lines.push(`  ${dId}["${label(e.dangling)} (unknown)"]`);
+      lines.push(`  ${from} -.-> ${dId}`);
+    }
+  }
+  lines.push('  classDef cycle stroke:#dc2626,stroke-width:2px;');
+  lines.push('  classDef backlog opacity:0.55,stroke-dasharray:3 3;');
+  const cycleIds = graph.nodes.filter((n) => n.inCycle).map((n) => idOf.get(n.slug));
+  if (cycleIds.length > 0) lines.push(`  class ${cycleIds.join(',')} cycle;`);
+  const backlogIds = graph.nodes
+    .filter((n) => n.source === 'backlog' && !n.inCycle)
+    .map((n) => idOf.get(n.slug));
+  if (backlogIds.length > 0) lines.push(`  class ${backlogIds.join(',')} backlog;`);
+
+  const cyclesHtml =
+    graph.cycles.length === 0
+      ? ''
+      : `<h2>Cycles</h2><ul>${graph.cycles
+          .map(
+            (c) =>
+              `<li><code>${escapeHtml([...c, c[0] ?? ''].join(' → '))}</code> — every member is a defensible edge to cut; resolve by hand.</li>`,
+          )
+          .join('')}</ul>`;
+
+  const legend = `<p class="muted">Arrows point blocked → blocker. Red = cycle member; dashed/muted = backlog entry; dotted arrow = dangling ref (no matching entry).</p>`;
+
+  return `<h1>Blocked-by graph</h1>${counterStrip}${legend}<pre class="mermaid">${escapeHtml(lines.join('\n'))}</pre>${cyclesHtml}`;
+}
+
 export function renderWipAge(rows: WipAgeRow[]): string {
   const buckets = { fresh: 0, aging: 0, stale: 0 };
   for (const r of rows) buckets[r.bucket] += 1;

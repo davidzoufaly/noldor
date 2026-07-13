@@ -7,6 +7,7 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '/release-notes', label: 'Releases' },
   { href: '/roadmap', label: 'Roadmap' },
   { href: '/backlog', label: 'Backlog' },
+  { href: '/blocked-by', label: 'Blocked-by' },
   { href: '/features', label: 'Features' },
   { href: '/gaps', label: 'Gaps' },
   { href: '/velocity', label: 'Velocity' },
