@@ -17,7 +17,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ## Code clones
 
-- 279 clone group(s), 13.31% duplicated tokens across 283 file(s)
+- 236 clone group(s), 13.75% duplicated tokens across 283 file(s)
 - src/garden/garden-detect.ts:97-203 and src/garden/garden-detect.ts:220-326 (388 tokens)
 - src/dashboard/views.ts:748-799 and src/dashboard/views.ts:826-925 (269 tokens)
 - src/dashboard/data.ts:1058-1089 and src/garden/sdd-report.ts:908-943 (259 tokens)
@@ -68,8 +68,8 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
 {
   "perLane": {
     "subagent": {
-      "blockers": 15,
-      "suggestions": 30
+      "blockers": 16,
+      "suggestions": 31
     },
     "verify": {
       "blockers": 0,
@@ -93,7 +93,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
     "salvaged": 0,
     "escalatedTotal": 0,
     "escalatedBySlug": {},
-    "meanDurationMs": 144136
+    "meanDurationMs": 149460
   }
 }
 ```

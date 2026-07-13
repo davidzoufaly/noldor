@@ -126,8 +126,25 @@ export function detectClones(
           aE++;
           bE++;
         }
-        // Post-extension disjointness guard (periodic-run degenerate case).
-        if (a.stream === b.stream && overlaps(aS, aE, bS, bE)) continue;
+        // Post-extension handling for same-stream overlap: CLAMP at the
+        // period boundary instead of discarding — 3+ consecutive copies of a
+        // block are periodic after normalization, and a discard here loses
+        // the middle copy (pairs (1,2)/(2,3) overlap post-extension, leaving
+        // only (1,3)). Clamping keeps every adjacent pair.
+        if (a.stream === b.stream && overlaps(aS, aE, bS, bE)) {
+          const [loS, hiS] = aS <= bS ? [aS, bS] : [bS, aS];
+          const loEnd = hiS - 1;
+          const len = loEnd - loS + 1;
+          if (len < minTokens) continue;
+          if (aS <= bS) {
+            aE = loEnd;
+            bE = bS + len - 1;
+          } else {
+            bE = loEnd;
+            aE = aS + len - 1;
+          }
+          if (overlaps(aS, aE, bS, bE)) continue;
+        }
 
         const key = `${a.stream}:${aS}-${aE}|${b.stream}:${bS}-${bE}`;
         if (seen.has(key)) continue;
@@ -280,12 +297,14 @@ export function detectClones(
     tokens: number;
     lines: number;
     members: Map<string, CloneInstance>;
+    spans: Map<string, { file: string; s: number; e: number }>;
   }> = [];
   for (const g of kept) {
     const keys = g.ranges.map(rangeKey);
     const hits = [...new Set(keys.map((k) => classOf.get(k)).filter((i) => i !== undefined))];
     const idx =
-      hits[0] ?? classes.push({ tokens: g.tokens, lines: g.lines, members: new Map() }) - 1;
+      hits[0] ??
+      classes.push({ tokens: g.tokens, lines: g.lines, members: new Map(), spans: new Map() }) - 1;
     const cls = classes[idx]!;
     // A pair can BRIDGE two previously-separate classes — fold the losers'
     // members into the winner and remap their keys (plain first-hit adoption
@@ -295,14 +314,50 @@ export function detectClones(
       for (const [k, inst] of loser.members) {
         classOf.set(k, idx);
         if (!cls.members.has(k)) cls.members.set(k, inst);
+        const span = loser.spans.get(k);
+        if (span && !cls.spans.has(k)) cls.spans.set(k, span);
       }
       cls.tokens = Math.max(cls.tokens, loser.tokens);
       loser.members.clear();
+      loser.spans.clear();
     }
     cls.tokens = Math.max(cls.tokens, g.tokens);
     for (let k = 0; k < keys.length; k++) {
       classOf.set(keys[k]!, idx);
       if (!cls.members.has(keys[k]!)) cls.members.set(keys[k]!, g.inst[k]!);
+      if (!cls.spans.has(keys[k]!)) cls.spans.set(keys[k]!, g.ranges[k]!);
+    }
+  }
+
+  // 9. Single-file staggered-family collapse: the period-boundary clamp keeps
+  // every adjacent tandem pair but also mints staggered sub-pairs of a
+  // periodic run. At CLASS level, a class confined to one file whose token
+  // union sits inside a bigger same-file class's union is that family noise —
+  // drop it. (Tandem n-copy classes are safe: shared exact ranges already
+  // fused them into the surviving class.)
+  const live = classes.filter((c) => c.members.size > 0);
+  const unionOf = (c: (typeof live)[number]): { file: string; s: number; e: number } | null => {
+    const spans = [...c.spans.values()];
+    const file = spans[0]?.file;
+    if (file === undefined || spans.some((r) => r.file !== file)) return null;
+    return {
+      file,
+      s: Math.min(...spans.map((r) => r.s)),
+      e: Math.max(...spans.map((r) => r.e)),
+    };
+  };
+  for (const c2 of live) {
+    const u2 = unionOf(c2);
+    if (!u2) continue;
+    for (const c1 of live) {
+      if (c1 === c2 || c1.members.size === 0 || c1.tokens < c2.tokens) continue;
+      const u1 = unionOf(c1);
+      if (!u1 || u1.file !== u2.file) continue;
+      if (u1.s <= u2.s && u2.e <= u1.e && (u1.s < u2.s || u2.e < u1.e || c1.tokens > c2.tokens)) {
+        c2.members.clear();
+        c2.spans.clear();
+        break;
+      }
     }
   }
 

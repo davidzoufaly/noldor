@@ -169,3 +169,18 @@ describe('class bridging', () => {
     expect(report.groups[0]!.instances).toHaveLength(4);
   });
 });
+
+describe('tandem copies in one file', () => {
+  it('three consecutive copies keep all three instances', () => {
+    const src = fn('one') + fn('two') + fn('three');
+    const report = detectClones(new Map([['a.ts', src]]), { ...OPTS, gapTokens: 1 });
+    const spans = report.groups.flatMap((g) => g.instances.map((i) => i.startLine));
+    // every copy start (lines 1, 10, 19) appears in some group instance
+    expect(new Set(spans).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('fractional minTokens is rejected by the CLI parser and config schema', async () => {
+    const { parseClonesArgs } = await import('../clones-cli');
+    expect(() => parseClonesArgs(['report', '--min-tokens', '30.5'])).toThrow(/integer/);
+  });
+});

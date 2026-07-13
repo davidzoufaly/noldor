@@ -148,9 +148,9 @@ export type GardenConfig = z.infer<typeof gardenConfigSchema>;
  * threshold as green.
  */
 export const clonesConfigSchema = z.object({
-  minTokens: z.number().positive().optional().catch(undefined),
-  minLines: z.number().positive().optional().catch(undefined),
-  gapTokens: z.number().positive().optional().catch(undefined),
+  minTokens: z.number().int().positive().optional().catch(undefined),
+  minLines: z.number().int().positive().optional().catch(undefined),
+  gapTokens: z.number().int().positive().optional().catch(undefined),
   thresholdPct: z.number().positive().optional().catch(undefined),
 });
 

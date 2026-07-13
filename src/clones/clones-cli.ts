@@ -34,7 +34,7 @@ export function parseClonesArgs(argv: string[]): ClonesArgs {
   const args: ClonesArgs = { sub, json: false, includeTests: false };
   const numeric = (flag: string, value: string | undefined): number => {
     const n = Number(value);
-    if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${flag} needs a positive number`);
+    if (!Number.isInteger(n) || n <= 0) throw new UsageError(`${flag} needs a positive integer`);
     return n;
   };
   for (let i = 0; i < rest.length; i++) {
