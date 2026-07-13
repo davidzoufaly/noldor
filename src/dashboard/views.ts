@@ -1201,7 +1201,8 @@ export function renderFeatureDetail(detail: FeatureDetail): string {
 }
 
 /**
- * Render the hot-zones page: filter form + ranked file table or empty state.
+ * Render the hot-zones subsection of the WIP-age page: filter form + ranked
+ * file table or empty state. Emits an `<h2>` so it nests under the page `<h1>`.
  *
  * @param rows - Pre-sorted, pre-ranked hot-zone rows
  * @param filters - Active `days` window and `limit`
@@ -1228,7 +1229,7 @@ export function renderHotZones(
     <button type="submit">Apply</button>
   </form>`;
 
-  const heading = `<h1>Hot zones (top ${filters.limit}, last ${filters.days} days)</h1>`;
+  const heading = `<h2>Hot zones (top ${filters.limit}, last ${filters.days} days)</h2>`;
 
   if (rows.length === 0) {
     return `${heading}${form}<p class="empty">No matching commits in window.</p>`;
@@ -1531,8 +1532,9 @@ export function renderAgentsLog(tail: string | null): string {
 }
 
 /**
- * Render the WIP age page: counter strip with bucket totals, table of
- * in-progress features sorted by age desc with a colored bucket badge.
+ * Render the WIP-age section of the consolidated page: counter strip with
+ * bucket totals, table of in-progress features sorted by age desc with a
+ * colored bucket badge. The hot-zones subsection is appended by the handler.
  *
  * @param rows - WIP age rows pre-sorted by age desc
  * @returns HTML body string

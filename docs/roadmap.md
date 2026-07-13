@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Dashboard Merge Hot Zones Into WIP Age
-
-- id: Q-0036
-- area: tooling
-- type: refactor
-- since: 2026-07-13
-- size: S
-- impact: med
-- confidence: med
-
-Merge the hot-zones dashboard page into the WIP-age dashboard page — one consolidated view instead of two overlapping activity/staleness pages.
-
 ### Dashboard Merge Skills Into Framework
 
 - id: Q-0037

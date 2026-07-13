@@ -37,7 +37,9 @@ noldor-tier: full
 
 ## Summary
 
-Top-N most-changed files in the last D days surfaced on the project tracking dashboard at `/hot-zones`. Single git call (`git log --since=Nd --no-merges --name-only`), in-process aggregation, lockfile + generated paths excluded, feature MDs cross-referenced via `links.code`. Where churn lives, bugs follow — points refactor and review attention at the right files.
+> **Merged (Q-0036):** the hot-zones page no longer has its own route — it is now a subsection of the WIP-age page at `/wip-age`. The renderer (`renderHotZones`), loader (`loadHotZones`), filters, and `?format=json` affordance are unchanged; only the route and nav entry were consolidated.
+
+Top-N most-changed files in the last D days surfaced on the project tracking dashboard at `/wip-age` (formerly a standalone `/hot-zones` page). Single git call (`git log --since=Nd --no-merges --name-only`), in-process aggregation, lockfile + generated paths excluded, feature MDs cross-referenced via `links.code`. Where churn lives, bugs follow — points refactor and review attention at the right files.
 
 ## User Story
 

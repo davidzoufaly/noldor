@@ -125,7 +125,6 @@ const STATIC_GET_HANDLERS: Record<string, RouteMatch['handler']> = {
   '/features': handleFeatures,
   '/gaps': handleGaps,
   '/velocity': handleVelocity,
-  '/hot-zones': handleHotZones,
   '/wip-age': handleWipAge,
   '/test-pyramid': handleTestPyramid,
   '/graph-health': handleGraphHealth,
@@ -718,31 +717,25 @@ async function handleVelocity(): Promise<RouteResult> {
   };
 }
 
-async function handleHotZones(params: URLSearchParams): Promise<RouteResult> {
+async function handleWipAge(params: URLSearchParams): Promise<RouteResult> {
+  // Consolidated activity/staleness page: WIP-age table + hot-zones subsection.
+  // The hot-zones filter form (`days`/`limit`) posts back here, so this handler
+  // owns the same clamping the old `/hot-zones` handler did.
   const daysRaw = Number(params.get('days') ?? '30');
   const days = ([7, 30, 90] as const).includes(daysRaw as 7 | 30 | 90)
     ? (daysRaw as 7 | 30 | 90)
     : 30;
   const limitRaw = Number(params.get('limit') ?? '10');
   const limit = Number.isFinite(limitRaw) ? Math.min(100, Math.max(1, Math.trunc(limitRaw))) : 10;
-  const rows = await loadHotZones({ days, limit });
-  // `?format=json` returns the bare `HotZoneRow[]` array as `application/json`
-  // so agent workflows can skip HTML parsing. Same `days`/`limit` clamping as
-  // the HTML branch — only the rendering differs.
-  if (params.get('format') === 'json') return jsonResult(200, rows);
+  const [wipRows, hotRows] = await Promise.all([loadWipAge(), loadHotZones({ days, limit })]);
+  // `?format=json` returns both datasets so agent workflows can skip HTML
+  // parsing — carries over the old `/hot-zones?format=json` affordance now that
+  // the page is merged. Same `days`/`limit` clamping as the HTML branch.
+  if (params.get('format') === 'json')
+    return jsonResult(200, { wipAge: wipRows, hotZones: hotRows });
   return {
     status: 200,
-    body: renderHotZones(rows, { days, limit }),
-    title: 'Hot zones',
-    activeNav: '/hot-zones',
-  };
-}
-
-async function handleWipAge(): Promise<RouteResult> {
-  const rows = await loadWipAge();
-  return {
-    status: 200,
-    body: renderWipAge(rows),
+    body: `${renderWipAge(wipRows)}${renderHotZones(hotRows, { days, limit })}`,
     title: 'WIP age',
     activeNav: '/wip-age',
   };
