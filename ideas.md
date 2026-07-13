@@ -21,6 +21,10 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 - Skill-vs-code drift detector — skills reference CLI commands, `package.json` scripts, and `src/` paths that rot after reorgs (release-sweep needed a full path audit, PR #124; gate skill body has the same class of drift per the gate-doc-truth roadmap entry). Candidate garden detector: scan `.claude/skills/**/SKILL.md` + `templates/.claude/skills/**` for `pnpm <script>` invocations not in `package.json` scripts, `noldor <sub>` commands not in the CLI manifest, and repo-relative paths that don't exist. Carried out of the drained release-sweep-skill-path-audit roadmap entry ("candidate follow-up, not in scope"). [triaged 2026-07-11 → skill-vs-code-drift-detector]
 - Agent-events log rotation/retention — deferred from the /agents entry (spec D5): `.noldor/agent-events.jsonl` grows without bound (phase rows add ~4 lines per slug per run). Rotation adds file-swap complexity to a fail-open writer; design size-or-age-based rotation (keep last N runs readable for the /agents timeline) as its own entry. Touches: `src/core/agent-events.ts`, `src/dashboard/data.ts` readers. [triaged 2026-07-11 → agent-events-log-rotation]
 
+## Lessons
+
+Raw capture point for operator/agent lessons + gotchas. `/noldor-absorb` classifies each unfiled bullet (`drop | gotcha | actionable | feedback`), files it into framework docs, and stamps `[absorbed YYYY-MM-DD → <dest>]`. Stamped bullets may be pruned — git history is the audit trail.
+
 ## Verticals
 
 ### Business

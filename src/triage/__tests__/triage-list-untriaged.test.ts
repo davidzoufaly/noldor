@@ -97,4 +97,22 @@ describe(extractUntriagedBullets, () => {
     const out = extractUntriagedBullets(md);
     expect(out[0]?.line).toBe(7);
   });
+
+  it('ignores ## Lessons bullets — the /noldor-absorb capture section is not triage material', () => {
+    const md = `## Lessons
+
+- unfiled lesson about CR sinks
+- filed lesson [absorbed 2026-07-13 → gotchas]
+
+## Verticals
+
+### Tooling
+
+#### Now
+
+- real candidate
+`;
+    const out = extractUntriagedBullets(md);
+    expect(out.map((b) => b.text)).toStrictEqual(['real candidate']);
+  });
 });
