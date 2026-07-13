@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Dashboard Merge Skills Into Framework
-
-- id: Q-0037
-- area: tooling
-- type: refactor
-- since: 2026-07-13
-- size: S
-- impact: low
-- confidence: med
-
-Merge the skills dashboard page into the framework dashboard page — skills are framework surface; a separate page splits related signal.
-
 ### Metrics Page UI Improvements
 
 - id: Q-0038
