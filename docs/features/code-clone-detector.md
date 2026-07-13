@@ -21,11 +21,16 @@ Token/AST-based Type-1/2/3 clone detection (copy-paste dups, à la `jscpd`). Det
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a framework maintainer, I want a deterministic token-based clone report over the configured source roots, so that copy-paste duplication surfaces in sdd-report and refactor sessions target real duplicate blocks instead of guessing from file sizes.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- `pnpm noldor clones report` — human summary (top groups, duplication %); `--json` for the full `CloneReport` (feeds `/noldor-refactor`).
+- `pnpm noldor clones check` — exit 1 when `clones.thresholdPct` (`.noldor/config.json`) is exceeded; unset threshold = always green. Wire into CI/lefthook for a hard gate.
+- Flags: `--min-tokens N` (50), `--min-lines N` (5), `--gap-tokens N` (10), `--include-tests`.
+- `sdd-report` — `## Code clones` section renders group count + duplication % + top-5 groups on every regen.
 
 ## PRs
 
