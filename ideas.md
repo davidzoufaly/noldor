@@ -9,6 +9,8 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 ## Priority
 
+- merge hot zones to wip age dashboard
+- merge skills to framework
 - task ID move under task title in dashboard table [triaged 2026-07-11 → dashboard-task-id-under-task-title]
 - fix dashboard many pages are broken + live drain observation is not in main menu? and not working anyway [triaged 2026-07-11 → dashboard-broken-pages-audit]
 - odebrat add entry to the top and add entry to the bottom z roadmapy -> přesunout je do action column jako 2 tlačítka u každého entry (může se posunout úplně nahoru nebo úplně dolů) [triaged 2026-07-11 → dashboard-entry-move-to-top-bottom-actions]
