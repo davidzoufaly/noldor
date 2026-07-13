@@ -70,12 +70,11 @@ links:
 name: Outcome Telemetry and Effectiveness Metrics
 packages:
   - scripts
-phase: done
+phase: in-progress
 since: '2026-06-11'
 noldor-tier: full
 introduced: 0.4.0
 ---
-
 ## Summary
 
 The framework enforces process and never measures whether the process works. Every tuning decision (gate strictness, size-routing thresholds, CR lane composition, drain retry caps) is currently vibes. The raw data already exists — git trailers, FD frontmatter (`since` / `introduced` / `phase`), PR history, drain logs, and (once shipped) agent-events. Build the derivation layer.
