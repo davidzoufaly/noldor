@@ -210,3 +210,31 @@ describe('inner repetition inside duplicated outers', () => {
     expect(report.groups.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('tandem repeats n >= 4', () => {
+  const block = [
+    'const chunk = alpha + beta + gamma + delta;',
+    'const twice = chunk + chunk + alpha + beta;',
+    'const thrice = twice + chunk + gamma + delta;',
+    'const final = thrice + twice + chunk + alpha;',
+    'register(final, thrice, twice, chunk);',
+    '',
+  ].join('\n');
+  const opts = { minTokens: 20, minLines: 4, gapTokens: 2 };
+
+  for (const n of [3, 4, 5]) {
+    it(`${n} consecutive copies -> one class listing all ${n} disjoint instances`, () => {
+      const report = detectClones(new Map([['a.ts', block.repeat(n)]]), opts);
+      const all = report.groups.flatMap((g) => g.instances);
+      const starts = new Set(all.map((i) => i.startLine));
+      // every copy start line represented exactly once across groups
+      expect(starts.size).toBe(all.length);
+      expect(starts.size).toBeGreaterThanOrEqual(n);
+      // no overlapping instances anywhere
+      const sorted = [...all].sort((x, y) => x.startLine - y.startLine);
+      for (let i = 1; i < sorted.length; i++) {
+        expect(sorted[i]!.startLine).toBeGreaterThan(sorted[i - 1]!.endLine);
+      }
+    });
+  }
+});

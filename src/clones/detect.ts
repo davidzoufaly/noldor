@@ -48,6 +48,10 @@ interface Pair {
   aEnd: number;
   bStart: number;
   bEnd: number;
+  /** Minted by the tandem-period emission — canonical fine decomposition,
+   * exempt from generic containment domination (step 6); the coarser-family
+   * dedup (step 10) resolves periodic families instead. */
+  periodic?: boolean;
 }
 
 interface Stream {
@@ -157,24 +161,37 @@ export function detectClones(
           aE++;
           bE++;
         }
-        // Post-extension handling for same-stream overlap: CLAMP at the
-        // period boundary instead of discarding — 3+ consecutive copies of a
-        // block are periodic after normalization, and a discard here loses
-        // the middle copy (pairs (1,2)/(2,3) overlap post-extension, leaving
-        // only (1,3)). Clamping keeps every adjacent pair.
+        // Post-extension handling for same-stream overlap: the run is
+        // PERIODIC with period d = seed delta (left-extension shifts both
+        // sides equally). Discarding loses middle copies; clamping to one
+        // pair loses interior adjacencies for 4+ copies. Emit EVERY adjacent
+        // period pair across the run — class-merge then unions them into one
+        // class holding all copies, and the coarser-family dedup below drops
+        // the multiple-of-period families other seeds mint.
         if (a.stream === b.stream && overlaps(aS, aE, bS, bE)) {
-          const [loS, hiS] = aS <= bS ? [aS, bS] : [bS, aS];
-          const loEnd = hiS - 1;
-          const len = loEnd - loS + 1;
-          if (len < minTokens) continue;
-          if (aS <= bS) {
-            aE = loEnd;
-            bE = bS + len - 1;
-          } else {
-            bE = loEnd;
-            aE = aS + len - 1;
+          const d = Math.abs(bS - aS);
+          if (d < minTokens) continue;
+          const runStart = Math.min(aS, bS);
+          const runEnd = Math.max(aE, bE);
+          for (let segStart = runStart; segStart + 2 * d - 1 <= runEnd; segStart += d) {
+            const p1s = segStart;
+            const p1e = segStart + d - 1;
+            const p2s = segStart + d;
+            const p2e = segStart + 2 * d - 1;
+            const segKey = `${a.stream}:${p1s}-${p1e}|${a.stream}:${p2s}-${p2e}`;
+            if (seen.has(segKey)) continue;
+            seen.add(segKey);
+            pairs.push({
+              fileA: sa.file,
+              fileB: sa.file,
+              aStart: p1s,
+              aEnd: p1e,
+              bStart: p2s,
+              bEnd: p2e,
+              periodic: true,
+            });
           }
-          if (overlaps(aS, aE, bS, bE)) continue;
+          continue;
         }
 
         const key = `${a.stream}:${aS}-${aE}|${b.stream}:${bS}-${bE}`;
@@ -214,6 +231,9 @@ export function detectClones(
           if (x === y) continue;
           const q = list[y]!;
           if (gapOk(p.aEnd, q.aStart) && gapOk(p.bEnd, q.bStart)) {
+            // Never fuse two tandem-period pairs into a self-overlapping
+            // range — instance disjointness is the report invariant.
+            if (p.fileA === p.fileB && overlaps(p.aStart, q.aEnd, p.bStart, q.bEnd)) continue;
             p.aEnd = q.aEnd;
             p.bEnd = q.bEnd;
             list.splice(y, 1);
@@ -247,6 +267,7 @@ export function detectClones(
   interface Built {
     tokens: number;
     lines: number;
+    periodic: boolean;
     inst: [CloneInstance, CloneInstance];
     ranges: [{ file: string; s: number; e: number }, { file: string; s: number; e: number }];
   }
@@ -262,6 +283,7 @@ export function detectClones(
     built.push({
       tokens: tokenLen,
       lines: linesA,
+      periodic: p.periodic === true,
       inst: [ia, ib],
       ranges: [
         { file: p.fileA, s: p.aStart, e: p.aEnd },
@@ -281,6 +303,10 @@ export function detectClones(
   ): boolean => inner.file === outer.file && outer.s <= inner.s && inner.e <= outer.e;
   const kept: Built[] = [];
   for (const g2 of built) {
+    if (g2.periodic) {
+      kept.push(g2);
+      continue;
+    }
     let dominated = false;
     for (const g1 of kept) {
       if (g1.tokens <= g2.tokens) continue;
@@ -398,6 +424,29 @@ export function detectClones(
         spans1.some((r1) => r1.s <= r2.e && r2.s <= r1.e && !(r1.s <= r2.s && r2.e <= r1.e)),
       );
       if (!crossesBoundary) continue;
+      c2.members.clear();
+      c2.spans.clear();
+      break;
+    }
+  }
+
+  // 10. Coarser-family dedup: seeds at multiples of the fundamental period
+  // mint classes whose spans concatenate consecutive spans of the finer
+  // class (identical union, every span edge aligned). Keep the finer
+  // decomposition — it lists every copy; the coarser one duplicates it.
+  for (const c2 of live) {
+    if (c2.members.size === 0) continue;
+    const u2 = unionOf(c2);
+    if (!u2) continue;
+    const edges2 = [...c2.spans.values()];
+    for (const c1 of live) {
+      if (c1 === c2 || c1.members.size === 0 || c1.members.size <= c2.members.size) continue;
+      const u1 = unionOf(c1);
+      if (!u1 || u1.file !== u2.file || u1.s !== u2.s || u1.e !== u2.e) continue;
+      const starts1 = new Set([...c1.spans.values()].map((r) => r.s));
+      const ends1 = new Set([...c1.spans.values()].map((r) => r.e));
+      const aligned = edges2.every((r) => starts1.has(r.s) && ends1.has(r.e));
+      if (!aligned) continue;
       c2.members.clear();
       c2.spans.clear();
       break;
