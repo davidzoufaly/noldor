@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { DEFAULT_CR_LANES, loadConfig, resolveReviewProfile } from '../core/config.js';
 import type { NoldorConfig } from '../core/config.js';
+import { LEGACY_BY_CANONICAL } from '../core/lanes.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult } from './lane-types.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
@@ -37,8 +38,8 @@ function execAsync(
 const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<LaneResult>> = {
   manual: runManual,
   codex: runCodex,
-  subagent: runSubagent,
-  verify: runVerify,
+  reviewer: runSubagent,
+  verifier: runVerify,
 };
 
 export function resolveLanes(
@@ -108,6 +109,12 @@ interface GuardOpts {
   autonomous?: boolean;
 }
 
+/** Canonical sink path + any legacy-named path a pre-0.7.0 run may have written. */
+function sinkCandidatePaths(cwd: string, slug: string, kind: ArtifactKind, lane: Lane): string[] {
+  const names = [lane, ...(lane in LEGACY_BY_CANONICAL ? [LEGACY_BY_CANONICAL[lane]] : [])];
+  return names.map((n) => join(cwd, '.noldor', 'cr', `${slug}-${kind}-${n}.json`));
+}
+
 export async function guardLaneOverwrite(
   lanes: Lane[],
   ctx: GuardCtx,
@@ -115,12 +122,18 @@ export async function guardLaneOverwrite(
 ): Promise<Lane[]> {
   const keep: Lane[] = [];
   for (const lane of lanes) {
-    const path = join(ctx.cwd, '.noldor', 'cr', `${ctx.slug}-${ctx.kind}-${lane}.json`);
+    // Canonical first, then any legacy-named sink (pre-0.7.0). First existing wins.
+    const candidates = sinkCandidatePaths(ctx.cwd, ctx.slug, ctx.kind, lane);
+    let path = candidates[0];
     let exists = false;
-    try {
-      await readFile(path, 'utf8');
-      exists = true;
-    } catch {}
+    for (const c of candidates) {
+      try {
+        await readFile(c, 'utf8');
+        path = c;
+        exists = true;
+        break;
+      } catch {}
+    }
     if (!exists) {
       keep.push(lane);
       continue;
@@ -174,9 +187,9 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
     );
   }
-  if (requested.includes('verify') && opts.args.kind !== 'code') {
+  if (requested.includes('verifier') && opts.args.kind !== 'code') {
     throw new Error(
-      "lane 'verify' is code-only — remove it from --lanes / crLanes for spec/plan artifacts",
+      "lane 'verifier' is code-only — remove it from --lanes / crLanes for spec/plan artifacts",
     );
   }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });
@@ -258,7 +271,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // the pre-push hook can validate `Noldor-Reviewed-Subagent: <tree>` against
   // HEAD^{tree}. Skip for spec/plan stages (those don't reach pre-push) and
   // skip when any lane was red.
-  if (exitCode === 0 && opts.args.kind === 'code' && lanesRun.includes('subagent')) {
+  if (exitCode === 0 && opts.args.kind === 'code' && lanesRun.includes('reviewer')) {
     try {
       amendSubagentReceipt({ cwd });
     } catch (err) {

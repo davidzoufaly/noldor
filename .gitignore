@@ -55,3 +55,12 @@ metrics.json
 # playwright-cli skill scratch — console logs + page snapshots from browser
 # automation (dashboard visual verification); transient, never for review.
 .playwright-cli/
+
+# noldor transient state (added by noldor init)
+.noldor/session.json
+.noldor/agent-events.jsonl
+.noldor/agent-events.archive.jsonl
+.noldor/cr/
+.noldor/drain-state.json
+.noldor/drain.lock
+.noldor/drain-park.json

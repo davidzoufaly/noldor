@@ -13,7 +13,7 @@ vi.mock('../lanes/codex.js', () => ({
   codexSupportsBaseSha: vi.fn(async () => true),
 }));
 vi.mock('../lanes/subagent.js', () => ({
-  runSubagent: vi.fn(async () => ({ lane: 'subagent', sinkPath: 's', ok: true })),
+  runSubagent: vi.fn(async () => ({ lane: 'reviewer', sinkPath: 's', ok: true })),
 }));
 import { resolveLanes, run } from '../orchestrate.js';
 import { setSmokeRunner } from '../lanes/verify.js';
@@ -28,26 +28,26 @@ describe('resolveLanes', () => {
       resolveLanes(
         { slug: 'x', kind: 'spec' },
         {
-          crLanes: { spec: ['subagent'] },
+          crLanes: { spec: ['reviewer'] },
           autonomous: { skipLanePicker: true, onFailure: 'prompt', requireHumanPrApproval: false },
         },
       ),
-    ).toEqual(['subagent']);
+    ).toEqual(['reviewer']);
   });
   it('autonomous + no config => built-in defaults (no throw)', () => {
-    expect(resolveLanes({ slug: 'x', kind: 'spec', autonomous: true }, null)).toEqual(['subagent']);
-    expect(resolveLanes({ slug: 'x', kind: 'code', autonomous: true }, null)).toEqual(['subagent']);
+    expect(resolveLanes({ slug: 'x', kind: 'spec', autonomous: true }, null)).toEqual(['reviewer']);
+    expect(resolveLanes({ slug: 'x', kind: 'code', autonomous: true }, null)).toEqual(['reviewer']);
   });
   it('configured crLanes overrides built-in default (shift 2: autonomous + skipLanePicker:false)', () => {
     expect(
       resolveLanes(
         { slug: 'x', kind: 'code', autonomous: true },
         {
-          crLanes: { code: ['subagent', 'codex'] },
+          crLanes: { code: ['reviewer', 'codex'] },
           autonomous: { skipLanePicker: false, onFailure: 'prompt', requireHumanPrApproval: false },
         },
       ),
-    ).toEqual(['subagent', 'codex']);
+    ).toEqual(['reviewer', 'codex']);
   });
   it('skipLanePicker:true + absent crLanes => built-in defaults (shift 3, no --autonomous flag)', () => {
     expect(
@@ -57,7 +57,7 @@ describe('resolveLanes', () => {
           autonomous: { skipLanePicker: true, onFailure: 'prompt', requireHumanPrApproval: false },
         },
       ),
-    ).toEqual(['subagent']);
+    ).toEqual(['reviewer']);
   });
   it('interactive + no CLI flag => returns empty (signal: skill prompts)', () => {
     expect(resolveLanes({ slug: 'x', kind: 'spec' }, null)).toEqual([]);
@@ -80,13 +80,13 @@ describe('run (orchestrate)', () => {
         slug: 'x',
         artifact: 'docs/x.md',
         kind: 'spec',
-        lanes: ['subagent', 'manual'],
+        lanes: ['reviewer', 'manual'],
         fullReview: false,
         autonomous: false,
       },
       cwd: root,
     });
-    expect(result.lanesRun.toSorted()).toEqual(['manual', 'subagent']);
+    expect(result.lanesRun.toSorted()).toEqual(['manual', 'reviewer']);
     expect(result.exitCode).toBe(0);
   });
   it('rejects standalone as a runnable lane with an escalate pointer', async () => {
@@ -107,7 +107,7 @@ describe('run (orchestrate)', () => {
   it('exit 1 when any sync lane fails', async () => {
     const { runSubagent } = await import('../lanes/subagent.js');
     (runSubagent as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      lane: 'subagent',
+      lane: 'reviewer',
       sinkPath: 's',
       ok: false,
     });
@@ -116,7 +116,7 @@ describe('run (orchestrate)', () => {
         slug: 'x',
         artifact: 'docs/x.md',
         kind: 'spec',
-        lanes: ['subagent'],
+        lanes: ['reviewer'],
         fullReview: false,
         autonomous: false,
       },
@@ -130,7 +130,7 @@ describe('run (orchestrate)', () => {
         slug: 'x',
         artifact: 'docs/x.md',
         kind: 'spec',
-        lanes: ['subagent'],
+        lanes: ['reviewer'],
         baseSha: 'aaa',
         fullReview: false,
         autonomous: false,
@@ -138,14 +138,14 @@ describe('run (orchestrate)', () => {
       cwd: root,
       isEmptyDiff: async () => true,
     });
-    expect(result.syntheticOks).toContain('subagent');
+    expect(result.syntheticOks).toContain('reviewer');
   });
   it('autonomous flag reaches guardLaneOverwrite (prior sink → archive default)', async () => {
     const { writeFile, readdir } = await import('node:fs/promises');
     await writeFile(
-      join(root, '.noldor', 'cr', 'x-spec-subagent.json'),
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
       JSON.stringify({
-        lane: 'subagent',
+        lane: 'reviewer',
         artifact: 'docs/x.md',
         kind: 'spec',
         slug: 'x',
@@ -162,7 +162,7 @@ describe('run (orchestrate)', () => {
         slug: 'x',
         artifact: 'docs/x.md',
         kind: 'spec',
-        lanes: ['subagent'],
+        lanes: ['reviewer'],
         fullReview: false,
         autonomous: true,
       },
@@ -182,7 +182,7 @@ describe('verify lane wiring', () => {
           slug: 's',
           artifact: 'spec.md',
           kind: 'spec',
-          lanes: ['verify'],
+          lanes: ['verifier'],
           fullReview: false,
           autonomous: true,
         },
@@ -199,7 +199,7 @@ describe('verify lane positive wiring', () => {
     await mkdir(join(cwd, 'docs', 'features'), { recursive: true });
     await writeFile(
       join(cwd, '.noldor', 'config.json'),
-      JSON.stringify({ crLanes: { code: ['verify'] } }),
+      JSON.stringify({ crLanes: { code: ['verifier'] } }),
     );
     await writeFile(
       join(cwd, 'docs', 'features', 'wired.md'),
@@ -220,10 +220,10 @@ describe('verify lane positive wiring', () => {
       },
       cwd,
     });
-    expect(r.lanesRun).toEqual(['verify']);
+    expect(r.lanesRun).toEqual(['verifier']);
     expect(r.exitCode).toBe(0);
     const sink = JSON.parse(
-      await readFile(join(cwd, '.noldor', 'cr', 'wired-code-verify.json'), 'utf8'),
+      await readFile(join(cwd, '.noldor', 'cr', 'wired-code-verifier.json'), 'utf8'),
     );
     expect(sink.verdict).toBe('pass');
   });

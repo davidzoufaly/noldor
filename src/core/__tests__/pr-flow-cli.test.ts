@@ -179,13 +179,16 @@ describe('loadVerifyEvidence', () => {
     return dir;
   };
   const sink = (dir: string, slug: string, payload: unknown): void => {
-    writeFileSync(join(dir, '.noldor', 'cr', `${slug}-code-verify.json`), JSON.stringify(payload));
+    writeFileSync(
+      join(dir, '.noldor', 'cr', `${slug}-code-verifier.json`),
+      JSON.stringify(payload),
+    );
   };
 
   it('lifts verdict + evidence pairs from the code-verify sink', () => {
     const dir = setup();
     sink(dir, 'my-feature', {
-      lane: 'verify',
+      lane: 'verifier',
       verdict: 'pass',
       evidence: [{ command: 'pnpm noldor --help', observed: 'exit 0' }],
     });
@@ -201,13 +204,13 @@ describe('loadVerifyEvidence', () => {
 
   it('returns null on unparseable JSON', () => {
     const dir = setup();
-    writeFileSync(join(dir, '.noldor', 'cr', 'my-feature-code-verify.json'), '{nope');
+    writeFileSync(join(dir, '.noldor', 'cr', 'my-feature-code-verifier.json'), '{nope');
     expect(loadVerifyEvidence(dir, 'my-feature')).toBeNull();
   });
 
   it('returns null when the sink has no string verdict (non-verify lane shape)', () => {
     const dir = setup();
-    sink(dir, 'my-feature', { lane: 'subagent', blockers: [] });
+    sink(dir, 'my-feature', { lane: 'reviewer', blockers: [] });
     expect(loadVerifyEvidence(dir, 'my-feature')).toBeNull();
   });
 

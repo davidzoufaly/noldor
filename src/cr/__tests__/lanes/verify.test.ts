@@ -50,7 +50,7 @@ function repo(verifyMode?: string): { cwd: string; input: LaneInput } {
 }
 
 function readSink(cwd: string): Record<string, unknown> {
-  return JSON.parse(readFileSync(join(cwd, '.noldor', 'cr', 'feat-x-code-verify.json'), 'utf8'));
+  return JSON.parse(readFileSync(join(cwd, '.noldor', 'cr', 'feat-x-code-verifier.json'), 'utf8'));
 }
 
 beforeEach(() => {

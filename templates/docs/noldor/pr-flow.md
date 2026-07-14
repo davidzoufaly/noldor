@@ -5,13 +5,13 @@ introduced: 0.5.0
 
 # PR Flow + Agent Auto-Merge
 
-Every gate path lands `main` only via a GitHub PR opened by the controlling agent. The CR pipeline (`pnpm noldor cr orchestrate --kind code`, subagent lane by default; codex opt-in via `crLanes.code` config) runs locally as a pre-merge gate; once green, the agent sets `gh pr merge --auto --squash` and polls until merged.
+Every gate path lands `main` only via a GitHub PR opened by the controlling agent. The CR pipeline (`pnpm noldor cr orchestrate --kind code`, reviewer lane by default; codex opt-in via `crLanes.code` config) runs locally as a pre-merge gate; once green, the agent sets `gh pr merge --auto --squash` and polls until merged.
 
 ## Top-level flow
 
 ```
 gate end-of-flow (any path)
-  ├─ code-stage CR (noldor cr orchestrate --kind code, subagent lane; codex opt-in via crLanes.code) — address inline, no retry cap
+  ├─ code-stage CR (noldor cr orchestrate --kind code, reviewer lane; codex opt-in via crLanes.code) — address inline, no retry cap
   ├─ pnpm noldor pr-flow → openAndAutoMerge (src/core/pr-flow-cli.ts → pr-flow.ts):
   │    1. preflight: gh --version + gh auth status
   │    2. git push --force-with-lease --set-upstream origin <branch>

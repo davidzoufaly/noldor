@@ -66,9 +66,19 @@ describe('codex argv (extracted from run-codex.ts)', () => {
 });
 
 describe('opencode argv', () => {
-  it('builds run argv with permissions skip', () => {
-    expect(buildOpencodeArgv('p', {})).toEqual(['run', 'p', '--dangerously-skip-permissions']);
+  it('builds run argv with --auto (1.17 replaces --dangerously-skip-permissions)', () => {
+    expect(buildOpencodeArgv('p', {})).toEqual(['run', 'p', '--auto']);
     expect(OPENCODE_BIN).toBe('opencode');
+  });
+  it('appends --format json only when jsonEvents is set', () => {
+    expect(buildOpencodeArgv('p', { jsonEvents: true })).toEqual([
+      'run',
+      'p',
+      '--auto',
+      '--format',
+      'json',
+    ]);
+    expect(buildOpencodeArgv('p', { jsonEvents: false })).toEqual(['run', 'p', '--auto']);
   });
   it('appends provider/model', () => {
     expect(buildOpencodeArgv('p', { model: 'ollama/llama3.2' }).slice(-2)).toEqual([

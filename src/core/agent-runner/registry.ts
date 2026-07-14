@@ -8,6 +8,7 @@ import { USAGE_ADAPTERS } from './usage/index.js';
 import { CLAUDE_BIN, buildClaudeArgv } from './runners/claude.js';
 import { CODEX_BIN, buildCodexArgv } from './runners/codex.js';
 import { OPENCODE_BIN, buildOpencodeArgv } from './runners/opencode.js';
+import { parseOpencodeEvents } from './opencode-events.js';
 import { STUB_BIN, buildStubArgv } from './runners/stub.js';
 import {
   agentsConfigSchema,
@@ -48,6 +49,17 @@ interface SpawnPlan {
   promptVia: 'argv' | 'stdin';
 }
 
+/**
+ * True when this opencode spawn's stdout will be accumulated + read
+ * programmatically — i.e. NOT tee/logSink (chunks forwarded for display) and
+ * NOT stdio:'inherit' (streamed to the terminal). Only these spawns opt into
+ * `--format json` and get NDJSON→prose parsing at the return boundary; every
+ * other opencode spawn keeps default formatted output (no display regression).
+ */
+function opencodeWantsJson(resolved: ResolvedRunner, opts: SpawnAgentOpts): boolean {
+  return resolved.runner === 'opencode' && opts.logSink === undefined && opts.stdio !== 'inherit';
+}
+
 function planSpawn(resolved: ResolvedRunner, prompt: string, opts: SpawnAgentOpts): SpawnPlan {
   switch (resolved.runner) {
     case 'claude':
@@ -69,7 +81,10 @@ function planSpawn(resolved: ResolvedRunner, prompt: string, opts: SpawnAgentOpt
     case 'opencode':
       return {
         bin: OPENCODE_BIN,
-        argv: buildOpencodeArgv(prompt, { model: resolved.model }),
+        argv: buildOpencodeArgv(prompt, {
+          model: resolved.model,
+          jsonEvents: opencodeWantsJson(resolved, opts),
+        }),
         promptVia: 'argv',
       };
     case 'stub':
@@ -230,7 +245,9 @@ export function spawnAgent(
         timedOut,
         ...(usage ? { tokens: usage } : {}),
       });
-      resolve({ exitCode, stdout, timedOut });
+      const outText =
+        exitCode === 0 && opencodeWantsJson(resolved, opts) ? parseOpencodeEvents(stdout) : stdout;
+      resolve({ exitCode, stdout: outText, timedOut });
     });
   });
 }

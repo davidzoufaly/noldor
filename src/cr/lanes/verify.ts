@@ -23,12 +23,12 @@ export function setSmokeRunner(impl: SmokeRunner): void {
 }
 
 function sinkPathFor(input: LaneInput): string {
-  return join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-verify.json`);
+  return join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-verifier.json`);
 }
 
 function basePayload(input: LaneInput, startedAt: string): Omit<LaneFindings, 'summary'> {
   return {
-    lane: 'verify',
+    lane: 'verifier',
     artifact: input.artifact,
     kind: input.kind,
     slug: input.slug,
@@ -87,7 +87,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     // for direct callers and unit tests.
     await mkdir(dirname(sinkPath), { recursive: true });
     await writeJsonAtomic(sinkPath, payload);
-    return { lane: 'verify', sinkPath, ok };
+    return { lane: 'verifier', sinkPath, ok };
   };
 
   // 1. Smoke floor — blocking in BOTH modes (stop-the-line; spec Unit 4 step 2).

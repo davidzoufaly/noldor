@@ -9,8 +9,17 @@ describe('inferLaneFromFilename', () => {
   it('resolves codex', () => {
     expect(inferLaneFromFilename('foo-plan-codex.json')).toBe('codex');
   });
-  it('resolves subagent', () => {
-    expect(inferLaneFromFilename('foo-code-subagent.json')).toBe('subagent');
+  it('resolves reviewer (canonical)', () => {
+    expect(inferLaneFromFilename('foo-code-reviewer.json')).toBe('reviewer');
+  });
+  it('resolves verifier (canonical)', () => {
+    expect(inferLaneFromFilename('foo-code-verifier.json')).toBe('verifier');
+  });
+  it('resolves legacy -subagent.json to reviewer (pre-0.7.0 sink)', () => {
+    expect(inferLaneFromFilename('foo-code-subagent.json')).toBe('reviewer');
+  });
+  it('resolves legacy -verify.json to verifier (pre-0.7.0 sink)', () => {
+    expect(inferLaneFromFilename('foo-code-verify.json')).toBe('verifier');
   });
   it('resolves standalone', () => {
     expect(inferLaneFromFilename('foo-spec-standalone.json')).toBe('standalone');

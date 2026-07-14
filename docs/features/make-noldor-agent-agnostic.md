@@ -25,8 +25,10 @@ links:
     - src/autonomous/__tests__/merge-classify.test.ts
     - src/checks/__tests__/check-template-sync.test.ts
     - src/core/__tests__/agent-events.test.ts
+    - src/core/__tests__/lanes.test.ts
     - src/core/agent-runner/__tests__/doctor-runners.test.ts
     - src/core/agent-runner/__tests__/no-stray-spawns.test.ts
+    - src/core/agent-runner/__tests__/opencode-events.test.ts
     - src/core/agent-runner/__tests__/registry.test.ts
     - src/core/agent-runner/__tests__/runners.test.ts
     - src/core/agent-runner/__tests__/types.test.ts
@@ -35,8 +37,10 @@ links:
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/run-codex.test.ts
+    - src/migrations/__tests__/0.7.0.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
     - src/templates/__tests__/agent-filter.test.ts
+    - src/templates/__tests__/shim-inventory.test.ts
     - src/testing/__tests__/consumer-fixture.test.ts
     - src/testing/__tests__/stub-runner.test.ts
   spec: >-
@@ -48,7 +52,6 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
-
 ## Summary
 
 Noldor today assumes Claude Code as the operating agent (skill names, hook patterns, transcript layout). Lift the assumptions so Codex, Gemini, or other agents can drive the same framework with equivalent gates. Concrete asks: (1) abstract skill invocation (`Skill` tool vs `activate_skill` vs raw markdown read), (2) abstract hook triggers (the `lefthook` pre-commit chain works for all, but the auto-gate behavior is Claude-only), (3) document the agent-equivalence matrix in `docs/noldor/`. Trigger: when a second agent adopts Noldor in earnest (today's automated-cr-pipeline already runs Codex as a reviewer; controller is still Claude).
@@ -68,20 +71,23 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
     "reviewer": { "runner": "codex" },
     "polish":   { "runner": "opencode", "model": "ollama/llama3.2" }
   },
-  "versionFloors": { "opencode": "0.6.0" },
+  "versionFloors": { "opencode": "1.17.0" },
   "targets": ["claude", "codex", "opencode"]
 }
 ```
 
 **CLI**
 
-- `noldor init --agents claude,codex,opencode` — write per-driver shim sets (`.claude/`, `.opencode/command/` + `opencode.json`, `AGENTS.md`).
-- `noldor doctor` — template drift + presence/version-floor check for every configured runner.
+- `noldor init --agents claude,codex,opencode` — write per-driver shim sets: `.claude/skills/` (Claude skills), `.opencode/command/` (thin command shims for the CLI-verb-backed skills) + `opencode.json`, and `AGENTS.md` (codex reads the same skill set as prose).
+- `noldor doctor` — template drift + presence/version-floor check for every configured runner (claude / codex / opencode).
+- `noldor upgrade` — runs the `0.7.0` migration that rewrites legacy `crLanes` values (`subagent`→`reviewer`, `verify`→`verifier`).
 
 **Agent API**
 
-- `spawnAgent(prompt, { role, runner?, cwd, env, timeoutMs, stdio, schemaPath, needsWrite, site })` from `src/core/agent-runner/registry.ts` — resolves `opts.runner ?? resolveRunner(role, config)`, builds per-runner argv, enforces capability fit, emits one `.noldor/agent-events.jsonl` line per spawn.
+- `spawnAgent(prompt, { role, runner?, cwd, env, timeoutMs, stdio, schemaPath, needsWrite, site })` from `src/core/agent-runner/registry.ts` — resolves `opts.runner ?? resolveRunner(role, config)`, builds per-runner argv, enforces capability fit, emits one `.noldor/agent-events.jsonl` line per spawn. opencode spawns run `run --auto`; a piped (non-tee, non-inherit) spawn also passes `--format json`, and on a clean exit the registry parses the NDJSON event stream to assistant prose via `parseOpencodeEvents` (`src/core/agent-runner/opencode-events.ts`) so every consumer reads prose, not raw events.
 - Inspect spawns: `tail .noldor/agent-events.jsonl` — `runner` / `role` / `site` / `exitCode` per line.
+
+**CR lanes** — `crLanes.<kind>` uses role-ref names `reviewer` (was `subagent`) and `verifier` (was `verify`); `manual` / `codex` / `standalone` remain non-role literals. Legacy names still validate (alias preprocess in `src/core/lanes.ts`); the `0.7.0` migration canonicalizes on-disk config.
 
 ## PRs
 

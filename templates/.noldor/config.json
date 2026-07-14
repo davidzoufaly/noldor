@@ -16,7 +16,7 @@
     "verifyCommands": {}
   },
   "crLanes": {
-    "code": ["subagent"]
+    "code": ["reviewer"]
   },
   "autonomous": {
     "skipLanePicker": true,

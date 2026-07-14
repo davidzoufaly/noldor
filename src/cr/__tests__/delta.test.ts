@@ -12,7 +12,7 @@ vi.mock('../lanes/codex.js', () => ({
   codexSupportsBaseSha: vi.fn(async () => true),
 }));
 vi.mock('../lanes/subagent.js', () => ({
-  runSubagent: vi.fn(async () => ({ lane: 'subagent', sinkPath: 's', ok: true })),
+  runSubagent: vi.fn(async () => ({ lane: 'reviewer', sinkPath: 's', ok: true })),
 }));
 import { run } from '../orchestrate.js';
 
@@ -32,7 +32,7 @@ describe('delta short-circuit', () => {
         slug: 'x',
         artifact: 'docs/x.md',
         kind: 'spec',
-        lanes: ['manual', 'subagent'],
+        lanes: ['manual', 'reviewer'],
         baseSha: 'b',
         fullReview: false,
         autonomous: false,
@@ -40,7 +40,7 @@ describe('delta short-circuit', () => {
       cwd: root,
       isEmptyDiff: async () => true,
     });
-    expect(r.syntheticOks.toSorted()).toEqual(['manual', 'subagent']);
+    expect(r.syntheticOks.toSorted()).toEqual(['manual', 'reviewer']);
     const manualJson = JSON.parse(
       await readFile(join(root, '.noldor', 'cr', 'x-spec-manual.json'), 'utf8'),
     );

@@ -36,7 +36,7 @@ describe('aggregate CLI', () => {
   it('exits 1 when blockers', async () => {
     await copyFile(
       join(FIX, 'findings-blockers.json'),
-      join(root, '.noldor', 'cr', 'x-spec-subagent.json'),
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
     );
     await expect(
       exec(TSX, [CLI, '--slug', 'x', '--kind', 'spec'], { cwd: root }),

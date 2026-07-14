@@ -18,8 +18,14 @@ describe('Severity', () => {
 });
 
 describe('Lane', () => {
-  it('exposes options', () => {
-    expect(laneSchema.options).toEqual(['manual', 'codex', 'subagent', 'standalone', 'verify']);
+  it('accepts the canonical lane names', () => {
+    for (const l of ['manual', 'codex', 'reviewer', 'standalone', 'verifier']) {
+      expect(laneSchema.parse(l)).toBe(l);
+    }
+  });
+  it('normalizes legacy names to canonical', () => {
+    expect(laneSchema.parse('subagent')).toBe('reviewer');
+    expect(laneSchema.parse('verify')).toBe('verifier');
   });
 });
 
@@ -93,8 +99,8 @@ describe('LaneFindings', () => {
 });
 
 describe('verify lane extensions', () => {
-  it('laneSchema accepts verify', () => {
-    expect(laneSchema.parse('verify')).toBe('verify');
+  it('laneSchema normalizes legacy verify to verifier', () => {
+    expect(laneSchema.parse('verify')).toBe('verifier');
   });
 
   it('laneFindingsSchema accepts verdict/evidence/mismatches', () => {

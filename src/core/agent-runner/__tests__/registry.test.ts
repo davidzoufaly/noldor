@@ -197,7 +197,9 @@ describe('spawnAgent', () => {
     expect(f.calls[0]!.argv).toEqual([
       'run',
       'p',
-      '--dangerously-skip-permissions',
+      '--auto',
+      '--format',
+      'json',
       '--model',
       'ollama/x',
     ]);

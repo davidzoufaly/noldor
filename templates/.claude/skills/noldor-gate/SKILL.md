@@ -123,11 +123,11 @@ The `prepare-commit-msg` hook injects `Noldor-Path` and `Noldor-FD` from `.noldo
 
 - `manual` — operator reads the artifact, returns blockers/notes via stdin prompt in the CLI
 - `codex` — `pnpm noldor cr codex` second-opinion pass on the artifact (disabled inline with reason when `codex --plan-mode-probe` fails, e.g. "codex — disabled until `codex-cr-plan-review-mode` lands")
-- `subagent` — senior-reviewer subagent over the artifact diff (self-contained `claude -p` prompt, `src/cr/lanes/subagent-dispatch.ts`)
+- `reviewer` — senior-reviewer subagent over the artifact diff (self-contained `claude -p` prompt, `src/cr/lanes/subagent-dispatch.ts`)
 - `standalone` — spawn `claude --max-thinking` in a fresh iTerm2 window for deep review (disabled inline when `fix-multiterminal-dev-flow-bug` is not at `phase: done`, e.g. "standalone — disabled until `fix-multiterminal-dev-flow-bug` lands")
 - `proceed-without-review` — skip orchestrate entirely (artifact remains committed); advance to next skill
 
-The operator picks one or several. The selected list becomes the `--lanes` argument. When `.noldor/config.json` has `autonomous.skipLanePicker: true`, skip the prompt and invoke orchestrate with `--autonomous` and no `--lanes` flag (orchestrate reads lanes from `crLanes.<kind>` in config, falling back to the built-in `subagent`-only defaults when that block is absent — a configured block overrides the defaults).
+The operator picks one or several. The selected list becomes the `--lanes` argument. When `.noldor/config.json` has `autonomous.skipLanePicker: true`, skip the prompt and invoke orchestrate with `--autonomous` and no `--lanes` flag (orchestrate reads lanes from `crLanes.<kind>` in config, falling back to the built-in `reviewer`-only defaults when that block is absent — a configured block overrides the defaults).
 
 **Invoke orchestrate.**
 
@@ -192,10 +192,10 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   Polls up to 2.5 minutes for unresolved lanes. Exit 0 = artifact-stage clean; exit 1 = blockers surfaced (loop back to Step 2.5 `address-blockers`).
 
-- **Code-stage orchestrate.** Run the worktree-code lane (default `subagent`; config `crLanes.code` can override, e.g. `['subagent', 'codex']` to opt codex back in):
+- **Code-stage orchestrate.** Run the worktree-code lane (default `reviewer`; config `crLanes.code` can override, e.g. `['reviewer', 'codex']` to opt codex back in):
 
   ```
-  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes subagent --base-sha origin/main
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes reviewer --base-sha origin/main
   ```
 
   `<code-paths>` is a representative changed path used only for labeling; the subagent lane actually reviews the **`BASE_SHA..HEAD` diff range**, so pass `--base-sha origin/main` to cover the whole feature diff — which **includes the refreshed `docs/features/<slug>.md`** from the first bullet. That range membership is what delivers the "refreshed FD is reviewed by the code-stage CR" guarantee. Omitting `--base-sha` defaults the lane to `HEAD~1..HEAD` (last commit only — usually not what you want at end-of-flow). On attach paths pass the **parent** slug for `--slug` (the lane reads `docs/features/<slug>.md` as FD context, and attach has no child FD).
@@ -205,10 +205,10 @@ This pause is the cheapest place to catch architectural drift, missing edge case
   **Fast-track profile.** When the session marker `path` is `fast-track`, append `--profile fast-track` to the orchestrate command so the CR pass is scoped (low effort, correctness+security per `crReview.profiles`). Other paths omit the flag and get the `default` profile (med effort, all six dimensions). For the fast-track / drain code-stage review the command is:
 
   ```
-  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes subagent --base-sha origin/main --profile fast-track
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes reviewer --base-sha origin/main --profile fast-track
   ```
 
-  Sink: `.noldor/cr/<slug>-code-subagent.json`. Trailer amended on tip commit: `Noldor-Reviewed-Subagent: <tree>`.
+  Sink: `.noldor/cr/<slug>-code-reviewer.json`. Trailer amended on tip commit: `Noldor-Reviewed-Subagent: <tree>`.
 
 - **Aggregate code-stage.**
 
@@ -245,7 +245,7 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
 - Invoke `pnpm noldor pr-flow` (CLI wrapper around `src/core/pr-flow.ts:openAndAutoMerge`, source at [`src/core/pr-flow-cli.ts`](../../../src/core/pr-flow-cli.ts)) — existing behavior. The CLI reads `.noldor/session.json`, derives `PrFlowInput` from session + FD frontmatter + `Noldor-Reviewed-Subagent` commit trailer + git-discovered spec/plan paths, then runs preflight `gh` → `git push --force-with-lease --set-upstream origin <branch>` → `gh pr create` → `gh pr merge --auto --squash` → poll until merged. See [`docs/noldor/pr-flow.md`](../../../docs/noldor/pr-flow.md) for the top-level flow diagram + push runbook + failure runbook.
 
-  **The old codex retry loop is gone.** Earlier revisions of this step invoked an interactive review skill directly + ran a dedicated retry loop for up to 3 codex passes. Both are removed — the subagent now runs via `pnpm noldor cr orchestrate --kind code` (single lane), and codex at Step 4 is opt-in via config (`crLanes.code: ['subagent', 'codex']`) rather than a forced retry loop.
+  **The old codex retry loop is gone.** Earlier revisions of this step invoked an interactive review skill directly + ran a dedicated retry loop for up to 3 codex passes. Both are removed — the subagent now runs via `pnpm noldor cr orchestrate --kind code` (single lane), and codex at Step 4 is opt-in via config (`crLanes.code: ['reviewer', 'codex']`) rather than a forced retry loop.
 
 - On merged: explicit cleanup (no interactive finishing skill — the cleanup below is scripted and autonomous by design):
   - **Worktree-backed paths** (`fast-track`, `specs-only-*`, `full-*`): from the **main workspace** run `git worktree remove [--force] .worktrees/<name>` then `git branch -D feat/<name>` — removes the worktree directory + deletes the local feature branch. Non-interactive; no native tool. (Do NOT use the `ExitWorktree` native tool here: the framework creates worktrees via `git worktree add .worktrees/<name>`, which `ExitWorktree` did not create, so it is a no-op that silently leaves the worktree + branch on disk.) `git branch -D` (force) is required because the PR is squash-merged — the branch's commits are not ancestors of `main`, so `-d` would reject with "not fully merged" and leak the branch. Use `--force` on `git worktree remove` only if the worktree has uncommitted changes (it should not at this point). **Then sync local `main` to the merged squash commit: `git fetch origin main && git checkout main && git merge --ff-only origin/main`.** A PR is not "finished" until local `main` matches `origin/main` — the next session must start from the merged state, not a behind one. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence; do not force the merge.
@@ -306,7 +306,7 @@ Once autonomous:
 
 2. **Step 4 omits all AskUserQuestion seams.** Specifically:
    - No commit-confirm `y` prompt around phase-flip / orchestrate / aggregate / pr-flow invocations.
-   - No lane multi-select. `cr:orchestrate` is invoked with `--autonomous` and reads `crLanes.<kind>` from `.noldor/config.json`, falling back to the built-in `subagent`-only defaults when that block is absent (a configured block overrides the defaults).
+   - No lane multi-select. `cr:orchestrate` is invoked with `--autonomous` and reads `crLanes.<kind>` from `.noldor/config.json`, falling back to the built-in `reviewer`-only defaults when that block is absent (a configured block overrides the defaults).
    - No continue-dialog after orchestrate. Exit 0 → proceed. Exit 1 → escalate (next bullet).
 
 3. **`cr:orchestrate --autonomous`** for both artifact-stage (Step 2.5, already committed before autonomous activated) and code-stage (Step 4). The flag flows into the overwrite-guard (defaults `archive-and-overwrite`) and the standalone-in-progress guard (defaults `drop-lane`) so neither prompts.

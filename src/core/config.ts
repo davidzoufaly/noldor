@@ -19,19 +19,20 @@ export const crLanesConfigSchema = z.record(artifactKindSchema, z.array(laneSche
 
 /**
  * Built-in autonomous-safe lane defaults, used when no `crLanes` block is
- * configured. `subagent` is the only lane that runs fully unattended: in-process
- * (no external CLI auth like codex), no human stdin (unlike manual), no GUI
- * terminal (unlike standalone). So every artifact kind defaults to it. A
- * configured `crLanes.<kind>` always overrides this (see `resolveLanes`).
+ * configured. `reviewer` (was `subagent`) is the only lane that runs fully
+ * unattended: in-process (no external CLI auth like codex), no human stdin
+ * (unlike manual), no GUI terminal (unlike standalone). So every artifact kind
+ * defaults to it. A configured `crLanes.<kind>` always overrides this (see
+ * `resolveLanes`).
  *
  * The `crLanes` schema field stays `.optional()` (no `.default(...)`) on purpose:
  * we don't want `loadConfig` to synthesize a `crLanes` block onto configs that
  * never declared one. The default applies only at lane-resolution time.
  */
 export const DEFAULT_CR_LANES: Record<ArtifactKind, Lane[]> = {
-  spec: ['subagent'],
-  plan: ['subagent'],
-  code: ['subagent'],
+  spec: ['reviewer'],
+  plan: ['reviewer'],
+  code: ['reviewer'],
 };
 
 export const watchConfigSchema = z.object({
