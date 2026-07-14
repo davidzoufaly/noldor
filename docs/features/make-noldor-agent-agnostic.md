@@ -25,6 +25,7 @@ links:
     - src/autonomous/__tests__/merge-classify.test.ts
     - src/checks/__tests__/check-template-sync.test.ts
     - src/core/__tests__/agent-events.test.ts
+    - src/core/__tests__/lanes.test.ts
     - src/core/agent-runner/__tests__/doctor-runners.test.ts
     - src/core/agent-runner/__tests__/no-stray-spawns.test.ts
     - src/core/agent-runner/__tests__/opencode-events.test.ts
