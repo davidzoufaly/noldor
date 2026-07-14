@@ -33,20 +33,6 @@ Deep-audit finding (batch `.noldor/research/2026-07-13-184850`, `readme-quality.
 
 Five operator-facing dashboard refinements captured from a live dogfood pass. All are self-host `src/dashboard/` tweaks with design decisions already settled with the operator (recorded per entry). Item 1 + the action-column item are one surface (roadmap/backlog table chrome) so they ride one entry.
 
-### Fd-Command-Rot Garden Detector
-
-- id: Q-0050
-- area: tooling
-- type: feat
-- since: 2026-07-14
-- size: S
-- impact: med
-- confidence: med
-- recovered: 2026-07-14
-- parent: noldor
-
-Garden detector in the FD-link-rot family: verify that CLI commands documented in done FDs still exist against the live CLI manifest. Today done-FDs reference 4 phantom commands (`pnpm docs:build` among them) and nothing checks FD-documented commands, so they rot silently. Recovered from the `validate-script-catalog-gate` (Q-0042) source block ("consider an `fd-command-rot` garden detector alongside").
-
 ### Phase 2 — Enforcement Honesty
 
 ### Phase 3 — Adoption Chain
