@@ -32,6 +32,10 @@ Principles below are reviewed at code-write time; the commands above are the aut
 - **One responsibility per function.** If you struggle to name it, it does too much.
 - **Avoid regex.** Hard to read, easy to get subtly wrong. Prefer string methods (`includes`, `startsWith`, `split`), parsers, or named helpers. Reach for regex only when the pattern is genuinely irregular and no built-in fits — and then add a comment explaining what it matches.
 
+## Verification before completion
+
+Evidence before claims, always. **Never** claim work is done, fixed, passing, green, or merged — and never commit, open a PR, run `pr-flow`, or flip `phase: done` — without having run the proving command in the same turn and read its output. A prior run does not count; code changed since. Lint passing ≠ typecheck ≠ test; one CR lane green ≠ aggregate green; auto-merge queued ≠ PR merged. When delegating, verify the change via `git diff`/`git log`, not the agent's own success report. The full discipline (gate function, common-failure table, rationalizations) is the `/noldor-verify` skill.
+
 ## TypeScript
 
 (Project overlays may extend these rules — read both.)
