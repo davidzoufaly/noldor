@@ -17,15 +17,18 @@ registry builds the runner-specific argv. Absent config ≡ claude everywhere.
 | --- | --- | --- | --- |
 | headless spawn | `claude --print "<prompt>"` | `codex exec` (prompt via stdin) | `opencode run "<prompt>"` |
 | drain entry prompt | slash-command: `/noldor-gate --drain <slug>` / `/noldor-gate --resume <slug>` | prose directive → [drain-mode.md](drain-mode.md) | prose directive → [drain-mode.md](drain-mode.md) |
-| auto-permissions | `--permission-mode bypassPermissions` | `--sandbox workspace-write` (read-only for review roles) | `--dangerously-skip-permissions` (respects explicit `deny`) |
+| auto-permissions | `--permission-mode bypassPermissions` | `--sandbox workspace-write` (read-only for review roles) | `--auto` (respects explicit `deny`) |
 | no-questions kill-switch | `--disallowed-tools AskUserQuestion` | non-interactive by design | `permission.question: "deny"` in `opencode.json` |
 | model / role selection | `--model` | `--model` / `config.toml` | `--model <provider/model>` |
-| structured output | parse stdout prose | `--output-schema <json-schema>` | `--format json` (reserved; treated as prose v1) |
+| structured output | parse stdout prose | `--output-schema <json-schema>` | `--format json` → NDJSON events, parsed by `opencode-events.ts` |
 | rules file | `CLAUDE.md` | `AGENTS.md` | `AGENTS.md` |
 | guards | `.claude` hooks + `src/hooks/` | sandbox modes (coarse) | `opencode.json` glob permission rules |
 | local models | no | no | yes (ollama et al.) |
 
-Capability matrix as code: `src/core/agent-runner/capabilities.ts`.
+Capability matrix as code: `src/core/agent-runner/capabilities.ts`. opencode flags + the
+`versionFloors` example are verified against opencode 1.17.20 (`opencode run --help`, 2026-07-14):
+`--auto` replaced the removed 0.6-era `--dangerously-skip-permissions`, and `run --format json`
+emits an NDJSON event stream — so the floor is 1.17.0 (the flag surface the runner assumes).
 
 ## Config
 
@@ -39,7 +42,7 @@ Capability matrix as code: `src/core/agent-runner/capabilities.ts`.
     "second-opinion": { "runner": "opencode", "model": "ollama/qwen3" },
     "polish":         { "runner": "opencode", "model": "ollama/llama3.2" }
   },
-  "versionFloors": { "opencode": "0.6.0" },
+  "versionFloors": { "opencode": "1.17.0" },
   "targets": ["claude", "codex", "opencode"]
 }
 ```
