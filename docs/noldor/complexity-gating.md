@@ -18,7 +18,7 @@ Every change picks exactly one of six gate paths, chosen via [`/noldor-gate`](..
 | 5   | `full-new`          | new (tier: `full`)       | ✓           | ✓    | ✓        | ✓        | new design dialogue, new FD               |
 | 6   | `full-attach`       | parent (any tier)        | ✓           | ✓    | ✓        | ✓        | substantial enhancement under existing FD |
 
-**Design Spec** = a separate document under `docs/superpowers/specs/`, produced by the `noldor-spec` skill. Both `specs-only` and `full` tiers produce one. The FD frontmatter + body always exists for FD-carrying paths regardless of tier. The difference between `specs-only-*` and `full-*` is whether `noldor-plan` runs after the spec — `specs-only` skips the plan-decomposition stage and goes directly to implementation.
+**Design Spec** = a separate document under `docs/design/specs/`, produced by the `noldor-spec` skill. Both `specs-only` and `full` tiers produce one. The FD frontmatter + body always exists for FD-carrying paths regardless of tier. The difference between `specs-only-*` and `full-*` is whether `noldor-plan` runs after the spec — `specs-only` skips the plan-decomposition stage and goes directly to implementation.
 
 A `specs-only` FD can receive a `full-attach` enhancement and vice versa. The parent FD's `noldor-tier` records its own creation depth, not the depth of subsequent attached work. Attach history is reconstructed from `Noldor-Path` trailers in attaching commits, not from the parent FD's frontmatter.
 

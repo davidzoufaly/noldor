@@ -117,7 +117,7 @@ interface DocFile {
 function loadDocDir(repo: string, kind: 'plans' | 'specs'): DocFile[] {
   const roots = loadDocRoots(repo);
   const dir = kind === 'plans' ? roots.plans : roots.specs;
-  const relBase = kind === 'plans' ? 'docs/superpowers/plans' : 'docs/superpowers/specs';
+  const relBase = kind === 'plans' ? 'docs/design/plans' : 'docs/design/specs';
   const slugFn = kind === 'plans' ? planSlugFromFilename : specSlugFromFilename;
   if (!existsSync(dir)) return [];
   const out: DocFile[] = [];

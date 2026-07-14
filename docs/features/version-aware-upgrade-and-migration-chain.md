@@ -19,14 +19,15 @@ links:
     - src/core/__tests__/framework-version.test.ts
     - src/migrations/__tests__/0.5.0.test.ts
     - src/migrations/__tests__/0.6.0.test.ts
+    - src/migrations/__tests__/1.0.0.test.ts
     - src/migrations/__tests__/chain.test.ts
     - src/migrations/__tests__/pkg-version.test.ts
     - src/release/__tests__/release-config-flow.test.ts
     - src/testing/__tests__/consumer-fixture.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md
+    docs/design/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md
   plan: >-
-    docs/superpowers/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md
+    docs/design/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md
 name: Version-Aware Upgrade and Migration Chain
 packages:
   - scripts
@@ -102,9 +103,9 @@ Added semver parse and compare helpers (#104).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md`](../../docs/superpowers/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md`](../../docs/design/specs/archive/2026-06-13-version-aware-upgrade-and-migration-chain-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md`](../../docs/superpowers/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md)
+  - [`docs/design/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md`](../../docs/design/plans/archive/2026-06-13-version-aware-upgrade-and-migration-chain.md)
 - **Code:**
   - [`src/migrations/`](../../src/migrations/)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
@@ -117,6 +118,8 @@ Added semver parse and compare helpers (#104).
   - [`src/cli/commands/__tests__/upgrade.test.ts`](../../src/cli/commands/__tests__/upgrade.test.ts)
   - [`src/core/__tests__/consumer-config.test.ts`](../../src/core/__tests__/consumer-config.test.ts)
   - [`src/core/__tests__/framework-version.test.ts`](../../src/core/__tests__/framework-version.test.ts)
+  - [`src/migrations/__tests__/0.5.0.test.ts`](../../src/migrations/__tests__/0.5.0.test.ts)
+  - [`src/migrations/__tests__/0.6.0.test.ts`](../../src/migrations/__tests__/0.6.0.test.ts)
   - [`src/migrations/__tests__/chain.test.ts`](../../src/migrations/__tests__/chain.test.ts)
   - [`src/migrations/__tests__/pkg-version.test.ts`](../../src/migrations/__tests__/pkg-version.test.ts)
   - [`src/release/__tests__/release-config-flow.test.ts`](../../src/release/__tests__/release-config-flow.test.ts)

@@ -37,7 +37,7 @@ links:
     - src/prep/__tests__/prep-promote.test.ts
     - src/prep/__tests__/scaffold.test.ts
     - src/prep/__tests__/staging.test.ts
-  spec: docs/superpowers/specs/archive/2026-06-10-plan-runner-design.md
+  spec: docs/design/specs/archive/2026-06-10-plan-runner-design.md
 name: Plan-Runner — Autonomous Plan Executor
 packages:
   - scripts
@@ -58,7 +58,7 @@ As an operator (human or agent) with a stack of already-designed in-progress FDs
 
 **CLI**
 
-1. Ensure each in-progress FD you want shipped has a committed spec (`docs/superpowers/specs/*-<slug>-design.md`) and plan (`docs/superpowers/plans/*-<slug>.md`) — the output of `noldor prep fanout` + `noldor prep promote`.
+1. Ensure each in-progress FD you want shipped has a committed spec (`docs/design/specs/*-<slug>-design.md`) and plan (`docs/design/plans/*-<slug>.md`) — the output of `noldor prep fanout` + `noldor prep promote`.
 2. Ensure `.noldor/config.json` sets `autonomous: { "onFailure": "abort", "skipLanePicker": true, "requireHumanPrApproval": false }` (same precondition as queue-drain; the runner refuses to start otherwise).
 3. From a clean, synced `main`, preview: `pnpm noldor autonomous run --source plans --dry-run` (lists eligible FDs in FIFO plan-age order, plus skip reasons).
 4. Run live: `pnpm noldor autonomous run --source plans`. Tune with `--max-features N` (default 20), `--max-retries N` (default 2), `--iteration-timeout MS` (default 30 min); add `--json` for a machine summary.
@@ -95,7 +95,7 @@ This release adds a parallel prep pipeline to the noldor CLI, introducing fanout
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-10-plan-runner-design.md`](../../docs/superpowers/specs/archive/2026-06-10-plan-runner-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-10-plan-runner-design.md`](../../docs/design/specs/archive/2026-06-10-plan-runner-design.md)
 - **Code:**
   - [`src/autonomous/drain-source.ts`](../../src/autonomous/drain-source.ts)
   - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)

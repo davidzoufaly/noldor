@@ -128,6 +128,7 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
+
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
@@ -280,10 +281,13 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`docs/noldor/pr-flow.md`](../../docs/noldor/pr-flow.md)
 - **Tests:**
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
+  - [`src/core/__tests__/fmt-guard.test.ts`](../../src/core/__tests__/fmt-guard.test.ts)
+  - [`src/core/__tests__/init-gitignore.test.ts`](../../src/core/__tests__/init-gitignore.test.ts)
   - [`src/core/__tests__/lint-plan-snippets.test.ts`](../../src/core/__tests__/lint-plan-snippets.test.ts)
   - [`src/core/__tests__/next-priority.test.ts`](../../src/core/__tests__/next-priority.test.ts)
   - [`src/core/__tests__/phase-flip-done.test.ts`](../../src/core/__tests__/phase-flip-done.test.ts)
   - [`src/core/__tests__/pr-flow.test.ts`](../../src/core/__tests__/pr-flow.test.ts)
+  - [`src/core/__tests__/prerequisites.test.ts`](../../src/core/__tests__/prerequisites.test.ts)
   - [`src/core/__tests__/release-markers.test.ts`](../../src/core/__tests__/release-markers.test.ts)
   - [`src/core/__tests__/rename-plan-only-tier.test.ts`](../../src/core/__tests__/rename-plan-only-tier.test.ts)
   - [`src/core/__tests__/rollout-marker.test.ts`](../../src/core/__tests__/rollout-marker.test.ts)
@@ -310,7 +314,9 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/garden/detectors/__tests__/allowlist-drift.test.ts`](../../src/garden/detectors/__tests__/allowlist-drift.test.ts)
+  - [`src/garden/detectors/__tests__/circular-blocked-by.test.ts`](../../src/garden/detectors/__tests__/circular-blocked-by.test.ts)
   - [`src/garden/detectors/__tests__/codex-cr-override-audit.test.ts`](../../src/garden/detectors/__tests__/codex-cr-override-audit.test.ts)
+  - [`src/garden/detectors/__tests__/fd-command-rot.test.ts`](../../src/garden/detectors/__tests__/fd-command-rot.test.ts)
   - [`src/garden/detectors/__tests__/fd-link-rot.test.ts`](../../src/garden/detectors/__tests__/fd-link-rot.test.ts)
   - [`src/garden/detectors/__tests__/fd-without-plan.test.ts`](../../src/garden/detectors/__tests__/fd-without-plan.test.ts)
   - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
@@ -349,8 +355,8 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
 
 ## Enhancements
 
-- **Specs-only tier produces a spec file** (2026-05-25): flipped tier behavior to match the rename's original intent — `specs-only` paths now invoke `superpowers:brainstorming` and produce a spec file (no plan). Roster stays at 2 tiers (`specs-only`, `full`). See [spec](../superpowers/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md) + [plan](../superpowers/plans/2026-05-25-noldor-specs-only-tier-produces-spec.md).
-- **Pre-commit honors `NOLDOR_PATH_OVERRIDE`** (2026-06-07): the pre-commit hook runs before the commit message exists, so the `Noldor-Path-Override:` trailer (a commit-msg-layer escape) could not release a pre-commit block such as a stale `micro-chore` allowlist. `runPreCommit` now reads a `NOLDOR_PATH_OVERRIDE` env var: a non-empty value releases both the allowlist check and the no-`/noldor-gate`-session hard wall, and always writes a `(pre-commit)`-tagged breadcrumb to `.noldor/overrides.log` (via `logOverride`). `runPreCommit` stays pure — it returns `overrideReason`; the CLI entrypoint does the append. Pair the env var with the `Noldor-Path-Override:` trailer for cross-clone git-log audit. See [spec](../superpowers/specs/2026-06-07-noldor-pre-commit-path-override-design.md).
+- **Specs-only tier produces a spec file** (2026-05-25): flipped tier behavior to match the rename's original intent — `specs-only` paths now invoke `superpowers:brainstorming` and produce a spec file (no plan). Roster stays at 2 tiers (`specs-only`, `full`). See [spec](../design/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md) + [plan](../design/plans/2026-05-25-noldor-specs-only-tier-produces-spec.md).
+- **Pre-commit honors `NOLDOR_PATH_OVERRIDE`** (2026-06-07): the pre-commit hook runs before the commit message exists, so the `Noldor-Path-Override:` trailer (a commit-msg-layer escape) could not release a pre-commit block such as a stale `micro-chore` allowlist. `runPreCommit` now reads a `NOLDOR_PATH_OVERRIDE` env var: a non-empty value releases both the allowlist check and the no-`/noldor-gate`-session hard wall, and always writes a `(pre-commit)`-tagged breadcrumb to `.noldor/overrides.log` (via `logOverride`). `runPreCommit` stays pure — it returns `overrideReason`; the CLI entrypoint does the append. Pair the env var with the `Noldor-Path-Override:` trailer for cross-clone git-log audit. See [spec](../design/specs/2026-06-07-noldor-pre-commit-path-override-design.md).
 
 ## Changelog
 

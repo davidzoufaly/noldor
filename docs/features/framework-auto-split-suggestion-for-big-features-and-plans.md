@@ -12,7 +12,7 @@ links:
     - src/core/__tests__/split-check-cli.test.ts
     - src/core/__tests__/split-suggestion.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md
+    docs/design/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md
 name: Framework Auto-Split Suggestion for Big Features and Plans
 packages:
   - scripts
@@ -38,7 +38,7 @@ As an operator promoting roadmap entries and reviewing plans, I want the framewo
 ```
 pnpm noldor noldor split-check --entry <slug>        # roadmap/backlog body heuristics (E1–E3)
 pnpm noldor noldor split-check --fd <slug> --add p1.ts --add p2.ts   # attach breadth (F1)
-pnpm noldor noldor split-check --plan docs/superpowers/plans/2026-07-03-foo.md  # row count (P1)
+pnpm noldor noldor split-check --plan docs/design/plans/2026-07-03-foo.md  # row count (P1)
 ```
 
 Exit 0 = clean, 2 = signals on stdout (one per line), 1 = infra error.
@@ -72,7 +72,7 @@ Added split-suggestion oversize heuristics covering E1-E3, F1, and P1 (#155).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md`](../../docs/superpowers/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md`](../../docs/design/specs/archive/2026-07-03-framework-auto-split-suggestion-for-big-features-and-plans-design.md)
 - **Code:**
   - [`src/core/split-suggestion.ts`](../../src/core/split-suggestion.ts)
   - [`src/core/split-check-cli.ts`](../../src/core/split-check-cli.ts)

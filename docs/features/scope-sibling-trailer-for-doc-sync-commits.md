@@ -14,7 +14,7 @@ links:
     - src/core/__tests__/validate-noldor-scope.test.ts
     - src/hooks/__tests__/noldor-validate-trailer.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-scope-sibling-trailer-for-doc-sync-commits-design.md
+    docs/design/specs/archive/2026-07-03-scope-sibling-trailer-for-doc-sync-commits-design.md
 name: Scope Sibling Trailer for Doc-Sync Commits
 packages:
   - scripts
@@ -70,7 +70,7 @@ On failure, the validator error itself prints the exact trailer line to add.
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-scope-sibling-trailer-for-doc-sync-commits-design.md`](../../docs/superpowers/specs/archive/2026-07-03-scope-sibling-trailer-for-doc-sync-commits-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-scope-sibling-trailer-for-doc-sync-commits-design.md`](../../docs/design/specs/archive/2026-07-03-scope-sibling-trailer-for-doc-sync-commits-design.md)
 - **Code:**
   - [`src/core/validate-noldor-scope.ts`](../../src/core/validate-noldor-scope.ts)
   - [`src/core/changelog.ts`](../../src/core/changelog.ts)

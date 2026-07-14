@@ -33,8 +33,8 @@ const baseInput: PrFlowInput = {
     name: 'Test Feature',
     summary: 'A test feature for unit assertions.',
   },
-  specPath: 'docs/superpowers/specs/2026-05-15-test-feature-design.md',
-  planPath: 'docs/superpowers/plans/2026-05-15-test-feature.md',
+  specPath: 'docs/design/specs/2026-05-15-test-feature-design.md',
+  planPath: 'docs/design/plans/2026-05-15-test-feature.md',
   crResults: {
     passes: [
       { reviewer: 'claude', tipSha: 'abc123', findings: 0, status: 'clean' },
@@ -78,8 +78,8 @@ describe('composeBody', () => {
     expect(body).toContain(
       'https://github.com/davidzoufaly/acme/blob/abc123/docs/features/test-feature.md',
     );
-    expect(body).toContain('docs/superpowers/specs/2026-05-15-test-feature-design.md');
-    expect(body).toContain('docs/superpowers/plans/2026-05-15-test-feature.md');
+    expect(body).toContain('docs/design/specs/2026-05-15-test-feature-design.md');
+    expect(body).toContain('docs/design/plans/2026-05-15-test-feature.md');
     expect(body).toContain('## CR Results');
     expect(body).toContain('| 1 | claude | `abc123` | 0 | ✅ |');
     expect(body).toContain('| 2 | codex | `abc123` | 0 | ✅ |');
@@ -135,8 +135,8 @@ describe('composeBody', () => {
         name: 'Existing Feature',
         summary: 'The FD being extended via an attach session.',
       },
-      specPath: 'docs/superpowers/specs/2026-05-16-existing-feature-enhancement-design.md',
-      planPath: 'docs/superpowers/plans/2026-05-16-existing-feature-enhancement.md',
+      specPath: 'docs/design/specs/2026-05-16-existing-feature-enhancement-design.md',
+      planPath: 'docs/design/plans/2026-05-16-existing-feature-enhancement.md',
     };
     const body = composeBody(input);
     expect(body).toContain('docs/features/existing-feature.md');

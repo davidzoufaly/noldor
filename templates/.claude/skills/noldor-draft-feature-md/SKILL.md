@@ -20,7 +20,7 @@ Draft `User Story` and `Usage` sections of a feature MD from the spec (and at re
 
 1. Read `docs/features/<slug>.md`. If missing, abort:
    > No feature MD at `docs/features/<slug>.md` — run `/noldor-promote` or `/noldor-new-feature` first.
-2. Locate the latest spec at `docs/superpowers/specs/*-<slug>-design.md` (sort by date prefix, take latest). If none, abort:
+2. Locate the latest spec at `docs/design/specs/*-<slug>-design.md` (sort by date prefix, take latest). If none, abort:
    > No spec found for slug `<slug>`. Author one via the `noldor-spec` skill, or run `/noldor-draft-feature-md <slug> --refresh` after code lands.
 3. Read the spec. Extract its `## User Story` and `## Usage` sections (everything between those headings and the next `##`).
 4. For each of `User Story`, `Usage` in the feature MD:
@@ -37,7 +37,7 @@ Draft `User Story` and `Usage` sections of a feature MD from the spec (and at re
 ## Steps — `--refresh` mode
 
 1. Read `docs/features/<slug>.md`. If missing, abort (same message as `--from-spec` step 1).
-2. Read the latest spec at `docs/superpowers/specs/*-<slug>-design.md` if present (optional but preferred). If absent, log: `No spec found — drafting from code + tests only.`
+2. Read the latest spec at `docs/design/specs/*-<slug>-design.md` if present (optional but preferred). If absent, log: `No spec found — drafting from code + tests only.`
 3. Read every file path listed in the feature MD's `links.code` frontmatter array. For directory entries, recurse one level. Filter to extensions `*.ts`, `*.tsx`, `*.md`, `*.html`. Ignore `node_modules`, `dist`, `.turbo`. **When `--scope <paths>` is given, read exactly those comma-separated paths instead** (same extension filter + one-level directory recursion); `links.code`/`links.tests` are not scanned — the scope list is the complete source set.
 4. Read every file in `links.tests` (skipped when `--scope` is given).
 5. If both `links.code` and `links.tests` are empty AND no spec was loaded, abort:

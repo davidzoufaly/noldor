@@ -8,6 +8,7 @@ links:
     - src/cli/validate-script-catalog.ts
   tests:
     - src/cli/__tests__/validate-script-catalog.test.ts
+  spec: docs/design/specs/2026-07-14-validate-script-catalog-gate-design.md
 name: Validate Script-Catalog Gate
 packages:
   - scripts
@@ -44,3 +45,14 @@ As a Noldor maintainer (human or agent), I want a pre-commit gate that fails whe
 <!-- @prs-since-last-release: validate-script-catalog-gate -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`src/cli/validate-script-catalog.ts`](../../src/cli/validate-script-catalog.ts)
+- **Tests:**
+  - [`src/cli/__tests__/validate-script-catalog.test.ts`](../../src/cli/__tests__/validate-script-catalog.test.ts)
+
+<!-- /generated: resources -->

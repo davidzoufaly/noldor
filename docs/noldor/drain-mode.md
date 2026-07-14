@@ -84,8 +84,8 @@ Differences from the roadmap path:
 
 - Branch is `feat/<slug>` — resume it (create from `main` only when absent);
   no force-recreate of prior plan work.
-- Preconditions: `docs/superpowers/specs/<date>-<slug>-design.md` AND
-  `docs/superpowers/plans/<date>-<slug>.md` must exist. If either is missing,
+- Preconditions: `docs/design/specs/<date>-<slug>-design.md` AND
+  `docs/design/plans/<date>-<slug>.md` must exist. If either is missing,
   exit non-zero immediately — never improvise a design.
 - Execute the plan task-by-task inline, then the same autonomous end-of-flow
   as above plus the FD seams: refresh the FD's Usage section and flip the

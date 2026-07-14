@@ -8,7 +8,7 @@ links:
   tests:
     - src/core/__tests__/consumer-config-boundaries.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md
+    docs/design/specs/archive/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md
 name: Self-Boundaries Declaration and Cycle Break
 packages:
   - scripts
@@ -56,7 +56,7 @@ refactor relocating repo config loader, review profiles, and stdin prompts out o
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md`](../../docs/superpowers/specs/archive/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md`](../../docs/design/specs/archive/2026-07-03-self-boundaries-declaration-and-cycle-break-design.md)
 - **Tests:**
   - [`src/core/__tests__/consumer-config-boundaries.test.ts`](../../src/core/__tests__/consumer-config-boundaries.test.ts)
 

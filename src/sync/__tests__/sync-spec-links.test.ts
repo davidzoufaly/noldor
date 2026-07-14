@@ -78,23 +78,23 @@ Body.
   });
 
   it('writes links.spec when the field is missing', async () => {
-    const changed = await updateFeatureMd(mdPath, 'docs/superpowers/specs/foo.md');
+    const changed = await updateFeatureMd(mdPath, 'docs/design/specs/foo.md');
     expect(changed).toBe(true);
     const after = matter(await readFile(mdPath, 'utf8')).data as { links: { spec: string } };
-    expect(after.links.spec).toBe('docs/superpowers/specs/foo.md');
+    expect(after.links.spec).toBe('docs/design/specs/foo.md');
   });
 
   it('returns false when links.spec already matches', async () => {
-    await updateFeatureMd(mdPath, 'docs/superpowers/specs/foo.md');
-    const changed = await updateFeatureMd(mdPath, 'docs/superpowers/specs/foo.md');
+    await updateFeatureMd(mdPath, 'docs/design/specs/foo.md');
+    const changed = await updateFeatureMd(mdPath, 'docs/design/specs/foo.md');
     expect(changed).toBe(false);
   });
 
   it('overwrites a stale links.spec value', async () => {
-    await updateFeatureMd(mdPath, 'docs/superpowers/specs/old.md');
-    const changed = await updateFeatureMd(mdPath, 'docs/superpowers/specs/new.md');
+    await updateFeatureMd(mdPath, 'docs/design/specs/old.md');
+    const changed = await updateFeatureMd(mdPath, 'docs/design/specs/new.md');
     expect(changed).toBe(true);
     const after = matter(await readFile(mdPath, 'utf8')).data as { links: { spec: string } };
-    expect(after.links.spec).toBe('docs/superpowers/specs/new.md');
+    expect(after.links.spec).toBe('docs/design/specs/new.md');
   });
 });

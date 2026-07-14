@@ -104,11 +104,15 @@ Body.
   });
 });
 
+// The real docs/roadmap.md can legitimately be empty (queue drained —
+// "Queue empty — ship-ready"). These integration tests exercise the real file
+// when it carries entries and no-op when drained; the parse-logic invariants
+// (type/body/category capture) are locked in by parseRoadmapFromString below,
+// which is independent of repo state.
 describe('parseRoadmap', () => {
   it('returns a flat array of entries from real docs/roadmap.md', async () => {
     const result = await parseRoadmap();
     expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBeGreaterThan(0);
   });
 
   it('every entry has a name and area', async () => {
@@ -119,29 +123,28 @@ describe('parseRoadmap', () => {
     }
   });
 
-  it('captures entries with non-empty name and area fields', async () => {
+  it('captures non-empty name and area fields on every entry', async () => {
     const result = await parseRoadmap();
-    expect(result.length).toBeGreaterThan(0);
     expect(result.every((e) => typeof e.name === 'string' && e.name.length > 0)).toBe(true);
     expect(result.every((e) => typeof e.area === 'string' && e.area.length > 0)).toBe(true);
   });
 
-  it('captures type field on at least one entry', async () => {
+  it('captures type field on at least one entry (when the queue is non-empty)', async () => {
     const result = await parseRoadmap();
-    const typed = result.find((e) => e.type !== undefined);
-    expect(typed).toBeDefined();
+    if (result.length === 0) return; // queue drained — nothing to assert
+    expect(result.find((e) => e.type !== undefined)).toBeDefined();
   });
 
-  it('captures body text on at least one entry', async () => {
+  it('captures body text on at least one entry (when the queue is non-empty)', async () => {
     const result = await parseRoadmap();
-    const withBody = result.find((e) => e.body.length > 20);
-    expect(withBody).toBeDefined();
+    if (result.length === 0) return; // queue drained — nothing to assert
+    expect(result.find((e) => e.body.length > 20)).toBeDefined();
   });
 
-  it('captures category on at least one H4 entry', async () => {
+  it('captures category on at least one H4 entry (when the queue is non-empty)', async () => {
     const result = await parseRoadmap();
-    const cat = result.find((e) => e.category !== undefined);
-    expect(cat).toBeDefined();
+    if (result.length === 0) return; // queue drained — nothing to assert
+    expect(result.find((e) => e.category !== undefined)).toBeDefined();
   });
 });
 
@@ -180,6 +183,25 @@ Body.
     expect(entries).toHaveLength(1);
     expect(entries[0].size).toBeUndefined();
     expect(entries[0].impact).toBeUndefined();
+  });
+
+  it('captures type, body, and H4 category', () => {
+    const md = `# Roadmap
+
+### Category One
+
+#### Entry One
+
+- area: tooling
+- type: refactor
+
+This body paragraph is comfortably longer than twenty characters.
+`;
+    const entries = parseRoadmapFromString(md);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].type).toBe('refactor');
+    expect(entries[0].category).toBe('Category One');
+    expect(entries[0].body.length).toBeGreaterThan(20);
   });
 });
 
@@ -780,8 +802,8 @@ describe('loadFdChangelog', () => {
 describe(loadRoadmapWithHash, () => {
   it('returns entries plus SHA-256 hex matching the file bytes', async () => {
     const { entries, rawHash } = await loadRoadmapWithHash();
-    expect(entries.length).toBeGreaterThan(0);
-    expect(entries[0]?.slug).toMatch(/^[a-z0-9-]+$/);
+    expect(Array.isArray(entries)).toBe(true);
+    if (entries.length > 0) expect(entries[0]?.slug).toMatch(/^[a-z0-9-]+$/); // queue may be drained
     const expected = createHash('sha256').update(readFileSync('docs/roadmap.md')).digest('hex');
     expect(rawHash).toBe(expected);
   });
@@ -845,8 +867,8 @@ describe('resolveFeatureArtifacts', () => {
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'noldor-artifacts-'));
-    await mkdir(join(root, 'docs', 'superpowers', 'specs'), { recursive: true });
-    await mkdir(join(root, 'docs', 'superpowers', 'plans'), { recursive: true });
+    await mkdir(join(root, 'docs', 'design', 'specs'), { recursive: true });
+    await mkdir(join(root, 'docs', 'design', 'plans'), { recursive: true });
   });
 
   afterEach(async () => {
@@ -854,8 +876,8 @@ describe('resolveFeatureArtifacts', () => {
   });
 
   it('matches spec + plan by slug and returns the newest of each with a vscode href', async () => {
-    const specsDir = join(root, 'docs', 'superpowers', 'specs');
-    const plansDir = join(root, 'docs', 'superpowers', 'plans');
+    const specsDir = join(root, 'docs', 'design', 'specs');
+    const plansDir = join(root, 'docs', 'design', 'plans');
     // Two dated specs for the same slug — the later date must win.
     await writeFile(join(specsDir, '2026-01-01-foo-design.md'), '# old', 'utf8');
     await writeFile(join(specsDir, '2026-03-15-foo-design.md'), '# new', 'utf8');
@@ -863,14 +885,14 @@ describe('resolveFeatureArtifacts', () => {
     await writeFile(join(plansDir, '2026-01-02-foo.md'), '# plan', 'utf8');
 
     const artifacts = await resolveFeatureArtifacts('foo', root);
-    expect(artifacts.spec?.path).toBe('docs/superpowers/specs/2026-03-15-foo-design.md');
+    expect(artifacts.spec?.path).toBe('docs/design/specs/2026-03-15-foo-design.md');
     expect(artifacts.spec?.href).toBe(`vscode://file${join(specsDir, '2026-03-15-foo-design.md')}`);
-    expect(artifacts.plan?.path).toBe('docs/superpowers/plans/2026-01-02-foo.md');
+    expect(artifacts.plan?.path).toBe('docs/design/plans/2026-01-02-foo.md');
   });
 
   it('returns null for a feature with no spec/plan (e.g. fast-track)', async () => {
     await writeFile(
-      join(root, 'docs', 'superpowers', 'specs', '2026-01-01-something-else-design.md'),
+      join(root, 'docs', 'design', 'specs', '2026-01-01-something-else-design.md'),
       '# x',
       'utf8',
     );
@@ -878,7 +900,7 @@ describe('resolveFeatureArtifacts', () => {
     expect(artifacts).toEqual({ spec: null, plan: null });
   });
 
-  it('tolerates missing superpowers directories', async () => {
+  it('tolerates missing design directories', async () => {
     const bare = await mkdtemp(join(tmpdir(), 'noldor-artifacts-bare-'));
     try {
       expect(await resolveFeatureArtifacts('anything', bare)).toEqual({ spec: null, plan: null });

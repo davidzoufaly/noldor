@@ -74,7 +74,7 @@ describe('detectFdWithoutPlan', () => {
 
   beforeEach(async () => {
     repo = await mkdtemp(join(tmpdir(), 'fd-without-plan-'));
-    await mkdir(join(repo, 'docs/superpowers/plans'), { recursive: true });
+    await mkdir(join(repo, 'docs/design/plans'), { recursive: true });
     await mkdir(join(repo, 'docs/features'), { recursive: true });
     makeRepoSync(repo);
   });
@@ -169,7 +169,7 @@ describe('detectFdWithoutPlan', () => {
 
     // Add FD and plan after rollout
     await writeFile(join(repo, 'docs/features/has-plan.md'), makeInProgressFd('Has Plan Feature'));
-    await writeFile(join(repo, 'docs/superpowers/plans/2026-01-01-has-plan.md'), '# Has Plan\n');
+    await writeFile(join(repo, 'docs/design/plans/2026-01-01-has-plan.md'), '# Has Plan\n');
     await commitAll(repo, 'feat(has-plan): create FD and plan');
 
     const findings = await detectFdWithoutPlan(repo);

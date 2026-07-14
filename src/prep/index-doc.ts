@@ -65,7 +65,7 @@ export function renderIndex(m: StagingManifest): string {
     ...sections,
     '## Promote bridge',
     '',
-    'Approved features are promoted **serially** (each `prep promote` step removes a block from `docs/roadmap.md`): per feature it scaffolds `docs/features/<slug>.md` (phase: in-progress), copies this spec to `docs/superpowers/specs/<date>-<slug>-design.md`, lifts User Story + Usage into the FD, copies the plan (full tier) to `docs/superpowers/plans/<date>-<slug>.md`, and commits — all on one branch (`--ship` also opens an auto-merged PR). The result — in-progress FDs carrying spec + plan — is the input for the autonomous plan-runner.',
+    'Approved features are promoted **serially** (each `prep promote` step removes a block from `docs/roadmap.md`): per feature it scaffolds `docs/features/<slug>.md` (phase: in-progress), copies this spec to `docs/design/specs/<date>-<slug>-design.md`, lifts User Story + Usage into the FD, copies the plan (full tier) to `docs/design/plans/<date>-<slug>.md`, and commits — all on one branch (`--ship` also opens an auto-merged PR). The result — in-progress FDs carrying spec + plan — is the input for the autonomous plan-runner.',
     '',
   ].join('\n');
 }

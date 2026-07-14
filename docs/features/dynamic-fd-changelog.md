@@ -69,7 +69,7 @@ As a developer or agent reading an FD detail page, I want to see every commit at
 
 ## Resources
 
-- **Plan:** [`docs/superpowers/plans/archive/2026-05-09-dynamic-fd-changelog.md`](../superpowers/plans/archive/2026-05-09-dynamic-fd-changelog.md)
+- **Plan:** [`docs/design/plans/archive/2026-05-09-dynamic-fd-changelog.md`](../design/plans/archive/2026-05-09-dynamic-fd-changelog.md)
 - **Framework page:** [`docs/noldor/feature-md-schema.md`](../noldor/feature-md-schema.md) — see the "`## Changelog` (Summary in body, Commits live)" section
 
 <!-- generated: resources -->

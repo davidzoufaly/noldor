@@ -11,7 +11,7 @@ links:
   tests:
     - src/release/__tests__/release-resume.test.ts
     - src/release/__tests__/release-state.test.ts
-  spec: docs/superpowers/specs/archive/2026-07-02-pnpm-release-resume-design.md
+  spec: docs/design/specs/archive/2026-07-02-pnpm-release-resume-design.md
 name: '`pnpm release --resume`'
 packages:
   - scripts
@@ -63,7 +63,7 @@ Release-state persistence added so interrupted releases can resume (#132).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-02-pnpm-release-resume-design.md`](../../docs/superpowers/specs/archive/2026-07-02-pnpm-release-resume-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-02-pnpm-release-resume-design.md`](../../docs/design/specs/archive/2026-07-02-pnpm-release-resume-design.md)
 - **Code:**
   - [`src/release/release-state.ts`](../../src/release/release-state.ts)
   - [`src/release/index.ts`](../../src/release/index.ts)

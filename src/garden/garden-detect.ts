@@ -135,7 +135,7 @@ export async function detectStalePlans(
 
     const fullPath = join(plansDir, entry);
     // Presentation string — relative path shown in garden output, not used for IO.
-    const relPath = join('docs/superpowers/plans', entry);
+    const relPath = join('docs/design/plans', entry);
     const feature = await loadFeatureBySlug(repo, slug);
 
     if (feature) {
@@ -195,7 +195,7 @@ export async function detectStalePlans(
 
 /**
  * One stale spec finding. Mirror of {@link StalePlan} for design specs in
- * `docs/superpowers/specs/`. Emitted when the matching feature has shipped
+ * `docs/design/specs/`. Emitted when the matching feature has shipped
  * (`phase: done`) or (secondary signal) the file is older than the staleness
  * threshold and no matching feature MD exists.
  */
@@ -257,8 +257,8 @@ export async function detectStaleSpecs(
     const fullPath = join(specsDir, entry);
     // Not used for IO. Shown in garden output AND matched verbatim against FDs'
     // links.spec by the fallback below — keep the exact
-    // 'docs/superpowers/specs/<entry>' forward-slash form.
-    const relPath = join('docs/superpowers/specs', entry);
+    // 'docs/design/specs/<entry>' forward-slash form.
+    const relPath = join('docs/design/specs', entry);
     const feature = await loadFeatureBySlug(repo, slug);
 
     if (feature) {

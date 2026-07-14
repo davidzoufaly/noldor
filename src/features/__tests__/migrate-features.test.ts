@@ -84,7 +84,7 @@ describe(inferTier, () => {
   it('assigns full when links.spec present', () => {
     const fm = {
       name: 'Test Feature',
-      links: { spec: 'docs/superpowers/specs/x.md' },
+      links: { spec: 'docs/design/specs/x.md' },
     };
     const result = inferTier(fm);
     expect(result['noldor-tier']).toBe('full');

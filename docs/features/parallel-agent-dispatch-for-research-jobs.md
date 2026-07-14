@@ -26,7 +26,7 @@ links:
     - src/research/__tests__/types.test.ts
     - src/testing/__tests__/stub-runner.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md
+    docs/design/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md
 name: Parallel-Agent Dispatch for Research Jobs
 packages:
   - scripts
@@ -95,7 +95,7 @@ _none — operates through the `pnpm noldor` CLI; agents invoke it via Bash._
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md`](../../docs/superpowers/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md`](../../docs/design/specs/archive/2026-07-01-parallel-agent-dispatch-for-research-jobs-design.md)
 - **Code:**
   - [`src/research/types.ts`](../../src/research/types.ts)
   - [`src/research/prompt.ts`](../../src/research/prompt.ts)

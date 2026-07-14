@@ -108,13 +108,13 @@ describe('isReleaseSweepAllowed', () => {
   });
 
   it('rejects non-md files in plans/specs dirs (consistency with rest of allowlist)', () => {
-    expect(isReleaseSweepAllowed(['docs/superpowers/plans/2026-05-17-foo.json'])).toBe(false);
-    expect(isReleaseSweepAllowed(['docs/superpowers/specs/2026-05-17-foo.ts'])).toBe(false);
+    expect(isReleaseSweepAllowed(['docs/design/plans/2026-05-17-foo.json'])).toBe(false);
+    expect(isReleaseSweepAllowed(['docs/design/specs/2026-05-17-foo.ts'])).toBe(false);
   });
 
-  it('admits design plans + specs under docs/superpowers/', () => {
-    expect(isReleaseSweepAllowed(['docs/superpowers/plans/2026-05-17-foo.md'])).toBe(true);
-    expect(isReleaseSweepAllowed(['docs/superpowers/specs/2026-05-17-foo-design.md'])).toBe(true);
+  it('admits design plans + specs under docs/design/', () => {
+    expect(isReleaseSweepAllowed(['docs/design/plans/2026-05-17-foo.md'])).toBe(true);
+    expect(isReleaseSweepAllowed(['docs/design/specs/2026-05-17-foo-design.md'])).toBe(true);
   });
 
   it('admits self-edits to .claude/skills/noldor-release-sweep/SKILL.md', () => {

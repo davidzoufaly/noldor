@@ -9,9 +9,9 @@ links:
   tests:
     - src/verify/__tests__/health.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md
+    docs/design/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md
   plan: >-
-    docs/superpowers/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md
+    docs/design/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md
 name: Per-Task Dev Environment Bootstrap
 packages:
   - scripts
@@ -87,9 +87,9 @@ Add a `consumer.dev` surface config block (#103).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md`](../../docs/superpowers/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md`](../../docs/design/specs/archive/2026-06-13-per-task-dev-environment-bootstrap-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md`](../../docs/superpowers/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md)
+  - [`docs/design/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md`](../../docs/design/plans/archive/2026-06-13-per-task-dev-environment-bootstrap.md)
 - **Code:**
   - [`src/verify/health.ts`](../../src/verify/health.ts)
 - **Tests:**

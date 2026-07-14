@@ -32,7 +32,7 @@ links:
     - src/testing/__tests__/drain-e2e.test.ts
     - src/testing/__tests__/stub-runner.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md
+    docs/design/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md
 name: Drain Startup Reconciliation of a Prior Dead Run
 packages:
   - scripts
@@ -83,7 +83,7 @@ Reconcile a prior dead drain run at startup (#107).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md`](../../docs/superpowers/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md`](../../docs/design/specs/archive/2026-06-14-drain-startup-reconciliation-of-a-prior-dead-run-design.md)
 - **Code:**
   - [`src/autonomous/drain-reconcile.ts`](../../src/autonomous/drain-reconcile.ts)
   - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)

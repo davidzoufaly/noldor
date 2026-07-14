@@ -19,8 +19,8 @@ const entry: PrepEntry = {
 
 describe('scaffoldFd', () => {
   const md = scaffoldFd(entry, {
-    specRel: 'docs/superpowers/specs/2026-06-10-foo-bar-design.md',
-    planRel: 'docs/superpowers/plans/2026-06-10-foo-bar.md',
+    specRel: 'docs/design/specs/2026-06-10-foo-bar-design.md',
+    planRel: 'docs/design/plans/2026-06-10-foo-bar.md',
     cwd: process.cwd(),
   });
   const fm = matter(md);
@@ -33,8 +33,8 @@ describe('scaffoldFd', () => {
   });
 
   it('links spec, plan, and Touches code', () => {
-    expect(data.links.spec).toBe('docs/superpowers/specs/2026-06-10-foo-bar-design.md');
-    expect(data.links.plan).toBe('docs/superpowers/plans/2026-06-10-foo-bar.md');
+    expect(data.links.spec).toBe('docs/design/specs/2026-06-10-foo-bar-design.md');
+    expect(data.links.plan).toBe('docs/design/plans/2026-06-10-foo-bar.md');
     expect(data.links.code).toContain('src/foo.ts');
   });
 

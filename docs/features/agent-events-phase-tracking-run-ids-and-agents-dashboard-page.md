@@ -30,7 +30,7 @@ links:
     - src/dashboard/__tests__/dashboard-agents.test.ts
     - src/metrics/__tests__/drain-and-tokens.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md
+    docs/design/specs/archive/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md
 name: 'Agent-Events Phase Tracking, Run IDs and `/agents` Dashboard Page'
 packages:
   - scripts
@@ -93,7 +93,7 @@ Agent-event vocabulary now emits paired spawned/exited rows linked by a shared `
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md`](../../docs/superpowers/specs/archive/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md`](../../docs/design/specs/archive/2026-07-03-agent-events-phase-tracking-run-ids-and-agents-dashboard-page-design.md)
 - **Code:**
   - [`src/core/agent-events.ts`](../../src/core/agent-events.ts)
   - [`src/core/agent-runner/registry.ts`](../../src/core/agent-runner/registry.ts)

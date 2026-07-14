@@ -29,7 +29,7 @@ afterEach(async () => {
 
 const input = (): LaneInput => ({
   slug: 'x',
-  artifact: 'docs/superpowers/specs/x.md',
+  artifact: 'docs/design/specs/x.md',
   kind: 'spec',
   fdPath: 'docs/features/x.md',
   artifactSha: 'aaa',

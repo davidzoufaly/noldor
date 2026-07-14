@@ -53,7 +53,7 @@ describe('FeatureFrontmatterSchema', () => {
           'docs/user/tutorials/your-first-shape.md',
           'docs/user/explanation/agent-first-design.md',
         ],
-        spec: 'docs/superpowers/specs/x.md',
+        spec: 'docs/design/specs/x.md',
       },
       updated: '0.1.2',
     };
@@ -152,9 +152,9 @@ describe('noldor-tier field', () => {
   it('accepts links.plan as a single string', () => {
     const parsed = FeatureFrontmatterSchema.parse({
       ...base,
-      links: { code: [], tests: [], plan: 'docs/superpowers/plans/x.md' },
+      links: { code: [], tests: [], plan: 'docs/design/plans/x.md' },
     });
-    expect(parsed.links.plan).toBe('docs/superpowers/plans/x.md');
+    expect(parsed.links.plan).toBe('docs/design/plans/x.md');
   });
   it('accepts links.plan as an array of strings', () => {
     const parsed = FeatureFrontmatterSchema.parse({

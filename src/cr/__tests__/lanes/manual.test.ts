@@ -27,7 +27,7 @@ afterEach(async () => {
 
 const input = (over: Partial<LaneInput> = {}): LaneInput => ({
   slug: 'x',
-  artifact: 'docs/superpowers/specs/x.md',
+  artifact: 'docs/design/specs/x.md',
   kind: 'spec',
   fdPath: 'docs/features/x.md',
   artifactSha: 'aaa',

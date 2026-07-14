@@ -7,6 +7,7 @@ links:
   code: []
   tests:
     - src/dashboard/__tests__/blocked-by.test.ts
+  spec: docs/design/specs/2026-07-13-dashboard-blocked-by-graph-view-design.md
 name: Dashboard Blocked-By Graph View
 packages:
   - scripts
@@ -40,3 +41,12 @@ As an operator triaging the queue, I want the roadmap+backlog blocked-by graph r
 <!-- @prs-since-last-release: dashboard-blocked-by-graph-view -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Tests:**
+  - [`src/dashboard/__tests__/blocked-by.test.ts`](../../src/dashboard/__tests__/blocked-by.test.ts)
+
+<!-- /generated: resources -->

@@ -6,6 +6,8 @@ entry-id: Q-0044
 links:
   code: []
   tests: []
+  spec: >-
+    docs/design/specs/2026-07-14-vendored-systematic-debugging-discipline-design.md
 name: Vendored Systematic-Debugging Discipline
 packages:
   - scripts

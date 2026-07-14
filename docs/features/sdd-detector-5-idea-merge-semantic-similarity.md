@@ -13,7 +13,7 @@ links:
     - src/core/__tests__/fd-load.test.ts
     - src/triage/__tests__/merge-candidates.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md
+    docs/design/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md
 name: SDD Detector 5 — Idea-Merge Semantic Similarity
 packages:
   - scripts
@@ -58,7 +58,7 @@ As an operator (or triage agent) running `/noldor-triage`, I want the merge-cand
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md`](../../docs/superpowers/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md`](../../docs/design/specs/archive/2026-07-06-sdd-detector-5-idea-merge-semantic-similarity-design.md)
 - **Code:**
   - [`src/triage/merge-candidates.ts`](../../src/triage/merge-candidates.ts)
   - [`src/triage/merge-candidates-cli.ts`](../../src/triage/merge-candidates-cli.ts)

@@ -638,7 +638,7 @@ function renderCommitList(commits: FeatureCommit[], repoUrl: string): string {
  * Resolve the spec/plan artifacts written for a feature so the operator can
  * open them from the dashboard to check the outcome against the design (the
  * semi-autonomous review path — fully-autonomous runs never look). Matches
- * `docs/superpowers/{specs,plans}/<date>-<slug>-…md` by the slug the filename
+ * `docs/design/{specs,plans}/<date>-<slug>-…md` by the slug the filename
  * encodes ({@link extractSpecSlug}/{@link extractPlanSlug}); date-prefixed
  * names sort chronologically, so the newest match wins. Returns `null` for an
  * artifact that was never authored (fast-track features have neither).
@@ -1123,8 +1123,8 @@ export async function loadSddInput(): Promise<ReportInput> {
   const ideasMd = await readFile('ideas.md', 'utf8').catch(() => '');
   const backlogRaw = await readFile('docs/backlog.md', 'utf8').catch(() => '');
   const backlog = parseBacklog(backlogRaw);
-  const specPaths = await listSpecs('docs/superpowers/specs');
-  const planPaths = await listPlans('docs/superpowers/plans');
+  const specPaths = await listSpecs('docs/design/specs');
+  const planPaths = await listPlans('docs/design/plans');
 
   const roots = scanRoots();
   const allRepoPaths: string[] = [];

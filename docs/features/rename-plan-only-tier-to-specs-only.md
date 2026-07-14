@@ -34,7 +34,7 @@ User-visible touch points after this lands:
 
 ## Follow-up
 
-The rename's User Story stated the intent was to make the tier label reflect what it actually produces (a spec). The implementation in this FD was label-only — the tier kept its plan-producing behavior. The follow-up FD `noldor-specs-only-tier-produces-spec` (2026-05-25) honored the original intent by flipping the tier's actual behavior to produce a spec file. The 29 existing FDs tagged `noldor-tier: specs-only` keep their tag as a historical label-only carryover (none of them had a real spec file at the time of the flip; the legacy plan-producing path simply ceases to be reachable from `/noldor-gate`). See [`docs/superpowers/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md`](../superpowers/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md).
+The rename's User Story stated the intent was to make the tier label reflect what it actually produces (a spec). The implementation in this FD was label-only — the tier kept its plan-producing behavior. The follow-up FD `noldor-specs-only-tier-produces-spec` (2026-05-25) honored the original intent by flipping the tier's actual behavior to produce a spec file. The 29 existing FDs tagged `noldor-tier: specs-only` keep their tag as a historical label-only carryover (none of them had a real spec file at the time of the flip; the legacy plan-producing path simply ceases to be reachable from `/noldor-gate`). See [`docs/design/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md`](../design/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md).
 
 ## PRs
 

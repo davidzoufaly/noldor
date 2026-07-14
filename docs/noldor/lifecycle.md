@@ -26,7 +26,7 @@ flowchart TD
     %% Paths 3-4: specs-only (spec only, no plan)
     Gate -->|"3 · specs-only-new<br/>(new FD, tier: specs-only)"| Feature["📄 docs/features/&lt;slug&gt;.md<br/>phase: in-progress<br/>noldor-tier: specs-only | full"]
     Gate -.->|"4 · specs-only-attach<br/>(parent FD)"| ParentFD["📄 existing parent FD"]
-    Feature -->|"specs-only-new"| Spec["📐 docs/superpowers/specs/<br/>(noldor-spec)"]
+    Feature -->|"specs-only-new"| Spec["📐 docs/design/specs/<br/>(noldor-spec)"]
     ParentFD -->|"specs-only-attach"| Spec
     Spec -->|"specs-only-*"| Code
 
@@ -35,7 +35,7 @@ flowchart TD
     Gate -.->|"6 · full-attach<br/>(parent FD)"| ParentFD
     Feature -->|"full-new"| Spec
     ParentFD -->|"full-attach"| Spec
-    Spec -->|"full-*"| Plan["🛠 docs/superpowers/plans/<br/>(noldor-plan)"]
+    Spec -->|"full-*"| Plan["🛠 docs/design/plans/<br/>(noldor-plan)"]
 
     Plan --> Code["💻 configured scanPaths<br/>links.code"]
     Plan --> Tests["🧪 *.test.ts<br/>// @tests: &lt;slug&gt;<br/>links.tests"]
@@ -78,8 +78,8 @@ How the pieces connect:
 | **Capture**  | `ideas.md` (raw)                                                                                 | manual                                                                                                    |
 | **Triage**   | `docs/roadmap.md` (flat priority list, file order = priority) or `docs/backlog.md` (parking lot) | `/noldor-triage` skill, `pnpm noldor triage list-untriaged`                                                      |
 | **Track**    | `docs/features/<slug>.md` (frontmatter + body)                                                   | `/noldor-new-feature`, `pnpm noldor validate features`                                                           |
-| **Spec**     | `docs/superpowers/specs/<date>-<slug>-design.md` (non-trivial only)                              | `noldor-spec` skill (skipped when complexity verdict = `skip-brainstorm`)                     |
-| **Plan**     | `docs/superpowers/plans/<date>-<slug>.md`                                                        | `noldor-plan` skill                                                                           |
+| **Spec**     | `docs/design/specs/<date>-<slug>-design.md` (non-trivial only)                              | `noldor-spec` skill (skipped when complexity verdict = `skip-brainstorm`)                     |
+| **Plan**     | `docs/design/plans/<date>-<slug>.md`                                                        | `noldor-plan` skill                                                                           |
 | **Code**     | `packages/`, `apps/` (`links.code`)                                                              | typecheck + Vitest                                                                                        |
 | **Tests**    | `*.test.ts` with `// @tests: <slug>`                                                             | `pnpm noldor sync test-links` populates `links.tests`                                                     |
 | **Docs**     | `docs/user/tutorials/`, `docs/user/explanation/` with `<!-- @feature: <slug> -->`                | `pnpm noldor sync doc-links` populates `links.docs`, `pnpm docs:build` rebuilds                           |

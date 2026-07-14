@@ -58,11 +58,11 @@ describe('shouldPromptForPrApproval', () => {
 describe('pickMostRecentByDatePrefix', () => {
   it('returns the newest filename when multiple share a directory', () => {
     const paths = [
-      'docs/superpowers/plans/2026-05-14-a.md',
-      'docs/superpowers/plans/2026-05-16-c.md',
-      'docs/superpowers/plans/2026-05-15-b.md',
+      'docs/design/plans/2026-05-14-a.md',
+      'docs/design/plans/2026-05-16-c.md',
+      'docs/design/plans/2026-05-15-b.md',
     ];
-    expect(pickMostRecentByDatePrefix(paths)).toBe('docs/superpowers/plans/2026-05-16-c.md');
+    expect(pickMostRecentByDatePrefix(paths)).toBe('docs/design/plans/2026-05-16-c.md');
   });
 
   it('returns null on empty input', () => {
@@ -70,8 +70,8 @@ describe('pickMostRecentByDatePrefix', () => {
   });
 
   it('falls back to lexical order when no date prefix present', () => {
-    const paths = ['docs/superpowers/plans/zeta.md', 'docs/superpowers/plans/alpha.md'];
-    expect(pickMostRecentByDatePrefix(paths)).toBe('docs/superpowers/plans/zeta.md');
+    const paths = ['docs/design/plans/zeta.md', 'docs/design/plans/alpha.md'];
+    expect(pickMostRecentByDatePrefix(paths)).toBe('docs/design/plans/zeta.md');
   });
 });
 

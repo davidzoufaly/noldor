@@ -27,7 +27,7 @@ links:
     - src/garden/detectors/__tests__/bootstrap-override-audit.test.ts
     - src/garden/detectors/__tests__/codex-cr-override-audit.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md
+    docs/design/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md
 name: Bootstrap-Immunity for Self-Gating Features
 packages:
   - scripts
@@ -102,7 +102,7 @@ This release adds bootstrap-immunity for self-gating features (#110), allowing f
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md`](../../docs/superpowers/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md`](../../docs/design/specs/archive/2026-06-14-bootstrap-immunity-for-self-gating-features-design.md)
 - **Code:**
   - [`src/cr/gate-registry.ts`](../../src/cr/gate-registry.ts)
   - [`src/cr/bootstrap-immunity.ts`](../../src/cr/bootstrap-immunity.ts)

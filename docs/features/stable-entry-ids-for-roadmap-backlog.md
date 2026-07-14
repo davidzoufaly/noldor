@@ -23,7 +23,7 @@ links:
   tests:
     - src/triage/__tests__/entry-id.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md
+    docs/design/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md
 name: Stable Entry IDs for Roadmap + Backlog
 packages:
   - scripts
@@ -77,7 +77,7 @@ Introduces stable entry IDs (Q-NNNN) for roadmap + backlog (#157).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md`](../../docs/superpowers/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md`](../../docs/design/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md)
 - **Code:**
   - [`docs/roadmap.md`](../../docs/roadmap.md)
   - [`docs/backlog.md`](../../docs/backlog.md)

@@ -77,7 +77,7 @@ describe('orchestrate integration', () => {
     const r = await run({
       args: {
         slug: 'x',
-        artifact: 'docs/superpowers/specs/x.md',
+        artifact: 'docs/design/specs/x.md',
         kind: 'spec',
         lanes: ['manual', 'codex', 'reviewer'],
         fullReview: false,

@@ -4,7 +4,7 @@ category: Tooling
 deps: []
 links:
   spec: >-
-    docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md
+    docs/design/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md
   code:
     - src/core/doc-roots.ts
     - src/hooks/noldor-validate-trailer.ts
@@ -55,7 +55,7 @@ As a Noldor framework maintainer, I want framework artifacts (FDs, roadmap, back
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md`](../../docs/superpowers/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md`](../../docs/design/specs/archive/2026-05-28-framework-doc-extraction-repo-extraction-rev2-design.md)
 - **Code:**
   - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
   - [`src/hooks/noldor-validate-trailer.ts`](../../src/hooks/noldor-validate-trailer.ts)

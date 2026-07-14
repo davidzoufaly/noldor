@@ -211,7 +211,7 @@ export function detectStaleBacklog(
 const META_SPEC_PATTERNS = [/\/2026-04-21-product-dev-framework-brainstorm\.md$/, /-design\.md$/];
 
 /**
- * Flag spec files in `docs/superpowers/specs/` that no feature MD references
+ * Flag spec files in `docs/design/specs/` that no feature MD references
  * via `links.spec`. Excludes meta-specs (sub-project design docs).
  */
 export function detectSpecsWithoutFeatures(
@@ -523,8 +523,8 @@ export function detectReadmePackageDrift(
 }
 
 /**
- * Flag plan files in `docs/superpowers/plans/` whose slug doesn't match
- * any spec under `docs/superpowers/specs/` (after stripping date prefix
+ * Flag plan files in `docs/design/plans/` whose slug doesn't match
+ * any spec under `docs/design/specs/` (after stripping date prefix
  * and `-design` / `plan\d+-` markers).
  *
  * @param planPaths - Plan file paths from {@link listPlans}.
@@ -542,7 +542,7 @@ export function detectPlansWithoutSpec(planPaths: string[], specPaths: string[])
     gaps.push({
       category: 'Plans without matching spec',
       itemId: p,
-      message: `${p} has slug "${slug}" with no matching spec under docs/superpowers/specs/`,
+      message: `${p} has slug "${slug}" with no matching spec under docs/design/specs/`,
     });
   }
   return gaps;

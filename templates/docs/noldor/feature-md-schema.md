@@ -74,7 +74,7 @@ links:
 - `specs-only` — FD created on path `specs-only-new`: mechanical work, no brainstorm/spec.
 - `full` — FD created on path `full-new`: design dialogue, spec produced and linked.
 
-**The tier does not mutate when subsequent work attaches to the FD.** A `specs-only` FD can receive `full-attach` enhancements; those attach paths are recorded in `Noldor-Path` commit trailers (and, for `full-attach`, a spec file at `docs/superpowers/specs/<date>-<parent-slug>-<enhancement>-design.md` must exist). The parent FD's frontmatter is not modified.
+**The tier does not mutate when subsequent work attaches to the FD.** A `specs-only` FD can receive `full-attach` enhancements; those attach paths are recorded in `Noldor-Path` commit trailers (and, for `full-attach`, a spec file at `docs/design/specs/<date>-<parent-slug>-<enhancement>-design.md` must exist). The parent FD's frontmatter is not modified.
 
 Attach history is reconstructed from trailers, not from the parent FD's frontmatter.
 
@@ -137,8 +137,8 @@ The operator no longer stages release-notes copy ahead of time. To override the 
 | --------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `code`    | `string[]` (default `[]`) | Repo-relative paths to implementation files or directories. Scan-derived cached projection — populated by `pnpm noldor sync code-links` from `// @fd: <slug>` tags, not hand-maintained; guarded by `sync code-links --check` + the `code-links-drift` detector. Directory entries stay manual (a tag can't live on a dir). |
 | `docs`    | `string[]` (default `[]`) | Repo-relative paths to user-facing docs. Populated by `pnpm noldor sync doc-links` from `<!-- @feature: <slug> -->` tags. |
-| `plan`    | `string \| string[]` (optional) | Repo-relative path(s) to the implementation plan under `docs/superpowers/plans/`. Set on `full-*` paths.            |
-| `spec`    | `string` (optional)       | Single repo-relative path to the design spec under `docs/superpowers/specs/`.                                             |
+| `plan`    | `string \| string[]` (optional) | Repo-relative path(s) to the implementation plan under `docs/design/plans/`. Set on `full-*` paths.            |
+| `spec`    | `string` (optional)       | Single repo-relative path to the design spec under `docs/design/specs/`.                                             |
 | `tests`   | `string[]` (default `[]`) | Repo-relative paths to test files. Populated by `pnpm noldor sync test-links` from `// @tests: <slug>` tags.              |
 
 ## Sentinel rules

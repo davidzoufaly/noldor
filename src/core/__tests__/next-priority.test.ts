@@ -326,7 +326,7 @@ noldor-tier: full
 links:
   code: []
   tests: []
-  spec: docs/superpowers/specs/x.md
+  spec: docs/design/specs/x.md
 ---
 # body
 `,

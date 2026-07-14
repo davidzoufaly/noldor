@@ -33,6 +33,6 @@ export function buildDraftPrompt(entry: PrepEntry, today: string, batchDir: stri
     '{ "summary": "<one-line summary for the review table>", "confidence": "high|med|low", "risks": ["..."], "openQuestions": [ { "question": "...", "recommendation": "...", "rationale": "..." } ] }',
     'openQuestions must match the spec\'s "## Open questions (resolved)" section. If there were no genuine open questions, use an empty array — do not invent filler.',
     '',
-    `Touch ONLY these files under ${batchDir}: ${entry.slug}.spec.md${wantsPlan ? `, ${entry.slug}.plan.md` : ''}, ${entry.slug}.meta.json. Do NOT edit docs/roadmap.md, docs/features/, the real docs/superpowers/ dirs, or any other entry's files — other agents run in parallel and share this tree.`,
+    `Touch ONLY these files under ${batchDir}: ${entry.slug}.spec.md${wantsPlan ? `, ${entry.slug}.plan.md` : ''}, ${entry.slug}.meta.json. Do NOT edit docs/roadmap.md, docs/features/, the real docs/design/ dirs, or any other entry's files — other agents run in parallel and share this tree.`,
   ].join('\n');
 }

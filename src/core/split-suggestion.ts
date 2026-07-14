@@ -113,7 +113,7 @@ export function assessPlanSplit(planMd: string): SplitSignal[] {
       threshold: PLAN_ROW_THRESHOLD,
       message:
         `plan is ${rows} rows (threshold ${PLAN_ROW_THRESHOLD}) — restructure into ${parts} ` +
-        `part files (docs/superpowers/plans/YYYY-MM-DD-<slug>-part<N>.md), each independently ` +
+        `part files (docs/design/plans/YYYY-MM-DD-<slug>-part<N>.md), each independently ` +
         `shippable.`,
     },
   ];

@@ -15,7 +15,7 @@ export interface TaggedSpec {
 }
 
 /**
- * Walk `docs/superpowers/specs/` and pair each spec MD with its derived
+ * Walk `docs/design/specs/` and pair each spec MD with its derived
  * feature slug (filename without date prefix and `-design` suffix).
  *
  * @param dir - Directory containing spec MDs.
@@ -63,7 +63,7 @@ export async function updateFeatureMd(featureMdPath: string, specPath: string): 
 }
 
 async function main(): Promise<void> {
-  const specs = await collectTaggedSpecs('docs/superpowers/specs');
+  const specs = await collectTaggedSpecs('docs/design/specs');
   let updated = 0;
   let missing = 0;
   for (const { path, slug } of specs) {

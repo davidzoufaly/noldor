@@ -10,8 +10,8 @@ links:
   tests:
     - src/cr/__tests__/review-profile.test.ts
     - src/cr/__tests__/config.test.ts
-  spec: docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md
-  plan: docs/superpowers/plans/archive/2026-06-13-code-reviewer-20.md
+  spec: docs/design/specs/archive/2026-06-13-code-reviewer-20-design.md
+  plan: docs/design/plans/archive/2026-06-13-code-reviewer-20.md
 name: Code Reviewer 2.0
 packages:
   - scripts
@@ -76,9 +76,9 @@ Added a review-profile schema along with built-in profiles (#98).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md`](../../docs/superpowers/specs/archive/2026-06-13-code-reviewer-20-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-13-code-reviewer-20-design.md`](../../docs/design/specs/archive/2026-06-13-code-reviewer-20-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/archive/2026-06-13-code-reviewer-20.md`](../../docs/superpowers/plans/archive/2026-06-13-code-reviewer-20.md)
+  - [`docs/design/plans/archive/2026-06-13-code-reviewer-20.md`](../../docs/design/plans/archive/2026-06-13-code-reviewer-20.md)
 - **Code:**
   - [`src/cr/review-profile.ts`](../../src/cr/review-profile.ts)
   - [`src/cr/config.ts`](../../src/cr/config.ts)

@@ -6,6 +6,7 @@ entry-id: Q-0043
 links:
   code: []
   tests: []
+  spec: docs/design/specs/2026-07-14-readme-rewrite-consumer-journey-order-design.md
 name: README Rewrite — Consumer-Journey Order
 packages:
   - scripts

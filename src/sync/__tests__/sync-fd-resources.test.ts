@@ -22,10 +22,10 @@ describe(buildResourcesBlock, () => {
   });
 
   it('renders spec as a relative path link', () => {
-    const out = buildResourcesBlock({ links: { spec: 'docs/superpowers/specs/foo.md' } });
+    const out = buildResourcesBlock({ links: { spec: 'docs/design/specs/foo.md' } });
     expect(out).toContain('## Resources');
     expect(out).toContain(
-      '- **Spec:** [`docs/superpowers/specs/foo.md`](../../docs/superpowers/specs/foo.md)',
+      '- **Spec:** [`docs/design/specs/foo.md`](../../docs/design/specs/foo.md)',
     );
   });
 
@@ -49,26 +49,26 @@ describe(buildResourcesBlock, () => {
 
   it('renders a single-string plan as a relative path link', () => {
     const out = buildResourcesBlock({
-      links: { plan: 'docs/superpowers/plans/foo-plan.md' },
+      links: { plan: 'docs/design/plans/foo-plan.md' },
     });
     expect(out).toContain('- **Plan:**');
     expect(out).toContain(
-      '  - [`docs/superpowers/plans/foo-plan.md`](../../docs/superpowers/plans/foo-plan.md)',
+      '  - [`docs/design/plans/foo-plan.md`](../../docs/design/plans/foo-plan.md)',
     );
   });
 
   it('renders an array of plans as bulleted relative links', () => {
     const out = buildResourcesBlock({
       links: {
-        plan: ['docs/superpowers/plans/foo-part1.md', 'docs/superpowers/plans/foo-part2.md'],
+        plan: ['docs/design/plans/foo-part1.md', 'docs/design/plans/foo-part2.md'],
       },
     });
     expect(out).toContain('- **Plan:**');
     expect(out).toContain(
-      '  - [`docs/superpowers/plans/foo-part1.md`](../../docs/superpowers/plans/foo-part1.md)',
+      '  - [`docs/design/plans/foo-part1.md`](../../docs/design/plans/foo-part1.md)',
     );
     expect(out).toContain(
-      '  - [`docs/superpowers/plans/foo-part2.md`](../../docs/superpowers/plans/foo-part2.md)',
+      '  - [`docs/design/plans/foo-part2.md`](../../docs/design/plans/foo-part2.md)',
     );
   });
 
@@ -182,28 +182,25 @@ describe(resolveSpecPath, () => {
 
   it('returns null when current path exists on disk (no rewrite needed)', () => {
     expect(
-      resolveSpecPath('docs/superpowers/specs/foo.md', existsOnly('docs/superpowers/specs/foo.md')),
+      resolveSpecPath('docs/design/specs/foo.md', existsOnly('docs/design/specs/foo.md')),
     ).toBe(null);
   });
 
   it('returns the archive path when current is missing and archive variant exists', () => {
     expect(
-      resolveSpecPath(
-        'docs/superpowers/specs/foo.md',
-        existsOnly('docs/superpowers/specs/archive/foo.md'),
-      ),
-    ).toBe('docs/superpowers/specs/archive/foo.md');
+      resolveSpecPath('docs/design/specs/foo.md', existsOnly('docs/design/specs/archive/foo.md')),
+    ).toBe('docs/design/specs/archive/foo.md');
   });
 
   it('returns null when both current and archive variant are missing', () => {
-    expect(resolveSpecPath('docs/superpowers/specs/foo.md', existsNone)).toBe(null);
+    expect(resolveSpecPath('docs/design/specs/foo.md', existsNone)).toBe(null);
   });
 
   it('returns null when path already points at an archive directory', () => {
     expect(
       resolveSpecPath(
-        'docs/superpowers/specs/archive/foo.md',
-        existsOnly('docs/superpowers/specs/archive/foo.md'),
+        'docs/design/specs/archive/foo.md',
+        existsOnly('docs/design/specs/archive/foo.md'),
       ),
     ).toBe(null);
   });
@@ -211,10 +208,10 @@ describe(resolveSpecPath, () => {
   it('handles nested archive convention for plans directory (forward-compat)', () => {
     expect(
       resolveSpecPath(
-        'docs/superpowers/plans/2026-05-09-foo.md',
-        existsOnly('docs/superpowers/plans/archive/2026-05-09-foo.md'),
+        'docs/design/plans/2026-05-09-foo.md',
+        existsOnly('docs/design/plans/archive/2026-05-09-foo.md'),
       ),
-    ).toBe('docs/superpowers/plans/archive/2026-05-09-foo.md');
+    ).toBe('docs/design/plans/archive/2026-05-09-foo.md');
   });
 });
 
@@ -313,7 +310,7 @@ Body.
 
   it('rewrites links.spec to archive variant when current path is missing', async () => {
     // Create the archived spec file on disk so resolveSpecPath finds it.
-    const archiveDir = join(tmpDir, 'docs', 'superpowers', 'specs', 'archive');
+    const archiveDir = join(tmpDir, 'docs', 'design', 'specs', 'archive');
     execSync(`mkdir -p ${JSON.stringify(archiveDir)}`, { stdio: 'ignore' });
     writeFileSync(join(archiveDir, 'foo.md'), '# archived spec\n', 'utf8');
 
@@ -325,7 +322,7 @@ name: Fake
 links:
   code:
     - scripts/fake.ts
-  spec: docs/superpowers/specs/foo.md
+  spec: docs/design/specs/foo.md
 ---
 
 ## Summary
@@ -341,15 +338,15 @@ Body.
       const changed = await syncFile(mdPath);
       expect(changed).toBe(true);
       const out = readFileSync(mdPath, 'utf8');
-      expect(out).toContain('spec: docs/superpowers/specs/archive/foo.md');
-      expect(out).not.toMatch(/spec: docs\/superpowers\/specs\/foo\.md\b/);
+      expect(out).toContain('spec: docs/design/specs/archive/foo.md');
+      expect(out).not.toMatch(/spec: docs\/design\/specs\/foo\.md\b/);
     } finally {
       process.chdir(originalCwd);
     }
   });
 
   it('leaves links.spec untouched when the current path still exists', async () => {
-    const specDir = join(tmpDir, 'docs', 'superpowers', 'specs');
+    const specDir = join(tmpDir, 'docs', 'design', 'specs');
     execSync(`mkdir -p ${JSON.stringify(specDir)}`, { stdio: 'ignore' });
     writeFileSync(join(specDir, 'foo.md'), '# live spec\n', 'utf8');
 
@@ -360,7 +357,7 @@ name: Fake
 links:
   code:
     - scripts/fake.ts
-  spec: docs/superpowers/specs/foo.md
+  spec: docs/design/specs/foo.md
 ---
 
 ## Summary
@@ -375,7 +372,7 @@ Body.
     try {
       await syncFile(mdPath);
       const out = readFileSync(mdPath, 'utf8');
-      expect(out).toMatch(/spec: docs\/superpowers\/specs\/foo\.md\b/);
+      expect(out).toMatch(/spec: docs\/design\/specs\/foo\.md\b/);
       expect(out).not.toContain('archive/foo.md');
     } finally {
       process.chdir(originalCwd);
@@ -390,7 +387,7 @@ name: Fake
 links:
   code:
     - scripts/fake.ts
-  spec: docs/superpowers/specs/missing.md
+  spec: docs/design/specs/missing.md
 ---
 
 ## Summary
@@ -405,7 +402,7 @@ Body.
     try {
       await syncFile(mdPath);
       const out = readFileSync(mdPath, 'utf8');
-      expect(out).toMatch(/spec: docs\/superpowers\/specs\/missing\.md\b/);
+      expect(out).toMatch(/spec: docs\/design\/specs\/missing\.md\b/);
       expect(out).not.toContain('archive/');
     } finally {
       process.chdir(originalCwd);
@@ -413,7 +410,7 @@ Body.
   });
 
   it('is idempotent on a second invocation when rewrite happened on the first', async () => {
-    const archiveDir = join(tmpDir, 'docs', 'superpowers', 'specs', 'archive');
+    const archiveDir = join(tmpDir, 'docs', 'design', 'specs', 'archive');
     execSync(`mkdir -p ${JSON.stringify(archiveDir)}`, { stdio: 'ignore' });
     writeFileSync(join(archiveDir, 'foo.md'), '# archived spec\n', 'utf8');
 
@@ -424,7 +421,7 @@ name: Fake
 links:
   code:
     - scripts/fake.ts
-  spec: docs/superpowers/specs/foo.md
+  spec: docs/design/specs/foo.md
 ---
 
 ## Summary
