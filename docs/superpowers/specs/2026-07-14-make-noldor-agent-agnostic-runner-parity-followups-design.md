@@ -110,38 +110,51 @@ The registry sets `jsonEvents` (§1.4) so only programmatically-parsed spawns op
 spawns keep opencode's default formatted output.
 
 **1.3 New events parser.** Add `src/core/agent-runner/opencode-events.ts` exporting
-`parseOpencodeEvents(stdout: string): { text: string; tokens: TokenUsage | null }`:
+`parseOpencodeEvents(stdout: string): string`:
 - Split stdout on newlines, `JSON.parse` each non-empty line, tolerate malformed lines (skip, do
   not throw — fail-open like the usage adapters, `usage/types.ts:18-24`).
-- `text` = concatenation of `part.text` from every `type === 'text'` event.
-- `tokens` = from the terminal `type === 'step_finish'` event's `part.tokens`
-  (`{input, output, total}` mapping; `source: 'opencode-events'`), else `null`.
+- Return the assistant prose from the `type === 'text'` events. **Verified against opencode 1.17.20
+  `run --format json` (2026-07-14):** batch mode emits one *complete* text part per step with a
+  *distinct* `part.id` (no delta streaming — a multi-line reply came as one event). Key by `part.id`,
+  keep the *last* value per id, concatenate in first-seen order — correct for the observed distinct-id
+  case and defensive against any future cumulative same-id re-emission (final snapshot wins, no
+  duplicated prose).
+- **Text only — no token extraction.** Token telemetry stays entirely with the on-disk usage
+  adapter (`usage/opencode.ts`, which already sums `input+output`); duplicating that sum from the
+  `step_finish` event would be dead code (the registry consumes only the text) and a second source
+  of truth for the same number.
 - Fixture-tested against the captured NDJSON sample (see Acceptance).
 
 **1.4 Parse at the registry return boundary (single source of truth), for parsed spawns only.**
 The registry sets `jsonEvents = resolved.runner === 'opencode' && <stdout piped for programmatic
 use>` — i.e. **not** `stdio: 'inherit'` (drain implementer streams to the terminal) and **not**
 tee/`logSink` mode (`registry.ts:126-130` forwards raw chunks to parent stdio + the sink file for
-human/log display). For those parsed spawns opencode runs with `--format json`, and the registry
-replaces the accumulated `stdout` (`registry.ts:204-207` accumulate → `:233` return) with
-`parseOpencodeEvents(raw).text` — the single seam, so **every programmatic consumer** gets prose,
+human/log display). For those parsed spawns opencode runs with `--format json`, and **on a clean
+exit (`exitCode === 0`)** the registry replaces the accumulated `stdout` (`registry.ts:204-207`
+accumulate → `:233` return) with `parseOpencodeEvents(raw)` — the single seam, so **every
+programmatic consumer** gets prose,
 not NDJSON: `cr/lanes/subagent-dispatch.ts` (reviewer), `cr/lanes/verify-dispatch.ts` (verifier),
 `release/llm-polish-summary.ts` (polish), piped `prep/spawn.ts` implementer, and `research/fanout.ts`
 (researcher — whose prose fence-scan `parseResearchStdout` then runs over clean assistant text). The
 **inherit/tee spawns run in opencode's default formatted mode** (no `--format json`), so the drain
 terminal (`autonomous/drain-io.ts`) and CR `logSink` files keep human-readable output — **no NDJSON
-display regression**. This matches Goal 1's "same `AgentResult` shape other runners return" for the
-paths that read `stdout`, without degrading the paths that display it. **Tokens are NOT re-sourced
-here** — `.noldor/agent-events.jsonl` `tokens` stays from the disk-store usage adapter
-(`usage/opencode.ts`, a non-goal to change); `parseOpencodeEvents` *returns* `tokens` for
-testability only. Capability grade stays `'events'` (`capabilities.ts:22`); the `schemaPath` gate
+display regression**. On a **non-zero exit or timeout** the raw `stdout` is returned untouched — a
+failed run may emit no `type:text` part, and parsing it to `''` would swallow the NDJSON error
+diagnostics (stderr is inherited separately). This matches Goal 1's "same `AgentResult` shape other
+runners return" for the paths that read `stdout`, without degrading the paths that display it (or the
+paths that debug failures). **Tokens are untouched** —
+`parseOpencodeEvents` extracts only text; `.noldor/agent-events.jsonl` `tokens` stays sourced solely
+from the disk-store usage adapter (`usage/opencode.ts`, a non-goal to change) — no duplicate
+`input+output` sum. Capability grade stays `'events'` (`capabilities.ts:22`); the `schemaPath` gate
 (`registry.ts:104-113`) is **unchanged** (codex-only) — events output is not schema output, so
 events and schema stay distinct grades (D1).
 
-**1.5 Doc twin.** Update `docs/noldor/agent-runtimes.md:23` + `templates/docs/noldor/agent-runtimes.md:23`:
-opencode structured-output cell "`--format json` → NDJSON event stream, parsed by
-`opencode-events.ts`" (drop "reserved; treated as prose v1"); auto-permissions cell
-`--dangerously-skip-permissions` → `--auto`; version floor note `0.6.0` → verified against 1.17.
+**1.5 Doc twin.** Update `docs/noldor/agent-runtimes.md` + its `templates/` twin: opencode
+structured-output cell "`--format json` → NDJSON event stream, parsed by `opencode-events.ts`" (drop
+"reserved; treated as prose v1"); auto-permissions cell `--dangerously-skip-permissions` → `--auto`;
+and **bump the `versionFloors` example JSON (`:42`) `opencode: 0.6.0` → `1.17.0`** — the framework now
+emits `--auto` (a 1.17 flag absent in 0.6), so the copied floor example must match the assumed flag
+surface, else a consumer on 0.6 passes `doctor` (`doctor-runners.ts:72`) but breaks at runtime.
 
 ### Unit 2 — interactive shim parity (piece a)
 
@@ -238,14 +251,17 @@ test update (`src/core/agent-runner/__tests__/runners.test.ts:68-79`) asserting 
       `['run', <prompt>, '--auto'](+['--model', m])` by default and appends `'--format', 'json'`
       **only** when `jsonEvents` is set; `runners.test.ts` asserts both the default and the
       `jsonEvents` argv.
-- [ ] `parseOpencodeEvents` parses the captured NDJSON fixture → `text === 'OK'` and
-      `tokens.input/output` match the `step_finish` event; malformed lines are skipped, never throw.
+- [ ] `parseOpencodeEvents` parses the captured NDJSON fixture → returns the assistant text
+      (`'alpha\nbravo\ncharlie'`); distinct-id parts concatenate in first-seen order; a repeated
+      `part.id` keeps the last value; malformed/blank/non-text lines are skipped, never throw. No
+      token extraction (disk usage adapter remains the sole token source).
 - [ ] The registry parses opencode NDJSON → prose at the `AgentResult` stdout-return boundary for
-      **programmatic** spawns only (`runner === 'opencode'` + piped, non-tee, non-inherit), so every
-      such consumer (reviewer/verifier/polish/piped-implementer/researcher) receives prose, not
-      NDJSON; a claude spawn is byte-for-byte unchanged; inherit (drain terminal) + tee/`logSink`
-      opencode spawns run default formatted mode (no `--format json`) so their display stays
-      human-readable. `.noldor/agent-events.jsonl` `tokens` still come from the usage adapter
+      **programmatic** spawns only (`runner === 'opencode'` + piped, non-tee, non-inherit) **and only
+      on `exitCode === 0`**, so every such consumer (reviewer/verifier/polish/piped-implementer/
+      researcher) receives prose, not NDJSON; a failed/timed-out opencode run returns raw stdout
+      (diagnostics preserved); a claude spawn is byte-for-byte unchanged; inherit (drain terminal) +
+      tee/`logSink` opencode spawns run default formatted mode (no `--format json`) so their display
+      stays human-readable. `.noldor/agent-events.jsonl` `tokens` still come from the usage adapter
       (unchanged).
 - [ ] `docs/noldor/agent-runtimes.md` + template twin: opencode structured-output cell,
       auto-permissions cell, and the intro "first-class peers" paragraph all reflect reality; no
