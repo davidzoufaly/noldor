@@ -96,11 +96,15 @@ describe('noldor CLI', () => {
   it('leaf command dispatches with no subcommand (doctor)', () => {
     // doctor is a real leaf command now (template-sync check); assert it
     // dispatches and reports sync status rather than the old stub message.
-    // doctor also probes every configured agent runner (`claude --version`)
-    // on PATH — CI boxes don't ship claude, so shim one for hermeticity.
+    // doctor probes every *referenced* agent runner (`<bin> --version`) on PATH.
+    // Self-host `.noldor/config.json` targets claude+codex+opencode, and CI boxes
+    // ship none of them, so shim all three for hermeticity — a prepended shim dir
+    // wins over any real install, so this is deterministic on dev boxes too.
     const dir = mkdtempSync(join(tmpdir(), 'noldor-doctor-'));
     try {
-      writeFileSync(join(dir, 'claude'), '#!/bin/sh\necho 1.0.0\n', { mode: 0o755 });
+      for (const bin of ['claude', 'codex', 'opencode']) {
+        writeFileSync(join(dir, bin), '#!/bin/sh\necho 1.0.0\n', { mode: 0o755 });
+      }
       const out = execFileSync('node', [BIN, 'doctor'], {
         encoding: 'utf8',
         env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` },
