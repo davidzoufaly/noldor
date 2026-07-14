@@ -1500,7 +1500,7 @@ export function renderDrainParkedRows(parked: DrainObservation['parked']): strin
 }
 
 /** Copy shown in the log pane before any drain has written the shared log. */
-export const DRAIN_LOG_EMPTY_COPY = 'no watch log yet — appears once a drain starts';
+export const DRAIN_LOG_EMPTY_COPY = 'no active drain — log clears when idle';
 
 /**
  * The /agents Drain section: status line, in-flight + parked tables, and the
@@ -1520,7 +1520,7 @@ export function renderDrainSection(drain: DrainObservation): string {
     <tbody id="drain-parked-body">${renderDrainParkedRows(drain.parked)}</tbody>
   </table>
   <h3>Live log</h3>
-  <p class="muted">Shared <code>.noldor/watch.log</code> — tail auto-refreshes every ~2s. <a href="/agents/log">Full page</a>.</p>
+  <p class="muted">Shared <code>.noldor/watch.log</code> — newest first, auto-refreshes every ~2s; clears when no drain is active. <a href="/agents/log">Full page</a>.</p>
   <pre id="drain-log-pane" class="drain-log">${escapeHtml(drain.logTail ?? DRAIN_LOG_EMPTY_COPY)}</pre>`;
 }
 
@@ -1529,7 +1529,7 @@ export function renderDrainSection(drain: DrainObservation): string {
  * stdio-inherit — spec D3): rows interleave at K>1, labelled as such.
  */
 export function renderAgentsLog(tail: string | null): string {
-  const back = `<p><a href="/agents">← back to agents</a> · <code>.noldor/watch.log</code> <span class="muted">(shared across agents — rows interleave at K&gt;1; tail auto-refreshes every ~2s)</span></p>`;
+  const back = `<p><a href="/agents">← back to agents</a> · <code>.noldor/watch.log</code> <span class="muted">(shared across agents — newest first; rows interleave at K&gt;1; tail auto-refreshes every ~2s)</span></p>`;
   return `<h1>Watch log</h1>${back}<pre id="drain-log-pane" class="drain-log">${escapeHtml(tail ?? DRAIN_LOG_EMPTY_COPY)}</pre>`;
 }
 
