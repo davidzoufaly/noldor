@@ -549,6 +549,15 @@ describe('drain observation (loadDrainObservation + drain section rendering)', (
     expect(obs.parked).toEqual([]);
   });
 
+  it('does not throw (would 500 the /agents page) when the inbox path hits a corrupt drain-park.json', async () => {
+    const dir = eventsFixture([]);
+    writeFileSync(join(dir, '.noldor', 'drain-park.json'), 'not json', 'utf8');
+    // loadAgentActivity → readInboxRows → loadPark also reads the park file;
+    // a corrupt file must degrade the inbox to empty, not crash the aggregator.
+    const activity = await loadAgentActivity(dir, { isPidAlive: () => true });
+    expect(activity.inbox).toEqual([]);
+  });
+
   it('marks a dead drain pid via the injected liveness probe', async () => {
     const dir = eventsFixture([]);
     writeFileSync(

@@ -2384,7 +2384,18 @@ export async function loadAgentActivity(
     return b.startTs.localeCompare(a.startTs);
   });
 
-  return { live, runs, inbox: readInboxRows(cwd) };
+  // The /agents page reads the park file twice: loadDrainObservation (Parked
+  // table → parkedCorrupt) and here, via readInboxRows → loadPark (now
+  // fail-closed/throwing on a corrupt file). Degrade the inbox to empty on
+  // corruption rather than 500 the whole page — the Parked table already
+  // surfaces the corruption. Any non-corruption error still propagates.
+  let inbox: InboxRow[] = [];
+  try {
+    inbox = readInboxRows(cwd);
+  } catch (err) {
+    if (!(err instanceof StateFileCorruptError)) throw err;
+  }
+  return { live, runs, inbox };
 }
 
 export interface DrainObservationState {
