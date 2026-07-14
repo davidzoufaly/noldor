@@ -69,19 +69,25 @@ import {
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
+import { resolveBindHost, healthUrl } from './host.js';
+
 export interface CliArgs {
   /** Undefined when --port absent — caller falls back to env PORT or default 4321. */
   port: number | undefined;
   /** Undefined when --docs absent — caller falls back to process.cwd(). */
   docsPath: string | undefined;
+  /** Undefined when --host absent — caller falls back to DASHBOARD_HOST env or 127.0.0.1 (loopback). */
+  host: string | undefined;
 }
 
 export function parseCliArgs(argv: string[]): CliArgs {
   const portIdx = argv.indexOf('--port');
   const docsIdx = argv.indexOf('--docs');
+  const hostIdx = argv.indexOf('--host');
   const port = portIdx >= 0 ? Number(argv[portIdx + 1]) : undefined;
   const docsPath = docsIdx >= 0 ? argv[docsIdx + 1] : undefined;
-  return { port, docsPath };
+  const host = hostIdx >= 0 ? argv[hostIdx + 1] : undefined;
+  return { port, docsPath, host };
 }
 
 interface RouteResult {
@@ -896,26 +902,31 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 /**
  * Start the dashboard server.
  *
- * @param opts - Optional `port` (0 = pick free port for tests). Defaults to PORT env or 4321.
- * @returns The bound `Server` and a `baseUrl` like `http://localhost:4321`
+ * @param opts - Optional `port` (0 = pick free port for tests) and `host`.
+ *   Port defaults to PORT env or 4321; host defaults to loopback `127.0.0.1`
+ *   (DASHBOARD_HOST / --host to widen — see {@link resolveBindHost}).
+ * @returns The bound `Server` and a connectable `baseUrl` like `http://127.0.0.1:4321`
  */
 export async function startServer(
-  opts: { port?: number } = {},
+  opts: { port?: number; host?: string } = {},
 ): Promise<{ server: Server; baseUrl: string }> {
   const desired = opts.port ?? Number(process.env.PORT ?? 4321);
+  const host = resolveBindHost(opts.host);
   const server = createServer((req, res) => {
     void handle(req, res);
   });
-  await new Promise<void>((resolve) => server.listen(desired, resolve));
+  // Explicit host arg: bind loopback by default so the no-auth mutating routes
+  // are not reachable across the LAN (omitting it binds all interfaces).
+  await new Promise<void>((resolve) => server.listen(desired, host, resolve));
   const addr = server.address() as AddressInfo;
-  const baseUrl = `http://localhost:${addr.port}`;
+  const baseUrl = healthUrl(host, addr.port);
   return { server, baseUrl };
 }
 
 async function main(): Promise<void> {
-  const { port, docsPath } = parseCliArgs(process.argv.slice(2));
+  const { port, docsPath, host } = parseCliArgs(process.argv.slice(2));
   setDocRootsOverride(docsPath);
-  const { baseUrl } = await startServer({ port });
+  const { baseUrl } = await startServer({ port, host });
   console.log(`dashboard → ${baseUrl}`);
   process.on('SIGINT', () => process.exit(0));
 }

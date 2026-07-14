@@ -168,7 +168,7 @@ async function main(): Promise<void> {
   });
   process.on('SIGTERM', () => {
     groupKillState(cwd);
-    releaseLock(cwd);
+    releaseLock(cwd, { startedAt });
     process.exit(130);
   });
   const pauseExists = (): boolean => existsSync(join(cwd, PAUSE_REL));
@@ -423,7 +423,7 @@ async function main(): Promise<void> {
       await interruptibleSleep(parsed.intervalMinutes * 60_000, () => sigint || pauseExists());
     }
   } finally {
-    releaseLock(cwd);
+    releaseLock(cwd, { startedAt });
   }
   process.exit(exitCode);
 }
@@ -433,6 +433,10 @@ const invokedDirect = /[\\/]watch\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
 if (invokedDirect) {
   void main().catch((e: unknown) => {
     process.stderr.write(`watch crashed: ${e instanceof Error ? e.message : String(e)}\n`);
+    // Module-scope: main()'s `startedAt` is out of reach here, so release pid-only.
+    // Safe by construction — if main() threw before acquireLock, the on-disk lock
+    // belongs to a foreign supervisor (different pid) and owner-checked releaseLock
+    // no-ops rather than freeing a lock this process never held.
     releaseLock(process.cwd());
     process.exit(1);
   });

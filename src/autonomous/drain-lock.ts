@@ -99,10 +99,37 @@ export function acquireLock(cwd: string, now = ''): { ok: boolean; reason?: stri
   }
 }
 
-/** Remove the drain lock. Idempotent — a missing lock is not an error. */
-export function releaseLock(cwd: string): void {
+/**
+ * Remove the drain lock — but only when this process actually owns it. Reads the
+ * on-disk `{ pid, startedAt }` payload and unlinks **only if** `pid` matches this
+ * process (and `startedAt` matches `token.startedAt` when a token is supplied,
+ * closing the PID-reuse window). A foreign, missing, or unparseable lock is a
+ * no-op — idempotent as before, minus the fail-open delete-by-path.
+ *
+ * The ownership check is what makes the top-level crash handlers safe: a `main()`
+ * that throws BEFORE {@link acquireLock} still reaches its `.catch → releaseLock`,
+ * but the on-disk lock then belongs to a *different* live supervisor (different
+ * pid), so the release no-ops instead of freeing a mutex this process never held.
+ * The old unconditional `unlinkSync` silently freed that live owner's lock → two
+ * concurrent supervisors draining one repo.
+ *
+ * @param cwd - Repo root (the worktree's main workspace).
+ * @param token - Acquire-time identity (`{ startedAt }`) matched in addition to
+ *   pid; omit at sites that cannot see it (the module-scope crash handler), where
+ *   the pid check alone still prevents a foreign delete.
+ */
+export function releaseLock(cwd: string, token?: { startedAt: string }): void {
+  const lockPath = join(cwd, LOCK_REL);
+  let holder: { pid?: number; startedAt?: string } | null;
   try {
-    unlinkSync(join(cwd, LOCK_REL));
+    holder = JSON.parse(readFileSync(lockPath, 'utf8')) as { pid?: number; startedAt?: string };
+  } catch {
+    return; // no lock, or unreadable payload — nothing this process owns to remove
+  }
+  if (!holder || holder.pid !== process.pid) return; // foreign owner — never touch
+  if (token && holder.startedAt !== token.startedAt) return; // pid reused — not our lock
+  try {
+    unlinkSync(lockPath);
   } catch {
     /* already gone */
   }

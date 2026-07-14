@@ -111,7 +111,7 @@ describe('ensureDashboard', () => {
       },
     });
     expect(result.status).toBe('started');
-    expect(result.baseUrl).toBe(`http://localhost:${freePort}`);
+    expect(result.baseUrl).toBe(`http://127.0.0.1:${freePort}`);
     if (extra !== null) {
       const { server: extraServer } = extra as { server: Server; baseUrl: string };
       await new Promise<void>((resolve) => extraServer.close(() => resolve()));

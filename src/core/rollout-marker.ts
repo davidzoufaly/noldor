@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { atomicWriteFileSync } from './atomic-write.js';
 
 const FILE = '.noldor/rollout-marker';
 
@@ -16,17 +17,26 @@ export function readRolloutMarker(cwd: string = process.cwd()): string | null {
 
 /**
  * Returns true if `commitSha` is at or after the rollout marker commit.
- * Uses `git merge-base --is-ancestor marker commit` which exits 0 when
- * the marker is an ancestor of (or equal to) the given commit.
+ * Uses `git merge-base --is-ancestor marker commit`. Fails **closed** on an
+ * unresolvable marker: a present-but-corrupt marker (torn write, truncated SHA)
+ * makes git exit 128, and a missing git binary / signal-killed child yields
+ * `status: null` — in both cases the marker exists but cannot be resolved, and
+ * an enforcement decision must not silently drop the repo to soft mode.
  */
 export function isPostRollout(commitSha: string, cwd: string = process.cwd()): boolean {
   const marker = readRolloutMarker(cwd);
-  if (!marker) return false;
+  if (!marker) return false; // no marker → genuinely pre-rollout (soft mode)
   const r = spawnSync('git', ['merge-base', '--is-ancestor', marker, commitSha], {
     cwd,
     stdio: 'ignore',
   });
-  return r.status === 0;
+  //   0  → marker is an ancestor of commit → post-rollout → enforce.
+  //   1  → clean "not an ancestor" → genuinely pre-rollout → soft mode.
+  //   128 (bad/unknown object = corrupt marker) or null (git absent / killed)
+  //        → present but unresolvable → enforce (fail closed).
+  if (r.status === 0) return true;
+  if (r.status === 1) return false;
+  return true;
 }
 
 export type EnsureMarkerStatus = 'created' | 'exists' | 'skipped-no-git';
@@ -45,6 +55,6 @@ export function ensureRolloutMarker(cwd: string = process.cwd()): EnsureMarkerSt
   const head = r.status === 0 ? r.stdout.trim() : '';
   if (!head) return 'skipped-no-git';
   mkdirSync(join(cwd, '.noldor'), { recursive: true });
-  writeFileSync(join(cwd, FILE), `${head}\n`);
+  atomicWriteFileSync(join(cwd, FILE), `${head}\n`);
   return 'created';
 }

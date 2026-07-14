@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { atomicWriteFileSync } from './atomic-write.js';
 
 export const PATHS = [
   'micro-chore',
@@ -78,7 +79,7 @@ export function readSession(cwd: string = process.cwd()): SessionMarker | null {
 export function writeSession(cwd: string, m: SessionMarker): void {
   const dir = join(cwd, '.noldor');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(join(cwd, FILE), JSON.stringify(m, null, 2) + '\n', 'utf8');
+  atomicWriteFileSync(join(cwd, FILE), JSON.stringify(m, null, 2) + '\n');
 }
 
 /**

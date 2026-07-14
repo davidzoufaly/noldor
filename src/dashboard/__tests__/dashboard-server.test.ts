@@ -1,4 +1,4 @@
-// @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard
+// @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, state-file-fail-open-hardening
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startServer } from '../server.js';
 
 import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 let server: Server;
 let baseUrl: string;
@@ -25,6 +26,19 @@ describe('dashboard server', () => {
     const res = await fetch(`${baseUrl}/health`);
     expect(res.status).toBe(200);
     expect((await res.text()).trim()).toBe('OK');
+  });
+
+  it('binds loopback (127.0.0.1) by default — not all interfaces', () => {
+    expect((server.address() as AddressInfo).address).toBe('127.0.0.1');
+  });
+
+  it('honors an explicit host override (the LAN-exposure opt-out)', async () => {
+    const { server: s2 } = await startServer({ port: 0, host: '0.0.0.0' });
+    try {
+      expect((s2.address() as AddressInfo).address).toBe('0.0.0.0');
+    } finally {
+      await new Promise<void>((resolve) => s2.close(() => resolve()));
+    }
   });
 
   it('GET / returns 200 with HTML', async () => {

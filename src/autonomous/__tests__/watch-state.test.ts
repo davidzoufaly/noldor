@@ -122,9 +122,19 @@ describe('loadWatchState / saveWatchState', () => {
     expect(nextDay.consecutiveFailures).toBe(1); // only the daily counter rolls
   });
 
-  it('fail-open on corrupt file', () => {
-    mkdirSync(join(dir, '.noldor'), { recursive: true });
-    writeFileSync(join(dir, '.noldor/watch-state.json'), '!!!', 'utf8');
-    expect(loadWatchState(dir, '2026-06-12').shippedToday).toBe(0);
+  it('returns defaults on a MISSING file (legitimate fresh start)', () => {
+    const d = mkdtempSync(join(tmpdir(), 'ws-missing-'));
+    const s = loadWatchState(d, '2026-06-12');
+    expect(s.shippedToday).toBe(0);
+    expect(s.consecutiveFailures).toBe(0);
+  });
+
+  it('THROWS on a corrupt file (fail-closed — no silent rail reset)', () => {
+    // The old behavior reset shippedToday + consecutiveFailures to 0 → uncapped
+    // spawns + wiped trip streak. A torn file must fail closed, not open.
+    const d = mkdtempSync(join(tmpdir(), 'ws-corrupt-'));
+    mkdirSync(join(d, '.noldor'), { recursive: true });
+    writeFileSync(join(d, '.noldor/watch-state.json'), '!!!', 'utf8');
+    expect(() => loadWatchState(d, '2026-06-12')).toThrow(/corrupt/);
   });
 });

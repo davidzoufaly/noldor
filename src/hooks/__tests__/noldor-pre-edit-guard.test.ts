@@ -1,4 +1,4 @@
-// @tests: noldor
+// @tests: noldor, state-file-fail-open-hardening
 import { describe, expect, it } from 'vitest';
 import { execSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';
@@ -122,5 +122,20 @@ describe('PreToolUse stdin entrypoint (spawn-level)', () => {
 
   it('exits 0 (fail-open) on malformed payload', () => {
     expect(runHook('not json at all').status).toBe(0);
+  });
+
+  it('exits 2 (fail-CLOSED) on a corrupt session.json instead of exiting 1 (allow)', () => {
+    const dir = setupGitRepo();
+    // Torn/corrupt session marker → readSession throws. The guard must BLOCK
+    // (exit 2), not let the throw slip out as an uncaught exit 1 that Claude
+    // Code treats as a non-blocking error → edit proceeds (the fail-open bug).
+    writeFileSync(join(dir, '.noldor', 'session.json'), '{ not valid json');
+    const payload = JSON.stringify({
+      cwd: dir,
+      tool_input: { file_path: join(dir, 'tracked.ts') },
+    });
+    const r = runHook(payload);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/state|session/i);
   });
 });

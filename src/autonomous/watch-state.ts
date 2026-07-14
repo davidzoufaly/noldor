@@ -1,6 +1,8 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { atomicWriteFileSync } from '../core/atomic-write.js';
+import { readJsonState } from '../core/state-file.js';
 import type { DrainResult } from './drain-loop.js';
 
 export interface WatchState {
@@ -30,8 +32,22 @@ export function loadWatchState(cwd: string, todayKey: string): WatchState {
     lastCycleAt: '',
     pendingPr: [],
   };
+  let raw: Partial<WatchState> | undefined;
   try {
-    const raw = JSON.parse(readFileSync(join(cwd, STATE_REL), 'utf8')) as Partial<WatchState>;
+    raw = readJsonState<Partial<WatchState>>(join(cwd, STATE_REL));
+  } catch (err) {
+    // Corrupt (present but unparseable/unreadable) → fail CLOSED. Silently
+    // resetting the rails to zero here was the fail-open bug: it uncaps the
+    // daily spawn count and wipes the consecutive-failure trip streak. Surface
+    // loudly and re-throw so the watch daemon aborts the cycle rather than
+    // resuming amnesiac. A MISSING file returns undefined (a legitimate fresh
+    // start) and keeps the defaults below.
+    process.stderr.write(
+      `watch-state corrupt at ${join(cwd, STATE_REL)}: ${String(err)} — refusing to reset rails (fail-closed)\n`,
+    );
+    throw err;
+  }
+  if (raw !== undefined) {
     s = {
       dayKey: raw.dayKey ?? todayKey,
       shippedToday: raw.shippedToday ?? 0,
@@ -40,8 +56,6 @@ export function loadWatchState(cwd: string, todayKey: string): WatchState {
       pendingPr: raw.pendingPr ?? [],
       ...(raw.lastRunAbortError !== undefined ? { lastRunAbortError: raw.lastRunAbortError } : {}),
     };
-  } catch {
-    /* fail-open: rails reset, never crash */
   }
   if (s.dayKey !== todayKey) {
     s = { ...s, dayKey: todayKey, shippedToday: 0 };
@@ -53,7 +67,7 @@ export function loadWatchState(cwd: string, todayKey: string): WatchState {
 export function saveWatchState(cwd: string, state: WatchState): void {
   try {
     mkdirSync(join(cwd, '.noldor'), { recursive: true });
-    writeFileSync(join(cwd, STATE_REL), `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    atomicWriteFileSync(join(cwd, STATE_REL), `${JSON.stringify(state, null, 2)}\n`);
   } catch (err) {
     process.stderr.write(`watch-state write failed (non-fatal): ${String(err)}\n`);
   }
