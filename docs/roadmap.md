@@ -119,19 +119,6 @@ Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, thre
 
 Five operator-facing dashboard refinements captured from a live dogfood pass. All are self-host `src/dashboard/` tweaks with design decisions already settled with the operator (recorded per entry). Item 1 + the action-column item are one surface (roadmap/backlog table chrome) so they ride one entry.
 
-#### Refined Top-Nav Bar
-
-- id: Q-0047
-- area: tooling
-- type: feat
-- since: 2026-07-14
-- size: S
-- impact: low
-- confidence: high
-- parent: noldor
-
-The dashboard top nav crams 18 flat, undifferentiated links into one flex row. **Operator decision: refined single-row bar with visual groups (not dropdown menus).** Add a brand mark (`◆ Noldor`) on the left; split the links into divider-separated clusters — Overview · Planning (Vision·Milestones·Roadmap·Backlog·Blocked-by) · Delivery (Features·Framework·Docs·Releases) · Health (Gaps·Velocity·WIP·Test-pyramid·Graph-health) · Ops (Worktrees·Agents·Metrics); polish the active-page pill and hover states; let the bar wrap gracefully on narrow widths. Pure CSS + a `NAV_LINKS` restructure into labelled groups in `src/dashboard/layout.ts` — no JS, no new route. Touches: `src/dashboard/layout.ts` (NAV structure + `nav` STYLE rules).
-
 #### Operator Spec/Plan Links on Feature Pages
 
 - id: Q-0049
