@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 
 import { computeDrift } from '../diff.js';
 import { copyTemplate, adoptTemplate } from '../copy.js';
+import { templateFiles, TEMPLATES_ROOT, SCAFFOLD_ONLY_TEMPLATES } from '../manifest.js';
+import { filterTemplatesByAgents } from '../agent-filter.js';
 
 // @tests: noldor-package-lift
 
@@ -121,5 +123,31 @@ describe('adoptTemplate', () => {
   it('skips paths absent from the consumer', () => {
     adoptTemplate(join(dir, 'tpl'), join(dir, 'consumer'), ['a.md']);
     expect(existsSync(join(dir, 'tpl', 'a.md'))).toBe(false);
+  });
+});
+
+describe('.claude/settings.json template (consumer edit-gating)', () => {
+  const rel = '.claude/settings.json';
+
+  it('ships in the template manifest', () => {
+    expect(templateFiles()).toContain(rel);
+  });
+
+  it('is scaffold-only (consumer owns it; never a force-synced twin)', () => {
+    expect(SCAFFOLD_ONLY_TEMPLATES.has(rel)).toBe(true);
+  });
+
+  it('is delivered to claude consumers and withheld from codex-only trees', () => {
+    expect(filterTemplatesByAgents([rel], ['claude'])).toEqual([rel]);
+    expect(filterTemplatesByAgents([rel], ['codex'])).toEqual([]);
+  });
+
+  it('wires the pre-edit-guard PreToolUse hook', () => {
+    const cfg = JSON.parse(readFileSync(join(TEMPLATES_ROOT, rel), 'utf8'));
+    const preToolUse = cfg.hooks?.PreToolUse ?? [];
+    const commands = preToolUse.flatMap((m: { hooks?: { command?: string }[] }) =>
+      (m.hooks ?? []).map((h) => h.command ?? ''),
+    );
+    expect(commands.some((c: string) => c.includes('pre-edit-guard'))).toBe(true);
   });
 });

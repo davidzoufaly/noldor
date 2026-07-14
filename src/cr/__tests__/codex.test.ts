@@ -1,6 +1,6 @@
 // @tests: acceptance-verify-lane, noldor, specs-cr-gate-multi-reviewer
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -358,5 +358,43 @@ describe('runCli — plan/spec review mode', () => {
     expect(out.summary.length).toBeGreaterThan(0);
     expect(out.findings[0].message.length).toBeGreaterThan(0);
     for (const f of out.findings) expect(findingSchema.safeParse(f).success).toBe(true);
+  });
+});
+
+describe('runCli — engineering-rules fallback', () => {
+  async function capturePrompt(cwd: string): Promise<string> {
+    writeFileSync(join(cwd, 'plan.md'), '# Plan\n');
+    const cap = captureStdout();
+    let captured = '';
+    try {
+      await runCli({
+        argv: ['--plan', 'plan.md'],
+        cwd,
+        spawn: async ({ stdin }) => {
+          captured = stdin;
+          return { stdout: passing, exitCode: 0 };
+        },
+      });
+    } finally {
+      cap.restore();
+    }
+    return captured;
+  }
+
+  it('falls back to AGENTS.md when .claude/engineering-rules.md is absent', async () => {
+    const cwd = makeRepo();
+    writeFileSync(join(cwd, 'AGENTS.md'), 'AGENTS-RULES-MARKER\n');
+    const prompt = await capturePrompt(cwd);
+    expect(prompt).toContain('AGENTS-RULES-MARKER');
+  });
+
+  it('prefers .claude/engineering-rules.md over AGENTS.md when both exist', async () => {
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, '.claude'), { recursive: true });
+    writeFileSync(join(cwd, '.claude', 'engineering-rules.md'), 'CLAUDE-RULES-MARKER\n');
+    writeFileSync(join(cwd, 'AGENTS.md'), 'AGENTS-RULES-MARKER\n');
+    const prompt = await capturePrompt(cwd);
+    expect(prompt).toContain('CLAUDE-RULES-MARKER');
+    expect(prompt).not.toContain('AGENTS-RULES-MARKER');
   });
 });

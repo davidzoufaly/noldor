@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Consumer-Hygiene Batch
-
-- id: Q-0041
-- area: tooling
-- type: fix
-- since: 2026-07-13
-- size: S
-- impact: high
-- confidence: high
-- parent: noldor
-
-Deep-audit finding (batch `.noldor/research/2026-07-13-184850`): self-host masks consumer breakage — everything works in the noldor repo, nobody validates the cold-consumer tree. Three confirmed-broken-live items, all cheap, one PR: (1) strip/redirect the 4 template doc links pointing at `../superpowers/specs/...` files that exist only in the noldor repo (confirmed broken in ps-offsite); (2) ship a `.claude/settings.json` template so consumers get the pre-edit-guard PreToolUse hook (today wired only in self-host — no consumer has live edit gating on any runner); (3) make the codex CR lane fall back to `AGENTS.md` when `.claude/engineering-rules.md` is absent (today silently degraded review on a codex-only tree).
-
 ### Validate Script-Catalog Gate
 
 - id: Q-0042

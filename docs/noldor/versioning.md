@@ -118,7 +118,7 @@ skip the sweep; minor and major bumps MUST NOT.
      auto-restore `phase: done` + set `updated = newVersion`
      (enhancement-cycle restore — completes the asymmetric phase-revert
      state machine driven from `/noldor-gate`; see
-     [`docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md`](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3).
+     `docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md` §3).
    - `phase: done` + `introduced` set + `introduced !== newVersion` + had
      changelog block → set `updated = newVersion` (maintenance update;
      the guard prevents release-replay from re-writing `updated`).

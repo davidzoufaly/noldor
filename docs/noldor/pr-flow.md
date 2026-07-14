@@ -112,7 +112,7 @@ docs(features:<parent-slug>): revert phase done → in-progress for attach sessi
 
 These commits are written by `/noldor-gate` Step 2 scaffolding (see [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md) "Phase-revert lifecycle (attach paths)").
 
-The reverse (`phase: in-progress → done`) is written by `/noldor-gate` Step 4 end-of-flow (`pnpm noldor features phase-flip-done`) so it lands on `main` inside the feature PR; `release-markers.ts:fillMarkers` remains the release-time safety net for FDs that missed the flip — see [versioning.md](versioning.md) step 4 and the [changelog-pr-flow-integration spec](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) §3 for the original (now superseded) asymmetric model.
+The reverse (`phase: in-progress → done`) is written by `/noldor-gate` Step 4 end-of-flow (`pnpm noldor features phase-flip-done`) so it lands on `main` inside the feature PR; `release-markers.ts:fillMarkers` remains the release-time safety net for FDs that missed the flip — see [versioning.md](versioning.md) step 4 and the changelog-pr-flow-integration spec §3 for the original (now superseded) asymmetric model.
 
 ## Open-only mode (parallel drain)
 
@@ -122,5 +122,5 @@ Under parallel drain (`pnpm noldor autonomous queue-drain --concurrency N`, N > 
 
 - [`docs/noldor/cr-pipeline.md`](cr-pipeline.md) — Claude + codex review semantics.
 - [`docs/noldor/git-and-commits.md`](git-and-commits.md) — Conventional Commits, trailers, scope rules.
-- Spec: [`docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md`](../superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md).
-- Spec: [`docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md`](../superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md) — Changelog integration + phase-revert details.
+- Spec: `docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md`.
+- Spec: `docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md` — Changelog integration + phase-revert details.
