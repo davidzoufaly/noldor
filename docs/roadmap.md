@@ -119,19 +119,6 @@ Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, thre
 
 Five operator-facing dashboard refinements captured from a live dogfood pass. All are self-host `src/dashboard/` tweaks with design decisions already settled with the operator (recorded per entry). Item 1 + the action-column item are one surface (roadmap/backlog table chrome) so they ride one entry.
 
-#### Operator Spec/Plan Links on Feature Pages
-
-- id: Q-0049
-- area: tooling
-- type: feat
-- since: 2026-07-14
-- size: S
-- impact: med
-- confidence: med
-- parent: noldor
-
-When running semi-autonomously (operator reviewing, not fully headless) the operator wants to open the written spec/plan for a feature to check the outcome against the artifact. The feature detail page (`renderFeatureDetail`) shows the frontmatter table + rendered FD body but no prominent link to the feature's spec/plan under `docs/superpowers/{specs,plans}/`. Surface clickable **Spec** / **Plan** links near the top of the feature detail page (resolve the artifact paths for the FD via the git-discovered paths the pr-flow already computes, or the `<date>-<slug>-design.md` / plan naming convention), rendering an em-dash / nothing when an artifact was never written (fast-track / specs-only features). Optional: a small spec/plan indicator column on the `/features` grid. Touches: `src/dashboard/views.ts` (`renderFeatureDetail`, optionally `renderFeatures`), `src/dashboard/data.ts` (resolve spec/plan paths for a `FeatureDetail`).
-
 ### Phase 2 — Enforcement Honesty
 
 ### Phase 3 — Adoption Chain
