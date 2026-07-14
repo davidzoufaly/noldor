@@ -1,22 +1,50 @@
-const NAV_LINKS: Array<{ href: string; label: string }> = [
-  { href: '/', label: 'Overview' },
-  { href: '/vision', label: 'Vision' },
-  { href: '/milestones', label: 'Milestones' },
-  { href: '/framework', label: 'Framework' },
-  { href: '/docs', label: 'Docs' },
-  { href: '/release-notes', label: 'Releases' },
-  { href: '/roadmap', label: 'Roadmap' },
-  { href: '/backlog', label: 'Backlog' },
-  { href: '/blocked-by', label: 'Blocked-by' },
-  { href: '/features', label: 'Features' },
-  { href: '/gaps', label: 'Gaps' },
-  { href: '/velocity', label: 'Velocity' },
-  { href: '/wip-age', label: 'WIP & hot zones' },
-  { href: '/test-pyramid', label: 'Test pyramid' },
-  { href: '/graph-health', label: 'Graph health' },
-  { href: '/worktrees', label: 'Worktrees' },
-  { href: '/agents', label: 'Agents & Drain' },
-  { href: '/metrics', label: 'Metrics' },
+/**
+ * Top-nav links grouped into labelled clusters. The bar renders as a single
+ * row with a brand mark on the left and thin dividers between groups (no
+ * dropdown menus) — 18 flat links were visually undifferentiated, so the
+ * grouping gives the eye anchors without hiding anything behind a menu.
+ * Each group's `label` becomes an `aria-label` for screen readers; it is not
+ * shown as visible text. Adding a page = drop it in the right group here.
+ */
+const NAV_GROUPS: Array<{ label: string; links: Array<{ href: string; label: string }> }> = [
+  { label: 'Overview', links: [{ href: '/', label: 'Overview' }] },
+  {
+    label: 'Planning',
+    links: [
+      { href: '/vision', label: 'Vision' },
+      { href: '/milestones', label: 'Milestones' },
+      { href: '/roadmap', label: 'Roadmap' },
+      { href: '/backlog', label: 'Backlog' },
+      { href: '/blocked-by', label: 'Blocked-by' },
+    ],
+  },
+  {
+    label: 'Delivery',
+    links: [
+      { href: '/features', label: 'Features' },
+      { href: '/framework', label: 'Framework' },
+      { href: '/docs', label: 'Docs' },
+      { href: '/release-notes', label: 'Releases' },
+    ],
+  },
+  {
+    label: 'Health',
+    links: [
+      { href: '/gaps', label: 'Gaps' },
+      { href: '/velocity', label: 'Velocity' },
+      { href: '/wip-age', label: 'WIP' },
+      { href: '/test-pyramid', label: 'Tests' },
+      { href: '/graph-health', label: 'Graph' },
+    ],
+  },
+  {
+    label: 'Ops',
+    links: [
+      { href: '/worktrees', label: 'Worktrees' },
+      { href: '/agents', label: 'Agents' },
+      { href: '/metrics', label: 'Metrics' },
+    ],
+  },
 ];
 
 /**
@@ -36,9 +64,21 @@ const STYLE = `
     :root { --fg: #f0f0f0; --bg: #111; --muted: #999; --accent: #60a5fa; --line: #2a2a2a; }
   }
   body { margin: 0; font: 14px/1.5 -apple-system, ui-sans-serif, system-ui, sans-serif; color: var(--fg); background: var(--bg); }
-  nav { display: flex; gap: 1rem; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; }
-  nav a { color: var(--muted); text-decoration: none; padding: 0.25rem 0.5rem; border-radius: 4px; }
-  nav a[aria-current="page"] { color: var(--accent); background: rgba(37,99,235,0.08); font-weight: 600; }
+  /* Top nav: a single non-wrapping row — brand mark + divider-separated
+     groups. It stays exactly one row (~3rem tall) so the sticky table-header
+     offset (thead th { top: 3rem }) always lands just below it; when the row
+     is wider than the viewport the bar scrolls horizontally rather than
+     wrapping to a second row (which would slide the sticky headers under the
+     nav). */
+  nav { display: flex; flex-wrap: nowrap; align-items: center; gap: 0.4rem; padding: 0.6rem 1.25rem; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 5; overflow-x: auto; scrollbar-width: thin; }
+  nav .brand { display: inline-flex; align-items: center; gap: 0.4rem; margin-right: 0.4rem; font-weight: 700; font-size: 0.95rem; letter-spacing: 0.01em; color: var(--fg); text-decoration: none; flex: 0 0 auto; }
+  nav .brand .mark { color: var(--accent); font-size: 1.05rem; line-height: 1; }
+  nav .brand:hover { color: var(--accent); }
+  nav .nav-group { display: inline-flex; align-items: center; gap: 0.1rem; flex: 0 0 auto; }
+  nav .nav-sep { flex: 0 0 auto; width: 1px; height: 1.15rem; background: var(--line); margin: 0 0.3rem; }
+  nav a { color: var(--muted); text-decoration: none; padding: 0.25rem 0.5rem; border-radius: 999px; font-size: 0.88rem; white-space: nowrap; transition: background 0.12s ease, color 0.12s ease; }
+  nav a:hover { color: var(--fg); background: rgba(37,99,235,0.07); }
+  nav a[aria-current="page"] { color: var(--accent); background: rgba(37,99,235,0.12); font-weight: 600; }
   main { padding: 1.5rem; max-width: min(1300px, 92vw); margin: 0 auto; }
   h1, h2, h3 { line-height: 1.2; }
   h1 { font-size: 1.5rem; margin: 0 0 1rem; }
@@ -348,10 +388,18 @@ export function renderLayout(opts: {
   activeNav: string | null;
   combinedEtag?: string;
 }): string {
-  const navHtml = NAV_LINKS.map((l) => {
-    const aria = l.href === opts.activeNav ? ' aria-current="page"' : '';
-    return `<a href="${l.href}"${aria}>${escapeHtml(l.label)}</a>`;
-  }).join('');
+  const brand = `<a class="brand" href="/"><span class="mark" aria-hidden="true">◆</span>Noldor</a>`;
+  const navHtml =
+    brand +
+    NAV_GROUPS.map((g) => {
+      const links = g.links
+        .map((l) => {
+          const aria = l.href === opts.activeNav ? ' aria-current="page"' : '';
+          return `<a href="${l.href}"${aria}>${escapeHtml(l.label)}</a>`;
+        })
+        .join('');
+      return `<span class="nav-sep" aria-hidden="true"></span><span class="nav-group" role="group" aria-label="${escapeHtml(g.label)}">${links}</span>`;
+    }).join('');
   const combinedEtagMeta = opts.combinedEtag
     ? `<meta name="combined-etag" content="${escapeHtml(opts.combinedEtag)}">`
     : '';
