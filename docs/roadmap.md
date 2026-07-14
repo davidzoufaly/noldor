@@ -29,23 +29,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Deep-audit finding (batch `.noldor/research/2026-07-13-184850`, `readme-quality.findings.md` has the proposed outline): README is not wrong post-PR#126 but covers only 5 of 34 CLI command groups, omits gate/drain/upgrade/`init --adopt`, never links the adoption guide, and enumerates a stale config field set. Rewrite in consumer-journey order (install from GH Packages → init/adopt → gate workflow → dashboard → drain → upgrade), link the adoption guide instead of duplicating it, stop enumerating config fields. Same pass: fix `docs/noldor/README.md` index staleness — it still calls the adoption guide a "stub — WIP" (it's a full 105-line guide with live consumers) and omits 4 existing pages (incl. agent-runtimes.md).
 
-### Vendored Process Disciplines
-
-Two process-discipline skills the deep-audit (batch `.noldor/research/2026-07-13-184850`) flagged as never vendored from the superpowers plugin: nothing in noldor references them, so they are not a dependency, but a consumer running `noldor init` without the plugin gets no equivalent discipline. Vendor both as first-class framework skills so the discipline ships with the framework instead of relying on a plugin being installed.
-
-#### Vendored Systematic-Debugging Discipline
-
-- id: Q-0044
-- area: tooling
-- type: feat
-- since: 2026-07-13
-- size: M
-- impact: med
-- confidence: med
-- parent: noldor
-
-Vendor the `systematic-debugging` discipline as a framework skill (`noldor-debug`): the disciplined loop — reproduce → minimise → hypothesise → instrument → fix → regression-test — invoked before proposing fixes for any bug, test failure, or unexpected behaviour. Today noldor has no debugging-discipline skill at all; consumers fall back to ad-hoc debugging. Author it in the vendored-skill style (self-contained SKILL.md, no plugin reference), register it in the skill-catalog (gated by `validate skill-catalog`), and reference it from the gate fast-track/fix paths so it's surfaced when a change is a bug fix.
-
 ### Dashboard UI Polish (from ideas.md 2026-07-14)
 
 Five operator-facing dashboard refinements captured from a live dogfood pass. All are self-host `src/dashboard/` tweaks with design decisions already settled with the operator (recorded per entry). Item 1 + the action-column item are one surface (roadmap/backlog table chrome) so they ride one entry.
