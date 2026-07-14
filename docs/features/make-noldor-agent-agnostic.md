@@ -27,6 +27,7 @@ links:
     - src/core/__tests__/agent-events.test.ts
     - src/core/agent-runner/__tests__/doctor-runners.test.ts
     - src/core/agent-runner/__tests__/no-stray-spawns.test.ts
+    - src/core/agent-runner/__tests__/opencode-events.test.ts
     - src/core/agent-runner/__tests__/registry.test.ts
     - src/core/agent-runner/__tests__/runners.test.ts
     - src/core/agent-runner/__tests__/types.test.ts
