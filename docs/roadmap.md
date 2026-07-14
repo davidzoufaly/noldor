@@ -16,21 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Section order = execution phases from the 2026-07-02 queue verification. Retired that day: `fd-complexity-tier-field` (shipped as `noldor-tier`), `runtime-architecture-invariant-expansion` + `dashboard-reference-api-subtree` (Charuy-only premises), `dispatch-next-priority-via-agent-window` (covered by `noldor autonomous run --max-features 1` + `/noldor-gate` Step 0 priority pickup). `prefix-skills-with-noldor` re-sized S→L and parked in backlog.
 
-### Validate Script-Catalog Gate
-
-- id: Q-0042
-- area: tooling
-- type: fix
-- since: 2026-07-13
-- size: M
-- impact: high
-- confidence: high
-- parent: noldor
-
-Deep-audit finding (batch `.noldor/research/2026-07-13-184850`): gated docs stay true, ungated docs rot — `validate skill-catalog` keeps the skill catalog perfectly 1:1, while `docs/noldor/script-catalog.md` (self-declared canonical) is missing ~20 live subcommands and its promised `validate:script-catalog` gate was never implemented (the page falsely claims a backlog entry exists). Ship the `validate:script-catalog` pre-commit gate mirroring the skill-catalog one, do the one-time catch-up of the missing subcommands, fix the template twin, and resolve the detector-count contradiction (script-catalog says 19, garden-and-drift says 20, code has more).
-
-- Consider an `fd-command-rot` garden detector alongside: done-FDs currently document 4 phantom CLI commands (`pnpm docs:build` among them) and nothing checks FD-documented commands still exist.
-
 ### README Rewrite — Consumer-Journey Order
 
 - id: Q-0043
@@ -92,6 +77,20 @@ Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, thre
 ### Dashboard UI Polish (from ideas.md 2026-07-14)
 
 Five operator-facing dashboard refinements captured from a live dogfood pass. All are self-host `src/dashboard/` tweaks with design decisions already settled with the operator (recorded per entry). Item 1 + the action-column item are one surface (roadmap/backlog table chrome) so they ride one entry.
+
+### Fd-Command-Rot Garden Detector
+
+- id: Q-0050
+- area: tooling
+- type: feat
+- since: 2026-07-14
+- size: S
+- impact: med
+- confidence: med
+- recovered: 2026-07-14
+- parent: noldor
+
+Garden detector in the FD-link-rot family: verify that CLI commands documented in done FDs still exist against the live CLI manifest. Today done-FDs reference 4 phantom commands (`pnpm docs:build` among them) and nothing checks FD-documented commands, so they rot silently. Recovered from the `validate-script-catalog-gate` (Q-0042) source block ("consider an `fd-command-rot` garden detector alongside").
 
 ### Phase 2 — Enforcement Honesty
 
