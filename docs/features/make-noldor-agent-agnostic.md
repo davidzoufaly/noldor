@@ -37,6 +37,7 @@ links:
     - src/cr/__tests__/lanes/subagent-dispatch.test.ts
     - src/cr/__tests__/lanes/subagent.test.ts
     - src/cr/__tests__/run-codex.test.ts
+    - src/migrations/__tests__/0.7.0.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
     - src/templates/__tests__/agent-filter.test.ts
     - src/templates/__tests__/shim-inventory.test.ts
