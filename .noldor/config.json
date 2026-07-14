@@ -5,11 +5,20 @@
     "lockstepPackages": ["package.json"],
     "scanPaths": ["src"],
     "boundaries": [
-      { "name": "no-module-cycles", "severity": "error", "from": {}, "to": { "circular": true } },
+      {
+        "name": "no-module-cycles",
+        "severity": "error",
+        "from": {},
+        "to": {
+          "circular": true
+        }
+      },
       {
         "name": "core-is-foundation",
         "severity": "error",
-        "from": { "path": "^src/core" },
+        "from": {
+          "path": "^src/core"
+        },
         "to": {
           "path": "^src/(cr|garden|sync|features|invariants|release|autonomous|dashboard|prep|triage|verify|metrics|research|worktrees|hooks|checks|cli)"
         }
@@ -17,14 +26,22 @@
       {
         "name": "invariants-not-into-garden",
         "severity": "error",
-        "from": { "path": "^src/invariants" },
-        "to": { "path": "^src/garden" }
+        "from": {
+          "path": "^src/invariants"
+        },
+        "to": {
+          "path": "^src/garden"
+        }
       },
       {
         "name": "sync-not-into-garden",
         "severity": "error",
-        "from": { "path": "^src/sync" },
-        "to": { "path": "^src/garden" }
+        "from": {
+          "path": "^src/sync"
+        },
+        "to": {
+          "path": "^src/garden"
+        }
       }
     ],
     "deprecatedPackages": [],
@@ -48,7 +65,10 @@
         "kind": "server",
         "healthPath": "/"
       },
-      "cli": { "command": "pnpm noldor --help", "kind": "cli" }
+      "cli": {
+        "command": "pnpm noldor --help",
+        "kind": "cli"
+      }
     }
   },
   "crLanes": {
@@ -61,12 +81,17 @@
     "verifyMode": "blocking"
   },
   "release": {
-    "publish": { "enabled": true },
+    "publish": {
+      "enabled": true
+    },
     "crGateExemptCommits": [
       {
         "sha": "19a74a10e8e844e021b08fe616992eae1b56f977",
         "reason": "pre-rollout-marker CI-workflow fast-track (#117); shipped before receipt enforcement armed"
       }
     ]
+  },
+  "agents": {
+    "targets": ["claude", "codex", "opencode"]
   }
 }
