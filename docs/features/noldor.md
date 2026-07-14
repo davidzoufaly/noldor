@@ -89,6 +89,7 @@ links:
     - src/garden/detectors/__tests__/allowlist-drift.test.ts
     - src/garden/detectors/__tests__/circular-blocked-by.test.ts
     - src/garden/detectors/__tests__/codex-cr-override-audit.test.ts
+    - src/garden/detectors/__tests__/fd-command-rot.test.ts
     - src/garden/detectors/__tests__/fd-link-rot.test.ts
     - src/garden/detectors/__tests__/fd-without-plan.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts

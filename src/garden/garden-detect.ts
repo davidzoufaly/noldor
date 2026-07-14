@@ -23,6 +23,7 @@ import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
 import { detectCodeLinksDrift } from './detectors/code-links-drift.js';
 import { detectFdLinkRot } from './detectors/fd-link-rot.js';
+import { detectFdCommandRot } from './detectors/fd-command-rot.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
@@ -794,6 +795,11 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // validator reported green — shape checks and working-dir scans never stat
   // the link targets themselves.
   sddGaps.push(...(await detectFdLinkRot(repo)));
+  // Sibling of the above in the FD-link-rot family: stat the CLI *commands* a
+  // done FD documents in its body against the live CLI surface (manifest ∪
+  // package.json scripts ∪ script-catalog), catching renamed/removed/regrouped
+  // commands a shipped FD still cites.
+  sddGaps.push(...(await detectFdCommandRot(repo)));
   const overrideAudit = auditOverrides({ cwd: repo, ...(await loadOverrideAuditOptions(repo)) });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
