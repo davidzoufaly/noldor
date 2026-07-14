@@ -4,7 +4,12 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readRolloutMarker, isPostRollout, ensureRolloutMarker } from '../rollout-marker';
+import {
+  readRolloutMarker,
+  rolloutMarkerExists,
+  isPostRollout,
+  ensureRolloutMarker,
+} from '../rollout-marker';
 
 describe('rollout marker', () => {
   it('returns null when file absent', () => {
@@ -77,6 +82,24 @@ describe('rollout marker', () => {
     mkdirSync(join(dir, '.noldor'));
     writeFileSync(join(dir, '.noldor', 'rollout-marker'), 'deadbeefnotacommit\n');
     expect(isPostRollout(head, dir)).toBe(true);
+  });
+
+  it('isPostRollout enforces (true) on a present-but-EMPTY marker (torn write, zero bytes)', () => {
+    // A whitespace/zero-byte marker collapses to null in readRolloutMarker, same
+    // as absent — but it is a torn write, not a fresh repo, so it must enforce.
+    const dir = mkdtempSync(join(tmpdir(), 'qfm-empty-'));
+    mkdirSync(join(dir, '.noldor'));
+    writeFileSync(join(dir, '.noldor', 'rollout-marker'), '   \n');
+    expect(isPostRollout('abc123', dir)).toBe(true);
+  });
+
+  it('rolloutMarkerExists: true for a present (even empty) file, false only when absent', () => {
+    const absent = mkdtempSync(join(tmpdir(), 'qfm-absent-'));
+    expect(rolloutMarkerExists(absent)).toBe(false);
+    const present = mkdtempSync(join(tmpdir(), 'qfm-present-'));
+    mkdirSync(join(present, '.noldor'));
+    writeFileSync(join(present, '.noldor', 'rollout-marker'), '');
+    expect(rolloutMarkerExists(present)).toBe(true);
   });
 
   describe('ensureRolloutMarker', () => {

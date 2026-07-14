@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import { readSession } from '../core/session';
-import { readRolloutMarker } from '../core/rollout-marker';
+import { rolloutMarkerExists } from '../core/rollout-marker';
 
 export interface PreEditResult {
   ok: boolean;
@@ -55,7 +55,7 @@ export function runPreEditGuard(opts: { cwd: string; filePath?: string }): PreEd
     insideGitRepo = top !== null;
   }
 
-  if (!readRolloutMarker(root)) return { ok: true }; // soft mode pre-rollout
+  if (!rolloutMarkerExists(root)) return { ok: true }; // soft mode: no rollout marker file (present-but-empty still arms)
   if (readSession(root)) return { ok: true }; // gate already engaged
   if (insideGitRepo && opts.filePath && !isTracked(root, opts.filePath)) {
     return { ok: true }; // untracked file — commit-stage gate owns it

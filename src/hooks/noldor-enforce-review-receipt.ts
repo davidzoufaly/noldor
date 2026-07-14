@@ -3,7 +3,7 @@
 // Accepts either Noldor-Reviewed (legacy single-reviewer) or Noldor-Reviewed-Subagent (multi-reviewer gate Step 4).
 import { spawnSync } from 'node:child_process';
 import { parseTrailers } from '../core/trailers';
-import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
+import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
 
 export interface EnforceResult {
   ok: boolean;
@@ -21,9 +21,8 @@ const PATHS_REQUIRING_REVIEW = new Set([
 const RECEIPT_TRAILERS = ['Noldor-Reviewed', 'Noldor-Reviewed-Subagent'] as const;
 
 export function enforceReviewReceipt(opts: { cwd: string }): EnforceResult {
-  // Soft mode: if no rollout marker or HEAD is pre-rollout, skip enforcement.
-  const marker = readRolloutMarker(opts.cwd);
-  if (!marker) return { ok: true };
+  // Soft mode: if no rollout marker file or HEAD is pre-rollout, skip enforcement.
+  if (!rolloutMarkerExists(opts.cwd)) return { ok: true };
 
   let head: string;
   try {

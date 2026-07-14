@@ -52,6 +52,15 @@ describe('noldor pre-edit guard', () => {
     expect(r.reason).toMatch(/\/noldor-gate/);
   });
 
+  it('arms on a present-but-EMPTY rollout marker without a session (empty ≠ absent)', () => {
+    // A torn/truncated marker file must not read as "no marker" (soft mode).
+    const dir = setupRepo();
+    writeFileSync(join(dir, '.noldor', 'rollout-marker'), '');
+    const r = runPreEditGuard({ cwd: dir, filePath: 'README.md' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/\/noldor-gate/);
+  });
+
   it('blocks an absolute-path edit to a tracked file without a session', () => {
     const dir = setupGitRepo();
     const r = runPreEditGuard({ cwd: '/', filePath: join(dir, 'tracked.ts') });

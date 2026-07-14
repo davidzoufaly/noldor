@@ -39,9 +39,10 @@ export function loadWatchState(cwd: string, todayKey: string): WatchState {
     // Corrupt (present but unparseable/unreadable) → fail CLOSED. Silently
     // resetting the rails to zero here was the fail-open bug: it uncaps the
     // daily spawn count and wipes the consecutive-failure trip streak. Surface
-    // loudly and re-throw so the watch daemon aborts the cycle rather than
-    // resuming amnesiac. A MISSING file returns undefined (a legitimate fresh
-    // start) and keeps the defaults below.
+    // loudly and re-throw: the throw unwinds through the daemon's cycle loop to
+    // the top-level crash handler (watch.ts), which exits the daemon loudly
+    // rather than letting it resume amnesiac. A MISSING file returns undefined
+    // (a legitimate fresh start) and keeps the defaults below.
     process.stderr.write(
       `watch-state corrupt at ${join(cwd, STATE_REL)}: ${String(err)} — refusing to reset rails (fail-closed)\n`,
     );

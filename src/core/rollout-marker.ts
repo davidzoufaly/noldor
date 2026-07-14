@@ -16,16 +16,32 @@ export function readRolloutMarker(cwd: string = process.cwd()): string | null {
 }
 
 /**
+ * True when the rollout-marker FILE exists on disk, regardless of content.
+ * Distinguishes a genuinely-absent marker (pre-rollout → soft mode) from a
+ * present-but-empty/whitespace one (a torn write landing zero bytes → corrupt →
+ * enforce), which {@link readRolloutMarker} collapses to the same `null`. The
+ * soft-mode gates use this — not `readRolloutMarker` truthiness — so an empty
+ * marker can no longer masquerade as "no marker" and drop the repo to soft mode.
+ */
+export function rolloutMarkerExists(cwd: string = process.cwd()): boolean {
+  return existsSync(join(cwd, FILE));
+}
+
+/**
  * Returns true if `commitSha` is at or after the rollout marker commit.
  * Uses `git merge-base --is-ancestor marker commit`. Fails **closed** on an
  * unresolvable marker: a present-but-corrupt marker (torn write, truncated SHA)
  * makes git exit 128, and a missing git binary / signal-killed child yields
  * `status: null` — in both cases the marker exists but cannot be resolved, and
- * an enforcement decision must not silently drop the repo to soft mode.
+ * an enforcement decision must not silently drop the repo to soft mode. A
+ * present-but-EMPTY marker (zero bytes) likewise enforces, via the null branch.
  */
 export function isPostRollout(commitSha: string, cwd: string = process.cwd()): boolean {
   const marker = readRolloutMarker(cwd);
-  if (!marker) return false; // no marker → genuinely pre-rollout (soft mode)
+  if (marker === null) {
+    // Present-but-empty (torn write) → corrupt → enforce; truly absent → soft.
+    return rolloutMarkerExists(cwd);
+  }
   const r = spawnSync('git', ['merge-base', '--is-ancestor', marker, commitSha], {
     cwd,
     stdio: 'ignore',
