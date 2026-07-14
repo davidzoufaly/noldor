@@ -96,7 +96,7 @@ Transition rules (per Workflow):
 
 ## Body sections
 
-The FD body has three required sections, in order, per the [original framework design spec](../superpowers/specs/archive/2026-04-23-feature-md-framework-design.md):
+The FD body has three required sections, in order, per the original framework design spec:
 
 - **`## Summary`** — one-paragraph capability description (1–3 sentences). What the feature is.
 - **`## User Story`** — `As a user (human or agent), I want to <action>, so that <outcome>.` Persona-agnostic. Multi-story features may use a bullet list.
