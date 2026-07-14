@@ -48,7 +48,7 @@ links:
 name: Make Noldor Agent-Agnostic
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
@@ -71,20 +71,23 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
     "reviewer": { "runner": "codex" },
     "polish":   { "runner": "opencode", "model": "ollama/llama3.2" }
   },
-  "versionFloors": { "opencode": "0.6.0" },
+  "versionFloors": { "opencode": "1.17.0" },
   "targets": ["claude", "codex", "opencode"]
 }
 ```
 
 **CLI**
 
-- `noldor init --agents claude,codex,opencode` — write per-driver shim sets (`.claude/`, `.opencode/command/` + `opencode.json`, `AGENTS.md`).
-- `noldor doctor` — template drift + presence/version-floor check for every configured runner.
+- `noldor init --agents claude,codex,opencode` — write per-driver shim sets: `.claude/skills/` (Claude skills), `.opencode/command/` (thin command shims for the CLI-verb-backed skills) + `opencode.json`, and `AGENTS.md` (codex reads the same skill set as prose).
+- `noldor doctor` — template drift + presence/version-floor check for every configured runner (claude / codex / opencode).
+- `noldor upgrade` — runs the `0.7.0` migration that rewrites legacy `crLanes` values (`subagent`→`reviewer`, `verify`→`verifier`).
 
 **Agent API**
 
-- `spawnAgent(prompt, { role, runner?, cwd, env, timeoutMs, stdio, schemaPath, needsWrite, site })` from `src/core/agent-runner/registry.ts` — resolves `opts.runner ?? resolveRunner(role, config)`, builds per-runner argv, enforces capability fit, emits one `.noldor/agent-events.jsonl` line per spawn.
+- `spawnAgent(prompt, { role, runner?, cwd, env, timeoutMs, stdio, schemaPath, needsWrite, site })` from `src/core/agent-runner/registry.ts` — resolves `opts.runner ?? resolveRunner(role, config)`, builds per-runner argv, enforces capability fit, emits one `.noldor/agent-events.jsonl` line per spawn. opencode spawns run `run --auto`; a piped (non-tee, non-inherit) spawn also passes `--format json`, and on a clean exit the registry parses the NDJSON event stream to assistant prose via `parseOpencodeEvents` (`src/core/agent-runner/opencode-events.ts`) so every consumer reads prose, not raw events.
 - Inspect spawns: `tail .noldor/agent-events.jsonl` — `runner` / `role` / `site` / `exitCode` per line.
+
+**CR lanes** — `crLanes.<kind>` uses role-ref names `reviewer` (was `subagent`) and `verifier` (was `verify`); `manual` / `codex` / `standalone` remain non-role literals. Legacy names still validate (alias preprocess in `src/core/lanes.ts`); the `0.7.0` migration canonicalizes on-disk config.
 
 ## PRs
 
