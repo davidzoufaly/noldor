@@ -51,12 +51,12 @@ describe('guardLaneOverwrite', () => {
   it('keep-and-skip drops the lane', async () => {
     await writePrior('x-spec-manual.json');
     promptSelect.mockResolvedValueOnce('skip');
-    const r = await guardLaneOverwrite(['manual', 'subagent'], {
+    const r = await guardLaneOverwrite(['manual', 'reviewer'], {
       slug: 'x',
       kind: 'spec',
       cwd: root,
     });
-    expect(r).toEqual(['subagent']);
+    expect(r).toEqual(['reviewer']);
   });
   it('archive-and-overwrite copies prior to archive/', async () => {
     await writePrior('x-spec-manual.json');

@@ -45,9 +45,9 @@ vi.mock('../lanes/codex.js', () => ({
 vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async (input) => {
     const { writeJsonAtomic } = await import('../atomic-write.js');
-    const path = join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-subagent.json`);
+    const path = join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-reviewer.json`);
     await writeJsonAtomic(path, {
-      lane: 'subagent',
+      lane: 'reviewer',
       artifact: input.artifact,
       kind: input.kind,
       slug: input.slug,
@@ -57,7 +57,7 @@ vi.mock('../lanes/subagent.js', () => ({
       startedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
     });
-    return { lane: 'subagent', sinkPath: path, ok: true };
+    return { lane: 'reviewer', sinkPath: path, ok: true };
   }),
 }));
 import { run } from '../orchestrate.js';
@@ -79,18 +79,18 @@ describe('orchestrate integration', () => {
         slug: 'x',
         artifact: 'docs/superpowers/specs/x.md',
         kind: 'spec',
-        lanes: ['manual', 'codex', 'subagent'],
+        lanes: ['manual', 'codex', 'reviewer'],
         fullReview: false,
         autonomous: false,
       },
       cwd: root,
     });
-    expect(r.lanesRun.toSorted()).toEqual(['codex', 'manual', 'subagent']);
+    expect(r.lanesRun.toSorted()).toEqual(['codex', 'manual', 'reviewer']);
     const entries = await readdir(join(root, '.noldor', 'cr'));
     expect(entries.filter((e) => e.endsWith('.json')).toSorted()).toEqual([
       'x-spec-codex.json',
       'x-spec-manual.json',
-      'x-spec-subagent.json',
+      'x-spec-reviewer.json',
     ]);
     expect(entries.filter((e) => e.endsWith('.tmp'))).toEqual([]);
   });

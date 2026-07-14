@@ -76,7 +76,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     input.repoRoot,
     '.noldor',
     'cr',
-    `${input.slug}-${input.kind}-subagent.json`,
+    `${input.slug}-${input.kind}-reviewer.json`,
   );
   const startedAt = new Date().toISOString();
   const baseShaForSlot = input.baseSha ?? `${input.artifactSha}~1`;
@@ -102,7 +102,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   } catch (err) {
     const errMsg = (err as NodeJS.ErrnoException).message ?? String(err);
     const payload: LaneFindings = {
-      lane: 'subagent',
+      lane: 'reviewer',
       artifact: input.artifact,
       kind: input.kind,
       slug: input.slug,
@@ -119,13 +119,13 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       finishedAt: new Date().toISOString(),
     };
     await writeJsonAtomic(sinkPath, payload);
-    return { lane: 'subagent', sinkPath, ok: false };
+    return { lane: 'reviewer', sinkPath, ok: false };
   }
 
   const parsed = parseSubagentMarkdown(markdown);
   if (!parsed) {
     const payload: LaneFindings = {
-      lane: 'subagent',
+      lane: 'reviewer',
       artifact: input.artifact,
       kind: input.kind,
       slug: input.slug,
@@ -142,7 +142,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       finishedAt: new Date().toISOString(),
     };
     await writeJsonAtomic(sinkPath, payload);
-    return { lane: 'subagent', sinkPath, ok: false };
+    return { lane: 'reviewer', sinkPath, ok: false };
   }
 
   const mkFinding =
@@ -159,7 +159,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   ];
   const suggestions = parsed.minor.map(mkFinding('low'));
   const payload: LaneFindings = {
-    lane: 'subagent',
+    lane: 'reviewer',
     artifact: input.artifact,
     kind: input.kind,
     slug: input.slug,
@@ -174,5 +174,5 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   };
 
   await writeJsonAtomic(sinkPath, payload);
-  return { lane: 'subagent', sinkPath, ok: blockers.length === 0 };
+  return { lane: 'reviewer', sinkPath, ok: blockers.length === 0 };
 }

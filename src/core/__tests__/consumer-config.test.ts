@@ -60,7 +60,7 @@ describe('loadConsumerConfig', () => {
   });
 
   it('throws when consumer block missing', () => {
-    const dir = makeTmpRepo({ crLanes: { spec: ['subagent'] } });
+    const dir = makeTmpRepo({ crLanes: { spec: ['reviewer'] } });
     try {
       expect(() => loadConsumerConfig(dir)).toThrow(/consumer/i);
     } finally {

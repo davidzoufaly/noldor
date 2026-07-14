@@ -33,12 +33,12 @@ describe('aggregate', () => {
     expect(r.summaries.manual).toBe('operator approved');
   });
   it('blocker => not ok, blocker carries lane', async () => {
-    await copy('findings-blockers.json', 'x-spec-subagent.json');
+    await copy('findings-blockers.json', 'x-spec-reviewer.json');
     const r = await aggregate('x', 'spec', { cwd: root });
     expect(r.ok).toBe(false);
-    expect(r.blockers[0].lane).toBe('subagent');
+    expect(r.blockers[0].lane).toBe('reviewer');
     expect(r.blockers[0].severity).toBe('high');
-    expect(r.notes.subagent).toEqual(['Strengths: clear summary']);
+    expect(r.notes.reviewer).toEqual(['Strengths: clear summary']);
   });
   it('unresolved (finishedAt unset) => not ok, lane in unresolved', async () => {
     await copy('findings-in-progress.json', 'x-spec-standalone.json');
@@ -78,10 +78,10 @@ describe('aggregate', () => {
   });
   it('cross-kind union when kind omitted', async () => {
     await copy('findings-clean.json', 'x-spec-manual.json');
-    await copy('findings-blockers.json', 'x-plan-subagent.json');
+    await copy('findings-blockers.json', 'x-plan-reviewer.json');
     const r = await aggregate('x', undefined, { cwd: root });
     expect(r.ok).toBe(false);
-    expect(Object.keys(r.summaries).toSorted()).toEqual(['manual', 'subagent']);
+    expect(Object.keys(r.summaries).toSorted()).toEqual(['manual', 'reviewer']);
   });
   it('emits notes entry when standalone templateSha drifts vs current', async () => {
     await mkdir(join(root, 'src', 'cr'), { recursive: true });

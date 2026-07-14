@@ -108,13 +108,25 @@ function loadFdSummary(cwd: string, slug: string): FdSummary | null {
  * `core-is-foundation` boundary forbids importing `src/cr/findings-schema.ts`.
  */
 export function loadVerifyEvidence(cwd: string, slug: string): VerifySummary | null {
-  const sinkPath = join(cwd, '.noldor', 'cr', `${slug}-code-verify.json`);
+  // Canonical `-verifier.json` first, then the legacy pre-0.7.0 `-verify.json`
+  // name (a consumer mid-upgrade may still have one). Inlined rather than
+  // importing the lanes helper — the `core-is-foundation` boundary keeps this
+  // module dependency-free of `src/cr/`.
+  const crDir = join(cwd, '.noldor', 'cr');
+  const candidates = [
+    join(crDir, `${slug}-code-verifier.json`),
+    join(crDir, `${slug}-code-verify.json`),
+  ];
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(sinkPath, 'utf8'));
-  } catch {
-    return null;
+  let found = false;
+  for (const sinkPath of candidates) {
+    try {
+      parsed = JSON.parse(readFileSync(sinkPath, 'utf8'));
+      found = true;
+      break;
+    } catch {}
   }
+  if (!found) return null;
   if (typeof parsed !== 'object' || parsed === null) return null;
   const sink = parsed as { verdict?: unknown; evidence?: unknown };
   if (typeof sink.verdict !== 'string') return null;

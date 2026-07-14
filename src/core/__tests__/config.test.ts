@@ -39,13 +39,13 @@ describe('loadConfig', () => {
     await writeFile(
       path,
       JSON.stringify({
-        crLanes: { spec: ['subagent'], plan: ['subagent', 'manual'], code: ['subagent'] },
+        crLanes: { spec: ['reviewer'], plan: ['reviewer', 'manual'], code: ['reviewer'] },
         autonomous: { skipLanePicker: true, onFailure: 'prompt', requireHumanPrApproval: false },
       }),
       'utf8',
     );
     const cfg = await loadConfig(path);
-    expect(cfg?.crLanes?.spec).toEqual(['subagent']);
+    expect(cfg?.crLanes?.spec).toEqual(['reviewer']);
     expect(cfg?.autonomous?.onFailure).toBe('prompt');
   });
   it('applies defaults to autonomous when partially set', async () => {
