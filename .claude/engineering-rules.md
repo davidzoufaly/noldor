@@ -36,6 +36,10 @@ Principles below are reviewed at code-write time; the commands above are the aut
 
 Evidence before claims, always. **Never** claim work is done, fixed, passing, green, or merged — and never commit, open a PR, run `pr-flow`, or flip `phase: done` — without having run the proving command in the same turn and read its output. A prior run does not count; code changed since. Lint passing ≠ typecheck ≠ test; one CR lane green ≠ aggregate green; auto-merge queued ≠ PR merged. When delegating, verify the change via `git diff`/`git log`, not the agent's own success report. The full discipline (gate function, common-failure table, rationalizations) is the `/noldor-verify` skill.
 
+## Systematic debugging
+
+Root cause before fixes, always. **Never** propose or apply a fix for a bug, test failure, or unexpected behaviour before you have reproduced it and traced it to its origin — a symptom patch that masks the cause is a failure, not a shortcut. Work the loop: reproduce → minimise → hypothesise → instrument → fix → regression-test, and write the failing test before the fix so the red-green cycle proves the cause. One change at a time; if 3+ fixes fail, stop and question the architecture rather than attempting a fourth. The full discipline (four phases, red-flags, rationalizations) is the `/noldor-debug` skill.
+
 ## TypeScript
 
 (Project overlays may extend these rules — read both.)

@@ -42,5 +42,5 @@ The framework's interactive flows are CLI-backed. Invoke via the matching
 - **research** — `pnpm noldor research fanout`; `docs/noldor/research-fanout.md`.
 
 `noldor-refactor` / `noldor-release-sweep` are Claude-agent orchestrations (no
-thin-shim equivalent); `noldor-verify` is a discipline rule — see the Hard rules
+thin-shim equivalent); `noldor-verify` and `noldor-debug` are discipline rules — see the Hard rules
 above. Deep interactive behavior of any skill is Claude-primary.
