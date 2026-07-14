@@ -4,6 +4,36 @@ Parking lot for items not on the roadmap. Each entry carries a `- id: Q-NNNN` bu
 
 Dependencies are declared with a `- blocked-by: <slug|Q-id, …>` bullet (the entries this work waits on); `- deps:` is the legacy alias, still accepted and unioned with `blocked-by:` during the migration window. Prefer `blocked-by:` in new entries.
 
+### Graph-Freshness / Fmt-Collision Follow-Ups
+
+- id: Q-0011
+- area: tooling
+- type: fix
+- since: 2026-07-01
+- size: S
+- impact: low
+- confidence: med
+- parent: noldor
+
+Residual design follow-ups from the v0.4.0 near-miss (`pnpm release` hard-gates on committed-fresh `graphify-out/graph.json` vs fmt lefthook erroring on an all-ignored file set; immediate fix PR #114, broader all-ignored no-op guard shipped as `noldor fmt` in PR #184). Trigger: pick up only if the fmt/graph gate collision class recurs despite the PR #184 guard.
+
+- (b) ~~have the release-sweep own the graph commit end-to-end so the two gates can't deadlock~~ — DONE: release-sweep step 6 commits `graphify-out/` before `pnpm release`.
+- (c) reconsider whether `graph.json` should be tracked at all vs regenerated in a release-time step. Still parked.
+
+Verified 2026-07-14 (gate pickup): trigger not fired — `src/core/fmt-guard.ts` maps all-ignored→exit 0 + release-sweep pre-commits graph; no collision recurrence since PR #184. Remaining scope = (c) only.
+
+### Real-Codex Integration Smoke Test
+
+- id: Q-0005
+- area: tooling
+- type: test
+- since: 2026-05-10
+- size: M
+- impact: low
+- parent: noldor
+
+`src/cr/__tests__/codex.test.ts` mocks the `Spawn` function, so all CI runs of the codex lane validate the wiring without ever invoking the real `codex` binary. The first real-codex run will surface integration bugs the mocked tests can't catch (codex CLI flag drift, JSON schema variance, stdin-pipe encoding edge cases). Add a manual / opt-in smoke test (`pnpm noldor cr codex --dry-run` against a fixture worktree, gated behind `NOLDOR_RUN_REAL_CODEX=1`) plus a documented operator-side pre-release dogfood step in `docs/noldor/cr-pipeline.md`. Trigger: when codex CLI grows a stable `cr --json` subcommand (currently absent).
+
 ### Does SQL in a Framework Make Sense?
 
 - id: Q-0007
