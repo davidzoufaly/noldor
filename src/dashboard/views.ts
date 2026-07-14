@@ -1199,7 +1199,20 @@ export function renderFeatureDetail(detail: FeatureDetail): string {
   // block (via `pnpm sync:fd-resources`). Body markdown is rendered below; the
   // duplicate frontmatter-driven sections used to live here.
 
-  return `<h1>${escapeHtml(fm.name)}</h1>${table}<div class="body">${detail.bodyHtml}</div>`;
+  // Operator artifacts: prominent spec/plan links up top so a reviewer can
+  // open the written design and check the outcome against it (semi-autonomous
+  // review). `vscode://` hrefs open the file in the editor; an em-dash marks
+  // an artifact that was never authored (e.g. fast-track features).
+  const artifactRef = (label: string, ref: FeatureDetail['artifacts']['spec']): string =>
+    ref
+      ? `<a class="chip" href="${escapeHtml(ref.href)}" title="${escapeHtml(ref.path)}">${label} ↗</a>`
+      : `<span class="muted">${label} —</span>`;
+  const artifacts = `<p class="fd-artifacts"><span class="muted">Artifacts:</span> ${artifactRef(
+    'Spec',
+    detail.artifacts.spec,
+  )} ${artifactRef('Plan', detail.artifacts.plan)}</p>`;
+
+  return `<h1>${escapeHtml(fm.name)}</h1>${table}${artifacts}<div class="body">${detail.bodyHtml}</div>`;
 }
 
 /**

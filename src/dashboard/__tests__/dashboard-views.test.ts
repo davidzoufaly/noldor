@@ -914,6 +914,7 @@ describe('renderFeatureDetail', () => {
     bodyMarkdown: '## Hello\n\nWorld.',
     bodyHtml: '<h2>Hello</h2>\n<p>World.</p>',
     changelog: { unreleased: [], perVersion: new Map() },
+    artifacts: { spec: null, plan: null },
   };
 
   it('renders frontmatter as a table and body html', () => {
@@ -922,6 +923,26 @@ describe('renderFeatureDetail', () => {
     expect(html).toContain('<th>phase</th>');
     expect(html).toContain('in-progress');
     expect(html).toContain('<h2>Hello</h2>');
+  });
+
+  it('renders spec/plan artifact links when present and an em-dash when absent', () => {
+    const withArtifacts = {
+      ...baseDetail,
+      artifacts: {
+        spec: {
+          path: 'docs/superpowers/specs/2026-01-01-foo-design.md',
+          href: 'vscode://file/repo/docs/superpowers/specs/2026-01-01-foo-design.md',
+        },
+        plan: null,
+      },
+    };
+    const html = renderFeatureDetail(withArtifacts);
+    // Spec present → clickable vscode link; plan absent → em-dash marker.
+    expect(html).toContain(
+      'href="vscode://file/repo/docs/superpowers/specs/2026-01-01-foo-design.md"',
+    );
+    expect(html).toContain('Spec ↗');
+    expect(html).toContain('Plan —');
   });
 
   it('escapes script tags injected via frontmatter name', () => {

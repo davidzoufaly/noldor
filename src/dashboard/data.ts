@@ -1,7 +1,7 @@
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
-import { join, posix, sep } from 'node:path';
+import { basename, join, posix, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 import matter from 'gray-matter';
@@ -20,7 +20,15 @@ import { loadDocRoots } from '../core/doc-roots.js';
 import { actualPackageNames, scanRoots } from '../core/repo-paths.js';
 import { collectGaps } from '../garden/sdd-report.js';
 import { buildBlockedByGraph, findCyclesInBuild } from '../garden/detectors/circular-blocked-by.js';
-import { listPlans, listSpecs, loadSddFeatures, readTextFiles, walkRepo } from '../core/fd-load.js';
+import {
+  extractPlanSlug,
+  extractSpecSlug,
+  listPlans,
+  listSpecs,
+  loadSddFeatures,
+  readTextFiles,
+  walkRepo,
+} from '../core/fd-load.js';
 import { commitsForFeature } from '../release/release-fd-commits.js';
 import { prsSinceLastTag, type PrRef } from '../release/fd-prs-since-tag.js';
 import { getRepoUrl } from '../release/release-version.js';
@@ -148,7 +156,25 @@ export interface FdChangelog {
   perVersion: Map<string, FeatureCommit[]>;
 }
 
-export type FeatureDetail = FeatureRecord & { bodyHtml: string; changelog: FdChangelog };
+/** A resolved spec/plan artifact for a feature: repo-relative path + a
+ *  `vscode://file` href that opens it in the operator's editor. */
+export interface FeatureArtifactRef {
+  path: string;
+  href: string;
+}
+
+/** The spec/plan artifacts written for a feature (null when never authored —
+ *  e.g. fast-track features have no spec/plan). */
+export interface FeatureArtifacts {
+  spec: FeatureArtifactRef | null;
+  plan: FeatureArtifactRef | null;
+}
+
+export type FeatureDetail = FeatureRecord & {
+  bodyHtml: string;
+  changelog: FdChangelog;
+  artifacts: FeatureArtifacts;
+};
 
 const HTML_ENTITY_DECODES: Array<[RegExp, string]> = [
   [/&lt;/g, '<'],
@@ -607,6 +633,47 @@ function renderCommitList(commits: FeatureCommit[], repoUrl: string): string {
  * @param slug - kebab-case slug matching the filename stem
  * @returns Feature detail with rendered HTML and live changelog, or null if no matching file
  */
+/**
+ * Resolve the spec/plan artifacts written for a feature so the operator can
+ * open them from the dashboard to check the outcome against the design (the
+ * semi-autonomous review path — fully-autonomous runs never look). Matches
+ * `docs/superpowers/{specs,plans}/<date>-<slug>-…md` by the slug the filename
+ * encodes ({@link extractSpecSlug}/{@link extractPlanSlug}); date-prefixed
+ * names sort chronologically, so the newest match wins. Returns `null` for an
+ * artifact that was never authored (fast-track features have neither).
+ *
+ * @param slug - Feature slug to match spec/plan filenames against.
+ * @param cwd - Doc root (override-aware); defaults to {@link getDocRoot}.
+ * @returns Spec + plan refs (path + `vscode://` href), each `null` if absent.
+ */
+export async function resolveFeatureArtifacts(
+  slug: string,
+  cwd: string = getDocRoot(),
+): Promise<FeatureArtifacts> {
+  const roots = loadDocRoots(cwd);
+  const pick = async (
+    dir: string,
+    list: (d: string) => Promise<string[]>,
+    extract: (name: string) => string,
+  ): Promise<FeatureArtifactRef | null> => {
+    const files = await list(dir);
+    const name =
+      files
+        .map((p) => basename(p))
+        .filter((n) => extract(n) === slug)
+        .toSorted()
+        .at(-1) ?? null;
+    if (name === null) return null;
+    const abs = join(dir, name);
+    return { path: relative(cwd, abs), href: `vscode://file${abs}` };
+  };
+  const [spec, plan] = await Promise.all([
+    pick(roots.specs, listSpecs, extractSpecSlug),
+    pick(roots.plans, listPlans, extractPlanSlug),
+  ]);
+  return { spec, plan };
+}
+
 export async function loadFeatureDetail(slug: string): Promise<FeatureDetail | null> {
   const features = await loadFeatures();
   const match = features.find((f) => f.slug === slug);
@@ -616,7 +683,8 @@ export async function loadFeatureDetail(slug: string): Promise<FeatureDetail | n
   const mergedBody = mergeChangelogIntoBody(match.bodyMarkdown, changelog, repoUrl);
   const rendered = await renderMarkdown(mergedBody);
   const bodyHtml = rewriteRelativeLinksToVscode(rendered, process.cwd());
-  return { ...match, bodyHtml, changelog };
+  const artifacts = await resolveFeatureArtifacts(match.slug);
+  return { ...match, bodyHtml, changelog, artifacts };
 }
 
 /**
