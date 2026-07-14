@@ -119,19 +119,6 @@ Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, thre
 
 Five operator-facing dashboard refinements captured from a live dogfood pass. All are self-host `src/dashboard/` tweaks with design decisions already settled with the operator (recorded per entry). Item 1 + the action-column item are one surface (roadmap/backlog table chrome) so they ride one entry.
 
-#### Roadmap / Backlog Table Layout Consistency
-
-- id: Q-0046
-- area: tooling
-- type: fix
-- since: 2026-07-14
-- size: XS
-- impact: low
-- confidence: high
-- parent: noldor
-
-Two roadmap/backlog page layout fixes so the two pages read consistently. (1) The backlog page bakes its entry count into the heading (`<h1>Backlog (4 of 4)</h1>`) while the roadmap page renders it as a standalone `<p class="count">(N of M)</p>` below the filter form — move the backlog count to the same standalone `<p class="count">` position with a plain `<h1>Backlog</h1>`, matching roadmap (covers the "backlog (4/4) should be at the same place as within the roadmap page" idea). (2) The per-row Actions column lays its chips out in a horizontal flex row (`td.actions .actions-inner { justify-content: flex-end; align-items: center }`) which leaves the 2–3 chips misaligned and the cell short — switch to `flex-direction: column; align-items: flex-end` so the Promote/Top/Bottom/Remove chips stack as a right-aligned vertical action list filling the row height. Touches: `src/dashboard/views.ts` (renderBacklog count placement, empty + non-empty branches), `src/dashboard/layout.ts` (`td.actions .actions-inner` CSS).
-
 #### Refined Top-Nav Bar
 
 - id: Q-0047
