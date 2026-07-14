@@ -32,6 +32,7 @@ import {
   parseFeatureLastCommitDates,
   parseRoadmap,
   parseRoadmapFromString,
+  resolveFeatureArtifacts,
   resolveRenamePath,
   WIP_AGE_THRESHOLDS,
   wipAgeRowSchema,
@@ -835,6 +836,54 @@ describe('loadSddInput layout parity', () => {
     } finally {
       process.chdir(previousCwd);
       await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('resolveFeatureArtifacts', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'noldor-artifacts-'));
+    await mkdir(join(root, 'docs', 'superpowers', 'specs'), { recursive: true });
+    await mkdir(join(root, 'docs', 'superpowers', 'plans'), { recursive: true });
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('matches spec + plan by slug and returns the newest of each with a vscode href', async () => {
+    const specsDir = join(root, 'docs', 'superpowers', 'specs');
+    const plansDir = join(root, 'docs', 'superpowers', 'plans');
+    // Two dated specs for the same slug — the later date must win.
+    await writeFile(join(specsDir, '2026-01-01-foo-design.md'), '# old', 'utf8');
+    await writeFile(join(specsDir, '2026-03-15-foo-design.md'), '# new', 'utf8');
+    await writeFile(join(specsDir, '2026-02-01-other-design.md'), '# other', 'utf8');
+    await writeFile(join(plansDir, '2026-01-02-foo.md'), '# plan', 'utf8');
+
+    const artifacts = await resolveFeatureArtifacts('foo', root);
+    expect(artifacts.spec?.path).toBe('docs/superpowers/specs/2026-03-15-foo-design.md');
+    expect(artifacts.spec?.href).toBe(`vscode://file${join(specsDir, '2026-03-15-foo-design.md')}`);
+    expect(artifacts.plan?.path).toBe('docs/superpowers/plans/2026-01-02-foo.md');
+  });
+
+  it('returns null for a feature with no spec/plan (e.g. fast-track)', async () => {
+    await writeFile(
+      join(root, 'docs', 'superpowers', 'specs', '2026-01-01-something-else-design.md'),
+      '# x',
+      'utf8',
+    );
+    const artifacts = await resolveFeatureArtifacts('fast-track-feature', root);
+    expect(artifacts).toEqual({ spec: null, plan: null });
+  });
+
+  it('tolerates missing superpowers directories', async () => {
+    const bare = await mkdtemp(join(tmpdir(), 'noldor-artifacts-bare-'));
+    try {
+      expect(await resolveFeatureArtifacts('anything', bare)).toEqual({ spec: null, plan: null });
+    } finally {
+      await rm(bare, { recursive: true, force: true });
     }
   });
 });
