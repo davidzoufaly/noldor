@@ -5,11 +5,19 @@ introduced: 0.5.0
 
 # Agent Runtimes
 
-Noldor supports three agent runtimes as simultaneous first-class peers:
-**Claude Code, Codex, opencode**. Every framework spawn resolves through the
-runner registry (`src/core/agent-runner/registry.ts`): a call site declares a
-*role*, the consumer's `agents:` config maps roles to runners, and the
-registry builds the runner-specific argv. Absent config ≡ claude everywhere.
+Noldor's three runtimes — **Claude Code, Codex, opencode** — are first-class
+peers **for headless roles**: every framework spawn (drain, CR, research, prep)
+resolves through the runner registry (`src/core/agent-runner/registry.ts`) — a
+call site declares a *role*, the consumer's `agents:` config maps roles to
+runners, and the registry builds the runner-specific argv. Absent config ≡
+claude everywhere.
+
+The **interactive** skill surface is Claude-primary and honestly asymmetric:
+**14 Claude skills** (`.claude/skills/`), **10 opencode command shims**
+(`.opencode/command/`, thin pointers into the CLI — the 11th file, `noldor.md`,
+is a catalog pointer, not a skill), and **0 codex command files** (codex reads
+`AGENTS.md` prose). `noldor-refactor`/`noldor-release-sweep` (Claude-agent
+orchestration) and `noldor-verify` (a discipline rule) have no shim by design.
 
 ## Flag mapping
 
