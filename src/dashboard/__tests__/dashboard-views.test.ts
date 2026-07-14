@@ -506,7 +506,7 @@ describe('renderBacklog', () => {
     const html = await renderBacklog(sampleEntries, { ...noFiltersB, type: 'fix' });
     expect(html).toContain('Sample Fix');
     expect(html).not.toContain('Sample Feat');
-    expect(html).toContain('Backlog (1 of 2)');
+    expect(html).toContain('<p class="count">(1 of 2)</p>');
   });
 
   it('shows em-dash when type or since is missing', async () => {
@@ -570,7 +570,7 @@ describe('renderBacklog', () => {
     const html = await renderBacklog(richBacklog, { ...noBmulti, impact: ['low'] });
     expect(html).toContain('B-Low');
     expect(html).not.toContain('B-High');
-    expect(html).toContain('Backlog (1 of 2)');
+    expect(html).toContain('<p class="count">(1 of 2)</p>');
   });
 
   it('sorts by impact-desc', async () => {
@@ -631,7 +631,7 @@ describe('renderBacklog', () => {
       { ...noBmulti, size: ['S'] },
       { rawHash: 'h', now: bucketNow },
     );
-    expect(html).toContain('Backlog (1 of 4)');
+    expect(html).toContain('<p class="count">(1 of 4)</p>');
     expect(html).toContain('0–30 days (1)');
     expect(html).not.toContain('90+ days');
   });
@@ -681,7 +681,7 @@ describe('renderBacklog', () => {
     );
     expect(html).toContain('Web Entry');
     expect(html).not.toContain('Engine Entry');
-    expect(html).toContain('Backlog (1 of 2)');
+    expect(html).toContain('<p class="count">(1 of 2)</p>');
   });
 
   // Task 1 — size + impact columns on /backlog (mirrors /roadmap).

@@ -922,7 +922,7 @@ export async function renderBacklog(
   const resetLink = `<a class="reset" href="?">Reset</a>`;
 
   if (filtered.length === 0) {
-    return `<h1>Backlog (0 of ${entries.length})</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="empty">No matching entries.</p>`;
+    return `<h1>Backlog</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="empty">No matching entries (0 of ${entries.length}).</p>`;
   }
 
   const renderRow = async (e: BacklogEntry): Promise<string> => {
@@ -970,7 +970,7 @@ export async function renderBacklog(
     )
   ).join('');
 
-  return `<h1>Backlog (${filtered.length} of ${entries.length})</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p>${sections}`;
+  return `<h1>Backlog</h1>${selectForm}${sizeChips}${impactChips}<p>${resetLink}</p><p class="count">(${filtered.length} of ${entries.length})</p>${sections}`;
 }
 
 /**
