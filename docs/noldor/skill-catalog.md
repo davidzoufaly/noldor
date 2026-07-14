@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Skill Catalog
 
-Noldor ships 14 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
+Noldor ships 15 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
 
 > **Strict drift gate.** `pnpm noldor validate skill-catalog` (pre-commit, see [`garden-and-drift.md`](garden-and-drift.md) Detector 16) asserts that every `## /<slug>` heading on this page maps to a `<slug>.md` (or `<slug>/SKILL.md`) under `.claude/skills/`, and vice versa. Add or rename a skill → update this page in the same commit, or pre-commit blocks.
 
@@ -108,3 +108,10 @@ Noldor ships 14 user-invocable skills, each owned by a single concern. This page
 - **Inputs:** the claim about to be made; the command that proves it (`pnpm test`, `pnpm verify`, `pnpm noldor cr aggregate`, `gh pr view`, `git diff`) and its fresh output.
 - **Outputs:** no file writes. A gate on completion claims — either fresh verification evidence stated alongside the claim, or a corrected status when the command disproves it. Enforced socially, not by a hook.
 - **When to use:** before ANY "done / fixed / passing / green / merged" claim (or any paraphrase of one), before committing / opening a PR / running `pr-flow` / flipping `phase: done`, and after delegating to a subagent or drain iteration. Vendored, self-contained replacement for the superpowers `verification-before-completion` discipline — no plugin required. The gate's Step 4 CR lanes and `pnpm verify` are the checks; this is the rule that you run them and read the output first.
+
+## /noldor-debug
+
+- **Trigger:** `/noldor-debug`, or automatically on any bug, test failure, or unexpected behaviour before proposing a fix. A behavioral discipline, not a workflow.
+- **Inputs:** the failing symptom; the command that reproduces it and its fresh output; `git diff` / recent commits for what changed.
+- **Outputs:** no file writes. A gate on fix-proposals — a reproduced root cause and a red-green failing test before any code change, or an explicit "not yet ready to fix" when investigation is incomplete.
+- **When to use:** before ANY fix for a bug, test failure, unexpected behaviour, performance regression, or build failure — especially under time pressure. Vendored, self-contained replacement for the superpowers `systematic-debugging` discipline — no plugin required. Produces the root cause + regression test; `/noldor-verify` is the paired rule that you then run `pnpm test` / `pnpm verify` and read the output before claiming the fix works.

@@ -13,11 +13,11 @@ runners, and the registry builds the runner-specific argv. Absent config ≡
 claude everywhere.
 
 The **interactive** skill surface is Claude-primary and honestly asymmetric:
-**14 Claude skills** (`.claude/skills/`), **10 opencode command shims**
+**15 Claude skills** (`.claude/skills/`), **10 opencode command shims**
 (`.opencode/command/`, thin pointers into the CLI — the 11th file, `noldor.md`,
 is a catalog pointer, not a skill), and **0 codex command files** (codex reads
 `AGENTS.md` prose). `noldor-refactor`/`noldor-release-sweep` (Claude-agent
-orchestration) and `noldor-verify` (a discipline rule) have no shim by design.
+orchestration) and the discipline rules `noldor-verify` and `noldor-debug` have no shim by design.
 
 ## Flag mapping
 
