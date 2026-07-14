@@ -40,6 +40,7 @@ import {
   readPort,
 } from '../worktrees/worktree-status.js';
 import { loadPark, readInboxRows, type InboxRow } from '../autonomous/escalations.js';
+import { StateFileCorruptError } from '../core/state-file.js';
 import { WATCH_LOG_REL } from '../autonomous/watch-detach.js';
 
 marked.use(
@@ -2383,7 +2384,18 @@ export async function loadAgentActivity(
     return b.startTs.localeCompare(a.startTs);
   });
 
-  return { live, runs, inbox: readInboxRows(cwd) };
+  // The /agents page reads the park file twice: loadDrainObservation (Parked
+  // table → parkedCorrupt) and here, via readInboxRows → loadPark (now
+  // fail-closed/throwing on a corrupt file). Degrade the inbox to empty on
+  // corruption rather than 500 the whole page — the Parked table already
+  // surfaces the corruption. Any non-corruption error still propagates.
+  let inbox: InboxRow[] = [];
+  try {
+    inbox = readInboxRows(cwd);
+  } catch (err) {
+    if (!(err instanceof StateFileCorruptError)) throw err;
+  }
+  return { live, runs, inbox };
 }
 
 export interface DrainObservationState {
@@ -2409,6 +2421,13 @@ export interface DrainObservation {
   /** null ⇒ no drain-state.json ⇒ "no drain recorded". */
   state: DrainObservationState | null;
   parked: ParkedRow[];
+  /**
+   * True ⇒ `.noldor/drain-park.json` is present but corrupt. The view renders a
+   * corruption state rather than the misleading empty parked list a silent
+   * `catch → []` would produce (fail-open-view guard). `parked` is `[]` in this
+   * case; the flag is what distinguishes "nothing parked" from "unreadable".
+   */
+  parkedCorrupt: boolean;
   /** loadWatchLogTail — null ⇒ no watch.log yet. */
   logTail: string | null;
 }
@@ -2452,6 +2471,7 @@ export async function loadDrainObservation(
   // source are not stored fields, so split the key. A colon-free key (unreachable
   // via parkKey, defensive) maps to source '' + the whole key as slug.
   let parked: ParkedRow[] = [];
+  let parkedCorrupt = false;
   try {
     parked = Object.entries(loadPark(cwd)).map(([key, v]) => {
       const i = key.indexOf(':');
@@ -2462,8 +2482,12 @@ export async function loadDrainObservation(
         ts: v.ts,
       };
     });
-  } catch {
-    parked = [];
+  } catch (err) {
+    // A corrupt drain-park.json surfaces as a distinct corruption state, NOT a
+    // silent empty list (which would falsely read as "nothing parked" — the
+    // fail-open view). Any other error keeps the empty fallback.
+    if (err instanceof StateFileCorruptError) parkedCorrupt = true;
+    else parked = [];
   }
   // Clear-when-idle: only surface the tail while a drain process is actually
   // alive. A dead or absent drain returns null so the /agents pane renders its
@@ -2471,7 +2495,7 @@ export async function loadDrainObservation(
   // /agents/log full page reads loadWatchLogTail directly, so it still shows
   // history regardless of drain liveness.
   const active = state !== null && state.pidAlive;
-  return { state, parked, logTail: active ? await loadWatchLogTail(cwd) : null };
+  return { state, parked, parkedCorrupt, logTail: active ? await loadWatchLogTail(cwd) : null };
 }
 
 /**

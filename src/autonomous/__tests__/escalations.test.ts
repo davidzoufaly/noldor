@@ -243,11 +243,18 @@ describe('IO shell', () => {
     expect(lines[1]).toMatchObject({ slug: 'old', source: 'roadmap', resolved: true, auto: true });
   });
 
-  it('loadPark returns {} on missing or corrupt file (fail-open)', () => {
-    expect(loadPark(dir)).toEqual({});
-    mkdirSync(join(dir, '.noldor'), { recursive: true });
-    writeFileSync(join(dir, '.noldor/drain-park.json'), 'garbage', 'utf8');
-    expect(loadPark(dir)).toEqual({});
+  it('loadPark returns {} on a MISSING file (legitimate fresh start)', () => {
+    const d = mkdtempSync(join(tmpdir(), 'park-missing-'));
+    expect(loadPark(d)).toEqual({});
+  });
+
+  it('loadPark THROWS on a corrupt file (fail-closed — no silent unpark-all)', () => {
+    // The old behavior returned {} → every known-failing entry unparked → drain
+    // retries things that always fail. A torn file must fail closed, not open.
+    const d = mkdtempSync(join(tmpdir(), 'park-corrupt-'));
+    mkdirSync(join(d, '.noldor'), { recursive: true });
+    writeFileSync(join(d, '.noldor/drain-park.json'), 'garbage', 'utf8');
+    expect(() => loadPark(d)).toThrow(/corrupt/);
   });
 
   it('readInboxRows joins each parked entry to its earliest unresolved escalation line', () => {

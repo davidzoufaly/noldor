@@ -108,8 +108,14 @@ function renderDrainInFlight(body, state) {
     tr.insertCell().textContent = String(state.retries[f.slug] ?? 0);
   }
 }
-function renderDrainParked(body, parked) {
+function renderDrainParked(body, parked, corrupt) {
   body.textContent = '';
+  if (corrupt) {
+    // Match the server-side DRAIN_PARKED_CORRUPT_COPY (views.ts): a torn park
+    // file must never render as an empty "nothing parked" list (fail-open view).
+    emptyRow(body, 3, '⚠ parked list unreadable — corrupt .noldor/drain-park.json');
+    return;
+  }
   if (parked.length === 0) {
     emptyRow(body, 3, 'nothing parked');
     return;
@@ -131,7 +137,8 @@ function patchDrain(drain) {
   const inflight = document.getElementById('drain-inflight-body');
   if (inflight instanceof HTMLTableSectionElement) renderDrainInFlight(inflight, drain.state);
   const parked = document.getElementById('drain-parked-body');
-  if (parked instanceof HTMLTableSectionElement) renderDrainParked(parked, drain.parked);
+  if (parked instanceof HTMLTableSectionElement)
+    renderDrainParked(parked, drain.parked, drain.parkedCorrupt ?? false);
   const pane = document.getElementById('drain-log-pane');
   // null logTail keeps the server-rendered empty-state copy — assigning null
   // would blank the pane to "" and erase it.

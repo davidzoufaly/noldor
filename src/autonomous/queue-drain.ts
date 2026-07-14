@@ -152,7 +152,7 @@ async function main(): Promise<void> {
   });
   process.on('SIGTERM', () => {
     groupKillState(cwd);
-    releaseLock(cwd);
+    releaseLock(cwd, { startedAt });
     process.exit(130);
   });
 
@@ -171,7 +171,7 @@ async function main(): Promise<void> {
     if (!reportIsEmpty(reconcileReport))
       process.stdout.write(`${formatReconcile(reconcileReport)}\n`);
   } catch (e) {
-    releaseLock(cwd);
+    releaseLock(cwd, { startedAt });
     process.stderr.write(`${(e as Error).message}\n`);
     process.exit(1);
   }
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
   try {
     res = await runDrain(deps, { ...parsed, cwd, startupStaggerMs: 750 });
   } finally {
-    releaseLock(cwd);
+    releaseLock(cwd, { startedAt });
   }
 
   // Run-side escalation symmetry (spec Unit 3 / D3): terminal failures land in the same

@@ -382,7 +382,12 @@ const sampleActivity: AgentActivity = {
   ],
 };
 
-const emptyDrain: DrainObservation = { state: null, parked: [], logTail: null };
+const emptyDrain: DrainObservation = {
+  state: null,
+  parked: [],
+  parkedCorrupt: false,
+  logTail: null,
+};
 
 const sampleDrain: DrainObservation = {
   state: {
@@ -397,6 +402,7 @@ const sampleDrain: DrainObservation = {
     retries: { 'feat-a': 1 },
   },
   parked: [{ slug: 'feat-p', source: 'roadmap', reason: 'retries-exhausted', ts: T0 }],
+  parkedCorrupt: false,
   logTail: 'cycle start\nspawn feat-a <ok>',
 };
 
@@ -416,6 +422,12 @@ describe('renderAgents', () => {
     expect(html).toContain('id="drain-inflight-body"');
     expect(html).toContain('id="drain-parked-body"');
     expect(html).toContain('id="drain-log-pane"');
+  });
+
+  it('renders the parked-corruption state (not an empty list) when parkedCorrupt', () => {
+    const html = renderAgents(sampleActivity, { ...emptyDrain, parkedCorrupt: true });
+    expect(html).toContain('parked list unreadable');
+    expect(html).not.toContain('nothing parked');
   });
 
   it('renders live rows with slug link, lane, phase, runtime, retries and a log link', () => {
@@ -526,7 +538,24 @@ describe('drain observation (loadDrainObservation + drain section rendering)', (
   it('is failure-tolerant: no files → null state, empty park, null tail', async () => {
     const dir = eventsFixture([]);
     const obs = await loadDrainObservation(dir, { isPidAlive: () => true });
-    expect(obs).toEqual({ state: null, parked: [], logTail: null });
+    expect(obs).toEqual({ state: null, parked: [], parkedCorrupt: false, logTail: null });
+  });
+
+  it('surfaces a CORRUPT drain-park.json as parkedCorrupt, not a silent empty list', async () => {
+    const dir = eventsFixture([]);
+    writeFileSync(join(dir, '.noldor', 'drain-park.json'), 'not json', 'utf8');
+    const obs = await loadDrainObservation(dir, { isPidAlive: () => true });
+    expect(obs.parkedCorrupt).toBe(true);
+    expect(obs.parked).toEqual([]);
+  });
+
+  it('does not throw (would 500 the /agents page) when the inbox path hits a corrupt drain-park.json', async () => {
+    const dir = eventsFixture([]);
+    writeFileSync(join(dir, '.noldor', 'drain-park.json'), 'not json', 'utf8');
+    // loadAgentActivity → readInboxRows → loadPark also reads the park file;
+    // a corrupt file must degrade the inbox to empty, not crash the aggregator.
+    const activity = await loadAgentActivity(dir, { isPidAlive: () => true });
+    expect(activity.inbox).toEqual([]);
   });
 
   it('marks a dead drain pid via the injected liveness probe', async () => {

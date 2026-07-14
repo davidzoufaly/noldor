@@ -1515,6 +1515,11 @@ export function renderDrainParkedRows(parked: DrainObservation['parked']): strin
 /** Copy shown in the log pane before any drain has written the shared log. */
 export const DRAIN_LOG_EMPTY_COPY = 'no active drain — log clears when idle';
 
+/** Shown in the Parked table when `.noldor/drain-park.json` is corrupt — a
+ * distinct state so a torn park file never masquerades as an empty (fail-open)
+ * "nothing parked" list. Mirrored in the client poller (static/agents.ts). */
+export const DRAIN_PARKED_CORRUPT_COPY = 'parked list unreadable — corrupt .noldor/drain-park.json';
+
 /**
  * The /agents Drain section: status line, in-flight + parked tables, and the
  * auto-tailing shared-log pane. Every dynamic element carries an id the
@@ -1530,7 +1535,11 @@ export function renderDrainSection(drain: DrainObservation): string {
   <h3>Parked</h3>
   <table>
     <thead><tr><th>Entry</th><th>Reason</th><th>Since</th></tr></thead>
-    <tbody id="drain-parked-body">${renderDrainParkedRows(drain.parked)}</tbody>
+    <tbody id="drain-parked-body">${
+      drain.parkedCorrupt
+        ? `<tr><td colspan="3" class="empty">⚠ ${escapeHtml(DRAIN_PARKED_CORRUPT_COPY)}</td></tr>`
+        : renderDrainParkedRows(drain.parked)
+    }</tbody>
   </table>
   <h3>Live log</h3>
   <p class="muted">Shared <code>.noldor/watch.log</code> — newest first, auto-refreshes every ~2s; clears when no drain is active. <a href="/agents/log">Full page</a>.</p>

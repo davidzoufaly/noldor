@@ -7,7 +7,7 @@ import matter from 'gray-matter';
 import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
 import { PATHS } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
-import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
+import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
 import { loadConsumerConfig } from '../core/consumer-config';
 
 export interface ValidationResult {
@@ -66,9 +66,8 @@ function validateReleaseAutomation(opts: ValidateOptions): ValidationResult {
 }
 
 export function validateTrailer(opts: ValidateOptions): ValidationResult {
-  // Soft mode: if no rollout marker or HEAD is pre-rollout, skip enforcement.
-  const marker = readRolloutMarker(opts.cwd);
-  if (!marker) return { ok: true };
+  // Soft mode: if no rollout marker file or HEAD is pre-rollout, skip enforcement.
+  if (!rolloutMarkerExists(opts.cwd)) return { ok: true };
 
   let head: string;
   try {

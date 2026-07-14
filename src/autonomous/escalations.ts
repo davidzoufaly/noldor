@@ -1,6 +1,8 @@
-import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { atomicWriteFileSync } from '../core/atomic-write.js';
+import { readJsonState } from '../core/state-file.js';
 import type { DrainResult } from './drain-loop.js';
 import type { DrainSource, SourceId } from './drain-source.js';
 
@@ -148,19 +150,32 @@ export function mapCycle(input: {
 const PARK_REL = '.noldor/drain-park.json';
 const ESC_REL = '.noldor/escalations.jsonl';
 
-/** Read the park map. Fail-open: missing or corrupt file → {} (rails degrade, never crash). */
+/**
+ * Read the park map. Distinguishes ABSENT from CORRUPT: a missing file → `{}`
+ * (fresh start, legitimate); a present-but-unparseable file → throws
+ * {@link StateFileCorruptError}. Returning `{}` on corrupt was the fail-open
+ * bug — an empty map unparks EVERY known-failing entry, so the drain re-attempts
+ * things that always fail. Action-gating callers (the drain source, reports)
+ * let the throw abort the cycle; the read-only dashboard caller catches it and
+ * renders a corruption state instead of a misleading empty list.
+ */
 export function loadPark(cwd: string): ParkMap {
+  let raw: ParkMap | undefined;
   try {
-    return JSON.parse(readFileSync(join(cwd, PARK_REL), 'utf8')) as ParkMap;
-  } catch {
-    return {};
+    raw = readJsonState<ParkMap>(join(cwd, PARK_REL));
+  } catch (err) {
+    process.stderr.write(
+      `drain-park corrupt at ${join(cwd, PARK_REL)}: ${String(err)} — refusing to unpark all (fail-closed)\n`,
+    );
+    throw err;
   }
+  return raw ?? {};
 }
 
 function savePark(cwd: string, map: ParkMap): void {
   try {
     mkdirSync(join(cwd, '.noldor'), { recursive: true });
-    writeFileSync(join(cwd, PARK_REL), `${JSON.stringify(map, null, 2)}\n`, 'utf8');
+    atomicWriteFileSync(join(cwd, PARK_REL), `${JSON.stringify(map, null, 2)}\n`);
   } catch (err) {
     process.stderr.write(`drain-park write failed (non-fatal): ${String(err)}\n`);
   }

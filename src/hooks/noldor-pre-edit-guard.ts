@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import { readSession } from '../core/session';
-import { readRolloutMarker } from '../core/rollout-marker';
+import { rolloutMarkerExists } from '../core/rollout-marker';
 
 export interface PreEditResult {
   ok: boolean;
@@ -55,7 +55,7 @@ export function runPreEditGuard(opts: { cwd: string; filePath?: string }): PreEd
     insideGitRepo = top !== null;
   }
 
-  if (!readRolloutMarker(root)) return { ok: true }; // soft mode pre-rollout
+  if (!rolloutMarkerExists(root)) return { ok: true }; // soft mode: no rollout marker file (present-but-empty still arms)
   if (readSession(root)) return { ok: true }; // gate already engaged
   if (insideGitRepo && opts.filePath && !isTracked(root, opts.filePath)) {
     return { ok: true }; // untracked file — commit-stage gate owns it
@@ -85,25 +85,39 @@ export function filePathFromPayload(payload: PreToolUsePayload): string | undefi
 if (import.meta.url === `file://${process.argv[1]}`) {
   const argPath = process.argv[2];
   let result: PreEditResult;
-  if (argPath !== undefined) {
-    // Direct invocation: `noldor hooks pre-edit-guard <path>`.
-    result = runPreEditGuard({ cwd: process.cwd(), filePath: argPath });
-  } else {
-    // PreToolUse hook invocation: JSON payload on stdin. Fail open on any
-    // read/parse problem — a guard bug must never brick the editor. An
-    // interactive TTY (operator ran it bare) has no payload; don't block on
-    // a stdin read that will never complete.
-    if (process.stdin.isTTY) process.exit(0);
-    let payload: PreToolUsePayload = {};
-    try {
-      payload = JSON.parse(readFileSync(0, 'utf8')) as PreToolUsePayload;
-    } catch {
-      process.exit(0);
+  try {
+    if (argPath !== undefined) {
+      // Direct invocation: `noldor hooks pre-edit-guard <path>`.
+      result = runPreEditGuard({ cwd: process.cwd(), filePath: argPath });
+    } else {
+      // PreToolUse hook invocation: JSON payload on stdin. Fail open on any
+      // read/parse problem — a guard bug must never brick the editor. An
+      // interactive TTY (operator ran it bare) has no payload; don't block on
+      // a stdin read that will never complete.
+      if (process.stdin.isTTY) process.exit(0);
+      let payload: PreToolUsePayload = {};
+      try {
+        payload = JSON.parse(readFileSync(0, 'utf8')) as PreToolUsePayload;
+      } catch {
+        process.exit(0);
+      }
+      result = runPreEditGuard({
+        cwd: payload.cwd ?? process.cwd(),
+        filePath: filePathFromPayload(payload),
+      });
     }
-    result = runPreEditGuard({
-      cwd: payload.cwd ?? process.cwd(),
-      filePath: filePathFromPayload(payload),
-    });
+  } catch (e) {
+    // A throw here means an enforcement state file is unreadable — most notably
+    // a torn/corrupt `.noldor/session.json` making `readSession` throw. Fail
+    // CLOSED: exit 2 (the PreToolUse BLOCKING code) so the edit is denied. An
+    // uncaught throw would terminate with exit 1, which Claude Code treats as a
+    // non-blocking error → the edit would silently proceed (fail-open, gate
+    // bypassed). This is the one place the guard must NOT fail open.
+    console.error(
+      `Noldor gate: enforcement state unreadable (${e instanceof Error ? e.message : String(e)}). ` +
+        `Fix or remove the corrupt .noldor/session.json, then retry.`,
+    );
+    process.exit(2);
   }
   if (!result.ok) {
     console.error(`Noldor gate: ${result.reason}`);

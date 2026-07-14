@@ -3,6 +3,8 @@ import { mkdirSync, openSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { resolveBindHost, healthUrl } from './host.js';
+
 /** Default dashboard port, mirroring `startServer` in `server.ts`. */
 export const DEFAULT_PORT = 4321;
 
@@ -112,7 +114,9 @@ async function sleep(ms: number): Promise<void> {
  */
 export async function ensureDashboard(opts: EnsureOptions = {}): Promise<EnsureResult> {
   const port = opts.port ?? Number(process.env.PORT ?? DEFAULT_PORT);
-  const baseUrl = `http://localhost:${port}`;
+  // Probe the same loopback (or DASHBOARD_HOST) the detached server binds — not
+  // `localhost`, which can resolve to ::1 and miss an IPv4-only 127.0.0.1 bind.
+  const baseUrl = healthUrl(resolveBindHost(), port);
   if (await isDashboardUp(baseUrl)) return { status: 'already-running', baseUrl };
 
   const spawnFn = opts.spawnFn ?? spawnDetachedServer;

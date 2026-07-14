@@ -1,10 +1,15 @@
-// @tests: noldor
+// @tests: noldor, state-file-fail-open-hardening
 import { describe, expect, it } from 'vitest';
 import { execSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readRolloutMarker, isPostRollout, ensureRolloutMarker } from '../rollout-marker';
+import {
+  readRolloutMarker,
+  rolloutMarkerExists,
+  isPostRollout,
+  ensureRolloutMarker,
+} from '../rollout-marker';
 
 describe('rollout marker', () => {
   it('returns null when file absent', () => {
@@ -61,6 +66,40 @@ describe('rollout marker', () => {
     mkdirSync(join(dir, '.noldor'));
     writeFileSync(join(dir, '.noldor', 'rollout-marker'), secondSha + '\n');
     expect(isPostRollout(firstSha, dir)).toBe(false);
+  });
+
+  it('isPostRollout fails CLOSED (enforce) on a present-but-corrupt marker', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qfm-corrupt-'));
+    execSync('git init -q', { cwd: dir });
+    execSync('git config user.email test@test.test', { cwd: dir });
+    execSync('git config user.name test', { cwd: dir });
+    writeFileSync(join(dir, 'a.txt'), 'first');
+    execSync('git add a.txt', { cwd: dir });
+    execSync('git commit -q -m "first"', { cwd: dir });
+    const head = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+    // A garbage marker git cannot resolve → `merge-base --is-ancestor` exits 128.
+    // Must NOT drop to soft mode (the old `status === 0` returned false = fail-open).
+    mkdirSync(join(dir, '.noldor'));
+    writeFileSync(join(dir, '.noldor', 'rollout-marker'), 'deadbeefnotacommit\n');
+    expect(isPostRollout(head, dir)).toBe(true);
+  });
+
+  it('isPostRollout enforces (true) on a present-but-EMPTY marker (torn write, zero bytes)', () => {
+    // A whitespace/zero-byte marker collapses to null in readRolloutMarker, same
+    // as absent — but it is a torn write, not a fresh repo, so it must enforce.
+    const dir = mkdtempSync(join(tmpdir(), 'qfm-empty-'));
+    mkdirSync(join(dir, '.noldor'));
+    writeFileSync(join(dir, '.noldor', 'rollout-marker'), '   \n');
+    expect(isPostRollout('abc123', dir)).toBe(true);
+  });
+
+  it('rolloutMarkerExists: true for a present (even empty) file, false only when absent', () => {
+    const absent = mkdtempSync(join(tmpdir(), 'qfm-absent-'));
+    expect(rolloutMarkerExists(absent)).toBe(false);
+    const present = mkdtempSync(join(tmpdir(), 'qfm-present-'));
+    mkdirSync(join(present, '.noldor'));
+    writeFileSync(join(present, '.noldor', 'rollout-marker'), '');
+    expect(rolloutMarkerExists(present)).toBe(true);
   });
 
   describe('ensureRolloutMarker', () => {

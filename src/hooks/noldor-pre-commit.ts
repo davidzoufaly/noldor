@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readSession, isSessionStale, touchSession, type SessionMarker } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
-import { readRolloutMarker, isPostRollout } from '../core/rollout-marker';
+import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
 import { appendOverrideLog } from '../core/overrides-log';
 import { DEFAULT_SESSION_TTL_HOURS, loadConfigSync, resolveSessionTtlHours } from '../core/config';
 
@@ -101,8 +101,7 @@ export function runPreCommit(opts: {
   }
 
   // For non-micro-chore / non-release-sweep sessions (or no session), enforce hard wall only post-rollout.
-  const marker = readRolloutMarker(opts.cwd);
-  if (!marker) return { ok: true }; // soft mode: no rollout marker yet
+  if (!rolloutMarkerExists(opts.cwd)) return { ok: true }; // soft mode: no rollout marker file (present-but-empty still arms)
 
   let head: string;
   try {
