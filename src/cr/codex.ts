@@ -54,7 +54,7 @@ export async function runCli(input: RunCliInput): Promise<number> {
   }
 
   const featureMd = readFeatureMd(cwd);
-  const rules = readIfExists(cwd, '.claude/engineering-rules.md');
+  const rules = readRules(cwd);
 
   const ctx = buildContext({
     lane: inv.lane,
@@ -107,7 +107,7 @@ interface OutFinding {
 async function runPlanReview(review: PlanReview, cwd: string, spawn: Spawn): Promise<number> {
   let out: { summary: string; findings: OutFinding[] };
   try {
-    const rules = readIfExists(cwd, '.claude/engineering-rules.md');
+    const rules = readRules(cwd);
     const featureMd = review.slug
       ? readIfExists(cwd, `docs/features/${review.slug}.md`)
       : readFeatureMd(cwd);
@@ -209,6 +209,18 @@ function readSession(cwd: string): { parent?: string; slug?: string } | null {
 function readIfExists(cwd: string, rel: string): string {
   const p = join(cwd, rel);
   return existsSync(p) ? readFileSync(p, 'utf8') : '';
+}
+
+/**
+ * Read the engineering-rules context for a codex review, falling back to
+ * `AGENTS.md` when `.claude/engineering-rules.md` is absent. A codex-only
+ * consumer tree carries `AGENTS.md` (the native rules file for the codex /
+ * opencode runners) but no `.claude/` subtree, so without this fallback the
+ * codex CR lane silently reviews with empty rules context. An empty
+ * engineering-rules file also falls through (empty rules == no rules).
+ */
+function readRules(cwd: string): string {
+  return readIfExists(cwd, '.claude/engineering-rules.md') || readIfExists(cwd, 'AGENTS.md');
 }
 
 function sh(cwd: string, args: string[]): string {
