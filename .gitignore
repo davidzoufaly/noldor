@@ -52,3 +52,6 @@ graphify-out/graph.html
 # commit. Nested-only (`*/`) so the tracked top-level graphify-out/ stays addable.
 */graphify-out/
 metrics.json
+# playwright-cli skill scratch — console logs + page snapshots from browser
+# automation (dashboard visual verification); transient, never for review.
+.playwright-cli/
