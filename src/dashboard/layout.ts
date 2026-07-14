@@ -15,14 +15,12 @@ const NAV_GROUPS: Array<{ label: string; links: Array<{ href: string; label: str
       { href: '/milestones', label: 'Milestones' },
       { href: '/roadmap', label: 'Roadmap' },
       { href: '/backlog', label: 'Backlog' },
-      { href: '/blocked-by', label: 'Blocked-by' },
     ],
   },
   {
     label: 'Delivery',
     links: [
       { href: '/features', label: 'Features' },
-      { href: '/framework', label: 'Framework' },
       { href: '/docs', label: 'Docs' },
       { href: '/release-notes', label: 'Releases' },
     ],
@@ -30,6 +28,7 @@ const NAV_GROUPS: Array<{ label: string; links: Array<{ href: string; label: str
   {
     label: 'Health',
     links: [
+      { href: '/blocked-by', label: 'Blocked-by' },
       { href: '/gaps', label: 'Gaps' },
       { href: '/velocity', label: 'Velocity' },
       { href: '/wip-age', label: 'WIP' },
@@ -44,6 +43,10 @@ const NAV_GROUPS: Array<{ label: string; links: Array<{ href: string; label: str
       { href: '/agents', label: 'Agents' },
       { href: '/metrics', label: 'Metrics' },
     ],
+  },
+  {
+    label: 'Framework',
+    links: [{ href: '/framework', label: 'Framework' }],
   },
 ];
 
