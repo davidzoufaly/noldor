@@ -25,6 +25,11 @@ export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set([
   // Formatter config starter: scaffolded hooks invoke `pnpm fmt` / `fmt:check`
   // (oxfmt), which hard-errors without a config file.
   '.oxfmtrc.json',
+  // Claude Code hooks starter: wires the `pre-edit-guard` PreToolUse gate (live
+  // edit-gating) + the dashboard-ensure SessionStart hook. The consumer owns it
+  // and appends their own hooks — template-sync would otherwise clobber those,
+  // so this is a scaffold, not a synced twin.
+  '.claude/settings.json',
 ]);
 
 /** Enumerate every file under TEMPLATES_ROOT, returning paths relative to it. */
