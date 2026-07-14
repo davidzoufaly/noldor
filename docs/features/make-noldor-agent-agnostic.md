@@ -38,6 +38,7 @@ links:
     - src/cr/__tests__/run-codex.test.ts
     - src/release/__tests__/llm-polish-summary.test.ts
     - src/templates/__tests__/agent-filter.test.ts
+    - src/templates/__tests__/shim-inventory.test.ts
     - src/testing/__tests__/consumer-fixture.test.ts
     - src/testing/__tests__/stub-runner.test.ts
   spec: >-
