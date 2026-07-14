@@ -1,3 +1,4 @@
+// @fd: validate-script-catalog-gate
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
