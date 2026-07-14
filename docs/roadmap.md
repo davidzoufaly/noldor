@@ -46,21 +46,6 @@ Two process-discipline skills the deep-audit (batch `.noldor/research/2026-07-13
 
 Vendor the `systematic-debugging` discipline as a framework skill (`noldor-debug`): the disciplined loop — reproduce → minimise → hypothesise → instrument → fix → regression-test — invoked before proposing fixes for any bug, test failure, or unexpected behaviour. Today noldor has no debugging-discipline skill at all; consumers fall back to ad-hoc debugging. Author it in the vendored-skill style (self-contained SKILL.md, no plugin reference), register it in the skill-catalog (gated by `validate skill-catalog`), and reference it from the gate fast-track/fix paths so it's surfaced when a change is a bug fix.
 
-### Non-Claude Runner Parity Follow-Ups
-
-- id: Q-0025
-- area: tooling
-- type: feat
-- since: 2026-07-07
-- size: M
-- impact: low
-- parent: noldor
-- confidence: med
-
-Three deferred pieces from the make-noldor-agent-agnostic decision (PR #71, three peer runtimes: Claude Code / Codex / opencode): (a) deep skill parity for non-Claude implementers; (b) opencode `--format json` event parsing (today reserved, treated as prose v1); (c) `crLanes` → role-ref vocabulary migration. Elective — pick up only when a non-Claude implementer runtime is actually exercised end-to-end.
-
-- Deep-audit 2026-07-13 (batch `.noldor/research/2026-07-13-184850`): headless parity is real (spawn/drain/CR/research three-runner via the registry), but interactive surface is 13 Claude skill shims vs 2 opencode vs 0 codex, and docs don't state the asymmetry. Decide the runner story honestly — either ship opencode/codex command shims for the 11 remaining skills, or scope the "three first-class peers" claim to headless in `agent-runtimes.md` (which is also missing from the docs index).
-
 ### Dashboard UI Polish (from ideas.md 2026-07-14)
 
 Five operator-facing dashboard refinements captured from a live dogfood pass. All are self-host `src/dashboard/` tweaks with design decisions already settled with the operator (recorded per entry). Item 1 + the action-column item are one surface (roadmap/backlog table chrome) so they ride one entry.
