@@ -281,16 +281,27 @@ describe('loadWatchLogTail', () => {
     expect(await loadWatchLogTail(dir)).toBeNull();
   });
 
-  it('returns only the last N lines', async () => {
+  it('returns only the last N lines, newest first', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'noldor-agents-log-'));
     mkdirSync(join(dir, '.noldor'), { recursive: true });
     const lines = Array.from({ length: 300 }, (_, i) => `line-${i}`);
     writeFileSync(join(dir, '.noldor', 'watch.log'), lines.join('\n'), 'utf8');
     const tail = await loadWatchLogTail(dir, 200);
     expect(tail).not.toBeNull();
+    // Only the last 200 lines survive (line-100..line-299); older lines drop.
     expect(tail).not.toContain('line-99\n');
-    expect(tail!.startsWith('line-100')).toBe(true);
-    expect(tail!.trimEnd().endsWith('line-299')).toBe(true);
+    // Newest-first: most recent line at the top, oldest kept line at the bottom.
+    expect(tail!.startsWith('line-299')).toBe(true);
+    expect(tail!.trimEnd().endsWith('line-100')).toBe(true);
+  });
+
+  it('drops the trailing blank from a final newline (no blank first line)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-agents-log-'));
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    writeFileSync(join(dir, '.noldor', 'watch.log'), 'first\nsecond\n', 'utf8');
+    // Newest-first, and the trailing '' from the final \n must not become a
+    // blank leading line.
+    expect(await loadWatchLogTail(dir, 200)).toBe('second\nfirst');
   });
 });
 
@@ -536,6 +547,28 @@ describe('drain observation (loadDrainObservation + drain section rendering)', (
     );
     const obs = await loadDrainObservation(dir, { isPidAlive: () => false });
     expect(obs.state!.pidAlive).toBe(false);
+  });
+
+  it('clears the log tail when the drain pid is dead (clear-when-idle)', async () => {
+    const dir = eventsFixture([]);
+    writeFileSync(
+      join(dir, '.noldor', 'drain-state.json'),
+      JSON.stringify({
+        pid: 9,
+        startedAt: T0,
+        phase: 'idle',
+        inFlight: [],
+        merging: null,
+        currentSlug: null,
+        shipped: 0,
+        skip: [],
+        retries: {},
+      }),
+    );
+    writeFileSync(join(dir, '.noldor', 'watch.log'), 'stale line-1\nstale line-2\n', 'utf8');
+    const obs = await loadDrainObservation(dir, { isPidAlive: () => false });
+    // Drain process is gone → the pane clears rather than showing a stale tail.
+    expect(obs.logTail).toBeNull();
   });
 
   it('renders the drain section with status, in-flight retries, parked rows and the log pane', () => {

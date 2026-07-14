@@ -132,19 +132,6 @@ Five operator-facing dashboard refinements captured from a live dogfood pass. Al
 
 The dashboard top nav crams 18 flat, undifferentiated links into one flex row. **Operator decision: refined single-row bar with visual groups (not dropdown menus).** Add a brand mark (`◆ Noldor`) on the left; split the links into divider-separated clusters — Overview · Planning (Vision·Milestones·Roadmap·Backlog·Blocked-by) · Delivery (Features·Framework·Docs·Releases) · Health (Gaps·Velocity·WIP·Test-pyramid·Graph-health) · Ops (Worktrees·Agents·Metrics); polish the active-page pill and hover states; let the bar wrap gracefully on narrow widths. Pure CSS + a `NAV_LINKS` restructure into labelled groups in `src/dashboard/layout.ts` — no JS, no new route. Touches: `src/dashboard/layout.ts` (NAV structure + `nav` STYLE rules).
 
-#### Live Drain-Log Newest-First + Clear-When-Idle
-
-- id: Q-0048
-- area: tooling
-- type: feat
-- since: 2026-07-14
-- size: S
-- impact: low
-- confidence: high
-- parent: noldor
-
-The `/agents` live drain-log pane (`renderDrainSection` + the `/agents/log` full page) tails `.noldor/watch.log` oldest→newest and keeps showing a stale tail when no drain is active. **Operator decision: do both halves of the idea — newest-first ordering AND clear-when-idle.** Reverse the tail so the newest lines render at the top of the pane, and blank the pane to an idle empty-state (e.g. "no active drain — log clears when idle") when the drain is dead / there is no recent activity, instead of surfacing an old run's tail. Touches: `src/dashboard/views.ts` (`renderDrainSection`, `renderAgentsLog`, `DRAIN_LOG_EMPTY_COPY`), `src/dashboard/data.ts` (logTail production + idle detection) and the `/static/agents.js` poller if it patches the pane.
-
 #### Operator Spec/Plan Links on Feature Pages
 
 - id: Q-0049

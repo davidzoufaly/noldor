@@ -2397,11 +2397,17 @@ export async function loadDrainObservation(
   } catch {
     parked = [];
   }
-  return { state, parked, logTail: await loadWatchLogTail(cwd) };
+  // Clear-when-idle: only surface the tail while a drain process is actually
+  // alive. A dead or absent drain returns null so the /agents pane renders its
+  // idle empty-state instead of a stale tail from a long-finished run. The
+  // /agents/log full page reads loadWatchLogTail directly, so it still shows
+  // history regardless of drain liveness.
+  const active = state !== null && state.pidAlive;
+  return { state, parked, logTail: active ? await loadWatchLogTail(cwd) : null };
 }
 
 /**
- * Last `maxLines` lines of the SHARED watch log (`.noldor/watch.log`,
+ * Last `maxLines` lines of the SHARED watch log, newest first (`.noldor/watch.log`,
  * {@link WATCH_LOG_REL}) — a single file for all drain modes: the detached
  * daemon redirects its whole stdio there, attached drains tee child output
  * into it via `spawnAgent`'s `logSink`. Rows interleave at K>1 and the UI
@@ -2415,7 +2421,14 @@ export async function loadWatchLogTail(
   try {
     const raw = await readFile(join(cwd, WATCH_LOG_REL), 'utf8');
     const lines = raw.split('\n');
-    return lines.slice(Math.max(0, lines.length - maxLines)).join('\n');
+    // A trailing newline yields a final '' element — drop it so it doesn't
+    // surface as a blank first line after the newest-first reverse below.
+    if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+    // Newest-first: most recent lines at the top so a live drain reads
+    // top-down without scrolling (the /agents pane and the /agents/log full
+    // page share this order).
+    const tail = lines.slice(Math.max(0, lines.length - maxLines));
+    return tail.reverse().join('\n');
   } catch {
     return null;
   }
