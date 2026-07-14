@@ -141,7 +141,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Plans without matching spec
 
-- `docs/superpowers/plans/2026-06-07-end-of-flow-ergonomics.md` — docs/superpowers/plans/2026-06-07-end-of-flow-ergonomics.md has slug "end-of-flow-ergonomics" with no matching spec under docs/superpowers/specs/
+- `docs/design/plans/2026-06-07-end-of-flow-ergonomics.md` — docs/design/plans/2026-06-07-end-of-flow-ergonomics.md has slug "end-of-flow-ergonomics" with no matching spec under docs/design/specs/
 
 ### Code files not referenced by any feature
 

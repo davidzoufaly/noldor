@@ -6,6 +6,8 @@ entry-id: Q-0026
 links:
   code: []
   tests: []
+  spec: >-
+    docs/design/specs/2026-07-13-memory-intake-lessons-learned-pipeline-design.md
 name: Memory-Intake / Lessons-Learned Pipeline
 packages:
   - scripts

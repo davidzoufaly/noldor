@@ -124,7 +124,7 @@ interface GraphAdjData {
 
 interface ResolveByGraphAdjacencyOptions extends FsSeams {
   repo: string;
-  /** Plan/spec relative path, e.g. `docs/superpowers/plans/<f>.md`. */
+  /** Plan/spec relative path, e.g. `docs/design/plans/<f>.md`. */
   docPath: string;
   relation: 'plan-of' | 'spec-of';
   /** Override the graph path (defaults to `<repo>/graphify-out/graph.json`). */

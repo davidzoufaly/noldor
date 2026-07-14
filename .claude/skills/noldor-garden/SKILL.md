@@ -21,7 +21,7 @@ user_invocable: true
    - If consistent → drop the entry from the checklist, leaving a one-line note in the final report (`filtered: <rule>`).
    - Otherwise → keep with the original `message`.
 3. **Manual plan sweep.** The detector matches plans by single-slug feature lookup and age. Multi-feature plans (e.g. one plan covers `state-management` + `scene-tree-panel`), infra plans (e.g. `feature-md-framework`, `versioning`), and parent-plus-`-partN` splits all slip through when their slug doesn't match a feature MD. After step 2:
-   - List every `*.md` in `docs/superpowers/plans/` (exclude `archive/`) that did NOT appear in `stalePlans`.
+   - List every `*.md` in `docs/design/plans/` (exclude `archive/`) that did NOT appear in `stalePlans`.
    - For each, read the first 25 lines (Goal / Architecture / Spec). Decide: is the work shipped (matches one or more done feature MDs, or infra now in active use)?
    - Present the candidates as a "Manual sweep" subsection of the checklist with proposed slug → feature mapping and an `archive` action. Operator confirms y/n per row at confirmation step.
 4. **Render** the checklist:
@@ -62,8 +62,8 @@ Confirm all auto-actions? (y/n/edit)
 ```
 
 5. **On confirm (`y` or partial-confirm via `edit`)**, execute auto-actions in order:
-   - **Archive plan** (both detector-flagged and manual-sweep rows) — `mkdir -p docs/superpowers/plans/archive` (idempotent), then `git mv <path> docs/superpowers/plans/archive/<basename>`. On collision (target exists), abort that row, continue.
-   - **Archive spec** — `mkdir -p docs/superpowers/specs/archive` (idempotent), then `git mv <path> docs/superpowers/specs/archive/<basename>`. Same collision behavior as plans.
+   - **Archive plan** (both detector-flagged and manual-sweep rows) — `mkdir -p docs/design/plans/archive` (idempotent), then `git mv <path> docs/design/plans/archive/<basename>`. On collision (target exists), abort that row, continue.
+   - **Archive spec** — `mkdir -p docs/design/specs/archive` (idempotent), then `git mv <path> docs/design/specs/archive/<basename>`. Same collision behavior as plans.
    - **Drop backlog block** — read `docs/backlog.md`. Locate the level-3 heading whose slugified name matches the finding's `slug`. Remove the heading + body up to (but not including) the next `### ` or `## ` heading or EOF. Trim any trailing blank lines. Write back. If the heading isn't found, abort that row, continue. (As of the roadmap/backlog split, `docs/backlog.md` is a flat parking lot — no level-2 phase sections to preserve.)
 6. **Manual-edit**, **SDD-gap**, and **architecture invariant** rows: never auto-actioned. Print as a "Manual TODOs" section in the final report with the file paths and messages so the operator knows where to edit.
 7. **Regen chain (always, even if zero auto-actions):**
@@ -81,8 +81,8 @@ Each must succeed. If any fails, report the failure and the partial state. Do no
 8. **Final report** to the user:
 
 ```
-Archived: <count> plans → docs/superpowers/plans/archive/
-Archived: <count> specs → docs/superpowers/specs/archive/
+Archived: <count> plans → docs/design/plans/archive/
+Archived: <count> specs → docs/design/specs/archive/
 Dropped: <count> backlog blocks
 Manual TODOs: <count> contradictions, <count> SDD gaps (see above)
 Architecture invariants: <count> violations (see above)

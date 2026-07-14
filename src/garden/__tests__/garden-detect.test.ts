@@ -24,8 +24,8 @@ import type { Invariant as ArchitectureInvariant } from '../../invariants/types.
 
 async function makeRepo() {
   const root = await mkdtemp(join(tmpdir(), 'garden-'));
-  await mkdir(join(root, 'docs/superpowers/plans'), { recursive: true });
-  await mkdir(join(root, 'docs/superpowers/specs'), { recursive: true });
+  await mkdir(join(root, 'docs/design/plans'), { recursive: true });
+  await mkdir(join(root, 'docs/design/specs'), { recursive: true });
   await mkdir(join(root, 'docs/features'), { recursive: true });
   return root;
 }
@@ -40,7 +40,7 @@ describe('detectStalePlans (primary: feature done)', () => {
   });
 
   it('propagates non-ENOENT errors when a feature MD is malformed', async () => {
-    await writeFile(join(repo, 'docs/superpowers/plans/2026-04-19-broken.md'), '# Broken Plan\n');
+    await writeFile(join(repo, 'docs/design/plans/2026-04-19-broken.md'), '# Broken Plan\n');
     await writeFile(
       join(repo, 'docs/features/broken.md'),
       `---
@@ -55,10 +55,7 @@ body
   });
 
   it('flags a plan whose feature is done and has merged PRs', async () => {
-    await writeFile(
-      join(repo, 'docs/superpowers/plans/2026-04-19-tooltips.md'),
-      '# Tooltips Plan\n',
-    );
+    await writeFile(join(repo, 'docs/design/plans/2026-04-19-tooltips.md'), '# Tooltips Plan\n');
     await writeFile(
       join(repo, 'docs/features/tooltips.md'),
       `---
@@ -89,10 +86,7 @@ body
   });
 
   it('does not flag a plan whose feature is in-progress', async () => {
-    await writeFile(
-      join(repo, 'docs/superpowers/plans/2026-04-19-tooltips.md'),
-      '# Tooltips Plan\n',
-    );
+    await writeFile(join(repo, 'docs/design/plans/2026-04-19-tooltips.md'), '# Tooltips Plan\n');
     await writeFile(
       join(repo, 'docs/features/tooltips.md'),
       `---
@@ -118,7 +112,7 @@ body
 
   it('flags a done feature even before PR refs are backfilled', async () => {
     await writeFile(
-      join(repo, 'docs/superpowers/plans/2026-04-29-architecture-invariants.md'),
+      join(repo, 'docs/design/plans/2026-04-29-architecture-invariants.md'),
       '# Architecture Invariants Plan\n',
     );
     await writeFile(
@@ -159,7 +153,7 @@ describe('detectStalePlans (secondary: age + no feature)', () => {
   });
 
   it('flags a plan with mtime > stale-days threshold and no matching feature', async () => {
-    const plan = join(repo, 'docs/superpowers/plans/2024-01-01-orphan.md');
+    const plan = join(repo, 'docs/design/plans/2024-01-01-orphan.md');
     await writeFile(plan, '# Orphan Plan\n');
     const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
     await utimes(plan, oldDate, oldDate);
@@ -174,7 +168,7 @@ describe('detectStalePlans (secondary: age + no feature)', () => {
   });
 
   it('does not flag a recent plan with no feature', async () => {
-    const plan = join(repo, 'docs/superpowers/plans/2026-04-29-recent.md');
+    const plan = join(repo, 'docs/design/plans/2026-04-29-recent.md');
     await writeFile(plan, '# Recent Plan\n');
 
     const result = await detectStalePlans(repo);
@@ -182,7 +176,7 @@ describe('detectStalePlans (secondary: age + no feature)', () => {
   });
 
   it('does not flag an old plan whose feature is in-progress', async () => {
-    const plan = join(repo, 'docs/superpowers/plans/2024-01-01-active.md');
+    const plan = join(repo, 'docs/design/plans/2024-01-01-active.md');
     await writeFile(plan, '# Active Plan\n');
     const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
     await utimes(plan, oldDate, oldDate);
@@ -556,7 +550,7 @@ describe('detectStaleSpecs (primary: feature done)', () => {
 
   it('flags a spec whose feature is done', async () => {
     await writeFile(
-      join(repo, 'docs/superpowers/specs/2026-04-19-tooltips-design.md'),
+      join(repo, 'docs/design/specs/2026-04-19-tooltips-design.md'),
       '# Tooltips Spec\n',
     );
     await writeFile(
@@ -590,7 +584,7 @@ body
 
   it('does not flag a spec whose feature is in-progress', async () => {
     await writeFile(
-      join(repo, 'docs/superpowers/specs/2026-04-19-tooltips-design.md'),
+      join(repo, 'docs/design/specs/2026-04-19-tooltips-design.md'),
       '# Tooltips Spec\n',
     );
     await writeFile(
@@ -617,7 +611,7 @@ body
   });
 
   it('skips files that do not match the spec naming pattern', async () => {
-    await writeFile(join(repo, 'docs/superpowers/specs/README.md'), '# specs\n');
+    await writeFile(join(repo, 'docs/design/specs/README.md'), '# specs\n');
     const result = await detectStaleSpecs(repo);
     expect(result).toHaveLength(0);
   });
@@ -633,7 +627,7 @@ describe('detectStaleSpecs (secondary: age + no feature)', () => {
   });
 
   it('flags an old spec with no matching feature', async () => {
-    const spec = join(repo, 'docs/superpowers/specs/2024-01-01-orphan-design.md');
+    const spec = join(repo, 'docs/design/specs/2024-01-01-orphan-design.md');
     await writeFile(spec, '# Orphan Spec\n');
     const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
     await utimes(spec, oldDate, oldDate);
@@ -648,10 +642,7 @@ describe('detectStaleSpecs (secondary: age + no feature)', () => {
   });
 
   it('does not flag a recent spec with no feature', async () => {
-    await writeFile(
-      join(repo, 'docs/superpowers/specs/2026-04-29-recent-design.md'),
-      '# Recent Spec\n',
-    );
+    await writeFile(join(repo, 'docs/design/specs/2026-04-29-recent-design.md'), '# Recent Spec\n');
 
     const result = await detectStaleSpecs(repo);
     expect(result).toHaveLength(0);
@@ -678,14 +669,14 @@ links:
   code: []
   tests: []
   docs: []
-  spec: docs/superpowers/specs/2024-01-01-parent-feat-extra-design.md
+  spec: docs/design/specs/2024-01-01-parent-feat-extra-design.md
 ---
 
 body
 `;
 
   it('does not age-flag an old spec owned via links.spec by an in-progress FD', async () => {
-    const spec = join(repo, 'docs/superpowers/specs/2024-01-01-parent-feat-extra-design.md');
+    const spec = join(repo, 'docs/design/specs/2024-01-01-parent-feat-extra-design.md');
     await writeFile(spec, '# Attach Spec\n');
     const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
     await utimes(spec, oldDate, oldDate);
@@ -696,7 +687,7 @@ body
   });
 
   it('flags a spec owned via links.spec when the owning FD is done', async () => {
-    const spec = join(repo, 'docs/superpowers/specs/2024-01-01-parent-feat-extra-design.md');
+    const spec = join(repo, 'docs/design/specs/2024-01-01-parent-feat-extra-design.md');
     await writeFile(spec, '# Attach Spec\n');
     await writeFile(join(repo, 'docs/features/parent-feat.md'), fdReferencingSpec('done'));
 
@@ -711,7 +702,7 @@ body
   });
 
   it('still age-flags an old spec when no FD references it via links.spec', async () => {
-    const spec = join(repo, 'docs/superpowers/specs/2024-01-01-parent-feat-extra-design.md');
+    const spec = join(repo, 'docs/design/specs/2024-01-01-parent-feat-extra-design.md');
     await writeFile(spec, '# Attach Spec\n');
     const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
     await utimes(spec, oldDate, oldDate);
@@ -817,7 +808,7 @@ describe('hasBlockingFindings', () => {
       planWithoutFd: [
         {
           slug: 'orphan-plan',
-          planPath: 'docs/superpowers/plans/2026-01-01-orphan-plan.md',
+          planPath: 'docs/design/plans/2026-01-01-orphan-plan.md',
           reason: 'no-matching-fd',
           action: 'create-fd-or-archive-plan',
         },

@@ -252,8 +252,8 @@ describe('validateTrailer', () => {
       join(dir, 'docs', 'features', 'foo.md'),
       `---\nname: Foo\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
     );
-    mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
-    writeFileSync(join(dir, 'docs', 'superpowers', 'specs', '2026-05-25-foo-design.md'), '# spec');
+    mkdirSync(join(dir, 'docs', 'design', 'specs'), { recursive: true });
+    writeFileSync(join(dir, 'docs', 'design', 'specs', '2026-05-25-foo-design.md'), '# spec');
     const r = validateTrailer({
       message:
         'feat(web:foo): x\n\nNoldor-Path: specs-only-new\nNoldor-FD: foo\nNoldor-Reviewed: deadbeef\n',
@@ -316,9 +316,9 @@ describe('validateTrailer', () => {
     expect(r1.reason).toMatch(/spec/);
 
     // With spec file matching enhancement suffix — should pass
-    mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
+    mkdirSync(join(dir, 'docs', 'design', 'specs'), { recursive: true });
     writeFileSync(
-      join(dir, 'docs', 'superpowers', 'specs', '2026-05-10-parent-enhance-design.md'),
+      join(dir, 'docs', 'design', 'specs', '2026-05-10-parent-enhance-design.md'),
       '# spec',
     );
     const r2 = validateTrailer({
@@ -512,9 +512,9 @@ describe('validateTrailer', () => {
         join(dir, 'docs', 'features', 'parent.md'),
         `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
-      mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
+      mkdirSync(join(dir, 'docs', 'design', 'specs'), { recursive: true });
       writeFileSync(
-        join(dir, 'docs', 'superpowers', 'specs', '2026-05-25-parent-other-design.md'),
+        join(dir, 'docs', 'design', 'specs', '2026-05-25-parent-other-design.md'),
         '# spec',
       );
       const r = validateTrailer({
@@ -534,9 +534,9 @@ describe('validateTrailer', () => {
         join(dir, 'docs', 'features', 'parent.md'),
         `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
-      mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
+      mkdirSync(join(dir, 'docs', 'design', 'specs'), { recursive: true });
       writeFileSync(
-        join(dir, 'docs', 'superpowers', 'specs', '2026-05-25-parent-my-enh-design.md'),
+        join(dir, 'docs', 'design', 'specs', '2026-05-25-parent-my-enh-design.md'),
         '# spec',
       );
       const r = validateTrailer({

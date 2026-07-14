@@ -64,9 +64,9 @@ links:
     - src/release/__tests__/sdd-report-diff.test.ts
     - src/worktrees/__tests__/worktree-conflicts.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md
+    docs/design/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md
   plan: >-
-    docs/superpowers/plans/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md
+    docs/design/plans/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md
 name: Outcome Telemetry and Effectiveness Metrics
 packages:
   - scripts
@@ -133,9 +133,9 @@ pnpm noldor metrics compute --metric cycle-time
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md`](../../docs/superpowers/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md`](../../docs/design/specs/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md`](../../docs/superpowers/plans/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md)
+  - [`docs/design/plans/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md`](../../docs/design/plans/archive/2026-06-12-outcome-telemetry-and-effectiveness-metrics.md)
 - **Code:**
   - [`src/metrics/`](../../src/metrics/)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)

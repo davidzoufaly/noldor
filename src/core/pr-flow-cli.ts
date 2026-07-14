@@ -228,8 +228,8 @@ export async function runCli(cwd: string): Promise<number> {
   const fd = fdSlug !== undefined ? loadFdSummary(cwd, fdSlug) : null;
   const verify = fdSlug !== undefined ? loadVerifyEvidence(cwd, fdSlug) : null;
 
-  const planPath = pickMostRecentByDatePrefix(discoverAddedFiles('docs/superpowers/plans/'));
-  const specPath = pickMostRecentByDatePrefix(discoverAddedFiles('docs/superpowers/specs/'));
+  const planPath = pickMostRecentByDatePrefix(discoverAddedFiles('docs/design/plans/'));
+  const specPath = pickMostRecentByDatePrefix(discoverAddedFiles('docs/design/specs/'));
 
   const log = execGit(['log', '--format=%H%n%s%n%n%b', 'origin/main..HEAD']);
   const crResults = parseCrTrailersFromLog(log);

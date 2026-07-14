@@ -14,7 +14,7 @@ links:
     - src/garden/__tests__/plan-resolution.test.ts
     - src/graphify/__tests__/enrich-doc-nodes.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md
+    docs/design/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md
 name: Graphify `plan-of` edges + nodes for plans/specs
 packages:
   - scripts
@@ -25,7 +25,7 @@ introduced: 0.4.0
 
 ## Summary
 
-Extend graphify to emit nodes for `docs/superpowers/plans/*.md` and `docs/superpowers/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `src/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it).
+Extend graphify to emit nodes for `docs/design/plans/*.md` and `docs/design/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `src/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it).
 
 ## User Story
 
@@ -72,7 +72,7 @@ fd nodes + plan-of/spec-of edges added to graph, plus graph-adjacency stale fall
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md`](../../docs/superpowers/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md`](../../docs/design/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md)
 - **Code:**
   - [`src/graphify/enrich-doc-nodes.ts`](../../src/graphify/enrich-doc-nodes.ts)
   - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)

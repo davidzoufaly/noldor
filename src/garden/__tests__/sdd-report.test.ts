@@ -247,9 +247,9 @@ describe(detectStaleBacklog, () => {
 describe(detectSpecsWithoutFeatures, () => {
   it('flags spec files not referenced by any feature links.spec, excluding meta specs', () => {
     const allSpecPaths = [
-      'docs/superpowers/specs/2026-04-21-product-dev-framework-brainstorm.md',
-      'docs/superpowers/specs/2026-04-23-feature-md-framework-design.md',
-      'docs/superpowers/specs/2026-05-01-orphan.md',
+      'docs/design/specs/2026-04-21-product-dev-framework-brainstorm.md',
+      'docs/design/specs/2026-04-23-feature-md-framework-design.md',
+      'docs/design/specs/2026-05-01-orphan.md',
     ];
     const features: FeatureRecord[] = [
       {
@@ -257,16 +257,14 @@ describe(detectSpecsWithoutFeatures, () => {
           ...fmClean,
           links: {
             ...fmClean.links,
-            spec: 'docs/superpowers/specs/2026-04-23-feature-md-framework-design.md',
+            spec: 'docs/design/specs/2026-04-23-feature-md-framework-design.md',
           },
         },
         slug: 'a',
       },
     ];
     const gaps = detectSpecsWithoutFeatures(allSpecPaths, features);
-    expect(gaps.map((g) => g.itemId)).toStrictEqual([
-      'docs/superpowers/specs/2026-05-01-orphan.md',
-    ]);
+    expect(gaps.map((g) => g.itemId)).toStrictEqual(['docs/design/specs/2026-05-01-orphan.md']);
   });
 });
 
@@ -306,19 +304,17 @@ describe(extractPlanSlug, () => {
 describe(detectPlansWithoutSpec, () => {
   it('flags plan files whose slug has no matching spec', () => {
     const planPaths = [
-      'docs/superpowers/plans/2026-04-14-plan2-engine.md',
-      'docs/superpowers/plans/2026-04-15-zombie.md',
+      'docs/design/plans/2026-04-14-plan2-engine.md',
+      'docs/design/plans/2026-04-15-zombie.md',
     ];
-    const specPaths = ['docs/superpowers/specs/2026-04-14-engine-design.md'];
+    const specPaths = ['docs/design/specs/2026-04-14-engine-design.md'];
     const gaps = detectPlansWithoutSpec(planPaths, specPaths);
-    expect(gaps.map((g) => g.itemId)).toStrictEqual([
-      'docs/superpowers/plans/2026-04-15-zombie.md',
-    ]);
+    expect(gaps.map((g) => g.itemId)).toStrictEqual(['docs/design/plans/2026-04-15-zombie.md']);
   });
 
   it('returns empty when every plan slug matches some spec', () => {
-    const planPaths = ['docs/superpowers/plans/2026-04-15-editor-shell.md'];
-    const specPaths = ['docs/superpowers/specs/2026-04-15-editor-shell-design.md'];
+    const planPaths = ['docs/design/plans/2026-04-15-editor-shell.md'];
+    const specPaths = ['docs/design/specs/2026-04-15-editor-shell-design.md'];
     expect(detectPlansWithoutSpec(planPaths, specPaths)).toStrictEqual([]);
   });
 });
@@ -1079,7 +1075,7 @@ describe('buildGateComplianceSection', () => {
     'noldor-tier': 'full',
     links: {
       ...fmDoneNoTests.links,
-      spec: 'docs/superpowers/specs/2026-01-01-foo-design.md',
+      spec: 'docs/design/specs/2026-01-01-foo-design.md',
     },
   };
 

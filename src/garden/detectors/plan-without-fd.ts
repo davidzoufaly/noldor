@@ -24,14 +24,14 @@ function planSlug(filename: string): string | null {
 }
 
 /**
- * Walk `docs/superpowers/plans/*.md`, derive the slug from each filename,
+ * Walk `docs/design/plans/*.md`, derive the slug from each filename,
  * and flag plans where no corresponding `docs/features/<slug>.md` exists.
  *
  * @param repo - Repository root.
  * @returns One PlanWithoutFdFinding per orphan plan file.
  */
 export async function detectPlanWithoutFd(repo: string): Promise<PlanWithoutFdFinding[]> {
-  const plansDir = join(repo, 'docs/superpowers/plans');
+  const plansDir = join(repo, 'docs/design/plans');
   let entries: string[];
   try {
     entries = await readdir(plansDir);
@@ -51,7 +51,7 @@ export async function detectPlanWithoutFd(repo: string): Promise<PlanWithoutFdFi
     if (!existsSync(fdPath)) {
       findings.push({
         slug,
-        planPath: join('docs/superpowers/plans', entry),
+        planPath: join('docs/design/plans', entry),
         reason: 'no-matching-fd',
         action: 'create-fd-or-archive-plan',
       });

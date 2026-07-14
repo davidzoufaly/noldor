@@ -35,9 +35,9 @@ links:
     - src/core/__tests__/agent-events.test.ts
     - src/core/__tests__/config.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md
+    docs/design/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md
   plan: >-
-    docs/superpowers/plans/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md
+    docs/design/plans/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md
 name: Continuous Drain Daemon and Escalation Inbox
 packages:
   - scripts
@@ -100,9 +100,9 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md`](../../docs/superpowers/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md`](../../docs/design/specs/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox-design.md)
 - **Plan:**
-  - [`docs/superpowers/plans/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md`](../../docs/superpowers/plans/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md)
+  - [`docs/design/plans/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md`](../../docs/design/plans/archive/2026-06-12-continuous-drain-daemon-and-escalation-inbox.md)
 - **Code:**
   - [`src/autonomous/watch.ts`](../../src/autonomous/watch.ts)
   - [`src/autonomous/salvage.ts`](../../src/autonomous/salvage.ts)

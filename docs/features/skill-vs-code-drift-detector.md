@@ -7,6 +7,7 @@ links:
   code: []
   tests:
     - src/garden/detectors/__tests__/skill-code-drift.test.ts
+  spec: docs/design/specs/2026-07-13-skill-vs-code-drift-detector-design.md
 name: Skill-vs-Code Drift Detector
 packages:
   - scripts
@@ -36,3 +37,12 @@ As a framework maintainer, I want `garden detect` to flag skill bodies whose `pn
 <!-- @prs-since-last-release: skill-vs-code-drift-detector -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Tests:**
+  - [`src/garden/detectors/__tests__/skill-code-drift.test.ts`](../../src/garden/detectors/__tests__/skill-code-drift.test.ts)
+
+<!-- /generated: resources -->

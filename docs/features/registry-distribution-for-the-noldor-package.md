@@ -17,7 +17,7 @@ links:
     - src/release/__tests__/release-publish-cli.test.ts
     - src/release/__tests__/release-publish.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md
+    docs/design/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md
 name: Registry Distribution for the Noldor Package
 packages:
   - scripts
@@ -100,7 +100,7 @@ Added a `release.publish` config block that ships default-off for consumer safet
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md`](../../docs/superpowers/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md`](../../docs/design/specs/archive/2026-07-03-registry-distribution-for-the-noldor-package-design.md)
 - **Code:**
   - [`src/release/release-publish.ts`](../../src/release/release-publish.ts)
   - [`src/release/index.ts`](../../src/release/index.ts)

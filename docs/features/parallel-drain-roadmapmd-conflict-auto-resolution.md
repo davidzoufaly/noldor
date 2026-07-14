@@ -15,7 +15,7 @@ links:
     - src/autonomous/__tests__/salvage.test.ts
     - src/utils/__tests__/write-blocks.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md
+    docs/design/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md
 name: Parallel-Drain `roadmap.md` Conflict Auto-Resolution
 packages:
   - scripts
@@ -73,7 +73,7 @@ K>1 drain now auto-resolves adjacent `roadmap.md` block conflicts (#106).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md`](../../docs/superpowers/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md`](../../docs/design/specs/archive/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md)
 - **Code:**
   - [`src/autonomous/salvage.ts`](../../src/autonomous/salvage.ts)
   - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)

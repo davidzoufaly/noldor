@@ -16,7 +16,7 @@ links:
     - src/autonomous/__tests__/gate-prompt.test.ts
     - src/core/agent-runner/__tests__/runners.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md
+    docs/design/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md
 name: Portable Gate Entrypoint for Non-Claude Runners
 packages:
   - scripts
@@ -72,7 +72,7 @@ This release adds the `promptDispatch` runner capability (#151).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md`](../../docs/superpowers/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md`](../../docs/design/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md)
 - **Code:**
   - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
   - [`src/autonomous/drain-source.ts`](../../src/autonomous/drain-source.ts)

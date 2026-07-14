@@ -83,8 +83,8 @@ Per-path `commit-msg` validation (what the hook actually checks):
 
 - `micro-chore` / `release-sweep` — re-validates the staged diff against the matching allowlist (`src/core/allowlist.ts`), so a hand-typed trailer can't launder a code change.
 - `fast-track` — path trailer only; no FD, no review receipt at commit time.
-- `specs-only-new` / `full-new` — `Noldor-FD` must resolve to an existing FD whose `noldor-tier` matches the path; `full-new` additionally requires `links.spec` in the FD frontmatter; `specs-only-new` requires a spec file on disk at `docs/superpowers/specs/<date>-<slug>-design.md` (existence check only — the hook doesn't verify it's committed). `Noldor-Phase-Revert: 1` bypasses the spec check on `specs-only-new`.
-- `specs-only-attach` / `full-attach` — require `Noldor-Enhancement` and a spec file on disk at `docs/superpowers/specs/<date>-<parent>-<enhancement>-design.md`. A `Noldor-Phase-Revert: 1` commit bypasses both (the revert scaffold commits before the spec exists).
+- `specs-only-new` / `full-new` — `Noldor-FD` must resolve to an existing FD whose `noldor-tier` matches the path; `full-new` additionally requires `links.spec` in the FD frontmatter; `specs-only-new` requires a spec file on disk at `docs/design/specs/<date>-<slug>-design.md` (existence check only — the hook doesn't verify it's committed). `Noldor-Phase-Revert: 1` bypasses the spec check on `specs-only-new`.
+- `specs-only-attach` / `full-attach` — require `Noldor-Enhancement` and a spec file on disk at `docs/design/specs/<date>-<parent>-<enhancement>-design.md`. A `Noldor-Phase-Revert: 1` commit bypasses both (the revert scaffold commits before the spec exists).
 - `release-automation` — validated separately (release pipeline commits).
 
 Overrides (emergency bypass — both append to an audit log surfaced by `/noldor-garden`):

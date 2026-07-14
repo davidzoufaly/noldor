@@ -930,17 +930,15 @@ describe('renderFeatureDetail', () => {
       ...baseDetail,
       artifacts: {
         spec: {
-          path: 'docs/superpowers/specs/2026-01-01-foo-design.md',
-          href: 'vscode://file/repo/docs/superpowers/specs/2026-01-01-foo-design.md',
+          path: 'docs/design/specs/2026-01-01-foo-design.md',
+          href: 'vscode://file/repo/docs/design/specs/2026-01-01-foo-design.md',
         },
         plan: null,
       },
     };
     const html = renderFeatureDetail(withArtifacts);
     // Spec present → clickable vscode link; plan absent → em-dash marker.
-    expect(html).toContain(
-      'href="vscode://file/repo/docs/superpowers/specs/2026-01-01-foo-design.md"',
-    );
+    expect(html).toContain('href="vscode://file/repo/docs/design/specs/2026-01-01-foo-design.md"');
     expect(html).toContain('Spec ↗');
     expect(html).toContain('Plan —');
   });

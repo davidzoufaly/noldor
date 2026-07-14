@@ -91,7 +91,7 @@ export function fixArtifactLink(
     return { out: raw, action: 'none' };
   }
   const base = basename(linkPath);
-  for (const dir of ['docs/superpowers/specs/archive', 'docs/superpowers/plans/archive']) {
+  for (const dir of ['docs/design/specs/archive', 'docs/design/plans/archive']) {
     const cand = `${dir}/${base}`;
     if (existsSync(join(repo, cand))) {
       return { out: raw.split(linkPath).join(cand), action: 'archive' };
@@ -113,9 +113,7 @@ export function fixArtifactLink(
 export function extractArtifactLinks(raw: string): string[] {
   const fm = /^---\n([\s\S]*?)\n---\n/.exec(raw)?.[1];
   if (!fm) return [];
-  return [
-    ...new Set([...fm.matchAll(/docs\/superpowers\/(?:specs|plans)\/\S+\.md/g)].map((m) => m[0])),
-  ];
+  return [...new Set([...fm.matchAll(/docs\/design\/(?:specs|plans)\/\S+\.md/g)].map((m) => m[0]))];
 }
 
 export interface MigrateResult {

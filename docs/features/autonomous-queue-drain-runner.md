@@ -31,7 +31,7 @@ links:
     - src/core/__tests__/next-priority.test.ts
     - src/testing/__tests__/drain-e2e.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md
+    docs/design/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md
 name: Autonomous Queue-Drain Runner
 packages:
   - scripts
@@ -91,7 +91,7 @@ a merged PR (not merely a clean child exit).
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md`](../../docs/superpowers/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md`](../../docs/design/specs/archive/2026-06-10-autonomous-queue-drain-runner-design.md)
 - **Code:**
   - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
   - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)

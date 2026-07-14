@@ -18,12 +18,12 @@ function makeRepo(): string {
   mkdirSync(join(repo, 'src', 'cr'), { recursive: true });
   mkdirSync(join(repo, 'src', 'core'), { recursive: true });
   mkdirSync(join(repo, 'scripts'), { recursive: true });
-  mkdirSync(join(repo, 'docs', 'superpowers', 'plans', 'archive'), { recursive: true });
-  mkdirSync(join(repo, 'docs', 'superpowers', 'specs', 'archive'), { recursive: true });
+  mkdirSync(join(repo, 'docs', 'design', 'plans', 'archive'), { recursive: true });
+  mkdirSync(join(repo, 'docs', 'design', 'specs', 'archive'), { recursive: true });
   writeFileSync(join(repo, 'src', 'cr', 'orchestrate.ts'), 'x');
   writeFileSync(join(repo, 'src', 'core', 'session.ts'), 'x');
   writeFileSync(join(repo, 'scripts', 'live.mjs'), 'x'); // still-live scripts file
-  writeFileSync(join(repo, 'docs', 'superpowers', 'plans', 'archive', 'my-plan.md'), 'x');
+  writeFileSync(join(repo, 'docs', 'design', 'plans', 'archive', 'my-plan.md'), 'x');
   return repo;
 }
 
@@ -64,16 +64,16 @@ describe('extractArtifactLinks', () => {
     const raw = [
       '---',
       'links:',
-      '  spec: docs/superpowers/specs/a-design.md',
+      '  spec: docs/design/specs/a-design.md',
       '  plan: >-',
-      '    docs/superpowers/plans/b.md',
+      '    docs/design/plans/b.md',
       '---',
       '',
-      'body mentions docs/superpowers/specs/body-only-design.md',
+      'body mentions docs/design/specs/body-only-design.md',
     ].join('\n');
     expect(extractArtifactLinks(raw)).toEqual([
-      'docs/superpowers/specs/a-design.md',
-      'docs/superpowers/plans/b.md',
+      'docs/design/specs/a-design.md',
+      'docs/design/plans/b.md',
     ]);
   });
 });
@@ -84,14 +84,14 @@ describe('fixArtifactLink', () => {
     const raw = [
       '---',
       'links:',
-      '  plan: docs/superpowers/plans/my-plan.md',
+      '  plan: docs/design/plans/my-plan.md',
       '---',
-      'see docs/superpowers/plans/my-plan.md',
+      'see docs/design/plans/my-plan.md',
     ].join('\n');
-    const r = fixArtifactLink(raw, 'docs/superpowers/plans/my-plan.md', repo);
+    const r = fixArtifactLink(raw, 'docs/design/plans/my-plan.md', repo);
     expect(r.action).toBe('archive');
-    expect(r.out).toContain('plan: docs/superpowers/plans/archive/my-plan.md');
-    expect(r.out).toContain('see docs/superpowers/plans/archive/my-plan.md');
+    expect(r.out).toContain('plan: docs/design/plans/archive/my-plan.md');
+    expect(r.out).toContain('see docs/design/plans/archive/my-plan.md');
   });
 
   it('sentinels a lost link in frontmatter only, leaving body prose', () => {
@@ -99,22 +99,20 @@ describe('fixArtifactLink', () => {
     const raw = [
       '---',
       'links:',
-      '  spec: docs/superpowers/specs/archive/lost-design.md',
+      '  spec: docs/design/specs/archive/lost-design.md',
       '---',
-      'see docs/superpowers/specs/archive/lost-design.md',
+      'see docs/design/specs/archive/lost-design.md',
     ].join('\n');
-    const r = fixArtifactLink(raw, 'docs/superpowers/specs/archive/lost-design.md', repo);
+    const r = fixArtifactLink(raw, 'docs/design/specs/archive/lost-design.md', repo);
     expect(r.action).toBe('lost');
     expect(r.out).toContain(`spec: ${LOST_SENTINEL}`);
-    expect(r.out).toContain('see docs/superpowers/specs/archive/lost-design.md');
+    expect(r.out).toContain('see docs/design/specs/archive/lost-design.md');
   });
 
   it('no-ops on live links and on the sentinel itself (idempotent)', () => {
     const repo = makeRepo();
-    const live = '---\nlinks:\n  plan: docs/superpowers/plans/archive/my-plan.md\n---\n';
-    expect(fixArtifactLink(live, 'docs/superpowers/plans/archive/my-plan.md', repo).action).toBe(
-      'none',
-    );
+    const live = '---\nlinks:\n  plan: docs/design/plans/archive/my-plan.md\n---\n';
+    expect(fixArtifactLink(live, 'docs/design/plans/archive/my-plan.md', repo).action).toBe('none');
     expect(fixArtifactLink(live, LOST_SENTINEL, repo).action).toBe('none');
   });
 });
@@ -126,8 +124,8 @@ describe('migrateOne', () => {
     const raw = [
       '---',
       'links:',
-      '  spec: docs/superpowers/specs/archive/lost-design.md',
-      '  plan: docs/superpowers/plans/my-plan.md',
+      '  spec: docs/design/specs/archive/lost-design.md',
+      '  plan: docs/design/plans/my-plan.md',
       '  code:',
       '    - scripts/cr/orchestrate.ts',
       '---',

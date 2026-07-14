@@ -37,18 +37,3 @@ Five operator-facing dashboard refinements captured from a live dogfood pass. Al
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
 ### Trigger-Parked (revisit when the named trigger fires)
-
-#### Path Rename: docs/superpowers to docs/design
-
-- id: Q-0006
-- area: tooling
-- type: refactor
-- since: 2026-06-11
-- size: S
-- impact: med
-- parent: noldor
-- recovered: 2026-06-11
-
-Separable last step split out of `de-superpowers-vendor-spec-plan-and-worktree-flows` at its promotion: rename `docs/superpowers/` → `docs/design/{specs,plans}`. `src/core/doc-roots.ts:30-31` is the single code seam; everything else is prose/links. Ship as a migration (via the shipped `noldor upgrade` chain) that moves files and rewrites links; keep a transition alias in doc-roots for one release. Trigger: bundle with the next migration-bearing release rather than shipping alone — the rename is cheap but touches every spec/plan link, so ride a release that already asks consumers to run `noldor upgrade`.
-
-- Still using the superpowers worktree path → move specs/plan out of the `superpowers/` folder as part of this rename.

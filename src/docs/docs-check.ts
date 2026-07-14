@@ -5,14 +5,7 @@ const INLINE_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
 const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/gm;
 const EXTERNAL_RE = /^(https?:|mailto:|#)/;
 const ROOT_ABSOLUTE_RE = /^\//;
-const EXCLUDED_DIRS = new Set([
-  'node_modules',
-  'dist',
-  '.turbo',
-  'coverage',
-  '.git',
-  'superpowers',
-]);
+const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git', 'design']);
 
 /**
  * One internal link extracted from a markdown body.

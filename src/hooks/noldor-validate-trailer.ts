@@ -185,19 +185,19 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     }
     if (path === 'specs-only-new') {
       if (isPhaseRevert) return { ok: true };
-      const specsDir = join(opts.cwd, 'docs', 'superpowers', 'specs');
+      const specsDir = join(opts.cwd, 'docs', 'design', 'specs');
       const expectedSuffix = `-${slug}-design.md`;
       if (!existsSync(specsDir)) {
         return {
           ok: false,
-          reason: `specs-only-new requires a spec file at docs/superpowers/specs/<date>${expectedSuffix}`,
+          reason: `specs-only-new requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
         };
       }
       const files = readdirSync(specsDir).filter((f) => f.endsWith(expectedSuffix));
       if (files.length === 0) {
         return {
           ok: false,
-          reason: `specs-only-new requires a spec file at docs/superpowers/specs/<date>${expectedSuffix}`,
+          reason: `specs-only-new requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
         };
       }
     }
@@ -214,14 +214,14 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
       };
     }
     const expectedSuffix = `-${slug}-${enhancement}-design.md`;
-    const specsDir = join(opts.cwd, 'docs', 'superpowers', 'specs');
+    const specsDir = join(opts.cwd, 'docs', 'design', 'specs');
     const candidates = existsSync(specsDir)
       ? readdirSync(specsDir).filter((f) => f.endsWith(expectedSuffix))
       : [];
     if (candidates.length === 0) {
       return {
         ok: false,
-        reason: `${path} requires a spec file at docs/superpowers/specs/<date>${expectedSuffix}`,
+        reason: `${path} requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
       };
     }
   }

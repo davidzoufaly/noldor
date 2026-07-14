@@ -16,7 +16,7 @@ links:
     - src/invariants/__tests__/rule-conflicts.test.ts
     - src/validate/__tests__/noldor-config.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md
+    docs/design/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md
 name: Framework Script + Test Migration Cleanup
 packages:
   - scripts
@@ -53,7 +53,7 @@ As a framework maintainer, I want migration-era scripts, dead code, duplicate im
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md`](../../docs/superpowers/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md`](../../docs/design/specs/archive/2026-07-03-framework-script-test-migration-cleanup-design.md)
 - **Code:**
   - [`src/core/doc-roots.ts`](../../src/core/doc-roots.ts)
   - [`src/migrations/chain.ts`](../../src/migrations/chain.ts)

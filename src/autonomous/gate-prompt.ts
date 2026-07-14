@@ -64,7 +64,7 @@ export function buildResumeGatePrompt(slug: string, dispatch: PromptDispatch): s
     '',
     `Resume the designed in-progress feature '${slug}' end-to-end on branch 'feat/${slug}'`,
     'with NO interactive prompts. Its approved spec and plan are committed under',
-    'docs/superpowers/ — read both and execute the plan inline; if either is missing, exit',
+    'docs/design/ — read both and execute the plan inline; if either is missing, exit',
     'non-zero. Immediately set autonomous mode (`pnpm noldor noldor set-autonomous`) right',
     'after the session marker is written — never ask autonomous-vs-interactive. Implement',
     'the plan, run code-stage CR',

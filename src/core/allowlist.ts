@@ -25,8 +25,8 @@ export const RELEASE_SWEEP_GLOBS = [
   'docs/noldor/**/*.md',
   'templates/docs/**/*.md', // template twins of `docs/noldor/**` pages — release-markers stamps `introduced:` on both sides of the twin
   'docs/features/**/*.md',
-  'docs/superpowers/plans/**/*.md',
-  'docs/superpowers/specs/**/*.md',
+  'docs/design/plans/**/*.md',
+  'docs/design/specs/**/*.md',
   '.claude/skills/noldor-release-sweep/**',
 ] as const;
 

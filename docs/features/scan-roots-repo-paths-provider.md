@@ -14,7 +14,7 @@ links:
   tests:
     - src/core/__tests__/repo-paths.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md
+    docs/design/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md
 name: Scan-Roots Repo-Paths Provider
 packages:
   - scripts
@@ -66,7 +66,7 @@ Added a repo-paths provider exposing `scanRoots` and `actualPackageNames` (#144)
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md`](../../docs/superpowers/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md`](../../docs/design/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md)
 - **Code:**
   - [`src/core/repo-paths.ts`](../../src/core/repo-paths.ts)
   - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)

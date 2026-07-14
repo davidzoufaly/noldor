@@ -157,8 +157,8 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 ### `sync:spec-links`
 
-- **Trigger:** `pnpm noldor sync spec-links`. Runs in `pre-commit` (`sync.spec-links` job, `glob: 'docs/superpowers/specs/**/*.md'`).
-- **Inputs:** every `docs/superpowers/specs/*.md`. Reads spec frontmatter.
+- **Trigger:** `pnpm noldor sync spec-links`. Runs in `pre-commit` (`sync.spec-links` job, `glob: 'docs/design/specs/**/*.md'`).
+- **Inputs:** every `docs/design/specs/*.md`. Reads spec frontmatter.
 - **Outputs:** writes `links.spec` on the matching FD frontmatter. Stages modified FDs.
 - **When to use:** automatic on spec commits.
 - **Source:** [`src/sync/sync-spec-links.ts`](../../src/sync/sync-spec-links.ts)
@@ -184,7 +184,7 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 ### `garden:detect`
 
 - **Trigger:** `pnpm noldor garden detect`. Backs the `/noldor-garden` skill. Accepts `--gate-compliance` flag.
-- **Inputs:** `docs/features/*.md`, `docs/superpowers/{specs,plans}/*.md`, `docs/{roadmap,backlog,vision}.md`, `package.json` workspaces, `.noldor/overrides.log`, optionally `graphify-out/graph.json`.
+- **Inputs:** `docs/features/*.md`, `docs/design/{specs,plans}/*.md`, `docs/{roadmap,backlog,vision}.md`, `package.json` workspaces, `.noldor/overrides.log`, optionally `graphify-out/graph.json`.
 - **Outputs:** JSON report with `category`, `itemId`, `message` per gap across the 20 numbered detectors (plus the 4 doc-maintenance signals when run via `/noldor-garden`). With `--gate-compliance`: runs the override-audit, tier-mismatch, allowlist-drift, trailer-scope-mismatch, plan-without-fd, and fd-without-plan detectors; exit 1 if any findings. See [`garden-and-drift.md`](garden-and-drift.md) for the full detector list.
 - **When to use:** through `/noldor-garden` for interactive maintenance; `--gate-compliance` as a `pnpm release` precondition; ad hoc `--json` for scripted automation. See [`garden-and-drift.md`](garden-and-drift.md).
 - **Source:** [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)

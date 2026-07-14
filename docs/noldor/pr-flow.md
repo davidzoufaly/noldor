@@ -122,5 +122,5 @@ Under parallel drain (`pnpm noldor autonomous queue-drain --concurrency N`, N > 
 
 - [`docs/noldor/cr-pipeline.md`](cr-pipeline.md) — Claude + codex review semantics.
 - [`docs/noldor/git-and-commits.md`](git-and-commits.md) — Conventional Commits, trailers, scope rules.
-- Spec: `docs/superpowers/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md`.
-- Spec: `docs/superpowers/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md` — Changelog integration + phase-revert details.
+- Spec: `docs/design/specs/archive/2026-05-15-framework-pr-flow-agent-auto-merge-design.md`.
+- Spec: `docs/design/specs/2026-05-15-framework-pr-flow-agent-auto-merge-changelog-pr-flow-integration-design.md` — Changelog integration + phase-revert details.

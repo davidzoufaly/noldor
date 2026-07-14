@@ -138,11 +138,9 @@ function promoteOne(cwd: string, today: string, draft: FeatureDraft): PromoteRes
   if (!entry)
     return { slug: draft.slug, status: 'failed', commits, note: 'roadmap block not found' };
 
-  const specRel = join('docs', 'superpowers', 'specs', `${today}-${draft.slug}-design.md`);
+  const specRel = join('docs', 'design', 'specs', `${today}-${draft.slug}-design.md`);
   const planRel =
-    entry.tier === 'full'
-      ? join('docs', 'superpowers', 'plans', `${today}-${draft.slug}.md`)
-      : null;
+    entry.tier === 'full' ? join('docs', 'design', 'plans', `${today}-${draft.slug}.md`) : null;
 
   // Scaffold FD from the live roadmap block, then lift User Story/Usage from the approved spec.
   const specStaging = join(cwd, draft.specFile);

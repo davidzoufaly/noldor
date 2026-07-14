@@ -42,7 +42,7 @@ body
 
 async function makeRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'plan-without-fd-'));
-  await mkdir(join(root, 'docs/superpowers/plans'), { recursive: true });
+  await mkdir(join(root, 'docs/design/plans'), { recursive: true });
   await mkdir(join(root, 'docs/features'), { recursive: true });
   // Init git repo so we can also test with real slugs
   spawnSync('git', ['init', '-b', 'main'], { cwd: root, stdio: 'ignore' });
@@ -64,7 +64,7 @@ describe('detectPlanWithoutFd', () => {
 
   it('returns no findings when plan has a matching FD', async () => {
     await writeFile(
-      join(repo, 'docs/superpowers/plans/2026-01-01-my-feature.md'),
+      join(repo, 'docs/design/plans/2026-01-01-my-feature.md'),
       '# My Feature Plan\n',
     );
     await writeFile(join(repo, 'docs/features/my-feature.md'), DONE_FD);
@@ -74,10 +74,7 @@ describe('detectPlanWithoutFd', () => {
   });
 
   it('flags a plan file whose slug has no matching FD', async () => {
-    await writeFile(
-      join(repo, 'docs/superpowers/plans/2026-01-01-orphan-plan.md'),
-      '# Orphan Plan\n',
-    );
+    await writeFile(join(repo, 'docs/design/plans/2026-01-01-orphan-plan.md'), '# Orphan Plan\n');
 
     const findings = await detectPlanWithoutFd(repo);
     expect(findings).toHaveLength(1);
@@ -87,7 +84,7 @@ describe('detectPlanWithoutFd', () => {
 
   it('flags plans for in-progress FDs too — plan-without-fd only checks plan existence', async () => {
     await writeFile(
-      join(repo, 'docs/superpowers/plans/2026-01-01-in-progress.md'),
+      join(repo, 'docs/design/plans/2026-01-01-in-progress.md'),
       '# In Progress Plan\n',
     );
     await writeFile(join(repo, 'docs/features/in-progress.md'), IN_PROGRESS_FD);
@@ -97,15 +94,15 @@ describe('detectPlanWithoutFd', () => {
   });
 
   it('ignores plan files that do not match the date-slug naming convention', async () => {
-    await writeFile(join(repo, 'docs/superpowers/plans/README.md'), '# Plans readme\n');
+    await writeFile(join(repo, 'docs/design/plans/README.md'), '# Plans readme\n');
 
     const findings = await detectPlanWithoutFd(repo);
     expect(findings).toHaveLength(0);
   });
 
   it('flags multiple orphan plans', async () => {
-    await writeFile(join(repo, 'docs/superpowers/plans/2026-01-01-orphan-a.md'), '# A\n');
-    await writeFile(join(repo, 'docs/superpowers/plans/2026-01-02-orphan-b.md'), '# B\n');
+    await writeFile(join(repo, 'docs/design/plans/2026-01-01-orphan-a.md'), '# A\n');
+    await writeFile(join(repo, 'docs/design/plans/2026-01-02-orphan-b.md'), '# B\n');
 
     const findings = await detectPlanWithoutFd(repo);
     expect(findings).toHaveLength(2);

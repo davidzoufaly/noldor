@@ -11,8 +11,8 @@ import { enrichDocNodes, type GraphData } from '../enrich-doc-nodes.js';
 async function makeRepo(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'enrich-docs-'));
   await mkdir(join(root, 'docs/features'), { recursive: true });
-  await mkdir(join(root, 'docs/superpowers/plans'), { recursive: true });
-  await mkdir(join(root, 'docs/superpowers/specs'), { recursive: true });
+  await mkdir(join(root, 'docs/design/plans'), { recursive: true });
+  await mkdir(join(root, 'docs/design/specs'), { recursive: true });
   await mkdir(join(root, 'graphify-out'), { recursive: true });
   return root;
 }
@@ -62,16 +62,16 @@ describe('enrichDocNodes', () => {
 
   it('adds one doc node per FD/plan/spec with deterministic ids; second run is a no-op', async () => {
     await writeFile(join(repo, 'docs/features/alpha.md'), fd('alpha'));
-    await writeFile(join(repo, 'docs/superpowers/plans/2026-06-14-alpha.md'), 'plan body');
-    await writeFile(join(repo, 'docs/superpowers/specs/2026-06-14-alpha-design.md'), 'spec body');
+    await writeFile(join(repo, 'docs/design/plans/2026-06-14-alpha.md'), 'plan body');
+    await writeFile(join(repo, 'docs/design/specs/2026-06-14-alpha-design.md'), 'spec body');
     const graphPath = await writeGraph(repo);
 
     const first = enrichDocNodes(repo, graphPath);
     const docNodes = first.nodes.filter((n) => n.file_type === 'doc');
     expect(docNodes.map((n) => n.id).toSorted()).toEqual([
+      'doc:docs/design/plans/2026-06-14-alpha.md',
+      'doc:docs/design/specs/2026-06-14-alpha-design.md',
       'doc:docs/features/alpha.md',
-      'doc:docs/superpowers/plans/2026-06-14-alpha.md',
-      'doc:docs/superpowers/specs/2026-06-14-alpha-design.md',
     ]);
     expect(first.nodes.find((n) => n.id === 'code:1')).toBeDefined(); // code node preserved
 
@@ -85,13 +85,13 @@ describe('enrichDocNodes', () => {
     await writeFile(
       join(repo, 'docs/features/beta.md'),
       fd('beta', {
-        plan: 'docs/superpowers/plans/2026-06-14-multi.md',
-        spec: 'docs/superpowers/specs/2026-06-14-multi-design.md',
+        plan: 'docs/design/plans/2026-06-14-multi.md',
+        spec: 'docs/design/specs/2026-06-14-multi-design.md',
       }),
     );
     // filenames whose slug (`multi`) does NOT match the FD slug (`beta`) — links.* is the only signal
-    await writeFile(join(repo, 'docs/superpowers/plans/2026-06-14-multi.md'), 'plan');
-    await writeFile(join(repo, 'docs/superpowers/specs/2026-06-14-multi-design.md'), 'spec');
+    await writeFile(join(repo, 'docs/design/plans/2026-06-14-multi.md'), 'plan');
+    await writeFile(join(repo, 'docs/design/specs/2026-06-14-multi-design.md'), 'spec');
     const graphPath = await writeGraph(repo);
 
     const out = enrichDocNodes(repo, graphPath);
@@ -111,7 +111,7 @@ describe('enrichDocNodes', () => {
     await writeFile(join(repo, 'docs/features/owner.md'), fd('owner', { code: ['src/widget.ts'] }));
     // plan slug `orphan` matches no FD, no links.plan — only the body code reference connects it
     await writeFile(
-      join(repo, 'docs/superpowers/plans/2026-06-14-orphan.md'),
+      join(repo, 'docs/design/plans/2026-06-14-orphan.md'),
       'This plan touches `src/widget.ts` and nothing else.',
     );
     const graphPath = await writeGraph(repo);
@@ -127,7 +127,7 @@ describe('enrichDocNodes', () => {
       fd('unrelated', { code: ['src/a.ts'] }),
     );
     await writeFile(
-      join(repo, 'docs/superpowers/plans/2026-06-14-lonely.md'),
+      join(repo, 'docs/design/plans/2026-06-14-lonely.md'),
       'mentions src/nowhere.ts which no FD owns',
     );
     const graphPath = await writeGraph(repo);

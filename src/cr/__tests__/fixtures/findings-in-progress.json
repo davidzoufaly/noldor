@@ -1,6 +1,6 @@
 {
   "lane": "standalone",
-  "artifact": "docs/superpowers/specs/x.md",
+  "artifact": "docs/design/specs/x.md",
   "kind": "spec",
   "slug": "x",
   "blockers": [],

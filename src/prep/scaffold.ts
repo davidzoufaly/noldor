@@ -7,7 +7,7 @@ import { areaToCategory } from '../lib/area-category.js';
 import type { PrepEntry } from './types.js';
 
 export interface ScaffoldOpts {
-  /** repo-root-relative spec path, e.g. docs/superpowers/specs/2026-06-10-foo-design.md */
+  /** repo-root-relative spec path, e.g. docs/design/specs/2026-06-10-foo-design.md */
   readonly specRel: string;
   /** repo-root-relative plan path, or null/undefined for specs-only */
   readonly planRel?: string | null;

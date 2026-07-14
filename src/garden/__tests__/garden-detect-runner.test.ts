@@ -49,7 +49,7 @@ describe('runGardenDetectViaCli', () => {
       status: 0,
       stdout: pnpmStdout(
         emptyGarden({
-          stalePlans: [{ path: 'docs/superpowers/plans/x.md', slug: 'x', reason: 'feature-done' }],
+          stalePlans: [{ path: 'docs/design/plans/x.md', slug: 'x', reason: 'feature-done' }],
           sddGaps: [{ category: 'docs', itemId: 'foo', message: 'bar' }],
         }),
       ),

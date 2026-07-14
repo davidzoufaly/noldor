@@ -11,6 +11,7 @@ links:
     - src/dashboard/__tests__/dashboard-server.test.ts
     - src/dashboard/__tests__/host.test.ts
     - src/hooks/__tests__/noldor-pre-edit-guard.test.ts
+  spec: docs/design/specs/2026-07-14-state-file-fail-open-hardening-design.md
 name: State-File Fail-Open Hardening
 packages:
   - scripts
@@ -50,3 +51,16 @@ No new day-to-day commands — enforcement, drain, and edit-gating behave identi
 <!-- @prs-since-last-release: state-file-fail-open-hardening -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Tests:**
+  - [`src/core/__tests__/atomic-write.test.ts`](../../src/core/__tests__/atomic-write.test.ts)
+  - [`src/core/__tests__/rollout-marker.test.ts`](../../src/core/__tests__/rollout-marker.test.ts)
+  - [`src/dashboard/__tests__/dashboard-server.test.ts`](../../src/dashboard/__tests__/dashboard-server.test.ts)
+  - [`src/dashboard/__tests__/host.test.ts`](../../src/dashboard/__tests__/host.test.ts)
+  - [`src/hooks/__tests__/noldor-pre-edit-guard.test.ts`](../../src/hooks/__tests__/noldor-pre-edit-guard.test.ts)
+
+<!-- /generated: resources -->

@@ -44,7 +44,7 @@ links:
     - src/garden/__tests__/sdd-report.test.ts
     - src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts
   spec: >-
-    docs/superpowers/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md
+    docs/design/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md
 name: Framework Milestones Support (POC / MVP / 1.0.0)
 packages:
   - scripts
@@ -100,7 +100,7 @@ feat: connect features to milestones across schema, garden, and dashboard (#108)
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md`](../../docs/superpowers/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md`](../../docs/design/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md)
 - **Code:**
   - [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts)
   - [`src/features/validate-features.ts`](../../src/features/validate-features.ts)

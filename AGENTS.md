@@ -12,7 +12,7 @@ this file natively; Claude Code reads `.claude/` instead. Same rules, one gate.
   outside triage/promote flows — they are queue state, not docs.
 - Commits carry `Noldor-FD: <slug>` (and `Noldor-Path:` when a session is
   active); lefthook injects/validates trailers — do not bypass hooks.
-- Specs live at `docs/superpowers/specs/`, plans at `docs/superpowers/plans/`;
+- Specs live at `docs/design/specs/`, plans at `docs/design/plans/`;
   formats: `pnpm noldor prep format spec|plan`.
 - Feature docs (`docs/features/<slug>.md`) are the single source of truth —
   update User Story / Usage before flipping `phase: done`.

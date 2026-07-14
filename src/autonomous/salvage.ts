@@ -113,7 +113,7 @@ export type FileWriter = (path: string, content: string) => void;
  * letting git's textual 3-way merge fail. Freshness of `origin/main` is the caller's
  * responsibility (the coordinator's `syncMainCleanState` fetches before each merge);
  * this function does not fetch. See the design spec
- * (`docs/superpowers/specs/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md`).
+ * (`docs/design/specs/2026-06-14-parallel-drain-roadmapmd-conflict-auto-resolution-design.md`).
  *
  * Pure/IO split in the {@link detectStale}/{@link repair} style (GitRunner +
  * FileWriter injection) so the branching logic is unit-tested without shelling out.

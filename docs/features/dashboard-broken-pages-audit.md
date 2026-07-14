@@ -8,6 +8,7 @@ links:
   tests:
     - src/core/agent-runner/__tests__/registry-logsink.test.ts
     - src/dashboard/__tests__/route-sweep.test.ts
+  spec: docs/design/specs/2026-07-11-dashboard-broken-pages-audit-design.md
 name: Dashboard Broken-Pages Audit
 packages:
   - scripts
@@ -43,3 +44,13 @@ As an operator running an autonomous drain, I want the dashboard's `/agents` pag
 <!-- @prs-since-last-release: dashboard-broken-pages-audit -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Tests:**
+  - [`src/core/agent-runner/__tests__/registry-logsink.test.ts`](../../src/core/agent-runner/__tests__/registry-logsink.test.ts)
+  - [`src/dashboard/__tests__/route-sweep.test.ts`](../../src/dashboard/__tests__/route-sweep.test.ts)
+
+<!-- /generated: resources -->

@@ -42,11 +42,11 @@ export function findCreationSha(fdPath: string, cwd: string): string | null {
 }
 
 /**
- * Check whether a plan glob hit exists for `slug` in `docs/superpowers/plans/`.
+ * Check whether a plan glob hit exists for `slug` in `docs/design/plans/`.
  * Matches filenames matching `<date>-<slug>.md` or `<date>-<slug>-part<N>.md`.
  */
 function hasPlan(repo: string, slug: string): boolean {
-  const plansDir = join(repo, 'docs/superpowers/plans');
+  const plansDir = join(repo, 'docs/design/plans');
   if (!existsSync(plansDir)) return false;
   let entries: string[];
   try {
@@ -62,7 +62,7 @@ function hasPlan(repo: string, slug: string): boolean {
  * Walk `docs/features/*.md` and flag FDs where ALL of:
  * - `phase: in-progress`
  * - creation commit is post-rollout (not grandfathered)
- * - no plan glob hit at `docs/superpowers/plans/<date>-<slug>.md`
+ * - no plan glob hit at `docs/design/plans/<date>-<slug>.md`
  *
  * @param repo - Repository root.
  * @returns One FdWithoutPlanFinding per flagged FD.

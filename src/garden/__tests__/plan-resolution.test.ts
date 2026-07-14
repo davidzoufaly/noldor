@@ -11,7 +11,7 @@ describe('resolveByLinksPlan', () => {
     const reads = new Map<string, string>([
       [
         'docs/features/foo.md',
-        '---\nname: Foo\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  plan:\n    - docs/superpowers/plans/2026-04-19-foo.md\nnoldor-tier: full\n---\n',
+        '---\nname: Foo\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  plan:\n    - docs/design/plans/2026-04-19-foo.md\nnoldor-tier: full\n---\n',
       ],
       [
         'docs/features/bar.md',
@@ -19,7 +19,7 @@ describe('resolveByLinksPlan', () => {
       ],
     ]);
     const result = await resolveByLinksPlan({
-      planPath: 'docs/superpowers/plans/2026-04-19-foo.md',
+      planPath: 'docs/design/plans/2026-04-19-foo.md',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md', 'bar.md'],
       readFile: async (p: string) => reads.get(p.replace('/tmp/repo/', '')) ?? '',
@@ -31,11 +31,11 @@ describe('resolveByLinksPlan', () => {
 
   it('handles plan as a single string (not array)', async () => {
     const result = await resolveByLinksPlan({
-      planPath: 'docs/superpowers/plans/2026-04-19-foo.md',
+      planPath: 'docs/design/plans/2026-04-19-foo.md',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
-        '---\nname: Foo\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  plan: docs/superpowers/plans/2026-04-19-foo.md\nnoldor-tier: full\n---\n',
+        '---\nname: Foo\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  plan: docs/design/plans/2026-04-19-foo.md\nnoldor-tier: full\n---\n',
     });
     expect(result).not.toBeNull();
     expect(result?.slug).toBe('foo');
@@ -43,7 +43,7 @@ describe('resolveByLinksPlan', () => {
 
   it('returns null when no FD references the plan', async () => {
     const result = await resolveByLinksPlan({
-      planPath: 'docs/superpowers/plans/2026-04-19-orphan.md',
+      planPath: 'docs/design/plans/2026-04-19-orphan.md',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
@@ -54,7 +54,7 @@ describe('resolveByLinksPlan', () => {
 
   it('ignores FDs without a links.plan field', async () => {
     const result = await resolveByLinksPlan({
-      planPath: 'docs/superpowers/plans/2026-04-19-foo.md',
+      planPath: 'docs/design/plans/2026-04-19-foo.md',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
@@ -65,12 +65,12 @@ describe('resolveByLinksPlan', () => {
 
   it('skips files that do not parse as FDs without throwing', async () => {
     const result = await resolveByLinksPlan({
-      planPath: 'docs/superpowers/plans/2026-04-19-foo.md',
+      planPath: 'docs/design/plans/2026-04-19-foo.md',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md', 'malformed.md'],
       readFile: async (p: string) => {
         if (p.endsWith('malformed.md')) return 'no frontmatter here';
-        return '---\nname: Foo\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  plan:\n    - docs/superpowers/plans/2026-04-19-foo.md\nnoldor-tier: specs-only\n---\n';
+        return '---\nname: Foo\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  plan:\n    - docs/design/plans/2026-04-19-foo.md\nnoldor-tier: specs-only\n---\n';
       },
     });
     expect(result).not.toBeNull();
@@ -83,7 +83,7 @@ describe('resolveByLinksSpec', () => {
     const reads = new Map<string, string>([
       [
         'docs/features/parent-feat.md',
-        '---\nname: Parent Feat\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  spec: docs/superpowers/specs/2026-05-15-parent-feat-extra-design.md\nnoldor-tier: full\n---\n',
+        '---\nname: Parent Feat\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  spec: docs/design/specs/2026-05-15-parent-feat-extra-design.md\nnoldor-tier: full\n---\n',
       ],
       [
         'docs/features/bar.md',
@@ -91,7 +91,7 @@ describe('resolveByLinksSpec', () => {
       ],
     ]);
     const result = await resolveByLinksSpec({
-      specPath: 'docs/superpowers/specs/2026-05-15-parent-feat-extra-design.md',
+      specPath: 'docs/design/specs/2026-05-15-parent-feat-extra-design.md',
       repo: '/tmp/repo',
       readdir: async () => ['parent-feat.md', 'bar.md'],
       readFile: async (p: string) => reads.get(p.replace('/tmp/repo/', '')) ?? '',
@@ -103,7 +103,7 @@ describe('resolveByLinksSpec', () => {
 
   it('returns null when no FD references the spec', async () => {
     const result = await resolveByLinksSpec({
-      specPath: 'docs/superpowers/specs/2026-05-15-orphan-design.md',
+      specPath: 'docs/design/specs/2026-05-15-orphan-design.md',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
@@ -114,12 +114,12 @@ describe('resolveByLinksSpec', () => {
 
   it('skips files that do not parse as FDs without throwing', async () => {
     const result = await resolveByLinksSpec({
-      specPath: 'docs/superpowers/specs/2026-05-15-foo-extra-design.md',
+      specPath: 'docs/design/specs/2026-05-15-foo-extra-design.md',
       repo: '/tmp/repo',
       readdir: async () => ['malformed.md', 'foo.md'],
       readFile: async (p: string) => {
         if (p.endsWith('malformed.md')) return 'no frontmatter here';
-        return '---\nname: Foo\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  spec: docs/superpowers/specs/2026-05-15-foo-extra-design.md\nnoldor-tier: full\n---\n';
+        return '---\nname: Foo\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  spec: docs/design/specs/2026-05-15-foo-extra-design.md\nnoldor-tier: full\n---\n';
       },
     });
     expect(result).not.toBeNull();
@@ -131,14 +131,14 @@ describe('resolveByGraphAdjacency', () => {
   const GRAPH = JSON.stringify({
     nodes: [
       {
-        id: 'doc:docs/superpowers/plans/2026-06-14-orphan.md',
-        source_file: 'docs/superpowers/plans/2026-06-14-orphan.md',
+        id: 'doc:docs/design/plans/2026-06-14-orphan.md',
+        source_file: 'docs/design/plans/2026-06-14-orphan.md',
       },
       { id: 'doc:docs/features/owner.md', source_file: 'docs/features/owner.md' },
     ],
     links: [
       {
-        source: 'doc:docs/superpowers/plans/2026-06-14-orphan.md',
+        source: 'doc:docs/design/plans/2026-06-14-orphan.md',
         target: 'doc:docs/features/owner.md',
         relation: 'plan-of',
         confidence: 'INFERRED',
@@ -160,7 +160,7 @@ describe('resolveByGraphAdjacency', () => {
   it('follows the plan-of edge to the owning FD', async () => {
     const result = await resolveByGraphAdjacency({
       repo: '/tmp/repo',
-      docPath: 'docs/superpowers/plans/2026-06-14-orphan.md',
+      docPath: 'docs/design/plans/2026-06-14-orphan.md',
       relation: 'plan-of',
       graphPath: '/tmp/repo/graphify-out/graph.json',
       readFile: seamFor(GRAPH),
@@ -172,7 +172,7 @@ describe('resolveByGraphAdjacency', () => {
   it('returns null on a missing graph file', async () => {
     const result = await resolveByGraphAdjacency({
       repo: '/tmp/repo',
-      docPath: 'docs/superpowers/plans/2026-06-14-orphan.md',
+      docPath: 'docs/design/plans/2026-06-14-orphan.md',
       relation: 'plan-of',
       graphPath: '/tmp/repo/graphify-out/graph.json',
       readFile: seamFor(null),
@@ -183,7 +183,7 @@ describe('resolveByGraphAdjacency', () => {
   it('returns null when no node matches the docPath', async () => {
     const result = await resolveByGraphAdjacency({
       repo: '/tmp/repo',
-      docPath: 'docs/superpowers/plans/2026-06-14-nonexistent.md',
+      docPath: 'docs/design/plans/2026-06-14-nonexistent.md',
       relation: 'plan-of',
       graphPath: '/tmp/repo/graphify-out/graph.json',
       readFile: seamFor(GRAPH),
@@ -194,7 +194,7 @@ describe('resolveByGraphAdjacency', () => {
   it('returns null when the relation does not match (spec-of asked, only plan-of present)', async () => {
     const result = await resolveByGraphAdjacency({
       repo: '/tmp/repo',
-      docPath: 'docs/superpowers/plans/2026-06-14-orphan.md',
+      docPath: 'docs/design/plans/2026-06-14-orphan.md',
       relation: 'spec-of',
       graphPath: '/tmp/repo/graphify-out/graph.json',
       readFile: seamFor(GRAPH),

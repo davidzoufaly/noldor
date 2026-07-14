@@ -25,7 +25,7 @@ links:
     - src/autonomous/__tests__/watch-state.test.ts
     - src/core/__tests__/pr-flow-cli.test.ts
     - src/core/__tests__/pr-flow.test.ts
-  spec: docs/superpowers/specs/archive/2026-06-10-parallel-drain-design.md
+  spec: docs/design/specs/archive/2026-06-10-parallel-drain-design.md
 name: Parallel Drain
 packages:
   - scripts
@@ -68,7 +68,7 @@ As an operator draining a large queue (or a batch of designed plans), I want `--
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-10-parallel-drain-design.md`](../../docs/superpowers/specs/archive/2026-06-10-parallel-drain-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-10-parallel-drain-design.md`](../../docs/design/specs/archive/2026-06-10-parallel-drain-design.md)
 - **Code:**
   - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
   - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)

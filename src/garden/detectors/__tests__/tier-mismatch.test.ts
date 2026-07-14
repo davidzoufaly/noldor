@@ -51,7 +51,7 @@ describe('detectTierMismatch', () => {
         '  code: []',
         '  tests: []',
         '  docs: []',
-        '  spec: docs/superpowers/specs/2026-01-01-my-feature-design.md',
+        '  spec: docs/design/specs/2026-01-01-my-feature-design.md',
         '---',
         'body',
       ].join('\n'),

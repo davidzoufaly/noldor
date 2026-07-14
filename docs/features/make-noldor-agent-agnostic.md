@@ -43,8 +43,7 @@ links:
     - src/templates/__tests__/shim-inventory.test.ts
     - src/testing/__tests__/consumer-fixture.test.ts
     - src/testing/__tests__/stub-runner.test.ts
-  spec: >-
-    docs/superpowers/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md
+  spec: docs/design/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md
 name: Make Noldor Agent-Agnostic
 packages:
   - scripts
@@ -52,6 +51,7 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 Noldor today assumes Claude Code as the operating agent (skill names, hook patterns, transcript layout). Lift the assumptions so Codex, Gemini, or other agents can drive the same framework with equivalent gates. Concrete asks: (1) abstract skill invocation (`Skill` tool vs `activate_skill` vs raw markdown read), (2) abstract hook triggers (the `lefthook` pre-commit chain works for all, but the auto-gate behavior is Claude-only), (3) document the agent-equivalence matrix in `docs/noldor/`. Trigger: when a second agent adopts Noldor in earnest (today's automated-cr-pipeline already runs Codex as a reviewer; controller is still Claude).
@@ -99,7 +99,7 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md`](../../docs/superpowers/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md`](../../docs/design/specs/archive/2026-06-11-make-noldor-agent-agnostic-design.md)
 - **Code:**
   - [`src/core/agent-runner/`](../../src/core/agent-runner/)
   - [`src/core/agent-events.ts`](../../src/core/agent-events.ts)
@@ -122,8 +122,10 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
   - [`src/checks/__tests__/check-template-sync.test.ts`](../../src/checks/__tests__/check-template-sync.test.ts)
   - [`src/core/__tests__/agent-events.test.ts`](../../src/core/__tests__/agent-events.test.ts)
+  - [`src/core/__tests__/lanes.test.ts`](../../src/core/__tests__/lanes.test.ts)
   - [`src/core/agent-runner/__tests__/doctor-runners.test.ts`](../../src/core/agent-runner/__tests__/doctor-runners.test.ts)
   - [`src/core/agent-runner/__tests__/no-stray-spawns.test.ts`](../../src/core/agent-runner/__tests__/no-stray-spawns.test.ts)
+  - [`src/core/agent-runner/__tests__/opencode-events.test.ts`](../../src/core/agent-runner/__tests__/opencode-events.test.ts)
   - [`src/core/agent-runner/__tests__/registry.test.ts`](../../src/core/agent-runner/__tests__/registry.test.ts)
   - [`src/core/agent-runner/__tests__/runners.test.ts`](../../src/core/agent-runner/__tests__/runners.test.ts)
   - [`src/core/agent-runner/__tests__/types.test.ts`](../../src/core/agent-runner/__tests__/types.test.ts)
@@ -132,8 +134,10 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/subagent.test.ts`](../../src/cr/__tests__/lanes/subagent.test.ts)
   - [`src/cr/__tests__/run-codex.test.ts`](../../src/cr/__tests__/run-codex.test.ts)
+  - [`src/migrations/__tests__/0.7.0.test.ts`](../../src/migrations/__tests__/0.7.0.test.ts)
   - [`src/release/__tests__/llm-polish-summary.test.ts`](../../src/release/__tests__/llm-polish-summary.test.ts)
   - [`src/templates/__tests__/agent-filter.test.ts`](../../src/templates/__tests__/agent-filter.test.ts)
+  - [`src/templates/__tests__/shim-inventory.test.ts`](../../src/templates/__tests__/shim-inventory.test.ts)
   - [`src/testing/__tests__/consumer-fixture.test.ts`](../../src/testing/__tests__/consumer-fixture.test.ts)
   - [`src/testing/__tests__/stub-runner.test.ts`](../../src/testing/__tests__/stub-runner.test.ts)
 

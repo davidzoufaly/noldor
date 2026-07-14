@@ -70,7 +70,7 @@ links:
     - src/testing/__tests__/drain-e2e.test.ts
     - src/verify/__tests__/port.test.ts
     - src/verify/__tests__/smoke.test.ts
-  spec: docs/superpowers/specs/archive/2026-06-12-acceptance-verify-lane-design.md
+  spec: docs/design/specs/archive/2026-06-12-acceptance-verify-lane-design.md
 name: Acceptance-Verify Lane
 packages:
   - scripts
@@ -120,7 +120,7 @@ As an operator running autonomous paths (drain, watch, gate autonomous mode), I 
 
 ## Resources
 
-- **Spec:** [`docs/superpowers/specs/archive/2026-06-12-acceptance-verify-lane-design.md`](../../docs/superpowers/specs/archive/2026-06-12-acceptance-verify-lane-design.md)
+- **Spec:** [`docs/design/specs/archive/2026-06-12-acceptance-verify-lane-design.md`](../../docs/design/specs/archive/2026-06-12-acceptance-verify-lane-design.md)
 - **Code:**
   - [`src/cr/`](../../src/cr/)
   - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)

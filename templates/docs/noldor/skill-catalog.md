@@ -34,13 +34,13 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 
 - **Trigger:** `/noldor-garden`. Run when the doc framework feels drifty or before a release.
 - **Inputs:** JSON output from `pnpm noldor garden detect` (stale plans, unused backlog entries, rule contradictions, SDD gaps, architecture invariant violations); doc-pair excerpts for LLM-filtered contradiction triage.
-- **Outputs:** operator-confirmed checklist; on confirm, archives stale plans (`git mv` to `docs/superpowers/plans/archive/`), drops unused backlog blocks, runs the regen chain (`sync:test-links && sync:doc-links && sync:fd-resources && validate:features`). Rule contradictions and SDD gaps stay as Manual TODOs. Never commits.
+- **Outputs:** operator-confirmed checklist; on confirm, archives stale plans (`git mv` to `docs/design/plans/archive/`), drops unused backlog blocks, runs the regen chain (`sync:test-links && sync:doc-links && sync:fd-resources && validate:features`). Rule contradictions and SDD gaps stay as Manual TODOs. Never commits.
 - **When to use:** periodic doc maintenance, especially before a release. Includes a manual plan sweep for multi-feature/infra plans the deterministic detector can't slug-match. Surfaces a code-link backfill prompt for `pnpm noldor features fill-links-code-gaps` after the regen chain.
 
 ## /noldor-draft-feature-md
 
 - **Trigger:** `/noldor-draft-feature-md <slug> [--from-spec | --refresh]`. `--from-spec` is the default.
-- **Inputs:** kebab-case slug; `docs/features/<slug>.md`; the latest matching spec at `docs/superpowers/specs/*-<slug>-design.md` (`--from-spec` mode); plus `links.code` + `links.tests` files (`--refresh` mode).
+- **Inputs:** kebab-case slug; `docs/features/<slug>.md`; the latest matching spec at `docs/design/specs/*-<slug>-design.md` (`--from-spec` mode); plus `links.code` + `links.tests` files (`--refresh` mode).
 - **Outputs:** drafted `## User Story` + `## Usage` sections presented inline as fenced markdown blocks for inline confirmation/edit. On approval, applies via Edit tool. Never modifies Summary or frontmatter. Never stages or commits.
 - **When to use:** `--from-spec` after a spec is approved (before invoking `noldor-plan`) to fill the feature MD's `<!-- TODO -->` stubs while the spec is fresh. `--refresh` before flipping `phase: in-progress → done` in the shipping commit, so User Story / Usage reflect what actually shipped (reality wins over spec claims).
 
@@ -69,14 +69,14 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 
 - **Trigger:** `/noldor-spec <slug>`, or the gate's spec stage on every `specs-only-*` / `full-*` path.
 - **Inputs:** kebab-case slug; roadmap entry / FD body for grounding; `docs/vision.md`; the real code the idea touches; the format contract via `pnpm noldor prep format spec`.
-- **Outputs:** self-reviewed spec at `docs/superpowers/specs/YYYY-MM-DD-<slug>-design.md` (attach naming: `<parent>-<enhancement>`); reports the path and stops — `/noldor-gate` Step 2.5 owns commit + CR. Never commits.
+- **Outputs:** self-reviewed spec at `docs/design/specs/YYYY-MM-DD-<slug>-design.md` (attach naming: `<parent>-<enhancement>`); reports the path and stops — `/noldor-gate` Step 2.5 owns commit + CR. Never commits.
 - **When to use:** the spec stage of any gated feature, or standalone design exploration. Vendored replacement for the third-party brainstorming flow — no plugin required.
 
 ## /noldor-plan
 
 - **Trigger:** `/noldor-plan <slug>`, or the gate's plan stage on `full-*` paths after spec approval.
-- **Inputs:** approved spec at `docs/superpowers/specs/*-<slug>-design.md`; every file the spec names; the format contract via `pnpm noldor prep format plan`.
-- **Outputs:** bite-size TDD plan at `docs/superpowers/plans/YYYY-MM-DD-<slug>.md` — complete code, exact commands, expected output per step; reports the path and stops — `/noldor-gate` Step 2.5 (`--kind plan`) owns commit + CR. Never commits.
+- **Inputs:** approved spec at `docs/design/specs/*-<slug>-design.md`; every file the spec names; the format contract via `pnpm noldor prep format plan`.
+- **Outputs:** bite-size TDD plan at `docs/design/plans/YYYY-MM-DD-<slug>.md` — complete code, exact commands, expected output per step; reports the path and stops — `/noldor-gate` Step 2.5 (`--kind plan`) owns commit + CR. Never commits.
 - **When to use:** the plan stage of `full-*` paths, or any multi-step work with a written spec. Vendored replacement for the third-party writing-plans flow — no plugin required.
 
 ## /noldor-research

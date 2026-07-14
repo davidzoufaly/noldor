@@ -190,7 +190,7 @@ export function extractSummary(md: string): string {
  * List spec markdown files in a directory as cwd-relative paths.
  *
  * @param dir - Directory containing spec MDs (typically
- *   `docs/superpowers/specs`). A missing directory yields an empty array.
+ *   `docs/design/specs`). A missing directory yields an empty array.
  * @returns Array of paths relative to `process.cwd()`.
  */
 export async function listSpecs(dir: string): Promise<string[]> {
@@ -209,7 +209,7 @@ export async function listSpecs(dir: string): Promise<string[]> {
  * List plan markdown files in a directory as cwd-relative paths.
  *
  * @param dir - Directory containing plan MDs (typically
- *   `docs/superpowers/plans`). A missing directory yields an empty array.
+ *   `docs/design/plans`). A missing directory yields an empty array.
  * @returns Array of paths relative to `process.cwd()`.
  */
 export async function listPlans(dir: string): Promise<string[]> {

@@ -18,7 +18,7 @@ pre-commit:
             run: pnpm noldor sync doc-links
             stage_fixed: true
           - name: spec-links
-            glob: 'docs/superpowers/specs/**/*.md'
+            glob: 'docs/design/specs/**/*.md'
             run: pnpm noldor sync spec-links
             stage_fixed: true
     - name: fd-resources

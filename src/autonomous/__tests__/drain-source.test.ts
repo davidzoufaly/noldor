@@ -143,8 +143,8 @@ function tmpPlansRepo(
 ): string {
   const dir = mkdtempSync(join(tmpdir(), 'drain-plans-'));
   mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
-  mkdirSync(join(dir, 'docs', 'superpowers', 'specs'), { recursive: true });
-  mkdirSync(join(dir, 'docs', 'superpowers', 'plans'), { recursive: true });
+  mkdirSync(join(dir, 'docs', 'design', 'specs'), { recursive: true });
+  mkdirSync(join(dir, 'docs', 'design', 'plans'), { recursive: true });
   if (opts.roadmap !== undefined) {
     writeFileSync(join(dir, 'docs', 'roadmap.md'), opts.roadmap, 'utf8');
   }
@@ -174,18 +174,14 @@ function tmpPlansRepo(
     writeFileSync(join(dir, 'docs', 'features', `${fd.slug}.md`), fm, 'utf8');
     if (fd.spec !== false) {
       writeFileSync(
-        join(dir, 'docs', 'superpowers', 'specs', `2026-06-01-${fd.slug}-design.md`),
+        join(dir, 'docs', 'design', 'specs', `2026-06-01-${fd.slug}-design.md`),
         '# spec',
         'utf8',
       );
     }
     if (fd.planDate !== null) {
       const d = fd.planDate ?? '2026-06-05';
-      writeFileSync(
-        join(dir, 'docs', 'superpowers', 'plans', `${d}-${fd.slug}.md`),
-        '# plan',
-        'utf8',
-      );
+      writeFileSync(join(dir, 'docs', 'design', 'plans', `${d}-${fd.slug}.md`), '# plan', 'utf8');
     }
   }
   return dir;
