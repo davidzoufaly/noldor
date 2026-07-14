@@ -23,7 +23,10 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 | Auditing the framework                | [`garden-and-drift.md`](garden-and-drift.md), [`triage.md`](triage.md)                                                                                                                      |
 | Hitting a weird operational trap      | [`gotchas.md`](gotchas.md)                                                                                                                                                                  |
 | Looking up a pnpm script              | [`script-catalog.md`](script-catalog.md)                                                                                                                                                    |
-| Bootstrapping Noldor in another repo  | [`adoption-guide.md`](adoption-guide.md) (stub — framework still WIP)                                                                                                                       |
+| Running unattended drains             | [`autonomy.md`](autonomy.md), [`drain-mode.md`](drain-mode.md)                                                                                                                               |
+| Picking an agent runner               | [`agent-runtimes.md`](agent-runtimes.md)                                                                                                                                                    |
+| Tracking framework metrics            | [`metrics.md`](metrics.md)                                                                                                                                                                  |
+| Bootstrapping Noldor in another repo  | [`adoption-guide.md`](adoption-guide.md)                                                                                                                       |
 
 ## Pages
 
@@ -31,6 +34,9 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 - [`complexity-gating.md`](complexity-gating.md) — 6-path model (micro-chore / fast-track / specs-only-new / specs-only-attach / full-new / full-attach), allowlist, override
 - [`cr-pipeline.md`](cr-pipeline.md) — Claude + Codex two-pass review, override trailer, release gate
 - [`pr-flow.md`](pr-flow.md) — PR flow + agent auto-merge, pre-push hook, GitHub branch protection, release-push override
+- [`agent-runtimes.md`](agent-runtimes.md) — multi-runner registry (claude / codex / opencode) + `agents` config
+- [`autonomy.md`](autonomy.md) — autonomous-mode rules, activation, and safety rails
+- [`drain-mode.md`](drain-mode.md) — runner-neutral drain contract for headless dispatch
 - [`feature-md-schema.md`](feature-md-schema.md) — FD frontmatter + body structure
 - [`worktree-discipline.md`](worktree-discipline.md) — always-worktree, parallel cap, port-per-tree
 - [`git-and-commits.md`](git-and-commits.md) — Conventional Commits, semver, granular commits
@@ -45,6 +51,7 @@ Noldor is the dev-loop framework that ships embedded in this repo: complexity-ga
 - [`garden-and-drift.md`](garden-and-drift.md) — what /noldor-garden detects + sentinel rules
 - [`gotchas.md`](gotchas.md) — operational traps not obvious from code (docs/templates, CR sinks, tests, dashboard, drain)
 - [`graph-integration.md`](graph-integration.md) — graphify ↔ SDD substrate
+- [`metrics.md`](metrics.md) — metrics CLI + `/metrics` dashboard page
 - [`research-fanout.md`](research-fanout.md) — parallel read-only research agents: task specs, envelope contract, INDEX/synthesis
-- [`adoption-guide.md`](adoption-guide.md) — stub; framework is WIP, standalone-package lift tracked in backlog
+- [`adoption-guide.md`](adoption-guide.md) — full consumer onboarding: prerequisites floor, install (monorepo + CI-auth traps), init/adopt, first-commit gotchas, `consumer:` field table
 - [`rules.md`](rules.md) — engineering-rules cascade: rule store, per-file/stage resolution, template-sync gate; raw principles live in [`.claude/engineering-rules.md`](../../.claude/engineering-rules.md)
