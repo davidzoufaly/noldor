@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Skill Catalog
 
-Noldor ships 13 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
+Noldor ships 14 user-invocable skills, each owned by a single concern. This page is the canonical reference — run any skill via its slash command in Claude Code. Skill source lives in `.claude/skills/`.
 
 > **Strict drift gate.** `pnpm noldor validate skill-catalog` (pre-commit, see [`garden-and-drift.md`](garden-and-drift.md) Detector 16) asserts that every `## /<slug>` heading on this page maps to a `<slug>.md` (or `<slug>/SKILL.md`) under `.claude/skills/`, and vice versa. Add or rename a skill → update this page in the same commit, or pre-commit blocks.
 
@@ -101,3 +101,10 @@ Noldor ships 13 user-invocable skills, each owned by a single concern. This page
 - **Inputs:** must start on `main` with a clean tree and a passing `pnpm verify`. Sweep stages call `/graphify`, `pnpm toon`, and `/noldor-refactor` in turn.
 - **Outputs:** fresh `graphify-out/` (graph.json, GRAPH_REPORT.md, toon files) twice — pre-refactor and post-refactor; possible README drift edits; a single `chore(release): pre-release graphify + refactor sweep` commit; final `pnpm verify` pass. Stops at an explicit `release now` confirmation gate before invoking `pnpm release`.
 - **When to use:** the moment between "feature merged to main" and "tag the release". Never runs `pnpm release` without the explicit confirmation. Don't use mid-feature, for routine graph rebuilds, or for one-line hotfixes where structural drift is impossible.
+
+## /noldor-verify
+
+- **Trigger:** `/noldor-verify`, or automatically before any completion / success claim. A behavioral discipline, not a workflow.
+- **Inputs:** the claim about to be made; the command that proves it (`pnpm test`, `pnpm verify`, `pnpm noldor cr aggregate`, `gh pr view`, `git diff`) and its fresh output.
+- **Outputs:** no file writes. A gate on completion claims — either fresh verification evidence stated alongside the claim, or a corrected status when the command disproves it. Enforced socially, not by a hook.
+- **When to use:** before ANY "done / fixed / passing / green / merged" claim (or any paraphrase of one), before committing / opening a PR / running `pr-flow` / flipping `phase: done`, and after delegating to a subagent or drain iteration. Vendored, self-contained replacement for the superpowers `verification-before-completion` discipline — no plugin required. The gate's Step 4 CR lanes and `pnpm verify` are the checks; this is the rule that you run them and read the output first.

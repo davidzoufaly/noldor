@@ -33,19 +33,6 @@ Deep-audit finding (batch `.noldor/research/2026-07-13-184850`, `readme-quality.
 
 Two process-discipline skills the deep-audit (batch `.noldor/research/2026-07-13-184850`) flagged as never vendored from the superpowers plugin: nothing in noldor references them, so they are not a dependency, but a consumer running `noldor init` without the plugin gets no equivalent discipline. Vendor both as first-class framework skills so the discipline ships with the framework instead of relying on a plugin being installed.
 
-#### Vendored Verification-Before-Completion Discipline
-
-- id: Q-0045
-- area: tooling
-- type: feat
-- since: 2026-07-13
-- size: S
-- impact: med
-- confidence: med
-- parent: noldor
-
-Vendor the `verification-before-completion` discipline as a framework skill (`noldor-verify` or baked into the gate ship/CR lane): before any "done / fixed / passing" claim, require running the verification command and confirming its output — evidence before assertions. Distinct from the existing acceptance-verify CR lane (PR #74, which verifies acceptance criteria) and `pnpm verify` (the aggregate check command): this is the *behavioral discipline* that gates completion claims, not a specific check. Decide the shape at spec time — standalone skill vs a mandatory step folded into the gate ship path — but the deliverable is that a consumer without superpowers still gets the "no unverified success claims" rule.
-
 #### Vendored Systematic-Debugging Discipline
 
 - id: Q-0044
