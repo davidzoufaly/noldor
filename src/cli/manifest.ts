@@ -205,6 +205,10 @@ export const MANIFEST: Record<string, Group> = {
       'noldor-config': { src: 'validate/noldor-config.ts', desc: 'Validate .noldor/config.json' },
       'noldor-scope': { src: 'core/validate-noldor-scope.ts', desc: 'Validate commit scope' },
       'skill-catalog': { src: 'core/validate-skill-catalog.ts', desc: 'Validate skill catalog' },
+      'script-catalog': {
+        src: 'cli/validate-script-catalog.ts',
+        desc: 'Validate script catalog (CLI ↔ docs/noldor/script-catalog.md)',
+      },
       features: { src: 'features/validate-features.ts', desc: 'Validate feature MDs' },
       milestones: { src: 'milestones/validate-milestones.ts', desc: 'Validate milestones' },
       triage: { src: 'triage/validate-triage.ts', desc: 'Validate triage docs' },
@@ -419,3 +423,32 @@ export const MANIFEST: Record<string, Group> = {
     },
   },
 };
+
+/**
+ * A single leaf command flattened from {@link MANIFEST}. `command` is the bare
+ * group name for a `''`-subcommand leaf (e.g. `init`), else `<group> <sub>`.
+ * `src` is normalized to a repo-relative `src/…` path (MANIFEST stores it
+ * `src/`-relative). `flattenManifest` is the shared enumerator for consumers
+ * that need every leaf — notably `validate script-catalog`, which diffs the
+ * leaf `src` set against the source links cited in the script catalog.
+ */
+export interface ManifestLeaf {
+  readonly command: string;
+  readonly src: string;
+  readonly desc: string;
+}
+
+/**
+ * Flatten {@link MANIFEST} into one entry per leaf command. A group whose
+ * `subs` is the single `''` key is itself a leaf (invoked as the bare group
+ * name); every other `(group, sub)` pair is a leaf `<group> <sub>`.
+ */
+export function flattenManifest(): ManifestLeaf[] {
+  const leaves: ManifestLeaf[] = [];
+  for (const [group, { subs }] of Object.entries(MANIFEST)) {
+    for (const [sub, { src, desc }] of Object.entries(subs)) {
+      leaves.push({ command: sub === '' ? group : `${group} ${sub}`, src: `src/${src}`, desc });
+    }
+  }
+  return leaves;
+}

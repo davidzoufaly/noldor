@@ -61,6 +61,9 @@ pre-commit:
           - name: skill-catalog
             glob: '{.claude/skills/**/*,docs/noldor/skill-catalog.md}'
             run: pnpm noldor validate skill-catalog
+          - name: script-catalog
+            glob: '{src/cli/manifest.ts,docs/noldor/script-catalog.md}'
+            run: pnpm noldor validate script-catalog
           - name: triage
             glob: 'docs/{roadmap,backlog}.md'
             run: pnpm noldor triage validate

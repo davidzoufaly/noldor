@@ -118,7 +118,7 @@ pnpm noldor triage score --blocked-by=Q-0042  # refs accept IDs or slugs (--deps
 pnpm noldor validate triage              # enforces id presence/format/cross-file uniqueness (once counter exists)
 ```
 
-For `/noldor-promote` (roadmap/backlog → feature MD) see [`workflow.md`](workflow.md). For `/noldor-garden`, `pnpm noldor garden sdd-report`, and the 13-detector contract see [`garden-and-drift.md`](garden-and-drift.md).
+For `/noldor-promote` (roadmap/backlog → feature MD) see [`workflow.md`](workflow.md). For `/noldor-garden`, `pnpm noldor garden sdd-report`, and the 14-detector contract see [`garden-and-drift.md`](garden-and-drift.md).
 
 ## Triage gotchas
 

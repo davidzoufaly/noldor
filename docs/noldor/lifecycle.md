@@ -85,7 +85,7 @@ How the pieces connect:
 | **Docs**     | `docs/user/tutorials/`, `docs/user/explanation/` with `<!-- @feature: <slug> -->`                | `pnpm noldor sync doc-links` populates `links.docs`, `pnpm docs:build` rebuilds                           |
 | **Validate** | (cross-checks)                                                                                   | `pnpm noldor validate features` (schema + `@tests:` + `@feature:` slugs); pre-commit hook runs sync chain |
 | **Release**  | `v<x.y.z>` tag, `CHANGELOG.md`, `docs/release-notes.md`                                          | `pnpm release` (semver bump auto-derived from conventional commits; fills `introduced`/`updated`)         |
-| **Audit**    | `docs/sdd-report.md` (13 gap categories)                                                         | `pnpm noldor garden sdd-report` (informational; release script regenerates as precondition)               |
+| **Audit**    | `docs/sdd-report.md` (14 gap categories)                                                         | `pnpm noldor garden sdd-report` (informational; release script regenerates as precondition)               |
 | **Garden**   | stale plans, unused backlog, rule contradictions, invariant violations                           | `/noldor-garden` skill, backed by `pnpm noldor garden detect`                                                    |
 
 ## Phase transitions
