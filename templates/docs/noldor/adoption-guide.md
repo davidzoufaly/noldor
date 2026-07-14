@@ -82,16 +82,16 @@ A monorepo lists one `package.json` path per package in `lockstepPackages` (e.g.
 
 Beyond the required `consumer:` block, `.noldor/config.json` accepts two **optional** blocks that drive the unsupervised gate path (`proceed-autonomous`):
 
-- `crLanes` — review lanes per artifact kind (`spec` / `plan` / `code`). Omit it and orchestrate uses the built-in `DEFAULT_CR_LANES` (`subagent`-only per kind). Set it to opt in heavier review, e.g. `"code": ["subagent", "codex"]`.
+- `crLanes` — review lanes per artifact kind (`spec` / `plan` / `code`). Omit it and orchestrate uses the built-in `DEFAULT_CR_LANES` (`reviewer`-only per kind). Set it to opt in heavier review, e.g. `"code": ["reviewer", "codex"]`.
 - `autonomous` — `skipLanePicker` (default `false`), `onFailure` (`prompt` | `spawn-deep-review` | `abort`, default `prompt`), `requireHumanPrApproval` (default `false`). Every field defaults, so the block may be omitted entirely.
 
 ```json
 { "consumer": { "...": "..." },
-  "crLanes": { "spec": ["manual", "subagent"], "plan": ["manual", "subagent"], "code": ["subagent"] },
+  "crLanes": { "spec": ["manual", "reviewer"], "plan": ["manual", "reviewer"], "code": ["reviewer"] },
   "autonomous": { "skipLanePicker": false, "onFailure": "prompt", "requireHumanPrApproval": false } }
 ```
 
-Neither block is required — a config with only `consumer:` runs autonomous CR on the `subagent`-only defaults. Full reference: [`cr-pipeline.md`](cr-pipeline.md).
+Neither block is required — a config with only `consumer:` runs autonomous CR on the `reviewer`-only defaults. Full reference: [`cr-pipeline.md`](cr-pipeline.md).
 
 ## Invocation
 

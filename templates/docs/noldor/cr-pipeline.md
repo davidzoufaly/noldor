@@ -32,7 +32,7 @@ feedback-only.
 ## Multi-reviewer Step 2.5
 
 Step 2.5 of `/noldor-gate` runs four lanes in parallel: `manual` (operator
-verdict + finding loop), `codex` (`pnpm noldor cr codex` wrapper), `subagent`
+verdict + finding loop), `codex` (`pnpm noldor cr codex` wrapper), `reviewer`
 (Task-tool dispatch with markdown→JSON parser), and `standalone`
 (iTerm2-spawned headless Claude). Each lane writes its findings to
 `.noldor/cr/<slug>-<kind>-<lane>.json` where `kind` is `spec | plan |
@@ -60,11 +60,11 @@ The orchestrator's `--kind` flag accepts `spec`, `plan`, or `code` (see `src/cr/
 
 ## Step 4 collapse
 
-Step 4 (code review) used to be a subagent + codex retry loop driven
-by `/noldor-gate`. It is now a single subagent lane by default — the code
+Step 4 (code review) used to be a reviewer + codex retry loop driven
+by `/noldor-gate`. It is now a single reviewer lane by default — the code
 stage runs the same multi-reviewer machinery as spec/plan, just with
-`crLanes.code: ['subagent']` baked in. Codex remains opt-in: set
-`crLanes.code: ['subagent', 'codex']` in `.noldor/config.json` to add
+`crLanes.code: ['reviewer']` baked in. Codex remains opt-in: set
+`crLanes.code: ['reviewer', 'codex']` in `.noldor/config.json` to add
 the codex lane back. Manual and standalone are also opt-in via the
 same array. The collapse removed the per-stage retry-loop logic from
 the gate skill — retry is now uniform across stages via the escalation
@@ -80,11 +80,11 @@ lane overrides and autonomous-mode toggles. **Both blocks are optional**
 {
   "consumer": { /* required — see adoption-guide.md */ },
 
-  // OPTIONAL. Absent → built-in DEFAULT_CR_LANES: every kind reviews with ["subagent"].
+  // OPTIONAL. Absent → built-in DEFAULT_CR_LANES: every kind reviews with ["reviewer"].
   "crLanes": {
-    "spec": ["manual", "subagent"],
-    "plan": ["manual", "subagent"],
-    "code": ["subagent"]              // add "codex" for a second opinion: ["subagent", "codex"]
+    "spec": ["manual", "reviewer"],
+    "plan": ["manual", "reviewer"],
+    "code": ["reviewer"]              // add "codex" for a second opinion: ["reviewer", "codex"]
                                       // (codex needs the codex CLI authenticated — it is NOT
                                       //  part of the autonomous-safe built-in default)
   },
@@ -102,7 +102,7 @@ lane overrides and autonomous-mode toggles. **Both blocks are optional**
 Continuous mode (watch daemon, salvage, escalation inbox, rails): see [`autonomy.md`](autonomy.md).
 
 Built-in defaults live in `DEFAULT_CR_LANES` (`src/cr/config.ts`):
-`{ spec: ['subagent'], plan: ['subagent'], code: ['subagent'] }`. `subagent`
+`{ spec: ['reviewer'], plan: ['reviewer'], code: ['reviewer'] }`. `reviewer`
 is the only lane that runs fully unattended (in-process; no external CLI auth
 like codex, no human stdin like manual, no GUI terminal like standalone), so it
 is the autonomous-safe default.
@@ -241,7 +241,7 @@ never blocks. Spawn failure, timeout, or malformed verifier output is one
 "no trustworthy verdict" class: fail-closed blocker in blocking mode,
 `cannot-verify` note in advisory.
 
-Opt in via `crLanes.code: ["subagent", "verify"]`; drain and watch inherit it
+Opt in via `crLanes.code: ["reviewer", "verifier"]`; drain and watch inherit it
 from config. The noldor repo itself runs `verifyMode: "blocking"` (flipped
 after the advisory bake-in period); the schema default stays `advisory` so new
 consumers adopt the lane observation-first.
@@ -274,13 +274,13 @@ so reviewers see behavioral proof on the PR itself. Missing or off-shape sink
   resume across several features. Verify CR actually ran before `pr-flow`; don't
   trust the phase.
 - **Exclude the `verify` lane for features with no HTTP/runtime surface.** Use
-  `cr orchestrate --lanes subagent`. `noldor doctor` exits 1 on a
+  `cr orchestrate --lanes reviewer`. `noldor doctor` exits 1 on a
   lefthook-not-on-PATH check (a false positive — lefthook works via
   `pnpm exec`), which reds the verify-lane smoke floor and, under
   `onFailure: abort`, halts the drain.
 - **`cr orchestrate --autonomous` with a missing `crLanes.<kind>` does NOT
   hard-error.** Despite the gate skill's claim, it silently falls back to the
-  subagent lane. Set `crLanes.<kind>` explicitly if you want a specific lane set.
+  reviewer lane. Set `crLanes.<kind>` explicitly if you want a specific lane set.
 
 Two more sink/receipt traps:
 
