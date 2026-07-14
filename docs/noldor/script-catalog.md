@@ -7,7 +7,7 @@ introduced: 0.4.0
 
 Noldor ships its implementation under `src/<group>/`, surfaced through the `noldor` CLI (`pnpm noldor <group> <subcommand>`) that backs the framework's pre-commit hooks, garden audits, and release pipeline. This page is the canonical reference — one section per command, grouped by concern. Source paths are cited per command. Flat `pnpm <alias>` forms shown below are consumer-defined conveniences; the framework only guarantees the `noldor` CLI.
 
-> **Note.** Strict `validate:script-catalog` drift gate is not yet implemented; treat this page as advisory until it lands. Backlog entry tracks the gate parallel to `validate:skill-catalog`.
+> **Note.** The `validate:script-catalog` drift gate is live — it runs in `pre-commit` (`validate.script-catalog` job) and fails the commit when a manifest leaf command's source is undocumented here, parallel to `validate:skill-catalog`. It joins on the **Source** `src/…` path each entry cites (not the display name), so keep every command's Source link accurate; aliases that share an entrypoint are covered by documenting that source once.
 
 ## Validation
 
@@ -50,6 +50,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **Outputs:** exit 0 when every skill file maps 1:1 to a heading and vice versa; exit 1 with missing/orphan entries listed.
 - **When to use:** automatic gate when skill source or the catalog page changes. See [`garden-and-drift.md`](garden-and-drift.md).
 - **Source:** [`src/core/validate-skill-catalog.ts`](../../src/core/validate-skill-catalog.ts)
+
+### `validate:script-catalog`
+
+- **Trigger:** `pnpm noldor validate script-catalog`. Runs in `pre-commit` (`validate.script-catalog` job, `glob: '{src/cli/manifest.ts,docs/noldor/script-catalog.md}'`).
+- **Inputs:** the CLI manifest ([`flattenManifest`](../../src/cli/manifest.ts) over `MANIFEST`) for the leaf-command `src` set; this page's `src/…` Source links.
+- **Outputs:** exit 0 when every manifest leaf command's entrypoint `src` is cited by a Source link here; exit 1 listing the undocumented sources otherwise. Joins on the `src/…` path, so alias commands sharing an entrypoint (e.g. `autonomous run` + `autonomous queue-drain`) are satisfied by one Source link, and non-manifest sources (pnpm composites, helpers) are advisory-only.
+- **When to use:** automatic gate when the manifest or this page changes. Mirror of `validate:skill-catalog`. See [`garden-and-drift.md`](garden-and-drift.md).
+- **Source:** [`src/cli/validate-script-catalog.ts`](../../src/cli/validate-script-catalog.ts)
 
 ### `check:invariants`
 
@@ -163,13 +171,21 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 - **When to use:** automatic when an FD frontmatter changes or after `/noldor-garden` archives a spec. Run manually if the body's Resources block drifts from frontmatter or if a hand-run `git mv` archived a spec.
 - **Source:** [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
 
+### `sync:code-links`
+
+- **Trigger:** `pnpm noldor sync code-links`.
+- **Inputs:** code files under the configured `scanPaths` carrying `// @fd: <slug>` directives; existing FD `links.code`.
+- **Outputs:** writes `links.code` arrays onto the matching FD frontmatter from the source-side `@fd:` tags. Stages modified FDs.
+- **When to use:** after adding `// @fd:` tags to source, to push them into the FD index. Complements the `gaps:links-code` backfill (which fills FDs lacking tags).
+- **Source:** [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
+
 ## Audit
 
 ### `garden:detect`
 
 - **Trigger:** `pnpm noldor garden detect`. Backs the `/noldor-garden` skill. Accepts `--gate-compliance` flag.
 - **Inputs:** `docs/features/*.md`, `docs/superpowers/{specs,plans}/*.md`, `docs/{roadmap,backlog,vision}.md`, `package.json` workspaces, `.noldor/overrides.log`, optionally `graphify-out/graph.json`.
-- **Outputs:** JSON report with `category`, `itemId`, `message` per gap across the 19 numbered detectors (plus the 4 doc-maintenance signals when run via `/noldor-garden`). With `--gate-compliance`: runs the override-audit, tier-mismatch, allowlist-drift, trailer-scope-mismatch, plan-without-fd, and fd-without-plan detectors; exit 1 if any findings. See [`garden-and-drift.md`](garden-and-drift.md) for the full detector list.
+- **Outputs:** JSON report with `category`, `itemId`, `message` per gap across the 20 numbered detectors (plus the 4 doc-maintenance signals when run via `/noldor-garden`). With `--gate-compliance`: runs the override-audit, tier-mismatch, allowlist-drift, trailer-scope-mismatch, plan-without-fd, and fd-without-plan detectors; exit 1 if any findings. See [`garden-and-drift.md`](garden-and-drift.md) for the full detector list.
 - **When to use:** through `/noldor-garden` for interactive maintenance; `--gate-compliance` as a `pnpm release` precondition; ad hoc `--json` for scripted automation. See [`garden-and-drift.md`](garden-and-drift.md).
 - **Source:** [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
 
@@ -211,6 +227,22 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 - **Outputs:** writes a garden receipt recording what the pass detected/actioned (audit trail for gardening runs).
 - **Source:** [`src/garden/garden-receipt.ts`](../../src/garden/garden-receipt.ts)
 
+### `garden:demote-stale`
+
+- **Trigger:** `pnpm noldor garden demote-stale` (`--days N` staleness window, `--dry-run`, `--json`).
+- **Inputs:** `docs/backlog.md` schema-C blocks + their git-history age.
+- **Outputs:** auto-demotes backlog entries untouched past the window to `phase: later`; `--dry-run`/`--json` preview without writing.
+- **When to use:** periodic backlog hygiene; surfaced by `/noldor-garden`.
+- **Source:** [`src/garden/backlog-demote.ts`](../../src/garden/backlog-demote.ts)
+
+### Other triage commands
+
+| Command                             | Source                                                        | Purpose                                                                              |
+| ----------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `pnpm noldor triage mint-id`        | [`src/triage/mint-id-cli.ts`](../../src/triage/mint-id-cli.ts) | Mint N stable entry IDs (`--count N`); bumps `.noldor/id-counter.json`.              |
+| `pnpm noldor triage backfill-ids`   | [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts) | Idempotent one-sweep stamp of `- id:` onto all id-less roadmap/backlog entries. |
+| `pnpm noldor triage merge-candidates` | [`src/triage/merge-candidates-cli.ts`](../../src/triage/merge-candidates-cli.ts) | Emit the merge-candidate corpus for `/noldor-triage` (`--json` for machine output). |
+
 ## Rules
 
 The engineering-rules cascade. Full model in [`rules.md`](rules.md).
@@ -233,6 +265,14 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 - **Inputs:** the artifact diff/file, lane config (`crLanes.<kind>` in `.noldor/config.json`), per-lane sinks at `.noldor/cr/<slug>-<kind>-<lane>.json`.
 - **Outputs:** lane sinks + an aggregate verdict (exit 0 clean / exit 1 blockers). `escalate` drives retry / spawn-deep-review / override / abort. Driven by `/noldor-gate` Step 2.5 + Step 4.
 - **Source:** [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts), [`src/cr/aggregate-cli.ts`](../../src/cr/aggregate-cli.ts), [`src/cr/codex.ts`](../../src/cr/codex.ts), [`src/cr/escalate-cli.ts`](../../src/cr/escalate-cli.ts)
+
+### `cr:bootstrap`
+
+- **Trigger:** `pnpm noldor cr bootstrap --slug <slug>`. Runs at `/noldor-gate` Step 4 (after the code-stage receipt is amended, before `pr-flow`).
+- **Inputs:** the FD frontmatter (`introduces-gate` key); the worktree branch commits.
+- **Outputs:** when the FD declares `introduces-gate`, rewrites every branch commit to carry the matching bootstrap override so the release gate the feature introduces can't block its own commits (message-only, tree-preserving — review receipts stay valid). No-op otherwise.
+- **When to use:** automatic at end-of-flow for gate-introducing FDs. See [`bootstrap-immunity-for-self-gating-features.md`](../features/bootstrap-immunity-for-self-gating-features.md).
+- **Source:** [`src/cr/bootstrap-cli.ts`](../../src/cr/bootstrap-cli.ts)
 
 ## Worktree
 
@@ -260,6 +300,14 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 - **When to use:** when you have 2-3 unrelated features set up across worktrees and want one Claude session per tree. See [`worktree-discipline.md`](worktree-discipline.md).
 - **Source:** [`src/worktrees/launch-worktrees.ts`](../../src/worktrees/launch-worktrees.ts)
 
+### Worktree lifecycle
+
+| Command                          | Source                                                           | Purpose                                                                                       |
+| -------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `pnpm noldor worktrees create`   | [`src/worktrees/create-worktree.ts`](../../src/worktrees/create-worktree.ts) | Create `.worktrees/<slug>` on `feat/<slug>` (`--branch` overrides), install deps, stamp port. |
+| `pnpm noldor worktrees up`       | [`src/worktrees/up-worktree.ts`](../../src/worktrees/up-worktree.ts) | Bootstrap the full dev surface: create + IDE + terminal + dev servers.                        |
+| `pnpm noldor worktrees down`     | [`src/worktrees/down-worktree.ts`](../../src/worktrees/down-worktree.ts) | Reap dev servers for a tree (`--remove` also deletes the worktree).                           |
+
 ## Release
 
 ### `release`
@@ -269,6 +317,14 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 - **Outputs:** writes per-FD `### <version> > #### Summary` blocks (auto-polished via `claude -p`, see [`feature-md-schema.md`](feature-md-schema.md)); prepends a `## v<version>` block to `docs/release-notes.md`; writes a `## v<version>` `CHANGELOG.md` entry; bumps `package.json` versions; runs the release pipeline (build, tag, push, create GH Release).
 - **When to use:** end of milestone or when a user explicitly confirms a release. The pre-release sweep (`/graphify` → `/noldor-refactor` → README check → `/graphify` again) is non-negotiable; see project root `CLAUDE.md`.
 - **Source:** [`src/release/index.ts`](../../src/release/index.ts)
+
+### `release:publish`
+
+- **Trigger:** `pnpm noldor release publish` — `--verify-tarball` (default) / `--wait <version>` / `--local` (emergency, bypasses the workflow, logged).
+- **Inputs:** the built tarball / the target registry.
+- **Outputs:** tarball pre-flight + registry wait; confirms the published artifact is installable. `--local` is the logged emergency escape hatch when the publish workflow is unavailable.
+- **When to use:** invoked by the release pipeline; run by hand only for publish-verification or emergency local publish.
+- **Source:** [`src/release/release-publish.ts`](../../src/release/release-publish.ts)
 
 ### `noldor:changelog`
 
@@ -302,6 +358,28 @@ Leaf commands (flags land directly after the group name, e.g. `pnpm noldor init 
 | `pnpm noldor noldor set-autonomous`      | [`src/core/set-autonomous.ts`](../../src/core/set-autonomous.ts) | Set `session.autonomous = true` (autonomous gate mode).                                        |
 | `pnpm noldor noldor lint-plan-snippets`  | [`src/core/lint-plan-snippets.ts`](../../src/core/lint-plan-snippets.ts) | Lint code snippets inside a plan MD (advisory; `/noldor-gate` Step 2.5).                           |
 | `pnpm noldor noldor rename-plan-only-tier` | [`src/core/rename-plan-only-tier.ts`](../../src/core/rename-plan-only-tier.ts) | One-off: rename legacy `plan-only` tier docs to `specs-only`.                              |
+| `pnpm noldor clones`                     | [`src/clones/clones-cli.ts`](../../src/clones/clones-cli.ts) | `clones <report\|check>` code-clone detector (`--json --min-tokens --min-lines --gap-tokens --include-tests`). |
+| `pnpm noldor wait`                       | [`src/core/wait-cli.ts`](../../src/core/wait-cli.ts) | Block until `<state-file>` satisfies `--until <dotpath=value>` (poll primitive).             |
+| `pnpm noldor fmt`                        | [`src/core/fmt-guard-cli.ts`](../../src/core/fmt-guard-cli.ts) | Format (or `--check`) with the no-target guard (oxfmt wrapper).                              |
+| `pnpm noldor upgrade`                    | [`src/cli/commands/upgrade.ts`](../../src/cli/commands/upgrade.ts) | Run the version-aware migration chain (`--dry-run` / `--from <version>` / `--force`).       |
+| `pnpm noldor noldor split-check`         | [`src/core/split-check-cli.ts`](../../src/core/split-check-cli.ts) | Suggest a split when an entry/FD/plan exceeds size thresholds (`--entry\|--fd\|--plan`).     |
+| `pnpm noldor roadmap remove-block`       | [`src/triage/remove-block-cli.ts`](../../src/triage/remove-block-cli.ts) | Remove a schema-C block by slug (`--backlog` for backlog.md; absent slug = no-op).          |
+
+## Prep
+
+Parallel design-drafting pipeline for M+ roadmap entries (see [`plan-runner.md`](../features/plan-runner.md)).
+
+| Command                       | Source                                                | Purpose                                                                              |
+| ----------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `pnpm noldor prep fanout`     | [`src/prep/prep-fanout.ts`](../../src/prep/prep-fanout.ts) | Draft spec [+plan] + self-answered open questions for every M+ roadmap entry, in parallel. |
+| `pnpm noldor prep promote`    | [`src/prep/prep-promote.ts`](../../src/prep/prep-promote.ts) | Promote approved drafts to in-progress FDs (serial; `--ship` opens an auto-merged PR). |
+| `pnpm noldor prep format`     | [`src/prep/print-format.ts`](../../src/prep/print-format.ts) | Print the canonical spec\|plan format contract.                                     |
+
+## Research
+
+| Command                        | Source                                        | Purpose                                                                                     |
+| ------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `pnpm noldor research fanout`  | [`src/research/fanout.ts`](../../src/research/fanout.ts) | Spawn one researcher per task (`--tasks` file / `--task` sugar); findings + INDEX.md (+ `--synthesize`). |
 
 ## Docs build
 
@@ -362,6 +440,28 @@ Leaf commands (flags land directly after the group name, e.g. `pnpm noldor init 
 - **Outputs:** rewrites FD commit references to PR references (post PR-flow adoption). Idempotent.
 - **Source:** [`src/features/migrate-fd-commits-to-prs.ts`](../../src/features/migrate-fd-commits-to-prs.ts)
 
+### `migrate:code-tags`
+
+- **Trigger:** `pnpm noldor features migrate-code-tags`. One-shot.
+- **Outputs:** seeds `// @fd: <slug>` tags into source files from the existing FD `links.code` arrays. Idempotent.
+- **Source:** [`src/features/migrate-code-tags.ts`](../../src/features/migrate-code-tags.ts)
+
+### `migrate:link-rot`
+
+- **Trigger:** `pnpm noldor features migrate-link-rot` (`--dry-run`). One-shot.
+- **Outputs:** rewrites dead `scripts/→src/` FD links, repoints archived specs, marks `lost-pre-extraction` sentinels. Idempotent.
+- **Source:** [`src/features/migrate-link-rot.ts`](../../src/features/migrate-link-rot.ts)
+
+## Features (FD lifecycle)
+
+FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-feature-md`.
+
+| Command                                   | Source                                                                | Purpose                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `pnpm noldor features phase-flip-done`    | [`src/features/phase-flip-done-cli.ts`](../../src/features/phase-flip-done-cli.ts) | Flip an FD phase `in-progress → done` (gate Step 4).          |
+| `pnpm noldor features phase-revert`       | [`src/features/phase-revert-cli.ts`](../../src/features/phase-revert-cli.ts) | Revert an FD phase `done → in-progress` (attach scaffold).    |
+| `pnpm noldor features propose-pointers`   | [`src/features/propose-pointers.ts`](../../src/features/propose-pointers.ts) | Propose initial `// @fd:` pointers for a new FD.              |
+
 ## Dev surfaces
 
 ### `dashboard`
@@ -388,6 +488,18 @@ Leaf commands (flags land directly after the group name, e.g. `pnpm noldor init 
 - **When to use:** ad hoc framework-effectiveness checks; the dashboard `/metrics` page and the sdd-report `## Metrics` section call the same `compute()`. Formulas documented in [`metrics.md`](metrics.md).
 - **Source:** [`src/metrics/compute-cli.ts`](../../src/metrics/compute-cli.ts)
 
+### `dashboard:ensure`
+
+- **Trigger:** `pnpm noldor dashboard ensure`.
+- **Outputs:** starts the dashboard server if it is not already running (idempotent — safe to call repeatedly, e.g. before opening a dashboard page).
+- **Source:** [`src/dashboard/ensure.ts`](../../src/dashboard/ensure.ts)
+
+### `graphify:enrich-docs`
+
+- **Trigger:** `pnpm noldor graphify enrich-docs`.
+- **Outputs:** adds FD / plan / spec doc nodes plus `plan-of` / `spec-of` edges to `graphify-out/graph.json` (post-processes the `/graphify` output).
+- **Source:** [`src/graphify/enrich-doc-nodes.ts`](../../src/graphify/enrich-doc-nodes.ts)
+
 ## Testing harness
 
 Framework self-test layer: a generated fixture-consumer repo (the *contract*) plus headless skill-flow runs (the *e2e layer*). Closes the PR-#33-class blind spot where a headless gate change shipped broken because no test drove the real flow. Builders live in `src/testing/`; see [testing-principles.md](./testing-principles.md#framework-self-test).
@@ -413,6 +525,14 @@ Framework self-test layer: a generated fixture-consumer repo (the *contract*) pl
 `src/fixtures/` is test data for the validator unit tests under `src/{features,docs,checks}/__tests__/` — sample valid and invalid FD frontmatters, doc tag fixtures, etc. Not invoked directly. Source-of-truth lookup point when extending validator coverage.
 
 ## Verify (local CI smoke)
+
+### `verify:smoke`
+
+- **Trigger:** `pnpm noldor verify smoke`. Backs the acceptance-verify CR lane's smoke floor (see [`acceptance-verify-lane.md`](../features/acceptance-verify-lane.md)).
+- **Inputs:** `consumer.verifyCommands` in `.noldor/config.json`; the running dev surface.
+- **Outputs:** runs `doctor`, boots every `consumer.verifyCommands` surface, and probes for HTTP-200 / exit-0. Exit 1 on any red.
+- **When to use:** automatically inside the verify CR lane; ad hoc to smoke a consumer surface. Distinct from the `pnpm verify` composite below.
+- **Source:** [`src/verify/smoke-cli.ts`](../../src/verify/smoke-cli.ts)
 
 ### `verify`
 
