@@ -4,6 +4,7 @@
   "private": false,
   "homepage": "https://github.com/davidzoufaly/noldor#readme",
   "bugs": "https://github.com/davidzoufaly/noldor/issues",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/davidzoufaly/noldor.git"
