@@ -43,7 +43,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 96
+Gated commits missing `Noldor-Reviewed` trailer: 99
 
 ## Metrics
 
@@ -87,16 +87,7 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
 
 ```json
 {
-  "perLane": {
-    "reviewer": {
-      "blockers": 7,
-      "suggestions": 32
-    },
-    "verifier": {
-      "blockers": 0,
-      "suggestions": 0
-    }
-  },
+  "perLane": {},
   "correctiveBySlug": {},
   "windowDays": 14
 }
@@ -109,23 +100,8 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 
 ```json
 {
-  "lastRun": {
-    "shipped": 3,
-    "skipped": 0,
-    "retried": 0
-  },
-  "history": {
-    "salvaged": 2,
-    "escalatedTotal": 10,
-    "escalatedBySlug": {
-      "trailer-scope-alias-map": 2,
-      "prefix-skills-with-noldor": 2,
-      "framework-script-test-migration-cleanup": 3,
-      "scope-sibling-trailer-for-doc-sync-commits": 1,
-      "-": 2
-    },
-    "meanDurationMs": 1062684
-  }
+  "lastRun": null,
+  "history": null
 }
 ```
 
@@ -144,26 +120,7 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
 ### tokens-per-feature [raw tokens (NEVER cost)]
 
 ```json
-{
-  "graphify-ast-only-sweep-default": null,
-  "framework-auto-split-suggestion-for-big-features-and-plans": 105051,
-  "framework-script-test-migration-cleanup": 827485,
-  "scope-sibling-trailer-for-doc-sync-commits": 272153,
-  "self-boundaries-declaration-and-cycle-break": 215653,
-  "stable-entry-ids-for-roadmap-backlog": 394863,
-  "first-class-blocked-by-field": 507049,
-  "init-adopt-flag-drift-reconciliation": 124900,
-  "consumer-rule-conflicts-graceful-degradation": 200457,
-  "init-scaffold-noldor-scope-allowlist": 1076721,
-  "add-templates-docs-to-micro-chore-and-release-sweep-allowlists": 79251,
-  "pr-flow-fallback-merges-on-red-ci": 115370,
-  "plans-source-drain-deps-gating": 116951,
-  "test-tag-presence-on-src-layout": 110733,
-  "verify-lane-bake-in-blocking-mode-pr-evidence": 454759,
-  "dashboard-actions-row-full-height": 48296,
-  "dashboard-merge-hot-zones-into-wip-age": 184834,
-  "dashboard-merge-skills-into-framework": 49050
-}
+{}
 ```
 
 formula: Sum of agent-event tokens.total per slug. Tokens are read verbatim from runner usage records (claude-jsonl / codex-session / opencode-session); events without trustworthy usage carry no tokens.
@@ -189,104 +146,21 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Code files not referenced by any feature
 
-- `src/core/atomic-write.ts` — src/core/atomic-write.ts is not referenced by any feature MD links.code — probable owner: noldor, release-sweep-process-hardening
+- `src/core/atomic-write.ts` — src/core/atomic-write.ts is not referenced by any feature MD links.code
 - `src/core/fmt-guard-cli.ts` — src/core/fmt-guard-cli.ts is not referenced by any feature MD links.code
 - `src/core/fmt-guard.ts` — src/core/fmt-guard.ts is not referenced by any feature MD links.code
 - `src/core/init-gitignore.ts` — src/core/init-gitignore.ts is not referenced by any feature MD links.code
-- `src/core/lanes.ts` — src/core/lanes.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer
-- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, agent-events-phase-tracking-run-ids-and-agents-dashboard-page, drain-startup-reconciliation-of-a-prior-dead-run
-- `src/core/prompt-stdin.ts` — src/core/prompt-stdin.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer
-- `src/core/review-profile.ts` — src/core/review-profile.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer, make-noldor-agent-agnostic
-- `src/core/state-file.ts` — src/core/state-file.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
-- `src/invariants/rule-pairs.ts` — src/invariants/rule-pairs.ts is not referenced by any feature MD links.code — probable owner: architecture-invariants
-- `src/release/clean-tree.ts` — src/release/clean-tree.ts is not referenced by any feature MD links.code — probable owner: registry-distribution-for-the-noldor-package
+- `src/core/lanes.ts` — src/core/lanes.ts is not referenced by any feature MD links.code
+- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code
+- `src/core/prompt-stdin.ts` — src/core/prompt-stdin.ts is not referenced by any feature MD links.code
+- `src/core/review-profile.ts` — src/core/review-profile.ts is not referenced by any feature MD links.code
+- `src/core/state-file.ts` — src/core/state-file.ts is not referenced by any feature MD links.code
+- `src/invariants/rule-pairs.ts` — src/invariants/rule-pairs.ts is not referenced by any feature MD links.code
+- `src/release/clean-tree.ts` — src/release/clean-tree.ts is not referenced by any feature MD links.code
 
 ### Tests with incomplete co-tag
 
-- `src/migrations/__tests__/chain.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-script-test-migration-cleanup
-- `src/migrations/__tests__/0.5.0.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-script-test-migration-cleanup, prefix-skills-with-noldor
-- `src/migrations/__tests__/0.6.0.test.ts` — imports files owned by FDs missing from @tests: tag — add: prefix-skills-with-noldor
-- `src/migrations/__tests__/0.7.0.test.ts` — imports files owned by FDs missing from @tests: tag — add: version-aware-upgrade-and-migration-chain
-- `src/core/__tests__/feature-schema.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/core/__tests__/feature-schema-since.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/core/__tests__/next-priority.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/core/__tests__/release-markers.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-script-test-migration-cleanup
-- `src/core/__tests__/repo-paths.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector, dynamic-fd-file-pointers-via-frontmatter
-- `src/core/__tests__/consumer-config-boundaries.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, version-aware-upgrade-and-migration-chain
-- `src/core/__tests__/allowlist.test.ts` — imports files owned by FDs missing from @tests: tag — add: prefix-skills-with-noldor
-- `src/core/__tests__/config.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector
-- `src/core/__tests__/doc-roots.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-script-test-migration-cleanup
-- `src/core/agent-runner/__tests__/types.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
-- `src/core/agent-runner/__tests__/registry-logsink.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic
-- `src/core/agent-runner/__tests__/doctor-runners.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
-- `src/core/agent-runner/__tests__/registry.test.ts` — imports files owned by FDs missing from @tests: tag — add: portable-gate-entrypoint-for-non-claude-runners
-- `src/garden/__tests__/backlog-demote.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/garden/__tests__/garden-receipt.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
-- `src/garden/__tests__/garden-detect.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
-- `src/garden/__tests__/graph-fd-lookup.test.ts` — imports files owned by FDs missing from @tests: tag — add: sdd-detector-5-idea-merge-semantic-similarity, stable-entry-ids-for-roadmap-backlog
-- `src/garden/__tests__/sdd-report.test.ts` — imports files owned by FDs missing from @tests: tag — add: code-clone-detector, framework-script-test-migration-cleanup, release-bypass-retirement, scan-roots-repo-paths-provider, sdd-detector-5-idea-merge-semantic-similarity, stable-entry-ids-for-roadmap-backlog
-- `src/garden/detectors/__tests__/skill-code-drift.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
-- `src/garden/detectors/__tests__/override-audit.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
-- `src/garden/detectors/__tests__/fd-command-rot.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
-- `src/garden/detectors/__tests__/fd-link-rot.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
-- `src/garden/detectors/__tests__/circular-blocked-by.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
-- `src/cr/__tests__/bootstrap-immunity.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
-- `src/features/__tests__/feature-milestone.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/features/__tests__/propose-pointers.test.ts` — imports files owned by FDs missing from @tests: tag — add: scan-roots-repo-paths-provider
-- `src/features/__tests__/fill-links-code-gaps.test.ts` — imports files owned by FDs missing from @tests: tag — add: scan-roots-repo-paths-provider, stable-entry-ids-for-roadmap-backlog
-- `src/invariants/__tests__/rule-conflicts.test.ts` — imports files owned by FDs missing from @tests: tag — add: architecture-invariants
-- `src/invariants/__tests__/boundaries.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, architecture-invariants, version-aware-upgrade-and-migration-chain
-- `src/utils/__tests__/parse-blocks.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/release/__tests__/release-session.test.ts` — imports files owned by FDs missing from @tests: tag — add: noldor
-- `src/release/__tests__/release-cr-gate-e2e.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
-- `src/release/__tests__/release-cr-gate.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
-- `src/release/__tests__/release-resume.test.ts` — imports files owned by FDs missing from @tests: tag — add: dynamic-fd-changelog, framework-pr-flow-agent-auto-merge, registry-distribution-for-the-noldor-package, release-bypass-retirement, release-script-sddreport-skip-if-only-count-line-changed, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
-- `src/triage/__tests__/score.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/triage/__tests__/triage-list-untriaged.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-script-test-migration-cleanup
-- `src/triage/__tests__/validate-triage.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/cli/__tests__/validate-script-catalog.test.ts` — imports files owned by FDs missing from @tests: tag — add: autonomous-queue-drain-runner, bootstrap-immunity-for-self-gating-features, code-clone-detector, continuous-drain-daemon-and-escalation-inbox, framework-auto-split-suggestion-for-big-features-and-plans, graphify-plan-of-edges-nodes-for-plans-specs, outcome-telemetry-and-effectiveness-metrics, parallel-agent-dispatch-for-research-jobs, plan-runner, pnpm-release-resume, registry-distribution-for-the-noldor-package, sdd-detector-5-idea-merge-semantic-similarity, stable-entry-ids-for-roadmap-backlog, version-aware-upgrade-and-migration-chain
-- `src/dashboard/__tests__/route-sweep.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard
-- `src/dashboard/__tests__/dashboard-layout-style-polish.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/dashboard/__tests__/dashboard-views.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider, stable-entry-ids-for-roadmap-backlog
-- `src/dashboard/__tests__/dashboard-worktrees.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/host.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
-- `src/dashboard/__tests__/dashboard-agents.test.ts` — imports files owned by FDs missing from @tests: tag — add: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/dashboard-mermaid.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/dashboard-test-pyramid.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/dashboard-ensure.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/dashboard/__tests__/milestones-view.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, decouple-milestones-from-semver, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/dashboard-skills.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/metrics-view.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/dashboard/__tests__/dashboard-graph-health.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/api-blocks.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
-- `src/dashboard/__tests__/dashboard-release-notes.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/dashboard-render-markdown.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/dashboard-layout-body-styles.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/dashboard/__tests__/dashboard-server.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/dashboard/__tests__/server-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/dashboard/__tests__/dashboard-doc-surfaces.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/blocked-by.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering, scan-roots-repo-paths-provider
-- `src/dashboard/__tests__/dashboard-data.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, code-clone-detector, scan-roots-repo-paths-provider
-- `src/testing/__tests__/consumer-fixture.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/testing/__tests__/stub-runner.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
-- `src/hooks/__tests__/noldor-validate-trailer.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-doc-extraction
-- `src/templates/__tests__/templates.test.ts` — imports files owned by FDs missing from @tests: tag — add: make-noldor-agent-agnostic, noldor
-- `src/autonomous/__tests__/drain-reconcile.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
-- `src/autonomous/__tests__/build-pool.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
-- `src/autonomous/__tests__/phase-events.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, drain-startup-reconciliation-of-a-prior-dead-run, parallel-drain
-- `src/autonomous/__tests__/salvage.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/autonomous/__tests__/decide-next.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
-- `src/autonomous/__tests__/status-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, drain-startup-reconciliation-of-a-prior-dead-run, parallel-drain
-- `src/autonomous/__tests__/resolve-roadmap-conflict.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/autonomous/__tests__/run-drain.test.ts` — imports files owned by FDs missing from @tests: tag — add: portable-gate-entrypoint-for-non-claude-runners
-- `src/autonomous/__tests__/watch-state.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/autonomous/__tests__/watch-args.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/autonomous/__tests__/escalations.test.ts` — imports files owned by FDs missing from @tests: tag — add: portable-gate-entrypoint-for-non-claude-runners
-- `src/autonomous/__tests__/queue-drain-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
-- `src/autonomous/__tests__/gate-prompt.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, prefix-skills-with-noldor
-- `src/autonomous/__tests__/merge-classify.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
-- `src/autonomous/__tests__/merge-coordinator.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
-- `src/sync/__tests__/sync-code-links.test.ts` — imports files owned by FDs missing from @tests: tag — add: scan-roots-repo-paths-provider
+- `graphify-out/graph.json` — Co-tag detector ran in degraded mode: graphify-out/graph.json regen 2026-07-15, latest source mtime 2026-07-15. Run /graphify + pnpm toon (preferred) or perform a manual co-tag audit: for each .test.ts file under packages/ or apps/src/, grep imports → check which FDs own those files via links.code → propose missing co-tags.
 
 ### Done features without code
 
