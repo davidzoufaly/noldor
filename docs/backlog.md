@@ -46,19 +46,6 @@ Verified 2026-07-14 (gate pickup): trigger not fired — `src/core/fmt-guard.ts`
 
 Open question — does it make sense to introduce SQL into the framework? Explore use cases (dashboard queries, metrics, entry indexing) before committing.
 
-### Private-Package Org-Move + ps-offsite .npmrc Wiring
-
-- id: Q-0024
-- area: tooling
-- type: chore
-- since: 2026-07-07
-- size: S
-- impact: med
-- parent: noldor
-- confidence: low
-
-Deferred config follow-ups from the private-GH-Packages switch (PR #168, v0.5.0 publish): (1) **Phase B** — wire the ps-offsite consumer's project `.npmrc` (`@davidzoufaly:registry=https://npm.pkg.github.com` + `//npm.pkg.github.com/:_authToken=${NPM_TOKEN}`) and a CI `NPM_TOKEN` secret with `read:packages`, then swap its dep to `@davidzoufaly/noldor` and install (blocked on a user-provided PAT with `read:packages`); (2) move the repo to the GoodData org, which re-scopes the package name and requires updating `publish.yml` scope + every consumer `.npmrc`. Both are operator/config tasks, no framework code.
-
 ### Embeddings Infra for the Framework
 
 - id: Q-0032

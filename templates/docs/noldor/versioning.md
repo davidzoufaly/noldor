@@ -159,32 +159,31 @@ until handled:
   commit the substantive regen once (release-sweep path), after which the
   residual count-line-only diff is tolerated (`onlyReviewSkipCountChanged`)
   and folds into the release commit.
-- **The final registry poll can 401/403 locally — AFTER tag+push+publish.** The
-  local token usually lacks `read:packages`; the actual publish runs in CI.
-  Confirm via `gh run list --workflow=publish.yml` (not the release exit code),
-  then remove the leftover `.noldor/release-state.json`.
+- **The final registry poll waits on CI, not your workstation.** The actual
+  publish runs in CI (tag-triggered `publish.yml`); the local `pnpm release`
+  only polls public npm until the version is visible. Confirm via
+  `gh run list --workflow=publish.yml` (not the release exit code), then remove
+  the leftover `.noldor/release-state.json`.
 
 ## Registry publishing
 
-The framework package itself ships to **private GitHub Packages** as
-`@davidzoufaly/noldor`. Every release tag `vX.Y.Z` maps 1:1 to version
-`X.Y.Z`; `latest` is the only dist-tag pre-1.0. The publish executor is the
-tag-triggered `.github/workflows/publish.yml` workflow, authed with the
-built-in `GITHUB_TOKEN` (`packages: write`) — a scoped package defaults to
-restricted access, so the readable `src/` in the tarball never lands on a
-public registry. The local `pnpm release` pipeline only polls the registry
+The framework package itself ships to **public npm** as `noldor`. Every
+release tag `vX.Y.Z` maps 1:1 to version `X.Y.Z`; `latest` is the only
+dist-tag. The publish executor is the tag-triggered
+`.github/workflows/publish.yml` workflow, authed with an `NPM_TOKEN` secret —
+it publishes the unscoped `noldor` package to public npm with build
+provenance. The local `pnpm release` pipeline only polls the registry
 until the new version is visible, and the `.noldor/release-state.json` resume
 token is cleared only after that (interruption → `pnpm release --resume`,
-rung 7). That poll needs a `read:packages` token in the release environment to
-see the private package; a 401 is surfaced as a missing-token error, not a
-failed publish. Publishing is opt-in via `release.publish.enabled` in
+rung 7). Public-registry reads need no token, so the poll just waits for the
+version to appear. Publishing is opt-in via `release.publish.enabled` in
 `.noldor/config.json` (default `false`), so consumer repos running this same
 vendored pipeline never touch the registry. Emergency hatch:
 `pnpm noldor release publish --wait <version>` re-attaches to an in-flight
 publish; `--local` publishes from a workstation (bypassing the workflow) and
 logs to `.noldor/overrides.log`.
 
-Consumer upgrade flow is unchanged: `pnpm up @davidzoufaly/noldor && pnpm
+Consumer upgrade flow is unchanged: `pnpm up noldor && pnpm
 noldor doctor && pnpm noldor upgrade` (see
 [Version-aware upgrade](#version-aware-upgrade)).
 
