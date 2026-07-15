@@ -21,7 +21,7 @@ links:
 name: Registry Distribution for the Noldor Package
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
@@ -44,28 +44,25 @@ Package hygiene largely shipped in PR #119 (tarball `files` filter drops the sel
 
 ## User Story
 
-As a maintainer of any repository on any machine, I want to install Noldor from a private registry with `pnpm add -D @davidzoufaly/noldor` (GitHub Packages, authed with a `read:packages` token), so that I can adopt the framework with pinned, resolvable versions and no sibling clone — without the framework's source going public.
+As a maintainer of any repository, I want to install Noldor from public npm with `pnpm add -D noldor` — no registry config, no token — so that I can adopt the framework with pinned, resolvable versions and zero auth friction.
 
 ## Usage
 
-**Adopter (any repo, any machine):**
+**Adopter (any repo):**
 
 ```bash
-pnpm init                              # or an existing repo
-# project .npmrc:
-#   @davidzoufaly:registry=https://npm.pkg.github.com
-#   //npm.pkg.github.com/:_authToken=${NPM_TOKEN}   # read:packages token
-pnpm add -D @davidzoufaly/noldor       # private GitHub Packages — no sibling clone
-pnpm noldor init                       # scaffold docs/noldor, hooks, .noldor/config.json
-pnpm noldor doctor                     # health check → green
+pnpm add -D noldor            # public npm — no .npmrc, no token
+pnpm noldor init              # scaffold docs/noldor, hooks, .noldor/config.json
+pnpm noldor doctor            # health check → green
 ```
 
 **Releasing operator (Noldor repo):**
 
 ```bash
+# one-time: create an npm automation token → add repo secret NPM_TOKEN
 pnpm release                  # existing gates → commit → tag → push → GH release
-                              # → tag triggers publish.yml (npm publish via GITHUB_TOKEN)
-                              # → pipeline polls GH Packages until @davidzoufaly/noldor@<v> visible
+                              # → tag triggers publish.yml (npm publish --provenance via NPM_TOKEN)
+                              # → pipeline polls registry.npmjs.org until noldor@<v> visible
 pnpm release --resume         # after any interruption; rung 7 verifies/waits on publish
 ```
 
