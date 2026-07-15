@@ -27,7 +27,7 @@ introduced: 0.5.0
 ---
 ## Summary
 
-Today a consumer installs Noldor as a `file:` dependency and must keep a clone of `noldor/` as a sibling directory of their repo. That is the single hardest blocker for any project that is not on this machine. Publish the package to a registry so adoption starts with `pnpm add -D noldor`.
+Today a consumer installs Noldor as a `file:` dependency and must keep a clone of `noldor/` as a sibling directory of their repo. That is the single hardest blocker for any project that is not on this machine. Publish the package to a registry so adoption starts with `pnpm add -D @david.zoufaly/noldor`.
 
 Package hygiene largely shipped in PR #119 (tarball `files` filter drops the self-host `docs/` tree, tolerant postinstall for missing lefthook, config scaffold in `templates/.noldor/config.json`, `pnpmStderrPrefix` optional). Backlog entry `cli-standalone-tool` merged here 2026-07-02 — same problem, registry install IS the standalone path. Remaining:
 
@@ -40,18 +40,18 @@ Package hygiene largely shipped in PR #119 (tarball `files` filter drops the sel
 
 **Open questions:** npm public vs GitHub Packages (private-first?); semver tag → npm dist-tag mapping (`latest` only pre-1.0?).
 
-**Acceptance sketch:** fresh temp dir, `pnpm init && pnpm add -D noldor && pnpm noldor init && pnpm noldor doctor` → green, no sibling clone present.
+**Acceptance sketch:** fresh temp dir, `pnpm init && pnpm add -D @david.zoufaly/noldor && pnpm noldor init && pnpm noldor doctor` → green, no sibling clone present.
 
 ## User Story
 
-As a maintainer of any repository, I want to install Noldor from public npm with `pnpm add -D noldor` — no registry config, no token — so that I can adopt the framework with pinned, resolvable versions and zero auth friction.
+As a maintainer of any repository, I want to install Noldor from public npm with `pnpm add -D @david.zoufaly/noldor` — no registry config, no token — so that I can adopt the framework with pinned, resolvable versions and zero auth friction.
 
 ## Usage
 
 **Adopter (any repo):**
 
 ```bash
-pnpm add -D noldor            # public npm — no .npmrc, no token
+pnpm add -D @david.zoufaly/noldor            # public npm — no .npmrc, no token
 pnpm noldor init              # scaffold docs/noldor, hooks, .noldor/config.json
 pnpm noldor doctor            # health check → green
 ```
