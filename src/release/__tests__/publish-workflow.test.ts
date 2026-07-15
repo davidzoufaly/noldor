@@ -59,16 +59,19 @@ describe('publish.yml — tag-triggered public npm publish', () => {
     expect(publishIdx).toBeGreaterThan(contractIdx);
   });
 
-  it('publishes a public package with provenance via NPM_TOKEN — unscoped, no --access flag', () => {
-    // Unscoped ⇒ public by default, so `--access public` is unnecessary.
-    // Provenance is the OSS supply-chain attestation (needs id-token: write above).
+  it('publishes a public package with provenance + --access public via NPM_TOKEN', () => {
+    // `npm publish --provenance` on a NEW package REQUIRES an explicit
+    // `--access public` — npm otherwise errors EUSAGE: "Can't generate
+    // provenance for new or private package, you must set access to public".
+    // (Unscoped defaults to public WITHOUT provenance, but the provenance path
+    // on a first publish demands the flag — caught by live CI on v1.0.1.)
     const publishStep = loadWorkflow().jobs.publish.steps.find((s) =>
       (s.run ?? '').includes('npm publish'),
     );
     const publishRun = publishStep?.run ?? '';
     expect(publishRun).toContain('npm publish');
     expect(publishRun).toContain('--provenance');
-    expect(publishRun).not.toContain('--access public');
+    expect(publishRun).toContain('--access public');
     expect(publishStep?.env?.NODE_AUTH_TOKEN).toBe('${{ secrets.NPM_TOKEN }}');
   });
 });
