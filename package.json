@@ -1,7 +1,13 @@
 {
-  "name": "@davidzoufaly/noldor",
+  "name": "noldor",
   "version": "1.0.0",
   "private": false,
+  "homepage": "https://github.com/davidzoufaly/noldor#readme",
+  "bugs": "https://github.com/davidzoufaly/noldor/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidzoufaly/noldor.git"
+  },
   "bin": {
     "noldor": "./bin/noldor.mjs"
   },
@@ -16,7 +22,7 @@
     "./templates/*": "./templates/*"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org"
   },
   "scripts": {
     "build": "tsc",

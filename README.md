@@ -1,8 +1,8 @@
 # Noldor
 
-Discipline framework for agent-driven software development: a **single mandatory gate** for every code change, doc-anchored features, and an autonomous queue-drain that ships small work unattended. Noldor is pre-1.0 (version lives in `package.json`, printed by `noldor --version`) and self-hosting — it dogfoods its own gate, drain, and release pipeline. It ships as a **private GitHub Packages** npm package, `@davidzoufaly/noldor`, published on tag by CI with the built-in `GITHUB_TOKEN`. Distribution is closed-source by design: the tarball ships readable `src/` (a tsx-on-source runtime), so a public registry is not an option.
+Discipline framework for agent-driven software development: a **single mandatory gate** for every code change, doc-anchored features, and an autonomous queue-drain that ships small work unattended. Noldor is self-hosting — it dogfoods its own gate, drain, and release pipeline (version lives in `package.json`, printed by `noldor --version`). It ships as a **public npm package**, `noldor`, published on tag by CI with build provenance.
 
-New to Noldor, or adding it to an existing repo? The **[adoption guide](docs/noldor/adoption-guide.md)** is the full onboarding path (prerequisites floor, install, the monorepo and CI-auth traps, first-commit gotchas, and the complete config reference). This README is the map; the adoption guide is the territory.
+New to Noldor, or adding it to an existing repo? The **[adoption guide](docs/noldor/adoption-guide.md)** is the full onboarding path (prerequisites floor, install, the monorepo trap, first-commit gotchas, and the complete config reference). This README is the map; the adoption guide is the territory.
 
 ## Prerequisites
 
@@ -10,21 +10,14 @@ Noldor hard-assumes its home stack; the floor is not negotiable pre-1.0: **Node 
 
 ## Install
 
-Noldor is a **private** package on GitHub Packages, so first authenticate npm to that registry. In your project `.npmrc`:
-
-```
-@davidzoufaly:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${NPM_TOKEN}
-```
-
-`NPM_TOKEN` is a GitHub token with `read:packages` and access to the noldor repo (fine-grained recommended). Then install as a dev dependency:
+Noldor is a public package on npm — install it as a dev dependency, no registry config or token required:
 
 ```bash
-pnpm add -D @davidzoufaly/noldor
+pnpm add -D noldor
 ```
 
-- **Monorepo / workspace:** add `-w` (`pnpm add -Dw @davidzoufaly/noldor`) — a bare `pnpm add -D` at a workspace root fails with `ERR_PNPM_ADDING_TO_ROOT`.
-- **CI / deploy:** any pipeline that runs `npm ci` / `pnpm install` needs the same `.npmrc` plus an `NPM_TOKEN` secret in the job environment, or the install 401s. See the [adoption guide](docs/noldor/adoption-guide.md) for both traps in full.
+- **Monorepo / workspace:** add `-w` (`pnpm add -Dw noldor`) — a bare `pnpm add -D` at a workspace root fails with `ERR_PNPM_ADDING_TO_ROOT`.
+- **CI / deploy:** `npm ci` / `pnpm install` resolves `noldor` from public npm with no extra auth.
 
 ## Initialize
 
@@ -107,7 +100,7 @@ Framework contributors work against a clone. A consumer repo on the same machine
 ```json
 {
   "devDependencies": {
-    "@davidzoufaly/noldor": "file:../noldor"
+    "noldor": "file:../noldor"
   }
 }
 ```

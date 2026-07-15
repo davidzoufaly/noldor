@@ -26,21 +26,21 @@ function loadWorkflow(): WorkflowShape {
   return parse(raw) as WorkflowShape;
 }
 
-describe('publish.yml — tag-triggered trusted publishing', () => {
+describe('publish.yml — tag-triggered public npm publish', () => {
   it('fires on v* tag pushes only', () => {
     expect(loadWorkflow().on).toEqual({ push: { tags: ['v*'] } });
   });
 
-  it('declares packages: write for GitHub Packages publish (no OIDC id-token)', () => {
-    expect(loadWorkflow().permissions).toEqual({ contents: 'read', packages: 'write' });
+  it('declares contents: read + id-token: write (provenance), and NOT packages: write', () => {
+    expect(loadWorkflow().permissions).toEqual({ contents: 'read', 'id-token': 'write' });
   });
 
-  it('points npm at GitHub Packages under the @davidzoufaly scope via setup-node', () => {
+  it('points npm at the public npm registry via setup-node, unscoped (no scope)', () => {
     const setupNode = loadWorkflow().jobs.publish.steps.find((s) =>
       s.uses?.startsWith('actions/setup-node'),
     );
-    expect(setupNode?.with?.['registry-url']).toBe('https://npm.pkg.github.com');
-    expect(setupNode?.with?.scope).toBe('@davidzoufaly');
+    expect(setupNode?.with?.['registry-url']).toBe('https://registry.npmjs.org');
+    expect(setupNode?.with?.scope).toBeUndefined();
   });
 
   it('guards tag-vs-package.json before installing anything', () => {
@@ -59,17 +59,16 @@ describe('publish.yml — tag-triggered trusted publishing', () => {
     expect(publishIdx).toBeGreaterThan(contractIdx);
   });
 
-  it('publishes a private package via GITHUB_TOKEN — no --access public, no provenance', () => {
-    // Private GH Packages: a scoped name defaults to restricted access, so
-    // `--access public` (which would re-leak the source) must be absent, and
-    // provenance is a public-registry/sigstore feature that no longer applies.
+  it('publishes a public package with provenance via NPM_TOKEN — unscoped, no --access flag', () => {
+    // Unscoped ⇒ public by default, so `--access public` is unnecessary.
+    // Provenance is the OSS supply-chain attestation (needs id-token: write above).
     const publishStep = loadWorkflow().jobs.publish.steps.find((s) =>
       (s.run ?? '').includes('npm publish'),
     );
     const publishRun = publishStep?.run ?? '';
     expect(publishRun).toContain('npm publish');
+    expect(publishRun).toContain('--provenance');
     expect(publishRun).not.toContain('--access public');
-    expect(publishRun).not.toContain('--provenance');
-    expect(publishStep?.env?.NODE_AUTH_TOKEN).toBe('${{ secrets.GITHUB_TOKEN }}');
+    expect(publishStep?.env?.NODE_AUTH_TOKEN).toBe('${{ secrets.NPM_TOKEN }}');
   });
 });

@@ -26,14 +26,7 @@ Swappability is out of scope here by design — abstraction decisions (other pac
 
 ## Bootstrap
 
-1. **Authenticate to GitHub Packages, then install.** Noldor is a **private** package (`@davidzoufaly/noldor`) on GitHub Packages — the tarball ships readable `src/`, so it is never published to a public registry. Add a project `.npmrc` (commit it; the token stays in the environment, not the file):
-
-   ```
-   @davidzoufaly:registry=https://npm.pkg.github.com
-   //npm.pkg.github.com/:_authToken=${NPM_TOKEN}
-   ```
-
-   `NPM_TOKEN` is a GitHub PAT (classic or fine-grained) with **`read:packages`** and access to the noldor repo — fine-grained (per-repo package read) is recommended. Then install as a dev dependency: `pnpm add -D @davidzoufaly/noldor` (in a **pnpm workspace / monorepo**, add `-w` to install at the root: `pnpm add -Dw @davidzoufaly/noldor` — a bare `pnpm add -D` at a workspace root fails with `ERR_PNPM_ADDING_TO_ROOT`). (Framework contributors point at a sibling clone instead: `"@davidzoufaly/noldor": "file:../noldor"`.)
+1. **Install from npm.** Noldor is a public package (`noldor`) on the npm registry — no `.npmrc`, no token. Install as a dev dependency: `pnpm add -D noldor` (in a **pnpm workspace / monorepo**, add `-w` to install at the root: `pnpm add -Dw noldor` — a bare `pnpm add -D` at a workspace root fails with `ERR_PNPM_ADDING_TO_ROOT`). Framework contributors point at a sibling clone instead: `"noldor": "file:../noldor"`.
 2. **Scaffold** the framework files into your repo: `pnpm noldor init`. This drops the `docs/noldor/` rule pages, the lefthook config, the skill bundle, a starter `.noldor/config.json` (only when absent — never overwritten, even by `--update`), and `.noldor/rollout-marker` (arms the gate validators; commit it). Re-run `pnpm noldor init --update` to pull template updates, or `pnpm noldor doctor` to diff your copy against the package templates.
 3. **Configure** the scaffolded `.noldor/config.json`: fill the `consumer:` block with your repo's real values (see field table below).
 4. **Hooks** install automatically via the package's `postinstall` (`lefthook install`; skipped with a note when lefthook isn't present, e.g. registry installs without devDeps).
@@ -44,7 +37,7 @@ schema version. Run `pnpm noldor upgrade --dry-run` to review the migration
 diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
 [versioning.md](versioning.md#version-aware-upgrade).
 
-> **CI / deploy auth (required).** Any pipeline that runs `npm ci` / `pnpm install` — build, test, or a Pages/deploy job — needs the same `.npmrc` plus an `NPM_TOKEN` secret wired into the job environment (a `read:packages` GitHub token). Without it the install 401s and cannot resolve `@davidzoufaly/noldor`. This is the exact gap that blocked the ps-offsite Pages deploy — GitHub Packages auth is what unblocks a CI runner that has no sibling clone to fall back on.
+> **CI / deploy.** Any pipeline that runs `npm ci` / `pnpm install` — build, test, or a Pages/deploy job — resolves `noldor` from public npm with no extra auth: no `.npmrc`, no secret.
 
 > **First commit & gotchas.** The scaffolded lefthook jobs shell out to your `lint` / `fmt` / `fmt:check` / `test` scripts and to `lefthook` itself — add any you lack (`pnpm add -D lefthook`; add the four package scripts if missing) so the first commit's hooks don't fail with "missing script". The bootstrap commit stages `docs/noldor/**`, but the `noldor-scope` hook allowlists the `init` scaffold set, so it lands clean (no `(noldor)` scope required). Once those files are tracked, the pre-edit guard arms: the **next** edit to a tracked file needs a `/noldor-gate` session. Adopting the lint floor (`oxlint --deny-warnings`) on a repo that already has warnings will block that first commit — fix them, or stage an oxlint ignore ramp before adopting.
 
