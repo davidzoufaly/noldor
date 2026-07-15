@@ -43,7 +43,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 99
+Gated commits missing `Noldor-Reviewed` trailer: 100
 
 ## Metrics
 
@@ -87,7 +87,16 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
 
 ```json
 {
-  "perLane": {},
+  "perLane": {
+    "reviewer": {
+      "blockers": 7,
+      "suggestions": 32
+    },
+    "verifier": {
+      "blockers": 0,
+      "suggestions": 0
+    }
+  },
   "correctiveBySlug": {},
   "windowDays": 14
 }
@@ -100,8 +109,23 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
 
 ```json
 {
-  "lastRun": null,
-  "history": null
+  "lastRun": {
+    "shipped": 3,
+    "skipped": 0,
+    "retried": 0
+  },
+  "history": {
+    "salvaged": 2,
+    "escalatedTotal": 10,
+    "escalatedBySlug": {
+      "trailer-scope-alias-map": 2,
+      "prefix-skills-with-noldor": 2,
+      "framework-script-test-migration-cleanup": 3,
+      "scope-sibling-trailer-for-doc-sync-commits": 1,
+      "-": 2
+    },
+    "meanDurationMs": 1062684
+  }
 }
 ```
 
@@ -120,7 +144,26 @@ blind spots: Only trailer-carrying overrides count; env-var bypasses (the releas
 ### tokens-per-feature [raw tokens (NEVER cost)]
 
 ```json
-{}
+{
+  "graphify-ast-only-sweep-default": null,
+  "framework-auto-split-suggestion-for-big-features-and-plans": 105051,
+  "framework-script-test-migration-cleanup": 827485,
+  "scope-sibling-trailer-for-doc-sync-commits": 272153,
+  "self-boundaries-declaration-and-cycle-break": 215653,
+  "stable-entry-ids-for-roadmap-backlog": 394863,
+  "first-class-blocked-by-field": 507049,
+  "init-adopt-flag-drift-reconciliation": 124900,
+  "consumer-rule-conflicts-graceful-degradation": 200457,
+  "init-scaffold-noldor-scope-allowlist": 1076721,
+  "add-templates-docs-to-micro-chore-and-release-sweep-allowlists": 79251,
+  "pr-flow-fallback-merges-on-red-ci": 115370,
+  "plans-source-drain-deps-gating": 116951,
+  "test-tag-presence-on-src-layout": 110733,
+  "verify-lane-bake-in-blocking-mode-pr-evidence": 454759,
+  "dashboard-actions-row-full-height": 48296,
+  "dashboard-merge-hot-zones-into-wip-age": 184834,
+  "dashboard-merge-skills-into-framework": 49050
+}
 ```
 
 formula: Sum of agent-event tokens.total per slug. Tokens are read verbatim from runner usage records (claude-jsonl / codex-session / opencode-session); events without trustworthy usage carry no tokens.
