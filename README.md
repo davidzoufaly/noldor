@@ -3,10 +3,10 @@
 **A discipline framework for agent-driven software development.** One mandatory gate for every code change, features anchored in docs, and an autonomous queue that ships small work while you sleep — with a live dashboard watching the whole pipeline.
 
 ```bash
-pnpm add -D noldor
+pnpm add -D @david.zoufaly/noldor
 ```
 
-[![npm](https://img.shields.io/npm/v/noldor?color=blue)](https://www.npmjs.com/package/noldor) · Node ≥ 20 · pnpm ≥ 9 · MIT
+[![npm](https://img.shields.io/npm/v/@david.zoufaly/noldor?color=blue)](https://www.npmjs.com/package/@david.zoufaly/noldor) · Node ≥ 20 · pnpm ≥ 9 · MIT
 
 > New here, or adopting into an existing repo? The **[adoption guide](docs/noldor/adoption-guide.md)** is the full onboarding path. This README is the map; the guide is the territory.
 
@@ -59,7 +59,7 @@ pnpm noldor dashboard server --port 4321 --docs ./docs
 ## Quick start
 
 ```bash
-pnpm add -D noldor            # monorepo: add -w  ·  CI: npm ci resolves from public npm, no token
+pnpm add -D @david.zoufaly/noldor            # monorepo: add -w  ·  CI: npm ci resolves from public npm, no token
 pnpm noldor init              # scaffold docs/noldor, hooks, .noldor/config.json, rollout marker
 pnpm noldor init --adopt      # OR reverse-bootstrap an existing repo into the layout
 pnpm noldor doctor            # prerequisite + template-skew health check → green
@@ -153,7 +153,7 @@ The framework rule pages live under [`docs/noldor/`](docs/noldor/README.md) — 
 Framework contributors work against a clone. A consumer repo on the same machine can point at it with a `file:` dependency (assumes `noldor/` is a sibling, e.g. `~/code/noldor/` next to `~/code/charuy/`):
 
 ```json
-{ "devDependencies": { "noldor": "file:../noldor" } }
+{ "devDependencies": { "@david.zoufaly/noldor": "file:../noldor" } }
 ```
 
 ```bash

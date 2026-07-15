@@ -167,11 +167,11 @@ until handled:
 
 ## Registry publishing
 
-The framework package itself ships to **public npm** as `noldor`. Every
+The framework package itself ships to **public npm** as `@david.zoufaly/noldor`. Every
 release tag `vX.Y.Z` maps 1:1 to version `X.Y.Z`; `latest` is the only
 dist-tag. The publish executor is the tag-triggered
 `.github/workflows/publish.yml` workflow, authed with an `NPM_TOKEN` secret —
-it publishes the unscoped `noldor` package to public npm with build
+it publishes the the `@david.zoufaly/noldor` package to public npm with build
 provenance. The local `pnpm release` pipeline only polls the registry
 until the new version is visible, and the `.noldor/release-state.json` resume
 token is cleared only after that (interruption → `pnpm release --resume`,
@@ -183,7 +183,7 @@ vendored pipeline never touch the registry. Emergency hatch:
 publish; `--local` publishes from a workstation (bypassing the workflow) and
 logs to `.noldor/overrides.log`.
 
-Consumer upgrade flow is unchanged: `pnpm up noldor && pnpm
+Consumer upgrade flow is unchanged: `pnpm up @david.zoufaly/noldor && pnpm
 noldor doctor && pnpm noldor upgrade` (see
 [Version-aware upgrade](#version-aware-upgrade)).
 
