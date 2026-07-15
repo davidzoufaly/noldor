@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.2 — 2026-07-15
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift for v1.0.2 (#237) ([76cea6f](https://github.com/davidzoufaly/noldor/commit/76cea6f853158dd1e1f085fdb8c41dcfe5760e68)) ([#237](https://github.com/davidzoufaly/noldor/pull/237))
+- docs(sdd-report): refresh for v1.0.2 release (#236) ([edff656](https://github.com/davidzoufaly/noldor/commit/edff656f4e34b4b4c4aa67427f72477c9f0b8097)) ([#236](https://github.com/davidzoufaly/noldor/pull/236))
+- build(release): add MIT license field to package.json (#235) ([200fd6e](https://github.com/davidzoufaly/noldor/commit/200fd6e3eb7289231cc5ce237dd4b6f246e9222d)) ([#235](https://github.com/davidzoufaly/noldor/pull/235))
+
 ## v1.0.1 — 2026-07-15
 
 ### Other changes
