@@ -224,11 +224,11 @@ describe('release.crGateExemptCommits block', () => {
 });
 
 describe('release.publish block', () => {
-  it('defaults enabled=false, GitHub Packages registry, latest dist-tag', () => {
+  it('defaults enabled=false, public npm registry, latest dist-tag', () => {
     const parsed = noldorConfigSchema.parse({ release: { publish: {} } });
     expect(parsed.release?.publish).toEqual({
       enabled: false,
-      registry: 'https://npm.pkg.github.com',
+      registry: 'https://registry.npmjs.org',
       distTag: 'latest',
     });
   });
@@ -240,7 +240,7 @@ describe('release.publish block', () => {
   it('parses an opt-in block and fills the other defaults', () => {
     const parsed = noldorConfigSchema.parse({ release: { publish: { enabled: true } } });
     expect(parsed.release?.publish?.enabled).toBe(true);
-    expect(parsed.release?.publish?.registry).toBe('https://npm.pkg.github.com');
+    expect(parsed.release?.publish?.registry).toBe('https://registry.npmjs.org');
     expect(parsed.release?.publish?.distTag).toBe('latest');
   });
 
