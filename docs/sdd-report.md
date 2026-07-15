@@ -12,12 +12,12 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 - Total features: 75
 - Untriaged ideas: 0
-- Backlog entries: 6
-- Gap categories with issues: 7 / 14
+- Backlog entries: 5
+- Gap categories with issues: 6 / 14
 
 ## Code clones
 
-- 280 clone group(s), 13.80% duplicated tokens across 291 file(s)
+- 280 clone group(s), 13.81% duplicated tokens across 291 file(s)
 - src/garden/garden-detect.ts:98-204 and src/garden/garden-detect.ts:221-327 (388 tokens)
 - src/dashboard/views.ts:748-803 and src/dashboard/views.ts:826-930 (323 tokens)
 - src/dashboard/data.ts:1127-1158 and src/garden/sdd-report.ts:908-943 (259 tokens)
@@ -43,7 +43,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 94
+Gated commits missing `Noldor-Reviewed` trailer: 96
 
 ## Metrics
 
@@ -51,10 +51,10 @@ Gated commits missing `Noldor-Reviewed` trailer: 94
 
 ```json
 {
-  "medianDays": 25.8,
-  "p90Days": 57.5,
+  "medianDays": 20.6,
+  "p90Days": 56.5,
   "medianByPath": {
-    "unknown": 26.5,
+    "unknown": 20.6,
     "full-new": 20.6,
     "specs-only-new": 25.8
   },
@@ -183,30 +183,18 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `continuous-drain-daemon-and-escalation-inbox` — Continuous Drain Daemon and Escalation Inbox (tooling) has no entries in links.docs
 - `make-noldor-agent-agnostic` — Make Noldor Agent-Agnostic (tooling) has no entries in links.docs
 
-### Done features missing introduced
-
-- `code-clone-detector` — Code-Clone Detector is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `dashboard-blocked-by-graph-view` — Dashboard Blocked-By Graph View is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `dashboard-broken-pages-audit` — Dashboard Broken-Pages Audit is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `memory-intake-lessons-learned-pipeline` — Memory-Intake / Lessons-Learned Pipeline is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `readme-rewrite-consumer-journey-order` — README Rewrite — Consumer-Journey Order is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `skill-vs-code-drift-detector` — Skill-vs-Code Drift Detector is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `state-file-fail-open-hardening` — State-File Fail-Open Hardening is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `validate-script-catalog-gate` — Validate Script-Catalog Gate is phase=done but introduced is unset (release script should fill on next pnpm release)
-- `vendored-systematic-debugging-discipline` — Vendored Systematic-Debugging Discipline is phase=done but introduced is unset (release script should fill on next pnpm release)
-
 ### Plans without matching spec
 
 - `docs/design/plans/2026-06-07-end-of-flow-ergonomics.md` — docs/design/plans/2026-06-07-end-of-flow-ergonomics.md has slug "end-of-flow-ergonomics" with no matching spec under docs/design/specs/
 
 ### Code files not referenced by any feature
 
-- `src/core/atomic-write.ts` — src/core/atomic-write.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
+- `src/core/atomic-write.ts` — src/core/atomic-write.ts is not referenced by any feature MD links.code — probable owner: noldor, release-sweep-process-hardening
 - `src/core/fmt-guard-cli.ts` — src/core/fmt-guard-cli.ts is not referenced by any feature MD links.code
 - `src/core/fmt-guard.ts` — src/core/fmt-guard.ts is not referenced by any feature MD links.code
-- `src/core/init-gitignore.ts` — src/core/init-gitignore.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain, noldor, make-noldor-agent-agnostic
+- `src/core/init-gitignore.ts` — src/core/init-gitignore.ts is not referenced by any feature MD links.code
 - `src/core/lanes.ts` — src/core/lanes.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer
-- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic
+- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, agent-events-phase-tracking-run-ids-and-agents-dashboard-page, drain-startup-reconciliation-of-a-prior-dead-run
 - `src/core/prompt-stdin.ts` — src/core/prompt-stdin.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer
 - `src/core/review-profile.ts` — src/core/review-profile.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer, make-noldor-agent-agnostic
 - `src/core/state-file.ts` — src/core/state-file.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
