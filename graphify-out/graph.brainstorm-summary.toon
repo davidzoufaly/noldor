@@ -1,53 +1,53 @@
 # Domain Knowledge Graph — Summary
-# 1905 nodes, 4651 edges, 117 communities
+# 2043 nodes, 4999 edges, 137 communities
 
 directed: false
 
 ## community index (top 20 by size)
-  c0 (109): detectors
-  c1 (95): detectors
-  c2 (89): detectors / rules
-  c3 (80): commands
-  c4 (60): dev-surfaces.ts · bootDevSurfaces() · worktree-conflicts.ts
-  c5 (50): release-fd-commits.ts · parseCommitLine() · gitLogShas()
-  c6 (49): collect
-  c7 (39): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
+  c0 (98): collect
+  c1 (93): commands
+  c2 (50): dev-surfaces.ts · bootDevSurfaces() · worktree-conflicts.ts
+  c3 (49): data.ts · highlight() · getDocRoot()
+  c4 (45): release-fd-commits.ts · parseCommitLine() · gitLogShas()
+  c5 (44): setDocRootsOverride() · getRoadmapPath() · getBacklogPath()
+  c6 (40): context.ts · buildContext() · diffArgs()
+  c7 (39): collect
   c8 (38): check-invariants.ts · isBlocking() · isWarning()
-  c9 (37): getRepoUrl() · data.ts · highlight()
-  c10 (35): walkTokens() · views.ts · deriveRepoSlug()
+  c9 (38): walkTokens() · views.ts · deriveRepoSlug()
+  c10 (36): detectors
   c11 (34): rules
-  c13 (32): agent-runner
-  c12 (32): context.ts · buildContext() · diffArgs()
-  c14 (29): fanout.ts · intArg() · strArg()
-  c15 (29): draft.ts · buildDraftPrompt() · staging.ts
-  c16 (29): detectors
-  c17 (27): detectors
-  c18 (26): api
-  c19 (24): agent-runner / usage
+  c12 (32): buildSource() · drain-loop.ts · decideNext()
+  c13 (29): compareSemver() · isLinkEnforced() · isInfraFile()
+  c14 (29): detectors
+  c15 (27): detectors
+  c17 (26): pr-flow.ts · composeTitle() · renderCrTable()
+  c16 (26): api
+  c19 (24): extract-touches.ts · looksLikePath() · normalizePath()
+  c18 (24): agent-runner / usage
 
 ## cross-community edges (top 25)
-  fanout.ts [c14] --imports_from-- registry.ts [c52]
-  fanout.ts [c14] --imports-- spawnAgent() [c52]
-  compute.ts [c6] --imports_from-- routing-accuracy.ts [c74]
-  compute.ts [c6] --imports-- collectRoutingAccuracy() [c74]
-  main() [c0] --imports_from-- compute.ts [c6]
-  loadMetricsReport() [c7] --imports_from-- compute.ts [c6]
-  main() [c0] --calls-- compute() [c6]
-  loadMetricsReport() [c7] --calls-- compute() [c6]
-  types.ts [c6] --imports_from-- agent-events.ts [c32]
-  types.ts [c6] --imports_from-- escalations.ts [c29]
-  types.ts [c6] --imports_from-- drain-state.ts [c57]
-  types.ts [c6] --imports_from-- findings-schema.ts [c47]
-  types.ts [c6] --imports_from-- feature-schema.ts [c66]
-  routing-accuracy.ts [c74] --imports_from-- types.ts [c6]
-  sdd-report.ts [c0] --imports_from-- types.ts [c6]
-  data.ts [c9] --imports_from-- types.ts [c6]
-  views.ts [c10] --imports_from-- types.ts [c6]
-  metrics-view.test.ts [c10] --imports_from-- types.ts [c6]
-  facts.ts [c6] --imports_from-- feature-schema.ts [c66]
-  facts.ts [c6] --imports_from-- findings-schema.ts [c47]
-  facts.ts [c6] --imports_from-- slugify.ts [c1]
-  facts.ts [c6] --imports-- slugify() [c1]
-  facts.ts [c6] --imports_from-- agent-events.ts [c32]
-  facts.ts [c6] --imports_from-- escalations.ts [c29]
-  facts.ts [c6] --imports_from-- drain-state.ts [c57]
+  fanout.ts [c0] --imports_from-- registry.ts [c30]
+  fanout.ts [c0] --imports-- spawnAgent() [c49]
+  compute.ts [c7] --imports_from-- routing-accuracy.ts [c0]
+  compute.ts [c7] --imports-- collectRoutingAccuracy() [c0]
+  main() [c41] --imports_from-- compute.ts [c7]
+  loadMetricsReport() [c5] --imports_from-- compute.ts [c7]
+  main() [c41] --calls-- compute() [c7]
+  loadMetricsReport() [c5] --calls-- compute() [c7]
+  types.ts [c7] --imports_from-- agent-events.ts [c75]
+  types.ts [c7] --imports_from-- escalations.ts [c20]
+  types.ts [c7] --imports_from-- drain-state.ts [c67]
+  types.ts [c7] --imports_from-- findings-schema.ts [c50]
+  types.ts [c7] --imports_from-- feature-schema.ts [c35]
+  routing-accuracy.ts [c0] --imports_from-- types.ts [c7]
+  sdd-report-format.ts [c76] --imports_from-- types.ts [c7]
+  sdd-report.ts [c13] --imports_from-- types.ts [c7]
+  sdd-report-metrics.test.ts [c76] --imports_from-- types.ts [c7]
+  data.ts [c3] --imports_from-- types.ts [c7]
+  views.ts [c9] --imports_from-- types.ts [c7]
+  metrics-view.test.ts [c9] --imports_from-- types.ts [c7]
+  facts.ts [c7] --imports_from-- feature-schema.ts [c35]
+  facts.ts [c7] --imports_from-- findings-schema.ts [c50]
+  facts.ts [c7] --imports_from-- slugify.ts [c45]
+  facts.ts [c7] --imports-- slugify() [c45]
+  facts.ts [c7] --imports_from-- agent-events.ts [c75]
