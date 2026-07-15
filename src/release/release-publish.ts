@@ -12,7 +12,7 @@ import { ensureCleanTreeOnMain } from './clean-tree.js';
 const execFileP = promisify(execFile);
 
 /** Default poll target; overridable per-consumer via `release.publish.registry`. */
-export const DEFAULT_REGISTRY = 'https://npm.pkg.github.com';
+export const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 const DEFAULT_POLL_MS = 10_000;
 
@@ -38,33 +38,11 @@ export interface RegistryProbe {
 }
 
 /**
- * npm surfaces registry auth failures as an error CODE (`E401` / `E403` /
- * `ENEEDAUTH`) plus a status phrase (`Unauthorized` / `Forbidden`). GH Packages
- * answers a token that lacks `read:packages` — or exists but isn't SAML/SSO
- * authorized for the org — with **403**, so both 401 and 403 count. Match the
- * codes and phrases, never a bare `\b401\b`: the scanned text includes the
- * package spec (`name@version`), so a bare-digit match would fire on a version
- * like `pkg@0.401.0` and turn a genuine 404 into a spurious "missing token".
- */
-function isRegistryAuthError(error: unknown): boolean {
-  const parts: string[] = [];
-  if (error instanceof Error) parts.push(error.message);
-  if (typeof error === 'object' && error !== null) {
-    const stderr = (error as { stderr?: unknown }).stderr;
-    if (typeof stderr === 'string') parts.push(stderr);
-  }
-  const text = parts.join('\n');
-  return /\bE(401|403|NEEDAUTH)\b/i.test(text) || /\b(unauthorized|forbidden)\b/i.test(text);
-}
-
-/**
  * One registry probe: does `<pkg>@<version>` resolve? A clean `npm view` = yes.
- * npm does the `@scope%2Fname` path-encoding GH Packages wants, so the scoped
- * spec is passed through untouched. A 404 (or any non-auth npm failure) → false
- * (not published yet; keep polling). A **401 or 403** is different: on a private
- * GH Packages registry it means the environment lacks a usable `read:packages`
- * token, so the probe can never succeed — throw a clear error instead of polling
- * to a misleading "publish failed" timeout.
+ * The public npm registry serves reads unauthenticated, so any `npm view`
+ * failure — a 404 (not published yet) or even a transient 401/403 — is treated
+ * as "not visible yet" and the caller keeps polling. There is no missing-token
+ * special case: public reads need no token.
  */
 export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean> {
   const exec = probe.exec ?? realExec;
@@ -76,16 +54,7 @@ export async function isVersionOnRegistry(probe: RegistryProbe): Promise<boolean
       probe.env,
     );
     return true;
-  } catch (error) {
-    if (isRegistryAuthError(error)) {
-      throw new Error(
-        `${registry} returned an auth error (401/403) for ${probe.pkgName}@${probe.version}. ` +
-          'GitHub Packages needs a token with `read:packages` (and, for an org, SSO ' +
-          'authorization) to see a private package — configure an `.npmrc` for ' +
-          'npm.pkg.github.com with a `_authToken` that the release environment resolves. ' +
-          'An auth error here is a missing/invalid token, NOT a failed publish.',
-      );
-    }
+  } catch {
     return false;
   }
 }
@@ -111,8 +80,8 @@ function envTuning(env: Record<string, string> | undefined, key: string, fallbac
 
 /**
  * Poll the registry until `<pkg>@<version>` is visible. The publish itself is
- * executed by the tag-triggered publish.yml workflow (GitHub Packages, authed
- * with the built-in `GITHUB_TOKEN`) — the release pipeline only WAITS here.
+ * executed by the tag-triggered publish.yml workflow (the public npm registry,
+ * authed with an `NPM_TOKEN` secret) — the release pipeline only WAITS here.
  * Timeout throws with the two recovery moves; the caller keeps
  * `.noldor/release-state.json` behind so `pnpm release --resume` can finish.
  */
@@ -183,8 +152,8 @@ async function verifyTarball(): Promise<void> {
  * publish.yml workflow, so it's loud + logged (`.noldor/overrides.log`,
  * surfaced by the garden override-audit) and guarded by the release pipeline's
  * own preflight (main branch, clean tree, synced origin) plus a HEAD-tag check.
- * Needs a GH Packages token with `write:packages` in the local `.npmrc` /
- * NODE_AUTH_TOKEN.
+ * Needs an npm token with publish rights in the local `.npmrc` /
+ * `NODE_AUTH_TOKEN`.
  */
 async function publishLocal(cwd: string): Promise<void> {
   await ensureCleanTreeOnMain();
