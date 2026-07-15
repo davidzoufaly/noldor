@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.1 — 2026-07-15
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift (#232) ([a072624](https://github.com/davidzoufaly/noldor/commit/a072624f6248d3fc1161ffae020e5b4640dcae5b)) ([#232](https://github.com/davidzoufaly/noldor/pull/232))
+- docs: rewrite README — catchy overview + dashboard screenshots (#231) ([6358227](https://github.com/davidzoufaly/noldor/commit/6358227338b57e714fd912d4eed60b8ae3c49580)) ([#231](https://github.com/davidzoufaly/noldor/pull/231))
+- docs(features:registry-distribution-for-the-noldor-package): revert phase done → in-progress for attach session (#230) ([35222c5](https://github.com/davidzoufaly/noldor/commit/35222c57c0c34e83d471c7697e0a536657a2ca39)) ([#230](https://github.com/davidzoufaly/noldor/pull/230))
+
 ## v1.0.0 — 2026-07-15
 
 ### Features
