@@ -1,5 +1,63 @@
 # Release Notes
 
+## v1.0.0 — 2026-07-15
+
+### Tooling
+
+#### Code-Clone Detector
+
+Token/AST-based Type-1/2/3 clone detection (copy-paste dups, à la `jscpd`). Deterministic corpus over `scanPaths`, no LLM. Surface duplicate blocks as a new signal in `sdd-report` + feed `/refactor`; optional CR-gate block above a configurable clone threshold. Fits the "deterministic detector + optional LLM triage" pattern (same shape as detector-5 idea-merge). Distinct from existing pieces: `/refactor` finds consolidation opportunities from god-nodes/cohesion but doesn't do line/token clone matching; `graphify` AST graph has structural similarity signal but no clone report. Semantic (Type-4) clones out of scope — that's the embeddings-infra entry.
+
+[Feature page](/features/code-clone-detector)
+
+#### Dashboard Blocked-By Graph View
+
+Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on the tracking dashboard (nodes = entries, edges = blocked-by; highlight cycles flagged by the `circular-blocked-by` garden detector). Split out of the shipped `first-class-blocked-by-field` entry — the data model, validation, and cycle detector landed; the dashboard visualization was deferred as its own larger piece.
+
+[Feature page](/features/dashboard-blocked-by-graph-view)
+
+#### Dashboard Broken-Pages Audit
+
+Many dashboard pages are currently broken, and the live drain-observation view is missing from the main menu (and not working when reached directly). Audit every dashboard route, fix the broken pages, and surface live drain observation as a first-class main-menu item.
+
+[Feature page](/features/dashboard-broken-pages-audit)
+
+#### Memory-Intake / Lessons-Learned Pipeline
+
+Systemic self-capture so the framework routinely absorbs ephemeral operator/agent knowledge into itself instead of depending on an out-of-repo assistant memory (the 2026-07-07 audit that produced Q-0019..Q-0025 was a one-time manual sweep). The intake is deliberately minimal: a `## Lessons` capture section in the existing `ideas.md` inbox (no new file, no new CLI) plus one skill — `/noldor-absorb` — that classifies each unfiled lesson (`drop` shipped-historical / `gotcha` → docs / `actionable` → triage queue / `feedback` → runbooks) and files it, stamping `[absorbed YYYY-MM-DD → <dest>]` on the source bullet. Goal: framework stays self-aware and self-owned with zero dependency on any single assistant's private memory. Speculative — validate the manual loop pays off before automating.
+
+[Feature page](/features/memory-intake-lessons-learned-pipeline)
+
+#### README Rewrite — Consumer-Journey Order
+
+Deep-audit finding (batch `.noldor/research/2026-07-13-184850`, `readme-quality.findings.md` has the proposed outline): README is not wrong post-PR#126 but covers only 5 of 34 CLI command groups, omits gate/drain/upgrade/`init --adopt`, never links the adoption guide, and enumerates a stale config field set. Rewrite in consumer-journey order (install from GH Packages → init/adopt → gate workflow → dashboard → drain → upgrade), link the adoption guide instead of duplicating it, stop enumerating config fields. Same pass: fix `docs/noldor/README.md` index staleness — it still calls the adoption guide a "stub — WIP" (it's a full 105-line guide with live consumers) and omits 4 existing pages (incl. agent-runtimes.md).
+
+[Feature page](/features/readme-rewrite-consumer-journey-order)
+
+#### Skill-vs-Code Drift Detector
+
+Skills reference CLI commands, `package.json` scripts, and `src/` paths that rot after reorgs (release-sweep needed a full path audit, PR #124; the gate skill body carried the same class of drift). Add a garden detector that scans `.claude/skills/**/SKILL.md` + `templates/.claude/skills/**` for `pnpm <script>` invocations not in `package.json` scripts, `noldor <sub>` commands not in the CLI manifest, and repo-relative paths that don't exist. Carried out of the drained release-sweep-skill-path-audit roadmap entry.
+
+[Feature page](/features/skill-vs-code-drift-detector)
+
+#### State-File Fail-Open Hardening
+
+Deep-audit finding (batch `.noldor/research/2026-07-13-184850`): state-file handling consistently fails *open* — corruption or a torn write silently resets toward permissive. Confirmed: crash-path `releaseLock` deletes a drain lock it doesn't own (two concurrent drains possible); corrupt rollout-marker lets every commit pass unchecked; torn `session.json` makes the pre-edit-guard exit 1 instead of 2 (gate silently bypassed); torn `watch-state.json` resets the daily cap + trip rail; torn `drain-park.json` unparks all known-failing entries. Root cause shared: plain `writeFileSync` + parse-error → permissive default, while `atomicWriteFile` and the O_EXCL lock primitive already exist but callers bypass them. Fix: ownership check in `releaseLock`, route state writers through `atomicWriteFile`, make enforcement-file corruption loud and fail toward enforcement, and bind the dashboard to 127.0.0.1 (today 0.0.0.0 no-auth composes with `bypassPermissions` drain agents into a LAN roadmap-inject → RCE chain).
+
+[Feature page](/features/state-file-fail-open-hardening)
+
+#### Validate Script-Catalog Gate
+
+Deep-audit finding (batch `.noldor/research/2026-07-13-184850`): gated docs stay true, ungated docs rot — `validate skill-catalog` keeps the skill catalog perfectly 1:1, while `docs/noldor/script-catalog.md` (self-declared canonical) is missing ~20 live subcommands and its promised `validate:script-catalog` gate was never implemented (the page falsely claims a backlog entry exists). Ship the `validate:script-catalog` pre-commit gate mirroring the skill-catalog one, do the one-time catch-up of the missing subcommands, fix the template twin, and resolve the detector-count contradiction (script-catalog says 19, garden-and-drift says 20, code has more).
+
+[Feature page](/features/validate-script-catalog-gate)
+
+#### Vendored Systematic-Debugging Discipline
+
+Vendor the `systematic-debugging` discipline as a framework skill (`noldor-debug`): the disciplined loop — reproduce → minimise → hypothesise → instrument → fix → regression-test — invoked before proposing fixes for any bug, test failure, or unexpected behaviour. Today noldor has no debugging-discipline skill at all; consumers fall back to ad-hoc debugging. Author it in the vendored-skill style (self-contained SKILL.md, no plugin reference), register it in the skill-catalog (gated by `validate skill-catalog`), and reference it from the gate fast-track/fix paths so it's surfaced when a change is a bug fix.
+
+[Feature page](/features/vendored-systematic-debugging-discipline)
+
 ## v0.5.1 — 2026-07-11
 
 ### Tooling

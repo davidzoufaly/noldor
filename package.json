@@ -1,6 +1,6 @@
 {
   "name": "@davidzoufaly/noldor",
-  "version": "0.5.1",
+  "version": "1.0.0",
   "private": false,
   "bin": {
     "noldor": "./bin/noldor.mjs"

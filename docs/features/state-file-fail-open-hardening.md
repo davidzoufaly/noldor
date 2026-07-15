@@ -18,6 +18,7 @@ packages:
 phase: done
 since: 2026-07-13T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.0.0
 ---
 ## Summary
 
