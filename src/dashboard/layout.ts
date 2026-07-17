@@ -1,3 +1,21 @@
+import { basename } from 'node:path';
+
+/**
+ * Human-facing brand shown in the top-nav. Derived from the repo root folder
+ * name so a Noldor consumer (e.g. `charuy`) sees its own project name rather
+ * than a hardcoded "Noldor". First letter is upper-cased for presentation
+ * (`charuy` → `Charuy`); an empty/odd basename falls back to `Noldor`.
+ *
+ * @param cwd - Repo root (defaults to `process.cwd()`, which the dashboard
+ *   server pins to the main checkout via `resolveMainRoot`)
+ * @returns Display name for the brand mark
+ */
+export function repoDisplayName(cwd: string = process.cwd()): string {
+  const name = basename(cwd);
+  if (!name) return 'Noldor';
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 /**
  * Top-nav links grouped into labelled clusters. The bar renders as a single
  * row with a brand mark on the left and thin dividers between groups (no
@@ -390,8 +408,11 @@ export function renderLayout(opts: {
   body: string;
   activeNav: string | null;
   combinedEtag?: string;
+  /** Brand text for the top-nav; defaults to {@link repoDisplayName}. */
+  brand?: string;
 }): string {
-  const brand = `<a class="brand" href="/"><span class="mark" aria-hidden="true">◆</span>Noldor</a>`;
+  const brandLabel = opts.brand ?? repoDisplayName();
+  const brand = `<a class="brand" href="/"><span class="mark" aria-hidden="true">◆</span>${escapeHtml(brandLabel)}</a>`;
   const navHtml =
     brand +
     NAV_GROUPS.map((g) => {
