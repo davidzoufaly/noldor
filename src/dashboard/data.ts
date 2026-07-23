@@ -808,6 +808,8 @@ export interface MilestoneGroup {
   total: number;
   /** True when status is `shipped` but at least one member is not `done` (warn row). */
   incomplete: boolean;
+  /** The milestone's full body markdown rendered to HTML for the expandable row. Empty when the milestone has no body. */
+  bodyHtml: string;
 }
 
 /**
@@ -836,6 +838,7 @@ export function buildMilestoneGroups(
         doneCount,
         total: members.length,
         incomplete: status === 'shipped' && doneCount < members.length,
+        bodyHtml: m.body.trim() === '' ? '' : renderToHtml(m.body),
       };
     })
     .sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || a.name.localeCompare(b.name));

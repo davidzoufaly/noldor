@@ -314,6 +314,10 @@ const STYLE = `
   .milestone-group { border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem 1rem; margin: 0 0 1rem; }
   .milestone-group h3 { margin: 0 0 0.5rem; }
   .milestone-group .status { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .milestone-body { margin-top: 0.75rem; border-top: 1px solid var(--line); padding-top: 0.5rem; }
+  .milestone-body > summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); user-select: none; }
+  .milestone-body > summary:hover { color: var(--fg); }
+  .milestone-body > .body { margin-top: 0.5rem; }
   a.reset {
     font-size: 0.8rem;
     color: var(--muted);
