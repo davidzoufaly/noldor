@@ -6,8 +6,8 @@ import type { Milestone } from '../../milestones/lib.js';
 
 // @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 
-function milestone(slug: string, status: Milestone['frontmatter']['status']): Milestone {
-  return { slug, frontmatter: { name: slug, status }, body: '' };
+function milestone(slug: string, status: Milestone['frontmatter']['status'], body = ''): Milestone {
+  return { slug, frontmatter: { name: slug, status }, body };
 }
 
 function feature(slug: string, phase: 'done' | 'in-progress', milestone?: string): FeatureRecord {
@@ -53,6 +53,20 @@ describe('buildMilestoneGroups', () => {
   it('returns empty when no milestones are declared', () => {
     expect(buildMilestoneGroups([], [feature('a', 'done', 'x')])).toEqual([]);
   });
+
+  it('renders the milestone body markdown into bodyHtml', () => {
+    const groups = buildMilestoneGroups(
+      [milestone('mvp', 'active', '## Gate\n\nShip the thing.')],
+      [],
+    );
+    expect(groups[0]!.bodyHtml).toContain('<h2');
+    expect(groups[0]!.bodyHtml).toContain('Ship the thing.');
+  });
+
+  it('leaves bodyHtml empty when the milestone has no body', () => {
+    const groups = buildMilestoneGroups([milestone('mvp', 'active', '')], []);
+    expect(groups[0]!.bodyHtml).toBe('');
+  });
 });
 
 describe('renderMilestones', () => {
@@ -70,5 +84,22 @@ describe('renderMilestones', () => {
     expect(html).toContain('milestone-group warn');
     expect(html).toContain('/features/open');
     expect(html).toContain('0/1 done');
+  });
+
+  it('renders an expandable <details> revealing the milestone body', () => {
+    const groups = buildMilestoneGroups(
+      [milestone('mvp', 'active', '## Gate\n\nShip the thing.')],
+      [],
+    );
+    const html = renderMilestones(groups);
+    expect(html).toContain('<details class="milestone-body">');
+    expect(html).toContain('<summary>');
+    expect(html).toContain('Ship the thing.');
+  });
+
+  it('omits the <details> expander when the milestone has no body', () => {
+    const groups = buildMilestoneGroups([milestone('mvp', 'active', '')], []);
+    const html = renderMilestones(groups);
+    expect(html).not.toContain('<details class="milestone-body">');
   });
 });

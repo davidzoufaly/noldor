@@ -386,11 +386,15 @@ export function renderMilestones(groups: MilestoneGroup[]): string {
               )
               .join('')}</ul>`;
       const desc = g.description ? ` — ${escapeHtml(g.description)}` : '';
+      const bodyExpander = g.bodyHtml
+        ? `<details class="milestone-body"><summary>Milestone details</summary><div class="body">${g.bodyHtml}</div></details>`
+        : '';
       return `<section class="milestone-group${g.incomplete ? ' warn' : ''}">
         <div class="status">${escapeHtml(g.status)}${g.incomplete ? ' · shipped with open features' : ''}</div>
         <h3>${escapeHtml(g.name)} <span class="chip">${g.doneCount}/${g.total} done</span></h3>
         ${desc ? `<p>${desc.slice(3)}</p>` : ''}
         ${members}
+        ${bodyExpander}
       </section>`;
     })
     .join('');
