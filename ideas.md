@@ -44,6 +44,8 @@ Raw capture point for operator/agent lessons + gotchas. `/noldor-absorb` classif
 
 #### Next
 
+- dashboard milestones page: each milestone row should be expandable to reveal the full milestone content (currently only a summary/title is shown). Inline expand/collapse to read the whole `docs/milestones/<slug>.md` body without leaving the page. [triaged 2026-07-17 → dashboard-milestones-expandable-content]
+
 #### Later
 
 ### Core Product
