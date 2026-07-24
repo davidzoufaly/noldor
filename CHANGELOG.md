@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.0 — 2026-07-24
+
+### Features
+
+- feat(dashboard): expandable milestone body on /milestones page (#240) ([e688adf](https://github.com/davidzoufaly/noldor/commit/e688adf84da5eda808da35e811fdf471706bcaac)) ([#240](https://github.com/davidzoufaly/noldor/pull/240))
+- feat(dashboard): derive top-nav brand from repo folder name (#239) ([1fced0d](https://github.com/davidzoufaly/noldor/commit/1fced0d8a420e9c0465c2ee3f36f038693a04e46)) ([#239](https://github.com/davidzoufaly/noldor/pull/239))
+
+### Other changes
+
+- chore(release): regen sdd-report date line for release gate (#243) ([57c1571](https://github.com/davidzoufaly/noldor/commit/57c15719f851e2f1a79a55cdf76c24c0f1541a6f)) ([#243](https://github.com/davidzoufaly/noldor/pull/243))
+- chore(release-sweep): pre-empt sdd:report drift (#242) ([5c70212](https://github.com/davidzoufaly/noldor/commit/5c7021254a3b30408c4551292cee105a219efd91)) ([#242](https://github.com/davidzoufaly/noldor/pull/242))
+- chore(state): commit Q-0051 triage tail + #239 test-link backfill (#241) ([61acfec](https://github.com/davidzoufaly/noldor/commit/61acfecf8aa1fdc2443d82a7b09a4680cd9705c8)) ([#241](https://github.com/davidzoufaly/noldor/pull/241))
+- docs(ideas): capture open-source publish-saga lessons + inbox notes (#238) ([47ffbe3](https://github.com/davidzoufaly/noldor/commit/47ffbe34d2eb5883b4ff72b2b0a62541a4db256e)) ([#238](https://github.com/davidzoufaly/noldor/pull/238))
+
 ## v1.0.2 — 2026-07-15
 
 ### Other changes

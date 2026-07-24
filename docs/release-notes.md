@@ -1,5 +1,9 @@
 # Release Notes
 
+## v1.1.0 — 2026-07-24
+
+No user-facing feature changes in this release — internal work only.
+
 ## v1.0.2 — 2026-07-15
 
 No user-facing feature changes in this release — internal work only.
