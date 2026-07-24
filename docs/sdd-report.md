@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-07-23 by `pnpm sdd:report`.
+Generated: 2026-07-24 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
