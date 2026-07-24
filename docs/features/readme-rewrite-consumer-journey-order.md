@@ -6,7 +6,8 @@ entry-id: Q-0043
 links:
   code: []
   tests: []
-  spec: docs/design/specs/2026-07-14-readme-rewrite-consumer-journey-order-design.md
+  spec: >-
+    docs/design/specs/archive/2026-07-14-readme-rewrite-consumer-journey-order-design.md
 name: README Rewrite — Consumer-Journey Order
 packages:
   - scripts
@@ -15,6 +16,7 @@ since: 2026-07-13T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.0.0
 ---
+
 ## Summary
 
 Deep-audit finding (batch `.noldor/research/2026-07-13-184850`, `readme-quality.findings.md` has the proposed outline): README is not wrong post-PR#126 but covers only 5 of 34 CLI command groups, omits gate/drain/upgrade/`init --adopt`, never links the adoption guide, and enumerates a stale config field set. Rewrite in consumer-journey order (install from GH Packages → init/adopt → gate workflow → dashboard → drain → upgrade), link the adoption guide instead of duplicating it, stop enumerating config fields. Same pass: fix `docs/noldor/README.md` index staleness — it still calls the adoption guide a "stub — WIP" (it's a full 105-line guide with live consumers) and omits 4 existing pages (incl. agent-runtimes.md).
@@ -32,3 +34,11 @@ Read `README.md` top-to-bottom. A new consumer follows the journey order: Prereq
 <!-- @prs-since-last-release: readme-rewrite-consumer-journey-order -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/design/specs/archive/2026-07-14-readme-rewrite-consumer-journey-order-design.md`](../../docs/design/specs/archive/2026-07-14-readme-rewrite-consumer-journey-order-design.md)
+
+<!-- /generated: resources -->

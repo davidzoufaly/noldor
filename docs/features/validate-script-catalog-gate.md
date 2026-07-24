@@ -8,7 +8,7 @@ links:
     - src/cli/validate-script-catalog.ts
   tests:
     - src/cli/__tests__/validate-script-catalog.test.ts
-  spec: docs/design/specs/2026-07-14-validate-script-catalog-gate-design.md
+  spec: docs/design/specs/archive/2026-07-14-validate-script-catalog-gate-design.md
 name: Validate Script-Catalog Gate
 packages:
   - scripts
@@ -17,6 +17,7 @@ since: 2026-07-13T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.0.0
 ---
+
 ## Summary
 
 Deep-audit finding (batch `.noldor/research/2026-07-13-184850`): gated docs stay true, ungated docs rot — `validate skill-catalog` keeps the skill catalog perfectly 1:1, while `docs/noldor/script-catalog.md` (self-declared canonical) is missing ~20 live subcommands and its promised `validate:script-catalog` gate was never implemented (the page falsely claims a backlog entry exists). Ship the `validate:script-catalog` pre-commit gate mirroring the skill-catalog one, do the one-time catch-up of the missing subcommands, fix the template twin, and resolve the detector-count contradiction (script-catalog says 19, garden-and-drift says 20, code has more).
@@ -51,6 +52,7 @@ As a Noldor maintainer (human or agent), I want a pre-commit gate that fails whe
 
 ## Resources
 
+- **Spec:** [`docs/design/specs/archive/2026-07-14-validate-script-catalog-gate-design.md`](../../docs/design/specs/archive/2026-07-14-validate-script-catalog-gate-design.md)
 - **Code:**
   - [`src/cli/validate-script-catalog.ts`](../../src/cli/validate-script-catalog.ts)
 - **Tests:**

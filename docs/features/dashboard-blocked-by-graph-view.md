@@ -7,7 +7,8 @@ links:
   code: []
   tests:
     - src/dashboard/__tests__/blocked-by.test.ts
-  spec: docs/design/specs/2026-07-13-dashboard-blocked-by-graph-view-design.md
+  spec: >-
+    docs/design/specs/archive/2026-07-13-dashboard-blocked-by-graph-view-design.md
 name: Dashboard Blocked-By Graph View
 packages:
   - scripts
@@ -16,6 +17,7 @@ since: 2026-07-05T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.0.0
 ---
+
 ## Summary
 
 Surface the roadmap+backlog `blocked-by` graph as a visual dependency view on the tracking dashboard (nodes = entries, edges = blocked-by; highlight cycles flagged by the `circular-blocked-by` garden detector). Split out of the shipped `first-class-blocked-by-field` entry — the data model, validation, and cycle detector landed; the dashboard visualization was deferred as its own larger piece.
@@ -47,6 +49,7 @@ As an operator triaging the queue, I want the roadmap+backlog blocked-by graph r
 
 ## Resources
 
+- **Spec:** [`docs/design/specs/archive/2026-07-13-dashboard-blocked-by-graph-view-design.md`](../../docs/design/specs/archive/2026-07-13-dashboard-blocked-by-graph-view-design.md)
 - **Tests:**
   - [`src/dashboard/__tests__/blocked-by.test.ts`](../../src/dashboard/__tests__/blocked-by.test.ts)
 
