@@ -34,6 +34,21 @@ Five operator-facing dashboard refinements captured from a live dogfood pass. Al
 
 ### Framework Self-Ownership
 
+#### Archive Spec/Plan at Done-Flip, Not Release-Sweep
+
+- id: Q-0052
+- area: tooling
+- type: fix
+- since: 2026-07-24
+- size: M
+- impact: med
+- confidence: high
+- parent: noldor
+
+When a feature flips `phase: in-progress → done`, its owning spec (`docs/design/specs/<date>-<slug>-design.md`) and plan are left in place. Gate Step 4 end-of-flow (`.claude/skills/noldor-gate/SKILL.md` §167-181) runs `/noldor-draft-feature-md --refresh` + `phase-flip-done.ts`, but neither archives the design artifacts. Archival is deferred entirely to the garden/release-sweep pass, where `detectStaleSpecs`/`detectStalePlans` (`src/garden/garden-detect.ts:146`) flag every `feature-done` spec still outside `archive/` and batch-move them. Net effect: every release dumps the accumulated spec/plan archival of all features shipped since the last sweep at once (v1.1.0 sweep archived 10). Archival should ride the done-flip commit so it lands atomically in the feature PR and garden only ever catches genuine exceptions (orphans, age-outs).
+
+Fix: lift the spec/plan slug→file resolution the detector already implements into `phase-flip-done.ts` (or gate Step 4), and `git mv` the owning spec+plan into `archive/` in the same commit that writes `phase: done`. Design risk lives in the attach-path case — a parent FD that stays `done` across multiple `*-attach` enhancements must not prematurely archive a still-relevant spec — which is why this is spec-sized (M), not a mechanical fast-track. Spec should settle: does each attach enhancement's own dated spec archive on its own ship, keyed on what signal?
+
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
 ### Trigger-Parked (revisit when the named trigger fires)
