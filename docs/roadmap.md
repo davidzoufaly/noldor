@@ -49,6 +49,25 @@ When a feature flips `phase: in-progress → done`, its owning spec (`docs/desig
 
 Fix: lift the spec/plan slug→file resolution the detector already implements into `phase-flip-done.ts` (or gate Step 4), and `git mv` the owning spec+plan into `archive/` in the same commit that writes `phase: done`. Design risk lives in the attach-path case — a parent FD that stays `done` across multiple `*-attach` enhancements must not prematurely archive a still-relevant spec — which is why this is spec-sized (M), not a mechanical fast-track. Spec should settle: does each attach enhancement's own dated spec archive on its own ship, keyed on what signal?
 
+### Design-Loop Ergonomics
+
+#### Show Running Design Context Inline During Spec/Plan Dialogue
+
+- id: Q-0053
+- area: tooling
+- type: feat
+- since: 2026-07-24
+- size: M
+- impact: high
+- confidence: med
+- parent: noldor
+
+The question-first spec (`/noldor-spec`) and plan (`/noldor-plan`) design loops pose design questions with no surrounding context. The operator answers blind — no view of what's been decided so far, what the feature covers, what the framework already supports / what's in scope, or which threads are still open. Situational awareness is terrible: a design question arrives with none of the state that makes it answerable, so the operator has to reconstruct "where do we stand" from memory each turn.
+
+Want: every time a design question is posed, render the running design state directly and in detail **inline in the chat** — decisions settled so far, open questions still to resolve, and the relevant existing support / constraints the answer must fit. Must be **agent-agnostic**: plain inline chat text, not dependent on any single runner's rich UI, so it reads identically across `claude` / `codex` / `opencode`.
+
+Needs a spec to settle: what the context block contains and how it's ordered; where the running state lives (in-progress spec draft vs. session scratch); how it stays fresh across turns without the operator re-reading the whole draft; and how to keep it detailed without drowning the actual question in noise. Spec-sized (M) for that reason — the value is entirely in getting the inline format and freshness right.
+
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
 ### Trigger-Parked (revisit when the named trigger fires)
