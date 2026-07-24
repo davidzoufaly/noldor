@@ -7,7 +7,7 @@ links:
   code: []
   tests:
     - src/garden/detectors/__tests__/skill-code-drift.test.ts
-  spec: docs/design/specs/2026-07-13-skill-vs-code-drift-detector-design.md
+  spec: docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md
 name: Skill-vs-Code Drift Detector
 packages:
   - scripts
@@ -16,6 +16,7 @@ since: 2026-07-11T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.0.0
 ---
+
 ## Summary
 
 Skills reference CLI commands, `package.json` scripts, and `src/` paths that rot after reorgs (release-sweep needed a full path audit, PR #124; the gate skill body carried the same class of drift). Add a garden detector that scans `.claude/skills/**/SKILL.md` + `templates/.claude/skills/**` for `pnpm <script>` invocations not in `package.json` scripts, `noldor <sub>` commands not in the CLI manifest, and repo-relative paths that don't exist. Carried out of the drained release-sweep-skill-path-audit roadmap entry.
@@ -43,6 +44,7 @@ As a framework maintainer, I want `garden detect` to flag skill bodies whose `pn
 
 ## Resources
 
+- **Spec:** [`docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md`](../../docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md)
 - **Tests:**
   - [`src/garden/detectors/__tests__/skill-code-drift.test.ts`](../../src/garden/detectors/__tests__/skill-code-drift.test.ts)
 

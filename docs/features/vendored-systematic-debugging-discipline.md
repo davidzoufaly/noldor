@@ -7,7 +7,7 @@ links:
   code: []
   tests: []
   spec: >-
-    docs/design/specs/2026-07-14-vendored-systematic-debugging-discipline-design.md
+    docs/design/specs/archive/2026-07-14-vendored-systematic-debugging-discipline-design.md
 name: Vendored Systematic-Debugging Discipline
 packages:
   - scripts
@@ -16,6 +16,7 @@ since: 2026-07-13T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.0.0
 ---
+
 ## Summary
 
 Vendor the `systematic-debugging` discipline as a framework skill (`noldor-debug`): the disciplined loop — reproduce → minimise → hypothesise → instrument → fix → regression-test — invoked before proposing fixes for any bug, test failure, or unexpected behaviour. Today noldor has no debugging-discipline skill at all; consumers fall back to ad-hoc debugging. Author it in the vendored-skill style (self-contained SKILL.md, no plugin reference), register it in the skill-catalog (gated by `validate skill-catalog`), and reference it from the gate fast-track/fix paths so it's surfaced when a change is a bug fix.
@@ -35,3 +36,11 @@ As an agent (or human) fixing a bug in a Noldor consumer repo without the superp
 <!-- @prs-since-last-release: vendored-systematic-debugging-discipline -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/design/specs/archive/2026-07-14-vendored-systematic-debugging-discipline-design.md`](../../docs/design/specs/archive/2026-07-14-vendored-systematic-debugging-discipline-design.md)
+
+<!-- /generated: resources -->
