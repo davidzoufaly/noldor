@@ -14,7 +14,7 @@ pnpm add -D @david.zoufaly/noldor
 
 ## What it does
 
-- 🚪 **One gate, no bypass.** `/noldor-gate` is the single entry for any code change. It picks one of **six complexity paths** (`micro-chore`, `fast-track`, `specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`), scaffolds the matching artifacts, and drives the change to an auto-merged PR. Commit hooks reject anything that skipped the gate.
+- 🚪 **One gate, no bypass.** `/noldor-gate` is the single entry for any code change. It picks one of **six complexity paths** (`micro-chore`, `fast-track`, `specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`), scaffolds the matching artifacts, and drives the change to a PR. Commit hooks reject anything that skipped the gate.
 - 📄 **Docs anchor code.** Every feature is a doc (`docs/features/*.md`) with a spec and a plan behind it. Roadmap → backlog → feature → spec → plan → code, all traceable.
 - 🤖 **Autonomous drain.** Queue fast-track work and let a headless daemon ship it — fresh gate run per entry, salvage on conflict, escalation inbox for anything it can't finish alone.
 - 🔍 **Unsupervised code review.** Spec / plan / code lanes with configurable review profiles (effort × dimensions), a verify lane, and a red-CI merge guard.
@@ -73,7 +73,7 @@ pnpm noldor doctor            # prerequisite + template-skew health check → gr
 
 ## Daily workflow
 
-`/noldor-gate` is the single mandatory entry. Pick a path, it scaffolds the artifacts (feature doc, spec, plan) and drives to an auto-merged PR:
+`/noldor-gate` is the single mandatory entry. Pick a path, it scaffolds the artifacts (feature doc, spec, plan) and drives to a review-ready PR:
 
 | Path | For |
 | --- | --- |
