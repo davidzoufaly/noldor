@@ -16,6 +16,9 @@ this file natively; Claude Code reads `.claude/` instead. Same rules, one gate.
   formats: `pnpm noldor prep format spec|plan`.
 - Feature docs (`docs/features/<slug>.md`) are the single source of truth —
   update User Story / Usage before flipping `phase: done`.
+- On any weird or opaque failure (commit rejected with no clear message, gate
+  abort, tool exit that makes no sense), grep `docs/noldor/gotchas.md` and the
+  area runbook BEFORE debugging from scratch — known traps are documented there.
 
 ## Command catalog
 
