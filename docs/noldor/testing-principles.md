@@ -78,6 +78,11 @@ feature MD — catches typos and retired features.
 Both run in the pre-commit hook. If `sync:test-links` modifies a feature MD,
 re-stage the change before continuing the commit.
 
+**Fast-track work has no feature MD — never tag its tests.** A
+`// @tests: <fast-track-slug>` tag makes `pnpm noldor validate features` fail
+repo-wide (`unknown feature slug`) and blocks every commit until the tag is
+removed. Only tag tests with slugs that have a `docs/features/<slug>.md`.
+
 ## Commands
 
 The framework guarantees only the `noldor` CLI commands below. The `pnpm test*`
