@@ -68,6 +68,34 @@ Want: every time a design question is posed, render the running design state dir
 
 Needs a spec to settle: what the context block contains and how it's ordered; where the running state lives (in-progress spec draft vs. session scratch); how it stays fresh across turns without the operator re-reading the whole draft; and how to keep it detailed without drowning the actual question in noise. Spec-sized (M) for that reason — the value is entirely in getting the inline format and freshness right.
 
+### Gotcha Root-Fixes (from /noldor-absorb 2026-07-25)
+
+#### Mask Volatile Metrics in the sdd-report Release Gate
+
+- id: Q-0054
+- area: tooling
+- type: fix
+- since: 2026-07-25
+- size: S
+- impact: med
+- confidence: high
+- parent: noldor
+
+`docs/sdd-report.md` is non-idempotent across environments: it embeds CR/drain metrics (`perLane` blockers/suggestions, escalation `history`, `lastRun`) read from local untracked `.noldor/cr/` + drain-state. Regenerating it in a git worktree sees a fresh empty `.noldor/` → commits empty metrics → the release regen (main workspace, real metrics) drifts → the sdd-report gate aborts. The gate only tolerates the review-skip *count* line (`onlyReviewSkipCountChanged`), not the metrics block. Fix: mask the volatile metrics block in the gate diff like the count line, or source the metrics deterministically. Interim doc lives at `docs/noldor/gotchas.md` → Release & publish — delete that entry when this ships. (surfaced v1.0.2 release)
+
+#### Missing Session Marker Should Fail With a Hint
+
+- id: Q-0055
+- area: tooling
+- type: fix
+- since: 2026-07-25
+- size: XS
+- impact: med
+- confidence: high
+- parent: noldor
+
+Manually driving a fast-track/sweep in a worktree, it is easy to forget writing `.noldor/session.json` first — the commit then fails at the trailer-inject/validate stage with no obvious "missing session" hint. Fix: the failure should say `no .noldor/session.json — did you skip the gate scaffold?`; optionally `worktrees create` scaffolds a session-marker stub. Interim doc lives at `docs/noldor/worktree-discipline.md` → Split-brain traps — delete that entry when this ships. (surfaced PRs #234, #236)
+
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
 ### Trigger-Parked (revisit when the named trigger fires)

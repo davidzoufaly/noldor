@@ -87,3 +87,8 @@ See [release-sweep-process-hardening](../features/release-sweep-process-hardenin
   while a worktree branches from `origin/main`, so re-read the roadmap inside the
   worktree before any `promote` edit; if the picked entry is absent, abort +
   reconcile main rather than carrying the block in by hand.
+- **Manual fast-track/sweep in a worktree: write `.noldor/session.json` FIRST.**
+  Skipping the gate scaffold makes the commit fail at the trailer-inject/validate
+  stage with no "missing session" hint. Write the marker
+  (`{ path: 'fast-track', startedAt: new Date().toISOString() }`) or run the
+  gate scaffold before the first commit.

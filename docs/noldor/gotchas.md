@@ -104,3 +104,24 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 - **Roadmap/backlog block headings are Title-Case names, not slugs** — a grep
   for the slug finds nothing. Derive the heading from the slug or grep
   `ideas.md` for its `[triaged → <slug>]` marker.
+
+## Release & publish
+
+- **Regenerate `docs/sdd-report.md` only from the main workspace, never a
+  worktree.** The report embeds CR/drain metrics (`perLane`, escalation
+  `history`, `lastRun`) read from local untracked `.noldor/` state; a worktree
+  sees a fresh empty `.noldor/`, commits empty metrics, and the release-time
+  regen (main workspace, real metrics) then drifts — the sdd-report gate
+  aborts, since it only tolerates the review-skip count line changing.
+- **CI `NPM_TOKEN` must bypass 2FA.** A Classic *Publish* token or a plain
+  granular token 403s ("Two-factor authentication or granular access token
+  with bypass 2fa enabled is required"). Use a Classic **Automation** token
+  (or granular with 2FA bypass). A FIRST publish also needs create-package
+  permission — a token scoped only to the not-yet-existing package can't
+  create it.
+- **Publish failed AFTER `pnpm release` tagged+pushed → re-fire the tag,
+  don't re-release.** Fix on main via fast-track, then
+  `git tag -f v<x> HEAD && git push -f origin v<x>` re-runs `publish.yml`
+  with the fix — no second `pnpm release`, no re-hitting the graph/garden/sdd
+  gates. Then `rm .noldor/release-state.json` (resume can't finalize once
+  HEAD moved past the bump commit).
