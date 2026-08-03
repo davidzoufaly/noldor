@@ -111,6 +111,19 @@ Needs a spec to settle: what the context block contains and how it's ordered; wh
 
 Manually driving a fast-track/sweep in a worktree, it is easy to forget writing `.noldor/session.json` first — the commit then fails at the trailer-inject/validate stage with no obvious "missing session" hint. Fix: the failure should say `no .noldor/session.json — did you skip the gate scaffold?`; optionally `worktrees create` scaffolds a session-marker stub. Interim doc lives at `docs/noldor/worktree-discipline.md` → Split-brain traps — delete that entry when this ships. (surfaced PRs #234, #236)
 
+#### Dashboard Port Collision Detection Across Projects
+
+- id: Q-0057
+- area: dashboard
+- type: feat
+- since: 2026-07-25
+- size: S
+- impact: high
+- confidence: high
+- parent: noldor
+
+Multi-project dev setups (the framework repo plus consumer repos like charuy) each run their own `noldor dashboard server`, all defaulting to port 4321. The second server dies with `EADDRINUSE` and gives no signal whether the occupying process is *this* project's dashboard (safe to reuse) or a *different* project's (needs another port) — the agent has to `lsof -i :4321` and inspect the process cwd by hand to tell them apart. Fix: `dashboard server` / `dashboard ensure` probe the target port on startup, fetch a small identity payload from the running server (project root path or name), and compare against the current repo root. Match → treat as already running, no-op with a reuse message. Mismatch → auto-pick the next free port (4322, 4323, …) instead of crashing, and print which project owns the conflicting one. Also worth a `noldor dashboard status` that reports port + owning project without trying to bind.
+
 ### Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)
 
 ### Trigger-Parked (revisit when the named trigger fires)
