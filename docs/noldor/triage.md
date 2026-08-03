@@ -12,7 +12,7 @@ This page describes how raw ideas advance onto the engineering queue. The SDD de
 | File              | Role                                                                                                                                                                                                                                                                            |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ideas.md`        | Raw human-generated bullets. Source for triage.                                                                                                                                                                                                                                 |
-| `docs/roadmap.md` | Triaged work, hand-edited. Flat priority-ordered list — file order is priority. H3 categories (e.g. `### Noldor Framework`) group H4 entries semantically without carrying priority themselves. In-progress work is tracked via FD `phase: in-progress`, not a roadmap section. |
+| `docs/roadmap.md` | Triaged work, hand-edited. Flat priority-ordered list — file order is priority, every entry a `### <Entry Name>` heading at one fixed level (see [File format is frozen](#file-format-is-frozen)). In-progress work is tracked via FD `phase: in-progress`, not a roadmap section. |
 | `docs/backlog.md` | Parking lot. Items not on the roadmap — out-of-scope per vision, speculative, or waiting for a trigger. No `phase` field; promotion to roadmap is a `/noldor-triage` decision.                                                                                                         |
 
 When a feature ships (`phase: done` in its feature MD), the corresponding entry in `docs/roadmap.md` is removed. Done features live in `docs/release-notes.md` and the [How-to index](../user/how-to/index.md).
@@ -54,15 +54,30 @@ Within `docs/roadmap.md` and `docs/backlog.md`, **the order of entry headings in
 
 Scopes:
 
-- **Roadmap:** priority is whole-file (no sub-buckets). The top H3 / H4 entry in `docs/roadmap.md` is the highest-priority item; the priority counter advances across H3 categories without reset. H3 categories (e.g. `### Noldor Framework`) remain as semantic groupers; they do not carry priority themselves.
+- **Roadmap:** priority is whole-file (no sub-buckets). The top `### <Entry Name>` in `docs/roadmap.md` is the highest-priority item.
 - **Backlog:** priority is whole-file (no sub-buckets). The top entry is the highest-priority backlog item.
+
+## File format is frozen
+
+Both queue files are **flat one-level lists**: every entry is a `### <Entry Name>` heading, and no writer may mint a grouping container.
+
+Historically `/noldor-triage` was free to invent an `### <Category>` heading and nest entries under it as `#### <Entry>`. The result drifted on every write: category names encoded the batch that produced them (`Dashboard UI Polish (from ideas.md 2026-07-14)`, `Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)`), the entries they grouped drained away, and the empty headings stayed — nine of them in `docs/roadmap.md` by v1.1.0, dead structure the priority scan and `/noldor-gate` Step 0 pickup had to wade through. Whether an entry rendered at `###` or `####` depended on which run happened to create a category first.
+
+The rules now:
+
+- **Entries are always `### <Entry Name>`.** Writers (`/noldor-triage`, `/noldor-promote` residue disposition, the dashboard add API) emit one fixed level.
+- **No grouping headings.** Entries relate by `- area:` and `- blocked-by:`, never by nesting depth. Provenance lives in git history, not in a heading name.
+- **`empty-group-heading` is a `validate:triage` error.** A heading carrying no entry block beneath it — no `- area:` bullet of its own, no entry heading before the next sibling — fails validation, so a re-introduced category cannot linger once drained.
+- **Parsing still accepts both depths.** `parseRoadmap` and `src/triage/entry-id.ts` continue to read `#### <Entry>` under an `### <Category>` so a consumer repo mid-migration keeps working. Only *writing* is frozen.
+
+Note also that "parked until a named trigger fires" was previously expressed as a `### Trigger-Parked` heading. That is not a category concern — if the semantics are wanted back, it belongs in a per-entry field, not a heading.
 
 Cross-file moves between roadmap and backlog are first-class and bidirectional. Promoting a backlog entry onto the roadmap is a markdown cut from `docs/backlog.md` and paste at the chosen position in `docs/roadmap.md`. Demoting is the reverse. The move preserves the entry body verbatim; priority is re-derived from the new location.
 
 Validation runs via `pnpm noldor validate triage`. Required fields differ per file — roadmap is committed scope, so `size` and `impact` are required there; backlog is a parking lot where the build-cost / strategic-weight estimate is a low-signal investment until promotion, so they stay advisory:
 
-- **Roadmap errors (block commits):** duplicate entry names (file-wide); missing required field (`area`, `type`, `since`, `size`, `impact`); unknown `type` value.
-- **Backlog errors (block commits):** duplicate entry names (file-wide); missing required field (`area`, `type`, `since`); unknown `type` value.
+- **Roadmap errors (block commits):** duplicate entry names (file-wide); missing required field (`area`, `type`, `since`, `size`, `impact`); unknown `type` value; empty group heading (see [File format is frozen](#file-format-is-frozen)).
+- **Backlog errors (block commits):** duplicate entry names (file-wide); missing required field (`area`, `type`, `since`); unknown `type` value; empty group heading.
 - **Backlog advisories (warn, do not block):** missing `size` / `impact`. Promote to errors with `--strict` once backlog backfill completes.
 
 The pre-commit hook runs the validator (default mode) on any commit touching `docs/roadmap.md` or `docs/backlog.md`.

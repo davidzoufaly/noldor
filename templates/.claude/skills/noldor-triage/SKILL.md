@@ -85,10 +85,10 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
    ```
 
    (`size` / `impact` / `confidence` / `blocked-by` lines are all silently optional on backlog — emit when the proposal supplied them, omit otherwise. For `blocked-by`, only emit the bullet when the ref list is non-empty. `deps:` is the legacy alias, still accepted.)
-   - **`roadmap`** target → insert a schema-C block into `docs/roadmap.md` at the position indicated by the proposal (`top` = before the first existing H3/H4 entry; `after:<slug>` = immediately after the matching block; `bottom` = at end of file). `size` and `impact` lines are **required** on roadmap blocks — emit both. If the entry slots under an existing H3 category, render as `#### <Entry Name>` under that category; if it's a standalone direct entry, render as `### <Entry Name>`:
+   - **`roadmap`** target → insert a schema-C block into `docs/roadmap.md` at the position indicated by the proposal (`top` = before the first existing entry; `after:<slug>` = immediately after the matching block; `bottom` = at end of file). `size` and `impact` lines are **required** on roadmap blocks — emit both. **The heading level is fixed: always `### <Entry Name>`.** Never mint an `### <Category>` container to group entries under, and never render an entry as `#### <Entry Name>` — the roadmap is a flat priority-ordered list at one level, and a group heading with no entry beneath it is a `validate:triage` error (`empty-group-heading`). Entries relate by `- area:` and `- blocked-by:`, not by heading nesting:
 
    ```markdown
-   #### <name>
+   ### <name>
 
    - id: <minted Q-NNNN>
    - area: <area>
@@ -147,6 +147,7 @@ When ambiguous, prefer the more specific type over `feat` (e.g. a perf-targeted 
 - **Never** commit. Operator commits.
 - **Never** auto-promote backlog or roadmap entries to feature MDs — with one exception: rows the operator explicitly confirmed as `target: now` chain to `/noldor-promote <slug>` in step 8 after validations pass. Everything else promotes via a manual `/noldor-promote <slug>` (separate skill).
 - **Never** silently merge — every `merge:<slug>` proposal must show the matched host's heading + current section in the confirmation table. Operator can flip merge → new entry.
+- **The file format is frozen — never mint a grouping heading.** Every entry in `docs/roadmap.md` and `docs/backlog.md` is a `### <Entry Name>` heading, one fixed level, forever. Do not invent an `### <Category>` container with `#### <Entry>` children, and do not name a heading after the batch that produced it (`from ideas.md 2026-07-14`, `moved from backlog …`) — git history records provenance. Categories drained empty and lingered as dead structure the priority scan had to wade through; `validate:triage` now errors (`empty-group-heading`) on any heading that carries no entry block, so a re-introduced category fails the regen chain in step 8. Entries relate by `- area:` and `- blocked-by:`, never by nesting depth.
 - **Bias toward merge** when an existing block plausibly covers the new bullet. Multiple sub-bullets under one block beat scattered duplicates that `/noldor-garden` will later flag.
 - **Sub-bullets, not paragraph rewrites.** Preserve the host's original summary verbatim. Append the new bullet as a fresh `-` item under the body.
 - **Cross-section moves** triggered by `promote-to:<section>` follow the symmetric backlog ↔ roadmap pattern from commits `08a509c` / `c46f560` / `22719c6` — move the whole block, never split.
