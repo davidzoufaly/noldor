@@ -14,21 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Freeze Roadmap/Backlog File Format — Stop Minting H3 Categories
-
-- id: Q-0056
-- area: tooling
-- type: fix
-- since: 2026-07-25
-- size: S
-- impact: med
-- confidence: high
-- parent: noldor
-
-`docs/roadmap.md` and `docs/backlog.md` shape drifts on every write. Each triage / absorb / dashboard-add run is free to invent a new H3 grouping heading, so the roadmap now carries eight of them — `Dashboard UI Polish (from ideas.md 2026-07-14)`, `Phase 2 — Enforcement Honesty`, `Phase 3 — Adoption Chain`, `Phase 4 — Consumer-Layout Correctness`, `Phase 5 — Autonomy Observability`, `Phase 6 — Structural`, `Promoted from Backlog`, `Drain Batch — Backlog Hardening (moved from backlog 2026-07-11)` — every one of them **empty**: the entries they grouped drained long ago and the heading stayed. The batch-provenance names (`from ideas.md <date>`, `moved from backlog <date>`) are worse than useless once drained, since git history already records provenance. Result: the priority-ordered list a reader (and the gate's Step 0 pickup) is supposed to scan is buried in dead structure, and `#### <Entry>` vs `### <Entry>` nesting depth now depends on which run happened to create a category.
-
-Want the file format **fixed and untouched by writers**: a flat priority-ordered list of entries at one heading level, with no new H3 categories minted by `/noldor-triage`, `/noldor-absorb`, or the dashboard add API. Fix: (a) drop the "if the entry slots under an existing H3 category … else render `### <Entry Name>`" branch from `.claude/skills/noldor-triage/SKILL.md` §88 (and its twin) in favour of one fixed level; (b) prune the eight empty H3 groups from `docs/roadmap.md` plus any in `docs/backlog.md`; (c) add a `validate:triage` rule that errors on a group heading with no entry block under it, so a drained category can't linger; (d) keep `src/triage/entry-id.ts` heading parsing accepting both depths for back-compat while the surviving categories are retired. Mechanical — the only judgement call is whether the handful of *non-empty* categories (`Framework Self-Ownership`, `Design-Loop Ergonomics`, `Gotcha Root-Fixes`, `Trigger-Parked`) are flattened too or grandfathered; `Trigger-Parked` carries real semantics (parked-until-trigger) and probably becomes a per-entry field instead of a heading.
-
 ### Archive Spec/Plan at Done-Flip, Not Release-Sweep
 
 - id: Q-0052
