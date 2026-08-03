@@ -1,5 +1,9 @@
 // @tests: replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
-import { validateTriageInputs, type TriageValidationResult } from '../validate-triage.js';
+import {
+  validateTriageInputs,
+  type TriageIssue,
+  type TriageValidationResult,
+} from '../validate-triage.js';
 
 describe(validateTriageInputs, () => {
   const okRoadmap = `### Noldor Framework
@@ -377,5 +381,126 @@ Body.
       featureEntryIds: ['Q-0099'],
     });
     expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
+  });
+});
+
+describe('empty group heading validation', () => {
+  const flatEntry = `### Entry A
+
+- area: tooling
+- type: feat
+- since: 2026-07-25
+- size: S
+- impact: med
+
+Body.
+`;
+
+  const emptyGroupIssues = (roadmapRaw: string, backlogRaw = '# Backlog\n'): TriageIssue[] =>
+    validateTriageInputs({
+      roadmapRaw,
+      backlogRaw,
+      strict: false,
+      counterExists: false,
+    }).errors.filter((e) => e.rule === 'empty-group-heading');
+
+  it('errors on a group heading whose entries have all drained away', () => {
+    const issues = emptyGroupIssues(`# Roadmap
+
+### Phase 2 — Enforcement Honesty
+
+${flatEntry}`);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].entryName).toBe('Phase 2 — Enforcement Honesty');
+    expect(issues[0].file).toBe('docs/roadmap.md');
+  });
+
+  it('reports every drained group, not just the first', () => {
+    const issues = emptyGroupIssues(`# Roadmap
+
+### Phase 2 — Enforcement Honesty
+
+### Promoted from Backlog
+
+### Trigger-Parked (revisit when the named trigger fires)
+
+${flatEntry}`);
+    expect(issues.map((i) => i.entryName)).toEqual([
+      'Phase 2 — Enforcement Honesty',
+      'Promoted from Backlog',
+      'Trigger-Parked (revisit when the named trigger fires)',
+    ]);
+  });
+
+  it('accepts a flat file of `### <Entry>` blocks — the frozen format', () => {
+    expect(
+      emptyGroupIssues(
+        `# Roadmap\n\n${flatEntry}\n### Entry B\n\n- area: dashboard\n- type: fix\n- since: 2026-07-25\n- size: XS\n- impact: low\n\nBody.\n`,
+      ),
+    ).toEqual([]);
+  });
+
+  it('tolerates a legacy category that still holds entries (consumer mid-migration)', () => {
+    expect(
+      emptyGroupIssues(`# Roadmap
+
+### Framework Self-Ownership
+
+#### Entry A
+
+- area: tooling
+- type: feat
+- since: 2026-07-25
+- size: S
+- impact: med
+
+Body.
+`),
+    ).toEqual([]);
+  });
+
+  it('flags a drained group in docs/backlog.md too', () => {
+    const issues = validateTriageInputs({
+      roadmapRaw: `# Roadmap\n\n${flatEntry}`,
+      backlogRaw: '# Backlog\n\n### Drain Batch — Backlog Hardening\n',
+      strict: false,
+      counterExists: false,
+    }).errors.filter((e) => e.rule === 'empty-group-heading');
+    expect(issues).toHaveLength(1);
+    expect(issues[0].file).toBe('docs/backlog.md');
+  });
+
+  it('ignores headings inside a fenced code block', () => {
+    expect(
+      emptyGroupIssues(`# Roadmap
+
+Writers emit blocks shaped like this:
+
+\`\`\`markdown
+### <name>
+
+- id: <minted Q-NNNN>
+\`\`\`
+
+${flatEntry}`),
+    ).toEqual([]);
+  });
+
+  it('does not mistake an entry whose `- area:` bullet trails other fields for a group', () => {
+    expect(
+      emptyGroupIssues(`# Roadmap
+
+### Entry A
+
+- id: Q-0001
+- area: tooling
+- type: feat
+- since: 2026-07-25
+- size: S
+- impact: med
+
+Body.
+`),
+    ).toEqual([]);
   });
 });

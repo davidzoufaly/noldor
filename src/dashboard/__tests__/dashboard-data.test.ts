@@ -141,10 +141,16 @@ describe('parseRoadmap', () => {
     expect(result.find((e) => e.body.length > 20)).toBeDefined();
   });
 
-  it('captures category on at least one H4 entry (when the queue is non-empty)', async () => {
+  // The queue file format is frozen at one level: every entry is `### <Entry Name>`
+  // and writers never mint an `### <Category>` container (docs/noldor/triage.md →
+  // File format is frozen). So no live entry carries a `category` any more. This
+  // asserted the opposite while categories were still minted; the parser keeps
+  // reading legacy `#### <Entry>` children for consumer back-compat, which
+  // src/utils/__tests__ covers against fixtures rather than the live tree.
+  it('parses every live entry as a flat level-3 block with no category', async () => {
     const result = await parseRoadmap();
     if (result.length === 0) return; // queue drained — nothing to assert
-    expect(result.find((e) => e.category !== undefined)).toBeDefined();
+    expect(result.filter((e) => e.category !== undefined)).toEqual([]);
   });
 });
 

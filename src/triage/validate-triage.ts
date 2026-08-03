@@ -17,7 +17,8 @@ export interface TriageIssue {
     | 'missing-entry-id'
     | 'malformed-entry-id'
     | 'duplicate-entry-id'
-    | 'unknown-blocked-by-ref';
+    | 'unknown-blocked-by-ref'
+    | 'empty-group-heading';
   message: string;
   entryName: string;
 }
@@ -94,6 +95,9 @@ export function validateTriageInputs(input: ValidateTriageInputs): TriageValidat
     advisories,
   );
 
+  pushEmptyGroupIssues(input.roadmapRaw, 'docs/roadmap.md', errors);
+  pushEmptyGroupIssues(input.backlogRaw, 'docs/backlog.md', errors);
+
   pushIdIssues(roadmap, backlog, input.counterExists, errors);
   pushBlockedByIssues(
     roadmap,
@@ -106,6 +110,69 @@ export function validateTriageInputs(input: ValidateTriageInputs): TriageValidat
   );
 
   return { errors, advisories };
+}
+
+/**
+ * Flag `### <Heading>` blocks that are neither an entry nor a populated group.
+ *
+ * The queue file format is frozen at one level: every entry is a `### <Entry
+ * Name>` carrying an `- area:` bullet, and writers never mint grouping
+ * containers (see `docs/noldor/triage.md` → File format is frozen). An H3
+ * without `- area:` is therefore a legacy category container — `parseRoadmap`
+ * still reads its `#### <Entry>` children for back-compat, so a *populated*
+ * category is tolerated while a consumer repo migrates. An **empty** one is
+ * dead structure: the entries it grouped drained away and the heading stayed,
+ * burying the priority-ordered list the gate's Step 0 pickup has to scan. That
+ * is what this rule catches, so a drained category cannot linger.
+ *
+ * A group is populated when at least one `#### ` heading appears before the
+ * next `### `. Code fences are skipped so a markdown example inside a block is
+ * not mistaken for real structure.
+ */
+function pushEmptyGroupIssues(raw: string, file: TriageIssue['file'], errors: TriageIssue[]): void {
+  interface PendingGroup {
+    name: string;
+    line: number;
+    hasArea: boolean;
+    childCount: number;
+  }
+
+  let pending: PendingGroup | null = null;
+  let inFence = false;
+
+  const flush = (): void => {
+    if (pending === null) return;
+    if (!pending.hasArea && pending.childCount === 0) {
+      errors.push({
+        entryName: pending.name,
+        file,
+        message: `Heading '${pending.name}' (line ${pending.line}) is a group heading with no entry beneath it — it carries no \`- area:\` bullet of its own and no \`#### \` entry follows. Drop it: the queue is a flat list of \`### <Entry Name>\` blocks and writers never mint grouping categories.`,
+        rule: 'empty-group-heading',
+      });
+    }
+    pending = null;
+  };
+
+  const lines = raw.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith('```')) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+
+    const h3 = /^###\s+(.+?)\s*$/.exec(line);
+    if (h3) {
+      flush();
+      pending = { name: h3[1], line: i + 1, hasArea: false, childCount: 0 };
+      continue;
+    }
+    if (pending === null) continue;
+    if (/^####\s+\S/.test(line)) pending.childCount++;
+    else if (/^-\s+area:/.test(line) && pending.childCount === 0) pending.hasArea = true;
+  }
+  flush();
 }
 
 /**

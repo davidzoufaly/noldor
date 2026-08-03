@@ -98,6 +98,15 @@ export function resolveEntryRef(ref: string, paths: ResolveEntryRefPaths): strin
 /**
  * A `### ` (level 3) or `#### ` (level 4) markdown heading — the shape of a
  * roadmap/backlog entry heading.
+ *
+ * Both depths stay accepted on **read** even though the file format is frozen at
+ * `### <Entry Name>` and no writer mints `#### ` entries any more (see
+ * `docs/noldor/triage.md` → File format is frozen). A consumer repo that
+ * adopted Noldor before the freeze may still carry legacy `#### ` entries under
+ * an `### <Category>` container; narrowing this to `^###\s` would silently skip
+ * them and let `stampMissingIds` leave them without an `- id:`, which
+ * `validate:triage` then errors on as `missing-entry-id`. Keep `{3,4}` until the
+ * migration window closes.
  */
 const HEADING_RE = /^#{3,4}\s+\S/;
 

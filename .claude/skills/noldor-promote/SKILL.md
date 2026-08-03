@@ -48,7 +48,7 @@ Split suggested for "<heading>":
 Choose:
   (a) proceed anyway — accept the scope as one FD / one attach
   (b) split first — split the source block into sibling blocks (same write-back
-      mechanics as residue disposition 6.5(b): H3/H4 placement per source level,
+      mechanics as residue disposition 6.5(b): `### <heading>` placement,
       carried `- area:`/`- type:`/`- size:`/`- impact:` bullets, and
       `- recovered: YYYY-MM-DD` provenance), then re-run /noldor-promote on one slice
   (c) abort and re-size — leave the block in place; fix its `- size:` label
@@ -136,7 +136,7 @@ For each item, choose:
 Apply per-item disposition before step 7:
 
 - (a) — append the residue text to the FD body (Summary or Usage as appropriate; attach branch appends to parent FD).
-- (b) — write the residue as a new sibling block in the source file. If the source was an H3 (`### <heading>`) at the top level of `docs/roadmap.md` (a direct entry, not nested under a category), write the new block as `### <residue-title>` immediately after the original block's position. If the source was an H4 (`#### <heading>`) under an H3 category (e.g. `### Noldor Framework`), write as `#### <residue-title>` immediately after. Carry forward bullets `- area:` (default to source's area), `- type:`, `- size:`, `- impact:`, and add `- recovered: YYYY-MM-DD` for provenance.
+- (b) — write the residue as a new sibling block in the source file, always as `### <residue-title>` immediately after the original block's position. The heading level is fixed at 3 regardless of the source's level: roadmap and backlog are flat one-level lists and writers never mint grouping categories (see [triage.md → File format is frozen](../../../docs/noldor/triage.md#file-format-is-frozen)). A legacy `#### <heading>` source still parses, but its residue is emitted at `###`. Carry forward bullets `- area:` (default to source's area), `- type:`, `- size:`, `- impact:`, and add `- recovered: YYYY-MM-DD` for provenance.
 - (c) — no write; the residue is erased when step 7 deletes the source block.
 
 **Step 7 must not run until every residue item has an explicit disposition.** If residue scan returns zero items, skip the prompt and proceed.
