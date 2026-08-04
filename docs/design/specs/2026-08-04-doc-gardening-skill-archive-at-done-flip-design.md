@@ -208,8 +208,12 @@ noldor design archive [--dry-run] [--slug <key>]
    Untracked → `renameSync(from, to)` followed by `git add -- <to>` (the destination only: an
    untracked `<from>` is neither in the index nor still on disk, so including it makes git abort the
    whole `git add` with `fatal: pathspec … did not match any files`). Either way the CLI leaves every
-   move staged. A `git mv` failure on a file that probed as tracked is fatal (exit 1, stderr
-   passthrough) — a half-moved set must be visible, not swallowed.
+   move staged. Untracked destinations may be batched into one trailing `git add -- <to1> <to2> …`
+   rather than one call per artifact (tracked `git mv` stays per-file by necessity). A `git mv`
+   failure on a file that probed as tracked is fatal (exit 1, stderr passthrough) — a half-moved set
+   must be visible, not swallowed. A `git add` that refuses the destination because the consumer
+   ignores `archive/` is likewise fatal: the artifact moved on disk but cannot be committed, and
+   silently continuing would produce a flip commit missing the move.
 
    <a id="no-directory-literal"></a>**Why the CLI stages, and not the gate** (canonical statement;
    later sections reference this): `loadDocRoots` resolves `plans`/`specs` through the 1.0.0
@@ -321,6 +325,7 @@ gate Step 4 (FD path)
 | No matching artifacts / already moved  | exit 0, "nothing to do" (idempotent)                         |
 | `archive/<basename>` exists            | skip that artifact, warn, exit 0                             |
 | Artifact untracked (`ls-files` probe)  | fs `renameSync` + `git add -- <to>` (destination only)        |
+| `git add` refuses an ignored `<to>`    | fatal: exit 1, stderr passthrough (repo mis-ignores `archive/`) |
 | `git mv` fails on a tracked artifact   | exit 1, stderr passthrough                                   |
 | `specs/` or `plans/` dir missing       | treated as empty, exit 0                                     |
 
