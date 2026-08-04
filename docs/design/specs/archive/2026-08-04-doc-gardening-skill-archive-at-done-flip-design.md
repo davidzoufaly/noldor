@@ -83,8 +83,18 @@ Sits beside the existing design-ledger modules (`ledger.ts`, `render.ts`, `conte
 house style in [`src/garden/plan-resolution.ts`](../../../src/garden/plan-resolution.ts).
 
 ```ts
-/** Which dialogue key owns this session's artifacts, or null when the path carries none. */
-export function dialogueKeyFromSession(m: SessionMarker): string | null;
+/**
+ * Which dialogue key owns this session's artifacts. Three-way, not nullable:
+ * `none` (path runs no design dialogue) must not be confused with `invalid`
+ * (path owns artifacts, but the marker lacks the fields naming them) — the
+ * latter is broken input and must not exit 0 with a "carries no artifacts" line.
+ */
+export type DialogueKeyResult =
+  | { readonly kind: 'key'; readonly key: string }
+  | { readonly kind: 'none' }
+  | { readonly kind: 'invalid'; readonly missing: string };
+
+export function dialogueKeyFromSession(m: SessionMarker): DialogueKeyResult;
 
 export interface ArchiveMove {
   readonly kind: 'spec' | 'plan';
@@ -337,6 +347,7 @@ gate Step 4 (FD path)
 | -------------------------------------- | ------------------------------------------------------------ |
 | No session marker                      | exit 1 + "did you skip the gate scaffold?" hint              |
 | Path carries no artifacts (fast-track, micro-chore, release-*) | exit 0, explanatory line          |
+| Marker's path owns artifacts but omits `slug` / `parent` / `enhancement` | exit 1, names the missing field(s) |
 | `origin/main..HEAD` query fails        | fail closed: exit 0, "skipped — garden will catch it"        |
 | No matching artifacts / already moved  | exit 0, "nothing to do" (idempotent)                         |
 | `archive/<basename>` exists            | skip that artifact, warn, exit 0                             |
@@ -346,10 +357,14 @@ gate Step 4 (FD path)
 
 ## Acceptance criteria
 
-- `dialogueKeyFromSession` returns `slug` for `*-new`, `<parent>-<enhancement>` for `*-attach`,
-  and `null` for `fast-track`, `micro-chore`, `release-sweep`, `release-automation`, and for markers
-  missing the fields their path needs. A test enumerates `PATHS` so a new path cannot be left
-  unhandled.
+- `dialogueKeyFromSession` returns `{kind:'key'}` with `slug` for `*-new` and `<parent>-<enhancement>`
+  for `*-attach`; `{kind:'none'}` for `fast-track`, `micro-chore`, `release-sweep`,
+  `release-automation`; and `{kind:'invalid', missing}` when a path that owns artifacts has a marker
+  omitting the fields naming them (all missing fields listed). A test enumerates `PATHS` so a new path
+  cannot be left unhandled.
+- `noldor design archive` exits 1 naming the missing field on an `invalid` marker and never prints
+  `carries no design artifacts` for it — the `--slug`-empty rule ("invalid input must not read as
+  success") applies to the session-derived key too.
 - `resolveArchivePlan` for an `*-attach` session keyed `<parent>-<enh-a>` selects
   `<date>-<parent>-<enh-a>-design.md` and does **not** select `<date>-<parent>-<enh-b>-design.md`
   or `<date>-<parent>-design.md`.

@@ -85,13 +85,22 @@ async function main(): Promise<number> {
       return 1;
     }
     const derived = dialogueKeyFromSession(session);
-    if (derived === null) {
+    if (derived.kind === 'none') {
       process.stdout.write(
         `design archive: path ${session.path} carries no design artifacts — skipped\n`,
       );
       return 0;
     }
-    key = derived;
+    if (derived.kind === 'invalid') {
+      // The path DOES own artifacts; the marker just cannot name them. Saying
+      // "carries no design artifacts" here would be a lie that reads as success.
+      process.stderr.write(
+        `design archive: session marker for path ${session.path} is missing ${derived.missing} — ` +
+          're-run /noldor-gate to rewrite the marker\n',
+      );
+      return 1;
+    }
+    key = derived.key;
   }
 
   // Fail closed: archiving without the ownership gate is the one outcome worth
@@ -140,8 +149,10 @@ async function main(): Promise<number> {
     // fall back to; an untracked artifact simply is not eligible.
     const mv = git(root, ['mv', '--', m.from, m.to]);
     if (!mv.ok) {
+      const stderr =
+        mv.stderr.endsWith('\n') || mv.stderr.length === 0 ? mv.stderr : `${mv.stderr}\n`;
       process.stderr.write(
-        `design archive: git mv failed for ${m.from}\n${mv.stderr}` +
+        `design archive: git mv failed for ${m.from}\n${stderr}` +
           (moved > 0
             ? `design archive: ${moved} earlier move(s) are already staged — unstage or finish them by hand\n`
             : ''),
@@ -170,7 +181,11 @@ if (invokedDirect) {
       process.exitCode = code;
     },
     (error: unknown) => {
-      process.stderr.write(`design archive: ${String(error)}\n`);
+      // Keep the stack: an unexpected throw here (e.g. loadDocRoots) is a bug
+      // report, not a usage error, and a bare one-liner loses the trail.
+      process.stderr.write(
+        `design archive: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+      );
       process.exitCode = 1;
     },
   );

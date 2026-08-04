@@ -1,7 +1,8 @@
 // @tests: doc-gardening-skill
 // Spawn-level coverage of `noldor design archive` in real temp git repos: the
-// staging shapes (git mv vs untracked fs-rename), dry-run inertness, the
-// fail-closed paths, and the legacy `docs/superpowers/*` transition window.
+// `git mv` staging shape, why an uncommitted artifact is not eligible, dry-run
+// inertness, the fail-closed and invalid-marker paths, and the legacy
+// `docs/superpowers/*` transition window.
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -152,6 +153,31 @@ describe('noldor design archive', () => {
     expect(again.status).toBe(0);
     expect(again.stdout).toContain('added on this branch');
     expect(again.stdout).toContain('/noldor-garden owns those');
+  });
+
+  it('errors on a marker whose path owns artifacts but lacks the naming fields', () => {
+    // Fail-open guard: this must NOT print "carries no design artifacts".
+    const dir = repo({
+      session: { path: 'specs-only-new', startedAt: '2026-08-04T00:00:00.000Z', markerVersion: 2 },
+    });
+    const r = run(dir);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('missing slug');
+    expect(r.stdout).not.toContain('carries no design artifacts');
+    expect(existsSync(join(dir, 'docs/design/specs', SPEC))).toBe(true);
+  });
+
+  it('names every missing field on an attach marker', () => {
+    const dir = repo({
+      session: {
+        path: 'specs-only-attach',
+        startedAt: '2026-08-04T00:00:00.000Z',
+        markerVersion: 2,
+      },
+    });
+    const r = run(dir);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('parent + enhancement');
   });
 
   it('reports a corrupt session marker in usage shape, not a raw ZodError', () => {

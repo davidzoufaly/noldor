@@ -30,10 +30,14 @@ const PLANS = '/repo/docs/design/plans';
 
 describe(dialogueKeyFromSession, () => {
   it('keys *-new paths on the feature slug', () => {
-    expect(dialogueKeyFromSession(marker({ path: 'specs-only-new', slug: 'my-feat' }))).toBe(
-      'my-feat',
-    );
-    expect(dialogueKeyFromSession(marker({ path: 'full-new', slug: 'my-feat' }))).toBe('my-feat');
+    expect(dialogueKeyFromSession(marker({ path: 'specs-only-new', slug: 'my-feat' }))).toEqual({
+      kind: 'key',
+      key: 'my-feat',
+    });
+    expect(dialogueKeyFromSession(marker({ path: 'full-new', slug: 'my-feat' }))).toEqual({
+      kind: 'key',
+      key: 'my-feat',
+    });
   });
 
   it('keys *-attach paths on <parent>-<enhancement>', () => {
@@ -43,20 +47,28 @@ describe(dialogueKeyFromSession, () => {
       parent: 'doc-gardening-skill',
       path: 'specs-only-attach',
     });
-    expect(dialogueKeyFromSession(m)).toBe('doc-gardening-skill-archive-at-done-flip');
+    expect(dialogueKeyFromSession(m)).toEqual({
+      kind: 'key',
+      key: 'doc-gardening-skill-archive-at-done-flip',
+    });
   });
 
-  it('returns null for paths that run no design dialogue', () => {
+  it("reports 'none' for paths that run no design dialogue", () => {
     for (const path of ['fast-track', 'micro-chore', 'release-sweep', 'release-automation']) {
-      expect(dialogueKeyFromSession(marker({ path } as Partial<SessionMarker>))).toBe(null);
+      expect(dialogueKeyFromSession(marker({ path } as Partial<SessionMarker>))).toEqual({
+        kind: 'none',
+      });
     }
   });
 
-  it('returns null when the marker lacks the fields its path needs', () => {
-    expect(dialogueKeyFromSession(marker({ path: 'full-new' }))).toBe(null);
+  it('reports invalid (not none) when the marker lacks the fields its path needs', () => {
+    expect(dialogueKeyFromSession(marker({ path: 'full-new' }))).toEqual({
+      kind: 'invalid',
+      missing: 'slug',
+    });
     expect(
       dialogueKeyFromSession(marker({ markerVersion: 2, parent: 'p', path: 'specs-only-attach' })),
-    ).toBe(null);
+    ).toEqual({ kind: 'invalid', missing: 'enhancement' });
   });
 
   it('handles every member of PATHS (no silent fallthrough)', () => {
@@ -67,8 +79,8 @@ describe(dialogueKeyFromSession, () => {
       slug: 'slug',
     } as Partial<SessionMarker>;
     for (const path of PATHS) {
-      const key = dialogueKeyFromSession(marker({ ...full, path }));
-      expect(key === null || key.length > 0).toBe(true);
+      const result = dialogueKeyFromSession(marker({ ...full, path }));
+      expect(['key', 'none']).toContain(result.kind);
     }
   });
 });

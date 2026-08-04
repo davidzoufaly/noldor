@@ -36,36 +36,54 @@ export interface ArchivePlan {
 }
 
 /**
- * The dialogue key that named this session's design artifacts, or `null` when
- * the session's path carries none.
+ * Outcome of deriving a dialogue key from a session marker.
+ *
+ * `none` and `invalid` are deliberately distinct: "this path runs no design
+ * dialogue" is a clean no-op, whereas "this path owns artifacts but the marker
+ * lacks the fields naming them" is broken input that must not read as success.
+ */
+export type DialogueKeyResult =
+  | { readonly kind: 'key'; readonly key: string }
+  | { readonly kind: 'none' }
+  | { readonly kind: 'invalid'; readonly missing: string };
+
+/**
+ * The dialogue key that named this session's design artifacts.
  *
  * `*-new` paths key on the feature slug; `*-attach` paths key on
  * `<parent>-<enhancement>` — the same string that named the spec file at the
  * gate's Step 2.5. `fast-track` / `micro-chore` / `release-*` run no design
- * dialogue. A marker missing the fields its path needs yields `null` rather
- * than a partial key.
+ * dialogue (`none`). The session schema marks `slug` / `parent` /
+ * `enhancement` optional, so a hand-written or truncated marker can omit a
+ * field its path requires; that is `invalid`, never a partial key.
  */
-export function dialogueKeyFromSession(m: SessionMarker): string | null {
+export function dialogueKeyFromSession(m: SessionMarker): DialogueKeyResult {
   switch (m.path) {
     case 'specs-only-new':
     case 'full-new':
-      return m.slug ?? null;
+      if (m.slug === undefined) return { kind: 'invalid', missing: 'slug' };
+      return { kind: 'key', key: m.slug };
     case 'specs-only-attach':
-    case 'full-attach':
-      if (m.parent === undefined || m.enhancement === undefined) return null;
-      return `${m.parent}-${m.enhancement}`;
+    case 'full-attach': {
+      const missing = [
+        ...(m.parent === undefined ? ['parent'] : []),
+        ...(m.enhancement === undefined ? ['enhancement'] : []),
+      ];
+      if (missing.length > 0) return { kind: 'invalid', missing: missing.join(' + ') };
+      return { kind: 'key', key: `${m.parent}-${m.enhancement}` };
+    }
     case 'fast-track':
     case 'micro-chore':
     case 'release-sweep':
     case 'release-automation':
-      return null;
+      return { kind: 'none' };
     default: {
       // Exhaustiveness backstop: a new member of `PATHS` must be classified
       // here explicitly. `never` makes that a type error at compile time; the
-      // `return null` keeps a hand-written marker from archiving by accident.
+      // `invalid` result keeps an unclassified path from archiving by accident.
       const unhandled: never = m.path;
       void unhandled;
-      return null;
+      return { kind: 'invalid', missing: `unclassified path ${String(m.path)}` };
     }
   }
 }
@@ -103,7 +121,8 @@ async function collect(
   }
 
   const slugOf = kind === 'spec' ? specSlugFromFilename : planSlugFromFilename;
-  const archived = new Set(await readdir(join(dir, ARCHIVE_DIR)).catch(() => []));
+  /** Archive listing, read at most once and only if some entry matches the key. */
+  let archived: Set<string> | null = null;
 
   for (const entry of entries) {
     // No file-type check needed: a directory named `<date>-<key>-design.md`
@@ -117,6 +136,7 @@ async function collect(
     const from = relative(repo, join(dir, entry)).split('\\').join('/');
     if (!branchAdded.has(from)) continue;
 
+    archived ??= new Set(await readdir(join(dir, ARCHIVE_DIR)).catch(() => []));
     if (archived.has(entry)) {
       skipped.push({ from, reason: 'collision' });
       continue;
