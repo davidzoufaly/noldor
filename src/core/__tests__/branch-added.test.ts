@@ -153,6 +153,16 @@ describe(renameDestExists, () => {
     expect(renameDestExists({ cwd: dir, destDirRel: DEST, suffix: SUFFIX })).toBe(true);
   });
 
+  it('is unaffected by diff.relative and finds the rename from a subdirectory', () => {
+    const dir = repoWithLiveSpec();
+    // `diff.relative` would make porcelain diff/log emit cwd-relative paths.
+    git(dir, ['config', 'diff.relative', 'true']);
+    archive(dir);
+    expect(
+      renameDestExists({ cwd: join(dir, 'docs', 'design'), destDirRel: DEST, suffix: SUFFIX }),
+    ).toBe(true);
+  });
+
   it('throws when the staged probe itself fails (never reads as "no rename")', () => {
     const failing: RunGit = (args) =>
       args.includes('diff')

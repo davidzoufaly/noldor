@@ -161,12 +161,18 @@ export function toRepoRelative(absPath: string, cwd: string, runGit?: RunGit): s
   const run = runGit ?? defaultRunGit(cwd);
   const prefix = git(run, ['rev-parse', '--show-prefix']).trim();
   const rel = relative(resolveExisting(cwd), resolveExisting(absPath)).split('\\').join('/');
+  // Check `rel` BEFORE prepending the prefix: `relative()` across Windows drives
+  // returns an absolute `D:/other`, and concatenating a `sub/` prefix first would
+  // yield `sub/D:/other`, which no longer looks absolute and would sail past the
+  // guard below.
+  if (posix.isAbsolute(rel) || /^[A-Za-z]:/.test(rel)) {
+    throw new Error(`path is outside the repository: ${absPath}`);
+  }
   // `normalize('')` is `'.'`, and a stray `'.'`/trailing slash would break the
   // `startsWith(`${dir}/`)` comparisons callers build from this.
   const out = posix.normalize(`${prefix}${rel}`).replace(/\/+$/, '').replace(/^\.$/, '');
-  // `..` survived normalization, or `relative()` gave up and returned an absolute
-  // path (different Windows drive) — either way the target is not in this repo.
-  if (out === '..' || out.startsWith('../') || posix.isAbsolute(out) || /^[A-Za-z]:/.test(out)) {
+  // `..` survived normalization — the target is above the repo root.
+  if (out === '..' || out.startsWith('../')) {
     throw new Error(`path is outside the repository: ${absPath}`);
   }
   return out;
@@ -213,8 +219,11 @@ export function renameDestExists(options: RenameDestExistsOptions): boolean {
 
   // `core.quotepath=false`: C-quoted non-ASCII paths (`"docs/…/caf\303\251.md"`)
   // would never match a path built from the filesystem.
+  // `diff.relative=false`: `diff`/`log` are porcelain and honour that config, so a
+  // repo or user setting it would emit paths relative to `cwd` instead of the repo
+  // root — silently breaking every `destDirRel` comparison below.
   const out = (args: readonly string[]): { ok: boolean; text: string; stderr: string } => {
-    const r = run(['-c', 'core.quotepath=false', ...args]);
+    const r = run(['-c', 'core.quotepath=false', '-c', 'diff.relative=false', ...args]);
     return { ok: r.status === 0, stderr: r.stderr, text: r.stdout };
   };
 
