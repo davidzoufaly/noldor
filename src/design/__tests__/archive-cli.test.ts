@@ -234,6 +234,13 @@ describe('noldor design archive', () => {
     expect(existsSync(join(other, 'docs/design/specs/2026-01-01-foreign-design.md'))).toBe(true);
   });
 
+  it('skips quietly outside a git repository', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'design-archive-norepo-'));
+    const r = run(dir);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('not a git repository');
+  });
+
   it('resolves the same moves when run from a subdirectory', () => {
     const dir = repo();
     const r = run(join(dir, 'docs', 'design', 'specs'));

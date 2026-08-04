@@ -45,6 +45,9 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
 
 function git(cwd: string, gitArgs: readonly string[]): { ok: boolean; stderr: string } {
   const r = spawnSync('git', gitArgs, { cwd, encoding: 'utf8' });
+  // A spawn-level failure (git not on PATH, EACCES) leaves `status` null and
+  // `stderr` empty — surface `r.error` or the diagnosis is a blank line.
+  if (r.error !== undefined) return { ok: false, stderr: `${r.error.message}\n` };
   return { ok: r.status === 0, stderr: r.stderr ?? '' };
 }
 
@@ -59,9 +62,17 @@ async function main(): Promise<number> {
   let root: string;
   try {
     root = repoRoot(cwd);
-  } catch {
-    process.stderr.write('design archive: not a git repository — skipped\n');
-    return 0;
+  } catch (error) {
+    // "Not a repository" is a benign skip (a consumer running the CLI outside a
+    // repo); anything else — git missing, EACCES — is a real fault the operator
+    // must see rather than read as "nothing to archive here".
+    const message = error instanceof Error ? error.message : String(error);
+    if (/not a git repository/i.test(message)) {
+      process.stderr.write('design archive: not a git repository — skipped\n');
+      return 0;
+    }
+    process.stderr.write(`design archive: cannot resolve the repository root\n${message}\n`);
+    return 1;
   }
 
   let key: string | undefined = parsed.slug;
