@@ -6,6 +6,7 @@ links:
   code:
     - .claude/skills/noldor-spec/
     - .claude/skills/noldor-plan/
+    - src/design/
     - src/worktrees/
     - src/prep/draft.ts
     - src/prep/formats.ts
@@ -34,7 +35,7 @@ links:
 name: 'De-Superpowers: Vendor Spec, Plan and Worktree Flows'
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
@@ -50,6 +51,8 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
 
 - Spec stage (gate-invoked or standalone): invoke the `noldor-spec` skill — dialogues to a design, writes `docs/design/specs/YYYY-MM-DD-<slug>-design.md` per `pnpm noldor prep format spec`.
 - Plan stage: invoke the `noldor-plan` skill — writes `docs/design/plans/YYYY-MM-DD-<slug>.md` per `pnpm noldor prep format plan`.
+- Design context during either dialogue (agent-agnostic, plain inline text): seed once with `pnpm noldor design log --slug <dialogue-slug> [--entry <roadmap-slug>] --support "<path:line> — already does X"`; before every question run `pnpm noldor design context --slug <dialogue-slug> [--kind plan]` and paste its stdout verbatim inside a fenced code block above the question; after every answer run `pnpm noldor design log --slug <dialogue-slug> [--resolve <O-id>] --decide "<what was settled>" [--open "<new thread>"]`. Dialogue slug is the feature slug on `*-new` paths, `<parent>-<enhancement>` on `*-attach`.
+- Ledger inspection / reset: the running state lives at `.noldor/design/<slug>.md` (untracked, gitignored by `noldor init`). Read it freely; never hand-edit it — `design log` fails closed on a file it cannot parse, while `design context` degrades and flags `⚠ ledger section unparsed`.
 - Worktree: `pnpm noldor worktrees create <slug>` from the main workspace (`--branch <name>` overrides the default `feat/<slug>` naming — the gate's fast-track path passes `fast/<desc>`; `--no-install` skips dependency install on restores).
 - Format contract inspection (any agent, any repo with noldor installed): `pnpm noldor prep format <spec|plan>`.
 - Plan execution (interactive and autonomous alike): follow the plan header — execute tasks inline, commit per task, tick checkboxes.
