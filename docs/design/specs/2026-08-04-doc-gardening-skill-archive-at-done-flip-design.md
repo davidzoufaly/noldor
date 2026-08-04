@@ -159,6 +159,10 @@ Paths from `diff-tree` are repo-root-relative, so the helper resolves the root w
 `git rev-parse --show-toplevel` and callers compare root-relative paths — otherwise a subdir `cwd`
 would fail the gate for every artifact and report a confusing `nothing to do`.
 
+`git merge-base origin/main HEAD` returns a single (arbitrary) base on a criss-cross history. Left
+as-is: the repo's squash-merge, short-lived-branch flow does not produce criss-cross merges, and
+`--all` handling would buy nothing here. Noted in Risks.
+
 Side effect on `pr-flow`: its spec/plan discovery gains merge-base semantics too. That is strictly
 more correct (a stale branch no longer mis-attributes a spec `main` archived after the branch point),
 and one helper is the only place range semantics are decided.
@@ -201,9 +205,17 @@ noldor design archive [--dry-run] [--slug <key>]
    *probing* trackedness rather than parsing git's (i18n'd, locale-dependent) error text —
    `git ls-files --error-unmatch <from>` exits 0 for a tracked file. Tracked →
    `execFileSync('git', ['mv', from, to])`, which preserves rename detection and stages the change.
-   Untracked → `renameSync(from, to)`, and the gate's `git add` picks it up. A `git mv` failure on a
-   file that probed as tracked is fatal (exit 1, stderr passthrough) — a half-moved set must be
-   visible, not swallowed.
+   Untracked → `renameSync(from, to)` followed by `git add -- <from> <to>` so the CLI leaves *every*
+   move staged regardless of mechanism. A `git mv` failure on a file that probed as tracked is fatal
+   (exit 1, stderr passthrough) — a half-moved set must be visible, not swallowed.
+
+   Staging inside the CLI is deliberate: the gate then never needs to name the artifact directory.
+   `loadDocRoots` still resolves `plans`/`specs` through the 1.0.0 transition alias
+   ([`src/core/doc-roots.ts:26-32`](../../../src/core/doc-roots.ts)), so on a consumer that bumped the
+   package without running `noldor upgrade` the moves land under `docs/superpowers/*/archive/`. Any
+   hardcoded `docs/design` pathspec in the gate would miss those moves entirely (and `git add
+   docs/design` would fail `pathspec did not match` on a repo without that dir). The CLI knows the
+   resolved roots; the gate must not have to.
 6. Collisions print `skipped (exists in archive): <from>` and never overwrite; exit stays 0 —
    mirrors the garden skill's row-level collision behaviour.
 7. Final line: `archived: <n> artifact(s)`.
@@ -240,32 +252,39 @@ moved the file.
 
 In [`.claude/skills/noldor-gate/SKILL.md`](../../../.claude/skills/noldor-gate/SKILL.md) Step 4,
 between the `/noldor-draft-feature-md --refresh` bullet and the phase-flip bullet, insert the
-archive call for FD-carrying paths only:
+archive call for FD-carrying paths only — preceded by a clean-index assertion, because the flip
+commit records the index:
 
 ```
+git diff --cached --quiet || { echo "index not empty before flip — resolve by hand"; exit 1; }
 pnpm noldor design archive
 ```
 
-The flip bullet then stages the moved artifacts alongside the FD:
+The flip bullet then stages only the FD and commits whatever the index holds (FD + the moves the CLI
+staged):
 
 ```
 pnpm noldor features phase-flip-done <slug>
-git add docs/features/<slug>.md docs/design
-git diff --cached --quiet -- docs/features/<slug>.md docs/design || git commit -m "docs(features:<slug>): mark phase=done + archive design artifacts" -m "Noldor-FD: <slug>" -- docs/features/<slug>.md docs/design
+git add docs/features/<slug>.md
+git diff --cached --quiet || git commit -m "docs(features:<slug>): mark phase=done + archive design artifacts" -m "Noldor-FD: <slug>"
 ```
 
-`git add docs/design` covers the fs-rename fallback and the deletion half of any rename `git mv`
-already staged; the `--cached` emptiness check replaces today's `git diff --quiet <fd>` so a
-move-only change (FD body unchanged) still commits. **Both** the check and the commit are
-pathspec-limited to the two targets: the check alone only gates *whether* the commit runs, while a
-bare `git commit` would still commit the whole index, so an unrelated pre-staged file would ride in
-whenever the FD did change. With the trailing pathspec, `git commit` records the working-tree content
-of just those paths (everything is already written to disk at this point, including both halves of
-the rename) and leaves any other staged file staged.
-Order matters: archive **before** the flip
-commit, so move + `phase: done` + refreshed FD are one commit, and that commit rides the
-`origin/main..HEAD` range the code-stage CR reviews. Fast-track / micro-chore keep skipping this
-seam entirely.
+Three properties fall out of this shape:
+
+- **No directory literal.** Unit 3 stages its own moves, so the gate never names `docs/design` —
+  which is required, because `loadDocRoots` may resolve the artifacts under legacy
+  `docs/superpowers/*` during the 1.0.0 transition window. A hardcoded pathspec would silently leave
+  those moves uncommitted (or fail `pathspec did not match`).
+- **No stranger rides in.** The precondition asserts an empty index *before* anything is staged, so
+  committing the index is exactly FD + moves. This replaces the earlier pathspec-limited `git commit
+  -- <paths>` idea, which also refuses to run mid-merge/cherry-pick (`cannot do a partial commit
+  during a merge`).
+- **Move-only changes still commit.** The `--cached` emptiness check replaces today's `git diff
+  --quiet <fd>`, so an unchanged FD body plus a staged rename still produces the commit.
+
+Order matters: archive **before** the flip commit, so move + `phase: done` + refreshed FD are one
+commit, and that commit rides the `origin/main..HEAD` range the code-stage CR reviews. Fast-track /
+micro-chore keep skipping this seam entirely.
 
 Ordering note: the archive runs *before* `sync fd-resources` fires (pre-commit), which is exactly
 what makes the Unit-4 repoint see the file already in `archive/`.
@@ -283,9 +302,10 @@ net (D5).
 ```
 gate Step 4 (FD path)
   ├─ /noldor-draft-feature-md --refresh        (FD body)
-  ├─ noldor design archive                     (git mv spec+plan → archive/)
+  ├─ assert empty index
+  ├─ noldor design archive                     (git mv spec+plan → archive/, left STAGED)
   ├─ noldor features phase-flip-done <slug>    (phase: done)
-  └─ git add docs/features/<slug>.md docs/design && git commit
+  └─ git add docs/features/<slug>.md && git commit   (index = FD + moves)
          └─ pre-commit: sync fd-resources → links.spec/.plan repointed to archive/
 ```
 
@@ -331,8 +351,13 @@ gate Step 4 (FD path)
 - `noldor design archive --slug <key>` run from a repo subdirectory resolves the same moves as from
   the repo root (root-relative path comparison), and still refuses an artifact absent from
   `branchAdded`.
-- The flip commit contains only `docs/features/<slug>.md` + the moved artifacts even when an
-  unrelated file was pre-staged in the index (pathspec-limited commit) — the stranger stays staged.
+- `noldor design archive` leaves every move **staged** — both the `git mv` case and the untracked
+  fs-rename case (verified with `git diff --cached --name-status`, which shows the rename/add pair).
+- With the artifacts resolving under legacy `docs/superpowers/{specs,plans}` (new dirs absent), the
+  CLI still moves them into `docs/superpowers/*/archive/` and stages them; the gate's commit picks
+  them up with no directory literal involved.
+- The gate's clean-index precondition fails loudly (non-zero, explanatory message) when the index is
+  non-empty before archive, and no commit is produced.
 - `noldor design archive --dry-run` prints the moves and mutates nothing on disk or in the index.
 - `noldor design archive` with no `.noldor/session.json` exits 1 and its stderr contains
   `no .noldor/session.json`.
@@ -379,12 +404,14 @@ gate Step 4 (FD path)
 - **Rename in the CR diff.** Code-stage CR (`--base-sha origin/main`) now sees a rename pair for
   the spec it also reviewed at Step 2.5. Cosmetic noise, and arguably correct: the move is part of
   the feature.
-- **`git add docs/design` breadth.** The flip step stages (and commits) the whole `docs/design`
-  subtree, so an unrelated dirty artifact under it — an in-flight spec for *another* feature edited
-  in this same worktree — would be swept into the flip commit. Files outside those two pathspecs are
-  now safe (pathspec-limited commit), but `docs/design` itself is coarse. Accepted: at end-of-flow
-  the tree is expected clean apart from this session's work, and enumerating the resolved move paths
-  through skill prose is fragile.
+- **Clean-index precondition can halt end-of-flow.** Committing the index (rather than a pathspec)
+  is what keeps the gate free of directory literals, but it means a non-empty index at Step 4 aborts
+  with a manual-resolution message instead of proceeding. At end-of-flow the index is expected empty;
+  when it isn't, something unmodelled happened and stopping is the right call. In autonomous/drain
+  mode this surfaces as a failed iteration → retry-from-clean, not a silent bad commit.
+- **Multiple merge bases.** `git merge-base origin/main HEAD` returns one arbitrary base on a
+  criss-cross history, so `branchAdded` could vary there. The repo's squash-merge, short-branch flow
+  makes criss-cross effectively unreachable; accepted rather than handled with `--all`.
 - **Two owners of the archive convention.** The garden skill's `git mv` prose and Unit 3 both
   encode `<dir>/archive/<basename>`. Drift is possible; the convention is one line in each and
   Unit 3's tests pin it.
@@ -419,8 +446,9 @@ pnpm noldor design archive
 ```
 
 Agent surface: the gate calls the CLI between `/noldor-draft-feature-md --refresh` and
-`pnpm noldor features phase-flip-done <slug>`, then stages `docs/features/<slug>.md` + `docs/design`
-into the single flip commit. Nothing else in the flow changes.
+`pnpm noldor features phase-flip-done <slug>`, having asserted an empty index first; the CLI leaves
+its moves staged, the gate adds `docs/features/<slug>.md`, and one commit carries both. Nothing else
+in the flow changes.
 
 ## Open questions (resolved)
 
@@ -478,8 +506,12 @@ into the single flip commit. Nothing else in the flow changes.
    manufacturing that case. Merge-base makes "a foreign live spec is unreachable" an invariant rather
    than a race with the archive convention.
 
-9. *Should the flip commit be pathspec-limited, not just pathspec-checked?*
-   → **Yes** — `git commit … -- docs/features/<slug>.md docs/design`. (D9)
-   Rationale: the `git diff --cached --quiet -- <paths>` guard only decides *whether* to commit; a
-   bare `git commit` still records the whole index, so a pre-staged unrelated file would ride along
-   whenever the FD changed.
+9. *How does the flip commit capture the moves without naming a directory?*
+   → **The CLI stages its own moves; the gate asserts an empty index beforehand and commits the
+   index.** No `docs/design` literal, no pathspec-limited commit. (D9)
+   Rationale: two problems, one shape. `loadDocRoots` can still resolve artifacts under legacy
+   `docs/superpowers/*` in the 1.0.0 transition window, so any hardcoded pathspec would drop those
+   moves (or error `pathspec did not match`); and a pathspec-limited `git commit -- <paths>` is a
+   partial commit, which git refuses mid-merge/cherry-pick. Staging in the CLI + an
+   empty-index precondition gives the same "no stranger rides in" guarantee without either failure
+   mode.
