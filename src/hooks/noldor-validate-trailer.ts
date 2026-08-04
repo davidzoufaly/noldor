@@ -178,8 +178,17 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   /** Specs dir, resolved once (honours the 1.0.0 `docs/superpowers` alias). */
   const specsDirAbs = loadDocRoots(opts.cwd).specs;
 
-  /** Repo-relative specs dir for user-facing messages. */
-  const specsDirLabel = (): string => toRepoRelative(specsDirAbs, opts.cwd);
+  /**
+   * Repo-relative specs dir for user-facing messages. Falls back to the absolute
+   * path if git cannot report the prefix — a label must never fail a commit.
+   */
+  const specsDirLabel = (): string => {
+    try {
+      return toRepoRelative(specsDirAbs, opts.cwd);
+    } catch {
+      return specsDirAbs;
+    }
+  };
 
   /**
    * Does a spec matching `suffix` exist for this session?
@@ -200,7 +209,15 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     const archiveDir = join(specsDirAbs, ARCHIVE_DIR);
     if (!existsSync(archiveDir)) return false;
     if (!readdirSync(archiveDir).some((f) => f.endsWith(suffix))) return false;
-    return renameDestExists({ cwd, destDirRel: toRepoRelative(archiveDir, cwd), suffix });
+    let destDirRel: string;
+    try {
+      destDirRel = toRepoRelative(archiveDir, cwd);
+    } catch {
+      // Cannot even locate ourselves in the repo — fail closed: require a live
+      // spec rather than accept an archived one we cannot attribute to a rename.
+      return false;
+    }
+    return renameDestExists({ cwd, destDirRel, suffix });
   }
 
   if (path === 'specs-only-new' || path === 'full-new') {

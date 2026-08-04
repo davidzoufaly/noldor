@@ -4,7 +4,7 @@
 // archival). One module so the range semantics are decided in exactly one place.
 
 import { spawnSync } from 'node:child_process';
-import { relative } from 'node:path';
+import { posix, relative } from 'node:path';
 
 /** Test seam — mirrors the `spawnSync` shape this module needs. */
 export interface RunGit {
@@ -112,14 +112,19 @@ export function repoRoot(cwd?: string, runGit?: RunGit): string {
  * Anchored with `git rev-parse --show-prefix` (how deep `cwd` sits in the repo)
  * rather than `--show-toplevel`: on macOS the latter returns the resolved
  * `/private/var/…` form while `cwd` is the `/var/…` symlink, so relativizing the
- * two yields nonsense. Forward slashes, so the result compares directly against
- * git's own output on every platform.
+ * two yields nonsense. Forward slashes, and `..` segments collapsed, so the
+ * result compares directly against git's own output on every platform — an
+ * unnormalized `sub/../docs/x` would match nothing.
+ *
+ * @throws When git cannot report the prefix (not a repository, git missing).
+ *   Deliberately loud: a silent `''` prefix would quietly produce paths that
+ *   match nothing, which reads as "not found" rather than "could not look".
  */
 export function toRepoRelative(absPath: string, cwd: string, runGit?: RunGit): string {
   const run = runGit ?? defaultRunGit(cwd);
-  const probe = run(['rev-parse', '--show-prefix']);
-  const prefix = probe.status === 0 ? probe.stdout.trim() : '';
-  return prefix + relative(cwd, absPath).split('\\').join('/');
+  const prefix = git(run, ['rev-parse', '--show-prefix']).trim();
+  const rel = relative(cwd, absPath).split('\\').join('/');
+  return posix.normalize(`${prefix}${rel}`).replace(/\/+$/, '');
 }
 
 export interface RenameDestExistsOptions {

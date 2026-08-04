@@ -10,6 +10,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import type { RunGit } from '../branch-added.js';
 import {
   discoverAddedFiles,
   renameDestExists,
@@ -170,6 +171,22 @@ describe(toRepoRelative, () => {
     const specs = join(dir, 'docs', 'design', 'specs');
     expect(toRepoRelative(specs, dir)).toBe('docs/design/specs');
     expect(toRepoRelative(specs, join(dir, 'docs'))).toBe('docs/design/specs');
+  });
+
+  it('collapses .. segments when the path is not under cwd', () => {
+    const dir = repoWithDivergedMain();
+    // cwd two levels deep, target back up at the root: the raw
+    // `docs/design/` + `../../src` form would match nothing in git output.
+    expect(toRepoRelative(join(dir, 'src'), join(dir, 'docs', 'design'))).toBe('src');
+  });
+
+  it('throws instead of degrading when git cannot report the prefix', () => {
+    const failing: RunGit = () => ({
+      status: 1,
+      stdout: '',
+      stderr: 'fatal: not a git repository',
+    });
+    expect(() => toRepoRelative('/repo/docs', '/repo', failing)).toThrow(/show-prefix/);
   });
 });
 
