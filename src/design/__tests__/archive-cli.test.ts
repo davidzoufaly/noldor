@@ -208,7 +208,8 @@ describe('noldor design archive', () => {
     git(dir, ['update-ref', '-d', 'refs/remotes/origin/main']);
     const r = run(dir);
     expect(r.status).toBe(0);
-    expect(r.stderr).toContain('cannot determine branch-added artifacts');
+    expect(r.stderr).toContain('WARNING');
+    expect(r.stderr).toContain('NO spec');
     expect(existsSync(join(dir, 'docs/design/specs', SPEC))).toBe(true);
   });
 

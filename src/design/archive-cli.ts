@@ -6,7 +6,12 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { defaultRunGit, discoverAddedFiles, repoRoot } from '../core/branch-added.js';
+import {
+  defaultRunGit,
+  discoverAddedFiles,
+  repoRoot,
+  resolveDefaultBase,
+} from '../core/branch-added.js';
 import { readSession } from '../core/session.js';
 import { dialogueKeyFromSession, resolveArchivePlan } from './archive-resolve.js';
 
@@ -123,9 +128,20 @@ async function main(): Promise<number> {
   let branchAdded: string[];
   try {
     branchAdded = discoverAddedFiles({ cwd: root });
-  } catch {
+  } catch (error) {
+    // Exit 0 is contractual: gate Step 4 runs this unconditionally, so a
+    // non-zero here would abort end-of-flow for every consumer whose base ref
+    // cannot be resolved. But the note has to be loud — a base that is broken
+    // *permanently* (shallow clone, `origin/HEAD` never set) means archival
+    // silently never runs at any ship, and only garden would ever file anything.
+    const base = resolveDefaultBase(defaultRunGit(root));
     process.stderr.write(
-      'design archive: cannot determine branch-added artifacts — skipped (garden will catch it)\n',
+      `design archive: WARNING — cannot resolve '${base}' to determine branch-added artifacts; ` +
+        'skipping archival (/noldor-garden remains the backstop).\n' +
+        `  reason: ${error instanceof Error ? error.message : String(error)}\n` +
+        '  If this warning appears on every ship, the repo is misconfigured (unset ' +
+        'refs/remotes/origin/HEAD, or a shallow clone with no merge base) and NO spec ' +
+        'is being archived at done-flip.\n',
     );
     return 0;
   }
