@@ -205,17 +205,19 @@ noldor design archive [--dry-run] [--slug <key>]
    *probing* trackedness rather than parsing git's (i18n'd, locale-dependent) error text —
    `git ls-files --error-unmatch <from>` exits 0 for a tracked file. Tracked →
    `execFileSync('git', ['mv', from, to])`, which preserves rename detection and stages the change.
-   Untracked → `renameSync(from, to)` followed by `git add -- <from> <to>` so the CLI leaves *every*
-   move staged regardless of mechanism. A `git mv` failure on a file that probed as tracked is fatal
-   (exit 1, stderr passthrough) — a half-moved set must be visible, not swallowed.
+   Untracked → `renameSync(from, to)` followed by `git add -- <to>` (the destination only: an
+   untracked `<from>` is neither in the index nor still on disk, so including it makes git abort the
+   whole `git add` with `fatal: pathspec … did not match any files`). Either way the CLI leaves every
+   move staged. A `git mv` failure on a file that probed as tracked is fatal (exit 1, stderr
+   passthrough) — a half-moved set must be visible, not swallowed.
 
-   Staging inside the CLI is deliberate: the gate then never needs to name the artifact directory.
-   `loadDocRoots` still resolves `plans`/`specs` through the 1.0.0 transition alias
-   ([`src/core/doc-roots.ts:26-32`](../../../src/core/doc-roots.ts)), so on a consumer that bumped the
-   package without running `noldor upgrade` the moves land under `docs/superpowers/*/archive/`. Any
-   hardcoded `docs/design` pathspec in the gate would miss those moves entirely (and `git add
-   docs/design` would fail `pathspec did not match` on a repo without that dir). The CLI knows the
-   resolved roots; the gate must not have to.
+   <a id="no-directory-literal"></a>**Why the CLI stages, and not the gate** (canonical statement;
+   later sections reference this): `loadDocRoots` resolves `plans`/`specs` through the 1.0.0
+   transition alias ([`src/core/doc-roots.ts:26-32`](../../../src/core/doc-roots.ts)), so on a
+   consumer that bumped the package without running `noldor upgrade` the moves land under
+   `docs/superpowers/*/archive/`. Any hardcoded `docs/design` pathspec in the gate would miss those
+   moves entirely (and `git add docs/design` would fail `pathspec did not match` on a repo without
+   that dir). The CLI knows the resolved roots; the gate must not have to.
 6. Collisions print `skipped (exists in archive): <from>` and never overwrite; exit stays 0 —
    mirrors the garden skill's row-level collision behaviour.
 7. Final line: `archived: <n> artifact(s)`.
@@ -271,14 +273,14 @@ git diff --cached --quiet || git commit -m "docs(features:<slug>): mark phase=do
 
 Three properties fall out of this shape:
 
-- **No directory literal.** Unit 3 stages its own moves, so the gate never names `docs/design` —
-  which is required, because `loadDocRoots` may resolve the artifacts under legacy
-  `docs/superpowers/*` during the 1.0.0 transition window. A hardcoded pathspec would silently leave
-  those moves uncommitted (or fail `pathspec did not match`).
+- **No directory literal.** Unit 3 stages its own moves, so the gate never names an artifact
+  directory — see [Unit 3's canonical rationale](#no-directory-literal) (1.0.0 transition alias).
 - **No stranger rides in.** The precondition asserts an empty index *before* anything is staged, so
   committing the index is exactly FD + moves. This replaces the earlier pathspec-limited `git commit
   -- <paths>` idea, which also refuses to run mid-merge/cherry-pick (`cannot do a partial commit
-  during a merge`).
+  during a merge`). The precondition is in fact what forecloses that state: `git diff --cached
+  --quiet` also exits non-zero on unmerged index entries, so a mid-merge/cherry-pick tree halts at
+  the assertion — before any question of what a bare `git commit` would record.
 - **Move-only changes still commit.** The `--cached` emptiness check replaces today's `git diff
   --quiet <fd>`, so an unchanged FD body plus a staged rename still produces the commit.
 
@@ -318,7 +320,7 @@ gate Step 4 (FD path)
 | `origin/main..HEAD` query fails        | fail closed: exit 0, "skipped — garden will catch it"        |
 | No matching artifacts / already moved  | exit 0, "nothing to do" (idempotent)                         |
 | `archive/<basename>` exists            | skip that artifact, warn, exit 0                             |
-| Artifact untracked (`ls-files` probe)  | fs `renameSync` instead of `git mv`, continue                |
+| Artifact untracked (`ls-files` probe)  | fs `renameSync` + `git add -- <to>` (destination only)        |
 | `git mv` fails on a tracked artifact   | exit 1, stderr passthrough                                   |
 | `specs/` or `plans/` dir missing       | treated as empty, exit 0                                     |
 
@@ -351,8 +353,10 @@ gate Step 4 (FD path)
 - `noldor design archive --slug <key>` run from a repo subdirectory resolves the same moves as from
   the repo root (root-relative path comparison), and still refuses an artifact absent from
   `branchAdded`.
-- `noldor design archive` leaves every move **staged** — both the `git mv` case and the untracked
-  fs-rename case (verified with `git diff --cached --name-status`, which shows the rename/add pair).
+- `noldor design archive` leaves every move **staged**: `git diff --cached --name-status` shows a
+  rename (or delete+add) pair for the tracked `git mv` case, and a single `A <to>` for the untracked
+  fs-rename case — the CLI must not pass the vanished `<from>` to `git add`, which would abort the
+  whole staging call.
 - With the artifacts resolving under legacy `docs/superpowers/{specs,plans}` (new dirs absent), the
   CLI still moves them into `docs/superpowers/*/archive/` and stages them; the gate's commit picks
   them up with no directory literal involved.
@@ -508,10 +512,9 @@ in the flow changes.
 
 9. *How does the flip commit capture the moves without naming a directory?*
    → **The CLI stages its own moves; the gate asserts an empty index beforehand and commits the
-   index.** No `docs/design` literal, no pathspec-limited commit. (D9)
-   Rationale: two problems, one shape. `loadDocRoots` can still resolve artifacts under legacy
-   `docs/superpowers/*` in the 1.0.0 transition window, so any hardcoded pathspec would drop those
-   moves (or error `pathspec did not match`); and a pathspec-limited `git commit -- <paths>` is a
-   partial commit, which git refuses mid-merge/cherry-pick. Staging in the CLI + an
-   empty-index precondition gives the same "no stranger rides in" guarantee without either failure
-   mode.
+   index.** No directory literal, no pathspec-limited commit. (D9)
+   Rationale: two problems, one shape — the transition-alias hazard
+   ([canonical statement in Unit 3](#no-directory-literal)) and the fact that a pathspec-limited
+   `git commit -- <paths>` is a partial commit, which git refuses mid-merge/cherry-pick. Staging in
+   the CLI + an empty-index precondition gives the same "no stranger rides in" guarantee without
+   either failure mode.
