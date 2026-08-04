@@ -282,14 +282,16 @@ and no attach session can ever commit its flip. (Found by dogfooding this very f
 commit was rejected with `specs-only-attach requires a spec file at
 docs/design/specs/<date>-doc-gardening-skill-archive-at-done-flip-design.md`.)
 
-Fix: a local `specExists(cwd, suffix)` helper scans `docs/design/specs/`, plus
-`docs/design/specs/archive/` **only when the FD already reads `phase: done`**. An archived spec still
-proves the design artifact exists — which is all the gate ever wanted — but the `phase` condition
-keeps the fallback scoped to the one commit that needs it. Step 4 runs `design archive` and
-`features phase-flip-done` back to back, so the flip commit is the only one that sees both `done` and
-an archived spec; every other commit (implementation, and a *fresh* session on a slug whose old spec
-was archived long ago) still requires a live spec, so the archive cannot be used to skip authoring
-one.
+Fix: a local `specExists(cwd, suffix)` helper checks the live specs dir (resolved through
+`loadDocRoots`, so the legacy `docs/superpowers/*` window works here too), and accepts an archived
+spec **only when this commit is the one that archived it** — `git diff --cached --name-only
+--diff-filter=ACMR -M` must list an `archive/…<suffix>` destination. `design archive` stages its
+`git mv` and the gate commits the index immediately after, so that is exactly the flip commit.
+
+An earlier revision keyed the fallback on the FD reading `phase: done`. That is a proxy, not proof:
+any later session touching a slug whose FD still reads `done` would satisfy it, turning the archive
+into a way to skip authoring a spec. The staged-rename test has no such gap, and the test pins it for
+both `in-progress` and `done` FDs.
 
 ### Unit 5 — gate Step 4 wiring
 
@@ -416,9 +418,10 @@ gate Step 4 (FD path)
 - `sync fd-resources` still repoints `links.spec` (existing behaviour preserved under the renamed
   `resolveArchivedPath`).
 - `validateTrailer` passes on a `specs-only-attach` and a `specs-only-new` commit whose matching spec
-  exists **only** under `docs/design/specs/archive/` and whose FD reads `phase: done` — otherwise the
-  flip commit that performs the archival can never land — and still **rejects** an archived-only spec
-  while the FD is `in-progress`, so the archive is no shortcut around authoring a spec.
+  exists **only** under `docs/design/specs/archive/` **and is staged in that commit** — otherwise the
+  flip commit that performs the archival can never land — and **rejects** an archived spec the commit
+  did not stage, for both `in-progress` and `done` FDs, so the archive is no shortcut around authoring
+  a spec.
 - `discoverAddedFiles` diffs against the ref `refs/remotes/origin/HEAD` names (verified with a
   `master`-default fixture) and falls back to `origin/main` when that ref is absent.
 - `specSlugFromFilename` / `planSlugFromFilename` remain importable from `src/garden/garden-detect.ts`

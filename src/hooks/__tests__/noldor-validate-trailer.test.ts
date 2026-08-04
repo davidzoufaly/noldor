@@ -547,49 +547,44 @@ describe('validateTrailer', () => {
       expect(r.ok).toBe(true);
     });
 
-    // The archive fallback is gated on `phase: done` so it cannot be used to
-    // skip authoring a spec: a fresh session on a slug whose old spec was
-    // archived long ago still has an in-progress FD.
-    it('rejects an archived-only spec while the FD is still in-progress', () => {
+    /** FD + an archived (never live) spec; `stage` controls whether it is in the index. */
+    function archivedSpecRepo(phase: string, stage: boolean): string {
       const dir = setupRepo();
       setupPostRollout(dir);
       mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
       writeFileSync(
         join(dir, 'docs', 'features', 'parent.md'),
-        `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+        `---\nname: Parent\nphase: ${phase}\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
       );
       mkdirSync(join(dir, 'docs', 'design', 'specs', 'archive'), { recursive: true });
       writeFileSync(
         join(dir, 'docs', 'design', 'specs', 'archive', '2026-05-25-parent-my-enh-design.md'),
         '# archived spec',
       );
-      const r = validateTrailer({
-        cwd: dir,
-        message:
-          'feat(parent): enhance\n\nNoldor-Path: specs-only-attach\nNoldor-FD: parent\nNoldor-Enhancement: my-enh\n',
-      });
-      expect(r.ok).toBe(false);
-      expect(r.reason).toMatch(/my-enh-design\.md/);
+      if (stage) execSync('git add docs/design/specs/archive', { cwd: dir });
+      return dir;
+    }
+
+    const attachMsg =
+      'feat(parent): enhance\n\nNoldor-Path: specs-only-attach\nNoldor-FD: parent\nNoldor-Enhancement: my-enh\n';
+
+    // The archive fallback requires THIS commit to have staged the archival, so
+    // it cannot be used to skip authoring a spec — not even by a later session
+    // that leaves the FD reading `phase: done`.
+    it('rejects an archived spec this commit did not stage', () => {
+      for (const phase of ['in-progress', 'done']) {
+        const r = validateTrailer({ cwd: archivedSpecRepo(phase, false), message: attachMsg });
+        expect(r.ok).toBe(false);
+        expect(r.reason).toMatch(/my-enh-design\.md/);
+      }
     });
 
     // Regression: `noldor design archive` moves the spec into archive/ right
     // before the phase-flip commit, so a live-only lookup made that commit
     // unlandable on every attach session.
-    it('passes when the matching spec has already been archived at done-flip', () => {
-      const dir = setupRepo();
-      setupPostRollout(dir);
-      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
-      writeFileSync(
-        join(dir, 'docs', 'features', 'parent.md'),
-        `---\nname: Parent\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
-      );
-      mkdirSync(join(dir, 'docs', 'design', 'specs', 'archive'), { recursive: true });
-      writeFileSync(
-        join(dir, 'docs', 'design', 'specs', 'archive', '2026-05-25-parent-my-enh-design.md'),
-        '# archived spec',
-      );
+    it('passes when this commit stages the archival (the flip commit)', () => {
       const r = validateTrailer({
-        cwd: dir,
+        cwd: archivedSpecRepo('done', true),
         message:
           'docs(features:parent): mark phase=done + archive design artifacts\n\nNoldor-Path: specs-only-attach\nNoldor-FD: parent\nNoldor-Enhancement: my-enh\n',
       });
@@ -597,7 +592,7 @@ describe('validateTrailer', () => {
     });
   });
 
-  describe('specs-only-new accepts an archived spec', () => {
+  describe('specs-only-new accepts an archived spec staged by this commit', () => {
     it('passes when the spec lives only in docs/design/specs/archive/', () => {
       const dir = setupRepo();
       writeFileSync(join(dir, 'a'), 'init');
@@ -617,6 +612,7 @@ describe('validateTrailer', () => {
         join(dir, 'docs', 'design', 'specs', 'archive', '2026-05-25-my-feat-design.md'),
         '# archived spec',
       );
+      execSync('git add docs/design/specs/archive', { cwd: dir });
       const r = validateTrailer({
         cwd: dir,
         message:

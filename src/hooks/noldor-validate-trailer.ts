@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
 import { ARCHIVE_DIR } from '../core/design-artifact-names';
+import { loadDocRoots } from '../core/doc-roots';
 import { PATHS } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
@@ -172,28 +173,46 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   const fd = matter(readFileSync(fdPath, 'utf8'));
   const tier = (fd.data['noldor-tier'] as string) ?? null;
   const isPhaseRevert = t['Noldor-Phase-Revert'] === '1';
-  const isDoneFlip = fd.data.phase === 'done';
+  /**
+   * Is an `archive/…<suffix>` path staged in THIS commit?
+   *
+   * `--diff-filter=ACMR -M` lists rename destinations, so this is true only of
+   * the commit that performed the archival — precisely the flip commit, since
+   * `noldor design archive` stages its `git mv` and the gate commits the index
+   * right after. Unlike a `phase: done` proxy, no later session can satisfy it
+   * by leaving the FD at `done`.
+   */
+  function archivedSpecStagedHere(cwd: string, suffix: string): boolean {
+    const r = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-M'], {
+      cwd,
+      encoding: 'utf8',
+    });
+    if (r.status !== 0) return false;
+    return (r.stdout ?? '')
+      .split('\n')
+      .map((l) => l.trim())
+      .some((l) => l.includes(`/${ARCHIVE_DIR}/`) && l.endsWith(suffix));
+  }
 
   /**
    * Does a spec matching `suffix` exist for this session?
    *
-   * Live directory always counts. The `archive/` fallback is gated on the FD
-   * already reading `phase: done`, which is true only of the flip commit —
-   * `/noldor-gate` Step 4 runs `noldor design archive` and `features
-   * phase-flip-done` back to back, so that commit sees an archived spec and
-   * would otherwise be unlandable on every `specs-only-*` / `full-attach`
-   * session. Every other commit (implementation, a *fresh* session reworking a
-   * slug whose old spec was archived long ago) still requires a live spec, so
-   * the archive cannot be used to skip authoring one.
+   * The live directory always counts. An archived spec counts only when this
+   * commit is the one that archived it: `/noldor-gate` Step 4 runs
+   * `noldor design archive` immediately before the phase-flip commit, so that
+   * commit sees the spec already under `archive/` and would otherwise be
+   * unlandable on every `specs-only-*` / `full-attach` session. Every other
+   * commit — implementation, or a fresh session on a slug whose old spec was
+   * archived long ago — still requires a live spec, so the archive is no
+   * shortcut around authoring one.
    */
   function specExists(cwd: string, suffix: string): boolean {
-    const specsDir = join(cwd, 'docs', 'design', 'specs');
-    const dirs = isDoneFlip ? [specsDir, join(specsDir, ARCHIVE_DIR)] : [specsDir];
-    for (const dir of dirs) {
-      if (!existsSync(dir)) continue;
-      if (readdirSync(dir).some((f) => f.endsWith(suffix))) return true;
-    }
-    return false;
+    const specsDir = loadDocRoots(cwd).specs;
+    if (existsSync(specsDir) && readdirSync(specsDir).some((f) => f.endsWith(suffix))) return true;
+    const archiveDir = join(specsDir, ARCHIVE_DIR);
+    if (!existsSync(archiveDir)) return false;
+    if (!readdirSync(archiveDir).some((f) => f.endsWith(suffix))) return false;
+    return archivedSpecStagedHere(cwd, suffix);
   }
 
   if (path === 'specs-only-new' || path === 'full-new') {
