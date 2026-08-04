@@ -649,6 +649,34 @@ describe('validateTrailer', () => {
       expect(r.ok).toBe(true);
     });
 
+    // No origin ref → `<base>..HEAD` errors. Treating that as "no rename" would
+    // block every post-flip commit in a remote-less repo.
+    it('falls back to full history when the branch range cannot be resolved', () => {
+      const dir = setupRepo();
+      setupPostRollout(dir);
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'parent.md'),
+        `---\nname: Parent\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      const specsDir = join(dir, 'docs', 'design', 'specs');
+      mkdirSync(specsDir, { recursive: true });
+      writeFileSync(join(specsDir, '2026-05-25-parent-my-enh-design.md'), '# spec');
+      execSync('git add -A && git commit -q -m "add spec" --no-verify', { cwd: dir });
+      mkdirSync(join(specsDir, 'archive'), { recursive: true });
+      execSync(
+        'git mv docs/design/specs/2026-05-25-parent-my-enh-design.md docs/design/specs/archive/2026-05-25-parent-my-enh-design.md',
+        { cwd: dir },
+      );
+      execSync('git commit -q -m "flip + archive" --no-verify', { cwd: dir });
+      // No refs/remotes/origin/* at all in this repo.
+      writeFileSync(join(dir, 'src-fix.ts'), 'export const x = 1;\n');
+      execSync('git add src-fix.ts', { cwd: dir });
+
+      const r = validateTrailer({ cwd: dir, message: attachMsg });
+      expect(r.ok).toBe(true);
+    });
+
     // The staged path must sit under the specs archive dir specifically — a
     // same-named file under some other archive/ must not satisfy the gate.
     it('ignores an archive/ rename outside the specs root', () => {

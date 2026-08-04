@@ -297,7 +297,15 @@ filters). Three properties matter:
   fixes land *after* the flip commit — a staged-only check blocked every follow-up commit on the
   session (found by dogfooding: this very branch's post-flip commits were rejected). Scoping to
   `<base>..HEAD` keeps the guarantee: a fresh session on a slug some *earlier* branch archived still
-  needs a live spec.
+  needs a live spec. When that range cannot be resolved at all (a remote-less repo has no
+  `origin/main`), the check falls back to full `HEAD` history rather than reading a git failure as "no
+  rename" — a real rename is still required, only the branch scoping is lost.
+
+Both git calls run with `-c core.quotepath=false`, matching `branch-added.ts`: C-quoted non-ASCII
+paths would never match a path built from the filesystem. Repo-relative anchoring uses
+`git rev-parse --show-prefix`, **not** `--show-toplevel` — on macOS the latter returns the resolved
+`/private/var/…` form while `cwd` is the `/var/…` symlink, and relativizing the two yields nonsense
+(this silently broke every archived-spec test until fixed).
 
 An earlier revision keyed the fallback on the FD reading `phase: done`. That is a proxy, not proof:
 any later session touching a slug whose FD still reads `done` would satisfy it, turning the archive

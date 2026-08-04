@@ -175,6 +175,24 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   const fd = matter(readFileSync(fdPath, 'utf8'));
   const tier = (fd.data['noldor-tier'] as string) ?? null;
   const isPhaseRevert = t['Noldor-Phase-Revert'] === '1';
+  /** Specs dir, resolved once (honours the 1.0.0 `docs/superpowers` alias). */
+  const specsDirAbs = loadDocRoots(opts.cwd).specs;
+
+  /**
+   * `git` with `core.quotepath=false` so non-ASCII paths come back verbatim
+   * rather than C-quoted (`"docs/design/specs/caf\303\251.md"`) — quoted output
+   * would never match a path built from the filesystem.
+   */
+  function gitOut(cwd: string, args: readonly string[]): { ok: boolean; out: string } {
+    const r = spawnSync('git', ['-c', 'core.quotepath=false', ...args], { cwd, encoding: 'utf8' });
+    return { ok: r.status === 0, out: r.stdout ?? '' };
+  }
+
+  /** Repo-relative specs dir for user-facing messages. */
+  function specsDirLabel(cwd: string): string {
+    return relative(cwd, specsDirAbs).split('\\').join('/');
+  }
+
   /**
    * Did THIS BRANCH rename a matching spec into the specs `archive/` dir?
    *
@@ -190,18 +208,20 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
    *
    * Checked both staged (the flip commit, where the rename is not yet committed)
    * and across `<base>..HEAD` (later commits — code-stage CR fixes follow the
-   * flip and must not be blocked). Branch-scoped either way, so a fresh session
-   * on a slug some earlier branch archived still needs a live spec.
+   * flip and must not be blocked). Branch-scoped, so a fresh session on a slug
+   * some earlier branch archived still needs a live spec.
    */
-  /** Repo-relative specs dir for user-facing messages (honours the 1.0.0 alias). */
-  function specsDirLabel(cwd: string): string {
-    return relative(cwd, loadDocRoots(cwd).specs).split('\\').join('/');
-  }
-
   function archivedSpecRenamedByThisBranch(cwd: string, suffix: string): boolean {
-    const archiveRel = relative(cwd, join(loadDocRoots(cwd).specs, ARCHIVE_DIR))
-      .split('\\')
-      .join('/');
+    // git emits repo-root-relative paths. Anchor by asking git how deep `cwd`
+    // sits inside the repo (`--show-prefix`, e.g. `sub/dir/`) and prepending
+    // that to the cwd-relative archive path. Deliberately not via
+    // `--show-toplevel`: on macOS that returns the resolved `/private/var/…`
+    // form while `cwd` is the `/var/…` symlink, so `relative()` of the two
+    // yields nonsense.
+    const prefixProbe = gitOut(cwd, ['rev-parse', '--show-prefix']);
+    const prefix = prefixProbe.ok ? prefixProbe.out.trim() : '';
+    const archiveRel = prefix + relative(cwd, join(specsDirAbs, ARCHIVE_DIR)).split('\\').join('/');
+
     const matches = (out: string): boolean =>
       out.split('\n').some((line) => {
         // `R<score>\t<from>\t<to>` — the destination is the third field.
@@ -210,25 +230,28 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
         return to.startsWith(`${archiveRel}/`) && to.endsWith(suffix);
       });
 
-    const run = (args: readonly string[]): string => {
-      const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
-      return r.status === 0 ? (r.stdout ?? '') : '';
-    };
+    const RENAME_ARGS = ['--name-status', '--diff-filter=R', '-M'] as const;
 
     // The flip commit itself: the rename is staged, not yet committed.
-    if (matches(run(['diff', '--cached', '--name-status', '--diff-filter=R', '-M']))) return true;
+    const staged = gitOut(cwd, ['diff', '--cached', ...RENAME_ARGS]);
+    if (staged.ok && matches(staged.out)) return true;
 
     // Any commit already on this branch: code-stage CR fixes legitimately follow
     // the flip commit, and they must not be blocked for re-archiving nothing.
-    // Scoped to `<base>..HEAD` so only THIS branch's archival counts — a fresh
-    // session on a slug archived by some earlier branch still needs a live spec.
     const base = resolveDefaultBase((args) => {
       const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
       return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
     });
-    return matches(
-      run(['log', '--name-status', '--diff-filter=R', '-M', '--pretty=format:', `${base}..HEAD`]),
-    );
+    const scoped = gitOut(cwd, ['log', ...RENAME_ARGS, '--pretty=format:', `${base}..HEAD`]);
+    if (scoped.ok) return matches(scoped.out);
+
+    // The range itself failed — a remote-less repo has no `origin/main` to
+    // resolve, and treating that as "no rename" would block every post-flip
+    // commit there. Fall back to full HEAD history: a real rename is still
+    // required (no shortcut around authoring a spec); only the branch scoping is
+    // lost, which at worst accepts an archival an earlier branch performed.
+    const unscoped = gitOut(cwd, ['log', ...RENAME_ARGS, '--pretty=format:', 'HEAD']);
+    return unscoped.ok && matches(unscoped.out);
   }
 
   /**
@@ -244,7 +267,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
    * shortcut around authoring one.
    */
   function specExists(cwd: string, suffix: string): boolean {
-    const specsDir = loadDocRoots(cwd).specs;
+    const specsDir = specsDirAbs;
     if (existsSync(specsDir) && readdirSync(specsDir).some((f) => f.endsWith(suffix))) return true;
     const archiveDir = join(specsDir, ARCHIVE_DIR);
     if (!existsSync(archiveDir)) return false;
