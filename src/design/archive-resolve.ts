@@ -8,12 +8,13 @@
 import { readdir as fsReaddir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
-import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
+import {
+  ARCHIVE_DIR,
+  planSlugFromFilename,
+  specSlugFromFilename,
+} from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import type { SessionMarker } from '../core/session.js';
-
-/** Directory name the framework archives design artifacts into. */
-export const ARCHIVE_DIR = 'archive';
 
 export interface ArchiveMove {
   readonly kind: 'spec' | 'plan';
@@ -58,6 +59,14 @@ export function dialogueKeyFromSession(m: SessionMarker): string | null {
     case 'release-sweep':
     case 'release-automation':
       return null;
+    default: {
+      // Exhaustiveness backstop: a new member of `PATHS` must be classified
+      // here explicitly. `never` makes that a type error at compile time; the
+      // `return null` keeps a hand-written marker from archiving by accident.
+      const unhandled: never = m.path;
+      void unhandled;
+      return null;
+    }
   }
 }
 
@@ -94,11 +103,12 @@ async function collect(
   }
 
   const slugOf = kind === 'spec' ? specSlugFromFilename : planSlugFromFilename;
-  const archived = new Set(
-    entries.includes(ARCHIVE_DIR) ? await readdir(join(dir, ARCHIVE_DIR)).catch(() => []) : [],
-  );
+  const archived = new Set(await readdir(join(dir, ARCHIVE_DIR)).catch(() => []));
 
   for (const entry of entries) {
+    // No file-type check needed: a directory named `<date>-<key>-design.md`
+    // could parse to the key, but a directory is never a git path, so the
+    // `branchAdded` gate below excludes it.
     if (!entry.endsWith('.md')) continue;
     if (slugOf(entry) !== key) continue;
 

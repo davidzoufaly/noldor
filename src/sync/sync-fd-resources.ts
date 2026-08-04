@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { ARCHIVE_DIR } from '../core/design-artifact-names.js';
 import { LOST_SENTINEL } from '../core/feature-schema.js';
 
 const START_MARKER = '<!-- generated: resources -->';
@@ -28,7 +29,7 @@ export function resolveArchivedPath(
 ): string | null {
   if (!currentPath || currentPath.length === 0) return null;
   if (exists(currentPath)) return null;
-  const archivePath = join(dirname(currentPath), 'archive', basename(currentPath));
+  const archivePath = join(dirname(currentPath), ARCHIVE_DIR, basename(currentPath));
   if (!exists(archivePath)) return null;
   return archivePath;
 }

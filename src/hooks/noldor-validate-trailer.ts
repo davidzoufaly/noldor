@@ -5,6 +5,7 @@ import { readFileSync, existsSync, appendFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
 import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
+import { ARCHIVE_DIR } from '../core/design-artifact-names';
 import { PATHS } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
@@ -179,7 +180,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
    */
   function specExists(cwd: string, suffix: string): boolean {
     const specsDir = join(cwd, 'docs', 'design', 'specs');
-    for (const dir of [specsDir, join(specsDir, 'archive')]) {
+    for (const dir of [specsDir, join(specsDir, ARCHIVE_DIR)]) {
       if (!existsSync(dir)) continue;
       if (readdirSync(dir).some((f) => f.endsWith(suffix))) return true;
     }

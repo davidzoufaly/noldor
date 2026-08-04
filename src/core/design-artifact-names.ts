@@ -8,6 +8,16 @@ const PLAN_FILE_RE = /^\d{4}-\d{2}-\d{2}-(.+?)(?:-part\d+)?\.md$/;
 const SPEC_FILE_RE = /^\d{4}-\d{2}-\d{2}-(.+?)-design\.md$/;
 
 /**
+ * Sibling directory a shipped design artifact is filed into.
+ *
+ * Single source of truth: `noldor design archive` moves artifacts here,
+ * `sync-fd-resources` repoints `links.spec` / `links.plan` here, and the
+ * commit-msg trailer gate accepts a spec found here. All three must agree —
+ * a divergence would desync archival from the gate that validates it.
+ */
+export const ARCHIVE_DIR = 'archive';
+
+/**
  * Derive the feature slug from a plan filename.
  *
  * @param filename - The basename, e.g. `2026-04-19-tooltips.md` or
