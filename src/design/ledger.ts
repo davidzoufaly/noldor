@@ -41,12 +41,9 @@ export interface LedgerState {
   unparsed: string[];
 }
 
-const SECTIONS = ['Entry', 'Scope', 'Decided', 'Open', 'Existing support'] as const;
-type SectionName = (typeof SECTIONS)[number];
-
 /**
- * The writer refuses a ledger with ANY section in {@link LedgerState.unparsed} —
- * hence no separate "critical sections" list.
+ * Every heading a ledger carries. The writer refuses a file with ANY of them in
+ * {@link LedgerState.unparsed} — hence no separate "critical sections" list.
  *
  * `Decided`/`Open` are load-bearing for ID minting: guessing the next id from a
  * half-read section would re-issue one. The other three matter for a different
@@ -55,14 +52,20 @@ type SectionName = (typeof SECTIONS)[number];
  * `design log` rather than merely ignored. Refusing beats silent data loss;
  * reading (and rendering) still degrades gracefully.
  */
+const SECTIONS = ['Entry', 'Scope', 'Decided', 'Open', 'Existing support'] as const;
+type SectionName = (typeof SECTIONS)[number];
 
 /**
  * Collapse free text to a single storable line. Exactly two rules, both
  * *non-reintroducing* — neither output can re-create the pattern it removes,
  * which is what the no-forgery guarantee rests on:
  *
- * 1. any whitespace run containing a newline → one space, so a value cannot
- *    open a new line (and therefore cannot forge a section heading);
+ * 1. any whitespace run containing a line terminator → one space, so a value
+ *    cannot open a new line (and therefore cannot forge a section heading).
+ *    Matches every JS line terminator, not just `\n`: a bare `\r`, `\u2028`, or
+ *    `\u2029` survives a `\n`-only rule, serializes happily, and then fails every
+ *    bullet regex on re-read (JS `.` excludes line terminators) — which would
+ *    brick the dialogue's ledger, since the writer then refuses the file forever;
  * 2. any run of two-or-more tildes → one tilde, so a value cannot forge the
  *    `~~…~~ →` resolved-thread marker. Note `'~~~'.replaceAll('~~', '~ ~')`
  *    yields `'~ ~~'` — still marker-shaped — which is why the rule collapses
@@ -73,7 +76,7 @@ type SectionName = (typeof SECTIONS)[number];
  */
 export function normalize(text: string): string {
   return text
-    .replace(/\s*\n\s*/g, ' ')
+    .replace(/\s*[\n\r\u2028\u2029]\s*/g, ' ')
     .replace(/~{2,}/g, '~')
     .trim();
 }

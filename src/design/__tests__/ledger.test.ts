@@ -61,11 +61,19 @@ describe('normalize', () => {
     expect(normalize('~~~done~~~ →')).toBe('~done~ →');
   });
 
+  it('collapses every JS line terminator, not just \\n', () => {
+    // A surviving bare \r / U+2028 / U+2029 serializes fine but fails every
+    // bullet regex on re-read, which would brick the ledger permanently.
+    for (const sep of ['\r', '\r\n', '\u2028', '\u2029']) {
+      expect(normalize(`a${sep}b`)).toBe('a b');
+    }
+  });
+
   it('is non-reintroducing: output never matches the removed patterns', () => {
-    for (const input of ['a\nb', '~~~x~~~ →', 'a \n\n ~~ b', '~~']) {
+    for (const input of ['a\nb', 'a\rb', 'a\u2028b', '~~~x~~~ →', 'a \n\n ~~ b', '~~']) {
       const once = normalize(input);
       expect(once).not.toMatch(/~{2,}/);
-      expect(once).not.toMatch(/\s*\n\s*/);
+      expect(once).not.toMatch(/[\n\r\u2028\u2029]/);
       expect(normalize(once)).toBe(once);
     }
   });
