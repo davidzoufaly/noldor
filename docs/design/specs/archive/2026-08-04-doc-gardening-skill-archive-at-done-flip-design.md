@@ -253,6 +253,23 @@ moved the file.
   either produced a rewrite. The existing `LOST_SENTINEL` handling is untouched (sentinels never
   resolve to a path).
 
+### Unit 4a — trailer validator must accept an archived spec
+
+[`src/hooks/noldor-validate-trailer.ts`](../../../../src/hooks/noldor-validate-trailer.ts) enforces,
+on every `specs-only-new` / `specs-only-attach` / `full-attach` commit, that a spec matching
+`<date>-<slug>[-<enhancement>]-design.md` exists under `docs/design/specs/`. It scans that directory
+only.
+
+That makes flip-time archival **unlandable**: the archive runs immediately before the phase-flip
+commit, so when the hook validates that commit the spec already lives in `archive/` — the check fails
+and no attach session can ever commit its flip. (Found by dogfooding this very feature: the flip
+commit was rejected with `specs-only-attach requires a spec file at
+docs/design/specs/<date>-doc-gardening-skill-archive-at-done-flip-design.md`.)
+
+Fix: a local `specExists(cwd, suffix)` helper scans `docs/design/specs/` **and**
+`docs/design/specs/archive/`, used by both the `*-new` and the `*-attach` branches. An archived spec
+still proves the design artifact exists — which is all the gate ever wanted.
+
 ### Unit 5 — gate Step 4 wiring
 
 In [`.claude/skills/noldor-gate/SKILL.md`](../../../.claude/skills/noldor-gate/SKILL.md) Step 4,
@@ -372,6 +389,9 @@ gate Step 4 (FD path)
   the array form (array: only moved elements rewritten, others byte-identical).
 - `sync fd-resources` still repoints `links.spec` (existing behaviour preserved under the renamed
   `resolveArchivedPath`).
+- `validateTrailer` passes on a `specs-only-attach` and a `specs-only-new` commit whose matching spec
+  exists **only** under `docs/design/specs/archive/` — otherwise the flip commit that performs the
+  archival can never land.
 - `specSlugFromFilename` / `planSlugFromFilename` remain importable from `src/garden/garden-detect.ts`
   and behave identically; garden detector tests pass unchanged.
 - `pnpm noldor invariants run` boundaries check stays green: `src/design` imports only `src/core`,
