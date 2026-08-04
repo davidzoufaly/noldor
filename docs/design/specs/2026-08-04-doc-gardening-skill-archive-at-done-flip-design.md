@@ -69,7 +69,10 @@ export function specSlugFromFilename(filename: string): string | null;
 export function planSlugFromFilename(filename: string): string | null;
 ```
 
-No behaviour change; `garden-detect.ts` keeps its public surface via `export { … } from`.
+No behaviour change; `garden-detect.ts` keeps its public surface via `export { … } from`, so its own
+tests and callers are untouched. One caller does move: `src/graphify/enrich-doc-nodes.ts:121` imports
+both parsers through `garden-detect` today — repoint it at `src/core/design-artifact-names.js`, which
+deletes a `graphify → garden` cross-domain edge for a one-line import change.
 
 ### Unit 2 — `src/design/archive-resolve.ts` (new, pure)
 
@@ -96,31 +99,49 @@ export interface ArchivePlan {
 export async function resolveArchivePlan(opts: {
   repo: string;
   session: SessionMarker;
+  /** Repo-relative paths ADDED on this branch (origin/main..HEAD). Ownership gate — see below. */
+  branchAdded: readonly string[];
 }): Promise<ArchivePlan | null>; // null when dialogueKeyFromSession returns null
 ```
 
 `dialogueKeyFromSession` maps the session marker written by the gate
-([`src/core/session.ts`](../../../src/core/session.ts) `SessionMarker`):
+([`src/core/session.ts`](../../../src/core/session.ts) `SessionMarker`; `PATHS` at
+`src/core/session.ts:6-15` is the exhaustive list):
 
-| `path`                                | key                       |
-| ------------------------------------- | ------------------------- |
-| `specs-only-new`, `full-new`          | `slug`                    |
-| `specs-only-attach`, `full-attach`    | `<parent>-<enhancement>`  |
-| `fast-track`, `micro-chore`           | `null`                    |
+| `path`                                          | key                       |
+| ----------------------------------------------- | ------------------------- |
+| `specs-only-new`, `full-new`                    | `slug`                    |
+| `specs-only-attach`, `full-attach`              | `<parent>-<enhancement>`  |
+| `fast-track`, `micro-chore`                     | `null`                    |
+| `release-sweep`, `release-automation`            | `null`                    |
 
-This is exactly the key that named the spec file at Step 2.5
-(`<date>-<slug>-design.md` / `<date>-<parent>-<enhancement>-design.md`), which is why filename
-matching is sufficient and the FD's `phase` is deliberately *not* consulted. A marker missing
-`parent`/`enhancement` (or `slug`) for its path yields `null` rather than a partial key.
+The table covers every member of `PATHS`; the implementation switches exhaustively over the union so
+a future path addition is a type error rather than silent fallthrough. `release-sweep` /
+`release-automation` run no design dialogue, so they key `null` exactly like `fast-track`. A marker
+missing `parent`/`enhancement` (or `slug`) for its path also yields `null` rather than a partial key.
+
+The key is exactly what named the spec file at Step 2.5 (`<date>-<slug>-design.md` /
+`<date>-<parent>-<enhancement>-design.md`), which is why filename matching is the *first* filter.
+It is not sufficient on its own: the concat `<parent>-<enhancement>` is not injective (it can
+string-equal an unrelated `*-new` feature's slug, or a different parent/enhancement split), and the
+parsers ignore the date prefix entirely, so a filename-only match could move a foreign, still-live
+feature's spec. Hence the **ownership gate**: an artifact is eligible only if it is also in
+`branchAdded` — the set of files *added on this branch*, which the CLI reads with the same query
+`pr-flow` already uses for artifact discovery
+([`src/core/pr-flow-cli.ts:143`](../../../src/core/pr-flow-cli.ts) —
+`git diff-tree --diff-filter=A --name-only -r origin/main..HEAD`). A foreign feature's live spec was
+added on some other branch and merged, so it can never be in this branch's added set; this session's
+spec always is (Step 2.5 committed it here). The same gate also disarms the `-partN` aliasing case
+(key `foo` vs a feature literally slugged `foo-part1`) and makes the date-agnostic parsers safe.
 
 `resolveArchivePlan` reads `loadDocRoots(repo).specs` and `.plans`
 ([`src/core/doc-roots.ts`](../../../src/core/doc-roots.ts)), skips the nested `archive/` entry and
-any non-`.md` file, parses each basename with the Unit-1 parsers, and keeps entries whose parsed
-slug `=== key`. Plans match `-partN` variants (the parser strips the suffix), so a multi-part plan
-archives as a set. For every kept entry: if `<dir>/archive/<basename>` already exists, it goes to
-`skipped` with `reason: 'collision'`; otherwise to `moves`. A missing `specs`/`plans` directory or
-zero matches yields an empty list, never a throw — that is the idempotent re-run and the
-specs-only (no plan) case.
+any non-`.md` file, parses each basename with the Unit-1 parsers, and keeps entries where parsed
+slug `=== key` **and** the repo-relative path is in `branchAdded`. Plans match `-partN` variants
+(the parser strips the suffix), so a multi-part plan archives as a set. For every kept entry: if
+`<dir>/archive/<basename>` already exists, it goes to `skipped` with `reason: 'collision'`;
+otherwise to `moves`. A missing `specs`/`plans` directory or zero matches yields an empty list,
+never a throw — that is the idempotent re-run and the specs-only (no plan) case.
 
 ### Unit 3 — `src/design/archive-cli.ts` (new) → `noldor design archive`
 
@@ -134,19 +155,26 @@ noldor design archive [--dry-run] [--slug <key>]
      exit 1. (Same hint shape Q-0055 wants elsewhere.)
    - key `null` → stdout `design archive: path <path> carries no design artifacts — skipped`,
      exit 0.
-2. `resolveArchivePlan`. Empty `moves` + empty `skipped` → `design archive: no artifacts matching
+2. Compute `branchAdded` with
+   `execFileSync('git', ['diff-tree', '--diff-filter=A', '--name-only', '-r', 'origin/main..HEAD'])`.
+   If that command fails (no `origin/main` ref, shallow clone, non-git fixture), **fail closed**:
+   stderr `design archive: cannot determine branch-added artifacts — skipped (garden will catch it)`,
+   exit 0. Archiving without the ownership gate is the one outcome worth refusing; garden remains the
+   backstop (D5).
+3. `resolveArchivePlan`. Empty `moves` + empty `skipped` → `design archive: no artifacts matching
    <key> — nothing to do`, exit 0.
-3. `--dry-run` → print one `would archive: <from> → <to>` per move plus collision warnings, exit 0,
+4. `--dry-run` → print one `would archive: <from> → <to>` per move plus collision warnings, exit 0,
    touch nothing.
-4. Otherwise per move: `mkdirSync(dirname(to), { recursive: true })`, then
-   `execFileSync('git', ['mv', from, to])`. `git mv` preserves rename detection and stages the
-   change. If it fails **because the artifact is untracked** (git's `not under version control`
-   error), fall back to `renameSync(from, to)` and let the gate's `git add` pick it up; any other
-   `git mv` failure is fatal (exit 1, stderr passthrough) — a half-moved set must be visible, not
-   swallowed.
-5. Collisions print `skipped (exists in archive): <from>` and never overwrite; exit stays 0 —
+5. Otherwise per move: `mkdirSync(dirname(to), { recursive: true })`, then decide the mechanism by
+   *probing* trackedness rather than parsing git's (i18n'd, locale-dependent) error text —
+   `git ls-files --error-unmatch <from>` exits 0 for a tracked file. Tracked →
+   `execFileSync('git', ['mv', from, to])`, which preserves rename detection and stages the change.
+   Untracked → `renameSync(from, to)`, and the gate's `git add` picks it up. A `git mv` failure on a
+   file that probed as tracked is fatal (exit 1, stderr passthrough) — a half-moved set must be
+   visible, not swallowed.
+6. Collisions print `skipped (exists in archive): <from>` and never overwrite; exit stays 0 —
    mirrors the garden skill's row-level collision behaviour.
-6. Final line: `archived: <n> artifact(s)`.
+7. Final line: `archived: <n> artifact(s)`.
 
 Registered in [`src/cli/manifest.ts`](../../../src/cli/manifest.ts) under the existing `design`
 group (`{ src: 'design/archive-cli.ts', desc: 'Archive this session's spec/plan into
@@ -191,12 +219,14 @@ The flip bullet then stages the moved artifacts alongside the FD:
 ```
 pnpm noldor features phase-flip-done <slug>
 git add docs/features/<slug>.md docs/design
-git diff --cached --quiet || git commit -m "docs(features:<slug>): mark phase=done + archive design artifacts" -m "Noldor-FD: <slug>"
+git diff --cached --quiet -- docs/features/<slug>.md docs/design || git commit -m "docs(features:<slug>): mark phase=done + archive design artifacts" -m "Noldor-FD: <slug>"
 ```
 
 `git add docs/design` covers the fs-rename fallback and the deletion half of any rename `git mv`
 already staged; the `--cached` emptiness check replaces today's `git diff --quiet <fd>` so a
-move-only change (FD body unchanged) still commits. Order matters: archive **before** the flip
+move-only change (FD body unchanged) still commits. The check is **pathspec-scoped** to the two
+targets so an unrelated pre-staged file can neither force the flip commit nor ride in silently.
+Order matters: archive **before** the flip
 commit, so move + `phase: done` + refreshed FD are one commit, and that commit rides the
 `origin/main..HEAD` range the code-stage CR reviews. Fast-track / micro-chore keep skipping this
 seam entirely.
@@ -228,27 +258,37 @@ gate Step 4 (FD path)
 | Condition                              | Behaviour                                                    |
 | -------------------------------------- | ------------------------------------------------------------ |
 | No session marker                      | exit 1 + "did you skip the gate scaffold?" hint              |
-| Path carries no artifacts (fast-track) | exit 0, explanatory line                                     |
+| Path carries no artifacts (fast-track, micro-chore, release-*) | exit 0, explanatory line          |
+| `origin/main..HEAD` query fails        | fail closed: exit 0, "skipped — garden will catch it"        |
 | No matching artifacts / already moved  | exit 0, "nothing to do" (idempotent)                         |
 | `archive/<basename>` exists            | skip that artifact, warn, exit 0                             |
-| `git mv` fails: untracked artifact     | fs `renameSync` fallback, continue                           |
-| `git mv` fails: any other reason       | exit 1, stderr passthrough                                   |
+| Artifact untracked (`ls-files` probe)  | fs `renameSync` instead of `git mv`, continue                |
+| `git mv` fails on a tracked artifact   | exit 1, stderr passthrough                                   |
 | `specs/` or `plans/` dir missing       | treated as empty, exit 0                                     |
 
 ## Acceptance criteria
 
 - `dialogueKeyFromSession` returns `slug` for `*-new`, `<parent>-<enhancement>` for `*-attach`,
-  and `null` for `fast-track` / `micro-chore` and for markers missing the fields their path needs.
+  and `null` for `fast-track`, `micro-chore`, `release-sweep`, `release-automation`, and for markers
+  missing the fields their path needs. A test enumerates `PATHS` so a new path cannot be left
+  unhandled.
 - `resolveArchivePlan` for an `*-attach` session keyed `<parent>-<enh-a>` selects
   `<date>-<parent>-<enh-a>-design.md` and does **not** select `<date>-<parent>-<enh-b>-design.md`
   or `<date>-<parent>-design.md`.
-- `resolveArchivePlan` selects every `-partN` plan whose stripped slug equals the key.
+- `resolveArchivePlan` does **not** select a filename-matching artifact absent from `branchAdded`
+  — pinned by two cases: a foreign feature whose slug equals the `<parent>-<enhancement>` concat,
+  and a feature literally slugged `<key>-part1` whose plan the `-partN` parser aliases to `<key>`.
+- `resolveArchivePlan` selects every `-partN` plan whose stripped slug equals the key **and** is in
+  `branchAdded`.
 - Entries already inside `archive/` are never re-selected; a name collision lands in `skipped`
   with `reason: 'collision'` and the file is not moved.
 - `noldor design archive` in a temp git repo moves a tracked spec + plan with `git mv`, leaves them
   staged, and prints one `archived:` line per artifact; a second run exits 0 with `nothing to do`.
 - `noldor design archive` moves an **untracked** spec via the fs fallback (exit 0) and leaves the
-  file at the archive path.
+  file at the archive path — the mechanism is chosen by the `git ls-files --error-unmatch` probe,
+  not by matching git's error text.
+- `noldor design archive` in a repo with no resolvable `origin/main` exits 0, moves nothing, and its
+  stderr names the fail-closed reason.
 - `noldor design archive --dry-run` prints the moves and mutates nothing on disk or in the index.
 - `noldor design archive` with no `.noldor/session.json` exits 1 and its stderr contains
   `no .noldor/session.json`.
@@ -259,8 +299,8 @@ gate Step 4 (FD path)
   `resolveArchivedPath`).
 - `specSlugFromFilename` / `planSlugFromFilename` remain importable from `src/garden/garden-detect.ts`
   and behave identically; garden detector tests pass unchanged.
-- `pnpm noldor invariants run` boundaries check stays green (no new cross-domain edge:
-  `src/design` imports only `src/core`).
+- `pnpm noldor invariants run` boundaries check stays green: `src/design` imports only `src/core`,
+  and the `graphify → garden` edge from `enrich-doc-nodes.ts` is gone.
 - Every new `src/` file carries a `// @tests:` tag; `pnpm noldor sync test-links` and the
   `validate-script-catalog` gate pass with the new `design archive` manifest entry documented in
   `docs/noldor/script-catalog.md`.
@@ -271,8 +311,17 @@ gate Step 4 (FD path)
   enhancements on the same parent each archive only their own dated spec. A same-day, same-parent,
   same-enhancement-slug collision is impossible (the enhancement slug is what disambiguates).
 - **Session marker as the authority.** A hand-written or corrupted marker mis-keys the move. Impact
-  is bounded: a wrong key matches nothing (exit 0, garden still catches the artifact later). It
-  cannot archive a *foreign* feature's spec unless the marker literally names it.
+  is bounded twice over: a wrong key usually matches nothing (exit 0, garden catches the artifact
+  later), and even a key that *does* collide with a foreign feature's filename cannot move it,
+  because the artifact must also be in this branch's added set. The residual case is a marker that
+  mis-keys an artifact this branch itself added — self-inflicted and visible in the flip commit.
+- **Ownership gate depends on `origin/main`.** `branchAdded` needs a resolvable `origin/main` ref. A
+  detached/shallow/offline tree skips archival entirely (fail-closed) rather than archiving blind, so
+  the failure mode is "garden does it later", i.e. today's behaviour.
+- **Branch-added, not branch-modified.** `--diff-filter=A` misses an artifact that existed on `main`
+  and was only edited on this branch (e.g. a spec revised by a later enhancement without a new
+  file). Such an artifact is deliberately *not* archived here — it is not this session's to file —
+  and garden still owns it.
 - **Inbound doc links to the moved path.** Any prose elsewhere linking the live spec path breaks on
   the move. Same exposure garden archival already has today; the pre-commit `sync doc-links` check
   runs on the same commit and surfaces it. Not solved here.
@@ -325,9 +374,12 @@ into the single flip commit. Nothing else in the flow changes.
 
 1. *What signal selects which artifacts move — the session, or the FD's phase?*
    → **Session-scoped dialogue key** (`slug` on `*-new`, `<parent>-<enhancement>` on `*-attach`),
-   filename-matched. FD phase is never consulted for the move. (D1)
+   filename-matched **and** gated on branch-added membership (`git diff-tree --diff-filter=A
+   origin/main..HEAD`). FD phase is never consulted for the move. (D1)
    Rationale: a parent FD re-flipping `done` for each attach enhancement would otherwise sweep a
-   sibling enhancement's still-live spec.
+   sibling enhancement's still-live spec; and because the concat key is not injective and the
+   filename parsers ignore the date, the branch-added gate is what makes "foreign spec is
+   unreachable" true rather than merely likely.
 
 2. *Where does the move live — inside `phase-flip-done`, a new CLI, or gate prose?*
    → **New portable CLI `noldor design archive`** with the resolution logic in a pure module;
@@ -336,10 +388,10 @@ into the single flip commit. Nothing else in the flow changes.
    matches the `phase-revert` / `roadmap remove-block` precedent.
 
 3. *`git mv` or fs rename, and who stages?*
-   → **`git mv`, falling back to fs `renameSync` only when the artifact is untracked**; the gate
-   owns the commit, the CLI never commits. (D3)
+   → **`git mv`, falling back to fs `renameSync` only when a `git ls-files --error-unmatch` probe
+   says the artifact is untracked**; the gate owns the commit, the CLI never commits. (D3)
    Rationale: rename detection plus automatic staging for the normal case, without failing on the
-   anomalous untracked one.
+   anomalous untracked one — and probing beats parsing git's localized error text.
 
 4. *How do `links.spec` / `links.plan` survive the move?*
    → **Generalise `resolveSpecPath` → `resolveArchivedPath` in `sync-fd-resources.ts` and apply it
