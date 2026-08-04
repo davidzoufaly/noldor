@@ -153,6 +153,26 @@ describe(renameDestExists, () => {
     expect(renameDestExists({ cwd: dir, destDirRel: DEST, suffix: SUFFIX })).toBe(true);
   });
 
+  it('throws when the staged probe itself fails (never reads as "no rename")', () => {
+    const failing: RunGit = (args) =>
+      args.includes('diff')
+        ? { status: 128, stdout: '', stderr: 'fatal: not a git repository' }
+        : { status: 0, stdout: '', stderr: '' };
+    expect(() =>
+      renameDestExists({ cwd: '/repo', destDirRel: DEST, runGit: failing, suffix: SUFFIX }),
+    ).toThrow(/git diff --cached failed/);
+  });
+
+  it('throws when both history lookups fail', () => {
+    const failing: RunGit = (args) =>
+      args.includes('log')
+        ? { status: 128, stdout: '', stderr: 'fatal: bad revision' }
+        : { status: 0, stdout: '', stderr: '' };
+    expect(() =>
+      renameDestExists({ cwd: '/repo', destDirRel: DEST, runGit: failing, suffix: SUFFIX }),
+    ).toThrow(/git log failed/);
+  });
+
   it('does not count a rename made before the branch base', () => {
     const dir = repoWithLiveSpec();
     archive(dir);

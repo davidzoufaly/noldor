@@ -202,22 +202,36 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
    * and a file merely *added* into `archive/` never counts — see
    * {@link renameDestExists}.
    */
-  function specExists(cwd: string, suffix: string): boolean {
+  function specExists(cwd: string, suffix: string): { found: boolean; unverifiable?: string } {
     if (existsSync(specsDirAbs) && readdirSync(specsDirAbs).some((f) => f.endsWith(suffix))) {
-      return true;
+      return { found: true };
     }
     const archiveDir = join(specsDirAbs, ARCHIVE_DIR);
-    if (!existsSync(archiveDir)) return false;
-    if (!readdirSync(archiveDir).some((f) => f.endsWith(suffix))) return false;
-    let destDirRel: string;
+    if (!existsSync(archiveDir)) return { found: false };
+    if (!readdirSync(archiveDir).some((f) => f.endsWith(suffix))) return { found: false };
+    // An archived candidate exists; only a rename by this branch makes it count.
+    // A git failure here is NOT "no rename" — fail closed, but say which it was.
     try {
-      destDirRel = toRepoRelative(archiveDir, cwd);
-    } catch {
-      // Cannot even locate ourselves in the repo — fail closed: require a live
-      // spec rather than accept an archived one we cannot attribute to a rename.
-      return false;
+      const destDirRel = toRepoRelative(archiveDir, cwd);
+      return { found: renameDestExists({ cwd, destDirRel, suffix }) };
+    } catch (error) {
+      return {
+        found: false,
+        unverifiable: error instanceof Error ? error.message : String(error),
+      };
     }
-    return renameDestExists({ cwd, destDirRel, suffix });
+  }
+
+  /** Gate reason for a missing spec, naming a verification failure when that is the real cause. */
+  function missingSpecReason(
+    label: string,
+    suffix: string,
+    result: { unverifiable?: string },
+  ): string {
+    const base = `${label} requires a spec file at ${specsDirLabel()}/<date>${suffix}`;
+    return result.unverifiable === undefined
+      ? base
+      : `${base} — an archived copy exists but the archival rename could not be verified: ${result.unverifiable}`;
   }
 
   if (path === 'specs-only-new' || path === 'full-new') {
@@ -234,11 +248,9 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     if (path === 'specs-only-new') {
       if (isPhaseRevert) return { ok: true };
       const expectedSuffix = `-${slug}-design.md`;
-      if (!specExists(opts.cwd, expectedSuffix)) {
-        return {
-          ok: false,
-          reason: `specs-only-new requires a spec file at ${specsDirLabel()}/<date>${expectedSuffix}`,
-        };
+      const found = specExists(opts.cwd, expectedSuffix);
+      if (!found.found) {
+        return { ok: false, reason: missingSpecReason('specs-only-new', expectedSuffix, found) };
       }
     }
     return { ok: true };
@@ -254,11 +266,9 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
       };
     }
     const expectedSuffix = `-${slug}-${enhancement}-design.md`;
-    if (!specExists(opts.cwd, expectedSuffix)) {
-      return {
-        ok: false,
-        reason: `${path} requires a spec file at ${specsDirLabel()}/<date>${expectedSuffix}`,
-      };
+    const found = specExists(opts.cwd, expectedSuffix);
+    if (!found.found) {
+      return { ok: false, reason: missingSpecReason(path, expectedSuffix, found) };
     }
   }
 

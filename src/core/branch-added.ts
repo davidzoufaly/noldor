@@ -162,10 +162,13 @@ export interface RenameDestExistsOptions {
  * 2. `<base>..HEAD` — later commits on the same branch (a commit after the one
  *    that renamed must not be treated as though the rename never happened).
  *
- * When the range itself cannot be resolved (a remote-less repo has no
- * `origin/main`), falls back to full `HEAD` history rather than reporting
- * "no rename" for what is really a git failure: a real rename is still required,
- * only the branch scoping is lost.
+ * When the branch range cannot be resolved (a remote-less repo has no
+ * `origin/main`), falls back to full `HEAD` history: a real rename is still
+ * required, only the branch scoping is lost. That is the ONLY tolerated git
+ * failure — every other one throws, because `false` means "no such rename" and
+ * must not double as "could not look".
+ *
+ * @throws When `git diff --cached` fails, or when neither history lookup runs.
  */
 export function renameDestExists(options: RenameDestExistsOptions): boolean {
   const { cwd, destDirRel, suffix } = options;
@@ -173,9 +176,9 @@ export function renameDestExists(options: RenameDestExistsOptions): boolean {
 
   // `core.quotepath=false`: C-quoted non-ASCII paths (`"docs/…/caf\303\251.md"`)
   // would never match a path built from the filesystem.
-  const out = (args: readonly string[]): { ok: boolean; text: string } => {
+  const out = (args: readonly string[]): { ok: boolean; text: string; stderr: string } => {
     const r = run(['-c', 'core.quotepath=false', ...args]);
-    return { ok: r.status === 0, text: r.stdout };
+    return { ok: r.status === 0, stderr: r.stderr, text: r.stdout };
   };
 
   const matches = (text: string): boolean =>
@@ -189,12 +192,20 @@ export function renameDestExists(options: RenameDestExistsOptions): boolean {
   const RENAME_ARGS = ['--name-status', '--diff-filter=R', '-M'] as const;
 
   const staged = out(['diff', '--cached', ...RENAME_ARGS]);
-  if (staged.ok && matches(staged.text)) return true;
+  if (!staged.ok) {
+    throw new Error(`git diff --cached failed: ${staged.stderr.trim()}`);
+  }
+  if (matches(staged.text)) return true;
 
   const base = options.base ?? resolveDefaultBase(run);
   const scoped = out(['log', ...RENAME_ARGS, '--pretty=format:', `${base}..HEAD`]);
   if (scoped.ok) return matches(scoped.text);
 
   const unscoped = out(['log', ...RENAME_ARGS, '--pretty=format:', 'HEAD']);
-  return unscoped.ok && matches(unscoped.text);
+  if (!unscoped.ok) {
+    throw new Error(
+      `git log failed for both ${base}..HEAD and HEAD: ${unscoped.stderr.trim() || scoped.stderr.trim()}`,
+    );
+  }
+  return matches(unscoped.text);
 }
