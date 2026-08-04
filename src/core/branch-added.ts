@@ -16,6 +16,10 @@ export interface RunGit {
 export function defaultRunGit(cwd: string | undefined): RunGit {
   return (args) => {
     const r = spawnSync('git', [...args], { cwd, encoding: 'utf8' });
+    // A spawn-level failure (git not on PATH, EACCES, cwd gone) leaves `status`
+    // null and `stderr` empty, so every error message downstream would render a
+    // blank reason. Surface `r.error` as the stderr text instead.
+    if (r.error !== undefined) return { status: null, stdout: '', stderr: r.error.message };
     return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
   };
 }
@@ -157,7 +161,9 @@ export function toRepoRelative(absPath: string, cwd: string, runGit?: RunGit): s
   const run = runGit ?? defaultRunGit(cwd);
   const prefix = git(run, ['rev-parse', '--show-prefix']).trim();
   const rel = relative(resolveExisting(cwd), resolveExisting(absPath)).split('\\').join('/');
-  const out = posix.normalize(`${prefix}${rel}`).replace(/\/+$/, '');
+  // `normalize('')` is `'.'`, and a stray `'.'`/trailing slash would break the
+  // `startsWith(`${dir}/`)` comparisons callers build from this.
+  const out = posix.normalize(`${prefix}${rel}`).replace(/\/+$/, '').replace(/^\.$/, '');
   // `..` survived normalization, or `relative()` gave up and returned an absolute
   // path (different Windows drive) — either way the target is not in this repo.
   if (out === '..' || out.startsWith('../') || posix.isAbsolute(out) || /^[A-Za-z]:/.test(out)) {

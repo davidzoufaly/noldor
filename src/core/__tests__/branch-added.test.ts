@@ -209,6 +209,11 @@ describe(toRepoRelative, () => {
     expect(toRepoRelative(notYetCreated, dir)).toBe('docs/design/specs/archive');
   });
 
+  it('returns an empty string for the repo root itself', () => {
+    const dir = repoWithDivergedMain();
+    expect(toRepoRelative(dir, dir)).toBe('');
+  });
+
   it('throws when the path lies outside the repository', () => {
     const dir = repoWithDivergedMain();
     expect(() => toRepoRelative(join(dir, '..', 'elsewhere'), dir)).toThrow(
