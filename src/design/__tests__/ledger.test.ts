@@ -222,6 +222,24 @@ describe('design log', () => {
     expect(context(cwd, '--slug', 's').code).toBe(0);
   });
 
+  it('flags a multi-bullet Entry section instead of honouring only the first line', () => {
+    const cwd = repo();
+    log(cwd, '--slug', 's', '--entry', 'e1');
+    const p = ledgerPath(cwd, 's');
+    writeFileSync(p, readFileSync(p, 'utf8').replace('- e1', '- e1\n- e2'), 'utf8');
+    expect(parseLedger(readFileSync(p, 'utf8')).unparsed).toContain('Entry');
+    expect(log(cwd, '--slug', 's', '--decide', 'a').code).toBe(1);
+  });
+
+  it('reports each unparseable section once even when two detectors trip', () => {
+    const cwd = repo();
+    log(cwd, '--slug', 's', '--open', 'x');
+    const p = ledgerPath(cwd, 's');
+    writeFileSync(p, `${readFileSync(p, 'utf8')}\n## Open\n\nnot-a-bullet\n`, 'utf8');
+    const unparsed = parseLedger(readFileSync(p, 'utf8')).unparsed;
+    expect(unparsed.filter((s) => s === 'Open')).toHaveLength(1);
+  });
+
   it('records text that starts with a double dash', () => {
     const cwd = repo();
     expect(log(cwd, '--slug', 's', '--decide', '--fd is validated too').code).toBe(0);
@@ -356,6 +374,32 @@ describe('loadScope', () => {
     expect(loadScope(cwd, { slug: 'p-enh', state, fdSlug: 'p' })).toBe(
       'FD summary for the parent.',
     );
+  });
+
+  it('falls through an explicitly-blank --scope to the repo sources', () => {
+    const cwd = repo();
+    seedRoadmap(cwd);
+    log(cwd, '--slug', 'some-entry-slug', '--scope', '   ');
+    expect(
+      loadScope(cwd, { slug: 'some-entry-slug', state: readLedger(cwd, 'some-entry-slug') }),
+    ).toBe('Roadmap-derived scope text.');
+  });
+
+  it('ignores a session-marker parent that is not slug-shaped', () => {
+    const cwd = repo();
+    mkdirSync(join(cwd, '.noldor'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.noldor', 'session.json'),
+      JSON.stringify({
+        path: 'specs-only-attach',
+        parent: '../escape',
+        enhancement: 'enh',
+        startedAt: '2026-08-03T00:00:00Z',
+        markerVersion: 2,
+      }),
+      'utf8',
+    );
+    expect(loadScope(cwd, { slug: 'p-enh', state: readLedger(cwd, 'p-enh') })).toBe(NO_SCOPE);
   });
 
   it('falls through an empty FD Summary instead of rendering a blank scope', () => {

@@ -8,7 +8,6 @@ import {
   readLedger,
   validateSlug,
   writeLedger,
-  WRITE_CRITICAL_SECTIONS,
   ledgerPath,
   type LedgerState,
 } from './ledger.js';
@@ -148,13 +147,11 @@ export function runLog(
   // ledger from parsed state — so an unparsed section would be erased, not just
   // ignored. Reading and rendering still degrade gracefully, so the dialogue is
   // never blocked by this.
-  const blocking = state.unparsed.filter((s) =>
-    (WRITE_CRITICAL_SECTIONS as readonly string[]).includes(s),
-  );
-  if (blocking.length > 0) {
+  if (state.unparsed.length > 0) {
     err(
-      `design log: cannot parse section '${blocking[0]}' in ${ledgerPath(cwd, parsed.slug)} — ` +
-        `nothing written (a write would erase it). Fix or delete the ledger.\n`,
+      `design log: cannot parse section '${state.unparsed.join("', '")}' in ` +
+        `${ledgerPath(cwd, parsed.slug)} — nothing written (a write would erase it). ` +
+        `Fix or delete the ledger.\n`,
     );
     return 1;
   }

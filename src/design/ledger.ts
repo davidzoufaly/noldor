@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 
 import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { loadDocRoots } from '../core/doc-roots.js';
+import { extractSummary } from '../core/fd-load.js';
 import { readSession } from '../core/session.js';
 import { parseRoadmap } from '../utils/parse-blocks.js';
 import { slugify } from '../utils/slugify.js';
@@ -33,9 +34,9 @@ export interface LedgerState {
   open: OpenThread[];
   support: string[];
   /**
-   * Section names whose body could not be parsed. The renderer surfaces these
-   * and degrades; the writer refuses to touch a ledger with any of `Decided` /
-   * `Open` listed here (see {@link WRITE_CRITICAL_SECTIONS}).
+   * Section names whose body could not be parsed, deduped. The renderer surfaces
+   * these and degrades; the writer refuses to touch a ledger with any entry here
+   * (see the note above `SECTIONS`).
    */
   unparsed: string[];
 }
@@ -44,8 +45,8 @@ const SECTIONS = ['Entry', 'Scope', 'Decided', 'Open', 'Existing support'] as co
 type SectionName = (typeof SECTIONS)[number];
 
 /**
- * Sections the writer must be able to parse before it touches the file — all of
- * them.
+ * The writer refuses a ledger with ANY section in {@link LedgerState.unparsed} —
+ * hence no separate "critical sections" list.
  *
  * `Decided`/`Open` are load-bearing for ID minting: guessing the next id from a
  * half-read section would re-issue one. The other three matter for a different
@@ -54,7 +55,6 @@ type SectionName = (typeof SECTIONS)[number];
  * `design log` rather than merely ignored. Refusing beats silent data loss;
  * reading (and rendering) still degrades gracefully.
  */
-export const WRITE_CRITICAL_SECTIONS = SECTIONS;
 
 /**
  * Collapse free text to a single storable line. Exactly two rules, both
@@ -155,7 +155,10 @@ export function parseLedger(raw: string): LedgerState {
 
   const entryLines = sections.get('Entry') ?? [];
   if (entryLines.length > 0) {
-    const value = unbullet(entryLines[0]);
+    // `## Entry` holds exactly one bullet. Extra lines mean the file was
+    // hand-edited: flag it rather than silently honouring the first line and
+    // erasing the rest on the next write.
+    const value = entryLines.length === 1 ? unbullet(entryLines[0]) : null;
     if (value === null) state.unparsed.push('Entry');
     else state.entry = value;
   }
@@ -202,6 +205,9 @@ export function parseLedger(raw: string): LedgerState {
     state.support.push(value);
   }
 
+  // A section can trip two detectors at once (duplicate heading *and* an
+  // unparseable body); report each name once so the writer's error names it once.
+  state.unparsed = [...new Set(state.unparsed)];
   return state;
 }
 
@@ -277,7 +283,9 @@ export function loadScope(
   cwd: string,
   opts: { slug: string; state: LedgerState; fdSlug?: string },
 ): string {
-  if (opts.state.scope !== null) return opts.state.scope;
+  // An explicitly-blank `--scope ""` is not a scope — fall through to the repo
+  // sources rather than short-circuiting on an empty string.
+  if (opts.state.scope !== null && opts.state.scope.length > 0) return opts.state.scope;
 
   const roots = loadDocRoots(cwd);
   const entrySlug = opts.state.entry ?? opts.slug;
@@ -295,18 +303,24 @@ export function loadScope(
       return null;
     }
   })();
-  const attachParent =
+  const markerParent =
     session?.path === 'specs-only-attach' || session?.path === 'full-attach'
       ? (session.parent ?? null)
+      : null;
+  // The marker is written by the gate, but it is a file on disk like any other:
+  // validate before it becomes a path component (same rule as `--fd`).
+  const attachParent =
+    markerParent !== null && validateSlug(markerParent, 'session parent') === null
+      ? markerParent
       : null;
   const fdSlug = opts.fdSlug ?? attachParent ?? opts.slug;
   const fdPath = join(roots.features, `${fdSlug}.md`);
   if (existsSync(fdPath)) {
-    const m = readFileSync(fdPath, 'utf8').match(/^## Summary\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
-    // An empty `## Summary` (heading immediately followed by the next heading)
-    // matches with an empty capture — that is no scope at all, so fall through
-    // rather than rendering a blank Scope line.
-    const summary = m ? normalize(m[1]) : '';
+    // Reuse the core helper rather than a fourth copy of the Summary regex
+    // (`design → core` is an allowed edge — see the other core imports above).
+    // A missing or empty `## Summary` yields `''`, which is no scope at all, so
+    // fall through instead of rendering a blank Scope line.
+    const summary = normalize(extractSummary(readFileSync(fdPath, 'utf8')));
     if (summary.length > 0) return summary;
   }
 
