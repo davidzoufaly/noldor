@@ -248,6 +248,22 @@ describe('design log', () => {
     expect(unparsed.filter((s) => s === 'Open')).toHaveLength(1);
   });
 
+  it('refuses to write when an unknown heading would be erased', () => {
+    const cwd = repo();
+    log(cwd, '--slug', 's', '--decide', 'a');
+    const p = ledgerPath(cwd, 's');
+    writeFileSync(p, `${readFileSync(p, 'utf8')}\n## Notes\n\n- hand-added context\n`, 'utf8');
+    const before = readFileSync(p, 'utf8');
+
+    // The writer reserializes from parsed state, so an unrecognized section
+    // would vanish on the next append if it were not reported.
+    expect(parseLedger(before).unparsed.join()).toContain('Notes');
+    const r = log(cwd, '--slug', 's', '--decide', 'b');
+    expect(r.code).toBe(1);
+    expect(readFileSync(p, 'utf8')).toBe(before);
+    expect(readFileSync(p, 'utf8')).toContain('- hand-added context');
+  });
+
   it('records text that starts with a double dash', () => {
     const cwd = repo();
     expect(log(cwd, '--slug', 's', '--decide', '--fd is validated too').code).toBe(0);

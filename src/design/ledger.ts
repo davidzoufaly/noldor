@@ -121,15 +121,23 @@ export function emptyLedger(): LedgerState {
 function splitSections(raw: string): {
   sections: Map<SectionName, string[]>;
   duplicates: SectionName[];
+  unknown: string[];
 } {
   const sections = new Map<SectionName, string[]>();
   const duplicates: SectionName[] = [];
+  const unknown: string[] = [];
   let current: SectionName | null = null;
   for (const line of raw.split('\n')) {
     const heading = line.match(/^## (.+?)\s*$/);
     if (heading) {
       const name = heading[1] as SectionName;
-      current = (SECTIONS as readonly string[]).includes(name) ? name : null;
+      const known = (SECTIONS as readonly string[]).includes(name);
+      // An unrecognized H2 (`## Notes`, `##  Entry` with a stray space) would
+      // otherwise have its body attributed to nothing and be erased by the next
+      // write, which reserializes from parsed state — the same silent-data-loss
+      // class this design refuses. Report it so the writer refuses the file.
+      if (!known) unknown.push(name);
+      current = known ? name : null;
       if (current) {
         if (sections.has(current)) {
           duplicates.push(current);
@@ -145,7 +153,7 @@ function splitSections(raw: string): {
     }
     if (current && line.trim().length > 0) sections.get(current)!.push(line);
   }
-  return { sections, duplicates };
+  return { sections, duplicates, unknown };
 }
 
 /** Strip the storage bullet from a value line, or `null` when not a bullet. */
@@ -161,9 +169,9 @@ function unbullet(line: string): string | null {
  * writer checks `unparsed` before touching the file.
  */
 export function parseLedger(raw: string): LedgerState {
-  const { sections, duplicates } = splitSections(raw);
+  const { sections, duplicates, unknown } = splitSections(raw);
   const state: LedgerState = emptyLedger();
-  state.unparsed.push(...duplicates);
+  state.unparsed.push(...duplicates, ...unknown.map((name) => `unknown heading '${name}'`));
 
   const entryLines = sections.get('Entry') ?? [];
   if (entryLines.length > 0) {
