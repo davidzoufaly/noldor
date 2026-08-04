@@ -27,13 +27,20 @@ const USAGE =
   'usage: noldor design log --slug <slug> [--entry <roadmap-slug>] [--scope <text>] ' +
   '[--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]...';
 
+const LOG_FLAGS = ['--slug', '--entry', '--scope', '--decide', '--open', '--resolve', '--support'];
+
 /** Parse argv into {@link LogArgs}. Repeatable flags accumulate in argv order. */
 export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string } {
   const args: LogArgs = { slug: '', decide: [], open: [], resolve: [], support: [] };
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     const value = argv[i + 1];
-    if (value === undefined || value.startsWith('--')) return { error: `${flag}: missing value` };
+    // Only a *known flag* in the value slot means the value is missing. Rejecting
+    // every `--`-leading value would make decision text like
+    // `--decide "--fd is now validated too"` unrecordable.
+    if (value === undefined || LOG_FLAGS.includes(value)) {
+      return { error: `${flag}: missing value` };
+    }
     i += 1;
     switch (flag) {
       case '--slug':
@@ -101,7 +108,9 @@ export function applyLog(state: LedgerState, args: LogArgs): LedgerState | { err
       const known = next.open.map((o) => o.id).join(', ') || '(none)';
       return { error: `--resolve: unknown open-thread id '${id}'. Known ids: ${known}` };
     }
-    // Already resolved → no-op (re-running a turn's log must be safe).
+    // Already resolved → no-op, so re-issuing the same `--resolve` is safe.
+    // Note this is the only idempotent flag: a re-run carrying `--decide` mints a
+    // second decision, by design (an append is an append).
     if (next.open[idx].resolvedBy === null) {
       next.open[idx] = { ...next.open[idx], resolvedBy: target };
     }
@@ -134,16 +143,18 @@ export function runLog(
   }
 
   const state = readLedger(cwd, parsed.slug);
-  // Fail closed: minting the next ID requires reading every existing one, and
-  // guessing from a half-parsed section would re-issue an ID. Rendering still
-  // works on the same file, so the dialogue is never blocked by this.
+  // Fail closed on ANY unparseable section: minting the next ID needs every
+  // existing one (guessing would re-issue), and a write reserializes the whole
+  // ledger from parsed state — so an unparsed section would be erased, not just
+  // ignored. Reading and rendering still degrade gracefully, so the dialogue is
+  // never blocked by this.
   const blocking = state.unparsed.filter((s) =>
     (WRITE_CRITICAL_SECTIONS as readonly string[]).includes(s),
   );
   if (blocking.length > 0) {
     err(
       `design log: cannot parse section '${blocking[0]}' in ${ledgerPath(cwd, parsed.slug)} — ` +
-        `nothing written. Fix or delete the ledger.\n`,
+        `nothing written (a write would erase it). Fix or delete the ledger.\n`,
     );
     return 1;
   }

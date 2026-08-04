@@ -388,7 +388,7 @@ The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
 
 - **Trigger:** `pnpm noldor design log --slug <slug> [--entry <roadmap-slug>] [--scope <text>] [--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]...`. Run by the design skills at dialogue start (seed) and after every operator answer.
 - **Inputs:** the existing ledger at `.noldor/design/<slug>.md`, when present.
-- **Outputs:** writes the ledger, minting `D<n>` / `O<n>` ids (never reused). Free text is normalized to one line and tilde runs collapsed, so no value can forge a section, an id, or a resolution. Exits 1 — writing nothing — on an unknown `--resolve` id, a non-slug `--slug`/`--entry`, or a ledger whose `Decided`/`Open` section cannot be parsed (fail closed: guessing the next id would re-issue one).
+- **Outputs:** writes the ledger, minting `D<n>` / `O<n>` ids (never reused). Free text is normalized to one line and tilde runs collapsed, so no value can forge a section, an id, or a resolution. Exits 1 — writing nothing — on an unknown `--resolve` id, a non-slug `--slug`/`--entry`, or a ledger whose any section cannot be parsed, including a duplicate heading (fail closed: guessing the next id would re-issue one, and a write would erase an unparsed section).
 - **When to use:** driven by the skills; run by hand only to seed or repair a ledger.
 - **Source:** [`src/design/log-cli.ts`](../../src/design/log-cli.ts)
 

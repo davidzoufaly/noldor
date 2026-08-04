@@ -40,11 +40,21 @@ export interface LedgerState {
   unparsed: string[];
 }
 
-/** Sections the writer must be able to parse to mint the next ID safely. */
-export const WRITE_CRITICAL_SECTIONS = ['Decided', 'Open'] as const;
-
 const SECTIONS = ['Entry', 'Scope', 'Decided', 'Open', 'Existing support'] as const;
 type SectionName = (typeof SECTIONS)[number];
+
+/**
+ * Sections the writer must be able to parse before it touches the file — all of
+ * them.
+ *
+ * `Decided`/`Open` are load-bearing for ID minting: guessing the next id from a
+ * half-read section would re-issue one. The other three matter for a different
+ * reason: the writer reserializes the whole ledger from parsed state, so an
+ * unparseable `Scope`/`Entry`/`Existing support` would be *erased* by the next
+ * `design log` rather than merely ignored. Refusing beats silent data loss;
+ * reading (and rendering) still degrades gracefully.
+ */
+export const WRITE_CRITICAL_SECTIONS = SECTIONS;
 
 /**
  * Collapse free text to a single storable line. Exactly two rules, both
@@ -89,34 +99,41 @@ export function ledgerPath(cwd: string, slug: string): string {
   return join(cwd, '.noldor', 'design', `${slug}.md`);
 }
 
-const EMPTY: LedgerState = {
-  entry: null,
-  scope: null,
-  decided: [],
-  open: [],
-  support: [],
-  unparsed: [],
-};
-
 /** A ledger with every heading present and no content — the first-write shape. */
 export function emptyLedger(): LedgerState {
-  return { ...EMPTY, decided: [], open: [], support: [], unparsed: [] };
+  return { entry: null, scope: null, decided: [], open: [], support: [], unparsed: [] };
 }
 
-function splitSections(raw: string): Map<SectionName, string[]> {
-  const out = new Map<SectionName, string[]>();
+/**
+ * Split a ledger into its known sections.
+ *
+ * A repeated heading is reported in `duplicates` rather than resetting the
+ * section: a second `## Decided` would otherwise drop every earlier decision
+ * *silently*, leaving `unparsed` empty and letting the next `design log` re-mint
+ * `D1` — breaking the never-reuse guarantee through the one door the fail-closed
+ * check doesn't watch.
+ */
+function splitSections(raw: string): {
+  sections: Map<SectionName, string[]>;
+  duplicates: SectionName[];
+} {
+  const sections = new Map<SectionName, string[]>();
+  const duplicates: SectionName[] = [];
   let current: SectionName | null = null;
   for (const line of raw.split('\n')) {
     const heading = line.match(/^## (.+?)\s*$/);
     if (heading) {
       const name = heading[1] as SectionName;
       current = (SECTIONS as readonly string[]).includes(name) ? name : null;
-      if (current) out.set(current, []);
+      if (current) {
+        if (sections.has(current)) duplicates.push(current);
+        else sections.set(current, []);
+      }
       continue;
     }
-    if (current && line.trim().length > 0) out.get(current)!.push(line);
+    if (current && line.trim().length > 0) sections.get(current)!.push(line);
   }
-  return out;
+  return { sections, duplicates };
 }
 
 /** Strip the storage bullet from a value line, or `null` when not a bullet. */
@@ -132,8 +149,9 @@ function unbullet(line: string): string | null {
  * writer checks `unparsed` before touching the file.
  */
 export function parseLedger(raw: string): LedgerState {
-  const sections = splitSections(raw);
+  const { sections, duplicates } = splitSections(raw);
   const state: LedgerState = emptyLedger();
+  state.unparsed.push(...duplicates);
 
   const entryLines = sections.get('Entry') ?? [];
   if (entryLines.length > 0) {
@@ -285,7 +303,11 @@ export function loadScope(
   const fdPath = join(roots.features, `${fdSlug}.md`);
   if (existsSync(fdPath)) {
     const m = readFileSync(fdPath, 'utf8').match(/^## Summary\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
-    if (m) return normalize(m[1]);
+    // An empty `## Summary` (heading immediately followed by the next heading)
+    // matches with an empty capture — that is no scope at all, so fall through
+    // rather than rendering a blank Scope line.
+    const summary = m ? normalize(m[1]) : '';
+    if (summary.length > 0) return summary;
   }
 
   return NO_SCOPE;

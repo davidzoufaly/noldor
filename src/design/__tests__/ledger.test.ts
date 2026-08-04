@@ -187,6 +187,54 @@ describe('design log', () => {
     for (const line of out.split('\n')) expect(line.trimStart().startsWith('```')).toBe(false);
   });
 
+  it('refuses to write when a duplicate heading would hide earlier decisions', () => {
+    const cwd = repo();
+    log(cwd, '--slug', 's', '--decide', 'a', '--decide', 'b');
+    const p = ledgerPath(cwd, 's');
+    writeFileSync(p, `${readFileSync(p, 'utf8')}\n## Decided\n\n- D9 injected\n`, 'utf8');
+    const before = readFileSync(p, 'utf8');
+
+    // Without the duplicate-heading guard this parsed to `decided: []` with an
+    // empty `unparsed`, so the next append re-minted D1 over existing ids.
+    expect(parseLedger(before).unparsed).toContain('Decided');
+    const r = log(cwd, '--slug', 's', '--decide', 'c');
+    expect(r.code).toBe(1);
+    expect(readFileSync(p, 'utf8')).toBe(before);
+  });
+
+  it('refuses to write when a non-critical section is unparseable, rather than erasing it', () => {
+    const cwd = repo();
+    log(cwd, '--slug', 's', '--support', 'src/foo.ts:1 — does X');
+    const p = ledgerPath(cwd, 's');
+    writeFileSync(
+      p,
+      readFileSync(p, 'utf8').replace('- src/foo.ts:1 — does X', 'src/foo.ts:1 (hand-mangled)'),
+      'utf8',
+    );
+    const before = readFileSync(p, 'utf8');
+
+    const r = log(cwd, '--slug', 's', '--decide', 'a');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('Existing support');
+    expect(readFileSync(p, 'utf8')).toBe(before);
+    // The hand-written line survives, and rendering still works.
+    expect(readFileSync(p, 'utf8')).toContain('src/foo.ts:1 (hand-mangled)');
+    expect(context(cwd, '--slug', 's').code).toBe(0);
+  });
+
+  it('records text that starts with a double dash', () => {
+    const cwd = repo();
+    expect(log(cwd, '--slug', 's', '--decide', '--fd is validated too').code).toBe(0);
+    expect(readLedger(cwd, 's').decided[0].text).toBe('--fd is validated too');
+  });
+
+  it('reports a missing value when the next argv item is a known flag', () => {
+    const cwd = repo();
+    const r = log(cwd, '--slug', 's', '--decide', '--open', 'x');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('missing value');
+  });
+
   it('fails closed on a mangled Decided section while rendering still works', () => {
     const cwd = repo();
     log(cwd, '--slug', 's', '--decide', 'a');
@@ -307,6 +355,19 @@ describe('loadScope', () => {
     const state = readLedger(cwd, 'p-enh');
     expect(loadScope(cwd, { slug: 'p-enh', state, fdSlug: 'p' })).toBe(
       'FD summary for the parent.',
+    );
+  });
+
+  it('falls through an empty FD Summary instead of rendering a blank scope', () => {
+    const cwd = repo();
+    mkdirSync(join(cwd, 'docs', 'features'), { recursive: true });
+    writeFileSync(
+      join(cwd, 'docs', 'features', 'p.md'),
+      '---\nname: X\n---\n## Summary\n\n## Usage\n\nn/a\n',
+      'utf8',
+    );
+    expect(loadScope(cwd, { slug: 'p-enh', state: readLedger(cwd, 'p-enh'), fdSlug: 'p' })).toBe(
+      NO_SCOPE,
     );
   });
 
