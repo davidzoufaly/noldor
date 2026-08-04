@@ -1,6 +1,6 @@
 ---
 name: Doc Gardening Skill
-phase: done
+phase: in-progress
 area: tooling
 category: Tooling
 packages:
@@ -29,7 +29,6 @@ introduced: 0.1.0
 updated: 0.5.0
 noldor-tier: full
 ---
-
 ## Summary
 
 A `/noldor-garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`src/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
