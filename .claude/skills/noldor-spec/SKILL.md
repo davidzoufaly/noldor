@@ -12,7 +12,17 @@ Turn an idea into a reviewed design document through collaborative dialogue. No 
 
 1. **Ground yourself.** Read `docs/vision.md`, the FD at `docs/features/<slug>.md` when one exists, and the real code, docs, and tests the idea touches. Cite actual file paths and symbols in the design — a spec that references no real code is a failure.
 2. **Scope check.** If the request spans multiple independent subsystems, say so before refining details and help decompose; spec the first sub-project only.
-3. **Clarify.** Ask questions ONE per message, multiple-choice preferred. Stop when purpose, constraints, and success criteria are clear. Don't re-ask what the roadmap entry or FD body already answers — confirm it instead.
+3. **Clarify — with the design state rendered inline every time.** Ask questions ONE per message, multiple-choice preferred. Stop when purpose, constraints, and success criteria are clear. Don't re-ask what the roadmap entry or FD body already answers — confirm it instead.
+
+   The operator must never answer blind. Run this loop for every question:
+   - **Seed once, before question 1** (dialogue slug = the feature slug on `*-new`, `<parent>-<enhancement>` on `*-attach` — the same key that names the spec file). One `--support` per anchor you found while grounding; `--entry` only when the roadmap entry slug differs from the dialogue slug (attach paths):
+     `pnpm noldor design log --slug <dialogue-slug> --entry <roadmap-slug> --support "src/foo.ts:12 — already does X"`
+   - **Before every question**, render the state and paste stdout verbatim, inside a fenced code block, immediately above the question — so the question is the last thing read:
+     `pnpm noldor design context --slug <dialogue-slug>`
+   - **After every answer**, record it before asking the next thing (repeatable flags; one call can resolve a thread and record the decision it became):
+     `pnpm noldor design log --slug <dialogue-slug> --resolve O2 --decide "chose X because Y" --open "new thread this raised"`
+
+   Flag names are exact — `--support`, not `--existing-support`. The block renders Scope, Decided, Open, Existing support, uncapped. Never hand-edit the ledger at `.noldor/design/<slug>.md`: the writer fails closed on a file it cannot parse.
 4. **Approaches.** Present 2-3 approaches with trade-offs. Lead with your recommendation and why.
 5. **Design in sections.** Write each section into the spec file on disk as it stabilizes (don't hold the draft only in chat) and give the operator a clickable markdown link to the file with every section check-in; after each section ask whether it looks right before continuing. Cover architecture, units (one purpose each, clear interfaces, independently testable), data flow, error handling, testing. YAGNI ruthlessly.
 6. **Write the spec.** Run `pnpm noldor prep format spec` and structure the document exactly per the printed contract. Save to `docs/design/specs/YYYY-MM-DD-<slug>-design.md` (attach paths: `YYYY-MM-DD-<parent>-<enhancement>-design.md`).

@@ -64,6 +64,19 @@ export const MANIFEST: Record<string, Group> = {
       },
     },
   },
+  design: {
+    desc: 'Running design context for a spec/plan dialogue (ledger + inline block)',
+    subs: {
+      context: {
+        src: 'design/context-cli.ts',
+        desc: 'Print the design-context block (Scope/Decided/Open/Support) for a dialogue',
+      },
+      log: {
+        src: 'design/log-cli.ts',
+        desc: 'Record a decision / open thread / resolution / support anchor in the ledger',
+      },
+    },
+  },
   research: {
     desc: 'Parallel read-only research agents (fanout + opt-in synthesis)',
     subs: {

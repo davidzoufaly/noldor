@@ -20,6 +20,7 @@ docs/ideas.md
 .noldor/garden-receipt
 .noldor/release-pushes.log
 .noldor/cr/
+.noldor/design/
 .noldor/drain-state.json
 .noldor/drain.lock
 .noldor/drain.lock.reclaim.*
@@ -61,6 +62,7 @@ metrics.json
 .noldor/agent-events.jsonl
 .noldor/agent-events.archive.jsonl
 .noldor/cr/
+.noldor/design/
 .noldor/drain-state.json
 .noldor/drain.lock
 .noldor/drain-park.json

@@ -17,6 +17,8 @@ links:
     - docs/noldor/workflow.md
     - docs/noldor/skill-catalog.md
   tests:
+    - src/design/__tests__/ledger.test.ts
+    - src/design/__tests__/render.test.ts
     - src/prep/__tests__/formats.test.ts
     - src/prep/__tests__/print-format.test.ts
     - src/worktrees/__tests__/create-worktree.test.ts
