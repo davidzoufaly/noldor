@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   applyBlock,
   buildResourcesBlock,
-  resolveSpecPath,
+  resolveArchivedPath,
   syncFile,
 } from '../sync-fd-resources.js';
 
@@ -171,34 +171,37 @@ const existsOnly =
   (p: string): boolean =>
     p === target;
 
-describe(resolveSpecPath, () => {
+describe(resolveArchivedPath, () => {
   it('returns null when current path is undefined', () => {
-    expect(resolveSpecPath(undefined, existsNone)).toBe(null);
+    expect(resolveArchivedPath(undefined, existsNone)).toBe(null);
   });
 
   it('returns null when current path is the empty string', () => {
-    expect(resolveSpecPath('', existsNone)).toBe(null);
+    expect(resolveArchivedPath('', existsNone)).toBe(null);
   });
 
   it('returns null when current path exists on disk (no rewrite needed)', () => {
     expect(
-      resolveSpecPath('docs/design/specs/foo.md', existsOnly('docs/design/specs/foo.md')),
+      resolveArchivedPath('docs/design/specs/foo.md', existsOnly('docs/design/specs/foo.md')),
     ).toBe(null);
   });
 
   it('returns the archive path when current is missing and archive variant exists', () => {
     expect(
-      resolveSpecPath('docs/design/specs/foo.md', existsOnly('docs/design/specs/archive/foo.md')),
+      resolveArchivedPath(
+        'docs/design/specs/foo.md',
+        existsOnly('docs/design/specs/archive/foo.md'),
+      ),
     ).toBe('docs/design/specs/archive/foo.md');
   });
 
   it('returns null when both current and archive variant are missing', () => {
-    expect(resolveSpecPath('docs/design/specs/foo.md', existsNone)).toBe(null);
+    expect(resolveArchivedPath('docs/design/specs/foo.md', existsNone)).toBe(null);
   });
 
   it('returns null when path already points at an archive directory', () => {
     expect(
-      resolveSpecPath(
+      resolveArchivedPath(
         'docs/design/specs/archive/foo.md',
         existsOnly('docs/design/specs/archive/foo.md'),
       ),
@@ -207,7 +210,7 @@ describe(resolveSpecPath, () => {
 
   it('handles nested archive convention for plans directory (forward-compat)', () => {
     expect(
-      resolveSpecPath(
+      resolveArchivedPath(
         'docs/design/plans/2026-05-09-foo.md',
         existsOnly('docs/design/plans/archive/2026-05-09-foo.md'),
       ),
@@ -309,7 +312,7 @@ Body.
   });
 
   it('rewrites links.spec to archive variant when current path is missing', async () => {
-    // Create the archived spec file on disk so resolveSpecPath finds it.
+    // Create the archived spec file on disk so resolveArchivedPath finds it.
     const archiveDir = join(tmpDir, 'docs', 'design', 'specs', 'archive');
     execSync(`mkdir -p ${JSON.stringify(archiveDir)}`, { stdio: 'ignore' });
     writeFileSync(join(archiveDir, 'foo.md'), '# archived spec\n', 'utf8');
@@ -340,6 +343,76 @@ Body.
       const out = readFileSync(mdPath, 'utf8');
       expect(out).toContain('spec: docs/design/specs/archive/foo.md');
       expect(out).not.toMatch(/spec: docs\/design\/specs\/foo\.md\b/);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  it('rewrites links.plan (string form) to the archive variant', async () => {
+    const archiveDir = join(tmpDir, 'docs', 'design', 'plans', 'archive');
+    execSync(`mkdir -p ${JSON.stringify(archiveDir)}`, { stdio: 'ignore' });
+    writeFileSync(join(archiveDir, '2026-05-09-foo.md'), '# archived plan\n', 'utf8');
+
+    writeFileSync(
+      mdPath,
+      `---
+name: Fake
+links:
+  plan: docs/design/plans/2026-05-09-foo.md
+---
+
+## Summary
+
+Body.
+`,
+      'utf8',
+    );
+
+    const originalCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      const changed = await syncFile(mdPath);
+      expect(changed).toBe(true);
+      const out = readFileSync(mdPath, 'utf8');
+      expect(out).toContain('plan: docs/design/plans/archive/2026-05-09-foo.md');
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  it('rewrites only the moved elements of a links.plan list', async () => {
+    const plansDir = join(tmpDir, 'docs', 'design', 'plans');
+    execSync(`mkdir -p ${JSON.stringify(join(plansDir, 'archive'))}`, { stdio: 'ignore' });
+    // part1 archived, part2 still live.
+    writeFileSync(join(plansDir, 'archive', '2026-05-09-foo-part1.md'), '# archived\n', 'utf8');
+    writeFileSync(join(plansDir, '2026-05-09-foo-part2.md'), '# live\n', 'utf8');
+
+    writeFileSync(
+      mdPath,
+      `---
+name: Fake
+links:
+  plan:
+    - docs/design/plans/2026-05-09-foo-part1.md
+    - docs/design/plans/2026-05-09-foo-part2.md
+---
+
+## Summary
+
+Body.
+`,
+      'utf8',
+    );
+
+    const originalCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      const changed = await syncFile(mdPath);
+      expect(changed).toBe(true);
+      const out = readFileSync(mdPath, 'utf8');
+      expect(out).toContain('docs/design/plans/archive/2026-05-09-foo-part1.md');
+      expect(out).toContain('- docs/design/plans/2026-05-09-foo-part2.md');
+      expect(out).not.toContain('archive/2026-05-09-foo-part2.md');
     } finally {
       process.chdir(originalCwd);
     }

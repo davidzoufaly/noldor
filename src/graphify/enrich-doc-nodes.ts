@@ -5,7 +5,7 @@ import matter from 'gray-matter';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
-import { planSlugFromFilename, specSlugFromFilename } from '../garden/garden-detect.js';
+import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
 
 /**
  * Post-build enrichment of `graphify-out/graph.json`: represent feature MDs,

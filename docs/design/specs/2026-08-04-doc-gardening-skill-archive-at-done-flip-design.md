@@ -201,19 +201,18 @@ noldor design archive [--dry-run] [--slug <key>]
    <key> — nothing to do`, exit 0.
 4. `--dry-run` → print one `would archive: <from> → <to>` per move plus collision warnings, exit 0,
    touch nothing.
-5. Otherwise per move: `mkdirSync(dirname(to), { recursive: true })`, then decide the mechanism by
-   *probing* trackedness rather than parsing git's (i18n'd, locale-dependent) error text —
-   `git ls-files --error-unmatch <from>` exits 0 for a tracked file. Tracked →
-   `execFileSync('git', ['mv', from, to])`, which preserves rename detection and stages the change.
-   Untracked → `renameSync(from, to)` followed by `git add -- <to>` (the destination only: an
-   untracked `<from>` is neither in the index nor still on disk, so including it makes git abort the
-   whole `git add` with `fatal: pathspec … did not match any files`). Either way the CLI leaves every
-   move staged. Untracked destinations may be batched into one trailing `git add -- <to1> <to2> …`
-   rather than one call per artifact (tracked `git mv` stays per-file by necessity). A `git mv`
-   failure on a file that probed as tracked is fatal (exit 1, stderr passthrough) — a half-moved set
-   must be visible, not swallowed. A `git add` that refuses the destination because the consumer
-   ignores `archive/` is likewise fatal: the artifact moved on disk but cannot be committed, and
-   silently continuing would produce a flip commit missing the move.
+5. Otherwise per move: `mkdirSync(dirname(to), { recursive: true })`, then
+   `execFileSync('git', ['mv', '--', from, to])`, which preserves rename detection *and* stages both
+   halves. Failure is fatal (exit 1, stderr passthrough) — a half-moved set must be visible, not
+   swallowed.
+
+   **No fs-rename fallback, because untracked artifacts are not eligible.** `branchAdded` is derived
+   from commits, so every path that survives the ownership gate is tracked at HEAD by construction.
+   An uncommitted spec (e.g. the gate crashed before Step 2.5 committed it) simply resolves to
+   nothing and the CLI reports `nothing to do`. This was the shape of an earlier revision — probe
+   trackedness, `renameSync` + `git add -- <to>` otherwise — which the CLI tests proved unreachable:
+   the untracked fixture never reaches the move loop at all. Dropping it removes dead code and one
+   whole failure mode (a `git add` that the consumer's ignore rules refuse).
 
    <a id="no-directory-literal"></a>**Why the CLI stages, and not the gate** (canonical statement;
    later sections reference this): `loadDocRoots` resolves `plans`/`specs` through the 1.0.0
@@ -324,9 +323,8 @@ gate Step 4 (FD path)
 | `origin/main..HEAD` query fails        | fail closed: exit 0, "skipped — garden will catch it"        |
 | No matching artifacts / already moved  | exit 0, "nothing to do" (idempotent)                         |
 | `archive/<basename>` exists            | skip that artifact, warn, exit 0                             |
-| Artifact untracked (`ls-files` probe)  | fs `renameSync` + `git add -- <to>` (destination only)        |
-| `git add` refuses an ignored `<to>`    | fatal: exit 1, stderr passthrough (repo mis-ignores `archive/`) |
-| `git mv` fails on a tracked artifact   | exit 1, stderr passthrough                                   |
+| Artifact uncommitted (not branch-added) | not eligible → exit 0, "nothing to do"                      |
+| `git mv` fails                         | exit 1, stderr passthrough                                   |
 | `specs/` or `plans/` dir missing       | treated as empty, exit 0                                     |
 
 ## Acceptance criteria
@@ -347,9 +345,6 @@ gate Step 4 (FD path)
   with `reason: 'collision'` and the file is not moved.
 - `noldor design archive` in a temp git repo moves a tracked spec + plan with `git mv`, leaves them
   staged, and prints one `archived:` line per artifact; a second run exits 0 with `nothing to do`.
-- `noldor design archive` moves an **untracked** spec via the fs fallback (exit 0) and leaves the
-  file at the archive path — the mechanism is chosen by the `git ls-files --error-unmatch` probe,
-  not by matching git's error text.
 - `noldor design archive` in a repo with no resolvable `origin/main` (or no merge base) exits 0,
   moves nothing, and its stderr names the fail-closed reason.
 - `discoverAddedFiles` uses the merge base, pinned by a fixture where `main` deleted a file *after*
@@ -358,10 +353,12 @@ gate Step 4 (FD path)
 - `noldor design archive --slug <key>` run from a repo subdirectory resolves the same moves as from
   the repo root (root-relative path comparison), and still refuses an artifact absent from
   `branchAdded`.
-- `noldor design archive` leaves every move **staged**: `git diff --cached --name-status` shows a
-  rename (or delete+add) pair for the tracked `git mv` case, and a single `A <to>` for the untracked
-  fs-rename case — the CLI must not pass the vanished `<from>` to `git add`, which would abort the
-  whole staging call.
+- `noldor design archive` leaves every move **staged**: `git diff --cached --name-status -M` shows one
+  `R` rename entry per artifact.
+- An uncommitted spec matching the key is left in place with `nothing to do` (untracked ⇒ not
+  branch-added ⇒ not eligible).
+- Running from a repo subdirectory resolves the session marker at the repo root and produces the same
+  moves as running from the root.
 - With the artifacts resolving under legacy `docs/superpowers/{specs,plans}` (new dirs absent), the
   CLI still moves them into `docs/superpowers/*/archive/` and stages them; the gate's commit picks
   them up with no directory literal involved.
@@ -478,10 +475,12 @@ in the flow changes.
    matches the `phase-revert` / `roadmap remove-block` precedent.
 
 3. *`git mv` or fs rename, and who stages?*
-   → **`git mv`, falling back to fs `renameSync` only when a `git ls-files --error-unmatch` probe
-   says the artifact is untracked**; the gate owns the commit, the CLI never commits. (D3)
-   Rationale: rename detection plus automatic staging for the normal case, without failing on the
-   anomalous untracked one — and probing beats parsing git's localized error text.
+   → **`git mv` only**; the gate owns the commit, the CLI never commits. (D3, revised during
+   implementation)
+   Rationale: rename detection plus automatic staging. The earlier fs-rename fallback for untracked
+   artifacts is unreachable — the ownership gate reads commits, so an eligible artifact is tracked by
+   construction — and its CLI test proved it: the untracked fixture never reaches the move loop.
+   Removing it also removes the `git add`-refused-by-ignore-rules failure mode.
 
 4. *How do `links.spec` / `links.plan` survive the move?*
    → **Generalise `resolveSpecPath` → `resolveArchivedPath` in `sync-fd-resources.ts` and apply it

@@ -67,6 +67,10 @@ export const MANIFEST: Record<string, Group> = {
   design: {
     desc: 'Running design context for a spec/plan dialogue (ledger + inline block)',
     subs: {
+      archive: {
+        src: 'design/archive-cli.ts',
+        desc: "Archive this session's spec/plan into docs/design/*/archive/ (staged, not committed)",
+      },
       context: {
         src: 'design/context-cli.ts',
         desc: 'Print the design-context block (Scope/Decided/Open/Support) for a dialogue',
