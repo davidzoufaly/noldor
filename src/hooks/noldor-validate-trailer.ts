@@ -168,6 +168,24 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   const fdPath = join(opts.cwd, 'docs', 'features', `${slug}.md`);
   if (!existsSync(fdPath)) return { ok: false, reason: `FD does not exist: ${slug}` };
 
+  /**
+   * Does a spec matching `suffix` exist, live OR archived?
+   *
+   * The archive lookup is required, not a nicety: `/noldor-gate` Step 4 runs
+   * `noldor design archive` immediately before the phase-flip commit, so by the
+   * time this hook validates that commit the spec has already moved to
+   * `docs/design/specs/archive/`. A live-only check would make the flip commit
+   * unlandable on every `specs-only-*` / `full-attach` session.
+   */
+  function specExists(cwd: string, suffix: string): boolean {
+    const specsDir = join(cwd, 'docs', 'design', 'specs');
+    for (const dir of [specsDir, join(specsDir, 'archive')]) {
+      if (!existsSync(dir)) continue;
+      if (readdirSync(dir).some((f) => f.endsWith(suffix))) return true;
+    }
+    return false;
+  }
+
   const fd = matter(readFileSync(fdPath, 'utf8'));
   const tier = (fd.data['noldor-tier'] as string) ?? null;
   const isPhaseRevert = t['Noldor-Phase-Revert'] === '1';
@@ -185,16 +203,8 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     }
     if (path === 'specs-only-new') {
       if (isPhaseRevert) return { ok: true };
-      const specsDir = join(opts.cwd, 'docs', 'design', 'specs');
       const expectedSuffix = `-${slug}-design.md`;
-      if (!existsSync(specsDir)) {
-        return {
-          ok: false,
-          reason: `specs-only-new requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
-        };
-      }
-      const files = readdirSync(specsDir).filter((f) => f.endsWith(expectedSuffix));
-      if (files.length === 0) {
+      if (!specExists(opts.cwd, expectedSuffix)) {
         return {
           ok: false,
           reason: `specs-only-new requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
@@ -214,11 +224,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
       };
     }
     const expectedSuffix = `-${slug}-${enhancement}-design.md`;
-    const specsDir = join(opts.cwd, 'docs', 'design', 'specs');
-    const candidates = existsSync(specsDir)
-      ? readdirSync(specsDir).filter((f) => f.endsWith(expectedSuffix))
-      : [];
-    if (candidates.length === 0) {
+    if (!specExists(opts.cwd, expectedSuffix)) {
       return {
         ok: false,
         reason: `${path} requires a spec file at docs/design/specs/<date>${expectedSuffix}`,

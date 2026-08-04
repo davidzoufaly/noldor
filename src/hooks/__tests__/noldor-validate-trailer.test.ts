@@ -546,5 +546,58 @@ describe('validateTrailer', () => {
       });
       expect(r.ok).toBe(true);
     });
+
+    // Regression: `noldor design archive` moves the spec into archive/ right
+    // before the phase-flip commit, so a live-only lookup made that commit
+    // unlandable on every attach session.
+    it('passes when the matching spec has already been archived at done-flip', () => {
+      const dir = setupRepo();
+      setupPostRollout(dir);
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'parent.md'),
+        `---\nname: Parent\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      mkdirSync(join(dir, 'docs', 'design', 'specs', 'archive'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'design', 'specs', 'archive', '2026-05-25-parent-my-enh-design.md'),
+        '# archived spec',
+      );
+      const r = validateTrailer({
+        cwd: dir,
+        message:
+          'docs(features:parent): mark phase=done + archive design artifacts\n\nNoldor-Path: specs-only-attach\nNoldor-FD: parent\nNoldor-Enhancement: my-enh\n',
+      });
+      expect(r.ok).toBe(true);
+    });
+  });
+
+  describe('specs-only-new accepts an archived spec', () => {
+    it('passes when the spec lives only in docs/design/specs/archive/', () => {
+      const dir = setupRepo();
+      writeFileSync(join(dir, 'a'), 'init');
+      execSync('git add a && git commit -q -m init', { cwd: dir });
+      const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+      writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
+      writeFileSync(join(dir, 'b'), 'x');
+      execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
+
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'my-feat.md'),
+        `---\nname: My Feat\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      mkdirSync(join(dir, 'docs', 'design', 'specs', 'archive'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'design', 'specs', 'archive', '2026-05-25-my-feat-design.md'),
+        '# archived spec',
+      );
+      const r = validateTrailer({
+        cwd: dir,
+        message:
+          'docs(features:my-feat): mark phase=done + archive design artifacts\n\nNoldor-Path: specs-only-new\nNoldor-FD: my-feat\n',
+      });
+      expect(r.ok).toBe(true);
+    });
   });
 });
