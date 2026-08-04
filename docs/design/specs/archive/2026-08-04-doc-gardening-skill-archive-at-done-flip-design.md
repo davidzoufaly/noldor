@@ -284,9 +284,20 @@ docs/design/specs/<date>-doc-gardening-skill-archive-at-done-flip-design.md`.)
 
 Fix: a local `specExists(cwd, suffix)` helper checks the live specs dir (resolved through
 `loadDocRoots`, so the legacy `docs/superpowers/*` window works here too), and accepts an archived
-spec **only when this commit is the one that archived it** — `git diff --cached --name-only
---diff-filter=ACMR -M` must list an `archive/…<suffix>` destination. `design archive` stages its
-`git mv` and the gate commits the index immediately after, so that is exactly the flip commit.
+spec **only when this branch renamed it there** — a destination under the resolved specs `archive/`
+dir matching the suffix must appear either in the index (`git diff --cached --name-status
+--diff-filter=R -M`, i.e. the flip commit itself) or in `<base>..HEAD` (`git log` with the same
+filters). Three properties matter:
+
+- `--diff-filter=R` (not `ACMR`) rejects a file simply *added* into `archive/`, which would prove no
+  spec ever existed live.
+- Anchoring the destination to the specs archive dir stops a same-named plans-side rename (or a
+  template twin under some other `archive/`) from counting.
+- Accepting the rename from branch history, not only from the index, is required because code-stage CR
+  fixes land *after* the flip commit — a staged-only check blocked every follow-up commit on the
+  session (found by dogfooding: this very branch's post-flip commits were rejected). Scoping to
+  `<base>..HEAD` keeps the guarantee: a fresh session on a slug some *earlier* branch archived still
+  needs a live spec.
 
 An earlier revision keyed the fallback on the FD reading `phase: done`. That is a proxy, not proof:
 any later session touching a slug whose FD still reads `done` would satisfy it, turning the archive
@@ -417,11 +428,12 @@ gate Step 4 (FD path)
   the array form (array: only moved elements rewritten, others byte-identical).
 - `sync fd-resources` still repoints `links.spec` (existing behaviour preserved under the renamed
   `resolveArchivedPath`).
-- `validateTrailer` passes on a `specs-only-attach` and a `specs-only-new` commit whose matching spec
-  exists **only** under `docs/design/specs/archive/` **and is staged in that commit** — otherwise the
-  flip commit that performs the archival can never land — and **rejects** an archived spec the commit
-  did not stage, for both `in-progress` and `done` FDs, so the archive is no shortcut around authoring
-  a spec.
+- `validateTrailer` passes on a `specs-only-attach` / `specs-only-new` commit that stages the `git mv`
+  of its matching spec into `docs/design/specs/archive/` (the flip commit), **and** on later commits
+  where that rename already sits in `<base>..HEAD` (post-flip CR fixes). It **rejects**: an archived
+  spec no commit on this branch renamed (for both `in-progress` and `done` FDs), a spec merely *added*
+  into `archive/` with no rename, and a same-named rename into an `archive/` dir outside the specs
+  root.
 - `discoverAddedFiles` diffs against the ref `refs/remotes/origin/HEAD` names (verified with a
   `master`-default fixture) and falls back to `origin/main` when that ref is absent.
 - `specSlugFromFilename` / `planSlugFromFilename` remain importable from `src/garden/garden-detect.ts`

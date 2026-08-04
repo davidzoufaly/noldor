@@ -2,10 +2,11 @@
 // commit-msg stage: validates Noldor-* trailers in the commit message.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync, appendFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import matter from 'gray-matter';
 import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
 import { ARCHIVE_DIR } from '../core/design-artifact-names';
+import { resolveDefaultBase } from '../core/branch-added';
 import { loadDocRoots } from '../core/doc-roots';
 import { PATHS } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
@@ -165,8 +166,9 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   const slug = t['Noldor-FD'];
   if (!slug) return { ok: false, reason: 'Missing Noldor-FD trailer (paths 3–6)' };
 
-  // FDs live in the consumer's feature-MD directory. The hook runs pre-commit,
-  // so it resolves the path directly rather than through loadDocRoots().
+  // FDs live in the consumer's feature-MD directory. Resolved directly rather
+  // than via loadDocRoots(): unlike specs/plans, `docs/features/` was never
+  // renamed, so there is no transition alias to honour here.
   const fdPath = join(opts.cwd, 'docs', 'features', `${slug}.md`);
   if (!existsSync(fdPath)) return { ok: false, reason: `FD does not exist: ${slug}` };
 
@@ -174,24 +176,59 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   const tier = (fd.data['noldor-tier'] as string) ?? null;
   const isPhaseRevert = t['Noldor-Phase-Revert'] === '1';
   /**
-   * Is an `archive/…<suffix>` path staged in THIS commit?
+   * Did THIS BRANCH rename a matching spec into the specs `archive/` dir?
    *
-   * `--diff-filter=ACMR -M` lists rename destinations, so this is true only of
-   * the commit that performed the archival — precisely the flip commit, since
-   * `noldor design archive` stages its `git mv` and the gate commits the index
-   * right after. Unlike a `phase: done` proxy, no later session can satisfy it
-   * by leaving the FD at `done`.
+   * Two deliberate narrowings, both closing ways to satisfy the gate without a
+   * spec ever having existed live:
+   *
+   * - `--diff-filter=R` (renames only, never `A`): a commit that simply *adds*
+   *   a file straight into `archive/` proves nothing — a real archival always
+   *   moves a spec that was committed live at Step 2.5.
+   * - the destination must sit under the resolved specs archive dir, not under
+   *   any `archive/` anywhere in the repo (a plans-side file or a template twin
+   *   would otherwise count).
+   *
+   * Checked both staged (the flip commit, where the rename is not yet committed)
+   * and across `<base>..HEAD` (later commits — code-stage CR fixes follow the
+   * flip and must not be blocked). Branch-scoped either way, so a fresh session
+   * on a slug some earlier branch archived still needs a live spec.
    */
-  function archivedSpecStagedHere(cwd: string, suffix: string): boolean {
-    const r = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-M'], {
-      cwd,
-      encoding: 'utf8',
+  /** Repo-relative specs dir for user-facing messages (honours the 1.0.0 alias). */
+  function specsDirLabel(cwd: string): string {
+    return relative(cwd, loadDocRoots(cwd).specs).split('\\').join('/');
+  }
+
+  function archivedSpecRenamedByThisBranch(cwd: string, suffix: string): boolean {
+    const archiveRel = relative(cwd, join(loadDocRoots(cwd).specs, ARCHIVE_DIR))
+      .split('\\')
+      .join('/');
+    const matches = (out: string): boolean =>
+      out.split('\n').some((line) => {
+        // `R<score>\t<from>\t<to>` — the destination is the third field.
+        const to = line.split('\t')[2]?.trim();
+        if (to === undefined) return false;
+        return to.startsWith(`${archiveRel}/`) && to.endsWith(suffix);
+      });
+
+    const run = (args: readonly string[]): string => {
+      const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      return r.status === 0 ? (r.stdout ?? '') : '';
+    };
+
+    // The flip commit itself: the rename is staged, not yet committed.
+    if (matches(run(['diff', '--cached', '--name-status', '--diff-filter=R', '-M']))) return true;
+
+    // Any commit already on this branch: code-stage CR fixes legitimately follow
+    // the flip commit, and they must not be blocked for re-archiving nothing.
+    // Scoped to `<base>..HEAD` so only THIS branch's archival counts — a fresh
+    // session on a slug archived by some earlier branch still needs a live spec.
+    const base = resolveDefaultBase((args) => {
+      const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+      return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
     });
-    if (r.status !== 0) return false;
-    return (r.stdout ?? '')
-      .split('\n')
-      .map((l) => l.trim())
-      .some((l) => l.includes(`/${ARCHIVE_DIR}/`) && l.endsWith(suffix));
+    return matches(
+      run(['log', '--name-status', '--diff-filter=R', '-M', '--pretty=format:', `${base}..HEAD`]),
+    );
   }
 
   /**
@@ -212,7 +249,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     const archiveDir = join(specsDir, ARCHIVE_DIR);
     if (!existsSync(archiveDir)) return false;
     if (!readdirSync(archiveDir).some((f) => f.endsWith(suffix))) return false;
-    return archivedSpecStagedHere(cwd, suffix);
+    return archivedSpecRenamedByThisBranch(cwd, suffix);
   }
 
   if (path === 'specs-only-new' || path === 'full-new') {
@@ -232,7 +269,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
       if (!specExists(opts.cwd, expectedSuffix)) {
         return {
           ok: false,
-          reason: `specs-only-new requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
+          reason: `specs-only-new requires a spec file at ${specsDirLabel(opts.cwd)}/<date>${expectedSuffix}`,
         };
       }
     }
@@ -252,7 +289,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     if (!specExists(opts.cwd, expectedSuffix)) {
       return {
         ok: false,
-        reason: `${path} requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
+        reason: `${path} requires a spec file at ${specsDirLabel(opts.cwd)}/<date>${expectedSuffix}`,
       };
     }
   }
