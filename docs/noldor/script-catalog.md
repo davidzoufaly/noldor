@@ -375,6 +375,31 @@ Parallel design-drafting pipeline for M+ roadmap entries (see [`plan-runner.md`]
 | `pnpm noldor prep promote`    | [`src/prep/prep-promote.ts`](../../src/prep/prep-promote.ts) | Promote approved drafts to in-progress FDs (serial; `--ship` opens an auto-merged PR). |
 | `pnpm noldor prep format`     | [`src/prep/print-format.ts`](../../src/prep/print-format.ts) | Print the canonical spec\|plan format contract.                                     |
 
+## Design context (spec/plan dialogue)
+
+Running design state for one design dialogue, so every question can be posed with
+its scope, settled decisions, open threads, and existing support visible inline.
+The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
+`<slug>` is the dialogue slug — the feature slug on `*-new` paths,
+`<parent>-<enhancement>` on `*-attach`. Invoked by the `noldor-spec` and
+`noldor-plan` skills, once per question turn.
+
+### `design:log`
+
+- **Trigger:** `pnpm noldor design log --slug <slug> [--entry <roadmap-slug>] [--scope <text>] [--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]...`. Run by the design skills at dialogue start (seed) and after every operator answer.
+- **Inputs:** the existing ledger at `.noldor/design/<slug>.md`, when present.
+- **Outputs:** writes the ledger, minting `D<n>` / `O<n>` ids (never reused). Free text is normalized to one line and tilde runs collapsed, so no value can forge a section, an id, or a resolution. Exits 1 — writing nothing — on an unknown `--resolve` id, a non-slug `--slug`/`--entry`, or a ledger whose any section cannot be parsed, including a duplicate heading (fail closed: guessing the next id would re-issue one, and a write would erase an unparsed section).
+- **When to use:** driven by the skills; run by hand only to seed or repair a ledger.
+- **Source:** [`src/design/log-cli.ts`](../../src/design/log-cli.ts)
+
+### `design:context`
+
+- **Trigger:** `pnpm noldor design context --slug <slug> [--kind spec|plan] [--fd <fd-slug>]`. Run by the design skills immediately before every question; stdout is pasted into chat inside a fenced code block.
+- **Inputs:** the ledger (optional), `docs/roadmap.md`, `docs/features/<fd-slug>.md`, and `.noldor/session.json` — the scope-resolution chain is ledger `## Scope` → roadmap block keyed on the ledger's `## Entry` (else the dialogue slug) → FD `## Summary` keyed on `--fd` or an attach marker's `parent` → `(scope not recorded)`.
+- **Outputs:** prints the block — Scope, Decided, Open, Existing support, in that fixed order, uncapped, every value line `- `-prefixed. Exits 0 for a missing or hand-mangled ledger (degrades, flagging `⚠ ledger section unparsed`); exits 1 only for a non-slug `--slug`/`--fd`.
+- **When to use:** driven by the skills; run by hand to see the current design state of a dialogue.
+- **Source:** [`src/design/context-cli.ts`](../../src/design/context-cli.ts)
+
 ## Research
 
 | Command                        | Source                                        | Purpose                                                                                     |

@@ -6,6 +6,7 @@ links:
   code:
     - .claude/skills/noldor-spec/
     - .claude/skills/noldor-plan/
+    - src/design/
     - src/worktrees/
     - src/prep/draft.ts
     - src/prep/formats.ts
@@ -17,6 +18,8 @@ links:
     - docs/noldor/workflow.md
     - docs/noldor/skill-catalog.md
   tests:
+    - src/design/__tests__/ledger.test.ts
+    - src/design/__tests__/render.test.ts
     - src/prep/__tests__/formats.test.ts
     - src/prep/__tests__/print-format.test.ts
     - src/worktrees/__tests__/create-worktree.test.ts
@@ -36,7 +39,6 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
-
 ## Summary
 
 The framework's core flows depend on the third-party `superpowers` Claude Code plugin. Four load-bearing uses: `superpowers:brainstorming` produces every spec (gate SKILL.md Steps for all spec paths), `superpowers:writing-plans` produces every plan, `superpowers:using-git-worktrees` does worktree creation, and — worst — `src/prep/draft.ts:18` bakes a "REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans" blockquote **into every generated plan**, so the dependency propagates into consumer repos at plan-execution time. Everything else is path naming (`docs/design/specs|plans`). A consumer without the plugin cannot run the gate's spec/plan paths; an upstream plugin edit can silently change framework behavior. Vendor the flows.
@@ -49,6 +51,8 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
 
 - Spec stage (gate-invoked or standalone): invoke the `noldor-spec` skill — dialogues to a design, writes `docs/design/specs/YYYY-MM-DD-<slug>-design.md` per `pnpm noldor prep format spec`.
 - Plan stage: invoke the `noldor-plan` skill — writes `docs/design/plans/YYYY-MM-DD-<slug>.md` per `pnpm noldor prep format plan`.
+- Design context during either dialogue (agent-agnostic, plain inline text): seed once with `pnpm noldor design log --slug <dialogue-slug> [--entry <roadmap-slug>] --support "<path:line> — already does X"`; before every question run `pnpm noldor design context --slug <dialogue-slug> [--kind plan]` and paste its stdout verbatim inside a fenced code block above the question; after every answer run `pnpm noldor design log --slug <dialogue-slug> [--resolve <O-id>] --decide "<what was settled>" [--open "<new thread>"]`. Dialogue slug is the feature slug on `*-new` paths, `<parent>-<enhancement>` on `*-attach`.
+- Ledger inspection / reset: the running state lives at `.noldor/design/<slug>.md` (untracked, gitignored by `noldor init`). Read it freely; never hand-edit it — `design log` fails closed on a file it cannot parse, while `design context` degrades and flags `⚠ ledger section unparsed`.
 - Worktree: `pnpm noldor worktrees create <slug>` from the main workspace (`--branch <name>` overrides the default `feat/<slug>` naming — the gate's fast-track path passes `fast/<desc>`; `--no-install` skips dependency install on restores).
 - Format contract inspection (any agent, any repo with noldor installed): `pnpm noldor prep format <spec|plan>`.
 - Plan execution (interactive and autonomous alike): follow the plan header — execute tasks inline, commit per task, tick checkboxes.

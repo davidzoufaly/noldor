@@ -11,6 +11,12 @@ Write an implementation plan for an engineer with zero context for this codebase
 ## Flow
 
 1. **Read the spec** (latest `docs/design/specs/*-<slug>-design.md`) and every file it names. If the spec spans multiple independent subsystems, flag it — one plan per subsystem, each producing working testable software on its own.
+
+   **Any question you pose while planning carries the design state inline**, same loop and same ledger as the spec dialogue (decisions taken at spec time stay visible here — that continuity is the point):
+   - before every question: `pnpm noldor design context --slug <dialogue-slug> --kind plan`, pasted verbatim inside a fenced code block immediately above the question;
+   - after every answer: `pnpm noldor design log --slug <dialogue-slug> --decide "…"` (plus `--resolve <id>` / `--open "…"` as applicable).
+
+   Dialogue slug = the feature slug on `*-new` paths, `<parent>-<enhancement>` on `*-attach` — the key that names the spec file. Never hand-edit `.noldor/design/<slug>.md`.
 2. **File structure first.** Before tasks, map which files are created/modified and each one's single responsibility — this locks decomposition. Follow the codebase's existing patterns; prefer small focused files.
 3. **Format contract.** Run `pnpm noldor prep format plan` and structure the document exactly per the printed contract, header blockquote included verbatim.
 4. **Tasks.** Each task: a **Files:** block (Create:/Modify:/Test: exact paths), then checkbox steps. One step = one 2-5 minute action. TDD order: write the failing test → run to verify FAIL (exact command + expected output) → implement → run to verify PASS → commit (fenced bash with a conventional-commit subject and the `Noldor-FD: <slug>` trailer).
