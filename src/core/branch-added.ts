@@ -116,15 +116,23 @@ export function repoRoot(cwd?: string, runGit?: RunGit): string {
  * result compares directly against git's own output on every platform — an
  * unnormalized `sub/../docs/x` would match nothing.
  *
- * @throws When git cannot report the prefix (not a repository, git missing).
- *   Deliberately loud: a silent `''` prefix would quietly produce paths that
- *   match nothing, which reads as "not found" rather than "could not look".
+ * @throws When git cannot report the prefix (not a repository, git missing), or
+ *   when `absPath` resolves outside the repository. Deliberately loud on both: a
+ *   silent `''` prefix or an escaping `../outside` result would quietly produce
+ *   paths that match nothing, which reads as "not found" rather than "could not
+ *   look" / "not ours to look at".
  */
 export function toRepoRelative(absPath: string, cwd: string, runGit?: RunGit): string {
   const run = runGit ?? defaultRunGit(cwd);
   const prefix = git(run, ['rev-parse', '--show-prefix']).trim();
   const rel = relative(cwd, absPath).split('\\').join('/');
-  return posix.normalize(`${prefix}${rel}`).replace(/\/+$/, '');
+  const out = posix.normalize(`${prefix}${rel}`).replace(/\/+$/, '');
+  // `..` survived normalization, or `relative()` gave up and returned an absolute
+  // path (different Windows drive) — either way the target is not in this repo.
+  if (out === '..' || out.startsWith('../') || posix.isAbsolute(out) || /^[A-Za-z]:/.test(out)) {
+    throw new Error(`path is outside the repository: ${absPath}`);
+  }
+  return out;
 }
 
 export interface RenameDestExistsOptions {

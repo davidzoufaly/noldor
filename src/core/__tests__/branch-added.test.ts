@@ -180,6 +180,13 @@ describe(toRepoRelative, () => {
     expect(toRepoRelative(join(dir, 'src'), join(dir, 'docs', 'design'))).toBe('src');
   });
 
+  it('throws when the path lies outside the repository', () => {
+    const dir = repoWithDivergedMain();
+    expect(() => toRepoRelative(join(dir, '..', 'elsewhere'), dir)).toThrow(
+      /outside the repository/,
+    );
+  });
+
   it('throws instead of degrading when git cannot report the prefix', () => {
     const failing: RunGit = () => ({
       status: 1,
