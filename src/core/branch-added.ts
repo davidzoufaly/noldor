@@ -4,13 +4,15 @@
 // archival). One module so the range semantics are decided in exactly one place.
 
 import { spawnSync } from 'node:child_process';
+import { relative } from 'node:path';
 
 /** Test seam — mirrors the `spawnSync` shape this module needs. */
 export interface RunGit {
   (args: readonly string[]): { status: number | null; stdout: string; stderr: string };
 }
 
-function defaultRunGit(cwd: string | undefined): RunGit {
+/** The production {@link RunGit}: `spawnSync('git', …)` anchored at `cwd`. */
+export function defaultRunGit(cwd: string | undefined): RunGit {
   return (args) => {
     const r = spawnSync('git', [...args], { cwd, encoding: 'utf8' });
     return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
@@ -102,4 +104,84 @@ export function discoverAddedFiles(options: DiscoverAddedFilesOptions = {}): str
 export function repoRoot(cwd?: string, runGit?: RunGit): string {
   const run = runGit ?? defaultRunGit(cwd);
   return git(run, ['rev-parse', '--show-toplevel']).trim();
+}
+
+/**
+ * Repo-root-relative form of an absolute path inside the repo.
+ *
+ * Anchored with `git rev-parse --show-prefix` (how deep `cwd` sits in the repo)
+ * rather than `--show-toplevel`: on macOS the latter returns the resolved
+ * `/private/var/…` form while `cwd` is the `/var/…` symlink, so relativizing the
+ * two yields nonsense. Forward slashes, so the result compares directly against
+ * git's own output on every platform.
+ */
+export function toRepoRelative(absPath: string, cwd: string, runGit?: RunGit): string {
+  const run = runGit ?? defaultRunGit(cwd);
+  const probe = run(['rev-parse', '--show-prefix']);
+  const prefix = probe.status === 0 ? probe.stdout.trim() : '';
+  return prefix + relative(cwd, absPath).split('\\').join('/');
+}
+
+export interface RenameDestExistsOptions {
+  /** Working directory for the git calls. */
+  cwd: string;
+  /** Repo-relative destination directory, e.g. `docs/design/specs/archive`. */
+  destDirRel: string;
+  /** Destination basename suffix, e.g. `-my-feature-design.md`. */
+  suffix: string;
+  /** Base ref for the branch-scoped lookup. Default: {@link resolveDefaultBase}. */
+  base?: string;
+  /** Test seam. */
+  runGit?: RunGit;
+}
+
+/**
+ * Did THIS BRANCH rename a file matching `suffix` into `destDirRel`?
+ *
+ * `--diff-filter=R` means renames only: a file simply *added* at the destination
+ * does not count, which is what makes this usable as proof that the source
+ * existed before the move (the trailer gate relies on exactly that for archived
+ * specs). The destination must sit under `destDirRel`, so a same-named rename
+ * into some other directory cannot satisfy it.
+ *
+ * Looks in two places, in order:
+ * 1. the index — the commit performing the rename has it staged, not committed;
+ * 2. `<base>..HEAD` — later commits on the same branch (a commit after the one
+ *    that renamed must not be treated as though the rename never happened).
+ *
+ * When the range itself cannot be resolved (a remote-less repo has no
+ * `origin/main`), falls back to full `HEAD` history rather than reporting
+ * "no rename" for what is really a git failure: a real rename is still required,
+ * only the branch scoping is lost.
+ */
+export function renameDestExists(options: RenameDestExistsOptions): boolean {
+  const { cwd, destDirRel, suffix } = options;
+  const run = options.runGit ?? defaultRunGit(cwd);
+
+  // `core.quotepath=false`: C-quoted non-ASCII paths (`"docs/…/caf\303\251.md"`)
+  // would never match a path built from the filesystem.
+  const out = (args: readonly string[]): { ok: boolean; text: string } => {
+    const r = run(['-c', 'core.quotepath=false', ...args]);
+    return { ok: r.status === 0, text: r.stdout };
+  };
+
+  const matches = (text: string): boolean =>
+    text.split('\n').some((line) => {
+      // `R<score>\t<from>\t<to>` — the destination is the third field.
+      const to = line.split('\t')[2]?.trim();
+      if (to === undefined) return false;
+      return to.startsWith(`${destDirRel}/`) && to.endsWith(suffix);
+    });
+
+  const RENAME_ARGS = ['--name-status', '--diff-filter=R', '-M'] as const;
+
+  const staged = out(['diff', '--cached', ...RENAME_ARGS]);
+  if (staged.ok && matches(staged.text)) return true;
+
+  const base = options.base ?? resolveDefaultBase(run);
+  const scoped = out(['log', ...RENAME_ARGS, '--pretty=format:', `${base}..HEAD`]);
+  if (scoped.ok) return matches(scoped.text);
+
+  const unscoped = out(['log', ...RENAME_ARGS, '--pretty=format:', 'HEAD']);
+  return unscoped.ok && matches(unscoped.text);
 }

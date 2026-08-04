@@ -2,11 +2,11 @@
 // commit-msg stage: validates Noldor-* trailers in the commit message.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync, appendFileSync, readdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import matter from 'gray-matter';
 import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
 import { ARCHIVE_DIR } from '../core/design-artifact-names';
-import { resolveDefaultBase } from '../core/branch-added';
+import { renameDestExists, toRepoRelative } from '../core/branch-added';
 import { loadDocRoots } from '../core/doc-roots';
 import { PATHS } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
@@ -178,101 +178,29 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   /** Specs dir, resolved once (honours the 1.0.0 `docs/superpowers` alias). */
   const specsDirAbs = loadDocRoots(opts.cwd).specs;
 
-  /**
-   * `git` with `core.quotepath=false` so non-ASCII paths come back verbatim
-   * rather than C-quoted (`"docs/design/specs/caf\303\251.md"`) — quoted output
-   * would never match a path built from the filesystem.
-   */
-  function gitOut(cwd: string, args: readonly string[]): { ok: boolean; out: string } {
-    const r = spawnSync('git', ['-c', 'core.quotepath=false', ...args], { cwd, encoding: 'utf8' });
-    return { ok: r.status === 0, out: r.stdout ?? '' };
-  }
-
   /** Repo-relative specs dir for user-facing messages. */
-  function specsDirLabel(cwd: string): string {
-    return relative(cwd, specsDirAbs).split('\\').join('/');
-  }
-
-  /**
-   * Did THIS BRANCH rename a matching spec into the specs `archive/` dir?
-   *
-   * Two deliberate narrowings, both closing ways to satisfy the gate without a
-   * spec ever having existed live:
-   *
-   * - `--diff-filter=R` (renames only, never `A`): a commit that simply *adds*
-   *   a file straight into `archive/` proves nothing — a real archival always
-   *   moves a spec that was committed live at Step 2.5.
-   * - the destination must sit under the resolved specs archive dir, not under
-   *   any `archive/` anywhere in the repo (a plans-side file or a template twin
-   *   would otherwise count).
-   *
-   * Checked both staged (the flip commit, where the rename is not yet committed)
-   * and across `<base>..HEAD` (later commits — code-stage CR fixes follow the
-   * flip and must not be blocked). Branch-scoped, so a fresh session on a slug
-   * some earlier branch archived still needs a live spec.
-   */
-  function archivedSpecRenamedByThisBranch(cwd: string, suffix: string): boolean {
-    // git emits repo-root-relative paths. Anchor by asking git how deep `cwd`
-    // sits inside the repo (`--show-prefix`, e.g. `sub/dir/`) and prepending
-    // that to the cwd-relative archive path. Deliberately not via
-    // `--show-toplevel`: on macOS that returns the resolved `/private/var/…`
-    // form while `cwd` is the `/var/…` symlink, so `relative()` of the two
-    // yields nonsense.
-    const prefixProbe = gitOut(cwd, ['rev-parse', '--show-prefix']);
-    const prefix = prefixProbe.ok ? prefixProbe.out.trim() : '';
-    const archiveRel = prefix + relative(cwd, join(specsDirAbs, ARCHIVE_DIR)).split('\\').join('/');
-
-    const matches = (out: string): boolean =>
-      out.split('\n').some((line) => {
-        // `R<score>\t<from>\t<to>` — the destination is the third field.
-        const to = line.split('\t')[2]?.trim();
-        if (to === undefined) return false;
-        return to.startsWith(`${archiveRel}/`) && to.endsWith(suffix);
-      });
-
-    const RENAME_ARGS = ['--name-status', '--diff-filter=R', '-M'] as const;
-
-    // The flip commit itself: the rename is staged, not yet committed.
-    const staged = gitOut(cwd, ['diff', '--cached', ...RENAME_ARGS]);
-    if (staged.ok && matches(staged.out)) return true;
-
-    // Any commit already on this branch: code-stage CR fixes legitimately follow
-    // the flip commit, and they must not be blocked for re-archiving nothing.
-    const base = resolveDefaultBase((args) => {
-      const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
-      return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
-    });
-    const scoped = gitOut(cwd, ['log', ...RENAME_ARGS, '--pretty=format:', `${base}..HEAD`]);
-    if (scoped.ok) return matches(scoped.out);
-
-    // The range itself failed — a remote-less repo has no `origin/main` to
-    // resolve, and treating that as "no rename" would block every post-flip
-    // commit there. Fall back to full HEAD history: a real rename is still
-    // required (no shortcut around authoring a spec); only the branch scoping is
-    // lost, which at worst accepts an archival an earlier branch performed.
-    const unscoped = gitOut(cwd, ['log', ...RENAME_ARGS, '--pretty=format:', 'HEAD']);
-    return unscoped.ok && matches(unscoped.out);
-  }
+  const specsDirLabel = (): string => toRepoRelative(specsDirAbs, opts.cwd);
 
   /**
    * Does a spec matching `suffix` exist for this session?
    *
-   * The live directory always counts. An archived spec counts only when this
-   * commit is the one that archived it: `/noldor-gate` Step 4 runs
-   * `noldor design archive` immediately before the phase-flip commit, so that
-   * commit sees the spec already under `archive/` and would otherwise be
-   * unlandable on every `specs-only-*` / `full-attach` session. Every other
-   * commit — implementation, or a fresh session on a slug whose old spec was
-   * archived long ago — still requires a live spec, so the archive is no
-   * shortcut around authoring one.
+   * The live directory always counts. An archived spec counts only when THIS
+   * BRANCH renamed it there — `/noldor-gate` Step 4 runs `noldor design archive`
+   * immediately before the phase-flip commit, so that commit (and every
+   * code-stage CR fix after it) sees the spec already under `archive/` and would
+   * otherwise be unlandable on every `specs-only-*` / `full-attach` session. A
+   * fresh session on a slug some earlier branch archived still needs a live spec,
+   * and a file merely *added* into `archive/` never counts — see
+   * {@link renameDestExists}.
    */
   function specExists(cwd: string, suffix: string): boolean {
-    const specsDir = specsDirAbs;
-    if (existsSync(specsDir) && readdirSync(specsDir).some((f) => f.endsWith(suffix))) return true;
-    const archiveDir = join(specsDir, ARCHIVE_DIR);
+    if (existsSync(specsDirAbs) && readdirSync(specsDirAbs).some((f) => f.endsWith(suffix))) {
+      return true;
+    }
+    const archiveDir = join(specsDirAbs, ARCHIVE_DIR);
     if (!existsSync(archiveDir)) return false;
     if (!readdirSync(archiveDir).some((f) => f.endsWith(suffix))) return false;
-    return archivedSpecRenamedByThisBranch(cwd, suffix);
+    return renameDestExists({ cwd, destDirRel: toRepoRelative(archiveDir, cwd), suffix });
   }
 
   if (path === 'specs-only-new' || path === 'full-new') {
@@ -292,7 +220,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
       if (!specExists(opts.cwd, expectedSuffix)) {
         return {
           ok: false,
-          reason: `specs-only-new requires a spec file at ${specsDirLabel(opts.cwd)}/<date>${expectedSuffix}`,
+          reason: `specs-only-new requires a spec file at ${specsDirLabel()}/<date>${expectedSuffix}`,
         };
       }
     }
@@ -312,7 +240,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     if (!specExists(opts.cwd, expectedSuffix)) {
       return {
         ok: false,
-        reason: `${path} requires a spec file at ${specsDirLabel(opts.cwd)}/<date>${expectedSuffix}`,
+        reason: `${path} requires a spec file at ${specsDirLabel()}/<date>${expectedSuffix}`,
       };
     }
   }

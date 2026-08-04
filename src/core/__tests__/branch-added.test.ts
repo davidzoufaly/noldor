@@ -10,7 +10,13 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { discoverAddedFiles, repoRoot, resolveDefaultBase } from '../branch-added.js';
+import {
+  discoverAddedFiles,
+  renameDestExists,
+  repoRoot,
+  resolveDefaultBase,
+  toRepoRelative,
+} from '../branch-added.js';
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' });
@@ -80,6 +86,90 @@ describe(discoverAddedFiles, () => {
     git(dir, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master']);
     // Would throw "no origin/main" before the default-base resolution.
     expect(discoverAddedFiles({ cwd: dir })).toEqual(['docs/design/specs/new.md']);
+  });
+});
+
+describe(renameDestExists, () => {
+  const SUFFIX = '-parent-my-enh-design.md';
+  const DEST = 'docs/design/specs/archive';
+
+  /** Repo with a live, committed spec; `origin/main` marks the branch base. */
+  function repoWithLiveSpec(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'rename-dest-'));
+    git(dir, ['init', '-q', '-b', 'main']);
+    git(dir, ['config', 'user.email', 't@example.com']);
+    git(dir, ['config', 'user.name', 'T']);
+    mkdirSync(join(dir, 'docs', 'design', 'specs'), { recursive: true });
+    writeFileSync(join(dir, `docs/design/specs/2026-05-25${SUFFIX}`), 'spec\n');
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-qm', 'add spec']);
+    git(dir, ['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+    return dir;
+  }
+
+  function archive(dir: string): void {
+    mkdirSync(join(dir, DEST), { recursive: true });
+    git(dir, ['mv', `docs/design/specs/2026-05-25${SUFFIX}`, `${DEST}/2026-05-25${SUFFIX}`]);
+  }
+
+  it('sees the rename while it is only staged', () => {
+    const dir = repoWithLiveSpec();
+    archive(dir);
+    expect(renameDestExists({ cwd: dir, destDirRel: DEST, suffix: SUFFIX })).toBe(true);
+  });
+
+  it('sees a rename committed earlier on the branch', () => {
+    const dir = repoWithLiveSpec();
+    archive(dir);
+    git(dir, ['commit', '-qm', 'archive']);
+    expect(renameDestExists({ cwd: dir, destDirRel: DEST, suffix: SUFFIX })).toBe(true);
+  });
+
+  it('rejects a file merely added at the destination', () => {
+    const dir = repoWithLiveSpec();
+    mkdirSync(join(dir, DEST), { recursive: true });
+    writeFileSync(join(dir, `${DEST}/2026-05-25${SUFFIX}`), 'copy\n');
+    git(dir, ['add', '-A']);
+    expect(renameDestExists({ cwd: dir, destDirRel: DEST, suffix: SUFFIX })).toBe(false);
+  });
+
+  it('rejects a rename into a different directory', () => {
+    const dir = repoWithLiveSpec();
+    mkdirSync(join(dir, 'docs/design/plans/archive'), { recursive: true });
+    git(dir, [
+      'mv',
+      `docs/design/specs/2026-05-25${SUFFIX}`,
+      `docs/design/plans/archive/2026-05-25${SUFFIX}`,
+    ]);
+    expect(renameDestExists({ cwd: dir, destDirRel: DEST, suffix: SUFFIX })).toBe(false);
+  });
+
+  it('falls back to full history when the base ref cannot be resolved', () => {
+    const dir = repoWithLiveSpec();
+    archive(dir);
+    git(dir, ['commit', '-qm', 'archive']);
+    git(dir, ['update-ref', '-d', 'refs/remotes/origin/main']);
+    expect(renameDestExists({ cwd: dir, destDirRel: DEST, suffix: SUFFIX })).toBe(true);
+  });
+
+  it('does not count a rename made before the branch base', () => {
+    const dir = repoWithLiveSpec();
+    archive(dir);
+    git(dir, ['commit', '-qm', 'archive']);
+    // Base moves forward past the archival: from here it is history, not ours.
+    git(dir, ['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+    writeFileSync(join(dir, 'later.txt'), 'x\n');
+    git(dir, ['add', '-A']);
+    expect(renameDestExists({ cwd: dir, destDirRel: DEST, suffix: SUFFIX })).toBe(false);
+  });
+});
+
+describe(toRepoRelative, () => {
+  it('returns the repo-relative path from the root and from a subdirectory', () => {
+    const dir = repoWithDivergedMain();
+    const specs = join(dir, 'docs', 'design', 'specs');
+    expect(toRepoRelative(specs, dir)).toBe('docs/design/specs');
+    expect(toRepoRelative(specs, join(dir, 'docs'))).toBe('docs/design/specs');
   });
 });
 

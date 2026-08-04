@@ -301,8 +301,12 @@ filters). Three properties matter:
   `origin/main`), the check falls back to full `HEAD` history rather than reading a git failure as "no
   rename" — a real rename is still required, only the branch scoping is lost.
 
-Both git calls run with `-c core.quotepath=false`, matching `branch-added.ts`: C-quoted non-ASCII
-paths would never match a path built from the filesystem. Repo-relative anchoring uses
+The rename lookup itself lives in core as `renameDestExists` in
+[`src/core/branch-added.ts`](../../../../src/core/branch-added.ts) — the module that already declares
+itself the one place range semantics are decided — alongside `toRepoRelative`. The hook is a caller,
+not an owner: `specExists` reads the two directories and delegates the git archaeology. Both git calls
+run with `-c core.quotepath=false`, matching the rest of that module: C-quoted non-ASCII paths would
+never match a path built from the filesystem. Repo-relative anchoring uses
 `git rev-parse --show-prefix`, **not** `--show-toplevel` — on macOS the latter returns the resolved
 `/private/var/…` form while `cwd` is the `/var/…` symlink, and relativizing the two yields nonsense
 (this silently broke every archived-spec test until fixed).
