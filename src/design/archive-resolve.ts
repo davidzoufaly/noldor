@@ -6,7 +6,7 @@
 // matching alone is not safe.
 
 import { readdir as fsReaddir } from 'node:fs/promises';
-import { basename, join, relative } from 'node:path';
+import { join, relative } from 'node:path';
 
 import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
@@ -104,7 +104,7 @@ async function collect(
     const from = relative(repo, join(dir, entry)).split('\\').join('/');
     if (!branchAdded.has(from)) continue;
 
-    if (archived.has(basename(entry))) {
+    if (archived.has(entry)) {
       skipped.push({ from, reason: 'collision' });
       continue;
     }

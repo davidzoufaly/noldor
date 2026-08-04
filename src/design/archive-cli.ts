@@ -23,7 +23,10 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
   const args: ArchiveArgs = { dryRun: false };
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
-    if (flag === '--dry-run') continue;
+    if (flag === '--dry-run') {
+      args.dryRun = true;
+      continue;
+    }
     if (flag === '--slug') {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith('--')) return { error: 'missing value: --slug' };
@@ -33,12 +36,11 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
     }
     return { error: `unknown flag: ${flag}` };
   }
-  args.dryRun = argv.includes('--dry-run');
   return args;
 }
 
 function git(cwd: string, gitArgs: readonly string[]): { ok: boolean; stderr: string } {
-  const r = spawnSync('git', [...gitArgs], { cwd, encoding: 'utf8' });
+  const r = spawnSync('git', gitArgs, { cwd, encoding: 'utf8' });
   return { ok: r.status === 0, stderr: r.stderr ?? '' };
 }
 
@@ -62,7 +64,17 @@ async function main(): Promise<number> {
   if (key === undefined) {
     // Repo root, not `cwd`: the marker lives at `<root>/.noldor/session.json`, and
     // the gate may invoke this from anywhere inside the worktree.
-    const session = readSession(root);
+    let session;
+    try {
+      session = readSession(root);
+    } catch {
+      // Schema-invalid / corrupt marker: report it in the same shape as the
+      // other error paths rather than letting a raw ZodError escape.
+      process.stderr.write(
+        'design archive: .noldor/session.json is unreadable — re-run /noldor-gate to rewrite the marker\n',
+      );
+      return 1;
+    }
     if (session === null) {
       process.stderr.write(
         'design archive: no .noldor/session.json — did you skip the gate scaffold?\n',
@@ -94,7 +106,13 @@ async function main(): Promise<number> {
 
   const plan = await resolveArchivePlan({ branchAdded, key, repo: root });
   if (plan === null || (plan.moves.length === 0 && plan.skipped.length === 0)) {
-    process.stdout.write(`design archive: no artifacts matching ${key} — nothing to do\n`);
+    // Say WHY nothing matched: the common benign case is a spec committed on an
+    // earlier branch (a specs-only session shipped it; a later session flips the
+    // phase), which is never branch-added here and is garden's to archive.
+    process.stdout.write(
+      `design archive: no artifacts matching ${key} added on this branch — nothing to do ` +
+        `(already archived, or committed on an earlier branch: /noldor-garden owns those)\n`,
+    );
     return 0;
   }
 
@@ -124,7 +142,14 @@ async function main(): Promise<number> {
     process.stdout.write(`archived: ${m.from} → ${m.to}\n`);
   }
 
-  process.stdout.write(`archived: ${plan.moves.length} artifact(s)\n`);
+  // Name the collision count in the tail line: a caller reading only the last
+  // line must not read "archived: 0 artifact(s)" as clean success when an
+  // artifact was left behind because the archive already holds that basename.
+  const tail =
+    plan.skipped.length > 0
+      ? `archived: ${plan.moves.length} artifact(s), ${plan.skipped.length} skipped (already in archive — resolve by hand)\n`
+      : `archived: ${plan.moves.length} artifact(s)\n`;
+  process.stdout.write(tail);
   return 0;
 }
 

@@ -132,14 +132,34 @@ describe('noldor design archive', () => {
     ]);
   });
 
-  it('skips a collision instead of overwriting an archived artifact', () => {
+  it('skips a collision instead of overwriting, and says so in the tail line', () => {
     const dir = repo();
     mkdirSync(join(dir, 'docs/design/specs/archive'), { recursive: true });
     writeFileSync(join(dir, 'docs/design/specs/archive', SPEC), 'already archived\n');
     const r = run(dir);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('skipped (exists in archive):');
+    // A caller reading only the tail must not see a bare "archived: 0 artifact(s)".
+    expect(r.stdout).toContain('1 skipped (already in archive');
     expect(existsSync(join(dir, 'docs/design/specs', SPEC))).toBe(true);
+  });
+
+  it('explains why nothing matched instead of a bare no-op', () => {
+    const dir = repo({ withPlan: true });
+    run(dir);
+    git(dir, ['commit', '-qm', 'archive']);
+    const again = run(dir);
+    expect(again.status).toBe(0);
+    expect(again.stdout).toContain('added on this branch');
+    expect(again.stdout).toContain('/noldor-garden owns those');
+  });
+
+  it('reports a corrupt session marker in usage shape, not a raw ZodError', () => {
+    const dir = repo({ session: { path: 'not-a-real-path' } });
+    const r = run(dir);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('session.json is unreadable');
+    expect(r.stderr).not.toContain('ZodError');
   });
 
   it('exits 1 with a scaffold hint when no session marker exists', () => {
