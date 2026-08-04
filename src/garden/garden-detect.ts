@@ -37,10 +37,6 @@ import {
 } from './plan-resolution.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
-// Re-exported for callers that historically imported the parsers from this
-// module; the definitions now live in `src/core/design-artifact-names.ts`.
-export { planSlugFromFilename, specSlugFromFilename };
-
 import type { FeatureFrontmatter } from '../core/feature-schema.js';
 import type { RulePairInvariant as Invariant } from '../invariants/rule-pairs.js';
 import type { Invariant as ArchitectureInvariant, InvariantResult } from '../invariants/types.js';

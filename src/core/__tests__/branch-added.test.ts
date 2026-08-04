@@ -53,16 +53,17 @@ function repoWithDivergedMain(): string {
 describe(discoverAddedFiles, () => {
   it('returns only what this branch added, not what main moved after the branch point', () => {
     const dir = repoWithDivergedMain();
-    const added = discoverAddedFiles({ cwd: dir, prefix: 'docs/design/specs/' });
+    const added = discoverAddedFiles({ cwd: dir });
     expect(added).toEqual(['docs/design/specs/new.md']);
     // The two-dot range would have reported main's pre-archive path as added here.
     expect(added).not.toContain('docs/design/specs/old.md');
   });
 
-  it('filters by prefix and returns repo-relative paths', () => {
+  it('returns repo-relative paths callers can filter themselves', () => {
     const dir = repoWithDivergedMain();
-    expect(discoverAddedFiles({ cwd: dir, prefix: 'src/' })).toEqual([]);
-    expect(discoverAddedFiles({ cwd: dir })).toEqual(['docs/design/specs/new.md']);
+    const added = discoverAddedFiles({ cwd: dir });
+    expect(added).toEqual(['docs/design/specs/new.md']);
+    expect(added.filter((f) => f.startsWith('src/'))).toEqual([]);
   });
 
   it('throws when the base ref does not resolve', () => {

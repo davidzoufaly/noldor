@@ -26,8 +26,6 @@ function git(run: RunGit, args: readonly string[]): string {
 }
 
 export interface DiscoverAddedFilesOptions {
-  /** Only return paths starting with this repo-relative prefix. Default: all. */
-  prefix?: string;
   /** Working directory for the git calls. Default: `process.cwd()`. */
   cwd?: string;
   /** Base ref to diff against. Default: `origin/main`. */
@@ -54,7 +52,9 @@ export interface DiscoverAddedFilesOptions {
  * @throws When git fails: no `base` ref, no merge base, not a repository.
  */
 export function discoverAddedFiles(options: DiscoverAddedFilesOptions = {}): string[] {
-  const { prefix, cwd, base = 'origin/main' } = options;
+  // Callers filter the result themselves — one git round-trip serves any number
+  // of path prefixes.
+  const { cwd, base = 'origin/main' } = options;
   const run = options.runGit ?? defaultRunGit(cwd);
   const mergeBase = git(run, ['merge-base', base, 'HEAD']).trim();
   if (mergeBase.length === 0) {
@@ -76,8 +76,7 @@ export function discoverAddedFiles(options: DiscoverAddedFilesOptions = {}): str
   return out
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-    .filter((l) => prefix === undefined || l.startsWith(prefix));
+    .filter((l) => l.length > 0);
 }
 
 /**

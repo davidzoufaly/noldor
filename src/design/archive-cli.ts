@@ -33,7 +33,8 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
       // An empty key would resolve to nothing and print the benign "nothing to
       // do" line — invalid input must not read as success.
       if (value.trim().length === 0) return { error: 'empty value: --slug' };
-      args.slug = value;
+      // Trim what we store too: a padded key would silently match nothing.
+      args.slug = value.trim();
       i += 1;
       continue;
     }
