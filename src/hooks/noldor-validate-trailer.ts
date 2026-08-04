@@ -169,27 +169,32 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   const fdPath = join(opts.cwd, 'docs', 'features', `${slug}.md`);
   if (!existsSync(fdPath)) return { ok: false, reason: `FD does not exist: ${slug}` };
 
+  const fd = matter(readFileSync(fdPath, 'utf8'));
+  const tier = (fd.data['noldor-tier'] as string) ?? null;
+  const isPhaseRevert = t['Noldor-Phase-Revert'] === '1';
+  const isDoneFlip = fd.data.phase === 'done';
+
   /**
-   * Does a spec matching `suffix` exist, live OR archived?
+   * Does a spec matching `suffix` exist for this session?
    *
-   * The archive lookup is required, not a nicety: `/noldor-gate` Step 4 runs
-   * `noldor design archive` immediately before the phase-flip commit, so by the
-   * time this hook validates that commit the spec has already moved to
-   * `docs/design/specs/archive/`. A live-only check would make the flip commit
-   * unlandable on every `specs-only-*` / `full-attach` session.
+   * Live directory always counts. The `archive/` fallback is gated on the FD
+   * already reading `phase: done`, which is true only of the flip commit —
+   * `/noldor-gate` Step 4 runs `noldor design archive` and `features
+   * phase-flip-done` back to back, so that commit sees an archived spec and
+   * would otherwise be unlandable on every `specs-only-*` / `full-attach`
+   * session. Every other commit (implementation, a *fresh* session reworking a
+   * slug whose old spec was archived long ago) still requires a live spec, so
+   * the archive cannot be used to skip authoring one.
    */
   function specExists(cwd: string, suffix: string): boolean {
     const specsDir = join(cwd, 'docs', 'design', 'specs');
-    for (const dir of [specsDir, join(specsDir, ARCHIVE_DIR)]) {
+    const dirs = isDoneFlip ? [specsDir, join(specsDir, ARCHIVE_DIR)] : [specsDir];
+    for (const dir of dirs) {
       if (!existsSync(dir)) continue;
       if (readdirSync(dir).some((f) => f.endsWith(suffix))) return true;
     }
     return false;
   }
-
-  const fd = matter(readFileSync(fdPath, 'utf8'));
-  const tier = (fd.data['noldor-tier'] as string) ?? null;
-  const isPhaseRevert = t['Noldor-Phase-Revert'] === '1';
 
   if (path === 'specs-only-new' || path === 'full-new') {
     const expected = path === 'full-new' ? 'full' : 'specs-only';

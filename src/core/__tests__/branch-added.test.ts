@@ -3,14 +3,14 @@
 // `main` deleted AFTER the branch point must not read as added on this branch —
 // which is exactly what flip-time archival does to specs on `main`.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { discoverAddedFiles, repoRoot } from '../branch-added.js';
+import { discoverAddedFiles, repoRoot, resolveDefaultBase } from '../branch-added.js';
 
 function git(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' });
@@ -69,6 +69,38 @@ describe(discoverAddedFiles, () => {
   it('throws when the base ref does not resolve', () => {
     const dir = repoWithDivergedMain();
     expect(() => discoverAddedFiles({ base: 'origin/nope', cwd: dir })).toThrow(/merge-base/);
+  });
+
+  it('follows the remote default branch when it is not main', () => {
+    const dir = repoWithDivergedMain();
+    // Rename the default branch to `master` and point origin/HEAD at it, as a
+    // consumer repo cloned from a master-default remote would be.
+    git(dir, ['update-ref', 'refs/remotes/origin/master', 'refs/remotes/origin/main']);
+    git(dir, ['update-ref', '-d', 'refs/remotes/origin/main']);
+    git(dir, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master']);
+    // Would throw "no origin/main" before the default-base resolution.
+    expect(discoverAddedFiles({ cwd: dir })).toEqual(['docs/design/specs/new.md']);
+  });
+});
+
+describe(resolveDefaultBase, () => {
+  it('falls back to origin/main when refs/remotes/origin/HEAD is absent', () => {
+    const dir = repoWithDivergedMain();
+    const run = (args: readonly string[]) => {
+      const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+      return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+    };
+    expect(resolveDefaultBase(run)).toBe('origin/main');
+  });
+
+  it('returns the ref origin/HEAD points at', () => {
+    const dir = repoWithDivergedMain();
+    git(dir, ['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main']);
+    const run = (args: readonly string[]) => {
+      const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+      return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+    };
+    expect(resolveDefaultBase(run)).toBe('origin/main');
   });
 });
 

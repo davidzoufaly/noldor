@@ -547,6 +547,31 @@ describe('validateTrailer', () => {
       expect(r.ok).toBe(true);
     });
 
+    // The archive fallback is gated on `phase: done` so it cannot be used to
+    // skip authoring a spec: a fresh session on a slug whose old spec was
+    // archived long ago still has an in-progress FD.
+    it('rejects an archived-only spec while the FD is still in-progress', () => {
+      const dir = setupRepo();
+      setupPostRollout(dir);
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'parent.md'),
+        `---\nname: Parent\nphase: in-progress\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      mkdirSync(join(dir, 'docs', 'design', 'specs', 'archive'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'design', 'specs', 'archive', '2026-05-25-parent-my-enh-design.md'),
+        '# archived spec',
+      );
+      const r = validateTrailer({
+        cwd: dir,
+        message:
+          'feat(parent): enhance\n\nNoldor-Path: specs-only-attach\nNoldor-FD: parent\nNoldor-Enhancement: my-enh\n',
+      });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/my-enh-design\.md/);
+    });
+
     // Regression: `noldor design archive` moves the spec into archive/ right
     // before the phase-flip commit, so a live-only lookup made that commit
     // unlandable on every attach session.

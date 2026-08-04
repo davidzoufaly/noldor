@@ -169,6 +169,12 @@ Paths from `diff-tree` are repo-root-relative, so the helper resolves the root w
 `git rev-parse --show-toplevel` and callers compare root-relative paths — otherwise a subdir `cwd`
 would fail the gate for every artifact and report a confusing `nothing to do`.
 
+The base ref is **resolved, not hardcoded**: `resolveDefaultBase` reads
+`refs/remotes/origin/HEAD` (`git symbolic-ref --short`) and falls back to `origin/main` when that ref
+is absent. A consumer repo whose default branch is `master` or `develop` would otherwise fail the
+merge-base call on every run and sit permanently fail-closed — archival silently never happening,
+which is exactly the "reads as success" failure this spec keeps designing against.
+
 `git merge-base origin/main HEAD` returns a single (arbitrary) base on a criss-cross history. Left
 as-is: the repo's squash-merge, short-lived-branch flow does not produce criss-cross merges, and
 `--all` handling would buy nothing here. Noted in Risks.
@@ -276,9 +282,14 @@ and no attach session can ever commit its flip. (Found by dogfooding this very f
 commit was rejected with `specs-only-attach requires a spec file at
 docs/design/specs/<date>-doc-gardening-skill-archive-at-done-flip-design.md`.)
 
-Fix: a local `specExists(cwd, suffix)` helper scans `docs/design/specs/` **and**
-`docs/design/specs/archive/`, used by both the `*-new` and the `*-attach` branches. An archived spec
-still proves the design artifact exists — which is all the gate ever wanted.
+Fix: a local `specExists(cwd, suffix)` helper scans `docs/design/specs/`, plus
+`docs/design/specs/archive/` **only when the FD already reads `phase: done`**. An archived spec still
+proves the design artifact exists — which is all the gate ever wanted — but the `phase` condition
+keeps the fallback scoped to the one commit that needs it. Step 4 runs `design archive` and
+`features phase-flip-done` back to back, so the flip commit is the only one that sees both `done` and
+an archived spec; every other commit (implementation, and a *fresh* session on a slug whose old spec
+was archived long ago) still requires a live spec, so the archive cannot be used to skip authoring
+one.
 
 ### Unit 5 — gate Step 4 wiring
 
@@ -405,8 +416,11 @@ gate Step 4 (FD path)
 - `sync fd-resources` still repoints `links.spec` (existing behaviour preserved under the renamed
   `resolveArchivedPath`).
 - `validateTrailer` passes on a `specs-only-attach` and a `specs-only-new` commit whose matching spec
-  exists **only** under `docs/design/specs/archive/` — otherwise the flip commit that performs the
-  archival can never land.
+  exists **only** under `docs/design/specs/archive/` and whose FD reads `phase: done` — otherwise the
+  flip commit that performs the archival can never land — and still **rejects** an archived-only spec
+  while the FD is `in-progress`, so the archive is no shortcut around authoring a spec.
+- `discoverAddedFiles` diffs against the ref `refs/remotes/origin/HEAD` names (verified with a
+  `master`-default fixture) and falls back to `origin/main` when that ref is absent.
 - `specSlugFromFilename` / `planSlugFromFilename` remain importable from `src/garden/garden-detect.ts`
   and behave identically; garden detector tests pass unchanged.
 - `pnpm noldor invariants run` boundaries check stays green: `src/design` imports only `src/core`,

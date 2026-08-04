@@ -28,10 +28,24 @@ function git(run: RunGit, args: readonly string[]): string {
 export interface DiscoverAddedFilesOptions {
   /** Working directory for the git calls. Default: `process.cwd()`. */
   cwd?: string;
-  /** Base ref to diff against. Default: `origin/main`. */
+  /** Base ref to diff against. Default: {@link resolveDefaultBase}. */
   base?: string;
   /** Test seam. */
   runGit?: RunGit;
+}
+
+/**
+ * The remote's default branch ref, e.g. `origin/main` or `origin/master`.
+ *
+ * Reads `refs/remotes/origin/HEAD` (written by `git clone` / `git remote set-head`)
+ * so a consumer repo whose default branch is not `main` is not permanently
+ * fail-closed. Falls back to `origin/main` when that ref is absent — a partial
+ * clone or a repo where nobody ever set it.
+ */
+export function resolveDefaultBase(run: RunGit): string {
+  const r = run(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+  const ref = r.status === 0 ? r.stdout.trim() : '';
+  return ref.length > 0 ? ref : 'origin/main';
 }
 
 /**
@@ -54,8 +68,9 @@ export interface DiscoverAddedFilesOptions {
 export function discoverAddedFiles(options: DiscoverAddedFilesOptions = {}): string[] {
   // Callers filter the result themselves — one git round-trip serves any number
   // of path prefixes.
-  const { cwd, base = 'origin/main' } = options;
+  const { cwd } = options;
   const run = options.runGit ?? defaultRunGit(cwd);
+  const base = options.base ?? resolveDefaultBase(run);
   const mergeBase = git(run, ['merge-base', base, 'HEAD']).trim();
   if (mergeBase.length === 0) {
     throw new Error(`git merge-base ${base} HEAD returned no commit`);
