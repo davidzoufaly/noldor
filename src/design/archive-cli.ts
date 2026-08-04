@@ -4,10 +4,9 @@
 // carries them. Portable CLI: consumer repos have no ./src/ tree to import from,
 // and prose-dispatch runners (codex/opencode) shell CLIs rather than run skills.
 import { mkdirSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 
-import { discoverAddedFiles, repoRoot } from '../core/branch-added.js';
+import { defaultRunGit, discoverAddedFiles, repoRoot } from '../core/branch-added.js';
 import { readSession } from '../core/session.js';
 import { dialogueKeyFromSession, resolveArchivePlan } from './archive-resolve.js';
 
@@ -43,12 +42,15 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
   return args;
 }
 
+/**
+ * `{ok, stderr}` view over core's {@link defaultRunGit} — this CLI reports git
+ * failures in its own message shape rather than throwing, but the spawn handling
+ * (including surfacing `spawnSync`'s `error` when git is missing) stays in one
+ * place.
+ */
 function git(cwd: string, gitArgs: readonly string[]): { ok: boolean; stderr: string } {
-  const r = spawnSync('git', gitArgs, { cwd, encoding: 'utf8' });
-  // A spawn-level failure (git not on PATH, EACCES) leaves `status` null and
-  // `stderr` empty — surface `r.error` or the diagnosis is a blank line.
-  if (r.error !== undefined) return { ok: false, stderr: `${r.error.message}\n` };
-  return { ok: r.status === 0, stderr: r.stderr ?? '' };
+  const r = defaultRunGit(cwd)(gitArgs);
+  return { ok: r.status === 0, stderr: r.stderr };
 }
 
 async function main(): Promise<number> {
