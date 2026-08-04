@@ -70,9 +70,11 @@ export function planSlugFromFilename(filename: string): string | null;
 ```
 
 No behaviour change; `garden-detect.ts` keeps its public surface via `export { … } from`, so its own
-tests and callers are untouched. One caller does move: `src/graphify/enrich-doc-nodes.ts:121` imports
-both parsers through `garden-detect` today — repoint it at `src/core/design-artifact-names.js`, which
-deletes a `graphify → garden` cross-domain edge for a one-line import change.
+tests and callers are untouched. One caller does move:
+[`src/graphify/enrich-doc-nodes.ts:8`](../../../src/graphify/enrich-doc-nodes.ts) imports both parsers
+through `garden-detect` today (used at line 121) — repoint that import at
+`src/core/design-artifact-names.js`, which deletes a `graphify → garden` cross-domain edge for a
+one-line change.
 
 ### Unit 2 — `src/design/archive-resolve.ts` (new, pure)
 
@@ -126,13 +128,40 @@ It is not sufficient on its own: the concat `<parent>-<enhancement>` is not inje
 string-equal an unrelated `*-new` feature's slug, or a different parent/enhancement split), and the
 parsers ignore the date prefix entirely, so a filename-only match could move a foreign, still-live
 feature's spec. Hence the **ownership gate**: an artifact is eligible only if it is also in
-`branchAdded` — the set of files *added on this branch*, which the CLI reads with the same query
-`pr-flow` already uses for artifact discovery
-([`src/core/pr-flow-cli.ts:143`](../../../src/core/pr-flow-cli.ts) —
-`git diff-tree --diff-filter=A --name-only -r origin/main..HEAD`). A foreign feature's live spec was
-added on some other branch and merged, so it can never be in this branch's added set; this session's
-spec always is (Step 2.5 committed it here). The same gate also disarms the `-partN` aliasing case
-(key `foo` vs a feature literally slugged `foo-part1`) and makes the date-agnostic parsers safe.
+`branchAdded` — the set of files *added on this branch since its merge base with `origin/main`*
+(Unit 3a). A foreign feature's live spec was added on some other branch and merged before this
+branch's base, so it cannot be in this branch's added set; this session's spec always is (Step 2.5
+committed it here). The same gate also disarms the `-partN` aliasing case (key `foo` vs a feature
+literally slugged `foo-part1`) and makes the date-agnostic parsers safe.
+
+**Merge-base semantics are load-bearing.** `git diff-tree ... origin/main..HEAD` compares the two
+*endpoint trees*, so any path `origin/main` deleted or moved after the branch point shows up as `A`
+on HEAD's side. This feature mass-produces exactly that situation — once flip-commits start moving
+specs into `archive/` on `main`, a stale branch would see every such foreign live spec as
+"branch-added", with no collision skip (its `archive/<basename>` is absent in the stale tree). So the
+range must be the merge base, not the endpoint: `git merge-base origin/main HEAD`, then
+`git diff-tree --diff-filter=A --name-only -r <base> HEAD`.
+
+### Unit 3a — `src/core/branch-added.ts` (new, extracted)
+
+[`src/core/pr-flow-cli.ts:144`](../../../src/core/pr-flow-cli.ts) already inlines this query as the
+private `discoverAddedFiles(prefix)` — with the two-dot range. Extract it to
+`src/core/branch-added.ts` (core, so both `src/core/pr-flow-cli.ts` and `src/design` may import it),
+fix the range to merge-base, and have `pr-flow-cli.ts` call the shared helper instead of its private
+copy:
+
+```ts
+/** Repo-relative paths added between merge-base(origin/main, HEAD) and HEAD. */
+export function discoverAddedFiles(prefix?: string, cwd?: string): string[];
+```
+
+Paths from `diff-tree` are repo-root-relative, so the helper resolves the root with
+`git rev-parse --show-toplevel` and callers compare root-relative paths — otherwise a subdir `cwd`
+would fail the gate for every artifact and report a confusing `nothing to do`.
+
+Side effect on `pr-flow`: its spec/plan discovery gains merge-base semantics too. That is strictly
+more correct (a stale branch no longer mis-attributes a spec `main` archived after the branch point),
+and one helper is the only place range semantics are decided.
 
 `resolveArchivePlan` reads `loadDocRoots(repo).specs` and `.plans`
 ([`src/core/doc-roots.ts`](../../../src/core/doc-roots.ts)), skips the nested `archive/` entry and
@@ -149,15 +178,18 @@ never a throw — that is the idempotent re-run and the specs-only (no plan) cas
 noldor design archive [--dry-run] [--slug <key>]
 ```
 
-1. `--slug <key>` overrides session-derived key (manual/backfill escape hatch, and the seam the
-   tests use). Otherwise `readSession(process.cwd())`:
+1. `--slug <key>` overrides the *session-derived key only* — the ownership gate still applies, so it
+   cannot reach an artifact this branch did not add. It exists for a same-branch manual run (session
+   marker missing or mis-keyed) and as the seam the CLI tests use. It is explicitly **not** a
+   backfill lever: artifacts merged long ago are never in `branchAdded`, and backfill stays garden's
+   job (Non-goals). Otherwise `readSession(process.cwd())`:
    - `null` → stderr `design archive: no .noldor/session.json — did you skip the gate scaffold?`,
      exit 1. (Same hint shape Q-0055 wants elsewhere.)
    - key `null` → stdout `design archive: path <path> carries no design artifacts — skipped`,
      exit 0.
-2. Compute `branchAdded` with
-   `execFileSync('git', ['diff-tree', '--diff-filter=A', '--name-only', '-r', 'origin/main..HEAD'])`.
-   If that command fails (no `origin/main` ref, shallow clone, non-git fixture), **fail closed**:
+2. Compute `branchAdded` via Unit 3a's `discoverAddedFiles()` (merge-base range, root-relative paths).
+   If it throws (no `origin/main` ref, no merge base, shallow clone, non-git fixture), **fail
+   closed**:
    stderr `design archive: cannot determine branch-added artifacts — skipped (garden will catch it)`,
    exit 0. Archiving without the ownership gate is the one outcome worth refusing; garden remains the
    backstop (D5).
@@ -219,13 +251,17 @@ The flip bullet then stages the moved artifacts alongside the FD:
 ```
 pnpm noldor features phase-flip-done <slug>
 git add docs/features/<slug>.md docs/design
-git diff --cached --quiet -- docs/features/<slug>.md docs/design || git commit -m "docs(features:<slug>): mark phase=done + archive design artifacts" -m "Noldor-FD: <slug>"
+git diff --cached --quiet -- docs/features/<slug>.md docs/design || git commit -m "docs(features:<slug>): mark phase=done + archive design artifacts" -m "Noldor-FD: <slug>" -- docs/features/<slug>.md docs/design
 ```
 
 `git add docs/design` covers the fs-rename fallback and the deletion half of any rename `git mv`
 already staged; the `--cached` emptiness check replaces today's `git diff --quiet <fd>` so a
-move-only change (FD body unchanged) still commits. The check is **pathspec-scoped** to the two
-targets so an unrelated pre-staged file can neither force the flip commit nor ride in silently.
+move-only change (FD body unchanged) still commits. **Both** the check and the commit are
+pathspec-limited to the two targets: the check alone only gates *whether* the commit runs, while a
+bare `git commit` would still commit the whole index, so an unrelated pre-staged file would ride in
+whenever the FD did change. With the trailing pathspec, `git commit` records the working-tree content
+of just those paths (everything is already written to disk at this point, including both halves of
+the rename) and leaves any other staged file staged.
 Order matters: archive **before** the flip
 commit, so move + `phase: done` + refreshed FD are one commit, and that commit rides the
 `origin/main..HEAD` range the code-stage CR reviews. Fast-track / micro-chore keep skipping this
@@ -287,8 +323,16 @@ gate Step 4 (FD path)
 - `noldor design archive` moves an **untracked** spec via the fs fallback (exit 0) and leaves the
   file at the archive path — the mechanism is chosen by the `git ls-files --error-unmatch` probe,
   not by matching git's error text.
-- `noldor design archive` in a repo with no resolvable `origin/main` exits 0, moves nothing, and its
-  stderr names the fail-closed reason.
+- `noldor design archive` in a repo with no resolvable `origin/main` (or no merge base) exits 0,
+  moves nothing, and its stderr names the fail-closed reason.
+- `discoverAddedFiles` uses the merge base, pinned by a fixture where `main` deleted a file *after*
+  the branch point: the deleted path must NOT appear in the result (it does under the old two-dot
+  range). `pr-flow`'s discovery goes through the same helper — one range, one test.
+- `noldor design archive --slug <key>` run from a repo subdirectory resolves the same moves as from
+  the repo root (root-relative path comparison), and still refuses an artifact absent from
+  `branchAdded`.
+- The flip commit contains only `docs/features/<slug>.md` + the moved artifacts even when an
+  unrelated file was pre-staged in the index (pathspec-limited commit) — the stranger stays staged.
 - `noldor design archive --dry-run` prints the moves and mutates nothing on disk or in the index.
 - `noldor design archive` with no `.noldor/session.json` exits 1 and its stderr contains
   `no .noldor/session.json`.
@@ -315,13 +359,17 @@ gate Step 4 (FD path)
   later), and even a key that *does* collide with a foreign feature's filename cannot move it,
   because the artifact must also be in this branch's added set. The residual case is a marker that
   mis-keys an artifact this branch itself added — self-inflicted and visible in the flip commit.
-- **Ownership gate depends on `origin/main`.** `branchAdded` needs a resolvable `origin/main` ref. A
-  detached/shallow/offline tree skips archival entirely (fail-closed) rather than archiving blind, so
-  the failure mode is "garden does it later", i.e. today's behaviour.
+- **Ownership gate depends on `origin/main` + a merge base.** `branchAdded` needs a resolvable
+  `origin/main` ref and a merge base with it. A detached/shallow/offline tree skips archival entirely
+  (fail-closed) rather than archiving blind, so the failure mode is "garden does it later", i.e.
+  today's behaviour.
 - **Branch-added, not branch-modified.** `--diff-filter=A` misses an artifact that existed on `main`
   and was only edited on this branch (e.g. a spec revised by a later enhancement without a new
   file). Such an artifact is deliberately *not* archived here — it is not this session's to file —
   and garden still owns it.
+- **Changing `pr-flow`'s range.** Extracting `discoverAddedFiles` fixes `pr-flow`'s spec/plan
+  discovery to merge-base semantics as a side effect. Strictly more correct, but it does alter an
+  existing shipped behaviour; a stale branch's PR body may now cite a different (correct) spec path.
 - **Inbound doc links to the moved path.** Any prose elsewhere linking the live spec path breaks on
   the move. Same exposure garden archival already has today; the pre-commit `sync doc-links` check
   runs on the same commit and surfaces it. Not solved here.
@@ -331,10 +379,12 @@ gate Step 4 (FD path)
 - **Rename in the CR diff.** Code-stage CR (`--base-sha origin/main`) now sees a rename pair for
   the spec it also reviewed at Step 2.5. Cosmetic noise, and arguably correct: the move is part of
   the feature.
-- **`git add docs/design` breadth.** The flip step stages the whole `docs/design` tree, so an
-  unrelated dirty artifact under it would be swept into the flip commit. Accepted: at end-of-flow
-  the tree is expected clean apart from this session's work, and the alternative (enumerating
-  resolved paths through shell) is fragile in the skill prose.
+- **`git add docs/design` breadth.** The flip step stages (and commits) the whole `docs/design`
+  subtree, so an unrelated dirty artifact under it — an in-flight spec for *another* feature edited
+  in this same worktree — would be swept into the flip commit. Files outside those two pathspecs are
+  now safe (pathspec-limited commit), but `docs/design` itself is coarse. Accepted: at end-of-flow
+  the tree is expected clean apart from this session's work, and enumerating the resolved move paths
+  through skill prose is fragile.
 - **Two owners of the archive convention.** The garden skill's `git mv` prose and Unit 3 both
   encode `<dir>/archive/<basename>`. Drift is possible; the convention is one line in each and
   Unit 3's tests pin it.
@@ -358,7 +408,9 @@ pnpm noldor design archive
 # Preview without touching disk or index:
 pnpm noldor design archive --dry-run
 
-# Manual / backfill: archive a specific dialogue key regardless of session marker:
+# Same-branch manual run when the session marker is missing or mis-keyed.
+# Overrides the key only — the branch-added ownership gate still applies, so this
+# cannot reach artifacts merged on an earlier branch (backfill stays /noldor-garden's job):
 pnpm noldor design archive --slug some-parent-some-enhancement
 
 # No-op paths (fast-track, micro-chore) and re-runs are safe:
@@ -374,8 +426,9 @@ into the single flip commit. Nothing else in the flow changes.
 
 1. *What signal selects which artifacts move — the session, or the FD's phase?*
    → **Session-scoped dialogue key** (`slug` on `*-new`, `<parent>-<enhancement>` on `*-attach`),
-   filename-matched **and** gated on branch-added membership (`git diff-tree --diff-filter=A
-   origin/main..HEAD`). FD phase is never consulted for the move. (D1)
+   filename-matched **and** gated on branch-added membership — `git diff-tree --diff-filter=A
+   --name-only -r <merge-base origin/main HEAD> HEAD`, merge-base and not two-dot (D7). FD phase is
+   never consulted for the move. (D1)
    Rationale: a parent FD re-flipping `done` for each attach enhancement would otherwise sweep a
    sibling enhancement's still-live spec; and because the concat key is not injective and the
    filename parsers ignore the date, the branch-added gate is what makes "foreign spec is
@@ -412,6 +465,21 @@ into the single flip commit. Nothing else in the flow changes.
    and must not be clobbered by a same-named newcomer.
 
 7. *Should this backfill the artifacts already sitting un-archived in the live directories?*
-   → **No** — out of scope; the next `/noldor-garden` pass drains them exactly as today.
+   → **No** — out of scope; the next `/noldor-garden` pass drains them exactly as today. `--slug` is
+   not a backfill lever either: the ownership gate applies to it too. (D8)
    Rationale: backfill is a one-shot doc chore with no code surface, and keeping it out keeps this
    diff reviewable.
+
+8. *Two-dot or merge-base range for the ownership gate?*
+   → **Merge-base**, and the query is extracted to `src/core/branch-added.ts` so `pr-flow` and this
+   CLI share one definition. (D7)
+   Rationale: `diff-tree A..B` diffs endpoint trees, so anything `main` deleted or moved after the
+   branch point reads as added on HEAD — and this very feature will start moving specs on `main`,
+   manufacturing that case. Merge-base makes "a foreign live spec is unreachable" an invariant rather
+   than a race with the archive convention.
+
+9. *Should the flip commit be pathspec-limited, not just pathspec-checked?*
+   → **Yes** — `git commit … -- docs/features/<slug>.md docs/design`. (D9)
+   Rationale: the `git diff --cached --quiet -- <paths>` guard only decides *whether* to commit; a
+   bare `git commit` still records the whole index, so a pre-staged unrelated file would ride along
+   whenever the FD changed.
