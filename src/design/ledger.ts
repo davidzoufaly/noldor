@@ -88,9 +88,11 @@ export function normalize(text: string): string {
  */
 export function validateSlug(value: string, flag: string): string | null {
   if (value.length === 0) return `${flag}: must not be empty`;
-  if (slugify(value) !== value) {
-    return `${flag}: '${value}' is not a slug (expected '${slugify(value)}')`;
+  const slug = slugify(value);
+  if (slug.length === 0) {
+    return `${flag}: '${value}' has no slug-safe characters (expected lowercase [a-z0-9-])`;
   }
+  if (slug !== value) return `${flag}: '${value}' is not a slug (expected '${slug}')`;
   return null;
 }
 
@@ -126,8 +128,15 @@ function splitSections(raw: string): {
       const name = heading[1] as SectionName;
       current = (SECTIONS as readonly string[]).includes(name) ? name : null;
       if (current) {
-        if (sections.has(current)) duplicates.push(current);
-        else sections.set(current, []);
+        if (sections.has(current)) {
+          duplicates.push(current);
+          // Skip the duplicate's body instead of appending it into the first
+          // section: merging them would surface duplicate `D`/`O` ids in the
+          // rendered block. The writer already refuses the file either way.
+          current = null;
+        } else {
+          sections.set(current, []);
+        }
       }
       continue;
     }

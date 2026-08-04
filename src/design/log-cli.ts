@@ -34,12 +34,16 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     const value = argv[i + 1];
+    // Report an unknown flag as such even when it sits last, before the
+    // missing-value check — `--typo` with no value is a typo, not a missing value.
+    if (!LOG_FLAGS.includes(flag)) return { error: `unknown flag: ${flag}` };
     // Only a *known flag* in the value slot means the value is missing. Rejecting
     // every `--`-leading value would make decision text like
     // `--decide "--fd is now validated too"` unrecordable.
     if (value === undefined || LOG_FLAGS.includes(value)) {
       return { error: `${flag}: missing value` };
     }
+    if (value.trim().length === 0) return { error: `${flag}: value must not be blank` };
     i += 1;
     switch (flag) {
       case '--slug':
@@ -63,6 +67,8 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
       case '--support':
         args.support.push(value);
         break;
+      // Unreachable while LOG_FLAGS and this switch agree; kept so a future flag
+      // added to one and not the other fails loudly instead of being ignored.
       default:
         return { error: `unknown flag: ${flag}` };
     }

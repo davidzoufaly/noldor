@@ -253,6 +253,32 @@ describe('design log', () => {
     expect(r.err).toContain('missing value');
   });
 
+  it('reports a trailing unknown flag as unknown, not as a missing value', () => {
+    const cwd = repo();
+    const r = log(cwd, '--slug', 's', '--typo');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('unknown flag');
+  });
+
+  it('rejects a blank --decide rather than storing an empty bullet', () => {
+    const cwd = repo();
+    const r = log(cwd, '--slug', 's', '--decide', '   ');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('must not be blank');
+  });
+
+  it('skips a duplicate section body instead of merging it into the first', () => {
+    const cwd = repo();
+    log(cwd, '--slug', 's', '--decide', 'first');
+    const p = ledgerPath(cwd, 's');
+    writeFileSync(p, `${readFileSync(p, 'utf8')}\n## Decided\n\n- D1 injected duplicate\n`, 'utf8');
+    const state = parseLedger(readFileSync(p, 'utf8'));
+    expect(state.unparsed).toContain('Decided');
+    // Merged bodies would surface two `D1`s in the rendered block.
+    expect(state.decided.map((d) => d.id)).toEqual(['D1']);
+    expect(state.decided[0].text).toBe('first');
+  });
+
   it('fails closed on a mangled Decided section while rendering still works', () => {
     const cwd = repo();
     log(cwd, '--slug', 's', '--decide', 'a');
@@ -376,12 +402,19 @@ describe('loadScope', () => {
     );
   });
 
-  it('falls through an explicitly-blank --scope to the repo sources', () => {
+  it('rejects a blank --scope at the CLI and still resolves from the repo', () => {
     const cwd = repo();
     seedRoadmap(cwd);
-    log(cwd, '--slug', 'some-entry-slug', '--scope', '   ');
+    // Two layers: the CLI refuses a blank value, and `loadScope` treats an
+    // already-stored empty scope as absent — neither route yields a blank Scope.
+    const r = log(cwd, '--slug', 'some-entry-slug', '--scope', '   ');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('must not be blank');
     expect(
-      loadScope(cwd, { slug: 'some-entry-slug', state: readLedger(cwd, 'some-entry-slug') }),
+      loadScope(cwd, {
+        slug: 'some-entry-slug',
+        state: { ...readLedger(cwd, 'some-entry-slug'), scope: '' },
+      }),
     ).toBe('Roadmap-derived scope text.');
   });
 
