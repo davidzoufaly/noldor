@@ -400,6 +400,14 @@ The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
 - **When to use:** driven by the skills; run by hand to see the current design state of a dialogue.
 - **Source:** [`src/design/context-cli.ts`](../../src/design/context-cli.ts)
 
+### `design:archive`
+
+- **Trigger:** `pnpm noldor design archive [--dry-run] [--slug <key>]`. Run by `/noldor-gate` Step 4 on FD-carrying paths, immediately before the `phase: done` flip.
+- **Inputs:** `.noldor/session.json` (dialogue key: `slug` on `*-new`, `<parent>-<enhancement>` on `*-attach`), the resolved `specs`/`plans` roots, and the branch-added set (`git diff-tree --diff-filter=A` against `merge-base(origin/main, HEAD)`) as an ownership gate — a filename match alone can collide with a foreign feature's spec, so both must agree.
+- **Outputs:** `git mv`s the owning spec + plan into their sibling `archive/` directory and leaves the moves **staged** (never commits, so the gate's flip commit carries them; staging in the CLI is what lets the gate avoid a `docs/design` pathspec that would miss the 1.0.0 `docs/superpowers/*` alias). Exits 0 with `nothing to do` on a re-run, with an explanatory line on `fast-track` / `micro-chore` / `release-*`, and fails closed (exit 0, skipped) when the branch-added range cannot be resolved. Collisions with an existing archived file are skipped, never overwritten. Exits 1 on a missing session marker or a failed `git mv`.
+- **When to use:** driven by the gate; `--dry-run` by hand to preview, `--slug` for a same-branch manual run (the ownership gate still applies — this is not a backfill lever; `/noldor-garden` owns backfill).
+- **Source:** [`src/design/archive-cli.ts`](../../src/design/archive-cli.ts)
+
 ## Research
 
 | Command                        | Source                                        | Purpose                                                                                     |

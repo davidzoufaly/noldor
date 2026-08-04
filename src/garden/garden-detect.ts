@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 
 import { loadConfig } from '../core/config.js';
+import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { INVARIANTS } from '../invariants/rule-pairs.js';
@@ -68,21 +69,6 @@ export interface StalePlan {
   readonly slug: string;
   readonly reason: 'feature-done' | 'age-no-feature';
   readonly action: 'archive';
-}
-
-const PLAN_FILE_RE = /^\d{4}-\d{2}-\d{2}-(.+?)(?:-part\d+)?\.md$/;
-
-/**
- * Derive the feature slug from a plan filename.
- *
- * @param filename - The basename, e.g. `2026-04-19-tooltips.md` or
- *   `2026-04-23-feature-md-framework-part1.md`.
- * @returns The slug (`tooltips`, `feature-md-framework`) or `null` if
- *   the filename does not match the plan naming convention.
- */
-export function planSlugFromFilename(filename: string): string | null {
-  const match = PLAN_FILE_RE.exec(filename);
-  return match?.[1] ?? null;
 }
 
 async function loadFeatureBySlug(repo: string, slug: string): Promise<FeatureFrontmatter | null> {
@@ -204,20 +190,6 @@ export interface StaleSpec {
   readonly slug: string;
   readonly reason: 'feature-done' | 'age-no-feature';
   readonly action: 'archive';
-}
-
-const SPEC_FILE_RE = /^\d{4}-\d{2}-\d{2}-(.+?)-design\.md$/;
-
-/**
- * Derive the feature slug from a spec filename.
- *
- * @param filename - The basename, e.g. `2026-04-23-feature-md-framework-design.md`.
- * @returns The slug (`feature-md-framework`) or `null` if the filename does
- *   not match the spec naming convention.
- */
-export function specSlugFromFilename(filename: string): string | null {
-  const match = SPEC_FILE_RE.exec(filename);
-  return match?.[1] ?? null;
 }
 
 /**

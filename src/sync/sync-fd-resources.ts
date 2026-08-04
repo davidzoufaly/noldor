@@ -4,32 +4,60 @@ import { basename, dirname, join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { ARCHIVE_DIR } from '../core/design-artifact-names.js';
 import { LOST_SENTINEL } from '../core/feature-schema.js';
 
 const START_MARKER = '<!-- generated: resources -->';
 const END_MARKER = '<!-- /generated: resources -->';
 
 /**
- * Compute the rewrite target for a FD `links.spec` path when the source has
- * been moved to its sibling `archive/` directory (the convention `/noldor-garden`
- * uses via `git mv <path> <dirname>/archive/<basename>`). Returns `null`
- * when no rewrite is appropriate — either because the current path still
- * exists, the input is empty, or no archive variant exists either.
+ * Compute the rewrite target for a FD `links.spec` / `links.plan` path when the
+ * source has been moved to its sibling `archive/` directory (the convention both
+ * `/noldor-garden` and `noldor design archive` use via
+ * `git mv <path> <dirname>/archive/<basename>`). Returns `null` when no rewrite
+ * is appropriate — either because the current path still exists, the input is
+ * empty, or no archive variant exists either.
  *
- * @param currentPath - Current `links.spec` value from the FD frontmatter.
+ * @param currentPath - Current `links.spec` / `links.plan` value from the FD.
  * @param exists - Predicate that returns `true` when a path exists on disk.
  *   Injected so the helper stays pure for unit testing.
  * @returns Archive path to write into the FD, or `null` when no change.
  */
-export function resolveSpecPath(
+export function resolveArchivedPath(
   currentPath: string | undefined,
   exists: (p: string) => boolean,
 ): string | null {
   if (!currentPath || currentPath.length === 0) return null;
   if (exists(currentPath)) return null;
-  const archivePath = join(dirname(currentPath), 'archive', basename(currentPath));
+  const archivePath = join(dirname(currentPath), ARCHIVE_DIR, basename(currentPath));
   if (!exists(archivePath)) return null;
   return archivePath;
+}
+
+/**
+ * {@link resolveArchivedPath} over a `links.plan` value, which the FD schema
+ * allows as either a single path or a list.
+ *
+ * Rewrites element-wise so a partially archived multi-part plan repoints only
+ * the elements that actually moved.
+ *
+ * @returns The rewritten value, or `null` when nothing changed.
+ */
+export function resolveArchivedPathList(
+  value: string | string[] | undefined,
+  exists: (p: string) => boolean,
+): string | string[] | null {
+  if (value === undefined) return null;
+  if (typeof value === 'string') return resolveArchivedPath(value, exists);
+
+  let changed = false;
+  const next = value.map((entry) => {
+    const rewritten = resolveArchivedPath(entry, exists);
+    if (rewritten === null) return entry;
+    changed = true;
+    return rewritten;
+  });
+  return changed ? next : null;
 }
 
 /**
@@ -147,9 +175,14 @@ export async function syncFile(path: string): Promise<boolean> {
   const data: Record<string, unknown> = { ...(parsed.data as Record<string, unknown>) };
   let frontmatterChanged = false;
   if (fm.links !== undefined) {
-    const rewritten = resolveSpecPath(fm.links.spec, existsSync);
-    if (rewritten !== null) {
-      data.links = { ...fm.links, spec: rewritten };
+    const spec = resolveArchivedPath(fm.links.spec, existsSync);
+    const plan = resolveArchivedPathList(fm.links.plan, existsSync);
+    if (spec !== null || plan !== null) {
+      data.links = {
+        ...fm.links,
+        ...(spec !== null ? { spec } : {}),
+        ...(plan !== null ? { plan } : {}),
+      };
       frontmatterChanged = true;
     }
   }

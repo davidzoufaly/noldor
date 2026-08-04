@@ -12,8 +12,9 @@ import {
   hasBlockingFindings,
   shouldFlagSourceDrift,
   SOURCE_DRIFT_PAIRS,
-  specSlugFromFilename,
 } from '../garden-detect.js';
+
+import { specSlugFromFilename } from '../../core/design-artifact-names.js';
 
 import type { GateComplianceFindings } from '../garden-detect.js';
 

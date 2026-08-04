@@ -546,5 +546,203 @@ describe('validateTrailer', () => {
       });
       expect(r.ok).toBe(true);
     });
+
+    /** FD + an archived (never live) spec; `stage` controls whether it is in the index. */
+    function archivedSpecRepo(phase: string, stage: boolean): string {
+      const dir = setupRepo();
+      setupPostRollout(dir);
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'parent.md'),
+        `---\nname: Parent\nphase: ${phase}\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      mkdirSync(join(dir, 'docs', 'design', 'specs', 'archive'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'design', 'specs', 'archive', '2026-05-25-parent-my-enh-design.md'),
+        '# archived spec',
+      );
+      if (stage) execSync('git add docs/design/specs/archive', { cwd: dir });
+      return dir;
+    }
+
+    const attachMsg =
+      'feat(parent): enhance\n\nNoldor-Path: specs-only-attach\nNoldor-FD: parent\nNoldor-Enhancement: my-enh\n';
+
+    // The archive fallback requires THIS commit to have staged the archival, so
+    // it cannot be used to skip authoring a spec — not even by a later session
+    // that leaves the FD reading `phase: done`.
+    it('rejects an archived spec this commit did not stage', () => {
+      for (const phase of ['in-progress', 'done']) {
+        const r = validateTrailer({ cwd: archivedSpecRepo(phase, false), message: attachMsg });
+        expect(r.ok).toBe(false);
+        expect(r.reason).toMatch(/my-enh-design\.md/);
+      }
+    });
+
+    // A plain add into archive/ proves nothing — a real archival RENAMES a spec
+    // that was committed live at Step 2.5.
+    it('rejects a spec added straight into archive/ with no rename', () => {
+      const r = validateTrailer({ cwd: archivedSpecRepo('done', true), message: attachMsg });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/my-enh-design\.md/);
+    });
+
+    // Regression: `noldor design archive` moves the spec into archive/ right
+    // before the phase-flip commit, so a live-only lookup made that commit
+    // unlandable on every attach session.
+    it('passes when this commit stages the archival rename (the flip commit)', () => {
+      const dir = setupRepo();
+      setupPostRollout(dir);
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'parent.md'),
+        `---\nname: Parent\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      // Spec lands live and is COMMITTED (Step 2.5), then archived + staged (Step 4).
+      const specsDir = join(dir, 'docs', 'design', 'specs');
+      mkdirSync(specsDir, { recursive: true });
+      writeFileSync(join(specsDir, '2026-05-25-parent-my-enh-design.md'), '# spec');
+      execSync('git add docs/design/specs && git commit -q -m "add spec" --no-verify', {
+        cwd: dir,
+      });
+      mkdirSync(join(specsDir, 'archive'), { recursive: true });
+      execSync(
+        'git mv docs/design/specs/2026-05-25-parent-my-enh-design.md docs/design/specs/archive/2026-05-25-parent-my-enh-design.md',
+        { cwd: dir },
+      );
+
+      const r = validateTrailer({
+        cwd: dir,
+        message:
+          'docs(features:parent): mark phase=done + archive design artifacts\n\nNoldor-Path: specs-only-attach\nNoldor-FD: parent\nNoldor-Enhancement: my-enh\n',
+      });
+      expect(r.ok).toBe(true);
+    });
+
+    // Found by dogfooding: code-stage CR fixes land AFTER the flip commit, so a
+    // staged-only check blocked every follow-up commit on the session.
+    it('passes on a commit after the flip, when the rename is already on the branch', () => {
+      const dir = setupRepo();
+      setupPostRollout(dir);
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'parent.md'),
+        `---\nname: Parent\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      const specsDir = join(dir, 'docs', 'design', 'specs');
+      mkdirSync(specsDir, { recursive: true });
+      writeFileSync(join(specsDir, '2026-05-25-parent-my-enh-design.md'), '# spec');
+      execSync('git add -A && git commit -q -m "add spec" --no-verify', { cwd: dir });
+      // Branch base = this point; origin/main tracks it.
+      execSync('git update-ref refs/remotes/origin/main HEAD', { cwd: dir });
+      mkdirSync(join(specsDir, 'archive'), { recursive: true });
+      execSync(
+        'git mv docs/design/specs/2026-05-25-parent-my-enh-design.md docs/design/specs/archive/2026-05-25-parent-my-enh-design.md',
+        { cwd: dir },
+      );
+      execSync('git commit -q -m "flip + archive" --no-verify', { cwd: dir });
+      // Now a follow-up CR-fix commit: nothing spec-related staged.
+      writeFileSync(join(dir, 'src-fix.ts'), 'export const x = 1;\n');
+      execSync('git add src-fix.ts', { cwd: dir });
+
+      const r = validateTrailer({ cwd: dir, message: attachMsg });
+      expect(r.ok).toBe(true);
+    });
+
+    // No origin ref → `<base>..HEAD` errors. Treating that as "no rename" would
+    // block every post-flip commit in a remote-less repo.
+    it('falls back to full history when the branch range cannot be resolved', () => {
+      const dir = setupRepo();
+      setupPostRollout(dir);
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'parent.md'),
+        `---\nname: Parent\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      const specsDir = join(dir, 'docs', 'design', 'specs');
+      mkdirSync(specsDir, { recursive: true });
+      writeFileSync(join(specsDir, '2026-05-25-parent-my-enh-design.md'), '# spec');
+      execSync('git add -A && git commit -q -m "add spec" --no-verify', { cwd: dir });
+      mkdirSync(join(specsDir, 'archive'), { recursive: true });
+      execSync(
+        'git mv docs/design/specs/2026-05-25-parent-my-enh-design.md docs/design/specs/archive/2026-05-25-parent-my-enh-design.md',
+        { cwd: dir },
+      );
+      execSync('git commit -q -m "flip + archive" --no-verify', { cwd: dir });
+      // No refs/remotes/origin/* at all in this repo.
+      writeFileSync(join(dir, 'src-fix.ts'), 'export const x = 1;\n');
+      execSync('git add src-fix.ts', { cwd: dir });
+
+      const r = validateTrailer({ cwd: dir, message: attachMsg });
+      expect(r.ok).toBe(true);
+    });
+
+    // The staged path must sit under the specs archive dir specifically — a
+    // same-named file under some other archive/ must not satisfy the gate.
+    it('ignores an archive/ rename outside the specs root', () => {
+      const dir = setupRepo();
+      setupPostRollout(dir);
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'parent.md'),
+        `---\nname: Parent\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: full\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      // The gate's readdir sees an archived spec…
+      mkdirSync(join(dir, 'docs', 'design', 'specs', 'archive'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'design', 'specs', 'archive', '2026-05-25-parent-my-enh-design.md'),
+        '# archived spec',
+      );
+      // …but the staged rename is a plans-side path with the same basename.
+      const plansArchive = join(dir, 'docs', 'design', 'plans', 'archive');
+      mkdirSync(plansArchive, { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'design', 'plans', '2026-05-25-parent-my-enh-design.md'),
+        'x',
+      );
+      execSync('git add docs/design/plans && git commit -q -m "plan" --no-verify', { cwd: dir });
+      execSync(
+        'git mv docs/design/plans/2026-05-25-parent-my-enh-design.md docs/design/plans/archive/2026-05-25-parent-my-enh-design.md',
+        { cwd: dir },
+      );
+
+      const r = validateTrailer({ cwd: dir, message: attachMsg });
+      expect(r.ok).toBe(false);
+    });
+  });
+
+  describe('specs-only-new accepts an archived spec staged by this commit', () => {
+    it('passes when the spec lives only in docs/design/specs/archive/', () => {
+      const dir = setupRepo();
+      writeFileSync(join(dir, 'a'), 'init');
+      execSync('git add a && git commit -q -m init', { cwd: dir });
+      const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+      writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
+      writeFileSync(join(dir, 'b'), 'x');
+      execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
+
+      mkdirSync(join(dir, 'docs', 'features'), { recursive: true });
+      writeFileSync(
+        join(dir, 'docs', 'features', 'my-feat.md'),
+        `---\nname: My Feat\nphase: done\ncategory: Tooling\narea: x\npackages: [web]\nnoldor-tier: specs-only\nlinks: { code: [], docs: [], tests: [] }\n---\n`,
+      );
+      const specsDir = join(dir, 'docs', 'design', 'specs');
+      mkdirSync(specsDir, { recursive: true });
+      writeFileSync(join(specsDir, '2026-05-25-my-feat-design.md'), '# spec');
+      execSync('git add docs/design/specs && git commit -q -m "add spec" --no-verify', {
+        cwd: dir,
+      });
+      mkdirSync(join(specsDir, 'archive'), { recursive: true });
+      execSync(
+        'git mv docs/design/specs/2026-05-25-my-feat-design.md docs/design/specs/archive/2026-05-25-my-feat-design.md',
+        { cwd: dir },
+      );
+      const r = validateTrailer({
+        cwd: dir,
+        message:
+          'docs(features:my-feat): mark phase=done + archive design artifacts\n\nNoldor-Path: specs-only-new\nNoldor-FD: my-feat\n',
+      });
+      expect(r.ok).toBe(true);
+    });
   });
 });

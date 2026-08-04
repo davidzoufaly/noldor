@@ -5,6 +5,9 @@ import { readFileSync, existsSync, appendFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
 import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
+import { ARCHIVE_DIR } from '../core/design-artifact-names';
+import { renameDestExists, toRepoRelative } from '../core/branch-added';
+import { loadDocRoots } from '../core/doc-roots';
 import { PATHS } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
@@ -163,14 +166,73 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   const slug = t['Noldor-FD'];
   if (!slug) return { ok: false, reason: 'Missing Noldor-FD trailer (paths 3–6)' };
 
-  // FDs live in the consumer's feature-MD directory. The hook runs pre-commit,
-  // so it resolves the path directly rather than through loadDocRoots().
+  // FDs live in the consumer's feature-MD directory. Resolved directly rather
+  // than via loadDocRoots(): unlike specs/plans, `docs/features/` was never
+  // renamed, so there is no transition alias to honour here.
   const fdPath = join(opts.cwd, 'docs', 'features', `${slug}.md`);
   if (!existsSync(fdPath)) return { ok: false, reason: `FD does not exist: ${slug}` };
 
   const fd = matter(readFileSync(fdPath, 'utf8'));
   const tier = (fd.data['noldor-tier'] as string) ?? null;
   const isPhaseRevert = t['Noldor-Phase-Revert'] === '1';
+  /** Specs dir, resolved once (honours the 1.0.0 `docs/superpowers` alias). */
+  const specsDirAbs = loadDocRoots(opts.cwd).specs;
+
+  /**
+   * Repo-relative specs dir for user-facing messages. Falls back to the absolute
+   * path if git cannot report the prefix — a label must never fail a commit.
+   */
+  const specsDirLabel = (): string => {
+    try {
+      return toRepoRelative(specsDirAbs, opts.cwd);
+    } catch {
+      return specsDirAbs;
+    }
+  };
+
+  /**
+   * Does a spec matching `suffix` exist for this session?
+   *
+   * The live directory always counts. An archived spec counts only when THIS
+   * BRANCH renamed it there — `/noldor-gate` Step 4 runs `noldor design archive`
+   * immediately before the phase-flip commit, so that commit (and every
+   * code-stage CR fix after it) sees the spec already under `archive/` and would
+   * otherwise be unlandable on every `specs-only-*` / `full-attach` session. A
+   * fresh session on a slug some earlier branch archived still needs a live spec,
+   * and a file merely *added* into `archive/` never counts — see
+   * {@link renameDestExists}.
+   */
+  function specExists(cwd: string, suffix: string): { found: boolean; unverifiable?: string } {
+    if (existsSync(specsDirAbs) && readdirSync(specsDirAbs).some((f) => f.endsWith(suffix))) {
+      return { found: true };
+    }
+    const archiveDir = join(specsDirAbs, ARCHIVE_DIR);
+    if (!existsSync(archiveDir)) return { found: false };
+    if (!readdirSync(archiveDir).some((f) => f.endsWith(suffix))) return { found: false };
+    // An archived candidate exists; only a rename by this branch makes it count.
+    // A git failure here is NOT "no rename" — fail closed, but say which it was.
+    try {
+      const destDirRel = toRepoRelative(archiveDir, cwd);
+      return { found: renameDestExists({ cwd, destDirRel, suffix }) };
+    } catch (error) {
+      return {
+        found: false,
+        unverifiable: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /** Gate reason for a missing spec, naming a verification failure when that is the real cause. */
+  function missingSpecReason(
+    label: string,
+    suffix: string,
+    result: { unverifiable?: string },
+  ): string {
+    const base = `${label} requires a spec file at ${specsDirLabel()}/<date>${suffix}`;
+    return result.unverifiable === undefined
+      ? base
+      : `${base} — an archived copy exists but the archival rename could not be verified: ${result.unverifiable}`;
+  }
 
   if (path === 'specs-only-new' || path === 'full-new') {
     const expected = path === 'full-new' ? 'full' : 'specs-only';
@@ -185,20 +247,10 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     }
     if (path === 'specs-only-new') {
       if (isPhaseRevert) return { ok: true };
-      const specsDir = join(opts.cwd, 'docs', 'design', 'specs');
       const expectedSuffix = `-${slug}-design.md`;
-      if (!existsSync(specsDir)) {
-        return {
-          ok: false,
-          reason: `specs-only-new requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
-        };
-      }
-      const files = readdirSync(specsDir).filter((f) => f.endsWith(expectedSuffix));
-      if (files.length === 0) {
-        return {
-          ok: false,
-          reason: `specs-only-new requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
-        };
+      const found = specExists(opts.cwd, expectedSuffix);
+      if (!found.found) {
+        return { ok: false, reason: missingSpecReason('specs-only-new', expectedSuffix, found) };
       }
     }
     return { ok: true };
@@ -214,15 +266,9 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
       };
     }
     const expectedSuffix = `-${slug}-${enhancement}-design.md`;
-    const specsDir = join(opts.cwd, 'docs', 'design', 'specs');
-    const candidates = existsSync(specsDir)
-      ? readdirSync(specsDir).filter((f) => f.endsWith(expectedSuffix))
-      : [];
-    if (candidates.length === 0) {
-      return {
-        ok: false,
-        reason: `${path} requires a spec file at docs/design/specs/<date>${expectedSuffix}`,
-      };
+    const found = specExists(opts.cwd, expectedSuffix);
+    if (!found.found) {
+      return { ok: false, reason: missingSpecReason(path, expectedSuffix, found) };
     }
   }
 

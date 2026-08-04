@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
 
+import { discoverAddedFiles } from './branch-added.js';
 import { readSession, clearSession, type SessionMarker } from './session.js';
 import { loadConfig, type NoldorConfig } from './config.js';
 import { promptSelect } from './prompt-stdin.js';
@@ -140,14 +141,6 @@ export function loadVerifyEvidence(cwd: string, slug: string): VerifySummary | n
   return { verdict: sink.verdict, evidence };
 }
 
-function discoverAddedFiles(prefix: string): string[] {
-  const log = execGit(['diff-tree', '--diff-filter=A', '--name-only', '-r', 'origin/main..HEAD']);
-  return log
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.startsWith(prefix));
-}
-
 export interface ApprovalGateInput {
   config: NoldorConfig | null;
   session: SessionMarker;
@@ -228,8 +221,14 @@ export async function runCli(cwd: string): Promise<number> {
   const fd = fdSlug !== undefined ? loadFdSummary(cwd, fdSlug) : null;
   const verify = fdSlug !== undefined ? loadVerifyEvidence(cwd, fdSlug) : null;
 
-  const planPath = pickMostRecentByDatePrefix(discoverAddedFiles('docs/design/plans/'));
-  const specPath = pickMostRecentByDatePrefix(discoverAddedFiles('docs/design/specs/'));
+  // One git round-trip, filtered twice — the query is identical for both.
+  const addedFiles = discoverAddedFiles({ cwd });
+  const planPath = pickMostRecentByDatePrefix(
+    addedFiles.filter((f) => f.startsWith('docs/design/plans/')),
+  );
+  const specPath = pickMostRecentByDatePrefix(
+    addedFiles.filter((f) => f.startsWith('docs/design/specs/')),
+  );
 
   const log = execGit(['log', '--format=%H%n%s%n%n%b', 'origin/main..HEAD']);
   const crResults = parseCrTrailersFromLog(log);

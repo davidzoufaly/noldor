@@ -17,6 +17,9 @@ links:
     - src/sync/sync-fd-resources.ts
     - src/triage/triage-list-untriaged.ts
   tests:
+    - src/core/__tests__/branch-added.test.ts
+    - src/design/__tests__/archive-cli.test.ts
+    - src/design/__tests__/archive-resolve.test.ts
     - src/docs/__tests__/docs-api.test.ts
     - src/docs/__tests__/docs-check.test.ts
     - src/docs/__tests__/docs-transclude.test.ts
@@ -29,7 +32,6 @@ introduced: 0.1.0
 updated: 0.5.0
 noldor-tier: full
 ---
-
 ## Summary
 
 A `/noldor-garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`src/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
@@ -46,6 +48,11 @@ A `/noldor-garden` skill that bundles the recurring doc-cleanup pass into a sing
 ```
 
 The skill runs `pnpm garden:detect`, presents a unified checklist grouped by signal type, and executes confirmed safe actions (git mv for stale plans, removal of backlog entries). Rule contradictions, SDD gaps, and architecture invariant violations stay manual-review only.
+
+**Agent/Programmatic API**
+
+- `pnpm noldor design archive [--dry-run] [--slug <key>]` — archives _this_ gate session's spec + plan at done-flip time instead of deferring to the sweep. `/noldor-gate` Step 4 runs it on FD-carrying paths immediately before `features phase-flip-done`, so the `git mv` into `docs/design/{specs,plans}/archive/` rides the same commit as `phase: done`. Selection is the session's dialogue key (`slug` on `*-new`, `<parent>-<enhancement>` on `*-attach`) intersected with the branch-added set, so it can never move a foreign feature's live spec. Exits 0 with `nothing to do` on a re-run or a path that carries no artifacts; fails closed when the branch-added range is unresolvable.
+- `detectStaleSpecs` / `detectStalePlans` are unchanged and now fire only on exceptions — pre-flip-era debt, skipped or manual flips, orphans, and age-outs.
 
 <!-- generated: resources -->
 
