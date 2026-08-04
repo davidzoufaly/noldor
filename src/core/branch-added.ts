@@ -4,7 +4,8 @@
 // archival). One module so the range semantics are decided in exactly one place.
 
 import { spawnSync } from 'node:child_process';
-import { posix, relative } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { basename, dirname, join, posix, relative } from 'node:path';
 
 /** Test seam — mirrors the `spawnSync` shape this module needs. */
 export interface RunGit {
@@ -80,12 +81,17 @@ export function discoverAddedFiles(options: DiscoverAddedFilesOptions = {}): str
   // `-c core.quotepath=false`: with the default on, git C-quotes non-ASCII paths
   // (`"docs/design/specs/caf\303\251.md"`), which would never match a caller's
   // fs-derived path — the artifact would be silently skipped.
+  // `-M`: with rename detection off (diff-tree's default) a file this branch
+  // merely MOVED reports as added at its new path. "Added by this branch" must
+  // mean introduced here, not relocated here — flip-time archival moves specs, so
+  // without this an archived path would read as a fresh addition.
   const out = git(run, [
     '-c',
     'core.quotepath=false',
     'diff-tree',
     '--diff-filter=A',
     '--name-only',
+    '-M',
     '-r',
     mergeBase,
     'HEAD',
@@ -107,6 +113,31 @@ export function repoRoot(cwd?: string, runGit?: RunGit): string {
 }
 
 /**
+ * Symlink-resolved form of `p`, resolving as much of it as exists on disk.
+ *
+ * Both sides of a `relative()` call must be in the same symlink form or the
+ * result escapes: on macOS a caller may hold `/private/var/…` while `cwd` is the
+ * `/var/…` symlink. Plain `realpathSync` cannot do it alone — it throws on a path
+ * that does not exist yet (an `archive/` dir created later, a spec not yet
+ * written), which would leave that side unresolved and reintroduce the mismatch.
+ * So resolve the deepest existing ancestor and re-append the rest.
+ */
+function resolveExisting(p: string): string {
+  const tail: string[] = [];
+  let cur = p;
+  for (;;) {
+    try {
+      return join(realpathSync(cur), ...tail);
+    } catch {
+      const parent = dirname(cur);
+      if (parent === cur) return p; // hit the filesystem root: nothing resolvable
+      tail.unshift(basename(cur));
+      cur = parent;
+    }
+  }
+}
+
+/**
  * Repo-root-relative form of an absolute path inside the repo.
  *
  * Anchored with `git rev-parse --show-prefix` (how deep `cwd` sits in the repo)
@@ -125,7 +156,7 @@ export function repoRoot(cwd?: string, runGit?: RunGit): string {
 export function toRepoRelative(absPath: string, cwd: string, runGit?: RunGit): string {
   const run = runGit ?? defaultRunGit(cwd);
   const prefix = git(run, ['rev-parse', '--show-prefix']).trim();
-  const rel = relative(cwd, absPath).split('\\').join('/');
+  const rel = relative(resolveExisting(cwd), resolveExisting(absPath)).split('\\').join('/');
   const out = posix.normalize(`${prefix}${rel}`).replace(/\/+$/, '');
   // `..` survived normalization, or `relative()` gave up and returned an absolute
   // path (different Windows drive) — either way the target is not in this repo.

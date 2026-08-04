@@ -4,7 +4,7 @@
 // which is exactly what flip-time archival does to specs on `main`.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -198,6 +198,15 @@ describe(toRepoRelative, () => {
     // cwd two levels deep, target back up at the root: the raw
     // `docs/design/` + `../../src` form would match nothing in git output.
     expect(toRepoRelative(join(dir, 'src'), join(dir, 'docs', 'design'))).toBe('src');
+  });
+
+  it('handles a realpathd absPath against a symlinked cwd (and a not-yet-created dir)', () => {
+    const dir = repoWithDivergedMain();
+    // On macOS `dir` is `/var/folders/…` while realpath is `/private/var/folders/…`.
+    // Mixing the two forms used to yield an escaping path; and the archive dir may
+    // not exist yet at the time the gate asks about it.
+    const notYetCreated = join(realpathSync(dir), 'docs', 'design', 'specs', 'archive');
+    expect(toRepoRelative(notYetCreated, dir)).toBe('docs/design/specs/archive');
   });
 
   it('throws when the path lies outside the repository', () => {
