@@ -30,6 +30,9 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
     if (flag === '--slug') {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith('--')) return { error: 'missing value: --slug' };
+      // An empty key would resolve to nothing and print the benign "nothing to
+      // do" line — invalid input must not read as success.
+      if (value.trim().length === 0) return { error: 'empty value: --slug' };
       args.slug = value;
       i += 1;
       continue;
@@ -105,7 +108,7 @@ async function main(): Promise<number> {
   }
 
   const plan = await resolveArchivePlan({ branchAdded, key, repo: root });
-  if (plan === null || (plan.moves.length === 0 && plan.skipped.length === 0)) {
+  if (plan.moves.length === 0 && plan.skipped.length === 0) {
     // Say WHY nothing matched: the common benign case is a spec committed on an
     // earlier branch (a specs-only session shipped it; a later session flips the
     // phase), which is never branch-added here and is garden's to archive.
@@ -127,6 +130,7 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  let moved = 0;
   for (const m of plan.moves) {
     mkdirSync(dirname(join(root, m.to)), { recursive: true });
     // `git mv` (not fs rename): it preserves rename detection AND stages both
@@ -136,9 +140,15 @@ async function main(): Promise<number> {
     // fall back to; an untracked artifact simply is not eligible.
     const mv = git(root, ['mv', '--', m.from, m.to]);
     if (!mv.ok) {
-      process.stderr.write(`design archive: git mv failed for ${m.from}\n${mv.stderr}`);
+      process.stderr.write(
+        `design archive: git mv failed for ${m.from}\n${mv.stderr}` +
+          (moved > 0
+            ? `design archive: ${moved} earlier move(s) are already staged — unstage or finish them by hand\n`
+            : ''),
+      );
       return 1;
     }
+    moved += 1;
     process.stdout.write(`archived: ${m.from} → ${m.to}\n`);
   }
 

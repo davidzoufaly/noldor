@@ -172,14 +172,4 @@ describe(resolveArchivePlan, () => {
     });
     expect(plan).toEqual({ key, moves: [], skipped: [] });
   });
-
-  it('returns null when the session path carries no artifacts', async () => {
-    const plan = await resolveArchivePlan({
-      branchAdded: [ownSpec],
-      readdir: fakeReaddir({ [PLANS]: [], [SPECS]: [] }),
-      repo: REPO,
-      session: marker({ path: 'fast-track' }),
-    });
-    expect(plan).toBe(null);
-  });
 });

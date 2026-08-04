@@ -63,9 +63,12 @@ export function dialogueKeyFromSession(m: SessionMarker): string | null {
 
 interface ResolveOptions {
   repo: string;
-  session?: SessionMarker;
-  /** Overrides the session-derived key. The ownership gate still applies. */
-  key?: string;
+  /**
+   * Dialogue key the artifacts must match. Callers derive it with
+   * {@link dialogueKeyFromSession} (or take it from `--slug`) so they own the
+   * "this path carries no artifacts" message; this function only resolves.
+   */
+  key: string;
   /** Repo-relative paths added on this branch (the ownership gate). */
   branchAdded: readonly string[];
   /** Test seam — defaults to fs/promises readdir. */
@@ -125,16 +128,13 @@ async function collect(
  * `<parent>-<enhancement>` is not injective and the filename parsers ignore
  * the date prefix, so (a) alone can match artifacts this session does not own.
  *
- * @returns `null` when the session's path carries no design artifacts; an
- *   {@link ArchivePlan} otherwise (possibly with empty `moves` — a re-run after
- *   the artifacts already moved, or a specs-only feature with no plan).
+ * @returns An {@link ArchivePlan}, possibly with empty `moves` — a re-run after
+ *   the artifacts already moved, a specs-only feature with no plan, or a key
+ *   whose artifacts were committed on an earlier branch.
  */
-export async function resolveArchivePlan(options: ResolveOptions): Promise<ArchivePlan | null> {
-  const { repo, session, branchAdded } = options;
+export async function resolveArchivePlan(options: ResolveOptions): Promise<ArchivePlan> {
+  const { repo, key, branchAdded } = options;
   const readdir = options.readdir ?? ((p) => fsReaddir(p));
-
-  const key = options.key ?? (session === undefined ? null : dialogueKeyFromSession(session));
-  if (key === null || key === undefined || key.length === 0) return null;
 
   const roots = loadDocRoots(repo);
   const added = new Set(branchAdded);

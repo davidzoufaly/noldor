@@ -221,11 +221,13 @@ export async function runCli(cwd: string): Promise<number> {
   const fd = fdSlug !== undefined ? loadFdSummary(cwd, fdSlug) : null;
   const verify = fdSlug !== undefined ? loadVerifyEvidence(cwd, fdSlug) : null;
 
+  // One git round-trip, filtered twice — the query is identical for both.
+  const addedFiles = discoverAddedFiles({ cwd });
   const planPath = pickMostRecentByDatePrefix(
-    discoverAddedFiles({ prefix: 'docs/design/plans/', cwd }),
+    addedFiles.filter((f) => f.startsWith('docs/design/plans/')),
   );
   const specPath = pickMostRecentByDatePrefix(
-    discoverAddedFiles({ prefix: 'docs/design/specs/', cwd }),
+    addedFiles.filter((f) => f.startsWith('docs/design/specs/')),
   );
 
   const log = execGit(['log', '--format=%H%n%s%n%n%b', 'origin/main..HEAD']);

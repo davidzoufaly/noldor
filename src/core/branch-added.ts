@@ -60,7 +60,19 @@ export function discoverAddedFiles(options: DiscoverAddedFilesOptions = {}): str
   if (mergeBase.length === 0) {
     throw new Error(`git merge-base ${base} HEAD returned no commit`);
   }
-  const out = git(run, ['diff-tree', '--diff-filter=A', '--name-only', '-r', mergeBase, 'HEAD']);
+  // `-c core.quotepath=false`: with the default on, git C-quotes non-ASCII paths
+  // (`"docs/design/specs/caf\303\251.md"`), which would never match a caller's
+  // fs-derived path — the artifact would be silently skipped.
+  const out = git(run, [
+    '-c',
+    'core.quotepath=false',
+    'diff-tree',
+    '--diff-filter=A',
+    '--name-only',
+    '-r',
+    mergeBase,
+    'HEAD',
+  ]);
   return out
     .split('\n')
     .map((l) => l.trim())
