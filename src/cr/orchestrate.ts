@@ -125,6 +125,25 @@ function sinkCandidatePaths(cwd: string, slug: string, kind: ArtifactKind, lane:
   return names.map((n) => join(cwd, '.noldor', 'cr', `${slug}-${kind}-${n}.json`));
 }
 
+/**
+ * Path of the first sink that exists for `lane` — canonical first, then any
+ * legacy-named one (pre-0.7.0) — or `null` when the lane has no prior run.
+ */
+async function findExistingSink(
+  cwd: string,
+  slug: string,
+  kind: ArtifactKind,
+  lane: Lane,
+): Promise<string | null> {
+  for (const candidate of sinkCandidatePaths(cwd, slug, kind, lane)) {
+    try {
+      await readFile(candidate, 'utf8');
+      return candidate;
+    } catch {}
+  }
+  return null;
+}
+
 export async function guardLaneOverwrite(
   lanes: Lane[],
   ctx: GuardCtx,
@@ -132,19 +151,8 @@ export async function guardLaneOverwrite(
 ): Promise<Lane[]> {
   const keep: Lane[] = [];
   for (const lane of lanes) {
-    // Canonical first, then any legacy-named sink (pre-0.7.0). First existing wins.
-    const candidates = sinkCandidatePaths(ctx.cwd, ctx.slug, ctx.kind, lane);
-    let path = candidates[0];
-    let exists = false;
-    for (const c of candidates) {
-      try {
-        await readFile(c, 'utf8');
-        path = c;
-        exists = true;
-        break;
-      } catch {}
-    }
-    if (!exists) {
+    const path = await findExistingSink(ctx.cwd, ctx.slug, ctx.kind, lane);
+    if (path === null) {
       keep.push(lane);
       continue;
     }
@@ -267,11 +275,24 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   if (input.baseSha && !input.fullReview) {
     const empty = await isEmptyDiff(cwd, input.baseSha, input.artifactSha, input.artifact);
     if (empty) {
+      const stillToRun: Lane[] = [];
       for (const l of effective) {
+        // "No changes since prior run" presupposes a prior run. A mandatory
+        // reviewer lane with no sink of its own was never reviewed at all, so
+        // synthesizing a pass would hand the spec/plan a green receipt nobody
+        // earned — run it for real instead.
+        const unreviewed =
+          l === 'reviewer' &&
+          REVIEWER_MANDATORY_KINDS.includes(opts.args.kind) &&
+          (await findExistingSink(cwd, opts.args.slug, opts.args.kind, l)) === null;
+        if (unreviewed) {
+          stillToRun.push(l);
+          continue;
+        }
         await writeSyntheticOk(input, l);
         syntheticOks.push(l);
       }
-      effective = [];
+      effective = stillToRun;
     }
   }
 

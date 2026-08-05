@@ -166,6 +166,37 @@ describe('run (orchestrate)', () => {
     expect(result.exitCode).toBe(1);
   });
   it('skips lane when prior sink shows empty delta + baseSha set', async () => {
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [],
+        suggestions: [],
+        summary: 'prior',
+        startedAt: '2026-05-25T00:00:00.000Z',
+        finishedAt: '2026-05-25T00:01:00.000Z',
+      }),
+      'utf8',
+    );
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).toContain('reviewer');
+  });
+  it('runs the mandatory reviewer lane on an empty delta when it has no prior sink', async () => {
     const result = await run({
       args: {
         slug: 'x',
@@ -179,7 +210,24 @@ describe('run (orchestrate)', () => {
       cwd: root,
       isEmptyDiff: async () => true,
     });
-    expect(result.syntheticOks).toContain('reviewer');
+    expect(result.syntheticOks).toEqual([]);
+    expect(result.lanesRun).toEqual(['reviewer']);
+  });
+  it('still short-circuits a code-kind reviewer lane with no prior sink', async () => {
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'src/x.ts',
+        kind: 'code',
+        lanes: ['reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: false,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).toEqual(['reviewer']);
   });
   it('autonomous flag reaches guardLaneOverwrite (prior sink → archive default)', async () => {
     const { writeFile, readdir } = await import('node:fs/promises');
