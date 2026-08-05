@@ -82,8 +82,8 @@ lane overrides and autonomous-mode toggles. **Both blocks are optional**
 
   // OPTIONAL. Absent → built-in DEFAULT_CR_LANES: every kind reviews with ["reviewer"].
   "crLanes": {
-    "spec": ["manual", "reviewer"],
-    "plan": ["manual", "reviewer"],
+    "spec": ["manual", "reviewer"],   // "reviewer" is MANDATORY on spec + plan —
+    "plan": ["manual", "reviewer"],   // omitting it fails `validate noldor-config`
     "code": ["reviewer"]              // add "codex" for a second opinion: ["reviewer", "codex"]
                                       // (codex needs the codex CLI authenticated — it is NOT
                                       //  part of the autonomous-safe built-in default)
@@ -115,6 +115,25 @@ Precedence at orchestrate time (`resolveLanes` in `src/cr/orchestrate.ts`):
    A missing `crLanes` block is no longer a hard error — it falls back to the default.
 3. Otherwise (interactive, no flag): the gate skill prompts via the lane multi-select.
 
+Whichever branch wins, the resolved set for `spec` and `plan` passes through
+`withMandatoryReviewer` (`src/core/lanes.ts`): **`reviewer` is always-on for
+those two kinds**, so no spec or plan can reach implementation unreviewed. A
+lane pick or a `crLanes.spec` / `crLanes.plan` block that omits `reviewer` gets
+it appended (order otherwise preserved, no duplicate), and orchestrate prints
+`lane 'reviewer' is mandatory for <kind> artifacts — added to the requested lanes`
+when it had to add it. The gate skill's Step 2.5 lane multi-select correspondingly
+offers **no `proceed-without-review`** option at these kinds. The overwrite guard
+(below) withholds its `keep-and-skip` choice for that lane too — otherwise a stale
+or red prior sink could stand in for the review, since the exit code only inspects
+lanes that actually ran. `code` is exempt from the union — its reviewer pass is
+enforced downstream by the `Noldor-Reviewed-Subagent` receipt the pre-push hook
+validates.
+
+`pnpm noldor validate noldor-config` refuses a `crLanes.spec` / `crLanes.plan`
+set without `reviewer` rather than letting the config advertise a review posture
+the runtime silently overrides. Omitting the key is always fine — absence
+inherits the reviewer-only `DEFAULT_CR_LANES`.
+
 The schema is
 validated by `pnpm noldor validate noldor-config` (Zod loader in
 `src/cr/config.ts`); validation also runs at the top of
@@ -129,9 +148,17 @@ moved, so all configured lanes get a synthetic OK record (lane =
 `delta-short-circuit`) without spawning reviewers. This is the
 fast-path for "review still green after a no-op rebase" cases. The
 `--full-review` flag bypasses the short-circuit unconditionally and
-forces every lane to re-run from scratch. The delta logic only fires
-when every previous lane was green; any prior blocker forces a fresh
-run.
+forces every lane to re-run from scratch.
+
+One exemption: on `spec` / `plan`, the mandatory `reviewer` lane is
+short-circuited only when its own prior sink exists **and recorded no
+blockers**. "No changes since prior run" presupposes a prior run that went
+green — so a first pass, or a re-run over unaddressed blockers, still gets a
+real review rather than a synthetic pass nobody earned. Such a lane is
+dispatched with `fullReview` (no `baseSha`), because the artifact diff is
+known-empty at that point and a delta prompt would put nothing in front of
+the reviewer. Other lanes (and `code`-kind runs) short-circuit on an empty
+diff regardless of their prior sink's verdict.
 
 ## Escalation
 

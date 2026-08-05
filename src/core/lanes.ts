@@ -39,3 +39,41 @@ export type Lane = z.infer<typeof laneSchema>;
 /** Reviewable artifact kinds — the keys of a `crLanes` config block. */
 export const artifactKindSchema = z.enum(['spec', 'plan', 'code']);
 export type ArtifactKind = z.infer<typeof artifactKindSchema>;
+
+/**
+ * Artifact kinds whose review may never be skipped: `reviewer` is unioned into
+ * whatever lane set an operator picks or a `crLanes.<kind>` block declares, so
+ * no spec or plan can reach implementation unreviewed. `code` is deliberately
+ * absent — its reviewer pass is already enforced downstream by the
+ * `Noldor-Reviewed-Subagent` receipt the pre-push hook validates against
+ * `HEAD^{tree}`.
+ */
+export const REVIEWER_MANDATORY_KINDS: readonly ArtifactKind[] = ['spec', 'plan'];
+
+/**
+ * Union `reviewer` into `lanes` when `kind` mandates it. Order-preserving and
+ * idempotent — appends only when the lane is absent, so an operator's own
+ * ordering (`manual` first, say) survives.
+ */
+export function withMandatoryReviewer(kind: ArtifactKind, lanes: readonly Lane[]): Lane[] {
+  if (!REVIEWER_MANDATORY_KINDS.includes(kind) || lanes.includes('reviewer')) return [...lanes];
+  return [...lanes, 'reviewer'];
+}
+
+/**
+ * The `crLanes` kinds that declare a lane set without `reviewer` — the configs
+ * `pnpm noldor validate noldor-config` refuses. Runtime lane resolution
+ * self-heals such a block via {@link withMandatoryReviewer}; this is the loud
+ * half of the pair, so the drift gets fixed in the config instead of being
+ * silently corrected on every run. Kinds the block never declares are fine:
+ * absence falls back to `DEFAULT_CR_LANES`, which is reviewer-only.
+ */
+export function missingMandatoryReviewer(
+  crLanes: Partial<Record<ArtifactKind, readonly Lane[]>> | undefined,
+): ArtifactKind[] {
+  if (!crLanes) return [];
+  return REVIEWER_MANDATORY_KINDS.filter((kind) => {
+    const lanes = crLanes[kind];
+    return lanes !== undefined && !lanes.includes('reviewer');
+  });
+}

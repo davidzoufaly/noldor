@@ -1,5 +1,5 @@
 // @tests: acceptance-verify-lane, autonomous-plan-to-pr-merge, specs-cr-gate-multi-reviewer
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,6 +27,24 @@ afterEach(async () => {
 
 describe('delta short-circuit', () => {
   it('writes synthetic OK for ALL lanes when empty diff', async () => {
+    // A prior reviewer sink is what makes "no changes since prior run" true for
+    // the mandatory lane — without one it runs for real (see orchestrate.test.ts).
+    // `autonomous` keeps the overwrite guard from prompting over that prior sink.
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [],
+        suggestions: [],
+        summary: 'prior',
+        startedAt: '2026-05-25T00:00:00.000Z',
+        finishedAt: '2026-05-25T00:01:00.000Z',
+      }),
+      'utf8',
+    );
     const r = await run({
       args: {
         slug: 'x',
@@ -35,7 +53,7 @@ describe('delta short-circuit', () => {
         lanes: ['manual', 'reviewer'],
         baseSha: 'b',
         fullReview: false,
-        autonomous: false,
+        autonomous: true,
       },
       cwd: root,
       isEmptyDiff: async () => true,

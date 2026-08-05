@@ -20,8 +20,31 @@ import { setSmokeRunner } from '../lanes/verify.js';
 import { setVerifyDispatcher } from '../lanes/verify-dispatch.js';
 
 describe('resolveLanes', () => {
-  it('CLI --lanes wins', () => {
-    expect(resolveLanes({ slug: 'x', kind: 'spec', lanes: ['manual'] }, null)).toEqual(['manual']);
+  it('CLI --lanes wins (reviewer appended — mandatory on spec)', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'spec', lanes: ['manual'] }, null)).toEqual([
+      'manual',
+      'reviewer',
+    ]);
+  });
+  it('CLI --lanes wins verbatim on code (reviewer not forced there)', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'code', lanes: ['manual'] }, null)).toEqual(['manual']);
+  });
+  it('does not duplicate an already-picked reviewer lane', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'plan', lanes: ['reviewer', 'manual'] }, null)).toEqual([
+      'reviewer',
+      'manual',
+    ]);
+  });
+  it('unions reviewer into a configured crLanes set that omits it', () => {
+    expect(
+      resolveLanes(
+        { slug: 'x', kind: 'plan', autonomous: true },
+        {
+          crLanes: { plan: ['manual'] },
+          autonomous: { skipLanePicker: true, onFailure: 'prompt', requireHumanPrApproval: false },
+        },
+      ),
+    ).toEqual(['manual', 'reviewer']);
   });
   it('config default applied when CLI unset + skipLanePicker', () => {
     expect(
@@ -89,6 +112,24 @@ describe('run (orchestrate)', () => {
     expect(result.lanesRun.toSorted()).toEqual(['manual', 'reviewer']);
     expect(result.exitCode).toBe(0);
   });
+  it('runs the reviewer lane on a spec even when it was not requested, and says so', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['manual'],
+        fullReview: false,
+        autonomous: false,
+      },
+      cwd: root,
+    });
+    expect(result.lanesRun.toSorted()).toEqual(['manual', 'reviewer']);
+    expect(result.exitCode).toBe(0);
+    expect(spy.mock.calls.flat().join('\n')).toContain("lane 'reviewer' is mandatory for spec");
+    spy.mockRestore();
+  });
   it('rejects standalone as a runnable lane with an escalate pointer', async () => {
     await expect(
       run({
@@ -125,6 +166,39 @@ describe('run (orchestrate)', () => {
     expect(result.exitCode).toBe(1);
   });
   it('skips lane when prior sink shows empty delta + baseSha set', async () => {
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [],
+        suggestions: [],
+        summary: 'prior',
+        startedAt: '2026-05-25T00:00:00.000Z',
+        finishedAt: '2026-05-25T00:01:00.000Z',
+      }),
+      'utf8',
+    );
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).toContain('reviewer');
+  });
+  it('runs the mandatory reviewer lane on an empty delta when it has no prior sink', async () => {
+    const { runSubagent } = await import('../lanes/subagent.js');
+    (runSubagent as ReturnType<typeof vi.fn>).mockClear();
     const result = await run({
       args: {
         slug: 'x',
@@ -138,7 +212,60 @@ describe('run (orchestrate)', () => {
       cwd: root,
       isEmptyDiff: async () => true,
     });
-    expect(result.syntheticOks).toContain('reviewer');
+    expect(result.syntheticOks).toEqual([]);
+    expect(result.lanesRun).toEqual(['reviewer']);
+    // ...and over the whole artifact: a delta prompt here would review nothing.
+    const dispatched = (runSubagent as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(dispatched.fullReview).toBe(true);
+    expect(dispatched.baseSha).toBeUndefined();
+  });
+  it('re-runs the mandatory reviewer lane on an empty delta when the prior sink was red', async () => {
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [{ file: 'docs/x.md', severity: 'high', message: 'unaddressed' }],
+        suggestions: [],
+        summary: 'blockers found',
+        startedAt: '2026-05-25T00:00:00.000Z',
+        finishedAt: '2026-05-25T00:01:00.000Z',
+      }),
+      'utf8',
+    );
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).toEqual([]);
+    expect(result.lanesRun).toEqual(['reviewer']);
+  });
+  it('still short-circuits a code-kind reviewer lane with no prior sink', async () => {
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'src/x.ts',
+        kind: 'code',
+        lanes: ['reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: false,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).toEqual(['reviewer']);
   });
   it('autonomous flag reaches guardLaneOverwrite (prior sink → archive default)', async () => {
     const { writeFile, readdir } = await import('node:fs/promises');
