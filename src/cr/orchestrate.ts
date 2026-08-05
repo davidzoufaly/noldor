@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, readFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { DEFAULT_CR_LANES, loadConfig, resolveReviewProfile } from '../core/config.js';
@@ -128,6 +128,8 @@ function sinkCandidatePaths(cwd: string, slug: string, kind: ArtifactKind, lane:
 /**
  * Path of the first sink that exists for `lane` — canonical first, then any
  * legacy-named one (pre-0.7.0) — or `null` when the lane has no prior run.
+ * Probes with `stat` rather than reading: an existence test shouldn't load the
+ * file, and a path that exists but isn't a regular file is not a prior run.
  */
 async function findExistingSink(
   cwd: string,
@@ -137,11 +139,32 @@ async function findExistingSink(
 ): Promise<string | null> {
   for (const candidate of sinkCandidatePaths(cwd, slug, kind, lane)) {
     try {
-      await readFile(candidate, 'utf8');
-      return candidate;
+      if ((await stat(candidate)).isFile()) return candidate;
     } catch {}
   }
   return null;
+}
+
+/**
+ * True when `lane` has a prior sink that recorded no blockers. Anything else —
+ * no sink, unreadable/corrupt sink, or a sink carrying blockers — is false, so
+ * callers gate the delta short-circuit on a review that actually went green
+ * instead of on the mere presence of a file.
+ */
+async function priorRunWasGreen(
+  cwd: string,
+  slug: string,
+  kind: ArtifactKind,
+  lane: Lane,
+): Promise<boolean> {
+  const path = await findExistingSink(cwd, slug, kind, lane);
+  if (path === null) return false;
+  try {
+    const prior = JSON.parse(await readFile(path, 'utf8')) as { blockers?: unknown[] };
+    return Array.isArray(prior.blockers) && prior.blockers.length === 0;
+  } catch {
+    return false;
+  }
 }
 
 export async function guardLaneOverwrite(
@@ -272,20 +295,18 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // EVERY lane. Re-reviewing an unchanged artifact is wasteful.
   const isEmptyDiff = opts.isEmptyDiff ?? isEmptyDiffDefault;
   const syntheticOks: Lane[] = [];
+  let fullReviewOverride = false;
   if (input.baseSha && !input.fullReview) {
     const empty = await isEmptyDiff(cwd, input.baseSha, input.artifactSha, input.artifact);
     if (empty) {
       const stillToRun: Lane[] = [];
       for (const l of effective) {
-        // "No changes since prior run" presupposes a prior run. A mandatory
-        // reviewer lane with no sink of its own was never reviewed at all, so
-        // synthesizing a pass would hand the spec/plan a green receipt nobody
-        // earned — run it for real instead.
-        const unreviewed =
-          l === 'reviewer' &&
-          REVIEWER_MANDATORY_KINDS.includes(opts.args.kind) &&
-          (await findExistingSink(cwd, opts.args.slug, opts.args.kind, l)) === null;
-        if (unreviewed) {
+        // "No changes since prior run" presupposes a prior run that went green.
+        // A mandatory reviewer lane with no sink was never reviewed at all, and
+        // one with a red sink has blockers nobody addressed — synthesizing a
+        // pass in either case hands the spec/plan a receipt it never earned.
+        const mandatory = l === 'reviewer' && REVIEWER_MANDATORY_KINDS.includes(opts.args.kind);
+        if (mandatory && !(await priorRunWasGreen(cwd, opts.args.slug, opts.args.kind, l))) {
           stillToRun.push(l);
           continue;
         }
@@ -293,6 +314,11 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         syntheticOks.push(l);
       }
       effective = stillToRun;
+      // Those lanes run with the artifact diff known-empty, so the delta prompt
+      // would put nothing in front of the reviewer. Give them the whole
+      // artifact instead — a review of zero content is worse than no review,
+      // since it writes a green sink.
+      if (stillToRun.length > 0) fullReviewOverride = true;
     }
   }
 
@@ -301,11 +327,19 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // Pre-cache the codex --base-sha probe result for all-settled batch
   const codexBaseShaSupport = effective.includes('codex') ? await codexSupportsBaseSha() : false;
 
+  // Only the mandatory reviewer lane survives a `fullReviewOverride` round (every
+  // other lane was synthesized above), so widening the whole batch is safe here.
+  let dispatchInput = input;
+  if (fullReviewOverride) {
+    dispatchInput = { ...input, fullReview: true };
+    delete dispatchInput.baseSha;
+  }
+
   const settled = await Promise.allSettled(
     effective.map((l) => {
-      if (l === 'codex') return runCodex(input, { supportsBaseSha: codexBaseShaSupport });
+      if (l === 'codex') return runCodex(dispatchInput, { supportsBaseSha: codexBaseShaSupport });
       // standalone can't reach here — run() rejects it at entry.
-      return LANES[l as Exclude<Lane, 'standalone'>](input);
+      return LANES[l as Exclude<Lane, 'standalone'>](dispatchInput);
     }),
   );
 

@@ -9,6 +9,8 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 ## Priority
 
+- delta short-circuit still green-washes a red prior sink for every non-mandatory lane: `run()` writes a synthetic OK on an empty artifact diff without reading the prior sink's verdict, so unaddressed blockers on `manual`/`codex`/`verifier` (and any `code`-kind lane) are replaced by `blockers: []` and exit 0. The spec/plan `reviewer` lane now gates on `priorRunWasGreen`; generalize that to all lanes, or state the asymmetry as intended. (surfaced in CR of `mandatory-reviewer-lane-for-spec-plan-cr`)
+
 ## Not groomed
 
 ## Lessons

@@ -197,6 +197,8 @@ describe('run (orchestrate)', () => {
     expect(result.syntheticOks).toContain('reviewer');
   });
   it('runs the mandatory reviewer lane on an empty delta when it has no prior sink', async () => {
+    const { runSubagent } = await import('../lanes/subagent.js');
+    (runSubagent as ReturnType<typeof vi.fn>).mockClear();
     const result = await run({
       args: {
         slug: 'x',
@@ -206,6 +208,42 @@ describe('run (orchestrate)', () => {
         baseSha: 'aaa',
         fullReview: false,
         autonomous: false,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).toEqual([]);
+    expect(result.lanesRun).toEqual(['reviewer']);
+    // ...and over the whole artifact: a delta prompt here would review nothing.
+    const dispatched = (runSubagent as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(dispatched.fullReview).toBe(true);
+    expect(dispatched.baseSha).toBeUndefined();
+  });
+  it('re-runs the mandatory reviewer lane on an empty delta when the prior sink was red', async () => {
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [{ file: 'docs/x.md', severity: 'high', message: 'unaddressed' }],
+        suggestions: [],
+        summary: 'blockers found',
+        startedAt: '2026-05-25T00:00:00.000Z',
+        finishedAt: '2026-05-25T00:01:00.000Z',
+      }),
+      'utf8',
+    );
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: true,
       },
       cwd: root,
       isEmptyDiff: async () => true,
