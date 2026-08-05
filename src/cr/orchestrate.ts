@@ -161,7 +161,10 @@ async function priorRunWasGreen(
   if (path === null) return false;
   try {
     const prior = JSON.parse(await readFile(path, 'utf8')) as { blockers?: unknown[] };
-    return Array.isArray(prior.blockers) && prior.blockers.length === 0;
+    // `blockers` carries `.default([])` in the sink schema, so an absent key is
+    // a green record, not a malformed one (see findings-schema.ts).
+    const blockers = prior.blockers ?? [];
+    return Array.isArray(blockers) && blockers.length === 0;
   } catch {
     return false;
   }
@@ -201,10 +204,17 @@ export async function guardLaneOverwrite(
     // invariant must not depend on the prompt having withheld the choice.
     if (choice === 'skip' && !unskippable) continue;
     if (choice === 'archive') {
-      const archDir = join(ctx.cwd, '.noldor', 'cr', 'archive');
-      await mkdir(archDir, { recursive: true });
-      const ts = Date.now();
-      await copyFile(path, join(archDir, `${ts}-${ctx.slug}-${ctx.kind}-${lane}.json`));
+      // Best-effort: an unreadable prior sink (EACCES) must not turn a lane that
+      // was about to run into a rejected orchestrate call. Losing the archive
+      // copy costs history, not correctness — the lane still re-reviews below.
+      try {
+        const archDir = join(ctx.cwd, '.noldor', 'cr', 'archive');
+        await mkdir(archDir, { recursive: true });
+        const ts = Date.now();
+        await copyFile(path, join(archDir, `${ts}-${ctx.slug}-${ctx.kind}-${lane}.json`));
+      } catch (err) {
+        console.error(`could not archive prior ${lane} sink: ${(err as Error).message}`);
+      }
     }
     keep.push(lane);
   }
