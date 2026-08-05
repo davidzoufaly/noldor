@@ -4,7 +4,11 @@ import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { DEFAULT_CR_LANES, loadConfig, resolveReviewProfile } from '../core/config.js';
 import type { NoldorConfig } from '../core/config.js';
-import { LEGACY_BY_CANONICAL, withMandatoryReviewer } from '../core/lanes.js';
+import {
+  LEGACY_BY_CANONICAL,
+  REVIEWER_MANDATORY_KINDS,
+  withMandatoryReviewer,
+} from '../core/lanes.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult } from './lane-types.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
@@ -144,17 +148,27 @@ export async function guardLaneOverwrite(
       keep.push(lane);
       continue;
     }
+    // `keep-and-skip` drops the lane from `effective`, and the exit code only
+    // inspects lanes that ran — so offering it for a mandatory reviewer lane
+    // would let a stale (or red) prior sink stand in for the review the kind
+    // requires. The mandatory lane gets overwrite / archive-and-overwrite only.
+    const unskippable = lane === 'reviewer' && REVIEWER_MANDATORY_KINDS.includes(ctx.kind);
+    const choices: Array<{ name: string; value: 'overwrite' | 'archive' | 'skip' }> = [
+      { name: 'overwrite', value: 'overwrite' },
+      { name: 'archive-and-overwrite', value: 'archive' },
+    ];
+    if (!unskippable) choices.push({ name: 'keep-and-skip', value: 'skip' });
     const choice = opts.autonomous
       ? ('archive' as const)
       : await promptSelect({
-          message: `${lane} sink already exists for ${ctx.slug}-${ctx.kind}; overwrite?`,
-          choices: [
-            { name: 'overwrite', value: 'overwrite' as const },
-            { name: 'archive-and-overwrite', value: 'archive' as const },
-            { name: 'keep-and-skip', value: 'skip' as const },
-          ],
+          message: unskippable
+            ? `reviewer sink already exists for ${ctx.slug}-${ctx.kind}; overwrite? (reviewer is mandatory for ${ctx.kind} — it cannot be skipped)`
+            : `${lane} sink already exists for ${ctx.slug}-${ctx.kind}; overwrite?`,
+          choices,
         });
-    if (choice === 'skip') continue;
+    // A `skip` for an unskippable lane is ignored rather than honored — the
+    // invariant must not depend on the prompt having withheld the choice.
+    if (choice === 'skip' && !unskippable) continue;
     if (choice === 'archive') {
       const archDir = join(ctx.cwd, '.noldor', 'cr', 'archive');
       await mkdir(archDir, { recursive: true });
