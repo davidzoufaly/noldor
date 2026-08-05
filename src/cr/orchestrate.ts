@@ -188,18 +188,6 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
   const reviewProfile = resolveReviewProfile(cfg, opts.args.profile);
   const requested = resolveLanes(opts.args, cfg);
-  // Visibility for the mandatory-reviewer union: an operator pick or a crLanes
-  // block that omitted `reviewer` on a spec/plan silently gains it, so say so
-  // rather than letting the run differ from what was asked for.
-  const picked =
-    opts.args.lanes && opts.args.lanes.length > 0
-      ? opts.args.lanes
-      : (cfg?.crLanes?.[opts.args.kind] ?? []);
-  if (picked.length > 0 && !picked.includes('reviewer') && requested.includes('reviewer')) {
-    console.error(
-      `lane 'reviewer' is mandatory for ${opts.args.kind} artifacts — added to the requested lanes`,
-    );
-  }
   if (requested.includes('standalone')) {
     throw new Error(
       "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
@@ -208,6 +196,20 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   if (requested.includes('verifier') && opts.args.kind !== 'code') {
     throw new Error(
       "lane 'verifier' is code-only — remove it from --lanes / crLanes for spec/plan artifacts",
+    );
+  }
+  // Visibility for the mandatory-reviewer union: an operator pick or a crLanes
+  // block that omitted `reviewer` on a spec/plan silently gains it, so say so
+  // rather than letting the run differ from what was asked for. Announced only
+  // once the lane set is past the rejections above, so a run that throws never
+  // claims to have added a lane it will not run.
+  const picked =
+    opts.args.lanes && opts.args.lanes.length > 0
+      ? opts.args.lanes
+      : (cfg?.crLanes?.[opts.args.kind] ?? []);
+  if (picked.length > 0 && !picked.includes('reviewer') && requested.includes('reviewer')) {
+    console.error(
+      `lane 'reviewer' is mandatory for ${opts.args.kind} artifacts — added to the requested lanes`,
     );
   }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });
