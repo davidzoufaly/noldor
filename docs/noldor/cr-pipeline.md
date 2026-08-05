@@ -122,9 +122,12 @@ lane pick or a `crLanes.spec` / `crLanes.plan` block that omits `reviewer` gets
 it appended (order otherwise preserved, no duplicate), and orchestrate prints
 `lane 'reviewer' is mandatory for <kind> artifacts — added to the requested lanes`
 when it had to add it. The gate skill's Step 2.5 lane multi-select correspondingly
-offers **no `proceed-without-review`** option at these kinds. `code` is exempt from
-the union — its reviewer pass is enforced downstream by the
-`Noldor-Reviewed-Subagent` receipt the pre-push hook validates.
+offers **no `proceed-without-review`** option at these kinds. The overwrite guard
+(below) withholds its `keep-and-skip` choice for that lane too — otherwise a stale
+or red prior sink could stand in for the review, since the exit code only inspects
+lanes that actually ran. `code` is exempt from the union — its reviewer pass is
+enforced downstream by the `Noldor-Reviewed-Subagent` receipt the pre-push hook
+validates.
 
 `pnpm noldor validate noldor-config` refuses a `crLanes.spec` / `crLanes.plan`
 set without `reviewer` rather than letting the config advertise a review posture
