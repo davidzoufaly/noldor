@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { DEFAULT_CR_LANES, loadConfig, resolveReviewProfile } from '../core/config.js';
 import type { NoldorConfig } from '../core/config.js';
-import { LEGACY_BY_CANONICAL } from '../core/lanes.js';
+import { LEGACY_BY_CANONICAL, withMandatoryReviewer } from '../core/lanes.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult } from './lane-types.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
@@ -46,14 +46,20 @@ export function resolveLanes(
   args: { slug: string; kind: ArtifactKind; lanes?: Lane[]; autonomous?: boolean },
   cfg: NoldorConfig | null,
 ): Lane[] {
+  // Every resolved set passes through withMandatoryReviewer: on spec/plan the
+  // `reviewer` lane is always-on, so neither an operator's lane pick nor a
+  // configured crLanes block can ship an unreviewed artifact.
   // 1. Explicit --lanes always wins.
-  if (args.lanes && args.lanes.length > 0) return args.lanes;
+  if (args.lanes && args.lanes.length > 0) return withMandatoryReviewer(args.kind, args.lanes);
   // 2. Autonomous / skipLanePicker path: configured crLanes.<kind> when present,
   //    else the built-in autonomous-safe default (subagent). Never throws — a
   //    missing crLanes block is no longer a hard error.
   if (args.autonomous || cfg?.autonomous?.skipLanePicker) {
     const configured = cfg?.crLanes?.[args.kind];
-    return configured && configured.length > 0 ? configured : DEFAULT_CR_LANES[args.kind];
+    return withMandatoryReviewer(
+      args.kind,
+      configured && configured.length > 0 ? configured : DEFAULT_CR_LANES[args.kind],
+    );
   }
   // 3. Interactive mode, no CLI flag: empty signals the /noldor-gate skill to prompt.
   return [];
@@ -182,6 +188,18 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
   const reviewProfile = resolveReviewProfile(cfg, opts.args.profile);
   const requested = resolveLanes(opts.args, cfg);
+  // Visibility for the mandatory-reviewer union: an operator pick or a crLanes
+  // block that omitted `reviewer` on a spec/plan silently gains it, so say so
+  // rather than letting the run differ from what was asked for.
+  const picked =
+    opts.args.lanes && opts.args.lanes.length > 0
+      ? opts.args.lanes
+      : (cfg?.crLanes?.[opts.args.kind] ?? []);
+  if (picked.length > 0 && !picked.includes('reviewer') && requested.includes('reviewer')) {
+    console.error(
+      `lane 'reviewer' is mandatory for ${opts.args.kind} artifacts — added to the requested lanes`,
+    );
+  }
   if (requested.includes('standalone')) {
     throw new Error(
       "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",

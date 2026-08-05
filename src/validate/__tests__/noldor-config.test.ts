@@ -1,4 +1,4 @@
-// @tests: framework-script-test-migration-cleanup
+// @tests: framework-script-test-migration-cleanup, specs-cr-gate-multi-reviewer
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -47,6 +47,30 @@ describe('noldor validate noldor-config', () => {
     const r = runValidate(root);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('.noldor/config.json INVALID:');
+  }, 30_000);
+
+  it('rejects a crLanes.spec / crLanes.plan set without the reviewer lane', () => {
+    mkdirSync(join(root, '.noldor'));
+    writeFileSync(
+      join(root, '.noldor', 'config.json'),
+      JSON.stringify({ crLanes: { spec: ['manual'], plan: ['manual'], code: ['verify'] } }),
+    );
+    const r = runValidate(root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('.noldor/config.json INVALID:');
+    expect(r.stderr).toContain('crLanes.spec / crLanes.plan');
+    expect(r.stderr).toContain('must include the "reviewer" lane');
+  }, 30_000);
+
+  it('accepts a spec/plan lane set that includes reviewer (legacy name counts)', () => {
+    mkdirSync(join(root, '.noldor'));
+    writeFileSync(
+      join(root, '.noldor', 'config.json'),
+      JSON.stringify({ crLanes: { spec: ['manual', 'subagent'], plan: ['reviewer'] } }),
+    );
+    const r = runValidate(root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('.noldor/config.json valid');
   }, 30_000);
 
   it('treats an absent config as OK (interactive mode only)', () => {

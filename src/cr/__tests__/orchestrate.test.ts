@@ -20,8 +20,31 @@ import { setSmokeRunner } from '../lanes/verify.js';
 import { setVerifyDispatcher } from '../lanes/verify-dispatch.js';
 
 describe('resolveLanes', () => {
-  it('CLI --lanes wins', () => {
-    expect(resolveLanes({ slug: 'x', kind: 'spec', lanes: ['manual'] }, null)).toEqual(['manual']);
+  it('CLI --lanes wins (reviewer appended — mandatory on spec)', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'spec', lanes: ['manual'] }, null)).toEqual([
+      'manual',
+      'reviewer',
+    ]);
+  });
+  it('CLI --lanes wins verbatim on code (reviewer not forced there)', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'code', lanes: ['manual'] }, null)).toEqual(['manual']);
+  });
+  it('does not duplicate an already-picked reviewer lane', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'plan', lanes: ['reviewer', 'manual'] }, null)).toEqual([
+      'reviewer',
+      'manual',
+    ]);
+  });
+  it('unions reviewer into a configured crLanes set that omits it', () => {
+    expect(
+      resolveLanes(
+        { slug: 'x', kind: 'plan', autonomous: true },
+        {
+          crLanes: { plan: ['manual'] },
+          autonomous: { skipLanePicker: true, onFailure: 'prompt', requireHumanPrApproval: false },
+        },
+      ),
+    ).toEqual(['manual', 'reviewer']);
   });
   it('config default applied when CLI unset + skipLanePicker', () => {
     expect(
@@ -88,6 +111,24 @@ describe('run (orchestrate)', () => {
     });
     expect(result.lanesRun.toSorted()).toEqual(['manual', 'reviewer']);
     expect(result.exitCode).toBe(0);
+  });
+  it('runs the reviewer lane on a spec even when it was not requested, and says so', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['manual'],
+        fullReview: false,
+        autonomous: false,
+      },
+      cwd: root,
+    });
+    expect(result.lanesRun.toSorted()).toEqual(['manual', 'reviewer']);
+    expect(result.exitCode).toBe(0);
+    expect(spy.mock.calls.flat().join('\n')).toContain("lane 'reviewer' is mandatory for spec");
+    spy.mockRestore();
   });
   it('rejects standalone as a runnable lane with an escalate pointer', async () => {
     await expect(
