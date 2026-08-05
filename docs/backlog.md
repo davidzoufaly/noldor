@@ -71,3 +71,28 @@ One shared vector-embedding capability with two consumers: (a) FD/feature-descri
 Add end-to-end test support to the framework. Fuzzy one-liner — needs a spike to define scope (consumer-facing e2e harness vs self-host e2e coverage) before promotion.
 
 - Deep-audit 2026-07-13 (batch `.noldor/research/2026-07-13-184850`) sharpens the scope: a cold-consumer e2e — scripted `noldor init` on an empty repo, per runner (claude/codex/opencode), in the contract-CI harness (PR #99) — would have caught every consumer-facing finding of the audit (broken `../superpowers/specs/` template links, missing pre-edit-guard hook wiring, codex CR lane reading `.claude/engineering-rules.md`).
+
+### Design Prior-Art Seeder
+
+- id: Q-0070
+- area: tooling
+- type: feat
+- since: 2026-08-05
+- size: M
+- impact: med
+- confidence: low
+- parent: de-superpowers-vendor-spec-plan-and-worktree-flows
+
+`/noldor-spec` step 3 leaves prior-art discovery to agent discretion — "one `--support` per anchor you found while grounding" — which is unauditable: nothing distinguishes a thorough search from no search at all. A `pnpm noldor design prior-art --slug <s> --query "<description>"` subcommand would seed `--support` entries deterministically by unioning three substrates that already exist: FD `links.code` reverse lookup via `buildFileToFdsMap`, graphify community membership plus export names, and clone-corpus near-signature matching via `src/clones/tokenize.ts`. Parked rather than queued because the ranking quality of that union is unproven — spike it before committing. Trigger: pick up once Q-0067 (spec-lint prior-art requirement) is shipped and the manual `--support` path proves too noisy or too easily satisfied.
+
+### Better Unit-Test Rules
+
+- id: Q-0071
+- area: testing
+- type: docs
+- since: 2026-08-05
+- size: S
+- impact: low
+- confidence: low
+
+Extend the project's unit-testing rules beyond what `docs/noldor/testing-principles.md` and the Tests section of `.claude/engineering-rules.md` cover today, using the review discussion on `gooddata/gdc-mastercard-panther#2542` as the source material. Fuzzy one-liner — the linked PR sits in a private repo and has not been read, so the actual delta is unknown. Trigger: read the PR and extract the concrete rules before promoting; without that, there is nothing to implement.
