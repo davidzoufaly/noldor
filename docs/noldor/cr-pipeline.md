@@ -82,8 +82,8 @@ lane overrides and autonomous-mode toggles. **Both blocks are optional**
 
   // OPTIONAL. Absent → built-in DEFAULT_CR_LANES: every kind reviews with ["reviewer"].
   "crLanes": {
-    "spec": ["manual", "reviewer"],
-    "plan": ["manual", "reviewer"],
+    "spec": ["manual", "reviewer"],   // "reviewer" is MANDATORY on spec + plan —
+    "plan": ["manual", "reviewer"],   // omitting it fails `validate noldor-config`
     "code": ["reviewer"]              // add "codex" for a second opinion: ["reviewer", "codex"]
                                       // (codex needs the codex CLI authenticated — it is NOT
                                       //  part of the autonomous-safe built-in default)
@@ -114,6 +114,22 @@ Precedence at orchestrate time (`resolveLanes` in `src/cr/orchestrate.ts`):
    the configured `crLanes.<kind>` if present, else `DEFAULT_CR_LANES[kind]`.
    A missing `crLanes` block is no longer a hard error — it falls back to the default.
 3. Otherwise (interactive, no flag): the gate skill prompts via the lane multi-select.
+
+Whichever branch wins, the resolved set for `spec` and `plan` passes through
+`withMandatoryReviewer` (`src/core/lanes.ts`): **`reviewer` is always-on for
+those two kinds**, so no spec or plan can reach implementation unreviewed. A
+lane pick or a `crLanes.spec` / `crLanes.plan` block that omits `reviewer` gets
+it appended (order otherwise preserved, no duplicate), and orchestrate prints
+`lane 'reviewer' is mandatory for <kind> artifacts — added to the requested lanes`
+when it had to add it. The gate skill's Step 2.5 lane multi-select correspondingly
+offers **no `proceed-without-review`** option at these kinds. `code` is exempt from
+the union — its reviewer pass is enforced downstream by the
+`Noldor-Reviewed-Subagent` receipt the pre-push hook validates.
+
+`pnpm noldor validate noldor-config` refuses a `crLanes.spec` / `crLanes.plan`
+set without `reviewer` rather than letting the config advertise a review posture
+the runtime silently overrides. Omitting the key is always fine — absence
+inherits the reviewer-only `DEFAULT_CR_LANES`.
 
 The schema is
 validated by `pnpm noldor validate noldor-config` (Zod loader in

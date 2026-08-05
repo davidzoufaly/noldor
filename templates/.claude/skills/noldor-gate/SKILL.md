@@ -123,11 +123,12 @@ The `prepare-commit-msg` hook injects `Noldor-Path` and `Noldor-FD` from `.noldo
 
 - `manual` — operator reads the artifact, returns blockers/notes via stdin prompt in the CLI
 - `codex` — `pnpm noldor cr codex` second-opinion pass on the artifact (disabled inline with reason when `codex --plan-mode-probe` fails, e.g. "codex — disabled until `codex-cr-plan-review-mode` lands")
-- `reviewer` — senior-reviewer subagent over the artifact diff (self-contained `claude -p` prompt, `src/cr/lanes/subagent-dispatch.ts`)
+- `reviewer` — senior-reviewer subagent over the artifact diff (self-contained `claude -p` prompt, `src/cr/lanes/subagent-dispatch.ts`). **Always-on — see below.** Present it as the pre-selected option; never offer a lane set that omits it.
 - `standalone` — spawn `claude --max-thinking` in a fresh iTerm2 window for deep review (disabled inline when `fix-multiterminal-dev-flow-bug` is not at `phase: done`, e.g. "standalone — disabled until `fix-multiterminal-dev-flow-bug` lands")
-- `proceed-without-review` — skip orchestrate entirely (artifact remains committed); advance to next skill
 
 The operator picks one or several. The selected list becomes the `--lanes` argument. When `.noldor/config.json` has `autonomous.skipLanePicker: true`, skip the prompt and invoke orchestrate with `--autonomous` and no `--lanes` flag (orchestrate reads lanes from `crLanes.<kind>` in config, falling back to the built-in `reviewer`-only defaults when that block is absent — a configured block overrides the defaults).
+
+**The `reviewer` lane is mandatory at `--kind spec` and `--kind plan`, and there is no skip option.** No spec or plan reaches implementation unreviewed, so this stage offers **no `proceed-without-review`** — the only way past it is a green (or explicitly-addressed) reviewer pass. Enforcement is in code, not prose: `withMandatoryReviewer` ([`src/core/lanes.ts`](../../../src/core/lanes.ts)) unions `reviewer` into every spec/plan lane set `resolveLanes` returns — whether it came from `--lanes` or from `crLanes.<kind>` — and orchestrate prints `lane 'reviewer' is mandatory for <kind> artifacts — added to the requested lanes` when it had to add it. `pnpm noldor validate noldor-config` refuses a `crLanes.spec` / `crLanes.plan` block that omits `reviewer`, so the config can't claim a review posture the runtime won't honor. `--kind code` is exempt from the union — its reviewer pass is enforced instead by the `Noldor-Reviewed-Subagent` receipt the pre-push hook validates.
 
 **Invoke orchestrate.**
 
