@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Mandatory Reviewer Lane for Spec/Plan CR
-
-- id: Q-0058
-- area: tooling
-- type: feat
-- since: 2026-08-04
-- size: S
-- impact: high
-- confidence: high
-- parent: specs-cr-gate-multi-reviewer
-
-The reviewer subagent CR lane must run for every spec and plan artifact, in both manual and autonomous flows. Today gate Step 2.5's lane multi-select allows `proceed-without-review` (skips orchestrate entirely) or a lane pick that omits `reviewer`, and in autonomous mode a configured `crLanes.<kind>` block can drop the reviewer lane. Enforce reviewer as always-on: union `reviewer` into any operator lane selection, remove or hard-guard the `proceed-without-review` option for spec/plan kinds, and have orchestrate (or config validation) refuse a `crLanes.spec`/`crLanes.plan` set without `reviewer` — so no spec or plan reaches implementation unreviewed.
-
 ### Mask Volatile Metrics in the sdd-report Release Gate
 
 - id: Q-0054
