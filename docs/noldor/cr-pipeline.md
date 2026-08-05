@@ -152,6 +152,12 @@ forces every lane to re-run from scratch. The delta logic only fires
 when every previous lane was green; any prior blocker forces a fresh
 run.
 
+One exemption: on `spec` / `plan`, the mandatory `reviewer` lane is
+short-circuited only when it already has a sink of its own. "No changes
+since prior run" presupposes a prior run, so a first pass over an
+artifact whose diff is empty against `--base-sha` still gets a real
+review rather than a synthetic pass nobody earned.
+
 ## Escalation
 
 When aggregate surfaces a blocker, control passes to
