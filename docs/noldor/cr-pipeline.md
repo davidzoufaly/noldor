@@ -148,15 +148,17 @@ moved, so all configured lanes get a synthetic OK record (lane =
 `delta-short-circuit`) without spawning reviewers. This is the
 fast-path for "review still green after a no-op rebase" cases. The
 `--full-review` flag bypasses the short-circuit unconditionally and
-forces every lane to re-run from scratch. The delta logic only fires
-when every previous lane was green; any prior blocker forces a fresh
-run.
+forces every lane to re-run from scratch.
 
 One exemption: on `spec` / `plan`, the mandatory `reviewer` lane is
-short-circuited only when it already has a sink of its own. "No changes
-since prior run" presupposes a prior run, so a first pass over an
-artifact whose diff is empty against `--base-sha` still gets a real
-review rather than a synthetic pass nobody earned.
+short-circuited only when its own prior sink exists **and recorded no
+blockers**. "No changes since prior run" presupposes a prior run that went
+green — so a first pass, or a re-run over unaddressed blockers, still gets a
+real review rather than a synthetic pass nobody earned. Such a lane is
+dispatched with `fullReview` (no `baseSha`), because the artifact diff is
+known-empty at that point and a delta prompt would put nothing in front of
+the reviewer. Other lanes (and `code`-kind runs) short-circuit on an empty
+diff regardless of their prior sink's verdict.
 
 ## Escalation
 
