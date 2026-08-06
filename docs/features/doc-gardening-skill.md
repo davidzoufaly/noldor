@@ -32,6 +32,7 @@ introduced: 0.1.0
 updated: 0.5.0
 noldor-tier: full
 ---
+
 ## Summary
 
 A `/noldor-garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`src/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
@@ -69,6 +70,9 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
   - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
   - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
 - **Tests:**
+  - [`src/core/__tests__/branch-added.test.ts`](../../src/core/__tests__/branch-added.test.ts)
+  - [`src/design/__tests__/archive-cli.test.ts`](../../src/design/__tests__/archive-cli.test.ts)
+  - [`src/design/__tests__/archive-resolve.test.ts`](../../src/design/__tests__/archive-resolve.test.ts)
   - [`src/docs/__tests__/docs-api.test.ts`](../../src/docs/__tests__/docs-api.test.ts)
   - [`src/docs/__tests__/docs-check.test.ts`](../../src/docs/__tests__/docs-check.test.ts)
   - [`src/docs/__tests__/docs-transclude.test.ts`](../../src/docs/__tests__/docs-transclude.test.ts)

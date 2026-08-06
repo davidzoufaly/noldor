@@ -39,6 +39,7 @@ phase: done
 noldor-tier: full
 introduced: 0.4.0
 ---
+
 ## Summary
 
 The framework's core flows depend on the third-party `superpowers` Claude Code plugin. Four load-bearing uses: `superpowers:brainstorming` produces every spec (gate SKILL.md Steps for all spec paths), `superpowers:writing-plans` produces every plan, `superpowers:using-git-worktrees` does worktree creation, and — worst — `src/prep/draft.ts:18` bakes a "REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans" blockquote **into every generated plan**, so the dependency propagates into consumer repos at plan-execution time. Everything else is path naming (`docs/design/specs|plans`). A consumer without the plugin cannot run the gate's spec/plan paths; an upstream plugin edit can silently change framework behavior. Vendor the flows.
@@ -71,6 +72,7 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
 - **Code:**
   - [`.claude/skills/noldor-spec/`](../../.claude/skills/noldor-spec/)
   - [`.claude/skills/noldor-plan/`](../../.claude/skills/noldor-plan/)
+  - [`src/design/`](../../src/design/)
   - [`src/worktrees/`](../../src/worktrees/)
   - [`src/prep/draft.ts`](../../src/prep/draft.ts)
   - [`src/prep/formats.ts`](../../src/prep/formats.ts)
@@ -82,6 +84,8 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
   - [`docs/noldor/workflow.md`](../../docs/noldor/workflow.md)
   - [`docs/noldor/skill-catalog.md`](../../docs/noldor/skill-catalog.md)
 - **Tests:**
+  - [`src/design/__tests__/ledger.test.ts`](../../src/design/__tests__/ledger.test.ts)
+  - [`src/design/__tests__/render.test.ts`](../../src/design/__tests__/render.test.ts)
   - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)
   - [`src/prep/__tests__/print-format.test.ts`](../../src/prep/__tests__/print-format.test.ts)
   - [`src/worktrees/__tests__/create-worktree.test.ts`](../../src/worktrees/__tests__/create-worktree.test.ts)
