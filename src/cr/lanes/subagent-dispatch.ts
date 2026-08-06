@@ -19,7 +19,12 @@ const DIMENSION_GUIDE: Record<ReviewDimension, string> = {
     'logic errors, off-by-one, null/undefined, race conditions, wrong API usage, unhandled error paths',
   security: 'injection, path traversal, unsafe shell/exec, secret leakage, unvalidated input',
   reuse: 'duplicated logic an existing helper already covers; missed single-source-of-truth',
-  simplification: 'dead branches, needless indirection, over-abstraction, a simpler equivalent',
+  // Concrete tells, and a trailing override of the `low` nit suppression below.
+  // The override rides the dimension, not EFFORT_GUIDE, so profiles that omit
+  // this dimension are never invited to report against it. See the
+  // `fast-track` docblock in `review-profile.ts` for why the lane needs it.
+  simplification:
+    'a materially shorter equivalent exists; a fn doing several things that should be one; an abstraction with a single call site; a wrapper adding no behavior; a flag or option nobody sets; dead branches; needless indirection. A simpler equivalent you can name concretely is actionable at any effort, not a speculative nit',
   efficiency: 'avoidable O(n^2), redundant IO/subprocess, repeated reads, sync work in a loop',
   altitude: 'wrong layer/abstraction, leaky boundaries, responsibility in the wrong module',
   concurrency:

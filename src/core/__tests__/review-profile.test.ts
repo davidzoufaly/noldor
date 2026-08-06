@@ -7,7 +7,7 @@ describe('review-profile', () => {
     expect(DEFAULT_REVIEW_PROFILES.default).toEqual({ effort: 'med', dimensions: ALL_DIMENSIONS });
     expect(DEFAULT_REVIEW_PROFILES['fast-track']).toEqual({
       effort: 'low',
-      dimensions: ['correctness', 'security', 'reuse'],
+      dimensions: ['correctness', 'security', 'reuse', 'simplification'],
     });
   });
 

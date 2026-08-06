@@ -17,9 +17,28 @@ describe('buildPrompt review profile', () => {
     expect(p).toMatch(/correctness/);
     expect(p).toMatch(/security/);
     expect(p).toMatch(/- reuse:/); // copy-paste lands on the XS/S no-FD lane
+    expect(p).toMatch(/- simplification:/); // the drain hardcodes this profile → KISS must be in scope
     expect(p).toMatch(/- correctness:.*race conditions/); // no `concurrency` here → clause must stay
     expect(p).not.toMatch(/altitude/);
     expect(p).toMatch(/high-confidence/i); // low-effort calibration line
+  });
+
+  it('gives the simplification guide concrete tells plus a nit-suppression override', () => {
+    const p = buildPrompt({ ...base, reviewProfile: DEFAULT_REVIEW_PROFILES['fast-track'] });
+    expect(p).toMatch(/- simplification:.*materially shorter equivalent/);
+    expect(p).toMatch(/- simplification:.*single call site/);
+    expect(p).toMatch(/- simplification:.*actionable at any effort, not a speculative nit/);
+  });
+
+  it('keeps the low-effort line dimension-agnostic', () => {
+    // A `low` profile without `simplification` must not be told to report one —
+    // that would contradict the "these dimensions only" instruction.
+    const p = buildPrompt({
+      ...base,
+      reviewProfile: { effort: 'low', dimensions: ['correctness'] },
+    });
+    expect(p).toMatch(/Skip speculative nits\./);
+    expect(p).not.toMatch(/simplification/);
   });
 
   it('names every dimension for the default profile', () => {

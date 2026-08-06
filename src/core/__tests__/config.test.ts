@@ -159,7 +159,7 @@ describe('resolveReviewProfile', () => {
   it('returns the built-in fast-track profile by name', () => {
     expect(resolveReviewProfile(null, 'fast-track')).toEqual({
       effort: 'low',
-      dimensions: ['correctness', 'security', 'reuse'],
+      dimensions: ['correctness', 'security', 'reuse', 'simplification'],
     });
   });
 
