@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Per-Prerequisite Version Args in the Doctor Probe
-
-- id: Q-0077
-- area: tooling
-- type: fix
-- since: 2026-08-06
-- size: XS
-- impact: high
-- confidence: high
-- parent: make-noldor-agent-agnostic
-
-`makeDefaultProbe` ([`src/core/prerequisites.ts`](../src/core/prerequisites.ts)) hardcodes `execFileSync(bin, ['--version'])` for both the PATH attempt and the `node_modules/.bin` fallback, but lefthook 1.x exposes a `version` subcommand and errors with `unknown flag: --version`. Both attempts fail identically, the probe returns `null`, and `doctor` reports `missing prerequisite lefthook` on a repo whose hooks work fine — then exits 1, because missing prerequisites are fatal. The declared floor is `lefthook >= 1.0.0` while the probe only works on >= 2.x, so the probe contract contradicts the floor it advertises, and the doc comment directly above the probe names lefthook as the binary that must never report missing. A red doctor on a healthy tree trains operators to ignore doctor output and masks real prerequisite failures. Fix: add `versionArgs: string[]` to `BinaryPrerequisite`, default `['--version']`, set `['version']` for lefthook — preferred over a blind `--version`-then-`version` retry, which would paper over the same mismatch for every future tool. Test gap: probe fixture where `--version` throws and `version` succeeds. (surfaced consumer doctor run on lefthook 1.13.6; not reproducible on 2.1.9)
-
 ### CR Delta Short-Circuit Green-Washes Red Prior Sinks
 
 - id: Q-0072
