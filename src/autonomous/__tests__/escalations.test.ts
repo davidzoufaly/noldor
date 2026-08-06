@@ -358,4 +358,27 @@ describe('parkAwareSource', () => {
     expect(src.id).toBe('roadmap');
     expect(src.branchFor('a')).toBe('fast/a');
   });
+
+  it('forwards the optional finishPrompt — both entrypoints wrap, so dropping it kills finish mode', () => {
+    const inner: DrainSource = {
+      id: 'roadmap',
+      nextItem: () => null,
+      parseAll: () => [],
+      gatePrompt: (s) => `/gate ${s}`,
+      finishPrompt: (s) => `/finish ${s}`,
+      branchFor: (s) => `fast/${s}`,
+    };
+    expect(parkAwareSource(inner, () => ({})).finishPrompt?.('a')).toBe('/finish a');
+  });
+
+  it('preserves an ABSENT finishPrompt — runDrain reads undefined as "source opts out of finish mode"', () => {
+    const inner: DrainSource = {
+      id: 'plans',
+      nextItem: () => null,
+      parseAll: () => [],
+      gatePrompt: (s) => `/gate ${s}`,
+      branchFor: (s) => `feat/${s}`,
+    };
+    expect(parkAwareSource(inner, () => ({})).finishPrompt).toBeUndefined();
+  });
 });

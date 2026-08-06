@@ -30,6 +30,24 @@ export function detectStale(run: GitRunner, branch: string): StaleReason[] {
     const ancestor = run('git', ['merge-base', '--is-ancestor', 'origin/main', branch]);
     if (!ancestor.ok) reasons.push('local-branch-behind-main');
   }
+  if (hasClosedUnmergedPr(run, branch)) reasons.push('closed-unmerged-pr');
+  const remote = run('git', ['ls-remote', '--heads', 'origin', branch]);
+  if (!remote.ok) throw new Error(`salvage: ls-remote failed for ${branch} — refusing to guess`);
+  if (remote.stdout.trim() !== '') reasons.push('orphan-remote-branch');
+  return reasons;
+}
+
+/**
+ * Single `gh` query behind the `closed-unmerged-pr` verdict — a PR for this branch that a human
+ * closed without merging. Extracted so {@link detectStale} and the drain loop's finish-mode
+ * exclusion share one definition WITHOUT the caller that only needs this verdict paying for
+ * detectStale's other probes: its `ls-remote` leg throws on a network blip, and from a settle-point
+ * caller that throw becomes a whole-drain abort rather than a retry.
+ *
+ * Fail-closed on a `gh` failure, like the detector it feeds: guessing "no closed PR" would let the
+ * loop reuse a branch a human rejected.
+ */
+export function hasClosedUnmergedPr(run: GitRunner, branch: string): boolean {
   const prs = run('gh', [
     'pr',
     'list',
@@ -42,11 +60,7 @@ export function detectStale(run: GitRunner, branch: string): StaleReason[] {
   ]);
   if (!prs.ok) throw new Error(`salvage: gh pr list failed for ${branch} — refusing to guess`);
   const rows = JSON.parse(prs.stdout || '[]') as Array<{ mergedAt: string | null }>;
-  if (rows.some((r) => r.mergedAt === null)) reasons.push('closed-unmerged-pr');
-  const remote = run('git', ['ls-remote', '--heads', 'origin', branch]);
-  if (!remote.ok) throw new Error(`salvage: ls-remote failed for ${branch} — refusing to guess`);
-  if (remote.stdout.trim() !== '') reasons.push('orphan-remote-branch');
-  return reasons;
+  return rows.some((r) => r.mergedAt === null);
 }
 
 /**
@@ -100,6 +114,18 @@ export function makeSalvage(
     });
     return 'salvaged';
   };
+}
+
+/**
+ * Production `DrainDeps.closedUnmergedPrExistsFor`. Binds {@link hasClosedUnmergedPr} — the same
+ * verdict {@link detectStale} uses, and ONLY that verdict: the other two stale reasons must not
+ * disqualify a branch from finish mode. `orphan-remote-branch` IS the finishable signature (a child
+ * that pushed without opening a PR), and `local-branch-behind-main` fires whenever `main` advanced
+ * mid-run, which says nothing about whether the branch's own work is deliverable.
+ */
+export function makeClosedUnmergedPrProbe(cwd: string): (slug: string, branch: string) => boolean {
+  const run = spawnRunner(cwd);
+  return (_slug, branch) => hasClosedUnmergedPr(run, branch);
 }
 
 /** Injected file writer (defaults to fs); split out so the resolver stays unit-pure. */

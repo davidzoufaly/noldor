@@ -305,8 +305,16 @@ export function unparkSlug(
  * excluded from selection. `parseAll` passes through untouched — the
  * absence-oracle must stay pristine (spec Unit 3). `getParked` is a getter so
  * each pickup sees the freshest park map.
+ *
+ * Every member is forwarded, including the OPTIONAL ones: both production
+ * entrypoints wrap the real source with this, so a dropped member is invisible
+ * in unit tests (which inject a source directly) and silently dead in prod. The
+ * `finishPrompt` conditional preserves its absence too — `runDrain` reads
+ * `finishPrompt === undefined` as "this source opts out of finish mode", so
+ * forwarding an always-defined stub would opt every source in.
  */
 export function parkAwareSource(inner: DrainSource, getParked: () => ParkMap): DrainSource {
+  const finishPrompt = inner.finishPrompt?.bind(inner);
   return {
     id: inner.id,
     nextItem(skip) {
@@ -317,6 +325,7 @@ export function parkAwareSource(inner: DrainSource, getParked: () => ParkMap): D
     },
     parseAll: () => inner.parseAll(),
     gatePrompt: (slug) => inner.gatePrompt(slug),
+    ...(finishPrompt !== undefined ? { finishPrompt } : {}),
     branchFor: (slug) => inner.branchFor(slug),
   };
 }

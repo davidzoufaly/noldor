@@ -17,6 +17,7 @@ import {
   syncMainCleanState,
   openPrExistsFor,
   mergedPrExistsFor,
+  branchHasUnshippedWorkAt,
   spawnGate,
   mergePr,
   assertQueueSourceSyncedAt,
@@ -29,7 +30,7 @@ import {
   groupKillState,
   type ReconcileReport,
 } from './drain-reconcile.js';
-import { makeSalvage } from './salvage.js';
+import { makeClosedUnmergedPrProbe, makeSalvage } from './salvage.js';
 import { applyCycleVerdict, loadPark, mapCycle, parkAwareSource } from './escalations.js';
 import { WATCH_LOG_REL } from './watch-detach.js';
 
@@ -191,6 +192,8 @@ async function main(): Promise<void> {
     mergePr: (slug, branch) => mergePr(cwd, slug, branch),
     openPrExistsFor: (slug, branch) => openPrExistsFor(cwd, slug, branch),
     mergedPrExistsFor: (slug, branch) => mergedPrExistsFor(cwd, slug, branch),
+    branchHasUnshippedWork: (slug, branch) => branchHasUnshippedWorkAt(cwd, slug, branch),
+    closedUnmergedPrExistsFor: makeClosedUnmergedPrProbe(cwd),
     salvageStaleBase: makeSalvage(cwd, 'run'),
     writeState: makePhaseTap(cwd, runId, (s) =>
       writeState(cwd, projectDrainState(process.pid, startedAt, s)),

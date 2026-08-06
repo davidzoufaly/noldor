@@ -1,6 +1,10 @@
 // @tests: portable-gate-entrypoint-for-non-claude-runners
 import { describe, expect, it } from 'vitest';
-import { buildDrainGatePrompt, buildResumeGatePrompt } from '../gate-prompt.js';
+import {
+  buildDrainGatePrompt,
+  buildFinishGatePrompt,
+  buildResumeGatePrompt,
+} from '../gate-prompt.js';
 
 // Today's plansSource literal (drain-source.ts pre-extraction) — the
 // slash-command branch must return it byte-identically.
@@ -44,5 +48,32 @@ describe('buildResumeGatePrompt', () => {
     expect(p).toContain('pnpm noldor noldor set-autonomous');
     expect(p).toContain('NO interactive prompts');
     expect(p).not.toContain('/noldor-gate');
+  });
+});
+
+describe('buildFinishGatePrompt', () => {
+  it('slash-command carries the --finish flag plus the delivery-only directives', () => {
+    const p = buildFinishGatePrompt('alpha', 'slash-command');
+    expect(p.split('\n')[0]).toBe('/noldor-gate --drain alpha --finish');
+    expect(p).toContain('Finish-mode drain context.');
+  });
+
+  it('prose is self-contained: slug, branch, drain-mode.md pointer, no /noldor-gate token', () => {
+    const p = buildFinishGatePrompt('alpha', 'prose');
+    expect(p).toContain("'alpha'");
+    expect(p).toContain('fast/alpha');
+    expect(p).toContain('docs/noldor/drain-mode.md');
+    expect(p).toContain('pnpm noldor pr-flow');
+    expect(p).not.toContain('/noldor-gate');
+  });
+
+  it('both dispatches forbid branch recreation, forbid re-implementation, and require the PR before returning', () => {
+    for (const dispatch of ['slash-command', 'prose'] as const) {
+      const p = buildFinishGatePrompt('alpha', dispatch);
+      expect(p).toContain('Do NOT force-recreate or delete the branch');
+      expect(p).toContain('do NOT re-implement the entry');
+      expect(p).toContain('FOREGROUND');
+      expect(p).toContain('Do NOT end your turn before `pr-flow` has');
+    }
   });
 });
