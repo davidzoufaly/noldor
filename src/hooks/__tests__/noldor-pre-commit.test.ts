@@ -379,6 +379,22 @@ describe('noldor pre-commit', () => {
     });
   });
 
+  it('names .noldor/session.json in the no-session hard-wall reason', () => {
+    const dir = setupRepo();
+    writeFileSync(join(dir, 'a'), 'init');
+    execSync('git add a && git commit -q -m init', { cwd: dir });
+    const initSha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+    writeFileSync(join(dir, '.noldor', 'rollout-marker'), initSha + '\n');
+    writeFileSync(join(dir, 'b'), 'x');
+    execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
+    writeFileSync(join(dir, 'c.ts'), 'x');
+    execSync('git add c.ts', { cwd: dir });
+    const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain('no .noldor/session.json');
+    expect(r.reason).toContain('c.ts');
+  });
+
   describe('logOverride breadcrumb', () => {
     it('appends a (pre-commit)-tagged line with the reason to .noldor/overrides.log', () => {
       const dir = setupRepo();

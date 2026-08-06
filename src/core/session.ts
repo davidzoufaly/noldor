@@ -70,8 +70,22 @@ export function isSessionStale(session: SessionMarker, nowMs: number, ttlHours: 
 
 const FILE = '.noldor/session.json';
 
+/** Absolute path of the session marker under `cwd`. */
+export function sessionMarkerPath(cwd: string): string {
+  return join(cwd, FILE);
+}
+
+/**
+ * True when a session marker file is present under `cwd`. Deliberately does NOT
+ * parse it — callers use this to explain a failure ("no marker") without risking
+ * a throw on a torn/corrupt marker, which {@link readSession} would raise.
+ */
+export function sessionMarkerExists(cwd: string): boolean {
+  return existsSync(sessionMarkerPath(cwd));
+}
+
 export function readSession(cwd: string = process.cwd()): SessionMarker | null {
-  const p = join(cwd, FILE);
+  const p = sessionMarkerPath(cwd);
   if (!existsSync(p)) return null;
   return SessionMarkerSchema.parse(JSON.parse(readFileSync(p, 'utf8')));
 }
