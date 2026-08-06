@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-07-24 by `pnpm sdd:report`.
+Generated: 2026-08-06 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -12,13 +12,13 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 - Total features: 75
 - Untriaged ideas: 0
-- Backlog entries: 5
+- Backlog entries: 7
 - Gap categories with issues: 6 / 14
 
 ## Code clones
 
-- 280 clone group(s), 13.81% duplicated tokens across 291 file(s)
-- src/garden/garden-detect.ts:98-204 and src/garden/garden-detect.ts:221-327 (388 tokens)
+- 280 clone group(s), 13.43% duplicated tokens across 299 file(s)
+- src/garden/garden-detect.ts:84-190 and src/garden/garden-detect.ts:193-299 (388 tokens)
 - src/dashboard/views.ts:752-807 and src/dashboard/views.ts:830-934 (323 tokens)
 - src/dashboard/data.ts:1130-1161 and src/garden/sdd-report.ts:908-943 (259 tokens)
 - src/dashboard/views.ts:671-680 and src/dashboard/views.ts:939-948 (252 tokens)
@@ -33,17 +33,14 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `01c29d0` — fast-track — doc+counter state, zero code risk
+- `1595710` — fast-track — doc+counter state, zero code risk
 - `026845f` — templates/docs twin edits not yet allowlisted (tracked as Q-0023)
 - `bbbc88d` — mechanical doc-frontmatter twin sync; zero code delta; templates/docs/noldor twins fall outside micro-chore/release-sweep allowlists (framework gap)
-- `a890954` — prep-promote batch (drafts operator-approved at artifact stage)
-- `d015f16` — prep-promote batch (drafts operator-approved at artifact stage)
-- `7001d1e` — prep-promote batch (drafts operator-approved at artifact stage)
-- `cfb750a` — prep-promote batch (drafts operator-approved at artifact stage)
-- `4404525` — prep-promote batch (drafts operator-approved at artifact stage)
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 103
+Gated commits missing `Noldor-Reviewed` trailer: 63
 
 ## Metrics
 
@@ -89,8 +86,8 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
 {
   "perLane": {
     "reviewer": {
-      "blockers": 7,
-      "suggestions": 32
+      "blockers": 11,
+      "suggestions": 42
     },
     "verifier": {
       "blockers": 0,
@@ -124,7 +121,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "scope-sibling-trailer-for-doc-sync-commits": 1,
       "-": 2
     },
-    "meanDurationMs": 1062684
+    "meanDurationMs": 1039694
   }
 }
 ```
@@ -190,11 +187,13 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 ### Code files not referenced by any feature
 
 - `src/core/atomic-write.ts` — src/core/atomic-write.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
+- `src/core/branch-added.ts` — src/core/branch-added.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows
+- `src/core/design-artifact-names.ts` — src/core/design-artifact-names.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, graphify-plan-of-edges-nodes-for-plans-specs
 - `src/core/fmt-guard-cli.ts` — src/core/fmt-guard-cli.ts is not referenced by any feature MD links.code
 - `src/core/fmt-guard.ts` — src/core/fmt-guard.ts is not referenced by any feature MD links.code
 - `src/core/init-gitignore.ts` — src/core/init-gitignore.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain, noldor, make-noldor-agent-agnostic
-- `src/core/lanes.ts` — src/core/lanes.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer
-- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic
+- `src/core/lanes.ts` — src/core/lanes.ts is not referenced by any feature MD links.code — probable owner: specs-cr-gate-multi-reviewer, acceptance-verify-lane, code-clone-detector
+- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, noldor
 - `src/core/prompt-stdin.ts` — src/core/prompt-stdin.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer
 - `src/core/review-profile.ts` — src/core/review-profile.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer, make-noldor-agent-agnostic
 - `src/core/state-file.ts` — src/core/state-file.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
@@ -203,6 +202,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Tests with incomplete co-tag
 
+- `src/design/__tests__/archive-resolve.test.ts` — imports files owned by FDs missing from @tests: tag — add: autonomous-plan-to-pr-merge, de-superpowers-vendor-spec-plan-and-worktree-flows, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
 - `src/migrations/__tests__/chain.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-script-test-migration-cleanup
 - `src/migrations/__tests__/0.5.0.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-script-test-migration-cleanup, prefix-skills-with-noldor
 - `src/migrations/__tests__/0.6.0.test.ts` — imports files owned by FDs missing from @tests: tag — add: prefix-skills-with-noldor
