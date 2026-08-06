@@ -107,12 +107,14 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 
 ## Release & publish
 
-- **Regenerate `docs/sdd-report.md` only from the main workspace, never a
-  worktree.** The report embeds CR/drain metrics (`perLane`, escalation
-  `history`, `lastRun`) read from local untracked `.noldor/` state; a worktree
-  sees a fresh empty `.noldor/`, commits empty metrics, and the release-time
-  regen (main workspace, real metrics) then drifts — the sdd-report gate
-  aborts, since it only tolerates the review-skip count line changing.
+- **A worktree regen of `docs/sdd-report.md` commits empty metrics — cosmetic
+  only, no longer a release blocker.** The `cr-effectiveness`,
+  `drain-reliability`, and `tokens-per-feature` blocks read local untracked
+  `.noldor/` state, which a worktree sees empty. The release gate masks those
+  blocks before diffing (`VOLATILE_METRIC_IDS`), so the main-workspace regen
+  folds into the release commit instead of aborting. Every other metric is
+  git-derived and still aborts on drift — prefer the main workspace when you
+  want the committed numbers to be real.
 - **CI `NPM_TOKEN` must bypass 2FA.** A Classic *Publish* token or a plain
   granular token 403s ("Two-factor authentication or granular access token
   with bypass 2fa enabled is required"). Use a Classic **Automation** token
