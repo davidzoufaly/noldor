@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.1.1 — 2026-08-06
+
+### Fixes
+
+- fix(core): skip gh's local checkout in worktree context on direct-merge fallback (#258) ([b9d9063](https://github.com/davidzoufaly/noldor/commit/b9d90639fcaaa5d941811d7d65c7db5b3e0c938f)) ([#258](https://github.com/davidzoufaly/noldor/pull/258))
+- fix(hooks): name the missing session marker instead of the trailer (#256) ([cba976c](https://github.com/davidzoufaly/noldor/commit/cba976ce2cfdf0610775667db28c8893cc9fbed6)) ([#256](https://github.com/davidzoufaly/noldor/pull/256))
+- fix(triage): freeze roadmap/backlog format at one heading level (#249) ([6d4faac](https://github.com/davidzoufaly/noldor/commit/6d4faacd6a08b764cc375b322f3174e7d6509264)) ([#249](https://github.com/davidzoufaly/noldor/pull/249))
+
+### Other changes
+
+- docs(sdd-report): regen after garden archive pass (#262) ([4cf269a](https://github.com/davidzoufaly/noldor/commit/4cf269a512187078ada245ae6d427acd0933b41d)) ([#262](https://github.com/davidzoufaly/noldor/pull/262))
+- docs(garden): archive 5 shipped plans + regen fd-resources (#261) ([4a0afc9](https://github.com/davidzoufaly/noldor/commit/4a0afc9649a237b6a06bce0d3b801dd3742ca0d1)) ([#261](https://github.com/davidzoufaly/noldor/pull/261))
+- chore(release): pre-release graphify AST sweep + sdd-report regen (#260) ([f0010fc](https://github.com/davidzoufaly/noldor/commit/f0010fcb4fe8cbaabf3237068e06eac39ec1dba3)) ([#260](https://github.com/davidzoufaly/noldor/pull/260))
+- docs(triage): land triage batch — Q-0072..Q-0075 + ideas markers (#259) ([03ffd8e](https://github.com/davidzoufaly/noldor/commit/03ffd8e81587832ff6b34b0fe270b0ad5daea00e)) ([#259](https://github.com/davidzoufaly/noldor/pull/259))
+- chore(hooks): flip pre-commit fmt job to auto-fix + stage_fixed (#257) ([40d212d](https://github.com/davidzoufaly/noldor/commit/40d212dc1a9194d44caa58a75954be1d11081553)) ([#257](https://github.com/davidzoufaly/noldor/pull/257))
+- docs(roadmap): retire mask-volatile-metrics-in-the-sdd-report-release-gate — shipped via fast-track (no FD) (#255) ([bb1bbfd](https://github.com/davidzoufaly/noldor/commit/bb1bbfd0939260d14944cc709a6ddd7d3808dacd)) ([#255](https://github.com/davidzoufaly/noldor/pull/255))
+- docs(roadmap): retire mandatory-reviewer-lane-for-spec-plan-cr — shipped via fast-track (no FD) (#254) ([4726f65](https://github.com/davidzoufaly/noldor/commit/4726f65f04c90146f18dda0acc9e4c83514881c9)) ([#254](https://github.com/davidzoufaly/noldor/pull/254))
+- docs(triage): land triage batch — Q-0058 + Q-0059..Q-0071 (#253) ([1b09c90](https://github.com/davidzoufaly/noldor/commit/1b09c90f90dbf4c626ed1c0ba0ea9e52652c5475)) ([#253](https://github.com/davidzoufaly/noldor/pull/253))
+- docs(roadmap): retire Q-0052 archive-spec-plan-at-done-flip — shipped via PR #251 (#252) ([99509bf](https://github.com/davidzoufaly/noldor/commit/99509bf034a97bc8523b2bbfabc2067b08d22aa0)) ([#252](https://github.com/davidzoufaly/noldor/pull/252))
+- docs(features:doc-gardening-skill): revert phase done → in-progress for attach session (#251) ([c34f91e](https://github.com/davidzoufaly/noldor/commit/c34f91ea84c46ab23ee839e7c9bc201885411dd7)) ([#251](https://github.com/davidzoufaly/noldor/pull/251))
+- docs(features:de-superpowers-vendor-spec-plan-and-worktree-flows): revert phase done → in-progress for attach session (#250) ([3b840e6](https://github.com/davidzoufaly/noldor/commit/3b840e63e42fddbad2dd26789fd6dc37a7619247)) ([#250](https://github.com/davidzoufaly/noldor/pull/250))
+- docs(triage): land Q-0057 + prune absorbed lesson bullets (#248) ([7dd46fd](https://github.com/davidzoufaly/noldor/commit/7dd46fdf863ed071415f0862ee8b1ff3e56ecf5c)) ([#248](https://github.com/davidzoufaly/noldor/pull/248))
+- docs: add Q-0056 (freeze roadmap format) + drop auto-merge from README pitch (#247) ([879aae5](https://github.com/davidzoufaly/noldor/commit/879aae5a69b3795ae3f18838d8470ee751051674)) ([#247](https://github.com/davidzoufaly/noldor/pull/247))
+- docs(noldor): absorb 2026-07-25 lessons + add Q-0054/Q-0055 (#246) ([4350ea8](https://github.com/davidzoufaly/noldor/commit/4350ea8b49c8048b2880f871f46d6f56291107f1)) ([#246](https://github.com/davidzoufaly/noldor/pull/246))
+- docs(roadmap): add Q-0053 — show design context inline during spec/plan dialogue (#245) ([01c29d0](https://github.com/davidzoufaly/noldor/commit/01c29d02266ce670cd1a75332dffe0f7d8561a4b)) ([#245](https://github.com/davidzoufaly/noldor/pull/245))
+- docs(roadmap): add Q-0052 — archive spec/plan at done-flip, not release-sweep (#244) ([1595710](https://github.com/davidzoufaly/noldor/commit/1595710bdbbde462329dcea30c76a115c3baeea1)) ([#244](https://github.com/davidzoufaly/noldor/pull/244))
+
 ## v1.1.0 — 2026-07-24
 
 ### Features
