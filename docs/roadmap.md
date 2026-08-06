@@ -40,21 +40,6 @@ A drain child that returns prose while a CR lane is still running is indistingui
 
 `runUpgrade` ([`src/cli/commands/upgrade.ts`](../src/cli/commands/upgrade.ts)) gates its anchor write on `bootstrapped = onDiskAnchor === null && !dryRun`, so a stale-but-present anchor never gets advanced. A consumer anchored at 1.1.0 with 1.1.1 installed and no migration registered between them (`MIGRATIONS` tops out at 1.0.0) resolves an empty chain, falls through to `already at <v> — nothing to do` with no write, and the `writeFrameworkVersion` in the post-chain branch is unreachable for chain-length 0. `doctor` then repeats `framework skew: anchored 1.1.0 ≠ installed 1.1.1 — run 'noldor upgrade'` indefinitely — advisory only, so exit code stays 0, but there is no CLI path out and the only fix is hand-editing `.noldor/config.json`. Every patch or minor release that needs no codemod strands every consumer this way. Fix: write the anchor whenever `onDiskAnchor !== installed && !dryRun` regardless of chain length, keeping the three distinct report strings (bootstrapped / advanced / nothing to do) so the output stays honest. Test gap: units cover the null-anchor bootstrap and the non-empty chain, not a stale-but-present anchor with an empty chain. (surfaced consumer skew after v1.1.1)
 
-### CR Review-Dimension Coverage
-
-- id: Q-0060
-- area: tooling
-- type: feat
-- since: 2026-08-05
-- size: S
-- impact: med
-- confidence: high
-- parent: code-reviewer-20
-
-The CR review-dimension set has two coverage gaps. First, the built-in `fast-track` profile is `['correctness','security']` — fast-track is the XS/S no-FD lane, exactly where copy-paste lands, and it is the one lane with no `reuse` review at all; adding the dimension costs one entry in a low-effort pass. Second, side-effect/purity discipline is React-only prose in the engineering baseline and concurrency survives as a single clause inside the `correctness` guide string, despite the parallel drain running locks, PID liveness, and worktree contention. Both changes land in the same two files, so they ship as one entry rather than two conflicting fast-track PRs.
-
-- add `concurrency` and `effects` to `reviewDimensionSchema` (`src/core/review-profile.ts`) plus one `DIMENSION_GUIDE` line each in `src/cr/lanes/subagent-dispatch.ts` — `ALL_DIMENSIONS` derives from the enum, so the `default` profile picks new dimensions up automatically.
-
 ### Checked-In Oxlint Config
 
 - id: Q-0061
