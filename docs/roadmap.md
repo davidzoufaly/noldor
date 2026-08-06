@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Mask Volatile Metrics in the sdd-report Release Gate
-
-- id: Q-0054
-- area: tooling
-- type: fix
-- since: 2026-07-25
-- size: S
-- impact: med
-- confidence: high
-- parent: noldor
-
-`docs/sdd-report.md` is non-idempotent across environments: it embeds CR/drain metrics (`perLane` blockers/suggestions, escalation `history`, `lastRun`) read from local untracked `.noldor/cr/` + drain-state. Regenerating it in a git worktree sees a fresh empty `.noldor/` → commits empty metrics → the release regen (main workspace, real metrics) drifts → the sdd-report gate aborts. The gate only tolerates the review-skip *count* line (`onlyReviewSkipCountChanged`), not the metrics block. Fix: mask the volatile metrics block in the gate diff like the count line, or source the metrics deterministically. Interim doc lives at `docs/noldor/gotchas.md` → Release & publish — delete that entry when this ships. (surfaced v1.0.2 release)
-
 ### Missing Session Marker Should Fail With a Hint
 
 - id: Q-0055
