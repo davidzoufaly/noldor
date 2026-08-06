@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   BINARY_PREREQUISITES,
+  DEFAULT_VERSION_ARGS,
   MATRIX_LINK,
   REQUIRED_CONSUMER_SCRIPTS,
   checkBinaryPrerequisites,
@@ -25,6 +26,12 @@ describe('BINARY_PREREQUISITES', () => {
       expect(p.floor).toMatch(/^\d+(\.\d+)*$/);
       expect(p.whereAssumed.length).toBeGreaterThan(0);
     }
+  });
+
+  it('asks lefthook for its version via the `version` subcommand, not `--version`', () => {
+    // lefthook 1.x (the declared floor) errors `unknown flag: --version`.
+    const lefthook = BINARY_PREREQUISITES.find((p) => p.id === 'lefthook');
+    expect(lefthook?.versionArgs).toEqual(['version']);
   });
 });
 
@@ -48,6 +55,16 @@ describe('checkBinaryPrerequisites', () => {
     expect(byId['lefthook']!.status).toBe('ok');
   });
 
+  it('forwards each prerequisite versionArgs to the probe, defaulting to --version', () => {
+    const seen: Record<string, readonly string[] | undefined> = {};
+    checkBinaryPrerequisites((bin, versionArgs) => {
+      seen[bin] = versionArgs;
+      return '9.9.9';
+    });
+    expect(seen['lefthook']).toEqual(['version']);
+    expect(seen['git']).toEqual(DEFAULT_VERSION_ARGS);
+  });
+
   it('names the matrix link so doctor output can point at the adoption guide', () => {
     expect(MATRIX_LINK).toBe('docs/noldor/adoption-guide.md#prerequisites');
   });
@@ -63,6 +80,24 @@ describe('makeDefaultProbe', () => {
     chmodSync(fake, 0o755);
     // Not on PATH (unique name) → PATH probe fails, node_modules/.bin fallback hits.
     expect(makeDefaultProbe(dir)('faketool-xyz')).toBe('1.13.0');
+  });
+
+  it('uses the declared versionArgs for a binary that rejects --version (lefthook 1.x)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-probe-args-'));
+    const binDir = join(dir, 'node_modules', '.bin');
+    mkdirSync(binDir, { recursive: true });
+    const fake = join(binDir, 'faketool-lefthookish');
+    // Mimics lefthook 1.13.6: only the `version` subcommand works.
+    writeFileSync(
+      fake,
+      '#!/bin/sh\nif [ "$1" = "version" ]; then echo "1.13.6"; exit 0; fi\n' +
+        'echo "unknown flag: $1" >&2\nexit 1\n',
+    );
+    chmodSync(fake, 0o755);
+    const probe = makeDefaultProbe(dir);
+    expect(probe('faketool-lefthookish', ['version'])).toBe('1.13.6');
+    // The old hardcoded `--version` is exactly what reported a healthy tool missing.
+    expect(probe('faketool-lefthookish')).toBeNull();
   });
 
   it('returns null when the binary is neither on PATH nor in node_modules/.bin', () => {
