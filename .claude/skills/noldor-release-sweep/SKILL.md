@@ -102,7 +102,7 @@ The `release-sweep` allowlist admits `docs/sdd-report.md`. If `git status` shows
 
 **Why this step exists.** v0.5.0 shipped without this regen pre-empted; the release script's sdd:report gate in `src/release/index.ts` (`runCliCheck('noldor garden sdd-report --release', …)` + the `docs/sdd-report.md` dirty-tree check) aborted the release. Follow-up PRs landed the regen output on `main`, then the release re-ran. Pre-empting in the sweep folds those PRs into the sweep PR.
 
-**Note on `sdd:report` count-line churn.** The `Review-skip count (last 30 days)` line increments per branch commit lacking `Noldor-Reviewed`, so the regen is not strictly idempotent. This no longer blocks releases: the release gate tolerates a diff where only that count line changed (`onlyReviewSkipCountChanged` in `src/release/sdd-report-diff.ts`, shipped as `release-script-sddreport-skip-if-only-count-line-changed`). Any other sdd-report drift still aborts the release, which is why this pre-empt step stays.
+**Note on `sdd:report` non-idempotent churn.** Two parts of the report move without any content change: the `Review-skip count (last 30 days)` line increments per branch commit lacking `Noldor-Reviewed`, and the `cr-effectiveness` / `drain-reliability` / `tokens-per-feature` metric blocks are read from gitignored machine-local `.noldor/` state (so a worktree regen writes empty values). Neither blocks releases: the release gate masks both before diffing (`onlyVolatileSectionsChanged` in `src/release/sdd-report-diff.ts`, over `VOLATILE_METRIC_IDS` in `src/garden/sdd-report-format.ts`). Any other sdd-report drift — git-derived metrics, gap details, tier distribution — still aborts the release, which is why this pre-empt step stays.
 
 ### 6. Commit sweep results
 

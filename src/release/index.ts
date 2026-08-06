@@ -16,7 +16,7 @@ import { classifyCommits, deriveBumpLevel, readCommitsSince } from './release-co
 import { checkCrGate } from './release-cr-gate.js';
 import { generateFdChangelogs } from './release-fd-changelog.js';
 import { prependToChangelog, renderChangelogEntry } from './release-changelog.js';
-import { onlyReviewSkipCountChanged } from './sdd-report-diff.js';
+import { onlyVolatileSectionsChanged } from './sdd-report-diff.js';
 import { fillAllMarkers } from './release-markers.js';
 import {
   collectFeaturesForRelease,
@@ -360,9 +360,10 @@ async function main(): Promise<void> {
         baseline = null;
       }
       const working = (await readFile('docs/sdd-report.md', 'utf8')).trim();
-      if (baseline !== null && onlyReviewSkipCountChanged(baseline, working)) {
+      if (baseline !== null && onlyVolatileSectionsChanged(baseline, working)) {
         console.log(
-          '→ docs/sdd-report.md differs only in the review-skip count line; ' +
+          '→ docs/sdd-report.md differs only in environment-local sections ' +
+            '(review-skip count / metrics read from local .noldor state); ' +
             'folding regen into the release commit.',
         );
       } else {

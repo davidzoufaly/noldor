@@ -157,8 +157,9 @@ until handled:
   pages in a separate PR that mirrors the fill onto BOTH copies.
 - **sdd-report drift loop.** Each merged PR re-drifts `docs/sdd-report.md`;
   commit the substantive regen once (release-sweep path), after which the
-  residual count-line-only diff is tolerated (`onlyReviewSkipCountChanged`)
-  and folds into the release commit.
+  residual environment-local diff is tolerated (`onlyVolatileSectionsChanged`
+  masks the review-skip count line plus the metric blocks read from local
+  `.noldor/` state) and folds into the release commit.
 - **The final registry poll waits on CI, not your workstation.** The actual
   publish runs in CI (tag-triggered `publish.yml`); the local `pnpm release`
   only polls public npm until the version is visible. Confirm via
