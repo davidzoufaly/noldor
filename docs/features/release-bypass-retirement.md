@@ -21,9 +21,8 @@ links:
     - src/garden/__tests__/garden-detect.test.ts
     - src/garden/__tests__/sdd-report.test.ts
     - src/garden/__tests__/garden-receipt.test.ts
-  spec: >-
-    docs/design/specs/archive/2026-07-02-release-bypass-retirement-design.md
-  plan: docs/design/plans/2026-07-02-release-bypass-retirement.md
+  spec: docs/design/specs/archive/2026-07-02-release-bypass-retirement-design.md
+  plan: docs/design/plans/archive/2026-07-02-release-bypass-retirement.md
 name: Release Bypass Retirement
 packages:
   - scripts
@@ -100,7 +99,7 @@ Added a `release.crGateExemptCommits` config schema (#133).
 
 - **Spec:** [`docs/design/specs/archive/2026-07-02-release-bypass-retirement-design.md`](../../docs/design/specs/archive/2026-07-02-release-bypass-retirement-design.md)
 - **Plan:**
-  - [`docs/design/plans/2026-07-02-release-bypass-retirement.md`](../../docs/design/plans/2026-07-02-release-bypass-retirement.md)
+  - [`docs/design/plans/archive/2026-07-02-release-bypass-retirement.md`](../../docs/design/plans/archive/2026-07-02-release-bypass-retirement.md)
 - **Code:**
   - [`src/cr/config.ts`](../../src/cr/config.ts)
   - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
