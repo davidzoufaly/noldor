@@ -14,6 +14,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Per-Prerequisite Version Args in the Doctor Probe
+
+- id: Q-0077
+- area: tooling
+- type: fix
+- since: 2026-08-06
+- size: XS
+- impact: high
+- confidence: high
+- parent: make-noldor-agent-agnostic
+
+`makeDefaultProbe` ([`src/core/prerequisites.ts`](../src/core/prerequisites.ts)) hardcodes `execFileSync(bin, ['--version'])` for both the PATH attempt and the `node_modules/.bin` fallback, but lefthook 1.x exposes a `version` subcommand and errors with `unknown flag: --version`. Both attempts fail identically, the probe returns `null`, and `doctor` reports `missing prerequisite lefthook` on a repo whose hooks work fine — then exits 1, because missing prerequisites are fatal. The declared floor is `lefthook >= 1.0.0` while the probe only works on >= 2.x, so the probe contract contradicts the floor it advertises, and the doc comment directly above the probe names lefthook as the binary that must never report missing. A red doctor on a healthy tree trains operators to ignore doctor output and masks real prerequisite failures. Fix: add `versionArgs: string[]` to `BinaryPrerequisite`, default `['--version']`, set `['version']` for lefthook — preferred over a blind `--version`-then-`version` retry, which would paper over the same mismatch for every future tool. Test gap: probe fixture where `--version` throws and `version` succeeds. (surfaced consumer doctor run on lefthook 1.13.6; not reproducible on 2.1.9)
+
 ### CR Delta Short-Circuit Green-Washes Red Prior Sinks
 
 - id: Q-0072
@@ -52,6 +65,19 @@ Multi-project dev setups (the framework repo plus consumer repos like charuy) ea
 - parent: autonomous-queue-drain-runner
 
 A drain child that returns prose while a CR lane is still running is indistinguishable from a finished iteration. Children 1 and 2 of the 2026-08-06 XS drain committed their work, then ended their turn with "waiting on the reviewer lane" — no push, no PR, exit 0. `settleShipVerdict` reads that as a failed build (entry still in `parseAll()`, no open PR) and re-spawns a full rebuild at roughly 13 minutes and 170k tokens each. Two candidate fixes: have the child assert an open PR exists before returning, or teach the supervisor to recognize a branch-with-commits-but-no-PR as resumable (finish Step 4) rather than retry-from-scratch. (surfaced 2026-08-06 XS drain)
+
+### Upgrade Never Advances a Stale Anchor on an Empty Migration Chain
+
+- id: Q-0076
+- area: tooling
+- type: fix
+- since: 2026-08-06
+- size: S
+- impact: high
+- confidence: high
+- parent: version-aware-upgrade-and-migration-chain
+
+`runUpgrade` ([`src/cli/commands/upgrade.ts`](../src/cli/commands/upgrade.ts)) gates its anchor write on `bootstrapped = onDiskAnchor === null && !dryRun`, so a stale-but-present anchor never gets advanced. A consumer anchored at 1.1.0 with 1.1.1 installed and no migration registered between them (`MIGRATIONS` tops out at 1.0.0) resolves an empty chain, falls through to `already at <v> — nothing to do` with no write, and the `writeFrameworkVersion` in the post-chain branch is unreachable for chain-length 0. `doctor` then repeats `framework skew: anchored 1.1.0 ≠ installed 1.1.1 — run 'noldor upgrade'` indefinitely — advisory only, so exit code stays 0, but there is no CLI path out and the only fix is hand-editing `.noldor/config.json`. Every patch or minor release that needs no codemod strands every consumer this way. Fix: write the anchor whenever `onDiskAnchor !== installed && !dryRun` regardless of chain length, keeping the three distinct report strings (bootstrapped / advanced / nothing to do) so the output stays honest. Test gap: units cover the null-anchor bootstrap and the non-empty chain, not a stale-but-present anchor with an empty chain. (surfaced consumer skew after v1.1.1)
 
 ### CR Review-Dimension Coverage
 
