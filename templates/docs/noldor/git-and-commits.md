@@ -139,9 +139,15 @@ The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.no
   commits unpiped (or in a background task whose full log you read) and verify
   with `git log --oneline origin/main..HEAD` — the `🥊`-marked hook step vs a
   `[branch hash]` line tells the truth.
-- **The pre-commit fmt step is `--check` only — it never auto-fixes.** Freshly
-  written files routinely exceed the print width; run
-  `pnpm noldor fmt <files>` before committing new or heavily-edited files.
+- **The pre-commit fmt step auto-fixes and re-stages** (`pnpm noldor fmt
+  {staged_files}` + `stage_fixed: true`), so a freshly written file that exceeds
+  the print width — or a hand-written multi-line `import { ... }` oxfmt wants on
+  one line — is repaired in place rather than rejected. Two consequences: the
+  commit that lands may differ from what you staged (re-read `git show HEAD`),
+  and `stage_fixed` can stage files the current task never touched — see the
+  implementer scope-guard in
+  [`.claude/engineering-rules.md`](../../.claude/engineering-rules.md). A real
+  format failure oxfmt cannot repair still blocks the commit.
 
 ### Scripted commits: one `-m` paragraph for all trailers
 

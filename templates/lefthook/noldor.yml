@@ -29,6 +29,29 @@ pre-commit:
       glob: 'docs/features/**/*.md'
       run: pnpm noldor features fill-links-code-gaps --auto-high && pnpm noldor sync fd-resources && pnpm fmt
       stage_fixed: true
+    - name: fmt
+      # oxfmt applies its own .oxfmtrc.json ignores (**/*.md, graphify-out/**,
+      # lockfiles) on top of this glob/exclude. When the staged set resolves to
+      # only ignored files, plain oxfmt exits 1 with "Expected at least one target
+      # file" — a graph-only / lockfile-only commit would be blocked with nothing
+      # wrong. `noldor fmt` wraps oxfmt with the shared no-target guard
+      # (src/core/fmt-guard.ts): that specific error becomes a pass; real format
+      # failures still block.
+      #
+      # Write mode (no `--check`) + `stage_fixed`: oxfmt repairs and re-stages
+      # instead of rejecting, so a hand-written multi-line `import { ... }` no
+      # longer blocks the commit. Known side effect — `stage_fixed` can stage
+      # files the current task never touched; the implementer scope-guard in
+      # `.claude/engineering-rules.md` is what keeps commit scope honest.
+      #
+      # Deliberately a top-level (sequential) job rather than a member of the
+      # parallel `validate` group below: a writing formatter must not race the
+      # `lint` job reading the same files, and lint/validate should see the
+      # formatted content.
+      glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,yml,yaml}'
+      exclude: '(graphify-out/|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)'
+      run: pnpm noldor fmt {staged_files}
+      stage_fixed: true
     - name: noldor-pre-commit
       run: pnpm noldor hooks pre-commit
     - name: validate
@@ -42,17 +65,6 @@ pre-commit:
           - name: lint
             glob: '*.{ts,tsx,js,jsx,mjs,cjs}'
             run: pnpm lint
-          - name: fmt
-            # oxfmt applies its own .oxfmtrc.json ignores (**/*.md, graphify-out/**,
-            # lockfiles) on top of this glob/exclude. When the staged set resolves to
-            # only ignored files, plain oxfmt exits 1 with "Expected at least one target
-            # file" — a graph-only / lockfile-only commit would be blocked with nothing
-            # wrong. `noldor fmt` wraps oxfmt with the shared no-target guard
-            # (src/core/fmt-guard.ts): that specific error becomes a pass; real format
-            # failures still block.
-            glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,yml,yaml}'
-            exclude: '(graphify-out/|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)'
-            run: pnpm noldor fmt --check {staged_files}
           - name: shared-files
             run: pnpm noldor checks shared-files
           - name: noldor

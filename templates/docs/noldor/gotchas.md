@@ -61,9 +61,12 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   Recompile via `pnpm exec tsc -p src/dashboard/static/tsconfig.json` and commit
   the regenerated git-tracked `static/dist/drag.js`. `.oxfmtrc.json`
   `ignorePatterns:["dist/**"]` does NOT match the nested
-  `src/dashboard/static/dist/`, so bulk `pnpm fmt` skips it but the lefthook
-  pre-commit fmt step (explicit staged-file list) rejects the tsc output — run
-  `pnpm exec oxfmt src/dashboard/static/dist/drag.js` before commit.
+  `src/dashboard/static/dist/`, so bulk `pnpm fmt` skips it while the lefthook
+  pre-commit fmt step (explicit staged-file list) does format it — the tsc
+  output is auto-fixed and re-staged at commit time, so the committed
+  `drag.js` differs from what tsc emitted. Run
+  `pnpm exec oxfmt src/dashboard/static/dist/drag.js` yourself if you want the
+  working tree to match before committing.
 - **Add-form field values land verbatim in a schema-C block body.** Reject
   leading-`#` / `### ` headings and unbalanced code fences (400) or they corrupt
   `scanBlocks`/`parseRoadmap` (guarded in `handleAdd`).
