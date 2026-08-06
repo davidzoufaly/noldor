@@ -116,7 +116,9 @@ export function runPreCommit(opts: {
   if (!session) {
     return {
       ok: false,
-      reason: `No /noldor-gate session. Run /noldor-gate before committing: ${staged.join(', ')}`,
+      reason:
+        `no .noldor/session.json — did you skip the gate scaffold? ` +
+        `Run /noldor-gate (or write the session marker) before committing: ${staged.join(', ')}`,
     };
   }
 

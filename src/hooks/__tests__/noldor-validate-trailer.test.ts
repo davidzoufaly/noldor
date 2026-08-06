@@ -151,7 +151,8 @@ describe('validateTrailer', () => {
     execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
     const r = validateTrailer({ message: 'fix: x\n', cwd: dir });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/Noldor-Path/);
+    // No session marker in this fixture → the reason names the marker, not the trailer.
+    expect(r.reason).toContain('no .noldor/session.json');
   });
 
   it('rejects a trailer whose value wraps to an unindented line (git drops the whole block)', () => {
@@ -743,6 +744,51 @@ describe('validateTrailer', () => {
           'docs(features:my-feat): mark phase=done + archive design artifacts\n\nNoldor-Path: specs-only-new\nNoldor-FD: my-feat\n',
       });
       expect(r.ok).toBe(true);
+    });
+  });
+
+  // A skipped gate scaffold is the dominant cause of a missing Noldor-Path
+  // trailer: inject-trailers no-ops without a marker, so the bare "Missing
+  // Noldor-Path trailer" blamed the commit message instead of the marker.
+  describe('missing Noldor-Path trailer', () => {
+    function armPostRollout(dir: string): void {
+      writeFileSync(join(dir, 'a'), 'init');
+      execSync('git add a && git commit -q -m init', { cwd: dir });
+      const sha = execSync('git rev-parse HEAD', { cwd: dir, encoding: 'utf8' }).trim();
+      writeFileSync(join(dir, '.noldor', 'rollout-marker'), sha + '\n');
+      writeFileSync(join(dir, 'b'), 'x');
+      execSync('git add b && git commit -q -m "post-rollout"', { cwd: dir });
+    }
+
+    it('names the absent session marker and points at the gate scaffold', () => {
+      const dir = setupRepo();
+      armPostRollout(dir);
+      const r = validateTrailer({ message: 'fix: x\n', cwd: dir });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/gate scaffold/);
+      expect(r.reason).toMatch(/\/noldor-gate/);
+    });
+
+    it('blames trailer injection when a session marker does exist', () => {
+      const dir = setupRepo();
+      armPostRollout(dir);
+      writeFileSync(
+        join(dir, '.noldor', 'session.json'),
+        JSON.stringify({ path: 'fast-track', startedAt: '2026-07-25T00:00:00.000Z' }),
+      );
+      const r = validateTrailer({ message: 'fix: x\n', cwd: dir });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/Missing Noldor-Path trailer/);
+      expect(r.reason).not.toContain('no .noldor/session.json');
+    });
+
+    it('does not throw on a corrupt session marker (existence check only)', () => {
+      const dir = setupRepo();
+      armPostRollout(dir);
+      writeFileSync(join(dir, '.noldor', 'session.json'), '{ not json');
+      const r = validateTrailer({ message: 'fix: x\n', cwd: dir });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/Missing Noldor-Path trailer/);
     });
   });
 });

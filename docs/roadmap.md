@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Missing Session Marker Should Fail With a Hint
-
-- id: Q-0055
-- area: tooling
-- type: fix
-- since: 2026-07-25
-- size: XS
-- impact: med
-- confidence: high
-- parent: noldor
-
-Manually driving a fast-track/sweep in a worktree, it is easy to forget writing `.noldor/session.json` first — the commit then fails at the trailer-inject/validate stage with no obvious "missing session" hint. Fix: the failure should say `no .noldor/session.json — did you skip the gate scaffold?`; optionally `worktrees create` scaffolds a session-marker stub. Interim doc lives at `docs/noldor/worktree-discipline.md` → Split-brain traps — delete that entry when this ships. (surfaced PRs #234, #236)
-
 ### Dashboard Port Collision Detection Across Projects
 
 - id: Q-0057

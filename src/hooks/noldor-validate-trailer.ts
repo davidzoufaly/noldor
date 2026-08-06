@@ -8,7 +8,7 @@ import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
 import { ARCHIVE_DIR } from '../core/design-artifact-names';
 import { renameDestExists, toRepoRelative } from '../core/branch-added';
 import { loadDocRoots } from '../core/doc-roots';
-import { PATHS } from '../core/session';
+import { PATHS, sessionMarkerExists } from '../core/session';
 import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
 import { loadConsumerConfig } from '../core/consumer-config';
@@ -68,6 +68,30 @@ function validateReleaseAutomation(opts: ValidateOptions): ValidationResult {
   return { ok: true };
 }
 
+/**
+ * Reason for a commit message that carries no `Noldor-Path` trailer.
+ *
+ * The dominant cause is a hand-driven fast-track/sweep in a worktree where
+ * `.noldor/session.json` was never scaffolded: `noldor-inject-trailers` silently
+ * no-ops without a marker, so the first visible failure is this trailer check —
+ * which, said bare, points at the commit message rather than at the missing
+ * marker. Name the marker when it is absent; when one exists the marker is not
+ * the culprit, so keep the trailer-centric message and point at the injection
+ * hook instead.
+ */
+function missingPathReason(cwd: string): string {
+  if (!sessionMarkerExists(cwd)) {
+    return (
+      'no .noldor/session.json — did you skip the gate scaffold? ' +
+      'Run /noldor-gate (or write the session marker) before committing.'
+    );
+  }
+  return (
+    'Missing Noldor-Path trailer — .noldor/session.json exists, so the ' +
+    'prepare-commit-msg trailer injection did not run (lefthook hooks installed?).'
+  );
+}
+
 export function validateTrailer(opts: ValidateOptions): ValidationResult {
   // Soft mode: if no rollout marker file or HEAD is pre-rollout, skip enforcement.
   if (!rolloutMarkerExists(opts.cwd)) return { ok: true };
@@ -121,7 +145,7 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
   }
 
   const path = t['Noldor-Path'];
-  if (!path) return { ok: false, reason: 'Missing Noldor-Path trailer' };
+  if (!path) return { ok: false, reason: missingPathReason(opts.cwd) };
   if (path === 'release-automation') return validateReleaseAutomation(opts);
   if (!PATHS.includes(path as (typeof PATHS)[number])) {
     return { ok: false, reason: `Unknown Noldor-Path: ${path}` };
