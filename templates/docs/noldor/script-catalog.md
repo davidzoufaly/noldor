@@ -501,8 +501,10 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 
 - **Trigger:** `pnpm dashboard`. Long-running watch server.
 - **Inputs:** `docs/features/*.md`, `docs/roadmap.md`, `docs/backlog.md`, `git log` (per-FD scope filter), `graphify-out/graph.json` when present.
-- **Outputs:** local HTTP server rendering FD pages, release-notes preview, per-feature live commit lists, untriaged-ideas count. Routes: `/features/<slug>`, `/release-notes`, `/`.
+- **Outputs:** local HTTP server rendering FD pages, release-notes preview, per-feature live commit lists, untriaged-ideas count. Routes: `/features/<slug>`, `/release-notes`, `/`, plus `/health` (plain `OK`) and `/identity` (JSON `{root, name, pid}` naming the project it serves).
 - **When to use:** local browsing of the framework state during dev. Not part of any hook or release pipeline.
+- **Port ownership:** on startup the server probes the target port (default `4321`) instead of binding blind. A dashboard already serving *this* project → reuse message, no second server. A dashboard serving a *different* project, or any other occupant → the next free port (`4322`, `4323`, …), with the conflicting owner printed. `--port <n>` sets where the upward scan *starts*, not a pin; `--port 0` skips ownership resolution and takes any free port. A non-numeric `PORT` env falls back to `4321`; an out-of-range `--port` is rejected.
+- **Exposure:** `/identity` publishes the absolute checkout path and the server PID. The dashboard binds loopback by default, so this stays local — widening it with `DASHBOARD_HOST=0.0.0.0` publishes those two facts alongside the docs the dashboard already serves.
 - **Source:** [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
 
 ### `toon`
@@ -523,9 +525,17 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 
 ### `dashboard:ensure`
 
-- **Trigger:** `pnpm noldor dashboard ensure`.
-- **Outputs:** starts the dashboard server if it is not already running (idempotent — safe to call repeatedly, e.g. before opening a dashboard page).
+- **Trigger:** `pnpm noldor dashboard ensure` (`--port <n>`, `--no-wait`).
+- **Outputs:** starts the dashboard server if it is not already running (idempotent — safe to call repeatedly, e.g. before opening a dashboard page). Uses the same port-ownership probe as `dashboard`: a server already serving this project is reused; one serving another project is skipped and the spawn moves to the next free port.
 - **Source:** [`src/dashboard/ensure.ts`](../../src/dashboard/ensure.ts)
+
+### `dashboard:status`
+
+- **Trigger:** `pnpm noldor dashboard status` (`--port <n>` first port scanned, `--scan <n>` how many, `--json`).
+- **Inputs:** TCP connect + `GET /identity` per scanned port. Never binds, so it cannot steal a port from a server that is starting up.
+- **Outputs:** one line per occupied port naming the owning project (root, name, pid), with this project's own dashboard marked. Exit 0 when this project has a dashboard up, exit 1 when it does not — so `pnpm noldor dashboard status && open …` is a usable idiom.
+- **When to use:** an `EADDRINUSE`, or two dashboards on adjacent ports, and you need to know which repo owns which before acting.
+- **Source:** [`src/dashboard/status.ts`](../../src/dashboard/status.ts)
 
 ### `graphify:enrich-docs`
 

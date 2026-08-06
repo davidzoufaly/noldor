@@ -62,8 +62,77 @@ describe('ensureDashboard', () => {
         spawned += 1;
       },
     });
-    expect(result).toEqual({ status: 'already-running', baseUrl });
+    expect(result).toEqual({ status: 'already-running', baseUrl, port, skipped: [] });
     expect(spawned).toBe(0);
+  });
+
+  it('skips a port owned by another project and spawns on the next one', async () => {
+    let spawnedPort = 0;
+    const result = await ensureDashboard({
+      port,
+      wait: false,
+      root: '/some/other/project',
+      probe: async (_host, p) =>
+        p === port
+          ? { kind: 'dashboard', identity: { root: '/a/charuy', name: 'charuy', pid: 1 } }
+          : { kind: 'free' },
+      spawnFn: (p) => {
+        spawnedPort = p;
+      },
+    });
+    expect(result.status).toBe('spawned');
+    expect(result.port).toBe(port + 1);
+    expect(spawnedPort).toBe(port + 1);
+    expect(result.skipped).toHaveLength(1);
+  });
+
+  it('reports started at the port the child actually landed on, not the planned one', async () => {
+    // The child re-plans too: if the planned port is claimed in the gap between
+    // the parent's probe and the child's bind, the child starts on port+1. The
+    // wait must find it there instead of timing out on a live dashboard.
+    let calls = 0;
+    const mine = { kind: 'dashboard' as const, identity: { root: '/a/noldor', name: 'n', pid: 2 } };
+    const result = await ensureDashboard({
+      port: 4321,
+      root: '/a/noldor',
+      waitMs: 3000,
+      probe: async (_host, p) => {
+        calls += 1;
+        if (calls === 1) return { kind: 'free' }; // planning pass
+        if (p === 4321) return { kind: 'foreign' }; // lost the race
+        return mine; // child landed here
+      },
+      spawnFn: () => {
+        /* child re-plans to 4322 */
+      },
+    });
+    expect(result.status).toBe('started');
+    expect(result.port).toBe(4322);
+    expect(result.baseUrl).toBe('http://127.0.0.1:4322');
+  });
+
+  it('does not report started when the port ends up serving another project', async () => {
+    // Race: our child re-plans and moves on, another project's child wins the
+    // port. A /health-only readiness check would have called this "started".
+    let calls = 0;
+    const result = await ensureDashboard({
+      port: 1,
+      root: '/a/noldor',
+      waitMs: 600,
+      probe: async () => {
+        calls += 1;
+        // First probe plans the port (free); every later one is the readiness
+        // poll, by which time charuy's child has bound it.
+        return calls === 1
+          ? { kind: 'free' }
+          : { kind: 'dashboard', identity: { root: '/a/charuy', name: 'charuy', pid: 1 } };
+      },
+      spawnFn: () => {
+        /* the port is taken by charuy's server, not ours */
+      },
+    }).catch((err: unknown) => err);
+    expect(result).toBeInstanceOf(Error);
+    expect((result as Error).message).toContain('no dashboard for this project answered');
   });
 
   it('throws when the spawned server never becomes healthy', async () => {
@@ -77,7 +146,7 @@ describe('ensureDashboard', () => {
     }).catch((err: unknown) => err);
     expect(spawnedPort).toBe(1);
     expect(result).toBeInstanceOf(Error);
-    expect((result as Error).message).toContain('/health did not answer');
+    expect((result as Error).message).toContain('no dashboard for this project answered');
   });
 
   it('returns spawned without waiting when wait is false', async () => {

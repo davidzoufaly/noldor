@@ -304,6 +304,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'dashboard/ensure.ts',
         desc: 'Start dashboard server if not already running (idempotent)',
       },
+      status: {
+        src: 'dashboard/status.ts',
+        desc: 'Report which project owns which dashboard port (no bind)',
+      },
     },
   },
   docs: {
