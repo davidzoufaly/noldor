@@ -94,19 +94,6 @@ Graph-consuming detectors skip with a single meta-gap when `graphify-out/graph.j
 
 npm `--provenance` on a never-published package requires `--access public`, even for an unscoped name — omitting it fails with EUSAGE "Can't generate provenance for new or private package". The publish spec and its test wrongly asserted the flag absent. Assert `--access public` as a publish-workflow invariant, and consider a CI dry-run publish on the release PR so the failure surfaces before a real `v*` tag is cut. (surfaced v1.0.1 publish)
 
-### pr-flow Worktree Checkout Skip
-
-- id: Q-0065
-- area: tooling
-- type: fix
-- since: 2026-08-05
-- size: XS
-- impact: low
-- confidence: high
-- parent: framework-pr-flow-agent-auto-merge
-
-Run from a feature worktree, pr-flow's post-merge `git checkout main` sync fails with `fatal: 'main' is already used by worktree at <main-workspace>`. The PR still merges, so the damage is cosmetic — but the error is noisy and local main is left unsynced. pr-flow should detect worktree context and skip or redirect the sync. (surfaced repeatedly, PRs #230-#237)
-
 ### Diff-Scoped Clone Gate
 
 - id: Q-0066
