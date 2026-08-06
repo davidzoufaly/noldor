@@ -144,21 +144,27 @@ validated by `pnpm noldor validate noldor-config` (Zod loader in
 The orchestrator records the commit SHA at which findings were last
 aggregated (`baseSha`) in the sink. On re-run, `src/cr/
 orchestrate.ts` diffs `baseSha..headSha`; an empty diff means no code
-moved, so all configured lanes get a synthetic OK record (lane =
+moved, so a lane gets a synthetic OK record (lane =
 `delta-short-circuit`) without spawning reviewers. This is the
 fast-path for "review still green after a no-op rebase" cases. The
 `--full-review` flag bypasses the short-circuit unconditionally and
 forces every lane to re-run from scratch.
 
-One exemption: on `spec` / `plan`, the mandatory `reviewer` lane is
-short-circuited only when its own prior sink exists **and recorded no
-blockers**. "No changes since prior run" presupposes a prior run that went
-green — so a first pass, or a re-run over unaddressed blockers, still gets a
-real review rather than a synthetic pass nobody earned. Such a lane is
+The short-circuit is per-lane, gated on that lane's own prior sink existing
+**and recording no blockers** — for every lane and every artifact kind.
+"No changes since prior run" presupposes a prior run that went green, so a
+first pass, or a re-run over unaddressed blockers, still gets a real review
+rather than a synthetic pass nobody earned. A lane that survives the gate is
 dispatched with `fullReview` (no `baseSha`), because the artifact diff is
 known-empty at that point and a delta prompt would put nothing in front of
-the reviewer. Other lanes (and `code`-kind runs) short-circuit on an empty
-diff regardless of their prior sink's verdict.
+the reviewer.
+
+Lanes in one round can therefore split: a green `reviewer` short-circuits
+while a red `manual` re-runs. That matters most on `code`, where a synthetic
+OK also drives the `Noldor-Reviewed-Subagent` receipt amend — until this gate
+covered every lane, a red round cleared itself on the next no-op re-run
+(`blockers: []`, exit 0), which is the one failure mode a review gate must
+not have.
 
 ## Escalation
 
@@ -291,10 +297,12 @@ so reviewers see behavioral proof on the PR itself. Missing or off-shape sink
   --artifact <x>` runs the empty-delta short-circuit (`isEmptyDiffDefault`,
   `src/cr/orchestrate.ts`) with the artifact string as a **single git pathspec**.
   A comma-joined file list matches nothing → `git diff --quiet` exit 0 →
-  "synthetic OK (empty delta)" → every lane skipped with a fake approve →
+  "synthetic OK (empty delta)" → the lane skipped with a fake approve →
   merging ships unreviewed code. Pass ONE pathspec (`.` for whole-diff review).
   Treat any "synthetic OK (empty delta)" on a branch you KNOW changed as a bug
-  signal, not a pass.
+  signal, not a pass. The prior-run gate above narrows the blast radius — a lane
+  with no sink, or a red one, re-runs instead of synthesizing — but a lane whose
+  earlier round went green still short-circuits on the bogus empty diff.
 - **`phase: done` does NOT mean code-stage CR ran.** An in-progress FD whose
   implementation is "done" and phase flipped can still have never run code-stage
   CR (empty `.noldor/cr/`, no `Noldor-Reviewed-Subagent` trailer) — seen on

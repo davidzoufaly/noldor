@@ -149,7 +149,9 @@ async function findExistingSink(
  * True when `lane` has a prior sink that recorded no blockers. Anything else —
  * no sink, unreadable/corrupt sink, or a sink carrying blockers — is false, so
  * callers gate the delta short-circuit on a review that actually went green
- * instead of on the mere presence of a file.
+ * instead of on the mere presence of a file. Applies to every lane and every
+ * artifact kind: a lane-specific exemption would let a red round be cleared by
+ * a no-op re-run.
  */
 async function priorRunWasGreen(
   cwd: string,
@@ -302,7 +304,8 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     { autonomous: opts.args.autonomous },
   );
   // Delta short-circuit: empty diff + baseSha + !fullReview => synthetic OK for
-  // EVERY lane. Re-reviewing an unchanged artifact is wasteful.
+  // every lane whose prior run went green. Re-reviewing an unchanged artifact is
+  // wasteful; synthesizing a pass for a lane that never went green is a lie.
   const isEmptyDiff = opts.isEmptyDiff ?? isEmptyDiffDefault;
   const syntheticOks: Lane[] = [];
   let fullReviewOverride = false;
@@ -312,11 +315,14 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       const stillToRun: Lane[] = [];
       for (const l of effective) {
         // "No changes since prior run" presupposes a prior run that went green.
-        // A mandatory reviewer lane with no sink was never reviewed at all, and
-        // one with a red sink has blockers nobody addressed — synthesizing a
-        // pass in either case hands the spec/plan a receipt it never earned.
-        const mandatory = l === 'reviewer' && REVIEWER_MANDATORY_KINDS.includes(opts.args.kind);
-        if (mandatory && !(await priorRunWasGreen(cwd, opts.args.slug, opts.args.kind, l))) {
+        // A lane with no sink was never reviewed at all, and one with a red sink
+        // has blockers nobody addressed — synthesizing a pass in either case
+        // hands the artifact a receipt it never earned. Gated for EVERY lane and
+        // EVERY kind: while only the spec/plan `reviewer` lane was guarded, an
+        // unaddressed red on `manual` / `codex` / `verifier` — or on any
+        // `code`-kind lane, which is the one that amends the push receipt — was
+        // overwritten by `blockers: []` on the next no-op re-run.
+        if (!(await priorRunWasGreen(cwd, opts.args.slug, opts.args.kind, l))) {
           stillToRun.push(l);
           continue;
         }
@@ -337,8 +343,9 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   // Pre-cache the codex --base-sha probe result for all-settled batch
   const codexBaseShaSupport = effective.includes('codex') ? await codexSupportsBaseSha() : false;
 
-  // Only the mandatory reviewer lane survives a `fullReviewOverride` round (every
-  // other lane was synthesized above), so widening the whole batch is safe here.
+  // Every lane surviving a `fullReviewOverride` round is there for the same
+  // reason — its prior run wasn't green — and each faces the same known-empty
+  // artifact diff, so widening the whole batch is right rather than merely safe.
   let dispatchInput = input;
   if (fullReviewOverride) {
     dispatchInput = { ...input, fullReview: true };
