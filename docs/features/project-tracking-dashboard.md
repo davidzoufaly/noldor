@@ -17,6 +17,7 @@ links:
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
     - src/dashboard/__tests__/dashboard-ensure.test.ts
     - src/dashboard/__tests__/dashboard-graph-health.test.ts
+    - src/dashboard/__tests__/dashboard-identity.test.ts
     - src/dashboard/__tests__/dashboard-layout-body-styles.test.ts
     - src/dashboard/__tests__/dashboard-layout-style-polish.test.ts
     - src/dashboard/__tests__/dashboard-mermaid.test.ts
@@ -25,6 +26,7 @@ links:
     - src/dashboard/__tests__/dashboard-repo-brand.test.ts
     - src/dashboard/__tests__/dashboard-server.test.ts
     - src/dashboard/__tests__/dashboard-skills.test.ts
+    - src/dashboard/__tests__/dashboard-status.test.ts
     - src/dashboard/__tests__/dashboard-test-pyramid.test.ts
     - src/dashboard/__tests__/dashboard-views.test.ts
     - src/dashboard/__tests__/dashboard-worktrees.test.ts
@@ -36,7 +38,6 @@ introduced: 0.3.0
 noldor-tier: full
 updated: 0.5.0
 ---
-
 ## Summary
 
 Internal-only browser dashboard for project tracking. Live Node server reads filesystem per request — feature MDs (counts, drill-down with frontmatter table + rendered markdown body), roadmap (Now/Next/Later, full block detail with name + category + area + type badge + since + paragraph per entry), backlog (full block detail with name + area + type badge + since + paragraph), SDD gaps (13 detector categories including spec/plan orphans, plans without spec, features without spec), plus filesystem-derived counts (skills, scripts) and realtime git velocity stats (commits 7d/30d/90d, by type, by scope, releases timeline), and a test-pyramid page (per-module source/test/case counts with test-to-code ratio, worst-covered modules first). Overview KPIs split into Project / Activity / Health sections, with Health surfacing stale WIP and worktree drift. Routes (`/`, `/roadmap`, `/backlog`, `/features`, `/features/:slug`, `/gaps`, `/velocity`, `/wip-age`, `/test-pyramid`, `/worktrees`) with querystring filters. Implemented as a single tsx script in `scripts/dashboard/`. Zero hardcoded data — HTML shell + per-request renders. Promoted 2026-05-04 once read-only project visibility outgrew the markdown SDD report.

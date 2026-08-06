@@ -70,6 +70,17 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import { resolveBindHost, healthUrl } from './host.js';
+import {
+  DEFAULT_PORT,
+  MAX_PORT,
+  MIN_PORT,
+  describeSkipped,
+  isValidPort,
+  localIdentity,
+  normalizePort,
+  planPort,
+  resolveMainRoot,
+} from './identity.js';
 
 export interface CliArgs {
   /** Undefined when --port absent — caller falls back to env PORT or default 4321. */
@@ -122,8 +133,26 @@ interface RouteMatch {
   pathParams: Record<string, string>;
 }
 
+let cachedIdentity: ReturnType<typeof localIdentity> | undefined;
+
+/**
+ * This server's project identity, memoized — `/identity` is polled by every
+ * starting dashboard, and `resolveMainRoot` shells out to git.
+ */
+function serverIdentity(): ReturnType<typeof localIdentity> {
+  cachedIdentity ??= localIdentity(resolveMainRoot());
+  return cachedIdentity;
+}
+
 const STATIC_GET_HANDLERS: Record<string, RouteMatch['handler']> = {
   '/health': async () => ({ status: 200, body: 'OK', title: 'health', activeNav: null }),
+  '/identity': async () => ({
+    status: 200,
+    body: JSON.stringify(serverIdentity()),
+    title: 'identity',
+    activeNav: null,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  }),
   '/': handleOverview,
   '/vision': handleVision,
   '/milestones': handleMilestones,
@@ -910,25 +939,74 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 export async function startServer(
   opts: { port?: number; host?: string } = {},
 ): Promise<{ server: Server; baseUrl: string }> {
-  const desired = opts.port ?? Number(process.env.PORT ?? 4321);
+  // `port: 0` is "any free port" (tests) and must survive normalization, so an
+  // explicit numeric arg is passed through untouched; only the env/default path
+  // is coerced (a non-numeric PORT would otherwise reach `listen` as NaN).
+  const desired = typeof opts.port === 'number' ? opts.port : normalizePort(process.env.PORT);
   const host = resolveBindHost(opts.host);
   const server = createServer((req, res) => {
     void handle(req, res);
   });
   // Explicit host arg: bind loopback by default so the no-auth mutating routes
   // are not reachable across the LAN (omitting it binds all interfaces).
-  await new Promise<void>((resolve) => server.listen(desired, host, resolve));
+  // Reject on a bind failure (EADDRINUSE, EACCES) rather than letting the
+  // unhandled 'error' event kill the process — callers re-plan the port.
+  await new Promise<void>((resolve, reject) => {
+    const onError = (err: Error): void => reject(err);
+    server.once('error', onError);
+    server.listen(desired, host, () => {
+      server.removeListener('error', onError);
+      resolve();
+    });
+  });
   const addr = server.address() as AddressInfo;
   const baseUrl = healthUrl(host, addr.port);
   return { server, baseUrl };
 }
 
 async function main(): Promise<void> {
-  const { port, docsPath, host } = parseCliArgs(process.argv.slice(2));
+  const { port, docsPath, host: hostArg } = parseCliArgs(process.argv.slice(2));
   setDocRootsOverride(docsPath);
-  const { baseUrl } = await startServer({ port, host });
-  console.log(`dashboard → ${baseUrl}`);
-  process.on('SIGINT', () => process.exit(0));
+  const host = resolveBindHost(hostArg);
+  if (port !== undefined && port !== 0 && !isValidPort(port)) {
+    console.error(
+      `--port requires an integer in ${MIN_PORT}..${MAX_PORT} (or 0 for any free port)`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  // Port 0 means "any free port" (tests, throwaway runs) — no ownership to resolve.
+  if (port === 0) {
+    const { baseUrl } = await startServer({ port, host });
+    console.log(`dashboard → ${baseUrl}`);
+    process.on('SIGINT', () => process.exit(0));
+    return;
+  }
+  const desired = normalizePort(port ?? process.env.PORT, DEFAULT_PORT);
+  // Re-plan on EADDRINUSE: the probe and the bind are not atomic, so a rival
+  // starting up in that window can still take the planned port.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const plan = await planPort({ desired, host, root: serverIdentity().root });
+    if (plan.skipped.length > 0) {
+      console.log(`port(s) skipped: ${describeSkipped(plan.skipped)}`);
+    }
+    if (plan.action === 'reuse') {
+      console.log(
+        `dashboard already running for ${serverIdentity().name} → ${healthUrl(host, plan.port)} — reusing it`,
+      );
+      return;
+    }
+    try {
+      const { baseUrl } = await startServer({ port: plan.port, host });
+      console.log(`dashboard → ${baseUrl}`);
+      process.on('SIGINT', () => process.exit(0));
+      return;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err;
+      console.log(`port ${plan.port} taken between probe and bind — re-planning`);
+    }
+  }
+  throw new Error(`dashboard could not claim a port from ${desired} after 3 attempts`);
 }
 
 if (process.argv[1]?.endsWith('server.ts') || process.argv[1]?.endsWith('server.js')) {
