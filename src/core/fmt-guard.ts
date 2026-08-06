@@ -60,3 +60,37 @@ export function decideFmtGuard(result: FmtRunResult): FmtGuardDecision {
     swallowed: false,
   };
 }
+
+/**
+ * Path (relative to the git dir) of the patch lefthook writes when a hook job
+ * runs over partially staged files: it saves the unstaged diff here, runs
+ * `git checkout --force` so the job only ever sees staged content, then
+ * re-applies the patch afterwards.
+ */
+export const LEFTHOOK_UNSTAGED_PATCH = 'info/lefthook-unstaged.patch';
+
+/** Advisory emitted when a *writing* fmt run coincides with that saved patch. */
+export const PARTIAL_STAGING_WARNING =
+  'noldor fmt: lefthook is holding an unstaged patch (partially staged file). It is ' +
+  're-applied over the reformatted content with `git apply --recount --unidiff-zero`, so ' +
+  'a hunk can land in the wrong place in your WORKING TREE — the commit itself stays ' +
+  'correct. Re-read `git diff` before continuing. See docs/noldor/git-and-commits.md.\n';
+
+/**
+ * True when the operator should be warned about the partial-staging working-tree
+ * hazard: lefthook is holding an unstaged patch AND this run *wrote* (no
+ * `--check`), so the re-apply lands on reformatted content.
+ *
+ * Deliberately not gated on "did oxfmt actually reformat anything" — oxfmt's
+ * write-mode output does not reliably identify rewritten paths, and an advisory
+ * that over-fires is far cheaper than one that misses a silent corruption. A
+ * `--check` run never writes, so it can never shift the lines the patch anchors
+ * to. A failed run is still warned about: oxfmt may have rewritten some files
+ * before failing on another.
+ */
+export function shouldWarnPartialStaging(input: {
+  readonly patchPresent: boolean;
+  readonly check: boolean;
+}): boolean {
+  return input.patchPresent && !input.check;
+}

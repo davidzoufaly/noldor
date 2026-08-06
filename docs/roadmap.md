@@ -27,19 +27,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Multi-project dev setups (the framework repo plus consumer repos like charuy) each run their own `noldor dashboard server`, all defaulting to port 4321. The second server dies with `EADDRINUSE` and gives no signal whether the occupying process is *this* project's dashboard (safe to reuse) or a *different* project's (needs another port) — the agent has to `lsof -i :4321` and inspect the process cwd by hand to tell them apart. Fix: `dashboard server` / `dashboard ensure` probe the target port on startup, fetch a small identity payload from the running server (project root path or name), and compare against the current repo root. Match → treat as already running, no-op with a reuse message. Mismatch → auto-pick the next free port (4322, 4323, …) instead of crashing, and print which project owns the conflicting one. Also worth a `noldor dashboard status` that reports port + owning project without trying to bind.
 
-### Fmt Pre-Commit Auto-Fix
-
-- id: Q-0059
-- area: tooling
-- type: chore
-- since: 2026-08-05
-- size: XS
-- impact: med
-- confidence: high
-- parent: noldor
-
-The fmt lefthook job runs check-only, so a hand-written multi-line `import { ... }` fails `fmt --check` and blocks the commit — oxfmt reflows it to a single line, but only when it is allowed to write. Flip the job to auto-fix + `stage_fixed` so the formatter repairs and stages instead of rejecting. Note the known side effect: `stage_fixed` silently stages files the task never touched, which is exactly why `.claude/engineering-rules.md` carries the implementer scope-guard — the guard stays. (surfaced PR #216)
-
 ### CR Review-Dimension Coverage
 
 - id: Q-0060
