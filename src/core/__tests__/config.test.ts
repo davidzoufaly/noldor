@@ -143,14 +143,23 @@ describe('resolveReviewProfile', () => {
   it('returns the built-in default when config is null', () => {
     expect(resolveReviewProfile(null)).toEqual({
       effort: 'med',
-      dimensions: ['correctness', 'security', 'reuse', 'simplification', 'efficiency', 'altitude'],
+      dimensions: [
+        'correctness',
+        'security',
+        'reuse',
+        'simplification',
+        'efficiency',
+        'altitude',
+        'concurrency',
+        'effects',
+      ],
     });
   });
 
   it('returns the built-in fast-track profile by name', () => {
     expect(resolveReviewProfile(null, 'fast-track')).toEqual({
       effort: 'low',
-      dimensions: ['correctness', 'security'],
+      dimensions: ['correctness', 'security', 'reuse'],
     });
   });
 

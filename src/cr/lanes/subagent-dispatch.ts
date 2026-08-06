@@ -12,12 +12,20 @@ export interface DispatchInput {
 }
 
 const DIMENSION_GUIDE: Record<ReviewDimension, string> = {
-  correctness: 'logic errors, off-by-one, null/undefined, race conditions, wrong API usage',
+  // Keeps its race clause on purpose: `concurrency` below goes deeper, but is
+  // absent from scoped profiles like `fast-track`, so dropping the clause here
+  // would leave those lanes with no race coverage at all.
+  correctness:
+    'logic errors, off-by-one, null/undefined, race conditions, wrong API usage, unhandled error paths',
   security: 'injection, path traversal, unsafe shell/exec, secret leakage, unvalidated input',
   reuse: 'duplicated logic an existing helper already covers; missed single-source-of-truth',
   simplification: 'dead branches, needless indirection, over-abstraction, a simpler equivalent',
   efficiency: 'avoidable O(n^2), redundant IO/subprocess, repeated reads, sync work in a loop',
   altitude: 'wrong layer/abstraction, leaky boundaries, responsibility in the wrong module',
+  concurrency:
+    'races and interleavings, non-atomic read-modify-write, unheld/leaked locks, stale PID or liveness checks, contention over a shared dir or port',
+  effects:
+    'hidden side effects in an ostensibly pure fn, unflushed or non-atomic writes, mutation of a caller-owned arg, effects fired on a path that should be read-only or dry-run',
 };
 
 const EFFORT_GUIDE: Record<ReviewEffort, string> = {
