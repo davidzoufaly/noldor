@@ -76,6 +76,59 @@ dependency, so the prompt stays a thin pointer.
   retries from clean or skips.
 - Commit and push gates run unchanged: hooks inject the `Noldor-*` trailers
   from the session marker; drain mode never bypasses them.
+- **Never background these commands, and never end the run before the PR
+  exists.** Run each in the foreground and wait for it to exit. Committed work
+  plus a clean exit plus a "waiting on the reviewer lane" sign-off is
+  indistinguishable from a finished iteration — the supervisor reads it as a
+  failed build and re-spawns a full rebuild. Before returning, assert delivery:
+  `gh pr list --state open --head <branch> --json number` must be non-empty (or
+  `pr-flow` must have reported the merge when `NOLDOR_DRAIN_OPEN_ONLY` is
+  unset). Empty means the iteration is not done — finish it or exit non-zero;
+  never report success.
+
+## Finish path (undelivered work on `fast/<slug>`)
+
+The supervisor sends this variant when a prior child for the same slug exited
+`0`, opened no PR, and left the branch with commits ahead of `origin/main` — the
+delivery assertion above having been skipped. The work exists; only delivery is
+missing, so a rebuild would burn ~13 minutes and ~170k tokens for nothing. Both
+the prompt directive and `NOLDOR_DRAIN_FINISH=1` mark such a run.
+
+- **Do NOT force-recreate or delete the branch** (local or remote). Those steps
+  discard *abandoned* state; here they would destroy the commits being
+  finished. Reuse the existing worktree if present. If there is none, note that
+  the work may live only on the remote (a prior child that pushed without
+  opening a PR), so resolve the branch before checking it out:
+
+  ```sh
+  git fetch origin
+  git rev-parse --verify fast/<slug> \
+    && git worktree add .worktrees/<slug> fast/<slug> \
+    || git worktree add -B fast/<slug> .worktrees/<slug> origin/fast/<slug>
+  ```
+
+  `git worktree add <path> <branch>` does not resolve a remote-only branch, so
+  the plain form fails with "invalid reference" in exactly the pushed-but-no-PR
+  case; `-B … origin/fast/<slug>` creates the local branch from the remote tip.
+- **Re-establish the session marker if it is missing.** Finish mode skips path
+  selection, so it assumes `.noldor/session.json` survived from the prior child.
+  On a fresh worktree it has not, and `pnpm noldor noldor set-autonomous` then
+  exits 1 (`no session marker`) and the commit hooks block delivery. Write the
+  same fast-track marker the drain path writes (`path: fast-track`, this
+  `slug`, `startedAt`) before continuing.
+- **Do NOT re-implement the entry** — `git log --oneline origin/main..HEAD` and
+  `git diff --stat origin/main..HEAD` show what already landed. The supervisor
+  only sends a finish run for a branch a prior child finished cleanly (a child
+  killed by the per-entry timeout is rebuilt, not finished), so the work is
+  complete; deliver it.
+- Re-run roadmap retirement anyway: `pnpm noldor roadmap remove-block <slug>`
+  is idempotent — a no-op when the prior child retired the block, and the fix
+  when it did not.
+- Then run the autonomous end-of-flow above, delivery assertion included.
+  Re-running `cr orchestrate --autonomous` over an existing sink is safe (its
+  overwrite guard defaults to archive-and-overwrite).
+- Finish attempts count against the supervisor's `--max-retries` like any other
+  iteration, so a finish that fails again falls through to retry/skip.
 
 ## Resume path (designed FDs, `feat/<slug>`)
 

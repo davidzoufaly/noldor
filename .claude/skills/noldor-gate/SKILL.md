@@ -11,11 +11,14 @@ Mandatory entry. Pick a path. Scaffold artifacts. Set session marker. Then proce
 
 - `--resume <slug>` — resume an in-progress FD (post-backfill); skips path picker.
 - `--drain <slug>` — **headless drain entry (supervisor-only).** Ship `<slug>` via `fast-track` with zero `AskUserQuestion`s; short-circuits the interactive Step 0 / Step 1 straight to the **Drain mode** section. The autonomous queue-drain supervisor passes this on every spawned `claude --print`; not for interactive use.
+- `--finish` — **only valid alongside `--drain <slug>` (supervisor-only).** The branch already carries
+  committed work from a prior child that never opened a PR; reuse it and run Step 4 delivery only. See
+  **Finish mode** under the Drain-mode section.
 - All other invocations are interactive.
 
 ## Flow
 
-**Drain-mode entry check — do this before Step 0.** If this gate was invoked as **`/noldor-gate --drain <slug>`** (the autonomous supervisor's headless entry — it also sets `NOLDOR_DRAIN=1`), this is an unattended drain run — **do NOT execute the interactive Step 0 / Step 1 below.** Those steps fire `AskUserQuestion`, which the supervisor disallows in the headless child (`--disallowed-tools AskUserQuestion`), so any prompt stalls the iteration until its timeout. Skip straight to the **Drain mode (`NOLDOR_DRAIN=1`)** section near the end of this skill and ship **that exact `<slug>`** per its step overrides — `fast-track` path, end-of-flow autonomous, zero prompts. (Belt-and-suspenders: if `--drain` is somehow absent but `printenv NOLDOR_DRAIN` shows `1`, still treat it as a drain run — use `NOLDOR_DRAIN_SLUG` when set, else `topPriority[0]`.) Interactive invocations (no `--drain`, `NOLDOR_DRAIN` unset) fall through to Step 0 below as normal.
+**Drain-mode entry check — do this before Step 0.** If this gate was invoked as **`/noldor-gate --drain <slug>`** (the autonomous supervisor's headless entry — it also sets `NOLDOR_DRAIN=1`), this is an unattended drain run — **do NOT execute the interactive Step 0 / Step 1 below.** Those steps fire `AskUserQuestion`, which the supervisor disallows in the headless child (`--disallowed-tools AskUserQuestion`), so any prompt stalls the iteration until its timeout. Skip straight to the **Drain mode (`NOLDOR_DRAIN=1`)** section near the end of this skill and ship **that exact `<slug>`** per its step overrides — `fast-track` path, end-of-flow autonomous, zero prompts. When `--finish` also rides the invocation (or `printenv NOLDOR_DRAIN_FINISH` shows `1`), follow the **Finish mode** sub-section instead of the from-scratch step overrides — the branch already holds the work. (Belt-and-suspenders: if `--drain` is somehow absent but `printenv NOLDOR_DRAIN` shows `1`, still treat it as a drain run — use `NOLDOR_DRAIN_SLUG` when set, else `topPriority[0]`.) Interactive invocations (no `--drain`, `NOLDOR_DRAIN` unset) fall through to Step 0 below as normal.
 
 0. **Priority pickup.** Run `pnpm noldor next-priority --suggestions --json` and capture stdout + exit code.
    - **Skipped entirely when `/noldor-gate --resume <slug>` is invoked** (`--resume` short-circuits to the `--resume mode` section at the bottom of this skill — it does not pass through Step 0 or Step 1).
@@ -392,7 +395,48 @@ loop / retry / skip / lock; each gate run only ships its one entry. Step overrid
   one at a time. Escalation uses `cr escalate --autonomous` with `onFailure: abort` (the supervisor
   asserts this precondition before it starts), so a red cleanly fails the iteration → the supervisor
   retries-from-clean or skips.
+
+  **Never background the end-of-flow commands, and never end the turn before the PR exists.** Run
+  `cr orchestrate`, `cr aggregate`, and `pr-flow` in the foreground and wait for each to exit — a
+  backgrounded CR lane plus a "waiting on the reviewer lane" sign-off looks identical to a finished
+  iteration from outside (committed work, clean exit, no PR), and the supervisor reads it as a failed
+  build. Before returning, assert delivery:
+  `gh pr list --state open --head fast/<slug> --json number` must be non-empty (or, when
+  `NOLDOR_DRAIN_OPEN_ONLY` is unset, `pr-flow` must have reported the merge). If it is empty, the
+  iteration is NOT done — finish it or exit non-zero; never report success.
 - **Step 5:** exit clean — no human `/clear` + `/noldor-gate` handoff prose. The supervisor is the loop.
+
+#### Finish mode (`/noldor-gate --drain <slug> --finish`, `NOLDOR_DRAIN_FINISH=1`)
+
+The supervisor spawns this variant when a prior child for the same slug exited 0, opened no PR, and
+left `fast/<slug>` with commits ahead of `origin/main` — the assertion above having been skipped. A
+clean exit is what makes the work trustworthy: a child killed by the per-entry timeout may be
+half-done, so the supervisor rebuilds that one instead of sending it here. The work exists; only
+delivery is missing. Rebuilding it costs ~13 minutes and ~170k tokens for nothing, so this run
+delivers instead:
+
+- **Do NOT force-recreate the branch** and do NOT `git push origin --delete` it. Those steps exist to
+  discard *abandoned* state; here they would destroy the commits being finished. Reuse the existing
+  `.worktrees/<slug>` when present. When there is none the work may live only on the remote (a prior
+  child that pushed without opening a PR), so `git fetch origin` and resolve the branch first:
+  `git rev-parse --verify fast/<slug>` → `git worktree add .worktrees/<slug> fast/<slug>`; otherwise
+  `git worktree add -B fast/<slug> .worktrees/<slug> origin/fast/<slug>`. The plain form does not
+  resolve a remote-only branch and fails with "invalid reference" in exactly that case.
+- **Re-establish the session marker if missing.** Finish mode skips Step 1, so it assumes
+  `.noldor/session.json` survived from the prior child; on a fresh worktree it has not, and
+  `pnpm noldor noldor set-autonomous` then exits 1 (`no session marker`), after which the commit
+  hooks block delivery. Write the same fast-track marker Step 2 writes (`path: fast-track`, the
+  `slug`, `startedAt`) before continuing.
+- **Do NOT re-implement the entry.** `git log --oneline origin/main..HEAD` and
+  `git diff --stat origin/main..HEAD` show what already landed. The supervisor only sends a finish
+  run for a branch whose prior child exited cleanly — a child killed by the per-entry timeout is
+  rebuilt, not finished — so the work is complete; deliver it.
+- Re-run **Roadmap-entry retirement** — `pnpm noldor roadmap remove-block <slug>` is idempotent, so it
+  is a no-op when the prior child already retired the block and closes the gap when it did not.
+- Then **Step 4 exactly as above**, including the delivery assertion. Re-running `cr orchestrate` over
+  an existing sink is safe: `--autonomous` defaults the overwrite guard to `archive-and-overwrite`.
+- The supervisor still counts this against `--max-retries`, so a finish that fails again falls through
+  to the ordinary retry/skip path.
 
 Drain mode is orthogonal to (and stricter than) Autonomous mode: it requires the full headless-safe
 config set (`autonomous.onFailure: 'abort'`, `skipLanePicker: true`, `requireHumanPrApproval: false`)

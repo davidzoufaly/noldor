@@ -1,6 +1,6 @@
 // @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, parallel-drain-roadmapmd-conflict-auto-resolution
 import { describe, expect, it } from 'vitest';
-import { detectStale, repair, type GitRunner } from '../salvage.js';
+import { detectStale, hasClosedUnmergedPr, repair, type GitRunner } from '../salvage.js';
 
 /** Scripted runner: maps "cmd arg arg" prefixes to results. Unmatched → ok:true, ''. */
 function runner(script: Record<string, { ok: boolean; stdout: string }>): GitRunner {
@@ -100,5 +100,34 @@ describe('repair', () => {
       'git branch -D fast/foo',
       'git push origin --delete fast/foo',
     ]);
+  });
+});
+
+describe('hasClosedUnmergedPr', () => {
+  // Throws on any non-gh call: the whole point of extracting this leg is that it never issues
+  // detectStale's `ls-remote` / `rev-parse` probes, whose failures would abort a whole drain.
+  const ghOnly =
+    (rows: unknown, ok = true): GitRunner =>
+    (cmd, args) => {
+      if (cmd === 'gh') return { ok, stdout: JSON.stringify(rows) };
+      throw new Error(`unexpected probe: ${cmd} ${args.join(' ')}`);
+    };
+
+  it('true when a closed PR was never merged', () => {
+    expect(hasClosedUnmergedPr(ghOnly([{ mergedAt: null }]), 'fast/a')).toBe(true);
+  });
+
+  it('false when every closed PR was merged', () => {
+    expect(hasClosedUnmergedPr(ghOnly([{ mergedAt: '2026-08-06T00:00:00Z' }]), 'fast/a')).toBe(
+      false,
+    );
+  });
+
+  it('false when no closed PR exists', () => {
+    expect(hasClosedUnmergedPr(ghOnly([]), 'fast/a')).toBe(false);
+  });
+
+  it('throws fail-closed on a gh failure rather than guessing "no closed PR"', () => {
+    expect(() => hasClosedUnmergedPr(ghOnly([], false), 'fast/a')).toThrow(/gh pr list failed/);
   });
 });

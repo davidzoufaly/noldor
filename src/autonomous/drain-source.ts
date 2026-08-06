@@ -12,7 +12,12 @@ import { resolveEntryRef } from '../triage/entry-id.js';
 import { isDrainEligible } from './drain-eligibility.js';
 import { CAPABILITIES } from '../core/agent-runner/capabilities.js';
 import { loadAgentsConfig, resolveRunner } from '../core/agent-runner/registry.js';
-import { buildDrainGatePrompt, buildResumeGatePrompt, type PromptDispatch } from './gate-prompt.js';
+import {
+  buildDrainGatePrompt,
+  buildFinishGatePrompt,
+  buildResumeGatePrompt,
+  type PromptDispatch,
+} from './gate-prompt.js';
 
 export type SourceId = 'roadmap' | 'plans' | 'specs';
 
@@ -44,6 +49,15 @@ export interface DrainSource {
   parseAll(): string[];
   /** gate entry prompt for this slug (shape follows the implementer runner's promptDispatch) */
   gatePrompt(slug: string): string;
+  /**
+   * Delivery-only entry prompt: the branch already carries committed work, so the child must
+   * reuse it and run end-of-flow rather than rebuild (see `buildFinishGatePrompt`). Optional —
+   * a source that omits it opts out of finish-mode and keeps today's retry-from-scratch. Only
+   * `roadmapSource` implements it; `plansSource` deliberately does not (its end-of-flow carries
+   * FD seams — Usage refresh, design archive, phase-flip — whose partial state a delivery-only
+   * child cannot infer from the branch, so a rebuild is the honest recovery there).
+   */
+  finishPrompt?(slug: string): string;
   /** branch the shipped PR lives on, for `openPrExistsFor` */
   branchFor(slug: string): string;
 }
@@ -118,6 +132,9 @@ export function roadmapSource(cwd: string): DrainSource {
     },
     gatePrompt(slug) {
       return buildDrainGatePrompt(slug, dispatch);
+    },
+    finishPrompt(slug) {
+      return buildFinishGatePrompt(slug, dispatch);
     },
     branchFor(slug) {
       return `fast/${slug}`;

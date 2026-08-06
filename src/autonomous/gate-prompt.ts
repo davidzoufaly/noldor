@@ -16,6 +16,16 @@
 export type PromptDispatch = 'slash-command' | 'prose';
 
 /**
+ * The code-stage CR invocation both roadmap-source prompts hand the child. Shared so a flag change
+ * (profile, artifact pathspec) is one edit rather than two silently-diverging prompt literals. The
+ * runner-neutral page `docs/noldor/drain-mode.md` carries a third, prose rendering — keep it in sync
+ * by hand; there is no code seam between a TS literal and a Markdown page.
+ */
+function fastTrackCrCommand(slug: string): string {
+  return `(\`pnpm noldor cr orchestrate --slug ${slug} --artifact . --kind code --profile fast-track --autonomous\`),`;
+}
+
+/**
  * Drain entry (roadmap source): ship one fast-track entry on `fast/<slug>`.
  * Slash-command branch: an explicit drain entry that short-circuits the
  * interactive Step 0 — a headless model ignores an env-var-only signal, so
@@ -30,9 +40,53 @@ export function buildDrainGatePrompt(slug: string, dispatch: PromptDispatch): st
     'questions. Force-recreate the branch from main, implement the entry, remove its roadmap',
     `block (\`pnpm noldor roadmap remove-block ${slug}\`), mark the session autonomous`,
     '(`pnpm noldor noldor set-autonomous`), run code-stage CR',
-    `(\`pnpm noldor cr orchestrate --slug ${slug} --artifact . --kind code --profile fast-track --autonomous\`),`,
+    fastTrackCrCommand(slug),
     'and ship via `pnpm noldor pr-flow`. On CR-red or test-red run',
     '`pnpm noldor cr escalate --autonomous` and exit non-zero.',
+  ].join('\n');
+}
+
+/**
+ * Finish entry (roadmap source): a prior child for this slug committed its work
+ * on `fast/<slug>` and then ended its turn without pushing or opening a PR —
+ * typically by backgrounding the code-stage CR lane and reporting "waiting on
+ * the reviewer". The supervisor detects that state (clean exit, no PR, branch
+ * ahead of `origin/main`) and re-spawns with THIS prompt instead of the
+ * from-scratch {@link buildDrainGatePrompt}: the child reuses the existing
+ * branch and runs Step 4 end-of-flow only, turning a ~13min/~170k-token rebuild
+ * into a delivery-only pass.
+ *
+ * Two invariants ride the prompt (PR #33 rule — directives never ride env
+ * alone): (1) do NOT force-recreate the branch, which would destroy the very
+ * commits being finished; (2) never background the end-of-flow commands, and
+ * never end the turn before `pr-flow` printed the PR URL — the child-side
+ * assertion that closes the false-retry loop at its source.
+ */
+export function buildFinishGatePrompt(slug: string, dispatch: PromptDispatch): string {
+  const shared = [
+    `Branch 'fast/${slug}' ALREADY carries committed work for roadmap entry '${slug}' from a`,
+    'prior child that ended without opening a PR. Do NOT force-recreate or delete the branch,',
+    'and do NOT re-implement the entry — reuse the existing branch/worktree and deliver it.',
+    `Ensure the roadmap block is gone (\`pnpm noldor roadmap remove-block ${slug}\` is idempotent),`,
+    'mark the session autonomous (`pnpm noldor noldor set-autonomous`), run code-stage CR',
+    fastTrackCrCommand(slug),
+    'and ship via `pnpm noldor pr-flow`. Run every one of those commands in the FOREGROUND and',
+    'wait for it to exit — never background them. Do NOT end your turn before `pr-flow` has',
+    'printed the PR URL. On CR-red or test-red run `pnpm noldor cr escalate --autonomous` and',
+    'exit non-zero.',
+  ];
+  if (dispatch === 'slash-command')
+    return [
+      `/noldor-gate --drain ${slug} --finish`,
+      '',
+      'Finish-mode drain context.',
+      ...shared,
+    ].join('\n');
+  return [
+    'Autonomous Noldor drain FINISH run. Read docs/noldor/drain-mode.md (Finish path) and',
+    'follow it exactly.',
+    '',
+    ...shared,
   ].join('\n');
 }
 

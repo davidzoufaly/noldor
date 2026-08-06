@@ -58,6 +58,24 @@ export interface DrainDeps {
    *  selection) so a stale historical merge on a reused branch can't silently drop new work. Optional:
    *  absent → old behavior. May throw → abort. */
   mergedPrExistsFor?: (slug: string, branch: string) => boolean;
+  /** True when the branch carries commits not in `origin/main` — i.e. a prior child committed its
+   *  work but never pushed/opened a PR (the "returned prose while a CR lane was still running"
+   *  failure). Consulted ONLY for a slug already spawned this run, immediately before its NEXT spawn
+   *  (`resolveFinishPrompt`): combined with a clean prior exit it distinguishes "built but
+   *  undelivered" (deliver it) from "build failed" (rebuild). Turns a ~13min/~170k-token rebuild into
+   *  a delivery-only re-spawn.
+   *  ERRS TOWARD REBUILDING by contract — an implementation that can't tell should return false
+   *  rather than throw, degrading to today's rebuild instead of aborting the drain.
+   *  Optional: absent (or a source without `finishPrompt`) → old retry-from-scratch behavior. */
+  branchHasUnshippedWork?: (slug: string, branch: string) => boolean;
+  /** True when a CLOSED-but-unmerged PR exists for the branch — a human rejected that work, and it is
+   *  one of the provably-wedging bases `salvageStaleBase` repairs by rebuilding from fresh main. Read
+   *  at the same point as {@link branchHasUnshippedWork} to keep such a branch OUT of finish mode,
+   *  which suppresses salvage and would otherwise re-deliver the rejected commits. May throw —
+   *  the loop answers a throw by excluding the slug (rebuild), never by aborting the drain, since a
+   *  probe that only disqualifies must not turn `gh` noise into a systemic failure. Optional: absent
+   *  → no exclusion. */
+  closedUnmergedPrExistsFor?: (slug: string, branch: string) => boolean;
   /** Optional pre-spawn clean-room: detect + repair a stale `fast/<slug>` base (leftover local/remote
    *  branch or closed-unmerged PR) before the gate child spawns. Throws → systemic abort (fail-closed,
    *  like the other git/gh deps). Absent → no salvage (existing behavior). */
@@ -126,6 +144,12 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
   // removes the slug after settling it (not the worker), so the slug stays (a) counted against
   // maxFeatures and (b) excluded from re-selection while its PR is open.
   const dispatched = new Set<string>();
+  // Did this slug's last spawn THIS RUN exit cleanly? Absent = never spawned this run. Together with
+  // a fresh branch probe at spawn time this is the whole input to the finish-vs-rebuild decision —
+  // see `resolveFinishPrompt`. Deliberately NOT a carried "is finishable" set: membership that has
+  // to be maintained at every ship / skip / merge / retry leaf eventually misses one and sends a
+  // child to deliver work that is already merged, rejected, or gone.
+  const lastExitClean = new Map<string, boolean>();
   const readyToMerge: Array<{ slug: string; branch: string }> = [];
   // Holder (not a bare `let`) so TS doesn't narrow the closure-mutated abort flag to `never` at the
   // outer read after `await Promise.all` — object properties aren't subject to that CFA collapse.
@@ -172,13 +196,66 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     }
   };
 
+  /** A slug reached a terminal verdict (shipped / skipped): drop every per-slug retry state. */
+  const settle = (slug: string): void => {
+    retries.delete(slug);
+    lastExitClean.delete(slug);
+  };
+
   // K=1 → EXACTLY today's env (no slug assignment / open-only): the gate falls back to topPriority[0],
   // which the single worker selected anyway. Slug-assignment + open-only are K>1-only.
-  const envFor = (slug: string): Record<string, string> => {
-    const base = { NOLDOR_DRAIN: '1', NOLDOR_DRAIN_SKIP: [...skip].join(',') };
+  const envFor = (slug: string, finishing: boolean): Record<string, string> => {
+    const base: Record<string, string> = {
+      NOLDOR_DRAIN: '1',
+      NOLDOR_DRAIN_SKIP: [...skip].join(','),
+      // Belt-and-suspenders only — the authoritative finish directive rides the prompt
+      // (`source.finishPrompt`), since a headless model ignores an env-only signal.
+      ...(finishing ? { NOLDOR_DRAIN_FINISH: '1' } : {}),
+    };
     return opts.concurrency > 1
       ? { ...base, NOLDOR_DRAIN_SLUG: slug, NOLDOR_DRAIN_OPEN_ONLY: '1' }
       : base;
+  };
+
+  /**
+   * The delivery-only prompt for this spawn, or `undefined` to build from scratch. Decided FRESH
+   * immediately before each spawn rather than carried as state, so every answer reflects the branch
+   * and its PRs as they are right now: a slug whose work was merged, rejected, or discarded since
+   * the last attempt simply reads as not deliverable and rebuilds.
+   *
+   * Three conditions, all required:
+   * - the source offers a delivery-only prompt at all (`plansSource` does not — its end-of-flow
+   *   carries FD seams whose partial state a delivery-only child cannot infer);
+   * - this slug's last spawn THIS RUN exited cleanly. A failed or timed-out child may have committed
+   *   only part of the entry, and nothing on the branch distinguishes that from a finished build, so
+   *   those rebuild;
+   * - the branch still holds undelivered work AND carries no closed-unmerged PR (a human rejecting
+   *   the branch is one of the wedged bases `salvageStaleBase` repairs by rebuilding, and finish mode
+   *   suppresses salvage).
+   *
+   * Both probes only ever DISqualify, so a throw is answered by disqualifying: tool noise decides
+   * "rebuild", it does not abort the drain from HERE. It may still abort a step later — a rebuild
+   * runs `salvageStaleBase`, whose `detectStale` re-issues the same `gh pr list` and is fail-closed
+   * by design (a wedged-base check that cannot run must not be guessed past). That split is
+   * deliberate: the finish/rebuild choice has a safe default, the clean-room decision does not.
+   * Reached only after the worker's pre-spawn open-PR guard, so a slug with a live PR never gets here.
+   */
+  const resolveFinishPrompt = (
+    slug: string,
+    branch: string,
+  ): ((s: string) => string) | undefined => {
+    if (lastExitClean.get(slug) !== true) return undefined;
+    // `.bind` so a source whose `finishPrompt` uses `this` cannot break when invoked detached.
+    const finishPrompt = deps.source.finishPrompt?.bind(deps.source);
+    if (finishPrompt === undefined) return undefined;
+    try {
+      const deliverable =
+        deps.branchHasUnshippedWork?.(slug, branch) === true &&
+        deps.closedUnmergedPrExistsFor?.(slug, branch) !== true;
+      return deliverable ? finishPrompt : undefined;
+    } catch {
+      return undefined;
+    }
   };
 
   /** Returns true iff the slug was handed to the coordinator (worker must NOT drop it from
@@ -191,7 +268,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       const stillPresent = deps.source.parseAll().includes(slug);
       if (!stillPresent) {
         shipped += 1;
-        retries.delete(slug);
+        settle(slug);
         return false;
       }
       // Post-spawn only. We just dispatched THIS slug this run, so a merged PR
@@ -208,7 +285,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       // `mergedAt` window.
       if (deps.mergedPrExistsFor?.(slug, branch)) {
         shipped += 1;
-        retries.delete(slug);
+        settle(slug);
         skip.add(slug);
         skipReasons[slug] = 'already-merged (fast-track ship left the roadmap entry in place)';
         return false;
@@ -218,6 +295,8 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
         skipReasons[slug] = 'pr-open-unmerged';
         return false;
       }
+      // No PR and the entry is still queued → retry. Whether that retry rebuilds or merely delivers
+      // is decided fresh at the next spawn by `resolveFinishPrompt`, never recorded here.
       recordRetryOrSkip(slug);
       return false;
     }
@@ -226,7 +305,7 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     // through to a retry re-spawn. Count it shipped; the worker settles it (coordinator never sees it).
     if (deps.mergedPrExistsFor?.(slug, branch)) {
       shipped += 1;
-      retries.delete(slug);
+      settle(slug);
       skip.add(slug);
       skipReasons[slug] = 'already-merged (fast-track ship left the roadmap entry in place)';
       return false;
@@ -234,6 +313,11 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
     // K>1: hand off to the coordinator ONLY when the child exited cleanly AND opened a PR. A non-zero
     // exit with an open PR (post-open failure) is skipped — its PR is left open, matching K=1's
     // "don't ship a failed build" intent rather than letting the coordinator merge it blindly.
+    // Only a clean exit can hand off, so only a clean exit needs this read — skip it on a failed
+    // build rather than widen the systemic-abort surface (`openPrExistsFor` throws → whole-drain
+    // abort) for an answer that cannot change the outcome. Nothing to disqualify here either: a
+    // post-open failure leaves its PR as the delivery, and the next spawn's `resolveFinishPrompt`
+    // re-derives the verdict from scratch rather than trusting a carried flag.
     if (code === 0 && deps.openPrExistsFor(slug, branch)) {
       readyToMerge.push({ slug, branch });
       signalCoordinator();
@@ -290,12 +374,19 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
       // ---- end critical section ----
       let handedToCoordinator = false;
       let childPgid: number | null = null;
+      const finishPrompt = resolveFinishPrompt(candidate.slug, branch);
       try {
-        deps.salvageStaleBase?.(candidate.slug, branch);
+        // Salvage is a clean room: `repair` deletes the worktree + local + REMOTE branch. On a
+        // finish that would destroy the very commits being delivered (a child that pushed without
+        // opening a PR reads as `orphan-remote-branch`), so suppress it — the branch is known-good
+        // work this run produced, not stale leftovers from a prior run.
+        if (finishPrompt === undefined) deps.salvageStaleBase?.(candidate.slug, branch);
         const code = await deps.spawnGate(
-          envFor(candidate.slug),
+          envFor(candidate.slug, finishPrompt !== undefined),
           opts.timeoutMs,
-          deps.source.gatePrompt(candidate.slug),
+          finishPrompt !== undefined
+            ? finishPrompt(candidate.slug)
+            : deps.source.gatePrompt(candidate.slug),
           (pgid) => {
             childPgid = pgid;
             livePgids.add(pgid);
@@ -303,12 +394,20 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
           },
           candidate.slug,
         );
+        lastExitClean.set(candidate.slug, code === 0);
         handedToCoordinator = settleShipVerdict(candidate.slug, branch, code);
       } catch (e) {
-        // A per-entry timeout is recoverable (retry/skip). Any other spawn error is systemic → abort.
-        if (e instanceof Error && e.message === 'iteration-timeout')
+        // A per-entry timeout is recoverable (retry/skip); any other spawn error is systemic → abort.
+        // Recording the timeout as an UNCLEAN exit is what makes the retry a rebuild: a child killed
+        // mid-flight may have committed only part of the entry (or only the roadmap-retirement
+        // commit, which lands before implementation), and nothing on the branch distinguishes that
+        // from a finished build. Telling the next child "do NOT re-implement the entry" over
+        // half-done work would rest on child-side prose judgement — exactly the soft signal this
+        // change exists to stop trusting.
+        if (e instanceof Error && e.message === 'iteration-timeout') {
+          lastExitClean.set(candidate.slug, false);
           recordRetryOrSkip(candidate.slug);
-        else abortRef.current = e instanceof Error ? e : new Error(String(e));
+        } else abortRef.current = e instanceof Error ? e : new Error(String(e));
       } finally {
         if (childPgid !== null) {
           livePgids.delete(childPgid); // child settled — drop its pgid
@@ -346,8 +445,17 @@ export async function runDrain(deps: DrainDeps, opts: DrainOpts): Promise<DrainR
           const stillPresent = deps.source.parseAll().includes(next.slug);
           if (!stillPresent) {
             shipped += 1;
-            retries.delete(next.slug);
+            settle(next.slug);
           } else {
+            // Merged, yet the oracle still sees the entry (a fast-track ship leaves the roadmap block
+            // in place when its removal did not land). Clear the clean-exit record BEFORE the
+            // `dispatched.delete` below frees the slug: the coordinator runs concurrently with the
+            // workers, so a live worker can re-select it in this same run, and every other
+            // finish precondition would still hold — the handoff required `code === 0`, the merged PR
+            // is no longer open so the pre-spawn guard passes, and `origin/main..fast/<slug>` stays
+            // positive after a squash merge. Without this the next child is told "do NOT
+            // re-implement, ship it" over already-merged commits, with salvage suppressed.
+            lastExitClean.delete(next.slug);
             recordRetryOrSkip(next.slug);
           }
         }

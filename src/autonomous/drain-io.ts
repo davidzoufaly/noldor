@@ -208,6 +208,50 @@ export function mergedPrExistsFor(cwd: string, slug: string, branch: string): bo
 }
 
 /**
+ * True when the drain branch carries committed work that has NOT been delivered
+ * (see {@link import('./gate-prompt.js').buildFinishGatePrompt}). The loop uses
+ * this post-spawn, after a clean child exit with no PR, to tell "the child
+ * committed but never pushed/opened" apart from "the build genuinely failed" —
+ * the former is finishable, the latter must be rebuilt.
+ *
+ * Counts commits in `origin/main..<ref>` for the local branch and for
+ * `origin/<branch>` (a child may have pushed and still not opened a PR) and
+ * reports whether EITHER is positive. A ref that does not resolve counts as
+ * absent, not as an error. Takes an injected {@link GitRunner} like
+ * {@link assertQueueSourceSynced}, so the verdict is unit-testable without a repo;
+ * {@link branchHasUnshippedWorkAt} is the cwd-bound production binding.
+ *
+ * Errs toward rebuilding, deliberately, and opposite to {@link openPrExistsFor}:
+ * any unexpected git failure yields `false`, degrading to today's
+ * retry-from-scratch behaviour instead of aborting the drain. A false negative
+ * costs one rebuild; a false positive would send a child to deliver work that
+ * isn't there.
+ */
+export function branchHasUnshippedWork(run: GitRunner, _slug: string, branch: string): boolean {
+  const ahead = (ref: string): number => {
+    const r = run('git', ['rev-list', '--count', `origin/main..${ref}`]);
+    if (!r.ok) return 0; // unknown ref (or git failure) → treat as no work
+    const n = Number((r.stdout || '').trim());
+    return Number.isFinite(n) ? n : 0;
+  };
+  return ahead(branch) > 0 || ahead(`origin/${branch}`) > 0;
+}
+
+/**
+ * Production binding of {@link branchHasUnshippedWork} to a repo root.
+ *
+ * Residual: the probe compares against whatever `origin/main` the drain's last
+ * `syncMainCleanState` fetched, and the per-entry-timeout caller does not re-sync first (a
+ * `syncMainCleanState` there could itself throw on divergence, converting a recoverable timeout into
+ * a systemic abort). A slug whose work a concurrent actor merged upstream in the meantime can
+ * therefore read as finishable. Self-correcting: the finish child checks the branch against the
+ * entry's scope (drain-mode.md, Finish path) and the attempt still counts against `--max-retries`.
+ */
+export function branchHasUnshippedWorkAt(cwd: string, slug: string, branch: string): boolean {
+  return branchHasUnshippedWork(spawnRunner(cwd), slug, branch);
+}
+
+/**
  * Spawn a headless gate run via the agent-runner registry (implementer role —
  * claude unless the consumer's agents config remaps it). Returns the child
  * exit code; throws `iteration-timeout` when the child exceeds `timeoutMs`.
