@@ -251,7 +251,9 @@ describe('run (orchestrate)', () => {
     expect(result.syntheticOks).toEqual([]);
     expect(result.lanesRun).toEqual(['reviewer']);
   });
-  it('still short-circuits a code-kind reviewer lane with no prior sink', async () => {
+  it('runs a code-kind reviewer lane with no prior sink rather than synthesizing a pass', async () => {
+    const { runSubagent } = await import('../lanes/subagent.js');
+    (runSubagent as ReturnType<typeof vi.fn>).mockClear();
     const result = await run({
       args: {
         slug: 'x',
@@ -265,7 +267,134 @@ describe('run (orchestrate)', () => {
       cwd: root,
       isEmptyDiff: async () => true,
     });
+    // A comma-joined `--artifact` matches no pathspec → empty diff on a branch
+    // that did change. The prior-run gate is what stops that from minting a
+    // green code-stage sink (and, downstream, a push receipt) on a first pass.
+    expect(result.syntheticOks).toEqual([]);
+    expect(result.lanesRun).toEqual(['reviewer']);
+    expect((runSubagent as ReturnType<typeof vi.fn>).mock.calls[0][0].fullReview).toBe(true);
+  });
+  it('short-circuits a code-kind lane whose prior sink went green', async () => {
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-code-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'src/x.ts',
+        kind: 'code',
+        slug: 'x',
+        blockers: [],
+        suggestions: [],
+        summary: 'prior green',
+        startedAt: '2026-08-06T00:00:00.000Z',
+        finishedAt: '2026-08-06T00:01:00.000Z',
+      }),
+      'utf8',
+    );
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'src/x.ts',
+        kind: 'code',
+        lanes: ['reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
     expect(result.syntheticOks).toEqual(['reviewer']);
+  });
+  it('re-runs a code-kind lane whose prior sink was red (no green-wash)', async () => {
+    const { runSubagent } = await import('../lanes/subagent.js');
+    (runSubagent as ReturnType<typeof vi.fn>).mockClear();
+    (runSubagent as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      lane: 'reviewer',
+      sinkPath: 's',
+      ok: false,
+    });
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-code-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'src/x.ts',
+        kind: 'code',
+        slug: 'x',
+        blockers: [{ file: 'src/x.ts', severity: 'high', message: 'unaddressed' }],
+        suggestions: [],
+        summary: 'blockers found',
+        startedAt: '2026-08-06T00:00:00.000Z',
+        finishedAt: '2026-08-06T00:01:00.000Z',
+      }),
+      'utf8',
+    );
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'src/x.ts',
+        kind: 'code',
+        lanes: ['reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).toEqual([]);
+    // Red stays red: the no-op re-run reports the blockers, not a synthetic pass.
+    expect(result.exitCode).toBe(1);
+  });
+  it('re-runs a non-reviewer lane whose prior sink was red', async () => {
+    const { runManual } = await import('../lanes/manual.js');
+    (runManual as ReturnType<typeof vi.fn>).mockClear();
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-manual.json'),
+      JSON.stringify({
+        lane: 'manual',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [{ file: 'docs/x.md', severity: 'med', message: 'operator blocker' }],
+        suggestions: [],
+        summary: 'blockers found',
+        startedAt: '2026-08-06T00:00:00.000Z',
+        finishedAt: '2026-08-06T00:01:00.000Z',
+      }),
+      'utf8',
+    );
+    await writeFile(
+      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
+      JSON.stringify({
+        lane: 'reviewer',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        slug: 'x',
+        blockers: [],
+        suggestions: [],
+        summary: 'prior green',
+        startedAt: '2026-08-06T00:00:00.000Z',
+        finishedAt: '2026-08-06T00:01:00.000Z',
+      }),
+      'utf8',
+    );
+    const result = await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['manual', 'reviewer'],
+        baseSha: 'aaa',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd: root,
+      isEmptyDiff: async () => true,
+    });
+    // Only the green reviewer lane short-circuits; the red manual lane re-runs,
+    // so its unaddressed blockers are not overwritten by `blockers: []`.
+    expect(result.syntheticOks).toEqual(['reviewer']);
+    expect((runManual as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
   });
   it('autonomous flag reaches guardLaneOverwrite (prior sink → archive default)', async () => {
     const { writeFile, readdir } = await import('node:fs/promises');

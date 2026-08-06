@@ -27,24 +27,27 @@ afterEach(async () => {
 
 describe('delta short-circuit', () => {
   it('writes synthetic OK for ALL lanes when empty diff', async () => {
-    // A prior reviewer sink is what makes "no changes since prior run" true for
-    // the mandatory lane — without one it runs for real (see orchestrate.test.ts).
-    // `autonomous` keeps the overwrite guard from prompting over that prior sink.
-    await writeFile(
-      join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
-      JSON.stringify({
-        lane: 'reviewer',
-        artifact: 'docs/x.md',
-        kind: 'spec',
-        slug: 'x',
-        blockers: [],
-        suggestions: [],
-        summary: 'prior',
-        startedAt: '2026-05-25T00:00:00.000Z',
-        finishedAt: '2026-05-25T00:01:00.000Z',
-      }),
-      'utf8',
-    );
+    // A green prior sink per lane is what makes "no changes since prior run" true
+    // — a lane without one runs for real, whatever its name or kind (see
+    // orchestrate.test.ts). `autonomous` keeps the overwrite guard from prompting
+    // over those prior sinks.
+    for (const lane of ['reviewer', 'manual']) {
+      await writeFile(
+        join(root, '.noldor', 'cr', `x-spec-${lane}.json`),
+        JSON.stringify({
+          lane,
+          artifact: 'docs/x.md',
+          kind: 'spec',
+          slug: 'x',
+          blockers: [],
+          suggestions: [],
+          summary: 'prior',
+          startedAt: '2026-05-25T00:00:00.000Z',
+          finishedAt: '2026-05-25T00:01:00.000Z',
+        }),
+        'utf8',
+      );
+    }
     const r = await run({
       args: {
         slug: 'x',
