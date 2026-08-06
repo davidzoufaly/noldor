@@ -14,6 +14,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### CR Delta Short-Circuit Green-Washes Red Prior Sinks
+
+- id: Q-0072
+- area: tooling
+- type: fix
+- since: 2026-08-06
+- size: S
+- impact: high
+- confidence: high
+- parent: specs-cr-gate-multi-reviewer
+
+`run()` writes a synthetic OK verdict on an empty artifact diff without reading the prior sink's verdict, so unaddressed blockers on `manual` / `codex` / `verifier` — and on any `code`-kind lane — are replaced by `blockers: []` and the lane exits 0. A red round followed by a no-op re-run therefore reports green, which is the one failure mode a review gate must not have. The spec/plan `reviewer` lane already gates its short-circuit on `priorRunWasGreen`; generalize that guard to all lanes, or state the asymmetry as intended and document why. (surfaced in CR of `mandatory-reviewer-lane-for-spec-plan-cr`)
+
 ### Dashboard Port Collision Detection Across Projects
 
 - id: Q-0057
@@ -26,6 +39,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 - parent: noldor
 
 Multi-project dev setups (the framework repo plus consumer repos like charuy) each run their own `noldor dashboard server`, all defaulting to port 4321. The second server dies with `EADDRINUSE` and gives no signal whether the occupying process is *this* project's dashboard (safe to reuse) or a *different* project's (needs another port) — the agent has to `lsof -i :4321` and inspect the process cwd by hand to tell them apart. Fix: `dashboard server` / `dashboard ensure` probe the target port on startup, fetch a small identity payload from the running server (project root path or name), and compare against the current repo root. Match → treat as already running, no-op with a reuse message. Mismatch → auto-pick the next free port (4322, 4323, …) instead of crashing, and print which project owns the conflicting one. Also worth a `noldor dashboard status` that reports port + owning project without trying to bind.
+
+### Drain False-Retry on In-Flight CR Lane
+
+- id: Q-0073
+- area: tooling
+- type: fix
+- since: 2026-08-06
+- size: S
+- impact: high
+- confidence: med
+- parent: autonomous-queue-drain-runner
+
+A drain child that returns prose while a CR lane is still running is indistinguishable from a finished iteration. Children 1 and 2 of the 2026-08-06 XS drain committed their work, then ended their turn with "waiting on the reviewer lane" — no push, no PR, exit 0. `settleShipVerdict` reads that as a failed build (entry still in `parseAll()`, no open PR) and re-spawns a full rebuild at roughly 13 minutes and 170k tokens each. Two candidate fixes: have the child assert an open PR exists before returning, or teach the supervisor to recognize a branch-with-commits-but-no-PR as resumable (finish Step 4) rather than retry-from-scratch. (surfaced 2026-08-06 XS drain)
 
 ### CR Review-Dimension Coverage
 
@@ -93,6 +119,34 @@ Graph-consuming detectors skip with a single meta-gap when `graphify-out/graph.j
 - parent: registry-distribution-for-the-noldor-package
 
 npm `--provenance` on a never-published package requires `--access public`, even for an unscoped name — omitting it fails with EUSAGE "Can't generate provenance for new or private package". The publish spec and its test wrongly asserted the flag absent. Assert `--access public` as a publish-workflow invariant, and consider a CI dry-run publish on the release PR so the failure surfaces before a real `v*` tag is cut. (surfaced v1.0.1 publish)
+
+### Post-Merge Cleanup Reporting Gaps
+
+- id: Q-0074
+- area: tooling
+- type: fix
+- since: 2026-08-06
+- size: XS
+- impact: low
+- confidence: high
+- parent: framework-pr-flow-agent-auto-merge
+
+pr-flow's main-checkout leg should warn on a lingering remote branch, symmetric with the worktree leg. The worktree path now deletes the remote ref itself and reports it, while the main-checkout path just trusts `gh pr merge --delete-branch` and says nothing — so a gh-side delete failure is silent there. (surfaced CR of `pr-flow-worktree-checkout-skip`, PR #258)
+
+- `prep promote --ship`'s worktree skip message should name what it left behind — it prints `local main sync skipped` but not that the local feature branch is still present, so the operator does not know a `git branch -D` is outstanding.
+
+### Gate Auto-Addresses CR Blockers
+
+- id: Q-0075
+- area: tooling
+- type: feat
+- since: 2026-08-06
+- size: M
+- impact: high
+- confidence: med
+- parent: specs-cr-gate-multi-reviewer
+
+Both blocker seams are prompt-only. Artifact-stage Step 2.5's continue-dialog offers `address-blockers`, whose prose is literally "operator edits the artifact"; code-stage `cr escalate` prompts `retry-implementation / spawn-deep-review / override-with-trailer / abort`. Neither carries an auto-fix outcome, so not even `proceed-autonomous` plus `autonomous.onFailure` can express "fix it and re-round" — the framework asks the operator to do work it could do itself. Add an auto-fix outcome: the controller applies the blockers, re-runs orchestrate with `--base-sha <priorArtifactSha>`, and surfaces the fix diff at the *next* dialog instead of a question before it. Gate it behind a knob such as `autonomous.onBlockers: 'auto-fix' | 'prompt'`, default `prompt`, because design-disagreement blockers still need operator arbitration while mechanical ones (missing section, lint-class finding, unstated acceptance criterion) do not. Open design question: how the controller classifies a blocker as mechanical versus design-disagreement without asking. (surfaced operator friction 2026-08-06)
 
 ### Diff-Scoped Clone Gate
 
