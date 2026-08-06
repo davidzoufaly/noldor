@@ -10,18 +10,32 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { compareDotted, type VersionProbe } from './agent-runner/doctor-runners.js';
+import { compareDotted } from './agent-runner/doctor-runners.js';
 
 export const MATRIX_LINK = 'docs/noldor/adoption-guide.md#prerequisites';
 
+/** argv every binary gets asked for its version with, unless it declares otherwise */
+export const DEFAULT_VERSION_ARGS: readonly string[] = ['--version'];
+
 export interface BinaryPrerequisite {
-  /** binary name, probed as `<id> --version` */
+  /** binary name, probed as `<id> <versionArgs>` */
   id: string;
   /** minimum dotted version; below-floor is an error, not a warning */
   floor: string;
   /** one-line pointer to where the assumption lives, for the matrix + doctor detail */
   whereAssumed: string;
+  /**
+   * argv that makes this binary print its version. Defaults to
+   * {@link DEFAULT_VERSION_ARGS}. Declared per-prerequisite rather than probed
+   * by retrying `--version` then `version`: a blind retry would silently paper
+   * over the same flag mismatch for every future tool, and a tool whose
+   * `--version` means something else entirely would be mis-probed.
+   */
+  versionArgs?: readonly string[];
 }
+
+/** Probe signature: a `(bin) => …` probe stays assignable (extra arg ignored). */
+export type PrereqProbe = (bin: string, versionArgs?: readonly string[]) => string | null;
 
 /**
  * Binaries every consumer needs on PATH. Agent runners (claude/codex/opencode)
@@ -52,6 +66,10 @@ export const BINARY_PREREQUISITES: readonly BinaryPrerequisite[] = [
   {
     id: 'lefthook',
     floor: '1.0.0',
+    // lefthook 1.x has no `--version` flag — it errors `unknown flag: --version`
+    // and the probe returned null, reporting `missing` on a repo whose hooks
+    // work. `lefthook version` prints the version on both 1.x and 2.x.
+    versionArgs: ['version'],
     whereAssumed: 'runs every commit/push hook — without it gate enforcement never fires',
   },
 ];
@@ -69,21 +87,36 @@ function versionFrom(out: string): string {
 }
 
 /**
- * Probe `<bin> --version` on PATH; on failure, retry the project-local
+ * Probe `<bin> <versionArgs>` on PATH; on failure, retry the project-local
  * `node_modules/.bin/<bin>` (relative to `cwd`). A dev-dep-only binary — most
  * notably `lefthook`, which the git-hook shim resolves out of `node_modules`
  * without ever being on PATH — is genuinely present and MUST NOT report missing.
+ * `versionArgs` defaults to {@link DEFAULT_VERSION_ARGS}; a binary whose version
+ * flag differs (lefthook 1.x) declares its own on {@link BinaryPrerequisite}.
  */
-export function makeDefaultProbe(cwd: string): VersionProbe {
-  return (bin: string): string | null => {
+export function makeDefaultProbe(cwd: string): PrereqProbe {
+  return (bin: string, versionArgs: readonly string[] = DEFAULT_VERSION_ARGS): string | null => {
+    const args = [...versionArgs];
     try {
-      return versionFrom(execFileSync(bin, ['--version'], { encoding: 'utf8', timeout: 5000 }));
+      return versionFrom(
+        execFileSync(bin, args, {
+          encoding: 'utf8',
+          timeout: 5000,
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }),
+      );
     } catch {
       // fall through to the project-local binary
     }
     try {
       const local = join(cwd, 'node_modules', '.bin', bin);
-      return versionFrom(execFileSync(local, ['--version'], { encoding: 'utf8', timeout: 5000 }));
+      return versionFrom(
+        execFileSync(local, args, {
+          encoding: 'utf8',
+          timeout: 5000,
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }),
+      );
     } catch {
       return null;
     }
@@ -95,10 +128,10 @@ export function makeDefaultProbe(cwd: string): VersionProbe {
  * `probe` defaults to a PATH-then-`node_modules/.bin` resolver rooted at `cwd`.
  */
 export function checkBinaryPrerequisites(
-  probe: VersionProbe = makeDefaultProbe(process.cwd()),
+  probe: PrereqProbe = makeDefaultProbe(process.cwd()),
 ): PrereqCheck[] {
   return BINARY_PREREQUISITES.map((p) => {
-    const version = probe(p.id);
+    const version = probe(p.id, p.versionArgs ?? DEFAULT_VERSION_ARGS);
     if (version === null) {
       return {
         id: p.id,
