@@ -567,8 +567,10 @@ export interface MergePrWithFallbackInput {
  * `--path-format=absolute` is required — without it `--git-common-dir` answers a
  * bare relative `.git` in the main checkout and the comparison false-positives.
  *
- * A failed probe answers `false`: the only caller uses this to *drop* a cleanup
- * flag, so an unknown context must keep the pre-existing behaviour.
+ * A failed probe answers `false` — callers use this to *skip* local-git work, so
+ * an unknown context must keep the pre-existing behaviour — but it warns first:
+ * `--path-format` needs git >= 2.31, and a silent `false` on older git would make
+ * the worktree bug look unfixed with no hint why.
  */
 export async function isLinkedWorktree(spawn: SpawnFn): Promise<boolean> {
   const r = await spawn('git', [
@@ -577,12 +579,18 @@ export async function isLinkedWorktree(spawn: SpawnFn): Promise<boolean> {
     '--git-dir',
     '--git-common-dir',
   ]);
-  if (r.exitCode !== 0) return false;
   const [gitDir, commonDir] = r.stdout
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
-  if (gitDir === undefined || commonDir === undefined) return false;
+  if (r.exitCode !== 0 || gitDir === undefined || commonDir === undefined) {
+    process.stderr.write(
+      `pr-flow: worktree probe failed (git rev-parse --path-format=absolute exit ${r.exitCode}; ` +
+        'the flag needs git >= 2.31). Assuming the main checkout — from a linked worktree the ' +
+        'post-merge local steps may fail with "\'main\' is already used by worktree at …".\n',
+    );
+    return false;
+  }
   return gitDir !== commonDir;
 }
 

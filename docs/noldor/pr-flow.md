@@ -26,6 +26,8 @@ gate end-of-flow (any path)
 
 **Local main sync is part of PR completion.** A merged PR isn't done at the GitHub side — the next session must start from the merged state, not a behind one. Both gate paths refresh local main as part of Step 4 cleanup: worktree paths run `git fetch origin main && git checkout main && git merge --ff-only origin/main` in the main workspace after `git worktree remove`; micro-chore runs `git fetch origin main && git rebase origin/main` after deleting the temp branch. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence — do not force the merge.
 
+**The sync belongs to the main workspace, never to a worktree.** `git checkout main` from a linked worktree always fails — `fatal: 'main' is already used by worktree at <main-workspace>` — because the main checkout holds the branch. So every post-merge local step is worktree-aware: the direct-merge fallback withholds `gh pr merge --delete-branch` (see [Auto-merge fallback](#auto-merge-fallback)), and `noldor prep promote --ship` skips its own `checkout main` + `branch -D` + fast-forward leg outright, reporting `local main sync skipped — run from a linked worktree, sync from the main workspace`. Both use the same `isLinkedWorktree` probe, which warns to stderr and falls back to main-checkout behaviour if `git rev-parse --path-format=absolute` is unavailable (git < 2.31).
+
 ## One-time operator setup
 
 1. **Install `gh`.** macOS: `brew install gh`. Other platforms: see [cli.github.com](https://cli.github.com/).

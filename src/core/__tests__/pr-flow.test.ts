@@ -1140,12 +1140,24 @@ describe('isLinkedWorktree', () => {
     await expect(isLinkedWorktree(probe('/repo/.git\n/repo/.git\n'))).resolves.toBe(false);
   });
 
-  it('is false when the rev-parse probe fails', async () => {
-    await expect(isLinkedWorktree(probe('', 128))).resolves.toBe(false);
+  it('is false and warns when the rev-parse probe fails', async () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    try {
+      await expect(isLinkedWorktree(probe('', 128))).resolves.toBe(false);
+      expect(warn.mock.calls.some(([m]) => String(m).includes('worktree probe failed'))).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
-  it('is false when rev-parse emits fewer than two paths', async () => {
-    await expect(isLinkedWorktree(probe('/repo/.git\n'))).resolves.toBe(false);
+  it('is false and warns when rev-parse emits fewer than two paths', async () => {
+    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    try {
+      await expect(isLinkedWorktree(probe('/repo/.git\n'))).resolves.toBe(false);
+      expect(warn.mock.calls.some(([m]) => String(m).includes('worktree probe failed'))).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
