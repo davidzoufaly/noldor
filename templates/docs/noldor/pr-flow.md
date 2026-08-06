@@ -17,7 +17,7 @@ gate end-of-flow (any path)
   │    2. git push --force-with-lease --set-upstream origin <branch>
   │    3. gh pr create --base main --head <branch> --title <…> --body <…>
   │    4. gh pr merge <pr> --auto --squash
-  │       └─ on failure (e.g. repo doesn't have auto-merge enabled): retry `gh pr merge --squash --delete-branch` synchronously, verify via `gh pr view --json mergedAt,state`
+  │       └─ on failure (e.g. repo doesn't have auto-merge enabled): retry `gh pr merge --squash` synchronously (`--delete-branch` only outside a linked worktree), verify via `gh pr view --json mergedAt,state,headRefName`
   │    5. poll gh pr view --json mergedAt,state,mergeStateStatus until merged (10min timeout; 20min if BEHIND) — streams a throttled status line per cycle (Auto-merge: state=…, mergeStateStatus=…, elapsed=…s) to stderr; skipped on the fallback path because the synchronous merge has already completed
   ├─ explicit cleanup: git worktree remove + git branch -D (worktree paths) OR delete temp branch (micro-chore)
   ├─ sync local main to origin/main (git fetch + ff-only merge / rebase) — PR is not "finished" until local main matches origin
@@ -25,6 +25,8 @@ gate end-of-flow (any path)
 ```
 
 **Local main sync is part of PR completion.** A merged PR isn't done at the GitHub side — the next session must start from the merged state, not a behind one. Both gate paths refresh local main as part of Step 4 cleanup: worktree paths run `git fetch origin main && git checkout main && git merge --ff-only origin/main` in the main workspace after `git worktree remove`; micro-chore runs `git fetch origin main && git rebase origin/main` after deleting the temp branch. If `--ff-only` rejects (local main has commits ahead of origin), stop and surface the divergence — do not force the merge.
+
+**The sync belongs to the main workspace, never to a worktree.** `git checkout main` from a linked worktree always fails — `fatal: 'main' is already used by worktree at <main-workspace>` — because the main checkout holds the branch. So every post-merge local step is worktree-aware: the direct-merge fallback withholds `gh pr merge --delete-branch` (see [Auto-merge fallback](#auto-merge-fallback)), and `noldor prep promote --ship` skips its own `checkout main` + `branch -D` + fast-forward leg outright, reporting `local main sync skipped — run from a linked worktree, sync from the main workspace`. Both use the same `isLinkedWorktree` probe, which warns to stderr and falls back to main-checkout behaviour if `git rev-parse --path-format=absolute` is unavailable (git < 2.31).
 
 ## One-time operator setup
 
@@ -79,8 +81,8 @@ You lose the composed PR body (CR result table, scope block, spec/plan links) bu
 `gh pr merge --auto` requires the repo to have auto-merge enabled (Settings → General → Pull Requests → "Allow auto-merge"). When it's disabled, the API returns `enablePullRequestAutoMerge` and the auto attempt exits non-zero. `openAndAutoMerge` handles this transparently:
 
 1. Try `gh pr merge --auto --squash` first (the happy path when auto-merge is enabled + checks gate the merge).
-2. On any non-zero exit, retry with `gh pr merge --squash --delete-branch` (synchronous — the merge happens immediately, no polling needed).
-3. Verify the result via `gh pr view --json mergedAt,state` rather than trusting the direct-merge exit code: when invoked from inside a worktree, gh can emit a non-zero exit on the post-merge local-checkout step (`'main' is already used by another worktree`) even though the merge succeeded server-side.
+2. On any non-zero exit, retry with `gh pr merge --squash` (synchronous — the merge happens immediately, no polling needed). `--delete-branch` rides along **only from the main checkout**: the flag makes gh check out the base branch locally before deleting the head branch, and from a linked worktree that checkout always fails with `fatal: 'main' is already used by worktree at <main-workspace>` — taking the remote-branch delete down with it. So pr-flow probes worktree context first (`git rev-parse --path-format=absolute --git-dir --git-common-dir`; the two paths differ only in a linked worktree) and, when inside one, withholds the flag and deletes the remote ref itself via `git push origin --delete <headRefName>` (best-effort — a failure only warns, since the repo's auto-delete-head-branches setting may have beaten it to it). The *local* branch stays for the gate's Step 4 cleanup, which runs `git worktree remove` + `git branch -D` + the `main` fast-forward from the main workspace, where checking out `main` is legal.
+3. Verify the result via `gh pr view --json mergedAt,state,headRefName` rather than trusting the direct-merge exit code: gh can still emit a non-zero exit from a post-merge local step even though the merge succeeded server-side.
 4. If `gh pr view` reports `state: MERGED`, return `mergedAt`. If still `OPEN`, throw with both exit codes for diagnostic context.
 
 The fallback prints `pr-flow: gh pr merge --auto failed; falling back to direct squash-merge.` to stderr so the operator can tell which path ran. To make the auto path active, follow the "GitHub branch protection" step in [One-time operator setup](#one-time-operator-setup) above and enable auto-merge in repo settings.

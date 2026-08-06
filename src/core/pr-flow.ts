@@ -559,6 +559,74 @@ export interface MergePrWithFallbackInput {
   onStatus?: (line: string) => void;
 }
 
+/**
+ * True when the caller runs inside a *linked* git worktree (`git worktree add`)
+ * rather than the main checkout. `--git-dir` resolves to
+ * `<main>/.git/worktrees/<name>` in a linked worktree while `--git-common-dir`
+ * stays at `<main>/.git`; in the main checkout both resolve to the same path.
+ * `--path-format=absolute` is required — without it `--git-common-dir` answers a
+ * bare relative `.git` in the main checkout and the comparison false-positives.
+ *
+ * A failed probe answers `false` — callers use this to *skip* local-git work, so
+ * an unknown context must keep the pre-existing behaviour — but it warns first:
+ * `--path-format` needs git >= 2.31, and a silent `false` on older git would make
+ * the worktree bug look unfixed with no hint why.
+ */
+export async function isLinkedWorktree(spawn: SpawnFn): Promise<boolean> {
+  const r = await spawn('git', [
+    'rev-parse',
+    '--path-format=absolute',
+    '--git-dir',
+    '--git-common-dir',
+  ]);
+  const [gitDir, commonDir] = r.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (r.exitCode !== 0 || gitDir === undefined || commonDir === undefined) {
+    process.stderr.write(
+      `pr-flow: worktree probe failed (git rev-parse --path-format=absolute exit ${r.exitCode}; ` +
+        'the flag needs git >= 2.31). Assuming the main checkout — from a linked worktree the ' +
+        'post-merge local steps may fail with "\'main\' is already used by worktree at …".\n',
+    );
+    return false;
+  }
+  return gitDir !== commonDir;
+}
+
+/**
+ * Delete the merged PR's remote head branch by hand. Only used on the
+ * worktree-context path, where `gh pr merge --delete-branch` is withheld (see
+ * {@link mergePrWithFallback}) and would otherwise have deleted it. Best-effort
+ * and never throws: the merge already succeeded server-side, so a failed branch
+ * delete is cosmetic cleanup, not a ship failure.
+ */
+async function deleteMergedRemoteBranch(opts: {
+  spawn: SpawnFn;
+  branch: string | undefined;
+  onStatus?: (line: string) => void;
+}): Promise<void> {
+  if (opts.branch === undefined || opts.branch.length === 0) {
+    process.stderr.write(
+      'pr-flow: merged from a worktree but gh pr view reported no headRefName — ' +
+        'remote branch left in place; delete it by hand.\n',
+    );
+    return;
+  }
+  const del = await opts.spawn('git', ['push', 'origin', '--delete', opts.branch]);
+  if (del.exitCode !== 0) {
+    process.stderr.write(
+      `pr-flow: remote branch ${opts.branch} not deleted (exit ${del.exitCode}); ` +
+        "it may already be gone via the repo's auto-delete-head-branches setting. " +
+        'Delete it by hand if it lingers.\n',
+    );
+    return;
+  }
+  opts.onStatus?.(
+    `pr-flow: deleted remote branch ${opts.branch} (worktree context — gh --delete-branch withheld).`,
+  );
+}
+
 /** Merge an open PR: queue auto-merge and poll, falling back to a direct
  *  squash-merge when the repo has auto-merge disabled. Shared by the gate's
  *  `openAndAutoMerge` end-of-flow and `prep promote --ship` so promote batches
@@ -596,26 +664,45 @@ export async function mergePrWithFallback(
     timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
   });
+  // `--delete-branch` makes gh do *local* post-merge cleanup: check out the base
+  // branch, then delete the local head branch. From a linked worktree that
+  // checkout always fails — `fatal: 'main' is already used by worktree at
+  // <main-workspace>` — because the main checkout already holds `main`. The merge
+  // itself is unaffected, but the error is noisy and it takes the remote-branch
+  // delete down with it. So withhold the flag in worktree context and delete the
+  // remote ref ourselves below; the *local* branch is the gate's Step 4 cleanup to
+  // remove (it runs `git worktree remove` + `git branch -D` + the `main` fast-forward
+  // from the main workspace, where checking out `main` is legal).
+  const inWorktree = await isLinkedWorktree(input.spawn);
   const directMerge = await input.spawn('gh', [
     'pr',
     'merge',
     input.prUrl,
     '--squash',
-    '--delete-branch',
+    ...(inWorktree ? [] : ['--delete-branch']),
   ]);
-  // gh may emit a non-zero exit from the post-merge local-checkout step
-  // (e.g. `'main' is already used by another worktree` when invoked from
-  // inside a worktree) even when the merge succeeded server-side. Trust
-  // `gh pr view` over `directMerge.exitCode` for the merge verdict.
-  const view = await input.spawn('gh', ['pr', 'view', input.prUrl, '--json', 'mergedAt,state']);
+  // gh may still emit a non-zero exit from a post-merge local step even when the
+  // merge succeeded server-side. Trust `gh pr view` over `directMerge.exitCode`
+  // for the merge verdict.
+  const view = await input.spawn('gh', [
+    'pr',
+    'view',
+    input.prUrl,
+    '--json',
+    'mergedAt,state,headRefName',
+  ]);
   if (view.exitCode !== 0) {
     throw new Error(
       `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; gh pr view failed: exit ${view.exitCode}`,
     );
   }
-  let viewData: { mergedAt: string | null; state: string };
+  let viewData: { mergedAt: string | null; state: string; headRefName?: string };
   try {
-    viewData = JSON.parse(view.stdout) as { mergedAt: string | null; state: string };
+    viewData = JSON.parse(view.stdout) as {
+      mergedAt: string | null;
+      state: string;
+      headRefName?: string;
+    };
   } catch {
     throw new Error(
       `gh pr view returned unparseable JSON after direct merge fallback: ${view.stdout.slice(0, 200)}`,
@@ -625,6 +712,13 @@ export async function mergePrWithFallback(
     throw new Error(
       `gh pr merge --auto failed: exit ${merge.exitCode}; direct merge fallback exit ${directMerge.exitCode}; PR state is "${viewData.state}".`,
     );
+  }
+  if (inWorktree) {
+    await deleteMergedRemoteBranch({
+      spawn: input.spawn,
+      branch: viewData.headRefName,
+      ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
+    });
   }
   return { mergedAt: viewData.mergedAt };
 }

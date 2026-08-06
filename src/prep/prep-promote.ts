@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { nodeSpawn } from '../core/pr-flow-cli.js';
-import { mergePrWithFallback } from '../core/pr-flow.js';
+import { isLinkedWorktree, mergePrWithFallback } from '../core/pr-flow.js';
 import { readSession, writeSession, clearSession } from '../core/session.js';
 import { sizeToTier } from '../core/size-routing.js';
 import { parseRoadmap } from '../utils/parse-blocks.js';
@@ -284,6 +284,18 @@ async function shipBranch(
   });
   // PR is merged. Local-main sync is best-effort — a non-fast-forward (e.g. main
   // moved under us) must NOT be reported as a ship failure.
+  //
+  // From a linked worktree the sync can never succeed: `git checkout main` fails
+  // with `fatal: 'main' is already used by worktree at <main-workspace>` because
+  // the main checkout holds the branch. Skip the whole local leg there rather than
+  // burning a guaranteed-failing checkout — the main workspace owns its own `main`
+  // pointer and refreshes it from there (the gate's Step 4 cleanup does exactly that).
+  if (await isLinkedWorktree(nodeSpawn({ cwd }))) {
+    return {
+      prUrl,
+      note: `PR merged at ${mergedAt}; local main sync skipped — run from a linked worktree, sync from the main workspace`,
+    };
+  }
   try {
     git(cwd, ['checkout', 'main']);
   } catch {
@@ -292,8 +304,9 @@ async function shipBranch(
   try {
     git(cwd, ['branch', '-D', branch]);
   } catch {
-    // The direct-merge fallback runs `gh pr merge --delete-branch`, which may
-    // have already deleted the local branch — not a failure.
+    // Reached only from the main checkout (worktree runs return above), where the
+    // direct-merge fallback still passes `gh pr merge --squash --delete-branch` —
+    // so the local branch may already be gone. Not a failure.
   }
   try {
     git(cwd, ['fetch', 'origin', 'main']);
