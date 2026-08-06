@@ -28,11 +28,17 @@ export const ALL_DIMENSIONS: ReviewDimension[] = [...reviewDimensionSchema.optio
 /**
  * Built-in profiles, used when `crReview.profiles.<name>` is absent.
  * `default` = a full med-effort sweep across every dimension. `fast-track`
- * = a scoped low-effort correctness+security+reuse pass for XS/S no-FD
- * changes — `reuse` is in scope because fast-track is the lane where
- * copy-paste of an existing helper most often lands.
+ * = a scoped low-effort correctness+security+reuse+simplification pass for
+ * XS/S no-FD changes — `reuse` is in scope because fast-track is the lane
+ * where copy-paste of an existing helper most often lands, and
+ * `simplification` because it is also the lane most shipped code takes (the
+ * autonomous drain hardcodes `--profile fast-track`), so omitting it left
+ * over-long, over-abstracted code with no reviewer at all.
  */
 export const DEFAULT_REVIEW_PROFILES: Record<string, ReviewProfile> = {
   default: { effort: 'med', dimensions: ALL_DIMENSIONS },
-  'fast-track': { effort: 'low', dimensions: ['correctness', 'security', 'reuse'] },
+  'fast-track': {
+    effort: 'low',
+    dimensions: ['correctness', 'security', 'reuse', 'simplification'],
+  },
 };

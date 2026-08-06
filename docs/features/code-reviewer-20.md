@@ -31,8 +31,8 @@ Next-generation code reviewer, taking inspiration from the MC Code Reviewer. Rai
 As an operator running the autonomous drain, I want each CR lane to review
 along explicit, configurable dimensions at a per-path effort level, so that
 full-tier features get a deep multi-dimension review while fast-track XS/S
-changes get a fast, focused correctness+security+reuse pass instead of the
-same one-size-fits-all prompt.
+changes get a fast, focused correctness+security+reuse+simplification pass
+instead of the same one-size-fits-all prompt.
 
 ## Usage
 
@@ -41,7 +41,7 @@ Config (`.noldor/config.json`) — optional; built-ins apply when absent:
 {
   "crReview": {
     "profiles": {
-      "fast-track": { "effort": "low", "dimensions": ["correctness", "security", "reuse"] },
+      "fast-track": { "effort": "low", "dimensions": ["correctness", "security", "reuse", "simplification"] },
       "default": { "effort": "med", "dimensions": ["correctness","security","reuse","simplification","efficiency","altitude","concurrency","effects"] }
     }
   }
