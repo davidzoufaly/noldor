@@ -40,9 +40,13 @@ pre-commit:
       #
       # Write mode (no `--check`) + `stage_fixed`: oxfmt repairs and re-stages
       # instead of rejecting, so a hand-written multi-line `import { ... }` no
-      # longer blocks the commit. Known side effect — `stage_fixed` can stage
-      # files the current task never touched; the implementer scope-guard in
-      # `.claude/engineering-rules.md` is what keeps commit scope honest.
+      # longer blocks the commit. Known side effects — `stage_fixed` can stage
+      # files the current task never touched (the implementer scope-guard in
+      # `.claude/engineering-rules.md` is what keeps commit scope honest), and on
+      # a partially staged file lefthook re-applies its saved unstaged patch over
+      # the reformatted file, which can misplace the hunk in the WORKING TREE
+      # (index and commit stay correct). Both are documented in
+      # `docs/noldor/git-and-commits.md`.
       #
       # Deliberately a top-level (sequential) job rather than a member of the
       # parallel `validate` group below: a writing formatter must not race the
