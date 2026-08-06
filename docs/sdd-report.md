@@ -13,7 +13,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 - Total features: 75
 - Untriaged ideas: 0
 - Backlog entries: 7
-- Gap categories with issues: 6 / 14
+- Gap categories with issues: 5 / 14
 
 ## Code clones
 
@@ -36,7 +36,6 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 - `01c29d0` — fast-track — doc+counter state, zero code risk
 - `1595710` — fast-track — doc+counter state, zero code risk
 - `026845f` — templates/docs twin edits not yet allowlisted (tracked as Q-0023)
-- `bbbc88d` — mechanical doc-frontmatter twin sync; zero code delta; templates/docs/noldor twins fall outside micro-chore/release-sweep allowlists (framework gap)
 
 ### Review-skip count (last 30 days)
 
@@ -179,10 +178,6 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 - `continuous-drain-daemon-and-escalation-inbox` — Continuous Drain Daemon and Escalation Inbox (tooling) has no entries in links.docs
 - `make-noldor-agent-agnostic` — Make Noldor Agent-Agnostic (tooling) has no entries in links.docs
-
-### Plans without matching spec
-
-- `docs/design/plans/2026-06-07-end-of-flow-ergonomics.md` — docs/design/plans/2026-06-07-end-of-flow-ergonomics.md has slug "end-of-flow-ergonomics" with no matching spec under docs/design/specs/
 
 ### Code files not referenced by any feature
 
