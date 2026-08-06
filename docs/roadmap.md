@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Delta Short-Circuit Green-Washes Red Prior Sinks
-
-- id: Q-0072
-- area: tooling
-- type: fix
-- since: 2026-08-06
-- size: S
-- impact: high
-- confidence: high
-- parent: specs-cr-gate-multi-reviewer
-
-`run()` writes a synthetic OK verdict on an empty artifact diff without reading the prior sink's verdict, so unaddressed blockers on `manual` / `codex` / `verifier` — and on any `code`-kind lane — are replaced by `blockers: []` and the lane exits 0. A red round followed by a no-op re-run therefore reports green, which is the one failure mode a review gate must not have. The spec/plan `reviewer` lane already gates its short-circuit on `priorRunWasGreen`; generalize that guard to all lanes, or state the asymmetry as intended and document why. (surfaced in CR of `mandatory-reviewer-lane-for-spec-plan-cr`)
-
 ### Drain False-Retry on In-Flight CR Lane
 
 - id: Q-0073
