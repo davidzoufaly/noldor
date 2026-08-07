@@ -68,6 +68,14 @@ describe('decideCommitVerdict', () => {
     expect(v.lines[1]).toBe(`${VERDICT_PREFIX} 1 path(s) still staged: src/x.ts`);
   });
 
+  it('does not claim "nothing was committed" when a failed run still moved HEAD', () => {
+    const v = decideCommitVerdict(obs({ status: 1 }));
+    expect(v.outcome).toBe('failed');
+    expect(v.lines[0]).toBe(
+      `${VERDICT_PREFIX} FAILED — git exit 1; HEAD still moved to bbbbbbb — inspect before retrying`,
+    );
+  });
+
   it('says so explicitly when a failure left nothing staged', () => {
     const v = decideCommitVerdict(obs({ status: 1, headAfter: 'a'.repeat(40) }));
     expect(v.lines[1]).toContain('index is empty');

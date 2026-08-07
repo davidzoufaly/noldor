@@ -1,10 +1,14 @@
 /**
  * `noldor commit [git-commit-args...]` — run `git commit` and report the truth.
  *
- * Forwards every argument verbatim to `git commit` with inherited stdio (hook
- * output stays live), then observes HEAD and the index and prints a
+ * Forwards its arguments to `git commit` with inherited stdio (hook output
+ * stays live), then observes HEAD and the index and prints a
  * {@link VERDICT_PREFIX}-marked verdict as the LAST stdout lines. Exits with
  * git's own status.
+ *
+ * One argument does not reach git: the CLI router treats a bare `--help`/`-h`
+ * in any slot as a help request and prints usage instead of dispatching
+ * (`src/cli/index.ts`), so `noldor commit -m -h` is a no-op.
  *
  * The verdict placement is the point: `noldor commit -m '…' | tail` still loses
  * `$?` to the pipe, but the tail now ends in `noldor commit: FAILED …` instead
@@ -27,18 +31,20 @@ export interface CommitGit {
   readonly runCommit: (args: readonly string[]) => number | null;
 }
 
-/** Trimmed stdout of a git probe, or `null` on any failure — probes never throw. */
+/** Raw stdout of a git probe, or `null` on any failure — probes never throw. */
 function probe(args: readonly string[]): string | null {
   const r = spawnSync('git', [...args], { encoding: 'utf8' });
   if (r.error || r.status !== 0 || typeof r.stdout !== 'string') return null;
-  const out = r.stdout.trim();
-  return out === '' ? null : out;
+  return r.stdout === '' ? null : r.stdout;
 }
 
 export const defaultGit: CommitGit = {
-  head: () => probe(['rev-parse', 'HEAD']),
-  subject: (sha) => probe(['log', '-1', '--format=%s', sha]),
-  stagedFiles: () => (probe(['diff', '--cached', '--name-only']) ?? '').split('\n').filter(Boolean),
+  head: () => probe(['rev-parse', 'HEAD'])?.trim() || null,
+  subject: (sha) => probe(['log', '-1', '--format=%s', sha])?.trim() || null,
+  // `-z` + NUL-split: without it git C-quotes paths with non-ASCII or special
+  // characters, so the verdict would name something the operator cannot copy.
+  stagedFiles: () =>
+    (probe(['diff', '--cached', '--name-only', '-z']) ?? '').split('\0').filter(Boolean),
   runCommit: (args) => {
     const r = spawnSync('git', ['commit', ...args], { stdio: 'inherit' });
     // A spawn error or a signal death both leave `status` null — the verdict
@@ -70,5 +76,9 @@ export function main(argv: readonly string[], git: CommitGit = defaultGit): numb
 
 const invokedDirect = /[\\/]commit-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
 if (invokedDirect) {
-  process.exit(main(process.argv.slice(2)));
+  // `process.exitCode`, never `process.exit()`: a piped stdout is async on
+  // POSIX, so exiting immediately after the write can truncate the very verdict
+  // lines this command exists to deliver. git already ran to completion under
+  // inherited stdio, so letting the process end naturally is safe.
+  process.exitCode = main(process.argv.slice(2));
 }

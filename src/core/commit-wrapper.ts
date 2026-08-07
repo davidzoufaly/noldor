@@ -105,7 +105,14 @@ export function decideCommitVerdict(obs: CommitObservation): CommitVerdict {
   }
 
   const how = obs.status === null ? 'git did not run to completion' : `git exit ${obs.status}`;
-  lines.push(`${VERDICT_PREFIX} FAILED — ${how}; nothing was committed`);
+  // Read HEAD even on the failure path. A failed run that nonetheless moved
+  // HEAD is rare, but asserting "nothing was committed" from the exit status
+  // alone would be the same exit-status-over-observation lie this wrapper kills.
+  const moved = obs.headAfter !== null && obs.headAfter !== obs.headBefore;
+  const what = moved
+    ? `HEAD still moved to ${short(obs.headAfter!)} — inspect before retrying`
+    : 'nothing was committed';
+  lines.push(`${VERDICT_PREFIX} FAILED — ${how}; ${what}`);
   lines.push(
     obs.stagedAfter.length > 0
       ? `${VERDICT_PREFIX} ${obs.stagedAfter.length} path(s) still staged: ${renderStaged(obs.stagedAfter)}`
