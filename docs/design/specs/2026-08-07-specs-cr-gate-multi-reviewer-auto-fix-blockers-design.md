@@ -230,7 +230,10 @@ matches what `plan` computed, and no state has to be threaded through the LLM ed
 Recording the fingerprint is what makes `no-progress` detectable on the next round.
 
 Exit codes: `0` = round recorded, `2` = usage error (missing or non-numeric `--applied` / `--deferred`, unknown
-`--kind`) or a malformed existing ledger. There is no `10` — `record` makes no decision.
+`--kind`), a malformed existing ledger, **or any other read/write failure** (EACCES, EIO, a failed atomic
+write). There is no `10` — `record` makes no decision. Every non-success path collapses to `2` on purpose: the
+gate's stop rule keys on exit 2 specifically, so an fs error escaping as some other code would leave the loop's
+behaviour undefined.
 
 ### U6 — Gate seams (prose)
 
@@ -255,6 +258,10 @@ Exit codes: `0` = round recorded, `2` = usage error (missing or non-numeric `--a
   code-stage orchestrate (which re-earns the `Noldor-Reviewed-Subagent` receipt —
   [`orchestrate.ts:382`](../../../src/cr/orchestrate.ts#L382) only amends on a green reviewer run). Exit 10 or
   2 → `cr escalate` exactly as today.
+- **Step 4, "Context cleanup on clean exit"** — the existing `rm -f .noldor/cr/<slug>-escalation-context.md`
+  gains the ledger and its quarantine remnant: `rm -f .noldor/cr/<slug>-<kind>-autofix.json*`. U3 claims
+  nothing else ever removes a `.bad` file, so this leg is load-bearing for that claim, not optional polish —
+  it is listed here because U6 plus the acceptance list is the implementer's contract.
 - [`docs/noldor/drain-mode.md`](../../../docs/noldor/drain-mode.md#L74) — record that autofix runs ahead of
   `cr escalate` in drain, and that with `onBlockers: 'auto-fix'` a mechanical-only red self-heals instead of
   failing the iteration.
@@ -347,8 +354,11 @@ two rounds, starts a new session, and confirms the cap reset.
     second comparison to drift.
 20. `fingerprintBlockers` returns the same value for two blocker sets differing only in `line`.
 21. The gate loop stops on `record` exit 2 and falls to the existing seam rather than re-running orchestrate.
-22. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
-23. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
+    `record` exits 2 — not some other code — on a usage error, a malformed ledger, AND any read/write failure.
+22. Step 4's clean-exit cleanup removes `.noldor/cr/<slug>-<kind>-autofix.json` and its `.bad` remnant along
+    with the escalation-context file, so no `.bad` file outlives a clean session.
+23. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
+24. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
     — that a `LaneFindings` sink carries `artifactSha`. Both the `LaneFindings.artifactSha` reference and the
     "stable `artifactSha` to record in `LaneFindings`" clause are gone.
 
