@@ -156,6 +156,15 @@ describe('.oxlintrc.json template (lint contract)', () => {
   const rel = '.oxlintrc.json';
   const cfg = JSON.parse(readFileSync(join(TEMPLATES_ROOT, rel), 'utf8'));
 
+  // Scaffold-only, so `checks template-sync` skips it by design — this is the only
+  // thing holding the two copies together, and it is what makes the assertions
+  // below (which read the template) cover the root file `pnpm lint` actually uses.
+  it('is byte-identical to the self-host copy the repo lints with', () => {
+    expect(readFileSync(join(TEMPLATES_ROOT, '..', rel), 'utf8')).toBe(
+      readFileSync(join(TEMPLATES_ROOT, rel), 'utf8'),
+    );
+  });
+
   it('ships in the template manifest', () => {
     expect(templateFiles()).toContain(rel);
   });

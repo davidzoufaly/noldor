@@ -23,6 +23,7 @@ Non-negotiable principles for all code written in a Noldor repo. Aligned with `t
 | Rule off                              | Why                                                                                                                       |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `eslint/no-await-in-loop`             | git / subprocess / poll loops are sequential on purpose — `Promise.all` would race the index or the remote.                |
+| `eslint/no-underscore-dangle`         | `_name` is the TypeScript marker for a deliberately unused binding; banning it buys counter-loop workarounds, not clarity. |
 | `oxc/no-map-spread`                   | `.map((x) => ({ ...x, extra }))` is the idiomatic immutable extension over roadmap-sized arrays.                            |
 | `unicorn/consistent-function-scoping` | test helpers belong inside the `describe` they serve.                                                                       |
 | `unicorn/no-array-sort`               | `.sort()` on a freshly built local array is fine, and a blanket `toSorted()` swap silently drops the result where a caller relies on the in-place mutation. |
