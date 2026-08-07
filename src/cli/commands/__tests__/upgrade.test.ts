@@ -149,6 +149,29 @@ describe('runUpgrade', () => {
     expect(raw.consumer.frameworkVersion).toBe('0.2.0');
   });
 
+  it('leaves an anchor that is ahead of installed alone (never rewrites backwards)', () => {
+    writeFileSync(
+      join(dir, '.noldor/config.json'),
+      JSON.stringify({ consumer: { name: 'x', frameworkVersion: '0.9.0' } }, null, 2),
+    );
+    git('add', '.');
+    git('commit', '-m', 'anchor ahead');
+    // `--from` is what lets an ahead anchor reach the empty-chain branch at all:
+    // without it `resolveChain` throws `downgrade unsupported` on the anchor.
+    const r = runUpgrade({
+      cwd: dir,
+      migrations: [],
+      installed: '0.3.0',
+      from: '0.2.0',
+      dryRun: false,
+      force: false,
+    });
+    expect(r.applied).toBe(false);
+    expect(r.report).toContain('nothing to do');
+    const raw = JSON.parse(readFileSync(join(dir, '.noldor/config.json'), 'utf8'));
+    expect(raw.consumer.frameworkVersion).toBe('0.9.0');
+  });
+
   it('refuses on a dirty tree without force', () => {
     writeFileSync(join(dir, 'dirty.txt'), 'x');
     expect(() =>

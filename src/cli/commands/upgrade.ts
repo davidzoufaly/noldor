@@ -4,6 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import semver from 'semver';
 import {
   loadConsumerConfig,
   loadFrameworkVersion,
@@ -76,7 +77,15 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
     // advances the anchor, leaving hand-editing `.noldor/config.json` as the
     // only exit. Write it here for either case; `--from` does not enter the
     // decision, since it overrides the chain start, not what is on disk.
-    const lagging = onDiskAnchor !== input.installed;
+    // A semver compare, not `!==`: an anchor *ahead* of installed must be left
+    // alone rather than silently rewritten backwards, matching the
+    // `downgrade unsupported` guard `resolveChain` applies to `from` (which
+    // never sees `onDiskAnchor` when `--from` overrides it). An unparseable
+    // anchor counts as lagging — replacing it is the only way out.
+    const lagging =
+      onDiskAnchor === null ||
+      semver.valid(onDiskAnchor) === null ||
+      semver.lt(onDiskAnchor, input.installed);
     const applied = lagging && !input.dryRun;
     if (applied) writeFrameworkVersion(input.cwd, input.installed);
     const dry = input.dryRun ? '[DRY RUN] ' : '';
@@ -88,7 +97,7 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
       report: !lagging
         ? `already at ${input.installed} — nothing to do`
         : onDiskAnchor === null
-          ? `${dry}already at ${input.installed} — anchor bootstrapped (consumer.frameworkVersion set to ${input.installed})`
+          ? `${dry}already at ${input.installed} — anchor bootstrapped (consumer.frameworkVersion → ${input.installed})`
           : `${dry}already at ${input.installed} — anchor advanced ${onDiskAnchor} → ${input.installed} (no migration registered between them)`,
     };
   }
