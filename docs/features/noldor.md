@@ -54,6 +54,7 @@ links:
     - docs/noldor/pr-flow.md
   tests:
     - src/core/__tests__/changelog.test.ts
+    - src/core/__tests__/commit-wrapper.test.ts
     - src/core/__tests__/fmt-guard.test.ts
     - src/core/__tests__/init-gitignore.test.ts
     - src/core/__tests__/lint-plan-snippets.test.ts
@@ -128,7 +129,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
