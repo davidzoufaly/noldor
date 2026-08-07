@@ -117,6 +117,38 @@ describe('runUpgrade', () => {
     expect(r.report).toContain('nothing to do');
   });
 
+  it('advances a stale-but-present anchor when the chain is empty', () => {
+    // Anchor 0.2.0 (beforeEach), installed 0.2.1, and the only migration lands
+    // at 0.3.0 — out of range, so the chain is empty. Pre-fix this fell through
+    // to `nothing to do` with no write and `doctor` warned skew forever.
+    const r = runUpgrade({
+      cwd: dir,
+      migrations: [m030],
+      installed: '0.2.1',
+      dryRun: false,
+      force: false,
+    });
+    expect(r.steps).toBe(0);
+    expect(r.applied).toBe(true);
+    expect(r.report).toContain('anchor advanced 0.2.0 → 0.2.1');
+    const raw = JSON.parse(readFileSync(join(dir, '.noldor/config.json'), 'utf8'));
+    expect(raw.consumer.frameworkVersion).toBe('0.2.1');
+  });
+
+  it('dry-run leaves a stale anchor on disk and says so', () => {
+    const r = runUpgrade({
+      cwd: dir,
+      migrations: [m030],
+      installed: '0.2.1',
+      dryRun: true,
+      force: false,
+    });
+    expect(r.applied).toBe(false);
+    expect(r.report).toContain('[DRY RUN]');
+    const raw = JSON.parse(readFileSync(join(dir, '.noldor/config.json'), 'utf8'));
+    expect(raw.consumer.frameworkVersion).toBe('0.2.0');
+  });
+
   it('refuses on a dirty tree without force', () => {
     writeFileSync(join(dir, 'dirty.txt'), 'x');
     expect(() =>

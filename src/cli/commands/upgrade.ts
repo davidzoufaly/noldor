@@ -66,21 +66,30 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
   }
   const chain = resolveChain(input.migrations, from, input.installed);
   if (chain.length === 0) {
-    // Nothing to migrate. Normally a no-op, but a fresh adopt that reaches this
-    // via `upgrade --from <installed>` (e.g. after `init --update`, which does
-    // not stamp the anchor) has an UNSET on-disk anchor that must still be
-    // persisted — otherwise `doctor` warns skew forever and there is no command
-    // that ever writes the anchor. Bootstrap it here.
-    const bootstrapped = onDiskAnchor === null && !input.dryRun;
-    if (bootstrapped) writeFrameworkVersion(input.cwd, input.installed);
+    // Nothing to migrate, but the on-disk anchor may still lag the installed
+    // version — and `writeFrameworkVersion` below is unreachable for an empty
+    // chain. Two ways to get here with a lagging anchor: a fresh adopt via
+    // `upgrade --from <installed>` (e.g. after `init --update`, which does not
+    // stamp the anchor) leaves it UNSET; a patch/minor release with no codemod
+    // registered between the two versions leaves it STALE. Both otherwise strand
+    // the consumer — `doctor` warns skew forever with no command that ever
+    // advances the anchor, leaving hand-editing `.noldor/config.json` as the
+    // only exit. Write it here for either case; `--from` does not enter the
+    // decision, since it overrides the chain start, not what is on disk.
+    const lagging = onDiskAnchor !== input.installed;
+    const applied = lagging && !input.dryRun;
+    if (applied) writeFrameworkVersion(input.cwd, input.installed);
+    const dry = input.dryRun ? '[DRY RUN] ' : '';
     return {
       from,
       to: input.installed,
       steps: 0,
-      applied: bootstrapped,
-      report: bootstrapped
-        ? `already at ${input.installed} — anchor bootstrapped (consumer.frameworkVersion set to ${input.installed})`
-        : `already at ${input.installed} — nothing to do`,
+      applied,
+      report: !lagging
+        ? `already at ${input.installed} — nothing to do`
+        : onDiskAnchor === null
+          ? `${dry}already at ${input.installed} — anchor bootstrapped (consumer.frameworkVersion set to ${input.installed})`
+          : `${dry}already at ${input.installed} — anchor advanced ${onDiskAnchor} → ${input.installed} (no migration registered between them)`,
     };
   }
   if (!input.dryRun && !input.force && isDirty(input.cwd)) {
