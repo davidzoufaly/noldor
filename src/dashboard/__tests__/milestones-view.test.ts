@@ -10,7 +10,7 @@ function milestone(slug: string, status: Milestone['frontmatter']['status'], bod
   return { slug, frontmatter: { name: slug, status }, body };
 }
 
-function feature(slug: string, phase: 'done' | 'in-progress', milestone?: string): FeatureRecord {
+function feature(slug: string, phase: 'done' | 'in-progress', ms?: string): FeatureRecord {
   return {
     slug,
     frontmatter: {
@@ -22,7 +22,7 @@ function feature(slug: string, phase: 'done' | 'in-progress', milestone?: string
       phase,
       'noldor-tier': 'specs-only',
       links: { code: [], tests: [], docs: [] },
-      ...(milestone ? { milestone } : {}),
+      ...(ms ? { milestone: ms } : {}),
     },
   } as FeatureRecord;
 }

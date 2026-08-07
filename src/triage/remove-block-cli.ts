@@ -10,7 +10,7 @@ import { removeBlock } from '../utils/write-blocks.js';
 
 function main(): void {
   const argv = process.argv.slice(2);
-  const slug = argv.filter((a) => !a.startsWith('--'))[0];
+  const slug = argv.find((a) => !a.startsWith('--'));
   const backlog = argv.includes('--backlog');
   if (!slug) {
     process.stderr.write('usage: noldor roadmap remove-block <slug> [--backlog]\n');

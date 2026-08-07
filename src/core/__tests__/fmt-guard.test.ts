@@ -188,9 +188,9 @@ describe('lefthookPatchPresent', () => {
     // paths all run in worktrees, so a --git-dir lookup left the advisory dead
     // exactly where it is needed. Must resolve --git-common-dir.
     dir = mkdtempSync(join(tmpdir(), 'fmt-guard-wt-'));
-    const main = join(dir, 'repo');
-    mkdirSync(main, { recursive: true });
-    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: main });
+    const mainRepo = join(dir, 'repo');
+    mkdirSync(mainRepo, { recursive: true });
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: mainRepo });
     execFileSync(
       'git',
       [
@@ -204,13 +204,13 @@ describe('lefthookPatchPresent', () => {
         '-m',
         'root',
       ],
-      { cwd: main },
+      { cwd: mainRepo },
     );
     const wt = join(dir, 'wt');
-    execFileSync('git', ['worktree', 'add', '-q', '-b', 'feat', wt], { cwd: main });
+    execFileSync('git', ['worktree', 'add', '-q', '-b', 'feat', wt], { cwd: mainRepo });
 
     expect(lefthookPatchPresent(wt)).toBe(false);
-    writeFileSync(join(main, '.git', LEFTHOOK_UNSTAGED_PATCH), 'diff --git a/x b/x\n');
+    writeFileSync(join(mainRepo, '.git', LEFTHOOK_UNSTAGED_PATCH), 'diff --git a/x b/x\n');
     expect(lefthookPatchPresent(wt)).toBe(true);
   });
 });

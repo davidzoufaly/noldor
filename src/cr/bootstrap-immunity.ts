@@ -108,8 +108,8 @@ export function injectBootstrapOverrides(opts: InjectOptions): InjectResult {
   // Breadcrumb into the gate's audit ledger (same format validateTrailer writes).
   const logPath = join(cwd, '.noldor', gate.entry.log);
   try {
-    for (const _sha of toInject)
-      appendFileSync(logPath, `${new Date().toISOString()}\t${reason}\n`);
+    // One ledger line per injected commit.
+    appendFileSync(logPath, `${new Date().toISOString()}\t${reason}\n`.repeat(toInject.length));
   } catch {
     /* log-write failure must not fail the injection */
   }

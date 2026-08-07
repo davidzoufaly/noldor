@@ -151,3 +151,37 @@ describe('.claude/settings.json template (consumer edit-gating)', () => {
     expect(commands.some((c: string) => c.includes('pre-edit-guard'))).toBe(true);
   });
 });
+
+describe('.oxlintrc.json template (lint contract)', () => {
+  const rel = '.oxlintrc.json';
+  const cfg = JSON.parse(readFileSync(join(TEMPLATES_ROOT, rel), 'utf8'));
+
+  it('ships in the template manifest', () => {
+    expect(templateFiles()).toContain(rel);
+  });
+
+  it('is scaffold-only (which rules to relax depends on the consumer own code)', () => {
+    expect(SCAFFOLD_ONLY_TEMPLATES.has(rel)).toBe(true);
+  });
+
+  it('is driver-neutral — every agent target gets it', () => {
+    expect(filterTemplatesByAgents([rel], ['claude'])).toEqual([rel]);
+    expect(filterTemplatesByAgents([rel], ['codex'])).toEqual([rel]);
+  });
+
+  // The contract `.claude/engineering-rules.md` claims: the three categories are
+  // errors, and the two prose-only review dimensions (error flow, concurrency)
+  // get their machine half.
+  it('errors on the correctness/suspicious/perf categories', () => {
+    expect(cfg.categories).toEqual({
+      correctness: 'error',
+      suspicious: 'error',
+      perf: 'error',
+    });
+  });
+
+  it('errors on the named error-flow and concurrency rules', () => {
+    expect(cfg.rules['eslint/no-empty']).toBe('error');
+    expect(cfg.rules['eslint/no-async-promise-executor']).toBe('error');
+  });
+});

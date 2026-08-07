@@ -1,8 +1,7 @@
 import { unparkSlug } from './escalations.js';
 
 function main(): void {
-  const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-  const slug = args[0];
+  const slug = process.argv.slice(2).find((a) => !a.startsWith('--'));
   const si = process.argv.indexOf('--source');
   const source = si === -1 ? undefined : process.argv[si + 1];
   if (slug === undefined) {

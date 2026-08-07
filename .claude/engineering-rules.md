@@ -18,6 +18,17 @@ Non-negotiable principles for all code written in a Noldor repo. Aligned with `t
 | `pnpm verify`         | Composite: `lint && fmt:check && typecheck && build:samples && test` — pre-push smoke |
 | Pre-commit (lefthook) | Runs `validate:features`, `check:invariants`, `check:shared-files`, `sync:*`          |
 
+`pnpm lint` reads the checked-in `.oxlintrc.json`; `templates/.oxlintrc.json` scaffolds the same file into a consumer repo, which owns it from then on. Four rules are switched **off** there — each flags a pattern that is deliberate here, not a defect:
+
+| Rule off                              | Why                                                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `eslint/no-await-in-loop`             | git / subprocess / poll loops are sequential on purpose — `Promise.all` would race the index or the remote.                |
+| `oxc/no-map-spread`                   | `.map((x) => ({ ...x, extra }))` is the idiomatic immutable extension over roadmap-sized arrays.                            |
+| `unicorn/consistent-function-scoping` | test helpers belong inside the `describe` they serve.                                                                       |
+| `unicorn/no-array-sort`               | `.sort()` on a freshly built local array is fine, and a blanket `toSorted()` swap silently drops the result where a caller relies on the in-place mutation. |
+
+Two rules are switched **on** above their category defaults: `eslint/no-empty` (error flow — an empty `catch` must say why) and `eslint/no-async-promise-executor` (concurrency). `require-atomic-updates` has no oxlint implementation as of 1.67, so that concurrency check stays prose-only and is a review-time dimension.
+
 Principles below are reviewed at code-write time; the commands above are the automated gate.
 
 ## Principles

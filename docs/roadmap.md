@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Checked-In Oxlint Config
-
-- id: Q-0061
-- area: tooling
-- type: fix
-- since: 2026-08-05
-- size: S
-- impact: med
-- confidence: high
-- parent: noldor
-
-`.claude/engineering-rules.md` opens by claiming alignment with `.oxlintrc.json`, but no such file exists in this repo or in `templates/` — `pnpm lint` is a bare `oxlint --deny-warnings` running on defaults, so the documented contract is unenforced. Ship a checked-in config (self-host + template twin) with the `correctness` / `suspicious` / `perf` categories explicit. A real config also buys free machine coverage for two dimensions that are prose-only today: error flow (`no-empty` catch blocks) and concurrency (`no-async-promise-executor`, `require-atomic-updates`).
-
 ### Graph Staleness Gate Loud in CI
 
 - id: Q-0062

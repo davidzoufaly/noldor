@@ -26,7 +26,15 @@ const USAGE =
   'usage: noldor design log --slug <slug> [--entry <roadmap-slug>] [--scope <text>] ' +
   '[--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]...';
 
-const LOG_FLAGS = ['--slug', '--entry', '--scope', '--decide', '--open', '--resolve', '--support'];
+const LOG_FLAGS = new Set([
+  '--slug',
+  '--entry',
+  '--scope',
+  '--decide',
+  '--open',
+  '--resolve',
+  '--support',
+]);
 
 /** Parse argv into {@link LogArgs}. Repeatable flags accumulate in argv order. */
 export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string } {
@@ -36,11 +44,11 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
     const value = argv[i + 1];
     // Report an unknown flag as such even when it sits last, before the
     // missing-value check — `--typo` with no value is a typo, not a missing value.
-    if (!LOG_FLAGS.includes(flag)) return { error: `unknown flag: ${flag}` };
+    if (!LOG_FLAGS.has(flag)) return { error: `unknown flag: ${flag}` };
     // Only a *known flag* in the value slot means the value is missing. Rejecting
     // every `--`-leading value would make decision text like
     // `--decide "--fd is now validated too"` unrecordable.
-    if (value === undefined || LOG_FLAGS.includes(value)) {
+    if (value === undefined || LOG_FLAGS.has(value)) {
       return { error: `${flag}: missing value` };
     }
     if (value.trim().length === 0) return { error: `${flag}: value must not be blank` };

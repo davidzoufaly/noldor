@@ -1,5 +1,5 @@
 // @tests: acceptance-verify-lane, autonomous-plan-to-pr-merge, specs-cr-gate-multi-reviewer
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -397,7 +397,6 @@ describe('run (orchestrate)', () => {
     expect((runManual as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
   });
   it('autonomous flag reaches guardLaneOverwrite (prior sink → archive default)', async () => {
-    const { writeFile, readdir } = await import('node:fs/promises');
     await writeFile(
       join(root, '.noldor', 'cr', 'x-spec-reviewer.json'),
       JSON.stringify({

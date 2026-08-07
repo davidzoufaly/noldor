@@ -25,6 +25,11 @@ export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set([
   // Formatter config starter: scaffolded hooks invoke `pnpm fmt` / `fmt:check`
   // (oxfmt), which hard-errors without a config file.
   '.oxfmtrc.json',
+  // Linter config starter: makes the `correctness`/`suspicious`/`perf` contract
+  // in `.claude/engineering-rules.md` executable instead of prose. Which rules a
+  // consumer must switch off is a property of ITS code (deliberate sequential
+  // IO, JSX or not), so the consumer owns the file after scaffold.
+  '.oxlintrc.json',
   // Claude Code hooks starter: wires the `pre-edit-guard` PreToolUse gate (live
   // edit-gating) + the dashboard-ensure SessionStart hook. The consumer owns it
   // and appends their own hooks — template-sync would otherwise clobber those,

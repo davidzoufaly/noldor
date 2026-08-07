@@ -116,11 +116,12 @@ function extractFirstParagraph(body: string, heading: string): string {
     return '';
   }
   const afterHeading = body.slice(headingIndex + heading.length);
-  const paragraphs = afterHeading
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0 && !p.startsWith('##'));
-  return paragraphs[0] ?? '';
+  return (
+    afterHeading
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .find((p) => p.length > 0 && !p.startsWith('##')) ?? ''
+  );
 }
 
 /**
