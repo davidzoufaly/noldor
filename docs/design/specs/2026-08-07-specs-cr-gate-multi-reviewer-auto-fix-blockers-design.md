@@ -112,8 +112,9 @@ stored value differs from the current session's — a stale series reads as "no 
 effectively reset at every gate session start. Without this the cap is permanent rather than per-session:
 `<slug>-<kind>` repeats across attach sessions and manual re-runs in the main workspace (drains get fresh
 worktrees, the main workspace does not), so two auto-fix rounds recorded once would decline every future red
-on that pair forever with `round-cap`. Step 4's clean-exit cleanup also `rm -f`s the ledger alongside the
-escalation-context file — hygiene, not the correctness mechanism.
+on that pair forever with `round-cap`. Step 4's clean-exit cleanup also `rm -f`s the ledger **and any
+`<...>-autofix.json.bad` quarantine remnant** alongside the escalation-context file — hygiene, not the
+correctness mechanism, but nothing else ever removes a `.bad` file.
 
 Exports:
 
@@ -127,8 +128,12 @@ Exports:
   `readLedger` and `appendRound`. The spec's own warning below ("reader and writer must key on the same value")
   argues against each side implementing its own comparison, where the two can drift apart silently.
 - `readLedger(cwd, slug, kind, sessionStartedAt)` — `null` on absent or when `isSameSeries` is false;
-  **throws** on malformed. A ledger that cannot be parsed means an unknown round count, and the caller in U4
-  must fail toward declining rather than toward another round.
+  **throws a distinguishable `LedgerParseError`** on malformed content. A ledger that cannot be parsed means an
+  unknown round count, and the caller in U4 must fail toward declining rather than toward another round.
+  **Any other fs error (EACCES, EIO, a transient lock) propagates as itself and is NOT a `LedgerParseError`** —
+  the distinction is load-bearing, because only a parse failure may trigger the quarantine below. Renaming a
+  file away because it could not be *read* would restart the round series on transient infra: a fail-open cap
+  reset, the one direction this design refuses.
 - `appendRound(cwd, slug, kind, sessionStartedAt, round)` — **the writer owns the session key.** It stamps
   `sessionStartedAt` on the file, and on a mismatch (or an absent file) it *replaces* the series rather than
   appending to it: `{ slug, kind, sessionStartedAt, rounds: [round] }`. Appending blindly to a stale
@@ -277,7 +282,9 @@ orchestrate (exit 1)
 
 | failure | behaviour |
 | --- | --- |
-| malformed ledger | `readLedger` throws. `plan` **quarantines** the file — `rename` to `<file>.bad` — then exits 2, so the gate declines. The current red is still fail-closed (an unknown round count never licenses another round), but the next session reads an absent ledger and starts a fresh series instead of hitting the same wall. Session scoping alone cannot do this: `readLedger` throws *before* it can compare `sessionStartedAt`, and Step 4's clean-exit `rm -f` never ran precisely because the session that corrupted the file did not exit clean. Quarantine keeps the posture and removes the design's only manual recovery step; a failed rename is logged and exit 2 still stands, in which case `rm -f .noldor/cr/<slug>-<kind>-autofix.json` is the fallback the stderr names |
+| malformed ledger (`LedgerParseError` only) | `plan` **quarantines** the file — `rename` to `<slug>-<kind>-autofix.json.bad`, overwriting any prior quarantine of the same pair — then exits 2, so the gate declines. The current red is still fail-closed (an unknown round count never licenses another round), but the next session reads an absent ledger and starts a fresh series instead of hitting the same wall. Session scoping alone cannot do this: the parse throws *before* `sessionStartedAt` can be compared, and Step 4's clean-exit cleanup never ran precisely because the session that corrupted the file did not exit clean. A failed rename is logged and exit 2 still stands, in which case `rm -f .noldor/cr/<slug>-<kind>-autofix.json` is the fallback the stderr names |
+| ledger unreadable for any non-parse reason (EACCES, EIO, transient lock) | exit 2, gate declines, **no rename**. Quarantine is scoped to parse failures precisely so transient infra cannot rename a valid ledger away and restart the round series |
+| `record` against a malformed ledger | `appendRound` throws → exit 2, **no quarantine** — `record` never renames, since a writer that discards state it could not read is exactly what the fail-closed posture forbids. In gate flow this is unreachable (`plan` runs first and has already quarantined), so the wall is cleared by the *next `plan`*, not by `record`; a hand-run `record` (see Usage) hits it until then |
 | absent ledger, or one whose `sessionStartedAt` differs from the current session | round 1 (fresh series) |
 | absent `.noldor/session.json` | `sessionStartedAt: ''`; the series is keyed to "no session" and **rounds accumulate across unrelated no-session runs** until a real session starts and resets it. That direction is fail-closed (over-counting caps early, never late), so it is accepted rather than special-cased. `plan` proceeds |
 | prior round's `headSha` empty | fall back to current `HEAD`; if that too is unresolvable → `decline` / `no-base-sha` |
@@ -292,10 +299,11 @@ Unit: `splitClassTag` (tagged both ways, untagged, unknown bracket prefix, case)
 (order-independence, sensitivity to `severity`/`file`/`message`, insensitivity to `line`); `decide`
 (table-driven over all six rules, plus mixed-round `design` non-empty, the absent-tag→design read, and each
 `baseSha` fallback rung); `isSameSeries`; `readLedger` (absent → null, session mismatch → null, malformed →
-throws); `appendRound` (round numbering, series *replacement* on a session mismatch — the read-write round-trip
-within one session is the regression test for the bound going dead — and throw on malformed). CLI: exit-code
-map for `plan` and for `record`, flag validation for `record`, the quarantine rename on a malformed ledger
-(including the rename-fails path), and the `rm -f` fallback hint on its stderr.
+throws `LedgerParseError`, EACCES propagates as itself); `appendRound` (round numbering, series *replacement*
+on a session mismatch — the read-write round-trip within one session is the regression test for the bound going
+dead — and throw on malformed). CLI: exit-code map for `plan` and for `record`, flag validation for `record`,
+the quarantine rename on a parse failure (plus the rename-fails path), **no** rename on a non-parse read error,
+and the `rm -f` fallback hint on its stderr.
 Integration: a tmp-repo loop that goes red → auto-fix → green; one that trips `no-progress`; one that records
 two rounds, starts a new session, and confirms the cap reset.
 
@@ -332,13 +340,15 @@ two rounds, starts a new session, and confirms the cap reset.
 16. A malformed ledger makes `plan` exit 2 rather than throwing an unhandled error, renames the file to
     `<file>.bad`, and leaves a subsequent `plan` in a new session reading a fresh series. When the rename
     itself fails, exit 2 still stands and the stderr names the ledger path and the `rm -f` fallback.
-17. `appendRound` throws on a malformed existing file rather than replacing it.
-18. `readLedger` and `appendRound` both reach their session verdict through `isSameSeries` — there is no
+17. A ledger that fails to read for a NON-parse reason (EACCES) makes `plan` exit 2 and leaves the file in
+    place — no `.bad` rename, so the round series survives transient infra.
+18. `appendRound` throws on a malformed existing file rather than replacing it, and never renames.
+19. `readLedger` and `appendRound` both reach their session verdict through `isSameSeries` — there is no
     second comparison to drift.
-19. `fingerprintBlockers` returns the same value for two blocker sets differing only in `line`.
-20. The gate loop stops on `record` exit 2 and falls to the existing seam rather than re-running orchestrate.
-21. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
-22. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
+20. `fingerprintBlockers` returns the same value for two blocker sets differing only in `line`.
+21. The gate loop stops on `record` exit 2 and falls to the existing seam rather than re-running orchestrate.
+22. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
+23. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
     — that a `LaneFindings` sink carries `artifactSha`. Both the `LaneFindings.artifactSha` reference and the
     "stable `artifactSha` to record in `LaneFindings`" clause are gone.
 
