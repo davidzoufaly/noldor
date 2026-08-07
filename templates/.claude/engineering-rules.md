@@ -18,7 +18,7 @@ Non-negotiable principles for all code written in a Noldor repo. Aligned with `t
 | `pnpm verify`         | Composite: `lint && fmt:check && typecheck && build:samples && test` — pre-push smoke |
 | Pre-commit (lefthook) | Runs `validate:features`, `check:invariants`, `check:shared-files`, `sync:*`          |
 
-`pnpm lint` reads the checked-in `.oxlintrc.json`; `templates/.oxlintrc.json` scaffolds the same file into a consumer repo, which owns it from then on. Four rules are switched **off** there — each flags a pattern that is deliberate here, not a defect:
+`pnpm lint` reads the checked-in `.oxlintrc.json`; `templates/.oxlintrc.json` scaffolds the same file into a consumer repo, which owns it from then on. Five rules are switched **off** there — each flags a pattern that is deliberate here, not a defect:
 
 | Rule off                              | Why                                                                                                                       |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |

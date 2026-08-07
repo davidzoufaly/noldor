@@ -196,4 +196,20 @@ describe('.oxlintrc.json template (lint contract)', () => {
     expect(cfg.rules['eslint/no-empty']).toBe('error');
     expect(cfg.rules['eslint/no-async-promise-executor']).toBe('error');
   });
+
+  // The rules-doc table is otherwise the only record of these, so a silent
+  // re-enable (or a dropped table row) would drift undetected.
+  it('switches off exactly the deliberate-pattern rules the rules doc tables', () => {
+    const off = Object.entries(cfg.rules)
+      .filter(([, level]) => level === 'off')
+      .map(([rule]) => rule)
+      .toSorted();
+    expect(off).toEqual([
+      'eslint/no-await-in-loop',
+      'eslint/no-underscore-dangle',
+      'oxc/no-map-spread',
+      'unicorn/consistent-function-scoping',
+      'unicorn/no-array-sort',
+    ]);
+  });
 });
