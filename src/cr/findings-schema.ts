@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { artifactKindSchema, laneSchema } from '../core/lanes.js';
+import { FINDING_CLASSES } from './finding-class.js';
 
 export { artifactKindSchema, laneSchema };
 export type { ArtifactKind, Lane } from '../core/lanes.js';
@@ -8,12 +9,19 @@ export type { ArtifactKind, Lane } from '../core/lanes.js';
 export const severitySchema = z.enum(['high', 'med', 'low']);
 export type Severity = z.infer<typeof severitySchema>;
 
+export const findingClassSchema = z.enum(FINDING_CLASSES);
+
 export const findingSchema = z.object({
   file: z.string().min(1),
   line: z.number().int().nonnegative().optional(),
   severity: severitySchema,
   message: z.string().min(1),
   suggestion: z.string().optional(),
+  // Reviewer-assigned blocker classification, consumed by `cr autofix`. Optional
+  // so every sink written before it existed still parses, and so the lanes that
+  // do not classify (codex, manual, verifier) need no migration — an absent
+  // `class` reads as `design` at the decision site, never as auto-fixable.
+  class: findingClassSchema.optional(),
 });
 export type Finding = z.infer<typeof findingSchema>;
 

@@ -98,8 +98,18 @@ as today (in drain, `onFailure: 'abort'` → abort). Both values are headless-sa
 
 **New** `src/cr/autofix-ledger.ts`, holding the round state the loop bound needs.
 
-Path: `.noldor/cr/<slug>-<kind>-autofix.json`. Written with the existing
+Path: `.noldor/cr/autofix/<slug>-<kind>.json`. Written with the existing
 [`writeJsonAtomic`](../../../src/cr/atomic-write.ts).
+
+**The `autofix/` SUBDIRECTORY is load-bearing, not tidiness.**
+[`aggregate()`](../../../src/cr/aggregate.ts#L29-L32) collects every
+`.noldor/cr/<slug>-<kind>-*.json` regular file as a lane sink, so the originally-specified sibling name
+`<slug>-<kind>-autofix.json` matched that glob: `inferLaneFromFilename` returned `null` for it and a bogus
+`non-conforming filename` **high** blocker landed in every aggregate for the pair — which would have turned
+green `--kind code` runs red and poisoned the very blocker list this feature reads. `aggregate` filters on
+`e.isFile()`, so nesting removes the whole collision class; the existing `.noldor/cr/archive/` directory is
+skipped the same way. (Caught by the CLI loop test, not by review — the collision is only visible once a real
+ledger and a real sink share a directory.)
 
 ```
 { slug, kind, sessionStartedAt,
@@ -274,19 +284,19 @@ is both simpler and hole-free.
   gains the ledgers and their quarantine remnants, **with every kind spelled out**:
 
   ```
-  rm -f .noldor/cr/<slug>-spec-autofix.json  .noldor/cr/<slug>-spec-autofix.json.bad \
-        .noldor/cr/<slug>-plan-autofix.json  .noldor/cr/<slug>-plan-autofix.json.bad \
-        .noldor/cr/<slug>-code-autofix.json  .noldor/cr/<slug>-code-autofix.json.bad
+  rm -f .noldor/cr/autofix/<slug>-spec.json  .noldor/cr/autofix/<slug>-spec.json.bad \
+        .noldor/cr/autofix/<slug>-plan.json  .noldor/cr/autofix/<slug>-plan.json.bad \
+        .noldor/cr/autofix/<slug>-code.json  .noldor/cr/autofix/<slug>-code.json.bad
   ```
 
   One `<kind>` would be wrong: a `full-*` session runs Step 2.5 at both `spec` and `plan` and Step 4 at `code`,
   so up to three ledgers exist and a `plan`-kind `.bad` would outlive a clean session. All three kinds are
   listed unconditionally rather than derived from the session path — `rm -f` on an absent path is a no-op, so
   enumeration is cheaper than path-dependent logic and cannot get the derivation wrong. **Do not collapse this
-  to `<slug>-*-autofix.json*`:** `.noldor/cr` is shared in the main workspace, and a slug that is a prefix of
+  to `.noldor/cr/autofix/<slug>-*`:** the directory is shared in the main workspace, and a slug that is a prefix of
   another (`foo` vs `foo-bar`) would cross-match and delete a sibling feature's ledger.
 
-  `rm -f .noldor/cr/<slug>-{spec,plan,code}-autofix.json{,.bad}` is an acceptable shorthand **in bash/zsh
+  `rm -f .noldor/cr/autofix/<slug>-{spec,plan,code}.json{,.bad}` is an acceptable shorthand **in bash/zsh
   only** — brace expansion is deterministic expansion, not pattern matching, so it carries the same
   no-cross-match safety. Under POSIX `sh`/dash the braces stay literal and `rm -f` silently removes nothing,
   so **the enumerated long form above is the portable one** and is what ships. The shorthand is named only so
@@ -321,7 +331,7 @@ orchestrate (exit 1)
 
 | failure | behaviour |
 | --- | --- |
-| malformed ledger (`LedgerParseError` only) | `plan` **quarantines** the file — `rename` to `<slug>-<kind>-autofix.json.bad`, overwriting any prior quarantine of the same pair — then exits 2, so the gate declines. The current red is still fail-closed (an unknown round count never licenses another round), but the next session reads an absent ledger and starts a fresh series instead of hitting the same wall. Session scoping alone cannot do this: the parse throws *before* `sessionStartedAt` can be compared, and Step 4's clean-exit cleanup never ran precisely because the session that corrupted the file did not exit clean. A failed rename is logged and exit 2 still stands, in which case `rm -f .noldor/cr/<slug>-<kind>-autofix.json` is the fallback the stderr names |
+| malformed ledger (`LedgerParseError` only) | `plan` **quarantines** the file — `rename` to `autofix/<slug>-<kind>.json.bad`, overwriting any prior quarantine of the same pair — then exits 2, so the gate declines. The current red is still fail-closed (an unknown round count never licenses another round), but the next session reads an absent ledger and starts a fresh series instead of hitting the same wall. Session scoping alone cannot do this: the parse throws *before* `sessionStartedAt` can be compared, and Step 4's clean-exit cleanup never ran precisely because the session that corrupted the file did not exit clean. A failed rename is logged and exit 2 still stands, in which case `rm -f .noldor/cr/autofix/<slug>-<kind>.json` is the fallback the stderr names |
 | ledger unreadable for any non-parse reason (EACCES, EIO, transient lock) | exit 2, gate declines, **no rename**. Quarantine is scoped to parse failures precisely so transient infra cannot rename a valid ledger away and restart the round series |
 | `record` against a malformed ledger | `appendRound` throws → exit 2, **no quarantine** — `record` never renames, since a writer that discards state it could not read is exactly what the fail-closed posture forbids. In gate flow this is unreachable (`plan` runs first and has already quarantined), so the wall is cleared by the *next `plan`*, not by `record`; a hand-run `record` (see Usage) hits it until then |
 | absent ledger, or one whose `sessionStartedAt` differs from the current session | round 1 (fresh series) |
@@ -394,8 +404,10 @@ two rounds, starts a new session, and confirms the cap reset.
 24. Step 4's clean-exit cleanup removes the `spec`, `plan`, and `code` ledgers for the slug and each one's
     `.bad` remnant, so no `.bad` file outlives a clean session — and it does so by enumerating kinds, never via
     a `<slug>-*` glob that could cross-match a prefix-sharing sibling slug.
-25. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
-26. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
+25. The ledger lives under `.noldor/cr/autofix/`, and writing one adds NO blocker to
+    `aggregate(slug, kind)` for the same pair.
+26. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
+27. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
     — that a `LaneFindings` sink carries `artifactSha`. Both the `LaneFindings.artifactSha` reference and the
     "stable `artifactSha` to record in `LaneFindings`" clause are gone.
 
@@ -450,7 +462,7 @@ noldor cr orchestrate --slug <slug> --artifact <path> --kind <kind> --base-sha <
 #   exit 10 -> decline; run the existing seam (Step 2.5 dialog, or `noldor cr escalate`)
 ```
 
-Inspect what happened: `.noldor/cr/<slug>-<kind>-autofix.json` holds every round with its fingerprint,
+Inspect what happened: `.noldor/cr/autofix/<slug>-<kind>.json` holds every round with its fingerprint,
 `applied` / `deferred` counts, and `diffStat`.
 
 ## Open questions (resolved)
@@ -468,7 +480,9 @@ Inspect what happened: `.noldor/cr/<slug>-<kind>-autofix.json` holds every round
 4. *What bounds the loop?* -> **A constant cap of 2 rounds plus a no-progress fingerprint stop; on either,
    fall through to the existing `onFailure` policy.** (D4) The failure mode that matters is a blocker that
    keeps coming back because the fix did not take — a round counter alone bounds cost, not futility.
-5. *Where do the round state and the fix diff live?* -> **`.noldor/cr/<slug>-<kind>-autofix.json`.** (D5)
+5. *Where do the round state and the fix diff live?* -> **`.noldor/cr/autofix/<slug>-<kind>.json`.** (D5;
+   moved into the `autofix/` subdirectory during implementation — a sibling name matched `aggregate()`'s sink
+   glob and injected a bogus high blocker into every aggregate for the pair)
    Rejected deriving rounds from `.noldor/cr/archive/`: that archiving is best-effort and swallows failures,
    so the bound would rest on state the framework admits it may lose.
 6. *Which CLI surface backs this — extend `cr escalate`, or a new command before it?* -> **New

@@ -70,4 +70,26 @@ describe('buildPrompt review profile', () => {
     expect(p).toContain('Issues:');
     expect(p).toContain('Assessment: <one-line verdict');
   });
+
+  it('instructs the reviewer to classify blockers [mechanical] / [design]', () => {
+    const p = buildPrompt(base);
+    expect(p).toContain('[mechanical]');
+    expect(p).toContain('[design]');
+    // Both definitions must be present, or the reviewer is guessing at the axis.
+    expect(p).toContain('the fix is determined by the finding itself');
+    expect(p).toContain('requires a judgment call you are NOT making for them');
+    // The tie-break must point at the safe side: an untagged/design blocker goes
+    // to a human, which is what `cr autofix`'s fail-safe read relies on.
+    expect(p).toContain('When in doubt, tag `[design]`');
+    // Tag by what the fix needs, not by severity — the two axes are orthogonal.
+    expect(p).toContain('Tag by what the FIX needs, not by how severe');
+    expect(p).toContain('- [mechanical|design] <bullet>');
+  });
+
+  it('carries the classification instruction under every profile', () => {
+    for (const name of Object.keys(DEFAULT_REVIEW_PROFILES)) {
+      const p = buildPrompt({ ...base, reviewProfile: DEFAULT_REVIEW_PROFILES[name]! });
+      expect(p, `profile ${name}`).toContain('[mechanical]');
+    }
+  });
 });

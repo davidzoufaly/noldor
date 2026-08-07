@@ -1,0 +1,314 @@
+// @tests: specs-cr-gate-multi-reviewer
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { ledgerDir, ledgerPath, quarantinePath } from '../autofix-ledger.js';
+import type { Finding, Lane } from '../findings-schema.js';
+
+const BIN = resolve(import.meta.dirname, '../../../bin/noldor.mjs');
+const SESSION = '2026-08-07T18:00:00.000Z';
+
+let cwd: string;
+
+interface Run {
+  status: number;
+  stdout: string;
+  stderr: string;
+}
+
+/**
+ * Invoke through the real `noldor` router, so these cases also cover the
+ * manifest registration and the router's argv reshaping (the verb must land at
+ * `argv[2]` for the entrypoint to see it).
+ */
+function run(...args: string[]): Run {
+  try {
+    const stdout = execFileSync('node', [BIN, 'cr', 'autofix', ...args], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { status: 0, stdout, stderr: '' };
+  } catch (err) {
+    const e = err as { status?: number; stdout?: string; stderr?: string };
+    return { status: e.status ?? -1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' };
+  }
+}
+
+/** Parse a `key: value` line out of the CLI's stdout contract. */
+function field(stdout: string, key: string): string | undefined {
+  return stdout.match(new RegExp(`^${key}: (.*)$`, 'm'))?.[1];
+}
+
+function writeSink(lane: Lane, kind: string, blockers: Finding[]): void {
+  writeFileSync(
+    join(cwd, '.noldor', 'cr', `slug-${kind}-${lane}.json`),
+    JSON.stringify({
+      lane,
+      artifact: 'a.md',
+      kind,
+      slug: 'slug',
+      blockers,
+      suggestions: [],
+      summary: blockers.length ? 'blockers found' : 'approve',
+      startedAt: SESSION,
+      finishedAt: SESSION,
+    }),
+    'utf8',
+  );
+}
+
+function setConfig(onBlockers: string | null): void {
+  const autonomous = onBlockers === null ? {} : { onBlockers };
+  writeFileSync(join(cwd, '.noldor', 'config.json'), JSON.stringify({ autonomous }), 'utf8');
+}
+
+const MECH: Finding = {
+  file: 'a.md',
+  severity: 'high',
+  message: 'missing section',
+  class: 'mechanical',
+};
+const DESIGN: Finding = {
+  file: 'a.md',
+  severity: 'high',
+  message: 'wrong default',
+  class: 'design',
+};
+
+beforeEach(() => {
+  cwd = mkdtempSync(join(tmpdir(), 'autofix-cli-'));
+  mkdirSync(join(cwd, '.noldor', 'cr'), { recursive: true });
+  writeFileSync(
+    join(cwd, '.noldor', 'session.json'),
+    JSON.stringify({ path: 'fast-track', startedAt: SESSION }),
+    'utf8',
+  );
+  setConfig('auto-fix');
+  // A real repo so `git rev-parse HEAD` resolves — the baseSha ladder needs it.
+  execFileSync('git', ['init', '-q'], { cwd });
+  execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd });
+  execFileSync('git', ['config', 'user.name', 't'], { cwd });
+  writeFileSync(join(cwd, 'a.md'), 'seed\n', 'utf8');
+  execFileSync('git', ['add', 'a.md'], { cwd });
+  execFileSync('git', ['commit', '-q', '-m', 'seed', '--no-verify'], { cwd });
+});
+
+afterEach(() => {
+  rmSync(cwd, { recursive: true, force: true });
+});
+
+describe('cr autofix — usage', () => {
+  it('exits 2 on an unknown verb', () => {
+    const r = run('nope', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("unknown verb 'nope'");
+  });
+
+  it('exits 2 with no verb', () => {
+    expect(run().status).toBe(2);
+  });
+
+  it('exits 2 without --slug', () => {
+    const r = run('plan', '--kind', 'spec');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--slug is required');
+  });
+
+  it('exits 2 on an unknown --kind', () => {
+    const r = run('plan', '--slug', 'slug', '--kind', 'nope');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--kind must be one of');
+  });
+});
+
+describe('cr autofix plan', () => {
+  it('exits 0 and prints the contract on an all-mechanical round', () => {
+    writeSink('reviewer', 'spec', [MECH, { ...MECH, message: 'second' }]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(0);
+    expect(field(r.stdout, 'verdict')).toBe('auto-fix');
+    expect(field(r.stdout, 'reason')).toBe('-');
+    expect(field(r.stdout, 'base-sha')).toMatch(/^[0-9a-f]{40}$/);
+    expect(field(r.stdout, 'round')).toBe('1/2');
+    expect(field(r.stdout, 'mechanical')).toBe('2');
+    expect(r.stdout).toContain('M1 a.md — missing section');
+    expect(field(r.stdout, 'design')).toBe('0');
+  });
+
+  it('exits 0 on a mixed round and lists the design remainder', () => {
+    writeSink('reviewer', 'spec', [MECH, DESIGN]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(0);
+    expect(field(r.stdout, 'mechanical')).toBe('1');
+    expect(field(r.stdout, 'design')).toBe('1');
+    expect(r.stdout).toContain('D1 a.md — wrong default');
+  });
+
+  it('exits 10 with knob-off when onBlockers is prompt', () => {
+    setConfig('prompt');
+    writeSink('reviewer', 'spec', [MECH]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(10);
+    expect(field(r.stdout, 'reason')).toBe('knob-off');
+  });
+
+  it('exits 10 with knob-off when the knob is absent (default prompt)', () => {
+    setConfig(null);
+    writeSink('reviewer', 'spec', [MECH]);
+    expect(field(run('plan', '--slug', 'slug', '--kind', 'spec').stdout, 'reason')).toBe(
+      'knob-off',
+    );
+  });
+
+  it('exits 10 with no-mechanical when every blocker is design', () => {
+    writeSink('reviewer', 'spec', [DESIGN]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(10);
+    expect(field(r.stdout, 'reason')).toBe('no-mechanical');
+  });
+
+  it('exits 10 with no-mechanical when a blocker carries no class key', () => {
+    writeSink('reviewer', 'spec', [{ file: 'a.md', severity: 'high', message: 'untagged' }]);
+    expect(field(run('plan', '--slug', 'slug', '--kind', 'spec').stdout, 'reason')).toBe(
+      'no-mechanical',
+    );
+  });
+
+  it('always prints a non-empty base-sha on exits 0 and 10', () => {
+    writeSink('reviewer', 'spec', [DESIGN]);
+    const declined = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(declined.status).toBe(10);
+    expect(field(declined.stdout, 'base-sha')).toMatch(/^[0-9a-f]{40}$/);
+  });
+});
+
+describe('cr autofix record', () => {
+  it('records a round and exits 0', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    const r = run(
+      'record',
+      '--slug',
+      'slug',
+      '--kind',
+      'spec',
+      '--applied',
+      '2',
+      '--deferred',
+      '0',
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('round 1/2 recorded');
+    const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
+    expect(led.sessionStartedAt).toBe(SESSION);
+    expect(led.rounds).toHaveLength(1);
+    expect(led.rounds[0]).toMatchObject({ round: 1, applied: 2, deferred: 0 });
+  });
+
+  it('exits 2 on a missing --applied', () => {
+    const r = run('record', '--slug', 'slug', '--kind', 'spec', '--deferred', '0');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--applied is required');
+  });
+
+  it('exits 2 on a non-numeric --deferred', () => {
+    const r = run(
+      'record',
+      '--slug',
+      'slug',
+      '--kind',
+      'spec',
+      '--applied',
+      '1',
+      '--deferred',
+      'x',
+    );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--deferred must be a non-negative integer');
+  });
+
+  it('carries --stopped through to the ledger', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    run(
+      'record',
+      '--slug',
+      'slug',
+      '--kind',
+      'spec',
+      '--applied',
+      '0',
+      '--deferred',
+      '1',
+      '--stopped',
+      'no-progress',
+    );
+    const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
+    expect(led.rounds[0].stopped).toBe('no-progress');
+  });
+});
+
+describe('cr autofix — the loop', () => {
+  it('declines no-progress on a second plan against unchanged blockers', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    expect(run('plan', '--slug', 'slug', '--kind', 'spec').status).toBe(0);
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    const second = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(second.status).toBe(10);
+    expect(field(second.stdout, 'reason')).toBe('no-progress');
+  });
+
+  it('declines round-cap after two recorded rounds in the same session', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    writeSink('reviewer', 'spec', [{ ...MECH, message: 'different' }]);
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    writeSink('reviewer', 'spec', [{ ...MECH, message: 'third' }]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(10);
+    expect(field(r.stdout, 'reason')).toBe('round-cap');
+  });
+
+  it('resets the cap for a NEW session', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    writeSink('reviewer', 'spec', [{ ...MECH, message: 'different' }]);
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    // A fresh gate session: same slug+kind, new startedAt.
+    writeFileSync(
+      join(cwd, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'fast-track', startedAt: '2026-08-08T09:00:00.000Z' }),
+      'utf8',
+    );
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(0);
+    expect(field(r.stdout, 'round')).toBe('1/2');
+  });
+
+  it("uses the prior round's headSha as base-sha on round 2", () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    const recordedHead = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8')).rounds[0]
+      .headSha;
+    writeSink('reviewer', 'spec', [{ ...MECH, message: 'different' }]);
+    expect(field(run('plan', '--slug', 'slug', '--kind', 'spec').stdout, 'base-sha')).toBe(
+      recordedHead,
+    );
+  });
+});
+
+describe('cr autofix plan — malformed ledger', () => {
+  it('quarantines it, exits 2, and lets the next session start fresh', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    mkdirSync(ledgerDir(cwd), { recursive: true });
+    writeFileSync(ledgerPath(cwd, 'slug', 'spec'), '{ not json', 'utf8');
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('quarantined to');
+    expect(readFileSync(quarantinePath(cwd, 'slug', 'spec'), 'utf8')).toBe('{ not json');
+    // Same session, but the ledger is gone — the wall is cleared by this `plan`.
+    expect(run('plan', '--slug', 'slug', '--kind', 'spec').status).toBe(0);
+  });
+});

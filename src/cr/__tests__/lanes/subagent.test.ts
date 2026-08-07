@@ -65,6 +65,31 @@ describe('runSubagent', () => {
     expect(j.suggestions).toHaveLength(1);
     expect(j.suggestions[0].severity).toBe('low');
   });
+  it('lifts [mechanical] / [design] bullet tags into Finding.class and strips them', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      `Strengths: fine\n\nIssues:\n  Critical:\n    - [mechanical] missing section\n  Important:\n    - [design] wrong default\n  Minor:\n\nAssessment: needs changes\n`,
+    );
+    const r = await runSubagent(input());
+    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
+    expect(j.blockers).toEqual([
+      expect.objectContaining({
+        severity: 'high',
+        class: 'mechanical',
+        message: 'missing section',
+      }),
+      expect.objectContaining({ severity: 'med', class: 'design', message: 'wrong default' }),
+    ]);
+  });
+  it('leaves an untagged bullet with NO class key, so autofix reads it as design', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      `Strengths: fine\n\nIssues:\n  Critical:\n    - unclassified finding\n  Important:\n  Minor:\n\nAssessment: needs changes\n`,
+    );
+    const r = await runSubagent(input());
+    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
+    expect(j.blockers).toHaveLength(1);
+    expect(j.blockers[0].message).toBe('unclassified finding');
+    expect('class' in j.blockers[0]).toBe(false);
+  });
   it('malformed markdown → synthetic blocker', async () => {
     dispatchSubagent.mockResolvedValueOnce(
       await readFile(join(FIX, 'subagent-markdown-malformed.md'), 'utf8'),

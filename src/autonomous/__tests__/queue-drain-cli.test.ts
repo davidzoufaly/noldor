@@ -67,6 +67,24 @@ describe('queue-drain CLI helpers', () => {
     expect(() => assertConfig({})).toThrow(/autonomous/);
   });
 
+  it('assertConfig is indifferent to onBlockers — both values are headless-safe', () => {
+    // `prompt` merely makes `cr autofix` decline, after which onFailure: abort
+    // behaves exactly as before, so adding this to the precondition set would
+    // break every existing drain config for no safety gain.
+    for (const onBlockers of ['prompt', 'auto-fix'] as const) {
+      expect(() =>
+        assertConfig({
+          autonomous: {
+            onFailure: 'abort',
+            skipLanePicker: true,
+            requireHumanPrApproval: false,
+            onBlockers,
+          },
+        }),
+      ).not.toThrow();
+    }
+  });
+
   it('missing-block error shows the headless-safe block to add', () => {
     expect(() => assertConfig({})).toThrow(/skipLanePicker.*true[\s\S]*onFailure.*abort/);
   });

@@ -3,6 +3,7 @@ import { writeJsonAtomic } from '../atomic-write.js';
 import type { Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { readFdSummary } from '../read-fd-summary.js';
+import { splitClassTag } from '../finding-class.js';
 import { dispatchSubagent } from './subagent-dispatch.js';
 
 interface ParsedMarkdown {
@@ -145,13 +146,20 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     return { lane: 'reviewer', sinkPath, ok: false };
   }
 
+  // Each bullet may carry a leading `[mechanical]` / `[design]` tag (see
+  // buildPrompt). `splitClassTag` strips it into `class`; an untagged bullet
+  // yields no `class` key, which `cr autofix` reads as `design`.
   const mkFinding =
     (severity: 'high' | 'med' | 'low') =>
-    (message: string): Finding => ({
-      file: input.artifact,
-      severity,
-      message,
-    });
+    (bullet: string): Finding => {
+      const { class: cls, message } = splitClassTag(bullet);
+      return {
+        file: input.artifact,
+        severity,
+        message,
+        ...(cls ? { class: cls } : {}),
+      };
+    };
 
   const blockers = [
     ...parsed.critical.map(mkFinding('high')),

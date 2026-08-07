@@ -266,6 +266,13 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 - **Outputs:** lane sinks + an aggregate verdict (exit 0 clean / exit 1 blockers). `escalate` drives retry / spawn-deep-review / override / abort. Driven by `/noldor-gate` Step 2.5 + Step 4.
 - **Source:** [`src/cr/orchestrate.ts`](../../src/cr/orchestrate.ts), [`src/cr/aggregate-cli.ts`](../../src/cr/aggregate-cli.ts), [`src/cr/codex.ts`](../../src/cr/codex.ts), [`src/cr/escalate-cli.ts`](../../src/cr/escalate-cli.ts)
 
+### `cr:autofix`
+
+- **Trigger:** `pnpm noldor cr autofix plan --slug <slug> --kind <spec\|plan\|code>` (decide), then `pnpm noldor cr autofix record --slug <slug> --kind <kind> --applied <n> --deferred <n> [--stopped <reason>]` (record the round). Run by `/noldor-gate` at both blocker seams — Step 2.5 `address-blockers` and Step 4 cr-red — ahead of the existing dialog / `cr escalate`.
+- **Inputs:** the lane sinks (via `cr aggregate`), `autonomous.onBlockers` in `.noldor/config.json`, the session marker's `startedAt`, and the round ledger at `.noldor/cr/autofix/<slug>-<kind>.json`.
+- **Outputs:** `plan` prints `verdict:` (`auto-fix` / `decline`), `reason:`, an authoritative `base-sha:` for the re-round, `round: n/2`, and the `[mechanical]` / `[design]` blocker split; exit 0 = auto-fix, 10 = decline, 2 = error (the gate treats any non-zero as a decline). `record` appends a round and exits 0. The framework never applies a blocker — that is the gate controller's edit, made between the two calls.
+- **Source:** [`src/cr/autofix-cli.ts`](../../src/cr/autofix-cli.ts), [`src/cr/autofix.ts`](../../src/cr/autofix.ts), [`src/cr/autofix-ledger.ts`](../../src/cr/autofix-ledger.ts)
+
 ### `cr:bootstrap`
 
 - **Trigger:** `pnpm noldor cr bootstrap --slug <slug>`. Runs at `/noldor-gate` Step 4 (after the code-stage receipt is amended, before `pr-flow`).
