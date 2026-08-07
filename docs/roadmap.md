@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### `noldor commit` Wrapper
-
-- id: Q-0063
-- area: tooling
-- type: feat
-- since: 2026-08-05
-- size: S
-- impact: med
-- confidence: high
-- parent: noldor
-
-`$?` after `git commit ... | tail` is `tail`'s exit code, not git's, so a failed commit reads as successful and the files silently stay staged. The trap is documented in `docs/noldor/git-and-commits.md`, but documentation does not remove a foot-gun that fires during unattended drains. Ship a `noldor commit` wrapper that runs the commit and surfaces the real git exit code plus post-commit status. (surfaced PR #216)
-
 ### Publish `--access public` Invariant
 
 - id: Q-0064
