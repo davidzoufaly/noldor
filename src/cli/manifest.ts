@@ -419,6 +419,15 @@ export const MANIFEST: Record<string, Group> = {
       '': { src: 'core/fmt-guard-cli.ts', desc: 'Format (or --check) with the no-target guard' },
     },
   },
+  commit: {
+    desc: 'Run git commit and print a pipe-proof verdict (real exit code + post-commit status)',
+    subs: {
+      '': {
+        src: 'core/commit-cli.ts',
+        desc: 'commit [git-commit-args...] — forwards to git commit, then reports OK/NO-OP/FAILED last',
+      },
+    },
+  },
   init: {
     desc: 'Scaffold framework files into the consumer repo',
     subs: {

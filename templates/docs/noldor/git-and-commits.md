@@ -139,6 +139,25 @@ The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.no
   commits unpiped (or in a background task whose full log you read) and verify
   with `git log --oneline origin/main..HEAD` — the `🥊`-marked hook step vs a
   `[branch hash]` line tells the truth.
+- **Prefer `pnpm noldor commit <git-commit-args...>`** ([`src/core/commit-cli.ts`](../../src/core/commit-cli.ts))
+  — it forwards its arguments to `git commit`, exits with git's own code, and
+  then prints its verdict as the **last** lines on stdout:
+
+  ```
+  noldor commit: OK — committed 4a2f9c1 fix(core): correct off-by-one
+  noldor commit: FAILED — git exit 1; nothing was committed
+  noldor commit: 3 path(s) still staged: src/a.ts, src/b.ts, docs/c.md
+  ```
+
+  Verdict placement is the fix: a piped invocation still loses `$?`, but the
+  tail now ends in `noldor commit: FAILED …` instead of looking clean, and the
+  still-staged paths — the silent half of the foot-gun — are named. Ground truth
+  is HEAD movement, not the exit status, so an exit-0 run that committed nothing
+  (`--dry-run`) reports `NO-OP` rather than success. Documented
+  policy alone never removed the foot-gun; this makes the failure legible in the
+  exact shape that hid it. One caveat: the CLI router treats a bare `--help` /
+  `-h` in any argument slot as a help request, so `noldor commit -m -h` prints
+  usage instead of committing.
 - **The pre-commit fmt step auto-fixes and re-stages** (`pnpm noldor fmt
   {staged_files}` + `stage_fixed: true`), so a freshly written file that exceeds
   the print width — or a hand-written multi-line `import { ... }` oxfmt wants on
