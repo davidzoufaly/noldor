@@ -11,6 +11,7 @@ import {
   getCommunityOwners,
   getFdOwnersForFile,
   getImportOwnersForTest,
+  isStaleGraphGap,
   loadFreshGraphOrWarn,
   requireFreshGraph,
 } from '../graph-fd-lookup.js';
@@ -125,6 +126,47 @@ describe(loadFreshGraphOrWarn, () => {
         expect(result.gap.message).toMatch(/Run \/graphify/);
       }
     });
+  });
+
+  // Pins the machine discriminator to the real constructor: if the stale-gap
+  // wording is reworded without the shared prefix, this fails rather than
+  // silently making `garden detect --ci` blind to graph staleness.
+  it('isStaleGraphGap recognizes the gap a stale graph actually produces', () => {
+    withTmp((dir) => {
+      const graphPath = join(dir, 'graph.json');
+      writeFileSync(graphPath, JSON.stringify({ nodes: [], links: [] }));
+      const past = new Date(Date.now() - 60_000);
+      utimesSync(graphPath, past, past);
+      writeFileSync(join(dir, 'src.ts'), 'x');
+      const result = loadFreshGraphOrWarn(graphPath, [dir]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(isStaleGraphGap(result.gap)).toBe(true);
+      }
+    });
+  });
+
+  // Graphify is optional — a consumer that never generates a graph must not
+  // fail a CI-mode garden run, so the missing-graph meta-gap stays non-fatal.
+  it('isStaleGraphGap rejects the missing-graph meta-gap', () => {
+    withTmp((dir) => {
+      const result = loadFreshGraphOrWarn(join(dir, 'absent.json'), [dir]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.gap.message).toMatch(/does not exist/);
+        expect(isStaleGraphGap(result.gap)).toBe(false);
+      }
+    });
+  });
+
+  it('isStaleGraphGap rejects a real co-tag gap sharing the meta-gap category', () => {
+    expect(
+      isStaleGraphGap({
+        category: 'Tests with incomplete co-tag',
+        itemId: 'src/garden/__tests__/graph-fd-lookup.test.ts',
+        message: 'imports files owned by FDs missing from @tests: tag — add: doc-gardening-skill',
+      }),
+    ).toBe(false);
   });
 
   it('ignores generated sample-scene artifacts when checking graph freshness', () => {

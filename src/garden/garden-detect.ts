@@ -35,6 +35,7 @@ import {
   resolveByLinksSpec,
   resolveByGraphAdjacency,
 } from './plan-resolution.js';
+import { isStaleGraphGap } from './graph-fd-lookup.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
 import type { FeatureFrontmatter } from '../core/feature-schema.js';
@@ -821,15 +822,47 @@ export function hasBlockingFindings(findings: GateComplianceFindings): boolean {
   return false;
 }
 
+/**
+ * The stale-graph meta-gaps in a detector run (see `isStaleGraphGap`). Non-empty
+ * means `graphify-out/graph.json` lags the newest source file, so every
+ * graph-consuming detector contributed nothing to this run.
+ *
+ * Interactively that degradation is fine — the operator reads the meta-gap and
+ * decides. In CI or an autonomous drain nobody reads it, so `--ci` turns it into
+ * a non-zero exit rather than a green run with silently-absent detectors.
+ */
+export function staleGraphGaps(gaps: readonly SddGap[]): readonly SddGap[] {
+  return gaps.filter((gap) => isStaleGraphGap(gap));
+}
+
 const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('garden-detect');
 if (invokedDirect) {
   const gateComplianceMode = process.argv.includes('--gate-compliance');
+  // CI mode: findings a human would read and act on interactively become exit-code
+  // failures. Today that is exactly the stale-graph meta-gap. Orthogonal to
+  // --gate-compliance, whose narrower finding set carries no sddGaps to inspect.
+  const ciMode = process.argv.includes('--ci');
   const run = gateComplianceMode ? detectGateCompliance(process.cwd()) : detectAll(process.cwd());
   void run
     .then((findings) => {
       process.stdout.write(`${JSON.stringify(findings)}\n`);
       if (gateComplianceMode && hasBlockingFindings(findings as GateComplianceFindings)) {
         process.exitCode = 1;
+      }
+      if (ciMode && !gateComplianceMode) {
+        // stderr, so --ci never contaminates the JSON report on stdout.
+        const stale = staleGraphGaps((findings as GardenFindings).sddGaps);
+        for (const gap of stale) {
+          console.error(
+            `garden detect --ci: graph-consuming detectors ran degraded — ${gap.message}`,
+          );
+        }
+        if (stale.length > 0) {
+          console.error(
+            'garden detect --ci: regenerate the graph (/graphify + pnpm toon), commit graphify-out/graph.json, then re-run.',
+          );
+          process.exitCode = 1;
+        }
       }
     })
     .catch((error: unknown) => {

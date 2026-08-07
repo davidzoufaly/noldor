@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Graph Staleness Gate Loud in CI
-
-- id: Q-0062
-- area: tooling
-- type: fix
-- since: 2026-08-05
-- size: S
-- impact: med
-- confidence: high
-- parent: doc-gardening-skill
-
-Graph-consuming detectors skip with a single meta-gap when `graphify-out/graph.json` is older than the newest source file. Interactively that is the right call; in an autonomous drain nobody reads meta-gaps, so the detectors silently contribute nothing and the run still reports green. At minimum `garden-detect` should exit non-zero on the staleness meta-gap in CI mode; auto-regen is the stronger option if the regen cost is acceptable in that context.
-
 ### `noldor commit` Wrapper
 
 - id: Q-0063

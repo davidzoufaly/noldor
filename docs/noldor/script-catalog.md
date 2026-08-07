@@ -183,10 +183,10 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 ### `garden:detect`
 
-- **Trigger:** `pnpm noldor garden detect`. Backs the `/noldor-garden` skill. Accepts `--gate-compliance` flag.
+- **Trigger:** `pnpm noldor garden detect`. Backs the `/noldor-garden` skill. Accepts `--gate-compliance` and `--ci` flags.
 - **Inputs:** `docs/features/*.md`, `docs/design/{specs,plans}/*.md`, `docs/{roadmap,backlog,vision}.md`, `package.json` workspaces, `.noldor/overrides.log`, optionally `graphify-out/graph.json`.
-- **Outputs:** JSON report with `category`, `itemId`, `message` per gap across the 20 numbered detectors (plus the 4 doc-maintenance signals when run via `/noldor-garden`). With `--gate-compliance`: runs the override-audit, tier-mismatch, allowlist-drift, trailer-scope-mismatch, plan-without-fd, and fd-without-plan detectors; exit 1 if any findings. See [`garden-and-drift.md`](garden-and-drift.md) for the full detector list.
-- **When to use:** through `/noldor-garden` for interactive maintenance; `--gate-compliance` as a `pnpm release` precondition; ad hoc `--json` for scripted automation. See [`garden-and-drift.md`](garden-and-drift.md).
+- **Outputs:** JSON report with `category`, `itemId`, `message` per gap across the 20 numbered detectors (plus the 4 doc-maintenance signals when run via `/noldor-garden`). With `--gate-compliance`: runs the override-audit, tier-mismatch, allowlist-drift, trailer-scope-mismatch, plan-without-fd, and fd-without-plan detectors; exit 1 if any findings. With `--ci`: exit 1 when a stale `graphify-out/graph.json` degraded the graph-consuming detectors (a missing graph is not a failure — graphify is optional); the regen instruction goes to stderr so stdout stays pure JSON. See [`garden-and-drift.md`](garden-and-drift.md) for the full detector list.
+- **When to use:** through `/noldor-garden` for interactive maintenance; `--gate-compliance` as a `pnpm release` precondition; `--ci` from CI jobs and autonomous drains, where nobody reads a degraded-mode meta-gap; ad hoc `--json` for scripted automation. See [`garden-and-drift.md`](garden-and-drift.md).
 - **Source:** [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
 
 ### `sdd:report`

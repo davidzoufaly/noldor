@@ -43,6 +43,13 @@ export type LoadGraphResult = { gap: Gap; ok: false } | { graph: GraphifyGraph; 
 const META_GAP_CATEGORY = 'Tests with incomplete co-tag';
 
 /**
+ * Stable prefix of the *stale*-graph meta-gap message. The constructor in
+ * {@link loadFreshGraphOrWarn} and the {@link isStaleGraphGap} matcher both read
+ * it, so the machine discriminator can never drift from the operator wording.
+ */
+const STALE_GAP_MESSAGE_PREFIX = 'Co-tag detector ran in degraded mode:';
+
+/**
  * Load the graphify graph at `graphPath` and verify it's fresher than
  * every file under `srcRoots`.
  *
@@ -80,7 +87,7 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
       gap: {
         category: META_GAP_CATEGORY,
         itemId: graphPath,
-        message: `Co-tag detector ran in degraded mode: ${graphPath} regen ${graphDate}, latest source mtime ${srcDate}. Run /graphify + pnpm toon (preferred) or perform a manual co-tag audit: for each .test.ts file under packages/ or apps/src/, grep imports → check which FDs own those files via links.code → propose missing co-tags.`,
+        message: `${STALE_GAP_MESSAGE_PREFIX} ${graphPath} regen ${graphDate}, latest source mtime ${srcDate}. Run /graphify + pnpm toon (preferred) or perform a manual co-tag audit: for each .test.ts file under packages/ or apps/src/, grep imports → check which FDs own those files via links.code → propose missing co-tags.`,
       },
       ok: false,
     };
@@ -89,6 +96,25 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
   const raw = readFileSync(graphPath, 'utf8');
   const graph = JSON.parse(raw) as GraphifyGraph;
   return { graph, ok: true };
+}
+
+/**
+ * True when `gap` is the stale-graph meta-gap {@link loadFreshGraphOrWarn}
+ * emits — the signal that every graph-consuming detector ran degraded because
+ * `graphify-out/graph.json` predates the newest source file.
+ *
+ * Deliberately does NOT match the *missing*-graph meta-gap from the same
+ * constructor: graphify is optional (mirroring `ensureGraphFresh`'s skip when no
+ * graph is tracked), so a consumer that never generates one must not fail a
+ * CI-mode garden run. A graph that exists but lags is the silent-degradation
+ * case a non-interactive run has to shout about.
+ *
+ * Matches on the shared message prefix rather than a structural field because
+ * gaps cross a JSON boundary (`garden sdd-report --json` → `loadSddGaps` in
+ * `garden-detect.ts`) as bare `{ category, itemId, message }` triples.
+ */
+export function isStaleGraphGap(gap: Gap): boolean {
+  return gap.category === META_GAP_CATEGORY && gap.message.startsWith(STALE_GAP_MESSAGE_PREFIX);
 }
 
 /**

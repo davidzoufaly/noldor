@@ -11,6 +11,7 @@ import {
   detectUnusedBacklog,
   hasBlockingFindings,
   shouldFlagSourceDrift,
+  staleGraphGaps,
   SOURCE_DRIFT_PAIRS,
 } from '../garden-detect.js';
 
@@ -877,5 +878,36 @@ describe('loadOverrideAuditOptions', () => {
     await writeFile(join(repo, '.noldor/config.json'), '{ not json', 'utf8');
     const opts = await loadOverrideAuditOptions(repo);
     expect(opts.expected).toEqual([]);
+  });
+});
+
+describe('staleGraphGaps', () => {
+  const staleGap = {
+    category: 'Tests with incomplete co-tag',
+    itemId: 'graphify-out/graph.json',
+    message:
+      'Co-tag detector ran in degraded mode: graphify-out/graph.json regen 2026-08-01, latest source mtime 2026-08-07. Run /graphify + pnpm toon (preferred) or perform a manual co-tag audit.',
+  };
+  const missingGraphGap = {
+    category: 'Tests with incomplete co-tag',
+    itemId: 'graphify-out/graph.json',
+    message: 'graphify-out/graph.json does not exist. Run /graphify + pnpm toon.',
+  };
+  const coTagGap = {
+    category: 'Tests with incomplete co-tag',
+    itemId: 'src/garden/__tests__/garden-detect.test.ts',
+    message: 'imports files owned by FDs missing from @tests: tag — add: doc-gardening-skill',
+  };
+
+  it('picks the stale-graph meta-gap out of a mixed gap list', () => {
+    expect(staleGraphGaps([coTagGap, staleGap, missingGraphGap])).toEqual([staleGap]);
+  });
+
+  it('is empty when the graph is fresh (no meta-gap emitted)', () => {
+    expect(staleGraphGaps([coTagGap])).toEqual([]);
+  });
+
+  it('ignores a missing graph — graphify is optional, so --ci must not fail on it', () => {
+    expect(staleGraphGaps([missingGraphGap])).toEqual([]);
   });
 });
