@@ -217,8 +217,10 @@ unreadable and no correct `base-sha:` can be printed.
 
 **Residual rule: any non-zero exit other than `10` is treated as `2`.** `plan` cannot collapse to "any
 non-zero" the way `record` does (U5) because `10` carries a distinct meaning, so the hole `record` closes by
-inversion is closed here by a catch-all instead: an uncaught crash (Node exits `1`) or a signal kill reads as an
-error, which the gate already treats as a decline. No non-zero code is left undefined at either seam.
+inversion is closed here by a catch-all instead: an uncaught crash (Node exits `1`) reads as an error, which the
+gate already treats as a decline. Both rules are stated over the **shell-observed exit status**, so a signal
+kill arrives as `128+N` — non-zero, and not `10`. An implementer wiring these calls through `child_process`
+directly must map a `null` exit code with a non-null signal to the same error branch.
 
 ### U5 — `cr autofix record`
 
@@ -284,9 +286,11 @@ is both simpler and hole-free.
   to `<slug>-*-autofix.json*`:** `.noldor/cr` is shared in the main workspace, and a slug that is a prefix of
   another (`foo` vs `foo-bar`) would cross-match and delete a sibling feature's ledger.
 
-  `rm -f .noldor/cr/<slug>-{spec,plan,code}-autofix.json{,.bad}` is an acceptable shorthand — brace expansion
-  is deterministic expansion, not pattern matching, so it carries the same no-cross-match safety. Stated so an
-  implementer shortening the long form reaches for that and not the forbidden glob.
+  `rm -f .noldor/cr/<slug>-{spec,plan,code}-autofix.json{,.bad}` is an acceptable shorthand **in bash/zsh
+  only** — brace expansion is deterministic expansion, not pattern matching, so it carries the same
+  no-cross-match safety. Under POSIX `sh`/dash the braces stay literal and `rm -f` silently removes nothing,
+  so **the enumerated long form above is the portable one** and is what ships. The shorthand is named only so
+  an implementer shortening the block reaches for it rather than the forbidden glob.
 
   U3 claims nothing else ever removes a `.bad` file, so this leg is load-bearing for that claim, not optional
   polish — it is listed here because U6 plus the acceptance list is the implementer's contract.
