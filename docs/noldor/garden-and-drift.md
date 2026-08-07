@@ -13,6 +13,7 @@ Periodic audit that detects framework drift: features without tests, plans witho
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `/noldor-garden`                                          | Interactive audit; walks all 20 detectors + 4 doc-maintenance signals                                       |
 | `pnpm noldor garden detect`                        | Same as `/noldor-garden` non-interactive; JSON report (`category`, `itemId`, `message` per gap)                    |
+| `pnpm noldor garden detect --ci`                   | Same, plus exit 1 when the knowledge graph is stale — for CI jobs and autonomous drains                      |
 | `pnpm noldor garden sdd-report`                    | Walks SDD detectors (1-13 + 19), writes `docs/sdd-report.md`. Informational — never blocks                  |
 | `pnpm noldor garden sdd-report --json`             | Machine-readable output (no file write)                                                                     |
 | `pnpm noldor garden sdd-report --release`          | Includes the Gate compliance section (override + tier + review-skip counter). Invoked by `pnpm release`.    |
@@ -105,3 +106,5 @@ The detectors that scan FD frontmatter (Detectors 1, 2, 19) accept the literal s
 ## Audit-only — never blocks
 
 `/noldor-garden`, `pnpm noldor garden detect`, and `pnpm noldor garden sdd-report` are informational. They never block `pnpm release` or pre-commit. Their findings surface as a punch list. The exception is the `pnpm noldor validate skill-catalog` strict pre-commit gate (skills filenames ↔ `skill-catalog.md` headings, 1:1 contract) — see Commands above.
+
+`pnpm noldor garden detect --ci` is the one non-interactive exception on the detect side. A stale `graphify-out/graph.json` silences every graph-consuming detector (13, plus the graph-sourced owner suggestions on 9 and 10) behind a single meta-gap — which reads as green to anything that only checks the exit code, so an autonomous drain ships with those detectors contributing nothing. `--ci` turns that meta-gap into exit 1 with the regen instruction on stderr (stdout stays pure JSON); every other finding stays informational. A *missing* graph is NOT a failure — graphify is optional, matching the release gate's skip when no graph is tracked.
