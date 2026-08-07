@@ -1,0 +1,346 @@
+# Gate Auto-Addresses CR Blockers — Design
+
+**Slug:** specs-cr-gate-multi-reviewer (enhancement: `auto-fix-blockers`)
+**FD:** docs/features/specs-cr-gate-multi-reviewer.md
+**Date:** 2026-08-07
+**Tier:** specs-only
+**Entry:** Q-0075 (roadmap, size M, impact high)
+
+## Problem
+
+Both blocker seams in the gate are prompt-only.
+
+- **Artifact-stage.** `/noldor-gate` Step 2.5's continue-dialog offers `address-blockers`, whose prose is
+  literally "operator edits the artifact, then loop back to the top of Step 2.5". No CLI backs it.
+- **Code-stage.** `cr escalate` prompts `retry-implementation / spawn-deep-review / override-with-trailer /
+  abort` ([`src/cr/escalate.ts:64`](../../../src/cr/escalate.ts#L64)).
+
+Neither carries an auto-fix outcome, so not even `proceed-autonomous` plus `autonomous.onFailure` can express
+"fix it and re-round". The framework asks the operator to do work it could do itself. In drain
+(`autonomous.onFailure: 'abort'`, asserted by
+[`assertConfig`](../../../src/autonomous/queue-drain.ts#L88)) the cost is worse than friction: a single
+mechanical blocker — a missing spec section, an unanswered open question — aborts the whole iteration and the
+supervisor rebuilds from scratch.
+
+A second, smaller defect blocks any re-round loop. Step 2.5 instructs the controller to pass
+`--base-sha <priorArtifactSha>` "read from prior `LaneFindings.artifactSha`", but
+[`laneFindingsSchema`](../../../src/cr/findings-schema.ts#L29-L47) carries `baseSha` and no `artifactSha`.
+The instruction names a field that does not exist.
+
+## Goals
+
+1. A blocker round that is entirely mechanical is fixed and re-reviewed without a prompt.
+2. A blocker round containing any design disagreement still reaches the operator.
+3. The classification of "mechanical" is made by the reviewer, recorded on disk, and auditable.
+4. The loop cannot spin: it stops on a round cap and on no-progress.
+5. Both seams use one mechanism.
+6. `--base-sha` for a re-round comes from a source that exists.
+
+## Non-goals
+
+- **Applying fixes in Node.** Applying a blocker is an LLM act performed by the gate controller. The CLI
+  added here decides and records; it never edits an artifact.
+- **A new headless-safe config precondition.** Both `onBlockers` values are safe unattended (see U2), so
+  [`assertConfig`](../../../src/autonomous/queue-drain.ts#L88) is left alone.
+- **Changing `cr escalate`.** Its contract — "a red already happened, how do we escalate" — and its closed
+  exit-code set stay as they are.
+- **Adding `artifactSha` to the sink schema.** The instruction is corrected instead (U4, D7).
+- **Auto-fixing suggestions.** Only `blockers` are in scope; `suggestions` (Minor) remain advisory.
+
+## Design
+
+### U1 — Reviewer-emitted classification (`Finding.class`)
+
+The reviewer is the classifier, not the controller: whoever applies a fix must not be the one deciding it is
+safe to apply unasked.
+
+- [`src/cr/findings-schema.ts`](../../../src/cr/findings-schema.ts#L11-L17) — `findingSchema` gains
+  `class: z.enum(['mechanical', 'design']).optional()`. Optional, so every existing sink on disk still parses
+  and `aggregate()` is unchanged.
+- [`src/cr/lanes/subagent-dispatch.ts`](../../../src/cr/lanes/subagent-dispatch.ts#L72-L86) — `buildPrompt`
+  instructs the reviewer to prefix each `Issues` bullet with `[mechanical]` or `[design]`, and defines them:
+  *mechanical* = the fix is determined by the finding itself (a missing required section, an unanswered open
+  question, a lint-class defect, a stated contract not met); *design* = the fix requires a judgment call the
+  reviewer is not making for you (disagreement about an approach, a default, a trade-off).
+- **New** `src/cr/finding-class.ts` — one pure fn:
+
+  ```
+  splitClassTag('[mechanical] Acceptance criteria section absent')
+    -> { class: 'mechanical', message: 'Acceptance criteria section absent' }
+  splitClassTag('Acceptance criteria section absent')
+    -> { message: 'Acceptance criteria section absent' }
+  ```
+
+  Case-insensitive on the tag; an unrecognized bracket prefix is left in the message untouched.
+- [`src/cr/lanes/subagent.ts`](../../../src/cr/lanes/subagent.ts#L148-L160) — `mkFinding` runs each bullet
+  through `splitClassTag` and spreads the resulting `class` onto the `Finding`.
+  `parseSubagentMarkdown`'s exported signature is deliberately **unchanged** (`critical: string[]`) so its
+  existing tests keep passing and classification lives in one pure, separately-testable fn.
+
+**An absent tag means `design`.** That is read at the decision site (U4), not written into the sink — the sink
+records what the reviewer actually said. Legacy sinks, the `codex` / `manual` / `verifier` lanes, and a
+reviewer that ignores the instruction therefore all degrade to today's behaviour rather than to a silent
+auto-fix.
+
+### U2 — `autonomous.onBlockers` knob
+
+[`autonomousConfigSchema`](../../../src/core/config.ts#L45-L55) gains
+`onBlockers: z.enum(['auto-fix', 'prompt']).default('prompt')`.
+
+`prompt` is the default because a design-disagreement blocker needs operator arbitration and the framework
+cannot tell in advance that a round has none.
+
+No new invariant lands in [`src/validate/noldor-config.ts`](../../../src/validate/noldor-config.ts#L15) and
+`assertConfig` is untouched: `prompt` makes `autofix plan` decline, after which the existing seam runs exactly
+as today (in drain, `onFailure: 'abort'` → abort). Both values are headless-safe.
+
+### U3 — Auto-fix ledger
+
+**New** `src/cr/autofix-ledger.ts`, holding the round state the loop bound needs.
+
+Path: `.noldor/cr/<slug>-<kind>-autofix.json`. Written with the existing
+[`writeJsonAtomic`](../../../src/cr/atomic-write.ts).
+
+```
+{ slug, kind,
+  rounds: [ { round, headSha, fingerprint, applied, deferred, diffStat, stopped? } ] }
+```
+
+Exports:
+
+- `AUTOFIX_ROUND_CAP = 2` — a constant, not a knob. `docs/vision.md:19` ("opinionated, not configurable");
+  one posture knob is enough.
+- `fingerprintBlockers(blockers)` — sha1 over the blockers' `severity|file|line|message` tuples, sorted, so
+  the value is order-independent and stable across runs.
+- `readLedger(cwd, slug, kind)` — returns `null` on absent, and **throws** on malformed. A ledger that cannot
+  be parsed means an unknown round count, and the caller in U4 must fail toward declining rather than toward
+  another round.
+- `appendRound(cwd, slug, kind, round)`.
+
+Rejected: deriving rounds from the timestamped sinks under `.noldor/cr/archive/`.
+[`guardLaneOverwrite`](../../../src/cr/orchestrate.ts#L210-L222) archives best-effort and logs-and-swallows
+failures, so the loop bound would rest on state the framework admits it may lose.
+
+### U4 — `cr autofix plan` (decide)
+
+**New** `src/cr/autofix.ts` — the pure decision, no IO:
+
+```
+decide({ blockers, onBlockers, ledger, headSha })
+  -> { verdict: 'auto-fix' | 'decline', reason, mechanical, design, baseSha }
+```
+
+Rules, in order — the first that matches wins:
+
+| condition | verdict | reason |
+| --- | --- | --- |
+| `onBlockers !== 'auto-fix'` | `decline` | `knob-off` |
+| `ledger.rounds.length >= AUTOFIX_ROUND_CAP` | `decline` | `round-cap` |
+| `fingerprintBlockers(blockers)` equals the last round's | `decline` | `no-progress` |
+| no blocker with `class === 'mechanical'` | `decline` | `no-mechanical` |
+| otherwise | `auto-fix` | — |
+
+`mechanical` = blockers with `class === 'mechanical'`; `design` = every other blocker, absent-tag included
+(D2's fail-safe read). A mixed round returns `auto-fix` with a non-empty `design` list — the controller
+applies the mechanical subset and then prompts on the remainder without re-rounding (D3), because re-rounding
+would buy a review pass guaranteed to re-report the design blocker, and under `onFailure: 'abort'` it aborts
+anyway.
+
+`baseSha` is the authoritative value for the eventual re-round: the last ledger round's `headSha`, or
+`headSha` (current `HEAD`) on round 1. This is D7's fix for the `LaneFindings.artifactSha` drift — the
+instruction is corrected to read this line instead of a field that never existed, so no sha source can
+disagree with another.
+
+**New** `src/cr/autofix-cli.ts` — entrypoint. Reads the verb from `process.argv[2]` (the CLI router mutates
+argv, so `noldor cr autofix plan` arrives as a positional; same shape as the other `cr` entrypoints). Sources
+blockers from [`aggregate(slug, kind)`](../../../src/cr/aggregate.ts#L22) and the knob from `loadConfig`.
+
+stdout, machine-readable and stable:
+
+```
+verdict: auto-fix
+reason: -
+base-sha: a1b2c3d
+round: 1/2
+mechanical: 2
+  M1 docs/design/specs/….md — Acceptance criteria section absent
+  M2 docs/design/specs/….md — Open question O3 left unanswered
+design: 0
+```
+
+Exit codes: `0` = auto-fix, `10` = decline (mirrors `escalate`'s `retry-implementation: 10` convention), `2` =
+usage or infra error. **The gate treats `2` as a decline** — never block a gate on this checker's infra.
+
+### U5 — `cr autofix record`
+
+Same entrypoint, verb `record`. Flags `--slug --kind --applied <n> --deferred <n> [--stopped <reason>]`.
+
+Appends one round: `round` = `rounds.length + 1`; `headSha` = current `HEAD`; `fingerprint` recomputed from
+the sinks (unchanged between `plan` and `record` — nothing re-runs orchestrate in between, so the value
+matches what `plan` computed, and no state has to be threaded through the LLM edit); `diffStat` =
+`git diff --shortstat <baseSha>..HEAD`.
+
+Recording the fingerprint is what makes `no-progress` detectable on the next round.
+
+### U6 — Gate seams (prose)
+
+[`.claude/skills/noldor-gate/SKILL.md`](../../../.claude/skills/noldor-gate/SKILL.md) and its twin
+`templates/.claude/skills/noldor-gate/SKILL.md` (kept byte-identical per the shared-file check):
+
+- **Step 2.5, `address-blockers`** — before asking the operator to edit, run `cr autofix plan`. On exit 0:
+  apply the listed mechanical blockers, commit, `cr autofix record`, then re-run orchestrate with the printed
+  `base-sha`; loop. On a non-empty `design` list, stop and surface the applied diff plus the design blockers
+  verbatim at the dialog. On exit 10 or 2: today's behaviour.
+- **Step 2.5, `--base-sha`** — replace "read from prior `LaneFindings.artifactSha`" with "as printed by
+  `cr autofix plan` (`base-sha:` line)". D7.
+- **Step 4, cr-red** — run `cr autofix plan` before `cr escalate`. Exit 0 → apply, record, re-run the
+  code-stage orchestrate (which re-earns the `Noldor-Reviewed-Subagent` receipt —
+  [`orchestrate.ts:382`](../../../src/cr/orchestrate.ts#L382) only amends on a green reviewer run). Exit 10 or
+  2 → `cr escalate` exactly as today.
+- [`docs/noldor/drain-mode.md`](../../../docs/noldor/drain-mode.md#L74) — record that autofix runs ahead of
+  `cr escalate` in drain, and that with `onBlockers: 'auto-fix'` a mechanical-only red self-heals instead of
+  failing the iteration.
+
+### U7 — Registration
+
+- [`src/cli/manifest.ts`](../../../src/cli/manifest.ts#L117-L120) — `cr.subs.autofix` → `cr/autofix-cli.ts`.
+- `docs/noldor/script-catalog.md` — cite `src/cr/autofix-cli.ts`, or
+  [`validate script-catalog`](../../../src/cli/validate-script-catalog.ts) blocks the commit.
+
+### Data flow
+
+```
+orchestrate (exit 1)
+  -> aggregate
+  -> cr autofix plan ──exit 10/2──> existing seam (Step 2.5 dialog | cr escalate → onFailure)
+        │ exit 0
+        ├─ controller applies mechanical blockers, commits
+        ├─ cr autofix record --applied N --deferred M
+        ├─ design list non-empty? ─yes─> surface diff + design blockers, prompt (no re-round)
+        └─ no ─> orchestrate --base-sha <printed> ─> loop (cap 2 / no-progress)
+```
+
+### Error handling
+
+| failure | behaviour |
+| --- | --- |
+| malformed ledger | `readLedger` throws; CLI exits 2 → gate declines. Unknown round count must not license another round |
+| absent ledger | round 1 |
+| `aggregate` finds no sinks | `blockers: []` → `decline` / `no-mechanical` |
+| `loadConfig` throws | treated as knob unset → `decline` / `knob-off` |
+| reviewer emitted no tags | every blocker reads as `design` → `decline` / `no-mechanical` |
+| `git rev-parse` / `diff` fails in `record` | `headSha: ''`, `diffStat: '(unavailable)'`; the round is still recorded, so the cap still holds |
+
+### Testing
+
+Unit: `splitClassTag` (tagged both ways, untagged, unknown bracket prefix, case); `fingerprintBlockers`
+(order-independence, sensitivity to each tuple field); `decide` (table-driven over all five rules, plus
+mixed-round `design` non-empty and the absent-tag→design read); `readLedger` (absent → null, malformed →
+throws); `appendRound` (round numbering). CLI: exit-code map for `plan`, flag validation for `record`.
+Integration: a tmp-repo loop that goes red → auto-fix → green, and one that trips `no-progress`.
+
+## Acceptance criteria
+
+1. `findingSchema` accepts `class: 'mechanical' | 'design'` and still parses every sink written before this
+   change (no `class` key).
+2. `splitClassTag` strips a leading `[mechanical]` / `[design]` tag, case-insensitively, and leaves an
+   unrecognized bracket prefix in the message.
+3. `buildPrompt` output contains the tagging instruction and both tag definitions.
+4. A reviewer bullet tagged `[mechanical]` produces a sink `Finding` with `class: 'mechanical'`; an untagged
+   bullet produces a `Finding` with no `class` key.
+5. `.noldor/config.json` accepts `autonomous.onBlockers: 'auto-fix' | 'prompt'`; an absent key resolves to
+   `prompt`; any other value fails `validate noldor-config`.
+6. `assertConfig` accepts both `onBlockers` values and still rejects each of the three existing violations.
+7. `decide` returns `decline` with reason `knob-off` / `round-cap` / `no-progress` / `no-mechanical` under
+   exactly those conditions, in that precedence order.
+8. `decide` on a mixed round returns `auto-fix` with a non-empty `design` list.
+9. `decide` classifies a blocker with no `class` key as `design`.
+10. `cr autofix plan` exits 0 on `auto-fix`, 10 on `decline`, 2 on usage or infra error, and always prints a
+    `verdict:` line and a `base-sha:` line.
+11. `base-sha:` equals current `HEAD` on round 1 and the prior round's `headSha` afterwards.
+12. `cr autofix record` appends a round with an incremented `round`, and a second `plan` against unchanged
+    blockers returns `decline` / `no-progress`.
+13. A third `plan` after two recorded rounds returns `decline` / `round-cap`.
+14. A malformed ledger makes `plan` exit 2 rather than throwing an unhandled error.
+15. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
+16. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither contains the string
+    `LaneFindings.artifactSha`.
+
+## Risks / trade-offs
+
+- **Reviewer tag compliance.** Agents deviate from prose contracts — the existing parser already tolerates
+  markdown decorations for that reason. An untagged round degrades to today's behaviour, so non-compliance
+  costs the feature, never correctness. Accepted over a structured-output contract, which would break every
+  runner that only emits prose.
+- **The controller can "fix" a blocker by deleting the requirement.** Real hazard, only partly mitigated: the
+  re-round re-reviews the result, and `record`'s `diffStat` plus the surfaced diff make the edit visible. A
+  reviewer that accepts a gutted section is a reviewer-quality problem this spec does not solve.
+- **Cap of 2 may be too low.** Q-0073 needed 14 CR rounds to converge. The cap bounds only the *unattended*
+  rounds; the operator can still iterate freely after a decline. Raising it is a one-constant change, and
+  no-progress detection will usually stop the loop before the cap does.
+- **`mechanical` is the reviewer's judgment, and it can be wrong.** A design disagreement mislabelled
+  `[mechanical]` gets auto-applied. This is the residual risk the knob's `prompt` default exists to let an
+  operator refuse wholesale.
+- **Two seams, one mechanism, different fidelity.** Artifact-stage blockers are markdown edits; code-stage
+  blockers can span many files. The same `decide` governs both, so a code-stage "mechanical" blocker may be
+  materially larger work than an artifact-stage one. Accepted: the alternative is two classifiers.
+
+## User Story
+
+As an operator running the gate, I want mechanical CR blockers — a missing section, an unanswered open
+question, a stated contract not met — applied and re-reviewed without stopping to ask me, so that my
+attention is spent only on the design disagreements that actually need arbitration, and a drain iteration is
+not lost to a defect the framework could have fixed itself.
+
+## Usage
+
+Opt in per repo (default is `prompt` — unchanged behaviour):
+
+```
+# .noldor/config.json
+"autonomous": { "skipLanePicker": true, "onFailure": "abort",
+                "requireHumanPrApproval": false, "onBlockers": "auto-fix" }
+```
+
+The gate drives the loop; the two calls are also usable by hand:
+
+```
+noldor cr autofix plan --slug <slug> --kind <spec|plan|code>
+#   exit 0  -> apply the listed M<n> blockers, then:
+noldor cr autofix record --slug <slug> --kind <spec|plan|code> --applied 2 --deferred 0
+noldor cr orchestrate --slug <slug> --artifact <path> --kind <kind> --base-sha <printed base-sha>
+#   exit 10 -> decline; run the existing seam (Step 2.5 dialog, or `noldor cr escalate`)
+```
+
+Inspect what happened: `.noldor/cr/<slug>-<kind>-autofix.json` holds every round with its fingerprint,
+`applied` / `deferred` counts, and `diffStat`.
+
+## Open questions (resolved)
+
+1. *Does this cover one blocker seam or both?* -> **Both, with one shared mechanism.** (D1) The entry names
+   both, and they share every primitive — read blockers, classify, apply, re-round with `--base-sha`. Only the
+   branch point differs; splitting would duplicate the classifier.
+2. *How does the controller classify a blocker as mechanical vs design-disagreement without asking?* -> **It
+   does not — the reviewer classifies, via `[mechanical]` / `[design]` bullet tags lifted into an optional
+   `Finding.class`; an absent tag reads as `design`.** (D2) Separation of duties: the agent that applies the
+   fix must not be the one deciding it may skip asking, or it is grading its own permission slip.
+3. *What happens on a mixed round?* -> **Apply the mechanical subset, then prompt on the design remainder
+   without re-rounding.** (D3) An immediate re-round buys a review pass guaranteed to re-report the known
+   design blocker, and under `onFailure: 'abort'` it aborts anyway.
+4. *What bounds the loop?* -> **A constant cap of 2 rounds plus a no-progress fingerprint stop; on either,
+   fall through to the existing `onFailure` policy.** (D4) The failure mode that matters is a blocker that
+   keeps coming back because the fix did not take — a round counter alone bounds cost, not futility.
+5. *Where do the round state and the fix diff live?* -> **`.noldor/cr/<slug>-<kind>-autofix.json`.** (D5)
+   Rejected deriving rounds from `.noldor/cr/archive/`: that archiving is best-effort and swallows failures,
+   so the bound would rest on state the framework admits it may lose.
+6. *Which CLI surface backs this — extend `cr escalate`, or a new command before it?* -> **New
+   `cr autofix plan|record`; `escalate` untouched.** (D6) `escalate` means "a red already happened, how do we
+   escalate", always writes `escalation-context.md`, and the artifact-stage seam does not call it at all
+   today.
+7. *The `LaneFindings.artifactSha` drift — fix it here or scope it out?* -> **Fix the instruction, not the
+   schema: `autofix plan` prints an authoritative `base-sha:` line and the Step 2.5 prose is rewritten to use
+   it.** (D7) Adding the field would make a wrong instruction true and create a second sha source that can
+   disagree with the ledger.
+8. *Should `onBlockers` join the drain's headless-safe precondition set?* -> **No.** Both values are safe
+   unattended: `prompt` simply makes `autofix` decline, after which `onFailure: 'abort'` behaves exactly as
+   today. Adding it would break every existing drain config for no safety gain.
