@@ -17,6 +17,7 @@
  */
 import { spawnSync } from 'node:child_process';
 
+import { defaultRunGit } from './branch-added.js';
 import { decideCommitVerdict, type CommitObservation } from './commit-wrapper.js';
 
 /** Git probes the CLI needs; injectable so tests never touch a real repo. */
@@ -31,11 +32,16 @@ export interface CommitGit {
   readonly runCommit: (args: readonly string[]) => number | null;
 }
 
-/** Raw stdout of a git probe, or `null` on any failure — probes never throw. */
+const runGit = defaultRunGit(undefined);
+
+/**
+ * Raw stdout of a read-only git probe, or `null` on any failure — probes never
+ * throw. A failed probe degrades the verdict's detail (an unnamed sha, an empty
+ * staged list); it must never take down the run that reports the commit.
+ */
 function probe(args: readonly string[]): string | null {
-  const r = spawnSync('git', [...args], { encoding: 'utf8' });
-  if (r.error || r.status !== 0 || typeof r.stdout !== 'string') return null;
-  return r.stdout === '' ? null : r.stdout;
+  const r = runGit(args);
+  return r.status === 0 && r.stdout !== '' ? r.stdout : null;
 }
 
 export const defaultGit: CommitGit = {

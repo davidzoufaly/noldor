@@ -51,18 +51,23 @@ function short(sha: string): string {
   return sha.length > 7 ? sha.slice(0, 7) : sha;
 }
 
-/** `a.ts, b.ts, … (+3 more)` — bounded so a bulk stage can't flood the tail. */
-function renderStaged(paths: readonly string[]): string {
+/**
+ * `noldor commit: 12 path(s) still staged: a.ts, b.ts, … (+2 more)` — the one
+ * place the staged-paths line is built, bounded so a bulk stage can't flood the
+ * tail the verdict has to survive in.
+ */
+function stagedLine(paths: readonly string[], verb: string): string {
   const head = paths.slice(0, STAGED_LIST_CAP).join(', ');
   const rest = paths.length - STAGED_LIST_CAP;
-  return rest > 0 ? `${head}, … (+${rest} more)` : head;
+  const rendered = rest > 0 ? `${head}, … (+${rest} more)` : head;
+  return `${VERDICT_PREFIX} ${paths.length} path(s) ${verb}: ${rendered}`;
 }
 
 /**
- * Classify a run. A commit landed only when git succeeded *and* HEAD moved —
- * `--dry-run` and an empty-but-tolerated commit both exit 0 without moving it,
- * and reporting either as `committed` would reintroduce the lie this wrapper
- * exists to kill.
+ * Classify a run. A commit landed only when git succeeded *and* HEAD moved.
+ * `--dry-run` exits 0 without moving HEAD, and reporting that as `committed`
+ * would reintroduce the lie this wrapper exists to kill. (`--allow-empty` does
+ * create a commit object, so it moves HEAD and reads as `committed` — correct.)
  */
 export function classifyCommit(obs: CommitObservation): CommitOutcome {
   if (obs.status !== 0) return 'failed';
@@ -85,22 +90,16 @@ export function decideCommitVerdict(obs: CommitObservation): CommitVerdict {
     const sha = short(obs.headAfter!);
     const subject = obs.subjectAfter ? ` ${obs.subjectAfter}` : '';
     lines.push(`${VERDICT_PREFIX} OK — committed ${sha}${subject}`);
-    if (obs.stagedAfter.length > 0) {
-      lines.push(
-        `${VERDICT_PREFIX} note — ${obs.stagedAfter.length} path(s) remain staged: ${renderStaged(obs.stagedAfter)}`,
-      );
-    }
+    // Benign after a pathspec-scoped commit, alarming after a whole-index one —
+    // naming them lets the operator tell which happened.
+    if (obs.stagedAfter.length > 0) lines.push(stagedLine(obs.stagedAfter, 'remain staged'));
     return { code, outcome, lines };
   }
 
   if (outcome === 'no-op') {
     const why = obs.dryRun ? '--dry-run' : 'HEAD did not move';
     lines.push(`${VERDICT_PREFIX} NO-OP — git exited 0 but nothing was committed (${why})`);
-    if (obs.stagedAfter.length > 0) {
-      lines.push(
-        `${VERDICT_PREFIX} ${obs.stagedAfter.length} path(s) still staged: ${renderStaged(obs.stagedAfter)}`,
-      );
-    }
+    if (obs.stagedAfter.length > 0) lines.push(stagedLine(obs.stagedAfter, 'still staged'));
     return { code, outcome, lines };
   }
 
@@ -115,7 +114,7 @@ export function decideCommitVerdict(obs: CommitObservation): CommitVerdict {
   lines.push(`${VERDICT_PREFIX} FAILED — ${how}; ${what}`);
   lines.push(
     obs.stagedAfter.length > 0
-      ? `${VERDICT_PREFIX} ${obs.stagedAfter.length} path(s) still staged: ${renderStaged(obs.stagedAfter)}`
+      ? stagedLine(obs.stagedAfter, 'still staged')
       : `${VERDICT_PREFIX} index is empty — nothing was staged to commit`,
   );
   return { code, outcome, lines };

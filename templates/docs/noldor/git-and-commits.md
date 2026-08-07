@@ -153,7 +153,7 @@ The `prepare-commit-msg` hook (`src/hooks/noldor-inject-trailers.ts`) reads `.no
   tail now ends in `noldor commit: FAILED …` instead of looking clean, and the
   still-staged paths — the silent half of the foot-gun — are named. Ground truth
   is HEAD movement, not the exit status, so an exit-0 run that committed nothing
-  (`--dry-run`, an empty commit) reports `NO-OP` rather than success. Documented
+  (`--dry-run`) reports `NO-OP` rather than success. Documented
   policy alone never removed the foot-gun; this makes the failure legible in the
   exact shape that hid it. One caveat: the CLI router treats a bare `--help` /
   `-h` in any argument slot as a help request, so `noldor commit -m -h` prints
