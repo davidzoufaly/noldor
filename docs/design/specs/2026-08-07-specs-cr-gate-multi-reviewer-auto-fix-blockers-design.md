@@ -123,16 +123,23 @@ Exports:
   value is order-independent and stable across runs. **`line` is deliberately excluded:** code-stage blockers
   carry one, and an unrelated edit elsewhere in the file shifts it, so an unfixed blocker would fingerprint as
   progress and `no-progress` would never fire — the stop this spec sells as primary.
-- `readLedger(cwd, slug, kind, sessionStartedAt)` — `null` on absent or on a session mismatch; **throws** on
-  malformed. A ledger that cannot be parsed means an unknown round count, and the caller in U4 must fail
-  toward declining rather than toward another round.
+- `isSameSeries(ledger, sessionStartedAt)` — the single session-match predicate, called by **both**
+  `readLedger` and `appendRound`. The spec's own warning below ("reader and writer must key on the same value")
+  argues against each side implementing its own comparison, where the two can drift apart silently.
+- `readLedger(cwd, slug, kind, sessionStartedAt)` — `null` on absent or when `isSameSeries` is false;
+  **throws** on malformed. A ledger that cannot be parsed means an unknown round count, and the caller in U4
+  must fail toward declining rather than toward another round.
 - `appendRound(cwd, slug, kind, sessionStartedAt, round)` — **the writer owns the session key.** It stamps
   `sessionStartedAt` on the file, and on a mismatch (or an absent file) it *replaces* the series rather than
   appending to it: `{ slug, kind, sessionStartedAt, rounds: [round] }`. Appending blindly to a stale
   prior-session ledger would leave the old `sessionStartedAt` in place, so every subsequent `readLedger` in the
   current session keeps returning `null`, `rounds.length` stays 0, and both `round-cap` and `no-progress` go
   dead for the whole session — the loop bound defeated by the very scoping meant to make it usable. Reader and
-  writer must key on the same value or the scoping is decorative.
+  writer must key on the same value or the scoping is decorative — hence the shared `isSameSeries` above.
+  On a **malformed** existing file `appendRound` throws rather than replacing it, matching `readLedger`'s
+  fail-closed posture: a public export that silently overwrote unparseable state would let a caller who skipped
+  the read destroy it. The normal flow never reaches this — `record` reads first — but the contract is explicit
+  because `appendRound` is exported.
 
 `appendRound` is a read-modify-write over a shared file: `writeJsonAtomic` makes the write atomic but not the
 RMW, so two concurrent invocations against the same `slug`+`kind` can drop a round and undercount the cap.
@@ -270,10 +277,9 @@ orchestrate (exit 1)
 
 | failure | behaviour |
 | --- | --- |
-| malformed ledger | `readLedger` throws; CLI exits 2 → gate declines. Unknown round count must not license another round |
-| malformed ledger left by a *prior* session | Session scoping cannot rescue it: `readLedger` throws before it can compare `sessionStartedAt`, and Step 4's clean-exit `rm -f` never ran precisely because that session did not exit clean. So every future red on that `<slug>`-`<kind>` declines with exit 2 until someone runs `rm -f .noldor/cr/<slug>-<kind>-autofix.json`. Fail-closed is deliberate, and it degrades to today's prompt-only behaviour rather than blocking the gate — but the recovery is manual, and the CLI's stderr on exit 2 names the file and that command |
+| malformed ledger | `readLedger` throws. `plan` **quarantines** the file — `rename` to `<file>.bad` — then exits 2, so the gate declines. The current red is still fail-closed (an unknown round count never licenses another round), but the next session reads an absent ledger and starts a fresh series instead of hitting the same wall. Session scoping alone cannot do this: `readLedger` throws *before* it can compare `sessionStartedAt`, and Step 4's clean-exit `rm -f` never ran precisely because the session that corrupted the file did not exit clean. Quarantine keeps the posture and removes the design's only manual recovery step; a failed rename is logged and exit 2 still stands, in which case `rm -f .noldor/cr/<slug>-<kind>-autofix.json` is the fallback the stderr names |
 | absent ledger, or one whose `sessionStartedAt` differs from the current session | round 1 (fresh series) |
-| absent `.noldor/session.json` | `sessionStartedAt: ''`; the series is then keyed to "no session", which still resets when a real session starts. `plan` proceeds |
+| absent `.noldor/session.json` | `sessionStartedAt: ''`; the series is keyed to "no session" and **rounds accumulate across unrelated no-session runs** until a real session starts and resets it. That direction is fail-closed (over-counting caps early, never late), so it is accepted rather than special-cased. `plan` proceeds |
 | prior round's `headSha` empty | fall back to current `HEAD`; if that too is unresolvable → `decline` / `no-base-sha` |
 | `aggregate` finds no sinks | `blockers: []` → `decline` / `no-mechanical` |
 | `loadConfig` throws | treated as knob unset → `decline` / `knob-off` |
@@ -285,10 +291,11 @@ orchestrate (exit 1)
 Unit: `splitClassTag` (tagged both ways, untagged, unknown bracket prefix, case); `fingerprintBlockers`
 (order-independence, sensitivity to `severity`/`file`/`message`, insensitivity to `line`); `decide`
 (table-driven over all six rules, plus mixed-round `design` non-empty, the absent-tag→design read, and each
-`baseSha` fallback rung); `readLedger` (absent → null, session mismatch → null, malformed → throws);
-`appendRound` (round numbering, and series *replacement* on a session mismatch — the read-write round-trip
-within one session is the regression test for the bound going dead). CLI: exit-code map for `plan` and for
-`record`, flag validation for `record`, and the `rm -f` recovery hint on the malformed-ledger stderr.
+`baseSha` fallback rung); `isSameSeries`; `readLedger` (absent → null, session mismatch → null, malformed →
+throws); `appendRound` (round numbering, series *replacement* on a session mismatch — the read-write round-trip
+within one session is the regression test for the bound going dead — and throw on malformed). CLI: exit-code
+map for `plan` and for `record`, flag validation for `record`, the quarantine rename on a malformed ledger
+(including the rename-fails path), and the `rm -f` fallback hint on its stderr.
 Integration: a tmp-repo loop that goes red → auto-fix → green; one that trips `no-progress`; one that records
 two rounds, starts a new session, and confirms the cap reset.
 
@@ -322,12 +329,16 @@ two rounds, starts a new session, and confirms the cap reset.
 15. `appendRound` against a ledger from a different session REPLACES the series — the resulting file has the
     current `sessionStartedAt` and exactly one round — so the round the writer just recorded is visible to the
     next `readLedger` in the same session.
-16. A malformed ledger makes `plan` exit 2 rather than throwing an unhandled error, and the stderr names both
-    the ledger path and the `rm -f` recovery.
-17. `fingerprintBlockers` returns the same value for two blocker sets differing only in `line`.
-18. The gate loop stops on `record` exit 2 and falls to the existing seam rather than re-running orchestrate.
-19. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
-20. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
+16. A malformed ledger makes `plan` exit 2 rather than throwing an unhandled error, renames the file to
+    `<file>.bad`, and leaves a subsequent `plan` in a new session reading a fresh series. When the rename
+    itself fails, exit 2 still stands and the stderr names the ledger path and the `rm -f` fallback.
+17. `appendRound` throws on a malformed existing file rather than replacing it.
+18. `readLedger` and `appendRound` both reach their session verdict through `isSameSeries` — there is no
+    second comparison to drift.
+19. `fingerprintBlockers` returns the same value for two blocker sets differing only in `line`.
+20. The gate loop stops on `record` exit 2 and falls to the existing seam rather than re-running orchestrate.
+21. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
+22. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
     — that a `LaneFindings` sink carries `artifactSha`. Both the `LaneFindings.artifactSha` reference and the
     "stable `artifactSha` to record in `LaneFindings`" clause are gone.
 
