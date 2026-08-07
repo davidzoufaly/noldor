@@ -215,6 +215,11 @@ exit `2` stdout may be empty and the only guaranteed output is a diagnostic on s
 `base-sha:` contract binds exits `0` and `10` only, since a malformed ledger makes the prior round's `headSha`
 unreadable and no correct `base-sha:` can be printed.
 
+**Residual rule: any non-zero exit other than `10` is treated as `2`.** `plan` cannot collapse to "any
+non-zero" the way `record` does (U5) because `10` carries a distinct meaning, so the hole `record` closes by
+inversion is closed here by a catch-all instead: an uncaught crash (Node exits `1`) or a signal kill reads as an
+error, which the gate already treats as a decline. No non-zero code is left undefined at either seam.
+
 ### U5 — `cr autofix record`
 
 Same entrypoint, verb `record`. Flags `--slug --kind --applied <n> --deferred <n> [--stopped <reason>]`. Reads
@@ -247,10 +252,11 @@ is both simpler and hole-free.
 - **Step 2.5, `address-blockers`** — before asking the operator to edit, run `cr autofix plan`. On exit 0:
   apply the listed mechanical blockers, commit, `cr autofix record`, then re-run orchestrate with the printed
   `base-sha`; loop. On a non-empty `design` list, stop and surface the applied diff plus the design blockers
-  verbatim at the dialog. On exit 10 or 2: today's behaviour.
-  **Any non-zero exit from `record` stops the loop** and falls to the existing seam — same posture as `plan`
-  exit 2. An unrecorded round is invisible to the cap *and* leaves the next fingerprint without a predecessor,
-  so continuing would rest the entire loop bound on `record` having silently succeeded.
+  verbatim at the dialog. On exit 10, or on any other non-zero (`2` and, per U4's residual rule, everything
+  else): today's behaviour.
+  **Any non-zero exit from `record` stops the loop** and falls to the existing seam — same posture as `plan`.
+  An unrecorded round is invisible to the cap *and* leaves the next fingerprint without a predecessor, so
+  continuing would rest the entire loop bound on `record` having silently succeeded.
 - **Step 2.5, `--base-sha`** — replace "read from prior `LaneFindings.artifactSha`" (`SKILL.md:142`) with "as
   printed by `cr autofix plan` (`base-sha:` line)". D7.
 - **Step 2.5, "Commit the artifact first"** — `SKILL.md:118` asserts the same drift in different words
@@ -260,8 +266,8 @@ is both simpler and hole-free.
   "every claim that a sink carries `artifactSha`", not one string.
 - **Step 4, cr-red** — run `cr autofix plan` before `cr escalate`. Exit 0 → apply, record, re-run the
   code-stage orchestrate (which re-earns the `Noldor-Reviewed-Subagent` receipt —
-  [`orchestrate.ts:382`](../../../src/cr/orchestrate.ts#L382) only amends on a green reviewer run). Exit 10 or
-  2 → `cr escalate` exactly as today.
+  [`orchestrate.ts:382`](../../../src/cr/orchestrate.ts#L382) only amends on a green reviewer run). Any
+  non-zero exit → `cr escalate` exactly as today.
 - **Step 4, "Context cleanup on clean exit"** — the existing `rm -f .noldor/cr/<slug>-escalation-context.md`
   gains the ledgers and their quarantine remnants, **with every kind spelled out**:
 
@@ -277,6 +283,10 @@ is both simpler and hole-free.
   enumeration is cheaper than path-dependent logic and cannot get the derivation wrong. **Do not collapse this
   to `<slug>-*-autofix.json*`:** `.noldor/cr` is shared in the main workspace, and a slug that is a prefix of
   another (`foo` vs `foo-bar`) would cross-match and delete a sibling feature's ledger.
+
+  `rm -f .noldor/cr/<slug>-{spec,plan,code}-autofix.json{,.bad}` is an acceptable shorthand — brace expansion
+  is deterministic expansion, not pattern matching, so it carries the same no-cross-match safety. Stated so an
+  implementer shortening the long form reaches for that and not the forbidden glob.
 
   U3 claims nothing else ever removes a `.bad` file, so this leg is load-bearing for that claim, not optional
   polish — it is listed here because U6 plus the acceptance list is the implementer's contract.
@@ -350,36 +360,38 @@ two rounds, starts a new session, and confirms the cap reset.
 9. `decide` classifies a blocker with no `class` key as `design`.
 10. `cr autofix plan` exits 0 on `auto-fix`, 10 on `decline`, 2 on usage or infra error. On exits 0 and 10 it
     prints a `verdict:` line and a non-empty `base-sha:` line; exit 2 is exempt from both.
-11. `base-sha:` equals current `HEAD` on round 1 and the prior round's `headSha` afterwards; when that stored
+11. Every non-zero `plan` exit other than 10 — including an uncaught crash that exits 1 — is treated as an error
+    by the gate, so no exit code at either seam has undefined loop behaviour.
+12. `base-sha:` equals current `HEAD` on round 1 and the prior round's `headSha` afterwards; when that stored
     `headSha` is empty it falls back to current `HEAD`, and when neither resolves `plan` declines with
     `no-base-sha` instead of printing an empty value.
-12. `cr autofix record` appends a round with an incremented `round` and exits 0; it exits 2 on a missing or
+13. `cr autofix record` appends a round with an incremented `round` and exits 0; it exits 2 on a missing or
     non-numeric `--applied` / `--deferred`. A second `plan` against unchanged blockers returns `decline` /
     `no-progress`.
-13. A third `plan` after two recorded rounds in the SAME session returns `decline` / `round-cap`.
-14. `readLedger` returns `null` for a ledger whose `sessionStartedAt` differs from the current session's, so a
+14. A third `plan` after two recorded rounds in the SAME session returns `decline` / `round-cap`.
+15. `readLedger` returns `null` for a ledger whose `sessionStartedAt` differs from the current session's, so a
     prior session's two rounds do not cap a fresh session.
-15. `appendRound` against a ledger from a different session REPLACES the series — the resulting file has the
+16. `appendRound` against a ledger from a different session REPLACES the series — the resulting file has the
     current `sessionStartedAt` and exactly one round — so the round the writer just recorded is visible to the
     next `readLedger` in the same session.
-16. A malformed ledger makes `plan` exit 2 rather than throwing an unhandled error, renames the file to
+17. A malformed ledger makes `plan` exit 2 rather than throwing an unhandled error, renames the file to
     `<file>.bad`, and leaves a subsequent `plan` in a new session reading a fresh series. When the rename
     itself fails, exit 2 still stands and the stderr names the ledger path and the `rm -f` fallback.
-17. A ledger that fails to read for a NON-parse reason (EACCES) makes `plan` exit 2 and leaves the file in
+18. A ledger that fails to read for a NON-parse reason (EACCES) makes `plan` exit 2 and leaves the file in
     place — no `.bad` rename, so the round series survives transient infra.
-18. `appendRound` throws on a malformed existing file rather than replacing it, and never renames.
-19. `readLedger` and `appendRound` both reach their session verdict through `isSameSeries` — there is no
+19. `appendRound` throws on a malformed existing file rather than replacing it, and never renames.
+20. `readLedger` and `appendRound` both reach their session verdict through `isSameSeries` — there is no
     second comparison to drift.
-20. `fingerprintBlockers` returns the same value for two blocker sets differing only in `line`.
-21. The gate loop stops on ANY non-zero exit from `record` — including a crash that exits 1 — and falls to the
+21. `fingerprintBlockers` returns the same value for two blocker sets differing only in `line`.
+22. The gate loop stops on ANY non-zero exit from `record` — including a crash that exits 1 — and falls to the
     existing seam rather than re-running orchestrate.
-22. `record` maps a usage error, a malformed ledger, and any read/write failure to exit 2 (diagnostics; the stop
-    rule in 21 does not depend on it).
-23. Step 4's clean-exit cleanup removes the `spec`, `plan`, and `code` ledgers for the slug and each one's
+23. `record` maps a usage error, a malformed ledger, and any read/write failure to exit 2 (diagnostics; the stop
+    rule in 22 does not depend on it).
+24. Step 4's clean-exit cleanup removes the `spec`, `plan`, and `code` ledgers for the slug and each one's
     `.bad` remnant, so no `.bad` file outlives a clean session — and it does so by enumerating kinds, never via
     a `<slug>-*` glob that could cross-match a prefix-sharing sibling slug.
-24. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
-25. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
+25. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
+26. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
     — that a `LaneFindings` sink carries `artifactSha`. Both the `LaneFindings.artifactSha` reference and the
     "stable `artifactSha` to record in `LaneFindings`" clause are gone.
 
