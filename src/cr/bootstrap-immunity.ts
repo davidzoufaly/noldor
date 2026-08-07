@@ -109,7 +109,9 @@ export function injectBootstrapOverrides(opts: InjectOptions): InjectResult {
   const logPath = join(cwd, '.noldor', gate.entry.log);
   try {
     // One ledger line per injected commit.
-    appendFileSync(logPath, `${new Date().toISOString()}\t${reason}\n`.repeat(toInject.length));
+    for (let i = 0; i < toInject.length; i += 1) {
+      appendFileSync(logPath, `${new Date().toISOString()}\t${reason}\n`);
+    }
   } catch {
     /* log-write failure must not fail the injection */
   }
