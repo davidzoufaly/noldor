@@ -36,8 +36,7 @@ function harness(
   const nextItem = vi.fn(
     opts.nextItemImpl ??
       ((skip: ReadonlySet<string>) => {
-        const visible = roadmap.filter((s) => !skip.has(s));
-        lastTarget = visible[0] ?? null;
+        lastTarget = roadmap.find((s) => !skip.has(s)) ?? null;
         if (lastTarget === null) return null;
         return { slug: lastTarget, description: 'x', eligible: eligibleFor(lastTarget) };
       }),

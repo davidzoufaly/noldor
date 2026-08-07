@@ -125,7 +125,9 @@ export function loadVerifyEvidence(cwd: string, slug: string): VerifySummary | n
       parsed = JSON.parse(readFileSync(sinkPath, 'utf8'));
       found = true;
       break;
-    } catch {}
+    } catch {
+      // candidate absent or unparseable — try the next one
+    }
   }
   if (!found) return null;
   if (typeof parsed !== 'object' || parsed === null) return null;
@@ -210,7 +212,7 @@ export async function runCli(cwd: string): Promise<number> {
   const headSha = execGit(['rev-parse', 'HEAD']).trim();
   const firstCommitSubject = execGit(['log', '--reverse', '--format=%s', 'origin/main..HEAD'])
     .split('\n')
-    .filter((s) => s.length > 0)[0];
+    .find((s) => s.length > 0);
 
   if (firstCommitSubject === undefined) {
     process.stderr.write('pnpm pr-flow: no commits ahead of origin/main on current branch.\n');

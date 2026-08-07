@@ -250,8 +250,7 @@ function formatFindingHuman(f: Finding): string {
 function main(argv: readonly string[]): number {
   const args = argv.slice(2);
   const json = args.includes('--json');
-  const positional = args.filter((a) => !a.startsWith('--'));
-  const path = positional[0];
+  const path = args.find((a) => !a.startsWith('--'));
   if (path === undefined) {
     // Errors emit on stdout (not stderr) so /noldor-gate Step 2.5 surfaces them in the
     // review-handoff prompt; the CLI's only consumer captures stdout.

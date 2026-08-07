@@ -68,13 +68,12 @@ export function renderHowToIndex(howtos: Howto[]): string {
 }
 
 function firstParagraph(body: string): string {
-  const paragraphs = body
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0)
-    .filter((p) => !p.startsWith('#'))
-    .filter((p) => !p.startsWith('<!--'));
-  return paragraphs[0] ?? '';
+  return (
+    body
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .find((p) => p.length > 0 && !p.startsWith('#') && !p.startsWith('<!--')) ?? ''
+  );
 }
 
 async function loadHowtos(dir: string): Promise<Howto[]> {

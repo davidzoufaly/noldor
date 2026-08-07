@@ -184,7 +184,6 @@ describe('noldor pre-commit', () => {
   });
 
   describe('staleness expiry', () => {
-    const TTL = 24;
     const STARTED = '2026-05-17T08:00:00.000Z';
     const FRESH = Date.parse('2026-05-17T09:00:00.000Z'); // +1h
     const STALE = Date.parse('2026-05-18T09:00:00.000Z'); // +25h

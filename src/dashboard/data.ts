@@ -2523,7 +2523,7 @@ export async function loadWatchLogTail(
     // top-down without scrolling (the /agents pane and the /agents/log full
     // page share this order).
     const tail = lines.slice(Math.max(0, lines.length - maxLines));
-    return tail.reverse().join('\n');
+    return tail.toReversed().join('\n');
   } catch {
     return null;
   }

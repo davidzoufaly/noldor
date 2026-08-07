@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { flipPhaseToDone } from '../core/phase-flip-done.js';
 
 function main(): void {
-  const slug = process.argv.slice(2).filter((a) => !a.startsWith('--'))[0];
+  const slug = process.argv.slice(2).find((a) => !a.startsWith('--'));
   if (!slug) {
     process.stderr.write('usage: noldor features phase-flip-done <slug>\n');
     process.exit(1);

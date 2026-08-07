@@ -31,7 +31,7 @@ export function printHelp(group?: string, sub?: string): void {
     return;
   }
   console.log(`Usage: noldor ${group} <subcommand> [args]\n\n${g.desc}\n\nSubcommands:`);
-  for (const [name, sub] of Object.entries(g.subs)) {
-    console.log(`  ${name.padEnd(22)} ${sub.desc}`);
+  for (const [name, entry] of Object.entries(g.subs)) {
+    console.log(`  ${name.padEnd(22)} ${entry.desc}`);
   }
 }

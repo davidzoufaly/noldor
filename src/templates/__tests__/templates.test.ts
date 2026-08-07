@@ -151,3 +151,65 @@ describe('.claude/settings.json template (consumer edit-gating)', () => {
     expect(commands.some((c: string) => c.includes('pre-edit-guard'))).toBe(true);
   });
 });
+
+describe('.oxlintrc.json template (lint contract)', () => {
+  const rel = '.oxlintrc.json';
+  const cfg = JSON.parse(readFileSync(join(TEMPLATES_ROOT, rel), 'utf8'));
+
+  // Scaffold-only, so `checks template-sync` skips it by design — this is the only
+  // thing holding the two copies together, and it is what makes the assertions
+  // below (which read the template) cover the root file `pnpm lint` actually uses.
+  it('is byte-identical to the self-host copy the repo lints with', () => {
+    expect(readFileSync(join(TEMPLATES_ROOT, '..', rel), 'utf8')).toBe(
+      readFileSync(join(TEMPLATES_ROOT, rel), 'utf8'),
+    );
+  });
+
+  it('ships in the template manifest', () => {
+    expect(templateFiles()).toContain(rel);
+  });
+
+  it('is scaffold-only (which rules to relax depends on the consumer own code)', () => {
+    expect(SCAFFOLD_ONLY_TEMPLATES.has(rel)).toBe(true);
+  });
+
+  it('is driver-neutral — every agent target gets it', () => {
+    expect(filterTemplatesByAgents([rel], ['claude'])).toEqual([rel]);
+    expect(filterTemplatesByAgents([rel], ['codex'])).toEqual([rel]);
+  });
+
+  // The contract `.claude/engineering-rules.md` claims: the three categories are
+  // errors, and the two prose-only review dimensions (error flow, concurrency)
+  // get their machine half.
+  it('errors on the correctness/suspicious/perf categories', () => {
+    expect(cfg.categories).toEqual({
+      correctness: 'error',
+      suspicious: 'error',
+      perf: 'error',
+    });
+  });
+
+  // `no-empty` is genuinely additive (no category carries it). `no-async-promise-executor`
+  // already errors via `correctness` — pinned deliberately so an upstream category
+  // reshuffle cannot silently drop the concurrency dimension's machine half.
+  it('errors on the named error-flow and concurrency rules', () => {
+    expect(cfg.rules['eslint/no-empty']).toBe('error');
+    expect(cfg.rules['eslint/no-async-promise-executor']).toBe('error');
+  });
+
+  // The rules-doc table is otherwise the only record of these, so a silent
+  // re-enable (or a dropped table row) would drift undetected.
+  it('switches off exactly the deliberate-pattern rules the rules doc tables', () => {
+    const off = Object.entries(cfg.rules)
+      .filter(([, level]) => level === 'off')
+      .map(([rule]) => rule)
+      .toSorted();
+    expect(off).toEqual([
+      'eslint/no-await-in-loop',
+      'eslint/no-underscore-dangle',
+      'oxc/no-map-spread',
+      'unicorn/consistent-function-scoping',
+      'unicorn/no-array-sort',
+    ]);
+  });
+});

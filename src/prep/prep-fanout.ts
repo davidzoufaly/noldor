@@ -161,13 +161,13 @@ async function run(argv: readonly string[]): Promise<number> {
       // valid-JSON-but-wrong-shape (e.g. summary:null, missing openQuestions) would
       // otherwise throw later in renderIndex and lose the whole batch's INDEX.
       try {
-        const parsed = draftMetaSchema.safeParse(
+        const parsedMeta = draftMetaSchema.safeParse(
           JSON.parse(readFileSync(join(absBatchDir, `${e.slug}.meta.json`), 'utf8')),
         );
-        if (parsed.success) meta = parsed.data;
+        if (parsedMeta.success) meta = parsedMeta.data;
         else
           process.stderr.write(
-            `  ! ${e.slug}: meta.json shape invalid (${parsed.error.issues[0]?.message ?? 'unknown'}) — using fallback\n`,
+            `  ! ${e.slug}: meta.json shape invalid (${parsedMeta.error.issues[0]?.message ?? 'unknown'}) — using fallback\n`,
           );
       } catch {
         process.stderr.write(`  ! ${e.slug}: meta.json not valid JSON — using fallback\n`);

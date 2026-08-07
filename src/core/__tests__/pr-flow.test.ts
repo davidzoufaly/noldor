@@ -1106,8 +1106,9 @@ describe('mergePrWithFallback', () => {
     const { spawn, calls } = fallbackSpawn({ gitDirs: MAIN_DIRS, headRefName: 'fast/x' });
     const result = await mergePrWithFallback({ prUrl, spawn });
     expect(result.mergedAt).toBe('2026-08-06T09:00:00Z');
-    const directMerge = calls.filter((c) => c.args[1] === 'merge' && !c.args.includes('--auto'));
-    expect(directMerge[0].args).toContain('--delete-branch');
+    const directMerge = calls.find((c) => c.args[1] === 'merge' && !c.args.includes('--auto'));
+    expect(directMerge).toBeDefined();
+    expect(directMerge?.args).toContain('--delete-branch');
     // gh owns the branch delete here — pr-flow must not push a second one.
     expect(calls.some((c) => c.cmd === 'git' && c.args.includes('--delete'))).toBe(false);
   });

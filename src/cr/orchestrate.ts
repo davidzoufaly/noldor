@@ -140,7 +140,9 @@ async function findExistingSink(
   for (const candidate of sinkCandidatePaths(cwd, slug, kind, lane)) {
     try {
       if ((await stat(candidate)).isFile()) return candidate;
-    } catch {}
+    } catch {
+      // candidate path absent — try the next one
+    }
   }
   return null;
 }

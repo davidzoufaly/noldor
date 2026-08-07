@@ -137,7 +137,11 @@ export interface ResumeOptions {
 }
 
 /** Exact release-owned files the pipeline mutates and commits. */
-const RELEASE_SURFACE_FILES = ['CHANGELOG.md', 'docs/release-notes.md', 'docs/sdd-report.md'];
+const RELEASE_SURFACE_FILES = new Set([
+  'CHANGELOG.md',
+  'docs/release-notes.md',
+  'docs/sdd-report.md',
+]);
 /** Release-owned directories (marker fills + noldor pages). */
 const RELEASE_SURFACE_PREFIXES = ['docs/features/', 'docs/noldor/'];
 
@@ -191,7 +195,7 @@ export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<v
     .map((line) => line.trimStart().replace(/^\S+\s+/, ''));
   const offenders = dirty.filter(
     (p) =>
-      !RELEASE_SURFACE_FILES.includes(p) &&
+      !RELEASE_SURFACE_FILES.has(p) &&
       !opts.lockstepPackages.includes(p) &&
       !RELEASE_SURFACE_PREFIXES.some((prefix) => p.startsWith(prefix)),
   );
