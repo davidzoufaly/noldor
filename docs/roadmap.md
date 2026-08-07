@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Upgrade Never Advances a Stale Anchor on an Empty Migration Chain
-
-- id: Q-0076
-- area: tooling
-- type: fix
-- since: 2026-08-06
-- size: S
-- impact: high
-- confidence: high
-- parent: version-aware-upgrade-and-migration-chain
-
-`runUpgrade` ([`src/cli/commands/upgrade.ts`](../src/cli/commands/upgrade.ts)) gates its anchor write on `bootstrapped = onDiskAnchor === null && !dryRun`, so a stale-but-present anchor never gets advanced. A consumer anchored at 1.1.0 with 1.1.1 installed and no migration registered between them (`MIGRATIONS` tops out at 1.0.0) resolves an empty chain, falls through to `already at <v> — nothing to do` with no write, and the `writeFrameworkVersion` in the post-chain branch is unreachable for chain-length 0. `doctor` then repeats `framework skew: anchored 1.1.0 ≠ installed 1.1.1 — run 'noldor upgrade'` indefinitely — advisory only, so exit code stays 0, but there is no CLI path out and the only fix is hand-editing `.noldor/config.json`. Every patch or minor release that needs no codemod strands every consumer this way. Fix: write the anchor whenever `onDiskAnchor !== installed && !dryRun` regardless of chain length, keeping the three distinct report strings (bootstrapped / advanced / nothing to do) so the output stays honest. Test gap: units cover the null-anchor bootstrap and the non-empty chain, not a stale-but-present anchor with an empty chain. (surfaced consumer skew after v1.1.1)
-
 ### Checked-In Oxlint Config
 
 - id: Q-0061

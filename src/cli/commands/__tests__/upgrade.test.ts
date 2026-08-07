@@ -117,6 +117,61 @@ describe('runUpgrade', () => {
     expect(r.report).toContain('nothing to do');
   });
 
+  it('advances a stale-but-present anchor when the chain is empty', () => {
+    // Anchor 0.2.0 (beforeEach), installed 0.2.1, and the only migration lands
+    // at 0.3.0 — out of range, so the chain is empty. Pre-fix this fell through
+    // to `nothing to do` with no write and `doctor` warned skew forever.
+    const r = runUpgrade({
+      cwd: dir,
+      migrations: [m030],
+      installed: '0.2.1',
+      dryRun: false,
+      force: false,
+    });
+    expect(r.steps).toBe(0);
+    expect(r.applied).toBe(true);
+    expect(r.report).toContain('anchor advanced 0.2.0 → 0.2.1');
+    const raw = JSON.parse(readFileSync(join(dir, '.noldor/config.json'), 'utf8'));
+    expect(raw.consumer.frameworkVersion).toBe('0.2.1');
+  });
+
+  it('dry-run leaves a stale anchor on disk and says so', () => {
+    const r = runUpgrade({
+      cwd: dir,
+      migrations: [m030],
+      installed: '0.2.1',
+      dryRun: true,
+      force: false,
+    });
+    expect(r.applied).toBe(false);
+    expect(r.report).toContain('[DRY RUN]');
+    const raw = JSON.parse(readFileSync(join(dir, '.noldor/config.json'), 'utf8'));
+    expect(raw.consumer.frameworkVersion).toBe('0.2.0');
+  });
+
+  it('leaves an anchor that is ahead of installed alone (never rewrites backwards)', () => {
+    writeFileSync(
+      join(dir, '.noldor/config.json'),
+      JSON.stringify({ consumer: { name: 'x', frameworkVersion: '0.9.0' } }, null, 2),
+    );
+    git('add', '.');
+    git('commit', '-m', 'anchor ahead');
+    // `--from` is what lets an ahead anchor reach the empty-chain branch at all:
+    // without it `resolveChain` throws `downgrade unsupported` on the anchor.
+    const r = runUpgrade({
+      cwd: dir,
+      migrations: [],
+      installed: '0.3.0',
+      from: '0.2.0',
+      dryRun: false,
+      force: false,
+    });
+    expect(r.applied).toBe(false);
+    expect(r.report).toContain('nothing to do');
+    const raw = JSON.parse(readFileSync(join(dir, '.noldor/config.json'), 'utf8'));
+    expect(raw.consumer.frameworkVersion).toBe('0.9.0');
+  });
+
   it('refuses on a dirty tree without force', () => {
     writeFileSync(join(dir, 'dirty.txt'), 'x');
     expect(() =>
