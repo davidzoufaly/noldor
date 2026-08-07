@@ -102,20 +102,37 @@ Path: `.noldor/cr/<slug>-<kind>-autofix.json`. Written with the existing
 [`writeJsonAtomic`](../../../src/cr/atomic-write.ts).
 
 ```
-{ slug, kind,
+{ slug, kind, sessionStartedAt,
   rounds: [ { round, headSha, fingerprint, applied, deferred, diffStat, stopped? } ] }
 ```
+
+**The round series is scoped to one gate session.** `sessionStartedAt` is copied from
+[`.noldor/session.json`](../../../src/core/session.ts)'s `startedAt`. `readLedger` returns `null` when the
+stored value differs from the current session's — a stale series reads as "no prior rounds", so the ledger is
+effectively reset at every gate session start. Without this the cap is permanent rather than per-session:
+`<slug>-<kind>` repeats across attach sessions and manual re-runs in the main workspace (drains get fresh
+worktrees, the main workspace does not), so two auto-fix rounds recorded once would decline every future red
+on that pair forever with `round-cap`. Step 4's clean-exit cleanup also `rm -f`s the ledger alongside the
+escalation-context file — hygiene, not the correctness mechanism.
 
 Exports:
 
 - `AUTOFIX_ROUND_CAP = 2` — a constant, not a knob. `docs/vision.md:19` ("opinionated, not configurable");
   one posture knob is enough.
-- `fingerprintBlockers(blockers)` — sha1 over the blockers' `severity|file|line|message` tuples, sorted, so
-  the value is order-independent and stable across runs.
-- `readLedger(cwd, slug, kind)` — returns `null` on absent, and **throws** on malformed. A ledger that cannot
-  be parsed means an unknown round count, and the caller in U4 must fail toward declining rather than toward
-  another round.
+- `fingerprintBlockers(blockers)` — sha1 over the blockers' `severity|file|message` tuples, sorted, so the
+  value is order-independent and stable across runs. **`line` is deliberately excluded:** code-stage blockers
+  carry one, and an unrelated edit elsewhere in the file shifts it, so an unfixed blocker would fingerprint as
+  progress and `no-progress` would never fire — the stop this spec sells as primary.
+- `readLedger(cwd, slug, kind, sessionStartedAt)` — `null` on absent or on a session mismatch; **throws** on
+  malformed. A ledger that cannot be parsed means an unknown round count, and the caller in U4 must fail
+  toward declining rather than toward another round.
 - `appendRound(cwd, slug, kind, round)`.
+
+`appendRound` is a read-modify-write over a shared file: `writeJsonAtomic` makes the write atomic but not the
+RMW, so two concurrent invocations against the same `slug`+`kind` can drop a round and undercount the cap.
+Concurrent same-slug runs are unsupported, consistent with the sinks (whose `guardLaneOverwrite` likewise
+assumes one writer). Parallel drain assigns each child a distinct slug, so the supported concurrency model
+does not reach this.
 
 Rejected: deriving rounds from the timestamped sinks under `.noldor/cr/archive/`.
 [`guardLaneOverwrite`](../../../src/cr/orchestrate.ts#L210-L222) archives best-effort and logs-and-swallows
@@ -138,6 +155,7 @@ Rules, in order — the first that matches wins:
 | `ledger.rounds.length >= AUTOFIX_ROUND_CAP` | `decline` | `round-cap` |
 | `fingerprintBlockers(blockers)` equals the last round's | `decline` | `no-progress` |
 | no blocker with `class === 'mechanical'` | `decline` | `no-mechanical` |
+| no usable `baseSha` (see below) | `decline` | `no-base-sha` |
 | otherwise | `auto-fix` | — |
 
 `mechanical` = blockers with `class === 'mechanical'`; `design` = every other blocker, absent-tag included
@@ -146,10 +164,15 @@ applies the mechanical subset and then prompts on the remainder without re-round
 would buy a review pass guaranteed to re-report the design blocker, and under `onFailure: 'abort'` it aborts
 anyway.
 
-`baseSha` is the authoritative value for the eventual re-round: the last ledger round's `headSha`, or
-`headSha` (current `HEAD`) on round 1. This is D7's fix for the `LaneFindings.artifactSha` drift — the
-instruction is corrected to read this line instead of a field that never existed, so no sha source can
-disagree with another.
+`baseSha` is the authoritative value for the eventual re-round, resolved in this order: the last ledger
+round's `headSha` when non-empty; else `headSha` (current `HEAD`); else — both unresolvable — no usable value,
+so `decide` returns `decline` / `no-base-sha`. The middle fallback matters because `record` degrades a failed
+`git rev-parse` to `headSha: ''` (see the error table) rather than refusing to record the round; without it,
+round 2 would print an empty `base-sha:` and the gate would invoke `orchestrate --base-sha` with an empty
+argument. **`plan` never prints an empty `base-sha:` value.**
+
+This is D7's fix for the `LaneFindings.artifactSha` drift — the instruction is corrected to read this line
+instead of a field that never existed, so no sha source can disagree with another.
 
 **New** `src/cr/autofix-cli.ts` — entrypoint. Reads the verb from `process.argv[2]` (the CLI router mutates
 argv, so `noldor cr autofix plan` arrives as a positional; same shape as the other `cr` entrypoints). Sources
@@ -169,7 +192,10 @@ design: 0
 ```
 
 Exit codes: `0` = auto-fix, `10` = decline (mirrors `escalate`'s `retry-implementation: 10` convention), `2` =
-usage or infra error. **The gate treats `2` as a decline** — never block a gate on this checker's infra.
+usage or infra error. **The gate treats `2` as a decline** — never block a gate on this checker's infra. On
+exit `2` the only guaranteed stdout is a diagnostic on stderr; the `verdict:` / `base-sha:` contract binds
+exits `0` and `10` only, since a malformed ledger makes the prior round's `headSha` unreadable and no correct
+`base-sha:` can be printed.
 
 ### U5 — `cr autofix record`
 
@@ -182,6 +208,9 @@ matches what `plan` computed, and no state has to be threaded through the LLM ed
 
 Recording the fingerprint is what makes `no-progress` detectable on the next round.
 
+Exit codes: `0` = round recorded, `2` = usage error (missing or non-numeric `--applied` / `--deferred`, unknown
+`--kind`) or a malformed existing ledger. There is no `10` — `record` makes no decision.
+
 ### U6 — Gate seams (prose)
 
 [`.claude/skills/noldor-gate/SKILL.md`](../../../.claude/skills/noldor-gate/SKILL.md) and its twin
@@ -191,8 +220,13 @@ Recording the fingerprint is what makes `no-progress` detectable on the next rou
   apply the listed mechanical blockers, commit, `cr autofix record`, then re-run orchestrate with the printed
   `base-sha`; loop. On a non-empty `design` list, stop and surface the applied diff plus the design blockers
   verbatim at the dialog. On exit 10 or 2: today's behaviour.
-- **Step 2.5, `--base-sha`** — replace "read from prior `LaneFindings.artifactSha`" with "as printed by
-  `cr autofix plan` (`base-sha:` line)". D7.
+- **Step 2.5, `--base-sha`** — replace "read from prior `LaneFindings.artifactSha`" (`SKILL.md:142`) with "as
+  printed by `cr autofix plan` (`base-sha:` line)". D7.
+- **Step 2.5, "Commit the artifact first"** — `SKILL.md:118` asserts the same drift in different words
+  ("codex+orchestrator need a stable `artifactSha` to record in `LaneFindings`"), which is equally false
+  against the schema. Drop the `LaneFindings` clause: what those lanes actually need is a committed artifact at
+  a stable `HEAD`, which the rest of the sentence already says. Both occurrences are rewritten — the fix is
+  "every claim that a sink carries `artifactSha`", not one string.
 - **Step 4, cr-red** — run `cr autofix plan` before `cr escalate`. Exit 0 → apply, record, re-run the
   code-stage orchestrate (which re-earns the `Noldor-Reviewed-Subagent` receipt —
   [`orchestrate.ts:382`](../../../src/cr/orchestrate.ts#L382) only amends on a green reviewer run). Exit 10 or
@@ -225,7 +259,9 @@ orchestrate (exit 1)
 | failure | behaviour |
 | --- | --- |
 | malformed ledger | `readLedger` throws; CLI exits 2 → gate declines. Unknown round count must not license another round |
-| absent ledger | round 1 |
+| absent ledger, or one whose `sessionStartedAt` differs from the current session | round 1 (fresh series) |
+| absent `.noldor/session.json` | `sessionStartedAt: ''`; the series is then keyed to "no session", which still resets when a real session starts. `plan` proceeds |
+| prior round's `headSha` empty | fall back to current `HEAD`; if that too is unresolvable → `decline` / `no-base-sha` |
 | `aggregate` finds no sinks | `blockers: []` → `decline` / `no-mechanical` |
 | `loadConfig` throws | treated as knob unset → `decline` / `knob-off` |
 | reviewer emitted no tags | every blocker reads as `design` → `decline` / `no-mechanical` |
@@ -234,10 +270,12 @@ orchestrate (exit 1)
 ### Testing
 
 Unit: `splitClassTag` (tagged both ways, untagged, unknown bracket prefix, case); `fingerprintBlockers`
-(order-independence, sensitivity to each tuple field); `decide` (table-driven over all five rules, plus
-mixed-round `design` non-empty and the absent-tag→design read); `readLedger` (absent → null, malformed →
-throws); `appendRound` (round numbering). CLI: exit-code map for `plan`, flag validation for `record`.
-Integration: a tmp-repo loop that goes red → auto-fix → green, and one that trips `no-progress`.
+(order-independence, sensitivity to `severity`/`file`/`message`, insensitivity to `line`); `decide`
+(table-driven over all six rules, plus mixed-round `design` non-empty, the absent-tag→design read, and each
+`baseSha` fallback rung); `readLedger` (absent → null, session mismatch → null, malformed → throws);
+`appendRound` (round numbering). CLI: exit-code map for `plan` and for `record`, flag validation for `record`.
+Integration: a tmp-repo loop that goes red → auto-fix → green; one that trips `no-progress`; one that records
+two rounds, starts a new session, and confirms the cap reset.
 
 ## Acceptance criteria
 
@@ -251,20 +289,27 @@ Integration: a tmp-repo loop that goes red → auto-fix → green, and one that 
 5. `.noldor/config.json` accepts `autonomous.onBlockers: 'auto-fix' | 'prompt'`; an absent key resolves to
    `prompt`; any other value fails `validate noldor-config`.
 6. `assertConfig` accepts both `onBlockers` values and still rejects each of the three existing violations.
-7. `decide` returns `decline` with reason `knob-off` / `round-cap` / `no-progress` / `no-mechanical` under
-   exactly those conditions, in that precedence order.
+7. `decide` returns `decline` with reason `knob-off` / `round-cap` / `no-progress` / `no-mechanical` /
+   `no-base-sha` under exactly those conditions, in that precedence order.
 8. `decide` on a mixed round returns `auto-fix` with a non-empty `design` list.
 9. `decide` classifies a blocker with no `class` key as `design`.
-10. `cr autofix plan` exits 0 on `auto-fix`, 10 on `decline`, 2 on usage or infra error, and always prints a
-    `verdict:` line and a `base-sha:` line.
-11. `base-sha:` equals current `HEAD` on round 1 and the prior round's `headSha` afterwards.
-12. `cr autofix record` appends a round with an incremented `round`, and a second `plan` against unchanged
-    blockers returns `decline` / `no-progress`.
-13. A third `plan` after two recorded rounds returns `decline` / `round-cap`.
-14. A malformed ledger makes `plan` exit 2 rather than throwing an unhandled error.
-15. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
-16. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither contains the string
-    `LaneFindings.artifactSha`.
+10. `cr autofix plan` exits 0 on `auto-fix`, 10 on `decline`, 2 on usage or infra error. On exits 0 and 10 it
+    prints a `verdict:` line and a non-empty `base-sha:` line; exit 2 is exempt from both.
+11. `base-sha:` equals current `HEAD` on round 1 and the prior round's `headSha` afterwards; when that stored
+    `headSha` is empty it falls back to current `HEAD`, and when neither resolves `plan` declines with
+    `no-base-sha` instead of printing an empty value.
+12. `cr autofix record` appends a round with an incremented `round` and exits 0; it exits 2 on a missing or
+    non-numeric `--applied` / `--deferred`. A second `plan` against unchanged blockers returns `decline` /
+    `no-progress`.
+13. A third `plan` after two recorded rounds in the SAME session returns `decline` / `round-cap`.
+14. `readLedger` returns `null` for a ledger whose `sessionStartedAt` differs from the current session's, so a
+    prior session's two rounds do not cap a fresh session.
+15. A malformed ledger makes `plan` exit 2 rather than throwing an unhandled error.
+16. `fingerprintBlockers` returns the same value for two blocker sets differing only in `line`.
+17. `noldor cr autofix` is routable via the manifest and `validate script-catalog` passes.
+18. Gate `SKILL.md` and its `templates/` twin are byte-identical, and neither asserts anywhere — in any wording
+    — that a `LaneFindings` sink carries `artifactSha`. Both the `LaneFindings.artifactSha` reference and the
+    "stable `artifactSha` to record in `LaneFindings`" clause are gone.
 
 ## Risks / trade-offs
 
@@ -284,6 +329,11 @@ Integration: a tmp-repo loop that goes red → auto-fix → green, and one that 
 - **Two seams, one mechanism, different fidelity.** Artifact-stage blockers are markdown edits; code-stage
   blockers can span many files. The same `decide` governs both, so a code-stage "mechanical" blocker may be
   materially larger work than an artifact-stage one. Accepted: the alternative is two classifiers.
+- **The cap resets per gate session, so it is not a global budget.** A drain that retries an entry, or an
+  operator who re-enters the gate, gets two fresh auto-fix rounds. Accepted deliberately: the alternative — a
+  permanent per-`slug`+`kind` cap — silently disables auto-fix forever on any pair that once used its two
+  rounds, which is worse than a bound an explicit new session can reset. The drain supervisor's own
+  `--max-retries` bounds the outer loop.
 
 ## User Story
 
@@ -344,3 +394,11 @@ Inspect what happened: `.noldor/cr/<slug>-<kind>-autofix.json` holds every round
 8. *Should `onBlockers` join the drain's headless-safe precondition set?* -> **No.** Both values are safe
    unattended: `prompt` simply makes `autofix` decline, after which `onFailure: 'abort'` behaves exactly as
    today. Adding it would break every existing drain config for no safety gain.
+9. *What resets the ledger, so the round cap is not permanent?* -> **The gate session: `readLedger` treats a
+   ledger whose `sessionStartedAt` differs from the current session's as absent.** (round-1 CR) An
+   append-only ledger keyed on `<slug>`+`<kind>` alone would decline every future red on that pair once two
+   rounds had ever been recorded — `<slug>`+`<kind>` repeats across attach sessions and manual re-runs in the
+   main workspace. Step 4's clean-exit `rm -f` is hygiene on top, not the mechanism.
+10. *Does `fingerprintBlockers` include `line`?* -> **No.** (round-1 CR) Code-stage blockers carry a line
+    number that an unrelated edit shifts, so including it would make an unfixed blocker look like progress and
+    `no-progress` — the stop this spec sells as primary — would never fire.
