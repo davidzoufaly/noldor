@@ -27,7 +27,9 @@ Non-negotiable principles for all code written in a Noldor repo. Aligned with `t
 | `unicorn/consistent-function-scoping` | test helpers belong inside the `describe` they serve.                                                                       |
 | `unicorn/no-array-sort`               | `.sort()` on a freshly built local array is fine, and a blanket `toSorted()` swap silently drops the result where a caller relies on the in-place mutation. |
 
-Two rules are switched **on** above their category defaults: `eslint/no-empty` (error flow — an empty `catch` must say why) and `eslint/no-async-promise-executor` (concurrency). `require-atomic-updates` has no oxlint implementation as of 1.67, so that concurrency check stays prose-only and is a review-time dimension.
+One rule is switched **on** above its category default: `eslint/no-empty` — error flow, an empty `catch` must say why it is empty. `eslint/no-async-promise-executor` already errors via `correctness`; it is listed anyway so the concurrency dimension's machine half is named in the config instead of implied by a category that could be reshuffled upstream. `require-atomic-updates` has no oxlint implementation as of 1.67, so that concurrency check stays prose-only and is a review-time dimension.
+
+The root config and `templates/.oxlintrc.json` are kept byte-identical, so `jsx-a11y` is on in both even though this repo carries no JSX — it is what makes the a11y claim below executable in a consumer that does.
 
 Principles below are reviewed at code-write time; the commands above are the automated gate.
 

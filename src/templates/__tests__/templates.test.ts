@@ -180,6 +180,9 @@ describe('.oxlintrc.json template (lint contract)', () => {
     });
   });
 
+  // `no-empty` is genuinely additive (no category carries it). `no-async-promise-executor`
+  // already errors via `correctness` — pinned deliberately so an upstream category
+  // reshuffle cannot silently drop the concurrency dimension's machine half.
   it('errors on the named error-flow and concurrency rules', () => {
     expect(cfg.rules['eslint/no-empty']).toBe('error');
     expect(cfg.rules['eslint/no-async-promise-executor']).toBe('error');
