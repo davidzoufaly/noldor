@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Publish `--access public` Invariant
-
-- id: Q-0064
-- area: tooling
-- type: fix
-- since: 2026-08-05
-- size: S
-- impact: med
-- confidence: high
-- parent: registry-distribution-for-the-noldor-package
-
-npm `--provenance` on a never-published package requires `--access public`, even for an unscoped name — omitting it fails with EUSAGE "Can't generate provenance for new or private package". The publish spec and its test wrongly asserted the flag absent. Assert `--access public` as a publish-workflow invariant, and consider a CI dry-run publish on the release PR so the failure surfaces before a real `v*` tag is cut. (surfaced v1.0.1 publish)
-
 ### Post-Merge Cleanup Reporting Gaps
 
 - id: Q-0074
