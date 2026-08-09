@@ -21,9 +21,26 @@ interface WorkflowShape {
   jobs: { publish: { steps: WorkflowStep[] } };
 }
 
+interface PackageIdentity {
+  name: string;
+  publishConfig?: { access?: string };
+}
+
 function loadWorkflow(): WorkflowShape {
   const raw = readFileSync(join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8');
   return parse(raw) as WorkflowShape;
+}
+
+function readPackageJson(): PackageIdentity {
+  return JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as PackageIdentity;
+}
+
+function publishStep(): WorkflowStep | undefined {
+  return loadWorkflow().jobs.publish.steps.find((s) => (s.run ?? '').includes('npm publish'));
+}
+
+function publishCommand(): string {
+  return publishStep()?.run ?? '';
 }
 
 describe('publish.yml — tag-triggered public npm publish', () => {
@@ -35,7 +52,7 @@ describe('publish.yml — tag-triggered public npm publish', () => {
     expect(loadWorkflow().permissions).toEqual({ contents: 'read', 'id-token': 'write' });
   });
 
-  it('points npm at the public npm registry via setup-node, unscoped (no scope)', () => {
+  it('points npm at the public npm registry via setup-node, with no scope key', () => {
     const setupNode = loadWorkflow().jobs.publish.steps.find((s) =>
       s.uses?.startsWith('actions/setup-node'),
     );
@@ -65,13 +82,28 @@ describe('publish.yml — tag-triggered public npm publish', () => {
     // provenance for new or private package, you must set access to public".
     // (Unscoped defaults to public WITHOUT provenance, but the provenance path
     // on a first publish demands the flag — caught by live CI on v1.0.1.)
-    const publishStep = loadWorkflow().jobs.publish.steps.find((s) =>
-      (s.run ?? '').includes('npm publish'),
-    );
-    const publishRun = publishStep?.run ?? '';
+    const publishRun = publishCommand();
     expect(publishRun).toContain('npm publish');
     expect(publishRun).toContain('--provenance');
     expect(publishRun).toContain('--access public');
-    expect(publishStep?.env?.NODE_AUTH_TOKEN).toBe('${{ secrets.NPM_TOKEN }}');
+    expect(publishStep()?.env?.NODE_AUTH_TOKEN).toBe('${{ secrets.NPM_TOKEN }}');
+  });
+
+  it('derives the --access public requirement from the package it actually publishes', () => {
+    // The test above locks the literal; this one locks the reason, so a rename
+    // or a provenance flip cannot revive the "unscoped is public anyway, drop
+    // the flag" reasoning that shipped in the cutover spec and failed the v1.0.1
+    // tag. Two independent grounds make the flag mandatory: a scoped name
+    // defaults to `restricted`, and `--provenance` accepts no access level but
+    // `public`. Both hold today; either one alone is sufficient.
+    const pkg = readPackageJson();
+    const publishRun = publishCommand();
+    const scoped = pkg.name.startsWith('@');
+    const attested = publishRun.includes('--provenance');
+    expect(scoped || attested).toBe(true);
+    expect(publishRun).toContain('--access public');
+    // `publishConfig.access` is the other lever that can force `restricted`;
+    // absent is fine, present must agree with the flag.
+    expect(pkg.publishConfig?.access ?? 'public').toBe('public');
   });
 });
