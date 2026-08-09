@@ -40,6 +40,10 @@ Six named units.
 
 - `name`: `@davidzoufaly/noldor` → `noldor`.
 - `publishConfig`: `{ "registry": "https://npm.pkg.github.com" }` → `{ "registry": "https://registry.npmjs.org" }`. Unscoped ⇒ public by default, so **no** `access` key needed. Provenance is a workflow-only concern (CI OIDC) and lives as the `--provenance` flag in `publish.yml`, **not** in `publishConfig` — otherwise a local `--local` publish (no CI OIDC) would try and fail to attest.
+
+> **Correction (2026-08-09, `publish-access-public-invariant`).** The unscoped name never shipped: npm refused `noldor` (already claimed), so the package published as `@david.zoufaly/noldor`. Every "unscoped ⇒ public by default, so no `--access public`" inference in this spec is therefore void, and the flag is mandatory on two independent grounds — a scoped name defaults to `restricted`, and `npm publish --provenance` refuses any access level but `public` (`EUSAGE: Can't generate provenance for new or private package`, hit live on the v1.0.1 tag). `publishConfig` still carries no `access` key; the flag lives on the workflow's publish command, asserted by [`publish-workflow.test.ts`](../../src/release/__tests__/publish-workflow.test.ts).
+>
+> A pre-tag `npm publish --dry-run` job was considered as a second guard and rejected: the EUSAGE fires only for a *new or private* package, so once v1.0.1 published, a dry-run resolves the existing public package and passes — it cannot reproduce the class it would exist to catch. The workflow-shape tests run in the PR `verify` job instead, and go red deterministically on any release PR that drops the flag.
 - `private: false` unchanged.
 - **Add `repository`, `homepage`, `bugs`** (all currently absent). `npm publish --provenance` **requires** `repository.url` — npm aborts with `EUSAGE: package.json must have a "repository" field for provenance generation` when it is missing, so this is a provenance prerequisite, not merely OSS hygiene:
   - `"repository": { "type": "git", "url": "git+https://github.com/davidzoufaly/noldor.git" }`
@@ -50,7 +54,7 @@ Six named units.
 
 - `permissions`: drop `packages: write`; keep `contents: read`; add `id-token: write` (provenance).
 - `actions/setup-node` `with`: `registry-url: https://registry.npmjs.org`; **remove** `scope: '@davidzoufaly'` (unscoped).
-- publish step: `npm publish --provenance` (no `--access public` — unscoped is public); `env.NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`.
+- publish step: `npm publish --provenance --access public`; `env.NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`. (Originally specified without `--access public` on the unscoped-is-public inference — see the correction under §1.)
 - Unchanged: `on: push tags v*`, the tag-vs-`package.json` version guard before install, `pnpm test:contract` before publish.
 
 ### 3. Release poller — `src/release/release-publish.ts`
@@ -63,7 +67,7 @@ Six named units.
 
 ### 4. Tests
 
-- [`publish-workflow.test.ts`](../../src/release/__tests__/publish-workflow.test.ts) — **linchpin rewrite.** New assertions: `registry-url` = `https://registry.npmjs.org`; **no** `scope`; `permissions` = `{ contents: read, id-token: write }`; publish `run` contains `npm publish` **and** `--provenance`, and (unscoped) still **not** `--access public`; `env.NODE_AUTH_TOKEN` = `${{ secrets.NPM_TOKEN }}`. Keep the tag-guard-before-install and contract-before-publish ordering tests.
+- [`publish-workflow.test.ts`](../../src/release/__tests__/publish-workflow.test.ts) — **linchpin rewrite.** New assertions: `registry-url` = `https://registry.npmjs.org`; **no** `scope`; `permissions` = `{ contents: read, id-token: write }`; publish `run` contains `npm publish`, `--provenance` **and** `--access public`; `env.NODE_AUTH_TOKEN` = `${{ secrets.NPM_TOKEN }}`. (Originally specified as asserting `--access public` **absent** — the assertion that let the v1.0.1 tag fail; see the correction under §1.) Keep the tag-guard-before-install and contract-before-publish ordering tests.
 - [`release-publish.test.ts`](../../src/release/__tests__/release-publish.test.ts) — **sweep the whole file** (7 forbidden-literal hits), not line-scoped: (a) replace the two "401/403 → throws `read:packages`" tests (lines 51-71) with one "a 401/403 during `npm view` resolves `false` (keeps polling)" test locking public semantics; (b) **delete the "404 whose spec carries 401-like digits → false" test (lines ~73-85)** — it existed only to guard the bare-`\b401\b` false-positive inside the now-deleted `isRegistryAuthError`; post-change it asserts a vanished concern; (c) purge every hard-coded `https://npm.pkg.github.com` and `@davidzoufaly/noldor` literal; the `DEFAULT_REGISTRY` assertion (line 39) follows the new value.
 - [`config.test.ts`](../../src/core/__tests__/config.test.ts) — **sweep the whole file** (3 hits): the `release.publish.registry` default value (lines 231, 243) → `https://registry.npmjs.org`, **and** the test title at line 227 (`'defaults enabled=false, GitHub Packages registry, …'`, which carries the forbidden "GitHub Packages" literal) → retitle for npmjs.
 
@@ -88,8 +92,8 @@ Drop closed-source/private/token framing; install becomes `pnpm add -D noldor`.
 
 - `pnpm verify` (lint + fmt:check + typecheck + test) green in the worktree.
 - `pnpm test:contract` green (tarball install unaffected by registry change).
-- `package.json`: `name === "noldor"`; `publishConfig.registry === "https://registry.npmjs.org"`; no `publishConfig.access` key (unscoped); `repository.url` present (provenance prerequisite).
-- `publish.yml`: registry npmjs, no `scope`, `permissions` has `id-token: write` and no `packages: write`, publish step has `--provenance`, no `--access public`, `NODE_AUTH_TOKEN` = `secrets.NPM_TOKEN` — all asserted by the rewritten `publish-workflow.test.ts`.
+- `package.json`: `name === "@david.zoufaly/noldor"` (the unscoped `noldor` was unavailable on npm); `publishConfig.registry === "https://registry.npmjs.org"`; no `publishConfig.access` key; `repository.url` present (provenance prerequisite).
+- `publish.yml`: registry npmjs, `permissions` has `id-token: write` and no `packages: write`, publish step has `--provenance` **and** `--access public`, `NODE_AUTH_TOKEN` = `secrets.NPM_TOKEN` — all asserted by the rewritten `publish-workflow.test.ts`.
 - `isVersionOnRegistry` returns `false` (does not throw) on a 401/403 — asserted by the rewritten `release-publish.test.ts`.
 - `release.publish.registry` Zod default is `https://registry.npmjs.org` — asserted by `config.test.ts`.
 - `grep -riE "@davidzoufaly/noldor|npm\.pkg\.github\.com|closed-source|github packages|read:packages"` over live README + `docs/noldor/{adoption-guide,versioning}.md` + `docs/backlog.md` (and their `templates/` twins): **zero** — the `github packages` term catches the "private GitHub Packages" prose (symmetric with the `src/` grep); bare `private` is deliberately excluded (legitimate uses like `"private": false`).
@@ -139,7 +143,7 @@ pnpm release --resume   # after any interruption
 ## Open questions (resolved)
 
 1. *Auth: OIDC trusted publishing vs an `NPM_TOKEN` secret?* -> **`NPM_TOKEN` automation token** (D1). Operator chose token; OIDC adds a one-time npmjs web config + a first-publish bootstrap-token dance for no consumer-side benefit.
-2. *Name: keep scoped `@davidzoufaly/noldor` or go unscoped `noldor`?* -> **unscoped `noldor`** (D2). Verified free on npm; consumer churn is identical to any rename; no scope/org/corporate-account coupling; unscoped is public by default (no `--access public`).
+2. *Name: keep scoped `@davidzoufaly/noldor` or go unscoped `noldor`?* -> **unscoped `noldor`** (D2). Verified free on npm; consumer churn is identical to any rename; no scope/org/corporate-account coupling; unscoped is public by default (no `--access public`). **Reversed at publish time:** npm rejected `noldor` as claimed, so the package shipped as `@david.zoufaly/noldor` — re-scoping the name and making `--access public` mandatory (see the correction under §1).
 3. *Keep the private-read auth-error throw in `isVersionOnRegistry`?* -> **drop it** (D3). Public reads are unauthenticated, so the `read:packages` message is obsolete and misleading; any `npm view` failure → keep polling.
 4. *Provenance on?* -> **yes** (D4). Free supply-chain-trust signal for an OSS package; repo is public so attestation works. `id-token: write` + `--provenance`.
 5. *Migrate the `charuy` consumer dep in this PR?* -> **no** (D5). Different repo, its own gate; keeps this change focused on the framework.
