@@ -627,6 +627,38 @@ async function deleteMergedRemoteBranch(opts: {
   );
 }
 
+/**
+ * Verify that `gh pr merge --delete-branch` really removed the remote head
+ * branch. Only used on the main-checkout path, where the flag *is* passed and gh
+ * owns the delete: the merge verdict comes from `gh pr view`, which says nothing
+ * about the branch, so a gh-side delete failure is otherwise silent there. This
+ * is the reporting counterpart to {@link deleteMergedRemoteBranch}'s worktree
+ * path, which deletes the ref itself and says so.
+ *
+ * Best-effort and never throws — the merge already succeeded, so a lingering
+ * branch is cosmetic. A failed probe stays quiet rather than warning about a ref
+ * it could not see: a false "still there" is worse noise than none.
+ */
+async function warnIfRemoteBranchLingers(opts: {
+  spawn: SpawnFn;
+  branch: string | undefined;
+}): Promise<void> {
+  if (opts.branch === undefined || opts.branch.length === 0) return;
+  // Full `refs/heads/<branch>` — a bare branch name is a tail-matching pattern to
+  // `ls-remote`, so `foo` would also match `refs/heads/nested/foo`.
+  const ls = await opts.spawn('git', [
+    'ls-remote',
+    '--heads',
+    'origin',
+    `refs/heads/${opts.branch}`,
+  ]);
+  if (ls.exitCode !== 0 || ls.stdout.trim().length === 0) return;
+  process.stderr.write(
+    `pr-flow: remote branch ${opts.branch} still exists after gh pr merge --delete-branch; ` +
+      `delete it by hand: git push origin --delete ${opts.branch}\n`,
+  );
+}
+
 /** Merge an open PR: queue auto-merge and poll, falling back to a direct
  *  squash-merge when the repo has auto-merge disabled. Shared by the gate's
  *  `openAndAutoMerge` end-of-flow and `prep promote --ship` so promote batches
@@ -719,6 +751,8 @@ export async function mergePrWithFallback(
       branch: viewData.headRefName,
       ...(input.onStatus !== undefined ? { onStatus: input.onStatus } : {}),
     });
+  } else {
+    await warnIfRemoteBranchLingers({ spawn: input.spawn, branch: viewData.headRefName });
   }
   return { mergedAt: viewData.mergedAt };
 }
