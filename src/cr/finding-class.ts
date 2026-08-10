@@ -26,8 +26,16 @@ export interface ClassTagSplit {
  * Matches a recognized class tag at the very start of a bullet, e.g.
  * `[mechanical] Acceptance criteria section absent`. Case-insensitive because
  * agents deviate; anchored so a bracket later in the message is never eaten.
+ *
+ * The trailing `(?=\S)` requires something to remain AFTER the tag. Without it a
+ * degenerate bullet of nothing but a tag (`- [mechanical]`) stripped to an empty
+ * `message`, which `findingSchema` rejects (`min(1)`); the lane writes its sink
+ * unvalidated, so `aggregate` then failed the whole file's `safeParse` and
+ * replaced EVERY real blocker in it with one synthetic `schema error` — losing
+ * the reviewer's actual findings at the autofix seam and at `cr escalate`. A
+ * tag-only bullet now falls through as an untagged message instead.
  */
-const CLASS_TAG_RE = new RegExp(`^\\[(${FINDING_CLASSES.join('|')})\\]\\s*`, 'i');
+const CLASS_TAG_RE = new RegExp(`^\\[(${FINDING_CLASSES.join('|')})\\]\\s*(?=\\S)`, 'i');
 
 /**
  * Split a reviewer bullet into its class tag and message.

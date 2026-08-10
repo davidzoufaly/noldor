@@ -83,6 +83,15 @@ describe('decide — verdicts', () => {
     expect(r).toMatchObject({ verdict: 'decline', reason: 'no-progress' });
   });
 
+  it('declines prior-deferred when the last round left a blocker unapplied', () => {
+    const r = decide({
+      ...base,
+      blockers: [mech()],
+      ledger: ledgerWith([{ fingerprint: 'other', applied: 1, deferred: 1 }]),
+    });
+    expect(r).toMatchObject({ verdict: 'decline', reason: 'prior-deferred' });
+  });
+
   it('declines no-mechanical when every blocker is design', () => {
     const r = decide({ ...base, blockers: [design(), design('other')] });
     expect(r).toMatchObject({ verdict: 'decline', reason: 'no-mechanical' });
@@ -151,6 +160,25 @@ describe('decide — precedence', () => {
       unresolved: ['standalone'],
     });
     expect(r.reason).toBe('knob-off');
+  });
+
+  it('prior-deferred wins over round-cap', () => {
+    const r = decide({
+      ...base,
+      blockers: [mech()],
+      ledger: ledgerWith([{ fingerprint: 'a' }, { fingerprint: 'b', deferred: 1 }]),
+    });
+    expect(r.reason).toBe('prior-deferred');
+  });
+
+  it('lanes-in-flight wins over prior-deferred', () => {
+    const r = decide({
+      ...base,
+      blockers: [mech()],
+      unresolved: ['standalone'],
+      ledger: ledgerWith([{ fingerprint: 'other', deferred: 1 }]),
+    });
+    expect(r.reason).toBe('lanes-in-flight');
   });
 
   it('lanes-in-flight wins over round-cap', () => {

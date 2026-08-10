@@ -49,4 +49,12 @@ describe('splitClassTag', () => {
   it('tolerates no whitespace after the tag', () => {
     expect(splitClassTag('[design]wrong default').message).toBe('wrong default');
   });
+
+  // A tag-only bullet must not strip to `message: ''` — `findingSchema` requires
+  // min(1), the lane writes its sink unvalidated, and `aggregate` would then fail
+  // the whole file and replace every real blocker in it with one `schema error`.
+  it('keeps a tag-only bullet as an untagged message rather than emptying it', () => {
+    expect(splitClassTag('[mechanical]')).toEqual({ message: '[mechanical]' });
+    expect(splitClassTag('[design]   ')).toEqual({ message: '[design]   ' });
+  });
 });

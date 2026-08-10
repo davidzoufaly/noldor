@@ -16,6 +16,7 @@ export type AutofixVerdict = 'auto-fix' | 'decline';
 export type DeclineReason =
   | 'knob-off'
   | 'lanes-in-flight'
+  | 'prior-deferred'
   | 'round-cap'
   | 'no-progress'
   | 'no-mechanical'
@@ -126,6 +127,14 @@ export function decide(input: DecideInput): DecideResult {
   // `--autonomous`) — after which the late writer lands pre-fix findings over
   // the archive. Checked second: only the knob, a pure policy read, outranks it.
   if (input.unresolved.length > 0) return decline('lanes-in-flight');
+  // A prior round that deferred a blocker must not be re-rounded, or the loop
+  // launders an unfixed blocker into a green: the re-round is `--base-sha`-scoped
+  // to the fix diff, the deferred blocker is not in that diff, so it never
+  // reappears, orchestrate overwrites the sink that held it, and `aggregate` goes
+  // green with the blocker still live. The prose telling the controller to apply
+  // EVERY `M<n>` cannot be the only guard — the same class of promise `next`
+  // replaced. Handing it to the operator is the fail-safe direction.
+  if ((priorRounds.at(-1)?.deferred ?? 0) > 0) return decline('prior-deferred');
   if (priorRounds.length >= AUTOFIX_ROUND_CAP) return decline('round-cap');
   // The same blocker set coming back means the previous fix did not take.
   // Checked before `no-mechanical` so a repeat round reports why it is futile
