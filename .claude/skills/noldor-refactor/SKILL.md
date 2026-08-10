@@ -17,7 +17,9 @@ Refactoring without structure leads to silent breakage — a renamed export brea
 
 2. **Read CLAUDE.md** — the project rules are the source of truth for naming, imports, error handling, and testing conventions. The refactoring must conform to these rules, not drift from them.
 
-3. **Capture the baseline** — run typecheck and tests BEFORE any changes:
+3. **Climb the lazy decision ladder + scan for cut markers** — the `lazy-decision-ladder` rule (`.noldor/rules/lazy-decision-ladder.md`, enforce bucket for `**/*.ts` at stage `code`) applies to refactors too. Before restructuring anything, climb and stop at the first rung that holds: does this refactor need to exist at all (YAGNI — is the "smell" actually costing anything)? Does an existing helper already do what the extraction would create (reuse, don't rewrite)? Then `grep -rn "noldor:cut" <target files>` — each `// noldor:cut <ceiling> — <upgrade path>` marks a *deliberate, bounded* corner-cut carrying its own ceiling and upgrade path. Record every marker hit; Phase 2 disposes of them.
+
+4. **Capture the baseline** — run typecheck and tests BEFORE any changes:
 
    ```bash
    pnpm typecheck 2>&1 | tail -5
@@ -26,7 +28,7 @@ Refactoring without structure leads to silent breakage — a renamed export brea
 
    Record pass/fail counts and any pre-existing failures. This is your "before" snapshot.
 
-4. **Save graph baseline** — snapshot current graph metrics for post-refactor comparison:
+5. **Save graph baseline** — snapshot current graph metrics for post-refactor comparison:
    ```bash
    cp graphify-out/graph.json graphify-out/.graphify_pre_refactor.json
    ```
@@ -52,6 +54,8 @@ Before touching code, state:
 - **What** you're refactoring (specific files, functions, types)
 - **Why** (the code smell, duplication, complexity, naming issue)
 - **Strategy** (extract, inline, rename, split, consolidate, move)
+- **Ladder verdict** (which ladder rung the strategy stops at, and why no earlier rung held — "extract new helper" loses to "reuse existing helper" whenever one exists)
+- **Cut-marker disposition** (for every `noldor:cut` hit from the pre-start scan): ceiling still holds → **leave it alone**, it is a decision, not a smell — out of scope for this refactor; ceiling broken (the bound was exceeded or the requirement changed) → execute the marker's stated upgrade path as part of this refactor and delete the marker — that is exactly what the marker was written for; ceiling wrong (was never right) → flag to the user before touching it
 - **Risk assessment** (low/medium/high based on consumer count and cross-package impact)
 
 If high-risk, present the plan to the user and wait for confirmation before proceeding.
@@ -264,3 +268,5 @@ For all other refactors (extract, split, move, consolidate, decompose), Phase 6 
 - Don't suppress type errors with `any` or `@ts-ignore` to make the report look clean.
 - Don't refactor test files to match new code patterns unless the tests actually broke — test churn with zero signal is noise.
 - Don't clean up code that wasn't part of the refactoring target. Scope creep makes the diff harder to review.
+- Don't "fix" a `noldor:cut` marked cut whose ceiling still holds — the marker records a deliberate decision with a bounded scope; treating it as a smell re-litigates a settled trade-off. Only a broken or wrong ceiling justifies touching it (see Phase 2 disposition).
+- When the refactor itself deliberately stops short — a bounded simplification you'd otherwise be tempted to gold-plate — mark it: `// noldor:cut <ceiling> — <upgrade path>`. CR reviewer prompts respect the marker; an unmarked real cut is what gets flagged.
