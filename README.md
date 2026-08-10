@@ -24,7 +24,7 @@ pnpm add -D @david.zoufaly/noldor
 - 🧹 **Doc gardening.** Detectors surface stale plans, unused backlog, rule-pair contradictions, code clones, and command rot.
 - 🔗 **Knowledge graphs.** `graphify` turns the codebase into a clustered knowledge graph feeding refactor and release sweeps.
 - 🧩 **Agent-agnostic.** Driver shims for `claude`, `codex`, and `opencode`.
-- ♻️ **Self-hosting.** Noldor dogfoods its own gate, drain, and release pipeline. Shipped as the public npm package `noldor`, published on tag by CI with build provenance.
+- ♻️ **Self-hosting.** Noldor dogfoods its own gate, drain, and release pipeline. Shipped as the public npm package `@david.zoufaly/noldor`, published on tag by CI with build provenance.
 
 ---
 
