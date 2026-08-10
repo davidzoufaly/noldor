@@ -26,7 +26,7 @@ links:
 name: Rules Cascade v1
 packages:
   - tooling
-phase: in-progress
+phase: done
 noldor-tier: full
 introduced: 0.2.0
 ---
@@ -44,6 +44,9 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
 - `pnpm noldor rules resolve` — print the cascade-resolved rule set
 - `pnpm noldor rules cores` / `rules validate` — core-rule extraction and validation
 - The `agent-rules-guard` hook blocks unreviewed edits to rule files.
+- Pre-generation discipline: the `lazy-decision-ladder` rule (enforce bucket, `**/*.ts`, stage `code`) — understand the problem and trace the real flow first, then climb the 7-rung ladder (YAGNI → reuse → stdlib → native → installed dep → one-liner → minimal); never cut trust-boundary validation, data-loss error handling, security, accessibility, or explicitly-requested behaviour.
+- Mark a deliberate, bounded corner-cut with `// noldor:cut <ceiling> — <upgrade path>` — the CR `simplification` dimension respects the marker and flags only a wrong ceiling or a real cut left unmarked.
+- Consumers receive the rule via `pnpm noldor init` / `init --update` (first distributed rule — `templates/.noldor/rules/` twin).
 
 ## Design Notes
 
