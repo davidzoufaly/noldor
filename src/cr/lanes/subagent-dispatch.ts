@@ -40,18 +40,6 @@ const EFFORT_GUIDE: Record<ReviewEffort, string> = {
   max: 'Be exhaustive; surface every plausible concern, prefixing uncertain ones `maybe:`.',
 };
 
-/**
- * Default impl: spawns a headless reviewer-role agent via the agent-runner
- * registry (claude unless the consumer's agents config remaps the role).
- * Works from any agent harness (gate skill, bare CLI, CI runner). The skill
- * layer may inject a Task-tool-based dispatcher via `setDispatcher()` for
- * finer control, but the default is self-sufficient.
- *
- * The prompt instructs the agent to act as a senior code reviewer against
- * the artifact path; output must match the Strengths/Issues/Assessment
- * markdown contract parsed by `parseSubagentMarkdown` in `subagent.ts` —
- * prose-grade output, so every runner qualifies.
- */
 // Dimensions whose findings a `noldor:cut` marker can wave off. A marked cut is
 // deliberate minimalism, so it silences minimalism-class complaints only —
 // correctness/security/concurrency/effects findings are never marker-exempt (a
@@ -59,6 +47,9 @@ const EFFORT_GUIDE: Record<ReviewEffort, string> = {
 // than riding one dimension because a cut lands against any ladder rung: the
 // canonical example ("linear scan, fine ≤1k rules") is an efficiency cut that a
 // simplification-only clause would leave flaggable.
+// noldor:cut hand-listed subset, fails safe (an unlisted new dimension is
+// never-exempt, the stricter side) — derive from schema metadata if the
+// dimension set grows a second minimalism-class member worth classifying.
 const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
   'reuse',
   'simplification',
@@ -75,6 +66,18 @@ const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
 const CUT_MARKER_GUIDE =
   '\nRespect `noldor:cut <ceiling> — <upgrade path>` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, or an unintended state change.\n';
 
+/**
+ * Default impl: spawns a headless reviewer-role agent via the agent-runner
+ * registry (claude unless the consumer's agents config remaps the role).
+ * Works from any agent harness (gate skill, bare CLI, CI runner). The skill
+ * layer may inject a Task-tool-based dispatcher via `setDispatcher()` for
+ * finer control, but the default is self-sufficient.
+ *
+ * The prompt instructs the agent to act as a senior code reviewer against
+ * the artifact path; output must match the Strengths/Issues/Assessment
+ * markdown contract parsed by `parseSubagentMarkdown` in `subagent.ts` —
+ * prose-grade output, so every runner qualifies.
+ */
 export function buildPrompt(input: DispatchInput): string {
   const profile = input.reviewProfile ?? DEFAULT_REVIEW_PROFILES.default;
   const dimensionLines = profile.dimensions.map((d) => `- ${d}: ${DIMENSION_GUIDE[d]}`).join('\n');
