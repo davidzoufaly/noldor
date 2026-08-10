@@ -96,3 +96,54 @@ Add end-to-end test support to the framework. Fuzzy one-liner — needs a spike 
 - confidence: low
 
 Extend the project's unit-testing rules beyond what `docs/noldor/testing-principles.md` and the Tests section of `.claude/engineering-rules.md` cover today, using the review discussion on `gooddata/gdc-mastercard-panther#2542` as the source material. Fuzzy one-liner — the linked PR sits in a private repo and has not been read, so the actual delta is unknown. Trigger: read the PR and extract the concrete rules before promoting; without that, there is nothing to implement.
+
+### Milestone-Queue Linking
+
+- id: Q-0083
+- area: tooling
+- type: feat
+- since: 2026-08-10
+- size: M
+- impact: med
+- confidence: low
+- parent: decouple-milestones-from-semver
+
+Milestones (`docs/milestones/<slug>.md`) currently live independent of the queue — no way to say which roadmap/backlog entries belong to which milestone, or see milestone progress from the queue side. Link entries to a milestone (e.g. add a `milestone:` field to the schema-C parser — feature-MD frontmatter has one, but `BacklogEntry` in `src/utils/parse-blocks.ts` does not — or have the milestone doc list entry IDs) and add the reverse roll-up: dashboard/status compute milestone completion from its tasks.
+
+### CR-Autofix Polish Residue
+
+- id: Q-0084
+- area: tooling
+- type: fix
+- since: 2026-08-10
+- size: S
+- impact: low
+- confidence: med
+- parent: specs-cr-gate-multi-reviewer
+
+Residue from the Q-0075 ship (PR #276, CR rounds 9–16): (a) `DecideResult.baseSha` doc overstates its invariant — it is empty on ANY decline with git unreachable, not only `no-base-sha`; say "non-empty whenever verdict is auto-fix". (b) `no-base-sha` fires before `next` is known, so a MIXED round with git unreachable declines to operator even though `apply-then-stop` never needs a base-sha — forfeits an applicable mechanical subset on an unrelated failure. (c) `round: 3/2` prints on the round-cap decline (`priorRounds.length + 1` unconditionally) — clamp or relabel. (d) `prior-deferred` scanning every round leaves the seam dead for the rest of the session after one MIXED round, including the operator's own full-review follow-up where the laundering path cannot occur; the only reset is session end — deliberate, but say so in the docs or narrow it. (e) drain-mode/SKILL twins mention `record` without naming the exit-2 `--deferred` cross-check. All in `src/cr/autofix.ts` / `autofix-cli.ts`.
+
+### Upgrade Empty-Chain Dirty-Tree Guard
+
+- id: Q-0085
+- area: tooling
+- type: chore
+- since: 2026-08-10
+- size: XS
+- impact: low
+- confidence: med
+- parent: version-aware-upgrade-and-migration-chain
+
+`noldor upgrade` writes the framework anchor on the empty-chain path before the dirty-tree guard (`src/cli/commands/upgrade.ts:90` vs the `isDirty` check below it), so a dirty tree silently gets `.noldor/config.json` mutated while the non-empty-chain path refuses with `refusing to upgrade on a dirty git tree`. Pre-existing for the bootstrap case, broadened to the stale-advance case by Q-0076; deliberately left as-is because hoisting `isDirty` would make a pure `nothing to do` invocation throw on any dirty tree, and gating only the write would re-strand the very consumer Q-0076 unstrands. Decide whether the asymmetry is intended and say so in the code, or gate the write with a narrower guard. (surfaced in the code-stage CR of Q-0076, PR #270)
+
+### Skill-Surface Pruning Audit
+
+- id: Q-0086
+- area: tooling
+- type: chore
+- since: 2026-08-10
+- size: S
+- impact: low
+- confidence: low
+
+Evaluate removing vendored skills whose value is unclear — candidates raised so far: `noldor-absorb` (lessons intake; overlaps `/noldor-triage` + manual filing?) and `noldor-new-feature` (blank-FD scaffold; overlaps `/noldor-promote`?). For each: measure actual usage, list what breaks without it, and either retire the skill (+ template twins + catalog entries) or document why it stays.
