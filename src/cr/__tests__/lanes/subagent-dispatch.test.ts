@@ -42,7 +42,7 @@ describe('buildPrompt review profile', () => {
       expect(p).toMatch(/noldor:cut/);
       expect(p).toMatch(/wrong ceiling/);
       expect(p).toMatch(/real cut left unmarked/);
-      expect(p).toMatch(/correctness or security are never waved off/);
+      expect(p).toMatch(/correctness, security, concurrency, or side effects are never waved off/);
     }
   });
 
