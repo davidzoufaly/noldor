@@ -6,7 +6,8 @@ import type { LaneBlocker } from '../aggregate.js';
 import { fingerprintBlockers } from '../autofix-ledger.js';
 import type { AutofixLedger, AutofixRound } from '../autofix-ledger.js';
 
-const HEAD = 'headsha';
+// Hex, because resolveBaseSha shape-checks BOTH rungs with isSha.
+const HEAD = 'cafe1234';
 
 function mech(message = 'missing section'): LaneBlocker {
   return { lane: 'reviewer', file: 'a.md', severity: 'high', message, class: 'mechanical' };
@@ -263,6 +264,12 @@ describe('decide — baseSha ladder', () => {
       headSha: '',
       ledger: ledgerWith([{ headSha: '--output=pwned', fingerprint: 'other' }]),
     });
+    expect(r).toMatchObject({ verdict: 'decline', reason: 'no-base-sha' });
+    expect(r.baseSha).toBe('');
+  });
+
+  it('refuses an option-shaped current HEAD too — both rungs are checked', () => {
+    const r = decide({ ...base, blockers: [mech()], headSha: '--output=pwned' });
     expect(r).toMatchObject({ verdict: 'decline', reason: 'no-base-sha' });
     expect(r.baseSha).toBe('');
   });

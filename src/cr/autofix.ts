@@ -102,12 +102,14 @@ export function splitByClass(blockers: readonly LaneBlocker[]): {
  * and the gate would invoke `orchestrate --base-sha` with an empty argument.
  */
 function resolveBaseSha(ledger: AutofixLedger | null, headSha: string): string {
-  // The ledger rung is shape-checked; the schema types `headSha` as a plain
-  // string, and this value is PRINTED as the authoritative `--base-sha` that the
-  // gate hands to `orchestrate` and that `record` interpolates into a git
-  // argument. An option-shaped value there would ride straight through.
+  // BOTH rungs are shape-checked, per src/core/sha.ts's contract: this value is
+  // PRINTED as the authoritative `--base-sha` that the gate hands to
+  // `orchestrate` and that `record` interpolates into a git argument, so an
+  // option-shaped value on either rung would ride straight through. `headSha`
+  // normally arrives from `git rev-parse` (a sha or ''), but `decide` is an
+  // exported seam and cannot assume its caller.
   const priorHead = ledger?.rounds.at(-1)?.headSha ?? '';
-  if (headSha !== '') return headSha;
+  if (isSha(headSha)) return headSha;
   return isSha(priorHead) ? priorHead : '';
 }
 
