@@ -45,7 +45,7 @@ describe('buildPrompt review profile', () => {
       expect(p).toMatch(/wrong ceiling/);
       expect(p).toMatch(/real cut left unmarked/);
       expect(p).toMatch(
-        /never waives a finding about a defect, a vulnerability, a race, or an unintended state change/,
+        /never waives a finding about a defect, a vulnerability, a race, an unintended state change, an accessibility regression, or explicitly-requested behaviour that was cut/,
       );
     }
   });
