@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 
 import { loadConfig } from '../core/config.js';
 import { readSession } from '../core/session.js';
+import { isSha } from '../core/sha.js';
 import { isSlug } from '../core/slug.js';
 import { aggregate } from './aggregate.js';
 import type { LaneBlocker } from './aggregate.js';
@@ -186,17 +187,6 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
   process.exit(EXIT_FOR_NEXT[r.next]);
 }
 
-/**
- * A hex object name, 4–40 chars. `--since` is interpolated into a `git diff`
- * ARGUMENT, so an unvalidated value beginning with `-` is parsed by git as an
- * option rather than a rev: `git diff --shortstat '--output=x..HEAD'` exits 0 and
- * WRITES the file `x..HEAD`. The value reaches us from the gate controller, which
- * copies it off `plan` stdout — text that also carries reviewer-supplied
- * `message` / `suggestion` strings. Refusing anything but a hex sha cuts that
- * chain at the only point where a check is cheap and total.
- */
-const SHA_RE = /^[0-9a-fA-F]{4,40}$/;
-
 /** Parse a required non-negative integer flag. */
 function count(name: string, raw: string | undefined): number {
   if (raw === undefined) usage(`--${name} is required`);
@@ -209,7 +199,7 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
   const { slug, kind } = requireTarget(a);
   const applied = count('applied', a.applied);
   const deferred = count('deferred', a.deferred);
-  if (a.since !== undefined && !SHA_RE.test(a.since)) {
+  if (a.since !== undefined && !isSha(a.since)) {
     usage(`--since must be a hex sha (4-40 chars), got ${a.since}`);
   }
   const key = sessionKey(cwd);
@@ -229,8 +219,12 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
   const { mechanical, design } = splitByClass(agg.blockers);
   const derivedDeferred = design.length + Math.max(0, mechanical.length - applied);
   if (derivedDeferred !== deferred) {
-    console.log(
-      `note: --deferred ${deferred} disagrees with the sinks (${design.length} design + ${Math.max(0, mechanical.length - applied)} unapplied mechanical) — recording ${derivedDeferred}`,
+    // A hard failure, not an ignorable note: the reason `--deferred` is still
+    // required is that the controller's count and the sinks must AGREE. A note
+    // the caller can skip past leaves the flag decorative and the cross-check
+    // toothless.
+    usage(
+      `--deferred ${deferred} disagrees with the sinks: ${design.length} design + ${Math.max(0, mechanical.length - applied)} unapplied mechanical = ${derivedDeferred}`,
     );
   }
 
@@ -243,7 +237,11 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
   // `HEAD~1..HEAD`. The last rung is the lossy one: it means "the last commit",
   // so a fix split across commits under-reports. `diffRange` records which rung
   // was used, so the audit trail says what it measured instead of implying it.
-  const range = a.since ? `${a.since}..HEAD` : baseSha !== '' ? `${baseSha}..HEAD` : 'HEAD~1..HEAD';
+  // The ledger rung gets the SAME check as `--since`: `headSha` is a plain
+  // `z.string()` in the schema, so a ledger carrying `--output=x` would otherwise
+  // reach `git diff` as an option. A non-conforming value falls through to the
+  // last rung rather than being trusted.
+  const range = a.since ? `${a.since}..HEAD` : isSha(baseSha) ? `${baseSha}..HEAD` : 'HEAD~1..HEAD';
   const diffStat = (await git(['diff', '--shortstat', range], cwd)) || '(unavailable)';
 
   const ledger = await appendRound(cwd, slug, kind, key, {

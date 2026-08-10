@@ -263,8 +263,9 @@ describe('cr autofix record', () => {
     expect(led.rounds[0]).toMatchObject({ round: 1, applied: 2, deferred: 0 });
   });
 
-  it('derives deferred from the sinks, overriding a caller-reported 0', () => {
-    // A MIXED round: 1 mechanical (applied) + 1 design (deferred by construction).
+  it('exits 2 when --deferred disagrees with the sinks, recording nothing', () => {
+    // A MIXED round: 1 mechanical (applied) + 1 design (deferred by construction),
+    // so a reported 0 is the laundering shape and must not be accepted.
     writeSink('reviewer', 'spec', [MECH, DESIGN]);
     const r = run(
       'record',
@@ -277,16 +278,33 @@ describe('cr autofix record', () => {
       '--deferred',
       '0',
     );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--deferred 0 disagrees with the sinks');
+    expect(existsSync(ledgerPath(cwd, 'slug', 'spec'))).toBe(false);
+  });
+
+  it('records the design remainder as deferred when the counts agree', () => {
+    writeSink('reviewer', 'spec', [MECH, DESIGN]);
+    const r = run(
+      'record',
+      '--slug',
+      'slug',
+      '--kind',
+      'spec',
+      '--applied',
+      '1',
+      '--deferred',
+      '1',
+    );
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('deferred 1');
-    expect(r.stdout).toContain('--deferred 0 disagrees with the sinks');
     const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
     expect(led.rounds[0].deferred).toBe(1);
   });
 
   it('counts an unapplied mechanical blocker as deferred', () => {
     writeSink('reviewer', 'spec', [MECH, { ...MECH, message: 'second' }]);
-    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '1');
     const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
     expect(led.rounds[0].deferred).toBe(1);
   });

@@ -20,7 +20,14 @@ export interface Invocation {
 }
 
 const RANGE_RE = /^(.+)\.\.(.+)$/;
-const SHA_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+/**
+ * A REVISION, not an object name: `origin/main`, `HEAD~1` and `v1.2.3` are all
+ * valid here. Named apart from `isSha` in `src/core/sha.ts` on purpose — that one
+ * is hex-only, for the rungs that interpolate a sha into a git argument. Two
+ * consts called `SHA_RE` with different contracts is how the wrong one gets
+ * reused.
+ */
+const REV_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
 export function parseCliArgs(argv: readonly string[]): Invocation {
   let lane: Lane = { kind: 'gate' };
@@ -70,7 +77,7 @@ export function parseCliArgs(argv: readonly string[]): Invocation {
     } else if (RANGE_RE.test(a)) {
       const m = RANGE_RE.exec(a)!;
       lane = { kind: 'range', from: m[1], to: m[2] };
-    } else if (SHA_RE.test(a)) {
+    } else if (REV_RE.test(a)) {
       lane = { kind: 'sha', sha: a };
     } else {
       throw new Error(`Unknown argument: ${a}`);

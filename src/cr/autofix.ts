@@ -1,6 +1,7 @@
 import { AUTOFIX_ROUND_CAP, fingerprintBlockers } from './autofix-ledger.js';
 import type { AutofixLedger } from './autofix-ledger.js';
 import type { LaneBlocker } from './aggregate.js';
+import { isSha } from '../core/sha.js';
 import type { Lane } from './findings-schema.js';
 
 export type AutofixVerdict = 'auto-fix' | 'decline';
@@ -101,8 +102,13 @@ export function splitByClass(blockers: readonly LaneBlocker[]): {
  * and the gate would invoke `orchestrate --base-sha` with an empty argument.
  */
 function resolveBaseSha(ledger: AutofixLedger | null, headSha: string): string {
+  // The ledger rung is shape-checked; the schema types `headSha` as a plain
+  // string, and this value is PRINTED as the authoritative `--base-sha` that the
+  // gate hands to `orchestrate` and that `record` interpolates into a git
+  // argument. An option-shaped value there would ride straight through.
   const priorHead = ledger?.rounds.at(-1)?.headSha ?? '';
-  return headSha !== '' ? headSha : priorHead;
+  if (headSha !== '') return headSha;
+  return isSha(priorHead) ? priorHead : '';
 }
 
 /**

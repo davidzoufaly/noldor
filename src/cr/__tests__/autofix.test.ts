@@ -249,9 +249,22 @@ describe('decide — baseSha ladder', () => {
       ...base,
       blockers: [mech()],
       headSha: '',
-      ledger: ledgerWith([{ headSha: 'prior', fingerprint: 'other' }]),
+      ledger: ledgerWith([{ headSha: 'deadbeef', fingerprint: 'other' }]),
     });
-    expect(r.baseSha).toBe('prior');
+    expect(r.baseSha).toBe('deadbeef');
+  });
+
+  // The ledger's `headSha` is a plain `z.string()`, and this value is printed as
+  // the authoritative `--base-sha` and interpolated into a git argument.
+  it('refuses a ledger headSha that is not a hex object name', () => {
+    const r = decide({
+      ...base,
+      blockers: [mech()],
+      headSha: '',
+      ledger: ledgerWith([{ headSha: '--output=pwned', fingerprint: 'other' }]),
+    });
+    expect(r).toMatchObject({ verdict: 'decline', reason: 'no-base-sha' });
+    expect(r.baseSha).toBe('');
   });
 
   it("falls back to HEAD when the prior round's headSha is empty", () => {
