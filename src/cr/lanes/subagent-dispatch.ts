@@ -64,7 +64,7 @@ const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
 // never-exempt sentence covers correctness/security/concurrency/effects
 // semantically — defect, vulnerability, race, unintended state change.
 const CUT_MARKER_GUIDE =
-  '\nRespect `noldor:cut <ceiling> — <upgrade path>` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, or an unintended state change.\n';
+  '\nRespect `noldor:cut <ceiling> — <upgrade path>` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, placed at a different layer, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, or an unintended state change.\n';
 
 /**
  * Default impl: spawns a headless reviewer-role agent via the agent-runner
