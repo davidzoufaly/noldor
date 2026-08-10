@@ -2,7 +2,7 @@
 
 # SDD Report
 
-Generated: 2026-08-06 by `pnpm sdd:report`.
+Generated: 2026-08-10 by `pnpm sdd:report`.
 
 Pre-MVP done features (`introduced` < `0.2.0`) are
 grandfathered from `links.spec` / `links.code` checks.
@@ -11,14 +11,14 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 ## Summary
 
 - Total features: 75
-- Untriaged ideas: 0
+- Untriaged ideas: 7
 - Backlog entries: 7
-- Gap categories with issues: 5 / 14
+- Gap categories with issues: 7 / 14
 
 ## Code clones
 
-- 280 clone group(s), 13.43% duplicated tokens across 299 file(s)
-- src/garden/garden-detect.ts:84-190 and src/garden/garden-detect.ts:193-299 (388 tokens)
+- 288 clone group(s), 13.33% duplicated tokens across 309 file(s)
+- src/garden/garden-detect.ts:85-191 and src/garden/garden-detect.ts:194-300 (388 tokens)
 - src/dashboard/views.ts:752-807 and src/dashboard/views.ts:830-934 (323 tokens)
 - src/dashboard/data.ts:1130-1161 and src/garden/sdd-report.ts:908-943 (259 tokens)
 - src/dashboard/views.ts:671-680 and src/dashboard/views.ts:939-948 (252 tokens)
@@ -33,13 +33,13 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `b151dcd` — operator override after CR round 16 — sole med blocker fixed in this commit, residual suggestions filed to ideas.md
 - `01c29d0` — fast-track — doc+counter state, zero code risk
 - `1595710` — fast-track — doc+counter state, zero code risk
-- `026845f` — templates/docs twin edits not yet allowlisted (tracked as Q-0023)
 
 ### Review-skip count (last 30 days)
 
-Gated commits missing `Noldor-Reviewed` trailer: 63
+Gated commits missing `Noldor-Reviewed` trailer: 66
 
 ## Metrics
 
@@ -86,7 +86,7 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
   "perLane": {
     "reviewer": {
       "blockers": 11,
-      "suggestions": 42
+      "suggestions": 43
     },
     "verifier": {
       "blockers": 0,
@@ -120,7 +120,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "scope-sibling-trailer-for-doc-sync-commits": 1,
       "-": 2
     },
-    "meanDurationMs": 1039694
+    "meanDurationMs": 1033713
   }
 }
 ```
@@ -179,18 +179,36 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `continuous-drain-daemon-and-escalation-inbox` — Continuous Drain Daemon and Escalation Inbox (tooling) has no entries in links.docs
 - `make-noldor-agent-agnostic` — Make Noldor Agent-Agnostic (tooling) has no entries in links.docs
 
+### Untriaged ideas in ideas.md
+
+- `ideas.md:34` — `pnpm noldor worktrees create` writes an untracked `.env.local` (`PORT=<assigned>`) that is not in `.gitignore`, so every fresh worktree starts with a dirty tree: `ensureCleanTree` counts `??` entries, so `pr-flow` preflight refuses to ship until the operator deletes a file the framework itself created. Fix: add `.env.local` to `.gitignore` (self-host + `templates/`), or have `worktrees create` write it only under an already-ignored path. (surfaced shipping Q-0073, PR #268)
+- `ideas.md:35` — repeated `cr orchestrate --kind code` runs across amend rounds APPEND a second review-receipt trailer instead of replacing the existing one — the key is `Noldor-Reviewed-Subagent`, and a commit that went through N CR rounds carries N receipts, all but the last stale (each amend changes `HEAD^{tree}`); pre-push validates against the tree, so a stale receipt is noise at best, false pass at worst. Fix: receipt amend should replace any existing receipt of the same key. Manual cleanup meanwhile: `git log -1 --format=%B | grep -v '^Noldor-Reviewed-Subagent:' > msg && git commit --amend --file=msg`, then re-run orchestrate. (surfaced shipping Q-0073, PR #268)
+- `ideas.md:36` — connect milestones to roadmap/backlog tasks: milestones (`docs/milestones/<slug>.md`) currently live independent of the queue — no way to say which roadmap/backlog entries belong to which milestone, or see milestone progress from the queue side. Idea: link entries to a milestone (e.g. `milestone:` field in schema-C blocks or milestone doc lists entry IDs) so dashboard/status can roll up milestone completion from its tasks.
+- `ideas.md:37` — cr-autofix polish residue from the Q-0075 ship (PR #276, CR rounds 9–16, overridden at round 16 with the sole med blocker fixed): (a) `DecideResult.baseSha` doc overstates its invariant — it is empty on ANY decline with git unreachable, not only `no-base-sha`; say "non-empty whenever verdict is auto-fix". (b) `no-base-sha` fires before `next` is known, so a MIXED round with git unreachable declines to operator even though `apply-then-stop` never needs a base-sha — forfeits an applicable mechanical subset on an unrelated failure. (c) `round: 3/2` prints on the round-cap decline (`priorRounds.length + 1` unconditionally) — clamp or relabel. (d) `prior-deferred` scanning every round leaves the seam dead for the rest of the session after one MIXED round, including the operator's own full-review follow-up where the laundering path cannot occur; the only reset is session end — deliberate, but say so in the docs or narrow it. (e) drain-mode/SKILL twins mention `record` without naming the exit-2 `--deferred` cross-check. All in `src/cr/autofix.ts` / `autofix-cli.ts`. (surfaced code-stage CR of Q-0075, PR #276)
+- `ideas.md:38` — `doctor`'s framework-skew check compares the anchor by string `!==` (`src/cli/commands/doctor.ts:63`), so an anchor _ahead_ of the installed version prints `run 'noldor upgrade'` forever while `upgrade` correctly refuses to rewrite it backwards — an advisory dead end with no CLI exit, the same shape as Q-0076 in the opposite direction. Reachable after a downgrade (`pnpm add @david.zoufaly/noldor@<older>`) or a hand-edited anchor. Fix: compare with `semver.lt(anchored, installed)` and give the ahead case its own message (`anchored <a> is ahead of installed <i> — the install is behind, not the anchor`) rather than pointing at a command that cannot help. (surfaced in the code-stage CR of `upgrade-never-advances-a-stale-anchor-on-an-empty-migration-chain`, PR #270)
+- `ideas.md:39` — `noldor upgrade` writes the framework anchor on the empty-chain path before the dirty-tree guard (`src/cli/commands/upgrade.ts:90` vs the `isDirty` check below it), so a dirty tree silently gets `.noldor/config.json` mutated while the non-empty-chain path refuses with `refusing to upgrade on a dirty git tree`. Pre-existing for the bootstrap case, broadened to the stale-advance case by Q-0076. Deliberately left as-is: hoisting `isDirty` above the block would make a pure `nothing to do` invocation throw on any dirty tree, and gating only the write would re-strand the very consumer Q-0076 unstrands. Decide whether the asymmetry is intended and say so in the code, or gate the write with a narrower guard. (surfaced in the code-stage CR of Q-0076, PR #270)
+- `ideas.md:40` — `sdd:report` quotes untriaged idea bullets verbatim into `docs/sdd-report.md`, so idea PROSE can redden two live-tree tests in `src/garden/__tests__/sdd-report.test.ts`: non-oxfmt markdown in a bullet (e.g. star-italics) fails the "writes oxfmt-compliant markdown" test, and a bullet naming the review-receipt key followed later on the line by the word "trailer" trips the omit-gate-compliance regex. Harden the seam: fmt-normalize quoted idea text in the report generator, and scope the test's negative assertion to the Gate-compliance section heading instead of a whole-document regex. (surfaced pre-release sweep 2026-08-10 — two ideas.md bullets moved into `#### Later` by PR #279 broke `pnpm verify` on main)
+
+### Stale backlog entries (>90 days)
+
+- `Real-Codex Integration Smoke Test` — Real-Codex Integration Smoke Test (tooling) has been in backlog for 92 days since 2026-05-10
+
 ### Code files not referenced by any feature
 
 - `src/core/atomic-write.ts` — src/core/atomic-write.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
 - `src/core/branch-added.ts` — src/core/branch-added.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows
-- `src/core/design-artifact-names.ts` — src/core/design-artifact-names.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, graphify-plan-of-edges-nodes-for-plans-specs
+- `src/core/commit-cli.ts` — src/core/commit-cli.ts is not referenced by any feature MD links.code
+- `src/core/commit-wrapper.ts` — src/core/commit-wrapper.ts is not referenced by any feature MD links.code
+- `src/core/design-artifact-names.ts` — src/core/design-artifact-names.ts is not referenced by any feature MD links.code — probable owner: outcome-telemetry-and-effectiveness-metrics, architecture-invariants, bootstrap-immunity-for-self-gating-features
 - `src/core/fmt-guard-cli.ts` — src/core/fmt-guard-cli.ts is not referenced by any feature MD links.code
 - `src/core/fmt-guard.ts` — src/core/fmt-guard.ts is not referenced by any feature MD links.code
 - `src/core/init-gitignore.ts` — src/core/init-gitignore.ts is not referenced by any feature MD links.code — probable owner: version-aware-upgrade-and-migration-chain, noldor, make-noldor-agent-agnostic
 - `src/core/lanes.ts` — src/core/lanes.ts is not referenced by any feature MD links.code — probable owner: specs-cr-gate-multi-reviewer, acceptance-verify-lane, code-clone-detector
-- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic, noldor
-- `src/core/prompt-stdin.ts` — src/core/prompt-stdin.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer
+- `src/core/prerequisites.ts` — src/core/prerequisites.ts is not referenced by any feature MD links.code — probable owner: make-noldor-agent-agnostic
+- `src/core/prompt-stdin.ts` — src/core/prompt-stdin.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer, autonomous-plan-to-pr-merge
 - `src/core/review-profile.ts` — src/core/review-profile.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer, make-noldor-agent-agnostic
+- `src/core/sha.ts` — src/core/sha.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, specs-cr-gate-multi-reviewer
+- `src/core/slug.ts` — src/core/slug.ts is not referenced by any feature MD links.code — probable owner: de-superpowers-vendor-spec-plan-and-worktree-flows, parallel-worktree-workflow, dashboard-worktree-health-page
 - `src/core/state-file.ts` — src/core/state-file.ts is not referenced by any feature MD links.code — probable owner: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox
 - `src/invariants/rule-pairs.ts` — src/invariants/rule-pairs.ts is not referenced by any feature MD links.code — probable owner: architecture-invariants
 - `src/release/clean-tree.ts` — src/release/clean-tree.ts is not referenced by any feature MD links.code — probable owner: registry-distribution-for-the-noldor-package
@@ -225,7 +243,12 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/garden/detectors/__tests__/fd-command-rot.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
 - `src/garden/detectors/__tests__/fd-link-rot.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
 - `src/garden/detectors/__tests__/circular-blocked-by.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
+- `src/cr/__tests__/autofix-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
+- `src/cr/__tests__/autofix-ledger.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
 - `src/cr/__tests__/bootstrap-immunity.test.ts` — imports files owned by FDs missing from @tests: tag — add: release-bypass-retirement
+- `src/cr/__tests__/autofix.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
+- `src/cr/__tests__/finding-class.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane
+- `src/cr/__tests__/lanes/subagent.test.ts` — imports files owned by FDs missing from @tests: tag — add: rules-cascade-v1
 - `src/features/__tests__/feature-milestone.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
 - `src/features/__tests__/propose-pointers.test.ts` — imports files owned by FDs missing from @tests: tag — add: scan-roots-repo-paths-provider
 - `src/features/__tests__/fill-links-code-gaps.test.ts` — imports files owned by FDs missing from @tests: tag — add: scan-roots-repo-paths-provider, stable-entry-ids-for-roadmap-backlog
@@ -241,6 +264,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/triage/__tests__/validate-triage.test.ts` — imports files owned by FDs missing from @tests: tag — add: stable-entry-ids-for-roadmap-backlog
 - `src/cli/__tests__/validate-script-catalog.test.ts` — imports files owned by FDs missing from @tests: tag — add: autonomous-queue-drain-runner, bootstrap-immunity-for-self-gating-features, code-clone-detector, continuous-drain-daemon-and-escalation-inbox, framework-auto-split-suggestion-for-big-features-and-plans, graphify-plan-of-edges-nodes-for-plans-specs, outcome-telemetry-and-effectiveness-metrics, parallel-agent-dispatch-for-research-jobs, plan-runner, pnpm-release-resume, registry-distribution-for-the-noldor-package, sdd-detector-5-idea-merge-semantic-similarity, stable-entry-ids-for-roadmap-backlog, version-aware-upgrade-and-migration-chain
 - `src/dashboard/__tests__/route-sweep.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard
+- `src/dashboard/__tests__/dashboard-status.test.ts` — imports files owned by FDs missing from @tests: tag — add: outcome-telemetry-and-effectiveness-metrics
 - `src/dashboard/__tests__/dashboard-layout-style-polish.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
 - `src/dashboard/__tests__/dashboard-views.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider, stable-entry-ids-for-roadmap-backlog
 - `src/dashboard/__tests__/dashboard-worktrees.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
@@ -263,6 +287,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/dashboard/__tests__/dashboard-doc-surfaces.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, scan-roots-repo-paths-provider
 - `src/dashboard/__tests__/blocked-by.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering, scan-roots-repo-paths-provider
 - `src/dashboard/__tests__/dashboard-data.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, code-clone-detector, scan-roots-repo-paths-provider
+- `src/dashboard/__tests__/dashboard-identity.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics
 - `src/testing/__tests__/consumer-fixture.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
 - `src/testing/__tests__/stub-runner.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
 - `src/hooks/__tests__/noldor-validate-trailer.test.ts` — imports files owned by FDs missing from @tests: tag — add: framework-doc-extraction
@@ -278,6 +303,7 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 - `src/autonomous/__tests__/watch-state.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
 - `src/autonomous/__tests__/watch-args.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
 - `src/autonomous/__tests__/escalations.test.ts` — imports files owned by FDs missing from @tests: tag — add: portable-gate-entrypoint-for-non-claude-runners
+- `src/autonomous/__tests__/branch-work.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, agent-events-phase-tracking-run-ids-and-agents-dashboard-page, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-drain, parallel-drain-roadmapmd-conflict-auto-resolution, plan-runner, portable-gate-entrypoint-for-non-claude-runners
 - `src/autonomous/__tests__/queue-drain-cli.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page
 - `src/autonomous/__tests__/gate-prompt.test.ts` — imports files owned by FDs missing from @tests: tag — add: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, prefix-skills-with-noldor
 - `src/autonomous/__tests__/merge-classify.test.ts` — imports files owned by FDs missing from @tests: tag — add: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, portable-gate-entrypoint-for-non-claude-runners
