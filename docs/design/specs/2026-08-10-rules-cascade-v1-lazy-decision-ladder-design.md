@@ -6,6 +6,14 @@
 **Tier:** specs-only
 **Entry:** Q-0078 (`lazy-decision-ladder-pre-generation`)
 
+## Source entry (Q-0078, inlined)
+
+The roadmap block this spec implements was consumed from an uncommitted triage edit and exists in no tracked doc, so its operative requirements are inlined here verbatim to keep the spec self-contained:
+
+> Add `.noldor/rules/lazy-decision-ladder.md` (`stage: [code]`, `enforce: true`, `applies-to: ["**/*.ts"]`, + `templates/` twin) carrying the 7-rung ladder (YAGNI → reuse → stdlib → native → installed dep → one-liner → minimal), the "understand the problem and trace the real flow first, then climb" preamble, and the safety carve-outs that are never cut (validation at trust boundaries, data-loss error handling, security, accessibility, explicitly-requested behaviour). Plus a `noldor:cut <ceiling> — <upgrade path>` comment convention marking a *deliberate, bounded* corner-cut, wired one line into the CR `simplification` dimension so a reviewer respects a marked cut and only flags a wrong ceiling or a missing marker on a real cut. Skip ponytail's `review`/`audit`/`debt`/`gain` skills and its "one runnable check behind" rule.
+
+(Q-0078: area tooling, size S, impact med, parent `rules-cascade-v1`, since 2026-08-10.)
+
 ## Problem
 
 Everything Noldor has against over-engineering today is post-hoc: the `simplify` skill and the CR `simplification` dimension both review code *after* it is written. Nothing tells the author to stop *before* writing — no pre-generation discipline says "does this need to exist at all, and if so, what is the least that works?" [ponytail](https://github.com/DietrichGebert/ponytail) packages exactly that discipline as an ordered decision ladder. Its core belongs in the rules cascade, where it surfaces scoped to code edits instead of living in yet another always-on prose wall.
@@ -16,7 +24,7 @@ A second, sharper problem appears the moment the ladder exists: the ladder says 
 
 1. A new cascade rule `.noldor/rules/lazy-decision-ladder.md` carrying ponytail's core: the understanding-first preamble, the 7-rung ladder, the never-cut carve-outs, and the `noldor:cut` marker convention. `stage: [code]`, `enforce: true`, `applies-to: ["**/*.ts"]`.
 2. A byte-identical twin at `templates/.noldor/rules/lazy-decision-ladder.md` so consumers receive the rule on `init`/`init --update` ([`templateFiles()`](../../../src/templates/manifest.ts) auto-walks `templates/`; [`check-template-sync`](../../../src/checks/check-template-sync.ts) then enforces identity).
-3. One clause appended to `DIMENSION_GUIDE.simplification` in [`subagent-dispatch.ts`](../../../src/cr/lanes/subagent-dispatch.ts) so the reviewer respects a marked cut and flags only a wrong ceiling or a real cut left unmarked — resolving the ladder-vs-CR conflict (D1: the entry cited `review-profile.ts`, but dimension prose only reaches the reviewer prompt via `DIMENSION_GUIDE`).
+3. One clause appended to `DIMENSION_GUIDE.simplification` in [`subagent-dispatch.ts`](../../../src/cr/lanes/subagent-dispatch.ts) so the reviewer respects a marked cut and flags only a wrong ceiling or a real cut left unmarked — resolving the ladder-vs-CR conflict (wiring location: see Open question 1).
 
 ## Non-goals
 
@@ -37,7 +45,7 @@ id: lazy-decision-ladder
 applies-to: ["**/*.ts"]
 stage: [code]
 enforce: true
-links: [.claude/engineering-rules.md, docs/noldor/rules.md]
+links: [docs/noldor/rules.md]
 ---
 Understand the problem first: read the code the change touches and trace the real
 flow before writing anything. Lazy about the solution, never about reading. Then
@@ -61,7 +69,7 @@ deliberately stops at (a ladder rung like "one-liner", or a concrete bound like
 ceiling stops holding. A marked cut is a decision, not an omission.
 ```
 
-Ladder text follows ponytail's README (fetched 2026-08-10) with only clarifying edits; the carve-out list adds `explicitly-requested behaviour` per the roadmap entry.
+Ladder text follows ponytail's README (fetched 2026-08-10) with only clarifying edits; the carve-out list adds `explicitly-requested behaviour` per the inlined source entry above. `links:` names `docs/noldor/rules.md` alone — the one driver-neutral page every consumer receives; `.claude/engineering-rules.md` is deliberately omitted because `filterTemplatesByAgents` ([`agent-filter.ts`](../../../src/templates/agent-filter.ts)) withholds `.claude/` templates from non-claude consumers, and this is the first *distributed* rule, so a claude-only link would silently dangle there (nothing validates link targets).
 
 ### Unit 2 — the templates twin
 
@@ -73,7 +81,7 @@ Append one sentence to `DIMENSION_GUIDE.simplification` in [`subagent-dispatch.t
 
 > `Respect \`noldor:cut <ceiling> — <upgrade path>\` markers: a marked cut is a deliberate decision — do not flag the cut itself; flag only a wrong ceiling or a real cut left unmarked.`
 
-This rides the dimension line (same placement rationale as the existing nit-override: profiles that omit `simplification` are never told about markers).
+This rides the dimension line (same placement rationale as the existing nit-override: profiles that omit `simplification` are never told about markers). Note the clause deliberately widens the dimension's duty by one omission-hunting task — "a real cut left unmarked" — on top of its over-engineering tells; that widening is the point (it is the half that resolves the ladder-vs-CR conflict from the reviewer's side), so it must not be trimmed later as off-dimension.
 
 ### Data flow
 
@@ -123,6 +131,6 @@ As a Noldor code author (human or agent), I want a pre-generation decision ladde
 2. *Does `noldor:cut` get tooling (detector, ledger)?*
    -> No (D2). Prose convention only; ponytail's own marker is informal, and rung 1 of the ladder applies to the ladder's own port. Revisit if markers accumulate.
 3. *Should the rule glob be narrower (`src/**/*.ts`) like the existing rules?*
-   -> No — `["**/*.ts"]` verbatim per the entry (D3). The discipline applies to scripts, hooks, and tests equally; the carve-outs protect what must not be cut there.
+   -> No — `["**/*.ts"]` verbatim per the inlined source entry (D3). The discipline applies to scripts, hooks, and tests equally; the carve-outs protect what must not be cut there.
 4. *Twin for the other three existing rules too?*
-   -> No — out of scope; they are framework-specific overlays. The entry asks for a twin only for the new rule. A follow-up entry can revisit distribution of the rest.
+   -> No — out of scope; they are framework-specific overlays. The inlined source entry asks for a twin only for the new rule. A follow-up entry can revisit distribution of the rest.
