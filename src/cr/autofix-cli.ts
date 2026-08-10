@@ -5,9 +5,10 @@ import { execFile } from 'node:child_process';
 
 import { loadConfig } from '../core/config.js';
 import { readSession } from '../core/session.js';
+import { isSlug } from '../core/slug.js';
 import { aggregate } from './aggregate.js';
 import type { LaneBlocker } from './aggregate.js';
-import { decide } from './autofix.js';
+import { decide, splitByClass } from './autofix.js';
 import type { NextAction } from './autofix.js';
 import {
   AUTOFIX_ROUND_CAP,
@@ -75,9 +76,19 @@ usage:
   process.exit(EXIT.error);
 }
 
-/** Validate the two flags both verbs need. */
+/**
+ * Validate the two flags both verbs need.
+ *
+ * `slug` is checked, not merely required: it is `join`ed into the ledger path,
+ * which this seam READS, WRITES (`appendRound` → `writeJsonAtomic`) and RENAMES
+ * (`quarantineLedger`) — so `--slug ../../../foo` would escape
+ * `.noldor/cr/autofix` and clobber an arbitrary `*.json`. `aggregate`'s
+ * prefix-match is immune to that, which is why this is the first CR path where
+ * the check has to exist.
+ */
 function requireTarget(a: Args): { slug: string; kind: ArtifactKind } {
   if (!a.slug) usage('--slug is required');
+  if (!isSlug(a.slug)) usage(`--slug must be kebab-case ([a-z0-9-]), got ${a.slug}`);
   const kind = artifactKindSchema.safeParse(a.kind);
   if (!kind.success) usage(`--kind must be one of spec|plan|code (got ${a.kind ?? '<unset>'})`);
   return { slug: a.slug, kind: kind.data };
@@ -209,6 +220,20 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
   const agg = await aggregate(slug, kind, { cwd });
   const fingerprint = fingerprintBlockers(agg.blockers);
 
+  // `deferred` is DERIVED, not taken on trust. It is the sole input to the
+  // `prior-deferred` stop that keeps an unapplied blocker from being laundered
+  // into a green, so a caller-reported `--deferred 0` after a MIXED round would
+  // defeat exactly the guard `next` exists to make non-prose. Every design
+  // blocker is deferred by construction (the seam never applies one), plus any
+  // mechanical blocker the caller did not claim to have applied.
+  const { mechanical, design } = splitByClass(agg.blockers);
+  const derivedDeferred = design.length + Math.max(0, mechanical.length - applied);
+  if (derivedDeferred !== deferred) {
+    console.log(
+      `note: --deferred ${deferred} disagrees with the sinks (${design.length} design + ${Math.max(0, mechanical.length - applied)} unapplied mechanical) — recording ${derivedDeferred}`,
+    );
+  }
+
   const prior = await readLedger(cwd, slug, kind, key);
   const baseSha = prior?.rounds.at(-1)?.headSha ?? '';
   const headSha = await git(['rev-parse', 'HEAD'], cwd);
@@ -225,14 +250,14 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
     headSha,
     fingerprint,
     applied,
-    deferred,
+    deferred: derivedDeferred,
     diffStat,
     diffRange: range,
     ...(a.stopped ? { stopped: a.stopped } : {}),
   });
   const round = ledger.rounds.at(-1)!;
   console.log(
-    `round ${round.round}/${AUTOFIX_ROUND_CAP} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${deferred})`,
+    `round ${round.round}/${AUTOFIX_ROUND_CAP} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${derivedDeferred})`,
   );
   console.log(`diff: ${diffStat} (${range})`);
   process.exit(EXIT.ok);

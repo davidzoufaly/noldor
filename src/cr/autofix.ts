@@ -69,6 +69,21 @@ function isMechanical(b: LaneBlocker): boolean {
 }
 
 /**
+ * Split a blocker set the way {@link decide} does. Exported so `record` derives
+ * the deferral count from the SAME predicate `plan` classified with, instead of
+ * a second hand-rolled read that could drift from it.
+ */
+export function splitByClass(blockers: readonly LaneBlocker[]): {
+  mechanical: readonly LaneBlocker[];
+  design: readonly LaneBlocker[];
+} {
+  return {
+    mechanical: blockers.filter(isMechanical),
+    design: blockers.filter((b) => !isMechanical(b)),
+  };
+}
+
+/**
  * Resolve the `--base-sha` the re-round would use: current `HEAD` when non-empty,
  * else the prior round's recorded `headSha`. Empty means neither is available.
  *
@@ -102,8 +117,7 @@ function resolveBaseSha(ledger: AutofixLedger | null, headSha: string): string {
  * `onFailure: 'abort'` it aborts anyway.
  */
 export function decide(input: DecideInput): DecideResult {
-  const mechanical = input.blockers.filter(isMechanical);
-  const design = input.blockers.filter((b) => !isMechanical(b));
+  const { mechanical, design } = splitByClass(input.blockers);
   const fingerprint = fingerprintBlockers(input.blockers);
   const baseSha = resolveBaseSha(input.ledger, input.headSha);
   const priorRounds = input.ledger?.rounds ?? [];

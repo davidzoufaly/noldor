@@ -124,6 +124,23 @@ describe('cr autofix — usage', () => {
     expect(r.stderr).toContain('--slug is required');
   });
 
+  it('exits 2 on a --slug that would escape the ledger directory', () => {
+    const r = run(
+      'record',
+      '--slug',
+      '../../../evil',
+      '--kind',
+      'spec',
+      '--applied',
+      '1',
+      '--deferred',
+      '0',
+    );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--slug must be kebab-case');
+    expect(existsSync(join(cwd, '..', '..', '..', 'evil-spec.json'))).toBe(false);
+  });
+
   it('exits 2 on an unknown --kind', () => {
     const r = run('plan', '--slug', 'slug', '--kind', 'nope');
     expect(r.status).toBe(2);
@@ -244,6 +261,34 @@ describe('cr autofix record', () => {
     expect(led.sessionStartedAt).toBe(SESSION);
     expect(led.rounds).toHaveLength(1);
     expect(led.rounds[0]).toMatchObject({ round: 1, applied: 2, deferred: 0 });
+  });
+
+  it('derives deferred from the sinks, overriding a caller-reported 0', () => {
+    // A MIXED round: 1 mechanical (applied) + 1 design (deferred by construction).
+    writeSink('reviewer', 'spec', [MECH, DESIGN]);
+    const r = run(
+      'record',
+      '--slug',
+      'slug',
+      '--kind',
+      'spec',
+      '--applied',
+      '1',
+      '--deferred',
+      '0',
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('deferred 1');
+    expect(r.stdout).toContain('--deferred 0 disagrees with the sinks');
+    const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
+    expect(led.rounds[0].deferred).toBe(1);
+  });
+
+  it('counts an unapplied mechanical blocker as deferred', () => {
+    writeSink('reviewer', 'spec', [MECH, { ...MECH, message: 'second' }]);
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
+    expect(led.rounds[0].deferred).toBe(1);
   });
 
   it('exits 2 on a missing --applied', () => {
