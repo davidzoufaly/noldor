@@ -6,8 +6,9 @@ import { execFile } from 'node:child_process';
 import { loadConfig } from '../core/config.js';
 import { readSession } from '../core/session.js';
 import { aggregate } from './aggregate.js';
+import type { LaneBlocker } from './aggregate.js';
 import { decide } from './autofix.js';
-import type { LaneBlocker, NextAction } from './autofix.js';
+import type { NextAction } from './autofix.js';
 import {
   AUTOFIX_ROUND_CAP,
   LedgerParseError,
@@ -153,7 +154,7 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
   const agg = await aggregate(slug, kind, { cwd });
   const headSha = await git(['rev-parse', 'HEAD'], cwd);
   const r = decide({
-    blockers: agg.blockers as LaneBlocker[],
+    blockers: agg.blockers,
     onBlockers,
     ledger,
     headSha,

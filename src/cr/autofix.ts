@@ -1,9 +1,7 @@
 import { AUTOFIX_ROUND_CAP, fingerprintBlockers } from './autofix-ledger.js';
 import type { AutofixLedger } from './autofix-ledger.js';
-import type { Finding, Lane } from './findings-schema.js';
-
-/** A blocker as `aggregate()` surfaces it — carries the lane that filed it. */
-export type LaneBlocker = Finding & { lane: Lane };
+import type { LaneBlocker } from './aggregate.js';
+import type { Lane } from './findings-schema.js';
 
 export type AutofixVerdict = 'auto-fix' | 'decline';
 
@@ -134,14 +132,18 @@ export function decide(input: DecideInput): DecideResult {
   // green with the blocker still live. The prose telling the controller to apply
   // EVERY `M<n>` cannot be the only guard — the same class of promise `next`
   // replaced. Handing it to the operator is the fail-safe direction.
-  if ((priorRounds.at(-1)?.deferred ?? 0) > 0) return decline('prior-deferred');
+  // ANY prior round, not just the last: a deferral in round 1 followed by a
+  // clean round 2 must still block round 3, or raising the cap reopens the
+  // laundering path above.
+  if (priorRounds.some((r) => r.deferred > 0)) return decline('prior-deferred');
   if (priorRounds.length >= AUTOFIX_ROUND_CAP) return decline('round-cap');
   // The same blocker set coming back means the previous fix did not take.
   // Checked before `no-mechanical` so a repeat round reports why it is futile
-  // rather than merely reporting nothing left to fix. The LAST round is the whole
-  // history that can reach here: `round-cap` above already declined anything with
-  // {@link AUTOFIX_ROUND_CAP} prior rounds, so at most one exists.
-  if (priorRounds.at(-1)?.fingerprint === fingerprint) return decline('no-progress');
+  // rather than merely reporting nothing left to fix. Matched against EVERY prior
+  // round so the rule does not silently depend on {@link AUTOFIX_ROUND_CAP} being
+  // 2 — at cap 3 an A → B → A fingerprint ping-pong would slip a last-round-only
+  // check. Identical behaviour at today's cap; one predicate either way.
+  if (priorRounds.some((r) => r.fingerprint === fingerprint)) return decline('no-progress');
   if (mechanical.length === 0) return decline('no-mechanical');
   if (baseSha === '') return decline('no-base-sha');
 

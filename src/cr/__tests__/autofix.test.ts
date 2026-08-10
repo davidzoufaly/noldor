@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { decide } from '../autofix.js';
-import type { LaneBlocker } from '../autofix.js';
+import type { LaneBlocker } from '../aggregate.js';
 import { fingerprintBlockers } from '../autofix-ledger.js';
 import type { AutofixLedger, AutofixRound } from '../autofix-ledger.js';
 
@@ -90,6 +90,18 @@ describe('decide — verdicts', () => {
       ledger: ledgerWith([{ fingerprint: 'other', applied: 1, deferred: 1 }]),
     });
     expect(r).toMatchObject({ verdict: 'decline', reason: 'prior-deferred' });
+  });
+
+  // Both `prior-deferred` and `no-progress` scan the whole series so neither
+  // silently depends on the cap being 2. Only this one is observable at cap 2 —
+  // `no-progress` sits after `round-cap`, which already declines at two rounds.
+  it('declines prior-deferred for a deferral in ANY prior round', () => {
+    const r = decide({
+      ...base,
+      blockers: [mech()],
+      ledger: ledgerWith([{ fingerprint: 'a', deferred: 1 }, { fingerprint: 'b' }]),
+    });
+    expect(r.reason).toBe('prior-deferred');
   });
 
   it('declines no-mechanical when every blocker is design', () => {
