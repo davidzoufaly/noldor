@@ -77,6 +77,8 @@ Ladder text follows ponytail's README (fetched 2026-08-10) with only clarifying 
 
 ### Unit 3 — the CR clause
 
+> **Superseded during code-stage CR (2026-08-10):** the clause shipped as a prompt-level line (`CUT_MARKER_GUIDE` in `subagent-dispatch.ts`), rendered whenever any minimalism-class dimension (`reuse`/`simplification`/`efficiency`/`altitude`) is in the profile — not appended to `DIMENSION_GUIDE.simplification` as written below. Rationale: a `noldor:cut` lands against *any* ladder rung (the canonical example is an efficiency cut), so a simplification-only clause left the other minimalism dimensions free to flag marked cuts. The guide text names no dimensions; its never-exempt sentence covers defect/vulnerability/race/unintended-state-change semantically. The section below is the original design, kept for the record.
+
 Append one sentence to `DIMENSION_GUIDE.simplification` in [`subagent-dispatch.ts`](../../../src/cr/lanes/subagent-dispatch.ts) (currently ends `…not a speculative nit`):
 
 > `Respect \`noldor:cut <ceiling> — <upgrade path>\` markers: a marked cut is a deliberate decision — do not flag the cut itself; flag only a wrong ceiling or a real cut left unmarked.`
