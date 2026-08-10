@@ -291,10 +291,7 @@ async function shipBranch(
   // burning a guaranteed-failing checkout — the main workspace owns its own `main`
   // pointer and refreshes it from there (the gate's Step 4 cleanup does exactly that).
   if (await isLinkedWorktree(nodeSpawn({ cwd }))) {
-    return {
-      prUrl,
-      note: `PR merged at ${mergedAt}; local main sync skipped — run from a linked worktree, sync from the main workspace`,
-    };
+    return { prUrl, note: skippedLocalSyncNote(mergedAt, branch) };
   }
   try {
     git(cwd, ['checkout', 'main']);
@@ -315,6 +312,20 @@ async function shipBranch(
     return { prUrl, note: `PR merged at ${mergedAt}; local main not yet synced` };
   }
   return { prUrl, note: `PR merged at ${mergedAt}; local main synced` };
+}
+
+/**
+ * Note for the worktree-context ship: the whole local leg is skipped there, so
+ * the local feature branch survives too. Naming it (and the `git branch -D` that
+ * clears it) keeps the skip from reading as "nothing left to do" — the operator
+ * cannot see the leftover from the promote output otherwise.
+ */
+function skippedLocalSyncNote(mergedAt: string, branch: string): string {
+  return (
+    `PR merged at ${mergedAt}; local main sync skipped — run from a linked worktree, ` +
+    `sync from the main workspace. Local branch ${branch} left in place there — ` +
+    `remove it with: git branch -D ${branch}`
+  );
 }
 
 function todayUtc(): string {
@@ -503,4 +514,13 @@ function main(): void {
 const invokedDirect = /[\\/]prep-promote\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
 if (invokedDirect) main();
 
-export { parseArgs, preflight, promoteExitCode, promoteOne, run, selectApproved, toPrepEntry };
+export {
+  parseArgs,
+  preflight,
+  promoteExitCode,
+  promoteOne,
+  run,
+  selectApproved,
+  skippedLocalSyncNote,
+  toPrepEntry,
+};

@@ -11,6 +11,7 @@ import {
   promoteExitCode,
   promoteOne,
   selectApproved,
+  skippedLocalSyncNote,
   toPrepEntry,
 } from '../prep-promote.js';
 
@@ -110,6 +111,20 @@ describe('promoteExitCode', () => {
   });
   it('returns 1 when nothing was promoted', () => {
     expect(promoteExitCode(0, 0)).toBe(1);
+  });
+});
+
+describe('skippedLocalSyncNote', () => {
+  const note = skippedLocalSyncNote('2026-08-10T09:00:00Z', 'prep/2026-08-10');
+
+  it('reports the merge and that the local main sync was skipped', () => {
+    expect(note).toContain('PR merged at 2026-08-10T09:00:00Z');
+    expect(note).toContain('local main sync skipped');
+  });
+
+  it('names the leftover local branch and the command that clears it', () => {
+    expect(note).toContain('Local branch prep/2026-08-10 left in place');
+    expect(note).toContain('git branch -D prep/2026-08-10');
   });
 });
 

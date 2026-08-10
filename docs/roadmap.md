@@ -14,21 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Post-Merge Cleanup Reporting Gaps
-
-- id: Q-0074
-- area: tooling
-- type: fix
-- since: 2026-08-06
-- size: XS
-- impact: low
-- confidence: high
-- parent: framework-pr-flow-agent-auto-merge
-
-pr-flow's main-checkout leg should warn on a lingering remote branch, symmetric with the worktree leg. The worktree path now deletes the remote ref itself and reports it, while the main-checkout path just trusts `gh pr merge --delete-branch` and says nothing — so a gh-side delete failure is silent there. (surfaced CR of `pr-flow-worktree-checkout-skip`, PR #258)
-
-- `prep promote --ship`'s worktree skip message should name what it left behind — it prints `local main sync skipped` but not that the local feature branch is still present, so the operator does not know a `git branch -D` is outstanding.
-
 ### Gate Auto-Addresses CR Blockers
 
 - id: Q-0075
