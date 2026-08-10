@@ -7,6 +7,7 @@ links:
   code:
     - .noldor/rules/lazy-decision-ladder.md
     - templates/.noldor/rules/lazy-decision-ladder.md
+    - src/cr/lanes/subagent-dispatch.ts
     - src/rules/cli-cores.ts
     - src/rules/cli-list.ts
     - src/rules/cli-resolve.ts
@@ -18,13 +19,14 @@ links:
     - src/core/rules/stage.ts
     - src/hooks/agent-rules-guard.ts
   tests:
+    - src/core/rules/__tests__/stage.test.ts
+    - src/cr/__tests__/lanes/subagent-dispatch.test.ts
+    - src/hooks/__tests__/agent-rules-guard.test.ts
     - src/rules/__tests__/cli.test.ts
     - src/rules/__tests__/index-cache.test.ts
     - src/rules/__tests__/load.test.ts
     - src/rules/__tests__/resolve.test.ts
     - src/rules/__tests__/types.test.ts
-    - src/core/rules/__tests__/stage.test.ts
-    - src/hooks/__tests__/agent-rules-guard.test.ts
 name: Rules Cascade v1
 packages:
   - tooling
@@ -69,6 +71,7 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
 - **Code:**
   - [`.noldor/rules/lazy-decision-ladder.md`](../../.noldor/rules/lazy-decision-ladder.md)
   - [`templates/.noldor/rules/lazy-decision-ladder.md`](../../templates/.noldor/rules/lazy-decision-ladder.md)
+  - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
   - [`src/rules/cli-cores.ts`](../../src/rules/cli-cores.ts)
   - [`src/rules/cli-list.ts`](../../src/rules/cli-list.ts)
   - [`src/rules/cli-resolve.ts`](../../src/rules/cli-resolve.ts)
@@ -80,12 +83,13 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
   - [`src/core/rules/stage.ts`](../../src/core/rules/stage.ts)
   - [`src/hooks/agent-rules-guard.ts`](../../src/hooks/agent-rules-guard.ts)
 - **Tests:**
+  - [`src/core/rules/__tests__/stage.test.ts`](../../src/core/rules/__tests__/stage.test.ts)
+  - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
+  - [`src/hooks/__tests__/agent-rules-guard.test.ts`](../../src/hooks/__tests__/agent-rules-guard.test.ts)
   - [`src/rules/__tests__/cli.test.ts`](../../src/rules/__tests__/cli.test.ts)
   - [`src/rules/__tests__/index-cache.test.ts`](../../src/rules/__tests__/index-cache.test.ts)
   - [`src/rules/__tests__/load.test.ts`](../../src/rules/__tests__/load.test.ts)
   - [`src/rules/__tests__/resolve.test.ts`](../../src/rules/__tests__/resolve.test.ts)
   - [`src/rules/__tests__/types.test.ts`](../../src/rules/__tests__/types.test.ts)
-  - [`src/core/rules/__tests__/stage.test.ts`](../../src/core/rules/__tests__/stage.test.ts)
-  - [`src/hooks/__tests__/agent-rules-guard.test.ts`](../../src/hooks/__tests__/agent-rules-guard.test.ts)
 
 <!-- /generated: resources -->

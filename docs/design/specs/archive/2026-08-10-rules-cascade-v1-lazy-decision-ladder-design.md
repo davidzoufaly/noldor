@@ -87,7 +87,7 @@ This rides the dimension line (same placement rationale as the existing nit-over
 
 ### Data flow
 
-Author-side: rule lands in the `enforce` bucket of `pnpm noldor rules resolve --file <any .ts> --stage code` (glob `**/*.ts`, specificity 0 → sorts after the more specific `src/**` rules; ordering is cosmetic — both buckets are fully surfaced). Reviewer-side: `buildPrompt()` interpolates the extended guide string into every profile that includes `simplification` (`default`, `fast-track`).
+Author-side: rule lands in the `enforce` bucket of `pnpm noldor rules resolve --file <any .ts> --stage code` (glob `**/*.ts`, specificity 0 → sorts after the more specific `src/**` rules; ordering is cosmetic — both buckets are fully surfaced). Reviewer-side (as superseded — see Unit 3 note): `buildPrompt()` renders the prompt-level `CUT_MARKER_GUIDE` for any profile containing a minimalism-class dimension (`reuse`/`simplification`/`efficiency`/`altitude`) — `default` and `fast-track` both qualify.
 
 ### Error handling
 
@@ -105,7 +105,7 @@ None new. `rules validate` / `load.ts` already reject a malformed rule file; tem
 1. `pnpm noldor rules resolve --file src/core/session.ts --stage code` lists `lazy-decision-ladder` in the `enforce` bucket; `--file docs/roadmap.md` does not.
 2. `pnpm noldor rules validate` exits 0.
 3. `templates/.noldor/rules/lazy-decision-ladder.md` is byte-identical to `.noldor/rules/lazy-decision-ladder.md`; `pnpm noldor checks template-sync` exits 0.
-4. `buildPrompt()` output for the `default` and `fast-track` profiles contains the `noldor:cut` respect clause on the simplification line; a profile without `simplification` contains no mention of it (test-asserted).
+4. (As superseded — see Unit 3 note.) `buildPrompt()` output for the `default` and `fast-track` profiles contains the prompt-level `noldor:cut` respect clause; a profile with no minimalism-class dimension contains no mention of it (test-asserted).
 5. `pnpm test`, `pnpm typecheck` green.
 
 ## Risks / trade-offs
