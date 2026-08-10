@@ -40,6 +40,39 @@ const EFFORT_GUIDE: Record<ReviewEffort, string> = {
   max: 'Be exhaustive; surface every plausible concern, prefixing uncertain ones `maybe:`.',
 };
 
+// Dimensions whose findings a `noldor:cut` marker can wave off. A marked cut is
+// deliberate minimalism, so it silences minimalism-class complaints only —
+// correctness/security/concurrency/effects findings are never marker-exempt (a
+// cut hiding a bug is not a respected cut). The clause is prompt-level rather
+// than riding one dimension because a cut lands against any ladder rung: the
+// canonical example ("linear scan, fine ≤1k rules") is an efficiency cut that a
+// simplification-only clause would leave flaggable.
+// noldor:cut hand-listed subset, fails safe (an unlisted new dimension is
+// never-exempt, the stricter side) — derive from schema metadata if the
+// dimension set grows a second minimalism-class member worth classifying.
+const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
+  'reuse',
+  'simplification',
+  'efficiency',
+  'altitude',
+]);
+
+// Single source of the marker grammar. The author half lives as prose in
+// `.noldor/rules/lazy-decision-ladder.md` (+ its templates twin); the
+// subagent-dispatch test asserts the rule file contains this exact token, so
+// renaming or reshaping it in either place fails the suite instead of letting
+// reviewers silently enforce a stale grammar.
+export const CUT_MARKER_TOKEN = 'noldor:cut <ceiling> — <upgrade path>';
+
+// Both halves are phrased without naming dimensions: the prompt promises
+// "these dimensions only", so any dimension name here would either invite
+// findings against an out-of-scope dimension or read as scoping the waiver
+// (the fast-track test pins this by asserting `altitude` absent). The
+// never-exempt sentence mirrors the rule file's five never-cut carve-outs
+// semantically — defect, vulnerability, race, unintended state change,
+// accessibility, explicitly-requested behaviour.
+const CUT_MARKER_GUIDE = `\nRespect \`${CUT_MARKER_TOKEN}\` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, placed at a different layer, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, an unintended state change, an accessibility regression, or explicitly-requested behaviour that was cut.\n`;
+
 /**
  * Default impl: spawns a headless reviewer-role agent via the agent-runner
  * registry (claude unless the consumer's agents config remaps the role).
@@ -55,6 +88,9 @@ const EFFORT_GUIDE: Record<ReviewEffort, string> = {
 export function buildPrompt(input: DispatchInput): string {
   const profile = input.reviewProfile ?? DEFAULT_REVIEW_PROFILES.default;
   const dimensionLines = profile.dimensions.map((d) => `- ${d}: ${DIMENSION_GUIDE[d]}`).join('\n');
+  const cutMarkerGuide = profile.dimensions.some((d) => CUT_MARKER_DIMENSIONS.has(d))
+    ? CUT_MARKER_GUIDE
+    : '';
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
 
 FD summary context:
@@ -64,7 +100,7 @@ Range under review: ${input.baseSha}..${input.headSha}. If they differ, review o
 
 Review along these dimensions only — do not flag concerns outside them:
 ${dimensionLines}
-
+${cutMarkerGuide}
 Effort: ${profile.effort}. ${EFFORT_GUIDE[profile.effort]}
 
 Verify-before-flag protocol: before flagging a Critical issue that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual error output in the bullet. If the command passes, or you cannot run it, do not flag the claim as Critical — file it under Important prefixed with \`unverified:\` instead.
