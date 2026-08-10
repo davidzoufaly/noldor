@@ -78,6 +78,7 @@
     "skipLanePicker": true,
     "onFailure": "abort",
     "requireHumanPrApproval": false,
+    "onBlockers": "auto-fix",
     "verifyMode": "blocking"
   },
   "release": {

@@ -71,9 +71,25 @@ dependency, so the prompt stays a thin pointer.
   Under parallel drain the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`:
   `pr-flow` then pushes + opens the PR and returns at PR-open — the
   supervisor's serialized merge coordinator does the merging.
-- On CR-red or test/typecheck-red: run `pnpm noldor cr escalate --autonomous`
-  (config `autonomous.onFailure` governs) and exit non-zero — the supervisor
-  retries from clean or skips.
+- On CR-red, run `pnpm noldor cr autofix plan --slug <slug> --kind code` FIRST.
+  On exit 0 (`next: reround`), apply the listed `M<n>` mechanical blockers, commit,
+  `pnpm noldor cr autofix record --slug <slug> --kind code --applied <n> --deferred <n> --since <the printed base-sha>`,
+  re-run the code-stage orchestrate with the printed `base-sha`, and re-aggregate.
+  (`--since` keeps the ledger's `diffStat` over the whole fix; without it round 1
+  measures `HEAD~1..HEAD` and under-reports a `src/**` + `docs/noldor/**` split.)
+  On exit 11 (`next: apply-then-stop`) apply + record the `M<n>` subset, then stop
+  looping — a design blocker rides along, so the next bullet handles it.
+  With `autonomous.onBlockers: 'auto-fix'` this is what lets a mechanical-only red
+  self-heal instead of failing the whole iteration — the drain's usual outcome for
+  a missing section or an unmet stated contract. Bounded at 2 rounds per session
+  plus a no-progress stop, and it declines outright (`reason: lanes-in-flight`)
+  while any lane is still writing its sink; any other non-zero from either verb
+  falls through to the next bullet. The knob defaults to `prompt`, in which case `plan` exits 10 with
+  `knob-off` and behaviour is unchanged. `onBlockers` is deliberately NOT part of
+  the headless-safe precondition set: both values are safe unattended.
+- On a CR-red the seam declined, or on test/typecheck-red: run
+  `pnpm noldor cr escalate --autonomous` (config `autonomous.onFailure` governs)
+  and exit non-zero — the supervisor retries from clean or skips.
 - Commit and push gates run unchanged: hooks inject the `Noldor-*` trailers
   from the session marker; drain mode never bypasses them.
 - **Never background these commands, and never end the run before the PR

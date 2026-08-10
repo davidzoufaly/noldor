@@ -115,7 +115,7 @@ See the `framework-pr-flow-agent-auto-merge` changelog-integration spec §3 (202
 
 **Lint pass first.** Run `pnpm noldor noldor lint-plan-snippets <artifact-path>` and capture stdout + exit code. When the artifact kind is `plan`, also run `pnpm noldor noldor split-check --plan <artifact-path>` (same 0/2/1 exit contract) and append its stdout to the captured lint output. Exit code 0 = clean; exit code 2 = findings present (include the captured stdout verbatim in the AskUserQuestion description so the operator sees them before choosing); exit code 1 = script error (mention the error in the description but still proceed to the prompt — never block on linter infra). Findings are informational; they do not gate the choice. This Step 2.5 pass is the authoritative split checkpoint: autonomous/plans-drain paths execute committed plans without re-invoking the `noldor-plan` skill, so its post-save self-check may never have run.
 
-**Commit the artifact first.** Surface the artifact path in one sentence, then stage + commit it (no confirm — recoverable via `git reset --soft HEAD~1` if the round needs unwinding) before any lane runs — subagent needs a `BASE_SHA..HEAD_SHA` range, standalone needs the file on disk, codex+orchestrator need a stable `artifactSha` to record in `LaneFindings`.
+**Commit the artifact first.** Surface the artifact path in one sentence, then stage + commit it (no confirm — recoverable via `git reset --soft HEAD~1` if the round needs unwinding) before any lane runs — subagent needs a `BASE_SHA..HEAD_SHA` range, standalone needs the file on disk, and every lane needs the artifact at a stable `HEAD`.
 
 - After spec: `docs(features:<slug>): add spec for <slug>` (attach paths scope on the parent slug + name the enhancement in the subject)
 - After plan: `docs(features:<slug>): add plan for <slug>`
@@ -139,7 +139,7 @@ The operator picks one or several. The selected list becomes the `--lanes` argum
 pnpm noldor cr orchestrate --slug <slug> --artifact <artifact-path> --kind <spec|plan> --lanes <list>
 ```
 
-(Or `--autonomous` w/o `--lanes` per above.) On `address-blockers` re-rounds, also pass `--base-sha <priorArtifactSha>` (read from prior `LaneFindings.artifactSha`) so subagent + codex review only the diff; `--full-review` overrides back to whole-artifact.
+(Or `--autonomous` w/o `--lanes` per above.) On `address-blockers` re-rounds, also pass `--base-sha` as printed by `pnpm noldor cr autofix plan` (its `base-sha:` line — the authoritative value) so subagent + codex review only the diff; `--full-review` overrides back to whole-artifact. Do not try to read a prior artifact SHA out of a lane sink: `LaneFindings` carries `baseSha` only, never an `artifactSha`.
 
 **Summary table.** Read orchestrate stdout and surface the per-lane summary in chat: lanes that ran, synthetic-OK lanes (empty-delta short-circuit), skipped pre-dep lanes, and per-lane sink paths at `.noldor/cr/<slug>-<kind>-<lane>.json`. Exit 0 = all sync lanes clean; exit 1 = blockers somewhere.
 
@@ -161,7 +161,13 @@ For `specs-only-*` paths, the kind=spec continue-dialog has no `proceed-autonomo
 
 - `proceed-autonomous` (kind=plan only) → run `pnpm noldor noldor set-autonomous` to set `session.autonomous = true`, then advance to implementation. All remaining seams between this point and PR-merge run without prompts (see "Autonomous mode" section below).
 - `proceed` → advance to next skill in the path (interactive, today's behavior).
-- `address-blockers` → operator edits the artifact, then loop back to the top of Step 2.5 (lint → commit the fix → re-pick lanes). Orchestrate's `guardLaneOverwrite` prompts overwrite / archive-and-overwrite / keep-and-skip per existing sink; in-flight standalone trips a separate `wait / kill-and-respawn / continue-without-lane` guard.
+- `address-blockers` → **try the auto-fix seam first, then fall back to the operator.** Run `pnpm noldor cr autofix plan --slug <slug> --kind <kind>` and branch on its exit code:
+  - **0** (`next: reround` — auto-fix, all-mechanical) → apply the listed `M<n>` mechanical blockers yourself, commit the fix, then `pnpm noldor cr autofix record --slug <slug> --kind <kind> --applied <n> --deferred <n> --since <the printed base-sha>`, re-run orchestrate with `--base-sha <the printed base-sha>` and loop back to this branch. (`--since` is what makes the ledger's `diffStat` cover the whole fix when scope rules split it across commits.)
+  - **11** (`next: apply-then-stop` — auto-fix, MIXED round) → apply the `M<n>` subset and `record` it exactly as above, then **stop**: surface the applied fix diff plus the `D<n>` design blockers verbatim at the continue-dialog. Do NOT re-round — the design blocker would just be re-reported (and under `onFailure: abort` the round aborts anyway). The exit code, not the `design:` count, is what tells the two apart.
+  - **10** (`next: operator`, declined with a `reason:`), **2** (error), anything else (crash) → today's behaviour: the operator edits the artifact, then loop back to the top of Step 2.5 (lint → commit the fix → re-pick lanes). Surface the printed `reason:` so the operator knows why the seam declined (`knob-off` / `lanes-in-flight` / `prior-deferred` / `round-cap` / `no-progress` / `no-mechanical` / `no-base-sha`). `prior-deferred` means the previous round left a blocker unapplied, so the seam refuses to re-round it into a false green — the operator takes it from here. `lanes-in-flight` means a lane is still writing its sink (`in-flight lanes:` names them) — drain it with `pnpm noldor cr aggregate --slug <slug> --wait-ms <ms>` and re-run `plan` rather than treating it as a real decline.
+  - **Any non-zero from `record` stops the loop** and falls to the same operator branch. An unrecorded round is invisible to the round cap *and* leaves the next fingerprint without a predecessor, so continuing would rest the whole loop bound on `record` having silently succeeded.
+
+  The seam is off unless `.noldor/config.json` sets `autonomous.onBlockers: 'auto-fix'` (default `prompt` → `plan` exits 10 with `knob-off`), and it is bounded at 2 rounds per gate session plus a no-progress stop. Orchestrate's `guardLaneOverwrite` prompts overwrite / archive-and-overwrite / keep-and-skip per existing sink; in-flight standalone trips a separate `wait / kill-and-respawn / continue-without-lane` guard.
 - `abort` → halt the path. Because the artifact was already committed at the top of Step 2.5, document `git reset --soft HEAD~1` in chat so the operator can unstage cleanly. **Abort does NOT remove `.noldor/cr/<slug>-<kind>-*.json` sinks** — on the next gate session the priors remain and `guardLaneOverwrite` catches them. State this explicitly so the operator knows the next round will prompt for overwrite/archive/keep.
 
 This pause is the cheapest place to catch architectural drift, missing edge cases, or scope misalignment — far cheaper than fixing it post-implementation in the end-of-flow code review (Step 4).
@@ -234,7 +240,19 @@ This pause is the cheapest place to catch architectural drift, missing edge case
   pnpm noldor cr aggregate --slug <slug> --kind code
   ```
 
-  Exit 0 → proceed to PR flow. Exit 1 → capture stderr/findings to a temp file, then **escalate**.
+  Exit 0 → proceed to PR flow. Exit 1 → **try the auto-fix seam, then escalate**.
+
+- **Auto-fix mechanical blockers (before escalating).** Same pair as Step 2.5, same branching:
+
+  ```
+  pnpm noldor cr autofix plan --slug <slug> --kind code
+  ```
+
+  - **0** (`next: reround`) → apply the listed `M<n>` blockers, commit, `pnpm noldor cr autofix record --slug <slug> --kind code --applied <n> --deferred <n> --since <the printed base-sha>`, then re-run the code-stage orchestrate with `--base-sha <the printed base-sha>` (that re-run is what re-earns the `Noldor-Reviewed-Subagent` receipt — orchestrate only amends it on a green reviewer run) and re-aggregate.
+  - **11** (`next: apply-then-stop`) → apply + `record` the `M<n>` subset, then stop looping and **escalate** on the `D<n>` design blockers below.
+  - **any other non-zero** (from `plan` or from `record`) → capture stderr/findings to a temp file and **escalate** exactly as below. On `reason: lanes-in-flight` prefer draining the lane first (`pnpm noldor cr aggregate --slug <slug> --wait-ms <ms>`) and re-running `plan`.
+
+  Off by default (`autonomous.onBlockers`, see Step 2.5), bounded at 2 rounds per session plus a no-progress stop.
 
 - **Escalate on cr-red.**
 
@@ -257,7 +275,16 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   Same exit-code semantics as above.
 
-- **Context cleanup on clean exit.** Once all aggregates are green and the gate is about to enter PR flow, remove the escalation context file so stale failure context can't leak into a subsequent retry on the next feature: `rm -f .noldor/cr/<slug>-escalation-context.md`.
+- **Context cleanup on clean exit.** Once all aggregates are green and the gate is about to enter PR flow, remove the escalation context file so stale failure context can't leak into a subsequent retry on the next feature, together with the auto-fix round ledgers and any quarantine remnant:
+
+  ```
+  rm -f .noldor/cr/<slug>-escalation-context.md \
+        .noldor/cr/autofix/<slug>-spec.json  .noldor/cr/autofix/<slug>-spec.json.bad \
+        .noldor/cr/autofix/<slug>-plan.json  .noldor/cr/autofix/<slug>-plan.json.bad \
+        .noldor/cr/autofix/<slug>-code.json  .noldor/cr/autofix/<slug>-code.json.bad
+  ```
+
+  All three kinds are listed because a `full-*` session runs Step 2.5 at both `spec` and `plan` and Step 4 at `code`, so up to three ledgers exist; `rm -f` on an absent path is a no-op, so enumeration beats deriving the set from the session path. Nothing else ever removes a `.bad` file. Do **not** collapse this to `.noldor/cr/autofix/<slug>-*`: the directory is shared in the main workspace, so a slug that is a prefix of another (`foo` vs `foo-bar`) would cross-match and delete a sibling feature's ledger. In bash/zsh `rm -f .noldor/cr/autofix/<slug>-{spec,plan,code}.json{,.bad}` is an equivalent shorthand — brace expansion is deterministic expansion, not pattern matching — but the enumerated form above is the portable one.
 
 - **Bootstrap-immunity (gate-introducing FDs only).** Run `pnpm noldor cr bootstrap --slug <slug>`. If the FD's frontmatter declares `introduces-gate`, this rewrites every commit on the worktree branch to carry the matching bootstrap override so the release gate the feature introduces can't block its own commits. No-op otherwise (`no introduces-gate — skipped`). Runs **after** the code-stage review amends `Noldor-Reviewed-Subagent` on the tip (the rewrite is message-only, tree-preserving, so review receipts stay valid) and **before** `pnpm noldor pr-flow` (so the history rewrite stays local, pre-push). Fast-track / micro-chore paths skip it (no FD).
 

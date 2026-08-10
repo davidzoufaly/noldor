@@ -45,6 +45,15 @@ export const watchConfigSchema = z.object({
 export const autonomousConfigSchema = z.object({
   skipLanePicker: z.boolean().default(false),
   onFailure: z.enum(['prompt', 'spawn-deep-review', 'abort']).default('prompt'),
+  // Posture for a CR round whose blockers the reviewer tagged `[mechanical]`:
+  // `auto-fix` lets the gate apply them and re-round; `prompt` keeps today's
+  // operator-arbitrates-everything behaviour. Default `prompt` because the
+  // framework cannot know in advance that a round carries no design
+  // disagreement. Deliberately NOT part of the drain's headless-safe
+  // precondition set (`assertConfig`): both values are safe unattended, since
+  // `prompt` merely makes `cr autofix` decline and the existing `onFailure`
+  // policy takes over unchanged.
+  onBlockers: z.enum(['auto-fix', 'prompt']).default('prompt'),
   requireHumanPrApproval: z.boolean().default(false),
   // Governs ONLY the verify lane's agent judgment; the smoke floor blocks in
   // both modes (stop-the-line). Advisory default = one bake-in release.

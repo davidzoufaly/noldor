@@ -9,11 +9,10 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
+import { isSlug } from '../core/slug.js';
 import { allocatePorts, parseWorktreeList, readPort } from './worktree-status.js';
 
 const execFileP = promisify(execFile);
-
-const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
  * Signature of the tolerated install failure: lefthook's postinstall refuses
@@ -79,7 +78,7 @@ export async function createWorktree(opts: CreateOptions): Promise<CreateResult>
   const cwd = resolve(opts.cwd ?? process.cwd());
   const log = opts.log ?? (() => {});
 
-  if (!SLUG_RE.test(opts.slug)) {
+  if (!isSlug(opts.slug)) {
     throw new Error(`invalid slug '${opts.slug}': expected kebab-case ([a-z0-9-])`);
   }
   const branch = opts.branch ?? `feat/${opts.slug}`;

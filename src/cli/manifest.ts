@@ -118,6 +118,10 @@ export const MANIFEST: Record<string, Group> = {
       aggregate: { src: 'cr/aggregate-cli.ts', desc: 'Aggregate lane sinks into a single verdict' },
       codex: { src: 'cr/codex.ts', desc: 'Codex CR pass' },
       escalate: { src: 'cr/escalate-cli.ts', desc: 'Escalate on cr-red / test-red' },
+      autofix: {
+        src: 'cr/autofix-cli.ts',
+        desc: 'Decide + record auto-fix rounds for mechanical CR blockers (plan | record)',
+      },
       bootstrap: {
         src: 'cr/bootstrap-cli.ts',
         desc: 'Stamp bootstrap override on a gate-introducing feature branch',

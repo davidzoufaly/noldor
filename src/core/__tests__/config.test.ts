@@ -54,6 +54,19 @@ describe('loadConfig', () => {
     const cfg = await loadConfig(path);
     expect(cfg?.autonomous?.skipLanePicker).toBe(false);
     expect(cfg?.autonomous?.onFailure).toBe('prompt');
+    // Auto-fix stays OFF unless a consumer opts in: the framework cannot know a
+    // round carries no design disagreement.
+    expect(cfg?.autonomous?.onBlockers).toBe('prompt');
+  });
+  it('accepts autonomous.onBlockers auto-fix', async () => {
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ autonomous: { onBlockers: 'auto-fix' } }), 'utf8');
+    expect((await loadConfig(path))?.autonomous?.onBlockers).toBe('auto-fix');
+  });
+  it('rejects an unknown autonomous.onBlockers value', async () => {
+    const path = join(dir, 'config.json');
+    await writeFile(path, JSON.stringify({ autonomous: { onBlockers: 'yolo' } }), 'utf8');
+    await expect(loadConfig(path)).rejects.toThrow();
   });
   it('rejects invalid lane in crLanes', async () => {
     const path = join(dir, 'config.json');

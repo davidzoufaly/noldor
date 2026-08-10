@@ -14,19 +14,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate Auto-Addresses CR Blockers
-
-- id: Q-0075
-- area: tooling
-- type: feat
-- since: 2026-08-06
-- size: M
-- impact: high
-- confidence: med
-- parent: specs-cr-gate-multi-reviewer
-
-Both blocker seams are prompt-only. Artifact-stage Step 2.5's continue-dialog offers `address-blockers`, whose prose is literally "operator edits the artifact"; code-stage `cr escalate` prompts `retry-implementation / spawn-deep-review / override-with-trailer / abort`. Neither carries an auto-fix outcome, so not even `proceed-autonomous` plus `autonomous.onFailure` can express "fix it and re-round" — the framework asks the operator to do work it could do itself. Add an auto-fix outcome: the controller applies the blockers, re-runs orchestrate with `--base-sha <priorArtifactSha>`, and surfaces the fix diff at the *next* dialog instead of a question before it. Gate it behind a knob such as `autonomous.onBlockers: 'auto-fix' | 'prompt'`, default `prompt`, because design-disagreement blockers still need operator arbitration while mechanical ones (missing section, lint-class finding, unstated acceptance criterion) do not. Open design question: how the controller classifies a blocker as mechanical versus design-disagreement without asking. (surfaced operator friction 2026-08-06)
-
 ### Diff-Scoped Clone Gate
 
 - id: Q-0066

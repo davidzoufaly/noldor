@@ -69,15 +69,21 @@ Effort: ${profile.effort}. ${EFFORT_GUIDE[profile.effort]}
 
 Verify-before-flag protocol: before flagging a Critical issue that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual error output in the bullet. If the command passes, or you cannot run it, do not flag the claim as Critical — file it under Important prefixed with \`unverified:\` instead.
 
+Classify every Critical and Important bullet by prefixing it with exactly one tag:
+- \`[mechanical]\` — the fix is determined by the finding itself: a missing required section, an unanswered open question, a lint-class defect, a stated contract not met. Someone applying your bullet needs no judgment call beyond what you wrote.
+- \`[design]\` — the fix requires a judgment call you are NOT making for them: disagreement about an approach, a default, a trade-off, or anything where two reasonable fixes exist and picking between them is the author's call.
+
+Tag by what the FIX needs, not by how severe the finding is. When in doubt, tag \`[design]\` — an untagged or design-tagged blocker is routed to a human, which is always safe. Minor bullets need no tag.
+
 Emit your review in this exact format, no preamble:
 
 Strengths: <one-line summary of what is well-done>
 
 Issues:
   Critical:
-    - <bullet>
+    - [mechanical|design] <bullet>
   Important:
-    - <bullet>
+    - [mechanical|design] <bullet>
   Minor:
     - <bullet>
 

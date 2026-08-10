@@ -5,9 +5,17 @@ import { laneFindingsSchema } from './findings-schema.js';
 import { inferLaneFromFilename } from './filename.js';
 import { PROMPT_TEMPLATE_PATH } from './deep-review-spawn.js';
 
+/**
+ * A blocker as this module surfaces it — a {@link Finding} plus the lane that
+ * filed it. Declared HERE, next to the only producer, and imported by consumers
+ * (`cr autofix`): a second copy of the shape elsewhere needs a cast to bridge the
+ * two, and that cast is exactly what would swallow a later change to this type.
+ */
+export type LaneBlocker = Finding & { lane: Lane };
+
 export interface AggregateResult {
   ok: boolean;
-  blockers: Array<Finding & { lane: Lane }>;
+  blockers: LaneBlocker[];
   unresolved: Lane[];
   summaries: Partial<Record<Lane, string>>;
   notes: Partial<Record<Lane, string[]>>;
@@ -31,7 +39,7 @@ export async function aggregate(
     .filter((e) => e.isFile() && e.name.startsWith(prefix) && e.name.endsWith('.json'))
     .map((e) => join(dir, e.name));
 
-  const blockers: Array<Finding & { lane: Lane }> = [];
+  const blockers: LaneBlocker[] = [];
   const unresolved: Lane[] = [];
   const summaries: Partial<Record<Lane, string>> = {};
   const notes: Partial<Record<Lane, string[]>> = {};
