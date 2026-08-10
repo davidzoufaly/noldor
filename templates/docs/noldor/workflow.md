@@ -62,6 +62,10 @@ For agentic operators who want to chain through to PR-merge without checkpoints,
 
 - **Before executing a spec, check its length.** If it's too long to finish in one pass without exhausting context, split into 2 parts and execute sequentially. Propose the split to the user if borderline
 
+## Prefer a recomputed decision over maintained state
+
+- **When a decision depends on state with many mutation sites, recompute it fresh at the point of use instead of maintaining a flag/set.** The first cut of drain finish-mode carried a `finishable` Set mutated at every ship / skip / merge / retry / timeout leaf; CR rounds 5, 10, 11 and 13 each found a different missed `delete`. Replacing it with a verdict recomputed immediately before each spawn (`resolveFinishPrompt`) erased the whole finding class with all 215 autonomous tests passing unchanged. Read repeated "you missed another unwind" review rounds as the reviewer circling a design smell, not as N separate bugs. (Q-0073, PR #268)
+
 ## Lessons belong in the framework, not private memory
 
 When a trap or gotcha is discovered, fix it in the framework directly — a code fix, or a bullet under `## Lessons` in `ideas.md` for `/noldor-absorb` to file into these runbooks. Never journal it only in an agent's private memory: Noldor is a product, and lessons must travel with the repo to every operator and consumer. Reserve private memory for cross-session state the framework can't hold.
