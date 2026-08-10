@@ -174,6 +174,17 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
   process.exit(EXIT_FOR_NEXT[r.next]);
 }
 
+/**
+ * A hex object name, 4–40 chars. `--since` is interpolated into a `git diff`
+ * ARGUMENT, so an unvalidated value beginning with `-` is parsed by git as an
+ * option rather than a rev: `git diff --shortstat '--output=x..HEAD'` exits 0 and
+ * WRITES the file `x..HEAD`. The value reaches us from the gate controller, which
+ * copies it off `plan` stdout — text that also carries reviewer-supplied
+ * `message` / `suggestion` strings. Refusing anything but a hex sha cuts that
+ * chain at the only point where a check is cheap and total.
+ */
+const SHA_RE = /^[0-9a-fA-F]{4,40}$/;
+
 /** Parse a required non-negative integer flag. */
 function count(name: string, raw: string | undefined): number {
   if (raw === undefined) usage(`--${name} is required`);
@@ -186,6 +197,9 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
   const { slug, kind } = requireTarget(a);
   const applied = count('applied', a.applied);
   const deferred = count('deferred', a.deferred);
+  if (a.since !== undefined && !SHA_RE.test(a.since)) {
+    usage(`--since must be a hex sha (4-40 chars), got ${a.since}`);
+  }
   const key = sessionKey(cwd);
 
   // The sinks are unchanged between `plan` and `record` — nothing re-runs

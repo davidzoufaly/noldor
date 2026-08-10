@@ -1,6 +1,6 @@
 // @tests: specs-cr-gate-multi-reviewer
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -288,6 +288,28 @@ describe('cr autofix record', () => {
     expect(r.stdout).toContain(`(${head}..HEAD)`);
     const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
     expect(led.rounds[0].diffRange).toBe(`${head}..HEAD`);
+  });
+
+  it('exits 2 on a --since that is not a hex sha, before it reaches git', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    const r = run(
+      'record',
+      '--slug',
+      'slug',
+      '--kind',
+      'spec',
+      '--applied',
+      '1',
+      '--deferred',
+      '0',
+      '--since',
+      '--output=pwned',
+    );
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--since must be a hex sha');
+    // The option-shaped value never reached `git diff`, so nothing was written.
+    expect(existsSync(join(cwd, '--output=pwned..HEAD'))).toBe(false);
+    expect(existsSync(join(cwd, 'pwned..HEAD'))).toBe(false);
   });
 
   it('falls back to HEAD~1..HEAD on round 1 without --since, and says so', () => {

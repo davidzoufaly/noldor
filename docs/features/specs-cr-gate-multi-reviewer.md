@@ -71,7 +71,7 @@ introduced: 0.6.0
 ---
 ## Summary
 
-Layer a CR gate at the spec/plan stage (before code) with parallel reviewers: manual operator pass; codex via `pnpm cr:codex --plan` (lands with [[codex-cr-plan-review-mode]]); Claude-in-same-terminal via a subagent + `superpowers:requesting-code-review` skill against `{{spec-or-plan-path}}`; Claude-standalone via a spawned separate terminal running `claude` with max-thinking and prompt `review: {{path-to-spec-or-plan}}`. Reuses the existing multiterminal-development flow (which has a known bug — tracked separately as [[fix-multiterminal-dev-flow-bug]] and required before this can ship). Outcomes feed back into the spec/plan before promotion to code. Closes the early-feedback gap at `/noldor-gate` Step 2.5.
+Layer a CR gate at the spec/plan stage (before code) with parallel reviewers, orchestrated by `pnpm noldor cr orchestrate --kind <spec|plan|code>`: `manual` (operator pass over the artifact); `codex` (`pnpm noldor cr codex`, opt-in per `crLanes`); `reviewer` (senior-reviewer subagent over the artifact diff — a self-contained `claude -p` prompt in [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts), mandatory at `--kind spec` / `--kind plan`); `verifier` (acceptance-verification lane); and `standalone` (a spawned separate terminal running `claude` with max-thinking, reusing the multiterminal-development flow). Each lane writes `.noldor/cr/<slug>-<kind>-<lane>.json`; `cr aggregate` decides green/red and `cr escalate` / `cr autofix` handle a red. Outcomes feed back into the spec/plan before promotion to code. Closes the early-feedback gap at `/noldor-gate` Step 2.5.
 
 ## User Story
 

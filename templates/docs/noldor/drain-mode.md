@@ -73,8 +73,10 @@ dependency, so the prompt stays a thin pointer.
   supervisor's serialized merge coordinator does the merging.
 - On CR-red, run `pnpm noldor cr autofix plan --slug <slug> --kind code` FIRST.
   On exit 0 (`next: reround`), apply the listed `M<n>` mechanical blockers, commit,
-  `pnpm noldor cr autofix record --slug <slug> --kind code --applied <n> --deferred <n>`,
+  `pnpm noldor cr autofix record --slug <slug> --kind code --applied <n> --deferred <n> --since <the printed base-sha>`,
   re-run the code-stage orchestrate with the printed `base-sha`, and re-aggregate.
+  (`--since` keeps the ledger's `diffStat` over the whole fix; without it round 1
+  measures `HEAD~1..HEAD` and under-reports a `src/**` + `docs/noldor/**` split.)
   On exit 11 (`next: apply-then-stop`) apply + record the `M<n>` subset, then stop
   looping — a design blocker rides along, so the next bullet handles it.
   With `autonomous.onBlockers: 'auto-fix'` this is what lets a mechanical-only red

@@ -195,10 +195,20 @@ describe('decide — baseSha ladder', () => {
     expect(decide({ ...base, blockers: [mech()] }).baseSha).toBe(HEAD);
   });
 
-  it("uses the prior round's headSha afterwards", () => {
+  it("prefers current HEAD over the prior round's recorded headSha", () => {
     const r = decide({
       ...base,
       blockers: [mech()],
+      ledger: ledgerWith([{ headSha: 'prior', fingerprint: 'other' }]),
+    });
+    expect(r.baseSha).toBe(HEAD);
+  });
+
+  it("falls back to the prior round's headSha when HEAD does not resolve", () => {
+    const r = decide({
+      ...base,
+      blockers: [mech()],
+      headSha: '',
       ledger: ledgerWith([{ headSha: 'prior', fingerprint: 'other' }]),
     });
     expect(r.baseSha).toBe('prior');

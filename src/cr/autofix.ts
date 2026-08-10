@@ -70,17 +70,25 @@ function isMechanical(b: LaneBlocker): boolean {
 }
 
 /**
- * Resolve the `--base-sha` the re-round would use: the prior round's `headSha`
- * when non-empty, else current `HEAD`. Empty means neither is available.
+ * Resolve the `--base-sha` the re-round would use: current `HEAD` when non-empty,
+ * else the prior round's recorded `headSha`. Empty means neither is available.
  *
- * The middle rung matters because `record` degrades a failed `git rev-parse` to
- * `headSha: ''` rather than refusing to record the round; without the fallback,
- * round 2 would emit an empty `base-sha:` and the gate would invoke
- * `orchestrate --base-sha` with an empty argument.
+ * CURRENT `HEAD` FIRST, deliberately. The value names the pre-fix point of the
+ * round about to run, and at `plan` time that is exactly `HEAD` — the fix commit
+ * has not been made yet. The prior round's `headSha` is strictly worse on both
+ * counts: anything that landed between `record` and this `plan` widens the
+ * re-round's review window to include it, and the code-stage receipt amend
+ * rewrites the tip, so a recorded sha can become an unreferenced object and
+ * `orchestrate --base-sha <sha>` then fails on a gc'd commit.
+ *
+ * The fallback still matters because `record` degrades a failed `git rev-parse`
+ * to `headSha: ''` rather than refusing to record the round; without a second
+ * rung, a `plan` whose own `rev-parse` failed would emit an empty `base-sha:`
+ * and the gate would invoke `orchestrate --base-sha` with an empty argument.
  */
 function resolveBaseSha(ledger: AutofixLedger | null, headSha: string): string {
   const priorHead = ledger?.rounds.at(-1)?.headSha ?? '';
-  return priorHead !== '' ? priorHead : headSha;
+  return headSha !== '' ? headSha : priorHead;
 }
 
 /**
