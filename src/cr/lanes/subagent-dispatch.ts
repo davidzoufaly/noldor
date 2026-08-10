@@ -57,14 +57,20 @@ const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
   'altitude',
 ]);
 
+// Single source of the marker grammar. The author half lives as prose in
+// `.noldor/rules/lazy-decision-ladder.md` (+ its templates twin); the
+// subagent-dispatch test asserts the rule file contains this exact token, so
+// renaming or reshaping it in either place fails the suite instead of letting
+// reviewers silently enforce a stale grammar.
+export const CUT_MARKER_TOKEN = 'noldor:cut <ceiling> — <upgrade path>';
+
 // Both halves are phrased without naming dimensions: the prompt promises
 // "these dimensions only", so any dimension name here would either invite
 // findings against an out-of-scope dimension or read as scoping the waiver
 // (the fast-track test pins this by asserting `altitude` absent). The
 // never-exempt sentence covers correctness/security/concurrency/effects
 // semantically — defect, vulnerability, race, unintended state change.
-const CUT_MARKER_GUIDE =
-  '\nRespect `noldor:cut <ceiling> — <upgrade path>` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, placed at a different layer, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, or an unintended state change.\n';
+const CUT_MARKER_GUIDE = `\nRespect \`${CUT_MARKER_TOKEN}\` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, placed at a different layer, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, or an unintended state change.\n`;
 
 /**
  * Default impl: spawns a headless reviewer-role agent via the agent-runner

@@ -1,6 +1,8 @@
-// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer
+// @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, rules-cascade-v1
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildPrompt } from '../../lanes/subagent-dispatch.js';
+import { buildPrompt, CUT_MARKER_TOKEN } from '../../lanes/subagent-dispatch.js';
 import { ALL_DIMENSIONS, DEFAULT_REVIEW_PROFILES } from '../../../core/review-profile.js';
 
 const base = {
@@ -45,6 +47,19 @@ describe('buildPrompt review profile', () => {
       expect(p).toMatch(
         /never waives a finding about a defect, a vulnerability, a race, or an unintended state change/,
       );
+    }
+  });
+
+  it('ties the reviewer-side marker grammar to the lazy-decision-ladder rule file', () => {
+    // The author half of the noldor:cut contract is prose in the rule store;
+    // this pins both halves to CUT_MARKER_TOKEN so a rename in either place
+    // fails here instead of reviewers silently enforcing a stale grammar.
+    for (const rel of [
+      '.noldor/rules/lazy-decision-ladder.md',
+      'templates/.noldor/rules/lazy-decision-ladder.md',
+    ]) {
+      const body = readFileSync(join(process.cwd(), rel), 'utf8');
+      expect(body, rel).toContain(CUT_MARKER_TOKEN);
     }
   });
 
