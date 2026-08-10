@@ -5,6 +5,8 @@ deps: []
 links:
   spec: lost-pre-extraction
   code:
+    - .noldor/rules/lazy-decision-ladder.md
+    - templates/.noldor/rules/lazy-decision-ladder.md
     - src/rules/cli-cores.ts
     - src/rules/cli-list.ts
     - src/rules/cli-resolve.ts
@@ -30,13 +32,14 @@ phase: done
 noldor-tier: full
 introduced: 0.2.0
 ---
+
 ## Summary
 
-Retroactive FD for the Rules Cascade v1 substrate (PR #2, 2026-06-01) — the layered agent-rules system: rule MDs are loaded (`src/rules/load.ts`), resolved through the cascade with overrides (`src/rules/resolve.ts`), cached (`src/rules/index-cache.ts`), staged into agent-facing outputs (`src/core/rules/stage.ts`), and guarded against unreviewed edits by the `agent-rules-guard` hook. Four thin CLI wrappers (`cli-cores`, `cli-list`, `cli-resolve`, `cli-validate`) expose the cascade. Shipped before FD-trailer dogfooding began, so no `Noldor-FD:` history exists; this FD backfills ownership so the code stops floating unreferenced (2026-07-03 tag judgment pass).
+Retroactive FD for the Rules Cascade v1 substrate (PR #2, 2026-06-01) — the layered agent-rules system: rule MDs are loaded (`src/rules/load.ts`), resolved through the cascade with overrides (`src/rules/resolve.ts`), cached (`src/rules/index-cache.ts`), staged into agent-facing outputs (`src/core/rules/stage.ts`), plus the `agent-rules-guard` hook (an Agent-dispatch prompt guard, currently unwired). Four thin CLI wrappers (`cli-cores`, `cli-list`, `cli-resolve`, `cli-validate`) expose the cascade. Shipped before FD-trailer dogfooding began, so no `Noldor-FD:` history exists; this FD backfills ownership so the code stops floating unreferenced (2026-07-03 tag judgment pass).
 
 ## User Story
 
-As a Noldor operator, I want repo rules expressed as layered, resolvable rule documents with CLI access and an edit guard, so that agents inherit consistent constraints without hand-copying rule text between contexts.
+As a Noldor operator, I want repo rules expressed as layered, resolvable rule documents with CLI access, so that agents inherit consistent constraints without hand-copying rule text between contexts.
 
 ## Usage
 
@@ -64,6 +67,8 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
+  - [`.noldor/rules/lazy-decision-ladder.md`](../../.noldor/rules/lazy-decision-ladder.md)
+  - [`templates/.noldor/rules/lazy-decision-ladder.md`](../../templates/.noldor/rules/lazy-decision-ladder.md)
   - [`src/rules/cli-cores.ts`](../../src/rules/cli-cores.ts)
   - [`src/rules/cli-list.ts`](../../src/rules/cli-list.ts)
   - [`src/rules/cli-resolve.ts`](../../src/rules/cli-resolve.ts)
