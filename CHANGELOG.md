@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.2.0 — 2026-08-10
+
+### Features
+
+- feat(tooling): check in .oxlintrc.json + template twin (#271) ([2cbe606](https://github.com/davidzoufaly/noldor/commit/2cbe606fd07cd2c28891d9d6216e62edc1926bca)) ([#271](https://github.com/davidzoufaly/noldor/pull/271))
+- feat(cr): scope simplification into the fast-track review profile (#269) ([adce172](https://github.com/davidzoufaly/noldor/commit/adce172971e890f36438ae72971bb084732e1218)) ([#269](https://github.com/davidzoufaly/noldor/pull/269))
+
+### Fixes
+
+- fix(dashboard): raise git() abort budget 1.5s -> 10s — hot-zones blanked under load (#281) ([697bda6](https://github.com/davidzoufaly/noldor/commit/697bda66911257064872c32cd88b2127358692f7)) ([#281](https://github.com/davidzoufaly/noldor/pull/281))
+- fix(core): declare per-prerequisite version args in the doctor probe (#264) ([b1103bd](https://github.com/davidzoufaly/noldor/commit/b1103bde937ad6014676d6ca14fcb953502f8e2f)) ([#264](https://github.com/davidzoufaly/noldor/pull/264))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift (#282) ([8b0542d](https://github.com/davidzoufaly/noldor/commit/8b0542d0ed601f07bd4abfeee2f16b26c08d21f0)) ([#282](https://github.com/davidzoufaly/noldor/pull/282))
+- docs(ideas): unbreak live-tree sdd-report tests reddened by PR #279 bullet moves (#280) ([1e88ae1](https://github.com/davidzoufaly/noldor/commit/1e88ae1184ae9c13c73d470a15f96f3640a67719)) ([#280](https://github.com/davidzoufaly/noldor/pull/280))
+- docs(triage): land Q-0078 triage residue + absorb three Q-0073 lessons (#279) ([a0061b1](https://github.com/davidzoufaly/noldor/commit/a0061b1e048a349b8682741ac37546f5821ef3d3)) ([#279](https://github.com/davidzoufaly/noldor/pull/279))
+- docs(skills): wire lazy-decision-ladder + noldor:cut discipline into noldor-refactor (#278) ([b6d9776](https://github.com/davidzoufaly/noldor/commit/b6d97760c649b33fb111ad2aa307ad1e8f386ef7)) ([#278](https://github.com/davidzoufaly/noldor/pull/278))
+- docs(features:rules-cascade-v1): revert phase done → in-progress for attach session (#277) ([f2f1734](https://github.com/davidzoufaly/noldor/commit/f2f1734159dfc99db3e9572d9b0e7bfbc3bfcc42)) ([#277](https://github.com/davidzoufaly/noldor/pull/277))
+- docs(features:specs-cr-gate-multi-reviewer): revert phase done → in-progress for attach session (#276) ([b151dcd](https://github.com/davidzoufaly/noldor/commit/b151dcd05081bf5877ca1b46f81c46a0a553ade7)) ([#276](https://github.com/davidzoufaly/noldor/pull/276))
+- docs(roadmap): retire post-merge-cleanup-reporting-gaps — shipped via fast-track (no FD) (#275) ([70346e8](https://github.com/davidzoufaly/noldor/commit/70346e8f2db77d5a9acbc589992ce773d9283eea)) ([#275](https://github.com/davidzoufaly/noldor/pull/275))
+- docs(roadmap): retire publish-access-public-invariant — shipped via fast-track (no FD) (#274) ([611b8f1](https://github.com/davidzoufaly/noldor/commit/611b8f1dc4ce7bf4bf7b5b0a0711989b3dcc4910)) ([#274](https://github.com/davidzoufaly/noldor/pull/274))
+- docs(roadmap): retire noldor-commit-wrapper — shipped via fast-track (no FD) (#273) ([60e3064](https://github.com/davidzoufaly/noldor/commit/60e306473647274fea78410ac640a73af4aed73e)) ([#273](https://github.com/davidzoufaly/noldor/pull/273))
+- docs(roadmap): retire graph-staleness-gate-loud-in-ci — shipped via fast-track (no FD) (#272) ([9ae0bc0](https://github.com/davidzoufaly/noldor/commit/9ae0bc09124fbb209dd69a48f81d4be3d728c838)) ([#272](https://github.com/davidzoufaly/noldor/pull/272))
+- docs(roadmap): retire upgrade-never-advances-a-stale-anchor-on-an-empty-migration-chain — shipped via fast-track (no FD) (#270) ([1ae254a](https://github.com/davidzoufaly/noldor/commit/1ae254adbbecff3c052803ff98d36f9aa261744f)) ([#270](https://github.com/davidzoufaly/noldor/pull/270))
+- docs(roadmap): retire drain-false-retry-on-in-flight-cr-lane — shipped via fast-track (no FD) (#268) ([bab98cb](https://github.com/davidzoufaly/noldor/commit/bab98cb2b67b1ada6ee383d1c49be5c56d482c89)) ([#268](https://github.com/davidzoufaly/noldor/pull/268))
+- docs(roadmap): retire cr-review-dimension-coverage — shipped via fast-track (no FD) (#267) ([6c96cf2](https://github.com/davidzoufaly/noldor/commit/6c96cf21338f7770d8ee545d3d8eb459ca9d405d)) ([#267](https://github.com/davidzoufaly/noldor/pull/267))
+- docs(roadmap): retire cr-delta-short-circuit-green-washes-red-prior-sinks — shipped via fast-track (no FD) (#266) ([ac1fed5](https://github.com/davidzoufaly/noldor/commit/ac1fed5c887357963826b241600cd7e03f715c84)) ([#266](https://github.com/davidzoufaly/noldor/pull/266))
+- docs(roadmap): retire dashboard-port-collision-detection-across-projects — shipped via fast-track (no FD) (#265) ([29276fe](https://github.com/davidzoufaly/noldor/commit/29276fe2b3815b9dab6e2c16bb550bfead840a21)) ([#265](https://github.com/davidzoufaly/noldor/pull/265))
+- docs(triage): land Q-0076 + Q-0077 — two consumer-facing CLI bugs (#263) ([a773e14](https://github.com/davidzoufaly/noldor/commit/a773e1402dddfb38265eb48446356ad0ebfbcd8e)) ([#263](https://github.com/davidzoufaly/noldor/pull/263))
+
 ## v1.1.1 — 2026-08-06
 
 ### Fixes
