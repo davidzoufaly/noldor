@@ -43,7 +43,13 @@ function field(stdout: string, key: string): string | undefined {
   return stdout.match(new RegExp(`^${key}: (.*)$`, 'm'))?.[1];
 }
 
-function writeSink(lane: Lane, kind: string, blockers: Finding[]): void {
+/** `inFlight` omits `finishedAt`, which is what `aggregate` reads as unresolved. */
+function writeSink(
+  lane: Lane,
+  kind: string,
+  blockers: Finding[],
+  opts: { inFlight?: boolean } = {},
+): void {
   writeFileSync(
     join(cwd, '.noldor', 'cr', `slug-${kind}-${lane}.json`),
     JSON.stringify({
@@ -55,7 +61,7 @@ function writeSink(lane: Lane, kind: string, blockers: Finding[]): void {
       suggestions: [],
       summary: blockers.length ? 'blockers found' : 'approve',
       startedAt: SESSION,
-      finishedAt: SESSION,
+      ...(opts.inFlight ? {} : { finishedAt: SESSION }),
     }),
     'utf8',
   );
@@ -135,17 +141,40 @@ describe('cr autofix plan', () => {
     expect(field(r.stdout, 'base-sha')).toMatch(/^[0-9a-f]{40}$/);
     expect(field(r.stdout, 'round')).toBe('1/2');
     expect(field(r.stdout, 'mechanical')).toBe('2');
-    expect(r.stdout).toContain('M1 a.md — missing section');
+    expect(r.stdout).toContain('M1 a.md [reviewer] — missing section');
     expect(field(r.stdout, 'design')).toBe('0');
+    expect(field(r.stdout, 'next')).toBe('reround');
   });
 
-  it('exits 0 on a mixed round and lists the design remainder', () => {
+  it('exits 11 on a MIXED round and lists the design remainder', () => {
     writeSink('reviewer', 'spec', [MECH, DESIGN]);
     const r = run('plan', '--slug', 'slug', '--kind', 'spec');
-    expect(r.status).toBe(0);
+    expect(r.status).toBe(11);
+    expect(field(r.stdout, 'verdict')).toBe('auto-fix');
+    expect(field(r.stdout, 'next')).toBe('apply-then-stop');
     expect(field(r.stdout, 'mechanical')).toBe('1');
     expect(field(r.stdout, 'design')).toBe('1');
-    expect(r.stdout).toContain('D1 a.md — wrong default');
+    expect(r.stdout).toContain('D1 a.md [reviewer] — wrong default');
+  });
+
+  it('anchors a blocker at file:line and echoes its suggestion', () => {
+    writeSink('reviewer', 'code', [
+      { ...MECH, file: 'src/foo.ts', line: 42, suggestion: 'drop the cast' },
+    ]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'code');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('M1 src/foo.ts:42 [reviewer] — missing section');
+    expect(r.stdout).toContain('suggestion: drop the cast');
+  });
+
+  it('exits 10 with lanes-in-flight while a lane has no finishedAt', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    writeSink('standalone', 'spec', [], { inFlight: true });
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(10);
+    expect(field(r.stdout, 'reason')).toBe('lanes-in-flight');
+    expect(field(r.stdout, 'next')).toBe('operator');
+    expect(field(r.stdout, 'in-flight lanes')).toBe('standalone');
   });
 
   it('exits 10 with knob-off when onBlockers is prompt', () => {

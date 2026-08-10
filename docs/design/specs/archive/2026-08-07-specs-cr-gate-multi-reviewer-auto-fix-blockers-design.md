@@ -261,11 +261,15 @@ is both simpler and hole-free.
 [`.claude/skills/noldor-gate/SKILL.md`](../../../.claude/skills/noldor-gate/SKILL.md) and its twin
 `templates/.claude/skills/noldor-gate/SKILL.md` (kept byte-identical per the shared-file check):
 
-- **Step 2.5, `address-blockers`** — before asking the operator to edit, run `cr autofix plan`. On exit 0:
-  apply the listed mechanical blockers, commit, `cr autofix record`, then re-run orchestrate with the printed
-  `base-sha`; loop. On a non-empty `design` list, stop and surface the applied diff plus the design blockers
-  verbatim at the dialog. On exit 10, or on any other non-zero (`2` and, per U4's residual rule, everything
-  else): today's behaviour.
+- **Step 2.5, `address-blockers`** — before asking the operator to edit, run `cr autofix plan`. On exit 0
+  (`next: reround`, all-mechanical): apply the listed mechanical blockers, commit, `cr autofix record`, then
+  re-run orchestrate with the printed `base-sha`; loop. On **exit 11** (`next: apply-then-stop`, a design
+  blocker rides along): apply + record the mechanical subset, then stop and surface the applied diff plus the
+  design blockers verbatim at the dialog. On exit 10, or on any other non-zero (`2` and, per U4's residual
+  rule, everything else): today's behaviour.
+  *(Amended at code-stage CR: the MIXED round originally shared exit 0 with the all-mechanical round, which
+  left the "stop, don't re-round" rule resting on the controller reading the `design:` count out of stdout.
+  `decide` now returns a `next` action and the CLI maps it to its own exit code.)*
   **Any non-zero exit from `record` stops the loop** and falls to the existing seam — same posture as `plan`.
   An unrecorded round is invisible to the cap *and* leaves the next fingerprint without a predecessor, so
   continuing would rest the entire loop bound on `record` having silently succeeded.
@@ -320,11 +324,12 @@ is both simpler and hole-free.
 orchestrate (exit 1)
   -> aggregate
   -> cr autofix plan ──exit 10/2──> existing seam (Step 2.5 dialog | cr escalate → onFailure)
-        │ exit 0
+        │                            (10 also covers `lanes-in-flight`: a lane has no finishedAt yet)
+        │ exit 0 or 11
         ├─ controller applies mechanical blockers, commits
         ├─ cr autofix record --applied N --deferred M
-        ├─ design list non-empty? ─yes─> surface diff + design blockers, prompt (no re-round)
-        └─ no ─> orchestrate --base-sha <printed> ─> loop (cap 2 / no-progress)
+        ├─ exit 11 (next: apply-then-stop) ─> surface diff + design blockers, prompt (no re-round)
+        └─ exit 0  (next: reround) ─> orchestrate --base-sha <printed> ─> loop (cap 2 / no-progress)
 ```
 
 ### Error handling
@@ -459,6 +464,7 @@ noldor cr autofix plan --slug <slug> --kind <spec|plan|code>
 #   exit 0  -> apply the listed M<n> blockers, then:
 noldor cr autofix record --slug <slug> --kind <spec|plan|code> --applied 2 --deferred 0
 noldor cr orchestrate --slug <slug> --artifact <path> --kind <kind> --base-sha <printed base-sha>
+#   exit 11 -> apply + record the M<n> subset, then STOP (a D<n> design blocker rides along)
 #   exit 10 -> decline; run the existing seam (Step 2.5 dialog, or `noldor cr escalate`)
 ```
 

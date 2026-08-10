@@ -7,7 +7,7 @@ import { loadConfig } from '../core/config.js';
 import { readSession } from '../core/session.js';
 import { aggregate } from './aggregate.js';
 import { decide } from './autofix.js';
-import type { LaneBlocker } from './autofix.js';
+import type { LaneBlocker, NextAction } from './autofix.js';
 import {
   AUTOFIX_ROUND_CAP,
   LedgerParseError,
@@ -20,8 +20,21 @@ import {
 import { artifactKindSchema } from './findings-schema.js';
 import type { ArtifactKind } from './findings-schema.js';
 
-/** Exit 0 = auto-fix / recorded, 10 = decline, 2 = usage or infra error. */
-const EXIT = { ok: 0, decline: 10, error: 2 } as const;
+/**
+ * Exit 0 = auto-fix then re-round, 11 = auto-fix the mechanical subset then stop
+ * (a design blocker rides along), 10 = decline, 2 = usage or infra error.
+ *
+ * 11 exists so the "re-round vs stop" branch is a number rather than a reading
+ * of the `design:` line: both were exit 0 before, which left the one rule that
+ * keeps a design blocker from being silently re-rounded resting on stdout prose.
+ */
+const EXIT = { ok: 0, mixed: 11, decline: 10, error: 2 } as const;
+
+const EXIT_FOR_NEXT = {
+  reround: EXIT.ok,
+  'apply-then-stop': EXIT.mixed,
+  operator: EXIT.decline,
+} as const satisfies Record<NextAction, number>;
 
 function git(args: string[], cwd: string): Promise<string> {
   return new Promise((resolve) => {
@@ -77,6 +90,17 @@ function sessionKey(cwd: string): string {
   return readSession(cwd)?.startedAt ?? '';
 }
 
+/**
+ * Print one blocker with everything the controller needs to apply it without
+ * reopening the sink: the anchor (`file:line`), the filing lane, the message,
+ * and the reviewer's own `suggestion` when it left one.
+ */
+function printBlocker(tag: string, b: LaneBlocker): void {
+  const anchor = b.line === undefined ? b.file : `${b.file}:${b.line}`;
+  console.log(`  ${tag} ${anchor} [${b.lane}] — ${b.message}`);
+  if (b.suggestion) console.log(`     suggestion: ${b.suggestion}`);
+}
+
 async function runPlan(cwd: string, a: Args): Promise<never> {
   const { slug, kind } = requireTarget(a);
   const cfg = await loadConfig().catch(() => null);
@@ -112,18 +136,21 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
     onBlockers,
     ledger,
     headSha,
+    unresolved: agg.unresolved,
   });
 
   console.log(`verdict: ${r.verdict}`);
   console.log(`reason: ${r.reason ?? '-'}`);
+  console.log(`next: ${r.next}`);
   console.log(`base-sha: ${r.baseSha || '-'}`);
   console.log(`round: ${r.round}/${AUTOFIX_ROUND_CAP}`);
+  if (agg.unresolved.length > 0) console.log(`in-flight lanes: ${agg.unresolved.join(', ')}`);
   console.log(`mechanical: ${r.mechanical.length}`);
-  r.mechanical.forEach((b, i) => console.log(`  M${i + 1} ${b.file} — ${b.message}`));
+  r.mechanical.forEach((b, i) => printBlocker(`M${i + 1}`, b));
   console.log(`design: ${r.design.length}`);
-  r.design.forEach((b, i) => console.log(`  D${i + 1} ${b.file} — ${b.message}`));
+  r.design.forEach((b, i) => printBlocker(`D${i + 1}`, b));
 
-  process.exit(r.verdict === 'auto-fix' ? EXIT.ok : EXIT.decline);
+  process.exit(EXIT_FOR_NEXT[r.next]);
 }
 
 /** Parse a required non-negative integer flag. */

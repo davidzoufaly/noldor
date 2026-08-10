@@ -15,6 +15,7 @@ export type AutofixVerdict = 'auto-fix' | 'decline';
  */
 export type DeclineReason =
   | 'knob-off'
+  | 'lanes-in-flight'
   | 'round-cap'
   | 'no-progress'
   | 'no-mechanical'
@@ -26,11 +27,26 @@ export interface DecideInput {
   readonly ledger: AutofixLedger | null;
   /** Current `HEAD`, or `''` when git could not be reached. */
   readonly headSha: string;
+  /**
+   * `aggregate().unresolved` — lanes with a sink but no `finishedAt`. Non-empty
+   * means the blocker set is still provisional, so the round must not run.
+   */
+  readonly unresolved: readonly Lane[];
 }
+
+/**
+ * What the controller must do next, as a value rather than something inferred
+ * from the printed `design:` count. `apply-then-stop` is the MIXED round: the
+ * mechanical subset is auto-fixable but a design blocker rides along, so
+ * re-rounding would only re-report it. The CLI maps this to its own exit code
+ * so a prose-dispatch runner branches on a number, never on stdout prose.
+ */
+export type NextAction = 'reround' | 'apply-then-stop' | 'operator';
 
 export interface DecideResult {
   readonly verdict: AutofixVerdict;
   readonly reason: DeclineReason | null;
+  readonly next: NextAction;
   readonly mechanical: readonly LaneBlocker[];
   readonly design: readonly LaneBlocker[];
   /** Authoritative `--base-sha` for the re-round. Empty only alongside `no-base-sha`. */
@@ -91,9 +107,17 @@ export function decide(input: DecideInput): DecideResult {
     ...base,
     verdict: 'decline',
     reason,
+    next: 'operator',
   });
 
   if (input.onBlockers !== 'auto-fix') return decline('knob-off');
+  // An unfinished lane makes every downstream rule rest on a partial blocker
+  // set: `aggregate` is red on `unresolved` alone, so the re-round could not go
+  // green until that lane lands, and the autonomous re-round would archive its
+  // in-flight sink (`guardLaneOverwrite` defaults to `archive` under
+  // `--autonomous`) — after which the late writer lands pre-fix findings over
+  // the archive. Checked second: only the knob, a pure policy read, outranks it.
+  if (input.unresolved.length > 0) return decline('lanes-in-flight');
   if (priorRounds.length >= AUTOFIX_ROUND_CAP) return decline('round-cap');
   // The same blocker set coming back means the previous fix did not take.
   // Checked before `no-mechanical` so a repeat round reports why it is futile
@@ -102,5 +126,10 @@ export function decide(input: DecideInput): DecideResult {
   if (mechanical.length === 0) return decline('no-mechanical');
   if (baseSha === '') return decline('no-base-sha');
 
-  return { ...base, verdict: 'auto-fix', reason: null };
+  return {
+    ...base,
+    verdict: 'auto-fix',
+    reason: null,
+    next: design.length > 0 ? 'apply-then-stop' : 'reround',
+  };
 }

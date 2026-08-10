@@ -36,7 +36,12 @@ function ledgerWith(rounds: Array<Partial<AutofixRound>>): AutofixLedger {
   };
 }
 
-const base = { onBlockers: 'auto-fix', ledger: null, headSha: HEAD } as const;
+const base = {
+  onBlockers: 'auto-fix',
+  ledger: null,
+  headSha: HEAD,
+  unresolved: [],
+} as const;
 
 describe('decide — verdicts', () => {
   it('auto-fixes an all-mechanical round', () => {
@@ -90,6 +95,16 @@ describe('decide — verdicts', () => {
     });
   });
 
+  it('declines lanes-in-flight while a lane has no finishedAt', () => {
+    const r = decide({ ...base, blockers: [mech()], unresolved: ['standalone'] });
+    expect(r).toMatchObject({ verdict: 'decline', reason: 'lanes-in-flight' });
+  });
+
+  it('declines lanes-in-flight even with zero blockers (aggregate is red on unresolved alone)', () => {
+    const r = decide({ ...base, blockers: [], unresolved: ['reviewer'] });
+    expect(r).toMatchObject({ verdict: 'decline', reason: 'lanes-in-flight' });
+  });
+
   it('declines no-base-sha when neither the prior headSha nor HEAD resolves', () => {
     const r = decide({
       ...base,
@@ -126,6 +141,26 @@ describe('decide — precedence', () => {
       ledger: ledgerWith([{}, {}]),
     });
     expect(r.reason).toBe('knob-off');
+  });
+
+  it('knob-off wins over lanes-in-flight', () => {
+    const r = decide({
+      ...base,
+      onBlockers: 'prompt',
+      blockers: [mech()],
+      unresolved: ['standalone'],
+    });
+    expect(r.reason).toBe('knob-off');
+  });
+
+  it('lanes-in-flight wins over round-cap', () => {
+    const r = decide({
+      ...base,
+      blockers: [mech()],
+      unresolved: ['standalone'],
+      ledger: ledgerWith([{}, {}]),
+    });
+    expect(r.reason).toBe('lanes-in-flight');
   });
 
   it('round-cap wins over no-progress', () => {
@@ -177,6 +212,25 @@ describe('decide — baseSha ladder', () => {
     });
     expect(r.baseSha).toBe(HEAD);
     expect(r.verdict).toBe('auto-fix');
+  });
+});
+
+describe('decide — next action', () => {
+  it('is reround on an all-mechanical round', () => {
+    expect(decide({ ...base, blockers: [mech()] }).next).toBe('reround');
+  });
+
+  it('is apply-then-stop on a MIXED round', () => {
+    expect(decide({ ...base, blockers: [mech(), design()] }).next).toBe('apply-then-stop');
+  });
+
+  it('is apply-then-stop when the design remainder is only an UNTAGGED blocker', () => {
+    expect(decide({ ...base, blockers: [mech(), untagged()] }).next).toBe('apply-then-stop');
+  });
+
+  it('is operator on every decline', () => {
+    expect(decide({ ...base, onBlockers: 'prompt', blockers: [mech()] }).next).toBe('operator');
+    expect(decide({ ...base, blockers: [design()] }).next).toBe('operator');
   });
 });
 
