@@ -30,19 +30,26 @@ describe('buildPrompt review profile', () => {
     expect(p).toMatch(/- simplification:.*actionable at any effort, not a speculative nit/);
   });
 
-  it('tells the simplification reviewer to respect noldor:cut markers', () => {
+  it('tells the reviewer to respect noldor:cut markers when a minimalism-class dimension is in scope', () => {
     // The lazy-decision-ladder rule instructs authors to mark deliberate cuts;
-    // without this clause the dimension flags exactly the cuts the rule asked for.
-    const p = buildPrompt({ ...base, reviewProfile: DEFAULT_REVIEW_PROFILES['fast-track'] });
-    expect(p).toMatch(/- simplification:.*noldor:cut/);
-    expect(p).toMatch(/- simplification:.*wrong ceiling/);
-    expect(p).toMatch(/- simplification:.*real cut left unmarked/);
+    // without this clause the reviewer flags exactly the cuts the rule asked for.
+    // Prompt-level, not per-dimension: a cut lands against any ladder rung.
+    for (const dims of [
+      DEFAULT_REVIEW_PROFILES['fast-track']!.dimensions, // simplification via fast-track
+      ['efficiency' as const], // the canonical example is an efficiency cut
+    ]) {
+      const p = buildPrompt({ ...base, reviewProfile: { effort: 'low', dimensions: dims } });
+      expect(p).toMatch(/noldor:cut/);
+      expect(p).toMatch(/wrong ceiling/);
+      expect(p).toMatch(/real cut left unmarked/);
+      expect(p).toMatch(/correctness or security are never waved off/);
+    }
   });
 
   it('keeps the low-effort line dimension-agnostic', () => {
     // A `low` profile without `simplification` must not be told to report one —
     // that would contradict the "these dimensions only" instruction. Same for the
-    // noldor:cut marker clause, which rides the simplification line.
+    // noldor:cut marker clause, which only renders for minimalism-class dimensions.
     const p = buildPrompt({
       ...base,
       reviewProfile: { effort: 'low', dimensions: ['correctness'] },

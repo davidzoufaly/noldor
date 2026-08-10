@@ -23,12 +23,8 @@ const DIMENSION_GUIDE: Record<ReviewDimension, string> = {
   // The override rides the dimension, not EFFORT_GUIDE, so profiles that omit
   // this dimension are never invited to report against it. See the
   // `fast-track` docblock in `review-profile.ts` for why the lane needs it.
-  // The trailing marker clause deliberately widens the dimension by one
-  // omission-hunting duty ("a real cut left unmarked") — it is the reviewer-side
-  // half of the lazy-decision-ladder rule's `noldor:cut` contract; without it the
-  // dimension flags exactly the cuts the rule instructed the author to make.
   simplification:
-    'a materially shorter equivalent exists; a fn doing several things that should be one; an abstraction with a single call site; a wrapper adding no behavior; a flag or option nobody sets; dead branches; needless indirection. A simpler equivalent you can name concretely is actionable at any effort, not a speculative nit. Respect `noldor:cut <ceiling> — <upgrade path>` markers: a marked cut is a deliberate decision — do not flag the cut itself, flag only a wrong ceiling or a real cut left unmarked',
+    'a materially shorter equivalent exists; a fn doing several things that should be one; an abstraction with a single call site; a wrapper adding no behavior; a flag or option nobody sets; dead branches; needless indirection. A simpler equivalent you can name concretely is actionable at any effort, not a speculative nit',
   efficiency: 'avoidable O(n^2), redundant IO/subprocess, repeated reads, sync work in a loop',
   altitude: 'wrong layer/abstraction, leaky boundaries, responsibility in the wrong module',
   concurrency:
@@ -56,9 +52,32 @@ const EFFORT_GUIDE: Record<ReviewEffort, string> = {
  * markdown contract parsed by `parseSubagentMarkdown` in `subagent.ts` —
  * prose-grade output, so every runner qualifies.
  */
+// Dimensions whose findings a `noldor:cut` marker can wave off. A marked cut is
+// deliberate minimalism, so it silences minimalism-class complaints only —
+// correctness/security/concurrency/effects findings are never marker-exempt (a
+// cut hiding a bug is not a respected cut). The clause is prompt-level rather
+// than riding one dimension because a cut lands against any ladder rung: the
+// canonical example ("linear scan, fine ≤1k rules") is an efficiency cut that a
+// simplification-only clause would leave flaggable.
+const CUT_MARKER_DIMENSIONS: ReadonlySet<ReviewDimension> = new Set([
+  'reuse',
+  'simplification',
+  'efficiency',
+  'altitude',
+]);
+
+// Phrased without naming dimensions: the prompt promises "these dimensions
+// only", so naming an out-of-scope dimension here would invite findings
+// against it (the fast-track test pins this by asserting `altitude` absent).
+const CUT_MARKER_GUIDE =
+  '\nRespect `noldor:cut <ceiling> — <upgrade path>` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. Findings about correctness or security are never waved off by a marker.\n';
+
 export function buildPrompt(input: DispatchInput): string {
   const profile = input.reviewProfile ?? DEFAULT_REVIEW_PROFILES.default;
   const dimensionLines = profile.dimensions.map((d) => `- ${d}: ${DIMENSION_GUIDE[d]}`).join('\n');
+  const cutMarkerGuide = profile.dimensions.some((d) => CUT_MARKER_DIMENSIONS.has(d))
+    ? CUT_MARKER_GUIDE
+    : '';
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
 
 FD summary context:
@@ -68,7 +87,7 @@ Range under review: ${input.baseSha}..${input.headSha}. If they differ, review o
 
 Review along these dimensions only — do not flag concerns outside them:
 ${dimensionLines}
-
+${cutMarkerGuide}
 Effort: ${profile.effort}. ${EFFORT_GUIDE[profile.effort]}
 
 Verify-before-flag protocol: before flagging a Critical issue that claims a command, validator, or test will fail (e.g. \`pnpm validate:features\`, \`pnpm typecheck\`, \`pnpm test\`), run that exact command first and quote its actual error output in the bullet. If the command passes, or you cannot run it, do not flag the claim as Critical — file it under Important prefixed with \`unverified:\` instead.

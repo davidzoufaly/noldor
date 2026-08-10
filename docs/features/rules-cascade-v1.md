@@ -46,8 +46,8 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
 - `pnpm noldor rules list` — enumerate loaded rules
 - `pnpm noldor rules resolve` — print the cascade-resolved rule set
 - `pnpm noldor rules validate` — store integrity gate (schema violations, id/filename mismatches, parse errors)
-- Pre-generation discipline: the `lazy-decision-ladder` rule (enforce bucket, `**/*.ts`, stage `code`) — understand the problem and trace the real flow first, then climb the 7-rung ladder (YAGNI → reuse → stdlib → native → installed dep → one-liner → minimal); never cut trust-boundary validation, data-loss error handling, security, accessibility, or explicitly-requested behaviour.
-- Mark a deliberate, bounded corner-cut with `// noldor:cut <ceiling> — <upgrade path>` — the CR `simplification` dimension respects the marker and flags only a wrong ceiling or a real cut left unmarked.
+- Pre-generation discipline: the `lazy-decision-ladder` rule (enforce bucket, `**/*.ts`, stage `code`) — understand the problem and trace the real flow first, then climb the 7-rung ladder (YAGNI → reuse → stdlib → native → installed dep → one-liner → minimal); never cut trust-boundary validation, data-loss error handling, security, accessibility, or explicitly-requested behaviour. Surfaced on demand via `pnpm noldor rules resolve --file <path> --stage code`; automatic injection into the authoring loop is deferred (Q-0069 / prose-rules-enforce-cascade-rules territory).
+- Mark a deliberate, bounded corner-cut with `// noldor:cut <ceiling> — <upgrade path>` — CR reviewer prompts respect the marker for minimalism-class findings (reuse/simplification/efficiency/altitude) and flag only a wrong ceiling or a real cut left unmarked; correctness/security findings are unaffected.
 - Consumers receive the rule via `pnpm noldor init` / `init --update` (first distributed rule — `templates/.noldor/rules/` twin).
 
 ## Design Notes
