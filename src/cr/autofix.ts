@@ -121,7 +121,9 @@ export function decide(input: DecideInput): DecideResult {
   if (priorRounds.length >= AUTOFIX_ROUND_CAP) return decline('round-cap');
   // The same blocker set coming back means the previous fix did not take.
   // Checked before `no-mechanical` so a repeat round reports why it is futile
-  // rather than merely reporting nothing left to fix.
+  // rather than merely reporting nothing left to fix. The LAST round is the whole
+  // history that can reach here: `round-cap` above already declined anything with
+  // {@link AUTOFIX_ROUND_CAP} prior rounds, so at most one exists.
   if (priorRounds.at(-1)?.fingerprint === fingerprint) return decline('no-progress');
   if (mechanical.length === 0) return decline('no-mechanical');
   if (baseSha === '') return decline('no-base-sha');

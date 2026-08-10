@@ -49,6 +49,7 @@ interface Args {
   applied?: string;
   deferred?: string;
   stopped?: string;
+  since?: string;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -60,6 +61,7 @@ function parseArgs(argv: string[]): Args {
     else if (t === '--applied') a.applied = argv[++i];
     else if (t === '--deferred') a.deferred = argv[++i];
     else if (t === '--stopped') a.stopped = argv[++i];
+    else if (t === '--since') a.since = argv[++i];
   }
   return a;
 }
@@ -68,7 +70,7 @@ function usage(msg: string): never {
   console.error(`cr autofix: ${msg}
 usage:
   noldor cr autofix plan   --slug <slug> --kind <spec|plan|code>
-  noldor cr autofix record --slug <slug> --kind <spec|plan|code> --applied <n> --deferred <n> [--stopped <reason>]`);
+  noldor cr autofix record --slug <slug> --kind <spec|plan|code> --applied <n> --deferred <n> [--since <sha>] [--stopped <reason>]`);
   process.exit(EXIT.error);
 }
 
@@ -91,14 +93,27 @@ function sessionKey(cwd: string): string {
 }
 
 /**
+ * Collapse a sink-supplied string to ONE line.
+ *
+ * Load-bearing, not cosmetic: the `M<n>` / `D<n>` lines are the list the
+ * controller applies, and every field in them is reviewer-controlled text. A
+ * `message` carrying a newline would otherwise forge an extra `  M9 path — do X`
+ * line that no lane filed (only the subagent lane is line-bounded at parse time;
+ * codex / manual / verifier sinks are arbitrary JSON strings).
+ */
+function oneLine(s: string): string {
+  return s.replace(/\r\n|\r|\n/g, ' ⏎ ');
+}
+
+/**
  * Print one blocker with everything the controller needs to apply it without
  * reopening the sink: the anchor (`file:line`), the filing lane, the message,
  * and the reviewer's own `suggestion` when it left one.
  */
 function printBlocker(tag: string, b: LaneBlocker): void {
-  const anchor = b.line === undefined ? b.file : `${b.file}:${b.line}`;
-  console.log(`  ${tag} ${anchor} [${b.lane}] — ${b.message}`);
-  if (b.suggestion) console.log(`     suggestion: ${b.suggestion}`);
+  const anchor = oneLine(b.line === undefined ? b.file : `${b.file}:${b.line}`);
+  console.log(`  ${tag} ${anchor} [${b.lane}] — ${oneLine(b.message)}`);
+  if (b.suggestion) console.log(`     suggestion: ${oneLine(b.suggestion)}`);
 }
 
 async function runPlan(cwd: string, a: Args): Promise<never> {
@@ -106,9 +121,15 @@ async function runPlan(cwd: string, a: Args): Promise<never> {
   const cfg = await loadConfig().catch(() => null);
   const onBlockers = cfg?.autonomous?.onBlockers ?? 'prompt';
 
+  // Resolved OUTSIDE the try: `readSession` schema-parses the marker and throws
+  // on a malformed `.noldor/session.json`, which inside the try would be reported
+  // as "could not read the ledger at <ledgerPath>" — the wrong file and the wrong
+  // cause. Here it surfaces through main()'s catch as itself.
+  const key = sessionKey(cwd);
+
   let ledger;
   try {
-    ledger = await readLedger(cwd, slug, kind, sessionKey(cwd));
+    ledger = await readLedger(cwd, slug, kind, key);
   } catch (err) {
     if (err instanceof LedgerParseError) {
       // Parse failure ONLY: quarantine so the next session starts clean. Any
@@ -176,7 +197,13 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
   const prior = await readLedger(cwd, slug, kind, key);
   const baseSha = prior?.rounds.at(-1)?.headSha ?? '';
   const headSha = await git(['rev-parse', 'HEAD'], cwd);
-  const range = baseSha !== '' ? `${baseSha}..HEAD` : 'HEAD~1..HEAD';
+  // Range ladder, most authoritative first: `--since` (the `base-sha:` this
+  // round's `plan` printed — the pre-fix sha, passed back by the caller so no
+  // state has to survive the LLM edit), then the prior round's `headSha`, then
+  // `HEAD~1..HEAD`. The last rung is the lossy one: it means "the last commit",
+  // so a fix split across commits under-reports. `diffRange` records which rung
+  // was used, so the audit trail says what it measured instead of implying it.
+  const range = a.since ? `${a.since}..HEAD` : baseSha !== '' ? `${baseSha}..HEAD` : 'HEAD~1..HEAD';
   const diffStat = (await git(['diff', '--shortstat', range], cwd)) || '(unavailable)';
 
   const ledger = await appendRound(cwd, slug, kind, key, {
@@ -185,13 +212,14 @@ async function runRecord(cwd: string, a: Args): Promise<never> {
     applied,
     deferred,
     diffStat,
+    diffRange: range,
     ...(a.stopped ? { stopped: a.stopped } : {}),
   });
   const round = ledger.rounds.at(-1)!;
   console.log(
     `round ${round.round}/${AUTOFIX_ROUND_CAP} recorded (fingerprint ${fingerprint.slice(0, 8)}, applied ${applied}, deferred ${deferred})`,
   );
-  console.log(`diff: ${diffStat}`);
+  console.log(`diff: ${diffStat} (${range})`);
   process.exit(EXIT.ok);
 }
 

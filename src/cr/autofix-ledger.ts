@@ -10,9 +10,15 @@ import type { ArtifactKind, Finding } from './findings-schema.js';
 /**
  * Maximum auto-fix rounds per gate session, per `slug`+`kind`. A CONSTANT, not a
  * config knob: `docs/vision.md` ("opinionated, not configurable") and one
- * posture knob (`autonomous.onBlockers`) is enough. The cap is only the
- * backstop — the no-progress fingerprint stop usually fires first, because the
- * failure that matters is a blocker that keeps coming back, not merely cost.
+ * posture knob (`autonomous.onBlockers`) is enough.
+ *
+ * THE CAP IS THE LIVE BOUND. The no-progress fingerprint stop is a cheap extra,
+ * not the primary one: the re-round runs `orchestrate --base-sha <prior head>`,
+ * so round 2's reviewer reads only the fix diff and orchestrate overwrites the
+ * sinks — a round-1 blocker therefore rarely reappears with an identical
+ * `severity|file|message` tuple for the fingerprint to catch. It earns its keep
+ * on a FULL re-review (`--full-review`, or a lane that ignores `baseSha`), where
+ * an unfixed blocker does come back verbatim.
  */
 export const AUTOFIX_ROUND_CAP = 2;
 
@@ -24,6 +30,15 @@ export const autofixRoundSchema = z.object({
   applied: z.number().int().nonnegative(),
   deferred: z.number().int().nonnegative(),
   diffStat: z.string(),
+  /**
+   * The git range `diffStat` was measured over. Recorded because the ladder has
+   * a lossy rung: round 1 has no prior `headSha`, so it falls back to
+   * `HEAD~1..HEAD` — "the last commit", which under-reports whenever the fix was
+   * split across commits (noldor's own scope rules split `src/**` from a
+   * `docs/noldor/**` twin routinely). Optional so ledgers written before it
+   * existed still parse.
+   */
+  diffRange: z.string().optional(),
   /** Why the loop stopped at this round, when it did. */
   stopped: z.string().optional(),
 });

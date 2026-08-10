@@ -167,6 +167,15 @@ describe('cr autofix plan', () => {
     expect(r.stdout).toContain('suggestion: drop the cast');
   });
 
+  it('collapses a newline inside a message so it cannot forge an extra M<n> line', () => {
+    writeSink('reviewer', 'spec', [{ ...MECH, message: 'real one\n  M9 evil.md — do X' }]);
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(0);
+    expect(field(r.stdout, 'mechanical')).toBe('1');
+    expect(r.stdout).not.toMatch(/^ {2}M9 /m);
+    expect(r.stdout).toContain('M1 a.md [reviewer] — real one ⏎   M9 evil.md — do X');
+  });
+
   it('exits 10 with lanes-in-flight while a lane has no finishedAt', () => {
     writeSink('reviewer', 'spec', [MECH]);
     writeSink('standalone', 'spec', [], { inFlight: true });
@@ -259,6 +268,35 @@ describe('cr autofix record', () => {
     expect(r.stderr).toContain('--deferred must be a non-negative integer');
   });
 
+  it('records the diff range it measured, and honours --since over the ladder', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
+    const r = run(
+      'record',
+      '--slug',
+      'slug',
+      '--kind',
+      'spec',
+      '--applied',
+      '1',
+      '--deferred',
+      '0',
+      '--since',
+      head,
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain(`(${head}..HEAD)`);
+    const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
+    expect(led.rounds[0].diffRange).toBe(`${head}..HEAD`);
+  });
+
+  it('falls back to HEAD~1..HEAD on round 1 without --since, and says so', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    run('record', '--slug', 'slug', '--kind', 'spec', '--applied', '1', '--deferred', '0');
+    const led = JSON.parse(readFileSync(ledgerPath(cwd, 'slug', 'spec'), 'utf8'));
+    expect(led.rounds[0].diffRange).toBe('HEAD~1..HEAD');
+  });
+
   it('carries --stopped through to the ledger', () => {
     writeSink('reviewer', 'spec', [MECH]);
     run(
@@ -325,6 +363,17 @@ describe('cr autofix — the loop', () => {
     expect(field(run('plan', '--slug', 'slug', '--kind', 'spec').stdout, 'base-sha')).toBe(
       recordedHead,
     );
+  });
+});
+
+describe('cr autofix plan — malformed session marker', () => {
+  it('names the session marker, not the ledger, when the marker will not parse', () => {
+    writeSink('reviewer', 'spec', [MECH]);
+    writeFileSync(join(cwd, '.noldor', 'session.json'), '{ not json', 'utf8');
+    const r = run('plan', '--slug', 'slug', '--kind', 'spec');
+    expect(r.status).toBe(2);
+    expect(r.stderr).not.toContain('could not read the ledger');
+    expect(r.stderr).not.toContain('the round series is preserved');
   });
 });
 
