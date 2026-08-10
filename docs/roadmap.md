@@ -14,6 +14,43 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Worktree .env.local Not Ignored
+
+- id: Q-0079
+- area: tooling
+- type: fix
+- since: 2026-08-10
+- size: XS
+- impact: high
+- confidence: high
+- parent: per-task-dev-environment-bootstrap
+
+`pnpm noldor worktrees create` writes an untracked `.env.local` (`PORT=<assigned>`) that is not in `.gitignore`, so every fresh worktree starts with a dirty tree: `ensureCleanTree` counts `??` entries, so `pr-flow` preflight refuses to ship until the operator deletes a file the framework itself created. Fix: add `.env.local` to `.gitignore` (self-host + `templates/`), or have `worktrees create` write it only under an already-ignored path. (surfaced shipping Q-0073, PR #268)
+
+### CR Receipt Amend Must Replace Same-Key Trailer
+
+- id: Q-0080
+- area: tooling
+- type: fix
+- since: 2026-08-10
+- size: S
+- impact: high
+- confidence: high
+
+Repeated `cr orchestrate --kind code` runs across amend rounds APPEND a second review-receipt trailer instead of replacing the existing one — the key is `Noldor-Reviewed-Subagent`, and a commit that went through N CR rounds carries N receipts, all but the last stale (each amend changes `HEAD^{tree}`). The pre-push hook validates against the tree, so a stale receipt is noise at best and a false pass at worst. Fix: the receipt amend should replace any existing receipt of the same key. Manual cleanup meanwhile: strip the old trailer lines from `git log -1 --format=%B`, amend with the cleaned message, re-run orchestrate. (surfaced shipping Q-0073, PR #268)
+
+### SDD-Report Quote Normalization
+
+- id: Q-0081
+- area: tooling
+- type: fix
+- since: 2026-08-10
+- size: S
+- impact: high
+- confidence: high
+
+`sdd:report` quotes untriaged idea bullets verbatim into `docs/sdd-report.md`, so idea PROSE can redden two live-tree tests in `src/garden/__tests__/sdd-report.test.ts`: non-oxfmt markdown in a bullet (e.g. star-italics) fails the "writes oxfmt-compliant markdown" test, and a bullet naming the review-receipt key followed later on the line by the word "trailer" trips the omit-gate-compliance regex. Harden the seam: fmt-normalize quoted idea text in the report generator, and scope the test's negative assertion to the Gate-compliance section heading instead of a whole-document regex. (surfaced pre-release sweep 2026-08-10 — two ideas.md bullets moved into `#### Later` by PR #279 broke `pnpm verify` on main)
+
 ### Release Preflight Aggregate
 
 - id: Q-0068
@@ -56,6 +93,19 @@ Release prep aborts one gate at a time — stale `.noldor/session.json`, then st
 - parent: de-superpowers-vendor-spec-plan-and-worktree-flows
 
 `pnpm noldor design log --support` (Q-0053) already captures prior art into the design ledger, but nothing enforces that it was used — a spec whose ledger renders `Existing support (0) - (none recorded)` passes silently, which means the reuse question was never asked. Spec-lint should reject an approved spec with zero support anchors unless the operator records an explicit `--support "none: <reason>"`. The side benefit is that the CR `reuse` dimension gains a falsifiable claim to check against instead of reviewing in the dark.
+
+### Doctor Ahead-Anchor Dead End
+
+- id: Q-0082
+- area: tooling
+- type: fix
+- since: 2026-08-10
+- size: S
+- impact: med
+- confidence: med
+- parent: version-aware-upgrade-and-migration-chain
+
+`doctor`'s framework-skew check compares the anchor by string `!==` (`src/cli/commands/doctor.ts:63`), so an anchor _ahead_ of the installed version prints `run 'noldor upgrade'` forever while `upgrade` correctly refuses to rewrite it backwards — an advisory dead end with no CLI exit, the same shape as Q-0076 in the opposite direction. Reachable after a downgrade (`pnpm add @david.zoufaly/noldor@<older>`) or a hand-edited anchor. Fix: compare with `semver.lt(anchored, installed)` and give the ahead case its own message (`anchored <a> is ahead of installed <i> — the install is behind, not the anchor`) rather than pointing at a command that cannot help. (surfaced in the code-stage CR of Q-0076, PR #270)
 
 ### Prose Rules → Enforce Cascade Rules
 
