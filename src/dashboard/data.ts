@@ -1323,8 +1323,11 @@ export interface VelocityStats {
 
 async function git(args: string[]): Promise<string> {
   const start = Date.now();
+  // 10s, not 1.5s: the 90-day --numstat log alone exceeds 1.5s under CPU
+  // contention (parallel test suite), and callers fail open to empty data —
+  // a too-tight budget silently blanks dashboard panels instead of erroring.
   const { stdout } = await execFileAsync('git', args, {
-    signal: AbortSignal.timeout(1500),
+    signal: AbortSignal.timeout(10_000),
     maxBuffer: 5_000_000,
   });
   const elapsed = Date.now() - start;
