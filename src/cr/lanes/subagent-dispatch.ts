@@ -23,8 +23,12 @@ const DIMENSION_GUIDE: Record<ReviewDimension, string> = {
   // The override rides the dimension, not EFFORT_GUIDE, so profiles that omit
   // this dimension are never invited to report against it. See the
   // `fast-track` docblock in `review-profile.ts` for why the lane needs it.
+  // The trailing marker clause deliberately widens the dimension by one
+  // omission-hunting duty ("a real cut left unmarked") — it is the reviewer-side
+  // half of the lazy-decision-ladder rule's `noldor:cut` contract; without it the
+  // dimension flags exactly the cuts the rule instructed the author to make.
   simplification:
-    'a materially shorter equivalent exists; a fn doing several things that should be one; an abstraction with a single call site; a wrapper adding no behavior; a flag or option nobody sets; dead branches; needless indirection. A simpler equivalent you can name concretely is actionable at any effort, not a speculative nit',
+    'a materially shorter equivalent exists; a fn doing several things that should be one; an abstraction with a single call site; a wrapper adding no behavior; a flag or option nobody sets; dead branches; needless indirection. A simpler equivalent you can name concretely is actionable at any effort, not a speculative nit. Respect `noldor:cut <ceiling> — <upgrade path>` markers: a marked cut is a deliberate decision — do not flag the cut itself, flag only a wrong ceiling or a real cut left unmarked',
   efficiency: 'avoidable O(n^2), redundant IO/subprocess, repeated reads, sync work in a loop',
   altitude: 'wrong layer/abstraction, leaky boundaries, responsibility in the wrong module',
   concurrency:
