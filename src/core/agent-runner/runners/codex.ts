@@ -17,5 +17,11 @@ export function buildCodexArgv(opts: {
   ];
   if (opts.schemaPath) argv.push('--output-schema', opts.schemaPath);
   if (opts.model) argv.push('--model', opts.model);
+  // Trailing `-` is the documented explicit spelling of "read the prompt from stdin"
+  // (`codex exec [OPTIONS] [PROMPT]`: absent PROMPT *or* `-` both mean stdin). Behaviour
+  // preserving, since every consumer already delivers the prompt via stdin per
+  // CODEX_PROMPT_VIA — but it makes that contract legible at the argv level instead of
+  // depending on a reader knowing what an absent positional implies.
+  argv.push('-');
   return argv;
 }
