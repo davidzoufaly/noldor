@@ -47,9 +47,30 @@ export const spawnCodex: Spawn = async ({ cmd, args, stdin }) =>
         resolve(result);
       }
     };
-    c.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
-    c.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
-    c.on('close', (exitCode) => settle({ stdout, stderr, exitCode: exitCode ?? 0 }));
+    // setEncoding, not a per-chunk `d.toString()`: the stream's StringDecoder holds partial
+    // UTF-8 sequences across chunk boundaries. Decoding each chunk independently corrupts any
+    // multi-byte character that straddles a boundary into U+FFFD — realistic here, where
+    // stderr arrives in hundreds of KB and reviewed source quotes em dashes and non-ASCII.
+    c.stdout.setEncoding('utf8');
+    c.stderr.setEncoding('utf8');
+    c.stdout.on('data', (d: string) => (stdout += d));
+    c.stderr.on('data', (d: string) => (stderr += d));
+    c.on('close', (code, signal) => {
+      // `code` is null exactly when the child died from a signal (OOM killer, an operator
+      // `kill`, or the outer execFile cap cascading down). The prior implementation's
+      // `code ?? 0` reported that as SUCCESS, sending runCodex down the happy path to parse a
+      // truncated stdout and skip attribution entirely — the "error path reads vacuously
+      // green" failure this module exists to eliminate. Signal death is a failure.
+      if (code === null) {
+        settle({
+          stdout,
+          stderr: `${stderr}\n[spawnCodex] child terminated by signal ${signal ?? 'unknown'}\n`,
+          exitCode: 1,
+        });
+        return;
+      }
+      settle({ stdout, stderr, exitCode: code });
+    });
     // 127 mirrors a shell's "command not found"; preserved from the prior implementation.
     c.on('error', () => settle({ stdout: '', stderr, exitCode: 127 }));
     // A child that exits before reading stdin must not raise EPIPE.

@@ -51,6 +51,35 @@ describe.skipIf(!POSIX)('spawnCodex', () => {
     expect(r.exitCode).toBe(127);
   });
 
+  it('reports signal death as a FAILURE, not success', async () => {
+    // `close` emits a null exit code exactly when the child died from a signal. Mapping that
+    // to 0 (as the previous implementation did) sends runCodex down the success path to parse
+    // a truncated stdout and skip attribution — a false-green review from an OOM-killed or
+    // timed-out codex, which is the failure class this module exists to eliminate.
+    const r = await spawnCodex({
+      cmd: 'sh',
+      args: ['-c', 'echo partial; kill -9 $$'],
+      stdin: '',
+    });
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stderr).toMatch(/terminated by signal/);
+  });
+
+  it('does not corrupt multi-byte output split across chunk boundaries', async () => {
+    // Per-chunk `Buffer.toString()` mangles any UTF-8 sequence straddling a chunk boundary
+    // into U+FFFD. Emit enough non-ASCII to cross boundaries and assert none survives.
+    const unit = 'héllo — 世界 ';
+    const reps = 20_000; // ~300 KB, well past a single chunk
+    const r = await spawnCodex({
+      cmd: 'sh',
+      args: ['-c', `i=0; while [ $i -lt ${reps} ]; do printf '%s' '${unit}'; i=$((i+1)); done`],
+      stdin: '',
+    });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).not.toContain('�');
+    expect(r.stdout).toBe(unit.repeat(reps));
+  });
+
   it('keeps a non-zero exit code and the stderr that explains it', async () => {
     const r = await spawnCodex({
       cmd: 'sh',
