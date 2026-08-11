@@ -130,10 +130,40 @@ Behaviour, preserving every existing property of `defaultSpawn`:
 - `error` → `{ stdout: '', stderr: <accumulated>, exitCode: 127 }` (127 preserved from today).
 - `c.stdin.on('error', () => {})` retained: a child that exits before reading stdin must not raise
   `EPIPE`.
-- On `timeoutMs` expiry: `c.kill('SIGKILL')`, resolve `{ exitCode: -1 }` with whatever stderr
+- On `timeoutMs` expiry: **group-kill**, then resolve `{ exitCode: -1 }` with whatever stderr
   accumulated, so the caller can still attribute the failure. `-1` matches the convention
   `src/core/agent-runner/registry.ts:232` establishes (`code ?? -1`);
   `src/cr/lanes/subagent-dispatch.ts` only surfaces it, it does not mint it.
+
+  A direct `child.kill('SIGKILL')` is **not** sufficient: `codex exec` runs a sandbox and spawns
+  children of its own, so killing only the direct child orphans them — the exact hazard (D6) exists
+  to prevent, and the exact hazard `registry.ts:150-153` documents ("Without it, a runner SIGKILL
+  orphans the grandchild"). Reuse that seam's pattern rather than inventing a second one: spawn with
+  `detached: true` so the child is its own process-group leader (`pgid === child.pid`), and kill the
+  group, falling back to a direct kill when the group is already gone or not permitted.
+
+  ```ts
+  // mirrors registry.ts:200-211 — keep the two implementations recognisably identical
+  const killTree = (): void => {
+    const pid = c.pid;
+    if (pid !== undefined) {
+      try {
+        process.kill(-pid, 'SIGKILL');
+        return;
+      } catch {
+        /* group gone / not permitted — fall through to direct kill */
+      }
+    }
+    c.kill('SIGKILL');
+  };
+  ```
+
+  Two constraints that come with `detached: true`. **Never `c.unref()`** — that would let the parent
+  exit while codex still runs, which is the orphan we are closing, not a cleanup. And a detached
+  child leaves the terminal's foreground process group, so an interactive `Ctrl-C` on
+  `pnpm noldor cr codex …` no longer reaches codex; the timer becomes the only reaper. Accepted as
+  the same trade-off `registry.ts` already takes for every agent spawn. Group kill is POSIX-only
+  (darwin / Linux), matching that seam's stated platform support; the fallback covers the rest.
 - **Clear the timer on every settle path.** `close`, `error`, and the timeout itself all call
   `clearTimeout(timer)`, mirroring the `if (timer) clearTimeout(timer)` that
   `src/core/agent-runner/registry.ts:225` and `:230` already do on both listeners. Without it a
@@ -296,6 +326,14 @@ the change; a fake `Spawn` cannot reproduce a pipe deadlock.
 - stdin reaches the child (child echoes it to stdout).
 - Nonexistent binary → `exitCode: 127`, no throw.
 - `timeoutMs` shorter than a sleeping child → child killed, `exitCode: -1`, stderr preserved.
+- **Group kill reaches the grandchild.** The child spawns a grandchild that would outlive it (a
+  long `sleep` whose pid the child prints to stdout), then blocks. After `timeoutMs` fires, assert
+  the grandchild is gone — `process.kill(grandchildPid, 0)` throws `ESRCH`. This is the test that
+  distinguishes the group kill from a direct `child.kill`; a direct kill leaves the grandchild alive
+  and the assertion fails. Skip on non-POSIX platforms, matching the seam's stated support.
+- No timer is left armed: the suite finishes without vitest reporting an open handle (the M2
+  `clearTimeout` contract), verifiable by asserting the run resolves well inside a `timeoutMs` set
+  far larger than the child's lifetime.
 
 **`src/cr/__tests__/codex-failure.test.ts` (new — pure).** `AUTH_HINT_RE` matches representative
 auth stderr and does **not** match the models-cache noise; auth line at the head of 326 KB still
@@ -319,22 +357,25 @@ implementation is not done until the real CLI has been driven once end to end.
    327,000 bytes to stderr; the equivalent test against today's `defaultSpawn` shape never resolves.
 2. `spawnCodex` delivers `stdin` to the child, returns `127` for a missing binary, and — given
    `timeoutMs` — kills an over-running child and returns `-1` with stderr preserved.
-3. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
-4. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
-5. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
+3. On expiry `spawnCodex` kills the whole process group, not just the direct child: a grandchild
+   spawned by the child is gone afterwards (`process.kill(pid, 0)` throws `ESRCH`). The child is
+   spawned `detached: true` and is never `unref`'d, and no timer survives a normal settle.
+4. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
+5. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
+6. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
    whose `message` contains `codex login`.
-6. `runCodex` on a non-zero exit with 326,525 bytes of non-auth stderr yields a blocker containing
+7. `runCodex` on a non-zero exit with 326,525 bytes of non-auth stderr yields a blocker containing
    `of 326525 bytes` and at most ~4,000 characters of stderr body.
-7. That blocker's `message` contains the probed version; a failing probe yields `unknown` and no throw.
-8. `runCodex` recovers `{…}` from stdout carrying leading and trailing noise, and still returns the
+8. That blocker's `message` contains the probed version; a failing probe yields `unknown` and no throw.
+9. `runCodex` recovers `{…}` from stdout carrying leading and trailing noise, and still returns the
    parsed record on clean JSON (the three existing malformed-output tests keep passing unchanged).
-9. `src/cr/lanes/codex.ts` passes `input.dispatchTimeoutMs` to `execFile`, defaulting to
+10. `src/cr/lanes/codex.ts` passes `input.dispatchTimeoutMs` to `execFile`, defaulting to
    `DEFAULT_DISPATCH_TIMEOUT_MS`; a test asserts `900_000` and no `120_000` literal remains in the file.
-10. `docs/features/specs-cr-gate-multi-reviewer.md` `links.code` no longer lists
+11. `docs/features/specs-cr-gate-multi-reviewer.md` `links.code` no longer lists
     `src/cr/prompt-stdin.ts` and lists the three new modules.
-11. `pnpm typecheck` and the full `pnpm test` pass, and the total test count is strictly greater
+12. `pnpm typecheck` and the full `pnpm test` pass, and the total test count is strictly greater
     than the pre-change count (a suite that never loaded the new files also reports green).
-12. One real `pnpm noldor cr codex --spec <path>` invocation against the installed CLI exits 0 and
+13. One real `pnpm noldor cr codex --spec <path>` invocation against the installed CLI exits 0 and
     writes a parseable sink.
 
 ## Risks / trade-offs
@@ -353,6 +394,12 @@ implementation is not done until the real CLI has been driven once end to end.
 - **A 4,000-character tail can still truncate away the real cause** when the cause is neither
   auth-shaped nor last. Accepted: the byte count makes the truncation visible, and the operator can
   re-run the CLI directly.
+- **`detached: true` takes codex out of the terminal's foreground process group**, so an interactive
+  `Ctrl-C` on `pnpm noldor cr codex …` no longer reaches it and the `timeoutMs` timer becomes the
+  only reaper. Accepted: `registry.ts` already takes this trade for every agent spawn, and the
+  alternative — a direct kill that orphans the sandbox's children — is the worse failure. The group
+  kill is POSIX-only; the direct-kill fallback covers other platforms with the pre-existing
+  behaviour.
 - **Real-process tests are slower and more environment-sensitive** than mocked ones (~1 s, and they
   spawn `node`). Accepted — a mocked test provably cannot catch this class, which is the entry's
   entire premise. Scoped to one new file.
@@ -399,8 +446,12 @@ deadlocking until the dispatch timeout and reporting an unattributable exit code
    nothing today, while `extractJsonObject` hardens the same drift in three lines and removes an
    existing duplication. Cheap to add later if stdout ever does get polluted.
 4. *Should `spawnCodex` carry its own `timeoutMs`, or rely on the outer `execFile` cap?* → **Carry
-   it, wired from config in U5.** (D6) `execFile`'s timeout signals only its direct child (`pnpm`),
-   so a hung codex would orphan and keep burning ChatGPT quota unattended in drain mode. ~10 lines.
+   it, wired from config in U5, and make the expiry a group kill.** (D6) `execFile`'s timeout signals
+   only its direct child (`pnpm`), so a hung codex would orphan and keep burning ChatGPT quota
+   unattended in drain mode. The CR round then caught that a *direct* `child.kill` reintroduces the
+   same hazard one level down, since `codex exec` spawns its own children — hence `detached: true`
+   plus `process.kill(-pgid)` with a direct-kill fallback, reusing `registry.ts:200-211` verbatim
+   rather than minting a second pattern.
    Cuttable without touching U1 if the operator reads it as creep.
 5. *Fix the dangling `links.code` entry by hand, or with `sync code-links`?* → **By hand.** (D7)
    `--check` reports this FD as `skipped (no tags, existing links kept)`, so the tool will never
