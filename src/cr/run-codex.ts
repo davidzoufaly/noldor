@@ -1,12 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import { CODEX_BIN, buildCodexArgv } from '../core/agent-runner/runners/codex.js';
+import { describeCodexFailure, probeCodexVersion } from './codex-failure.js';
+import { extractJsonObject } from './extract-json.js';
 import { CrRecordSchema, type CrRecord } from './sidecar.js';
 
-export type Spawn = (args: {
-  cmd: string;
-  args: string[];
-  stdin: string;
-}) => Promise<{ stdout: string; exitCode: number }>;
+// Homed in codex-spawn.ts beside its canonical implementation; re-exported here so
+// existing importers (and their test stubs) keep working unchanged.
+export type { Spawn } from './codex-spawn.js';
+import type { Spawn } from './codex-spawn.js';
 
 export interface CodeReviewCtx {
   kind?: 'code';
@@ -34,6 +35,7 @@ export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
   const cmd = input.cmd ?? CODEX_BIN;
   const stdin = formatPrompt(input.ctx);
   let stdout = '';
+  let stderr = '';
   let exitCode = 0;
   try {
     const schemaPath = fileURLToPath(new URL('./cr-record.schema.json', import.meta.url));
@@ -46,14 +48,24 @@ export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
       stdin,
     });
     stdout = r.stdout;
+    stderr = r.stderr;
     exitCode = r.exitCode;
   } catch (e) {
     return synthBlocker(`codex spawn failed: ${(e as Error).message}`);
   }
-  if (exitCode !== 0) return synthBlocker(`codex exited with exit code ${exitCode}`);
+  if (exitCode !== 0) {
+    // Attribute the failure: which CLI version, and what the child itself said. Probing
+    // only here keeps a green review free of the extra spawn, and the version is present
+    // exactly where someone debugging CLI drift will look. An expired ChatGPT session used
+    // to surface as a bare `exited with exit code 1` with the explanation discarded.
+    // Probe the SAME command that failed — `cmd` may be an override, and reporting the
+    // version of a binary that was never run misattributes the failure.
+    const version = await probeCodexVersion(input.spawn, cmd);
+    return synthBlocker(describeCodexFailure({ exitCode, stderr, version }));
+  }
   let json: unknown;
   try {
-    json = JSON.parse(stdout);
+    json = extractJsonObject(stdout);
   } catch {
     return synthBlocker(`malformed CR record: codex returned non-JSON output`);
   }

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAPABILITIES } from '../capabilities';
 import { CLAUDE_BIN, buildClaudeArgv } from '../runners/claude';
-import { CODEX_BIN, buildCodexArgv } from '../runners/codex';
+import { CODEX_BIN, CODEX_PROMPT_VIA, buildCodexArgv } from '../runners/codex';
 import { OPENCODE_BIN, buildOpencodeArgv } from '../runners/opencode';
 
 describe('capability matrix', () => {
@@ -52,6 +52,7 @@ describe('codex argv (extracted from run-codex.ts)', () => {
       '--skip-git-repo-check',
       '--output-schema',
       '/s.json',
+      '-',
     ]);
     expect(CODEX_BIN).toBe('codex');
   });
@@ -61,7 +62,18 @@ describe('codex argv (extracted from run-codex.ts)', () => {
       '--sandbox',
       'workspace-write',
       '--skip-git-repo-check',
+      '-',
     ]);
+  });
+  it('always ends with the `-` prompt positional, so stdin delivery is explicit', () => {
+    // `codex exec [OPTIONS] [PROMPT]` reads the prompt from stdin when PROMPT is absent
+    // OR is `-`. Every consumer already delivers via stdin (CODEX_PROMPT_VIA), so this is
+    // behaviour-preserving; it just makes the contract legible at the argv level instead
+    // of relying on a reader knowing what an absent positional implies.
+    for (const opts of [{}, { needsWrite: true }, { schemaPath: '/s.json' }, { model: 'o3' }]) {
+      expect(buildCodexArgv(opts).at(-1)).toBe('-');
+    }
+    expect(CODEX_PROMPT_VIA).toBe('stdin');
   });
 });
 

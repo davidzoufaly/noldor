@@ -20,9 +20,14 @@ links:
     - src/cr/filename.ts
     - src/cr/atomic-write.ts
     - src/cr/read-fd-summary.ts
-    - src/cr/config.ts
-    - src/cr/prompt-stdin.ts
+    - src/core/config.ts
+    - src/core/prompt-stdin.ts
     - src/cr/orchestrate-args.ts
+    - src/cr/codex.ts
+    - src/cr/codex-failure.ts
+    - src/cr/codex-spawn.ts
+    - src/cr/extract-json.ts
+    - src/cr/run-codex.ts
     - src/cr/lanes/manual.ts
     - src/cr/lanes/codex.ts
     - src/cr/lanes/subagent.ts
@@ -39,6 +44,8 @@ links:
     - src/core/__tests__/prompt-stdin.test.ts
     - src/cr/__tests__/aggregate.test.ts
     - src/cr/__tests__/atomic-write.test.ts
+    - src/cr/__tests__/codex-failure.test.ts
+    - src/cr/__tests__/codex-spawn.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
     - src/cr/__tests__/autofix-ledger.test.ts
     - src/cr/__tests__/autofix.test.ts
@@ -69,6 +76,7 @@ phase: in-progress
 noldor-tier: full
 introduced: 0.6.0
 ---
+
 ## Summary
 
 Layer a CR gate at the spec/plan stage (before code) with parallel reviewers, orchestrated by `pnpm noldor cr orchestrate --kind <spec|plan|code>`: `manual` (operator pass over the artifact); `codex` (`pnpm noldor cr codex`, opt-in per `crLanes`); `reviewer` (senior-reviewer subagent over the artifact diff — a self-contained `claude -p` prompt in [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts), mandatory at `--kind spec` / `--kind plan`); `verifier` (acceptance-verification lane); and `standalone` (a spawned separate terminal running `claude` with max-thinking, reusing the multiterminal-development flow). Each lane writes `.noldor/cr/<slug>-<kind>-<lane>.json`; `cr aggregate` decides green/red and `cr escalate` / `cr autofix` handle a red. Outcomes feed back into the spec/plan before promotion to code. Closes the early-feedback gap at `/noldor-gate` Step 2.5.
@@ -123,9 +131,14 @@ _none — the CR gate is CLI + skill-driven; `/noldor-gate` Step 2.5 and Step 4 
   - [`src/cr/filename.ts`](../../src/cr/filename.ts)
   - [`src/cr/atomic-write.ts`](../../src/cr/atomic-write.ts)
   - [`src/cr/read-fd-summary.ts`](../../src/cr/read-fd-summary.ts)
-  - [`src/cr/config.ts`](../../src/cr/config.ts)
-  - [`src/cr/prompt-stdin.ts`](../../src/cr/prompt-stdin.ts)
+  - [`src/core/config.ts`](../../src/core/config.ts)
+  - [`src/core/prompt-stdin.ts`](../../src/core/prompt-stdin.ts)
   - [`src/cr/orchestrate-args.ts`](../../src/cr/orchestrate-args.ts)
+  - [`src/cr/codex.ts`](../../src/cr/codex.ts)
+  - [`src/cr/codex-failure.ts`](../../src/cr/codex-failure.ts)
+  - [`src/cr/codex-spawn.ts`](../../src/cr/codex-spawn.ts)
+  - [`src/cr/extract-json.ts`](../../src/cr/extract-json.ts)
+  - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
   - [`src/cr/lanes/manual.ts`](../../src/cr/lanes/manual.ts)
   - [`src/cr/lanes/codex.ts`](../../src/cr/lanes/codex.ts)
   - [`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts)
@@ -142,6 +155,8 @@ _none — the CR gate is CLI + skill-driven; `/noldor-gate` Step 2.5 and Step 4 
   - [`src/core/__tests__/prompt-stdin.test.ts`](../../src/core/__tests__/prompt-stdin.test.ts)
   - [`src/cr/__tests__/aggregate.test.ts`](../../src/cr/__tests__/aggregate.test.ts)
   - [`src/cr/__tests__/atomic-write.test.ts`](../../src/cr/__tests__/atomic-write.test.ts)
+  - [`src/cr/__tests__/codex-failure.test.ts`](../../src/cr/__tests__/codex-failure.test.ts)
+  - [`src/cr/__tests__/codex-spawn.test.ts`](../../src/cr/__tests__/codex-spawn.test.ts)
   - [`src/cr/__tests__/autofix-cli.test.ts`](../../src/cr/__tests__/autofix-cli.test.ts)
   - [`src/cr/__tests__/autofix-ledger.test.ts`](../../src/cr/__tests__/autofix-ledger.test.ts)
   - [`src/cr/__tests__/autofix.test.ts`](../../src/cr/__tests__/autofix.test.ts)

@@ -14,6 +14,7 @@ vi.mock('node:child_process', () => ({
   ) => execFileFn(cmd, args, opts, cb),
 }));
 
+import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../../core/config.js';
 import { codexSupportsBaseSha, runCodex } from '../../lanes/codex.js';
 import type { LaneInput } from '../../lane-types.js';
 
@@ -35,6 +36,34 @@ const baseInput = (over: Partial<LaneInput> = {}): LaneInput => ({
   artifactSha: 'aaa',
   repoRoot: root,
   ...over,
+});
+
+describe('runCodex dispatch timeout', () => {
+  const captureTimeout = (): (() => number | undefined) => {
+    let seen: number | undefined;
+    execFileFn.mockImplementation((_c, _a, opts, cb) => {
+      seen = (opts as { timeout?: number }).timeout;
+      cb(null, JSON.stringify({ summary: 'ok', findings: [] }), '');
+    });
+    return () => seen;
+  };
+
+  it('honours the cap orchestrate resolved from crReview.dispatchTimeoutMs', async () => {
+    const timeout = captureTimeout();
+    await runCodex(baseInput({ dispatchTimeoutMs: 42_000 }));
+    expect(timeout()).toBe(42_000);
+  });
+
+  it('defaults to DEFAULT_DISPATCH_TIMEOUT_MS, not the old hard-coded 120_000', async () => {
+    // The lane used to hard-code `timeout: 120_000`, ignoring the configured cap entirely
+    // (Q-0088 wired the subagent and verifier lanes and missed this one), so a real codex
+    // review running longer than two minutes false-red no matter what the config said.
+    const timeout = captureTimeout();
+    await runCodex(baseInput());
+    expect(timeout()).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
+    expect(timeout()).toBe(900_000);
+    expect(timeout()).not.toBe(120_000);
+  });
 });
 
 describe('runCodex', () => {

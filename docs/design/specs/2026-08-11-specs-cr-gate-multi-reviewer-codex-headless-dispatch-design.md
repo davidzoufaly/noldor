@@ -96,6 +96,12 @@ catch, so the fix is only complete if the regression test runs a **real** child 
 - **Not repairing the three pre-existing stale `links.code` FDs** that `sync code-links --check`
   reports (`portable-gate-entrypoint-for-non-claude-runners`, `scan-roots-repo-paths-provider`,
   `stable-entry-ids-for-roadmap-backlog`). Pre-existing, unrelated, red on `main` already.
+- **Not filling the parent FD's `User Story` placeholder.** It is still a `<!-- TODO: … -->`, and the
+  gate's Step 4 refresh is Usage-only on attach paths precisely so a small enhancement cannot rewrite
+  the parent's story. The story that belongs there describes the whole multi-reviewer CR gate, not
+  this lane fix; writing the enhancement's story into the parent slot would be worse than leaving the
+  placeholder visible for whoever fills it properly. The `User Story` in *this* spec covers the
+  enhancement.
 
 ## Design
 
@@ -169,17 +175,20 @@ export function describeCodexFailure(input: {
 }): string;
 // Spawn imported from './codex-spawn.js' — U2 must not import it from run-codex.ts,
 // which imports these helpers back (D10).
-export function probeCodexVersion(spawn: Spawn): Promise<string>;
+export function probeCodexVersion(spawn: Spawn, cmd?: string): Promise<string>;
 ```
 
 - `formatStderrTail` — returns `''` for empty stderr; otherwise
-  `stderr (last <shown> of <total> bytes):\n<tail>` with `maxChars` defaulting to 4,000. The header
-  always states the true total, so truncation is never silent.
+  `stderr (last <n> chars of <total> bytes):\n<tail>` with `maxChars` defaulting to 4,000. The
+  header always states the true total, so truncation is never silent. Units are pinned and mixed on
+  purpose: the total is `Buffer.byteLength(stderr, 'utf8')` (what `wc -c` and every measurement in
+  this spec report) while the tail is sliced by characters, and the header labels each. For codex's
+  ASCII stderr the two coincide; for multi-byte stderr they do not, which is why the label matters.
 - `describeCodexFailure` — composes `<version>: exited with exit code <n>`, appends
   ` — auth looks expired; run: codex login` when `AUTH_HINT_RE` matches **anywhere in the full
   stderr** (not just the tail — the actionable line can sit at byte 400 of 326,525), then a blank
   line and `formatStderrTail(stderr)`.
-- `probeCodexVersion` — runs `codex --version` through the injected `Spawn`, returns the trimmed
+- `probeCodexVersion` — runs `<cmd> --version` through the injected `Spawn`, returns the trimmed
   first line, and returns `'unknown'` on throw / non-zero / empty. It must never throw: an
   attribution helper that fails cannot be allowed to mask the failure it is attributing.
 
@@ -195,6 +204,12 @@ than adding a second one.
 The thrown message **does change**: the live one at `src/cr/lanes/codex.ts:36` is prefixed
 `codex lane: `, which a shared helper must drop (it now serves two callers). Verified safe — a
 repo-wide grep for `no JSON object` matches only that source line, so no test asserts on it.
+
+**Supported envelope, stated because `first {` … `last }` is not general:** prefix and suffix noise
+that contains no braces of its own. Brace-bearing noise, or two JSON objects on stdout, slices to a
+span that is not valid JSON and lands as a `malformed CR record` blocker rather than silently wrong
+data. That is the pre-existing behaviour of the helper being moved, and it is the right failure
+direction; widening it (a real streaming parser, or `--output-last-message`) is out of scope.
 
 ### U4 — `src/cr/run-codex.ts`: capture, attribute, parse tolerantly
 
@@ -231,11 +246,26 @@ Replace `{ timeout: 120_000 }` at line 82 with
 
 ### U8 — parent FD link hygiene
 
-`docs/features/specs-cr-gate-multi-reviewer.md` `links.code` lists `src/cr/prompt-stdin.ts`, which
-does not exist. `pnpm noldor sync code-links --check` reports this FD as
-`skipped (no tags, existing links kept)`, so the tool will never repair it — the field is
-hand-maintained here. Remove the dangling entry by hand and add `src/cr/codex-spawn.ts`,
-`src/cr/codex-failure.ts`, and `src/cr/extract-json.ts`. See (D7).
+`pnpm noldor sync code-links --check` reports this FD as
+`skipped (no tags, existing links kept)`, so the tool will never repair its links — the field is
+hand-maintained here. See (D7).
+
+An audit of all 54 entries found **two** stale paths, and neither should be deleted: both files were
+**relocated** out of `src/cr` into `src/core` by PR #156 ("relocate repo config loader, review
+profiles, and stdin prompts out of src/cr") and still exist. Correct the paths rather than dropping
+the entries — dropping them would lose a live link, which an earlier draft of this unit got wrong:
+
+| stale entry | actual location |
+| --- | --- |
+| `src/cr/prompt-stdin.ts` | `src/core/prompt-stdin.ts` |
+| `src/cr/config.ts` | `src/core/config.ts` |
+
+Then add this change's modules to `links.code` — `src/cr/codex-spawn.ts`,
+`src/cr/codex-failure.ts`, `src/cr/extract-json.ts`, plus `src/cr/codex.ts` and
+`src/cr/run-codex.ts`, which implement the codex lane and were never listed — and the two new test
+files to `links.tests`. Finish with `pnpm noldor sync fd-resources` to regenerate the `## Resources`
+block from the frontmatter; it reports "updated 14" but only touches this FD on disk, so it carries
+no drift into siblings.
 
 ### Data flow
 
@@ -315,7 +345,10 @@ implementation is not done until the real CLI has been driven once end to end.
 ## Acceptance criteria
 
 1. `spawnCodex` resolves `exitCode: 0` with `stderr.length > 300_000` for a real child writing
-   327,000 bytes to stderr; the equivalent test against today's `defaultSpawn` shape never resolves.
+   327,000 bytes to stderr. The old-shape comparison must stay checkable after the old code is
+   deleted, so it lives in the test file as a local replica of the undrained body raced against a
+   1.5 s timer, asserted to time out. Without that control, criterion 1 could pass against a
+   `spawnCodex` whose drain had been removed.
 2. `spawnCodex` delivers `stdin` to the child and returns `127` for a missing binary.
 3. `src/cr/codex-spawn.ts` calls no `setTimeout`, no `.kill(`, and no `process.on('SIG` — an
    assertion that (D6) stayed cut and the module did not quietly regrow a dispatch cap. Match against
@@ -323,7 +356,13 @@ implementation is not done until the real CLI has been driven once end to end.
    innocent comment that merely mentions one of the tokens, and the likeliest such comment is one a
    future maintainer adds for exactly this reason — `// no setTimeout here: (D6) was cut` — which
    would fail the check it documents.
-4. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
+4. `Spawn`'s resolved type requires `stderr: string`, and every stub in the suite declares it.
+   **Not enforced by `pnpm typecheck`:** `tsconfig.json` excludes `src/**/__tests__/**` and
+   `src/**/*.test.ts`, so `tsc` never sees a stub — verified, typecheck passed clean with all 22
+   stubs still omitting the field. The enforcement is the suite: an omitted `stderr` surfaces as
+   `TypeError: Cannot read properties of undefined (reading 'length')` from `formatStderrTail`. An
+   earlier draft of this criterion demanded that typecheck *fail* on such a stub, which both
+   contradicted criterion 13 (typecheck must pass) and was impossible to satisfy.
 5. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
 6. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
    whose `message` contains `codex login`.

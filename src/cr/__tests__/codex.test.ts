@@ -31,7 +31,7 @@ describe('runCli', () => {
     const code = await runCli({
       argv: [],
       cwd,
-      spawn: async () => ({ stdout: passing, exitCode: 0 }),
+      spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
     });
     expect(code).toBe(0);
     const msg = spawnSync('git', ['show', '-s', '--format=%B', 'HEAD'], {
@@ -46,7 +46,7 @@ describe('runCli', () => {
     const code = await runCli({
       argv: [],
       cwd,
-      spawn: async () => ({ stdout: blocker, exitCode: 0 }),
+      spawn: async () => ({ stdout: blocker, stderr: '', exitCode: 0 }),
     });
     expect(code).toBe(1);
     const msg = spawnSync('git', ['show', '-s', '--format=%B', 'HEAD'], {
@@ -61,7 +61,7 @@ describe('runCli', () => {
     const code = await runCli({
       argv: ['--dry-run'],
       cwd,
-      spawn: async () => ({ stdout: passing, exitCode: 0 }),
+      spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
     });
     expect(code).toBe(0);
     const msg = spawnSync('git', ['show', '-s', '--format=%B', 'HEAD'], {
@@ -76,7 +76,11 @@ describe('runCli', () => {
   it('gate lane skips when trailer already present and --rerun absent', async () => {
     const cwd = makeRepo();
     // First run lands the trailer
-    await runCli({ argv: [], cwd, spawn: async () => ({ stdout: passing, exitCode: 0 }) });
+    await runCli({
+      argv: [],
+      cwd,
+      spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
+    });
     // Second run without --rerun → should skip
     let spawnCount = 0;
     const code = await runCli({
@@ -84,7 +88,7 @@ describe('runCli', () => {
       cwd,
       spawn: async () => {
         spawnCount++;
-        return { stdout: passing, exitCode: 0 };
+        return { stdout: passing, stderr: '', exitCode: 0 };
       },
     });
     expect(code).toBe(0);
@@ -93,7 +97,11 @@ describe('runCli', () => {
 
   it('gate lane replaces the codex receipt across rounds — one trailer per commit', async () => {
     const cwd = makeRepo();
-    await runCli({ argv: [], cwd, spawn: async () => ({ stdout: passing, exitCode: 0 }) });
+    await runCli({
+      argv: [],
+      cwd,
+      spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
+    });
     // CR round 2: fix applied onto the SAME commit -> new tree, stale receipt still in msg.
     writeFileSync(join(cwd, 'a.ts'), 'export const x = 2\n');
     spawnSync('git', ['add', '.'], { cwd });
@@ -103,7 +111,11 @@ describe('runCli', () => {
       encoding: 'utf8',
     }).stdout.trim();
 
-    await runCli({ argv: ['--rerun'], cwd, spawn: async () => ({ stdout: passing, exitCode: 0 }) });
+    await runCli({
+      argv: ['--rerun'],
+      cwd,
+      spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
+    });
     const receipts = spawnSync('git', ['show', '-s', '--format=%B', 'HEAD'], {
       cwd,
       encoding: 'utf8',
@@ -115,14 +127,18 @@ describe('runCli', () => {
 
   it('gate lane re-runs when --rerun is passed', async () => {
     const cwd = makeRepo();
-    await runCli({ argv: [], cwd, spawn: async () => ({ stdout: passing, exitCode: 0 }) });
+    await runCli({
+      argv: [],
+      cwd,
+      spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
+    });
     let spawnCount = 0;
     const code = await runCli({
       argv: ['--rerun'],
       cwd,
       spawn: async () => {
         spawnCount++;
-        return { stdout: passing, exitCode: 0 };
+        return { stdout: passing, stderr: '', exitCode: 0 };
       },
     });
     expect(code).toBe(0);
@@ -134,7 +150,7 @@ describe('runCli', () => {
     const code = await runCli({
       argv: ['--working'],
       cwd,
-      spawn: async () => ({ stdout: passing, exitCode: 0 }),
+      spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
     });
     expect(code).toBe(0);
     const dir = join(cwd, '.noldor', 'cr-records');
@@ -153,7 +169,7 @@ describe('runCli', () => {
     const code = await runCli({
       argv: [head],
       cwd,
-      spawn: async () => ({ stdout: passing, exitCode: 0 }),
+      spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
     });
     expect(code).toBe(0);
     const msg = spawnSync('git', ['show', '-s', '--format=%B', 'HEAD'], {
@@ -205,7 +221,7 @@ describe('runCli — plan/spec review mode', () => {
       code = await runCli({
         argv: ['--plan', 'plan.md', '--slug', 'my-feat'],
         cwd,
-        spawn: async () => ({ stdout: planBlocker, exitCode: 0 }),
+        spawn: async () => ({ stdout: planBlocker, stderr: '', exitCode: 0 }),
       });
     } finally {
       cap.restore();
@@ -233,7 +249,7 @@ describe('runCli — plan/spec review mode', () => {
         cwd,
         spawn: async ({ stdin }) => {
           captured = stdin;
-          return { stdout: passing, exitCode: 0 };
+          return { stdout: passing, stderr: '', exitCode: 0 };
         },
       });
     } finally {
@@ -251,7 +267,7 @@ describe('runCli — plan/spec review mode', () => {
       await runCli({
         argv: ['--plan', 'plan.md'],
         cwd,
-        spawn: async () => ({ stdout: passing, exitCode: 0 }),
+        spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
       });
     } finally {
       cap.restore();
@@ -282,7 +298,7 @@ describe('runCli — plan/spec review mode', () => {
         cwd,
         spawn: async ({ stdin }) => {
           captured = stdin;
-          return { stdout: passing, exitCode: 0 };
+          return { stdout: passing, stderr: '', exitCode: 0 };
         },
       });
     } finally {
@@ -300,7 +316,7 @@ describe('runCli — plan/spec review mode', () => {
       code = await runCli({
         argv: ['--help'],
         cwd,
-        spawn: async () => ({ stdout: passing, exitCode: 0 }),
+        spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
       });
     } finally {
       cap.restore();
@@ -321,7 +337,7 @@ describe('runCli — plan/spec review mode', () => {
       code = await runCli({
         argv: ['--plan', 'plan.md', '--base-sha', 'deadbeefnope'],
         cwd,
-        spawn: async () => ({ stdout: passing, exitCode: 0 }),
+        spawn: async () => ({ stdout: passing, stderr: '', exitCode: 0 }),
       });
     } finally {
       cap.restore();
@@ -347,7 +363,7 @@ describe('runCli — plan/spec review mode', () => {
       await runCli({
         argv: ['--plan', 'plan.md'],
         cwd,
-        spawn: async () => ({ stdout: emptyFile, exitCode: 0 }),
+        spawn: async () => ({ stdout: emptyFile, stderr: '', exitCode: 0 }),
       });
     } finally {
       cap.restore();
@@ -371,7 +387,7 @@ describe('runCli — plan/spec review mode', () => {
       await runCli({
         argv: ['--plan', 'plan.md'],
         cwd,
-        spawn: async () => ({ stdout: emptyText, exitCode: 0 }),
+        spawn: async () => ({ stdout: emptyText, stderr: '', exitCode: 0 }),
       });
     } finally {
       cap.restore();
@@ -394,7 +410,7 @@ describe('runCli — engineering-rules fallback', () => {
         cwd,
         spawn: async ({ stdin }) => {
           captured = stdin;
-          return { stdout: passing, exitCode: 0 };
+          return { stdout: passing, stderr: '', exitCode: 0 };
         },
       });
     } finally {

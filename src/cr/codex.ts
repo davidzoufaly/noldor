@@ -1,7 +1,8 @@
-import { execFileSync, spawn as nodeSpawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseCliArgs, type Invocation, type PlanReview } from './cli-args.js';
+import { spawnCodex } from './codex-spawn.js';
 import { buildContext } from './context.js';
 import { replaceReceiptTrailer } from './receipt-trailer.js';
 import { runCodex, type Spawn } from './run-codex.js';
@@ -41,7 +42,7 @@ export async function runCli(input: RunCliInput): Promise<number> {
     return 0;
   }
   if (inv.review) {
-    return runPlanReview(inv.review, cwd, input.spawn ?? defaultSpawn);
+    return runPlanReview(inv.review, cwd, input.spawn ?? spawnCodex);
   }
 
   const tree = sh(cwd, ['rev-parse', `${refForLane(inv)}^{tree}`]).trim();
@@ -65,7 +66,7 @@ export async function runCli(input: RunCliInput): Promise<number> {
     rules,
   });
 
-  const record = await runCodex({ ctx, spawn: input.spawn ?? defaultSpawn });
+  const record = await runCodex({ ctx, spawn: input.spawn ?? spawnCodex });
 
   if (!inv.dryRun) {
     const filename = sidecarFilename(filenameSelector(inv, tree));
@@ -237,24 +238,6 @@ function printFindings(r: {
     process.stderr.write(`  suggest  ${s.file}${s.line ? ':' + s.line : ''}  ${s.message}\n`);
   }
 }
-
-const defaultSpawn: Spawn = async ({ cmd, args, stdin }) =>
-  new Promise((resolve) => {
-    const c = nodeSpawn(cmd, args);
-    let stdout = '';
-    let settled = false;
-    const settle = (result: { stdout: string; exitCode: number }) => {
-      if (!settled) {
-        settled = true;
-        resolve(result);
-      }
-    };
-    c.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
-    c.on('close', (exitCode) => settle({ stdout, exitCode: exitCode ?? 0 }));
-    c.on('error', () => settle({ stdout: '', exitCode: 127 }));
-    c.stdin.on('error', () => {});
-    c.stdin.end(stdin);
-  });
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   runCli({ argv: process.argv.slice(2), cwd: process.cwd() }).then((code) => process.exit(code));
