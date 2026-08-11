@@ -103,7 +103,9 @@ catch, so the fix is only complete if the regression test runs a **real** child 
 
 Move `defaultSpawn` out of `src/cr/codex.ts` into its own module as an exported `spawnCodex`, so a
 test can reach it without going through `runCli` (which every existing test bypasses by injecting
-`spawn`). Exactly two changes to the body: consume `c.stderr`, and return it.
+`spawn`). Three changes to the body, and no more: consume `c.stderr`, return it, and swap both
+accumulators from `+=` to `string[]` + `join('')` (today's is `stdout += d.toString()` at
+`src/cr/codex.ts:252`, so this one touches the stdout path as well as the new stderr path).
 
 `Spawn` moves here too, alongside its canonical implementation — see (D10). `run-codex.ts` keeps
 re-exporting the type (`export type { Spawn } from './codex-spawn.js'`) so the existing
@@ -125,7 +127,8 @@ one level up, in U7, where `LaneInput.dispatchTimeoutMs` already belongs.
 Behaviour, preserving every existing property of `defaultSpawn`:
 
 - `c.stdout.on('data')` and `c.stderr.on('data')` both accumulate. **Draining stderr is the entire
-  fix** — everything else here is unchanged from today.
+  fix**; the accumulator swap is a performance consequence of it, and nothing else in the body
+  changes from today.
 - `settled` latch retained — `close` and `error` race, first one wins.
 - `error` → `{ stdout: '', stderr: <accumulated>, exitCode: 127 }` (127 preserved from today).
 - `c.stdin.on('error', () => {})` retained: a child that exits before reading stdin must not raise
@@ -283,7 +286,8 @@ the change; a fake `Spawn` cannot reproduce a pipe deadlock.
   behaviour, unchanged from today.
 
 That is the whole file. With (D6) cut there is no timer, no `detached`, no kill path and no signal
-reaper, so the four out-of-process fixture tests those would have required are gone with them.
+reaper, so the six timer/kill/interrupt tests those would have required — two of them needing
+out-of-process fixtures, since a re-raised signal would kill the vitest worker — are gone with them.
 
 **`src/cr/__tests__/codex-failure.test.ts` (new — pure).** `AUTH_HINT_RE` matches representative
 auth stderr and does **not** match the models-cache noise; auth line at the head of 326 KB still
@@ -305,23 +309,25 @@ implementation is not done until the real CLI has been driven once end to end.
 
 1. `spawnCodex` resolves `exitCode: 0` with `stderr.length > 300_000` for a real child writing
    327,000 bytes to stderr; the equivalent test against today's `defaultSpawn` shape never resolves.
-2. `spawnCodex` delivers `stdin` to the child, returns `127` for a missing binary. No timer, no kill path, no signal handler: (D6) was cut.
-3. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
-4. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
-5. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
+2. `spawnCodex` delivers `stdin` to the child and returns `127` for a missing binary.
+3. `src/cr/codex-spawn.ts` contains no `setTimeout`, no `.kill(`, and no `process.on('SIG` — a
+   grep-able assertion that (D6) stayed cut and the module did not regrow a dispatch cap.
+4. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
+5. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
+6. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
    whose `message` contains `codex login`.
-6. `runCodex` on a non-zero exit with 326,525 bytes of non-auth stderr yields a blocker containing
+7. `runCodex` on a non-zero exit with 326,525 bytes of non-auth stderr yields a blocker containing
    `of 326525 bytes` and at most ~4,000 characters of stderr body.
-7. That blocker's `message` contains the probed version; a failing probe yields `unknown` and no throw.
-8. `runCodex` recovers `{…}` from stdout carrying leading and trailing noise, and still returns the
+8. That blocker's `message` contains the probed version; a failing probe yields `unknown` and no throw.
+9. `runCodex` recovers `{…}` from stdout carrying leading and trailing noise, and still returns the
    parsed record on clean JSON (the three existing malformed-output tests keep passing unchanged).
-9. `src/cr/lanes/codex.ts` passes `input.dispatchTimeoutMs` to `execFile`, defaulting to
+10. `src/cr/lanes/codex.ts` passes `input.dispatchTimeoutMs` to `execFile`, defaulting to
    `DEFAULT_DISPATCH_TIMEOUT_MS`; a test asserts `900_000` and no `120_000` literal remains in the file.
-10. `docs/features/specs-cr-gate-multi-reviewer.md` `links.code` no longer lists
+11. `docs/features/specs-cr-gate-multi-reviewer.md` `links.code` no longer lists
     `src/cr/prompt-stdin.ts` and lists the three new modules.
-11. `pnpm typecheck` and the full `pnpm test` pass, and the total test count is strictly greater
+12. `pnpm typecheck` and the full `pnpm test` pass, and the total test count is strictly greater
     than the pre-change count (a suite that never loaded the new files also reports green).
-12. One real `pnpm noldor cr codex --spec <path>` invocation against the installed CLI exits 0 and
+13. One real `pnpm noldor cr codex --spec <path>` invocation against the installed CLI exits 0 and
     writes a parseable sink.
 
 ## Risks / trade-offs
@@ -348,8 +354,8 @@ implementation is not done until the real CLI has been driven once end to end.
   orphaned and runs to self-completion. Bounded by the drain's 30-minute per-iteration cap, exactly
   as `src/core/config.ts:80-86` reasons for the reviewer lane. **Unchanged from today** — the same
   orphan happens at the current 120 s — so this is unimproved rather than regressed, and it is
-  filed as its own entry (see below) after two CR rounds established that fixing it inside
-  `spawnCodex` costs a kill path, `detached`, a signal reaper and four fixture tests, none of which
+  filed as its own entry (see below) after three CR rounds established that fixing it inside
+  `spawnCodex` costs a kill path, `detached`, a signal reaper and six extra tests, none of which
   the actual defect needs.
 
 **Two findings this spec deliberately does not fix, both filed for triage:**
