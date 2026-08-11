@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Reviewer-Lane Dispatch Timeout Configurable
-
-- id: Q-0088
-- area: tooling
-- type: fix
-- since: 2026-08-11
-- size: S
-- impact: high
-- confidence: high
-- parent: specs-cr-gate-multi-reviewer
-
-`subagent-dispatch.ts` hard-codes `timeoutMs: 600_000`, and a med-effort full-spec review that follows the verify-before-flag protocol (running typecheck and tests) can exceed 10 minutes — three consecutive `exit -1 (timeout)` failures in one session, each burning the full window and writing a synthetic red sink. Make the timeout configurable (`crReview.dispatchTimeoutMs`) and/or retry once with backoff; consider telling the reviewer prompt to skip long commands when the artifact is markdown-only. (surfaced shipping charuy agent-skill-bundle, charuy PR #91)
-
 ### Codex Lane Headless Dispatch Breakage
 
 - id: Q-0089
