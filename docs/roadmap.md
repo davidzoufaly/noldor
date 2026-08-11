@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Sync Code-Links Destructive Without FD Tags
-
-- id: Q-0087
-- area: tooling
-- type: fix
-- since: 2026-08-11
-- size: S
-- impact: critical
-- confidence: high
-- parent: dynamic-fd-file-pointers-via-frontmatter
-
-`sync code-links` is destructive on consumers without `@fd:` tags: it scans tagged code and writes `links.code` on every FD, so an untagged consumer gets all hand-curated `links.code` arrays wiped to `[]` — charuy lost 35 FDs' worth in one run, caught only by reading the git diff. Fix: never write an empty array over a non-empty one without `--force`, or skip FDs with zero matching tags and print a per-FD `skipped (no tags, existing links kept)` line. (surfaced shipping charuy agent-skill-bundle, charuy PR #91)
-
 ### CR Receipt Amend Must Replace Same-Key Trailer
 
 - id: Q-0080
