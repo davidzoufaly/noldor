@@ -173,30 +173,66 @@ Behaviour, preserving every existing property of `defaultSpawn`:
   | `detached: true`, no handler | dies | **survives — orphan** |
 
   So the interactive path would get *worse* than today, not merely inherit `registry.ts`'s posture.
-  Register `SIGINT` / `SIGTERM` handlers alongside the spawn that call `killTree` before exiting, and
-  remove them when the promise settles so a long-lived process (the lane runs several dispatches in
-  one process) does not accumulate listeners:
 
-  ```ts
-  const onSignal = (): void => {
-    killTree();
-    process.exit(130); // 128 + SIGINT
-  };
-  process.once('SIGINT', onSignal);
-  process.once('SIGTERM', onSignal);
+  **One shared handler over a registry of live kill-fns — not a handler per call.** A per-call
+  `process.once('SIGINT', …)` whose body ends in `process.exit()` is broken under concurrency:
+  listeners run synchronously in registration order, and the first `process.exit` ends the process
+  before any later listener runs. Measured — two `process.once('SIGINT')` listeners, the first
+  calling `process.exit(130)`:
+
+  ```
+  ready
+  handler A: killTree        <- ran
+                             <- handler B never ran; its tree would be orphaned
   ```
 
-  Ctrl-C then group-kills through `onSignal`; a timeout group-kills through the timer; a normal exit
-  needs neither. This is the one place the design deliberately diverges from `registry.ts`, which
-  takes the orphan-on-interrupt trade; the divergence is justified because that seam's callers are
-  themselves headless, while `pnpm noldor cr codex …` is a documented interactive command.
-- **Clear the timer and drop the signal handlers on settle.** `settle()` calls
-  `clearTimeout(timer)` and `process.off` for both signals. Mirrors the
-  `if (timer) clearTimeout(timer)` that `src/core/agent-runner/registry.ts:225` and `:230` do on
-  their two listeners — `close` and `error` only, **not** inside the timeout callback, where
-  clearing a timer from within its own firing is a no-op. Without the clear, a pending `setTimeout`
-  holds the event loop open for up to the full cap, which surfaces as a vitest hanging-handle
-  warning or a worker that will not exit.
+  So the module owns a single installed-once pair of listeners plus a `Set` of live kill-fns. Each
+  in-flight spawn registers its `killTree` and removes it on settle. The handler kills **every**
+  live tree, then re-raises the signal so the process dies by signal rather than by a hard-coded
+  exit code (which also settles SIGINT-130 vs SIGTERM-143 correctly for the shell):
+
+  ```ts
+  const liveKills = new Set<() => void>();
+  let installed = false;
+
+  function installSignalReaper(): void {
+    if (installed) return;
+    installed = true;
+    for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+      process.on(sig, () => {
+        for (const kill of liveKills) {
+          try {
+            kill();
+          } catch {
+            /* one failure must not strand the remaining trees */
+          }
+        }
+        liveKills.clear();
+        // Remove our handlers and re-raise so the default action applies and the
+        // shell observes signal-death (130 / 143) instead of a synthetic exit code.
+        process.removeAllListeners(sig);
+        process.kill(process.pid, sig);
+      });
+    }
+  }
+  ```
+
+  Installed once per process, so the listener count goes 0 → 1 per signal on the first spawn and
+  stays there no matter how many dispatches run; what must return to empty on settle is `liveKills`,
+  not the listener count. Ctrl-C group-kills every live tree; a timeout group-kills its own tree
+  through the timer; a normal exit needs neither.
+
+  This is the one place the design deliberately diverges from `registry.ts`, which takes the
+  orphan-on-interrupt trade; the divergence is justified because that seam's callers are themselves
+  headless, while `pnpm noldor cr codex …` is a documented interactive command.
+- **Clear the timer and deregister the kill-fn on settle.** `settle()` calls `clearTimeout(timer)`
+  and `liveKills.delete(killTree)`. The clear mirrors the `if (timer) clearTimeout(timer)` that
+  `src/core/agent-runner/registry.ts:225` and `:230` do on their two listeners — `close` and `error`
+  only, **not** inside the timeout callback, where clearing a timer from within its own firing is a
+  no-op. Without the clear, a pending `setTimeout` holds the event loop open for up to the full cap,
+  which surfaces as a vitest hanging-handle warning or a worker that will not exit. Without the
+  `delete`, a completed dispatch's `killTree` stays reachable and a later Ctrl-C calls it against a
+  dead pid (harmless, but the `Set` grows unbounded across dispatches).
 
 Accumulate into a `string[]` and `join('')` rather than `+=` — 326 KB of `+=` on every chunk is
 quadratic, and this path is now guaranteed to see that volume.
@@ -363,13 +399,23 @@ the change; a fake `Spawn` cannot reproduce a pipe deadlock.
   non-POSIX platforms, matching the seam's stated support.
 - **No timer is left armed after a normal settle.** Assert it directly — a leaked `setTimeout` never
   delays resolution (the promise settles on `close` regardless), so "it resolved quickly" proves
-  nothing. Use `vi.useFakeTimers()` and assert `vi.getTimerCount() === 0` once the promise settles,
-  or spy on `clearTimeout` and assert it was called with the timer id. Under fake timers keep the
-  child's own lifetime real (or drive it explicitly) so the spawn still completes.
-- **Signal handlers are removed on settle.** After a normal run,
-  `process.listenerCount('SIGINT')` and `'SIGTERM'` are back to their pre-call values — otherwise a
-  process making several dispatches leaks a listener per call and eventually trips Node's
-  max-listeners warning.
+  nothing. **Primary mechanism: spy on `clearTimeout`** and assert it was called with the timer id.
+  Prefer it over `vi.useFakeTimers()` + `vi.getTimerCount() === 0`, which can flake if anything else
+  in the worker arms a fake timer in the window between `useFakeTimers()` and settle, and which needs
+  the child's real lifetime driven explicitly for the spawn to complete at all.
+- **The kill-fn registry empties on settle.** After a normal run the module's `liveKills` set is back
+  to its pre-call size. Note the listener count is deliberately *not* the invariant: the shared
+  reaper installs once, so `process.listenerCount('SIGINT')` legitimately stays at 1 across many
+  dispatches. Assert instead that it never exceeds 1 after N sequential spawns.
+- **Parent SIGINT reaps the tree (out-of-process).** AC 5 cannot be exercised in-process: the reaper
+  re-raises the signal, which would kill the vitest worker. So mirror the group-kill test's shape one
+  level up — a fixture parent script that calls `spawnCodex` on a child that spawns a grandchild and
+  prints its pid, then send that parent `SIGINT` and poll the grandchild pid for `ESRCH`. Without the
+  reaper the grandchild survives the parent, so the test fails for the right reason. This is exactly
+  the harness used to measure the regression in the first place, so the mechanics are known to work.
+- **Concurrent SIGINT reaps every tree (out-of-process).** Same fixture, two overlapping `spawnCodex`
+  calls, one SIGINT: poll **both** grandchild pids for `ESRCH`. This is the test that fails under the
+  rejected per-call-handler design, where the first handler's exit strands the second tree.
 
 **`src/cr/__tests__/codex-failure.test.ts` (new — pure).** `AUTH_HINT_RE` matches representative
 auth stderr and does **not** match the models-cache noise; auth line at the head of 326 KB still
@@ -397,29 +443,37 @@ implementation is not done until the real CLI has been driven once end to end.
    spawned by the child is gone afterwards, established by polling `process.kill(pid, 0)` until it
    throws `ESRCH` (a single immediate assertion can see a zombie and pass wrongly). The child is
    spawned `detached: true` and is never `unref`'d.
-4. After a normal settle no timer remains armed — asserted via `vi.getTimerCount() === 0` under fake
-   timers, or a `clearTimeout` spy — and `process.listenerCount('SIGINT')` / `'SIGTERM'` are back to
-   their pre-call values. Neither claim may rest on the run "resolving quickly": a leaked timer does
-   not delay resolution.
+4. After a normal settle no timer remains armed — asserted with a `clearTimeout` spy — and the
+   `liveKills` registry is back to its pre-call size. Neither claim may rest on the run "resolving
+   quickly": a leaked timer does not delay resolution. `process.listenerCount('SIGINT')` never
+   exceeds 1 across N sequential spawns (the reaper installs once by design, so a return to zero is
+   explicitly *not* the invariant).
 5. A `SIGINT` delivered to the parent while a dispatch is in flight kills the codex process group
    rather than orphaning it — the interactive case must be no worse than today's non-detached spawn,
-   where the child dies with its parent's process group.
-6. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
-7. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
-8. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
+   where the child dies with its parent's process group. Verified out-of-process (a fixture parent,
+   SIGINT, poll the grandchild for `ESRCH`), because the reaper re-raises the signal and would
+   otherwise kill the test worker.
+6. With **two** overlapping dispatches, one `SIGINT` reaps **both** trees. This is the criterion the
+   rejected per-call-handler design fails: listeners run in registration order and the first
+   `process.exit` strands every later tree (measured).
+7. The reaper re-raises the signal rather than calling `process.exit` with a literal, so the process
+   dies by signal and the shell observes 130 for SIGINT and 143 for SIGTERM.
+8. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
+9. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
+10. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
    whose `message` contains `codex login`.
-9. `runCodex` on a non-zero exit with 326,525 bytes of non-auth stderr yields a blocker containing
+11. `runCodex` on a non-zero exit with 326,525 bytes of non-auth stderr yields a blocker containing
    `of 326525 bytes` and at most ~4,000 characters of stderr body.
-10. That blocker's `message` contains the probed version; a failing probe yields `unknown` and no throw.
-11. `runCodex` recovers `{…}` from stdout carrying leading and trailing noise, and still returns the
+12. That blocker's `message` contains the probed version; a failing probe yields `unknown` and no throw.
+13. `runCodex` recovers `{…}` from stdout carrying leading and trailing noise, and still returns the
    parsed record on clean JSON (the three existing malformed-output tests keep passing unchanged).
-12. `src/cr/lanes/codex.ts` passes `input.dispatchTimeoutMs` to `execFile`, defaulting to
+14. `src/cr/lanes/codex.ts` passes `input.dispatchTimeoutMs` to `execFile`, defaulting to
    `DEFAULT_DISPATCH_TIMEOUT_MS`; a test asserts `900_000` and no `120_000` literal remains in the file.
-13. `docs/features/specs-cr-gate-multi-reviewer.md` `links.code` no longer lists
+15. `docs/features/specs-cr-gate-multi-reviewer.md` `links.code` no longer lists
     `src/cr/prompt-stdin.ts` and lists the three new modules.
-14. `pnpm typecheck` and the full `pnpm test` pass, and the total test count is strictly greater
+16. `pnpm typecheck` and the full `pnpm test` pass, and the total test count is strictly greater
     than the pre-change count (a suite that never loaded the new files also reports green).
-15. One real `pnpm noldor cr codex --spec <path>` invocation against the installed CLI exits 0 and
+17. One real `pnpm noldor cr codex --spec <path>` invocation against the installed CLI exits 0 and
     writes a parseable sink.
 
 ## Risks / trade-offs
@@ -445,12 +499,26 @@ implementation is not done until the real CLI has been driven once end to end.
   exposure is narrowed to a signal those handlers cannot intercept (`SIGKILL` on the parent, or a
   hard machine loss), where codex runs to self-completion. Group kill is POSIX-only; the direct-kill
   fallback covers other platforms with the pre-existing behaviour.
-- **The signal handlers are process-global while the spawn is per-call.** Two concurrent
-  `spawnCodex` calls in one process each register their own pair, so a Ctrl-C kills both trees — which
-  is the desired outcome — but the `process.exit(130)` means the first handler to run ends the
-  process, so a caller mid-write could lose an unflushed sink. Accepted: the alternative (ref-counted
-  handlers with a coordinated shutdown) is more machinery than the interactive path warrants, and the
-  lane's own sink write is atomic (`src/cr/atomic-write.ts`).
+- **The signal reaper is process-global state** (`liveKills` plus an installed-once listener pair) in
+  a codebase that otherwise keeps modules pure. Accepted because the thing being guarded *is*
+  process-global — there is one signal disposition per process, so a per-call handler cannot be
+  correct here: measured, the first listener's `process.exit` strands every later tree. The state is
+  confined to two module-level bindings, and `settle()` is the single deregistration point.
+- **An interrupt still cuts the run short mid-write, and an absent sink reads as green.** The reaper
+  re-raises the signal after killing, so a caller part-way through writing a sink loses that write.
+  The write itself is atomic (`src/cr/atomic-write.ts`), so the artifact is absent rather than
+  corrupt — but absent is *not* safe: `cr aggregate` discovers sinks by listing the directory and
+  prefix-matching (`src/cr/aggregate.ts:36-40`) and holds no expected-lane set, so a lane with no
+  sink is invisible rather than `unresolved` (that list is only populated for a sink that exists and
+  lacks `finishedAt`, `aggregate.ts:107`). With no other blockers,
+  `ok: blockers.length === 0 && unresolved.length === 0` is therefore **true**.
+
+  Out of scope here and **pre-existing** — an interrupted run writes no sink today either, so this
+  change neither introduces nor worsens it — but recorded because interrupting a dispatch is now a
+  supported path rather than an accident. The fix belongs in `aggregate`: pass it the lane set
+  orchestrate resolved and report a missing expected sink as `unresolved`. Worth a roadmap entry;
+  deliberately not folded in, since it is a correctness change to the shared green/red verdict for
+  every lane and kind, not just codex.
 - **Real-process tests are slower and more environment-sensitive** than mocked ones (~1 s, and they
   spawn `node`). Accepted — a mocked test provably cannot catch this class, which is the entry's
   entire premise. Scoped to one new file.
