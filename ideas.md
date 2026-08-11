@@ -13,6 +13,13 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 - remove noldor-absorb? [triaged 2026-08-10 → skill-surface-pruning-audit]
 - remove noldor-new-feature? [triaged 2026-08-10 → skill-surface-pruning-audit]
+- triaged věcí by v ideas zůstat měli, ale můžou spadnout dolů někam do vlastní Heading sekce [triaged 2026-08-11 → triaged-bullet-archive-section]
+- architecture part for consumer -> some extra folder with file/files -> diagramming [triaged 2026-08-11 → consumer-architecture-doc-surface]
+- brainstorming of things is not that great as with superpowers [triaged 2026-08-11 → spec-brainstorming-depth-parity]
+- mandatory codex review -> atleast one round on bigger tasks [triaged 2026-08-11 → mandatory-codex-review-round]
+- reviewer-lane dispatch timeout too tight: `subagent-dispatch.ts` hard-codes `timeoutMs: 600_000`, and a med-effort full-spec review that follows the verify-before-flag protocol (runs typecheck/tests) can exceed 10 min — three consecutive `exit -1 (timeout)` failures in one session, each burning the full window and writing a synthetic red sink. Make the timeout configurable (`crReview.dispatchTimeoutMs`?) and/or retry once with backoff; consider telling the reviewer prompt to skip long commands when the artifact is markdown-only. (surfaced shipping charuy agent-skill-bundle, charuy PR #91) [triaged 2026-08-11 → reviewer-lane-dispatch-timeout-configurable]
+- codex lane broken against codex-cli 0.133.0: (a) `--base-sha` path errors and the fallback still exits 1; (b) prompt passed as positional argv makes codex print "Reading additional input from stdin..." and hang/dump a 478KB models-cache error in headless runs — prompt must go via stdin (`codex exec - <<EOF`); (c) expired ChatGPT auth surfaces as bare exit 1 in the sink with no hint. Fix: stdin dispatch, auth preflight with a clear `codex login` message in the sink, and version-probe the installed CLI. (surfaced shipping charuy agent-skill-bundle, charuy PR #91) [triaged 2026-08-11 → codex-lane-headless-dispatch-breakage]
+- `sync code-links` is destructive on consumers without `@fd:` tags: scanning tagged code and writing `links.code` on every FD means an untagged consumer gets all hand-curated `links.code` arrays wiped to `[]` (charuy: 35 FDs emptied in one run, caught only by git diff). Fix: never write an empty array over a non-empty one without `--force`, or skip FDs with zero matching tags and print a per-FD `skipped (no tags, existing links kept)` line. (surfaced shipping charuy agent-skill-bundle, charuy PR #91) [triaged 2026-08-11 → sync-code-links-destructive-without-fd-tags]
 
 ## Lessons
 

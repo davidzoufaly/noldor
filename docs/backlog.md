@@ -147,3 +147,28 @@ Residue from the Q-0075 ship (PR #276, CR rounds 9–16): (a) `DecideResult.base
 - confidence: low
 
 Evaluate removing vendored skills whose value is unclear — candidates raised so far: `noldor-absorb` (lessons intake; overlaps `/noldor-triage` + manual filing?) and `noldor-new-feature` (blank-FD scaffold; overlaps `/noldor-promote`?). For each: measure actual usage, list what breaks without it, and either retire the skill (+ template twins + catalog entries) or document why it stays.
+
+### Spec Brainstorming Depth Parity
+
+- id: Q-0092
+- area: tooling
+- type: feat
+- since: 2026-08-11
+- size: M
+- impact: med
+- confidence: low
+- parent: de-superpowers-vendor-spec-plan-and-worktree-flows
+
+Brainstorming through the vendored `/noldor-spec` question-first loop does not reach the depth the superpowers `brainstorming` skill gets to — the de-superpowers vendoring preserved the flow's shape but apparently not its interrogative pressure. Fuzzy one-liner: the actual delta between the two prompts has not been diffed, so there is nothing concrete to implement yet. Trigger: run both over the same idea, diff the transcripts, and extract the specific moves the vendored version drops before promoting.
+
+### Consumer Architecture Doc Surface
+
+- id: Q-0093
+- area: docs
+- type: feat
+- since: 2026-08-11
+- size: M
+- impact: med
+- confidence: low
+
+Consumers get feature MDs, specs, and plans but no architecture surface — no place that answers "how is this system shaped" above the per-feature level. Idea: a dedicated folder of architecture file(s) in the consumer doc tree, with diagramming. Needs a scoping spike before promotion: whether the content is hand-authored or derived from the graphify AST graph (which already has communities and edges), whether the diagrams are generated or drawn, and how the surface avoids becoming the stalest page in the tree.
