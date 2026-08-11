@@ -791,6 +791,50 @@ function renderStdout(grouped: Map<string, Gap[]>, totalFeatures: number): strin
   return lines.join('\n');
 }
 
+/** A backtick-delimited code span: an opening run of backticks, content, a closing run. */
+const CODE_SPAN_RE = /`+[^`]*`+/g;
+
+/** Backslash-escape every emphasis delimiter, leaving already-escaped ones alone. */
+function escapeEmphasis(prose: string): string {
+  return prose.replace(/\\?[*_]/g, (m) => (m.startsWith('\\') ? m : `\\${m}`));
+}
+
+/**
+ * Make externally-authored prose safe to interpolate into the generated report
+ * markdown — `ideas.md` bullet text and `Noldor-Path-Override` commit-message
+ * reasons, neither of which is written with oxfmt in mind.
+ *
+ * The report is committed and guarded by an oxfmt-compliance test, so any prose
+ * oxfmt would rewrite reddens that test: `*em*` becomes `_em_`, `__strong__`
+ * becomes `**strong**`, a lone flanking `*`/`_` gets backslash-escaped, a bare
+ * asterisk glob is mangled into different characters entirely, and whitespace
+ * runs collapse. Replicating CommonMark's emphasis-flanking rules to predict
+ * which of those fires is a losing battle, so this moves the prose to the one
+ * shape oxfmt already treats as canonical instead: every emphasis delimiter
+ * escaped, whitespace runs squashed. Escapes are preserved rather than doubled,
+ * so the transform is idempotent. Code spans pass through untouched — oxfmt does
+ * not reformat inside them, and escapes would show up literally there.
+ *
+ * Applied at the markdown render seam only: the `--json` and stdout renderings
+ * quote the same messages and must stay free of markdown escapes.
+ */
+export function normalizeQuotedProse(text: string): string {
+  const collapsed = text.replace(/\s+/g, ' ').trim();
+  let out = '';
+  let last = 0;
+  for (const match of collapsed.matchAll(CODE_SPAN_RE)) {
+    out += escapeEmphasis(collapsed.slice(last, match.index));
+    out += match[0];
+    last = match.index + match[0].length;
+  }
+  return out + escapeEmphasis(collapsed.slice(last));
+}
+
+/** One `## Gap details` bullet: itemId in a code span, message fmt-normalized. */
+export function renderGapBullet(itemId: string, message: string): string {
+  return `- \`${itemId}\` — ${normalizeQuotedProse(message)}`;
+}
+
 function renderReportMd(
   grouped: Map<string, Gap[]>,
   totalFeatures: number,
@@ -852,7 +896,11 @@ function renderReportMd(
       lines.push('No overrides in the last 30 days.');
     } else {
       for (const o of gateCompliance.overrides) {
-        lines.push(`- \`${o.sha.slice(0, 7)}\` — ${o.reason}${o.expected ? ' (expected)' : ''}`);
+        // Override reasons are operator-authored commit-message prose — same
+        // fmt hazard as a quoted idea bullet, just gated behind --release.
+        lines.push(
+          `- \`${o.sha.slice(0, 7)}\` — ${normalizeQuotedProse(o.reason)}${o.expected ? ' (expected)' : ''}`,
+        );
       }
     }
     lines.push('');
@@ -872,7 +920,7 @@ function renderReportMd(
   for (const [category, gaps] of grouped) {
     lines.push(`### ${category}`, '');
     for (const g of gaps) {
-      lines.push(`- \`${g.itemId}\` — ${g.message}`);
+      lines.push(renderGapBullet(g.itemId, g.message));
     }
     lines.push('');
   }

@@ -21,8 +21,11 @@ import {
   detectUntaggedDocs,
   detectUntaggedTests,
   detectUntriagedIdeas,
+  normalizeQuotedProse,
+  renderGapBullet,
   resolveReportOutPath,
 } from '../sdd-report.js';
+import { REVIEW_SKIP_COUNT_PREFIX } from '../sdd-report-format.js';
 import {
   compareSemver,
   extractPlanSlug,
@@ -708,10 +711,15 @@ describe('sdd:report markdown output', () => {
       cwd: process.cwd(),
       encoding: 'utf8',
     });
-    const md = readFileSync(outPath, 'utf8');
-    expect(md).not.toMatch(/## Gate compliance/);
-    expect(md).not.toMatch(/Review-skip count/);
-    expect(md).not.toMatch(/Noldor-Reviewed.* trailer/);
+    // Assert on whole emitted LINES, not a whole-document regex. Every gap-detail
+    // bullet starts `- `, so line-anchoring makes it impossible for quoted
+    // `ideas.md` prose that happens to name the receipt key to false-red this
+    // test while the section is genuinely absent. The review-skip line is matched
+    // via the shared literal so the assertion can't desync from the emitter.
+    const lines = readFileSync(outPath, 'utf8').split('\n');
+    expect(lines).not.toContain('## Gate compliance');
+    expect(lines.some((l) => l.startsWith('### Review-skip count'))).toBe(false);
+    expect(lines.some((l) => l.startsWith(REVIEW_SKIP_COUNT_PREFIX))).toBe(false);
   });
 
   it('includes Gate compliance section when --release flag is passed', () => {
@@ -719,9 +727,52 @@ describe('sdd:report markdown output', () => {
       cwd: process.cwd(),
       encoding: 'utf8',
     });
-    const md = readFileSync(outPath, 'utf8');
-    expect(md).toMatch(/## Gate compliance/);
-    expect(md).toMatch(/Review-skip count/);
+    // Line-anchored for the same reason as the negative twin above — otherwise a
+    // quoted idea bullet naming the section could carry this assertion green even
+    // if --release stopped emitting the section.
+    const lines = readFileSync(outPath, 'utf8').split('\n');
+    expect(lines).toContain('## Gate compliance');
+    expect(lines.some((l) => l.startsWith(REVIEW_SKIP_COUNT_PREFIX))).toBe(true);
+  });
+});
+
+describe(normalizeQuotedProse, () => {
+  it('escapes emphasis delimiters so oxfmt leaves the prose alone', () => {
+    expect(normalizeQuotedProse('star *italics* here')).toBe('star \\*italics\\* here');
+    expect(normalizeQuotedProse('under __bold__ here')).toBe('under \\_\\_bold\\_\\_ here');
+  });
+
+  it('escapes unpaired delimiters and globs oxfmt would otherwise mangle', () => {
+    expect(normalizeQuotedProse('a * b and a _ b')).toBe('a \\* b and a \\_ b');
+    expect(normalizeQuotedProse('glob docs/**/*.md bare')).toBe('glob docs/\\*\\*/\\*.md bare');
+  });
+
+  it('leaves code-span contents untouched', () => {
+    expect(normalizeQuotedProse('keep `*star*` and `__u__` spans')).toBe(
+      'keep `*star*` and `__u__` spans',
+    );
+    expect(normalizeQuotedProse('mix `a_b` plus *out*')).toBe('mix `a_b` plus \\*out\\*');
+  });
+
+  it('treats an unclosed backtick run as prose, not a code span', () => {
+    expect(normalizeQuotedProse('`open only and *x*')).toBe('`open only and \\*x\\*');
+  });
+
+  it('collapses whitespace runs and tabs oxfmt would squash', () => {
+    expect(normalizeQuotedProse('double  space\tand\ttabs')).toBe('double space and tabs');
+  });
+
+  it('is idempotent — already-escaped prose survives a second pass', () => {
+    const once = normalizeQuotedProse('star *italics* here');
+    expect(normalizeQuotedProse(once)).toBe(once);
+  });
+});
+
+describe(renderGapBullet, () => {
+  it('normalizes the message but keeps the itemId in a code span', () => {
+    expect(renderGapBullet('ideas.md:44', 'repro star *italics* trip oxfmt')).toBe(
+      '- `ideas.md:44` — repro star \\*italics\\* trip oxfmt',
+    );
   });
 });
 
