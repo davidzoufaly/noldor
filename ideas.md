@@ -10,6 +10,9 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 ## Priority
 
 ## Not groomed
+
+- remove noldor-absorb? [triaged 2026-08-10 → skill-surface-pruning-audit]
+- remove noldor-new-feature? [triaged 2026-08-10 → skill-surface-pruning-audit]
 - triaged věcí by v ideas zůstat měli, ale můžou spadnout dolů někam do vlastní Heading sekce [triaged 2026-08-11 → triaged-bullet-archive-section]
 - architecture part for consumer -> some extra folder with file/files -> diagramming [triaged 2026-08-11 → consumer-architecture-doc-surface]
 - brainstorming of things is not that great as with superpowers [triaged 2026-08-11 → spec-brainstorming-depth-parity]

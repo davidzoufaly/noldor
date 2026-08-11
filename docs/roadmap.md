@@ -4,6 +4,8 @@ Flat priority-ordered list (file order = priority). Every entry is a `### <Entry
 
 Each entry carries a `- id: Q-NNNN` bullet — a stable ID minted at triage and never rewritten; it survives heading renames and roadmap ↔ backlog moves, so `blocked-by:` references target it, not the rename-fragile slug (the slug is a human-readable alias). See [triage.md → Stable entry IDs](noldor/triage.md#stable-entry-ids).
 
+Order is by **`pnpm noldor triage score`**, not by the raw `impact:` label — `round(100 × impact × confidence × dep_factor / effort)` per [`scoreEntry()`](../src/triage/score.ts). Because `effort` divides (XS = 0.5, XL = 5), a cheap low-impact entry can and should outrank an expensive high-impact one: `XS/low/med` scores 150 while `M/med/med` scores 75. Read a file-order question against the score, not against `impact:` alone.
+
 An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet (comma-separated) — the entries this work waits on. It feeds dependency-weight scoring, and `validate:triage` flags refs that resolve to no known entry (`unknown-blocked-by-ref`; advisory, error under `--strict`) while `/noldor-garden` flags circular chains. `- deps:` is the legacy alias, still accepted during the migration window and unioned with `blocked-by:`; prefer `blocked-by:` in new entries.
 
 > **Routing policy — prep scales with `size:`. Don't spec the small ones.**
@@ -143,7 +145,7 @@ Release prep aborts one gate at a time — stale `.noldor/session.json`, then st
 - impact: low
 - confidence: med
 
-Triaged bullets should stay in `ideas.md` for traceability but drop out of the live phase sections into their own heading, so a `#### Later` scan shows only what is still raw instead of a mixed pile where every stamped bullet has to be skipped by eye. Have `/noldor-triage` relocate a bullet under a dedicated archive heading as it stamps `[triaged … → slug]`. Adjacent seam worth settling in the same pass: `extractUntriagedBullets` (`src/triage/triage-list-untriaged.ts`) only walks `## Verticals → #### Now|Next|Later`, so bullets parked under `## Not groomed` are invisible to `list-untriaged` and the 2026-08-11 batch had to be scanned by hand — decide whether that section is triage material and make the section taxonomy say so.
+Triaged bullets should stay in `ideas.md` for traceability but drop out of the live phase sections into their own heading, so a `#### Later` scan shows only what is still raw instead of a mixed pile where every stamped bullet has to be skipped by eye. Have `/noldor-triage` relocate a bullet under a dedicated archive heading as it stamps `[triaged … → slug]`. Adjacent seam worth settling in the same pass: `extractUntriagedBullets` (`src/triage/triage-list-untriaged.ts:22-27`) already documents skipping `## Not groomed` as deliberate ("not triage material"), yet the 2026-08-11 batch triaged six bullets straight out of that section and had to scan it by hand — so practice contradicts the recorded decision. Reconcile the two in prose: either the section is a staging area `list-untriaged` should surface, or operators must park raw bullets under a phase heading instead. No parser change is implied by this entry; if the resolution turns out to need one, split it out.
 
 ### Prose Rules → Enforce Cascade Rules
 
