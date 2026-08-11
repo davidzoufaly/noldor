@@ -134,11 +134,14 @@ Behaviour, preserving every existing property of `defaultSpawn`:
 - Keep `+=` for both accumulators, matching today's `stdout += d.toString()`
   (`src/cr/codex.ts:252`). An earlier draft switched to `string[]` + `join('')` on the grounds that
   326 KB of `+=` is quadratic. That is **wrong**: V8 represents repeated concatenation as a
-  cons-string and flattens lazily on first flat-string use (indexing, regex — not every read), so the
-  append cost here is not quadratic. Measured on this box, 326 KB in 5,102 chunks of 64 B, including
-  one flattening read: `+=` **0.087 ms** vs `[].join('')` **0.136 ms** — so the swap was not merely
-  unnecessary, it was the slower of the two. It would also widen the diff onto the stdout path for no reason, in a change
-  whose whole point is the two stderr lines. Dropped.
+  cons-string and flattens lazily on first flat-string use (indexing, regex — not every read), so
+  the append cost here is not quadratic. Measured over 326 KB in 5,102 chunks of 64 B including one
+  flattening read, `+=` beat `[].join('')` — 0.087 ms vs 0.136 ms on node v25.7.0 / V8 14.1, and
+  0.004 ms vs 0.043 ms when reproduced on the reviewer's box. **The ordering is the load-bearing
+  claim, not the magnitudes**: both sit far below noise at this volume and vary by an order of
+  magnitude across machines. So the swap was not merely unnecessary, it was the slower of the two,
+  and it would have widened the diff onto the stdout path in a change whose whole point is two
+  stderr lines. Dropped.
 
 The child stays in the parent's process group, as today. That is deliberate: it means a `Ctrl-C`
 still reaches codex through the terminal's group signal, with no handler needed. Measured, parent
