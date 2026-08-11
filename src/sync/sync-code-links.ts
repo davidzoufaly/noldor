@@ -112,7 +112,11 @@ function isDirEntry(p: string): boolean {
 /**
  * Compare the scanned projection against the cached `links.code` of each FD.
  * Directory entries in the cache are preserved (a tag can't live on a dir), so
- * they neither count as drift nor get dropped.
+ * they neither count as drift nor get dropped. An FD that {@link projectLinksCode}
+ * would refuse to rewrite is not drift either: reporting it would claim a
+ * staleness that `sync code-links` deliberately declines to fix, so `--check`
+ * would go permanently red on every untagged consumer with no command able to
+ * clear it. {@link taglessKeptSlugs} surfaces those FDs instead.
  *
  * @param scanned - slug → code paths derived from `// @fd:` tags
  * @param cached - slug → current `links.code` arrays
@@ -126,12 +130,34 @@ export function diffProjection(
   const slugs = new Set([...scanned.keys(), ...cached.keys()]);
   for (const slug of [...slugs].toSorted()) {
     const want = (scanned.get(slug) ?? []).toSorted();
-    const have = (cached.get(slug) ?? []).filter((p) => !isDirEntry(p)).toSorted();
+    const current = cached.get(slug) ?? [];
+    if (projectLinksCode(want, current).skipped) continue;
+    const have = current.filter((p) => !isDirEntry(p)).toSorted();
     if (want.length !== have.length || want.some((v, i) => v !== have[i])) {
-      drift.push({ slug, scanned: want, cached: cached.get(slug) ?? [] });
+      drift.push({ slug, scanned: want, cached: current });
     }
   }
   return drift;
+}
+
+/**
+ * The FDs a plain `sync code-links` run would leave alone: no `// @fd:` tag
+ * matched them, yet their `links.code` still holds file entries. Keeps the
+ * `--check` report honest about what the write path skips.
+ *
+ * @param scanned - slug → code paths derived from `// @fd:` tags
+ * @param cached - slug → current `links.code` arrays
+ * @returns The affected slugs, sorted
+ */
+export function taglessKeptSlugs(
+  scanned: Map<string, string[]>,
+  cached: Map<string, string[]>,
+): string[] {
+  const kept: string[] = [];
+  for (const [slug, current] of cached) {
+    if (projectLinksCode(scanned.get(slug) ?? [], current).skipped) kept.push(slug);
+  }
+  return kept.toSorted();
 }
 
 /**
@@ -213,6 +239,22 @@ export async function loadCachedCode(featuresDir: string): Promise<Map<string, s
   return out;
 }
 
+/**
+ * Print the FDs the write path leaves alone. Both branches route through this
+ * so `--check` and a plain run describe the same set the same way, on stdout —
+ * it is a state of the repo, not a failure.
+ */
+function reportTaglessKept(kept: string[]): void {
+  if (kept.length === 0) return;
+  for (const slug of kept) {
+    console.log(`  ${slug}: skipped (no tags, existing links kept)`);
+  }
+  console.log(
+    `${kept.length} FD(s) kept their existing links.code — no \`// @fd:\` tag matched them. ` +
+      'Tag the sources, or re-run with `--force` to clear those arrays.',
+  );
+}
+
 async function main(): Promise<void> {
   const check = process.argv.includes('--check');
   const force = process.argv.includes('--force');
@@ -223,6 +265,7 @@ async function main(): Promise<void> {
   if (check) {
     const cached = await loadCachedCode(featuresDir);
     const drift = diffProjection(scanned, cached);
+    reportTaglessKept(taglessKeptSlugs(scanned, cached));
     if (drift.length === 0) {
       console.log('links.code is in sync with // @fd: tags.');
       return;
@@ -242,10 +285,10 @@ async function main(): Promise<void> {
   // Drive the write from the union of scanned + cached slugs. A slug whose
   // `// @fd:` tags were all removed survives only in `cached`; iterating it with
   // an empty path list is what lets `--force` clear the stale file entries (dir
-  // entries are preserved). Without this, `--check` would flag such an FD as
-  // stale forever and `sync code-links` could never bring it back in sync.
-  // Clearing needs `--force` because the same code path, run in a repo with no
-  // `// @fd:` tags anywhere, would otherwise wipe every FD's curated links.code.
+  // entries are preserved). Clearing needs `--force` because the same code path,
+  // run in a repo with no `// @fd:` tags anywhere, would otherwise wipe every
+  // FD's curated links.code — so without the flag those FDs are reported and
+  // left alone, and `diffProjection` excludes them for the same reason.
   const cached = await loadCachedCode(featuresDir);
   const slugs = new Set([...scanned.keys(), ...cached.keys()]);
   let updated = 0;
@@ -256,10 +299,7 @@ async function main(): Promise<void> {
     try {
       const outcome = await updateFeatureMd(featureMd, paths, force);
       if (outcome === 'updated') updated += 1;
-      if (outcome === 'skipped') {
-        skipped.push(slug);
-        console.warn(`  ${slug}: skipped (no tags, existing links kept)`);
-      }
+      if (outcome === 'skipped') skipped.push(slug);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         console.warn(`WARN: @fd: "${slug}" referenced but ${featureMd} does not exist.`);
@@ -269,12 +309,7 @@ async function main(): Promise<void> {
     }
   }
   console.log(`Scanned tagged code, wrote links.code on ${updated} feature MD(s).`);
-  if (skipped.length > 0) {
-    console.log(
-      `${skipped.length} FD(s) kept their existing links.code — no \`// @fd:\` tag matched them. ` +
-        'Tag the sources, or re-run with `--force` to clear those arrays.',
-    );
-  }
+  reportTaglessKept(skipped);
 }
 
 const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sync-code-links');

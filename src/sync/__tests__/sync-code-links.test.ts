@@ -7,6 +7,7 @@ import {
   diffProjection,
   extractFdTags,
   projectLinksCode,
+  taglessKeptSlugs,
 } from '../sync-code-links.js';
 
 describe('extractFdTags', () => {
@@ -57,6 +58,34 @@ describe('diffProjection', () => {
   it('returns [] when every FD matches', () => {
     const m = new Map<string, string[]>([['foo', ['src/a.ts']]]);
     expect(diffProjection(m, new Map(m))).toEqual([]);
+  });
+
+  it('does not flag an FD the write path would skip (no tags, curated links kept)', () => {
+    const cached = new Map<string, string[]>([['foo', ['src/a.ts', 'src/b.ts']]]);
+    expect(diffProjection(new Map(), cached)).toEqual([]);
+  });
+
+  it('does not flag a tagless FD whose links.code holds only directory entries', () => {
+    const cached = new Map<string, string[]>([['foo', ['packages/scenes']]]);
+    expect(diffProjection(new Map(), cached)).toEqual([]);
+  });
+});
+
+describe('taglessKeptSlugs', () => {
+  it('names every FD the write path would skip, sorted', () => {
+    const cached = new Map<string, string[]>([
+      ['zeta', ['src/z.ts']],
+      ['alpha', ['src/a.ts', 'packages/scenes']],
+      ['tagged', ['src/t.ts']],
+      ['dirs-only', ['packages/scenes']],
+    ]);
+    const scanned = new Map<string, string[]>([['tagged', ['src/t.ts']]]);
+    expect(taglessKeptSlugs(scanned, cached)).toEqual(['alpha', 'zeta']);
+  });
+
+  it('returns [] when every FD is tag-driven', () => {
+    const m = new Map<string, string[]>([['foo', ['src/a.ts']]]);
+    expect(taglessKeptSlugs(m, new Map(m))).toEqual([]);
   });
 });
 
