@@ -22,6 +22,20 @@ function lastMsg(cwd: string): string {
   return spawnSync('git', ['log', '-1', '--format=%B'], { cwd, encoding: 'utf8' }).stdout;
 }
 
+function receipts(cwd: string): string[] {
+  return (
+    lastMsg(cwd)
+      .split('\n')
+      // Case-insensitive to match the impl's trailer-token matching, so a
+      // lowercase-key duplicate the impl strips can't hide from the assertion.
+      .filter((l) => l.toLowerCase().startsWith('noldor-reviewed-subagent:'))
+  );
+}
+
+function headTree(cwd: string): string {
+  return spawnSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd, encoding: 'utf8' }).stdout.trim();
+}
+
 describe('amendSubagentReceipt', () => {
   it('appends Noldor-Reviewed-Subagent: <tree> to tip commit', () => {
     const cwd = makeRepo();
@@ -40,6 +54,44 @@ describe('amendSubagentReceipt', () => {
     amendSubagentReceipt({ cwd });
     const r2 = amendSubagentReceipt({ cwd });
     expect(r2.amended).toBe(false);
+  });
+
+  it('replaces the stale receipt across amend rounds — one receipt per commit', () => {
+    const cwd = makeRepo();
+    amendSubagentReceipt({ cwd });
+    const stale = headTree(cwd);
+    // CR round 2: fix applied onto the SAME commit -> new tree, stale receipt still in msg.
+    writeFileSync(join(cwd, 'a.ts'), 'export const x = 2\n');
+    spawnSync('git', ['add', '.'], { cwd });
+    spawnSync('git', ['commit', '-q', '--amend', '--no-edit'], { cwd });
+    const fresh = headTree(cwd);
+    expect(fresh).not.toBe(stale);
+
+    const r = amendSubagentReceipt({ cwd });
+    expect(r.amended).toBe(true);
+    expect(receipts(cwd)).toEqual([`Noldor-Reviewed-Subagent: ${fresh}`]);
+    expect(lastMsg(cwd)).not.toContain(stale);
+  });
+
+  it('collapses pre-existing duplicate receipts to a single fresh one', () => {
+    const cwd = makeRepo();
+    spawnSync(
+      'git',
+      [
+        'commit',
+        '-q',
+        '--amend',
+        '-m',
+        'feat: thing\n\nNoldor-Path: full-new\nNoldor-Reviewed-Subagent: dead\nNoldor-Reviewed-Subagent: beef\n',
+      ],
+      { cwd },
+    );
+    expect(receipts(cwd)).toHaveLength(2);
+
+    const r = amendSubagentReceipt({ cwd });
+    expect(r.amended).toBe(true);
+    expect(receipts(cwd)).toEqual([`Noldor-Reviewed-Subagent: ${r.tree}`]);
+    expect(lastMsg(cwd)).toContain('Noldor-Path: full-new');
   });
 
   it('re-amends when HEAD^{tree} changes (stale trailer must be refreshed)', () => {

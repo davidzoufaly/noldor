@@ -91,6 +91,28 @@ describe('runCli', () => {
     expect(spawnCount).toBe(0);
   });
 
+  it('gate lane replaces the codex receipt across rounds — one trailer per commit', async () => {
+    const cwd = makeRepo();
+    await runCli({ argv: [], cwd, spawn: async () => ({ stdout: passing, exitCode: 0 }) });
+    // CR round 2: fix applied onto the SAME commit -> new tree, stale receipt still in msg.
+    writeFileSync(join(cwd, 'a.ts'), 'export const x = 2\n');
+    spawnSync('git', ['add', '.'], { cwd });
+    spawnSync('git', ['commit', '-q', '--amend', '--no-edit'], { cwd });
+    const tree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], {
+      cwd,
+      encoding: 'utf8',
+    }).stdout.trim();
+
+    await runCli({ argv: ['--rerun'], cwd, spawn: async () => ({ stdout: passing, exitCode: 0 }) });
+    const receipts = spawnSync('git', ['show', '-s', '--format=%B', 'HEAD'], {
+      cwd,
+      encoding: 'utf8',
+    })
+      .stdout.split('\n')
+      .filter((l: string) => l.toLowerCase().startsWith('noldor-reviewed-codex:'));
+    expect(receipts).toEqual([`Noldor-Reviewed-Codex: ${tree}`]);
+  });
+
   it('gate lane re-runs when --rerun is passed', async () => {
     const cwd = makeRepo();
     await runCli({ argv: [], cwd, spawn: async () => ({ stdout: passing, exitCode: 0 }) });

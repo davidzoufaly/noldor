@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Receipt Amend Must Replace Same-Key Trailer
-
-- id: Q-0080
-- area: tooling
-- type: fix
-- since: 2026-08-10
-- size: S
-- impact: high
-- confidence: high
-
-Repeated `cr orchestrate --kind code` runs across amend rounds APPEND a second review-receipt trailer instead of replacing the existing one — the key is `Noldor-Reviewed-Subagent`, and a commit that went through N CR rounds carries N receipts, all but the last stale (each amend changes `HEAD^{tree}`). The pre-push hook validates against the tree, so a stale receipt is noise at best and a false pass at worst. Fix: the receipt amend should replace any existing receipt of the same key. Manual cleanup meanwhile: strip the old trailer lines from `git log -1 --format=%B`, amend with the cleaned message, re-run orchestrate. (surfaced shipping Q-0073, PR #268)
-
 ### SDD-Report Quote Normalization
 
 - id: Q-0081

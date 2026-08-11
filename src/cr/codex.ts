@@ -1,8 +1,9 @@
 import { execFileSync, spawn as nodeSpawn } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseCliArgs, type Invocation, type PlanReview } from './cli-args.js';
 import { buildContext } from './context.js';
+import { replaceReceiptTrailer } from './receipt-trailer.js';
 import { runCodex, type Spawn } from './run-codex.js';
 import { sidecarFilename, writeSidecar, type CrRecord } from './sidecar.js';
 
@@ -77,13 +78,7 @@ export async function runCli(input: RunCliInput): Promise<number> {
   }
 
   if (isGateLane(inv)) {
-    const msgFile = refMsgPath(cwd);
-    execFileSync(
-      'git',
-      ['interpret-trailers', '--in-place', '--trailer', `Noldor-Reviewed-Codex: ${tree}`, msgFile],
-      { cwd },
-    );
-    execFileSync('git', ['commit', '--amend', '-F', msgFile], { cwd });
+    replaceReceiptTrailer({ cwd, key: 'Noldor-Reviewed-Codex', value: tree });
   }
   return 0;
 }
@@ -225,13 +220,6 @@ function readRules(cwd: string): string {
 
 function sh(cwd: string, args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' });
-}
-
-function refMsgPath(cwd: string): string {
-  const msg = sh(cwd, ['log', '-1', '--format=%B']);
-  const tmp = join(cwd, '.git', 'CR_AMEND_MSG');
-  writeFileSync(tmp, msg, 'utf8');
-  return tmp;
 }
 
 function printFindings(r: {
