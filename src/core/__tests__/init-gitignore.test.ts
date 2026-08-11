@@ -20,11 +20,13 @@ describe('ensureGitignoreBlock', () => {
     expect(body).toContain('.noldor/cr/');
   });
 
-  it('ignores the per-worktree .env.local port stamp', () => {
+  it('ignores the per-worktree .env.local port stamp, anchored to the tree root', () => {
     const dir = tmp();
     ensureGitignoreBlock(dir);
     const lines = readFileSync(join(dir, '.gitignore'), 'utf8').split('\n');
-    expect(lines).toContain('.env.local');
+    // Anchored so a consumer's own nested `apps/web/.env.local` stays visible.
+    expect(lines).toContain('/.env.local');
+    expect(lines).not.toContain('.env.local');
   });
 
   it('appends to an existing .gitignore, preserving prior content', () => {

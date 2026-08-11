@@ -19,8 +19,9 @@ export const GITIGNORE_BLOCK = `${GITIGNORE_SENTINEL} (added by noldor init)
 .noldor/drain-park.json
 # Per-worktree dev-server port stamped by \`noldor worktrees create\` — untracked
 # by design (each tree gets its own), so leaving it unignored makes every fresh
-# worktree start dirty and \`pr-flow\` preflight refuse to ship.
-.env.local
+# worktree start dirty and \`pr-flow\` preflight refuse to ship. Anchored: only the
+# tree-root stamp, never a consumer's own nested \`apps/*/.env.local\`.
+/.env.local
 `;
 
 /**
