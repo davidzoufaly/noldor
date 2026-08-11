@@ -5,6 +5,11 @@ dist/
 .turbo/
 coverage/
 
+# Per-worktree dev-server port stamped by `noldor worktrees create` — untracked
+# by design (one port per tree), so leaving it unignored makes every fresh
+# worktree start dirty and `pr-flow` preflight refuse to ship.
+.env.local
+
 # Per-user local inbox (mirrors Charuy root)
 docs/ideas.md
 

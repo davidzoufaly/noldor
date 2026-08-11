@@ -20,6 +20,13 @@ describe('ensureGitignoreBlock', () => {
     expect(body).toContain('.noldor/cr/');
   });
 
+  it('ignores the per-worktree .env.local port stamp', () => {
+    const dir = tmp();
+    ensureGitignoreBlock(dir);
+    const lines = readFileSync(join(dir, '.gitignore'), 'utf8').split('\n');
+    expect(lines).toContain('.env.local');
+  });
+
   it('appends to an existing .gitignore, preserving prior content', () => {
     const dir = tmp();
     writeFileSync(join(dir, '.gitignore'), 'node_modules\ndist\n');

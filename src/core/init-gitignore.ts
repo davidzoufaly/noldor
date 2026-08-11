@@ -1,7 +1,8 @@
-// `.gitignore` block for transient `.noldor/` state, appended by `noldor init`.
-// Without it the very first CR/gate run in a fresh consumer commits
-// per-session churn (seen live in the consumer-2 dogfood: session.json and
-// agent-events.jsonl landed in the bootstrap commit and had to be untracked).
+// `.gitignore` block for framework-written per-machine state, appended by
+// `noldor init`. Without it the very first CR/gate run in a fresh consumer
+// commits per-session churn (seen live in the consumer-2 dogfood: session.json
+// and agent-events.jsonl landed in the bootstrap commit and had to be
+// untracked).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -16,6 +17,10 @@ export const GITIGNORE_BLOCK = `${GITIGNORE_SENTINEL} (added by noldor init)
 .noldor/drain-state.json
 .noldor/drain.lock
 .noldor/drain-park.json
+# Per-worktree dev-server port stamped by \`noldor worktrees create\` — untracked
+# by design (each tree gets its own), so leaving it unignored makes every fresh
+# worktree start dirty and \`pr-flow\` preflight refuse to ship.
+.env.local
 `;
 
 /**
