@@ -132,4 +132,18 @@ describe('runSubagent', () => {
     expect(j.blockers[0].message).toMatch(/subagent.*errored.*claude not on PATH/i);
     expect(j.summary).toBe('subagent error');
   });
+  it('forwards LaneInput.dispatchTimeoutMs to the dispatcher as timeoutMs', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
+    );
+    await runSubagent({ ...input(), dispatchTimeoutMs: 777_000 });
+    expect(dispatchSubagent).toHaveBeenCalledWith(expect.objectContaining({ timeoutMs: 777_000 }));
+  });
+  it('omits timeoutMs when the lane input carries none, leaving the dispatch default', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
+    );
+    await runSubagent(input());
+    expect(Object.keys(dispatchSubagent.mock.calls[0][0])).not.toContain('timeoutMs');
+  });
 });

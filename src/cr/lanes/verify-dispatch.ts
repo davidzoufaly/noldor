@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { spawnAgent } from '../../core/agent-runner/registry.js';
+import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
 import { verifyEvidenceSchema, verifyVerdictValueSchema } from '../findings-schema.js';
 import type { VerifySurface } from '../../core/consumer-config.js';
 
@@ -18,6 +19,8 @@ export interface VerifyDispatchInput {
   /** Surfaces with `{port}` ALREADY substituted — the agent gets runnable commands. */
   surfaces: Array<VerifySurface & { name: string }>;
   port: number;
+  /** Wall-clock cap; {@link DEFAULT_DISPATCH_TIMEOUT_MS} when the caller omits it. */
+  timeoutMs?: number;
 }
 
 export function buildVerifyPrompt(input: VerifyDispatchInput): string {
@@ -70,7 +73,7 @@ type VerifyDispatcher = (input: VerifyDispatchInput) => Promise<string>;
 let dispatcher: VerifyDispatcher = async (input) => {
   const r = await spawnAgent(buildVerifyPrompt(input), {
     role: 'verifier',
-    timeoutMs: 600_000,
+    timeoutMs: input.timeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS,
     site: 'cr.verify-dispatch',
   });
   if (r.timedOut || r.exitCode !== 0) {

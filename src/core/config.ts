@@ -67,8 +67,30 @@ export const gateConfigSchema = z.object({
   sessionTtlHours: z.number().positive(),
 });
 
+/**
+ * Wall-clock cap per CR agent dispatch (`reviewer` and `verifier` lanes), in ms.
+ *
+ * 15 minutes, raised from the 10 the lanes hard-coded: the reviewer prompt's own
+ * verify-before-flag protocol tells the agent to run `pnpm typecheck` / `pnpm test`
+ * before flagging a Critical, and a med-effort review that obeys it overshoots 10
+ * minutes on a real repo — observed as three consecutive `exit -1 (timeout)` runs
+ * in one session, each burning the full window and writing a synthetic red sink.
+ * Still inside the drain's 30-minute per-iteration cap, so one lane run cannot
+ * starve its iteration.
+ *
+ * Deliberately no retry-with-backoff at the dispatch seam: the failure is a
+ * deterministic overshoot, not a flake, so a second attempt under the same cap
+ * times out too and doubles the wasted wall clock. Raising the ceiling (or
+ * lowering it per consumer via `crReview.dispatchTimeoutMs`) is the lever.
+ */
+export const DEFAULT_DISPATCH_TIMEOUT_MS = 900_000;
+
 export const crReviewConfigSchema = z.object({
   profiles: z.record(z.string(), reviewProfileSchema).optional(),
+  // noldor:cut positive-int only, no sanity floor — a consumer that sets 1ms
+  // gets instant synthetic reds and will notice at once; add a floor here if a
+  // too-low value ever ships unnoticed.
+  dispatchTimeoutMs: z.number().int().positive().optional(),
 });
 
 /**
@@ -232,4 +254,15 @@ export function resolveReviewProfile(config: NoldorConfig | null, name = 'defaul
     DEFAULT_REVIEW_PROFILES[name] ??
     DEFAULT_REVIEW_PROFILES.default
   );
+}
+
+/**
+ * Resolves the effective CR agent-dispatch timeout in ms: the configured
+ * `crReview.dispatchTimeoutMs`, or {@link DEFAULT_DISPATCH_TIMEOUT_MS} when
+ * absent (including a `null` config). Mirrors {@link resolveSessionTtlHours}.
+ * Orchestrate resolves it once and carries it on `LaneInput`, so both agent
+ * lanes read one value rather than each re-loading config.
+ */
+export function resolveDispatchTimeoutMs(config: NoldorConfig | null): number {
+  return config?.crReview?.dispatchTimeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS;
 }

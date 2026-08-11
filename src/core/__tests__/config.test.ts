@@ -5,10 +5,13 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   autonomousConfigSchema,
+  crReviewConfigSchema,
   loadConfig,
   loadConfigSync,
   noldorConfigSchema,
+  resolveDispatchTimeoutMs,
   resolveSessionTtlHours,
+  DEFAULT_DISPATCH_TIMEOUT_MS,
   DEFAULT_SESSION_TTL_HOURS,
 } from '../config.js';
 
@@ -119,6 +122,38 @@ describe('resolveSessionTtlHours', () => {
   });
   it('DEFAULT_SESSION_TTL_HOURS is 24', () => {
     expect(DEFAULT_SESSION_TTL_HOURS).toBe(24);
+  });
+});
+
+describe('resolveDispatchTimeoutMs', () => {
+  it('returns the configured value when crReview.dispatchTimeoutMs is set', () => {
+    expect(resolveDispatchTimeoutMs({ crReview: { dispatchTimeoutMs: 1_200_000 } })).toBe(
+      1_200_000,
+    );
+  });
+  it('falls back to the default when the crReview block is absent', () => {
+    expect(resolveDispatchTimeoutMs({})).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
+  });
+  it('falls back to the default when crReview carries only profiles', () => {
+    expect(
+      resolveDispatchTimeoutMs({
+        crReview: { profiles: { 'fast-track': { effort: 'low', dimensions: ['correctness'] } } },
+      }),
+    ).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
+  });
+  it('falls back to the default when config is null', () => {
+    expect(resolveDispatchTimeoutMs(null)).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
+  });
+  // The 600_000 the lanes hard-coded is what timed out three times in one
+  // session; a default at or below it would ship the same failure.
+  it('DEFAULT_DISPATCH_TIMEOUT_MS clears the 600_000 that timed out in practice', () => {
+    expect(DEFAULT_DISPATCH_TIMEOUT_MS).toBeGreaterThan(600_000);
+  });
+  it('keeps dispatchTimeoutMs optional and rejects non-positive / non-integer values', () => {
+    expect(crReviewConfigSchema.parse({}).dispatchTimeoutMs).toBeUndefined();
+    expect(() => crReviewConfigSchema.parse({ dispatchTimeoutMs: 0 })).toThrow();
+    expect(() => crReviewConfigSchema.parse({ dispatchTimeoutMs: -1 })).toThrow();
+    expect(() => crReviewConfigSchema.parse({ dispatchTimeoutMs: 1.5 })).toThrow();
   });
 });
 

@@ -1,8 +1,14 @@
 // @tests: acceptance-verify-lane, make-noldor-agent-agnostic, specs-cr-gate-multi-reviewer, rules-cascade-v1
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { buildPrompt, CUT_MARKER_TOKEN } from '../../lanes/subagent-dispatch.js';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../core/agent-runner/registry.js', () => ({
+  spawnAgent: vi.fn(async () => ({ stdout: 'reviewed', exitCode: 0, timedOut: false })),
+}));
+
+import { buildPrompt, CUT_MARKER_TOKEN, dispatchSubagent } from '../../lanes/subagent-dispatch.js';
+import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../../core/config.js';
 import { ALL_DIMENSIONS, DEFAULT_REVIEW_PROFILES } from '../../../core/review-profile.js';
 
 const base = {
@@ -126,5 +132,26 @@ describe('buildPrompt review profile', () => {
       const p = buildPrompt({ ...base, reviewProfile: DEFAULT_REVIEW_PROFILES[name]! });
       expect(p, `profile ${name}`).toContain('[mechanical]');
     }
+  });
+});
+
+describe('default dispatcher timeout', () => {
+  const spawnCalls = async (): Promise<ReturnType<typeof vi.fn>> => {
+    const { spawnAgent } = await import('../../../core/agent-runner/registry.js');
+    return spawnAgent as unknown as ReturnType<typeof vi.fn>;
+  };
+
+  it('applies DEFAULT_DISPATCH_TIMEOUT_MS when the caller omits timeoutMs', async () => {
+    const spawnAgent = await spawnCalls();
+    spawnAgent.mockClear();
+    await dispatchSubagent(base);
+    expect(spawnAgent.mock.calls[0][1].timeoutMs).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
+  });
+
+  it('honors an explicit timeoutMs from the lane', async () => {
+    const spawnAgent = await spawnCalls();
+    spawnAgent.mockClear();
+    await dispatchSubagent({ ...base, timeoutMs: 42_000 });
+    expect(spawnAgent.mock.calls[0][1].timeoutMs).toBe(42_000);
   });
 });

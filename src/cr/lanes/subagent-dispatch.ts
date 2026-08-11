@@ -1,4 +1,5 @@
 import { spawnAgent } from '../../core/agent-runner/registry.js';
+import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
 import { DEFAULT_REVIEW_PROFILES } from '../../core/review-profile.js';
 import type { ReviewDimension, ReviewEffort, ReviewProfile } from '../../core/review-profile.js';
 
@@ -9,6 +10,8 @@ export interface DispatchInput {
   headSha: string;
   description: string;
   reviewProfile?: ReviewProfile;
+  /** Wall-clock cap; {@link DEFAULT_DISPATCH_TIMEOUT_MS} when the caller omits it. */
+  timeoutMs?: number;
 }
 
 const DIMENSION_GUIDE: Record<ReviewDimension, string> = {
@@ -133,7 +136,7 @@ type Dispatcher = (input: DispatchInput) => Promise<string>;
 let dispatcher: Dispatcher = async (input) => {
   const r = await spawnAgent(buildPrompt(input), {
     role: 'reviewer',
-    timeoutMs: 600_000,
+    timeoutMs: input.timeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS,
     site: 'cr.subagent-dispatch',
   });
   if (r.timedOut || r.exitCode !== 0) {

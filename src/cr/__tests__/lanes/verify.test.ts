@@ -71,6 +71,20 @@ describe('runVerify', () => {
     expect((sink.evidence as unknown[]).length).toBe(1);
   });
 
+  it('forwards LaneInput.dispatchTimeoutMs to the verify dispatcher as timeoutMs', async () => {
+    let seen: number | undefined = -1;
+    setVerifyDispatcher(async (i) => {
+      seen = i.timeoutMs;
+      return '```json\n{"verdict":"pass","evidence":[],"mismatches":[]}\n```';
+    });
+    const { input } = repo();
+    await runVerify({ ...input, dispatchTimeoutMs: 888_000 });
+    expect(seen).toBe(888_000);
+    // No lane value → key absent, so the dispatch default applies.
+    await runVerify(input);
+    expect(seen).toBeUndefined();
+  });
+
   it('smoke fail → blockers and ok:false in BOTH modes', async () => {
     setSmokeRunner(async () => RED_SMOKE);
     for (const mode of ['advisory', 'blocking']) {
