@@ -794,9 +794,13 @@ function renderStdout(grouped: Map<string, Gap[]>, totalFeatures: number): strin
 /** A backtick-delimited code span: an opening run of backticks, content, a closing run. */
 const CODE_SPAN_RE = /`+[^`]*`+/g;
 
-/** Backslash-escape every emphasis delimiter, leaving already-escaped ones alone. */
-function escapeEmphasis(prose: string): string {
-  return prose.replace(/\\?[*_]/g, (m) => (m.startsWith('\\') ? m : `\\${m}`));
+/**
+ * Normalize one stretch of prose that sits OUTSIDE any code span: squash
+ * whitespace runs, then backslash-escape every emphasis delimiter, leaving
+ * already-escaped ones alone.
+ */
+function normalizeSegment(prose: string): string {
+  return prose.replace(/\s+/g, ' ').replace(/\\?[*_]/g, (m) => (m.startsWith('\\') ? m : `\\${m}`));
 }
 
 /**
@@ -812,22 +816,26 @@ function escapeEmphasis(prose: string): string {
  * which of those fires is a losing battle, so this moves the prose to the one
  * shape oxfmt already treats as canonical instead: every emphasis delimiter
  * escaped, whitespace runs squashed. Escapes are preserved rather than doubled,
- * so the transform is idempotent. Code spans pass through untouched — oxfmt does
- * not reformat inside them, and escapes would show up literally there.
+ * so the transform is idempotent.
+ *
+ * Code spans pass through byte-for-byte, whitespace included: oxfmt reformats
+ * neither emphasis nor whitespace inside them, so touching a span would alter
+ * quoted code for no fmt benefit. That is why the whitespace squash lives in
+ * {@link normalizeSegment} (per non-span stretch) rather than running over the
+ * whole string up front.
  *
  * Applied at the markdown render seam only: the `--json` and stdout renderings
  * quote the same messages and must stay free of markdown escapes.
  */
 export function normalizeQuotedProse(text: string): string {
-  const collapsed = text.replace(/\s+/g, ' ').trim();
   let out = '';
   let last = 0;
-  for (const match of collapsed.matchAll(CODE_SPAN_RE)) {
-    out += escapeEmphasis(collapsed.slice(last, match.index));
+  for (const match of text.matchAll(CODE_SPAN_RE)) {
+    out += normalizeSegment(text.slice(last, match.index));
     out += match[0];
     last = match.index + match[0].length;
   }
-  return out + escapeEmphasis(collapsed.slice(last));
+  return (out + normalizeSegment(text.slice(last))).trim();
 }
 
 /** One `## Gap details` bullet: itemId in a code span, message fmt-normalized. */

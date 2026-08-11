@@ -754,6 +754,14 @@ describe(normalizeQuotedProse, () => {
     expect(normalizeQuotedProse('mix `a_b` plus *out*')).toBe('mix `a_b` plus \\*out\\*');
   });
 
+  it('preserves whitespace runs inside a code span while squashing them outside', () => {
+    // oxfmt reformats neither emphasis nor whitespace inside a span, so quoted
+    // code must survive byte-for-byte — only the prose around it is squashed.
+    expect(normalizeQuotedProse('outer  run `inner  run\tkept` outer\ttoo')).toBe(
+      'outer run `inner  run\tkept` outer too',
+    );
+  });
+
   it('treats an unclosed backtick run as prose, not a code span', () => {
     expect(normalizeQuotedProse('`open only and *x*')).toBe('`open only and \\*x\\*');
   });
