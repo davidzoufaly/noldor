@@ -101,7 +101,17 @@ Move `defaultSpawn` out of `src/cr/codex.ts` into its own module as an exported 
 test can reach it without going through `runCli` (which every existing test bypasses by injecting
 `spawn`). Two changes to the body: consume `c.stderr`, and return it.
 
+`Spawn` moves here too, alongside its canonical implementation — see (D10). `run-codex.ts` keeps
+re-exporting the type (`export type { Spawn } from './codex-spawn.js'`) so the existing
+`import { runCodex, type Spawn } from '../run-codex.js'` in `run-codex.test.ts` needs no edit.
+
 ```ts
+export type Spawn = (args: {
+  cmd: string;
+  args: string[];
+  stdin: string;
+}) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+
 export interface SpawnCodexOpts {
   /** Wall-clock cap. Omitted → no inner cap; the caller's cap governs. */
   timeoutMs?: number;
@@ -122,7 +132,14 @@ Behaviour, preserving every existing property of `defaultSpawn`:
   `EPIPE`.
 - On `timeoutMs` expiry: `c.kill('SIGKILL')`, resolve `{ exitCode: -1 }` with whatever stderr
   accumulated, so the caller can still attribute the failure. `-1` matches the convention
-  `src/cr/lanes/subagent-dispatch.ts` already uses for a timed-out dispatch.
+  `src/core/agent-runner/registry.ts:232` establishes (`code ?? -1`);
+  `src/cr/lanes/subagent-dispatch.ts` only surfaces it, it does not mint it.
+- **Clear the timer on every settle path.** `close`, `error`, and the timeout itself all call
+  `clearTimeout(timer)`, mirroring the `if (timer) clearTimeout(timer)` that
+  `src/core/agent-runner/registry.ts:225` and `:230` already do on both listeners. Without it a
+  pending `setTimeout` holds the event loop open for up to the full cap — `codex-spawn.test.ts`
+  would report an open handle or hang under vitest — and the late `SIGKILL` fires against an
+  already-exited child.
 
 Accumulate into a `string[]` and `join('')` rather than `+=` — 326 KB of `+=` on every chunk is
 quadratic, and this path is now guaranteed to see that volume.
@@ -142,6 +159,8 @@ export function describeCodexFailure(input: {
   stderr: string;
   version: string;
 }): string;
+// Spawn imported from './codex-spawn.js' — U2 must not import it from run-codex.ts,
+// which imports these helpers back (D10).
 export function probeCodexVersion(spawn: Spawn): Promise<string>;
 ```
 
@@ -161,9 +180,13 @@ export function probeCodexVersion(spawn: Spawn): Promise<string>;
 `src/cr/lanes/codex.ts:32` already carries `extractLaneJson` — slice from the first `{` to the last
 `}` so surrounding noise cannot break `JSON.parse`. `src/cr/run-codex.ts:56` does a bare
 `JSON.parse(stdout)` and has no such tolerance. Move the helper to `src/cr/extract-json.ts` as
-`extractJsonObject(text: string): unknown`, throwing the same `no JSON object in stdout` error, and
-consume it from both call sites. This is the drift-hardening that replaces `--output-last-message`,
-and it removes a duplicated concern rather than adding a second one.
+`extractJsonObject(text: string): unknown` and consume it from both call sites. This is the
+drift-hardening that replaces `--output-last-message`, and it removes a duplicated concern rather
+than adding a second one.
+
+The thrown message **does change**: the live one at `src/cr/lanes/codex.ts:36` is prefixed
+`codex lane: `, which a shared helper must drop (it now serves two callers). Verified safe — a
+repo-wide grep for `no JSON object` matches only that source line, so no test asserts on it.
 
 ### U4 — `src/cr/run-codex.ts`: capture, attribute, parse tolerantly
 
@@ -180,10 +203,23 @@ and it removes a duplicated concern rather than adding a second one.
 ### U5 — `src/cr/codex.ts`: consume `spawnCodex`
 
 Delete the local `defaultSpawn` (its body moved to U1) and use `spawnCodex` as the fallback at both
-`input.spawn ?? defaultSpawn` sites (`runCli` lines 44 and 68). Pass
-`resolveDispatchTimeoutMs(loadNoldorConfig(cwd))` as `timeoutMs` so a direct
-`pnpm noldor cr codex --plan …` run is capped too, and a codex that outlives the outer
-`execFile` cap in U7 is killed here rather than orphaned when `pnpm` is signalled. See (D6).
+`input.spawn ?? defaultSpawn` sites (`runCli` lines 44 and 68), so a direct
+`pnpm noldor cr codex --plan …` run is capped too and a codex that outlives the outer `execFile` cap
+in U7 is killed here rather than orphaned when `pnpm` is signalled. See (D6).
+
+Resolve the cap exactly the way `src/cr/orchestrate.ts:252` does — there is **no** `loadNoldorConfig`;
+the real exports are the async `loadConfig(path)` and the sync `loadConfigSync(path)`
+(`src/core/config.ts:224`), and both take a **config-file path**, not a cwd:
+
+```ts
+// runCli is already async, so mirror orchestrate.ts:252 rather than the sync variant.
+const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
+const timeoutMs = resolveDispatchTimeoutMs(cfg);
+```
+
+`resolveDispatchTimeoutMs` (`src/core/config.ts:267`) already accepts `null` and falls back to
+`DEFAULT_DISPATCH_TIMEOUT_MS`, so an unreadable or absent config degrades to the 900 s default
+instead of throwing.
 
 ### U6 — `src/core/agent-runner/runners/codex.ts`: explicit stdin positional
 
@@ -352,23 +388,31 @@ deadlocking until the dispatch timeout and reporting an unattributable exit code
 
 ## Open questions (resolved)
 
-1. *Should `Spawn`'s resolved `stderr` be required or optional?* → **Required.** (D4) An optional
+1. *When does the `codex --version` probe run?* → **Lazily, on the failure path only.** (D3) Folding
+   it into the blocker message costs nothing on a green run, needs no `findings-schema` change, and
+   puts the version exactly where someone debugging drift will look. A green run needs no version.
+2. *Should `Spawn`'s resolved `stderr` be required or optional?* → **Required.** (D4) An optional
    field lets a future stub omit stderr and leave the auth-hint path vacuously green — the same
    "field nobody read" shape as the bug being fixed. ~18 mechanical stub edits, compiler-driven.
-2. *Keep `--output-last-message` from the entry's scope?* → **No — drop it; reuse the tolerant JSON
+3. *Keep `--output-last-message` from the entry's scope?* → **No — drop it; reuse the tolerant JSON
    slicer instead (U3).** (D5) stdout measured clean at 12 bytes, so the temp-file round trip guards
    nothing today, while `extractJsonObject` hardens the same drift in three lines and removes an
    existing duplication. Cheap to add later if stdout ever does get polluted.
-3. *Should `spawnCodex` carry its own `timeoutMs`, or rely on the outer `execFile` cap?* → **Carry
+4. *Should `spawnCodex` carry its own `timeoutMs`, or rely on the outer `execFile` cap?* → **Carry
    it, wired from config in U5.** (D6) `execFile`'s timeout signals only its direct child (`pnpm`),
    so a hung codex would orphan and keep burning ChatGPT quota unattended in drain mode. ~10 lines.
    Cuttable without touching U1 if the operator reads it as creep.
-4. *Fix the dangling `links.code` entry by hand, or with `sync code-links`?* → **By hand.** (D7)
+5. *Fix the dangling `links.code` entry by hand, or with `sync code-links`?* → **By hand.** (D7)
    `--check` reports this FD as `skipped (no tags, existing links kept)`, so the tool will never
    touch it; the field is hand-maintained. `--force` would clear all 21 entries, not just the dead one.
-5. *Where does `AUTH_HINT_RE` live?* → **`src/cr/codex-failure.ts`, exported.** (D8) Exported so a
+6. *Where does `AUTH_HINT_RE` live?* → **`src/cr/codex-failure.ts`, exported.** (D8) Exported so a
    test can assert both directions (matches auth stderr, does not match models-cache noise) without
    reaching through `runCodex`; colocated with the formatter that consumes it.
-6. *Does removing the Q-0089 roadmap block strand Q-0091's `blocked-by: Q-0089`?* → **No.** (D9)
+7. *Does removing the Q-0089 roadmap block strand Q-0091's `blocked-by: Q-0089`?* → **No.** (D9)
    Per the plans-source dependency semantics, an absent entry reads as shipped, so Q-0091 becomes
    eligible exactly when this merges. No roadmap edit needed.
+8. *Where does the `Spawn` type live, given U2 needs it and `run-codex.ts` imports U2 back?* →
+   **`src/cr/codex-spawn.ts`, re-exported from `run-codex.ts`.** (D10) Homing it beside its canonical
+   implementation avoids a type-only import cycle (harmless at runtime, but needless), and the
+   re-export keeps `import { runCodex, type Spawn } from '../run-codex.js'` working in the existing
+   tests with no edit.
