@@ -99,6 +99,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       headSha: input.artifactSha,
       description: `${input.kind} for FD ${input.slug}`,
       ...(input.reviewProfile ? { reviewProfile: input.reviewProfile } : {}),
+      ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
     });
   } catch (err) {
     const errMsg = (err as NodeJS.ErrnoException).message ?? String(err);

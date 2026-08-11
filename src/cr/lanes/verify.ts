@@ -158,6 +158,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
       headSha: input.artifactSha,
       surfaces,
       port,
+      ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
     });
   } catch (err) {
     dispatchErr = (err as Error).message;

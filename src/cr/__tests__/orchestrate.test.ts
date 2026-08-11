@@ -251,6 +251,33 @@ describe('run (orchestrate)', () => {
     expect(result.syntheticOks).toEqual([]);
     expect(result.lanesRun).toEqual(['reviewer']);
   });
+  it('carries the resolved dispatch timeout onto the lane input (default, then configured)', async () => {
+    const { runSubagent } = await import('../lanes/subagent.js');
+    const { DEFAULT_DISPATCH_TIMEOUT_MS } = await import('../../core/config.js');
+    const args = {
+      slug: 'x',
+      artifact: 'docs/x.md',
+      kind: 'spec' as const,
+      lanes: ['reviewer' as const],
+      autonomous: true,
+    };
+    (runSubagent as ReturnType<typeof vi.fn>).mockClear();
+    await run({ args, cwd: root });
+    expect((runSubagent as ReturnType<typeof vi.fn>).mock.calls[0][0].dispatchTimeoutMs).toBe(
+      DEFAULT_DISPATCH_TIMEOUT_MS,
+    );
+
+    await writeFile(
+      join(root, '.noldor', 'config.json'),
+      JSON.stringify({ crReview: { dispatchTimeoutMs: 1_500_000 } }),
+      'utf8',
+    );
+    (runSubagent as ReturnType<typeof vi.fn>).mockClear();
+    await run({ args, cwd: root });
+    expect((runSubagent as ReturnType<typeof vi.fn>).mock.calls[0][0].dispatchTimeoutMs).toBe(
+      1_500_000,
+    );
+  });
   it('runs a code-kind reviewer lane with no prior sink rather than synthesizing a pass', async () => {
     const { runSubagent } = await import('../lanes/subagent.js');
     (runSubagent as ReturnType<typeof vi.fn>).mockClear();

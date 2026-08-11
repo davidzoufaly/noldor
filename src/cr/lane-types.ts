@@ -11,6 +11,12 @@ export interface LaneInput {
   baseSha?: string;
   fullReview?: boolean;
   reviewProfile?: ReviewProfile;
+  /**
+   * Wall-clock cap per agent dispatch, resolved once by orchestrate from
+   * `crReview.dispatchTimeoutMs`. Absent for direct lane callers (unit tests,
+   * ad-hoc runs), which fall back to `DEFAULT_DISPATCH_TIMEOUT_MS`.
+   */
+  dispatchTimeoutMs?: number;
   repoRoot: string;
 }
 

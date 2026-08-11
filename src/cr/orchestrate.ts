@@ -2,7 +2,12 @@ import { execFile } from 'node:child_process';
 import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
-import { DEFAULT_CR_LANES, loadConfig, resolveReviewProfile } from '../core/config.js';
+import {
+  DEFAULT_CR_LANES,
+  loadConfig,
+  resolveDispatchTimeoutMs,
+  resolveReviewProfile,
+} from '../core/config.js';
 import type { NoldorConfig } from '../core/config.js';
 import {
   LEGACY_BY_CANONICAL,
@@ -291,6 +296,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     artifactSha: headSha,
     repoRoot: cwd,
     reviewProfile,
+    dispatchTimeoutMs: resolveDispatchTimeoutMs(cfg),
     ...(opts.args.baseSha ? { baseSha: opts.args.baseSha } : {}),
     ...(opts.args.fullReview ? { fullReview: true } : {}),
   };
