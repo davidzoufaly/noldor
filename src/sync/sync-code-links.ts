@@ -242,7 +242,9 @@ export async function loadCachedCode(featuresDir: string): Promise<Map<string, s
 /**
  * Print the FDs the write path leaves alone. Both branches route through this
  * so `--check` and a plain run describe the same set the same way, on stdout —
- * it is a state of the repo, not a failure.
+ * it is a state of the repo, not a failure. Stated as fact rather than as a
+ * call to action: in check mode the very next line reports these FDs as in
+ * sync, which they are — `--force` is a write-side lever, not a fix for a red.
  */
 function reportTaglessKept(kept: string[]): void {
   if (kept.length === 0) return;
@@ -250,8 +252,8 @@ function reportTaglessKept(kept: string[]): void {
     console.log(`  ${slug}: skipped (no tags, existing links kept)`);
   }
   console.log(
-    `${kept.length} FD(s) kept their existing links.code — no \`// @fd:\` tag matched them. ` +
-      'Tag the sources, or re-run with `--force` to clear those arrays.',
+    `${kept.length} FD(s) keep their existing links.code — no \`// @fd:\` tag matched them ` +
+      '(not drift; a write run with `--force` clears them).',
   );
 }
 
