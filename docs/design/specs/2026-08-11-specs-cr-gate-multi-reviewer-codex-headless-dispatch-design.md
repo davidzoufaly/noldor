@@ -103,9 +103,8 @@ catch, so the fix is only complete if the regression test runs a **real** child 
 
 Move `defaultSpawn` out of `src/cr/codex.ts` into its own module as an exported `spawnCodex`, so a
 test can reach it without going through `runCli` (which every existing test bypasses by injecting
-`spawn`). Three changes to the body, and no more: consume `c.stderr`, return it, and swap both
-accumulators from `+=` to `string[]` + `join('')` (today's is `stdout += d.toString()` at
-`src/cr/codex.ts:252`, so this one touches the stdout path as well as the new stderr path).
+`spawn`). Exactly two changes to the body: consume `c.stderr`, and return it. The stdout path is
+not touched at all — see the accumulator note below.
 
 `Spawn` moves here too, alongside its canonical implementation — see (D10). `run-codex.ts` keeps
 re-exporting the type (`export type { Spawn } from './codex-spawn.js'`) so the existing
@@ -127,14 +126,17 @@ one level up, in U7, where `LaneInput.dispatchTimeoutMs` already belongs.
 Behaviour, preserving every existing property of `defaultSpawn`:
 
 - `c.stdout.on('data')` and `c.stderr.on('data')` both accumulate. **Draining stderr is the entire
-  fix**; the accumulator swap is a performance consequence of it, and nothing else in the body
-  changes from today.
+  fix** — nothing else in the body changes from today.
 - `settled` latch retained — `close` and `error` race, first one wins.
 - `error` → `{ stdout: '', stderr: <accumulated>, exitCode: 127 }` (127 preserved from today).
 - `c.stdin.on('error', () => {})` retained: a child that exits before reading stdin must not raise
   `EPIPE`.
-- Accumulate into a `string[]` and `join('')` rather than `+=` — 326 KB of `+=` on every chunk is
-  quadratic, and this path is now guaranteed to see that volume.
+- Keep `+=` for both accumulators, matching today's `stdout += d.toString()`
+  (`src/cr/codex.ts:252`). An earlier draft switched to `string[]` + `join('')` on the grounds that
+  326 KB of `+=` is quadratic. That is **wrong**: V8 represents repeated concatenation as a
+  cons-string and flattens on access, so the append cost here is not quadratic and the swap buys
+  nothing measurable. It would also widen the diff onto the stdout path for no reason, in a change
+  whose whole point is the two stderr lines. Dropped.
 
 The child stays in the parent's process group, as today. That is deliberate: it means a `Ctrl-C`
 still reaches codex through the terminal's group signal, with no handler needed. Measured, parent
@@ -310,8 +312,11 @@ implementation is not done until the real CLI has been driven once end to end.
 1. `spawnCodex` resolves `exitCode: 0` with `stderr.length > 300_000` for a real child writing
    327,000 bytes to stderr; the equivalent test against today's `defaultSpawn` shape never resolves.
 2. `spawnCodex` delivers `stdin` to the child and returns `127` for a missing binary.
-3. `src/cr/codex-spawn.ts` contains no `setTimeout`, no `.kill(`, and no `process.on('SIG` — a
-   grep-able assertion that (D6) stayed cut and the module did not regrow a dispatch cap.
+3. `src/cr/codex-spawn.ts` calls no `setTimeout`, no `.kill(`, and no `process.on('SIG` — an
+   assertion that (D6) stayed cut and the module did not quietly regrow a dispatch cap. Match against
+   **non-comment source** (strip comments, or assert at AST level): a plain text grep false-reds on an
+   innocent comment that merely mentions one of the tokens — including the accumulator note above,
+   which is why the check must not be a bare `grep`.
 4. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
 5. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
 6. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
