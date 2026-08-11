@@ -134,8 +134,10 @@ Behaviour, preserving every existing property of `defaultSpawn`:
 - Keep `+=` for both accumulators, matching today's `stdout += d.toString()`
   (`src/cr/codex.ts:252`). An earlier draft switched to `string[]` + `join('')` on the grounds that
   326 KB of `+=` is quadratic. That is **wrong**: V8 represents repeated concatenation as a
-  cons-string and flattens on access, so the append cost here is not quadratic and the swap buys
-  nothing measurable. It would also widen the diff onto the stdout path for no reason, in a change
+  cons-string and flattens lazily on first flat-string use (indexing, regex — not every read), so the
+  append cost here is not quadratic. Measured on this box, 326 KB in 5,102 chunks of 64 B, including
+  one flattening read: `+=` **0.087 ms** vs `[].join('')` **0.136 ms** — so the swap was not merely
+  unnecessary, it was the slower of the two. It would also widen the diff onto the stdout path for no reason, in a change
   whose whole point is the two stderr lines. Dropped.
 
 The child stays in the parent's process group, as today. That is deliberate: it means a `Ctrl-C`
@@ -315,8 +317,9 @@ implementation is not done until the real CLI has been driven once end to end.
 3. `src/cr/codex-spawn.ts` calls no `setTimeout`, no `.kill(`, and no `process.on('SIG` — an
    assertion that (D6) stayed cut and the module did not quietly regrow a dispatch cap. Match against
    **non-comment source** (strip comments, or assert at AST level): a plain text grep false-reds on an
-   innocent comment that merely mentions one of the tokens — including the accumulator note above,
-   which is why the check must not be a bare `grep`.
+   innocent comment that merely mentions one of the tokens, and the likeliest such comment is one a
+   future maintainer adds for exactly this reason — `// no setTimeout here: (D6) was cut` — which
+   would fail the check it documents.
 4. `Spawn`'s resolved type requires `stderr: string`; `pnpm typecheck` fails on a stub that omits it.
 5. `buildCodexArgv(...)` ends with `'-'`, and `registry.ts`'s argv assertions agree.
 6. `runCodex` on a non-zero exit whose stderr matches `AUTH_HINT_RE` yields exactly one blocker
