@@ -14,6 +14,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Sync Code-Links Destructive Without FD Tags
+
+- id: Q-0087
+- area: tooling
+- type: fix
+- since: 2026-08-11
+- size: S
+- impact: critical
+- confidence: high
+- parent: dynamic-fd-file-pointers-via-frontmatter
+
+`sync code-links` is destructive on consumers without `@fd:` tags: it scans tagged code and writes `links.code` on every FD, so an untagged consumer gets all hand-curated `links.code` arrays wiped to `[]` — charuy lost 35 FDs' worth in one run, caught only by reading the git diff. Fix: never write an empty array over a non-empty one without `--force`, or skip FDs with zero matching tags and print a per-FD `skipped (no tags, existing links kept)` line. (surfaced shipping charuy agent-skill-bundle, charuy PR #91)
+
 ### CR Receipt Amend Must Replace Same-Key Trailer
 
 - id: Q-0080
@@ -37,6 +50,32 @@ Repeated `cr orchestrate --kind code` runs across amend rounds APPEND a second r
 - confidence: high
 
 `sdd:report` quotes untriaged idea bullets verbatim into `docs/sdd-report.md`, so idea PROSE can redden two live-tree tests in `src/garden/__tests__/sdd-report.test.ts`: non-oxfmt markdown in a bullet (e.g. star-italics) fails the "writes oxfmt-compliant markdown" test, and a bullet naming the review-receipt key followed later on the line by the word "trailer" trips the omit-gate-compliance regex. Harden the seam: fmt-normalize quoted idea text in the report generator, and scope the test's negative assertion to the Gate-compliance section heading instead of a whole-document regex. (surfaced pre-release sweep 2026-08-10 — two ideas.md bullets moved into `#### Later` by PR #279 broke `pnpm verify` on main)
+
+### Reviewer-Lane Dispatch Timeout Configurable
+
+- id: Q-0088
+- area: tooling
+- type: fix
+- since: 2026-08-11
+- size: S
+- impact: high
+- confidence: high
+- parent: specs-cr-gate-multi-reviewer
+
+`subagent-dispatch.ts` hard-codes `timeoutMs: 600_000`, and a med-effort full-spec review that follows the verify-before-flag protocol (running typecheck and tests) can exceed 10 minutes — three consecutive `exit -1 (timeout)` failures in one session, each burning the full window and writing a synthetic red sink. Make the timeout configurable (`crReview.dispatchTimeoutMs`) and/or retry once with backoff; consider telling the reviewer prompt to skip long commands when the artifact is markdown-only. (surfaced shipping charuy agent-skill-bundle, charuy PR #91)
+
+### Codex Lane Headless Dispatch Breakage
+
+- id: Q-0089
+- area: tooling
+- type: fix
+- since: 2026-08-11
+- size: M
+- impact: high
+- confidence: high
+- parent: specs-cr-gate-multi-reviewer
+
+The codex CR lane is broken against codex-cli 0.133.0 in three distinct ways: (a) the `--base-sha` path errors and the fallback still exits 1; (b) passing the prompt as positional argv makes codex print `Reading additional input from stdin...` and hang or dump a 478KB models-cache error in headless runs — the prompt must go via stdin (`codex exec - <<EOF`); (c) expired ChatGPT auth surfaces as a bare exit 1 in the sink with no hint. Fix: stdin dispatch, an auth preflight that writes a clear `codex login` message into the sink, and a version probe of the installed CLI. This is the first real-codex run predicted by Q-0005, whose whole premise was that mocked lane tests cannot catch CLI drift. (surfaced shipping charuy agent-skill-bundle, charuy PR #91)
 
 ### Release Preflight Aggregate
 
@@ -94,6 +133,18 @@ Release prep aborts one gate at a time — stale `.noldor/session.json`, then st
 
 `doctor`'s framework-skew check compares the anchor by string `!==` (`src/cli/commands/doctor.ts:63`), so an anchor _ahead_ of the installed version prints `run 'noldor upgrade'` forever while `upgrade` correctly refuses to rewrite it backwards — an advisory dead end with no CLI exit, the same shape as Q-0076 in the opposite direction. Reachable after a downgrade (`pnpm add @david.zoufaly/noldor@<older>`) or a hand-edited anchor. Fix: compare with `semver.lt(anchored, installed)` and give the ahead case its own message (`anchored <a> is ahead of installed <i> — the install is behind, not the anchor`) rather than pointing at a command that cannot help. (surfaced in the code-stage CR of Q-0076, PR #270)
 
+### Triaged-Bullet Archive Section
+
+- id: Q-0090
+- area: tooling
+- type: feat
+- since: 2026-08-11
+- size: XS
+- impact: low
+- confidence: med
+
+Triaged bullets should stay in `ideas.md` for traceability but drop out of the live phase sections into their own heading, so a `#### Later` scan shows only what is still raw instead of a mixed pile where every stamped bullet has to be skipped by eye. Have `/noldor-triage` relocate a bullet under a dedicated archive heading as it stamps `[triaged … → slug]`. Adjacent seam worth settling in the same pass: `extractUntriagedBullets` (`src/triage/triage-list-untriaged.ts`) only walks `## Verticals → #### Now|Next|Later`, so bullets parked under `## Not groomed` are invisible to `list-untriaged` and the 2026-08-11 batch had to be scanned by hand — decide whether that section is triage material and make the section taxonomy say so.
+
 ### Prose Rules → Enforce Cascade Rules
 
 - id: Q-0069
@@ -106,3 +157,17 @@ Release prep aborts one gate at a time — stale `.noldor/session.json`, then st
 - parent: rules-cascade-v1
 
 The dimensions that are prose-only today sit buried in a 181-line baseline: error flow (result types, throw only for programmer errors, catch external at the boundary, never swallow) is at line 137 and is machine-unchecked. Migrate them into scoped rule files — `.noldor/rules/error-result-types.md` with `applies-to: ["src/**/*.ts"]`, `stage: [code]`, `enforce: true` — so the rule lands in the enforce bucket exactly on the files being edited rather than in a wall of text the author has to filter mentally. Same treatment for state discipline and concurrency.
+
+### Mandatory Codex Review Round
+
+- id: Q-0091
+- area: tooling
+- type: feat
+- since: 2026-08-11
+- size: S
+- impact: med
+- confidence: med
+- blocked-by: Q-0089
+- parent: specs-cr-gate-multi-reviewer
+
+The codex lane is opt-in per `crLanes` today, so a big change can ship having been reviewed by exactly one model family. Require at least one codex round on bigger tasks — gate it on the same `size:` signal the routing policy already uses (L/XL, or the split-check verdict) rather than on operator memory. Blocked until the codex lane actually works headlessly again.
