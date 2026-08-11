@@ -23,9 +23,13 @@ function lastMsg(cwd: string): string {
 }
 
 function receipts(cwd: string): string[] {
-  return lastMsg(cwd)
-    .split('\n')
-    .filter((l) => l.startsWith('Noldor-Reviewed-Subagent:'));
+  return (
+    lastMsg(cwd)
+      .split('\n')
+      // Case-insensitive to match the impl's trailer-token matching, so a
+      // lowercase-key duplicate the impl strips can't hide from the assertion.
+      .filter((l) => l.toLowerCase().startsWith('noldor-reviewed-subagent:'))
+  );
 }
 
 function headTree(cwd: string): string {
