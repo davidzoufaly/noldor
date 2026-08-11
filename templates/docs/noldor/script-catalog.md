@@ -173,10 +173,10 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 ### `sync:code-links`
 
-- **Trigger:** `pnpm noldor sync code-links`.
+- **Trigger:** `pnpm noldor sync code-links`. Accepts `--check` (report drift and exit 1, write nothing) and `--force` (see Outputs).
 - **Inputs:** code files under the configured `scanPaths` carrying `// @fd: <slug>` directives; existing FD `links.code`.
-- **Outputs:** writes `links.code` arrays onto the matching FD frontmatter from the source-side `@fd:` tags. Stages modified FDs.
-- **When to use:** after adding `// @fd:` tags to source, to push them into the FD index. Complements the `gaps:links-code` backfill (which fills FDs lacking tags).
+- **Outputs:** writes `links.code` arrays onto the matching FD frontmatter from the source-side `@fd:` tags. Stages modified FDs. An FD that no tag matched keeps its existing `links.code` and prints `skipped (no tags, existing links kept)` — so a run in a repo whose sources carry no `// @fd:` tags cannot wipe hand-curated arrays. `--force` clears those arrays instead; directory entries are preserved either way.
+- **When to use:** after adding `// @fd:` tags to source, to push them into the FD index. Complements the `gaps:links-code` backfill (which fills FDs lacking tags). Reach for `--force` only when a slug's tags were deliberately removed and `--check` should go green again.
 - **Source:** [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
 
 ## Audit

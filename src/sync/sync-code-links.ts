@@ -134,26 +134,66 @@ export function diffProjection(
   return drift;
 }
 
-async function updateFeatureMd(path: string, codeForFeature: string[]): Promise<boolean> {
+/**
+ * What the scan projects onto one FD's `links.code` — either the array to write
+ * or a refusal to write it at all.
+ */
+export type LinksCodeProjection = { skipped: true } | { skipped: false; next: string[] };
+
+/**
+ * Project one FD's scanned tags onto its cached `links.code`, guarding the
+ * total-wipe case. Directory entries are always preserved (a tag can't live on
+ * a directory), and a scan that matched no tags never clears a cache that still
+ * holds file entries unless `force` says so — that combination is the signature
+ * of a consumer repo with no `// @fd:` tags at all, where an unguarded write
+ * silently erases every hand-curated `links.code` array in one run.
+ *
+ * @param scanned - Code paths this FD's `// @fd:` tags produced (possibly empty)
+ * @param current - The FD's existing `links.code` array
+ * @param force - Clear file entries even when the scan matched nothing
+ * @returns The array to write, or `{ skipped: true }` when the write is refused
+ */
+export function projectLinksCode(
+  scanned: string[],
+  current: string[],
+  force = false,
+): LinksCodeProjection {
+  const dirs = current.filter(isDirEntry);
+  if (scanned.length === 0 && !force && current.length > dirs.length) {
+    return { skipped: true };
+  }
+  return { skipped: false, next: [...new Set([...scanned, ...dirs])].toSorted() };
+}
+
+/** Whether an FD was rewritten, left alone, or protected from a total wipe. */
+type UpdateOutcome = 'updated' | 'unchanged' | 'skipped';
+
+async function updateFeatureMd(
+  path: string,
+  codeForFeature: string[],
+  force: boolean,
+): Promise<UpdateOutcome> {
   const raw = await readFile(path, 'utf8');
   const parsed = matter(raw);
   const data = parsed.data as Record<string, unknown>;
   const links = (data.links as Record<string, unknown> | undefined) ?? {};
   const current = Array.isArray(links.code) ? (links.code as string[]) : [];
-  // Preserve directory entries — tags can't live on directories.
-  const dirs = current.filter((p) => !CODE_FILE_RE.test(p));
-  const nextSorted = [...new Set([...codeForFeature, ...dirs])].toSorted();
+  const projection = projectLinksCode(codeForFeature, current, force);
+  if (projection.skipped) {
+    return 'skipped';
+  }
+  const nextSorted = projection.next;
   const currentSorted = [...current].toSorted();
   if (
     currentSorted.length === nextSorted.length &&
     currentSorted.every((v, i) => v === nextSorted[i])
   ) {
-    return false;
+    return 'unchanged';
   }
   links.code = nextSorted;
   data.links = links;
   await writeFile(path, matter.stringify(parsed.content.replace(/^\n/, ''), data), 'utf8');
-  return true;
+  return 'updated';
 }
 
 /** Load each FD's current `links.code` array, keyed by slug, from `featuresDir`. */
@@ -175,6 +215,7 @@ export async function loadCachedCode(featuresDir: string): Promise<Map<string, s
 
 async function main(): Promise<void> {
   const check = process.argv.includes('--check');
+  const force = process.argv.includes('--force');
   const repoRoot = process.cwd();
   const featuresDir = join('docs', 'features');
   const scanned = buildSlugToCodeMap(await collectTaggedCode(repoRoot));
@@ -200,17 +241,25 @@ async function main(): Promise<void> {
 
   // Drive the write from the union of scanned + cached slugs. A slug whose
   // `// @fd:` tags were all removed survives only in `cached`; iterating it with
-  // an empty path list lets `updateFeatureMd` clear the stale file entries (dir
+  // an empty path list is what lets `--force` clear the stale file entries (dir
   // entries are preserved). Without this, `--check` would flag such an FD as
   // stale forever and `sync code-links` could never bring it back in sync.
+  // Clearing needs `--force` because the same code path, run in a repo with no
+  // `// @fd:` tags anywhere, would otherwise wipe every FD's curated links.code.
   const cached = await loadCachedCode(featuresDir);
   const slugs = new Set([...scanned.keys(), ...cached.keys()]);
   let updated = 0;
+  const skipped: string[] = [];
   for (const slug of [...slugs].toSorted()) {
     const featureMd = join(featuresDir, `${slug}.md`);
     const paths = scanned.get(slug) ?? [];
     try {
-      if (await updateFeatureMd(featureMd, paths)) updated += 1;
+      const outcome = await updateFeatureMd(featureMd, paths, force);
+      if (outcome === 'updated') updated += 1;
+      if (outcome === 'skipped') {
+        skipped.push(slug);
+        console.warn(`  ${slug}: skipped (no tags, existing links kept)`);
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         console.warn(`WARN: @fd: "${slug}" referenced but ${featureMd} does not exist.`);
@@ -220,6 +269,12 @@ async function main(): Promise<void> {
     }
   }
   console.log(`Scanned tagged code, wrote links.code on ${updated} feature MD(s).`);
+  if (skipped.length > 0) {
+    console.log(
+      `${skipped.length} FD(s) kept their existing links.code — no \`// @fd:\` tag matched them. ` +
+        'Tag the sources, or re-run with `--force` to clear those arrays.',
+    );
+  }
 }
 
 const invokedDirect = process.argv[1] && basename(process.argv[1]).startsWith('sync-code-links');
