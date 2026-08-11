@@ -2,7 +2,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { buildSlugToCodeMap, diffProjection, extractFdTags } from '../sync-code-links.js';
+import {
+  buildSlugToCodeMap,
+  diffProjection,
+  extractFdTags,
+  projectLinksCode,
+  taglessKeptSlugs,
+} from '../sync-code-links.js';
 
 describe('extractFdTags', () => {
   it('parses a single slug', () => {
@@ -52,5 +58,70 @@ describe('diffProjection', () => {
   it('returns [] when every FD matches', () => {
     const m = new Map<string, string[]>([['foo', ['src/a.ts']]]);
     expect(diffProjection(m, new Map(m))).toEqual([]);
+  });
+
+  it('does not flag an FD the write path would skip (no tags, curated links kept)', () => {
+    const cached = new Map<string, string[]>([['foo', ['src/a.ts', 'src/b.ts']]]);
+    expect(diffProjection(new Map(), cached)).toEqual([]);
+  });
+
+  it('does not flag a tagless FD whose links.code holds only directory entries', () => {
+    const cached = new Map<string, string[]>([['foo', ['packages/scenes']]]);
+    expect(diffProjection(new Map(), cached)).toEqual([]);
+  });
+});
+
+describe('taglessKeptSlugs', () => {
+  it('names every FD the write path would skip, sorted', () => {
+    const cached = new Map<string, string[]>([
+      ['zeta', ['src/z.ts']],
+      ['alpha', ['src/a.ts', 'packages/scenes']],
+      ['tagged', ['src/t.ts']],
+      ['dirs-only', ['packages/scenes']],
+    ]);
+    const scanned = new Map<string, string[]>([['tagged', ['src/t.ts']]]);
+    expect(taglessKeptSlugs(scanned, cached)).toEqual(['alpha', 'zeta']);
+  });
+
+  it('returns [] when every FD is tag-driven', () => {
+    const m = new Map<string, string[]>([['foo', ['src/a.ts']]]);
+    expect(taglessKeptSlugs(m, new Map(m))).toEqual([]);
+  });
+});
+
+describe('projectLinksCode', () => {
+  it('merges the scan with preserved directory entries, deduped and sorted', () => {
+    expect(
+      projectLinksCode(['src/b.ts', 'src/a.ts', 'src/a.ts'], ['src/a.ts', 'packages/scenes']),
+    ).toEqual({ skipped: false, next: ['packages/scenes', 'src/a.ts', 'src/b.ts'] });
+  });
+
+  it('refuses to wipe a non-empty links.code when the scan matched no tags', () => {
+    expect(projectLinksCode([], ['src/a.ts', 'src/b.ts'])).toEqual({ skipped: true });
+  });
+
+  it('wipes a tagless FD only under --force, keeping directory entries', () => {
+    expect(projectLinksCode([], ['src/a.ts', 'packages/scenes'], true)).toEqual({
+      skipped: false,
+      next: ['packages/scenes'],
+    });
+  });
+
+  it('does not skip a tagless FD whose cache holds only directory entries', () => {
+    expect(projectLinksCode([], ['packages/scenes'])).toEqual({
+      skipped: false,
+      next: ['packages/scenes'],
+    });
+  });
+
+  it('does not skip a tagless FD whose links.code is already empty', () => {
+    expect(projectLinksCode([], [])).toEqual({ skipped: false, next: [] });
+  });
+
+  it('does not skip a partial drop — only a total wipe is guarded', () => {
+    expect(projectLinksCode(['src/a.ts'], ['src/a.ts', 'src/b.ts'])).toEqual({
+      skipped: false,
+      next: ['src/a.ts'],
+    });
   });
 });
