@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Codex Lane Headless Dispatch Breakage
-
-- id: Q-0089
-- area: tooling
-- type: fix
-- since: 2026-08-11
-- size: M
-- impact: high
-- confidence: high
-- parent: specs-cr-gate-multi-reviewer
-
-The codex CR lane is broken against codex-cli 0.133.0 in three distinct ways: (a) the `--base-sha` path errors and the fallback still exits 1; (b) passing the prompt as positional argv makes codex print `Reading additional input from stdin...` and hang or dump a 478KB models-cache error in headless runs — the prompt must go via stdin (`codex exec - <<EOF`); (c) expired ChatGPT auth surfaces as a bare exit 1 in the sink with no hint. Fix: stdin dispatch, an auth preflight that writes a clear `codex login` message into the sink, and a version probe of the installed CLI. This is the first real-codex run predicted by Q-0005, whose whole premise was that mocked lane tests cannot catch CLI drift. (surfaced shipping charuy agent-skill-bundle, charuy PR #91)
-
 ### Release Preflight Aggregate
 
 - id: Q-0068
