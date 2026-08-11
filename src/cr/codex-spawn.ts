@@ -38,6 +38,9 @@ export type Spawn = (args: {
 export const spawnCodex: Spawn = async ({ cmd, args, stdin }) =>
   new Promise((resolve) => {
     const c = nodeSpawn(cmd, args);
+    // noldor:cut no cap on accumulation — codex's measured worst case is ~326 KB, and every
+    // bound worth having (which stream, what to drop, how to say so in the sink) needs a real
+    // runaway to design against. Filed in ideas.md; add a cap when one shows up.
     let stdout = '';
     let stderr = '';
     let settled = false;
@@ -71,8 +74,22 @@ export const spawnCodex: Spawn = async ({ cmd, args, stdin }) =>
       }
       settle({ stdout, stderr, exitCode: code });
     });
-    // 127 mirrors a shell's "command not found"; preserved from the prior implementation.
-    c.on('error', () => settle({ stdout: '', stderr, exitCode: 127 }));
+    // Append the reason, symmetrically with the signal path above. Discarding the Error here
+    // was the same defect in miniature: `spawn codex ENOENT` / `EACCES` / `EMFILE` never
+    // reached stderr, so the sink rendered a bare "exited with exit code 127" with nothing to
+    // act on. Keep whatever stdout arrived too — dropping it while keeping stderr was
+    // asymmetric with no reason behind it.
+    //
+    // 127 is a FALLBACK, not a diagnosis: it mirrors a shell's "command not found", which is
+    // right for ENOENT and wrong for EACCES or EMFILE. The appended message is what actually
+    // distinguishes them.
+    c.on('error', (err: Error) =>
+      settle({
+        stdout,
+        stderr: `${stderr}\n[spawnCodex] spawn error: ${err.message}\n`,
+        exitCode: 127,
+      }),
+    );
     // A child that exits before reading stdin must not raise EPIPE.
     c.stdin.on('error', () => {});
     c.stdin.end(stdin);

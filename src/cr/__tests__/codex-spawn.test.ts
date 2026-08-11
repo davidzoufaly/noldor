@@ -42,13 +42,18 @@ describe.skipIf(!POSIX)('spawnCodex', () => {
     expect(r.stderr).toBe('');
   });
 
-  it('returns 127 for a binary that does not exist, without throwing', async () => {
+  it('returns 127 for a binary that does not exist, and says why', async () => {
+    // 127 alone is not a diagnosis — it is the same code for ENOENT, EACCES and EMFILE. The
+    // appended message is what makes the sink actionable; discarding it was the original
+    // defect in miniature.
     const r = await spawnCodex({
       cmd: 'noldor-definitely-not-a-real-binary',
       args: [],
       stdin: '',
     });
     expect(r.exitCode).toBe(127);
+    expect(r.stderr).toMatch(/spawn error:/);
+    expect(r.stderr).toMatch(/ENOENT/);
   });
 
   it('reports signal death as a FAILURE, not success', async () => {
