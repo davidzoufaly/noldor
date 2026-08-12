@@ -37,7 +37,7 @@ links:
 name: Rules Cascade v1
 packages:
   - tooling
-phase: in-progress
+phase: done
 noldor-tier: full
 introduced: 0.2.0
 ---
