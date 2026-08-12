@@ -150,10 +150,14 @@ export async function applyFix(id: PreflightRowId, cwd: string): Promise<string 
 **Two passes, never a partial re-probe.** Report-only is the default — with `fixes` empty there is a
 single evaluation pass and nothing is mutated (D5). When `fixes` is non-empty, `runPreflight` runs:
 
-- **Pass 1 (fix pass)** — evaluate *only* the ids in `fixes`, in the given order, and call `applyFix`
-  **only on rows that came back `blocking`**, echoing what each did. An already-`ok` row is skipped, so
-  `garden-receipt` never re-runs `garden detect` for nothing. `origin-sync` is first in `SAFE_FIXES`
-  because it is the only remedy that moves refs.
+- **Pass 1 (fix pass)** — walk the ids in `fixes` in the given order, **per-id and sequentially**:
+  evaluate that one row, call `applyFix` if it came back `blocking`, then move to the next id. An
+  already-`ok` row is skipped, so `garden-receipt` never re-runs `garden detect` for nothing. The
+  sequencing is load-bearing, not stylistic: `origin-sync` is first in `SAFE_FIXES` because it is the
+  only remedy that moves refs, and a `garden-receipt` that was `ok` before that fast-forward but stale
+  after it is auto-restamped only because its evaluation happens *after* the merge. Evaluating all
+  fixable rows up front and then applying would miss exactly that case. Duplicate ids in `fixes` are
+  ignored — the second visit finds the row already `ok`.
 - **Pass 2 (report pass)** — evaluate **every** row from scratch against the post-fix tree, re-reading
   the session marker from disk and re-running `findPreviousTag()`. Pass 2's rows are the ones rendered
   and returned.
@@ -196,15 +200,16 @@ async function main(): Promise<void> {
   const preflightOnly = argv.includes('--preflight');
   const wantFix = argv.includes('--fix');
 
-  const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
-
-  // --- the two flags are mutually exclusive; refuse rather than pick a winner ---
+  // --- the two flags are mutually exclusive; refuse rather than pick a winner.
+  //     Checked before the config load so a broken config can't mask the conflict. ---
   if (preflightOnly && resume) {
     throw new Error(
       '--preflight and --resume are mutually exclusive: resume deliberately skips every ' +
       'precondition, so there is nothing for the aggregate to report. Run one or the other.',
     );
   }
+
+  const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
 
   // --- preflight-only: report and exit, writing no tracked file ---
   if (preflightOnly) {
@@ -266,7 +271,7 @@ readable, and `withReleaseSession`'s own throw stays untouched **behind** the ag
 protecting its own invariant — it can now only fire on a marker that appears in the window between
 the aggregate finishing and the wrapper starting.
 
-**The real release passes `sddReportOut: 'canonical'` and `fixes: new Set(['garden-receipt'])`.**
+**The real release passes `sddReportOut: 'canonical'` and `fixes: ['garden-receipt']`.**
 Both preserve today's behaviour exactly:
 
 - `canonical` means the release still regenerates `docs/sdd-report.md` in place, so volatile-only
@@ -274,7 +279,7 @@ Both preserve today's behaviour exactly:
   there would silently let the committed report go stale. `--preflight` passes `temp`, so it detects
   the same drift through the same `onlyVolatileSectionsChanged` tolerance while leaving the working
   copy byte-identical. One knob, no double regen, no behaviour lost.
-- `{'garden-receipt'}` is the auto-restamp the pipeline already performs today. The release does
+- `['garden-receipt']` is the auto-restamp the pipeline already performs today. The release does
   **not** inherit the marker-removal or ff-merge remedies: a release run must never delete a session
   marker or move the branch pointer on its own.
 
@@ -418,7 +423,7 @@ release gate at once with a copy-pasteable remedy for each — and to clear the 
 ## Open questions (resolved)
 
 1. *Does the real release pipeline get `--fix` behaviour too, or is `--fix` preflight-only?*
-   → The fix set is a parameter, and the release passes `{'garden-receipt'}` only. Rationale: that
+   → The fix list is a parameter, and the release passes `['garden-receipt']` only. Rationale: that
    is precisely the auto-restamp the pipeline already does today, while auto-deleting a session
    marker or moving the branch pointer mid-release would be new and surprising (D5).
 2. *Should preflight emit `--json`?*
