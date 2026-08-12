@@ -118,8 +118,9 @@ Three call sites are refactored, not duplicated:
 - `ensureGardenFresh` is **deleted** from the release path; the pure `evaluateGardenFreshness` it
   wrapped is what the probe calls. (`garden-receipt.ts` keeps the pure function for other callers.)
 
-`findPreviousTag()` is hoisted above the aggregate — `cr-gate` and `npm-name` both need it. It is a
-tag lookup, so hoisting costs nothing; its existing `v0.0.0` fallback for a tagless repo is
+`findPreviousTag()` is called **inside** `runPreflight`, not hoisted into `main()`: `cr-gate` and
+`npm-name` both need it, and a fast-forward applied by `--fix` can bring new tags with it, so it must
+be read after the fix pass (see Unit 3). Its existing `v0.0.0` fallback for a tagless repo is
 preserved.
 
 ### Unit 3 — orchestration, rendering, fixes
@@ -129,7 +130,6 @@ preserved.
 export interface PreflightInput {
   cwd: string;
   scanPaths: string[];
-  previousTag: string;
   sessionAtEntry: SessionMarker | null;
   nowMs: number;
   sddReportOut: 'canonical' | 'temp';   // see Unit 4
@@ -137,18 +137,32 @@ export interface PreflightInput {
 }
 export async function runPreflight(input: PreflightInput): Promise<PreflightRow[]>;
 export function hasBlocking(rows: readonly PreflightRow[]): boolean;
+export function blockingIds(rows: readonly PreflightRow[]): PreflightRowId[];
+export function countBlocking(rows: readonly PreflightRow[]): number;
 
 // preflight-render.ts
 export function renderPreflight(rows: readonly PreflightRow[]): string;
 
 // preflight-fix.ts
-export const SAFE_FIXES: ReadonlySet<PreflightRowId>;  // the three below
-export async function applyFix(row: PreflightRow, cwd: string): Promise<string | null>;
+/** Ordered: ref-moving fixes first, so pass 2 evaluates against the final tree. */
+export const SAFE_FIXES: readonly PreflightRowId[];    // ['origin-sync', 'session-marker', 'garden-receipt']
+export async function applyFix(id: PreflightRowId, cwd: string): Promise<string | null>;
 ```
 
-`runPreflight` evaluates every probe, then — for each blocking row whose id is in `fixes` — applies
-the remedy, echoes what it did, and re-probes **that row only**. Report-only is the default: `fixes`
-empty mutates nothing (D5).
+**Two passes, never a partial re-probe.** Report-only is the default — with `fixes` empty there is a
+single evaluation pass and nothing is mutated (D5). When `fixes` is non-empty, `runPreflight` runs:
+
+- **Pass 1 (fix pass)** — evaluate *only* the ids in `fixes`, in `SAFE_FIXES` order, and apply each
+  guarded remedy, echoing what it did. `origin-sync` is deliberately first because it is the only
+  remedy that moves refs.
+- **Pass 2 (report pass)** — evaluate **every** row from scratch against the post-fix tree, including
+  `findPreviousTag()`. Pass 2's rows are the ones rendered and returned.
+
+Re-probing only the fixed row would be wrong: an `origin-sync` fast-forward can pull commits that
+invalidate `graph-freshness`, `sdd-report`, `validate-features` and `cr-gate`, and can bring new tags
+that change `previousTag` — so a row evaluated before the merge could be reported green when it is no
+longer true. A full second pass costs one extra evaluation of cheap probes and is bounded at exactly
+two passes; there is no fix→re-probe loop.
 
 `SAFE_FIXES` is exactly three, and each is guarded so it cannot destroy operator state:
 
@@ -268,8 +282,18 @@ result with no similarity guessing (D8):
 | `release.publish.enabled` is false | — | `skipped` — publish disabled, the name is never used |
 | name resolves | yes | `ok` — "name resolves; N version(s) published" |
 | name resolves | no | `blocking` — name exists on the registry but this repo has never released; pick another name or add a scope |
-| 404, name unscoped | — | `warn` — new-package moderation may reject a name similar to a popular package (unscoped `noldor` → "too similar to `color`"); prefer `@scope/name` |
-| 404, name scoped | — | `ok` — scoped, moderation is not a factor |
+| clean `E404`, name unscoped | — | `warn` — new-package moderation may reject a name similar to a popular package (unscoped `noldor` → "too similar to `color`"); prefer `@scope/name` |
+| clean `E404`, name scoped | — | `ok` — scoped, moderation is not a factor |
+| any other failure — network error, non-404 registry status, `npm` binary missing | — | `warn` — could not reach the registry; detail names the error, `fix` is `npm view <name> --registry <cfg>` |
+
+The failure row is `warn`, not `blocking`: an unreachable registry is not a reason to refuse a
+release — the publish rung and `awaitPublish`'s own timeout still fail loudly if the name is really a
+problem — and reporting `ok` on an unanswered question would be worse than an admitted unknown.
+
+Implementation note: [`isVersionOnRegistry`](../../../src/release/release-publish.ts) collapses
+*every* `npm view` failure to `false`, which is correct for its own "not visible yet, keep polling"
+purpose but loses the distinction this probe needs. The probe therefore uses its own exec and
+classifies `E404` (npm's not-found code) apart from everything else.
 
 "Ours" is operationalized as "this repo has released before" because `npm view` exposes no
 ownership signal to an unauthenticated read. The limitation is recorded under Risks.
@@ -295,27 +319,35 @@ ownership signal to an unauthenticated read. The limitation is recorded under Ri
    inside its TTL is left on disk and stays `blocking`.
 6. With `fixes = SAFE_FIXES`: strictly-behind main + clean tree ff-merges and re-probes `ok`;
    a dirty tree does not merge and stays `blocking`; diverged history does not merge.
-7. The `sdd-report` probe with `sddReportOut: 'temp'` leaves `docs/sdd-report.md` byte-identical.
-8. The `sdd-report` probe reports `ok` when the regen differs only in volatile sections
-   (`onlyVolatileSectionsChanged` tolerance preserved) and `blocking` otherwise.
-9. `graph-freshness` is `skipped` when `graphify-out/graph.json` is untracked.
-10. `RELEASE_SKIP_GATE_COMPLIANCE=1` and `RELEASE_SKIP_CR_GATE=1` each produce a `skipped` row and
+7. With `fixes` non-empty, **every** row is re-evaluated after the fix pass: given a stale
+   `graph-freshness` that an `origin-sync` fast-forward resolves, the reported row is `ok`; given one
+   the fast-forward *creates*, the reported row is `blocking`. A single-row re-probe would report the
+   pre-merge verdict for both.
+8. With `fixes` empty there is exactly one evaluation pass and no remedy runs.
+9. `previousTag` used by `cr-gate` and `npm-name` is read after the fix pass: a tag arriving with the
+   fast-forward is reflected in those rows.
+10. The `sdd-report` probe with `sddReportOut: 'temp'` leaves `docs/sdd-report.md` byte-identical.
+11. The `sdd-report` probe reports `ok` when the regen differs only in volatile sections
+    (`onlyVolatileSectionsChanged` tolerance preserved) and `blocking` otherwise.
+12. `graph-freshness` is `skipped` when `graphify-out/graph.json` is untracked.
+13. `RELEASE_SKIP_GATE_COMPLIANCE=1` and `RELEASE_SKIP_CR_GATE=1` each produce a `skipped` row and
     still append to `.noldor/overrides.log`.
-11. `cr-gate` is `skipped` when `previousTag === 'v0.0.0'`.
-12. `npm-name` returns each of the five rows of the Unit 5 table under a stubbed exec (including the
-    `skipped` row when `release.publish.enabled` is false).
-13. `renderPreflight` orders rows `blocking → warn → ok → skipped` and ends with the counts line.
-14. `pnpm release --preflight` exits 1 with the report on any blocking row, 0 otherwise, and writes
+14. `cr-gate` is `skipped` when `previousTag === 'v0.0.0'`.
+15. `npm-name` returns each of the six rows of the Unit 5 table under a stubbed exec — including the
+    `skipped` row when `release.publish.enabled` is false, and `warn` when the exec fails with
+    anything other than a clean `E404`.
+16. `renderPreflight` orders rows `blocking → warn → ok → skipped` and ends with the counts line.
+17. `pnpm release --preflight` exits 1 with the report on any blocking row, 0 otherwise, and writes
     no tracked file — no session marker, no `docs/sdd-report.md` change. (The `temp` sdd-report probe
     writes an untracked temp file by design.)
-15. `pnpm release --resume` does not run the aggregate: with a release-state file present it reaches
+18. `pnpm release --resume` does not run the aggregate: with a release-state file present it reaches
     `resumeRelease` rather than aborting on its own `release-state` row.
-16. A `path: 'release-automation'` marker yields `session-marker: warn` (not `blocking`), matching
+19. A `path: 'release-automation'` marker yields `session-marker: warn` (not `blocking`), matching
     `withReleaseSession`'s existing fall-through.
-17. A real release with a stale receipt and a clean `garden detect` still auto-stamps and proceeds —
+20. A real release with a stale receipt and a clean `garden detect` still auto-stamps and proceeds —
     today's behaviour, unchanged.
-18. A real release with two blocking rows aborts once and its output names both.
-19. `pnpm noldor validate script-catalog` passes with the new flag documented in
+21. A real release with two blocking rows aborts once and its output names both.
+22. `pnpm noldor validate script-catalog` passes with the new flag documented in
     `docs/noldor/script-catalog.md`.
 
 ## Risks / trade-offs
@@ -358,7 +390,8 @@ release gate at once with a copy-pasteable remedy for each — and to clear the 
 2. Read the report top-down — blocking rows first, each with its `fix:` line.
 3. To clear the mechanical ones: `pnpm release --preflight --fix`. Applies only a stale session
    marker removal, a fast-forward of a strictly-behind main, and a garden re-stamp when
-   `garden detect` is clean; each action is echoed and the affected row re-probed.
+   `garden detect` is clean. Each action is echoed, then the whole aggregate is re-evaluated against
+   the post-fix tree so no row can be reported from a pre-fix observation.
 4. Fix the remaining rows by hand using their `fix:` lines, then re-run step 1 until green.
 5. Run `pnpm release`. It re-evaluates the same aggregate as its first rung and, on a blocking row,
    prints the same report and aborts naming every failure.
