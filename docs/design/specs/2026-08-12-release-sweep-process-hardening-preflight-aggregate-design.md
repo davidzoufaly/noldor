@@ -101,7 +101,7 @@ rather than re-deriving the condition:
 | `gh-auth` | `gh --version` + `gh auth status` | Replaces index-local `ensureGhAvailable` |
 | `graph-freshness` | `graph-freshness.ts` freshness comparison | `skipped` when `graphify-out/graph.json` is untracked, as today |
 | `garden-receipt` | `evaluateGardenFreshness` (already pure, returns `{ok, reason}`) | No refactor needed |
-| `sdd-report` | regen to a temp path + `onlyVolatileSectionsChanged` | See Unit 4 |
+| `sdd-report` | regen to a temp path + `onlyVolatileSectionsChanged` | Temp file lands in an `mkdtemp` directory under the OS temp dir (never inside the repo, so it cannot dirty the tree or trip `tree-clean`) and is removed in a `finally`; a leftover on a crash is the OS's to reap. See Unit 4 |
 | `validate-features` | `noldor validate features` exit code | |
 | `gate-compliance` | `noldor garden detect --gate-compliance` exit code | `skipped` + `appendOverrideLog` under `RELEASE_SKIP_GATE_COMPLIANCE=1` |
 | `cr-gate` | `checkCrGate` (already returns `{ok, reason, offenders}`) | `skipped` when `previousTag === 'v0.0.0'` or `RELEASE_SKIP_CR_GATE=1` |
@@ -118,10 +118,9 @@ Three call sites are refactored, not duplicated:
 - `ensureGardenFresh` is **deleted** from the release path; the pure `evaluateGardenFreshness` it
   wrapped is what the probe calls. (`garden-receipt.ts` keeps the pure function for other callers.)
 
-`findPreviousTag()` is called **inside** `runPreflight`, not hoisted into `main()`: `cr-gate` and
-`npm-name` both need it, and a fast-forward applied by `--fix` can bring new tags with it, so it must
-be read after the fix pass (see Unit 3). Its existing `v0.0.0` fallback for a tagless repo is
-preserved.
+`findPreviousTag()` is called **inside** `runPreflight`'s report pass, not hoisted into `main()` —
+`cr-gate` and `npm-name` both need it, and a `--fix` fast-forward can bring new tags with it (Unit 3).
+Its existing `v0.0.0` fallback for a tagless repo is preserved.
 
 ### Unit 3 — orchestration, rendering, fixes
 
@@ -130,15 +129,14 @@ preserved.
 export interface PreflightInput {
   cwd: string;
   scanPaths: string[];
-  sessionAtEntry: SessionMarker | null;
   nowMs: number;
-  sddReportOut: 'canonical' | 'temp';   // see Unit 4
-  fixes: ReadonlySet<PreflightRowId>;   // rows to auto-remediate; empty = report-only
+  sddReportOut: 'canonical' | 'temp';        // see Unit 4
+  /** Rows to auto-remediate, in application order. Empty = report-only. */
+  fixes: readonly PreflightRowId[];
 }
 export async function runPreflight(input: PreflightInput): Promise<PreflightRow[]>;
-export function hasBlocking(rows: readonly PreflightRow[]): boolean;
+/** Ids of every blocking row, report order. Empty array = green. */
 export function blockingIds(rows: readonly PreflightRow[]): PreflightRowId[];
-export function countBlocking(rows: readonly PreflightRow[]): number;
 
 // preflight-render.ts
 export function renderPreflight(rows: readonly PreflightRow[]): string;
@@ -152,11 +150,18 @@ export async function applyFix(id: PreflightRowId, cwd: string): Promise<string 
 **Two passes, never a partial re-probe.** Report-only is the default — with `fixes` empty there is a
 single evaluation pass and nothing is mutated (D5). When `fixes` is non-empty, `runPreflight` runs:
 
-- **Pass 1 (fix pass)** — evaluate *only* the ids in `fixes`, in `SAFE_FIXES` order, and apply each
-  guarded remedy, echoing what it did. `origin-sync` is deliberately first because it is the only
-  remedy that moves refs.
-- **Pass 2 (report pass)** — evaluate **every** row from scratch against the post-fix tree, including
-  `findPreviousTag()`. Pass 2's rows are the ones rendered and returned.
+- **Pass 1 (fix pass)** — evaluate *only* the ids in `fixes`, in the given order, and call `applyFix`
+  **only on rows that came back `blocking`**, echoing what each did. An already-`ok` row is skipped, so
+  `garden-receipt` never re-runs `garden detect` for nothing. `origin-sync` is first in `SAFE_FIXES`
+  because it is the only remedy that moves refs.
+- **Pass 2 (report pass)** — evaluate **every** row from scratch against the post-fix tree, re-reading
+  the session marker from disk and re-running `findPreviousTag()`. Pass 2's rows are the ones rendered
+  and returned.
+
+Because pass 2 re-reads state, there is no frozen snapshot in `PreflightInput` — no `sessionAtEntry`
+parameter. The D3 concern (read the marker before `withReleaseSession` overwrites it) is satisfied
+*structurally* by where the aggregate sits — ahead of the wrapper, see Unit 4 — rather than by
+passing a pre-read value in, so a marker that pass 1 removes is correctly reported `ok` by pass 2.
 
 Re-probing only the fixed row would be wrong: an `origin-sync` fast-forward can pull commits that
 invalidate `graph-freshness`, `sdd-report`, `validate-features` and `cr-gate`, and can bring new tags
@@ -191,19 +196,25 @@ async function main(): Promise<void> {
   const preflightOnly = argv.includes('--preflight');
   const wantFix = argv.includes('--fix');
 
-  // Read the marker BEFORE withReleaseSession can overwrite it (D3).
-  const sessionAtEntry = readSession(process.cwd());
   const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
+
+  // --- the two flags are mutually exclusive; refuse rather than pick a winner ---
+  if (preflightOnly && resume) {
+    throw new Error(
+      '--preflight and --resume are mutually exclusive: resume deliberately skips every ' +
+      'precondition, so there is nothing for the aggregate to report. Run one or the other.',
+    );
+  }
 
   // --- preflight-only: report and exit, writing no tracked file ---
   if (preflightOnly) {
     const rows = await runPreflight({
-      cwd: process.cwd(), scanPaths, sessionAtEntry,
+      cwd: process.cwd(), scanPaths,
       nowMs: Date.now(), sddReportOut: 'temp',
-      fixes: wantFix ? SAFE_FIXES : new Set(),
+      fixes: wantFix ? SAFE_FIXES : [],
     });
     console.log(renderPreflight(rows));
-    process.exitCode = hasBlocking(rows) ? 1 : 0;
+    process.exitCode = blockingIds(rows).length > 0 ? 1 : 0;
     return;                          // never enters withReleaseSession
   }
 
@@ -216,15 +227,16 @@ async function main(): Promise<void> {
 
   // --- normal release: the aggregate IS the first rung, ahead of the wrapper ---
   const rows = await runPreflight({
-    cwd: process.cwd(), scanPaths, sessionAtEntry,
+    cwd: process.cwd(), scanPaths,
     nowMs: Date.now(), sddReportOut: 'canonical',
-    fixes: new Set(['garden-receipt']),
+    fixes: ['garden-receipt'],
   });
   console.log(renderPreflight(rows));
-  if (hasBlocking(rows)) {
+  const blocking = blockingIds(rows);
+  if (blocking.length > 0) {
     throw new Error(
-      `Release preflight found ${countBlocking(rows)} blocking gate(s): ` +
-      `${blockingIds(rows).join(', ')}. See the report above for each remedy.`,
+      `Release preflight found ${blocking.length} blocking gate(s): ${blocking.join(', ')}. ` +
+      'See the report above for each remedy.',
     );
   }
 
@@ -233,18 +245,16 @@ async function main(): Promise<void> {
 }
 ```
 
-`findPreviousTag()` is **not** hoisted into `main()`: `runPreflight` calls it itself, after any
-tree-mutating fix has been applied, because a fast-forward can bring new tags with it. `cr-gate` and
-`npm-name` both read it from there.
-
 Three wiring decisions carry the design:
 
-**`--resume` skips the aggregate entirely.** A resumable run has `.noldor/release-state.json` present
-*by definition*, so the `release-state` row would be `blocking` and `pnpm release --resume` would
-abort on the very token that authorizes it. That preserves today's contract at
-[`index.ts:324-328`](../../../src/release/index.ts) — resume "skips every precondition, check, and
+**`--preflight` and `--resume` are mutually exclusive.** A resumable run has
+`.noldor/release-state.json` present *by definition*, so the `release-state` row would be `blocking`
+and `pnpm release --resume` would abort on the very token that authorizes it — which is why `--resume`
+skips the aggregate outright, preserving today's contract at
+[`index.ts:324-328`](../../../src/release/index.ts): resume "skips every precondition, check, and
 version derivation" and trusts only the state file, whose own shape and version cross-checks are its
-guard. `--preflight --resume` is not a meaningful combination; `--resume` wins.
+guard. Combining the flags is refused with an explicit error rather than resolved by branch order, so
+neither a silent "preflight won" nor a surprising mid-recovery resume is possible.
 
 **The aggregate runs ahead of `withReleaseSession`, not inside it.** `withReleaseSession`
 ([`release-session.ts:14`](../../../src/release/release-session.ts)) overwrites
@@ -315,10 +325,11 @@ ownership signal to an unauthenticated read. The limitation is recorded under Ri
 3. Every `blocking` and every `warn` row carries a non-empty `fix`.
 4. A foreign session marker yields `session-marker: blocking`, and the marker file is unmodified
    when `fixes` is empty.
-5. With `fixes = SAFE_FIXES`: a marker past its TTL is removed and the row re-probes `ok`; a marker
-   inside its TTL is left on disk and stays `blocking`.
-6. With `fixes = SAFE_FIXES`: strictly-behind main + clean tree ff-merges and re-probes `ok`;
-   a dirty tree does not merge and stays `blocking`; diverged history does not merge.
+5. With `fixes = SAFE_FIXES`: a marker past its TTL is removed in pass 1 and pass 2 reports
+   `session-marker: ok`; a marker inside its TTL is left on disk and pass 2 reports `blocking`.
+6. With `fixes = SAFE_FIXES`: strictly-behind main + clean tree ff-merges and pass 2 reports
+   `origin-sync: ok`; a dirty tree does not merge and stays `blocking`; diverged history does not
+   merge.
 7. With `fixes` non-empty, **every** row is re-evaluated after the fix pass: given a stale
    `graph-freshness` that an `origin-sync` fast-forward resolves, the reported row is `ok`; given one
    the fast-forward *creates*, the reported row is `blocking`. A single-row re-probe would report the
