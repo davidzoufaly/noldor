@@ -156,18 +156,6 @@ A fresh `pnpm noldor docs check` reports 15 markdown files with broken internal 
 
 `doctor`'s framework-skew check compares the anchor by string `!==` (`src/cli/commands/doctor.ts:63`), so an anchor _ahead_ of the installed version prints `run 'noldor upgrade'` forever while `upgrade` correctly refuses to rewrite it backwards — an advisory dead end with no CLI exit, the same shape as Q-0076 in the opposite direction. Reachable after a downgrade (`pnpm add @david.zoufaly/noldor@<older>`) or a hand-edited anchor. Fix: compare with `semver.lt(anchored, installed)` and give the ahead case its own message (`anchored <a> is ahead of installed <i> — the install is behind, not the anchor`) rather than pointing at a command that cannot help. (surfaced in the code-stage CR of Q-0076, PR #270)
 
-### Triaged-Bullet Archive Section
-
-- id: Q-0090
-- area: tooling
-- type: feat
-- since: 2026-08-11
-- size: XS
-- impact: low
-- confidence: med
-
-Triaged bullets should stay in `ideas.md` for traceability but drop out of the live phase sections into their own heading, so a `#### Later` scan shows only what is still raw instead of a mixed pile where every stamped bullet has to be skipped by eye. Have `/noldor-triage` relocate a bullet under a dedicated archive heading as it stamps `[triaged … → slug]`. Adjacent seam worth settling in the same pass: the `extractUntriagedBullets` JSDoc (`src/triage/triage-list-untriaged.ts`) already documents skipping `## Not groomed` as deliberate ("not triage material"), yet the 2026-08-11 batch triaged six bullets straight out of that section and had to scan it by hand — so practice contradicts the recorded decision. Reconcile the two in prose: either the section is a staging area `list-untriaged` should surface, or operators must park raw bullets under a phase heading instead. No parser change is implied by this entry; if the resolution turns out to need one, split it out.
-
 ### Oversize Task Split: Which Phase Owns It
 
 - id: Q-0108

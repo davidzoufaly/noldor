@@ -24,6 +24,14 @@ export interface Untriaged {
  * without a `[triaged …]` marker. Bullets in `#### Done`, header notes
  * above `## Verticals`, and bullets under `## In Progress` / `## Not
  * groomed` are deliberately ignored — they are not triage material.
+ * `## Not groomed` is NOT a staging area this scan should surface: when a
+ * raw bullet there is ready for triage, the operator moves it under a
+ * phase heading first (decision reaffirmed 2026-08-12 after the 2026-08-11
+ * batch hand-triaged six bullets straight out of the section; see the
+ * gotchas in docs/noldor/triage.md). Stamped bullets are relocated by
+ * `/noldor-triage` into a `## Triaged` archive section at the bottom of
+ * the file, which this walk likewise never surfaces (`topLevel` is scoped
+ * to `## Verticals`).
  *
  * @param content - Raw `ideas.md` contents
  * @returns Each candidate bullet's text + 1-based line number
