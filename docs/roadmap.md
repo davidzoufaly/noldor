@@ -76,19 +76,6 @@ A fresh `pnpm noldor docs check` reports 15 markdown files with broken internal 
 
 `cr aggregate` discovers sinks by listing `.noldor/cr/` and prefix-matching (`src/cr/aggregate.ts:36-40`) and holds no expected-lane set, so a lane that never wrote a sink is invisible rather than `unresolved` — that list is only populated for a sink that exists and lacks `finishedAt` (`aggregate.ts:107`). With no other blockers, `ok: blockers.length === 0 && unresolved.length === 0` is therefore true, and a lane killed before it could write is indistinguishable from a lane that passed. Affects every lane and every kind. Fix: pass `aggregate` the lane set orchestrate resolved, and report a missing expected sink as `unresolved`. The deeper seam is Q-0112. (surfaced designing Q-0089)
 
-### Dashboard Roadmap-Add Route Writes Invalid Entries
-
-- id: Q-0102
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: XS
-- impact: med
-- confidence: high
-- parent: project-tracking-dashboard
-
-`buildRoadmapBlock()` emits area, type, since, size, impact and body but never a stable `- id:`; `handleAdd()` treats type, size and impact as optional, and `src/dashboard/__tests__/api-blocks.test.ts:407-410` explicitly blesses a bare roadmap block containing only area and since. In any consumer with `.noldor/id-counter.json`, `validate triage` requires an ID on every queue entry and roadmap validation requires type, size and impact, so those writes land already-invalid. The UI add forms were removed, but `src/dashboard/server.ts:239-240` keeps the unauthenticated loopback route callable, so scripts and stale clients can still corrupt queue validity. Make the product decision explicit: delete the dead route and its tests, or route it through the same ID allocator, required-field schema and strict validation that triage and promotion use. Acceptance submits the minimum accepted payload through the HTTP handler and then runs `validateTriageInputs` with `strict: true, counterExists: true` on the written file, expecting zero errors; parallel adds must also prove ID uniqueness. (confirmed by cross-checking writer and validator contracts in the read-only audit 2026-08-12)
-
 ### Diff-Scoped Clone Gate Flags Mere Adjacency
 
 - id: Q-0095
