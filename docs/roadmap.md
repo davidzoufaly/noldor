@@ -117,19 +117,6 @@ A fresh `pnpm noldor docs check` reports 15 markdown files with broken internal 
 
 `yamlScalar()` quotes only characters such as colon, hash, braces, brackets and quotes, but YAML implicit scalars also cover booleans, null, numbers and multiline values. Reproduced in a temp consumer: `draftMilestone('true', 'false')` writes `name: true` and `description: false`, and `loadMilestones()` then reports both fields as booleans where `milestoneFrontmatterSchema` requires strings. A shell argument containing a real newline can also inject malformed or additional frontmatter, since newline is neither quoted nor normalized. Stop hand-serializing YAML: adopt the same serializer and parser policy the other frontmatter uses, or implement a scalar encoder proven against the full YAML 1.2 implicit-type set and control characters. Regression matrix: `true`, `false`, `null`, numeric-looking text, dates, leading hyphen, hash, colons, quotes, backslashes, newlines — each must round-trip byte-exact through draft, read and validate. (confirmed by runtime probe in the read-only audit 2026-08-12)
 
-### Dashboard Favicon Shows the Project Initial
-
-- id: Q-0106
-- area: tooling
-- type: feat
-- since: 2026-08-12
-- size: XS
-- impact: low
-- confidence: high
-- parent: project-tracking-dashboard
-
-The dashboard favicon renders a literal `N` in every consumer, so two dashboards open in adjacent browser tabs are indistinguishable — exactly the case the multi-project adoption goal makes routine. Derive the glyph from the consumer's own project name (first letter) instead of hardcoding the framework's initial.
-
 ### Attach Retires an Entry ID and Leaves Dangling Refs
 
 - id: Q-0107
