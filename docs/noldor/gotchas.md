@@ -55,6 +55,26 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   (exit 1, no clear message in the lefthook tail). Use
   `{ path: 'micro-chore', startedAt: new Date().toISOString() }`.
 
+## Worktrees
+
+- **Main-workspace-absolute edit paths in a worktree session are a FALSE
+  GREEN.** The edits land on `main`'s working copy while `pnpm typecheck` and
+  `pnpm test` run inside the unchanged worktree — both pass, and the pass
+  proves nothing about the change. Cheap tell: `git -C <worktree> status` is
+  clean when it should be dirty. Reliable tell: the test COUNT did not grow
+  after adding tests — a suite that never loaded them still reports green.
+  Lossless recovery:
+  `git -C <main> diff -- src/ > p && git -C <worktree> apply --3way p && git -C <main> checkout -- src/`,
+  then re-verify. `worktrees create` prints the `Edit-path prefix:` line at
+  scaffold time — prefix every Edit/Write with it.
+- **A backgrounded git invocation leaves the shell CWD back at the main
+  workspace.** `cr orchestrate` and `pr-flow` both amend or commit; after any
+  backgrounded git step a bare `cat .noldor/cr/<slug>-code-reviewer.json`
+  reads the WRONG repo and a bare `git log -1` shows a previous feature's
+  commit — which reads exactly like a lost CR receipt. Every post-commit check
+  in a worktree session must use `git -C <worktree>` or an absolute path;
+  never trust CWD persistence.
+
 ## Dashboard
 
 - **Editing `src/dashboard/static/drag.ts` needs a manual recompile + fmt.**
