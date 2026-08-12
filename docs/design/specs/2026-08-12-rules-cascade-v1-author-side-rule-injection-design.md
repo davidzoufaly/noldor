@@ -36,6 +36,7 @@ Any injection that does not name a file surfaces nothing. That is why this desig
 - **A commit-time "was it briefed" assertion.** A hook comparing staged files against `session.injectedRules` proves the rule text was *printed*, not obeyed — compliance theater, plus a false-red bricking risk on resumed sessions (D4).
 - **Authoring new rules.** Q-0069 (`Prose Rules → Enforce Cascade Rules`, [`docs/roadmap.md:59`](../../roadmap.md)) migrates prose baseline rules *into* rule files. Complementary, not this: injection is what makes Q-0069 worth doing at all (D2).
 - **`noldor:cut` tooling** — still no detector, no lint, no debt ledger (unchanged from the PR #277 spec's D2).
+- **Extending the `codex` CR lane.** Unit 4 reaches the mandatory `reviewer` lane only. The codex lane builds its own prompt from `readRules(cwd)` ([`src/cr/codex.ts:58`](../../../src/cr/codex.ts)) and never sees `DispatchInput`, so it will not carry the enforce bodies. Accepted for two reasons: codex is absent from the default `crLanes.code`, and the lane **cannot review code at all today** — [`src/cr/lanes/codex.ts:58`](../../../src/cr/lanes/codex.ts) maps `kind === 'spec' ? '--spec' : '--plan'`, so a `--kind code` run applies plan-review heuristics to TypeScript (the defect already recorded in `ideas.md` as blocking Q-0091). Threading rule text into a prompt that is producing nonsense would be premature. Extension point for when that lands: `ReviewCtx.rules` / the `buildContext` call in `src/cr/codex.ts`. Consequence to state plainly: the Risks-section mitigation below holds for the `reviewer` lane, not for every configurable lane (D6).
 
 ## Design
 
@@ -113,7 +114,7 @@ The caller ([`src/cr/orchestrate.ts`](../../../src/cr/orchestrate.ts)) resolves 
 
 ## Risks / trade-offs
 
-- **Prose compliance is the delivery mechanism.** An agent that skips the brief step gets no rules, and nothing blocks it. Accepted deliberately: the two alternatives were a claude-only hook (silently dead for 2 of 3 runners) and a printed-not-obeyed commit assertion. Unit 4 is the mitigation — the reviewer holds the rule text regardless of whether the author read it, so a violation is caught at review even when the brief was skipped.
+- **Prose compliance is the delivery mechanism.** An agent that skips the brief step gets no rules, and nothing blocks it. Accepted deliberately: the two alternatives were a claude-only hook (silently dead for 2 of 3 runners) and a printed-not-obeyed commit assertion. Unit 4 is the mitigation — the `reviewer` lane holds the rule text regardless of whether the author read it, so a violation is caught at review even when the brief was skipped. Scope of that mitigation: the `reviewer` lane only, not the opt-in `codex` lane (see Non-goals, D6).
 - **Per-file call cost.** One subprocess per file touched. The rule index is already memoized by mtime ([`src/rules/index-cache.ts`](../../../src/rules/index-cache.ts)), and repeated `--file` collapses a known touch set into one call.
 - **Prompt growth.** Four rules today is small; a store grown by Q-0069 could crowd the reviewer prompt. No cap now (YAGNI); if it bites, cap by rule count and say what was dropped rather than truncating silently.
 - **`injectedRules` records exposure, not compliance.** It answers "what was this author shown", which is the honest claim; it must never be read as "these rules were followed".
@@ -146,5 +147,8 @@ As an agent editing code in a Noldor repo, I want the rules that apply to the ex
 5. _Should `stampInjectedRules` throw when no session marker exists?_
    -> **No — no-op**, following `touchSession` rather than `setAutonomous`. `rules brief` is useful outside a gate session (an operator reading the rules for a file), and a throw would make the CLI unusable there.
 
-6. _Should the CR side resolve rules inside the lane or in the caller?_
+6. _Does the `codex` CR lane also need the enforce bodies, given the "works identically" goal?_
+   -> **No — record the exclusion as accepted** (D6, operator-ratified 2026-08-12). Codex is absent from the default `crLanes.code`, and the lane cannot review code at all until its `--spec`/`--plan` mapping is fixed, so threading rule text there now feeds a prompt that is already producing nonsense at `--kind code`. `ReviewCtx.rules` is the extension point when that defect is fixed. The "works identically across consumers" goal is about *runners* (claude/codex/opencode all reach the brief through gate prose and all run the `reviewer` lane via the agent-runner registry), not about every opt-in lane.
+
+7. _Should the CR side resolve rules inside the lane or in the caller?_
    -> **In the caller.** `subagent-dispatch.ts` stays a pure prompt builder; `fdSummary: string` is the existing precedent for a pre-rendered string passed in. Git access inside a prompt builder is exactly what the `altitude` review dimension exists to flag.
