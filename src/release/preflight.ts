@@ -12,6 +12,7 @@
 // covered: running the suite twice doubles release wall-clock for no new signal,
 // and a test red is already loud and locally reproducible. They stay in the
 // pipeline after the aggregate, and the report names them as not run.
+import { appendOverrideLog } from '../core/overrides-log.js';
 import { applyFix } from './preflight-fix.js';
 import { ALL_ROW_IDS, makeProbeContext, runProbe } from './preflight-probes.js';
 import type { PreflightInput, PreflightRow, PreflightRowId } from './preflight-types.js';
@@ -53,7 +54,6 @@ export async function runPreflight(input: PreflightInput): Promise<PreflightRow[
     cwd: input.cwd,
     scanPaths: input.scanPaths,
     nowMs: input.nowMs,
-    sddReportOut: input.sddReportOut,
   };
 
   if (input.fixes.length > 0) {
@@ -79,4 +79,23 @@ export async function runPreflight(input: PreflightInput): Promise<PreflightRow[
 /** Ids of every blocking row, in report order. Empty array means green. */
 export function blockingIds(rows: readonly PreflightRow[]): PreflightRowId[] {
   return rows.filter((r) => r.status === 'blocking').map((r) => r.id);
+}
+
+/**
+ * Append one `.noldor/overrides.log` breadcrumb per `RELEASE_SKIP_*` override
+ * that forced a row to `skipped` — the audit trail the throwing ladder wrote.
+ *
+ * Called by the RELEASE path only, and only once per run. Probes deliberately
+ * tag rows rather than log them: `--preflight` must stay read-only (it releases
+ * nothing, so it has no business writing audit state), and the fix pass
+ * evaluates some rows twice, which would double-log.
+ */
+export function recordOverrides(rows: readonly PreflightRow[], cwd: string): string[] {
+  const recorded: string[] = [];
+  for (const row of rows) {
+    if (row.override === undefined) continue;
+    appendOverrideLog(cwd, row.override, 'release');
+    recorded.push(row.override);
+  }
+  return recorded;
 }

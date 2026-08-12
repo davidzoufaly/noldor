@@ -16,8 +16,7 @@ import { resumeRelease } from '../index.js';
 import { makeProbeContext, runProbe } from '../preflight-probes.js';
 
 /** Minimal probe context for the release-state row (no git or config reads). */
-const probeCtx = (cwd: string) =>
-  makeProbeContext({ cwd, scanPaths: ['src'], nowMs: 0, sddReportOut: 'temp' });
+const probeCtx = (cwd: string) => makeProbeContext({ cwd, scanPaths: ['src'], nowMs: 0 });
 import { readReleaseState, writeReleaseState } from '../release-state.js';
 
 const STATE = {

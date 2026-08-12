@@ -7,7 +7,7 @@ import { loadConfigSync } from '../core/config.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { fillAllNoldorMarkers } from '../core/release-markers.js';
-import { blockingIds, runPreflight } from './preflight.js';
+import { blockingIds, recordOverrides, runPreflight } from './preflight.js';
 import { SAFE_FIXES } from './preflight-fix.js';
 import { renderPreflight } from './preflight-render.js';
 import { classifyCommits, deriveBumpLevel, readCommitsSince } from './release-commits.js';
@@ -311,10 +311,11 @@ async function main(): Promise<void> {
       cwd: process.cwd(),
       scanPaths,
       nowMs: Date.now(),
-      sddReportOut: 'temp',
       fixes: wantFix ? SAFE_FIXES : [],
     });
     console.log(renderPreflight(rows));
+    // No recordOverrides here on purpose: --preflight releases nothing, so it
+    // has no business appending to the release audit log.
     process.exitCode = blockingIds(rows).length > 0 ? 1 : 0;
     return;
   }
@@ -328,21 +329,22 @@ async function main(): Promise<void> {
   // marker intact and readable; the wrapper's own throw stays behind us as a
   // backstop for a marker that appears in the window between the two.
   //
-  // `sddReportOut: 'canonical'` (not 'temp') because the release commit folds
-  // volatile-only report drift in via its `git add` list — a temp-file regen
-  // would silently let the committed report go stale. `fixes` is limited to
-  // garden-receipt: that is the auto-restamp the pipeline already performed
-  // here, and a release must never delete a session marker or move the branch
-  // pointer on its own.
+  // `fixes` is limited to garden-receipt: that is the auto-restamp the pipeline
+  // already performed here, and a release must never delete a session marker or
+  // move the branch pointer on its own.
   if (!resume) {
     const rows = await runPreflight({
       cwd: process.cwd(),
       scanPaths,
       nowMs: Date.now(),
-      sddReportOut: 'canonical',
       fixes: ['garden-receipt'],
     });
     console.log(renderPreflight(rows));
+    // Record RELEASE_SKIP_* bypasses once, here rather than inside the probes:
+    // this is the release decision point, and probe evaluation stays read-only.
+    for (const override of recordOverrides(rows, process.cwd())) {
+      console.log(`→ release override recorded: ${override}`);
+    }
     const blocking = blockingIds(rows);
     if (blocking.length > 0) {
       throw new Error(
@@ -383,11 +385,19 @@ async function main(): Promise<void> {
     }
     await runOptionalCheck(scripts, 'build');
 
-    // The sdd-report regen, `validate features`, gate-compliance and the CR
-    // gate all moved into the preflight aggregate above — one report instead of
-    // four sequential aborts. The aggregate's `sddReportOut: 'canonical'` did
-    // the in-place regen, so any volatile-only drift is already in the working
-    // tree and rides the release commit's `git add` list, exactly as before.
+    // `validate features`, gate-compliance and the CR gate all moved into the
+    // preflight aggregate above — one report instead of three sequential aborts.
+    //
+    // The sdd-report CHECK moved there too, but its in-place regen did not: the
+    // aggregate compares against a temp file so that a run which aborts on an
+    // earlier row cannot leave a rewritten tracked file behind. The canonical
+    // regen therefore happens here, once the aggregate is green, so any
+    // volatile-only drift lands in the working tree and rides the release
+    // commit's `git add` list exactly as it always did. No drift check is needed
+    // after it — the aggregate's `sdd-report` row already proved the report
+    // matches modulo volatile sections.
+    await runCliCheck('noldor garden sdd-report --release', ['garden', 'sdd-report', '--release']);
+
     const previousTag = await findPreviousTag();
     console.log(`Previous tag: ${previousTag}`);
 

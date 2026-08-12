@@ -1,6 +1,6 @@
 // @tests: release-sweep-process-hardening
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { readSession, writeSession } from '../../core/session.js';
 import { writeGardenReceipt } from '../../garden/garden-receipt.js';
-import { blockingIds, runPreflight } from '../preflight.js';
+import { blockingIds, recordOverrides, runPreflight } from '../preflight.js';
 import { SAFE_FIXES } from '../preflight-fix.js';
 import { writeReleaseState } from '../release-state.js';
 import type { PreflightRow } from '../preflight-types.js';
@@ -43,7 +43,6 @@ const run = (cwd: string, over: Partial<Parameters<typeof runPreflight>[0]> = {}
     cwd,
     scanPaths: ['src'],
     nowMs: 0,
-    sddReportOut: 'temp',
     fixes: [],
     log: () => {},
     ...over,
@@ -162,6 +161,53 @@ describe('runPreflight', () => {
     writeGardenReceipt({ headSha: 'a'.repeat(40), timestamp: 3000 }, cwd);
     const rows = await run(cwd);
     expect(byId(rows, 'garden-receipt').status).toBe('ok');
+  });
+
+  /**
+   * Evaluation must not mutate the repo. The sdd-report row regenerates the
+   * report to compare it, and an in-place variant used to do that even when
+   * earlier rows were already blocking — so `pnpm release` from a dirty tree
+   * rewrote a tracked file and then aborted, leaving unexplained drift.
+   */
+  it('leaves docs/sdd-report.md byte-identical while evaluating', async () => {
+    const report = join(cwd, 'docs/sdd-report.md');
+    mkdirSync(join(cwd, 'docs'), { recursive: true });
+    writeFileSync(report, '# SDD report\n\nhand-written sentinel\n', 'utf8');
+    const before = readFileSync(report, 'utf8');
+    await run(cwd);
+    expect(readFileSync(report, 'utf8')).toBe(before);
+  });
+
+  it('writes no overrides.log during evaluation, even with a skip-var set', async () => {
+    const original = process.env.RELEASE_SKIP_GATE_COMPLIANCE;
+    process.env.RELEASE_SKIP_GATE_COMPLIANCE = '1';
+    try {
+      const rows = await run(cwd);
+      const row = byId(rows, 'gate-compliance');
+      expect(row.status).toBe('skipped');
+      expect(row.override).toBe('RELEASE_SKIP_GATE_COMPLIANCE=1');
+      // Read-only: --preflight releases nothing, so it records no audit state.
+      expect(existsSync(join(cwd, '.noldor/overrides.log'))).toBe(false);
+    } finally {
+      if (original === undefined) delete process.env.RELEASE_SKIP_GATE_COMPLIANCE;
+      else process.env.RELEASE_SKIP_GATE_COMPLIANCE = original;
+    }
+  });
+
+  it('tags an override row once even when the fix pass evaluates it twice', async () => {
+    // garden-receipt is in SAFE_FIXES, so pass 1 and pass 2 both evaluate it.
+    // Logging inside the probe would double-append; the tag is idempotent.
+    const original = process.env.RELEASE_SKIP_GARDEN_GATE;
+    process.env.RELEASE_SKIP_GARDEN_GATE = '1';
+    try {
+      const rows = await run(cwd, { fixes: SAFE_FIXES });
+      expect(recordOverrides(rows, cwd).filter((o) => o.startsWith('RELEASE_SKIP_GARDEN'))).toEqual(
+        ['RELEASE_SKIP_GARDEN_GATE=1'],
+      );
+    } finally {
+      if (original === undefined) delete process.env.RELEASE_SKIP_GARDEN_GATE;
+      else process.env.RELEASE_SKIP_GARDEN_GATE = original;
+    }
   });
 });
 

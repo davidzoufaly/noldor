@@ -43,6 +43,17 @@ export interface PreflightRow {
   detail: string;
   /** Copy-pasteable operator remedy. Present on every `blocking` and `warn` row. */
   fix?: string;
+  /**
+   * Name of the `RELEASE_SKIP_*` env var that forced this row to `skipped`.
+   *
+   * Carried on the row rather than logged by the probe so that evaluation stays
+   * free of side effects: `--preflight` is read-only and must not append to
+   * `.noldor/overrides.log` for a run that releases nothing, and the fix pass
+   * would otherwise double-log a row it evaluates twice. The release path reads
+   * this after the aggregate and records each override exactly once — see
+   * {@link recordOverrides}.
+   */
+  override?: string;
 }
 
 export interface PreflightInput {
@@ -51,12 +62,6 @@ export interface PreflightInput {
   scanPaths: string[];
   /** Injected clock, for the session-marker TTL comparison. */
   nowMs: number;
-  /**
-   * `'canonical'` regenerates `docs/sdd-report.md` in place (the real release,
-   * whose commit folds volatile-only drift in); `'temp'` regenerates to a temp
-   * file outside the repo (`--preflight`, which must leave the tree untouched).
-   */
-  sddReportOut: 'canonical' | 'temp';
   /** Rows to auto-remediate, in application order. Empty = report-only. */
   fixes: readonly PreflightRowId[];
   /** Test seam — defaults to `console.log`. */

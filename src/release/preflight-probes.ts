@@ -14,7 +14,6 @@ import { promisify } from 'node:util';
 
 import { loadConfigSync, resolveSessionTtlHours } from '../core/config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
-import { appendOverrideLog } from '../core/overrides-log.js';
 import { isSessionStale, readSession } from '../core/session.js';
 import {
   evaluateGardenFreshness,
@@ -53,7 +52,6 @@ export interface ProbeContext {
   cwd: string;
   scanPaths: string[];
   nowMs: number;
-  sddReportOut: 'canonical' | 'temp';
   /** Memoized `inspectTreeState` — three rows read it, and it runs a `git fetch`. */
   treeState: () => Promise<TreeState>;
   /** Memoized `findPreviousTag` — `cr-gate` and `npm-name` both need it. */
@@ -71,7 +69,6 @@ export function makeProbeContext(base: {
   cwd: string;
   scanPaths: string[];
   nowMs: number;
-  sddReportOut: 'canonical' | 'temp';
 }): ProbeContext {
   let tree: Promise<TreeState> | null = null;
   let tag: Promise<string> | null = null;
@@ -119,13 +116,21 @@ function firstLine(out: string): string {
 }
 
 /**
- * A release skip-var: records the override and returns a `skipped` row.
- * Every bypass stays stdout-loud AND leaves a `(release)` breadcrumb in
- * `.noldor/overrides.log`, the same audit trail the throwing ladder kept.
+ * A release skip-var: a `skipped` row tagged with the env var that caused it.
+ *
+ * Deliberately does NOT append to `.noldor/overrides.log` — probe evaluation is
+ * side-effect free so `--preflight` stays read-only and the fix pass cannot
+ * double-log a row it evaluates twice. `recordOverrides` on the release path
+ * turns these tags into the audit breadcrumbs the throwing ladder wrote, once
+ * per run.
  */
-function overrideSkip(id: PreflightRowId, envVar: string, cwd: string): PreflightRow {
-  appendOverrideLog(cwd, `${envVar}=1`, 'release');
-  return { id, status: 'skipped', detail: `SKIPPED via ${envVar}=1 (recorded in overrides.log)` };
+function overrideSkip(id: PreflightRowId, envVar: string): PreflightRow {
+  return {
+    id,
+    status: 'skipped',
+    detail: `SKIPPED via ${envVar}=1`,
+    override: `${envVar}=1`,
+  };
 }
 
 const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow>> = {
@@ -280,7 +285,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
 
   'garden-receipt': async (ctx) => {
     if (process.env.RELEASE_SKIP_GARDEN_GATE === '1') {
-      return overrideSkip('garden-receipt', 'RELEASE_SKIP_GARDEN_GATE', ctx.cwd);
+      return overrideSkip('garden-receipt', 'RELEASE_SKIP_GARDEN_GATE');
     }
     const verdict = evaluateGardenFreshness({
       receipt: readGardenReceipt(ctx.cwd),
@@ -298,47 +303,41 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
   },
 
   /**
-   * Regenerate the SDD report and compare against the committed copy.
+   * Regenerate the SDD report to a temp path and compare against the committed
+   * copy. ALWAYS to a temp path — never in place.
    *
-   * `'temp'` writes to an mkdtemp dir OUTSIDE the repo (so the probe cannot
-   * dirty the tree or trip the tree-clean row) and removes it in a `finally`.
-   * `'canonical'` regenerates in place, which is what the real release needs —
-   * its commit folds volatile-only drift into the release commit, and a
-   * temp-file regen there would silently let the committed report go stale.
+   * An in-place variant existed so the real release could fold volatile-only
+   * drift into its own commit, but it made an ostensibly read-only evaluation
+   * rewrite a tracked file even when `branch` / `tree-clean` / `origin-sync`
+   * were already blocking: `pnpm release` from a dirty tree or feature branch
+   * would rewrite `docs/sdd-report.md` and then abort, leaving unexplained drift
+   * behind. The throwing ladder aborted before its regen ran. The canonical
+   * regen now happens in `index.ts` AFTER the aggregate comes back clean, which
+   * both restores that ordering and keeps every probe side-effect free.
+   *
+   * The temp dir lives under the OS temp dir (never inside the repo, so it
+   * cannot dirty the tree or trip `tree-clean`) and is removed in a `finally`.
    */
   'sdd-report': async (ctx) => {
     const committed = await readFile(join(ctx.cwd, 'docs/sdd-report.md'), 'utf8').catch(() => null);
     let regenerated: string;
     let tmpDir: string | null = null;
     try {
-      if (ctx.sddReportOut === 'temp') {
-        tmpDir = await mkdtemp(join(tmpdir(), 'noldor-preflight-sdd-'));
-        const out = join(tmpDir, 'sdd-report.md');
-        const { code, out: cliOut } = await runCli(
-          ['garden', 'sdd-report', '--release', '--out', out],
-          ctx.cwd,
-        );
-        if (code !== 0) {
-          return {
-            id: 'sdd-report',
-            status: 'blocking',
-            detail: `sdd-report regen failed: ${firstLine(cliOut)}`,
-            fix: 'Fix the report generator, then re-run. A report that cannot regenerate cannot be compared.',
-          };
-        }
-        regenerated = await readFile(out, 'utf8');
-      } else {
-        const { code, out: cliOut } = await runCli(['garden', 'sdd-report', '--release'], ctx.cwd);
-        if (code !== 0) {
-          return {
-            id: 'sdd-report',
-            status: 'blocking',
-            detail: `sdd-report regen failed: ${firstLine(cliOut)}`,
-            fix: 'Fix the report generator, then re-run.',
-          };
-        }
-        regenerated = await readFile(join(ctx.cwd, 'docs/sdd-report.md'), 'utf8');
+      tmpDir = await mkdtemp(join(tmpdir(), 'noldor-preflight-sdd-'));
+      const out = join(tmpDir, 'sdd-report.md');
+      const { code, out: cliOut } = await runCli(
+        ['garden', 'sdd-report', '--release', '--out', out],
+        ctx.cwd,
+      );
+      if (code !== 0) {
+        return {
+          id: 'sdd-report',
+          status: 'blocking',
+          detail: `sdd-report regen failed: ${firstLine(cliOut)}`,
+          fix: 'Fix the report generator, then re-run. A report that cannot regenerate cannot be compared.',
+        };
       }
+      regenerated = await readFile(out, 'utf8');
     } finally {
       if (tmpDir !== null) await rm(tmpDir, { recursive: true, force: true });
     }
@@ -383,7 +382,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
 
   'gate-compliance': async (ctx) => {
     if (process.env.RELEASE_SKIP_GATE_COMPLIANCE === '1') {
-      return overrideSkip('gate-compliance', 'RELEASE_SKIP_GATE_COMPLIANCE', ctx.cwd);
+      return overrideSkip('gate-compliance', 'RELEASE_SKIP_GATE_COMPLIANCE');
     }
     const { code, out } = await runCli(['garden', 'detect', '--gate-compliance'], ctx.cwd);
     return code === 0
@@ -398,7 +397,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
 
   'cr-gate': async (ctx) => {
     if (process.env.RELEASE_SKIP_CR_GATE === '1') {
-      return overrideSkip('cr-gate', 'RELEASE_SKIP_CR_GATE', ctx.cwd);
+      return overrideSkip('cr-gate', 'RELEASE_SKIP_CR_GATE');
     }
     const previousTag = await ctx.previousTag();
     if (previousTag === 'v0.0.0') {
@@ -408,7 +407,11 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       from: previousTag,
       to: 'HEAD',
       cwd: ctx.cwd,
-      exemptions: loadConfigSync()?.release?.crGateExemptCommits ?? [],
+      // Explicit path: loadConfigSync's default is RELATIVE, so a bare call
+      // resolves against process.cwd() and would apply another repo's
+      // crGateExemptCommits (or ignore this one's, flipping the row to blocking).
+      exemptions:
+        loadConfigSync(join(ctx.cwd, '.noldor/config.json'))?.release?.crGateExemptCommits ?? [],
     });
     if (result.ok) {
       const exempt = result.exempted.length > 0 ? ` (${result.exempted.length} exempted)` : '';

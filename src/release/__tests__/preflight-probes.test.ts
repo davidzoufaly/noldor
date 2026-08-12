@@ -23,8 +23,7 @@ function repo(): string {
   return cwd;
 }
 
-const ctx = (cwd: string, nowMs = 0) =>
-  makeProbeContext({ cwd, scanPaths: ['src'], nowMs, sddReportOut: 'temp' });
+const ctx = (cwd: string, nowMs = 0) => makeProbeContext({ cwd, scanPaths: ['src'], nowMs });
 
 describe('ALL_ROW_IDS', () => {
   it('has one entry per probe id, with no duplicates', () => {
