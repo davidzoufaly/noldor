@@ -130,6 +130,26 @@ describe('run (orchestrate)', () => {
     expect(spy.mock.calls.flat().join('\n')).toContain("lane 'reviewer' is mandatory for spec");
     spy.mockRestore();
   });
+  it('persists the resolved lane set for aggregate (Q-0100)', async () => {
+    await run({
+      args: {
+        slug: 'x',
+        artifact: 'docs/x.md',
+        kind: 'spec',
+        lanes: ['manual'],
+        fullReview: false,
+        autonomous: false,
+      },
+      cwd: root,
+    });
+    const rec = JSON.parse(
+      await readFile(join(root, '.noldor', 'cr', 'expected', 'x-spec.json'), 'utf8'),
+    );
+    // mandatory-reviewer union included — the record must match what actually ran
+    expect(rec.lanes.toSorted()).toEqual(['manual', 'reviewer']);
+    expect(rec.slug).toBe('x');
+    expect(rec.kind).toBe('spec');
+  });
   it('rejects standalone as a runnable lane with an escalate pointer', async () => {
     await expect(
       run({

@@ -34,19 +34,6 @@ Three command families build filesystem paths from an unchecked positional argum
 
 (all three confirmed by static path-resolution probe in the read-only audit 2026-08-12)
 
-### CR Aggregate Reads a Missing Sink as Green
-
-- id: Q-0100
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: high
-- confidence: high
-- parent: specs-cr-gate-multi-reviewer
-
-`cr aggregate` discovers sinks by listing `.noldor/cr/` and prefix-matching (`src/cr/aggregate.ts:36-40`) and holds no expected-lane set, so a lane that never wrote a sink is invisible rather than `unresolved` — that list is only populated for a sink that exists and lacks `finishedAt` (`aggregate.ts:107`). With no other blockers, `ok: blockers.length === 0 && unresolved.length === 0` is therefore true, and a lane killed before it could write is indistinguishable from a lane that passed. Affects every lane and every kind. Fix: pass `aggregate` the lane set orchestrate resolved, and report a missing expected sink as `unresolved`. The deeper seam is Q-0112. (surfaced designing Q-0089)
-
 ### Diff-Scoped Clone Gate Flags Mere Adjacency
 
 - id: Q-0095

@@ -83,6 +83,60 @@ describe('aggregate', () => {
     expect(r.ok).toBe(false);
     expect(Object.keys(r.summaries).toSorted()).toEqual(['manual', 'reviewer']);
   });
+  describe('expected-lanes record (Q-0100)', () => {
+    const writeExpected = async (kind: string, lanes: string[]) => {
+      const dir = join(root, '.noldor', 'cr', 'expected');
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, `x-${kind}.json`),
+        JSON.stringify({ slug: 'x', kind, lanes }),
+        'utf8',
+      );
+    };
+
+    it('expected lane with no sink => unresolved, not ok', async () => {
+      await writeExpected('code', ['reviewer']);
+      const r = await aggregate('x', 'code', { cwd: root });
+      expect(r.ok).toBe(false);
+      expect(r.unresolved).toEqual(['reviewer']);
+    });
+    it('every expected lane has a sink => ok', async () => {
+      await writeExpected('spec', ['manual']);
+      await copy('findings-clean.json', 'x-spec-manual.json');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.ok).toBe(true);
+      expect(r.unresolved).toEqual([]);
+    });
+    it('legacy-named sink satisfies its canonical expected lane', async () => {
+      await writeExpected('spec', ['reviewer']);
+      await copy('findings-blockers.json', 'x-spec-subagent.json');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.unresolved).toEqual([]); // red via blockers, but not missing
+    });
+    it('corrupt expected record => blocker, not silent fail-open', async () => {
+      const dir = join(root, '.noldor', 'cr', 'expected');
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, 'x-spec.json'), '{not json', 'utf8');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.ok).toBe(false);
+      expect(r.blockers[0].message).toMatch(/expected-lanes record corrupt/);
+    });
+    it('unions expected lanes across kinds when kind omitted', async () => {
+      await writeExpected('spec', ['manual']);
+      await writeExpected('code', ['reviewer']);
+      await copy('findings-clean.json', 'x-spec-manual.json');
+      const r = await aggregate('x', undefined, { cwd: root });
+      expect(r.ok).toBe(false);
+      expect(r.unresolved).toEqual(['reviewer']);
+    });
+    it('does not double-report a lane both in-progress and expected', async () => {
+      await writeExpected('spec', ['standalone']);
+      await copy('findings-in-progress.json', 'x-spec-standalone.json');
+      const r = await aggregate('x', 'spec', { cwd: root });
+      expect(r.unresolved).toEqual(['standalone']);
+    });
+  });
+
   it('emits notes entry when standalone templateSha drifts vs current', async () => {
     await mkdir(join(root, 'src', 'cr'), { recursive: true });
     await writeFile(
