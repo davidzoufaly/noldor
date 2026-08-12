@@ -1,10 +1,13 @@
 /**
  * `noldor clones report [--json] [--min-tokens N] [--min-lines N]
  *  [--gap-tokens N] [--include-tests]`
+ * `noldor clones baseline` (same flags) — record the whole-corpus ratchet
+ * baseline at `.noldor/clones-baseline.json`.
  * `noldor clones check` (same flags, plus `--against <ref>`) — exit 1 when a
- * clone group overlaps the lines this change wrote, or when
- * `clones.thresholdPct` (`.noldor/config.json`) is exceeded. The two verdicts
- * are independent; either one can turn the check red.
+ * clone group overlaps the lines this change wrote, when
+ * `clones.thresholdPct` (`.noldor/config.json`) is exceeded, or when
+ * duplication rose above the recorded baseline. The three verdicts are
+ * independent; any one of them can turn the check red.
  *
  * Corpus = `scanRoots(cwd)` roots walked via `walkCodeFiles` (the shared
  * repo-paths policy). Flags override config, config overrides defaults.
@@ -17,12 +20,19 @@ import type { RunGit } from '../core/branch-added.js';
 import { runIfDirect } from '../core/cli-entry.js';
 import { loadConfig } from '../core/config.js';
 import { scanRoots, walkCodeFiles } from '../core/repo-paths.js';
+import {
+  BASELINE_FILE,
+  buildBaseline,
+  compareToBaseline,
+  readBaseline,
+  writeBaseline,
+} from './baseline.js';
 import { DEFAULT_CLONE_OPTIONS, detectClones } from './detect.js';
 import type { CloneOptions, CloneReport } from './detect.js';
 import { flaggedGroups, resolveChangedRanges } from './diff-scope.js';
 
 export interface ClonesArgs {
-  sub: 'report' | 'check';
+  sub: 'report' | 'check' | 'baseline';
   json: boolean;
   includeTests: boolean;
   minTokens?: number;
@@ -35,8 +45,8 @@ class UsageError extends Error {}
 
 export function parseClonesArgs(argv: string[]): ClonesArgs {
   const [sub, ...rest] = argv;
-  if (sub !== 'report' && sub !== 'check') {
-    throw new UsageError('usage: noldor clones <report|check> [flags]');
+  if (sub !== 'report' && sub !== 'check' && sub !== 'baseline') {
+    throw new UsageError('usage: noldor clones <report|check|baseline> [flags]');
   }
   const args: ClonesArgs = { sub, json: false, includeTests: false };
   const numeric = (flag: string, value: string | undefined): number => {
@@ -56,6 +66,11 @@ export function parseClonesArgs(argv: string[]): ClonesArgs {
       if (ref === undefined || ref.length === 0) throw new UsageError('--against needs a ref');
       args.against = ref;
     } else throw new UsageError(`unknown flag: ${flag}`);
+  }
+  // Only `check` diffs against a base. Accepting the flag elsewhere and ignoring
+  // it reads as support for something that never happens.
+  if (args.against !== undefined && args.sub !== 'check') {
+    throw new UsageError(`--against applies to 'check' only, not '${args.sub}'`);
   }
   return args;
 }
@@ -140,11 +155,35 @@ export async function runClones(argv: string[], cwd: string = process.cwd()): Pr
     return 0;
   }
 
-  // Two independent verdicts; either can turn the check red, and both always
-  // report so the output says which gate spoke.
+  if (args.sub === 'baseline') {
+    const prior = readBaseline(join(cwd, BASELINE_FILE));
+    const baseline = buildBaseline(report, opts, args.includeTests, new Date().toISOString());
+    writeBaseline(join(cwd, BASELINE_FILE), baseline);
+    // Name the direction on a re-record: loosening the ratchet is a decision,
+    // and it should be visible in the terminal rather than only in the diff.
+    const drift =
+      prior.kind === 'ok' && prior.baseline.duplicatedTokens !== baseline.duplicatedTokens
+        ? ` (${baseline.duplicatedTokens > prior.baseline.duplicatedTokens ? 'RAISED' : 'lowered'} from ${prior.baseline.duplicatedTokens})`
+        : '';
+    process.stdout.write(
+      args.json
+        ? `${JSON.stringify(baseline)}\n`
+        : `clones baseline: recorded ${baseline.duplicatedTokens} duplicated token(s)${drift} ` +
+            `(${baseline.duplicationPct.toFixed(2)}%) across ${baseline.filesScanned} file(s) -> ${BASELINE_FILE}\n`,
+    );
+    return 0;
+  }
+
+  // Three independent verdicts; any one can turn the check red, and all three
+  // always report so the output says which gate spoke.
   const diffScopeRed = checkDiffScope(report, config?.clones?.diffScope, args.against, cwd);
   const thresholdRed = checkThreshold(report, config?.clones?.thresholdPct);
-  return diffScopeRed || thresholdRed ? 1 : 0;
+  const ratchet = checkRatchet(report, config?.clones?.ratchet, opts, args.includeTests, cwd);
+  // A found blocker outranks an unreadable baseline: both are non-zero, but
+  // exit 1 names duplication the author can act on, and the "could not look"
+  // reason is already on stderr either way.
+  if (diffScopeRed || thresholdRed || ratchet === 'red') return 1;
+  return ratchet === 'unreadable' ? 3 : 0;
 }
 
 /**
@@ -183,6 +222,88 @@ function checkDiffScope(
     `clones check: ${flagged.length} group(s) duplicated in this change\n${renderSpans(flagged)}\n`,
   );
   return true;
+}
+
+/**
+ * Ratchet verdict: red when whole-corpus duplication rose above the recorded
+ * baseline. Absent baseline is green — a consumer that never ran
+ * `clones baseline` has not adopted the ratchet, and inventing one here on the
+ * first check would launder whatever duplication that run happened to see.
+ * A baseline that exists but does not parse is `unreadable`, never green.
+ */
+function checkRatchet(
+  report: CloneReport,
+  ratchet: boolean | undefined,
+  opts: CloneOptions,
+  includeTests: boolean,
+  cwd: string,
+): RatchetOutcome {
+  const { outcome, message, loud } = ratchetOutcome(report, ratchet, opts, includeTests, cwd);
+  // Red also lists the corpus so the number has spans behind it; the other
+  // outcomes are one line each.
+  const detail = outcome === 'red' ? `\n${renderSummary(report)}` : '';
+  const stream = loud ? process.stderr : process.stdout;
+  stream.write(`clones check: ${message}${detail}\n`);
+  return outcome;
+}
+
+type RatchetOutcome = 'red' | 'green' | 'unreadable';
+
+interface RatchetLine {
+  readonly outcome: RatchetOutcome;
+  readonly message: string;
+  /**
+   * True → stderr. Every state where the ratchet could not actually compare is
+   * loud, including the exit-0 ones: a stdout line on a green exit is how a
+   * gate turns itself off in CI without anyone noticing — deleting the baseline
+   * file would otherwise silence the ratchet invisibly. Only a real comparison
+   * and a deliberate opt-out stay quiet. Same split the diff-scoped verdict
+   * already uses: `diffScope: false` on stdout, "no base to diff against" on
+   * stderr.
+   */
+  readonly loud: boolean;
+}
+
+/** Decide the ratchet outcome and the line that explains it; writes nothing. */
+function ratchetOutcome(
+  report: CloneReport,
+  ratchet: boolean | undefined,
+  opts: CloneOptions,
+  includeTests: boolean,
+  cwd: string,
+): RatchetLine {
+  if (ratchet === false) {
+    return {
+      outcome: 'green',
+      message: 'ratchet disabled (clones.ratchet) - skipped',
+      loud: false,
+    };
+  }
+  const read = readBaseline(join(cwd, BASELINE_FILE));
+  switch (read.kind) {
+    case 'absent':
+      return {
+        outcome: 'green',
+        message: `no ${BASELINE_FILE} - ratchet skipped (record one with 'noldor clones baseline')`,
+        loud: true,
+      };
+    case 'unreadable':
+      return {
+        outcome: 'unreadable',
+        message:
+          `${BASELINE_FILE} unreadable (${read.reason}) - cannot ratchet\n` +
+          `  fix or delete the file, then re-record with 'noldor clones baseline'`,
+        loud: true,
+      };
+    case 'ok': {
+      const verdict = compareToBaseline(report, read.baseline, opts, includeTests);
+      return {
+        outcome: verdict.kind === 'red' ? 'red' : 'green',
+        message: verdict.message,
+        loud: verdict.kind !== 'green',
+      };
+    }
+  }
 }
 
 /** Whole-corpus verdict, unchanged: unset threshold is always green. */

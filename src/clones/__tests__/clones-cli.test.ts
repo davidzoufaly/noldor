@@ -1,7 +1,7 @@
 // @tests: code-clone-detector
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadCorpus, parseClonesArgs, runClones, validateAgainstRef } from '../clones-cli';
@@ -80,6 +80,14 @@ describe('parseClonesArgs', () => {
       against: 'origin/main',
     });
     expect(() => parseClonesArgs(['check', '--against'])).toThrow(/needs a ref/);
+    expect(parseClonesArgs(['baseline', '--min-tokens', '30'])).toMatchObject({
+      sub: 'baseline',
+      minTokens: 30,
+    });
+    // `--against` only means something to `check`; elsewhere it is a usage error
+    // rather than a silently ignored flag.
+    expect(() => parseClonesArgs(['baseline', '--against', 'origin/main'])).toThrow(/check.* only/);
+    expect(() => parseClonesArgs(['report', '--against', 'origin/main'])).toThrow(/check.* only/);
   });
 });
 
@@ -244,6 +252,127 @@ describe('runClones', () => {
     });
     expect(await runClones(['check', '--min-tokens', '30'], fixtureRepo())).toBe(0);
     expect(err).toContain('no base to diff against');
+  });
+
+  it('baseline records the corpus, then check reds only once duplication grows', async () => {
+    let out = '';
+    let err = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      out += String(chunk);
+      return true;
+    });
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      err += String(chunk);
+      return true;
+    });
+    const dir = fixtureRepo();
+
+    expect(await runClones(['baseline', '--min-tokens', '30'], dir)).toBe(0);
+    expect(out).toContain('clones baseline: recorded');
+    const recorded = JSON.parse(
+      readFileSync(join(dir, '.noldor', 'clones-baseline.json'), 'utf8'),
+    ) as { duplicatedTokens: number };
+    expect(recorded.duplicatedTokens).toBeGreaterThan(0);
+
+    // Same corpus → at baseline, green.
+    out = '';
+    expect(await runClones(['check', '--min-tokens', '30'], dir)).toBe(0);
+    expect(out).toContain('duplicated tokens at baseline');
+
+    // A third copy of the same body raises whole-corpus duplication.
+    writeFileSync(join(dir, 'src', 'c.ts'), fn('third'), 'utf8');
+    expect(await runClones(['check', '--min-tokens', '30'], dir)).toBe(1);
+    expect(err).toContain('duplicated tokens rose');
+  });
+
+  it('the ratchet is skipped without a baseline, and by clones.ratchet false', async () => {
+    let out = '';
+    let err = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      out += String(chunk);
+      return true;
+    });
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      err += String(chunk);
+      return true;
+    });
+
+    // A missing baseline is a could-not-compare state, so it lands on stderr:
+    // a quiet stdout line is how deleting the file would silence the ratchet.
+    const noBaseline = fixtureRepo();
+    expect(await runClones(['check', '--min-tokens', '30'], noBaseline)).toBe(0);
+    expect(err).toContain('no .noldor/clones-baseline.json - ratchet skipped');
+
+    // A deliberate opt-out is not a surprise, so it stays on stdout — even
+    // though the corpus has grown well past what was recorded.
+    const off = fixtureRepo({ clones: { ratchet: false } });
+    expect(await runClones(['baseline', '--min-tokens', '30'], off)).toBe(0);
+    writeFileSync(join(off, 'src', 'c.ts'), fn('third'), 'utf8');
+    out = '';
+    expect(await runClones(['check', '--min-tokens', '30'], off)).toBe(0);
+    expect(out).toContain('ratchet disabled');
+  });
+
+  it('re-recording a baseline names the direction it moved', async () => {
+    let out = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      out += String(chunk);
+      return true;
+    });
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const dir = fixtureRepo();
+
+    // First record has nothing to compare against.
+    expect(await runClones(['baseline', '--min-tokens', '30'], dir)).toBe(0);
+    expect(out).not.toContain('RAISED');
+
+    // A third copy raises duplication; re-recording loosens the ratchet, and
+    // says so.
+    out = '';
+    writeFileSync(join(dir, 'src', 'c.ts'), fn('third'), 'utf8');
+    expect(await runClones(['baseline', '--min-tokens', '30'], dir)).toBe(0);
+    expect(out).toContain('RAISED from');
+
+    // Removing it again lowers the number back.
+    out = '';
+    writeFileSync(join(dir, 'src', 'c.ts'), 'export const c = 1;\n', 'utf8');
+    expect(await runClones(['baseline', '--min-tokens', '30'], dir)).toBe(0);
+    expect(out).toContain('lowered from');
+  });
+
+  it('a baseline recorded under other options is reported on stderr, not red', async () => {
+    let err = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      err += String(chunk);
+      return true;
+    });
+    const dir = fixtureRepo();
+    expect(await runClones(['baseline', '--min-tokens', '30'], dir)).toBe(0);
+    writeFileSync(join(dir, 'src', 'c.ts'), fn('third'), 'utf8');
+    err = '';
+    // Default min-tokens (50) ≠ the recorded 30 → not comparable. Exit 0, but
+    // on stderr: a can't-compare notice on stdout is invisible in CI.
+    expect(await runClones(['check'], dir)).toBe(0);
+    expect(err).toContain('not comparable');
+  });
+
+  it('an unreadable baseline exits 3 — "could not look", not "clean"', async () => {
+    let err = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      err += String(chunk);
+      return true;
+    });
+    const dir = fixtureRepo();
+    writeFileSync(join(dir, '.noldor', 'clones-baseline.json'), '{ truncated', 'utf8');
+    expect(await runClones(['check', '--min-tokens', '30'], dir)).toBe(3);
+    expect(err).toContain('unreadable');
+
+    // …but a real blocker still outranks it: exit 1 names the duplication.
+    const tight = fixtureRepo({ clones: { thresholdPct: 1 } });
+    writeFileSync(join(tight, '.noldor', 'clones-baseline.json'), '{ truncated', 'utf8');
+    expect(await runClones(['check', '--min-tokens', '30'], tight)).toBe(1);
   });
 
   it('loadCorpus skips test files by default and returns repo-relative keys', () => {

@@ -38,6 +38,7 @@ phase: done
 noldor-tier: full
 introduced: 0.5.1
 ---
+
 ## Summary
 
 Six-part overhaul of the pre-release sweep flow, surfaced during the v0.5.0 release where ~80% of operator time went into friction rather than the sweep itself. (a) **New `release-sweep` gate path** — add to `PATHS` in [src/core/session.ts](../../src/core/session.ts); allowlist `graphify-out/**`, `docs/sdd-report.md`, `docs/release-notes.md`, `docs/user/reference/api/**`, `docs/**/*.md`, `docs/design/{plans,specs}/**`; multi-commit; auto-write session at skill start, auto-clear at end; skip Step 0 priority pickup. Replaces hand-written session marker + manual `Noldor-Path-Override` trailer on every sweep commit. (b) **Pre-empt release-script drift** — sweep step 6 runs `pnpm docs:build` + `pnpm sdd:report --release` and commits any drift before invoking release. Eliminates the 2 mid-release follow-up PRs the v0.5.0 sweep needed (broken-link drift + sdd-report regen drift). (c) **Path-Override trailer placement guardrail** — either `noldor-inject-trailers` moves `Noldor-Path-Override:` into the trailer block if found out-of-block, or `enforce-review-receipt` parses with `git interpret-trailers --parse` instead of regex on raw message. Closes the silent footgun where an override above `Co-Authored-By:` doesn't register. (d) **Auto re-stamp garden receipt** — release script auto-stamps at start when `garden:detect` was clean within a recent window; eliminates the manual 3× re-stamp loop after each follow-up PR merge. (e) **Garden manual-sweep detector smarter** — extend `garden-detect.ts` plan-staleness check to fall back to FD frontmatter `links.plan` and `graphify-out/graph.json` adjacency for multi-feature plans, infra plans, and `<parent>-partN` splits that today land in the manual sweep bucket (14 of 20 plans were unflagged in v0.5.0 sweep). (f) **Release-sweep skill automates PR-flow** — skill commits land on `release-sweep/<ts>` branch, pushed + auto-merged + ff-pulled before the release-confirmation prompt; folds the 4× manual temp-branch + PR dance into the skill.
@@ -108,6 +109,9 @@ As an operator preparing a release, I want `/noldor-release-sweep` to run end-to
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
   - [`src/hooks/__tests__/noldor-enforce-review-receipt.test.ts`](../../src/hooks/__tests__/noldor-enforce-review-receipt.test.ts)
   - [`src/hooks/__tests__/noldor-inject-trailers.test.ts`](../../src/hooks/__tests__/noldor-inject-trailers.test.ts)
+  - [`src/release/__tests__/preflight-probes.test.ts`](../../src/release/__tests__/preflight-probes.test.ts)
+  - [`src/release/__tests__/preflight-render.test.ts`](../../src/release/__tests__/preflight-render.test.ts)
+  - [`src/release/__tests__/preflight.test.ts`](../../src/release/__tests__/preflight.test.ts)
   - [`src/release/__tests__/release-session.test.ts`](../../src/release/__tests__/release-session.test.ts)
   - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
 
