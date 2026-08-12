@@ -16,20 +16,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Diff-Scoped Clone Gate
+### Clone-Duplication Ratchet
 
-- id: Q-0066
+- id: Q-0094
 - area: tooling
 - type: feat
-- since: 2026-08-05
-- size: M
-- impact: high
+- since: 2026-08-12
+- size: S
+- impact: med
 - confidence: med
 - parent: code-clone-detector
+- recovered: 2026-08-12
 
-`clones check` gates on whole-corpus `clones.thresholdPct`, which is unusable for consumers: the percentage drifts as the repo grows, nobody tunes it, so it stays unset and the check is permanently green. Add `noldor clones check --against <base-sha>` — fail only on clone groups with at least one instance inside the diff and at least one outside it, reporting the duplicated span (`src/foo.ts:12-40`). Diff-scoping needs zero tuning and is safe to default-on in `templates/lefthook.yml` pre-push.
-
-- clone-duplication ratchet as an alternative or complement: record a baseline in `.noldor/clones-baseline.json` and fail only on an increase, so consumers adopt the gate with no tuning and the number can only go down.
+Alternative (or complement) to the diff-scoped clone gate: record a whole-corpus baseline in `.noldor/clones-baseline.json` and fail only on an increase, so consumers adopt the gate with no tuning and the number can only go down. Recovered as residue when Q-0066 (Diff-Scoped Clone Gate) was promoted onto `code-clone-detector` — that slice ships diff-scoping only.
 
 ### Spec-Lint Prior-Art Requirement
 
