@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
+import { writeExpectedLanes } from './expected-lanes.js';
 import {
   DEFAULT_CR_LANES,
   loadConfig,
@@ -23,7 +24,6 @@ import { runSubagent } from './lanes/subagent.js';
 import { runVerify } from './lanes/verify.js';
 import { promptSelect } from '../core/prompt-stdin.js';
 import { amendSubagentReceipt } from './amend-receipt.js';
-import { writeExpectedLanes } from './expected-lanes.js';
 
 // Hand-rolled promise wrapper around execFile (NOT promisify) — keeps parity
 // with deep-review-spawn.ts where vitest replaces execFile directly and would
