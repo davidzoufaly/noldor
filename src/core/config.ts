@@ -184,6 +184,12 @@ export const clonesConfigSchema = z.object({
   minLines: z.number().int().positive().optional().catch(undefined),
   gapTokens: z.number().int().positive().optional().catch(undefined),
   thresholdPct: z.number().positive().optional().catch(undefined),
+  /**
+   * Escape hatch for the diff-scoped verdict, which is otherwise ON. Unset means
+   * enabled: diff-scoping needs no tuning, so it exists to be default-on, and
+   * only a consumer with a reason to opt out sets `false`.
+   */
+  diffScope: z.boolean().optional().catch(undefined),
 });
 
 /** Parsed `clones:` block. */

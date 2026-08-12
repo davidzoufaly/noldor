@@ -115,3 +115,5 @@ pre-push:
       run: pnpm noldor hooks pre-push {1}
     - name: template-sync
       run: pnpm noldor checks template-sync
+    - name: noldor-clones
+      run: pnpm noldor clones check
