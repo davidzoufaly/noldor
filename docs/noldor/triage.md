@@ -42,7 +42,7 @@ The skill:
 2. Calls `pnpm noldor triage list-untriaged` to find bullets without a `[triaged …]` marker.
 3. Proposes `target | area | since | slug` per untriaged bullet, where `target` is `roadmap` (with a position annotation: `top`, `after:<slug>`, or `bottom`), `backlog`, or `now`. Vision-aligned work inside the current milestone → `roadmap` (priority position chosen relative to existing entries); clearly past the current milestone → `roadmap` at a lower position or `backlog`; speculative or out-of-scope → `backlog`. `now` is the ship-next shortcut: the row lands as a roadmap insert at `top`, and after the validation chain passes the skill auto-chains `/noldor-promote <slug>` (tier `full` for size L/XL, `specs-only` otherwise) — closing the old two-step seam where the operator picked "now" intent during triage and then had to chain `/noldor-promote` by hand. Proposed only when the bullet explicitly signals immediate work, never inferred from score.
 4. Asks for batch confirmation. You can override per-row.
-5. Writes schema-C blocks (no `phase` — roadmap is a flat priority list and backlog is a parking lot; `phase: in-progress` lives on FDs once work starts) to the chosen file. Appends `[triaged YYYY-MM-DD → <slug>]` markers to `ideas.md`.
+5. Writes schema-C blocks (no `phase` — roadmap is a flat priority list and backlog is a parking lot; `phase: in-progress` lives on FDs once work starts) to the chosen file. Appends `[triaged YYYY-MM-DD → <slug>]` markers to `ideas.md`, then relocates each stamped bullet into the `## Triaged` archive section at the bottom of the file (created when absent) — live `#### Now|Next|Later` sections keep only raw bullets, so a phase scan shows exactly what still needs triage.
 
 The skill **never commits**. Stage and commit yourself after reviewing.
 
@@ -150,7 +150,9 @@ For `/noldor-promote` (roadmap/backlog → feature MD) see [`workflow.md`](workf
   → retire via micro-chore, not a build.
 - **`pnpm noldor triage list-untriaged` only scans `## Verticals → Now|Next|Later`
   in `ideas.md`** — NOT `## Priority` or `## Not groomed`. Bullets pasted under
-  those headings are invisible to the CLI; triage them in place with a
-  `[triaged YYYY-MM-DD → slug]` marker.
+  those headings are invisible to the CLI. `## Not groomed` is deliberately not a
+  staging area (decision reaffirmed 2026-08-12, after the 2026-08-11 batch
+  hand-triaged six bullets straight out of it against the documented skip) — move
+  a bullet under a phase heading first, then run triage; never stamp it in place.
 - **`lockstepPackages` entries are `package.json` PATHS**, not package names —
   `release-packages.ts` `readFile`s them.

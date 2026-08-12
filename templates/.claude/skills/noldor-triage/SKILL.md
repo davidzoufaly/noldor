@@ -8,7 +8,7 @@ user_invocable: true
 
 ## Inputs
 
-- `ideas.md` — raw user dump. Top-level bullets without `[triaged …]` markers are candidates.
+- `ideas.md` — raw user dump. Top-level bullets under `## Verticals → #### Now|Next|Later` without `[triaged …]` markers are candidates. `## Priority` and `## Not groomed` are invisible to `list-untriaged` — see the `## Not groomed` rule below.
 - `docs/vision.md` — strategic source. Frontmatter (`current-milestone` — optional slug pointer) + body sections (`## North Star`, `## Posture`).
 - `docs/milestones/<active-slug>.md` — when vision's `current-milestone:` is set, the resolved milestone file provides `## Gate`, `## Success Criteria`, `## Out of Scope`. Skip this read entirely when the slug is absent.
 - `docs/roadmap.md` — first target. Flat priority-ordered list (file order = priority); the prior `## Now / ## Next / ## Later` section split was retired 2026-05-13.
@@ -107,7 +107,7 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
 
    - **`now`** target → write the block exactly as a `roadmap` insert at `top` (same required fields — `size` and `impact` gate it). With multiple `now` rows, insert in reverse confirmation-table order so the final roadmap order matches the table. The auto-chain to `/noldor-promote` happens in step 8, never here — a failed validation must abort the chain.
 
-   Append `[triaged YYYY-MM-DD → <slug>]` to the original bullet in `ideas.md` — for merges, `<slug>` is the host's slug, not a new one (preserves traceability back to the host).
+   Append `[triaged YYYY-MM-DD → <slug>]` to the original bullet in `ideas.md` — for merges, `<slug>` is the host's slug, not a new one (preserves traceability back to the host). Then **relocate the stamped bullet** out of its live phase section to the end of a `## Triaged` section at the bottom of `ideas.md` (create the heading when absent; keep the bullet text + marker verbatim). Live `#### Now|Next|Later` sections then hold only raw bullets, so a phase scan shows exactly what still needs triage. The `## Triaged` section is invisible to `list-untriaged` (its walk is scoped to `## Verticals`), so the move implies no parser change.
 
 7. **On all rejection** (user said `n`), do nothing. Confirm with user and stop.
 8. **Final step (regardless of outcome):** run
@@ -143,7 +143,8 @@ When ambiguous, prefer the more specific type over `feat` (e.g. a perf-targeted 
 
 ## Rules
 
-- **Never** delete or relocate bullets within `ideas.md`; only append `[triaged …]` markers.
+- **Never** delete bullets from `ideas.md`. The only sanctioned relocation is step 6's move of a just-stamped bullet into the `## Triaged` archive section; everything else stays where the operator put it.
+- **`## Not groomed` is not a staging area.** `extractUntriagedBullets` deliberately skips it (and `## Priority`) — decision reaffirmed 2026-08-12 after the 2026-08-11 batch hand-triaged six bullets straight out of the section against the documented skip. To triage such a bullet, the operator moves it under `## Verticals → #### Now|Next|Later` first so the CLI surfaces it; never stamp it in place.
 - **Never** commit. Operator commits.
 - **Never** auto-promote backlog or roadmap entries to feature MDs — with one exception: rows the operator explicitly confirmed as `target: now` chain to `/noldor-promote <slug>` in step 8 after validations pass. Everything else promotes via a manual `/noldor-promote <slug>` (separate skill).
 - **Never** silently merge — every `merge:<slug>` proposal must show the matched host's heading + current section in the confirmation table. Operator can flip merge → new entry.
