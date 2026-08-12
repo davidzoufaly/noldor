@@ -91,19 +91,6 @@ A fresh `pnpm noldor docs check` reports 15 markdown files with broken internal 
 
 **The naive fix is wrong**: requiring ≥2 overlapping instances would break the primary case, since pasting an existing block into a new file changes exactly one instance. The predicate needs to be coverage-based — flag when changed lines cover a substantial fraction of some instance, so "I wrote this copy" fires and "my edit abuts a pre-existing clone" does not. Pick the threshold against the three recorded cases (37%, 25%, ~55% coverage) plus a real paste (100%). Worth considering alongside: an inline `// noldor:clone-ok <reason>` marker for the irreducible cases (data tables, import blocks), mirroring how `noldor:cut` waives minimalism findings.
 
-### PR Summary Rule: Why, How, What
-
-- id: Q-0103
-- area: tooling
-- type: feat
-- since: 2026-08-12
-- size: XS
-- impact: med
-- confidence: med
-- parent: rules-cascade-v1
-
-Nothing states what a PR summary has to contain, so summaries drift between a bare changelog and a design essay. Add a cascade rule requiring the why before the how before the what, and requiring each to land in both technical and non-technical register — the reviewer needs the mechanism, the operator reading release notes needs the plain-language reason. Scope it to the PR-body seam (`pr-flow`) rather than to commit messages, which `noldor-scope` and the trailer contract already govern.
-
 ### Dashboard Docs-Flag Path Contract
 
 - id: Q-0104
