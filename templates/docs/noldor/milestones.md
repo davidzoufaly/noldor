@@ -35,7 +35,7 @@ failure leaves the filesystem unchanged. The state machine lives in
 
 Manage milestones with the [`/noldor-milestone`](../../.claude/skills/noldor-milestone/SKILL.md)
 skill (`draft` | `activate` | `edit` | `list`) — see the
-[skill catalog](skill-catalog.md#milestone).
+[skill catalog](skill-catalog.md#noldor-milestone).
 
 ## Feature membership (optional)
 

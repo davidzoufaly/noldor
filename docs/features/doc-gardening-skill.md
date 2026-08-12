@@ -12,7 +12,6 @@ links:
     - src/docs/docs-check.ts
     - src/docs/docs-transclude.ts
     - src/garden/garden-detect.ts
-    - src/garden/garden-invariants.ts
     - src/sync/sync-doc-links.ts
     - src/sync/sync-fd-resources.ts
     - src/triage/triage-list-untriaged.ts
@@ -65,7 +64,6 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
   - [`src/docs/docs-check.ts`](../../src/docs/docs-check.ts)
   - [`src/docs/docs-transclude.ts`](../../src/docs/docs-transclude.ts)
   - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)
-  - [`src/garden/garden-invariants.ts`](../../src/garden/garden-invariants.ts)
   - [`src/sync/sync-doc-links.ts`](../../src/sync/sync-doc-links.ts)
   - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
   - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)

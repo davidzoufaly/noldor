@@ -357,7 +357,7 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
 
 ## Enhancements
 
-- **Specs-only tier produces a spec file** (2026-05-25): flipped tier behavior to match the rename's original intent — `specs-only` paths now invoke `superpowers:brainstorming` and produce a spec file (no plan). Roster stays at 2 tiers (`specs-only`, `full`). See [spec](../design/specs/2026-05-25-noldor-specs-only-tier-produces-spec-design.md) + [plan](../design/plans/2026-05-25-noldor-specs-only-tier-produces-spec.md).
+- **Specs-only tier produces a spec file** (2026-05-25): flipped tier behavior to match the rename's original intent — `specs-only` paths now invoke `superpowers:brainstorming` and produce a spec file (no plan). Roster stays at 2 tiers (`specs-only`, `full`). See [spec](../design/specs/archive/2026-05-25-noldor-specs-only-tier-produces-spec-design.md) + [plan](../design/plans/archive/2026-05-25-noldor-specs-only-tier-produces-spec.md).
 - **Pre-commit honors `NOLDOR_PATH_OVERRIDE`** (2026-06-07): the pre-commit hook runs before the commit message exists, so the `Noldor-Path-Override:` trailer (a commit-msg-layer escape) could not release a pre-commit block such as a stale `micro-chore` allowlist. `runPreCommit` now reads a `NOLDOR_PATH_OVERRIDE` env var: a non-empty value releases both the allowlist check and the no-`/noldor-gate`-session hard wall, and always writes a `(pre-commit)`-tagged breadcrumb to `.noldor/overrides.log` (via `logOverride`). `runPreCommit` stays pure — it returns `overrideReason`; the CLI entrypoint does the append. Pair the env var with the `Noldor-Path-Override:` trailer for cross-clone git-log audit. See [spec](../design/specs/2026-06-07-noldor-pre-commit-path-override-design.md).
 
 ## Changelog

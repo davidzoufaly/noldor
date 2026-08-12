@@ -4,7 +4,7 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/cr/config.ts
+    - src/core/config.ts
     - src/release/release-cr-gate.ts
     - src/release/index.ts
     - src/garden/detectors/override-audit.ts
@@ -15,7 +15,7 @@ links:
     - docs/noldor/cr-pipeline.md
     - docs/noldor/versioning.md
   tests:
-    - src/cr/__tests__/config.test.ts
+    - src/core/__tests__/config.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
     - src/garden/__tests__/garden-detect.test.ts
@@ -101,7 +101,7 @@ Added a `release.crGateExemptCommits` config schema (#133).
 - **Plan:**
   - [`docs/design/plans/archive/2026-07-02-release-bypass-retirement.md`](../../docs/design/plans/archive/2026-07-02-release-bypass-retirement.md)
 - **Code:**
-  - [`src/cr/config.ts`](../../src/cr/config.ts)
+  - [`src/core/config.ts`](../../src/core/config.ts)
   - [`src/release/release-cr-gate.ts`](../../src/release/release-cr-gate.ts)
   - [`src/release/index.ts`](../../src/release/index.ts)
   - [`src/garden/detectors/override-audit.ts`](../../src/garden/detectors/override-audit.ts)
@@ -109,7 +109,7 @@ Added a `release.crGateExemptCommits` config schema (#133).
   - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
   - [`src/garden/garden-receipt.ts`](../../src/garden/garden-receipt.ts)
 - **Tests:**
-  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
+  - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
   - [`src/release/__tests__/release-cr-gate.test.ts`](../../src/release/__tests__/release-cr-gate.test.ts)
   - [`src/garden/detectors/__tests__/override-audit.test.ts`](../../src/garden/detectors/__tests__/override-audit.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)

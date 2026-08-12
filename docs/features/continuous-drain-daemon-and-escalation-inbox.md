@@ -16,7 +16,7 @@ links:
     - src/autonomous/drain-loop.ts
     - src/autonomous/queue-drain.ts
     - src/core/agent-events.ts
-    - src/cr/config.ts
+    - src/core/config.ts
     - src/cli/manifest.ts
     - docs/noldor/autonomy.md
   tests:
@@ -114,7 +114,7 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
   - [`src/autonomous/drain-loop.ts`](../../src/autonomous/drain-loop.ts)
   - [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)
   - [`src/core/agent-events.ts`](../../src/core/agent-events.ts)
-  - [`src/cr/config.ts`](../../src/cr/config.ts)
+  - [`src/core/config.ts`](../../src/core/config.ts)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
   - [`docs/noldor/autonomy.md`](../../docs/noldor/autonomy.md)
 - **Tests:**

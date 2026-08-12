@@ -41,6 +41,7 @@ phase: done
 noldor-tier: full
 introduced: 0.2.0
 ---
+
 ## Summary
 
 Retroactive FD for the Rules Cascade v1 substrate (PR #2, 2026-06-01) — the layered agent-rules system: rule MDs are loaded (`src/rules/load.ts`), resolved through the cascade with overrides (`src/rules/resolve.ts`), cached (`src/rules/index-cache.ts`), keyed to lifecycle stages (`src/core/rules/stage.ts` — the `Stage` union + `pathToStage` session-path projection), plus the `agent-rules-guard` hook (an Agent-dispatch prompt guard, currently unwired). Four thin CLI wrappers (`cli-cores`, `cli-list`, `cli-resolve`, `cli-validate`) expose the cascade. Shipped before FD-trailer dogfooding began, so no `Noldor-FD:` history exists; this FD backfills ownership so the code stops floating unreferenced (2026-07-03 tag judgment pass).
@@ -80,6 +81,11 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
   - [`.noldor/rules/lazy-decision-ladder.md`](../../.noldor/rules/lazy-decision-ladder.md)
   - [`templates/.noldor/rules/lazy-decision-ladder.md`](../../templates/.noldor/rules/lazy-decision-ladder.md)
   - [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts)
+  - [`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts)
+  - [`src/core/branch-added.ts`](../../src/core/branch-added.ts)
+  - [`src/core/session.ts`](../../src/core/session.ts)
+  - [`src/rules/brief.ts`](../../src/rules/brief.ts)
+  - [`src/rules/cli-brief.ts`](../../src/rules/cli-brief.ts)
   - [`src/rules/cli-cores.ts`](../../src/rules/cli-cores.ts)
   - [`src/rules/cli-list.ts`](../../src/rules/cli-list.ts)
   - [`src/rules/cli-resolve.ts`](../../src/rules/cli-resolve.ts)
@@ -94,6 +100,8 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
   - [`src/core/rules/__tests__/stage.test.ts`](../../src/core/rules/__tests__/stage.test.ts)
   - [`src/cr/__tests__/lanes/subagent-dispatch.test.ts`](../../src/cr/__tests__/lanes/subagent-dispatch.test.ts)
   - [`src/hooks/__tests__/agent-rules-guard.test.ts`](../../src/hooks/__tests__/agent-rules-guard.test.ts)
+  - [`src/rules/__tests__/brief.test.ts`](../../src/rules/__tests__/brief.test.ts)
+  - [`src/rules/__tests__/cli-brief.test.ts`](../../src/rules/__tests__/cli-brief.test.ts)
   - [`src/rules/__tests__/cli.test.ts`](../../src/rules/__tests__/cli.test.ts)
   - [`src/rules/__tests__/index-cache.test.ts`](../../src/rules/__tests__/index-cache.test.ts)
   - [`src/rules/__tests__/load.test.ts`](../../src/rules/__tests__/load.test.ts)

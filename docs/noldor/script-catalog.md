@@ -459,7 +459,7 @@ The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
 ### `docs:check`
 
 - **Trigger:** `pnpm noldor docs check`. Part of `pnpm docs:build`.
-- **Inputs:** the `docs/` tree post-build.
+- **Inputs:** the `docs/` tree post-build, including active `docs/design/` specs and plans (their `archive/` subdirectories are exempt — archived artifacts intentionally preserve historical links).
 - **Outputs:** exit 0 when no broken transclusion, no orphaned `@feature:`/`@tests:` tags, no dangling links; exit 1 with the offence listed.
 - **When to use:** via `pnpm docs:build`; ad hoc before committing user-doc changes.
 - **Source:** [`src/docs/docs-check.ts`](../../src/docs/docs-check.ts)

@@ -5,7 +5,12 @@ const INLINE_LINK_RE = /\[[^\]]*\]\(([^)\s]+)\)/g;
 const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/gm;
 const EXTERNAL_RE = /^(https?:|mailto:|#)/;
 const ROOT_ABSOLUTE_RE = /^\//;
-const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git', 'design']);
+const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git']);
+// Design archives intentionally preserve links to since-moved or deleted
+// targets, so they are exempt — but by full walk-relative path, never by
+// basename, which would also suppress an unrelated nested `design/` or
+// `archive/`. Active specs and plans under docs/design/ are checked.
+const EXCLUDED_WALK_PATHS = new Set(['docs/design/specs/archive', 'docs/design/plans/archive']);
 
 /**
  * One internal link extracted from a markdown body.
@@ -148,7 +153,15 @@ export async function checkLinks(paths: string[]): Promise<FileError[]> {
   return errors;
 }
 
-async function walkMd(dir: string, out: string[]): Promise<void> {
+/**
+ * Collect `.md` files under `dir`, skipping excluded directory names and the
+ * path-specific design-archive exemptions in EXCLUDED_WALK_PATHS.
+ *
+ * @param dir - Directory to walk (file paths are pushed relative to it)
+ * @param out - Accumulator for found markdown paths
+ * @param rel - Walk-relative path of `dir` used for path-specific exclusions
+ */
+export async function walkMd(dir: string, out: string[], rel = ''): Promise<void> {
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name.startsWith('.') && entry.name !== '.github') {
@@ -158,8 +171,12 @@ async function walkMd(dir: string, out: string[]): Promise<void> {
       continue;
     }
     const full = join(dir, entry.name);
+    const relPath = rel ? `${rel}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
-      await walkMd(full, out);
+      if (EXCLUDED_WALK_PATHS.has(relPath)) {
+        continue;
+      }
+      await walkMd(full, out, relPath);
     } else if (entry.name.endsWith('.md')) {
       out.push(full);
     }
@@ -177,7 +194,7 @@ async function fileExists(path: string): Promise<boolean> {
 
 async function main(): Promise<void> {
   const paths: string[] = [];
-  await walkMd('docs', paths);
+  await walkMd('docs', paths, 'docs');
   if (await fileExists('README.md')) {
     paths.push('README.md');
   }

@@ -4,7 +4,7 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/features/feature-schema.ts
+    - src/core/feature-schema.ts
     - src/features/validate-features.ts
     - src/garden/detectors/milestone-shipped-incomplete.ts
     - src/garden/garden-detect.ts
@@ -102,7 +102,7 @@ feat: connect features to milestones across schema, garden, and dashboard (#108)
 
 - **Spec:** [`docs/design/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md`](../../docs/design/specs/archive/2026-06-14-framework-milestones-support-poc-mvp-100-design.md)
 - **Code:**
-  - [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts)
+  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
   - [`src/features/validate-features.ts`](../../src/features/validate-features.ts)
   - [`src/garden/detectors/milestone-shipped-incomplete.ts`](../../src/garden/detectors/milestone-shipped-incomplete.ts)
   - [`src/garden/garden-detect.ts`](../../src/garden/garden-detect.ts)

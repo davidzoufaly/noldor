@@ -4,12 +4,12 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/cr/review-profile.ts
-    - src/cr/config.ts
+    - src/core/review-profile.ts
+    - src/core/config.ts
   docs: []
   tests:
-    - src/cr/__tests__/review-profile.test.ts
-    - src/cr/__tests__/config.test.ts
+    - src/core/__tests__/review-profile.test.ts
+    - src/core/__tests__/config.test.ts
   spec: docs/design/specs/archive/2026-06-13-code-reviewer-20-design.md
   plan: docs/design/plans/archive/2026-06-13-code-reviewer-20.md
 name: Code Reviewer 2.0
@@ -80,10 +80,10 @@ Added a review-profile schema along with built-in profiles (#98).
 - **Plan:**
   - [`docs/design/plans/archive/2026-06-13-code-reviewer-20.md`](../../docs/design/plans/archive/2026-06-13-code-reviewer-20.md)
 - **Code:**
-  - [`src/cr/review-profile.ts`](../../src/cr/review-profile.ts)
-  - [`src/cr/config.ts`](../../src/cr/config.ts)
+  - [`src/core/review-profile.ts`](../../src/core/review-profile.ts)
+  - [`src/core/config.ts`](../../src/core/config.ts)
 - **Tests:**
-  - [`src/cr/__tests__/review-profile.test.ts`](../../src/cr/__tests__/review-profile.test.ts)
-  - [`src/cr/__tests__/config.test.ts`](../../src/cr/__tests__/config.test.ts)
+  - [`src/core/__tests__/review-profile.test.ts`](../../src/core/__tests__/review-profile.test.ts)
+  - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
 
 <!-- /generated: resources -->
