@@ -91,6 +91,51 @@ A fresh `pnpm noldor docs check` reports 15 markdown files with broken internal 
 
 **The naive fix is wrong**: requiring ≥2 overlapping instances would break the primary case, since pasting an existing block into a new file changes exactly one instance. The predicate needs to be coverage-based — flag when changed lines cover a substantial fraction of some instance, so "I wrote this copy" fires and "my edit abuts a pre-existing clone" does not. Pick the threshold against the three recorded cases (37%, 25%, ~55% coverage) plus a real paste (100%). Worth considering alongside: an inline `// noldor:clone-ok <reason>` marker for the irreducible cases (data tables, import blocks), mirroring how `noldor:cut` waives minimalism findings.
 
+- The mirror-image false negative in the same predicate: `clones check` cannot see an UNTRACKED new file, because `git diff` has no post-image for one, so the diff-scoped verdict prints `no clone group touches this change - green` for a file whose every line is new. The gate only starts reviewing a new file once it is committed, so a pre-commit green proves nothing and the findings arrive at pre-push instead — after the CR receipt is already stamped. The clones-cli test suite documents the mechanism in a fixture comment but nothing warns the operator. Have `resolveChangedRanges` union the `git diff` hunks with the full line span of every untracked corpus file, or at minimum print `N untracked file(s) not reviewed` so the green is qualified. (surfaced shipping Q-0094)
+
+### Worktree Session Path Hazards
+
+- id: Q-0118
+- area: tooling
+- type: fix
+- since: 2026-08-12
+- size: S
+- impact: high
+- confidence: high
+- parent: parallel-worktree-workflow
+
+The worktree edit-path trap has an undocumented **false-green** mode: when a gate session edits through main-workspace-absolute paths instead of worktree-absolute ones, the edits land on `main` while `pnpm typecheck` and `pnpm test` still run inside the unchanged worktree — both pass, and the pass proves nothing about the change. `git status` in the worktree is the only cheap tell (clean when it should be dirty), and a test-COUNT comparison is the only reliable one, since a suite that never loaded the new tests still reports green (97 → 111 in the Q-0088 case). Recovery is lossless: `git -C <main> diff -- src/ > p && git -C <worktree> apply --3way p && git -C <main> checkout -- src/`, then re-verify. Fix candidates: have the gate echo the worktree root as the edit-path prefix at scaffold time, and add a pre-commit or `noldor verify` assertion that the worktree tree is non-clean before a fast-track commit. (surfaced shipping Q-0088, PR #290)
+
+- The same session's second path hazard, worth closing in one pass: `cr orchestrate` and `pr-flow` both amend or commit, and every backgrounded git invocation leaves the agent's shell CWD silently back at the main workspace — so a later bare `cat .noldor/cr/<slug>-code-reviewer.json` reads the WRONG repo and a bare `git log -1` shows a previous feature's commit, which reads exactly like a lost receipt. Every post-commit check in a worktree session must use `git -C <worktree>` or an absolute path rather than trusting CWD persistence; the rule belongs in `docs/noldor/gotchas.md`, which carries no entry for it today. Already noted for Q-0077 (PR #264) and recurred anyway. (surfaced shipping Q-0088, PR #290)
+
+### Queue-Drain Selection and Staleness Guards
+
+- id: Q-0121
+- area: tooling
+- type: feat
+- since: 2026-08-12
+- size: XS
+- impact: med
+- confidence: high
+- parent: autonomous-queue-drain-runner
+
+A drain cannot see uncommitted triage: children branch from `origin/main`, so roadmap blocks that exist only in the local working tree are invisible to them while the supervisor's own eligibility read (the local tree) lists them happily. The failure mode is a child that finds no block to implement and a `remove-block` that no-ops — a full agent run burned on nothing. `queue-drain` can assert this cheaply: compare its selected entry set against `git show origin/main:docs/roadmap.md` and abort with `N entries not on origin/main` before spawning anything. (surfaced draining the 2026-08-12 XS batch)
+
+- The same command's missing selection lever: `autonomous queue-drain` has no size filter. `--max-features` takes top-N in priority ORDER and eligibility is fast-track = XS **or** S, so "ship only the XS ones" is not expressible when XS entries sit below S entries in the queue. The 2026-08-12 batch had to bypass the supervisor entirely and spawn `claude --print "/noldor-gate --drain <slug>"` per slug (`NOLDOR_DRAIN=1`, `--disallowed-tools AskUserQuestion`, `--permission-mode bypassPermissions`), forfeiting the retry, skip, lock and escalation machinery. A `--size XS` and/or `--only <slug,slug>` flag makes the supervisor usable for a filtered batch. (surfaced draining the 2026-08-12 XS batch)
+
+### Roadmap Has-Block Predicate
+
+- id: Q-0119
+- area: tooling
+- type: feat
+- since: 2026-08-12
+- size: XS
+- impact: med
+- confidence: high
+- parent: stable-entry-ids-for-roadmap-backlog
+
+An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never appears literally in the document, so any "is this entry still queued?" check written as `grep -q "$slug" docs/roadmap.md` returns FALSE for every live entry — and it fails silently in the safe-looking direction ("already shipped, skip"). It bit a hand-rolled XS drain runner into skipping all 6 eligible entries in 5 seconds with a clean exit, and it is the same root cause as the CR blocker on the 2026-08-12 triage commit, where 12 `[triaged → slug]` markers named shorthand slugs resolving to no block. Expose `pnpm noldor roadmap has-block <slug>` (exit 0/1, honouring the ID alias) so scripts and skills stop re-deriving the predicate, and point the docs at it wherever a slug-presence check is described. (surfaced draining the 2026-08-12 XS batch, PRs #297-#303)
+
 ### Dashboard Docs-Flag Path Contract
 
 - id: Q-0104
@@ -217,6 +262,8 @@ Durable read-modify-write transitions are scattered across dashboard queue route
 
 The dimensions that are prose-only today sit buried in a 181-line baseline: error flow (result types, throw only for programmer errors, catch external at the boundary, never swallow) is at line 137 and is machine-unchecked. Migrate them into scoped rule files — `.noldor/rules/error-result-types.md` with `applies-to: ["src/**/*.ts"]`, `stage: [code]`, `enforce: true` — so the rule lands in the enforce bucket exactly on the files being edited rather than in a wall of text the author has to filter mentally. Same treatment for state discipline and concurrency.
 
+- One concrete state-discipline rule the migration should carry, earned over 14 CR rounds on Q-0073 (PR #268): the first cut of finish-mode kept a `finishable` Set that had to be mutated at every ship, skip, merge, retry and timeout leaf, and rounds 5, 10, 11 and 13 each found a different missed `delete`. Replacing it with a verdict recomputed fresh immediately before each spawn (`resolveFinishPrompt`) made the whole class of finding vanish with all 215 autonomous tests passing unchanged. State the rule as "prefer a recomputed decision over maintained state whenever the state has many mutation sites", and pair it with the reviewer-side reading: four rounds of "you missed another unwind" is the reviewer circling a design smell, not four separate bugs.
+
 ### Traceability Projection Module
 
 - id: Q-0111
@@ -282,3 +329,16 @@ Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-
 - The confirmed symptom: queue parsing and docs-link checking implement an incomplete fenced-code grammar, recognizing triple backticks but not CommonMark/GFM tilde fences or varying fence lengths. A roadmap holding a tilde-fenced block that contains `### Phantom` plus `- area: tooling`, followed by a real entry, parses as two entries; a markdown link inside that same tilde fence is extracted as a live internal link by `docs-check`. This can fabricate queue entries and dependencies, make writers remove or reorder example text, and produce false broken-link failures. Because `parseRoadmap`, `parseEntries`, `pushEmptyGroupIssues` and `stripCodeRegions` each toggle independently on a triple-backtick prefix, patching one leaves semantic drift. One fence scanner must understand marker character, opening length, up-to-three-space indentation, info strings and a closing fence of sufficient length. Paired fixtures: backticks and tildes, three- and four-character fences, embedded shorter runs, indented fences, unclosed fences. (confirmed by pure-function runtime probe)
 
 (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
+
+### Clone Detector Flags Chained-Builder Schemas
+
+- id: Q-0122
+- area: tooling
+- type: fix
+- since: 2026-08-12
+- size: S
+- impact: med
+- confidence: med
+- parent: code-clone-detector
+
+The token-level detector treats a new zod schema as a clone of every existing one: `src/clones/baseline.ts` matched `src/dashboard/data.ts` at 163 tokens and `src/cr/autofix-ledger.ts` at 71 tokens purely because Type-2 normalization makes `foo: z.number().int().nonnegative(),` identical to `bar: z.number().int().nonnegative(),` — five such fields in a row clear the 50-token floor on their own. The signal is not worthless: naming the repeated validator once (`const measured = z.number().int().nonnegative()`) really did cut whole-corpus duplication by 307 tokens. But any schema-heavy file keeps tripping this, and a consumer reads it as noise, which erodes trust in the whole gate. Candidate fixes: a tokenizer rule that collapses a chained-builder call sequence to one token, or a per-file exemption for declaration-only modules. Pick one against the two measured matches plus a genuine copied schema, so the real case still reds. (surfaced shipping Q-0094)

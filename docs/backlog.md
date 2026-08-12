@@ -225,3 +225,15 @@ The largest clone in the repository sits wholly inside `src/garden/garden-detect
 - parent: noldor-package-lift
 
 The published package ships two full runtime representations plus development-only tests and fixtures: `package.json.files` includes both `dist` and `src`, and `bin/noldor.mjs` registers `tsx/esm/api` and executes `src/cli/index.ts`, so compiled `dist` is not the active runtime while the source inclusion also captures test suites. Measured with `npm pack --dry-run --json --ignore-scripts` on an isolated cache: 2,531 entries, 2.12 MB compressed, 11.26 MB unpacked, both trees present. Not automatically a bug — the archived package-lift design deliberately chose source-at-runtime, and compiled manifest strings still reference `.ts` paths — but it is measurable install, bandwidth and attack-surface waste plus two representations that can drift. Revisit the distribution decision as an explicit ADR rather than an opportunistic cleanup, comparing three approaches with packed-consumer smoke tests: (1) keep the TypeScript runtime but publish only runtime source, templates and bin, excluding tests, fixtures and dist; (2) make dist canonical, rewrite manifest and module resolution for `.js`, and drop tsx and source from the package; (3) keep both only if a real supported import or debug workflow requires it, and enforce build/source parity. Explore (1) first — smallest migration, behaviour preserved — then quantify cold-start, install and security differences before considering (2). Deletion test: one complete runtime tree and one module-resolution policy remain in the tarball. Risk: package-lift chose the current shape for portability, so any change needs clean `npm pack` install, CLI, hook and dashboard tests plus a compatibility statement for consumers importing undocumented source paths. (architecture candidate, Speculative because it conflicts with archived design, read-only audit 2026-08-12)
+
+### Portable Timeout Audit for Supervisor Loops
+
+- id: Q-0120
+- area: tooling
+- type: chore
+- since: 2026-08-12
+- size: XS
+- impact: low
+- confidence: med
+
+macOS ships no `timeout` and no `gtimeout` unless coreutils is installed, so any hand-written supervisor loop that copies the drain's per-iteration timeout gets `command not found` and — with `set -uo pipefail` but no `-e` — silently runs its children UNBOUNDED. The portable shape is to background the child, background a `( sleep N; kill -0 $child && pkill -P $child; kill -TERM $child )` watchdog, `wait $child`, then kill the watchdog. Two deliverables: audit whether `src/autonomous` (or any shipped script, hook or template) depends on a GNU-only binary for the same reason, and record the portable watchdog recipe in `docs/noldor/gotchas.md` so the next hand-rolled runner starts from it. Parked rather than queued because no framework code path is confirmed affected — the failure was in an ad-hoc runner. (surfaced draining the 2026-08-12 XS batch)
