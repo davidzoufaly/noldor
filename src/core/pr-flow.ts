@@ -31,6 +31,20 @@ export interface VerifySummary {
   evidence: VerifyEvidencePair[];
 }
 
+/**
+ * The commit a no-FD PR (fast-track / micro-chore) describes: there is no FD to
+ * draw a summary from, so the PR title and Summary section come from here.
+ *
+ * Carries the body, not just the subject, because the subject alone is a
+ * changelog line — it states *what* shipped and neither *why* nor *how*, which
+ * the `pr-summary-why-how-what` rule requires of the PR body.
+ */
+export interface SummaryCommit {
+  subject: string;
+  /** Commit body with trailers stripped; empty string when the commit had none. */
+  body: string;
+}
+
 export interface PrFlowInput {
   cwd: string;
   branch: string;
@@ -43,7 +57,7 @@ export interface PrFlowInput {
   crResults: CrResultSummary;
   verify: VerifySummary | null;
   headSha: string;
-  firstCommitSubject: string;
+  summaryCommit: SummaryCommit;
 }
 
 export interface PrFlowResult {
@@ -64,7 +78,7 @@ export interface RedundantDelivery {
 }
 
 export function composeTitle(input: PrFlowInput): string {
-  return input.firstCommitSubject;
+  return input.summaryCommit.subject;
 }
 
 function renderCrTable(passes: CrPass[]): string {
@@ -142,11 +156,22 @@ export function composeBody(input: PrFlowInput): string {
   }
 
   // No-FD paths (micro-chore, fast-track) have no FD summary to draw from, so
-  // they fall back to the first commit subject — labelled by the actual gate
-  // path. fast-track is a code change, not a doc-only micro-chore; mislabelling
-  // it `Micro-chore` misrepresents what shipped.
+  // they fall back to the summary commit — labelled by the actual gate path.
+  // fast-track is a code change, not a doc-only micro-chore; mislabelling it
+  // `Micro-chore` misrepresents what shipped.
+  //
+  // The commit BODY rides along, not just the subject. `pr-summary-why-how-what`
+  // binds this seam and a subject line is what-only, so a subject-only Summary
+  // fails it by construction. This function composes deterministically and cannot
+  // author prose — the why and the how have to come from text a human or agent
+  // wrote, and the commit body is the one such text pr-flow already has. When the
+  // body is empty the Summary degrades to the old subject-only line rather than
+  // inventing filler.
   const noFdLabel = input.session.path === 'fast-track' ? 'Fast-track' : 'Micro-chore';
-  const summary = input.fd ? input.fd.summary : `${noFdLabel}: ${input.firstCommitSubject}`;
+  const noFdSummary = [`${noFdLabel}: ${input.summaryCommit.subject}`]
+    .concat(input.summaryCommit.body.length > 0 ? ['', input.summaryCommit.body] : [])
+    .join('\n');
+  const summary = input.fd ? input.fd.summary : noFdSummary;
 
   const scope = [
     `- Gate path: \`${input.session.path}\``,

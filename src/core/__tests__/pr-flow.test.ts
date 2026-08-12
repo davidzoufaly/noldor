@@ -45,22 +45,22 @@ const baseInput: PrFlowInput = {
   },
   verify: null,
   headSha: 'abc123',
-  firstCommitSubject: 'feat(scripts:test-feature): scaffold',
+  summaryCommit: { subject: 'feat(scripts:test-feature): scaffold', body: '' },
 };
 
 describe('composeTitle', () => {
-  it('uses the first commit subject for full-new path', () => {
+  it('uses the summary commit subject for full-new path', () => {
     expect(composeTitle(baseInput)).toBe('feat(scripts:test-feature): scaffold');
   });
 
-  it('uses the first commit subject for micro-chore path (no fd)', () => {
+  it('uses the summary commit subject for micro-chore path (no fd)', () => {
     const input: PrFlowInput = {
       ...baseInput,
       session: { ...baseInput.session, path: 'micro-chore', slug: undefined },
       fd: null,
       specPath: null,
       planPath: null,
-      firstCommitSubject: 'chore(docs): typo fix',
+      summaryCommit: { subject: 'chore(docs): typo fix', body: '' },
     };
     expect(composeTitle(input)).toBe('chore(docs): typo fix');
   });
@@ -95,7 +95,7 @@ describe('composeBody', () => {
       fd: null,
       specPath: null,
       planPath: null,
-      firstCommitSubject: 'chore(docs): typo fix',
+      summaryCommit: { subject: 'chore(docs): typo fix', body: '' },
     };
     const body = composeBody(input);
     expect(body).toContain('Micro-chore: chore(docs): typo fix');
@@ -112,11 +112,57 @@ describe('composeBody', () => {
       fd: null,
       specPath: null,
       planPath: null,
-      firstCommitSubject: 'fix(core): correct pr summary label',
+      summaryCommit: { subject: 'fix(core): correct pr summary label', body: '' },
     };
     const body = composeBody(input);
     expect(body).toContain('Fast-track: fix(core): correct pr summary label');
     expect(body).not.toContain('Micro-chore:');
+  });
+
+  it('carries the summary commit body into the no-FD Summary', () => {
+    // A subject line states only WHAT shipped. `pr-summary-why-how-what` requires
+    // the why and the how too, and the commit body is where they were written.
+    const input: PrFlowInput = {
+      ...baseInput,
+      session: { ...baseInput.session, path: 'fast-track', slug: undefined },
+      fd: null,
+      specPath: null,
+      planPath: null,
+      summaryCommit: {
+        subject: 'fix(dashboard): count zero scripts when scripts/ is absent',
+        body: 'The overview route rendered an internal error on a consumer with no scripts/ tree.\n\nRecursive readdir now treats ENOENT as an empty tree; permission errors still surface.',
+      },
+    };
+    const body = composeBody(input);
+    expect(body).toContain(
+      'Fast-track: fix(dashboard): count zero scripts when scripts/ is absent',
+    );
+    expect(body).toContain('The overview route rendered an internal error');
+    expect(body).toContain('Recursive readdir now treats ENOENT as an empty tree');
+  });
+
+  it('degrades to a subject-only Summary when the commit body is empty', () => {
+    const input: PrFlowInput = {
+      ...baseInput,
+      session: { ...baseInput.session, path: 'fast-track', slug: undefined },
+      fd: null,
+      specPath: null,
+      planPath: null,
+      summaryCommit: { subject: 'chore: bump lockfile', body: '' },
+    };
+    expect(composeBody(input)).toContain(
+      '## Summary\n\nFast-track: chore: bump lockfile\n\n## Scope',
+    );
+  });
+
+  it('ignores the summary commit body on FD paths (FD summary wins)', () => {
+    const input: PrFlowInput = {
+      ...baseInput,
+      summaryCommit: { subject: 'feat: whatever', body: 'commit prose that must not leak' },
+    };
+    const body = composeBody(input);
+    expect(body).toContain('A test feature for unit assertions.');
+    expect(body).not.toContain('commit prose that must not leak');
   });
 
   it('renders the parent FD link on attach paths (slug undefined, parent set)', () => {
@@ -246,7 +292,7 @@ describe('composeBody — release-sweep template', () => {
     crResults: { passes: [], status: 'clean' },
     verify: null,
     headSha: 'abc123',
-    firstCommitSubject: 'chore(release-sweep): graphify output',
+    summaryCommit: { subject: 'chore(release-sweep): graphify output', body: '' },
   };
 
   it('renders a sweep-specific summary (no Micro-chore prefix)', () => {

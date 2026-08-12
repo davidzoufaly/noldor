@@ -1,6 +1,7 @@
 // @tests: autonomous-plan-to-pr-merge, parallel-drain, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,6 +12,9 @@ import {
   shouldPromptForPrApproval,
   clearMicroChoreSession,
   loadVerifyEvidence,
+  parseCommitFileLists,
+  pickSummarySha,
+  stripTrailers,
 } from '../pr-flow-cli.js';
 import { writeSession } from '../session.js';
 
@@ -252,6 +256,122 @@ describe('normalizeRepoUrl', () => {
   it('returns https URL unchanged when no .git suffix', () => {
     expect(normalizeRepoUrl('https://github.com/davidzoufaly/acme')).toBe(
       'https://github.com/davidzoufaly/acme',
+    );
+  });
+});
+
+describe('parseCommitFileLists', () => {
+  it('parses one record per commit with its touched paths', () => {
+    const out =
+      '\x1eaaa111\ndocs/roadmap.md\n\x1ebbb222\nsrc/dashboard/layout.ts\nsrc/dashboard/__tests__/brand.test.ts\n';
+    expect(parseCommitFileLists(out)).toEqual([
+      { sha: 'aaa111', files: ['docs/roadmap.md'] },
+      {
+        sha: 'bbb222',
+        files: ['src/dashboard/layout.ts', 'src/dashboard/__tests__/brand.test.ts'],
+      },
+    ]);
+  });
+
+  it('returns an empty list for an empty range', () => {
+    expect(parseCommitFileLists('')).toEqual([]);
+  });
+
+  it('keeps a commit that changed no files (empty commit) with an empty path list', () => {
+    expect(parseCommitFileLists('\x1eccc333\n')).toEqual([{ sha: 'ccc333', files: [] }]);
+  });
+});
+
+describe('pickSummarySha', () => {
+  it('skips a roadmap-retirement commit and picks the substantive one', () => {
+    // The gate retires the roadmap block BEFORE implementing, so the oldest
+    // commit on a drained fast-track branch is bookkeeping.
+    const sha = pickSummarySha([
+      { sha: 'retire1', files: ['docs/roadmap.md'] },
+      { sha: 'impl2', files: ['src/dashboard/layout.ts'] },
+    ]);
+    expect(sha).toBe('impl2');
+  });
+
+  it('picks a commit that touches the roadmap alongside real files', () => {
+    const sha = pickSummarySha([{ sha: 'mixed1', files: ['docs/roadmap.md', 'src/core/x.ts'] }]);
+    expect(sha).toBe('mixed1');
+  });
+
+  it('falls back to the first commit when the branch is retirement-only', () => {
+    const sha = pickSummarySha([
+      { sha: 'retire1', files: ['docs/roadmap.md'] },
+      { sha: 'retire2', files: ['docs/roadmap.md'] },
+    ]);
+    expect(sha).toBe('retire1');
+  });
+
+  it('returns undefined when no commits are ahead of the base', () => {
+    expect(pickSummarySha([])).toBeUndefined();
+  });
+});
+
+describe('pickSummarySha over real git output', () => {
+  it('picks the implementation commit on a drain-shaped branch', () => {
+    // Guards the format string and the parser against each other: a `--format`
+    // typo would still parse cleanly from a hand-written fixture.
+    const repo = mkdtempSync(join(tmpdir(), 'noldor-prflow-git-'));
+    const git = (...args: string[]): string =>
+      execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'test');
+
+    writeFileSync(join(repo, 'seed.txt'), 'seed\n');
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-m', 'chore: seed');
+    const base = git('rev-parse', 'HEAD').trim();
+
+    mkdirSync(join(repo, 'docs'), { recursive: true });
+    writeFileSync(join(repo, 'docs', 'roadmap.md'), '# roadmap\n');
+    git('add', '-A');
+    git(
+      'commit',
+      '-q',
+      '--no-verify',
+      '-m',
+      'docs(roadmap): retire thing — shipped via fast-track',
+    );
+
+    writeFileSync(join(repo, 'impl.ts'), 'export const x = 1;\n');
+    git('add', '-A');
+    git('commit', '-q', '--no-verify', '-m', 'fix(core): the change that actually shipped');
+    const implSha = git('rev-parse', 'HEAD').trim();
+
+    const out = git('log', '--reverse', '--format=\x1e%H', '--name-only', `${base}..HEAD`);
+    expect(pickSummarySha(parseCommitFileLists(out))).toBe(implSha);
+  });
+});
+
+describe('stripTrailers', () => {
+  it('drops Noldor and co-author trailers, keeping the prose', () => {
+    const body = [
+      'The overview route crashed without a scripts/ tree.',
+      '',
+      'ENOENT now reads as an empty tree.',
+      '',
+      'Noldor-Path: fast-track',
+      'Noldor-FD: dashboard-overview-crash',
+      'Noldor-Reviewed-Subagent: deadbeef',
+      'Co-authored-by: t <t@t.io>',
+    ].join('\n');
+    expect(stripTrailers(body)).toBe(
+      'The overview route crashed without a scripts/ tree.\n\nENOENT now reads as an empty tree.',
+    );
+  });
+
+  it('returns an empty string for a body that is only trailers', () => {
+    expect(stripTrailers('Noldor-Path: fast-track\nNoldor-FD: x\n')).toBe('');
+  });
+
+  it('keeps prose that merely mentions a trailer-like word mid-line', () => {
+    expect(stripTrailers('Adds the Noldor-Path: trailer to commits.')).toBe(
+      'Adds the Noldor-Path: trailer to commits.',
     );
   });
 });

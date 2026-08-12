@@ -11,6 +11,7 @@ import {
   type FdSummary,
   type CrResultSummary,
   type SpawnFn,
+  type SummaryCommit,
   type VerifySummary,
 } from './pr-flow.js';
 
@@ -64,6 +65,67 @@ export function normalizeRepoUrl(raw: string): string {
     return `https://${sshMatch[1]}/${sshMatch[2]}`;
   }
   return trimmed.replace(/\.git$/, '');
+}
+
+/** Record separator used in the summary-commit `git log` format (ASCII RS/US, never in a path). */
+const RECORD_SEP = '\x1e';
+
+/** A commit ahead of the base, with the paths it touched. */
+export interface CommitFiles {
+  sha: string;
+  files: string[];
+}
+
+/** Trailer lines pr-flow injects or git appends — noise in a PR summary. */
+const TRAILER_RE = /^(?:Noldor-[A-Za-z-]+|Co-authored-by|Signed-off-by):/;
+
+/**
+ * Parse `git log --reverse --format=%x1e%H --name-only <range>`.
+ *
+ * The record separator leads each entry so a commit's file list cannot be
+ * confused with the next commit's sha — `--name-only` prints paths on their own
+ * lines after the format, with no terminator of its own.
+ */
+export function parseCommitFileLists(out: string): CommitFiles[] {
+  return out
+    .split(RECORD_SEP)
+    .filter((chunk) => chunk.trim().length > 0)
+    .map((chunk) => {
+      const [shaLine, ...rest] = chunk.split('\n');
+      return {
+        sha: (shaLine ?? '').trim(),
+        files: rest.map((l) => l.trim()).filter((l) => l.length > 0),
+      };
+    });
+}
+
+/**
+ * Pick which commit the PR title and no-FD Summary describe.
+ *
+ * `/noldor-gate` retires an entry's roadmap block BEFORE implementing it (skill
+ * Step 2, "Roadmap-entry retirement"), so the OLDEST commit on a drained
+ * fast-track branch is bookkeeping — `docs(roadmap): retire <slug> …`, touching
+ * `docs/roadmap.md` and nothing else. Taking the first commit put that
+ * bookkeeping line in the title and Summary of every drained entry (PRs
+ * #299-#303 all read "retire <slug> — shipped via fast-track (no FD)" and never
+ * named the change that shipped).
+ *
+ * So: the first commit that touches anything other than the roadmap. A
+ * retirement-only branch has no such commit and keeps the first one.
+ */
+export function pickSummarySha(commits: readonly CommitFiles[]): string | undefined {
+  const substantive = commits.find((c) => c.files.some((f) => f !== 'docs/roadmap.md'));
+  return (substantive ?? commits[0])?.sha;
+}
+
+/** Drop trailer lines and collapse the blank runs they leave behind. */
+export function stripTrailers(body: string): string {
+  return body
+    .split('\n')
+    .filter((line) => !TRAILER_RE.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function execGit(args: readonly string[]): string {
@@ -210,14 +272,21 @@ export async function runCli(cwd: string): Promise<number> {
 
   const branch = execGit(['rev-parse', '--abbrev-ref', 'HEAD']).trim();
   const headSha = execGit(['rev-parse', 'HEAD']).trim();
-  const firstCommitSubject = execGit(['log', '--reverse', '--format=%s', 'origin/main..HEAD'])
-    .split('\n')
-    .find((s) => s.length > 0);
+  const summarySha = pickSummarySha(
+    parseCommitFileLists(
+      execGit(['log', '--reverse', `--format=${RECORD_SEP}%H`, '--name-only', 'origin/main..HEAD']),
+    ),
+  );
 
-  if (firstCommitSubject === undefined) {
+  if (summarySha === undefined) {
     process.stderr.write('pnpm pr-flow: no commits ahead of origin/main on current branch.\n');
     return 1;
   }
+
+  const summaryCommit: SummaryCommit = {
+    subject: execGit(['log', '-1', '--format=%s', summarySha]).trim(),
+    body: stripTrailers(execGit(['log', '-1', '--format=%b', summarySha])),
+  };
 
   const fdSlug = session.parent ?? session.slug;
   const fd = fdSlug !== undefined ? loadFdSummary(cwd, fdSlug) : null;
@@ -249,7 +318,7 @@ export async function runCli(cwd: string): Promise<number> {
     crResults,
     verify,
     headSha,
-    firstCommitSubject,
+    summaryCommit,
     spawn: nodeSpawn(),
     onStatus: (line) => process.stderr.write(line + '\n'),
     // Parallel drain K>1: the supervisor's merge coordinator merges; this call stops at PR-open.
