@@ -244,9 +244,6 @@ resolvable base with no merge base — is discovered, and stays green.
   on **and** off; resolvable `--against` → validation passes through; no `--against` → the verify call
   is never made at all; and an argv assertion that the verify call carries `--end-of-options` (a
   ref beginning with `-` must reach git as a ref).
-- `runClones` end-to-end on the fail-open side: resolvable base whose `merge-base` fails → exit 0 with
-  the unknown-base note; no `--against` and no resolvable base → exit 0 with the unknown-base note;
-  neither path may exit 3.
 - `flaggedGroups`: instance inside → flagged; wholly outside → not; straddling → flagged; all-inside →
   flagged; overlap at exactly one shared line (boundary) → flagged; same line numbers in a *different*
   file → not.
@@ -255,7 +252,8 @@ resolvable base with no merge base — is discovered, and stays green.
 init` cases (precedent: `src/garden/detectors/__tests__/allowlist-drift.test.ts`,
 `src/prep/__tests__/prep-promote.test.ts`): committed baseline plus an added duplicate → exit 1 naming
 both spans; `clones.diffScope: false` → exit 0; a non-git directory → exit 0 with the stderr note; a
-tuned `thresholdPct` still red on its own.
+tuned `thresholdPct` still red on its own. Plus the two fail-open shapes, which must never exit 3: a
+resolvable `--against` whose `merge-base` fails, and no `--against` with no resolvable base.
 
 ## Acceptance criteria
 
@@ -299,11 +297,13 @@ tuned `thresholdPct` still red on its own.
   `src/features/phase-flip-done-cli.ts:4-29` ↔ `src/features/phase-revert-cli.ts:4-29`, 199 tokens).
   Once the job is wired, a later change touching either span is blocked until the duplication is
   resolved. Correct behaviour; noted so it is not mistaken for a bug.
-- **A narrow clone is un-gated on the no-flag path, and hard-fails on the flag path.** CI with
-  `fetch-depth: 1` or `--single-branch` often cannot resolve or relate a base. Without `--against` that
-  is a green skip with a stderr note — visible in the log, but a pass nonetheless. With `--against` it
-  is exit 3. Both are deliberate and follow from who named the base; a consumer who wants this gate
-  meaningful in CI needs `fetch-depth: 0` and an unrestricted refspec either way.
+- **A narrow clone is usually un-gated, and the failure shape depends on which half breaks.** CI with
+  `fetch-depth: 1` or `--single-branch` can fail two different ways. If the base ref itself is absent,
+  an explicit `--against` exits 3 and a resolved base exits 0 with a note. If the ref is present but
+  history is truncated (`fetch-depth: 50`), it *resolves*, so `merge-base` is what fails — and that is
+  green with a note on **both** paths, flag or no flag. So the loud failure covers only the
+  ref-missing-and-named case; every other narrow-clone shape is a silent-but-noted skip. A consumer
+  who wants this gate meaningful in CI needs `fetch-depth: 0` and an unrestricted refspec regardless.
 - **A dirty working tree can red a push of clean commits.** D6's post-image is the working tree, so
   uncommitted local edits count as "your diff" even though they are not being pushed. Consistent with
   the corpus `loadCorpus` reads — the alternative misaligns line numbers — but it is a consumer-facing
@@ -341,8 +341,9 @@ clones check: 1 group(s) duplicated in this change
 clones check: no clones.thresholdPct configured - green
 ```
 
-Exit codes: **0** green (or skipped with a stderr reason), **1** duplication found, **3** an explicit
-`--against <ref>` that does not resolve.
+Exit codes: **0** green (or skipped with a stderr reason), **1** duplication found, **3** a usage error
+— today an unknown flag or a non-numeric `--min-tokens` (`src/clones/clones-cli.ts:79-85`), and now
+also an explicit `--against <ref>` that does not resolve.
 
 Runs automatically as the `noldor-clones` pre-push job. Opt out in `.noldor/config.json`:
 
