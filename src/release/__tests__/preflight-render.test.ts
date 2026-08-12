@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { NOT_RUN_BY_PREFLIGHT, renderPreflight } from '../preflight-render.js';
+import { onlyVolatileSectionsChanged } from '../sdd-report-diff.js';
 import type { PreflightRow } from '../preflight-types.js';
 
 const row = (over: Partial<PreflightRow> & Pick<PreflightRow, 'id' | 'status'>): PreflightRow => ({
@@ -76,5 +77,23 @@ describe('renderPreflight', () => {
     ]);
     expect(out).not.toMatch(/FAIL/);
     expect(out.split('\n')[0]).toBe('preflight: 0 blocking, 0 warn, 2 ok, 0 skipped');
+  });
+});
+
+// Regression: the sdd-report row compared a raw `committed` (trailing 0x0a)
+// against a trimmed regen, and maskEnvironmental never touches the trailing
+// newline — so masked strings could never be equal and every volatile-only
+// drift reported blocking, silently regressing the allowance the row claims to
+// preserve. Asserted here against the shared masking helper.
+describe('onlyVolatileSectionsChanged trim symmetry', () => {
+  it('is true for identical content differing only by a trailing newline once both sides are trimmed', () => {
+    const body = '# SDD report\n\n## Gate compliance\n\nReviews skipped: 3\n';
+    expect(onlyVolatileSectionsChanged(body.trim(), `${body}\n`.trim())).toBe(true);
+  });
+
+  it('is false when a non-volatile section really changed', () => {
+    const a = '# SDD report\n\n## Coverage\n\nfeatures: 10\n';
+    const b = '# SDD report\n\n## Coverage\n\nfeatures: 11\n';
+    expect(onlyVolatileSectionsChanged(a.trim(), b.trim())).toBe(false);
   });
 });

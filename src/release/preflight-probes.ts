@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
-import { loadConfigSync, resolveSessionTtlHours } from '../core/config.js';
+import { loadConfigSync, resolveSessionTtlHours, type NoldorConfig } from '../core/config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { isSessionStale, readSession } from '../core/session.js';
 import {
@@ -30,6 +30,9 @@ import { onlyVolatileSectionsChanged } from './sdd-report-diff.js';
 import type { PreflightRow, PreflightRowId } from './preflight-types.js';
 
 const execFileP = promisify(execFile);
+
+/** Ceiling for network-bound probes (`gh auth status`, `npm view`). */
+const PROBE_TIMEOUT_MS = 15_000;
 
 /** Report order: cheapest local state first, subprocess-backed gates last. */
 export const ALL_ROW_IDS: readonly PreflightRowId[] = [
@@ -56,6 +59,8 @@ export interface ProbeContext {
   treeState: () => Promise<TreeState>;
   /** Memoized `findPreviousTag` — `cr-gate` and `npm-name` both need it. */
   previousTag: () => Promise<string>;
+  /** Memoized `.noldor/config.json` — three rows read it. */
+  config: () => NoldorConfig | null;
 }
 
 /**
@@ -72,6 +77,7 @@ export function makeProbeContext(base: {
 }): ProbeContext {
   let tree: Promise<TreeState> | null = null;
   let tag: Promise<string> | null = null;
+  let cfg: { v: NoldorConfig | null } | null = null;
   return {
     ...base,
     // Both take the context's cwd, not process.cwd(): a probe must evaluate the
@@ -79,6 +85,9 @@ export function makeProbeContext(base: {
     // developer's own working tree.
     treeState: () => (tree ??= inspectTreeState(base.cwd)),
     previousTag: () => (tag ??= findPreviousTag(base.cwd)),
+    // Explicit path: loadConfigSync's default is RELATIVE, so a bare call would
+    // resolve against process.cwd() instead of the repo we were handed.
+    config: () => (cfg ??= { v: loadConfigSync(join(base.cwd, '.noldor/config.json')) }).v,
   };
 }
 
@@ -156,7 +165,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
         fix: 'Harmless — the release overwrites it. If a release died mid-way, see the release-state row and `pnpm release --resume`.',
       };
     }
-    const ttlHours = resolveSessionTtlHours(loadConfigSync(join(ctx.cwd, '.noldor/config.json')));
+    const ttlHours = resolveSessionTtlHours(ctx.config());
     const stale = isSessionStale(session, ctx.nowMs, ttlHours);
     const slug = session.slug ?? session.parent ?? '(none)';
     return {
@@ -254,15 +263,22 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
 
   'gh-auth': async () => {
     try {
-      await execFileP('gh', ['--version']);
-      await execFileP('gh', ['auth', 'status']);
+      // Bounded: a gh keychain prompt or hung network would otherwise stall the
+      // whole aggregate with no row to blame it on.
+      await execFileP('gh', ['--version'], { timeout: PROBE_TIMEOUT_MS });
+      await execFileP('gh', ['auth', 'status'], { timeout: PROBE_TIMEOUT_MS });
       return { id: 'gh-auth', status: 'ok', detail: 'gh present and authenticated' };
-    } catch {
+    } catch (err) {
+      const timedOut = (err as { killed?: boolean }).killed === true;
       return {
         id: 'gh-auth',
         status: 'blocking',
-        detail: 'gh CLI missing or unauthenticated',
-        fix: 'Install from https://cli.github.com/ then run `gh auth login`.',
+        detail: timedOut
+          ? `gh probe timed out after ${PROBE_TIMEOUT_MS}ms`
+          : 'gh CLI missing or unauthenticated',
+        fix: timedOut
+          ? 'Run `gh auth status` by hand — it may be waiting on a keychain prompt.'
+          : 'Install from https://cli.github.com/ then run `gh auth login`.',
       };
     }
   },
@@ -350,10 +366,18 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
         fix: 'Commit the generated docs/sdd-report.md.',
       };
     }
-    if (committed.trim() === regenerated.trim()) {
+    // BOTH sides trimmed. `maskEnvironmental` only pattern-replaces and never
+    // touches a trailing newline, so comparing a raw `committed` (which ends
+    // 0x0a) against a trimmed regen can never be equal — that asymmetry silently
+    // turned every volatile-only drift into a blocking row, regressing the exact
+    // allowance this row's ok-detail claims to preserve. The old ladder compared
+    // both sides trimmed.
+    const committedTrimmed = committed.trim();
+    const regeneratedTrimmed = regenerated.trim();
+    if (committedTrimmed === regeneratedTrimmed) {
       return { id: 'sdd-report', status: 'ok', detail: 'report matches the committed copy' };
     }
-    if (onlyVolatileSectionsChanged(committed, regenerated.trim())) {
+    if (onlyVolatileSectionsChanged(committedTrimmed, regeneratedTrimmed)) {
       return {
         id: 'sdd-report',
         status: 'ok',
@@ -407,11 +431,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       from: previousTag,
       to: 'HEAD',
       cwd: ctx.cwd,
-      // Explicit path: loadConfigSync's default is RELATIVE, so a bare call
-      // resolves against process.cwd() and would apply another repo's
-      // crGateExemptCommits (or ignore this one's, flipping the row to blocking).
-      exemptions:
-        loadConfigSync(join(ctx.cwd, '.noldor/config.json'))?.release?.crGateExemptCommits ?? [],
+      exemptions: ctx.config()?.release?.crGateExemptCommits ?? [],
     });
     if (result.ok) {
       const exempt = result.exempted.length > 0 ? ` (${result.exempted.length} exempted)` : '';
@@ -434,7 +454,7 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
    * heuristic green that moderation later overrules.
    */
   'npm-name': async (ctx) => {
-    const publishCfg = loadConfigSync(join(ctx.cwd, '.noldor/config.json'))?.release?.publish;
+    const publishCfg = ctx.config()?.release?.publish;
     if (!publishCfg?.enabled) {
       return { id: 'npm-name', status: 'skipped', detail: 'release.publish.enabled is false' };
     }
@@ -444,7 +464,9 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
 
     let resolved: boolean;
     try {
-      await execFileP('npm', ['view', name, 'versions', '--json', '--registry', registry]);
+      await execFileP('npm', ['view', name, 'versions', '--json', '--registry', registry], {
+        timeout: PROBE_TIMEOUT_MS,
+      });
       resolved = true;
     } catch (err) {
       const blob = `${(err as { stderr?: string }).stderr ?? ''}${(err as Error).message ?? ''}`;

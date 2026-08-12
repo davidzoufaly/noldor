@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { readSession, writeSession } from '../../core/session.js';
-import { writeGardenReceipt } from '../../garden/garden-receipt.js';
+import { readGardenReceipt, writeGardenReceipt } from '../../garden/garden-receipt.js';
 import { blockingIds, recordOverrides, runPreflight } from '../preflight.js';
 import { SAFE_FIXES } from '../preflight-fix.js';
 import { writeReleaseState } from '../release-state.js';
@@ -192,6 +192,22 @@ describe('runPreflight', () => {
       if (original === undefined) delete process.env.RELEASE_SKIP_GATE_COMPLIANCE;
       else process.env.RELEASE_SKIP_GATE_COMPLIANCE = original;
     }
+  });
+
+  /**
+   * `--fix` must never claim a remedy it did not perform. `autoStampOnCleanDetect`
+   * logs "receipt NOT auto-stamped" on failure, which contains the substring
+   * "auto-stamped" — so the old `msg.includes('auto-stamped')` success check
+   * reported every detect failure as a successful stamp.
+   */
+  it('does not claim a garden re-stamp when detect is not clean', async () => {
+    // No .noldor/config.json and no graph in this fixture, so `garden detect`
+    // exits non-zero — the stamp must be declined AND unreported.
+    const logged: string[] = [];
+    const rows = await run(cwd, { fixes: ['garden-receipt'], log: (m) => logged.push(m) });
+    expect(logged.join('\n')).not.toMatch(/stamped the garden receipt/);
+    expect(byId(rows, 'garden-receipt').status).toBe('blocking');
+    expect(readGardenReceipt(cwd)).toBeNull();
   });
 
   it('tags an override row once even when the fix pass evaluates it twice', async () => {

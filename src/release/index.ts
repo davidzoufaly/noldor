@@ -114,6 +114,9 @@ const RELEASE_SURFACE_FILES = new Set([
 /** Release-owned directories (marker fills + noldor pages). */
 const RELEASE_SURFACE_PREFIXES = ['docs/features/', 'docs/noldor/'];
 
+/** Every flag `pnpm release` accepts. Anything else is an operator typo. */
+const KNOWN_FLAGS: ReadonlySet<string> = new Set(['--resume', '--preflight', '--fix']);
+
 /**
  * Finish an interrupted release from wherever it died. Check-then-act ladder
  * (commit → tag → push → GitHub Release → publish wait) driven ONLY by the state file written
@@ -292,6 +295,17 @@ async function main(): Promise<void> {
   const preflightOnly = argv.has('--preflight');
   const wantFix = argv.has('--fix');
 
+  // Reject anything unrecognised rather than ignore it: a typo'd flag that
+  // silently does nothing is worse than an error, because the operator believes
+  // the flag took effect.
+  const unknown = [...argv].filter((a) => !KNOWN_FLAGS.has(a));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unrecognised flag(s): ${unknown.join(', ')}. ` +
+        `Supported: ${[...KNOWN_FLAGS].join(', ')}.`,
+    );
+  }
+
   // Refuse the combination rather than pick a winner by branch order. Checked
   // before the config load so a broken config cannot mask the flag conflict.
   if (preflightOnly && resume) {
@@ -301,11 +315,21 @@ async function main(): Promise<void> {
     );
   }
 
+  // `--fix` only means something to the aggregate. Accepting it silently on a
+  // real release would imply the release auto-remediates on demand, which it
+  // deliberately does not (it only ever re-stamps the garden receipt).
+  if (wantFix && !preflightOnly) {
+    throw new Error(
+      '--fix only applies to --preflight. Run `pnpm release --preflight --fix` to apply the safe ' +
+        'remedies, then `pnpm release` once the report is green.',
+    );
+  }
+
   const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
 
   // --preflight reports and exits. It never enters withReleaseSession, so it
-  // writes no session marker — and with `sddReportOut: 'temp'` it leaves no
-  // tracked file changed either.
+  // writes no session marker, and every probe is side-effect free, so it leaves
+  // no tracked file changed either.
   if (preflightOnly) {
     const rows = await runPreflight({
       cwd: process.cwd(),

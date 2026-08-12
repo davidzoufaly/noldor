@@ -31,13 +31,19 @@ function defaultStamp({ cwd }: { cwd: string }): void {
  * and `pnpm release --preflight --fix` opts into the same remedy. Reusing this
  * function keeps one definition of "safe to stamp".
  *
- * Failure modes — in every one the receipt is left alone and the aggregate's
- * `garden-receipt` row reports the canonical stale-receipt reason:
+ * Failure modes — in every one the receipt is left alone, `false` is returned,
+ * and the aggregate's `garden-receipt` row reports the canonical stale-receipt
+ * reason:
  * - detect surfaces findings → skip stamp.
  * - detect subprocess error → skip stamp.
  * - stamp itself throws (disk full, perms) → log + continue.
+ *
+ * @returns `true` only when the receipt was actually written. Callers must use
+ *   this rather than matching on log text: every failure line here contains the
+ *   substring "auto-stamped" ("receipt NOT auto-stamped"), so a `includes()`
+ *   check reads every failure as a success.
  */
-export async function autoStampOnCleanDetect(opts: AutoStampOptions): Promise<void> {
+export async function autoStampOnCleanDetect(opts: AutoStampOptions): Promise<boolean> {
   const runDetect = opts.runDetect ?? runGardenDetectViaCli;
   const stamp = opts.stamp ?? defaultStamp;
   const log = opts.log ?? console.log;
@@ -47,18 +53,20 @@ export async function autoStampOnCleanDetect(opts: AutoStampOptions): Promise<vo
     try {
       stamp({ cwd: opts.cwd });
       log('Garden receipt auto-stamped at release start (detect clean).');
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      log(`Garden auto-stamp failed: ${msg}. Falling through to ensureGardenFresh gate.`);
+      log(`Garden auto-stamp failed: ${msg}. The garden-receipt row will surface it.`);
+      return false;
     }
-    return;
   }
   if (detect.exitCode !== 0) {
     log(
       `garden:detect exited ${detect.exitCode}; receipt NOT auto-stamped. ` +
-        `Falling through to ensureGardenFresh gate.`,
+        `The garden-receipt row will surface it.`,
     );
-    return;
+    return false;
   }
   log(`garden:detect surfaced ${detect.findings.length} finding(s); receipt NOT auto-stamped.`);
+  return false;
 }

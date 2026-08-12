@@ -39,9 +39,10 @@ export interface TreeState {
  * report row instead of collapsing into whichever throw fired first.
  *
  * Fetches `origin main` before comparing, exactly as the throwing form did —
- * a sync verdict against a stale remote ref would be worthless. A repo with no
- * `origin` (a scratch fixture) reports `ahead: 0, behind: 0`: with nothing to
- * compare against there is no divergence to claim.
+ * a sync verdict against a stale remote ref would be worthless. When
+ * `origin/main` cannot be resolved at all the counts come back 0 but
+ * `remoteMissing` is set, and callers treat that as a hard failure rather than a
+ * benign skip: "could not verify" must never read as "in sync".
  *
  * `cwd` is injectable so probes evaluate the repo they were handed rather than
  * whatever `process.cwd()` happens to be.

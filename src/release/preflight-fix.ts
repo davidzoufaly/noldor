@@ -96,12 +96,9 @@ async function fixOriginSync(cwd: string): Promise<string | null> {
  * reimplemented so there is one definition of "safe to stamp".
  */
 async function fixGardenReceipt(cwd: string): Promise<string | null> {
-  let stamped = false;
-  await autoStampOnCleanDetect({
-    cwd,
-    log: (msg) => {
-      if (msg.includes('auto-stamped')) stamped = true;
-    },
-  });
+  // Trust the return value, never the log text: every failure line from
+  // autoStampOnCleanDetect contains "auto-stamped" ("receipt NOT auto-stamped"),
+  // so a substring match reported each detect failure as a successful stamp.
+  const stamped = await autoStampOnCleanDetect({ cwd, log: () => {} });
   return stamped ? 'stamped the garden receipt (garden detect was clean)' : null;
 }
