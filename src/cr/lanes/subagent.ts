@@ -1,4 +1,7 @@
 import { join } from 'node:path';
+import { discoverChangedFiles } from '../../core/branch-added.js';
+import { renderBrief, unionResults } from '../../rules/brief.js';
+import { runResolve } from '../../rules/cli-cores.js';
 import { writeJsonAtomic } from '../atomic-write.js';
 import type { Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
@@ -72,6 +75,38 @@ export function parseSubagentMarkdown(md: string): ParsedMarkdown | null {
   };
 }
 
+/**
+ * Pre-render the cascade rules that BIND the changed files, for the reviewer
+ * prompt. `undefined` (field omitted) whenever there is nothing binding to say.
+ *
+ * `--kind code` only: a spec or plan artifact has no source files to resolve
+ * rules against. Best-effort — a git failure here must not turn a review into a
+ * lane error, so it degrades to no rules section rather than throwing.
+ *
+ * The empty check is on the resolved bucket, never on `renderBrief`'s output:
+ * that function returns an explanatory "no rules match" line by contract, so an
+ * emptiness test on the string would ship that line into every prompt.
+ */
+function resolveBindingRules(input: LaneInput, baseSha: string): string | undefined {
+  if (input.kind !== 'code') return undefined;
+  let files: string[];
+  try {
+    files = discoverChangedFiles({
+      cwd: input.repoRoot,
+      base: baseSha,
+      head: input.artifactSha,
+    });
+  } catch {
+    return undefined;
+  }
+  if (files.length === 0) return undefined;
+  const { enforce } = unionResults(
+    files.map((file) => runResolve(input.repoRoot, { file, stage: 'code' })),
+  );
+  if (enforce.length === 0) return undefined;
+  return renderBrief({ enforce, injected: [] }, { files, stage: 'code', enforceOnly: true });
+}
+
 export async function runSubagent(input: LaneInput): Promise<LaneResult> {
   const sinkPath = join(
     input.repoRoot,
@@ -92,6 +127,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
         return '(no FD — fast-track change; review the diff on its own merits)';
       throw err;
     });
+    const rulesBrief = resolveBindingRules(input, baseShaForSlot);
     markdown = await dispatchSubagent({
       artifact: input.artifact,
       fdSummary,
@@ -99,6 +135,7 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
       headSha: input.artifactSha,
       description: `${input.kind} for FD ${input.slug}`,
       ...(input.reviewProfile ? { reviewProfile: input.reviewProfile } : {}),
+      ...(rulesBrief !== undefined ? { rulesBrief } : {}),
       ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
     });
   } catch (err) {

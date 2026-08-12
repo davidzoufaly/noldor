@@ -56,6 +56,26 @@ describe('buildPrompt review profile', () => {
     }
   });
 
+  it('carries the binding-rules section only when the caller supplies one', () => {
+    // The author is told to read these before writing (`rules brief`); handing
+    // the reviewer the same text is what makes `enforce` more than a suggestion.
+    const withRules = buildPrompt({ ...base, rulesBrief: '# Rules for src/a.ts\nNO WIDE CASTS.' });
+    expect(withRules).toMatch(/Binding rules for the files under review/);
+    expect(withRules).toMatch(/repo policy, not preference/);
+    expect(withRules).toContain('NO WIDE CASTS.');
+
+    // Omitted field → no section at all, and no stray "no rules" paragraph.
+    const without = buildPrompt(base);
+    expect(without).not.toMatch(/Binding rules for the files under review/);
+    expect(without).not.toMatch(/no rules match/);
+  });
+
+  it('keeps the range line intact when a binding-rules section is inserted before it', () => {
+    const p = buildPrompt({ ...base, rulesBrief: 'RULE TEXT' });
+    expect(p).toMatch(/Range under review: /);
+    expect(p.indexOf('RULE TEXT')).toBeLessThan(p.indexOf('Range under review:'));
+  });
+
   it('ties the reviewer-side marker grammar to the lazy-decision-ladder rule file', () => {
     // The author half of the noldor:cut contract is prose in the rule store;
     // this pins both halves to CUT_MARKER_TOKEN so a rename in either place

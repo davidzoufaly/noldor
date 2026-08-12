@@ -247,13 +247,13 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 The engineering-rules cascade. Full model in [`rules.md`](rules.md).
 
-### `rules:resolve` / `rules:list` / `rules:validate`
+### `rules:resolve` / `rules:brief` / `rules:list` / `rules:validate`
 
-- **Trigger:** `pnpm noldor rules resolve --file <path> --stage <stage>` (JSON `{ injected, enforce }`); `pnpm noldor rules list` (tab-separated rule table); `pnpm noldor rules validate` (store integrity gate).
-- **Inputs:** the `.noldor/rules/<id>.md` store (frontmatter: `id`, `applies-to` globs, `stage`, `enforce`, `links`).
-- **Outputs:** `resolve` returns the file/stage-scoped rules split into inject (advisory) and enforce buckets, ordered by glob specificity; `list` dumps the store; `validate` exits non-zero on schema / id-filename / parse errors.
-- **When to use:** `validate` as the store integrity check; `resolve` to surface rules relevant to a given edit; `list` to inspect the store.
-- **Source:** [`src/rules/cli-resolve.ts`](../../src/rules/cli-resolve.ts), [`src/rules/cli-list.ts`](../../src/rules/cli-list.ts), [`src/rules/cli-validate.ts`](../../src/rules/cli-validate.ts)
+- **Trigger:** `pnpm noldor rules resolve --file <path> --stage <stage>` (JSON `{ injected, enforce }`); `pnpm noldor rules brief --file <path> [--file <path> ...] [--stage <stage>] [--json]` (author-facing render); `pnpm noldor rules list` (tab-separated rule table); `pnpm noldor rules validate` (store integrity gate).
+- **Inputs:** the `.noldor/rules/<id>.md` store (frontmatter: `id`, `applies-to` globs, `stage`, `enforce`, `links`); `brief` also reads/writes `.noldor/session.json` to stamp `injectedRules`.
+- **Outputs:** `resolve` returns the file/stage-scoped rules split into inject (advisory) and enforce buckets, ordered by glob specificity; `brief` renders the same resolution as markdown with `ENFORCE` first and unions repeated `--file`, exiting 3 when `--file` is absent; `list` dumps the store; `validate` exits non-zero on schema / id-filename / parse errors.
+- **When to use:** `brief` before the first edit to a file (gate Step 3.5) - the binding-rules delivery the code-stage CR reviews against; `validate` as the store integrity check; `resolve` for machine-readable resolution; `list` to inspect the store.
+- **Source:** [`src/rules/cli-resolve.ts`](../../src/rules/cli-resolve.ts), [`src/rules/cli-brief.ts`](../../src/rules/cli-brief.ts), [`src/rules/brief.ts`](../../src/rules/brief.ts), [`src/rules/cli-list.ts`](../../src/rules/cli-list.ts), [`src/rules/cli-validate.ts`](../../src/rules/cli-validate.ts)
 
 ## Code review (CR)
 

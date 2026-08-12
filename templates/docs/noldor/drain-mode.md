@@ -53,6 +53,20 @@ dependency, so the prompt stays a thin pointer.
 - Do the work on that branch and run every noldor command from inside its
   checkout/worktree.
 
+## Rule brief before editing
+
+- Before the first `Edit`/`Write` to a file, run
+  `pnpm noldor rules brief --file <path> --stage code` (repeat `--file` for a
+  known set — one call). The `ENFORCE` section is **binding** repo policy, not
+  preference; `ADVISORY` is context.
+- `--file` is required. A file-scoped rule never matches a query without a file,
+  so a stage-only brief reports "no rules match" however full the store is.
+- Nothing blocks a skipped brief — but the code-stage CR resolves the same rules
+  from the changed files, so skipping it converts guidance into findings.
+- This is the runner-neutral half of rule injection: a codex/opencode
+  implementer child gets it from this page, a claude child from
+  `/noldor-gate` Step 3.5. Keep the two renderings in sync.
+
 ## Roadmap retirement
 
 - Implement the entry, then remove its roadmap block **on the branch**:

@@ -1,6 +1,6 @@
 // @tests: autonomous-plan-to-pr-merge, release-script-self-provisions-its-own-session-marker, release-sweep-process-hardening
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -8,6 +8,7 @@ import {
   writeSession,
   clearSession,
   setAutonomous,
+  stampInjectedRules,
   touchSession,
   isSessionStale,
   SessionMarkerSchema,
@@ -260,5 +261,59 @@ describe('SessionMarker enhancement field', () => {
         startedAt: '2026-05-25T00:00:00Z',
       }),
     ).not.toThrow();
+  });
+});
+
+describe('stampInjectedRules', () => {
+  const repoWithMarker = (m: SessionMarker | object): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'qfs-stamp-'));
+    mkdirSync(join(dir, '.noldor'));
+    writeFileSync(join(dir, '.noldor', 'session.json'), JSON.stringify(m), 'utf8');
+    return dir;
+  };
+  const marker: SessionMarker = { path: 'fast-track', startedAt: '2026-08-12T00:00:00.000Z' };
+
+  it('unions ids into the marker, sorted, preserving every other field', () => {
+    const dir = repoWithMarker({ ...marker, slug: 'thing' });
+    stampInjectedRules(dir, ['b-rule', 'a-rule']);
+    stampInjectedRules(dir, ['a-rule', 'c-rule']);
+    const after = readSession(dir);
+    expect(after?.injectedRules).toEqual(['a-rule', 'b-rule', 'c-rule']);
+    expect(after?.slug).toBe('thing');
+    expect(after?.startedAt).toBe(marker.startedAt);
+  });
+
+  it('no-ops with no marker, so a brief outside a gate session still works', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qfs-stamp-'));
+    expect(() => stampInjectedRules(dir, ['a-rule'])).not.toThrow();
+    expect(existsSync(join(dir, '.noldor', 'session.json'))).toBe(false);
+  });
+
+  it('no-ops on an empty id list rather than rewriting the marker', () => {
+    const dir = repoWithMarker(marker);
+    stampInjectedRules(dir, []);
+    expect(readSession(dir)?.injectedRules).toBeUndefined();
+  });
+
+  it('reports an unstampable marker through onError instead of throwing', () => {
+    // `specs-only-*` without `markerVersion: 2` — readSession's superRefine
+    // throws, and that is the degraded session where a brief matters most.
+    const dir = repoWithMarker({
+      path: 'specs-only-new',
+      slug: 'x',
+      startedAt: '2026-08-12T00:00:00Z',
+    });
+    const seen: string[] = [];
+    expect(() => stampInjectedRules(dir, ['a-rule'], (m) => seen.push(m))).not.toThrow();
+    expect(seen[0]).toContain('unstampable');
+  });
+
+  it('reports a torn marker through onError', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qfs-stamp-'));
+    mkdirSync(join(dir, '.noldor'));
+    writeFileSync(join(dir, '.noldor', 'session.json'), '{ truncated', 'utf8');
+    const seen: string[] = [];
+    expect(() => stampInjectedRules(dir, ['a-rule'], (m) => seen.push(m))).not.toThrow();
+    expect(seen).toHaveLength(1);
   });
 });

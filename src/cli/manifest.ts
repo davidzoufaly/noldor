@@ -152,6 +152,10 @@ export const MANIFEST: Record<string, Group> = {
     desc: 'Engineering rule store: resolve / list / validate',
     subs: {
       resolve: { src: 'rules/cli-resolve.ts', desc: 'Resolve rules for --file / --stage (JSON)' },
+      brief: {
+        src: 'rules/cli-brief.ts',
+        desc: 'Print the rules binding an edit: brief --file <path> [--file …] [--stage] [--json]',
+      },
       list: { src: 'rules/cli-list.ts', desc: 'List all rules in the store' },
       validate: { src: 'rules/cli-validate.ts', desc: 'Validate the rule store' },
     },

@@ -10,6 +10,17 @@ export interface DispatchInput {
   headSha: string;
   description: string;
   reviewProfile?: ReviewProfile;
+  /**
+   * Pre-rendered text of the cascade rules that BIND the files under review —
+   * `renderBrief(..., { enforceOnly: true })`, resolved by the caller because
+   * that is where git access lives (same arrangement as {@link fdSummary}).
+   *
+   * Omitted when the resolved enforce bucket is empty. The caller decides that
+   * from the buckets, never by testing this string: `renderBrief` returns an
+   * explanatory "no rules match" line rather than empty output, so an
+   * emptiness test here would ship exactly the paragraph the omission avoids.
+   */
+  rulesBrief?: string;
   /** Wall-clock cap; {@link DEFAULT_DISPATCH_TIMEOUT_MS} when the caller omits it. */
   timeoutMs?: number;
 }
@@ -94,11 +105,19 @@ export function buildPrompt(input: DispatchInput): string {
   const cutMarkerGuide = profile.dimensions.some((d) => CUT_MARKER_DIMENSIONS.has(d))
     ? CUT_MARKER_GUIDE
     : '';
+  // The author is told to read these before writing (`rules brief`); handing the
+  // reviewer the same text is what makes the enforce bucket more than a
+  // suggestion — a violation is caught here even when the brief was skipped.
+  const rulesSection =
+    input.rulesBrief === undefined
+      ? ''
+      : `\nBinding rules for the files under review — a violation of any of these is a finding, ` +
+        `reported under the dimension it belongs to (they are repo policy, not preference):\n\n${input.rulesBrief}\n`;
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
 
 FD summary context:
 ${input.fdSummary}
-
+${rulesSection}
 Range under review: ${input.baseSha}..${input.headSha}. If they differ, review only the diff; if equal, review the whole artifact.
 
 Review along these dimensions only — do not flag concerns outside them:

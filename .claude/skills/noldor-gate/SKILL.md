@@ -174,6 +174,16 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
 3. **Session marker.** Always write `.noldor/session.json` (use `src/core/session.ts`).
 
+3.5. **Rule brief before the first edit to a file (every path, every runner).** Before the first `Edit`/`Write` to a file in this session, run:
+
+   `pnpm noldor rules brief --file <path> --stage code`
+
+   Pass one `--file` per path when you already know the set (the spec's "Files touched", a plan task's file list) — repeated `--file` unions into one call. Treat the `ENFORCE` section as **binding**: it is repo policy, not preference, and the code-stage CR reviews the diff against the same rule text (Step 4 resolves it from the changed files automatically). `ADVISORY` is context.
+
+   `--file` is required and there is no stage-only form: a file-scoped rule never matches a query without a file ([`src/rules/resolve.ts`](../../../src/rules/resolve.ts) `fileMatches`), so a stage-only brief would report "no rules match" however full the store is. The command also stamps `session.injectedRules` with what it surfaced — an exposure record, never a compliance claim.
+
+   Re-run it when the session starts touching a file family it has not briefed on (e.g. moving from `src/**/*.ts` into `src/**/*.test.ts`, which carries its own rules). Skipping the brief does not block anything — Step 4's reviewer still holds the rule text — but then the rules arrive as findings instead of as guidance.
+
 4. **End-of-flow (PR flow).** When the user signals "ready to ship":
 
 - **Refresh the feature-MD body (`/noldor-draft-feature-md --refresh`)** for all FD-carrying paths, *before* the phase-flip below, so refreshed `User Story` / `Usage` ride the same commit and are seen by the code-stage CR. Resolve target + scope by path:

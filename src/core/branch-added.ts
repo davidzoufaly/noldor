@@ -42,6 +42,53 @@ export interface DiscoverAddedFilesOptions {
 }
 
 /**
+ * Run a path-listing git command and split its output into clean paths.
+ *
+ * `-c core.quotepath=false`: with the default on, git C-quotes non-ASCII paths
+ * (`"docs/design/specs/caf\303\251.md"`), which would never match a caller's
+ * fs-derived path — the file would be silently skipped.
+ */
+function namesFrom(run: RunGit, args: readonly string[]): string[] {
+  return git(run, ['-c', 'core.quotepath=false', ...args])
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+}
+
+export interface DiscoverChangedFilesOptions extends DiscoverAddedFilesOptions {
+  /** Right side of the range. Default: `HEAD`. */
+  head?: string;
+}
+
+/** The two things every range query resolves first: a runner and a base ref. */
+function runnerAndBase(options: DiscoverAddedFilesOptions): { run: RunGit; base: string } {
+  const run = options.runGit ?? defaultRunGit(options.cwd);
+  return { run, base: options.base ?? resolveDefaultBase(run) };
+}
+
+/**
+ * Repo-relative paths CHANGED between `base` and `head`, deletions excluded.
+ *
+ * Unlike {@link discoverAddedFiles} this compares the two endpoint trees
+ * directly rather than going through the merge base — and that is correct here
+ * rather than inconsistent: callers pass the exact range a reviewer was told to
+ * review (`baseSha..headSha`), so "changed" must mean "differs between these two
+ * trees", which is the question the reviewer is answering.
+ *
+ * `--diff-filter=d` (lowercase: *exclude* deletions) because callers resolve
+ * per-file rules against the result — a path deleted by the range does not exist
+ * at `head`, so briefing anyone on it is meaningless. `-M` so a rename reports
+ * only its destination.
+ *
+ * @throws When git fails: bad ref, not a repository.
+ */
+export function discoverChangedFiles(options: DiscoverChangedFilesOptions = {}): string[] {
+  const { run, base } = runnerAndBase(options);
+  const head = options.head ?? 'HEAD';
+  return namesFrom(run, ['diff', '--diff-filter=d', '--name-only', '-M', base, head]);
+}
+
+/**
  * The remote's default branch ref, e.g. `origin/main` or `origin/master`.
  *
  * Reads `refs/remotes/origin/HEAD` (written by `git clone` / `git remote set-head`)
@@ -75,23 +122,17 @@ export function resolveDefaultBase(run: RunGit): string {
 export function discoverAddedFiles(options: DiscoverAddedFilesOptions = {}): string[] {
   // Callers filter the result themselves — one git round-trip serves any number
   // of path prefixes.
-  const { cwd } = options;
-  const run = options.runGit ?? defaultRunGit(cwd);
-  const base = options.base ?? resolveDefaultBase(run);
+  const { run, base } = runnerAndBase(options);
   const mergeBase = git(run, ['merge-base', base, 'HEAD']).trim();
   if (mergeBase.length === 0) {
     throw new Error(`git merge-base ${base} HEAD returned no commit`);
   }
-  // `-c core.quotepath=false`: with the default on, git C-quotes non-ASCII paths
-  // (`"docs/design/specs/caf\303\251.md"`), which would never match a caller's
-  // fs-derived path — the artifact would be silently skipped.
   // `-M`: with rename detection off (diff-tree's default) a file this branch
   // merely MOVED reports as added at its new path. "Added by this branch" must
   // mean introduced here, not relocated here — flip-time archival moves specs, so
   // without this an archived path would read as a fresh addition.
-  const out = git(run, [
-    '-c',
-    'core.quotepath=false',
+  // The quotepath guard lives in `namesFrom`.
+  return namesFrom(run, [
     'diff-tree',
     '--diff-filter=A',
     '--name-only',
@@ -100,10 +141,6 @@ export function discoverAddedFiles(options: DiscoverAddedFilesOptions = {}): str
     mergeBase,
     'HEAD',
   ]);
-  return out
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
 }
 
 /**
