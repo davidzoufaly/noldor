@@ -28,6 +28,16 @@ gate end-of-flow (any path)
 
 **The sync belongs to the main workspace, never to a worktree.** `git checkout main` from a linked worktree always fails — `fatal: 'main' is already used by worktree at <main-workspace>` — because the main checkout holds the branch. So every post-merge local step is worktree-aware: the direct-merge fallback withholds `gh pr merge --delete-branch` (see [Auto-merge fallback](#auto-merge-fallback)), and `noldor prep promote --ship` skips its own `checkout main` + `branch -D` + fast-forward leg outright, reporting `local main sync skipped — run from a linked worktree, sync from the main workspace. Local branch <branch> left in place there — remove it with: git branch -D <branch>` (the note names the leftover branch because the skip drops the `branch -D` too). Both use the same `isLinkedWorktree` probe, which warns to stderr and falls back to main-checkout behaviour if `git rev-parse --path-format=absolute` is unavailable (git < 2.31).
 
+## Where the title and Summary come from
+
+`composeTitle` and the Summary section of `composeBody` both read `PrFlowInput.summaryCommit` — the **first commit ahead of the base that touches something other than `docs/roadmap.md`**, resolved by `pickSummarySha` in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts).
+
+That predicate exists because `/noldor-gate` retires an entry's roadmap block *before* implementing it (skill Step 2, "Roadmap-entry retirement"), so the oldest commit on a drained fast-track branch is bookkeeping. Sourcing the title from the first commit put `docs(roadmap): retire <slug> — shipped via fast-track (no FD)` on every drained PR and never named the change that shipped. A retirement-only branch has no substantive commit and keeps the first one.
+
+On FD-carrying paths the Summary is the FD's own `## Summary` prose and the summary commit only supplies the title. On no-FD paths (`fast-track`, `micro-chore`) the Summary is the summary commit's **subject and body**, with `Noldor-*` / `Co-authored-by` / `Signed-off-by` trailers stripped. The body rides along because the `pr-summary-why-how-what` rule requires why, how and what, and a subject line is what-only — `composeBody` composes deterministically and cannot author the why or the how, so it surfaces the text whoever wrote the commit already produced. An empty body degrades to a subject-only Summary rather than filler.
+
+Practical consequence: **on a fast-track branch, the implementation commit's message is the PR summary.** Write it accordingly.
+
 ## One-time operator setup
 
 1. **Install `gh`.** macOS: `brew install gh`. Other platforms: see [cli.github.com](https://cli.github.com/).
@@ -69,7 +79,7 @@ The `/noldor-gate` Step 4 path invokes `pnpm noldor pr-flow`. If the CLI exits n
 ```bash
 git push --force-with-lease --set-upstream origin "$(git rev-parse --abbrev-ref HEAD)"
 gh pr create --base main --head "$(git rev-parse --abbrev-ref HEAD)" \
-  --title "<first commit subject>" \
+  --title "<summary commit subject — see Where the title and Summary come from>" \
   --body "<paste from prior gate flow or write inline>"
 gh pr merge "$(gh pr view --json url --jq .url)" --auto --squash
 ```
