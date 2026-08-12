@@ -34,22 +34,6 @@ Three command families build filesystem paths from an unchecked positional argum
 
 (all three confirmed by static path-resolution probe in the read-only audit 2026-08-12)
 
-### Docs Link Gate Is Red and Blind to Design Artifacts
-
-- id: Q-0098
-- area: docs
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: high
-- confidence: high
-
-A fresh `pnpm noldor docs check` reports 15 markdown files with broken internal links, so the repo's own completion gate is red while build, typecheck, lint and the full test suite pass. The failures are mostly path-ownership drift after code moves (`src/features/feature-schema.ts` → `src/core/feature-schema.ts`, `src/cr/config.ts` and `review-profile.ts` → core), removed garden files, design artifacts archived without inbound-link rewrites, a missing `.claude/CLAUDE.md`, one bad skill-catalog anchor, a missing generated how-to index, and `docs/release-notes.md:117` walking one directory too far to `src/core/session.ts`. Repair through the doc-gardening and migration flow rather than blanket string replacement, then add relocation tests or link-rewrite tooling for source-module moves and design archival. Acceptance is a clean `docs check` from a fresh checkout plus targeted assertions that the relocated targets resolve. Do not paper over historical links by creating fake compatibility files.
-
-- Settle the checker's blind spot in the same pass, because widening coverage changes what the repair has to fix: `src/docs/docs-check.ts:8` puts the bare directory name `design` in `EXCLUDED_DIRS`, so the walk skips both active `docs/design/specs/` and `docs/design/plans/` and their archives, while the script catalog claims the input is the whole `docs/` tree. A direct check of the 11 active non-archive design documents found 13 broken links in `2026-07-15-registry-distribution-for-the-noldor-package-public-npm-cutover-design.md` that the normal command stays silent about. Archives may intentionally preserve old locations — dropping the exclusion outright would surface roughly 195 findings across 32 archived files — so make the policy path-specific: validate active specs and plans by default, decide and document whether archives are exempt or reported separately, and never use a basename exclusion that can suppress an unrelated nested `design/`.
-
-(confirmed by fresh docs-check run and direct checker invocation in the read-only audit 2026-08-12)
-
 ### Codex Lane Cannot Review Code
 
 - id: Q-0099
