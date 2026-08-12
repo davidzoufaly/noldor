@@ -146,7 +146,7 @@ describe('runCodex', () => {
     expect(capturedArgs).not.toContain('cr:codex');
   });
 
-  it('passes --spec for a spec artifact and --plan for a plan artifact', async () => {
+  it('passes --spec for spec, --plan for plan, --code for code (never plan heuristics on code)', async () => {
     let capturedArgs: string[] = [];
     execFileFn.mockImplementation((_c, args, _o, cb) => {
       capturedArgs = args;
@@ -157,6 +157,12 @@ describe('runCodex', () => {
     expect(capturedArgs).not.toContain('--plan');
     await runCodex(baseInput({ kind: 'plan' }));
     expect(capturedArgs).toContain('--plan');
+    expect(capturedArgs).not.toContain('--spec');
+    // Q-0099: kind 'code' used to fall through the binary ternary to '--plan',
+    // so codex reviewed TypeScript with plan-review heuristics.
+    await runCodex(baseInput({ kind: 'code', artifact: 'src/x.ts' }));
+    expect(capturedArgs).toContain('--code');
+    expect(capturedArgs).not.toContain('--plan');
     expect(capturedArgs).not.toContain('--spec');
   });
 });

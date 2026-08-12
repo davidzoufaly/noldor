@@ -66,6 +66,12 @@ describe('parseCliArgs', () => {
     });
   });
 
+  it('--code <path> → code review invocation (path is a label, not read)', () => {
+    expect(parseCliArgs(['--code', 'src/x.ts'])).toMatchObject({
+      review: { kind: 'code', artifact: 'src/x.ts', fullReview: false },
+    });
+  });
+
   it('--slug populates the review slug', () => {
     expect(parseCliArgs(['--plan', 'p.md', '--slug', 'my-feat'])).toMatchObject({
       review: { kind: 'plan', artifact: 'p.md', slug: 'my-feat' },
@@ -98,6 +104,10 @@ describe('parseCliArgs', () => {
 
   it('rejects --plan + --spec as mutually exclusive', () => {
     expect(() => parseCliArgs(['--plan', 'p.md', '--spec', 's.md'])).toThrow(/mutually exclusive/);
+  });
+
+  it('rejects --code + --plan as mutually exclusive', () => {
+    expect(() => parseCliArgs(['--code', 'x.ts', '--plan', 'p.md'])).toThrow(/mutually exclusive/);
   });
 
   it('code-lane invocations carry no review/help keys', () => {

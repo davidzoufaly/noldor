@@ -55,7 +55,7 @@ interface CodexRawOutput {
 export async function runCodex(input: LaneInput, opts: CodexOpts = {}): Promise<LaneResult> {
   const sinkPath = join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-codex.json`);
   const startedAt = new Date().toISOString();
-  const mode = input.kind === 'spec' ? '--spec' : '--plan';
+  const mode = input.kind === 'spec' ? '--spec' : input.kind === 'plan' ? '--plan' : '--code';
   // `--silent` suppresses pnpm's lifecycle banner (`> pkg@ver` / `> node bin/...`) so the only
   // thing on stdout is the codex lane's `{ summary, findings }` JSON — otherwise `JSON.parse`
   // below chokes on the leading `>`. Must precede the `noldor` script name (it is a pnpm flag).

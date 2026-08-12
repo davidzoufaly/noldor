@@ -399,6 +399,81 @@ describe('runCli — plan/spec review mode', () => {
   });
 });
 
+describe('runCli — code review mode', () => {
+  /** makeRepo + a feature branch one commit ahead of main with a code change. */
+  function makeBranchRepo(): string {
+    const cwd = makeRepo();
+    spawnSync('git', ['checkout', '-q', '-b', 'feat/x'], { cwd });
+    writeFileSync(join(cwd, 'a.ts'), 'export const x = 2 // CODE-DIFF-MARKER\n');
+    spawnSync('git', ['add', '.'], { cwd });
+    spawnSync('git', ['commit', '-q', '-m', 'change'], { cwd });
+    return cwd;
+  }
+
+  async function capturePrompt(cwd: string, argv: string[]): Promise<string> {
+    const cap = captureStdout();
+    let captured = '';
+    try {
+      await runCli({
+        argv,
+        cwd,
+        spawn: async ({ stdin }) => {
+          captured = stdin;
+          return { stdout: passing, stderr: '', exitCode: 0 };
+        },
+      });
+    } finally {
+      cap.restore();
+    }
+    return captured;
+  }
+
+  it('--code feeds the branch diff into the code-review prompt, not plan heuristics', async () => {
+    const cwd = makeBranchRepo();
+    const prompt = await capturePrompt(cwd, ['--code', 'a.ts']);
+    expect(prompt).toContain('## Diff to review');
+    expect(prompt).toContain('CODE-DIFF-MARKER');
+    expect(prompt).not.toMatch(/Plan to review|Spec to review/);
+    expect(prompt).not.toMatch(/TODO checklist|acceptance criteria/);
+  });
+
+  it('--code --base-sha reviews the <sha>..HEAD diff', async () => {
+    const cwd = makeBranchRepo();
+    const base = spawnSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).stdout.trim();
+    writeFileSync(join(cwd, 'a.ts'), 'export const x = 3 // DELTA-ONLY-MARKER\n');
+    spawnSync('git', ['add', '.'], { cwd });
+    spawnSync('git', ['commit', '-q', '-m', 'delta'], { cwd });
+    const prompt = await capturePrompt(cwd, ['--code', 'a.ts', '--base-sha', base]);
+    expect(prompt).toContain('DELTA-ONLY-MARKER');
+  });
+
+  it('--code prints {summary, findings} JSON, exits 0, writes no sidecar or trailer', async () => {
+    const cwd = makeBranchRepo();
+    const cap = captureStdout();
+    let code: number;
+    try {
+      code = await runCli({
+        argv: ['--code', 'a.ts'],
+        cwd,
+        spawn: async () => ({ stdout: blocker, stderr: '', exitCode: 0 }),
+      });
+    } finally {
+      cap.restore();
+    }
+    expect(code).toBe(0);
+    const out = JSON.parse(cap.text());
+    expect(out.findings).toHaveLength(1);
+    expect(out.findings[0]).toMatchObject({ file: 'a.ts', severity: 'high' });
+    const msg = spawnSync('git', ['show', '-s', '--format=%B', 'HEAD'], {
+      cwd,
+      encoding: 'utf8',
+    }).stdout;
+    expect(msg).not.toMatch(/Noldor-Reviewed-Codex/);
+    const dir = join(cwd, '.noldor', 'cr-records');
+    expect(existsSync(dir) ? readdirSync(dir).length : 0).toBe(0);
+  });
+});
+
 describe('runCli — engineering-rules fallback', () => {
   async function capturePrompt(cwd: string): Promise<string> {
     writeFileSync(join(cwd, 'plan.md'), '# Plan\n');

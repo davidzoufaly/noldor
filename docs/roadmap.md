@@ -34,19 +34,6 @@ Three command families build filesystem paths from an unchecked positional argum
 
 (all three confirmed by static path-resolution probe in the read-only audit 2026-08-12)
 
-### Codex Lane Cannot Review Code
-
-- id: Q-0099
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: high
-- confidence: high
-- parent: specs-cr-gate-multi-reviewer
-
-`src/cr/lanes/codex.ts:58` maps `kind === 'spec' ? '--spec' : '--plan'`, so `--kind code` passes `--plan` with a source path and `runPlanReview` applies plan-review heuristics to TypeScript. Observed by opting codex into the code stage while shipping Q-0089: it returned five high "blockers" complaining that `src/cr/codex-spawn.ts` lacks an explicit goal, scope, affected files, implementation steps, TODO checklist and output location, and labelled every finding's file `Plan to review`. Not review output at all. This is the live blocker behind Q-0091 — wiring codex into `crLanes.code` today yields nonsense on every run. Fix: give the lane a code path that builds a diff context the way `buildContext` does for the gate lane and passes the code-review prompt (`run-codex.ts` already carries `CodeReviewCtx` for exactly this), rather than falling through to `--plan`. The deeper seam is Q-0112. (surfaced shipping Q-0089)
-
 ### CR Aggregate Reads a Missing Sink as Green
 
 - id: Q-0100
