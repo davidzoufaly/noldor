@@ -84,7 +84,6 @@ interface ResolveChangedRangesOptions {
 2. `mergeBase = git merge-base <base> HEAD`.
 3. ```
    git -c core.quotepath=false -c diff.relative=false \
-       -c diff.noprefix=false -c diff.mnemonicPrefix=false \
        diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ -M <mergeBase>
    ```
    `git diff` is porcelain and honours consumer config, and this parser is fail-open — a header shape
@@ -93,12 +92,10 @@ interface ResolveChangedRangesOptions {
    - `core.quotepath=false` — otherwise non-ASCII paths arrive C-quoted (`"src/caf\303\251.ts"`) and
      never match a `loadCorpus` key.
    - `diff.relative=false` — otherwise paths are emitted relative to `cwd`, not the repo root.
-   - `diff.noprefix=false` and `diff.mnemonicPrefix=false`, plus explicit `--src-prefix=a/
-     --dst-prefix=b/` — otherwise the header is `+++ <path>` (noprefix), `+++ w/<path>`
-     (mnemonicPrefix), or anything at all (`diff.srcPrefix` / `diff.dstPrefix`, git ≥ 2.45), and Unit
-     1's `+++ b/<path>` match parses nothing. The explicit flags are what make this airtight: they are
-     command-line options, so they also override the two `diff.*Prefix` settings that have no boolean
-     to pin.
+   - `--src-prefix=a/ --dst-prefix=b/` — otherwise the header is `+++ <path>` (`diff.noprefix`),
+     `+++ w/<path>` (`diff.mnemonicPrefix`), or anything at all (`diff.srcPrefix` / `diff.dstPrefix`,
+     git ≥ 2.45), and Unit 1's `+++ b/<path>` match parses nothing. Explicit command-line options
+     override all four settings, so no `-c diff.*prefix` pins are needed — the flags subsume them.
    - `--no-ext-diff` — otherwise `diff.external` replaces the output wholesale.
 
    `renameDestExists` (`src/core/branch-added.ts:216-227`) already pins the first two for exactly this
@@ -109,16 +106,14 @@ interface ResolveChangedRangesOptions {
    (`src/clones/clones-cli.ts:53-65`) reads off disk. A `<mergeBase>...HEAD` range would compare
    against `HEAD` instead, so every uncommitted edit would shift the corpus's real line numbers away
    from the parsed ranges and the overlap test would compare two different files.
-4. **Every** git failure here — no upstream and no origin, no merge base, not a repo, git absent —
-   returns `null`, not an empty map. `null` means "unknown": the caller skips the diff-scoped verdict
-   with a stderr note and stays green. An empty map means "nothing changed" and is a legitimate green.
-   Conflating them would turn a broken git into a silent pass claiming it had checked.
+4. Every git failure reaching *this* unit — no upstream and no origin, no merge base, not a repo, git
+   absent — returns `null`, not an empty map. `null` means "unknown": the caller skips the diff-scoped
+   verdict with a stderr note and stays green. An empty map means "nothing changed" and is a legitimate
+   green. Conflating them would turn a broken git into a silent pass claiming it had checked.
 
-   A bad *explicit* ref is **not** handled here. It is caught earlier, by Unit 4's `validateAgainstRef`
-   (below), so this unit keeps a single return contract and no CLI-layer error type leaks into it.
-   That split also keeps a **shallow clone** honest: CI with `fetch-depth: 1` has a perfectly valid ref
-   whose `merge-base` fails, and that caller made no typo — it gets the fail-open green, not a usage
-   error.
+   An unresolvable *explicit* ref never reaches here — Unit 4's `validateAgainstRef` runs first and
+   either returns 3 or has already turned the case into a green skip. So this unit keeps a single
+   return contract and no CLI-layer error type leaks into it.
 
 `-M` matches `discoverAddedFiles` (`src/core/branch-added.ts:88-98`): a renamed file's post-image path
 is its new path, which is the key `loadCorpus` uses.
@@ -141,18 +136,32 @@ for a one-line comparison; `flaggedGroups` states its own line-domain test.
 `parseClonesArgs` gains `--against <ref>` → `ClonesArgs.against?: string`. `report` ignores it (a
 `--against` on `report` is a usage error, consistent with how the parser rejects unknown flags).
 
-**Explicit-ref validation runs first**, before the `diffScope` gate and before any detection work:
-when `args.against` is set, `git rev-parse --verify <ref>^{commit}` must succeed, or `runClones`
-writes the reason to stderr and returns **3**.
+**Explicit-ref validation runs first** — `validateAgainstRef`, before the `diffScope` gate and before
+any detection work. When `args.against` is set:
 
-Three things make this the right seam. It lives in the CLI layer, where exit 3 already lives — the
+1. `git rev-parse --verify --end-of-options <ref>^{commit}` — success means proceed.
+   (`--end-of-options` so a value starting with `-` is read as a ref, not an option.)
+2. On failure, `git rev-parse --is-shallow-repository`:
+   - `true` → the base is simply **not present in this clone**. Stderr note ("base `<ref>` is not
+     present in a shallow clone — diff-scoped check skipped; fetch with `fetch-depth: 0`") and return
+     the same fail-open green as any other discovered condition. The caller made no typo; their clone
+     cannot see the ref. Cost: this second git call runs only on the failure path.
+   - `false` → the repo has full history and still cannot resolve the ref. That is the caller's
+     argument being wrong. Stderr reason, return **3**.
+   - the probe itself fails (not a repository, git absent) → green with a stderr note, like any other
+     discovered condition. Exit 3 requires *evidence* that the ref is wrong; a git that cannot answer
+     the question is not evidence.
+
+The shallow branch cannot distinguish a missing base from a typo — nothing can, without the objects —
+so it resolves toward not breaking CI, and says which case it assumed.
+
+Three things make this seam the right one. It lives in the CLI layer, where exit 3 already lives — the
 existing `try/catch` at `src/clones/clones-cli.ts:79-85` wraps `parseClonesArgs` *only*, so an error
 thrown later from `resolveChangedRanges` would fall through to the direct-invocation `.catch` and exit
 **1**, merging "could not look" with "found duplication". It runs ahead of the `clones.diffScope`
 check, so `--against <typo>` still exits 3 in a repo that has diff-scoping switched off — a flag the
 caller passed is never silently ignored. And it separates *ref resolution* from *merge-base
-resolution*: a valid ref whose merge-base fails (shallow clone, `fetch-depth: 1`) is Unit 2's
-fail-open green, not a usage error.
+resolution*: a resolvable ref whose merge-base fails is Unit 2's fail-open green, not a usage error.
 
 `UsageError` stays module-private (`src/clones/clones-cli.ts:27`); nothing new needs to throw it, and
 `diff-scope.ts` never imports a CLI error type.
@@ -206,10 +215,12 @@ Every *discovered* failure mode degrades to green with a stderr note, never a th
 crashes a push is worse than one that misses a clone. This mirrors `check-template-sync`'s `catch` and
 the `loadConfig(...).catch(() => null)` already in `runClones` (`src/clones/clones-cli.ts:87`).
 
-The one carve-out is an **explicit `--against <ref>` that does not resolve**, which exits 3 from Unit
-4's up-front validation. That is not a discovered failure — it is the caller's own argument being
-wrong, the same class as an unknown flag, and it is the only case where staying green would mean
-honouring an instruction nobody can execute.
+The one carve-out is an **explicit `--against <ref>` that does not resolve in a complete clone**,
+which exits 3 from `validateAgainstRef`. That is not a discovered failure — it is the caller's own
+argument being wrong, the same class as an unknown flag, and the only case where staying green would
+mean honouring an instruction nobody can execute. Every weaker form of the same failure (shallow
+clone, no repository, no git) stays green: exit 3 requires evidence the ref is wrong, not merely the
+absence of an answer.
 
 ### Testing
 
@@ -220,13 +231,14 @@ honouring an instruction nobody can execute.
   header keying on the new path.
 - `resolveChangedRanges` with a fake `RunGit`: `--against` honoured verbatim; `@{upstream}` preferred
   when it resolves; `resolveDefaultBase` used when it does not; `null` on a failing `merge-base`
-  (including the shallow-clone case, whatever the ref's origin); and an argv assertion that the diff
-  call pins `core.quotepath=false`, `diff.relative=false`, `diff.noprefix=false`,
-  `diff.mnemonicPrefix=false` and passes `--no-ext-diff --src-prefix=a/ --dst-prefix=b/` — the guard is
+  (whatever the ref's origin); and an argv assertion that the diff call pins `core.quotepath=false`
+  and `diff.relative=false` and passes `--no-ext-diff --src-prefix=a/ --dst-prefix=b/` — the guard is
   invisible at runtime (it prevents a silent green), so only a test keeps it from being dropped.
-- `runClones` ref validation: `--against <bad-ref>` → exit 3 with `diffScope` on **and** off; a valid
-  `--against` whose `merge-base` fails → exit 0 with the stderr note; no `--against` and no resolvable
-  base → exit 0 with the stderr note.
+- `validateAgainstRef` with a fake `RunGit`: unresolvable ref + `is-shallow-repository` false → exit 3,
+  with `diffScope` on **and** off; unresolvable ref + shallow true → exit 0 with the shallow note;
+  resolvable ref whose `merge-base` later fails → exit 0 with the unknown-base note; no `--against`
+  and no resolvable base → exit 0 with the unknown-base note; and an argv assertion that the verify
+  call carries `--end-of-options`.
 - `flaggedGroups`: instance inside → flagged; wholly outside → not; straddling → flagged; all-inside →
   flagged; overlap at exactly one shared line (boundary) → flagged; same line numbers in a *different*
   file → not.
@@ -253,13 +265,15 @@ tuned `thresholdPct` still red on its own.
   `no clones.thresholdPct configured - green` line.
 - Outside a git repo, or with no *auto-resolvable* base, `check` exits 0 and writes the reason to
   stderr.
-- An explicit `--against <ref>` that git cannot resolve exits **3** (usage error), never a silent
-  green — including when `clones.diffScope` is `false`.
-- An explicit `--against <ref>` that *is* valid but has no merge base with `HEAD` (shallow clone) exits
-  0 with the stderr note, not 3.
-- The diff invocation pins `core.quotepath=false`, `diff.relative=false`, `diff.noprefix=false`,
-  `diff.mnemonicPrefix=false` and passes `--no-ext-diff --src-prefix=a/ --dst-prefix=b/`, so a
-  consumer's git config cannot reshape the output into a silent green.
+- An explicit `--against <ref>` that a **complete** clone cannot resolve exits **3** (usage error),
+  never a silent green — including when `clones.diffScope` is `false`.
+- The same unresolvable `--against <ref>` in a **shallow** clone exits 0 with a stderr note naming the
+  shallow clone and `fetch-depth: 0`.
+- An explicit `--against <ref>` that resolves but has no merge base with `HEAD` exits 0 with the
+  stderr note, not 3.
+- The diff invocation pins `core.quotepath=false` and `diff.relative=false` and passes
+  `--no-ext-diff --src-prefix=a/ --dst-prefix=b/`, so a consumer's git config cannot reshape the
+  output into a silent green.
 - `noldor clones report` output is byte-identical to today's.
 - `pnpm noldor checks template-sync` passes with the new pre-push job in both lefthook copies.
 
@@ -278,10 +292,15 @@ tuned `thresholdPct` still red on its own.
   `src/features/phase-flip-done-cli.ts:4-29` ↔ `src/features/phase-revert-cli.ts:4-29`, 199 tokens).
   Once the job is wired, a later change touching either span is blocked until the duplication is
   resolved. Correct behaviour; noted so it is not mistaken for a bug.
-- **A shallow clone is silently un-gated.** CI with `fetch-depth: 1` has no merge base, so the
-  diff-scoped verdict is skipped and the check exits green with a stderr note. Deliberate — the
-  alternative is failing every shallow CI job — but a consumer relying on this in CI needs
-  `fetch-depth: 0`. The stderr note names the reason so the skip is at least visible in the log.
+- **A shallow clone is silently un-gated.** CI with `fetch-depth: 1` either has no base ref at all or
+  no merge base with it, so the diff-scoped verdict is skipped and the check exits green with a stderr
+  note. Deliberate — the alternative is failing every shallow CI job — but a consumer relying on this
+  gate in CI needs `fetch-depth: 0`. The stderr note names the reason so the skip is visible in the
+  log rather than indistinguishable from a pass.
+- **In a shallow clone a typo'd `--against` also reads as green.** The shallow branch of
+  `validateAgainstRef` cannot tell "ref absent from this clone" from "ref does not exist", and nothing
+  can without the objects. It resolves toward not breaking CI and says which case it assumed; a
+  complete clone still exits 3.
 - **A dirty working tree can red a push of clean commits.** D6's post-image is the working tree, so
   uncommitted local edits count as "your diff" even though they are not being pushed. Consistent with
   the corpus `loadCorpus` reads — the alternative misaligns line numbers — but it is a consumer-facing
@@ -345,10 +364,11 @@ Runs automatically as the `noldor-clones` pre-push job. Opt out in `.noldor/conf
    -> **Blocking**, with a `clones.diffScope: false` opt-out (D4). A non-blocking gate is one nobody
    reads, and flipping it later costs another cycle.
 6. *What happens when git cannot answer?*
-   -> **Split by cause, not by who chose the base** (D2, D8). A *ref that does not resolve* is only
-   possible when the caller passed `--against`, and it is validated up front in Unit 4 → **exit 3**: the
-   flag was a promise, and a typo'd CI ref would otherwise sit permanently green. Every other git
-   failure — no upstream, no origin, no merge base, shallow clone, not a repo — is a discovered
-   condition, so `resolveChangedRanges` returns `null` (distinct from an empty map) and the check exits
-   green with a stderr note. "Unknown" is never rendered as "checked and clean", and a valid ref in a
-   shallow clone is never mistaken for a typo.
+   -> **Split by cause, not by who chose the base** (D2, D8, D9). Exactly one case exits 3: an explicit
+   `--against <ref>` that a **complete** clone cannot resolve — the flag was a promise, and a typo'd CI
+   ref would otherwise sit permanently green. The same ref in a **shallow** clone exits green with a
+   note naming `fetch-depth: 0`, because the objects to tell typo from absence are not there and
+   breaking every shallow CI job is the worse error. Every other failure — no upstream, no origin, no
+   merge base, not a repo — is a discovered condition: `resolveChangedRanges` returns `null` (distinct
+   from an empty map) and the check exits green with a stderr note, so "unknown" is never rendered as
+   "checked and clean".
