@@ -23,6 +23,7 @@ import { runSubagent } from './lanes/subagent.js';
 import { runVerify } from './lanes/verify.js';
 import { promptSelect } from '../core/prompt-stdin.js';
 import { amendSubagentReceipt } from './amend-receipt.js';
+import { writeExpectedLanes } from './expected-lanes.js';
 
 // Hand-rolled promise wrapper around execFile (NOT promisify) — keeps parity
 // with deep-review-spawn.ts where vitest replaces execFile directly and would
@@ -277,6 +278,16 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     );
   }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });
+
+  // Record the resolved lane set BEFORE dispatch so `aggregate` can report a
+  // lane that never wrote its sink as `unresolved` (Q-0100). `requested`, not
+  // the post-guard `effective`: a keep-and-skip lane still has its prior sink,
+  // and a synthetic-OK lane writes one — only a lane killed mid-run leaves the
+  // expectation unmet. Empty set = interactive-mode "prompt the operator"
+  // sentinel, not a resolved round — nothing to record.
+  if (requested.length > 0) {
+    await writeExpectedLanes(cwd, opts.args.slug, opts.args.kind, requested);
+  }
 
   // `artifactSha` is the SHA of the artifact's tip commit (HEAD by default).
   // CRITICAL: do NOT default it to `baseSha` — that would make every delta
