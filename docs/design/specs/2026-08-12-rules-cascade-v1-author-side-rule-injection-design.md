@@ -77,15 +77,20 @@ export function stampInjectedRules(cwd: string, ids: readonly string[]): void;
 
 Reads the marker; **no-op when absent** — modelled on `touchSession` rather than `setAutonomous` (which throws), because `rules brief` must stay usable outside a gate session. Writes `{ ...m, injectedRules: <union of existing and ids, sorted> }`. Union, not overwrite: a session briefs once per file, and the field should accumulate what the author was shown.
 
+Two failure modes are settled explicitly:
+
+- **Unreadable or invalid marker.** `readSession` *throws* on a torn file, and its `superRefine` ([`src/core/session.ts:32`](../../../src/core/session.ts)) throws on a `specs-only-*` marker lacking `markerVersion: 2` — precisely the degraded session where a brief is still useful. The stamp **swallows** the throw and writes one line to stderr naming the marker as unstampable; the brief itself still prints and exits 0. This is not a fail-open on an enforcement gate (the Q-0040 doctrine's target): nothing downstream reads `injectedRules` to permit anything, so refusing to print the rules would harm the author and protect nobody.
+- **Concurrent stamps.** The read-union-write is not atomic, so two briefs racing on one marker can lose ids. Accepted: sessions are per-worktree and single-author, `atomicWriteFileSync` still rules out a *torn* file, and `touchSession` already carries the same pattern on a hotter path (every commit). The field records exposure, so a lost id understates rather than misleads.
+
 ### Unit 4 — enforce rules into the CR prompt
 
 `DispatchInput` ([`src/cr/lanes/subagent-dispatch.ts:6`](../../../src/cr/lanes/subagent-dispatch.ts)) gains an optional pre-rendered `rulesBrief?: string`, concatenated into the prompt beside `CUT_MARKER_GUIDE`. The lane stays a pure prompt builder with no git and no fs access — exact precedent: `fdSummary: string` is already a pre-rendered string the caller supplies.
 
 The caller ([`src/cr/orchestrate.ts`](../../../src/cr/orchestrate.ts)) resolves it, because that is where git access already lives:
 
-1. `discoverChangedFiles({ cwd, base, head, runGit })` — new sibling of `discoverAddedFiles` in [`src/core/branch-added.ts:75`](../../../src/core/branch-added.ts), reusing that module's `RunGit` seam and both of its hard-won flags (`-c core.quotepath=false` so non-ASCII paths stay matchable, `-M` so a moved file is not read as added). Same shape minus `--diff-filter=A`.
+1. `discoverChangedFiles({ cwd, base, head, runGit })` — new sibling of `discoverAddedFiles` in [`src/core/branch-added.ts:75`](../../../src/core/branch-added.ts), reusing that module's `RunGit` seam and both of its hard-won flags (`-c core.quotepath=false` so non-ASCII paths stay matchable, `-M` so a moved file is not read as added). It swaps `--diff-filter=A` for `--diff-filter=d` — *exclude* deletions rather than take no filter at all: a path deleted by the range does not exist at head, so resolving rules against it would brief the reviewer on a file it cannot read.
 2. Resolve per changed file at stage `code`, union, `renderBrief(..., { enforceOnly: true })`.
-3. Pass the string as `rulesBrief`. Omitted entirely when the render is empty, so a prompt never carries a "no rules" paragraph.
+3. Pass the string as `rulesBrief` — **but only when `enforce.length > 0` after the union**. The skip predicate is the resolved result, never the rendered string: `renderBrief` deliberately returns a non-empty explanatory line on an empty result (Unit 1), so a caller testing the render for emptiness would ship exactly the "no rules match" paragraph this step means to withhold. Empty enforce bucket → skip the render entirely and omit the field.
 
 `--kind code` only: a spec or plan artifact has no `**/*.ts` files to resolve against.
 
@@ -95,13 +100,14 @@ The caller ([`src/cr/orchestrate.ts`](../../../src/cr/orchestrate.ts)) resolves 
 
 ## Acceptance criteria
 
-- `rules brief --file src/rules/brief.ts --stage code` prints `lazy-decision-ladder` under `ENFORCE` and `import-js-specifiers` + `ts-colocate-schema-type` under `ADVISORY`.
+- Given a **fixture** store holding one `enforce` rule and two advisory rules scoped to the queried path, `rules brief --file <path> --stage code` prints the enforce rule under `ENFORCE` and both others under `ADVISORY`. Tests resolve against a fixture store, never the live `.noldor/rules/` — Q-0069 exists to grow that store, and a test transcribing today's four rule names would rot the way the live-tree `score.test` did. The live-store equivalent (`lazy-decision-ladder` enforce; `import-js-specifiers` + `ts-colocate-schema-type` advisory) stays a manual smoke check.
 - `rules brief --file src/foo.ts --file src/foo.test.ts --stage code` lists `test-real-behavior` once, and lists no rule twice.
 - `rules brief` with no `--file` exits non-zero with a message naming the stage-only-is-empty constraint.
 - A brief run inside a gate session leaves `.noldor/session.json` carrying `injectedRules` with the surfaced ids; a second brief for a different file unions rather than replaces.
 - A brief run with no session marker present prints normally and exits 0.
 - `renderBrief` on an empty `ResolveResult` returns a non-empty explanatory line.
-- `discoverChangedFiles` returns modified, added, and renamed-destination paths for a `base..head` range, and does not C-quote a non-ASCII path.
+- `discoverChangedFiles` returns modified, added, and renamed-destination paths for a `base..head` range, omits a path the range deleted, and does not C-quote a non-ASCII path.
+- `renderBrief` is never called when the unioned enforce bucket is empty, and `DispatchInput.rulesBrief` is absent in that case rather than carrying the "no rules match" line.
 - The reviewer prompt contains the `lazy-decision-ladder` body when a `--kind code` run's diff touches a `.ts` file, and contains no rules section when the diff touches none.
 - `noldor rules brief` appears in `docs/noldor/script-catalog.md` and its `templates/` twin; `pnpm noldor validate script-catalog` and `pnpm noldor checks shared-files` both pass.
 
