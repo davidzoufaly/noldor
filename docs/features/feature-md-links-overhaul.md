@@ -10,7 +10,7 @@ links:
   code:
     - src/checks/check-feature-slug-scope.ts
     - src/core/extract-touches.ts
-    - src/features/feature-schema.ts
+    - src/core/feature-schema.ts
     - src/features/fill-links-code-gaps.ts
     - src/features/migrate-features.ts
     - src/features/validate-features.ts
@@ -44,10 +44,10 @@ updated: 0.4.0
 
 Cleans up the `links.*` fields on feature MDs so `pnpm sdd:report` produces actionable signal instead of 90+ lines of noise. Five coupled changes shipped:
 
-1. **`links.prs` → `links.commits`** (12-char hex sha array). The PR field was always empty — we fast-forward worktree branches to `main` per CLAUDE.md "Finishing a worktree" and never open PRs. Schema renamed in [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts), all 45 FD MDs migrated via [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts), [`src/release/release-notes.ts`](../../src/release/release-notes.ts) + [`src/dashboard/views.ts`](../../src/dashboard/views.ts) render commit links with lazy `git show` for subjects, [`scripts/backfill-pr-links.ts`](../../scripts) retired.
+1. **`links.prs` → `links.commits`** (12-char hex sha array). The PR field was always empty — we fast-forward worktree branches to `main` per CLAUDE.md "Finishing a worktree" and never open PRs. Schema renamed in [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts), all 45 FD MDs migrated via [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts), [`src/release/release-notes.ts`](../../src/release/release-notes.ts) + [`src/dashboard/views.ts`](../../src/dashboard/views.ts) render commit links with lazy `git show` for subjects, [`scripts/backfill-pr-links.ts`](../../scripts) retired.
 2. **`links.code` heuristic backfill** via new [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts). Hybrid resolver: path-only first (single-package candidate or slug-substring match), `claude -p` LLM-fallback for ambiguous multi-candidate cases. Batch dry-run UX writes proposal markdown for operator review; `--apply` writes `links.code` arrays via gray-matter with timestamped backup at `.cache/backfill-backups/`. Cross-area FDs are first-class — when an `apps/web/`-prefixed file is being attributed and the candidate FD's `area` isn't `web`/`viewport`/`ui` but its `packages` array contains `web`, the resolver still considers it (catches `export-import-charuy-file` style ownership where `area: format` but the user-facing surface is on web).
 3. **SDD infra-file allowlist** in [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts). Filters `*.config.{ts,js,mjs,cjs}`, `-env.d.ts`, `tsconfig*.json`, `lefthook.{yml,yaml}` from "code files not referenced" gap detection. The orphan detector also normalizes `links.code` directory entries (`packages/sample-scenes` covers every nested file regardless of depth, with or without trailing slash) so package-level attribution doesn't leak per-file orphans.
-4. **`/noldor-promote` `attach:<parent>` mode** + CLAUDE.md complexity-gate fourth tier (in [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md) and [`.claude/CLAUDE.md`](../../.claude/CLAUDE.md)) + commit attribution in `pnpm release` via new [`src/release/release-commits.ts`](../../src/release/release-commits.ts). `attach:<parent>` lets small enhancements piggyback on an existing FD without scaffolding a sibling MD; release script walks `git log <last-tag>..HEAD` and appends each commit's 12-char sha to FDs whose `links.code` overlaps the touched files.
+4. **`/noldor-promote` `attach:<parent>` mode** + CLAUDE.md complexity-gate fourth tier (in [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md) and `.claude/CLAUDE.md` — since retired from the repo) + commit attribution in `pnpm release` via new [`src/release/release-commits.ts`](../../src/release/release-commits.ts). `attach:<parent>` lets small enhancements piggyback on an existing FD without scaffolding a sibling MD; release script walks `git log <last-tag>..HEAD` and appends each commit's 12-char sha to FDs whose `links.code` overlaps the touched files.
 5. **`validatePackagesField` cross-check** in [`src/features/validate-features.ts`](../../src/features/validate-features.ts). Walks every `links.code` entry, extracts package names from `packages/<name>/*` paths, and compares against the FD's declared `packages` frontmatter (normalizing `@charuy/<name>`, `packages/<name>`, and `apps/<name>` to short form). Wired into `pnpm validate:features` so the pre-commit hook surfaces drift before it reaches the SDD orphan run.
 
 Net effect: SDD "code files not referenced" gaps dropped from 98 → 12 after the first operator backfill run, then to 4 after the hardening pass that fixed the orphan-detector directory-walk bug, the resolver's cross-area blind spot, and three FDs whose `packages` field didn't reflect their `links.code`. Future commits are auto-attributed at release time.
@@ -84,7 +84,7 @@ The proposal groups files by FD slug. Lines prefixed `#` are skipped on apply. T
 - **Code:**
   - [`src/checks/check-feature-slug-scope.ts`](../../src/checks/check-feature-slug-scope.ts)
   - [`src/core/extract-touches.ts`](../../src/core/extract-touches.ts)
-  - [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts)
+  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
   - [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts)
   - [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts)
   - [`src/features/validate-features.ts`](../../src/features/validate-features.ts)

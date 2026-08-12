@@ -5,7 +5,7 @@ introduced: 0.4.0
 
 # Feature MD Schema
 
-Every user-visible capability in the project is tracked as one feature MD (FD) under `docs/features/`. This page describes the frontmatter contract, body structure, and links shape. The single source of truth for the schema is the Zod definition in [`src/features/feature-schema.ts`](../../src/features/feature-schema.ts) — when this page disagrees with that file, the Zod schema wins.
+Every user-visible capability in the project is tracked as one feature MD (FD) under `docs/features/`. This page describes the frontmatter contract, body structure, and links shape. The single source of truth for the schema is the Zod definition in [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts) — when this page disagrees with that file, the Zod schema wins.
 
 ## Commands
 
