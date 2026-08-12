@@ -1,7 +1,8 @@
 import type { Lane } from './context.js';
 
-export interface PlanReview {
-  kind: 'plan' | 'spec';
+export interface ArtifactReview {
+  kind: 'plan' | 'spec' | 'code';
+  /** Path of the artifact under review. For `code` it is a label only — the review reads a git diff, not the file. */
   artifact: string;
   slug?: string;
   baseSha?: string;
@@ -13,8 +14,8 @@ export interface Invocation {
   paths: string[];
   rerun: boolean;
   dryRun: boolean;
-  /** Present only for artifact (plan/spec) review invocations. */
-  review?: PlanReview;
+  /** Present only for orchestrate-lane review invocations (`--plan` / `--spec` / `--code`). */
+  review?: ArtifactReview;
   /** Present only for `--help`. */
   help?: boolean;
 }
@@ -36,7 +37,7 @@ export function parseCliArgs(argv: readonly string[]): Invocation {
   let paths: string[] = [];
   let help = false;
 
-  let reviewKind: 'plan' | 'spec' | null = null;
+  let reviewKind: 'plan' | 'spec' | 'code' | null = null;
   let artifact: string | undefined;
   let slug: string | undefined;
   let baseSha: string | undefined;
@@ -57,9 +58,9 @@ export function parseCliArgs(argv: readonly string[]): Invocation {
       dryRun = true;
     } else if (a === '--working') {
       lane = { kind: 'working' };
-    } else if (a === '--plan' || a === '--spec') {
-      if (reviewKind !== null) throw new Error('--plan and --spec are mutually exclusive');
-      reviewKind = a === '--plan' ? 'plan' : 'spec';
+    } else if (a === '--plan' || a === '--spec' || a === '--code') {
+      if (reviewKind !== null) throw new Error('--plan, --spec and --code are mutually exclusive');
+      reviewKind = a.slice(2) as 'plan' | 'spec' | 'code';
       artifact = requireValue(a, argv[++i]);
     } else if (a === '--slug') {
       slug = requireValue('--slug', argv[++i]);
