@@ -112,8 +112,10 @@ interface ResolveChangedRangesOptions {
    green. Conflating them would turn a broken git into a silent pass claiming it had checked.
 
    An unresolvable *explicit* ref never reaches here — Unit 4's `validateAgainstRef` runs first and
-   either returns 3 or has already turned the case into a green skip. So this unit keeps a single
-   return contract and no CLI-layer error type leaks into it.
+   returns 3. So this unit keeps a single return contract and no CLI-layer error type leaks into it.
+   A ref that resolves but has no merge base with `HEAD` (shallow clone, unrelated history) *does*
+   reach here and is green: the caller's base was usable, the repository just cannot relate it to
+   `HEAD`.
 
 `-M` matches `discoverAddedFiles` (`src/core/branch-added.ts:88-98`): a renamed file's post-image path
 is its new path, which is the key `loadCorpus` uses.
@@ -137,23 +139,28 @@ for a one-line comparison; `flaggedGroups` states its own line-domain test.
 `--against` on `report` is a usage error, consistent with how the parser rejects unknown flags).
 
 **Explicit-ref validation runs first** — `validateAgainstRef`, before the `diffScope` gate and before
-any detection work. When `args.against` is set:
+any detection work. When `args.against` is set and
+`git rev-parse --verify --end-of-options <ref>^{commit}` fails, `runClones` writes the reason to
+stderr and returns **3**. (`--end-of-options` so a value starting with `-` is read as a ref, not an
+option.) When `--against` is absent, nothing here runs.
 
-1. `git rev-parse --verify --end-of-options <ref>^{commit}` — success means proceed.
-   (`--end-of-options` so a value starting with `-` is read as a ref, not an option.)
-2. On failure, `git rev-parse --is-shallow-repository`:
-   - `true` → the base is simply **not present in this clone**. Stderr note ("base `<ref>` is not
-     present in a shallow clone — diff-scoped check skipped; fetch with `fetch-depth: 0`") and return
-     the same fail-open green as any other discovered condition. The caller made no typo; their clone
-     cannot see the ref. Cost: this second git call runs only on the failure path.
-   - `false` → the repo has full history and still cannot resolve the ref. That is the caller's
-     argument being wrong. Stderr reason, return **3**.
-   - the probe itself fails (not a repository, git absent) → green with a stderr note, like any other
-     discovered condition. Exit 3 requires *evidence* that the ref is wrong; a git that cannot answer
-     the question is not evidence.
+The rule is **who chose the base**, and nothing else:
 
-The shallow branch cannot distinguish a missing base from a typo — nothing can, without the objects —
-so it resolves toward not breaking CI, and says which case it assumed.
+- **The caller named a base** → that base must be usable. Whether it is unusable because the name is
+  wrong, because the clone is shallow, or because a `--single-branch` / narrowed refspec never fetched
+  it makes no difference: all three are caller-side configuration the caller can fix, and the fix is
+  named in the error (`check the ref name; for CI use fetch-depth: 0 and an unrestricted refspec`).
+  Staying green here is the failure mode D1 exists to kill — a CI job wired to a base it cannot see,
+  reporting success forever.
+- **Nobody named a base** → the gate resolved one on its own, so it owns the failure. Every git
+  problem downstream is fail-open green with a stderr note. A repo with no upstream and no origin is a
+  normal state, not an error, and the pre-push job runs with no flags.
+
+An earlier revision tried to soften the first case by probing
+`git rev-parse --is-shallow-repository` and going green when shallow. Dropped: a full-depth
+`--single-branch` clone is not shallow yet equally cannot resolve the ref, so the probe answered a
+question ("is this a typo?") that is not locally decidable, and split one rule into three branches to
+do it. Strictness keyed on an explicit flag needs no such inference.
 
 Three things make this seam the right one. It lives in the CLI layer, where exit 3 already lives — the
 existing `try/catch` at `src/clones/clones-cli.ts:79-85` wraps `parseClonesArgs` *only*, so an error
@@ -215,12 +222,11 @@ Every *discovered* failure mode degrades to green with a stderr note, never a th
 crashes a push is worse than one that misses a clone. This mirrors `check-template-sync`'s `catch` and
 the `loadConfig(...).catch(() => null)` already in `runClones` (`src/clones/clones-cli.ts:87`).
 
-The one carve-out is an **explicit `--against <ref>` that does not resolve in a complete clone**,
-which exits 3 from `validateAgainstRef`. That is not a discovered failure — it is the caller's own
-argument being wrong, the same class as an unknown flag, and the only case where staying green would
-mean honouring an instruction nobody can execute. Every weaker form of the same failure (shallow
-clone, no repository, no git) stays green: exit 3 requires evidence the ref is wrong, not merely the
-absence of an answer.
+The one carve-out is an **explicit `--against <ref>` that does not resolve**, which exits 3 from
+`validateAgainstRef`. That is not a discovered failure — it is the caller's own argument being
+unusable, the same class as an unknown flag, and the only case where staying green would mean
+honouring an instruction nobody can execute. Everything reached *after* that check — including a
+resolvable base with no merge base — is discovered, and stays green.
 
 ### Testing
 
@@ -234,11 +240,13 @@ absence of an answer.
   (whatever the ref's origin); and an argv assertion that the diff call pins `core.quotepath=false`
   and `diff.relative=false` and passes `--no-ext-diff --src-prefix=a/ --dst-prefix=b/` — the guard is
   invisible at runtime (it prevents a silent green), so only a test keeps it from being dropped.
-- `validateAgainstRef` with a fake `RunGit`: unresolvable ref + `is-shallow-repository` false → exit 3,
-  with `diffScope` on **and** off; unresolvable ref + shallow true → exit 0 with the shallow note;
-  resolvable ref whose `merge-base` later fails → exit 0 with the unknown-base note; no `--against`
-  and no resolvable base → exit 0 with the unknown-base note; and an argv assertion that the verify
-  call carries `--end-of-options`.
+- `validateAgainstRef` with a fake `RunGit`: unresolvable `--against` → exit 3, with `clones.diffScope`
+  on **and** off; resolvable `--against` → validation passes through; no `--against` → the verify call
+  is never made at all; and an argv assertion that the verify call carries `--end-of-options` (a
+  ref beginning with `-` must reach git as a ref).
+- `runClones` end-to-end on the fail-open side: resolvable base whose `merge-base` fails → exit 0 with
+  the unknown-base note; no `--against` and no resolvable base → exit 0 with the unknown-base note;
+  neither path may exit 3.
 - `flaggedGroups`: instance inside → flagged; wholly outside → not; straddling → flagged; all-inside →
   flagged; overlap at exactly one shared line (boundary) → flagged; same line numbers in a *different*
   file → not.
@@ -265,10 +273,9 @@ tuned `thresholdPct` still red on its own.
   `no clones.thresholdPct configured - green` line.
 - Outside a git repo, or with no *auto-resolvable* base, `check` exits 0 and writes the reason to
   stderr.
-- An explicit `--against <ref>` that a **complete** clone cannot resolve exits **3** (usage error),
-  never a silent green — including when `clones.diffScope` is `false`.
-- The same unresolvable `--against <ref>` in a **shallow** clone exits 0 with a stderr note naming the
-  shallow clone and `fetch-depth: 0`.
+- An explicit `--against <ref>` that does not resolve exits **3** (usage error), never a silent green
+  — including when `clones.diffScope` is `false`, and whatever the cause (wrong name, shallow clone,
+  narrowed refspec). The message names all three fixes.
 - An explicit `--against <ref>` that resolves but has no merge base with `HEAD` exits 0 with the
   stderr note, not 3.
 - The diff invocation pins `core.quotepath=false` and `diff.relative=false` and passes
@@ -292,15 +299,11 @@ tuned `thresholdPct` still red on its own.
   `src/features/phase-flip-done-cli.ts:4-29` ↔ `src/features/phase-revert-cli.ts:4-29`, 199 tokens).
   Once the job is wired, a later change touching either span is blocked until the duplication is
   resolved. Correct behaviour; noted so it is not mistaken for a bug.
-- **A shallow clone is silently un-gated.** CI with `fetch-depth: 1` either has no base ref at all or
-  no merge base with it, so the diff-scoped verdict is skipped and the check exits green with a stderr
-  note. Deliberate — the alternative is failing every shallow CI job — but a consumer relying on this
-  gate in CI needs `fetch-depth: 0`. The stderr note names the reason so the skip is visible in the
-  log rather than indistinguishable from a pass.
-- **In a shallow clone a typo'd `--against` also reads as green.** The shallow branch of
-  `validateAgainstRef` cannot tell "ref absent from this clone" from "ref does not exist", and nothing
-  can without the objects. It resolves toward not breaking CI and says which case it assumed; a
-  complete clone still exits 3.
+- **A narrow clone is un-gated on the no-flag path, and hard-fails on the flag path.** CI with
+  `fetch-depth: 1` or `--single-branch` often cannot resolve or relate a base. Without `--against` that
+  is a green skip with a stderr note — visible in the log, but a pass nonetheless. With `--against` it
+  is exit 3. Both are deliberate and follow from who named the base; a consumer who wants this gate
+  meaningful in CI needs `fetch-depth: 0` and an unrestricted refspec either way.
 - **A dirty working tree can red a push of clean commits.** D6's post-image is the working tree, so
   uncommitted local edits count as "your diff" even though they are not being pushed. Consistent with
   the corpus `loadCorpus` reads — the alternative misaligns line numbers — but it is a consumer-facing
@@ -338,6 +341,9 @@ clones check: 1 group(s) duplicated in this change
 clones check: no clones.thresholdPct configured - green
 ```
 
+Exit codes: **0** green (or skipped with a stderr reason), **1** duplication found, **3** an explicit
+`--against <ref>` that does not resolve.
+
 Runs automatically as the `noldor-clones` pre-push job. Opt out in `.noldor/config.json`:
 
 ```json
@@ -364,11 +370,11 @@ Runs automatically as the `noldor-clones` pre-push job. Opt out in `.noldor/conf
    -> **Blocking**, with a `clones.diffScope: false` opt-out (D4). A non-blocking gate is one nobody
    reads, and flipping it later costs another cycle.
 6. *What happens when git cannot answer?*
-   -> **Split by cause, not by who chose the base** (D2, D8, D9). Exactly one case exits 3: an explicit
-   `--against <ref>` that a **complete** clone cannot resolve — the flag was a promise, and a typo'd CI
-   ref would otherwise sit permanently green. The same ref in a **shallow** clone exits green with a
-   note naming `fetch-depth: 0`, because the objects to tell typo from absence are not there and
-   breaking every shallow CI job is the worse error. Every other failure — no upstream, no origin, no
-   merge base, not a repo — is a discovered condition: `resolveChangedRanges` returns `null` (distinct
-   from an empty map) and the check exits green with a stderr note, so "unknown" is never rendered as
-   "checked and clean".
+   -> **Split by who chose the base** (D2, D8, D9, D10). Exactly one case exits 3: an explicit
+   `--against <ref>` that does not resolve. Cause is irrelevant — wrong name, shallow clone, narrowed
+   refspec are all caller-side configuration, and the error names all three fixes. Every other failure
+   — no upstream, no origin, no merge base, not a repo — belongs to a base the gate picked for itself,
+   so `resolveChangedRanges` returns `null` (distinct from an empty map) and the check exits green with
+   a stderr note; "unknown" is never rendered as "checked and clean". An earlier revision probed
+   `--is-shallow-repository` to spare shallow CI; dropped, because a full-depth `--single-branch` clone
+   defeats it and the question it asked ("typo or absence?") is not locally decidable.
