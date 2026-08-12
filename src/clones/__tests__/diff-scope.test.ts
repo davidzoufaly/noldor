@@ -47,10 +47,19 @@ const ranges = (entries: Record<string, Array<[number, number]>>): Map<string, L
     ]),
   );
 
+/** One file's worth of real `git diff -U0` framing. */
+const fileDiff = (path: string, ...body: string[]): string[] => [
+  `diff --git a/${path} b/${path}`,
+  'index 1111111..2222222 100644',
+  `--- a/${path}`,
+  `+++ b/${path}`,
+  ...body,
+];
+
 describe('parseUnifiedDiffRanges', () => {
   it('collects every hunk of a file', () => {
     const out = parseUnifiedDiffRanges(
-      ['+++ b/src/a.ts', '@@ -1,2 +1,3 @@', 'body', '@@ -20,0 +30,2 @@'].join('\n'),
+      fileDiff('src/a.ts', '@@ -1,2 +1,3 @@', '+body', '@@ -20,0 +30,2 @@', '+x', '+y').join('\n'),
     );
     expect(out.get('src/a.ts')).toEqual([
       { start: 1, end: 3 },
@@ -60,41 +69,99 @@ describe('parseUnifiedDiffRanges', () => {
 
   it('keys each hunk to the file header above it', () => {
     const out = parseUnifiedDiffRanges(
-      ['+++ b/src/a.ts', '@@ -1 +1,1 @@', '+++ b/src/b.ts', '@@ -5,0 +9,4 @@'].join('\n'),
+      [
+        ...fileDiff('src/a.ts', '@@ -1 +1,1 @@', '+x'),
+        ...fileDiff('src/b.ts', '@@ -5,0 +9,4 @@', '+x'),
+      ].join('\n'),
     );
     expect([...out.keys()]).toEqual(['src/a.ts', 'src/b.ts']);
     expect(out.get('src/b.ts')).toEqual([{ start: 9, end: 12 }]);
   });
 
   it('reads the count-omitted form as one line', () => {
-    const out = parseUnifiedDiffRanges(['+++ b/src/a.ts', '@@ -1 +7 @@'].join('\n'));
+    const out = parseUnifiedDiffRanges(fileDiff('src/a.ts', '@@ -1 +7 @@', '+x').join('\n'));
     expect(out.get('src/a.ts')).toEqual([{ start: 7, end: 7 }]);
   });
 
   it('drops deletion-only hunks instead of emitting an inverted range', () => {
-    const out = parseUnifiedDiffRanges(['+++ b/src/a.ts', '@@ -4,3 +3,0 @@'].join('\n'));
+    const out = parseUnifiedDiffRanges(fileDiff('src/a.ts', '@@ -4,3 +3,0 @@', '-x').join('\n'));
     expect(out.has('src/a.ts')).toBe(false);
   });
 
   it('ignores hunks under a /dev/null post-image', () => {
-    const out = parseUnifiedDiffRanges(['+++ /dev/null', '@@ -1,4 +0,0 @@'].join('\n'));
+    const out = parseUnifiedDiffRanges(
+      [
+        'diff --git a/src/gone.ts b/src/gone.ts',
+        '--- a/src/gone.ts',
+        '+++ /dev/null',
+        '@@ -1,4 +0,0 @@',
+      ].join('\n'),
+    );
     expect(out.size).toBe(0);
   });
 
   it('keys a rename on its new path', () => {
     const out = parseUnifiedDiffRanges(
-      ['--- a/src/old.ts', '+++ b/src/new.ts', '@@ -1 +1 @@'].join('\n'),
+      [
+        'diff --git a/src/old.ts b/src/new.ts',
+        'similarity index 90%',
+        '--- a/src/old.ts',
+        '+++ b/src/new.ts',
+        '@@ -1 +1 @@',
+        '+x',
+      ].join('\n'),
     );
     expect([...out.keys()]).toEqual(['src/new.ts']);
+  });
+
+  it('strips the TAB git appends to a path containing whitespace', () => {
+    // Verified against git 2.43.1: `+++ b/a b.ts\t` for a path with a space.
+    const out = parseUnifiedDiffRanges(
+      [
+        'diff --git a/src/a b.ts b/src/a b.ts',
+        '--- a/src/a b.ts\t',
+        '+++ b/src/a b.ts\t',
+        '@@ -1,0 +2 @@',
+        '+x',
+      ].join('\n'),
+    );
+    expect([...out.keys()]).toEqual(['src/a b.ts']);
+  });
+
+  it('does not let an added content line forge a file header', () => {
+    // An added line whose content is `++ b/evil.ts` renders as `+++ b/evil.ts`.
+    // Honouring it would re-attribute src/a.ts's later hunks to evil.ts.
+    const out = parseUnifiedDiffRanges(
+      fileDiff(
+        'src/a.ts',
+        '@@ -1,0 +2,2 @@',
+        '+++ b/evil.ts',
+        '+z',
+        '@@ -9,0 +20 @@',
+        '+later',
+      ).join('\n'),
+    );
+    expect(out.has('evil.ts')).toBe(false);
+    expect(out.get('src/a.ts')).toEqual([
+      { start: 2, end: 3 },
+      { start: 20, end: 20 },
+    ]);
   });
 });
 
 describe('resolveChangedRanges', () => {
-  const diffOut = ['+++ b/src/a.ts', '@@ -1 +4,2 @@'].join('\n');
+  const diffOut = [
+    'diff --git a/src/a.ts b/src/a.ts',
+    '--- a/src/a.ts',
+    '+++ b/src/a.ts',
+    '@@ -1 +4,2 @@',
+    '+x',
+    '+y',
+  ].join('\n');
 
   it('honours an explicit base verbatim', () => {
     const { run, calls } = fakeGit([
-      ['merge-base v1.0.0 HEAD', { stdout: 'abc123\n' }],
+      ['merge-base --end-of-options v1.0.0 HEAD', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: diffOut }],
     ]);
     expect(resolveChangedRanges({ against: 'v1.0.0', runGit: run })?.get('src/a.ts')).toEqual([
@@ -106,7 +173,7 @@ describe('resolveChangedRanges', () => {
   it('prefers the upstream when no base was given', () => {
     const { run } = fakeGit([
       ['rev-parse --abbrev-ref @{upstream}', { stdout: 'origin/feat\n' }],
-      ['merge-base origin/feat HEAD', { stdout: 'abc123\n' }],
+      ['merge-base --end-of-options origin/feat HEAD', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: diffOut }],
     ]);
     expect(resolveChangedRanges({ runGit: run })).not.toBeNull();
@@ -115,11 +182,13 @@ describe('resolveChangedRanges', () => {
   it('falls back to the remote default branch when there is no upstream', () => {
     const { run, calls } = fakeGit([
       ['symbolic-ref --short refs/remotes/origin/HEAD', { stdout: 'origin/trunk\n' }],
-      ['merge-base origin/trunk HEAD', { stdout: 'abc123\n' }],
+      ['merge-base --end-of-options origin/trunk HEAD', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: diffOut }],
     ]);
     expect(resolveChangedRanges({ runGit: run })).not.toBeNull();
-    expect(calls.some((c) => c.join(' ').includes('merge-base origin/trunk'))).toBe(true);
+    expect(
+      calls.some((c) => c.join(' ').includes('merge-base --end-of-options origin/trunk')),
+    ).toBe(true);
   });
 
   it('returns null — not an empty map — when there is no merge base', () => {
@@ -149,6 +218,16 @@ describe('resolveChangedRanges', () => {
     expect(diff).toContain('--dst-prefix=b/');
     // Single ref: the post-image must be the working tree the corpus reads.
     expect(diff?.some((a) => a.includes('...'))).toBe(false);
+  });
+
+  it('guards merge-base against a dash-prefixed base from a library caller', () => {
+    const { run, calls } = fakeGit([
+      ['merge-base', { stdout: 'abc123\n' }],
+      ['diff -U0', { stdout: diffOut }],
+    ]);
+    resolveChangedRanges({ against: '--upload-pack=evil', runGit: run });
+    const mb = calls.find((c) => c.includes('merge-base'));
+    expect(mb?.indexOf('--end-of-options')).toBeLessThan(mb?.indexOf('--upload-pack=evil') ?? -1);
   });
 });
 

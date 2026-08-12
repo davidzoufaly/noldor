@@ -23,7 +23,9 @@ export interface LineRange {
 export type ChangedRanges = ReadonlyMap<string, readonly LineRange[]>;
 
 // `+++ b/<path>` — the `b/` prefix is guaranteed by the explicit `--dst-prefix`
-// in `resolveChangedRanges`, never inherited from consumer config.
+// in `resolveChangedRanges`, never inherited from consumer config. Git appends a
+// TAB when the path contains whitespace (`+++ b/a b.ts\t`), so trailing tabs are
+// stripped; without that the key carries the tab and matches no corpus entry.
 const DST_HEADER = /^\+\+\+ b\/(.+)$/;
 // `@@ -<old>[,<count>] +<new>[,<count>] @@` — only the post-image half matters.
 const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
@@ -31,37 +33,56 @@ const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
 /**
  * Parse `git diff -U0` output into post-image line ranges per file.
  *
+ * File headers are only honoured in the header block that follows a
+ * `diff --git` line, before that file's first `@@`. Under `-U0` every body line
+ * carries a `+`/`-` prefix, so an ADDED line whose content is `++ b/evil.ts`
+ * renders as `+++ b/evil.ts` and would otherwise be read as a header — silently
+ * re-attributing the rest of the real file's hunks. `diff --git` at column 0
+ * cannot be forged that way, so it is the anchor. (`@@` at column 0 is
+ * unforgeable for the same reason, which is why it is safe to key on directly.)
+ *
  * A deletion-only hunk (`+<line>,0`) contributes nothing: there are no
  * post-image lines to overlap, and emitting `{ start, end: start - 1 }` would be
  * an inverted range whose overlap behaviour depends on the comparison's
  * accidents. Files left with no ranges are absent from the map rather than
  * present-and-empty.
+ *
+ * Known gap: `core.quotepath=false` only stops NON-ASCII paths being C-quoted.
+ * A path containing `"`, a tab, or a control character is still emitted quoted
+ * (`+++ "b/we\tird.ts"`), fails this match, and is skipped — fail-open, like any
+ * other shape the parser does not recognize.
  */
 export function parseUnifiedDiffRanges(diff: string): Map<string, LineRange[]> {
   const out = new Map<string, LineRange[]>();
   let file: string | undefined;
+  let inHeader = false;
   for (const line of diff.split('\n')) {
-    const header = DST_HEADER.exec(line);
-    if (header) {
-      // `+++ /dev/null` is a deletion: no post-image, so no current file.
-      file = header[1];
-      continue;
-    }
-    if (line.startsWith('+++ ')) {
+    if (line.startsWith('diff --git ')) {
       file = undefined;
+      inHeader = true;
       continue;
     }
-    if (file === undefined) continue;
-    const hunk = HUNK_HEADER.exec(line);
-    if (!hunk) continue;
-    const start = Number(hunk[1]);
-    // The count is optional in the unified format: `@@ -1 +1 @@` means one line.
-    const count = hunk[2] === undefined ? 1 : Number(hunk[2]);
-    if (count === 0) continue;
-    const ranges = out.get(file);
-    const range: LineRange = { start, end: start + count - 1 };
-    if (ranges) ranges.push(range);
-    else out.set(file, [range]);
+    if (line.startsWith('@@')) {
+      inHeader = false;
+      if (file === undefined) continue;
+      const hunk = HUNK_HEADER.exec(line);
+      if (!hunk) continue;
+      const start = Number(hunk[1]);
+      // The count is optional in the unified format: `@@ -1 +1 @@` means one line.
+      const count = hunk[2] === undefined ? 1 : Number(hunk[2]);
+      if (count === 0) continue;
+      const ranges = out.get(file);
+      const range: LineRange = { start, end: start + count - 1 };
+      if (ranges) ranges.push(range);
+      else out.set(file, [range]);
+      continue;
+    }
+    // Past the header block every line is body content — never a header.
+    if (!inHeader) continue;
+    const header = DST_HEADER.exec(line);
+    if (header) file = header[1].replace(/\t+$/, '');
+    // `+++ /dev/null` is a deletion: no post-image, so no current file.
+    else if (line.startsWith('+++ ')) file = undefined;
   }
   return out;
 }
@@ -96,7 +117,10 @@ export function resolveChangedRanges(
   const run = options.runGit ?? defaultRunGit(cwd);
 
   const base = against ?? autoBase(run);
-  const mergeBase = run(['merge-base', base, 'HEAD']);
+  // `--end-of-options` so a `-`-prefixed base is read as a ref, not a flag. The
+  // CLI pre-validates `--against`, but this unit is exported and a library
+  // caller can hand it anything.
+  const mergeBase = run(['merge-base', '--end-of-options', base, 'HEAD']);
   if (mergeBase.status !== 0) return null;
   const sha = mergeBase.stdout.trim();
   if (sha.length === 0) return null;
