@@ -16,20 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Clone-Duplication Ratchet
-
-- id: Q-0094
-- area: tooling
-- type: feat
-- since: 2026-08-12
-- size: S
-- impact: med
-- confidence: med
-- parent: code-clone-detector
-- recovered: 2026-08-12
-
-Alternative (or complement) to the diff-scoped clone gate: record a whole-corpus baseline in `.noldor/clones-baseline.json` and fail only on an increase, so consumers adopt the gate with no tuning and the number can only go down. Recovered as residue when Q-0066 (Diff-Scoped Clone Gate) was promoted onto `code-clone-detector` — that slice ships diff-scoping only.
-
 ### Spec-Lint Prior-Art Requirement
 
 - id: Q-0067

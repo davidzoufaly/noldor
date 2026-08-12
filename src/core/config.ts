@@ -190,6 +190,12 @@ export const clonesConfigSchema = z.object({
    * only a consumer with a reason to opt out sets `false`.
    */
   diffScope: z.boolean().optional().catch(undefined),
+  /**
+   * Escape hatch for the whole-corpus ratchet, which is otherwise ON — though
+   * it only speaks once `.noldor/clones-baseline.json` exists, so an unset
+   * value on a repo with no baseline is silent rather than strict.
+   */
+  ratchet: z.boolean().optional().catch(undefined),
 });
 
 /** Parsed `clones:` block. */
