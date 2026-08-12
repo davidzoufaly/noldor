@@ -104,7 +104,7 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
  * `graphify-out/graph.json` predates the newest source file.
  *
  * Deliberately does NOT match the *missing*-graph meta-gap from the same
- * constructor: graphify is optional (mirroring `ensureGraphFresh`'s skip when no
+ * constructor: graphify is optional (mirroring `evaluateGraphFreshness`'s skip when no
  * graph is tracked), so a consumer that never generates one must not fail a
  * CI-mode garden run. A graph that exists but lags is the silent-degradation
  * case a non-interactive run has to shout about.

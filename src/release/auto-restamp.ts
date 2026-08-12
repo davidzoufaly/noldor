@@ -19,19 +19,23 @@ function defaultStamp({ cwd }: { cwd: string }): void {
 }
 
 /**
- * Release-start auto-restamp gate: runs `garden:detect` inline; if clean,
- * stamps the garden receipt at the current HEAD SHA. Eliminates the 3×
- * manual `/noldor-garden` re-stamp loop that plagued v0.5.0 — each follow-up PR
- * merge invalidated the SHA-anchored receipt, forcing operators to re-run
- * garden then re-stamp before the release script's {@link ensureGardenFresh}
- * gate would let them through.
+ * Auto-restamp remedy: runs `garden:detect` inline; if clean, stamps the garden
+ * receipt at the current HEAD SHA. Eliminates the 3× manual `/noldor-garden`
+ * re-stamp loop that plagued v0.5.0 — each follow-up PR merge invalidated the
+ * SHA-anchored receipt, forcing operators to re-run garden then re-stamp before
+ * the release's garden gate would let them through.
  *
- * Failure modes:
- * - detect surfaces findings → skip stamp; downstream `ensureGardenFresh`
- *   surfaces the canonical stale-receipt error.
- * - detect subprocess error → skip stamp; same downstream fallback.
- * - stamp itself throws (disk full, perms) → log + continue; the release
- *   will fail loudly at `ensureGardenFresh` with a clear error message.
+ * Now reached through the preflight aggregate's `garden-receipt` fix rather than
+ * called directly by the pipeline: `pnpm release` passes `fixes:
+ * ['garden-receipt']`, which is exactly the auto-restamp it always performed,
+ * and `pnpm release --preflight --fix` opts into the same remedy. Reusing this
+ * function keeps one definition of "safe to stamp".
+ *
+ * Failure modes — in every one the receipt is left alone and the aggregate's
+ * `garden-receipt` row reports the canonical stale-receipt reason:
+ * - detect surfaces findings → skip stamp.
+ * - detect subprocess error → skip stamp.
+ * - stamp itself throws (disk full, perms) → log + continue.
  */
 export async function autoStampOnCleanDetect(opts: AutoStampOptions): Promise<void> {
   const runDetect = opts.runDetect ?? runGardenDetectViaCli;

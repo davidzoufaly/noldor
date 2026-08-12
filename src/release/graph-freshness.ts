@@ -44,33 +44,46 @@ async function latestCommitTs(paths: string[], cwd: string): Promise<string> {
   return stdout.trim();
 }
 
+/** Verdict of {@link evaluateGraphFreshness} — reported, never thrown. */
+export interface GraphFreshnessVerdict {
+  /** `'fresh'` | `'stale'` | `'skipped'` (graphify not in use for this repo). */
+  status: 'fresh' | 'stale' | 'skipped';
+  /** Human-readable reason; on `'stale'` this is the canonical gate message. */
+  detail: string;
+}
+
 /**
- * Knowledge-graph freshness gate. Graphify is OPTIONAL — a consumer that does
- * not track `graphify-out/graph.json` skips the check entirely. When a graph
- * IS tracked, it must postdate the latest GRAPH-RELEVANT commit under the
- * configured `scanPaths` (the SDD detectors read the graph; a stale graph ships
- * degraded meta-gaps in the report). Test-only and doc-only commits are
- * ignored — see {@link GRAPH_IRRELEVANT_EXCLUDES}.
+ * Knowledge-graph freshness check. Graphify is OPTIONAL — a consumer that does
+ * not track `graphify-out/graph.json`, or declares no `scanPaths`, is
+ * `'skipped'` entirely. When a graph IS tracked, it must postdate the latest
+ * GRAPH-RELEVANT commit under the configured `scanPaths` (the SDD detectors
+ * read the graph; a stale graph ships degraded meta-gaps in the report).
+ * Test-only and doc-only commits are ignored — see
+ * {@link GRAPH_IRRELEVANT_EXCLUDES}.
  *
- * `cwd` is injectable for testing; defaults to the process cwd in the release
- * flow.
+ * Returns a verdict instead of throwing so the preflight aggregate can report
+ * it alongside every other gate. `cwd` is injectable for testing; defaults to
+ * the process cwd in the release flow.
  */
-export async function ensureGraphFresh(
+export async function evaluateGraphFreshness(
   scanPaths: string[],
   cwd: string = process.cwd(),
-): Promise<void> {
+): Promise<GraphFreshnessVerdict> {
   const graphTs = await latestCommitTs(['graphify-out/graph.json'], cwd);
   if (graphTs.length === 0) {
-    console.log('→ graph freshness (skipped — no graphify-out/graph.json tracked)');
-    return;
+    return { status: 'skipped', detail: 'no graphify-out/graph.json tracked' };
   }
-  if (scanPaths.length === 0) return;
+  if (scanPaths.length === 0) {
+    return { status: 'skipped', detail: 'consumer declares no scanPaths' };
+  }
   const srcTs = await latestCommitTs([...scanPaths, ...GRAPH_IRRELEVANT_EXCLUDES], cwd);
   if (srcTs.length > 0 && Number(srcTs) > Number(graphTs)) {
-    throw new Error(
-      'Knowledge graph is stale: graph-relevant source files were committed after graphify-out/graph.json. ' +
-        'Regenerate the graph (/graphify) and commit it before releasing. ' +
-        '(Test-only and doc-only commits are ignored.)',
-    );
+    return {
+      status: 'stale',
+      detail:
+        'graph-relevant source files were committed after graphify-out/graph.json ' +
+        '(test-only and doc-only commits are ignored)',
+    };
   }
+  return { status: 'fresh', detail: 'graph postdates the latest graph-relevant commit' };
 }

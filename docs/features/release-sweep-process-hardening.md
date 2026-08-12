@@ -26,6 +26,9 @@ links:
     - src/garden/__tests__/garden-detect.test.ts
     - src/hooks/__tests__/noldor-enforce-review-receipt.test.ts
     - src/hooks/__tests__/noldor-inject-trailers.test.ts
+    - src/release/__tests__/preflight-probes.test.ts
+    - src/release/__tests__/preflight-render.test.ts
+    - src/release/__tests__/preflight.test.ts
     - src/release/__tests__/release-session.test.ts
     - src/testing/__tests__/drain-e2e.test.ts
 name: Release-Sweep Process Hardening

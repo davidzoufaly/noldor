@@ -8,12 +8,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   GardenReceiptSchema,
-  ensureGardenFresh,
   evaluateGardenFreshness,
   readGardenReceipt,
   resolveGardenScanPaths,
   writeGardenReceipt,
 } from '../garden-receipt.js';
+import { makeProbeContext, runProbe } from '../../release/preflight-probes.js';
 
 function writeConfig(cwd: string, scanPaths: string[] | undefined): void {
   mkdirSync(join(cwd, '.noldor'), { recursive: true });
@@ -122,7 +122,11 @@ describe('garden-receipt read/write round-trip', () => {
   });
 });
 
-describe(ensureGardenFresh, () => {
+// The throwing `ensureGardenFresh` wrapper is gone; its gate — including the
+// RELEASE_SKIP_GARDEN_GATE bypass and the overrides.log breadcrumb — now lives
+// in the preflight aggregate's `garden-receipt` row, so the bypass contract is
+// asserted against the probe.
+describe('garden-receipt probe bypass (replaces ensureGardenFresh)', () => {
   const ORIGINAL_SKIP = process.env.RELEASE_SKIP_GARDEN_GATE;
 
   afterEach(() => {
@@ -130,26 +134,31 @@ describe(ensureGardenFresh, () => {
     else process.env.RELEASE_SKIP_GARDEN_GATE = ORIGINAL_SKIP;
   });
 
-  it('short-circuits without throwing when RELEASE_SKIP_GARDEN_GATE=1 (bootstrap bypass)', () => {
+  const ctx = (cwd: string) =>
+    makeProbeContext({ cwd, scanPaths: ['src'], nowMs: 0, sddReportOut: 'temp' });
+
+  it('short-circuits to skipped when RELEASE_SKIP_GARDEN_GATE=1 (bootstrap bypass)', async () => {
     process.env.RELEASE_SKIP_GARDEN_GATE = '1';
-    // No receipt present, but bypass means we never read it. Pass a non-repo
-    // cwd to prove the function never reads the receipt or spawns git (it
-    // only appends the overrides.log breadcrumb, which fails open).
+    // No receipt present, but bypass means we never read it. A non-repo cwd
+    // proves the probe never reads the receipt or spawns git (it only appends
+    // the overrides.log breadcrumb, which fails open).
     const tmp = mkdtempSync(join(tmpdir(), 'garden-fresh-bypass-'));
     try {
-      expect(() => ensureGardenFresh(tmp)).not.toThrow();
+      const row = await runProbe('garden-receipt', ctx(tmp));
+      expect(row.status).toBe('skipped');
+      expect(row.detail).toMatch(/RELEASE_SKIP_GARDEN_GATE=1/);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
   });
 
-  it('appends a (release)-tagged overrides.log line when bypassed', () => {
+  it('appends a (release)-tagged overrides.log line when bypassed', async () => {
     process.env.RELEASE_SKIP_GARDEN_GATE = '1';
     const tmp = mkdtempSync(join(tmpdir(), 'garden-fresh-bypass-log-'));
     try {
       // appendOverrideLog does not mkdir — the real repo always has .noldor/.
       mkdirSync(join(tmp, '.noldor'), { recursive: true });
-      ensureGardenFresh(tmp);
+      await runProbe('garden-receipt', ctx(tmp));
       const log = readFileSync(join(tmp, '.noldor', 'overrides.log'), 'utf8');
       expect(log).toMatch(/\tRELEASE_SKIP_GARDEN_GATE=1\t\(release\)\n$/);
     } finally {
