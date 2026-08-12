@@ -82,12 +82,13 @@ describe('renderBrief', () => {
 
   // Pins the contract the CR caller depends on: it must decide from the resolved
   // buckets, because an empty-enforce render is NOT an empty string.
-  it('still returns the no-match line under enforceOnly with an empty enforce bucket', () => {
+  it('still returns a line under enforceOnly with an empty enforce bucket, scoped to "binding"', () => {
     const out = renderBrief(result({ injected: [rule({ id: 'adv' })] }), {
       files: ['src/a.ts'],
       enforceOnly: true,
     });
-    expect(out).toContain('no rules match');
-    expect(out.length).toBeGreaterThan(0);
+    // Advisory rules DID match here — they were suppressed, not absent — so the
+    // line must not claim nothing matched at all.
+    expect(out.trim()).toBe('no binding rules match src/a.ts (stage: any)');
   });
 });

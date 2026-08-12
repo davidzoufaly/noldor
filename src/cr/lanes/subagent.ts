@@ -100,11 +100,19 @@ function resolveBindingRules(input: LaneInput, baseSha: string): string | undefi
     return undefined;
   }
   if (files.length === 0) return undefined;
-  const { enforce } = unionResults(
-    files.map((file) => runResolve(input.repoRoot, { file, stage: 'code' })),
+  // Keep only the files that actually carry a binding rule. A feature diff is
+  // mostly docs, fixtures and state files that no `**/*.ts` rule can match, and
+  // naming all of them in the header would spend prompt tokens implying the
+  // rules govern paths they do not.
+  const binding = files
+    .map((file) => ({ file, resolved: runResolve(input.repoRoot, { file, stage: 'code' }) }))
+    .filter(({ resolved }) => resolved.enforce.length > 0);
+  if (binding.length === 0) return undefined;
+  const { enforce } = unionResults(binding.map(({ resolved }) => resolved));
+  return renderBrief(
+    { enforce, injected: [] },
+    { files: binding.map(({ file }) => file), stage: 'code', enforceOnly: true },
   );
-  if (enforce.length === 0) return undefined;
-  return renderBrief({ enforce, injected: [] }, { files, stage: 'code', enforceOnly: true });
 }
 
 export async function runSubagent(input: LaneInput): Promise<LaneResult> {

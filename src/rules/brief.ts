@@ -39,6 +39,11 @@ function dedupeById(rules: readonly Rule[]): Rule[] {
  * `resolveRules` already returns a total order (specificity desc, declaration
  * asc), so concatenating per-file results and keeping the first occurrence
  * preserves that order without a re-sort.
+ *
+ * That guarantee is per file, not across them: a rule shared by files A and B
+ * stays at its file-A position even when it is B's most-specific match, and B's
+ * unique rules all trail A's. Display order only — every matched rule is still
+ * listed in the right bucket — so a global re-sort would buy nothing.
  */
 export function unionResults(results: readonly ResolveResult[]): ResolveResult {
   return {
@@ -76,7 +81,9 @@ export function renderBrief(result: ResolveResult, opts: BriefOptions): string {
   const advisory = opts.enforceOnly ? [] : result.injected;
 
   if (result.enforce.length === 0 && advisory.length === 0) {
-    return `no rules match ${where}\n`;
+    // Under `enforceOnly` advisory rules may well have matched — they were
+    // suppressed, not absent — so a bare "no rules match" would be false.
+    return `${opts.enforceOnly ? 'no binding rules match' : 'no rules match'} ${where}\n`;
   }
 
   const lines = [
