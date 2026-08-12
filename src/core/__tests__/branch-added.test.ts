@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import type { RunGit } from '../branch-added.js';
 import {
   discoverAddedFiles,
+  discoverChangedFiles,
   renameDestExists,
   repoRoot,
   resolveDefaultBase,
@@ -56,6 +57,73 @@ function repoWithDivergedMain(): string {
   expect(git(dir, ['merge-base', 'origin/main', 'HEAD']).trim()).toBe(base);
   return dir;
 }
+
+describe(discoverChangedFiles, () => {
+  /**
+   * A repo whose `base..head` range modifies one file, adds one, deletes one,
+   * renames one, and adds one with a non-ASCII name.
+   */
+  function repoWithARange(): { dir: string; base: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'branch-changed-'));
+    git(dir, ['init', '-q', '-b', 'main']);
+    git(dir, ['config', 'user.email', 't@example.com']);
+    git(dir, ['config', 'user.name', 'T']);
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src/kept.ts'), 'export const a = 1;\n');
+    writeFileSync(join(dir, 'src/doomed.ts'), 'export const b = 2;\n');
+    writeFileSync(join(dir, 'src/moved.ts'), 'export const c = 3;\n');
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-qm', 'base']);
+    const base = git(dir, ['rev-parse', 'HEAD']).trim();
+
+    writeFileSync(join(dir, 'src/kept.ts'), 'export const a = 11;\n');
+    writeFileSync(join(dir, 'src/fresh.ts'), 'export const d = 4;\n');
+    writeFileSync(join(dir, 'src/café.ts'), 'export const e = 5;\n');
+    git(dir, ['rm', '-q', 'src/doomed.ts']);
+    git(dir, ['mv', 'src/moved.ts', 'src/relocated.ts']);
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-qm', 'the range']);
+    return { dir, base };
+  }
+
+  it('returns modified, added, and renamed-destination paths for the range', () => {
+    const { dir, base } = repoWithARange();
+    const changed = discoverChangedFiles({ cwd: dir, base, head: 'HEAD' });
+    expect(changed).toContain('src/kept.ts');
+    expect(changed).toContain('src/fresh.ts');
+    expect(changed).toContain('src/relocated.ts');
+  });
+
+  it('omits a path the range deleted — rules cannot be resolved against a file that is gone', () => {
+    const { dir, base } = repoWithARange();
+    const changed = discoverChangedFiles({ cwd: dir, base, head: 'HEAD' });
+    expect(changed).not.toContain('src/doomed.ts');
+    // The rename SOURCE is a deletion too, so `-M` plus the filter leaves only
+    // the destination.
+    expect(changed).not.toContain('src/moved.ts');
+  });
+
+  it('does not C-quote a non-ASCII path', () => {
+    const { dir, base } = repoWithARange();
+    const changed = discoverChangedFiles({ cwd: dir, base, head: 'HEAD' });
+    expect(changed).toContain('src/café.ts');
+    expect(changed.some((p) => p.includes('\\303'))).toBe(false);
+  });
+
+  it('defaults head to HEAD', () => {
+    const { dir, base } = repoWithARange();
+    expect(discoverChangedFiles({ cwd: dir, base })).toEqual(
+      discoverChangedFiles({ cwd: dir, base, head: 'HEAD' }),
+    );
+  });
+
+  it('throws on an unresolvable base rather than reporting an empty change set', () => {
+    const { dir } = repoWithARange();
+    expect(() => discoverChangedFiles({ cwd: dir, base: 'no/such/ref' })).toThrow(
+      /failed:.*(ambiguous argument|unknown revision)/s,
+    );
+  });
+});
 
 describe(discoverAddedFiles, () => {
   it('returns only what this branch added, not what main moved after the branch point', () => {

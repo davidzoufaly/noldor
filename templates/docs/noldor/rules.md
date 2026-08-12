@@ -59,6 +59,7 @@ The toolchain is ESM … internal cross-module imports stay relative and carry a
 | Command                                              | Output                                                                                          |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `pnpm noldor rules resolve --file <path> --stage <stage>` | JSON `{ injected, enforce }` for the given file/stage. Both flags optional (stage-only or file-only). |
+| `pnpm noldor rules brief --file <path> [--file <path> …] [--stage <stage>] [--json]` | The same resolution rendered for an author: `ENFORCE` (binding) first, `ADVISORY` second, each rule with its scope, body, and links. Unions repeated `--file`, deduped. Stamps `session.injectedRules`. `--file` is **required** — see below. |
 | `pnpm noldor rules list`                             | Tab-separated `id  stage  inject\|enforce  scope` line per rule in the store.                    |
 | `pnpm noldor rules validate`                         | Loads + validates the store; non-zero exit + per-rule errors on failure.                        |
 
@@ -67,6 +68,19 @@ The toolchain is ESM … internal cross-module imports stay relative and carry a
 ## Template sync
 
 Files Noldor ships into a consumer repo from [`templates/`](../../templates/) (e.g. `templates/.claude/engineering-rules.md`, `templates/lefthook/noldor.yml`) must not drift from their template copy. [`checks/check-template-sync.ts`](../../src/checks/check-template-sync.ts) (`pnpm noldor checks template-sync`) blocks a commit/push when a templated file diverges from its `templates/` source — wired into both `pre-commit` and `pre-push` in [`lefthook/noldor.yml`](../../lefthook/noldor.yml). This keeps the baseline principles and hook config a consumer receives identical to the ones the framework tests against.
+
+### Why `rules brief` demands a `--file`
+
+`fileMatches` ([`resolve.ts`](../../src/rules/resolve.ts)) matches a file-scoped rule only against a query that names a file: for a stage-only query it returns `rule.appliesTo.length === 0`. Every rule in the store today is file-scoped, so `rules resolve --stage code` is empirically `{ injected: [], enforce: [] }`. A brief without a file would therefore print "no rules match" no matter how full the store is — a confident lie — so it refuses instead. Pass one `--file` per path you are about to touch.
+
+## Reaching the author and the reviewer
+
+Resolution is only useful if someone asks. Two callers do:
+
+- **Author, before writing** — `pnpm noldor rules brief --file <path> --stage code`, invoked per the `/noldor-gate` Step 3.5 instruction (claude) or the equivalent in [`drain-mode.md`](drain-mode.md) (codex/opencode). Prose is the delivery mechanism deliberately: a `PreToolUse` hook would be the only true per-edit seam, but `.claude/**` is withheld from non-claude consumers, so it would cover one runner of three.
+- **Reviewer, after writing** — the code-stage CR resolves the `enforce` bucket for the files the diff changed and includes their text in the reviewer prompt ([`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts) → `DispatchInput.rulesBrief`). This is what makes `enforce` more than a suggestion: a violation is a finding even when the author never ran the brief. Scope: the always-on `reviewer` lane, not the opt-in `codex` lane, which builds its prompt separately.
+
+`session.injectedRules` records the ids a brief surfaced. It is an **exposure** record — what this author was shown — and must never be read as a claim that the rules were followed.
 
 ## Where it sits
 

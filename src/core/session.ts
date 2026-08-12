@@ -122,6 +122,51 @@ export function touchSession(cwd: string, nowMs: number): void {
   writeSession(cwd, { ...m, startedAt: new Date(nowMs).toISOString() });
 }
 
+/**
+ * Union `ids` into {@link SessionMarker.injectedRules} — the record of which
+ * cascade rules an author was actually shown this session.
+ *
+ * Best-effort by design, following {@link touchSession} rather than
+ * {@link setAutonomous}:
+ * - **No marker** → no-op. `rules brief` is useful outside a gate session (an
+ *   operator reading the rules for a file), and a throw would make it unusable
+ *   there.
+ * - **Unreadable or invalid marker** → swallowed; the caller is told via
+ *   `onError` and its own output still succeeds. `readSession` throws on a torn
+ *   file and its `superRefine` throws on a `specs-only-*` marker missing
+ *   `markerVersion: 2` — exactly the degraded session where seeing the rules
+ *   matters most. This is not the fail-open the state-file hardening targets:
+ *   nothing downstream reads `injectedRules` to permit anything, so refusing to
+ *   print rules would harm the author and protect nobody.
+ *
+ * Union, not overwrite — a session briefs once per file and the field should
+ * accumulate. The read-union-write is not atomic, so two concurrent briefs can
+ * lose an id; accepted because sessions are per-worktree and single-author,
+ * `atomicWriteFileSync` still rules out a torn file, and an exposure record that
+ * understates is not misleading.
+ */
+export function stampInjectedRules(
+  cwd: string,
+  ids: readonly string[],
+  onError?: (message: string) => void,
+): void {
+  if (ids.length === 0) return;
+  let m: SessionMarker | null;
+  try {
+    m = readSession(cwd);
+  } catch (e) {
+    onError?.(
+      `session marker at ${sessionMarkerPath(cwd)} is unstampable (${e instanceof Error ? e.message : String(e)})`,
+    );
+    return;
+  }
+  if (m === null) return;
+  writeSession(cwd, {
+    ...m,
+    injectedRules: [...new Set([...(m.injectedRules ?? []), ...ids])].toSorted(),
+  });
+}
+
 export function setAutonomous(cwd: string = process.cwd()): void {
   const m = readSession(cwd);
   if (m === null) {

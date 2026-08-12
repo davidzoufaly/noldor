@@ -9,6 +9,13 @@ import type { Path } from '../session.js';
  */
 export type Stage = 'triage' | 'code' | 'review' | 'release';
 
+/**
+ * Runtime twin of {@link Stage}, kept beside the union so the two cannot drift.
+ * Used by `RuleFrontmatterSchema` to validate authored frontmatter and by
+ * `rules brief` to validate a `--stage` argument at the CLI trust boundary.
+ */
+export const STAGES = ['triage', 'code', 'review', 'release'] as const satisfies readonly Stage[];
+
 const RELEASE_PATHS = new Set<Path>(['release-sweep', 'release-automation']);
 
 export function pathToStage(path: Path): Extract<Stage, 'code' | 'release'> {

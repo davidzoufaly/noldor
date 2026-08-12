@@ -1,7 +1,6 @@
 import { z } from 'zod';
+import { STAGES } from '../core/rules/stage.js';
 import type { Stage } from '../core/rules/stage.js';
-
-const STAGES = ['triage', 'code', 'review', 'release'] as const satisfies readonly Stage[];
 
 /** Raw frontmatter as authored in `.noldor/rules/<id>.md` (kebab keys). */
 export const RuleFrontmatterSchema = z
