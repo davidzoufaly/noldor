@@ -1,9 +1,10 @@
 # Release Preflight Aggregate — Design
 
-**Slug:** release-preflight-aggregate
-**FD:** docs/features/release-sweep-process-hardening.md
+**Slug:** release-sweep-process-hardening-preflight-aggregate
+**FD:** docs/features/release-sweep-process-hardening.md (attach — parent FD; no child FD)
 **Date:** 2026-08-12
 **Tier:** specs-only
+**Entry:** Q-0068 (`release-preflight-aggregate`)
 **Deps:** none
 
 ## Problem
@@ -94,7 +95,7 @@ rather than re-deriving the condition:
 
 | Row id | Source of truth | Notes |
 | --- | --- | --- |
-| `session-marker` | `readSession` + `isSessionStale` + `resolveSessionTtlHours` | Reads the marker **before** `withReleaseSession` can overwrite it (D3) |
+| `session-marker` | `readSession` + `isSessionStale` + `resolveSessionTtlHours` | Reads the marker **before** `withReleaseSession` can overwrite it (D3). A `path: 'release-automation'` marker is **not** foreign — `withReleaseSession` deliberately falls through on it today (a crashed prior release) — so it maps to `warn` pointing at the `release-state` row and `--resume`, never to a generic foreign-marker `blocking` |
 | `release-state` | `readReleaseState` | Replaces `assertNoInProgressRelease`; fix names `--resume` and the discard pair |
 | `branch` / `tree-clean` / `origin-sync` | new `inspectTreeState()` in `clean-tree.ts` | Three rows from what is today one throw with three causes |
 | `gh-auth` | `gh --version` + `gh auth status` | Replaces index-local `ensureGhAvailable` |
@@ -171,40 +172,75 @@ than left for the operator to infer from a green report.
 
 ```ts
 async function main(): Promise<void> {
-  const resume = process.argv.slice(2).includes('--resume');
-  const preflightOnly = process.argv.slice(2).includes('--preflight');
-  const wantFix = process.argv.slice(2).includes('--fix');
+  const argv = process.argv.slice(2);
+  const resume = argv.includes('--resume');
+  const preflightOnly = argv.includes('--preflight');
+  const wantFix = argv.includes('--fix');
 
   // Read the marker BEFORE withReleaseSession can overwrite it (D3).
   const sessionAtEntry = readSession(process.cwd());
   const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
-  const previousTag = await findPreviousTag();
 
+  // --- preflight-only: report and exit, writing no tracked file ---
   if (preflightOnly) {
     const rows = await runPreflight({
-      cwd: process.cwd(), scanPaths, previousTag, sessionAtEntry,
+      cwd: process.cwd(), scanPaths, sessionAtEntry,
       nowMs: Date.now(), sddReportOut: 'temp',
       fixes: wantFix ? SAFE_FIXES : new Set(),
     });
     console.log(renderPreflight(rows));
     process.exitCode = hasBlocking(rows) ? 1 : 0;
-    return;                          // never enters withReleaseSession — writes nothing
+    return;                          // never enters withReleaseSession
   }
 
-  await withReleaseSession(process.cwd(), async () => { /* … as today … */ });
+  // --- resume: the aggregate is SKIPPED entirely (see below) ---
+  if (resume) {
+    await withReleaseSession(process.cwd(), () =>
+      resumeRelease(process.cwd(), { lockstepPackages, name: cfgName }));
+    return;
+  }
+
+  // --- normal release: the aggregate IS the first rung, ahead of the wrapper ---
+  const rows = await runPreflight({
+    cwd: process.cwd(), scanPaths, sessionAtEntry,
+    nowMs: Date.now(), sddReportOut: 'canonical',
+    fixes: new Set(['garden-receipt']),
+  });
+  console.log(renderPreflight(rows));
+  if (hasBlocking(rows)) {
+    throw new Error(
+      `Release preflight found ${countBlocking(rows)} blocking gate(s): ` +
+      `${blockingIds(rows).join(', ')}. See the report above for each remedy.`,
+    );
+  }
+
+  await withReleaseSession(process.cwd(), async () => { /* … consumer scripts,
+    version derivation, mutation, commit, tag, push … exactly as today … */ });
 }
 ```
 
-Two wiring decisions carry the design:
+`findPreviousTag()` is **not** hoisted into `main()`: `runPreflight` calls it itself, after any
+tree-mutating fix has been applied, because a fast-forward can bring new tags with it. `cr-gate` and
+`npm-name` both read it from there.
 
-**The aggregate runs before `withReleaseSession`, not inside it.** `withReleaseSession`
+Three wiring decisions carry the design:
+
+**`--resume` skips the aggregate entirely.** A resumable run has `.noldor/release-state.json` present
+*by definition*, so the `release-state` row would be `blocking` and `pnpm release --resume` would
+abort on the very token that authorizes it. That preserves today's contract at
+[`index.ts:324-328`](../../../src/release/index.ts) — resume "skips every precondition, check, and
+version derivation" and trusts only the state file, whose own shape and version cross-checks are its
+guard. `--preflight --resume` is not a meaningful combination; `--resume` wins.
+
+**The aggregate runs ahead of `withReleaseSession`, not inside it.** `withReleaseSession`
 ([`release-session.ts:14`](../../../src/release/release-session.ts)) overwrites
 `.noldor/session.json` with `path: 'release-automation'` and its `finally` clears it. A
 `session-marker` row evaluated inside that wrapper could never be `blocking` — and making the
 wrapper non-asserting so the row *could* fire would let it overwrite-then-delete a live gate
 session on a run that aborts anyway. Running the aggregate first keeps the marker intact and
-readable, and `withReleaseSession`'s own throw stays untouched as the writer protecting its own
-invariant (it can now only fire on a race between the aggregate and the wrapper).
+readable, and `withReleaseSession`'s own throw stays untouched **behind** the aggregate as the writer
+protecting its own invariant — it can now only fire on a marker that appears in the window between
+the aggregate finishing and the wrapper starting.
 
 **The real release passes `sddReportOut: 'canonical'` and `fixes: new Set(['garden-receipt'])`.**
 Both preserve today's behaviour exactly:
@@ -223,13 +259,13 @@ every blocking gate rather than the first.
 
 ### Unit 5 — the `npm-name` probe
 
-Gated on `release.publish.enabled` (`skipped` when publish is off). It runs one `npm view` against
-the configured registry — the same unauthenticated read
+It runs one `npm view` against the configured registry — the same unauthenticated read
 [`isVersionOnRegistry`](../../../src/release/release-publish.ts) already relies on — and maps the
 result with no similarity guessing (D8):
 
 | Registry result | This repo has released before (`previousTag !== 'v0.0.0'`) | Row |
 | --- | --- | --- |
+| `release.publish.enabled` is false | — | `skipped` — publish disabled, the name is never used |
 | name resolves | yes | `ok` — "name resolves; N version(s) published" |
 | name resolves | no | `blocking` — name exists on the registry but this repo has never released; pick another name or add a scope |
 | 404, name unscoped | — | `warn` — new-package moderation may reject a name similar to a popular package (unscoped `noldor` → "too similar to `color`"); prefer `@scope/name` |
@@ -266,14 +302,20 @@ ownership signal to an unauthenticated read. The limitation is recorded under Ri
 10. `RELEASE_SKIP_GATE_COMPLIANCE=1` and `RELEASE_SKIP_CR_GATE=1` each produce a `skipped` row and
     still append to `.noldor/overrides.log`.
 11. `cr-gate` is `skipped` when `previousTag === 'v0.0.0'`.
-12. `npm-name` returns each of the five outcomes in the Unit 5 table under a stubbed exec.
+12. `npm-name` returns each of the five rows of the Unit 5 table under a stubbed exec (including the
+    `skipped` row when `release.publish.enabled` is false).
 13. `renderPreflight` orders rows `blocking → warn → ok → skipped` and ends with the counts line.
 14. `pnpm release --preflight` exits 1 with the report on any blocking row, 0 otherwise, and writes
-    no file (no session marker, no `docs/sdd-report.md` change).
-15. A real release with a stale receipt and a clean `garden detect` still auto-stamps and proceeds —
+    no tracked file — no session marker, no `docs/sdd-report.md` change. (The `temp` sdd-report probe
+    writes an untracked temp file by design.)
+15. `pnpm release --resume` does not run the aggregate: with a release-state file present it reaches
+    `resumeRelease` rather than aborting on its own `release-state` row.
+16. A `path: 'release-automation'` marker yields `session-marker: warn` (not `blocking`), matching
+    `withReleaseSession`'s existing fall-through.
+17. A real release with a stale receipt and a clean `garden detect` still auto-stamps and proceeds —
     today's behaviour, unchanged.
-16. A real release with two blocking rows aborts once and its output names both.
-17. `pnpm noldor validate script-catalog` passes with the new flag documented in
+18. A real release with two blocking rows aborts once and its output names both.
+19. `pnpm noldor validate script-catalog` passes with the new flag documented in
     `docs/noldor/script-catalog.md`.
 
 ## Risks / trade-offs
@@ -281,10 +323,16 @@ ownership signal to an unauthenticated read. The limitation is recorded under Ri
 - **A green preflight is not a green release.** Consumer scripts are out of scope by D1, so
   `test`/`build` can still fail afterwards. The render contract's trailing `not run` line names them
   explicitly so the gap is visible rather than implied.
-- **`withReleaseSession` keeps a throw ahead of the aggregate.** It can only fire on a race (a
-  marker appearing between the aggregate and the wrapper), but it means one gate condition is
-  evaluated in two places. Accepted deliberately: the alternative — a non-asserting wrapper — risks
-  overwriting and then clearing a live gate session on a run that aborts anyway.
+- **`withReleaseSession` keeps its own throw behind the aggregate.** It can only fire on a marker
+  that appears in the window between the aggregate finishing and the wrapper starting, but it means
+  one gate condition is evaluated in two places. Accepted deliberately: the alternative — a
+  non-asserting wrapper — risks overwriting and then clearing a live gate session on a run that
+  aborts anyway.
+- **The sdd-report regen moves earlier in the pipeline.** Today `garden sdd-report --release` runs at
+  [`index.ts:355`](../../../src/release/index.ts), *after* the consumer scripts; as the aggregate's
+  `sdd-report` row it runs *before* them. The report reads feature MDs and `.noldor` state, not build
+  output, so the move is expected to be inert — but it is a real ordering change, called out here
+  rather than discovered later.
 - **`npm-name` infers ownership from release history.** A repo that published under a different
   name, or a fresh fork of a released repo, can get a wrong verdict. The row is cheap to override
   by turning `release.publish.enabled` off, and the warn text is explicit that moderation is only
