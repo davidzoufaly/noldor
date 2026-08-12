@@ -172,3 +172,56 @@ Brainstorming through the vendored `/noldor-spec` question-first loop does not r
 - confidence: low
 
 Consumers get feature MDs, specs, and plans but no architecture surface — no place that answers "how is this system shaped" above the per-feature level. Idea: a dedicated folder of architecture file(s) in the consumer doc tree, with diagramming. Needs a scoping spike before promotion: whether the content is hand-authored or derived from the graphify AST graph (which already has communities and edges), whether the diagrams are generated or drawn, and how the surface avoids becoming the stalest page in the tree.
+
+- The same gap holds for Noldor itself, and the scoping spike should decide whether one surface serves both or whether framework-internal architecture is a separate promotable item. The repo has rich feature docs and 107 design artifacts but no root `CONTEXT.md`, no module map and no `docs/adr/`, so maintainers and agents infer current architecture and rationale from 47k runtime LOC plus historical specs whose links are already stale (Q-0098). That makes unusual but intentional constraints — source-at-runtime packaging, adoption-safe advisories, sequential queue writes, graph fallbacks — read as accidental bugs, while genuine cross-module seams such as repository mutation (Q-0109) and snapshot ownership (Q-0110) stay implicit. Wanted: a concise current map in the project's own domain vocabulary showing major modules, dependency direction, durable state, entry points, and where each decision record lives, plus ADRs for active consequential choices rather than backfilled history. Deletion test: a new reader should not have to traverse archived plans to answer "which module owns repository paths, writes, and review completion?" (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
+
+### Multiagent Parallel Session Visibility
+
+- id: Q-0114
+- area: tooling
+- type: feat
+- since: 2026-08-12
+- size: L
+- impact: med
+- confidence: low
+- parent: parallel-worktree-workflow
+
+Multiagent operation already works in practice — several branches, several worktrees, several terminal tabs at once — but nothing surfaces it: the dashboard and the agents tab still describe a single-session world, so the operator cannot see which agent holds which worktree or branch. Make that state visible and keep it model-agnostic, so a claude, codex or opencode session all register the same way. Parked at the operator's explicit request rather than on score.
+
+### CLI Command Definitions and Trusted-Input Adapters
+
+- id: Q-0115
+- area: tooling
+- type: refactor
+- since: 2026-08-12
+- size: L
+- impact: med
+- confidence: low
+
+`src/cli/manifest.ts` knows dispatch targets and one-line descriptions, while individual handlers separately own detailed usage, flags, defaults, capabilities and validation. The dispatcher intercepts subcommand `--help`, which makes handler usage strings unreachable and breaks the base-SHA probe (Q-0112); ad-hoc argv loops differ silently; several path-building commands omit the shared slug guard (Q-0097). Move enough metadata and parse policy into a single command definition that help, dispatch, capability introspection and validation cannot drift, keeping implementation modules behind a stable seam, and route every external slug-shaped value through the same canonical adapter before any IO regardless of whether the caller is the packaged CLI or a library consumer. Deletion test: handler-local usage copies, copied slug regexes, `process.argv.find` loops and self-shelling help probes all go. Avoid a framework-heavy parser dependency unless the current manifest cannot generate the required behaviour with less code. (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
+
+### Design-Artifact Detector Module
+
+- id: Q-0116
+- area: tooling
+- type: refactor
+- since: 2026-08-12
+- size: S
+- impact: low
+- confidence: med
+- parent: doc-gardening-skill
+
+The largest clone in the repository sits wholly inside `src/garden/garden-detect.ts`: 388 tokens across 107 lines between stale-plan and stale-spec detection. Both implementations enumerate dated markdown, derive a slug, resolve ownership by feature filename then `links.*` then graph adjacency, then apply feature-phase and age policy and emit an archive finding; they differ only in artifact kind, path resolver, link relation and wording. Express those differences as small adapters around one ownership-and-age implementation, so archive-policy fixes and graph-fallback changes stay identical for specs and plans and adding a third design-artifact kind becomes deliberate rather than copied. Deletion test: two 100-plus-line functions collapse to one loop and two shallow strategies, while specific exported result types survive if callers benefit. Run the same behavioural matrix against both kinds: live owner, done owner, attach-name link owner, graph-only owner, stale orphan, recent orphan, missing directory. (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
+
+### Package Runtime Representation ADR
+
+- id: Q-0117
+- area: tooling
+- type: chore
+- since: 2026-08-12
+- size: M
+- impact: low
+- confidence: low
+- parent: noldor-package-lift
+
+The published package ships two full runtime representations plus development-only tests and fixtures: `package.json.files` includes both `dist` and `src`, and `bin/noldor.mjs` registers `tsx/esm/api` and executes `src/cli/index.ts`, so compiled `dist` is not the active runtime while the source inclusion also captures test suites. Measured with `npm pack --dry-run --json --ignore-scripts` on an isolated cache: 2,531 entries, 2.12 MB compressed, 11.26 MB unpacked, both trees present. Not automatically a bug — the archived package-lift design deliberately chose source-at-runtime, and compiled manifest strings still reference `.ts` paths — but it is measurable install, bandwidth and attack-surface waste plus two representations that can drift. Revisit the distribution decision as an explicit ADR rather than an opportunistic cleanup, comparing three approaches with packed-consumer smoke tests: (1) keep the TypeScript runtime but publish only runtime source, templates and bin, excluding tests, fixtures and dist; (2) make dist canonical, rewrite manifest and module resolution for `.js`, and drop tsx and source from the package; (3) keep both only if a real supported import or debug workflow requires it, and enforce build/source parity. Explore (1) first — smallest migration, behaviour preserved — then quantify cold-start, install and security differences before considering (2). Deletion test: one complete runtime tree and one module-resolution policy remain in the tarball. Risk: package-lift chose the current shape for portability, so any change needs clean `npm pack` install, CLI, hook and dashboard tests plus a compatibility statement for consumers importing undocumented source paths. (architecture candidate, Speculative because it conflicts with archived design, read-only audit 2026-08-12)
