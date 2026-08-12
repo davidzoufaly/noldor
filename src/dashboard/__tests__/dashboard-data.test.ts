@@ -3,7 +3,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -11,6 +11,7 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  countScriptFiles,
   featureSlugsForCodePath,
   hotZoneRowSchema,
   loadBacklog,
@@ -34,6 +35,7 @@ import {
   parseRoadmapFromString,
   resolveFeatureArtifacts,
   resolveRenamePath,
+  setDocRootsOverride,
   WIP_AGE_THRESHOLDS,
   wipAgeRowSchema,
 } from '../data.js';
@@ -322,6 +324,48 @@ describe('loadCounts', () => {
     expect(Number.isInteger(counts.skills)).toBe(true);
     expect(Number.isInteger(counts.scripts)).toBe(true);
   });
+});
+
+describe('countScriptFiles', () => {
+  let fixtureRoot: string;
+
+  beforeEach(async () => {
+    fixtureRoot = await mkdtemp(join(tmpdir(), 'noldor-scripts-count-'));
+    setDocRootsOverride(fixtureRoot);
+  });
+
+  afterEach(async () => {
+    setDocRootsOverride(undefined);
+    // the EACCES case leaves scripts/ unreadable — restore so rm succeeds
+    await chmod(join(fixtureRoot, 'scripts'), 0o755).catch(() => {});
+    await rm(fixtureRoot, { force: true, recursive: true });
+  });
+
+  it('returns 0 when scripts/ does not exist', async () => {
+    await expect(countScriptFiles()).resolves.toBe(0);
+  });
+
+  it('returns 0 for an empty scripts/', async () => {
+    await mkdir(join(fixtureRoot, 'scripts'));
+    await expect(countScriptFiles()).resolves.toBe(0);
+  });
+
+  it('counts nested sources and excludes .test.ts files', async () => {
+    await mkdir(join(fixtureRoot, 'scripts', 'sub'), { recursive: true });
+    await writeFile(join(fixtureRoot, 'scripts', 'a.ts'), 'export {};\n');
+    await writeFile(join(fixtureRoot, 'scripts', 'sub', 'b.ts'), 'export {};\n');
+    await writeFile(join(fixtureRoot, 'scripts', 'sub', 'b.test.ts'), 'export {};\n');
+    await expect(countScriptFiles()).resolves.toBe(2);
+  });
+
+  it.skipIf(process.getuid?.() === 0)(
+    'surfaces permission errors instead of reporting zero',
+    async () => {
+      await mkdir(join(fixtureRoot, 'scripts'));
+      await chmod(join(fixtureRoot, 'scripts'), 0o000);
+      await expect(countScriptFiles()).rejects.toMatchObject({ code: 'EACCES' });
+    },
+  );
 });
 
 describe('loadVelocity', () => {

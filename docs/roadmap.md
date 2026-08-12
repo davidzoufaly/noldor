@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Dashboard Overview Crashes Without a Scripts Directory
-
-- id: Q-0096
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: XS
-- impact: high
-- confidence: high
-- parent: project-tracking-dashboard
-
-`loadCounts()` runs `countMatching(getSkillsDir(), …)` and `countScriptFiles()` in parallel; the former catches a missing directory and returns zero, but `countScriptFiles()` (`src/dashboard/data.ts:1296-1304`) calls recursive `readdir` with no ENOENT branch, so the whole overview route renders an internal error. A temp consumer with minimal docs and no `scripts/` tree reproduced it. Consumer layouts are explicitly optional and the templates do not guarantee a scripts tree, so absence must mean count zero — while permission and IO errors stay visible rather than being swallowed by a broad catch. Fixture matrix: no `scripts/`, empty `scripts/`, nested source and test scripts, injected `EACCES` → expect 0, 0, the correct filtered count, and a surfaced error. (confirmed by runtime probe in the read-only audit 2026-08-12)
-
 ### Unvalidated Slug Path Traversal Across CLI Entry Points
 
 - id: Q-0097
