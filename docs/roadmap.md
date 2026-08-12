@@ -76,19 +76,6 @@ A fresh `pnpm noldor docs check` reports 15 markdown files with broken internal 
 
 `cr aggregate` discovers sinks by listing `.noldor/cr/` and prefix-matching (`src/cr/aggregate.ts:36-40`) and holds no expected-lane set, so a lane that never wrote a sink is invisible rather than `unresolved` — that list is only populated for a sink that exists and lacks `finishedAt` (`aggregate.ts:107`). With no other blockers, `ok: blockers.length === 0 && unresolved.length === 0` is therefore true, and a lane killed before it could write is indistinguishable from a lane that passed. Affects every lane and every kind. Fix: pass `aggregate` the lane set orchestrate resolved, and report a missing expected sink as `unresolved`. The deeper seam is Q-0112. (surfaced designing Q-0089)
 
-### Package Engines Runtime Floor
-
-- id: Q-0101
-- area: tooling
-- type: chore
-- since: 2026-08-12
-- size: XS
-- impact: med
-- confidence: high
-- parent: registry-distribution-for-the-noldor-package
-
-README and the adoption guide require Node 20 or newer and pnpm 9 or newer, and runtime source uses modern methods such as `toSorted`, but `package.json` carries no `engines` field — only `packageManager: pnpm@9.7.1`, which gives no install-time compatibility warning. Consumers on older Node install successfully and fail later inside a gate, hook, or release command. Add precise `engines.node` and, if the floor is genuinely enforced, `engines.pnpm`; make CI test the minimum version rather than only a newer development version; decide whether `engine-strict` belongs in the templates or whether warnings serve adoption better. Acceptance: packed-package metadata carries the declared floor, install under the minimum supported Node succeeds, and a below-floor fixture produces the intended deterministic warning or failure before Noldor executes. (confirmed by package/README contract comparison in the read-only audit 2026-08-12)
-
 ### Dashboard Roadmap-Add Route Writes Invalid Entries
 
 - id: Q-0102
