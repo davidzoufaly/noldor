@@ -46,8 +46,9 @@ correct answer independent of repo size, so it can be default-on in `templates/l
 
 ## Design
 
-Three units, all in `src/clones/diff-scope.ts` except the wiring. Two are pure; git I/O is isolated
-behind the `RunGit` seam already used by `src/core/branch-added.ts`.
+Six units. The first three are new and live in `src/clones/diff-scope.ts` — two pure, with git I/O
+isolated behind the `RunGit` seam already used by `src/core/branch-added.ts`. The last three are
+wiring: the CLI, the config schema, and the lefthook job.
 
 ### Unit 1 — `parseUnifiedDiffRanges(diff: string): Map<string, LineRange[]>` (pure)
 
@@ -81,7 +82,24 @@ interface ResolveChangedRangesOptions {
    not `main` is not fail-closed. `@{upstream}` first mirrors `resolveChangedFiles`
    (`src/checks/check-template-sync.ts:59`) — on a feature branch that is the honest base.
 2. `mergeBase = git merge-base <base> HEAD`.
-3. `git diff -U0 --no-color -M <mergeBase>` — **one ref, no `..HEAD`**. With a single ref the
+3. ```
+   git -c core.quotepath=false -c diff.relative=false -c diff.noprefix=false \
+       diff -U0 --no-color --no-ext-diff -M <mergeBase>
+   ```
+   `git diff` is porcelain and honours consumer config, and this parser is fail-open — a header shape
+   it does not recognize yields zero files, which the design defines as a legitimate green. So every
+   config that can reshape the output is pinned rather than trusted:
+   - `core.quotepath=false` — otherwise non-ASCII paths arrive C-quoted (`"src/caf\303\251.ts"`) and
+     never match a `loadCorpus` key.
+   - `diff.relative=false` — otherwise paths are emitted relative to `cwd`, not the repo root.
+   - `diff.noprefix=false` — otherwise the header is `+++ <path>`, not `+++ b/<path>`, and Unit 1
+     parses nothing.
+   - `--no-ext-diff` — otherwise `diff.external` replaces the output wholesale.
+
+   `renameDestExists` (`src/core/branch-added.ts:216-227`) already pins the first two for exactly this
+   reason; this call extends the same guard.
+
+   **One ref, no `..HEAD`.** With a single ref the
    post-image is the *working tree*, which is exactly what `loadCorpus`
    (`src/clones/clones-cli.ts:53-65`) reads off disk. A `<mergeBase>...HEAD` range would compare
    against `HEAD` instead, so every uncommitted edit would shift the corpus's real line numbers away
@@ -117,7 +135,10 @@ The `check` branch becomes a **union** of two independent verdicts; exit 1 if ei
 - **Diff-scoped** — skipped when `clones.diffScope === false` or when `resolveChangedRanges` returned
   `null` (stderr note names the reason). Otherwise red when `flaggedGroups` is non-empty, printing one
   line per group in the existing `renderSummary` span format
-  (`file:start-end and file:start-end (N tokens)`), capped at the same 10 groups.
+  (`file:start-end and file:start-end (N tokens)`) — **every** flagged group, uncapped. The 10-group
+  cap in `renderSummary` (`src/clones/clones-cli.ts:71`) exists because a whole-corpus report is
+  unbounded; a diff-scoped list is bounded by what the author just wrote, and truncating it would hide
+  a blocker the push must fix.
 - **Corpus threshold** — today's code, unchanged, including the `no clones.thresholdPct configured -
   green` line when unset.
 
@@ -166,7 +187,10 @@ push is worse than one that misses a clone. This mirrors `check-template-sync`'s
   deletion-only `+12,0` contributing nothing; a `/dev/null` post-image contributing nothing; a rename
   header keying on the new path.
 - `resolveChangedRanges` with a fake `RunGit`: `--against` honoured verbatim; `@{upstream}` preferred
-  when it resolves; `resolveDefaultBase` used when it does not; `null` on a failing `merge-base`.
+  when it resolves; `resolveDefaultBase` used when it does not; `null` on a failing `merge-base`; and
+  an argv assertion that the diff call pins `core.quotepath=false`, `diff.relative=false`,
+  `diff.noprefix=false` and passes `--no-ext-diff` — the guard is invisible at runtime (it prevents a
+  silent green), so only a test keeps it from being dropped.
 - `flaggedGroups`: instance inside → flagged; wholly outside → not; straddling → flagged; all-inside →
   flagged; overlap at exactly one shared line (boundary) → flagged; same line numbers in a *different*
   file → not.
@@ -185,11 +209,15 @@ tuned `thresholdPct` still red on its own.
   else `origin/main`) and behaves identically.
 - A clone group entirely outside the changed lines does not fail the check.
 - A group whose instances are all inside the changed lines fails the check.
-- Uncommitted working-tree edits are covered: line numbers in the verdict match the files on disk.
+- Uncommitted edits to **tracked** files are covered: line numbers in the verdict match the files on
+  disk. (An untracked new file has no post-image in `git diff`, so a clone pasted there is reachable
+  only through its other instance — moot at pre-push, where it is committed.)
 - `clones.diffScope: false` disables the diff-scoped verdict; the corpus threshold still applies.
 - With `clones.thresholdPct` unset and no clone touching the diff, `check` exits 0 and still prints the
   `no clones.thresholdPct configured - green` line.
 - Outside a git repo, or with no resolvable base, `check` exits 0 and writes the reason to stderr.
+- The diff invocation pins `core.quotepath=false`, `diff.relative=false`, `diff.noprefix=false` and
+  `--no-ext-diff`, so a consumer's git config cannot reshape the output into a silent green.
 - `noldor clones report` output is byte-identical to today's.
 - `pnpm noldor checks template-sync` passes with the new pre-push job in both lefthook copies.
 
@@ -208,6 +236,15 @@ tuned `thresholdPct` still red on its own.
   `src/features/phase-flip-done-cli.ts:4-29` ↔ `src/features/phase-revert-cli.ts:4-29`, 199 tokens).
   Once the job is wired, a later change touching either span is blocked until the duplication is
   resolved. Correct behaviour; noted so it is not mistaken for a bug.
+- **A dirty working tree can red a push of clean commits.** D6's post-image is the working tree, so
+  uncommitted local edits count as "your diff" even though they are not being pushed. Consistent with
+  the corpus `loadCorpus` reads — the alternative misaligns line numbers — but it is a consumer-facing
+  surprise worth naming.
+- **`cwd` must be the repo root.** Corpus keys are `cwd`-relative (`src/clones/clones-cli.ts:58`,
+  `abs.slice(cwd.length + 1)`) while pinned `diff.relative=false` makes diff paths repo-root-relative.
+  Run from a subdirectory the two never match and the gate is a silent green. Moot in practice — pnpm
+  scripts and lefthook both run at the root — so this slice documents the assumption rather than
+  adding a `rev-parse --show-toplevel` normalization nobody exercises.
 - **Whole-corpus tokenization on every push** — O(repo), 0.48s here. A consumer with a much larger
   corpus pays more. Not optimized in this slice; the fast path (skip when no code file changed) is
   deliberately deferred rather than guessed at.
