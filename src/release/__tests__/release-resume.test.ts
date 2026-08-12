@@ -12,7 +12,11 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { assertNoInProgressRelease, resumeRelease } from '../index.js';
+import { resumeRelease } from '../index.js';
+import { makeProbeContext, runProbe } from '../preflight-probes.js';
+
+/** Minimal probe context for the release-state row (no git or config reads). */
+const probeCtx = (cwd: string) => makeProbeContext({ cwd, scanPaths: ['src'], nowMs: 0 });
 import { readReleaseState, writeReleaseState } from '../release-state.js';
 
 const STATE = {
@@ -129,19 +133,25 @@ function enablePublish(cwd: string): void {
   );
 }
 
-describe('assertNoInProgressRelease', () => {
-  it('passes silently when no release state exists', () => {
+// The throwing `assertNoInProgressRelease` guard became the preflight
+// aggregate's `release-state` row, so the same two cases are asserted against
+// the probe. Reported instead of thrown, but the operator-facing contract — name
+// both valid moves — is unchanged.
+describe('release-state probe (replaces assertNoInProgressRelease)', () => {
+  it('is ok when no release state exists', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'release-resume-'));
-    expect(() => assertNoInProgressRelease(dir)).not.toThrow();
+    const row = await runProbe('release-state', probeCtx(dir));
+    expect(row.status).toBe('ok');
   });
 
-  it('aborts naming --resume and the discard recipe when a release is in progress', () => {
+  it('blocks naming --resume and the discard recipe when a release is in progress', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'release-resume-'));
     writeReleaseState(dir, STATE);
-    const call = (): void => assertNoInProgressRelease(dir);
-    expect(call).toThrow(/In-progress release v0\.4\.1/);
-    expect(call).toThrow(/pnpm release --resume/);
-    expect(call).toThrow(/git reset --hard && rm \.noldor\/release-state\.json/);
+    const row = await runProbe('release-state', probeCtx(dir));
+    expect(row.status).toBe('blocking');
+    expect(row.detail).toMatch(/in-progress release v0\.4\.1/i);
+    expect(row.fix).toMatch(/pnpm release --resume/);
+    expect(row.fix).toMatch(/git reset --hard && rm \.noldor\/release-state\.json/);
   });
 });
 

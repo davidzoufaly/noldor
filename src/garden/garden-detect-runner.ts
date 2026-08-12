@@ -98,7 +98,7 @@ function extractJsonLine(stdout: string): string | null {
  *   exitCode != 0 to avoid silent auto-stamp.
  *
  * Both are safe — the caller treats any non-zero exitCode as "don't
- * auto-stamp", which falls through to the existing `ensureGardenFresh()`
+ * auto-stamp", which falls through to the preflight `garden-receipt` row
  * gate to surface the receipt-stale error with its canonical message.
  */
 export async function runGardenDetectViaCli(

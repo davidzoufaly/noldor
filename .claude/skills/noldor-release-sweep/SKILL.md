@@ -152,10 +152,19 @@ If the ff-only fails — **most likely cause is a concurrent PR merging to `orig
 
 **Stop here. Do not run `pnpm release` without explicit confirmation.**
 
+First run the read-only gate aggregate so the confirmation is informed rather than hopeful:
+
+```
+pnpm release --preflight
+```
+
+It reports every release state gate at once — session marker, release state, branch, tree, origin sync, `gh` auth, graph freshness, garden receipt, sdd-report drift, `validate features`, gate compliance, CR gate, npm name — each blocking row carrying its own `fix:` line. Exit 1 means at least one gate is red. Surface the report verbatim; clear the mechanical rows with `pnpm release --preflight --fix` (stale session marker, fast-forward of a strictly-behind clean main, garden re-stamp on clean detect) and the rest by hand, then re-run until green. This is the same aggregate `pnpm release` runs as its own first rung, so a green preflight means the release will clear its state gates instead of aborting one at a time.
+
 Show the user:
 
 - The merged sweep PR URL.
 - `git log -1 --oneline` confirming main now carries the sweep squash commit.
+- The preflight report (or the fact that it came back green).
 - The fact that `pnpm release` will push a `v*` tag and create a public GitHub Release — irreversible.
 
 Ask: "Type `release now` to proceed, or `cancel` to stop. Anything else = cancel."

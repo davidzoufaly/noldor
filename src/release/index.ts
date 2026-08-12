@@ -4,19 +4,15 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { loadConfigSync } from '../core/config.js';
-import { ensureCleanTreeOnMain } from './clean-tree.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
-import { appendOverrideLog } from '../core/overrides-log.js';
-import { ensureGardenFresh } from '../garden/garden-receipt.js';
-import { autoStampOnCleanDetect } from './auto-restamp.js';
-import { ensureGraphFresh } from './graph-freshness.js';
 import { fillAllNoldorMarkers } from '../core/release-markers.js';
+import { blockingIds, recordOverrides, runPreflight } from './preflight.js';
+import { SAFE_FIXES } from './preflight-fix.js';
+import { renderPreflight } from './preflight-render.js';
 import { classifyCommits, deriveBumpLevel, readCommitsSince } from './release-commits.js';
-import { checkCrGate } from './release-cr-gate.js';
 import { generateFdChangelogs } from './release-fd-changelog.js';
 import { prependToChangelog, renderChangelogEntry } from './release-changelog.js';
-import { onlyVolatileSectionsChanged } from './sdd-report-diff.js';
 import { fillAllMarkers } from './release-markers.js';
 import {
   collectFeaturesForRelease,
@@ -42,17 +38,6 @@ async function run(
     process.stderr.write(stderr);
   }
   return stdout.trim();
-}
-
-async function ensureGhAvailable(): Promise<void> {
-  try {
-    await run('gh', ['--version']);
-    await run('gh', ['auth', 'status']);
-  } catch {
-    throw new Error(
-      'gh CLI missing or unauthenticated. Install from https://cli.github.com/ and run `gh auth login`.',
-    );
-  }
 }
 
 async function runCheck(label: string, cmd: string, args: string[]): Promise<void> {
@@ -110,22 +95,6 @@ async function extractLatestReleaseNotes(cwd: string = process.cwd()): Promise<s
   return `## ${entries[0].trimEnd()}`;
 }
 
-/**
- * Normal-path guard: a leftover release-state file means an earlier run died
- * mid-release. Re-running the full pipeline would reject on the dirty tree —
- * or, after a manual commit, re-derive the WRONG version because the release
- * commit itself would enter the bump window — so name the two valid moves.
- */
-export function assertNoInProgressRelease(cwd: string): void {
-  const state = readReleaseState(cwd);
-  if (state === null) return;
-  throw new Error(
-    `In-progress release v${state.version} detected (.noldor/release-state.json). ` +
-      'Run `pnpm release --resume` to finish it, or discard with ' +
-      '`git reset --hard && rm .noldor/release-state.json`.',
-  );
-}
-
 /** Options for {@link resumeRelease}. `main()` fills these from the consumer config. */
 export interface ResumeOptions {
   /** Same lockstep list the normal-path `git add` stages. */
@@ -144,6 +113,9 @@ const RELEASE_SURFACE_FILES = new Set([
 ]);
 /** Release-owned directories (marker fills + noldor pages). */
 const RELEASE_SURFACE_PREFIXES = ['docs/features/', 'docs/noldor/'];
+
+/** Every flag `pnpm release` accepts. Anything else is an operator typo. */
+const KNOWN_FLAGS: ReadonlySet<string> = new Set(['--resume', '--preflight', '--fix']);
 
 /**
  * Finish an interrupted release from wherever it died. Check-then-act ladder
@@ -316,23 +288,107 @@ export async function resumeRelease(cwd: string, opts: ResumeOptions): Promise<v
 }
 
 async function main(): Promise<void> {
-  // Dispatch reshapes argv so this module sees `node <modPath> [--resume]`.
-  const resume = process.argv.slice(2).includes('--resume');
+  // Dispatch reshapes argv so this module sees
+  // `node <modPath> [--resume] [--preflight] [--fix]`.
+  const argv = new Set(process.argv.slice(2));
+  const resume = argv.has('--resume');
+  const preflightOnly = argv.has('--preflight');
+  const wantFix = argv.has('--fix');
+
+  // Reject anything unrecognised rather than ignore it: a typo'd flag that
+  // silently does nothing is worse than an error, because the operator believes
+  // the flag took effect.
+  const unknown = [...argv].filter((a) => !KNOWN_FLAGS.has(a));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unrecognised flag(s): ${unknown.join(', ')}. ` +
+        `Supported: ${[...KNOWN_FLAGS].join(', ')}.`,
+    );
+  }
+
+  // Refuse the combination rather than pick a winner by branch order. Checked
+  // before the config load so a broken config cannot mask the flag conflict.
+  if (preflightOnly && resume) {
+    throw new Error(
+      '--preflight and --resume are mutually exclusive: resume deliberately skips every ' +
+        'precondition, so there is nothing for the aggregate to report. Run one or the other.',
+    );
+  }
+
+  // `--fix` only means something to the aggregate. Accepting it silently on a
+  // real release would imply the release auto-remediates on demand, which it
+  // deliberately does not (it only ever re-stamps the garden receipt).
+  if (wantFix && !preflightOnly) {
+    throw new Error(
+      '--fix only applies to --preflight. Run `pnpm release --preflight --fix` to apply the safe ' +
+        'remedies, then `pnpm release` once the report is green.',
+    );
+  }
+
+  const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
+
+  // --preflight reports and exits. It never enters withReleaseSession, so it
+  // writes no session marker, and every probe is side-effect free, so it leaves
+  // no tracked file changed either.
+  if (preflightOnly) {
+    const rows = await runPreflight({
+      cwd: process.cwd(),
+      scanPaths,
+      nowMs: Date.now(),
+      fixes: wantFix ? SAFE_FIXES : [],
+    });
+    console.log(renderPreflight(rows));
+    // No recordOverrides here on purpose: --preflight releases nothing, so it
+    // has no business appending to the release audit log.
+    process.exitCode = blockingIds(rows).length > 0 ? 1 : 0;
+    return;
+  }
+
+  // The aggregate IS the release's first rung, and it runs AHEAD of
+  // withReleaseSession on purpose: that wrapper overwrites .noldor/session.json
+  // with `release-automation` and clears it in a `finally`, so a session-marker
+  // row evaluated inside it could never be blocking — and making the wrapper
+  // non-asserting so the row *could* fire would let it overwrite-then-delete a
+  // live gate session on a run that aborts anyway. Running first keeps the
+  // marker intact and readable; the wrapper's own throw stays behind us as a
+  // backstop for a marker that appears in the window between the two.
+  //
+  // `fixes` is limited to garden-receipt: that is the auto-restamp the pipeline
+  // already performed here, and a release must never delete a session marker or
+  // move the branch pointer on its own.
+  if (!resume) {
+    const rows = await runPreflight({
+      cwd: process.cwd(),
+      scanPaths,
+      nowMs: Date.now(),
+      fixes: ['garden-receipt'],
+    });
+    console.log(renderPreflight(rows));
+    // Record RELEASE_SKIP_* bypasses once, here rather than inside the probes:
+    // this is the release decision point, and probe evaluation stays read-only.
+    for (const override of recordOverrides(rows, process.cwd())) {
+      console.log(`→ release override recorded: ${override}`);
+    }
+    const blocking = blockingIds(rows);
+    if (blocking.length > 0) {
+      throw new Error(
+        `Release preflight found ${blocking.length} blocking gate(s): ${blocking.join(', ')}. ` +
+          'See the report above for each remedy.',
+      );
+    }
+  }
+
   await withReleaseSession(process.cwd(), async () => {
-    const { lockstepPackages, name: cfgName, scanPaths } = loadConsumerConfig();
     if (resume) {
       // Resume re-enters withReleaseSession (fresh release-automation marker
       // for the pre-commit hook) and skips every precondition, check, and
-      // version derivation — the ladder trusts only the state file.
+      // version derivation — the ladder trusts only the state file. The
+      // aggregate is skipped too: a resumable run has a release-state file by
+      // definition, so its `release-state` row would abort the very token that
+      // authorizes the resume.
       await resumeRelease(process.cwd(), { lockstepPackages, name: cfgName });
       return;
     }
-    assertNoInProgressRelease(process.cwd());
-    await ensureCleanTreeOnMain();
-    await ensureGhAvailable();
-    await ensureGraphFresh(scanPaths);
-    await autoStampOnCleanDetect({ cwd: process.cwd() });
-    ensureGardenFresh(process.cwd(), scanPaths);
 
     // Consumer-defined quality gates run only when declared — keeps the
     // pipeline portable across single-package and monorepo consumers.
@@ -351,72 +407,22 @@ async function main(): Promise<void> {
         );
       }
     }
-    // Framework checks always run via the noldor CLI.
-    await runCliCheck('noldor garden sdd-report --release', ['garden', 'sdd-report', '--release']);
-    const dirtyReport = await run('git', ['status', '--porcelain', 'docs/sdd-report.md']);
-    if (dirtyReport.length > 0) {
-      let baseline: string | null = null;
-      try {
-        baseline = await run('git', ['show', 'HEAD:docs/sdd-report.md'], { captureOutput: true });
-      } catch {
-        // No committed baseline (first release / file untracked) — nothing to
-        // compare against, so fall through to the abort below.
-        baseline = null;
-      }
-      const working = (await readFile('docs/sdd-report.md', 'utf8')).trim();
-      if (baseline !== null && onlyVolatileSectionsChanged(baseline, working)) {
-        console.log(
-          '→ docs/sdd-report.md differs only in environment-local sections ' +
-            '(review-skip count / metrics read from local .noldor state); ' +
-            'folding regen into the release commit.',
-        );
-      } else {
-        throw new Error(
-          'docs/sdd-report.md has uncommitted changes after sdd-report regen. ' +
-            'Commit the regenerated report before releasing.',
-        );
-      }
-    }
     await runOptionalCheck(scripts, 'build');
-    await runCliCheck('noldor validate features', ['validate', 'features']);
-    if (process.env.RELEASE_SKIP_GATE_COMPLIANCE === '1') {
-      appendOverrideLog(process.cwd(), 'RELEASE_SKIP_GATE_COMPLIANCE=1', 'release');
-      console.log(
-        '→ noldor garden detect --gate-compliance (SKIPPED via RELEASE_SKIP_GATE_COMPLIANCE=1)',
-      );
-    } else {
-      await runCliCheck('noldor garden detect --gate-compliance', [
-        'garden',
-        'detect',
-        '--gate-compliance',
-      ]);
-    }
+
+    // `validate features`, gate-compliance and the CR gate all moved into the
+    // preflight aggregate above — one report instead of three sequential aborts.
+    //
+    // The sdd-report CHECK moved there too, but its in-place regen did not: the
+    // aggregate compares against a temp file so that a run which aborts on an
+    // earlier row cannot leave a rewritten tracked file behind. The canonical
+    // regen therefore happens here, once the aggregate is green, so any
+    // volatile-only drift lands in the working tree and rides the release
+    // commit's `git add` list exactly as it always did. No drift check is needed
+    // after it — the aggregate's `sdd-report` row already proved the report
+    // matches modulo volatile sections.
+    await runCliCheck('noldor garden sdd-report --release', ['garden', 'sdd-report', '--release']);
 
     const previousTag = await findPreviousTag();
-    if (previousTag !== 'v0.0.0') {
-      if (process.env.RELEASE_SKIP_CR_GATE === '1') {
-        appendOverrideLog(process.cwd(), 'RELEASE_SKIP_CR_GATE=1', 'release');
-        console.log('→ release CR gate (SKIPPED via RELEASE_SKIP_CR_GATE=1)');
-      } else {
-        const noldorConfig = loadConfigSync();
-        const crGate = checkCrGate({
-          from: previousTag,
-          to: 'HEAD',
-          cwd: process.cwd(),
-          exemptions: noldorConfig?.release?.crGateExemptCommits ?? [],
-        });
-        // Committed config is the audit trail for exemptions (reviewable in
-        // the PR diff) — echo applications loudly, but no overrides.log spam.
-        for (const e of crGate.exempted) {
-          console.log(`→ CR gate: exempted ${e.sha.slice(0, 10)} — ${e.reason}`);
-        }
-        if (!crGate.ok) {
-          console.error('Release CR gate failed:');
-          console.error(crGate.reason ?? '');
-          process.exit(1);
-        }
-      }
-    }
     console.log(`Previous tag: ${previousTag}`);
 
     const commits = await readCommitsSince(previousTag, 'HEAD');

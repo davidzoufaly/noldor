@@ -8,12 +8,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   GardenReceiptSchema,
-  ensureGardenFresh,
   evaluateGardenFreshness,
   readGardenReceipt,
   resolveGardenScanPaths,
   writeGardenReceipt,
 } from '../garden-receipt.js';
+import { makeProbeContext, runProbe } from '../../release/preflight-probes.js';
+import { recordOverrides } from '../../release/preflight.js';
 
 function writeConfig(cwd: string, scanPaths: string[] | undefined): void {
   mkdirSync(join(cwd, '.noldor'), { recursive: true });
@@ -122,7 +123,13 @@ describe('garden-receipt read/write round-trip', () => {
   });
 });
 
-describe(ensureGardenFresh, () => {
+// The throwing `ensureGardenFresh` wrapper is gone; its gate — including the
+// RELEASE_SKIP_GARDEN_GATE bypass — now lives in the preflight aggregate's
+// `garden-receipt` row. The overrides.log breadcrumb moved too, but to
+// `recordOverrides` on the release path rather than into the probe: probe
+// evaluation must stay side-effect free so read-only `--preflight` writes no
+// audit state, and so the fix pass cannot double-log a row it evaluates twice.
+describe('garden-receipt probe bypass (replaces ensureGardenFresh)', () => {
   const ORIGINAL_SKIP = process.env.RELEASE_SKIP_GARDEN_GATE;
 
   afterEach(() => {
@@ -130,28 +137,61 @@ describe(ensureGardenFresh, () => {
     else process.env.RELEASE_SKIP_GARDEN_GATE = ORIGINAL_SKIP;
   });
 
-  it('short-circuits without throwing when RELEASE_SKIP_GARDEN_GATE=1 (bootstrap bypass)', () => {
+  const ctx = (cwd: string) => makeProbeContext({ cwd, scanPaths: ['src'], nowMs: 0 });
+
+  it('short-circuits to skipped when RELEASE_SKIP_GARDEN_GATE=1 (bootstrap bypass)', async () => {
     process.env.RELEASE_SKIP_GARDEN_GATE = '1';
-    // No receipt present, but bypass means we never read it. Pass a non-repo
-    // cwd to prove the function never reads the receipt or spawns git (it
-    // only appends the overrides.log breadcrumb, which fails open).
+    // No receipt present, but bypass means we never read it. A non-repo cwd
+    // proves the probe never reads the receipt and never spawns git.
     const tmp = mkdtempSync(join(tmpdir(), 'garden-fresh-bypass-'));
     try {
-      expect(() => ensureGardenFresh(tmp)).not.toThrow();
+      const row = await runProbe('garden-receipt', ctx(tmp));
+      expect(row.status).toBe('skipped');
+      expect(row.detail).toMatch(/RELEASE_SKIP_GARDEN_GATE=1/);
+      expect(row.override).toBe('RELEASE_SKIP_GARDEN_GATE=1');
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
   });
 
-  it('appends a (release)-tagged overrides.log line when bypassed', () => {
+  it('does NOT write overrides.log during evaluation', async () => {
+    process.env.RELEASE_SKIP_GARDEN_GATE = '1';
+    const tmp = mkdtempSync(join(tmpdir(), 'garden-fresh-bypass-nolog-'));
+    try {
+      mkdirSync(join(tmp, '.noldor'), { recursive: true });
+      await runProbe('garden-receipt', ctx(tmp));
+      expect(existsSync(join(tmp, '.noldor', 'overrides.log'))).toBe(false);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('recordOverrides writes the (release)-tagged breadcrumb exactly once', async () => {
     process.env.RELEASE_SKIP_GARDEN_GATE = '1';
     const tmp = mkdtempSync(join(tmpdir(), 'garden-fresh-bypass-log-'));
     try {
       // appendOverrideLog does not mkdir — the real repo always has .noldor/.
       mkdirSync(join(tmp, '.noldor'), { recursive: true });
-      ensureGardenFresh(tmp);
+      const row = await runProbe('garden-receipt', ctx(tmp));
+      expect(recordOverrides([row], tmp)).toEqual(['RELEASE_SKIP_GARDEN_GATE=1']);
       const log = readFileSync(join(tmp, '.noldor', 'overrides.log'), 'utf8');
       expect(log).toMatch(/\tRELEASE_SKIP_GARDEN_GATE=1\t\(release\)\n$/);
+      expect(log.split('\n').filter((l) => l.includes('RELEASE_SKIP_GARDEN_GATE')).length).toBe(1);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('recordOverrides ignores rows carrying no override tag', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'garden-fresh-noop-'));
+    try {
+      mkdirSync(join(tmp, '.noldor'), { recursive: true });
+      const recorded = recordOverrides(
+        [{ id: 'garden-receipt', status: 'ok', detail: 'fresh' }],
+        tmp,
+      );
+      expect(recorded).toEqual([]);
+      expect(existsSync(join(tmp, '.noldor', 'overrides.log'))).toBe(false);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

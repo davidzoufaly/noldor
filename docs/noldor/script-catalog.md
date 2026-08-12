@@ -319,11 +319,19 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 
 ### `release`
 
-- **Trigger:** `pnpm release` — **explicit user confirmation only** (irreversible: pushes a `v*` tag and creates a public GitHub Release).
+- **Trigger:** `pnpm release` — **explicit user confirmation only** (irreversible: pushes a `v*` tag and creates a public GitHub Release). `--resume` finishes an interrupted release; `--preflight` reports the gates and exits without releasing; `--preflight --fix` also applies the safe remedies. `--preflight` and `--resume` are mutually exclusive (resume skips every precondition, so there is nothing for the aggregate to report).
 - **Inputs:** previous tag (`findPreviousTag`), new version (semver bump or operator-supplied), origin remote URL, commits since previous tag, `docs/features/*.md` for FD attribution, `graphify-out/graph.json` for freshness gating, the working tree (must be clean).
 - **Outputs:** writes per-FD `### <version> > #### Summary` blocks (auto-polished via `claude -p`, see [`feature-md-schema.md`](feature-md-schema.md)); prepends a `## v<version>` block to `docs/release-notes.md`; writes a `## v<version>` `CHANGELOG.md` entry; bumps `package.json` versions; runs the release pipeline (build, tag, push, create GH Release).
-- **When to use:** end of milestone or when a user explicitly confirms a release. The pre-release sweep (`/graphify` → `/noldor-refactor` → README check → `/graphify` again) is non-negotiable; see project root `CLAUDE.md`.
+- **When to use:** end of milestone or when a user explicitly confirms a release. Run `pnpm release --preflight` first — it reports every failing gate at once instead of one per re-run. The pre-release sweep (`/graphify` → `/noldor-refactor` → README check → `/graphify` again) is non-negotiable; see project root `CLAUDE.md`.
 - **Source:** [`src/release/index.ts`](../../src/release/index.ts)
+
+### `release --preflight`
+
+- **Trigger:** `pnpm release --preflight` (add `--fix` to apply the safe remedies). Read-only by default — safe to run any time.
+- **Inputs:** `.noldor/session.json`, `.noldor/release-state.json`, the working tree + `origin/main`, `gh` auth, `graphify-out/graph.json`, `.noldor/garden-receipt`, `docs/sdd-report.md`, `docs/features/*.md`, the previous tag, and `release.publish` config for the npm-name probe.
+- **Outputs:** one report row per gate — `session-marker`, `release-state`, `branch`, `tree-clean`, `origin-sync`, `gh-auth`, `graph-freshness`, `garden-receipt`, `sdd-report`, `validate-features`, `gate-compliance`, `cr-gate`, `npm-name` — ordered blocking → warn → ok → skipped, each blocking/warn row carrying a `fix:` line, closed by a counts line and an explicit `not run` line naming the consumer scripts preflight does not execute (`typecheck`, `test`, `test:smoke`, `test:e2e`, `build`, `docs:build`). Exit 1 when any row is blocking. `--fix` applies exactly three guarded remedies: remove a session marker past its TTL, fast-forward a strictly-behind clean `main`, re-stamp the garden receipt when `garden detect` is clean. It never commits, never regenerates the graph, never touches a dirty tree, and never deletes a live gate session.
+- **When to use:** before tagging, and any time `pnpm release` aborts — the same aggregate runs as the release's own first rung, so a green preflight means the release will get past its state gates.
+- **Source:** [`src/release/preflight.ts`](../../src/release/preflight.ts), [`src/release/preflight-probes.ts`](../../src/release/preflight-probes.ts), [`src/release/preflight-fix.ts`](../../src/release/preflight-fix.ts), [`src/release/preflight-render.ts`](../../src/release/preflight-render.ts)
 
 ### `release:publish`
 

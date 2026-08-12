@@ -5,11 +5,10 @@ import { basename, join } from 'node:path';
 import { z } from 'zod';
 
 import { loadConsumerConfig } from '../core/consumer-config.js';
-import { appendOverrideLog } from '../core/overrides-log.js';
 
 /**
  * Stamp on disk attesting that `/noldor-garden` ran successfully against a given
- * repo state. Read at release-time by {@link ensureGardenFresh} to refuse
+ * repo state. Read at release-time by {@link evaluateGardenFreshness} to refuse
  * publishing when nothing has run a doc-gardening pass since the last
  * tracked-file change. The shape is JSON so future fields (operator, host)
  * can be added without breaking older receipts.
@@ -48,8 +47,9 @@ interface FreshnessResult {
 }
 
 /**
- * Pure freshness check — extracted from {@link ensureGardenFresh} so the
- * release flow can be unit-tested without spawning `git log`.
+ * Pure freshness check — the release preflight's `garden-receipt` row calls
+ * this with {@link latestGardenScanCommitTs}, so the gate is unit-testable
+ * without spawning `git log`.
  *
  * @returns `{ ok: true }` when a receipt exists and its timestamp is >= the
  *   most recent tracked-file commit timestamp. Otherwise an error reason
@@ -79,7 +79,7 @@ export function evaluateGardenFreshness(input: FreshnessInputs): FreshnessResult
 /**
  * Source paths whose most-recent commit timestamp gates the receipt. Derived
  * from the consumer's `scanPaths` (`.noldor/config.json`) — the SAME scoping
- * input `ensureGraphFresh()` reads in `src/release/index.ts` — instead of a
+ * input `evaluateGraphFreshness()` reads — instead of a
  * hardcoded monorepo layout. A standalone repo with `scanPaths: ['src']` was
  * previously invisible to the gate: the hardcoded `apps/ packages/ scripts/`
  * scope matched nothing, so source commits never stale'd the receipt.
@@ -88,12 +88,13 @@ export function evaluateGardenFreshness(input: FreshnessInputs): FreshnessResult
  * (mirrors the dashboard default), keeping the gate functional during
  * bootstrap and in unit-test cwds.
  *
- * NOTE — deliberate divergence from `ensureGraphFresh()`: they share the
+ * NOTE — deliberate divergence from `evaluateGraphFreshness()`: they share the
  * scan-path *scoping* but not the *empty-config* semantics. Graph freshness is
  * opt-in (no graph tracked OR empty `scanPaths` → gate skipped). The garden
  * gate is NOT opt-out via empty config: an empty/absent `scanPaths` falls back
  * to `['src']` and still gates, so a config typo can't silently disable the
- * "did /noldor-garden run?" check. Disable it only via `RELEASE_SKIP_GARDEN_GATE=1`.
+ * "did /noldor-garden run?" check. Disable it only via `RELEASE_SKIP_GARDEN_GATE=1`,
+ * which the preflight `garden-receipt` row honors as a `skipped` row.
  *
  * Scoping is the load-bearing detail — without it, garden's own regen-chain
  * commits would re-stale the receipt the moment they land, forcing operators
@@ -109,40 +110,31 @@ export function resolveGardenScanPaths(cwd: string = process.cwd()): string[] {
 }
 
 /**
- * Release-time gate: refuses to proceed unless `/noldor-garden` has been run since
- * the last commit under the consumer's configured scan paths (see
- * {@link resolveGardenScanPaths}). Mirrors `ensureGraphFresh()`'s shape.
+ * Committer timestamp (unix seconds) of the most recent commit under the
+ * consumer's configured scan paths — the value {@link evaluateGardenFreshness}
+ * compares the receipt against. `0` when the scope has no commits.
  *
  * `scanPaths` defaults to {@link resolveGardenScanPaths} but callers that have
- * already loaded the consumer config (e.g. the release flow) pass it directly
- * to avoid a second config read.
+ * already loaded the consumer config (e.g. the release preflight) pass it
+ * directly to avoid a second config read.
  *
- * Bypass via `RELEASE_SKIP_GARDEN_GATE=1` for bootstrap commits (commits
- * that predate this gate's existence). Every bypass is stdout-loud AND
- * appends a `(release)`-tagged breadcrumb to `.noldor/overrides.log` via
- * {@link appendOverrideLog} — the same audit trail as the other release
- * skip-vars (see `src/release/index.ts`).
+ * The throwing `ensureGardenFresh()` wrapper this replaced was the release
+ * pipeline's only caller. Its gate now lives in the preflight aggregate's
+ * `garden-receipt` row, which owns the `RELEASE_SKIP_GARDEN_GATE=1` bypass and
+ * its `.noldor/overrides.log` breadcrumb, so the condition is expressed once.
  */
-export function ensureGardenFresh(cwd: string = process.cwd(), scanPaths?: string[]): void {
-  if (process.env.RELEASE_SKIP_GARDEN_GATE === '1') {
-    appendOverrideLog(cwd, 'RELEASE_SKIP_GARDEN_GATE=1', 'release');
-    console.log('→ ensureGardenFresh (SKIPPED via RELEASE_SKIP_GARDEN_GATE=1)');
-    return;
-  }
+export function latestGardenScanCommitTs(cwd: string, scanPaths?: string[]): number {
   // `?.length` (not `??`): callers — notably the release flow — pass the
   // consumer config's `scanPaths`, which defaults to `[]` when undeclared.
   // An empty pathspec to `git log -- ` resolves the latest commit across the
   // WHOLE repo, exactly the unscoped behavior `resolveGardenScanPaths` exists
   // to prevent. Treat empty the same as omitted and fall back.
   const paths = scanPaths?.length ? scanPaths : resolveGardenScanPaths(cwd);
-  const receipt = readGardenReceipt(cwd);
   const raw = execFileSync('git', ['log', '-1', '--format=%ct', '--', ...paths], {
     cwd,
     encoding: 'utf8',
   }).trim();
-  const latestSrcTs = raw.length > 0 ? Number(raw) : 0;
-  const result = evaluateGardenFreshness({ receipt, latestSrcTs });
-  if (!result.ok) throw new Error(result.reason);
+  return raw.length > 0 ? Number(raw) : 0;
 }
 
 async function main(): Promise<void> {

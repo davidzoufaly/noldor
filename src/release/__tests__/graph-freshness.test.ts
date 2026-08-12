@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { ensureGraphFresh, GRAPH_IRRELEVANT_EXCLUDES } from '../graph-freshness.js';
+import { evaluateGraphFreshness, GRAPH_IRRELEVANT_EXCLUDES } from '../graph-freshness.js';
 
 const exec = (cmd: string, args: string[], cwd: string, env?: Record<string, string>) =>
   new Promise<string>((resolve, reject) => {
@@ -16,7 +16,7 @@ const exec = (cmd: string, args: string[], cwd: string, env?: Record<string, str
     });
   });
 
-describe('ensureGraphFresh', () => {
+describe('evaluateGraphFreshness', () => {
   let cwd: string;
 
   beforeEach(async () => {
@@ -42,46 +42,46 @@ describe('ensureGraphFresh', () => {
     });
   }
 
-  it('skips (no throw) when no graphify-out/graph.json is tracked', async () => {
+  it('skips when no graphify-out/graph.json is tracked', async () => {
     await commit('src/app.ts', 'export const a = 1;\n', 1000);
-    await expect(ensureGraphFresh(['src'], cwd)).resolves.toBeUndefined();
+    expect((await evaluateGraphFreshness(['src'], cwd)).status).toBe('skipped');
   });
 
-  it('skips (no throw) when scanPaths is empty even if a graph exists', async () => {
+  it('skips when scanPaths is empty even if a graph exists', async () => {
     await commit('graphify-out/graph.json', '{}\n', 1000);
     await commit('src/app.ts', 'export const a = 2;\n', 2000);
-    await expect(ensureGraphFresh([], cwd)).resolves.toBeUndefined();
+    expect((await evaluateGraphFreshness([], cwd)).status).toBe('skipped');
   });
 
-  it('throws when a graph-relevant source file was committed after the graph', async () => {
+  it('reports stale when a graph-relevant source file was committed after the graph', async () => {
     await commit('src/app.ts', 'export const a = 1;\n', 1000);
     await commit('graphify-out/graph.json', '{}\n', 2000);
     await commit('src/app.ts', 'export const a = 3;\n', 3000);
-    await expect(ensureGraphFresh(['src'], cwd)).rejects.toThrow(/stale/i);
+    expect((await evaluateGraphFreshness(['src'], cwd)).status).toBe('stale');
   });
 
-  it('does NOT throw when only a colocated *.test.ts was committed after the graph', async () => {
+  it('reports fresh when only a colocated *.test.ts was committed after the graph', async () => {
     await commit('src/app.ts', 'export const a = 1;\n', 1000);
     await commit('graphify-out/graph.json', '{}\n', 2000);
     await commit('src/app.test.ts', 'test.skip("x", () => {});\n', 3000);
-    await expect(ensureGraphFresh(['src'], cwd)).resolves.toBeUndefined();
+    expect((await evaluateGraphFreshness(['src'], cwd)).status).toBe('fresh');
   });
 
-  it('does NOT throw when only a __tests__/ file was committed after the graph', async () => {
+  it('reports fresh when only a __tests__/ file was committed after the graph', async () => {
     await commit('src/app.ts', 'export const a = 1;\n', 1000);
     await commit('graphify-out/graph.json', '{}\n', 2000);
     await commit('src/feature/__tests__/app.test.ts', 'test.skip("y", () => {});\n', 3000);
-    await expect(ensureGraphFresh(['src'], cwd)).resolves.toBeUndefined();
+    expect((await evaluateGraphFreshness(['src'], cwd)).status).toBe('fresh');
   });
 
-  it('does NOT throw when only a *.md doc was committed after the graph', async () => {
+  it('reports fresh when only a *.md doc was committed after the graph', async () => {
     await commit('src/app.ts', 'export const a = 1;\n', 1000);
     await commit('graphify-out/graph.json', '{}\n', 2000);
     await commit('src/README.md', '# notes\n', 3000);
-    await expect(ensureGraphFresh(['src'], cwd)).resolves.toBeUndefined();
+    expect((await evaluateGraphFreshness(['src'], cwd)).status).toBe('fresh');
   });
 
-  it('throws when a commit touches both real source AND a test file', async () => {
+  it('reports stale when a commit touches both real source AND a test file', async () => {
     await commit('src/app.ts', 'export const a = 1;\n', 1000);
     await commit('graphify-out/graph.json', '{}\n', 2000);
     // single commit, mixed paths — the real-source edit must still stale the graph
@@ -95,7 +95,7 @@ describe('ensureGraphFresh', () => {
       GIT_AUTHOR_DATE: '@3000 +0000',
       GIT_COMMITTER_DATE: '@3000 +0000',
     });
-    await expect(ensureGraphFresh(['src'], cwd)).rejects.toThrow(/stale/i);
+    expect((await evaluateGraphFreshness(['src'], cwd)).status).toBe('stale');
   });
 
   it('exposes test- and doc-file exclusion pathspecs', () => {
