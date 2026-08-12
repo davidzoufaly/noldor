@@ -252,7 +252,8 @@ resolvable base with no merge base — is discovered, and stays green.
 init` cases (precedent: `src/garden/detectors/__tests__/allowlist-drift.test.ts`,
 `src/prep/__tests__/prep-promote.test.ts`): committed baseline plus an added duplicate → exit 1 naming
 both spans; `clones.diffScope: false` → exit 0; a non-git directory → exit 0 with the stderr note; a
-tuned `thresholdPct` still red on its own. Plus the two fail-open shapes, which must never exit 3: a
+tuned `thresholdPct` still red on its own. Plus the two fail-open shapes, each pinned to **exit 0 with
+the unknown-base note** (not merely "not 3" — exit 1 would satisfy that and would be just as wrong): a
 resolvable `--against` whose `merge-base` fails, and no `--against` with no resolvable base.
 
 ## Acceptance criteria
@@ -342,8 +343,9 @@ clones check: no clones.thresholdPct configured - green
 ```
 
 Exit codes: **0** green (or skipped with a stderr reason), **1** duplication found, **3** a usage error
-— today an unknown flag or a non-numeric `--min-tokens` (`src/clones/clones-cli.ts:79-85`), and now
-also an explicit `--against <ref>` that does not resolve.
+— today a bad or missing subcommand, an unknown flag, or a non-positive-integer `--min-tokens` /
+`--min-lines` / `--gap-tokens` (`src/clones/clones-cli.ts:29-50, 79-85`), and now also an explicit
+`--against <ref>` that does not resolve.
 
 Runs automatically as the `noldor-clones` pre-push job. Opt out in `.noldor/config.json`:
 
