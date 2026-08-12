@@ -142,7 +142,7 @@ export function blockingIds(rows: readonly PreflightRow[]): PreflightRowId[];
 export function renderPreflight(rows: readonly PreflightRow[]): string;
 
 // preflight-fix.ts
-/** Ordered: ref-moving fixes first, so pass 2 evaluates against the final tree. */
+/** Ordered: ref-moving fixes first, so later pass-1 evaluations see the post-merge tree. */
 export const SAFE_FIXES: readonly PreflightRowId[];    // ['origin-sync', 'session-marker', 'garden-receipt']
 export async function applyFix(id: PreflightRowId, cwd: string): Promise<string | null>;
 ```
@@ -156,8 +156,9 @@ single evaluation pass and nothing is mutated (D5). When `fixes` is non-empty, `
   sequencing is load-bearing, not stylistic: `origin-sync` is first in `SAFE_FIXES` because it is the
   only remedy that moves refs, and a `garden-receipt` that was `ok` before that fast-forward but stale
   after it is auto-restamped only because its evaluation happens *after* the merge. Evaluating all
-  fixable rows up front and then applying would miss exactly that case. Duplicate ids in `fixes` are
-  ignored — the second visit finds the row already `ok`.
+  fixable rows up front and then applying would miss exactly that case. A duplicate id in `fixes` is
+  harmless: the second visit re-evaluates and no-ops once the row is `ok` (and if the first fix's guard
+  declined, the retry is equally guarded). `SAFE_FIXES` itself has no duplicates.
 - **Pass 2 (report pass)** — evaluate **every** row from scratch against the post-fix tree, re-reading
   the session marker from disk and re-running `findPreviousTag()`. Pass 2's rows are the ones rendered
   and returned.
