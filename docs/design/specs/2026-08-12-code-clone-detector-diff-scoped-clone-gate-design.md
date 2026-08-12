@@ -104,10 +104,19 @@ interface ResolveChangedRangesOptions {
    (`src/clones/clones-cli.ts:53-65`) reads off disk. A `<mergeBase>...HEAD` range would compare
    against `HEAD` instead, so every uncommitted edit would shift the corpus's real line numbers away
    from the parsed ranges and the overlap test would compare two different files.
-4. Any git failure (no upstream *and* no origin, no merge base, not a repo, git absent) returns
-   `null`, not an empty map. `null` means "unknown" and the caller skips the diff-scoped verdict with
-   a stderr note; an empty map means "nothing changed" and is a legitimate green. Conflating them
-   would turn a broken git into a silent pass claiming it had checked.
+4. Git failure splits on **who chose the base**:
+   - **Auto-resolved base** (no `--against`) — returns `null`, not an empty map. `null` means
+     "unknown": the caller skips the diff-scoped verdict with a stderr note and stays green. An empty
+     map means "nothing changed" and is a legitimate green. Conflating them would turn a broken git
+     into a silent pass claiming it had checked. A repo with no upstream and no origin is a normal
+     state, not an error.
+   - **Explicit `--against <ref>` that git cannot resolve** — throws `UsageError`, which `runClones`
+     already maps to **exit 3** (`src/clones/clones-cli.ts:82-85`). The flag is a promise the caller
+     made; a CI job wired with a typo'd branch name must not sit permanently green behind a stderr
+     note nobody reads. Fail-open is for the zero-config path only.
+
+   Exit 3 is deliberately not exit 1: "could not look" and "found duplication" are different answers
+   and a caller keying on exit 1 should not see them merged.
 
 `-M` matches `discoverAddedFiles` (`src/core/branch-added.ts:88-98`): a renamed file's post-image path
 is its new path, which is the key `loadCorpus` uses.
@@ -187,7 +196,8 @@ push is worse than one that misses a clone. This mirrors `check-template-sync`'s
   deletion-only `+12,0` contributing nothing; a `/dev/null` post-image contributing nothing; a rename
   header keying on the new path.
 - `resolveChangedRanges` with a fake `RunGit`: `--against` honoured verbatim; `@{upstream}` preferred
-  when it resolves; `resolveDefaultBase` used when it does not; `null` on a failing `merge-base`; and
+  when it resolves; `resolveDefaultBase` used when it does not; `null` on a failing `merge-base` under
+  auto-resolution; `UsageError` (→ exit 3) on a failing `merge-base` when `--against` was explicit; and
   an argv assertion that the diff call pins `core.quotepath=false`, `diff.relative=false`,
   `diff.noprefix=false` and passes `--no-ext-diff` — the guard is invisible at runtime (it prevents a
   silent green), so only a test keeps it from being dropped.
@@ -215,7 +225,10 @@ tuned `thresholdPct` still red on its own.
 - `clones.diffScope: false` disables the diff-scoped verdict; the corpus threshold still applies.
 - With `clones.thresholdPct` unset and no clone touching the diff, `check` exits 0 and still prints the
   `no clones.thresholdPct configured - green` line.
-- Outside a git repo, or with no resolvable base, `check` exits 0 and writes the reason to stderr.
+- Outside a git repo, or with no *auto-resolvable* base, `check` exits 0 and writes the reason to
+  stderr.
+- An explicit `--against <ref>` that git cannot resolve exits **3** (usage error), never a silent
+  green.
 - The diff invocation pins `core.quotepath=false`, `diff.relative=false`, `diff.noprefix=false` and
   `--no-ext-diff`, so a consumer's git config cannot reshape the output into a silent green.
 - `noldor clones report` output is byte-identical to today's.
@@ -299,5 +312,8 @@ Runs automatically as the `noldor-clones` pre-push job. Opt out in `.noldor/conf
    -> **Blocking**, with a `clones.diffScope: false` opt-out (D4). A non-blocking gate is one nobody
    reads, and flipping it later costs another cycle.
 6. *What happens when git cannot answer?*
-   -> **Skip the diff-scoped verdict, exit green, explain on stderr** (D2). `resolveChangedRanges`
-   returns `null` (distinct from an empty map) so "unknown" is never rendered as "checked and clean".
+   -> **Depends who chose the base** (D2, D8). Auto-resolved: skip the diff-scoped verdict, exit green,
+   explain on stderr — `resolveChangedRanges` returns `null` (distinct from an empty map) so "unknown"
+   is never rendered as "checked and clean". Explicit `--against` that will not resolve: **exit 3**, a
+   usage error, because the flag was a promise the caller made and a typo'd CI ref would otherwise sit
+   permanently green.
