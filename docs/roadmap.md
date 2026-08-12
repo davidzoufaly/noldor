@@ -51,21 +51,6 @@ Three command families build filesystem paths from an unchecked positional argum
 
 - The mirror-image false negative in the same predicate: `clones check` cannot see an UNTRACKED new file, because `git diff` has no post-image for one, so the diff-scoped verdict prints `no clone group touches this change - green` for a file whose every line is new. The gate only starts reviewing a new file once it is committed, so a pre-commit green proves nothing and the findings arrive at pre-push instead — after the CR receipt is already stamped. The clones-cli test suite documents the mechanism in a fixture comment but nothing warns the operator. Have `resolveChangedRanges` union the `git diff` hunks with the full line span of every untracked corpus file, or at minimum print `N untracked file(s) not reviewed` so the green is qualified. (surfaced shipping Q-0094)
 
-### Worktree Session Path Hazards
-
-- id: Q-0118
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: high
-- confidence: high
-- parent: parallel-worktree-workflow
-
-The worktree edit-path trap has an undocumented **false-green** mode: when a gate session edits through main-workspace-absolute paths instead of worktree-absolute ones, the edits land on `main` while `pnpm typecheck` and `pnpm test` still run inside the unchanged worktree — both pass, and the pass proves nothing about the change. `git status` in the worktree is the only cheap tell (clean when it should be dirty), and a test-COUNT comparison is the only reliable one, since a suite that never loaded the new tests still reports green (97 → 111 in the Q-0088 case). Recovery is lossless: `git -C <main> diff -- src/ > p && git -C <worktree> apply --3way p && git -C <main> checkout -- src/`, then re-verify. Fix candidates: have the gate echo the worktree root as the edit-path prefix at scaffold time, and add a pre-commit or `noldor verify` assertion that the worktree tree is non-clean before a fast-track commit. (surfaced shipping Q-0088, PR #290)
-
-- The same session's second path hazard, worth closing in one pass: `cr orchestrate` and `pr-flow` both amend or commit, and every backgrounded git invocation leaves the agent's shell CWD silently back at the main workspace — so a later bare `cat .noldor/cr/<slug>-code-reviewer.json` reads the WRONG repo and a bare `git log -1` shows a previous feature's commit, which reads exactly like a lost receipt. Every post-commit check in a worktree session must use `git -C <worktree>` or an absolute path rather than trusting CWD persistence; the rule belongs in `docs/noldor/gotchas.md`, which carries no entry for it today. Already noted for Q-0077 (PR #264) and recurred anyway. (surfaced shipping Q-0088, PR #290)
-
 ### Queue-Drain Selection and Staleness Guards
 
 - id: Q-0121
