@@ -69,15 +69,25 @@ const NAV_GROUPS: Array<{ label: string; links: Array<{ href: string; label: str
 ];
 
 /**
- * Inline data-URI favicon (accent-colored "N" glyph) — no asset file, no extra
- * route, and it silences the browser's /favicon.ico 404, the only console
- * error the 2026-07-11 dashboard audit found.
+ * Inline data-URI favicon — accent-colored square carrying the first letter of
+ * the project's display name (`Charuy` → `C`), so two consumer dashboards open
+ * in adjacent browser tabs are tellable apart. No asset file, no extra route,
+ * and it silences the browser's /favicon.ico 404, the only console error the
+ * 2026-07-11 dashboard audit found.
+ *
+ * @param label - Brand text the glyph is taken from (defaults to
+ *   {@link repoDisplayName}); an empty/blank label falls back to `N`
+ * @returns `data:` URI for `<link rel="icon">`
  */
-export const FAVICON_HREF =
-  'data:image/svg+xml,' +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="3" fill="#2563eb"/><text x="8" y="12" font-size="11" font-family="sans-serif" font-weight="700" fill="#fff" text-anchor="middle">N</text></svg>`,
+export function faviconHref(label: string = repoDisplayName()): string {
+  const glyph = escapeHtml(Array.from(label.trim())[0]?.toUpperCase() ?? 'N');
+  return (
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="3" fill="#2563eb"/><text x="8" y="12" font-size="11" font-family="sans-serif" font-weight="700" fill="#fff" text-anchor="middle">${glyph}</text></svg>`,
+    )
   );
+}
 
 const STYLE = `
   :root { color-scheme: light dark; --fg: #1a1a1a; --bg: #fafafa; --muted: #6b6b6b; --accent: #2563eb; --line: #e0e0e0; }
@@ -431,5 +441,5 @@ export function renderLayout(opts: {
   const combinedEtagMeta = opts.combinedEtag
     ? `<meta name="combined-etag" content="${escapeHtml(opts.combinedEtag)}">`
     : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${combinedEtagMeta}<title>${escapeHtml(opts.title)}</title><link rel="icon" href="${FAVICON_HREF}"><style>${STYLE}</style></head><body><nav>${navHtml}</nav><main>${opts.body}</main>${MERMAID_SCRIPT}<script src="/static/drag.js" type="module"></script><script src="/static/agents.js" type="module"></script></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${combinedEtagMeta}<title>${escapeHtml(opts.title)}</title><link rel="icon" href="${faviconHref(brandLabel)}"><style>${STYLE}</style></head><body><nav>${navHtml}</nav><main>${opts.body}</main>${MERMAID_SCRIPT}<script src="/static/drag.js" type="module"></script><script src="/static/agents.js" type="module"></script></body></html>`;
 }
