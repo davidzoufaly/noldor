@@ -34,7 +34,7 @@ links:
 name: Release-Sweep Process Hardening
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 introduced: 0.5.1
 ---
@@ -54,10 +54,18 @@ As an operator preparing a release, I want `/noldor-release-sweep` to run end-to
 2. Skill writes `.noldor/session.json` with `{ path: 'release-sweep', startedAt: <ISO> }` and creates branch `release-sweep/<ts>` from `main`. No worktree (named carve-out from worktree-discipline; see spec §4.1).
 3. Skill auto-runs the sweep pipeline: `/graphify` → `pnpm toon` → `/noldor-refactor` against new `GRAPH_REPORT.md` → README drift check → `pnpm docs:build` + `pnpm sdd:report --release` → second `/graphify` + `pnpm toon` capturing the refactor. Each step commits with `chore(release-sweep): <step>` subject; `Noldor-Path: release-sweep` injected automatically.
 4. Skill invokes `pnpm pr-flow` — pushes branch, opens PR with templated body listing every sweep commit, sets `gh pr merge --auto --squash`, polls until merged, ff-pulls `main`.
-5. Skill pauses with `AskUserQuestion`: "Sweep PR merged. Run `pnpm release` now?" — Yes / No / Defer.
-6. On Yes: `pnpm release` runs. Release-script step 0 (new) runs `garden:detect` inline and auto-stamps the receipt on clean — no manual `/noldor-garden` re-stamp loop.
-7. On No / Defer: skill exits without releasing; operator can re-invoke `pnpm release` later.
-8. Skill auto-clears `.noldor/session.json` regardless of release outcome.
+5. Skill runs `pnpm release --preflight` and surfaces the report — every release state gate at once, ordered blocking → warn → ok → skipped, each blocking row carrying its own `fix:` line. Exit 1 means at least one gate is red.
+6. Operator clears the mechanical rows with `pnpm release --preflight --fix` and the rest by hand, then step 5 re-runs until green.
+7. Skill pauses with `AskUserQuestion`: "Sweep PR merged. Run `pnpm release` now?" — Yes / No / Defer.
+8. On Yes: `pnpm release` runs. Its first rung is the same aggregate, so a red gate prints the whole report and aborts once naming every failure — not one abort per re-run. The garden receipt is still auto-stamped when `garden detect` is clean; that is now the aggregate's one enabled `--fix` remedy.
+9. On No / Defer: skill exits without releasing; operator can re-invoke `pnpm release` later.
+10. Skill auto-clears `.noldor/session.json` regardless of release outcome.
+
+**Preflight CLI**
+
+- `pnpm release --preflight` — read-only; reports all 13 state-gate rows and exits 1 if any is blocking. Closes with an explicit `not run` line naming the consumer scripts it does not execute (`typecheck`, `test`, `test:smoke`, `test:e2e`, `build`, `docs:build`).
+- `pnpm release --preflight --fix` — also applies the three guarded remedies: remove a session marker past its TTL, fast-forward a strictly-behind clean `main`, re-stamp the garden receipt when `garden detect` is clean. Never commits, never regenerates the graph, never touches a dirty tree, never deletes a live gate session.
+- `--preflight` and `--resume` are mutually exclusive — resume skips every precondition by design, so there is nothing for the aggregate to report.
 
 **Agent API**
 
