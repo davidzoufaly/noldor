@@ -1293,8 +1293,21 @@ async function countMatching(dir: string, pattern: RegExp, recurse: boolean): Pr
   }
 }
 
-async function countScriptFiles(): Promise<number> {
-  const entries = await readdir(getScriptsDir(), { withFileTypes: true, recursive: true });
+/**
+ * Count non-test `.ts` files under the consumer's `scripts/` tree.
+ *
+ * @returns Number of script sources; 0 when the directory is absent
+ */
+export async function countScriptFiles(): Promise<number> {
+  let entries;
+  try {
+    entries = await readdir(getScriptsDir(), { withFileTypes: true, recursive: true });
+  } catch (err) {
+    // scripts/ is optional in consumer layouts — absence means zero, but
+    // permission/IO failures must surface rather than masquerade as zero.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+    throw err;
+  }
   return entries.filter(
     (e) =>
       e.isFile() &&
