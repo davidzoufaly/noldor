@@ -65,8 +65,17 @@ export async function readExpectedLanes(
     let raw: string;
     try {
       raw = await readFile(file, 'utf8');
-    } catch {
-      continue; // absent — no expectation recorded for this kind
+    } catch (err) {
+      // Only ENOENT means "no expectation recorded". Any other read failure
+      // (EACCES, EIO) is an existing record that could not be trusted —
+      // dropping it would fail open, so surface it like a corrupt one.
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        errors.push({
+          file,
+          message: `expected-lanes record unreadable: ${(err as Error).message}`,
+        });
+      }
+      continue;
     }
     try {
       const parsed = expectedLanesSchema.parse(JSON.parse(raw));
