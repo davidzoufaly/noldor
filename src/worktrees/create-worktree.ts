@@ -172,6 +172,9 @@ async function main(): Promise<number> {
     });
     process.stdout.write(`\nWorktree ready at ${res.path}\n`);
     process.stdout.write(`Branch: ${res.branch}${res.port ? `  Port: ${res.port}` : ''}\n`);
+    process.stdout.write(
+      `Edit-path prefix: ${res.path}/ — every edit must start with this root; a main-workspace path lands on main while typecheck/test here stay green (false-green).\n`,
+    );
     process.stdout.write('Next: run the baseline test suite from inside the tree.\n');
     return 0;
   } catch (err) {

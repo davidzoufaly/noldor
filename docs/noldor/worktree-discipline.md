@@ -69,10 +69,18 @@ See [release-sweep-process-hardening](../features/release-sweep-process-hardenin
   (`/…/noldor/docs/…`) edits **main's** working copy while `Bash`/`tsx` with
   relative paths resolve against the worktree — a split-brain where doc edits
   land uncommitted on main, validators/commits run clean in the worktree, and
-  the worktree `git status` shows fewer changes than expected. Always prefix
-  Edit/Read/Write with the worktree root (`.worktrees/<slug>/…`) and sanity-check
-  `git status --short` in the worktree after the first edit. Recovery:
-  `git -C <main> checkout -- <files>`, then re-apply with worktree-absolute paths.
+  the worktree `git status` shows fewer changes than expected. The trap has a
+  **false-green mode**: `pnpm typecheck` / `pnpm test` run inside the unchanged
+  worktree and both pass — proving nothing about the change (a suite that never
+  loaded the new tests still reports green, so compare the test COUNT, not just
+  the color). Always prefix Edit/Read/Write with the worktree root
+  (`.worktrees/<slug>/…` — `worktrees create` echoes it as `Edit-path prefix:`
+  at scaffold time) and sanity-check `git status --short` in the worktree after
+  the first edit. Lossless recovery:
+  `git -C <main> diff -- src/ > p && git -C <worktree> apply --3way p && git -C <main> checkout -- src/`,
+  then re-verify. See [`gotchas.md`](gotchas.md) "Worktrees" for the paired
+  CWD-drift trap (backgrounded git resets the shell CWD to the main workspace —
+  post-commit checks must use `git -C <worktree>`).
 - **Native `EnterWorktree` worktrees live at `.claude/worktrees/<name>`.** The
   shared-files pre-commit guard only matches paths containing `/.worktrees/`, so
   it is INACTIVE inside a native worktree — skill/template twins commit there
