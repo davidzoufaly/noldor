@@ -76,8 +76,15 @@ export interface CommitFiles {
   files: string[];
 }
 
-/** Trailer lines pr-flow injects or git appends — noise in a PR summary. */
-const TRAILER_RE = /^(?:Noldor-[A-Za-z-]+|Co-authored-by|Signed-off-by):/;
+/**
+ * Trailer lines pr-flow injects or git appends — noise in a PR summary.
+ *
+ * Case-insensitive because git trailers are (see `git-interpret-trailers`) and
+ * both casings occur here: `git` writes `Co-authored-by`, the Claude harness
+ * writes `Co-Authored-By`. A case-sensitive match let the latter leak into the
+ * Summary — exactly the noise this exists to strip.
+ */
+const TRAILER_RE = /^(?:noldor-[a-z-]+|co-authored-by|signed-off-by):/i;
 
 /**
  * Parse `git log --reverse --format=%x1e%H --name-only <range>`.

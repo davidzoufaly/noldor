@@ -365,6 +365,18 @@ describe('stripTrailers', () => {
     );
   });
 
+  it('drops trailers whatever their casing (git trailers are case-insensitive)', () => {
+    // `git` writes `Co-authored-by`; the Claude harness writes `Co-Authored-By`.
+    const body = [
+      'Real prose stays.',
+      '',
+      'Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>',
+      'NOLDOR-PATH: fast-track',
+      'signed-off-by: someone <s@example.com>',
+    ].join('\n');
+    expect(stripTrailers(body)).toBe('Real prose stays.');
+  });
+
   it('returns an empty string for a body that is only trailers', () => {
     expect(stripTrailers('Noldor-Path: fast-track\nNoldor-FD: x\n')).toBe('');
   });
