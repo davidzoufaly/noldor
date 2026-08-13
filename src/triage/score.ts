@@ -6,7 +6,7 @@ import matter from 'gray-matter';
 import { z } from 'zod';
 
 import { resolveEntryRef } from './entry-id.js';
-import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds } from './retired-ids.js';
+import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds, retiredRefs } from './retired-ids.js';
 
 export const sizeSchema = z.enum(['XS', 'S', 'M', 'L', 'XL']);
 export const impactSchema = z.enum(['low', 'med', 'high', 'critical']);
@@ -93,15 +93,13 @@ export interface ResolverPaths {
 export function resolveIsShipped(paths: ResolverPaths): (ref: string) => boolean {
   const roadmapRaw = existsSync(paths.roadmapPath) ? readFileSync(paths.roadmapPath, 'utf8') : '';
   const backlogRaw = existsSync(paths.backlogPath) ? readFileSync(paths.backlogPath, 'utf8') : '';
-  const retired = paths.retiredIdsPath === undefined ? {} : loadRetiredIds(paths.retiredIdsPath);
-  const retiredRefs = new Set([
-    ...Object.keys(retired),
-    ...Object.values(retired).map((r) => r.slug),
-  ]);
+  const retired = retiredRefs(
+    paths.retiredIdsPath === undefined ? {} : loadRetiredIds(paths.retiredIdsPath),
+  );
   return (ref: string): boolean => {
-    if (retiredRefs.has(ref)) return true;
+    if (retired.has(ref)) return true;
     const slug = resolveEntryRef(ref, { roadmapRaw, backlogRaw, featuresDir: paths.featuresDir });
-    if (retiredRefs.has(slug)) return true;
+    if (retired.has(slug)) return true;
     const fdPath = join(paths.featuresDir, `${slug}.md`);
     if (!existsSync(fdPath)) return false;
     const raw = readFileSync(fdPath, 'utf8');

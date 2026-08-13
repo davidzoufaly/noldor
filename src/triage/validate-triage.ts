@@ -6,7 +6,7 @@ import matter from 'gray-matter';
 
 import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 import { COUNTER_PATH_DEFAULT, ENTRY_ID_RE } from './entry-id.js';
-import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds } from './retired-ids.js';
+import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds, retiredRefs } from './retired-ids.js';
 
 export interface TriageIssue {
   file: 'docs/roadmap.md' | 'docs/backlog.md';
@@ -397,10 +397,7 @@ async function main(): Promise<void> {
   const counterExists = existsSync(`${opts.cwd}/${COUNTER_PATH_DEFAULT}`);
   const { featureSlugs, featureEntryIds } = await loadFeatureRefs(`${opts.cwd}/docs/features`);
   const retiredMap = loadRetiredIds(`${opts.cwd}/${RETIRED_IDS_PATH_DEFAULT}`);
-  const retiredEntryIds = [
-    ...Object.keys(retiredMap),
-    ...Object.values(retiredMap).map((r) => r.slug),
-  ];
+  const retiredEntryIds = [...retiredRefs(retiredMap)];
   const result = validateTriageInputs({
     roadmapRaw,
     backlogRaw,

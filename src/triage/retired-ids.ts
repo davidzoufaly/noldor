@@ -52,6 +52,18 @@ export function loadRetiredIds(path: string): Record<string, RetiredIdRecord> {
 }
 
 /**
+ * Every reference form that resolves to a retired entry: the `Q-NNNN` keys plus
+ * each record's slug (`blocked-by:` accepts either form). Single source of truth
+ * for both consumers of "does this ref name a retired entry?" —
+ * `validate:triage`'s known-ref set and `resolveIsShipped`'s dep-weight oracle —
+ * so widening what counts as a ref cannot diverge between validation and
+ * scoring.
+ */
+export function retiredRefs(map: Record<string, RetiredIdRecord>): Set<string> {
+  return new Set([...Object.keys(map), ...Object.values(map).map((r) => r.slug)]);
+}
+
+/**
  * Append one retired ID to the map, creating the file on first use. Idempotent:
  * an already-recorded ID is left untouched (first record wins — the original
  * retirement context beats a re-run's) and reported via the return value.
