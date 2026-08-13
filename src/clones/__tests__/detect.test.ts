@@ -238,3 +238,61 @@ describe('tandem repeats n >= 4', () => {
     });
   }
 });
+
+describe('chained-builder schema declarations', () => {
+  /** The two schemas this repo's own detector reported as a 52-token clone. */
+  const ledger = [
+    "import { z } from 'zod';",
+    'export const roundSchema = z.object({',
+    '  headSha: z.string(),',
+    '  fingerprint: z.string().min(1),',
+    '  applied: z.number().int().nonnegative(),',
+    '  deferred: z.number().int().nonnegative(),',
+    '  diffStat: z.string(),',
+    '});',
+    '',
+  ].join('\n');
+  const hotZones = [
+    "import { z } from 'zod';",
+    'const hotZoneSchema = z.array(',
+    '  z.object({',
+    '    rank: z.number().int().positive(),',
+    '    path: z.string().min(1),',
+    '    changeCount: z.number().int().positive(),',
+    '    insertions: z.number().int().nonnegative(),',
+    '    deletions: z.number().int().nonnegative(),',
+    '  }),',
+    ');',
+    '',
+  ].join('\n');
+
+  const crossFile = (r: ReturnType<typeof detectClones>) =>
+    r.groups.filter((g) => new Set(g.instances.map((i) => i.file)).size > 1);
+
+  it('two unrelated schemas sharing validators are not a clone', () => {
+    const report = detectClones(
+      new Map([
+        ['a.ts', ledger],
+        ['b.ts', hotZones],
+      ]),
+    );
+    expect(crossFile(report)).toEqual([]);
+  });
+
+  it('a genuinely copied schema still reds', () => {
+    const fields = Array.from(
+      { length: 30 },
+      (_, i) => `  field${i}: z.number().int().nonnegative(),`,
+    );
+    const body = ['export const bigSchema = z.object({', ...fields, '});', ''].join('\n');
+    const report = detectClones(
+      new Map([
+        ['a.ts', body],
+        ['b.ts', body.replace('bigSchema', 'copiedSchema')],
+      ]),
+    );
+    const pairs = crossFile(report);
+    expect(pairs.length).toBeGreaterThan(0);
+    expect(pairs[0]!.instances.map((i) => i.file).sort()).toEqual(['a.ts', 'b.ts']);
+  });
+});

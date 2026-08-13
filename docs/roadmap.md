@@ -203,16 +203,3 @@ Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-
 - The confirmed symptom: queue parsing and docs-link checking implement an incomplete fenced-code grammar, recognizing triple backticks but not CommonMark/GFM tilde fences or varying fence lengths. A roadmap holding a tilde-fenced block that contains `### Phantom` plus `- area: tooling`, followed by a real entry, parses as two entries; a markdown link inside that same tilde fence is extracted as a live internal link by `docs-check`. This can fabricate queue entries and dependencies, make writers remove or reorder example text, and produce false broken-link failures. Because `parseRoadmap`, `parseEntries`, `pushEmptyGroupIssues` and `stripCodeRegions` each toggle independently on a triple-backtick prefix, patching one leaves semantic drift. One fence scanner must understand marker character, opening length, up-to-three-space indentation, info strings and a closing fence of sufficient length. Paired fixtures: backticks and tildes, three- and four-character fences, embedded shorter runs, indented fences, unclosed fences. (confirmed by pure-function runtime probe)
 
 (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
-
-### Clone Detector Flags Chained-Builder Schemas
-
-- id: Q-0122
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: med
-- confidence: med
-- parent: code-clone-detector
-
-The token-level detector treats a new zod schema as a clone of every existing one: `src/clones/baseline.ts` matched `src/dashboard/data.ts` at 163 tokens and `src/cr/autofix-ledger.ts` at 71 tokens purely because Type-2 normalization makes `foo: z.number().int().nonnegative(),` identical to `bar: z.number().int().nonnegative(),` — five such fields in a row clear the 50-token floor on their own. The signal is not worthless: naming the repeated validator once (`const measured = z.number().int().nonnegative()`) really did cut whole-corpus duplication by 307 tokens. But any schema-heavy file keeps tripping this, and a consumer reads it as noise, which erodes trust in the whole gate. Candidate fixes: a tokenizer rule that collapses a chained-builder call sequence to one token, or a per-file exemption for declaration-only modules. Pick one against the two measured matches plus a genuine copied schema, so the real case still reds. (surfaced shipping Q-0094)
