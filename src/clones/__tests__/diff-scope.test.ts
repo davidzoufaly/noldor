@@ -159,10 +159,14 @@ describe('resolveChangedRanges', () => {
     '+y',
   ].join('\n');
 
+  /** Every table needs this row: a missing `ls-files` answer reads as `null`. */
+  const noUntracked = ['ls-files', { stdout: '' }] as const;
+
   it('honours an explicit base verbatim', () => {
     const { run, calls } = fakeGit([
       ['merge-base --end-of-options v1.0.0 HEAD', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: diffOut }],
+      noUntracked,
     ]);
     expect(resolveChangedRanges({ against: 'v1.0.0', runGit: run })?.get('src/a.ts')).toEqual([
       { start: 4, end: 5 },
@@ -175,6 +179,7 @@ describe('resolveChangedRanges', () => {
       ['rev-parse --abbrev-ref @{upstream}', { stdout: 'origin/feat\n' }],
       ['merge-base --end-of-options origin/feat HEAD', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: diffOut }],
+      noUntracked,
     ]);
     expect(resolveChangedRanges({ runGit: run })).not.toBeNull();
   });
@@ -184,6 +189,7 @@ describe('resolveChangedRanges', () => {
       ['symbolic-ref --short refs/remotes/origin/HEAD', { stdout: 'origin/trunk\n' }],
       ['merge-base --end-of-options origin/trunk HEAD', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: diffOut }],
+      noUntracked,
     ]);
     expect(resolveChangedRanges({ runGit: run })).not.toBeNull();
     expect(
@@ -192,14 +198,15 @@ describe('resolveChangedRanges', () => {
   });
 
   it('returns null — not an empty map — when there is no merge base', () => {
-    const { run } = fakeGit([['diff -U0', { stdout: diffOut }]]);
+    const { run } = fakeGit([['diff -U0', { stdout: diffOut }], noUntracked]);
     expect(resolveChangedRanges({ against: 'v1.0.0', runGit: run })).toBeNull();
   });
 
-  it('returns an empty map when the diff is empty', () => {
+  it('returns an empty map when the diff is empty and nothing is untracked', () => {
     const { run } = fakeGit([
       ['merge-base', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: '' }],
+      noUntracked,
     ]);
     expect(resolveChangedRanges({ against: 'v1.0.0', runGit: run })?.size).toBe(0);
   });
@@ -208,6 +215,7 @@ describe('resolveChangedRanges', () => {
     const { run, calls } = fakeGit([
       ['merge-base', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: diffOut }],
+      noUntracked,
     ]);
     resolveChangedRanges({ against: 'v1.0.0', runGit: run });
     const diff = calls.find((c) => c.includes('diff'));
@@ -224,10 +232,52 @@ describe('resolveChangedRanges', () => {
     const { run, calls } = fakeGit([
       ['merge-base', { stdout: 'abc123\n' }],
       ['diff -U0', { stdout: diffOut }],
+      noUntracked,
     ]);
     resolveChangedRanges({ against: '--upload-pack=evil', runGit: run });
     const mb = calls.find((c) => c.includes('merge-base'));
     expect(mb?.indexOf('--end-of-options')).toBeLessThan(mb?.indexOf('--upload-pack=evil') ?? -1);
+  });
+
+  it('unions untracked files in as whole-file spans (Q-0123)', () => {
+    const { run, calls } = fakeGit([
+      ['merge-base', { stdout: 'abc123\n' }],
+      ['diff -U0', { stdout: diffOut }],
+      ['ls-files', { stdout: 'src/new.ts\0src/also new.ts\0' }],
+    ]);
+    const out = resolveChangedRanges({ against: 'v1.0.0', runGit: run });
+    // NUL separation keeps a path with a space intact — no quoting to unwrap.
+    expect(out?.get('src/new.ts')).toEqual([{ start: 1, end: Number.MAX_SAFE_INTEGER }]);
+    expect(out?.get('src/also new.ts')).toEqual([{ start: 1, end: Number.MAX_SAFE_INTEGER }]);
+    // Tracked diff ranges survive alongside the untracked union.
+    expect(out?.get('src/a.ts')).toEqual([{ start: 4, end: 5 }]);
+    const ls = calls.find((c) => c.includes('ls-files'));
+    expect(ls).toContain('--others');
+    expect(ls).toContain('--exclude-standard');
+    expect(ls).toContain('-z');
+  });
+
+  it('returns null when git cannot list untracked files — unknown is not clean', () => {
+    const { run } = fakeGit([
+      ['merge-base', { stdout: 'abc123\n' }],
+      ['diff -U0', { stdout: diffOut }],
+      ['ls-files', { status: 128 }],
+    ]);
+    expect(resolveChangedRanges({ against: 'v1.0.0', runGit: run })).toBeNull();
+  });
+
+  it('flags a clone instance living entirely in an untracked file end-to-end', () => {
+    // The Q-0123 shape: a brand-new (never-committed) file whose whole body is
+    // a paste. `git diff` says nothing about it; the union must still flag it.
+    const { run } = fakeGit([
+      ['merge-base', { stdout: 'abc123\n' }],
+      ['diff -U0', { stdout: '' }],
+      ['ls-files', { stdout: 'src/pasted.ts\0' }],
+    ]);
+    const changed = resolveChangedRanges({ against: 'v1.0.0', runGit: run });
+    expect(changed).not.toBeNull();
+    const r = report([{ tokens: 60, instances: [['src/pasted.ts', 10, 20]] }]);
+    expect(flaggedGroups(r, changed!)).toHaveLength(1);
   });
 });
 

@@ -22,6 +22,15 @@ export interface LineRange {
 /** Repo-relative path → post-image spans this change wrote. */
 export type ChangedRanges = ReadonlyMap<string, readonly LineRange[]>;
 
+/**
+ * The span an UNTRACKED file contributes: every line of it is new, but its
+ * length is not knowable from git plumbing alone, so the end is a sentinel that
+ * any instance span clips down to exactly (see `coveredLines`). Q-0123: without
+ * this, `git diff` has no post-image for an untracked file and the diff-scoped
+ * verdict printed green for a file whose every line was just written.
+ */
+const WHOLE_FILE: LineRange = { start: 1, end: Number.MAX_SAFE_INTEGER };
+
 // `+++ b/<path>` — the `b/` prefix is guaranteed by the explicit `--dst-prefix`
 // in `resolveChangedRanges`, never inherited from consumer config. Git appends a
 // TAB when the path contains whitespace (`+++ b/a b.ts\t`), so trailing tabs are
@@ -97,8 +106,9 @@ export interface ResolveChangedRangesOptions {
 }
 
 /**
- * Post-image line ranges written since the merge base, or `null` when git
- * cannot answer.
+ * Post-image line ranges written since the merge base — unioned with a
+ * whole-file span for every untracked file, which `git diff` cannot see — or
+ * `null` when git cannot answer.
  *
  * `null` means "unknown" — the caller skips the diff-scoped verdict and stays
  * green with a stderr note. An empty map means "nothing changed" and is a
@@ -156,7 +166,24 @@ export function resolveChangedRanges(
     sha,
   ]);
   if (diff.status !== 0) return null;
-  return parseUnifiedDiffRanges(diff.stdout);
+  const changed = parseUnifiedDiffRanges(diff.stdout);
+
+  // Union in every untracked file as a whole-file span: `git diff <sha>` has no
+  // post-image for a file the index has never seen, so a brand-new file — the
+  // likeliest place for a paste — would otherwise be invisible to the verdict
+  // until after its first commit. `-z` emits raw NUL-separated paths, immune to
+  // the C-quoting that `core.quotepath` applies to `--others` output too.
+  const untracked = run(['ls-files', '--others', '--exclude-standard', '-z']);
+  // Same contract as the calls above: a git that cannot list untracked files
+  // has not answered, and "unknown" must never read as "clean".
+  if (untracked.status !== 0) return null;
+  for (const path of untracked.stdout.split('\0')) {
+    if (path.length === 0) continue;
+    const ranges = changed.get(path);
+    if (ranges) ranges.push(WHOLE_FILE);
+    else changed.set(path, [WHOLE_FILE]);
+  }
+  return changed;
 }
 
 /**
