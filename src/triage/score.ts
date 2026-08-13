@@ -6,6 +6,7 @@ import matter from 'gray-matter';
 import { z } from 'zod';
 
 import { resolveEntryRef } from './entry-id.js';
+import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds, retiredRefs } from './retired-ids.js';
 
 export const sizeSchema = z.enum(['XS', 'S', 'M', 'L', 'XL']);
 export const impactSchema = z.enum(['low', 'med', 'high', 'critical']);
@@ -60,6 +61,11 @@ export interface ResolverPaths {
   roadmapPath: string;
   /** Read once alongside `roadmapPath` for the same ID→slug resolution. */
   backlogPath: string;
+  /**
+   * Retired-ID map (`.noldor/retired-entry-ids.json`). Omit to consult no map —
+   * callers pass the path explicitly so this never reads an ambient file.
+   */
+  retiredIdsPath?: string;
 }
 
 /**
@@ -72,12 +78,28 @@ export interface ResolverPaths {
  * in roadmap/backlog — returns false. Roadmap/backlog are consulted only for
  * ID resolution, never as a shipped signal on their own. The two doc files are
  * read once at build time, not per-dep.
+ *
+ * A ref recorded in the retired-ID map (either form: the `Q-NNNN` key or the
+ * record's slug) reads as **shipped**. The no-FD retirement paths remove the
+ * queue block precisely because the work landed — attach absorbed it into a
+ * parent FD, fast-track shipped it with no FD at all — so there is no
+ * `<slug>.md` for the phase oracle to find, and without this the dep would
+ * halve the referring entry's score via `dep_factor` forever. This mirrors
+ * `drain-source`'s "an absent ref reads as shipped" rule. Trade-off: an
+ * attach-absorbed entry counts as shipped from retirement onward, even while
+ * its parent FD is still `in-progress` — retirement, not the parent's phase, is
+ * the event that takes it off the queue.
  */
 export function resolveIsShipped(paths: ResolverPaths): (ref: string) => boolean {
   const roadmapRaw = existsSync(paths.roadmapPath) ? readFileSync(paths.roadmapPath, 'utf8') : '';
   const backlogRaw = existsSync(paths.backlogPath) ? readFileSync(paths.backlogPath, 'utf8') : '';
+  const retired = retiredRefs(
+    paths.retiredIdsPath === undefined ? {} : loadRetiredIds(paths.retiredIdsPath),
+  );
   return (ref: string): boolean => {
+    if (retired.has(ref)) return true;
     const slug = resolveEntryRef(ref, { roadmapRaw, backlogRaw, featuresDir: paths.featuresDir });
+    if (retired.has(slug)) return true;
     const fdPath = join(paths.featuresDir, `${slug}.md`);
     if (!existsSync(fdPath)) return false;
     const raw = readFileSync(fdPath, 'utf8');
@@ -140,6 +162,7 @@ function main(argv: readonly string[]): number {
     featuresDir,
     roadmapPath: 'docs/roadmap.md',
     backlogPath: 'docs/backlog.md',
+    retiredIdsPath: RETIRED_IDS_PATH_DEFAULT,
   });
   const score = scoreEntry({
     size: sizeParse.data,

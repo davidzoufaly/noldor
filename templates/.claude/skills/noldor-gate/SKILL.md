@@ -81,11 +81,13 @@ When a `fast-track` session was entered from a Step 0 roadmap pick (XS/S `sugges
 
 `pnpm noldor roadmap remove-block <slug>`
 
-The CLI is idempotent — an absent slug prints `nothing to do` and exits 0 (re-run safety). It works from any consumer repo; there is no `./src/` import to resolve.
+The CLI is idempotent — an absent slug prints `nothing to do` and exits 0 (re-run safety). It works from any consumer repo; there is no `./src/` import to resolve. When the removed block carries an `- id:`, the CLI also records it in `.noldor/retired-entry-ids.json` (the retired-ID map) so `blocked-by:` references to the retired entry keep resolving.
 
-**Step 2 — commit only if the file changed:**
+**Step 2 — stage the roadmap + the retired-ID map (the CLI may have just created it), commit only if anything staged:**
 
-`git diff --quiet docs/roadmap.md || (git add docs/roadmap.md && git commit -m "docs(roadmap): retire <slug> — shipped via fast-track (no FD)")`
+`git add docs/roadmap.md && git add .noldor/retired-entry-ids.json 2>/dev/null; git diff --cached --quiet -- docs/roadmap.md .noldor/retired-entry-ids.json || git commit -m "docs(roadmap): retire <slug> — shipped via fast-track (no FD)"`
+
+The second `git add` is allowed to fail silently: when the map file does not exist (the removed block carried no `- id:`, or the repo has never retired one), `git add` on that pathspec exits 128. Staging first and gating on `--cached` keeps the commit alive in every case. The `-- <paths>` limiter on the gate is what keeps the commit **scoped**: without it the gate fires on any staged content, so unrelated pre-staged work would land under a retirement subject. `git diff --cached --quiet -- <existing> <missing>` exits 0 rather than fatalling on the absent map (only the pathspec-less `git diff <path>` form exits 128), so the limiter is safe in the no-map case too.
 
 The `prepare-commit-msg` hook injects `Noldor-Path: fast-track` from the session marker — and, when the marker carries a `slug`, a `Noldor-FD: <slug>` trailer too (the hook injects from `slug` unconditionally; the commit-msg validator ignores it on fast-track, where no FD file is required). The block is removed on the feature branch and lands on `main` when the fast-track PR merges — keeping retirement atomic with the shipped change rather than a separate edit on `main`.
 
@@ -99,9 +101,11 @@ When `full-attach` or `specs-only-attach` runs, the parent FD's phase may need t
 
 The CLI only writes when the phase actually changes (prevents an empty-diff commit attempt) and works from any consumer repo — no `./src/` import to resolve.
 
-**Step 2 — commit only if the file changed:**
+**Step 2 — stage the parent FD + the retired-ID map (`/noldor-promote` attach Step 7 may have just written it), commit only if anything staged:**
 
-`git diff --quiet docs/features/<parent-slug>.md || (git add docs/features/<parent-slug>.md && git commit -m "docs(features:<parent-slug>): revert phase done → in-progress for attach session" -m "Noldor-FD: <parent-slug>" -m "Noldor-Phase-Revert: 1")`
+`git add docs/features/<parent-slug>.md && git add .noldor/retired-entry-ids.json 2>/dev/null; git diff --cached --quiet -- docs/features/<parent-slug>.md .noldor/retired-entry-ids.json || git commit -m "docs(features:<parent-slug>): revert phase done → in-progress for attach session" -m "Noldor-FD: <parent-slug>" -m "Noldor-Phase-Revert: 1"`
+
+The map is staged here because attach retires its source block through `remove-block --retired-into <parent-slug>` (`/noldor-promote` Step 6.alt), which writes `.noldor/retired-entry-ids.json` but never stages or commits — and every downstream gate commit is pathspec-scoped to the artifact or the FD, so an unstaged map never reaches `main` and the retired ID dangles anyway. Gating on `git diff --cached --quiet` rather than `git diff --quiet <fd>` is what makes the map land in the common case where the phase-revert itself was a no-op (parent already `in-progress`) and the map is the only change. When that happens the subject describes a revert that didn't occur — reword it to `docs(triage): record retired entry ID absorbed into <parent-slug>` and keep both trailers. The same `2>/dev/null` + `--cached` reasoning as the fast-track retirement above applies: `git add` on an absent map exits 128, and the `-- <paths>` limiter keeps the commit scoped.
 
 The `Noldor-Phase-Revert: 1` trailer is what [`src/hooks/noldor-validate-trailer.ts`](../../../src/hooks/noldor-validate-trailer.ts) reads to bypass the spec-file existence check on `specs-only-*` / `full-attach` paths. The subject line is informational only — it may be reworded freely without breaking the bypass.
 

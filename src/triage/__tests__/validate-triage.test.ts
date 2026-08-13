@@ -382,6 +382,59 @@ Body.
     });
     expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
   });
+
+  it('accepts a blocked-by ref that names a retired entry ID (retired-ID map)', () => {
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithBlockedBy('Q-0089'),
+      backlogRaw: '# Backlog\n',
+      strict: true,
+      counterExists: false,
+      retiredEntryIds: ['Q-0089'],
+    });
+    expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
+  });
+
+  it('accepts a blocked-by ref that names a retired entry by slug (map records both forms)', () => {
+    // blocked-by accepts <slug|Q-id>; the CLI unions the map's record slugs
+    // alongside its keys, so the slug form must resolve too.
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithBlockedBy('retired-by-slug'),
+      backlogRaw: '# Backlog\n',
+      strict: true,
+      counterExists: false,
+      retiredEntryIds: ['Q-0089', 'retired-by-slug'],
+    });
+    expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
+  });
+
+  it('strictRefs promotes only unknown-blocked-by-ref, leaving other advisories advisory', () => {
+    const backlogMissingSizeWithBadRef = `# Backlog
+
+### Backlog Entry
+
+- area: tooling
+- type: feat
+- since: 2026-05-11
+- blocked-by: does-not-exist
+
+Body.
+`;
+    const result = validateTriageInputs({
+      roadmapRaw: '# Roadmap\n',
+      backlogRaw: backlogMissingSizeWithBadRef,
+      strict: false,
+      strictRefs: true,
+      counterExists: false,
+    });
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ rule: 'unknown-blocked-by-ref' }),
+    );
+    // size/impact stay advisory under strictRefs — only the ref rule is promoted.
+    expect(result.errors.filter((e) => e.rule === 'missing-optional-field')).toEqual([]);
+    expect(result.advisories).toContainEqual(
+      expect.objectContaining({ rule: 'missing-optional-field' }),
+    );
+  });
 });
 
 describe('empty group heading validation', () => {

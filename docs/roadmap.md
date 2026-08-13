@@ -6,7 +6,7 @@ Each entry carries a `- id: Q-NNNN` bullet — a stable ID minted at triage and 
 
 File order tracks the **`pnpm noldor triage score`** ranking, not the raw `impact:` label. `effort` divides in that formula, so a cheap low-impact entry can outrank an expensive high-impact one — `XS/low/med` scores 150 against `M/med/med`'s 75. The score guides the insert position rather than enforcing it (nothing in `validate:triage` checks order, and the operator may override), so read a file-order question against the score before calling it an inversion. Weights, formula and range are documented once in [triage.md → Scoring rubric](noldor/triage.md#scoring-rubric); the implementation is [`scoreEntry()`](../src/triage/score.ts).
 
-An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet (comma-separated) — the entries this work waits on. It feeds dependency-weight scoring, and `validate:triage` flags refs that resolve to no known entry (`unknown-blocked-by-ref`; advisory, error under `--strict`) while `/noldor-garden` flags circular chains. `- deps:` is the legacy alias, still accepted during the migration window and unioned with `blocked-by:`; prefer `blocked-by:` in new entries.
+An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet (comma-separated) — the entries this work waits on. It feeds dependency-weight scoring, and `validate:triage` flags refs that resolve to no known entry (`unknown-blocked-by-ref`; advisory, error under `--strict` or the refs-only `--strict-refs`) while `/noldor-garden` flags circular chains. Retired entries stay resolvable: promotion carries `- id:` into the FD's `entry-id:`, and the no-FD paths (fast-track, attach) forward it via `.noldor/retired-entry-ids.json`, maintained by `roadmap remove-block`. `- deps:` is the legacy alias, still accepted during the migration window and unioned with `blocked-by:`; prefer `blocked-by:` in new entries.
 
 > **Routing policy — prep scales with `size:`. Don't spec the small ones.**
 >
@@ -61,19 +61,6 @@ A drain cannot see uncommitted triage: children branch from `origin/main`, so ro
 - parent: stable-entry-ids-for-roadmap-backlog
 
 An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never appears literally in the document, so any "is this entry still queued?" check written as `grep -q "$slug" docs/roadmap.md` returns FALSE for every live entry — and it fails silently in the safe-looking direction ("already shipped, skip"). It bit a hand-rolled XS drain runner into skipping all 6 eligible entries in 5 seconds with a clean exit, and it is the same root cause as the CR blocker on the 2026-08-12 triage commit, where 12 `[triaged → slug]` markers named shorthand slugs resolving to no block. Expose `pnpm noldor roadmap has-block <slug>` (exit 0/1, honouring the ID alias) so scripts and skills stop re-deriving the predicate, and point the docs at it wherever a slug-presence check is described. (surfaced draining the 2026-08-12 XS batch, PRs #297-#303)
-
-### Attach Retires an Entry ID and Leaves Dangling Refs
-
-- id: Q-0107
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: med
-- confidence: med
-- parent: stable-entry-ids-for-roadmap-backlog
-
-`pnpm noldor validate triage` exits 0 with an advisory that Q-0091 declares `blocked-by: Q-0089` while no roadmap entry, backlog entry, feature slug or feature `entry-id` resolves that reference. The cause is structural, not a typo: Q-0089 was retired into the `specs-cr-gate-multi-reviewer` attach session (`docs/design/specs/archive/2026-08-11-specs-cr-gate-multi-reviewer-codex-headless-dispatch-design.md`), and attach removes the queue block without carrying its ID into the parent FD frontmatter — so every reference to an attached entry dangles permanently. That spec's D9 asked whether removing the Q-0089 block strands Q-0091 and answered no; the validator now disagrees. Give attach a durable forwarding record (carry the ID into the parent FD, or keep a retired-ID map), repair the live ref — Q-0091's real blocker is now Q-0099 — and make self-host CI strict on unknown refs even while consumer validation stays advisory by default. (confirmed by fresh triage validation in the read-only audit 2026-08-12)
 
 ### Spec-Lint Prior-Art Requirement
 
@@ -190,7 +177,7 @@ Clone detection measured large repeated groups (roughly 223 and 216 tokens) acro
 - size: S
 - impact: med
 - confidence: med
-- blocked-by: Q-0089
+- blocked-by: Q-0099
 - parent: specs-cr-gate-multi-reviewer
 
 The codex lane is opt-in per `crLanes` today, so a big change can ship having been reviewed by exactly one model family. Require at least one codex round on bigger tasks — gate it on the same `size:` signal the routing policy already uses (L/XL, or the split-check verdict) rather than on operator memory. Blocked until the codex lane actually works headlessly again.

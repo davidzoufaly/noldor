@@ -117,6 +117,34 @@ describe(resolveIsShipped, () => {
   it('returns false for an unknown Q-id', () => {
     expect(isShipped('Q-9999')).toBe(false);
   });
+
+  describe('retired-ID map', () => {
+    const withMap = resolveIsShipped({
+      featuresDir: join(fixtures, 'features'),
+      roadmapPath: join(fixtures, 'roadmap.md'),
+      backlogPath: join(fixtures, 'backlog.md'),
+      retiredIdsPath: join(fixtures, 'retired-entry-ids.json'),
+    });
+
+    it('reads a retired ID as shipped even though no FD carries it', () => {
+      expect(isShipped('Q-0701')).toBe(false); // no map consulted
+      expect(withMap('Q-0701')).toBe(true);
+    });
+
+    it('reads the retired entry’s slug form as shipped too', () => {
+      expect(withMap('retired-via-fast-track')).toBe(true);
+    });
+
+    it('reads an attach-absorbed entry as shipped while its parent FD is in-progress', () => {
+      expect(withMap('Q-0700')).toBe(true);
+      expect(withMap('ship-progress')).toBe(false); // the parent itself is not shipped
+    });
+
+    it('still resolves non-retired refs by FD phase', () => {
+      expect(withMap('ship-done')).toBe(true);
+      expect(withMap('does-not-exist-anywhere')).toBe(false);
+    });
+  });
 });
 
 describe('score.ts CLI', () => {

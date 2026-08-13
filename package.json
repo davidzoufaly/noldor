@@ -37,7 +37,7 @@
     "lint:fix": "oxlint --fix",
     "fmt": "node bin/noldor.mjs fmt",
     "fmt:check": "node bin/noldor.mjs fmt --check",
-    "verify": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test",
+    "verify": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test && node bin/noldor.mjs triage validate --strict-refs",
     "toon": "node bin/noldor.mjs graphify graph-to-toon graphify-out/graph.json",
     "graphify:enrich-docs": "node bin/noldor.mjs graphify enrich-docs graphify-out/graph.json",
     "release": "node bin/noldor.mjs release run",

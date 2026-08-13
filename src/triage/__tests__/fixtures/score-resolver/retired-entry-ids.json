@@ -1,0 +1,11 @@
+{
+  "Q-0700": {
+    "slug": "retired-into-parent",
+    "retiredInto": "ship-progress",
+    "retiredAt": "2026-08-13"
+  },
+  "Q-0701": {
+    "slug": "retired-via-fast-track",
+    "retiredAt": "2026-08-13"
+  }
+}

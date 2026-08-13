@@ -1,0 +1,15 @@
+{
+  "Q-0089": {
+    "slug": "codex-lane-headless-dispatch-breakage",
+    "retiredInto": "specs-cr-gate-multi-reviewer",
+    "retiredAt": "2026-08-11"
+  },
+  "Q-0099": {
+    "slug": "codex-lane-cannot-review-code",
+    "retiredAt": "2026-08-13"
+  },
+  "Q-0107": {
+    "slug": "attach-retires-an-entry-id-and-leaves-dangling-refs",
+    "retiredAt": "2026-08-13"
+  }
+}
