@@ -34,19 +34,6 @@ Three command families build filesystem paths from an unchecked positional argum
 
 (all three confirmed by static path-resolution probe in the read-only audit 2026-08-12)
 
-### Clone Gate Reads Untracked New Files as Green
-
-- id: Q-0123
-- area: tooling
-- type: fix
-- since: 2026-08-13
-- size: S
-- impact: high
-- confidence: high
-- parent: code-clone-detector
-
-The mirror-image false negative to Q-0095's predicate: `clones check` cannot see an UNTRACKED new file, because `git diff` has no post-image for one, so the diff-scoped verdict prints `no clone group touches this change - green` for a file whose every line is new. The gate only starts reviewing a new file once it is committed, so a pre-commit green proves nothing and the findings arrive at pre-push instead — after the CR receipt is already stamped. The clones-cli test suite documents the mechanism in a fixture comment but nothing warns the operator. Have `resolveChangedRanges` union the `git diff` hunks with the full line span of every untracked corpus file, or at minimum print `N untracked file(s) not reviewed` so the green is qualified. (surfaced shipping Q-0094)
-
 ### Queue-Drain Selection and Staleness Guards
 
 - id: Q-0121

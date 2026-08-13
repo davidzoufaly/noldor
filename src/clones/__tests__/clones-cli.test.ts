@@ -51,8 +51,9 @@ const git = (dir: string, ...args: string[]): string =>
 /**
  * A `fixtureRepo` with real git history: `src/a.ts` holds the duplicated body
  * and `src/b.ts` a placeholder, both committed. Callers dirty `src/b.ts` to
- * produce a tracked change the diff can see — an untracked file has no
- * post-image in `git diff`, so a brand-new file would be invisible here.
+ * produce a tracked change, or drop a brand-new file for the untracked union
+ * (Q-0123: `git diff` has no post-image for one, so `resolveChangedRanges`
+ * folds untracked files in as whole-file spans instead).
  */
 function gitFixtureRepo(config?: object): string {
   const dir = fixtureRepo(config);
@@ -173,6 +174,22 @@ describe('runClones', () => {
     expect(err).toContain('duplicated in this change');
     expect(err).toContain('src/a.ts:1-');
     expect(err).toContain('src/b.ts:1-');
+  });
+
+  it('diff-scoped check reds on a clone in an UNTRACKED new file (Q-0123)', async () => {
+    let err = '';
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      err += String(chunk);
+      return true;
+    });
+    const dir = gitFixtureRepo();
+    // Paste a.ts's body into a file git has never seen — no `git add`. Before
+    // the untracked union this printed the false green the roadmap entry names.
+    writeFileSync(join(dir, 'src', 'pasted.ts'), fn('third'), 'utf8');
+    expect(await runClones(['check', '--against', 'HEAD', '--min-tokens', '30'], dir)).toBe(1);
+    expect(err).toContain('duplicated in this change');
+    expect(err).toContain('src/pasted.ts:1-');
   });
 
   it('diff-scoped check stays green when the change touches no clone', async () => {
