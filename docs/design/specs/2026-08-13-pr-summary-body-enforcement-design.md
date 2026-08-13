@@ -87,7 +87,7 @@ Two further predicates over the same module, each with its own glob set — one 
   Consumed by Unit 4's Test Plan choice. It is **not** the negation of `isBookkeepingOnly`: `docs/noldor/**`, root `*.md` and `templates/docs/**` are neither bookkeeping nor code, and negating the exemption set would render the code checklist for an ordinary micro-chore doc PR — hole #5 inverted rather than closed.
 
   **The criterion is "does this change alter executable behaviour?"** — not micro-chore membership, which merely correlates. A reviewer of a behaviour change needs typecheck/test evidence; a reviewer of prose does not. Applied:
-  - `.github/workflows/**` and root `lefthook.yml` gate CI and the commit chain — editing either changes what runs. A change there rendering `Doc-only change; no test plan` is hole #5 in the other direction: the assertion is false and the reviewer gets no checklist. Both are also `MICRO_CHORE_GLOBS` members, which is exactly why the criterion cannot be micro-chore membership; `lefthook.yml` is behaviour and stays code-class.
+  - `.github/workflows/**` and root `lefthook.yml` gate CI and the commit chain — editing either changes what runs. A change there rendering `Doc-only change; no test plan` is hole #5 in the other direction: the assertion is false and the reviewer gets no checklist. `lefthook.yml` is *also* a `MICRO_CHORE_GLOBS` member, which is exactly why the criterion cannot be micro-chore membership; it is behaviour and stays code-class. (`.github/**` is not on that list.)
   - `.noldor/rules/**` is prose that changes gate behaviour, and `pnpm noldor rules validate` is a real check a reviewer should see demanded.
   - `templates/.claude/**` and `templates/.opencode/**` are excluded as pure skill- and command-prose twins: `checks template-sync` forces editing them alongside `.claude/**` / `.opencode/**`, so a prose-only PR would otherwise get a `typecheck`/`test`/dogfood checklist with nothing to run — the same failure this predicate avoids for `docs/noldor/**`.
   - `templates/AGENTS.md` is excluded as the prose twin of root `AGENTS.md`. (It is *not* a `MICRO_CHORE_GLOBS` member — that list holds `*.md` at root only, `templates/.claude/**` and `templates/docs/**/*.md`.)
@@ -99,7 +99,14 @@ Mirrors [`src/core/validate-noldor-scope.ts`](../../../src/core/validate-noldor-
 ```ts
 export interface ValidateSummaryBodyInput {
   message: string;        // full commit message
-  stagedFiles: string[];  // git diff --cached --name-only
+  stagedFiles: string[];  // git diff --cached --name-only (no --diff-filter)
+  /**
+   * True when a merge is in progress. The CLI entry resolves it with
+   * `git rev-parse -q --verify MERGE_HEAD`; absent or false means "not a
+   * merge" — fail-closed, so a caller that never learned the state cannot
+   * buy the exemption by omission.
+   */
+  mergeInProgress?: boolean;
 }
 export interface ValidateSummaryBodyResult {
   success: boolean;
@@ -113,7 +120,7 @@ Decision order:
 1. **Rollout gate.** Reuse `rolloutMarkerExists` + `isPostRollout` from [`src/core/rollout-marker.ts`](../../../src/core/rollout-marker.ts) exactly as `validateTrailer` does, so a pre-rollout consumer is never broken by an upgrade. Not post-rollout → pass.
 2. **Automation exemptions.** `Noldor-Path` of `release-automation` or `release-sweep`, an in-progress merge, or a subject matching `/^(fixup|squash)!/` or `/^Revert "/` → pass. These messages are machine-shaped and have no author to ask.
 
-   **The merge exemption keys on `MERGE_HEAD`, not on the subject.** `git rev-parse -q --verify MERGE_HEAD` resolves during a real merge's `commit-msg` and exits non-zero on a clean tree, so it is a state signal git itself maintains. A `/^Merge /` subject regex would be a forgeable bypass of the entire feature — `git commit -m "Merge branch 'fake'"` with arbitrary code staged would take the exemption, and unlike `--no-verify` it would leave the pre-push receipt gate satisfied, making the forged route *cheaper* than the acknowledged escape hatch rather than equivalent to it.
+   **The merge exemption keys on `MERGE_HEAD`, not on the subject.** `git rev-parse -q --verify MERGE_HEAD` resolves during a real merge's `commit-msg` and exits non-zero on a clean tree, so it is a state signal git itself maintains. The validator stays pure: the **CLI entry** performs that `rev-parse` and passes the result as `mergeInProgress`, exactly as `validateScope` takes `headHasNoldorPages` rather than shelling out itself ([`src/core/validate-noldor-scope.ts`](../../../src/core/validate-noldor-scope.ts)). An absent field is `false`, so the exemption is never bought by omission and both directions stay unit-testable. A `/^Merge /` subject regex would be a forgeable bypass of the entire feature — `git commit -m "Merge branch 'fake'"` with arbitrary code staged would take the exemption, and unlike `--no-verify` it would leave the pre-push receipt gate satisfied, making the forged route *cheaper* than the acknowledged escape hatch rather than equivalent to it.
 
    `fixup!`, `squash!` and `Revert "` stay subject-matched and are forgeable in the same way. Accepted: a forged `fixup!` is squashed away by the rebase it names or ships with a subject that announces itself, and no comparable state signal exists for them. `MERGE_HEAD` is used precisely *because* the signal exists.
 
@@ -174,7 +181,7 @@ Three changes:
 
   Deterministic prose over a known-shaped change; no authoring, nothing invented. `<slug>` comes from `session.slug`, falling back to the subject's `retire <slug>` capture.
 
-  `<reason>` is lifted from the retirement subject's own em-dash clause — the gate writes `docs(roadmap): retire <slug> — shipped via fast-track (no FD)`, so the reason is already in the commit, and the template already parses that subject for the slug fallback. When the subject carries no such clause, `<reason>` degrades to `the entry is being taken off the queue`. What the template must never do is *assert* a cause: `roadmap remove-block` treats shipped, superseded, abandoned and duplicate identically, so a hard-coded "already shipped" would invent the one thing the branch shape cannot prove.
+  `<reason>` is lifted from the retirement subject's own em-dash clause — the gate writes `docs(roadmap): retire <slug> — shipped via fast-track (no FD)` (`.claude/skills/noldor-gate/SKILL.md`), so the reason is already in the commit, and the template already parses that subject for the slug fallback. The parse is pinned like the slug capture: **the first `—` after the slug, remainder trimmed of surrounding whitespace and trailing punctuation**. No clause, or an empty remainder → `<reason>` degrades to `the entry is being taken off the queue`. What the template must never do is *assert* a cause: `roadmap remove-block` treats shipped, superseded, abandoned and duplicate identically, so a hard-coded "already shipped" would invent the one thing the branch shape cannot prove.
 
 - **`pickSummarySha` skips the whole bookkeeping set** (`src/core/pr-flow-cli.ts`): today it skips only `docs/roadmap.md`, so since Q-0107 co-staged `.noldor/retired-entry-ids.json` it lands on the retirement commit, and on a `full-*` branch it lands on the spec or plan commit. Both are Unit-2-exempt, so the selected commit's body is legitimately empty and the FD append below would add nothing. Reusing `isBookkeepingOnly` in the `find` predicate makes the selection land on the first commit that actually carries code — precisely the commit Unit 2 forced a body onto. The existing `?? commits[0]` fallback is unchanged, so a retirement-only branch still reaches the template above.
 
@@ -228,6 +235,7 @@ Per `docs/noldor/testing-principles.md`, real behaviour over mocks:
 - `isRetirementOnly`: `docs/roadmap.md` alone; the roadmap + `.noldor/retired-entry-ids.json` pair (the post-Q-0107 shape); the pair plus one code file (false).
 - `touchesCode`: `src/**` true; `docs/noldor/**` false; `templates/docs/**`, `templates/.claude/**`, `templates/.opencode/**`, `templates/AGENTS.md` all false; `templates/**` outside those exclusions true; `.github/workflows/**` true; root `lefthook.yml` true; `.noldor/rules/**` true; a deletion-only set true (the loader keeps `D`).
 - `pickSummarySha`: a branch of `[retirement commit (roadmap + retired-ids), code commit]` selects the code commit; a `full-*` shape of `[spec, plan, code]` selects the code commit; `[code, merge-of-main]` selects the **code** commit, not the merge (the merge's file list is empty); `[merge-of-main]` alone still returns `commits[0]`; a retirement-only branch still returns `commits[0]`.
+- `composeBody` retirement template: subject with an em-dash clause renders that clause as `<reason>`; subject without one renders the degraded default; a clause that is empty after trimming also degrades.
 - `composeBody`: retirement-only branch renders the template with the right slug; FD path appends the structured body under `fd.summary`; attach path uses the parent FD summary plus the enhancement's body; code diff with no FD renders the code test plan; `docs/noldor/**`-only diff renders the doc-only line.
 - End-to-end against a real git repo (scratch consumer, real commits, real hook run) that a code commit without a body is rejected and the same commit with one passes — the same shape as the existing hook tests.
 
@@ -243,6 +251,8 @@ Per `docs/noldor/testing-principles.md`, real behaviour over mocks:
 - [ ] A `.github/workflows/**`, root `lefthook.yml` or `.noldor/rules/**` PR renders the code Test Plan; a `templates/.claude/**` or `templates/.opencode/**` prose PR renders the doc-only line.
 - [ ] A tree without a rollout marker, or pre-rollout, is unaffected.
 - [ ] A retirement-only branch produces a PR Summary carrying why, how and what, naming the retired slug — not the bookkeeping subject alone.
+- [ ] That Summary's Why quotes the subject's em-dash clause when present (`shipped via fast-track (no FD)`) and degrades to `the entry is being taken off the queue` when the subject carries none.
+- [ ] `validateSummaryBody` never shells out: the `MERGE_HEAD` read lives in the CLI entry and reaches the validator as `mergeInProgress`, with an absent field treated as `false`.
 - [ ] An FD-carrying PR renders the FD summary followed by the summary commit's structured body; an attach PR's body describes the enhancement, not the parent feature.
 - [ ] On a branch whose first commits are bookkeeping (retirement pair, or spec + plan), the PR title and Summary both describe the first *code* commit.
 - [ ] A no-FD PR whose diff touches code renders the code Test Plan checklist, never `Doc-only change`.
@@ -309,7 +319,7 @@ pnpm noldor validate summary-body .git/COMMIT_EDITMSG
    -> **Kept.** It is unreachable for hook-validated commits and remains the graceful path for pre-existing branches, `--no-verify` commits and rebases. `composeBody` must never fail; enforcement belongs at the hook (D3).
 
 6. *Does the retirement-only template risk asserting something false?*
-   -> **Only if it names a cause.** The branch shape proves the *what* (roadmap / retired-ID pair alone, so nothing but bookkeeping) but not the *why*: `roadmap remove-block` treats shipped, superseded, abandoned and duplicate identically, and no commit carries the distinction. The Why line therefore stops at "taken off the queue" and lists the four possibilities without choosing (revised after CR round 2, D2). The slug is read from the session marker (D4).
+   -> **Not if it quotes rather than asserts.** The branch shape proves the *what* (roadmap / retired-ID pair alone, so nothing but bookkeeping) but not the *why* — `roadmap remove-block` treats shipped, superseded, abandoned and duplicate identically. The author, however, already wrote the reason into the retirement subject's em-dash clause, so the template **lifts** it verbatim and degrades to "the entry is being taken off the queue" when there is none. Never a template-asserted cause; always either the author's words or an admission of ignorance (revised CR round 2 → round 4). The slug is read from the session marker (D4).
 
 7. *`pickSummarySha` selects a Unit-2-exempt commit on retirement and `full-*` branches — fix in selection or with a second selector?* (CR round 1, D1)
    -> **Widen the existing predicate to `isBookkeepingOnly`.** One selector keeps the PR title and the Summary body describing the same commit; a second selector could drift them onto different commits. PR #304's intent — skip bookkeeping, describe the change — is preserved; only its under-specified skip set changes (D7).
