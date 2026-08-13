@@ -11,5 +11,9 @@
   "Q-0107": {
     "slug": "attach-retires-an-entry-id-and-leaves-dangling-refs",
     "retiredAt": "2026-08-13"
+  },
+  "Q-0082": {
+    "slug": "doctor-ahead-anchor-dead-end",
+    "retiredAt": "2026-08-13"
   }
 }

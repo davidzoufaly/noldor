@@ -22,6 +22,7 @@ import {
   checkConsumerScripts,
 } from '../../core/prerequisites.js';
 import { loadFrameworkVersion } from '../../core/consumer-config.js';
+import { frameworkSkewDetail } from '../../core/framework-skew.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 
 let prereqBad = 0;
@@ -56,13 +57,8 @@ for (const c of checks) {
 // Framework-version skew: advisory only (does NOT affect exit code). A consumer
 // with synced templates but an un-migrated tree should still pass `doctor`
 // green after running `noldor upgrade`.
-const anchored = loadFrameworkVersion(process.cwd());
-const installed = installedFrameworkVersion();
-if (anchored !== installed) {
-  console.log(
-    `warn         framework skew: anchored ${anchored ?? '(unset)'} ≠ installed ${installed} — run 'noldor upgrade'`,
-  );
-}
+const skew = frameworkSkewDetail(loadFrameworkVersion(process.cwd()), installedFrameworkVersion());
+if (skew !== null) console.log(`warn         framework skew: ${skew}`);
 
 if (prereqBad === 0 && bad === 0 && runnerBad === 0) {
   console.log(
