@@ -158,7 +158,7 @@ When the operator picks an existing parent FD at step 1.5:
 - **Don't write a new feature MD file**
 - Step 6.4 (Touches extraction) still runs — extracted paths are surfaced to the operator and (on confirmation) merged into the parent FD's `links.code`. The parent FD's Summary is **not** mutated.
 - Step 6.5 (residue check) still runs — the source block may contain sub-items beyond what the parent FD already covers; residue must be disposed (fold into parent / write back as new entry / drop) before step 7.
-- Step 7 (remove source block from `docs/roadmap.md` or `docs/backlog.md`) still runs
+- Step 7 (remove source block) still runs — on this branch execute it via `pnpm noldor roadmap remove-block <slug>` (add `--backlog` when the source is `docs/backlog.md`): with no child FD to carry `entry-id:`, the CLI's record in `.noldor/retired-entry-ids.json` is what keeps `blocked-by:` refs to the attached entry resolving
 - Step 8 is skipped (no roadmap-side tracker exists; the parent FD's `phase: in-progress` already covers discoverability).
 - Step 9 (`pnpm noldor validate features`) still runs — confirms parent FD wasn't accidentally corrupted.
 - Step 10 message:

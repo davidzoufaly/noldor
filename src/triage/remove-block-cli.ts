@@ -47,6 +47,13 @@ function main(): void {
       if (recorded) {
         process.stdout.write(`remove-block: recorded ${entry.id} in ${RETIRED_IDS_PATH_DEFAULT}\n`);
       }
+    } else {
+      // A dropped ID is the dangling-ref failure the map exists to prevent —
+      // never skip silently, but don't fail the removal either (the roadmap
+      // write already happened; a repo without .noldor/ hasn't adopted state).
+      process.stderr.write(
+        `remove-block: ${RETIRED_IDS_PATH_DEFAULT} not written (no .noldor/ directory) — blocked-by refs to ${entry.id} will dangle\n`,
+      );
     }
   }
 }
