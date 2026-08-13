@@ -81,11 +81,11 @@ When a `fast-track` session was entered from a Step 0 roadmap pick (XS/S `sugges
 
 `pnpm noldor roadmap remove-block <slug>`
 
-The CLI is idempotent — an absent slug prints `nothing to do` and exits 0 (re-run safety). It works from any consumer repo; there is no `./src/` import to resolve.
+The CLI is idempotent — an absent slug prints `nothing to do` and exits 0 (re-run safety). It works from any consumer repo; there is no `./src/` import to resolve. When the removed block carries an `- id:`, the CLI also records it in `.noldor/retired-entry-ids.json` (the retired-ID map) so `blocked-by:` references to the retired entry keep resolving.
 
-**Step 2 — commit only if the file changed:**
+**Step 2 — commit only if the files changed (roadmap + the retired-ID map the CLI may have written):**
 
-`git diff --quiet docs/roadmap.md || (git add docs/roadmap.md && git commit -m "docs(roadmap): retire <slug> — shipped via fast-track (no FD)")`
+`git diff --quiet docs/roadmap.md .noldor/retired-entry-ids.json || (git add docs/roadmap.md .noldor/retired-entry-ids.json && git commit -m "docs(roadmap): retire <slug> — shipped via fast-track (no FD)")`
 
 The `prepare-commit-msg` hook injects `Noldor-Path: fast-track` from the session marker — and, when the marker carries a `slug`, a `Noldor-FD: <slug>` trailer too (the hook injects from `slug` unconditionally; the commit-msg validator ignores it on fast-track, where no FD file is required). The block is removed on the feature branch and lands on `main` when the fast-track PR merges — keeping retirement atomic with the shipped change rather than a separate edit on `main`.
 

@@ -6,6 +6,7 @@ import matter from 'gray-matter';
 
 import { parseBacklog, parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
 import { COUNTER_PATH_DEFAULT, ENTRY_ID_RE } from './entry-id.js';
+import { RETIRED_IDS_PATH_DEFAULT, loadRetiredIds } from './retired-ids.js';
 
 export interface TriageIssue {
   file: 'docs/roadmap.md' | 'docs/backlog.md';
@@ -53,6 +54,21 @@ export interface ValidateTriageInputs {
    * refs (`Q-NNNN`) that target a shipped feature. Defaults to empty.
    */
   featureEntryIds?: readonly string[];
+  /**
+   * IDs from the retired-ID map (`.noldor/retired-entry-ids.json`) — entries
+   * retired by the no-FD paths (fast-track, attach), whose IDs land in no FD
+   * frontmatter. Widens the known-ref set the same way as
+   * {@link ValidateTriageInputs.featureEntryIds}. The CLI fills this via
+   * `loadRetiredIds`; tests pass it directly. Defaults to empty.
+   */
+  retiredEntryIds?: readonly string[];
+  /**
+   * When true, `unknown-blocked-by-ref` alone is promoted to an error while
+   * every other advisory keeps its default severity. Self-host CI runs with
+   * this (`--strict-refs`) so a dangling ref cannot land, while consumer
+   * validation stays advisory by default.
+   */
+  strictRefs?: boolean;
 }
 
 const REQUIRED_FIELDS_BACKLOG: ReadonlyArray<keyof BacklogEntry> = ['area', 'type', 'since'];
@@ -103,8 +119,8 @@ export function validateTriageInputs(input: ValidateTriageInputs): TriageValidat
     roadmap,
     backlog,
     input.featureSlugs ?? [],
-    input.featureEntryIds ?? [],
-    input.strict,
+    [...(input.featureEntryIds ?? []), ...(input.retiredEntryIds ?? [])],
+    input.strict || (input.strictRefs ?? false),
     errors,
     advisories,
   );
@@ -178,11 +194,13 @@ function pushEmptyGroupIssues(raw: string, file: TriageIssue['file'], errors: Tr
 /**
  * Validate that every `blocked-by:` ref (the first-class field; `deps:` is its
  * legacy alias — both land in {@link BacklogEntry.deps}) resolves to a known
- * entry: an entry ID or slug present in roadmap/backlog, or the slug/`entry-id`
- * of an existing feature MD (covers refs on already-shipped work whose queue
- * entry was retired). Unknown refs are advisory by default (adoption-safe:
- * pre-existing stale refs must not hard-break `validate:triage`) and promoted to
- * errors under `--strict`, mirroring the missing-optional-field policy.
+ * entry: an entry ID or slug present in roadmap/backlog, the slug/`entry-id`
+ * of an existing feature MD, or an ID in the retired-ID map (the caller unions
+ * those into `featureEntryIds` — together they cover refs on already-shipped
+ * work whose queue entry was retired). Unknown refs are advisory by default
+ * (adoption-safe: pre-existing stale refs must not hard-break `validate:triage`)
+ * and promoted to errors under `--strict` (all advisories) or `--strict-refs`
+ * (this rule alone), mirroring the missing-optional-field policy.
  */
 function pushBlockedByIssues(
   roadmap: BacklogEntry[],
@@ -335,12 +353,14 @@ function pushIssues(
 
 interface CliOptions {
   strict: boolean;
+  strictRefs: boolean;
   cwd: string;
 }
 
 function parseArgv(argv: string[]): CliOptions {
   return {
     strict: argv.includes('--strict'),
+    strictRefs: argv.includes('--strict-refs'),
     cwd: process.cwd(),
   };
 }
@@ -374,13 +394,16 @@ async function main(): Promise<void> {
   ]);
   const counterExists = existsSync(`${opts.cwd}/${COUNTER_PATH_DEFAULT}`);
   const { featureSlugs, featureEntryIds } = await loadFeatureRefs(`${opts.cwd}/docs/features`);
+  const retiredEntryIds = Object.keys(loadRetiredIds(`${opts.cwd}/${RETIRED_IDS_PATH_DEFAULT}`));
   const result = validateTriageInputs({
     roadmapRaw,
     backlogRaw,
     strict: opts.strict,
+    strictRefs: opts.strictRefs,
     counterExists,
     featureSlugs,
     featureEntryIds,
+    retiredEntryIds,
   });
   for (const advisory of result.advisories) {
     console.warn(`advisory [${advisory.rule}] ${advisory.file}: ${advisory.message}`);
