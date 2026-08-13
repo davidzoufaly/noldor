@@ -22,6 +22,7 @@ links:
   docs: []
   tests:
     - src/triage/__tests__/entry-id.test.ts
+    - src/triage/__tests__/remove-block-cli.test.ts
     - src/triage/__tests__/retired-ids.test.ts
   spec: >-
     docs/design/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md

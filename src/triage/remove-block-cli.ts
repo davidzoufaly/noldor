@@ -1,8 +1,8 @@
-// `noldor roadmap remove-block <slug> [--backlog]` — remove a schema-C block
-// from docs/roadmap.md (or docs/backlog.md). Idempotent: an absent slug is a
-// no-op success, so gate/drain flows can call it unconditionally. Portable CLI
-// equivalent of the gate skill's former inline `tsx -e` snippet (consumer
-// repos have no ./src/ tree to import from).
+// `noldor roadmap remove-block <slug> [--backlog] [--retired-into <fd-slug>]` —
+// remove a schema-C block from docs/roadmap.md (or docs/backlog.md). Idempotent:
+// an absent slug is a no-op success, so gate/drain flows can call it
+// unconditionally. Portable CLI equivalent of the gate skill's former inline
+// `tsx -e` snippet (consumer repos have no ./src/ tree to import from).
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
@@ -10,12 +10,39 @@ import { removeBlock } from '../utils/write-blocks.js';
 import { ENTRY_ID_RE } from './entry-id.js';
 import { RETIRED_IDS_PATH_DEFAULT, recordRetiredId } from './retired-ids.js';
 
+/** Parsed `remove-block` argv. `retiredInto` is the attach path's parent FD. */
+export interface RemoveBlockArgs {
+  slug?: string;
+  backlog: boolean;
+  retiredInto?: string;
+}
+
+/**
+ * Parse `remove-block` argv. `--retired-into <fd-slug>` (or `=` form) names the
+ * FD that absorbed the entry, so an attach retirement records *where the ID
+ * went* and not merely that it went; fast-track carries no FD and omits it.
+ * An empty value is dropped rather than recorded, keeping the map's optional
+ * field absent-or-meaningful.
+ */
+export function parseRemoveBlockArgs(argv: readonly string[]): RemoveBlockArgs {
+  const flagIndex = argv.indexOf('--retired-into');
+  const inline = argv.find((a) => a.startsWith('--retired-into='));
+  const retiredInto =
+    flagIndex >= 0 ? argv[flagIndex + 1] : inline?.slice('--retired-into='.length);
+  const slug = argv.find((a, i) => !a.startsWith('--') && !(flagIndex >= 0 && i === flagIndex + 1));
+  return {
+    slug,
+    backlog: argv.includes('--backlog'),
+    ...(retiredInto !== undefined && retiredInto.length > 0 ? { retiredInto } : {}),
+  };
+}
+
 function main(): void {
-  const argv = process.argv.slice(2);
-  const slug = argv.find((a) => !a.startsWith('--'));
-  const backlog = argv.includes('--backlog');
+  const { slug, backlog, retiredInto } = parseRemoveBlockArgs(process.argv.slice(2));
   if (!slug) {
-    process.stderr.write('usage: noldor roadmap remove-block <slug> [--backlog]\n');
+    process.stderr.write(
+      'usage: noldor roadmap remove-block <slug> [--backlog] [--retired-into <fd-slug>]\n',
+    );
     process.exit(1);
   }
   const rel = backlog ? 'docs/backlog.md' : 'docs/roadmap.md';
@@ -48,7 +75,15 @@ function main(): void {
     } else if (!existsSync(dirname(mapPath))) {
       recordNote = `remove-block: ${RETIRED_IDS_PATH_DEFAULT} not written (no .noldor/ directory) — blocked-by refs to ${entry.id} will dangle\n`;
     } else if (
-      recordRetiredId(entry.id, { slug, retiredAt: new Date().toISOString().slice(0, 10) }, mapPath)
+      recordRetiredId(
+        entry.id,
+        {
+          slug,
+          ...(retiredInto !== undefined ? { retiredInto } : {}),
+          retiredAt: new Date().toISOString().slice(0, 10),
+        },
+        mapPath,
+      )
     ) {
       process.stdout.write(`remove-block: recorded ${entry.id} in ${RETIRED_IDS_PATH_DEFAULT}\n`);
     }

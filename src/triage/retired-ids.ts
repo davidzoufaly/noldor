@@ -18,7 +18,10 @@ export const RETIRED_IDS_PATH_DEFAULT = '.noldor/retired-entry-ids.json';
 export interface RetiredIdRecord {
   /** Slug of the retired queue entry (heading-derived, human-readable alias). */
   slug: string;
-  /** FD slug that absorbed the entry (attach paths). Absent on no-FD paths. */
+  /**
+   * FD slug that absorbed the entry — written from `remove-block
+   * --retired-into <fd-slug>` on attach paths. Absent on fast-track (no FD).
+   */
   retiredInto?: string;
   /** ISO date (yyyy-mm-dd) the entry was retired. */
   retiredAt?: string;
