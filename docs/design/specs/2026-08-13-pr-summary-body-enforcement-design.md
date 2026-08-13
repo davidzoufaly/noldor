@@ -50,15 +50,24 @@ docs/backlog.md
 docs/features/**/*.md
 docs/design/**/*.md
 docs/milestones/**/*.md
+ideas.md
 .noldor/retired-entry-ids.json
+.noldor/id-counter.json
 .noldor/design/**
 ```
+
+`ideas.md` and `.noldor/id-counter.json` are on the list because the framework's own bookkeeping commits stage them: `/noldor-triage` writes `ideas.md` alongside `docs/roadmap.md`, and `triage mint-id` bumps the counter into the same commit as a freshly scaffolded FD — commit `3e2cf1f`, this spec's own, stages exactly that trio. Omitting them would force Why/How/What onto a commit that changed no code.
 
 `isBookkeepingOnly(paths)` is true when `paths` is non-empty and every entry matches. An empty `paths` returns `false` — the predicate answers "is this set entirely bookkeeping?", and an empty set proves nothing. Callers handle emptiness themselves (Unit 2 passes on it; Unit 4 cannot see it, since `pr-flow` already exits when no commits are ahead of base).
 
 This is the exemption boundary for Unit 2: roadmap retirements, phase-flips, spec/plan commits and design-ledger writes carry no code and are exempt from the body contract.
 
 Deliberately a *separate* glob set rather than a reuse of `MICRO_CHORE_GLOBS`: micro-chore's allowlist governs what a *path* may stage, this one governs what counts as *carrying no code*. Coupling them would let a widening of one silently widen the other.
+
+Two further predicates over the same module, each with its own glob set — one exemption boundary cannot serve three questions:
+
+- `isRetirementOnly(paths)` — every entry is `docs/roadmap.md` or `.noldor/retired-entry-ids.json`. Since Q-0107 `roadmap remove-block` writes the retired-ID map, so a real retirement commit stages **both**; a predicate naming only the roadmap would never match one (verified against `ef974e2`, PR #318). Consumed by Unit 4's retirement-only template.
+- `touchesCode(paths)` — any entry matching `CODE_GLOBS`: `src/**`, `bin/**`, `scripts/**`, `templates/**` (excluding `templates/docs/**`), `lefthook/**`, `*.json` at root, `*.{ts,tsx,js,jsx,mjs,cjs}` anywhere. Consumed by Unit 4's Test Plan choice. It is **not** the negation of `isBookkeepingOnly`: `docs/noldor/**`, root `*.md` and `templates/docs/**` are neither bookkeeping nor code, and negating the exemption set would render the code checklist for an ordinary micro-chore doc PR — hole #5 inverted rather than closed.
 
 ### Unit 2 — `src/core/validate-summary-body.ts` (new)
 
@@ -80,8 +89,12 @@ Decision order:
 
 1. **Rollout gate.** Reuse `rolloutMarkerExists` + `isPostRollout` from [`src/core/rollout-marker.ts`](../../../src/core/rollout-marker.ts) exactly as `validateTrailer` does, so a pre-rollout consumer is never broken by an upgrade. Not post-rollout → pass.
 2. **Automation exemptions.** `Noldor-Path` of `release-automation` or `release-sweep`, or a subject matching `/^(fixup|squash)!/` or `/^Revert "/` → pass. These messages are machine-shaped and have no author to ask.
+
+   `parseTrailers` throws by documented contract ([`src/core/trailers.ts`](../../../src/core/trailers.ts) — "the throw is a load-bearing contract"), so this read is wrapped exactly as [`validate-noldor-scope.ts`](../../../src/core/validate-noldor-scope.ts) wraps its own: on a throw, fall back to matching `/^Noldor-Path:\s*(release-automation|release-sweep)\s*$/m` against the raw message. Without the fallback an `interpret-trailers` failure would fail a release-automation commit closed.
 3. **Bookkeeping exemption.** `stagedFiles.length === 0 || isBookkeepingOnly(stagedFiles)` → pass. The empty case covers `--allow-empty` commits and a `git diff --cached` that returned nothing to read; neither has code to explain.
-4. **Structure check.** Strip the subject line and the trailer block, then require three section markers, each on its own line:
+
+   The staged set is loaded with `git diff --cached --name-only` and **no `--diff-filter`**. The existing loader in `validate-noldor-scope.ts` pins `--diff-filter=ACMRT`, which drops deletions; reused as-is, a deletion-only code commit (the PR #300 dashboard-route deletion shape) would yield an empty set and take the empty-case pass. Deletions are code changes and must be explained.
+4. **Structure check.** Strip the subject line and the trailer block via `stripTrailers`, then require three section markers, each on its own line:
 
    ```
    Why — <the problem or motivation, plainly, then the technical detail>
@@ -90,6 +103,8 @@ Decision order:
    ```
 
    Each marker must be followed by at least `MIN_SECTION_CHARS` (24) of non-whitespace content, counted across that section's lines up to the next marker. Missing or too-short sections produce one error naming every failing section plus the template verbatim — an agent that reads the rejection can fix it without opening a doc.
+
+`stripTrailers` is the existing implementation at [`src/core/pr-flow-cli.ts`](../../../src/core/pr-flow-cli.ts) (with `TRAILER_RE` beside it), **hoisted into a shared core module** and re-exported so `pr-flow-cli` keeps its import. Naming it as the reuse is what keeps the validator and `composeBody` agreeing on which lines are trailers; two independent strippers would eventually disagree, and the disagreement would surface as a body that passed the hook and rendered wrong in the PR.
 
 The `—` separator (not `:`) is deliberate: `Why: …` in a body's last paragraph is a valid git trailer token and would be swallowed by `git interpret-trailers`, colliding with [`parseTrailers` / `detectDroppedTrailers`](../../../src/core/trailers.ts). An em dash cannot be a trailer separator.
 
@@ -114,7 +129,7 @@ Ordering matters: trailer validation runs first, so a commit missing its session
 
 Three changes:
 
-- **Retirement-only branch** (`branchFiles` is non-empty and every entry is `docs/roadmap.md`): emit a deterministic template instead of the bookkeeping subject —
+- **Retirement-only branch** (`isRetirementOnly(branchFiles)` — every entry is `docs/roadmap.md` or `.noldor/retired-entry-ids.json`): emit a deterministic template instead of the bookkeeping subject —
 
   ```
   Bookkeeping: retire `<slug>` from the roadmap queue.
@@ -131,7 +146,7 @@ Three changes:
 
 - **FD-carrying paths**: `fd.summary` stays as the feature framing and the structured body from `summaryCommit` is appended beneath it, separated by a blank line. An attach PR then describes its own enhancement instead of the parent feature. The body is present by construction — Unit 2 required it on the code commit this branch must contain.
 
-- **`testPlanItems` derives from the diff, not from `fd`**: when `branchFiles` contains any non-bookkeeping path (same `isBookkeepingOnly` predicate, negated), render the code checklist (`validate:features`, `typecheck`, `test`, dogfood) regardless of FD presence. Only a genuinely doc-only diff renders the doc-only line. The FD-specific dogfood bullet stays conditional on `input.fd`.
+- **`testPlanItems` derives from the diff, not from `fd`**: `touchesCode(branchFiles)` renders the code checklist (`validate:features`, `typecheck`, `test`, dogfood) regardless of FD presence; otherwise the doc-only line stands. The FD-specific dogfood bullet stays conditional on `input.fd`. The predicate is `touchesCode`, **not** a negated `isBookkeepingOnly` — a `docs/noldor/**` micro-chore is neither bookkeeping nor code, and negation would hand it a typecheck/test/dogfood checklist it cannot satisfy.
 
 The no-FD subject-only fallback at `pr-flow.ts:171-173` **stays** as-is. It is now unreachable for hook-validated commits and remains the graceful degradation for branches built before this lands, `--no-verify` commits, and rebases. Compose never fails; the hook is the enforcement point.
 
@@ -172,15 +187,19 @@ pnpm noldor pr-flow
 Per `docs/noldor/testing-principles.md`, real behaviour over mocks:
 
 - `validateSummaryBody` unit matrix: all three sections present; each one missing; a section present but under `MIN_SECTION_CHARS`; sections in the wrong order (accepted — order of *presence* is not enforced, the rule's ordering is a prose bar); `Why:` colon form (rejected, with the trailer-collision hint); markers inside the trailer block (not counted); bookkeeping-only staged set (passes with no body); `fixup!`/`Revert "` subjects; `release-automation` path; pre-rollout tree.
-- `isBookkeepingOnly`: each glob, a mixed set, an empty set (false).
-- `composeBody`: retirement-only branch renders the template with the right slug; FD path appends the structured body under `fd.summary`; attach path uses the parent FD summary plus the enhancement's body; code diff with no FD renders the code test plan; doc-only diff renders the doc-only line.
+- `isBookkeepingOnly`: each glob, a mixed set, an empty set (false), and the real trio from commit `3e2cf1f` (`.noldor/id-counter.json` + spec + FD → true).
+- `isRetirementOnly`: `docs/roadmap.md` alone; the roadmap + `.noldor/retired-entry-ids.json` pair (the post-Q-0107 shape); the pair plus one code file (false).
+- `touchesCode`: `src/**` true; `docs/noldor/**` false; `templates/docs/**` false; `templates/**` non-docs true; a deletion-only set true (the loader keeps `D`).
+- `composeBody`: retirement-only branch renders the template with the right slug; FD path appends the structured body under `fd.summary`; attach path uses the parent FD summary plus the enhancement's body; code diff with no FD renders the code test plan; `docs/noldor/**`-only diff renders the doc-only line.
 - End-to-end against a real git repo (scratch consumer, real commits, real hook run) that a code commit without a body is rejected and the same commit with one passes — the same shape as the existing hook tests.
 
 ## Acceptance criteria
 
 - [ ] `git commit` on a staged diff containing any non-bookkeeping path fails when the message body lacks a `Why —`, `How —` or `What —` section of at least 24 characters, and the error names each missing section plus the template.
 - [ ] The same commit succeeds once the three sections are present.
-- [ ] A commit staging only bookkeeping paths (roadmap retirement, phase-flip, spec/plan) commits with no body and no warning.
+- [ ] A commit staging only bookkeeping paths (roadmap retirement, phase-flip, spec/plan, `ideas.md` triage, an `id-counter` bump) commits with no body and no warning.
+- [ ] A deletion-only code commit is NOT exempt — the staged-set loader carries no `--diff-filter`.
+- [ ] A `docs/noldor/**`-only PR still renders the doc-only Test Plan line (`touchesCode` is false), so hole #5 is closed rather than inverted.
 - [ ] `release-automation`, `release-sweep`, `fixup!`, `squash!` and `Revert "` commits are exempt.
 - [ ] A tree without a rollout marker, or pre-rollout, is unaffected.
 - [ ] A retirement-only branch produces a PR Summary carrying why, how and what, naming the retired slug — not the bookkeeping subject alone.
