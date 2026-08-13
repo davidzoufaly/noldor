@@ -62,19 +62,6 @@ A drain cannot see uncommitted triage: children branch from `origin/main`, so ro
 
 An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never appears literally in the document, so any "is this entry still queued?" check written as `grep -q "$slug" docs/roadmap.md` returns FALSE for every live entry — and it fails silently in the safe-looking direction ("already shipped, skip"). It bit a hand-rolled XS drain runner into skipping all 6 eligible entries in 5 seconds with a clean exit, and it is the same root cause as the CR blocker on the 2026-08-12 triage commit, where 12 `[triaged → slug]` markers named shorthand slugs resolving to no block. Expose `pnpm noldor roadmap has-block <slug>` (exit 0/1, honouring the ID alias) so scripts and skills stop re-deriving the predicate, and point the docs at it wherever a slug-presence check is described. (surfaced draining the 2026-08-12 XS batch, PRs #297-#303)
 
-### Attach Retires an Entry ID and Leaves Dangling Refs
-
-- id: Q-0107
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: med
-- confidence: med
-- parent: stable-entry-ids-for-roadmap-backlog
-
-`pnpm noldor validate triage` exits 0 with an advisory that Q-0091 declares `blocked-by: Q-0089` while no roadmap entry, backlog entry, feature slug or feature `entry-id` resolves that reference. The cause is structural, not a typo: Q-0089 was retired into the `specs-cr-gate-multi-reviewer` attach session (`docs/design/specs/archive/2026-08-11-specs-cr-gate-multi-reviewer-codex-headless-dispatch-design.md`), and attach removes the queue block without carrying its ID into the parent FD frontmatter — so every reference to an attached entry dangles permanently. That spec's D9 asked whether removing the Q-0089 block strands Q-0091 and answered no; the validator now disagrees. Give attach a durable forwarding record (carry the ID into the parent FD, or keep a retired-ID map), repair the live ref — Q-0091's real blocker is now Q-0099 — and make self-host CI strict on unknown refs even while consumer validation stays advisory by default. (confirmed by fresh triage validation in the read-only audit 2026-08-12)
-
 ### Spec-Lint Prior-Art Requirement
 
 - id: Q-0067
