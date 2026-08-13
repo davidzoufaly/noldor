@@ -4,13 +4,13 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import semver from 'semver';
 import {
   loadConsumerConfig,
   loadFrameworkVersion,
   writeFrameworkVersion,
   type ConsumerConfig,
 } from '../../core/consumer-config.js';
+import { isAnchorLagging } from '../../core/framework-skew.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 import { MIGRATIONS } from '../../migrations/registry.js';
 import { resolveChain, runChain, renderSteps } from '../../migrations/chain.js';
@@ -80,12 +80,9 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
     // A semver compare, not `!==`: an anchor *ahead* of installed must be left
     // alone rather than silently rewritten backwards, matching the
     // `downgrade unsupported` guard `resolveChain` applies to `from` (which
-    // never sees `onDiskAnchor` when `--from` overrides it). An unparseable
-    // anchor counts as lagging — replacing it is the only way out.
-    const lagging =
-      onDiskAnchor === null ||
-      semver.valid(onDiskAnchor) === null ||
-      semver.lt(onDiskAnchor, input.installed);
+    // never sees `onDiskAnchor` when `--from` overrides it). Shared with
+    // `doctor`, which needs the same three-way answer to word its skew warning.
+    const lagging = isAnchorLagging(onDiskAnchor, input.installed);
     const applied = lagging && !input.dryRun;
     if (applied) writeFrameworkVersion(input.cwd, input.installed);
     const dry = input.dryRun ? '[DRY RUN] ' : '';
