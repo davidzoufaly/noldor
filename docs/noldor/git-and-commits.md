@@ -51,6 +51,44 @@ Commit-msg hook also enforces `validate:feature-slug-scope` and `validate:noldor
 - **Granular commits** — one commit per logical change. Never squash into a single commit
 - **Commit at every confirmed checkpoint.** On paths that produce a spec or plan artifact, `/noldor-gate` commits the artifact at the Step 2.5 review-handoff confirmation (before the next skill runs) — see [`gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md) Step 2.5 and [`complexity-gating.md`](complexity-gating.md) "Review handoff after spec/plan". A worktree branch thus contains spec, then plan, then implementation as separate commits; rolling back to a prior checkpoint is a single `git reset`.
 
+## Commit body contract
+
+A commit that carries code must explain itself in three sections, each on its own line:
+
+```
+fix(clones): union untracked files into the diff-scoped verdict
+
+Why — a new file has no git post-image, so the clone gate printed "green" for
+a file whose every line was just written. Plainly: the duplicate-code check
+silently skipped brand-new files.
+How — resolveChangedRanges now unions `git ls-files --others` into the
+changed-range map as whole-file spans; an ls-files failure returns null, so
+"unknown" is never printed as clean.
+What — src/clones/ranges.ts plus a regression test; `noldor clones check` now
+reds on a pasted new file.
+
+Noldor-Path: fast-track
+```
+
+Enforced by `validate summary-body` in the `commit-msg` chain: each section needs at least 24 characters of content. Order of *presence* is what is checked, not sequence.
+
+**Use an em dash, not a colon.** `Why:` at the start of a body's last paragraph is a valid git trailer and `git interpret-trailers` absorbs it, which would corrupt the trailer block. The validator rejects the colon form and says so.
+
+**Exempt** — commit freely with no body:
+
+- **Bookkeeping-only diffs**: `docs/roadmap.md`, `docs/backlog.md`, `docs/features/**`, `docs/design/**`, `docs/milestones/**`, `ideas.md`, `.noldor/retired-entry-ids.json`, `.noldor/id-counter.json`, `.noldor/design/**`. Roadmap retirements, phase-flips and spec/plan commits all land here.
+- `release-automation` / `release-sweep` commits, and `fixup!` / `squash!` / `Revert "` subjects.
+- **A real merge**, keyed on `MERGE_HEAD` rather than a `Merge ` subject — a subject is forgeable, and unlike `--no-verify` a forged one would leave the pre-push receipt gate satisfied. `git merge --no-ff` commits normally; `git commit -m "Merge branch 'x'"` with code staged does not.
+- Any tree that has not armed `.noldor/rollout-marker`, so an upgrading consumer is never rejected by a rule they have not opted into.
+
+Check a message without committing:
+
+```bash
+pnpm noldor validate summary-body .git/COMMIT_EDITMSG
+```
+
+The check is structural. Whether the Why reads plainly or in jargon is the `pr-summary-why-how-what` rule's bar, held by the reviewer and the code-stage CR — see [pr-flow.md](pr-flow.md) § Where the title and Summary come from, which is where this body ends up.
+
 ## Never amend; always create a new commit
 
 - **Always create NEW commits rather than amending**, unless the user explicitly requests a git amend. When a pre-commit hook fails, the commit did NOT happen — so `--amend` would modify the PREVIOUS commit, which may result in destroying work or losing previous changes. Instead, after hook failure, fix the issue, re-stage, and create a NEW commit.

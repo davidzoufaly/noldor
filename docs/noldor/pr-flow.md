@@ -30,11 +30,23 @@ gate end-of-flow (any path)
 
 ## Where the title and Summary come from
 
-`composeTitle` and the Summary section of `composeBody` both read `PrFlowInput.summaryCommit` — the **first commit ahead of the base that touches something other than `docs/roadmap.md`**, resolved by `pickSummarySha` in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts).
+`composeTitle` and the Summary section of `composeBody` both read `PrFlowInput.summaryCommit` — the **first commit ahead of the base that carries code**, resolved by `pickSummarySha` in [`src/core/pr-flow-cli.ts`](../../src/core/pr-flow-cli.ts).
 
-That predicate exists because `/noldor-gate` retires an entry's roadmap block *before* implementing it (skill Step 2, "Roadmap-entry retirement"), so the oldest commit on a drained fast-track branch is bookkeeping. Sourcing the title from the first commit put `docs(roadmap): retire <slug> — shipped via fast-track (no FD)` on every drained PR and never named the change that shipped. A retirement-only branch has no substantive commit and keeps the first one.
+That predicate exists because `/noldor-gate` retires an entry's roadmap block *before* implementing it (skill Step 2, "Roadmap-entry retirement"), so the oldest commit on a drained fast-track branch is bookkeeping. Sourcing the title from the first commit put `docs(roadmap): retire <slug> — shipped via fast-track (no FD)` on every drained PR and never named the change that shipped.
 
-On FD-carrying paths the Summary is the FD's own `## Summary` prose and the summary commit only supplies the title. On no-FD paths (`fast-track`, `micro-chore`) the Summary is the summary commit's **subject and body**, with `Noldor-*` / `Co-authored-by` / `Signed-off-by` trailers stripped. The body rides along because the `pr-summary-why-how-what` rule requires why, how and what, and a subject line is what-only — `composeBody` composes deterministically and cannot author the why or the how, so it surfaces the text whoever wrote the commit already produced. An empty body degrades to a subject-only Summary rather than filler.
+"Carries code" is the whole `isBookkeepingOnly` set, not just `docs/roadmap.md` — since Q-0107 `remove-block` co-stages `.noldor/retired-entry-ids.json`, and a `full-*` branch leads with its spec and plan commits, so a roadmap-only test lands on those instead. A commit whose file list is **empty** is skipped too: `git log --name-only` prints no paths for a merge, so without that guard a branch an operator merged `main` into would be titled `Merge branch 'main'`.
+
+Summary by branch shape:
+
+| Shape | Summary |
+| --- | --- |
+| Retirement-only (roadmap + retired-ID map, nothing else) | Deterministic template naming the slug, with the reason **quoted** from the retirement subject's em-dash clause (`— shipped via fast-track (no FD)`), degrading to "the entry is being taken off the queue" when there is none. Never a template-asserted cause: `remove-block` treats shipped, superseded, abandoned and duplicate identically. |
+| FD-carrying (`specs-only-*`, `full-*`) | The FD's `## Summary` prose, **followed by** the summary commit's body. The FD names the feature; the commit body explains this increment — without it an attach PR describes its parent feature and never mentions the enhancement that shipped. |
+| No-FD (`fast-track`, `micro-chore`) | The summary commit's subject and body, with `Noldor-*` / `Co-authored-by` / `Signed-off-by` trailers stripped. |
+
+The commit body is load-bearing in every row, because a subject line is what-only and `pr-summary-why-how-what` requires why and how too. `composeBody` composes deterministically and cannot author prose, so it surfaces what the commit already says. That body is no longer a matter of hope: `validate summary-body` rejects a code commit that lacks `Why —` / `How —` / `What —` at `commit-msg` time — see [git-and-commits.md](git-and-commits.md) § Commit body contract. An empty body still degrades to a subject-only Summary rather than filler, which is now reachable only for pre-existing branches, `--no-verify` commits and rebases.
+
+The **Test Plan** section is chosen the same way — from the branch's own diff (`touchesCode`), not from FD presence. A no-FD fast-track that rewrites `src/**` gets the code checklist; only a genuinely doc-class diff renders `Doc-only change`.
 
 Practical consequence: **on a fast-track branch, the implementation commit's message is the PR summary.** Write it accordingly.
 

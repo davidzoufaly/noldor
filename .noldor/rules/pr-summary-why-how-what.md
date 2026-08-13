@@ -1,9 +1,9 @@
 ---
 id: pr-summary-why-how-what
-applies-to: ["src/core/pr-flow.ts", "src/core/pr-flow-cli.ts"]
+applies-to: ["src/core/pr-flow.ts", "src/core/pr-flow-cli.ts", "src/core/validate-summary-body.ts"]
 stage: [code]
 enforce: true
-links: [docs/noldor/pr-flow.md]
+links: [docs/noldor/pr-flow.md, docs/noldor/git-and-commits.md]
 ---
 A PR summary states three things, in this order:
 
@@ -17,6 +17,16 @@ operator reading release notes, who needs the reason without the jargon. A
 summary that is only a changelog (what, no why) or only a design essay (why,
 no what) fails this rule.
 
-Scope is the PR-body seam only — `composeBody` in `src/core/pr-flow.ts` and any
-text that ends up in `gh pr create --body`. Commit messages are out of scope:
-`noldor-scope` and the trailer contract already govern them.
+Scope is the PR-body seam — `composeBody` in `src/core/pr-flow.ts`, any text that
+ends up in `gh pr create --body`, and the commit body that seam quotes from.
+
+**A green commit is not a compliant summary.** `validate summary-body` enforces
+only the *structure*: that a `Why —`, `How —` and `What —` section exist and are
+not trivially short. It cannot tell whether a Why reads plainly or in jargon, so
+`Why — because resolveChangedRanges did not union ls-files output` passes the
+hook and still fails this rule. The mechanical check is the floor; the two
+registers above are the bar, and they are held by the reviewer and the
+code-stage CR, not by the validator.
+
+Commit *messages* remain otherwise out of scope: `noldor-scope` and the trailer
+contract govern subject and trailers.
