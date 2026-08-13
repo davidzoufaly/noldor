@@ -76,7 +76,7 @@ Enforced by `validate summary-body` in the `commit-msg` chain: each section need
 
 **Exempt** — commit freely with no body:
 
-- **Bookkeeping-only diffs**: `docs/roadmap.md`, `docs/backlog.md`, `docs/features/**`, `docs/design/**`, `docs/milestones/**`, `ideas.md`, `.noldor/retired-entry-ids.json`, `.noldor/id-counter.json`, `.noldor/design/**`. Roadmap retirements, phase-flips and spec/plan commits all land here.
+- **Any diff that carries no code.** The gate fires only when a staged path matches `CODE_GLOBS` (`src/**`, `bin/**`, `scripts/**`, `lefthook/**`, root `lefthook.yml`, `.github/workflows/**`, `.noldor/rules/**`, root `*.json`, any `*.ts`/`*.js` family file, and `templates/**` outside its prose twins). So bookkeeping diffs (roadmap, backlog, FDs, design artifacts, milestones, `ideas.md`, the retired-ID map, the id counter) are exempt, and so is prose that is neither bookkeeping nor code — `docs/noldor/**`, root `*.md`, `.claude/**`, `templates/docs/**`, `templates/.claude/**`, `templates/.opencode/**`. A README typo needs no Why/How/What. One code file among the prose is enough to require one.
 - `release-automation` / `release-sweep` commits, and `fixup!` / `squash!` / `Revert "` subjects.
 - **A real merge**, keyed on `MERGE_HEAD` rather than a `Merge ` subject — a subject is forgeable, and unlike `--no-verify` a forged one would leave the pre-push receipt gate satisfied. `git merge --no-ff` commits normally; `git commit -m "Merge branch 'x'"` with code staged does not.
 - Any tree that has not armed `.noldor/rollout-marker`, so an upgrading consumer is never rejected by a rule they have not opted into.

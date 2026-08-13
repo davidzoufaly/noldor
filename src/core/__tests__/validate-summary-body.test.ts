@@ -7,6 +7,7 @@ import { join } from 'node:path';
 
 import { pathToFileURL } from 'node:url';
 
+import { touchesCode } from '../allowlist.js';
 import { loadCommitFiles, main, validateSummaryBody } from '../validate-summary-body.js';
 
 const GOOD_BODY = [
@@ -201,6 +202,27 @@ describe('validateSummaryBody', () => {
       expect(validateSummaryBody({ message: bare, stagedFiles: [] }).success).toBe(true);
     });
 
+    // The third category: prose that is neither bookkeeping nor code. The
+    // contract is "a commit that carries code explains itself", so a README
+    // typo must not demand three sections.
+    it('exempts prose that is neither bookkeeping nor code', () => {
+      for (const file of [
+        'README.md',
+        'docs/noldor/pr-flow.md',
+        '.claude/skills/noldor-gate/SKILL.md',
+        'templates/docs/noldor/pr-flow.md',
+      ]) {
+        expect(validateSummaryBody({ message: bare, stagedFiles: [file] }).success).toBe(true);
+      }
+    });
+
+    it('still demands a body when prose rides alongside code', () => {
+      expect(
+        validateSummaryBody({ message: bare, stagedFiles: ['README.md', 'src/core/foo.ts'] })
+          .success,
+      ).toBe(false);
+    });
+
     it('exempts fixup!, squash! and Revert subjects', () => {
       for (const subject of ['fixup! fix(x): y', 'squash! fix(x): y', 'Revert "fix(x): y"']) {
         expect(validateSummaryBody({ message: subject, stagedFiles: CODE }).success).toBe(true);
@@ -294,6 +316,20 @@ describe('amend shape', () => {
     git('commit', '-q', '-m', 'seed');
     writeFileSync(join(repo, 'g.ts'), 'untracked\n');
     await expect(loadCommitFiles(repo)).resolves.toEqual(['f.ts']);
+  });
+
+  // Without `-z` git quotes a non-ASCII path, which then matches no glob —
+  // touchesCode says false and a real source rewrite renders "Doc-only change".
+  it('returns a non-ASCII path verbatim, not git-quoted', async () => {
+    const { repo, git } = scratchRepo();
+    writeFileSync(join(repo, 'seed.ts'), 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'seed');
+    writeFileSync(join(repo, 'café.ts'), 'const x = 1;\n');
+    git('add', '.');
+    const files = await loadCommitFiles(repo);
+    expect(files).toEqual(['café.ts']);
+    expect(touchesCode(files ?? [])).toBe(true);
   });
 
   it('prefers the staged set whenever one exists', async () => {

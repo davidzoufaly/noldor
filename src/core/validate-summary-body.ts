@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
-import { isBookkeepingOnly } from './allowlist.js';
+import { touchesCode } from './allowlist.js';
 import { isPostRollout, rolloutMarkerExists } from './rollout-marker.js';
 import { parseTrailers, stripTrailers } from './trailers.js';
 
@@ -153,11 +153,14 @@ export function validateSummaryBody(input: ValidateSummaryBodyInput): ValidateSu
   if (EXEMPT_SUBJECT_RE.test(subject)) return { success: true };
   if (isAutomation(input.message)) return { success: true };
 
-  // Nothing staged (`--allow-empty`, or an unreadable staged set) and pure
-  // bookkeeping both mean: no behaviour to explain.
-  if (input.stagedFiles.length === 0 || isBookkeepingOnly(input.stagedFiles)) {
-    return { success: true };
-  }
+  // The contract is "a commit that carries code explains itself", so the
+  // exemption is the negation of `touchesCode` — not `isBookkeepingOnly`, which
+  // would leave the third category (prose that is neither bookkeeping nor code:
+  // `docs/noldor/**`, root `*.md`, `.claude/**`, the `templates/` twins)
+  // demanding three sections for a README typo. An empty set — `--allow-empty`,
+  // or a staged set that could not be read — has nothing to explain either, and
+  // `touchesCode([])` is already false.
+  if (!touchesCode(input.stagedFiles)) return { success: true };
 
   const body = bodyOf(input.message, input.commentChar ?? DEFAULT_COMMENT_CHAR);
   const missing: string[] = [];
@@ -214,9 +217,13 @@ async function git(args: string[], cwd?: string): Promise<string | null> {
  * far cheaper error than a silent bypass of the whole gate.
  */
 export async function loadCommitFiles(cwd?: string): Promise<string[] | null> {
-  const staged = await git(['diff', '--cached', '--name-only'], cwd);
+  // `-z` and split on NUL, not newline: without it git quotes any path with
+  // non-ASCII or special characters (`"src/caf\303\251.ts"`), which then matches
+  // no glob — so `touchesCode` says false and a real source rewrite renders
+  // "Doc-only change". Same idiom as `src/core/commit-cli.ts`.
+  const staged = await git(['diff', '--cached', '--name-only', '-z'], cwd);
   if (staged === null) return null;
-  if (staged.length > 0) return staged.split('\n').filter(Boolean);
+  if (staged.length > 0) return staged.split('\0').filter(Boolean);
 
   // No index-vs-HEAD tree comparison here: `git diff --cached` IS that
   // comparison, so an empty result already proves the trees match. Running
@@ -225,9 +232,9 @@ export async function loadCommitFiles(cwd?: string): Promise<string[] | null> {
   //
   // HEAD vs its parent; on a root commit there is no parent, so list HEAD itself.
   const amended =
-    (await git(['diff', '--name-only', 'HEAD^', 'HEAD'], cwd)) ??
-    (await git(['show', '--pretty=', '--name-only', 'HEAD'], cwd));
-  return (amended ?? '').split('\n').filter(Boolean);
+    (await git(['diff', '--name-only', '-z', 'HEAD^', 'HEAD'], cwd)) ??
+    (await git(['show', '--pretty=', '--name-only', '-z', 'HEAD'], cwd));
+  return (amended ?? '').split('\0').filter(Boolean);
 }
 
 /** True while a merge is in progress — git's own state, not a subject line. */

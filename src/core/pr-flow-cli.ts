@@ -275,8 +275,22 @@ export async function runCli(cwd: string): Promise<number> {
   // One `git log` walk, read twice: which commit the PR describes, and every
   // path the branch touched (the latter decides the retirement template and the
   // Test Plan shape in `composeBody`).
+  // `-c core.quotePath=false` so a non-ASCII path arrives verbatim rather than
+  // as `"src/caf\303\251.ts"`, which matches no glob — `isBookkeepingOnly` and
+  // `touchesCode` would then misread the branch and render "Doc-only change"
+  // for a real source rewrite. (`-z` is not usable here: `--name-only` shares
+  // its NUL separator with the format string, and the RECORD_SEP framing this
+  // parser relies on would be lost.)
   const branchCommits = parseCommitFileLists(
-    execGit(['log', '--reverse', `--format=${RECORD_SEP}%H`, '--name-only', 'origin/main..HEAD']),
+    execGit([
+      '-c',
+      'core.quotePath=false',
+      'log',
+      '--reverse',
+      `--format=${RECORD_SEP}%H`,
+      '--name-only',
+      'origin/main..HEAD',
+    ]),
   );
   const summarySha = pickSummarySha(branchCommits);
   const branchFiles = [...new Set(branchCommits.flatMap((c) => c.files))];
