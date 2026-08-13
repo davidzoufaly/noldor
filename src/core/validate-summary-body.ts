@@ -64,6 +64,15 @@ export interface ValidateSummaryBodyInput {
    * past the length floor.
    */
   commentChar?: string;
+  /**
+   * `Noldor-Path` from the message's trailer block, resolved by the CLI entry.
+   *
+   * Parsed there rather than here because `parseTrailers` spawns
+   * `git interpret-trailers` — a blocking subprocess that would make this
+   * function impure and, under `commit -v`, pipe the whole appended diff into
+   * git. Absent falls back to a regex over the raw message.
+   */
+  noldorPath?: string;
 }
 
 export interface ValidateSummaryBodyResult {
@@ -102,14 +111,16 @@ function bodyOf(message: string, commentChar = DEFAULT_COMMENT_CHAR): string {
   return stripTrailers(lines.filter((l) => !l.startsWith(commentChar)).join('\n'));
 }
 
-/** Is this commit written by release automation rather than an author? */
-function isAutomation(message: string): boolean {
-  try {
-    const path = parseTrailers(message)['Noldor-Path'];
-    return path !== undefined && AUTOMATION_PATHS.has(path.trim());
-  } catch {
-    return AUTOMATION_PATH_RE.test(message);
-  }
+/**
+ * Is this commit written by release automation rather than an author?
+ *
+ * Pure. `noldorPath` is resolved by the CLI entry (which owns the
+ * `git interpret-trailers` spawn); when it is absent the regex fallback the
+ * throw-path already trusted decides.
+ */
+function isAutomation(message: string, noldorPath?: string): boolean {
+  if (noldorPath !== undefined) return AUTOMATION_PATHS.has(noldorPath.trim());
+  return AUTOMATION_PATH_RE.test(message);
 }
 
 /**
@@ -151,8 +162,10 @@ export function validateSummaryBody(input: ValidateSummaryBodyInput): ValidateSu
 
   const subject = input.message.split('\n', 1)[0]?.trim() ?? '';
   if (EXEMPT_SUBJECT_RE.test(subject)) return { success: true };
-  if (isAutomation(input.message)) return { success: true };
 
+  // Cheapest discriminator first — a bookkeeping or prose commit exits here
+  // without any of the work below.
+  //
   // The contract is "a commit that carries code explains itself", so the
   // exemption is the negation of `touchesCode` — not `isBookkeepingOnly`, which
   // would leave the third category (prose that is neither bookkeeping nor code:
@@ -161,6 +174,7 @@ export function validateSummaryBody(input: ValidateSummaryBodyInput): ValidateSu
   // or a staged set that could not be read — has nothing to explain either, and
   // `touchesCode([])` is already false.
   if (!touchesCode(input.stagedFiles)) return { success: true };
+  if (isAutomation(input.message, input.noldorPath)) return { success: true };
 
   const body = bodyOf(input.message, input.commentChar ?? DEFAULT_COMMENT_CHAR);
   const missing: string[] = [];
@@ -278,16 +292,35 @@ export async function main(messageFile: string | undefined): Promise<number> {
   const stagedFiles = await loadCommitFiles();
   if (stagedFiles === null) return 0;
 
-  // `auto` means git picks a character that starts no line in the message; `#`
-  // is its first candidate and the overwhelmingly common outcome.
-  // noldor:cut assumes '#' under core.commentChar=auto — resolve the actual
-  // character from the message if a repo ever reports a stripped body.
-  const configured = await git(['config', '--get', 'core.commentChar']);
+  // `core.commentString` (git >= 2.45) supersedes `core.commentChar` and both
+  // accept multi-character markers — `//` is valid. Length is NOT a filter: a
+  // dropped `//` leaves bodyOf stripping nothing, so under `commit -v` the whole
+  // editor block and diff land in the final section and `What — x` clears the
+  // floor. Only `auto` is rejected.
+  //
+  // noldor:cut assumes '#' under an `auto` marker — git then picks a character
+  // that begins no line in the message, so resolve it from the message itself if
+  // a repo ever reports an unstripped body.
+  const configured =
+    (await git(['config', '--get', 'core.commentString'])) ??
+    (await git(['config', '--get', 'core.commentChar']));
   const commentChar =
-    configured !== null && configured.length === 1 ? configured : DEFAULT_COMMENT_CHAR;
+    configured !== null && configured.length > 0 && configured !== 'auto'
+      ? configured
+      : DEFAULT_COMMENT_CHAR;
+
+  // Trailer parsing lives here, not in the validator: it spawns
+  // `git interpret-trailers`, and the validator must stay pure and non-blocking.
+  let noldorPath: string | undefined;
+  try {
+    noldorPath = parseTrailers(message)['Noldor-Path'];
+  } catch {
+    noldorPath = undefined; // validator falls back to its regex
+  }
 
   const result = validateSummaryBody({
     commentChar,
+    ...(noldorPath === undefined ? {} : { noldorPath }),
     message,
     stagedFiles,
     mergeInProgress: await mergeInProgress(),

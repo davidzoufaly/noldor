@@ -161,6 +161,47 @@ describe('validateSummaryBody', () => {
     expect(result.error).toContain('What');
   });
 
+  // core.commentChar / core.commentString accept multi-character markers; a
+  // length filter would drop `//` and silently fall back to `#`.
+  it('honours a multi-character comment marker', () => {
+    const message = [
+      'fix(x): y',
+      '',
+      'Why — the gate printed green for a brand-new file, silently.',
+      'How — ranges now union ls-files output into the changed-range map.',
+      'What — x',
+      '',
+      '// ------------------------ >8 ------------------------',
+      '// Do not modify or remove the line above.',
+      'diff --git a/src/core/foo.ts b/src/core/foo.ts',
+      '+const padding = "not part of the message at all, but long";',
+    ].join('\n');
+    const result = validateSummaryBody({
+      message,
+      stagedFiles: ['src/core/foo.ts'],
+      commentChar: '//',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('What');
+  });
+
+  it('reads the automation exemption from the resolved trailer', () => {
+    expect(
+      validateSummaryBody({
+        message: 'chore(release): v1.3.0',
+        stagedFiles: CODE,
+        noldorPath: 'release-automation',
+      }).success,
+    ).toBe(true);
+    expect(
+      validateSummaryBody({
+        message: 'fix(core): a real change',
+        stagedFiles: CODE,
+        noldorPath: 'fast-track',
+      }).success,
+    ).toBe(false);
+  });
+
   it('still accepts a real body carrying git comment furniture', () => {
     const message = [
       'fix(x): y',
