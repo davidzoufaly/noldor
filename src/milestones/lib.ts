@@ -24,13 +24,16 @@ export interface Milestone {
 
 const MILESTONES_DIR = 'docs/milestones';
 
-/** YAML-quote a scalar value when it contains characters that would break
- *  flow-style parsing (`:`, `#`, `{`, `[`, `]`, `}`, `'`, `"`). */
-function yamlScalar(value: string): string {
-  if (/[:#{}[\]'"]/.test(value)) {
-    return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-  }
-  return value;
+/** Serialize a milestone file through gray-matter's YAML engine — the same
+ *  serializer/parser pair every other frontmatter writer uses. Hand-rolled
+ *  scalar quoting missed YAML implicit types (booleans, null, numbers, dates)
+ *  and control characters, so values like `true` or a string containing a
+ *  newline wrote frontmatter that read back as the wrong type or injected
+ *  extra keys. */
+function stringifyMilestone(body: string, fm: MilestoneFrontmatter): string {
+  const data: Record<string, string> = { name: fm.name, status: fm.status };
+  if (fm.description) data.description = fm.description;
+  return matter.stringify(body, data);
 }
 
 /** Parse a milestone markdown file at `absPath` into a `Milestone`. */
@@ -70,10 +73,10 @@ export function draftMilestone(
   if (existsSync(path)) {
     throw new Error(`Milestone "${slug}" already exists at ${path}`);
   }
-  const fmLines = [`name: ${slug}`, `status: draft`];
-  if (description) fmLines.push(`description: ${yamlScalar(description)}`);
-  const content = `---\n${fmLines.join('\n')}\n---\n\n## Gate\n\n<!-- TODO: paragraph describing the strategic gate -->\n\n## Success Criteria\n\n<!-- TODO: bulleted list of measurable ship conditions -->\n\n## Out of Scope\n\n<!-- TODO: deliberate exclusions -->\n`;
-  writeFileSync(path, content, 'utf8');
+  const body = `\n## Gate\n\n<!-- TODO: paragraph describing the strategic gate -->\n\n## Success Criteria\n\n<!-- TODO: bulleted list of measurable ship conditions -->\n\n## Out of Scope\n\n<!-- TODO: deliberate exclusions -->\n`;
+  const fm: MilestoneFrontmatter = { name: slug, status: 'draft' };
+  if (description) fm.description = description;
+  writeFileSync(path, stringifyMilestone(body, fm), 'utf8');
 }
 
 // ---------------------------------------------------------------------------
@@ -139,11 +142,10 @@ function setFrontmatterField(raw: string, key: string, value: string): string {
 }
 
 function serializeMilestone(m: Milestone, statusOverride?: MilestoneStatus): string {
-  const status = statusOverride ?? m.frontmatter.status;
-  const fmLines = [`name: ${m.frontmatter.name}`, `status: ${status}`];
-  if (m.frontmatter.description)
-    fmLines.push(`description: ${yamlScalar(m.frontmatter.description)}`);
-  return `---\n${fmLines.join('\n')}\n---\n${m.body}`;
+  return stringifyMilestone(m.body, {
+    ...m.frontmatter,
+    status: statusOverride ?? m.frontmatter.status,
+  });
 }
 
 /** Atomically promote `slug` to active, ship the previous active (if any), and

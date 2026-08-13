@@ -134,12 +134,59 @@ describe('draftMilestone', () => {
     expect(existsSync(join(tmp, 'docs/milestones/foo.md'))).toBe(true);
   });
 
-  it('quotes description when value contains YAML special chars', () => {
+  it('round-trips a description containing YAML special chars', () => {
     draftMilestone('with-colon', 'Build: ship it', tmp);
-    const raw = readFileSync(join(tmp, 'docs/milestones/with-colon.md'), 'utf8');
-    expect(raw).toMatch(/description: "Build: ship it"/);
     const m = readMilestone(join(tmp, 'docs/milestones/with-colon.md'));
     expect(m.frontmatter.description).toBe('Build: ship it');
+  });
+
+  // YAML implicit-scalar regression matrix (Q-0105): each value must survive
+  // draft → read → schema-validate byte-exact as a *string*, never as the
+  // implicit YAML type it resembles.
+  const trickyScalars: Array<[label: string, value: string]> = [
+    ['boolean true', 'true'],
+    ['boolean false', 'false'],
+    ['null literal', 'null'],
+    ['tilde null', '~'],
+    ['integer-looking', '42'],
+    ['float-looking', '3.14'],
+    ['octal-looking', '0o777'],
+    ['date-looking', '2026-08-12'],
+    ['timestamp-looking', '2026-08-12T10:00:00Z'],
+    ['leading hyphen', '- leading hyphen'],
+    ['leading hash', '# not a comment'],
+    ['inner colon-space', 'key: value'],
+    ['double quotes', 'say "hello" loudly'],
+    ['single quotes', "it's quoted"],
+    ['backslashes', 'C:\\path\\to\\file'],
+    ['embedded newline', 'line one\nline two'],
+    ['trailing colon', 'weird:'],
+    ['flow indicators', '{a: [b]}'],
+  ];
+
+  for (const [label, value] of trickyScalars) {
+    it(`round-trips description with ${label}`, () => {
+      draftMilestone('tricky', value, tmp);
+      const m = readMilestone(join(tmp, 'docs/milestones/tricky.md'));
+      expect(m.frontmatter.description).toBe(value);
+      expect(m.frontmatter.name).toBe('tricky');
+    });
+  }
+
+  for (const [label, value] of trickyScalars.filter(([, v]) => !v.includes('\n'))) {
+    it(`round-trips name with ${label}`, () => {
+      // slug doubles as the filename, so only newline-free values apply here
+      draftMilestone(value, undefined, tmp);
+      const m = readMilestone(join(tmp, `docs/milestones/${value}.md`));
+      expect(m.frontmatter.name).toBe(value);
+    });
+  }
+
+  it('newline in description cannot inject extra frontmatter keys', () => {
+    draftMilestone('inject', 'benign\nstatus: shipped\nextra: field', tmp);
+    const m = readMilestone(join(tmp, 'docs/milestones/inject.md'));
+    expect(m.frontmatter.status).toBe('draft');
+    expect(m.frontmatter.description).toBe('benign\nstatus: shipped\nextra: field');
   });
 });
 
@@ -230,6 +277,17 @@ describe('activateMilestone', () => {
 
     expect(readFileSync(join(tmp, 'docs/milestones/target.md'), 'utf8')).toBe(targetBefore);
     expect(visionAt(tmp)).toBe(visionBefore);
+  });
+
+  it('preserves an implicit-type-looking description through the activate rewrite', () => {
+    draftMilestone('foo', 'true', tmp);
+    writeVision(tmp, undefined);
+
+    activateMilestone('foo', tmp);
+
+    const m = readMilestone(join(tmp, 'docs/milestones/foo.md'));
+    expect(m.frontmatter.status).toBe('active');
+    expect(m.frontmatter.description).toBe('true');
   });
 
   it('throws when vision.md is missing — filesystem unchanged', () => {
