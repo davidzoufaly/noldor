@@ -150,10 +150,49 @@ export function validateSummaryBody(input: ValidateSummaryBodyInput): ValidateSu
   };
 }
 
-/** Staged paths. No `--diff-filter`: a deletion-only commit is still a code change. */
-async function loadStagedFiles(): Promise<string[]> {
-  const { stdout } = await execFileP('git', ['diff', '--cached', '--name-only']);
-  return stdout.split('\n').filter(Boolean);
+/** Run a git command, or return null when it fails. */
+async function git(args: string[], cwd?: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileP('git', args, cwd === undefined ? {} : { cwd });
+    return stdout.trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The files the commit being written will carry.
+ *
+ * Normally the staged set — no `--diff-filter`, since a deletion-only commit is
+ * still a code change.
+ *
+ * `git commit --amend` stages nothing, so the staged set is empty and the
+ * empty-set exemption would let a code commit's body be rewritten to nothing.
+ * Amend is routine here (CR receipt trailers, `--amend --no-edit`), so the
+ * amend shape is detected — index tree identical to HEAD's tree, with a HEAD
+ * present — and the commit's own files are used instead.
+ *
+ * A `--allow-empty` commit on a clean tree has the same shape and is therefore
+ * measured against HEAD's files too. That is the accepted trade: an empty
+ * commit reusing a code commit's file list may be asked for a body, which is a
+ * far cheaper error than a silent bypass of the whole gate.
+ */
+export async function loadCommitFiles(cwd?: string): Promise<string[] | null> {
+  const staged = await git(['diff', '--cached', '--name-only'], cwd);
+  if (staged === null) return null;
+  if (staged.length > 0) return staged.split('\n').filter(Boolean);
+
+  const [indexTree, headTree] = await Promise.all([
+    git(['write-tree'], cwd),
+    git(['rev-parse', 'HEAD^{tree}'], cwd),
+  ]);
+  if (indexTree === null || headTree === null || indexTree !== headTree) return [];
+
+  // HEAD vs its parent; on a root commit there is no parent, so list HEAD itself.
+  const amended =
+    (await git(['diff', '--name-only', 'HEAD^', 'HEAD'], cwd)) ??
+    (await git(['show', '--pretty=', '--name-only', 'HEAD'], cwd));
+  return (amended ?? '').split('\n').filter(Boolean);
 }
 
 /** True while a merge is in progress — git's own state, not a subject line. */
@@ -186,12 +225,9 @@ export async function main(messageFile: string | undefined): Promise<number> {
   const { readFile } = await import('node:fs/promises');
   const message = await readFile(messageFile, 'utf8');
 
-  let stagedFiles: string[];
-  try {
-    stagedFiles = await loadStagedFiles();
-  } catch {
-    return 0; // a git-plumbing failure must never block a commit
-  }
+  // A git-plumbing failure must never block a commit.
+  const stagedFiles = await loadCommitFiles();
+  if (stagedFiles === null) return 0;
 
   const result = validateSummaryBody({
     message,

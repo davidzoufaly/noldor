@@ -228,6 +228,28 @@ describe('composeBody', () => {
       const body = composeBody(retirementInput('docs(roadmap): retire some-slug', 'some-slug'));
       expect(body).toContain('Doc-only change; no test plan');
     });
+
+    // The path shape proves "roadmap bookkeeping only", which a reorder also
+    // satisfies. Rendering the template on shape alone would assert a
+    // retirement, a slug and a retired-ID write that never happened.
+    it('does not claim a retirement when the subject never says retire', () => {
+      const body = composeBody(
+        retirementInput('docs(roadmap): reorder priorities after Q-0124', 'test-feature'),
+      );
+      expect(body).not.toContain('Bookkeeping: retire');
+      expect(body).not.toContain('remove-block');
+      expect(body).toContain('reorder priorities after Q-0124');
+    });
+
+    it('takes the slug from the subject, never from the session marker', () => {
+      const body = composeBody(
+        retirementInput('docs(roadmap): retire real-slug — superseded', 'stale-marker-slug'),
+      );
+      // The Scope section still reports session.slug — that is its job. What
+      // must never happen is the retirement claim naming it.
+      expect(body).toContain('Bookkeeping: retire `real-slug`');
+      expect(body).not.toContain('retire `stale-marker-slug`');
+    });
   });
 
   describe('Test Plan derives from the diff, not from FD presence', () => {
@@ -262,6 +284,23 @@ describe('composeBody', () => {
       });
       expect(body).toContain('Doc-only change; no test plan');
       expect(body).not.toContain('`pnpm typecheck` passes.');
+    });
+
+    // touchesCode([]) is false, so a bare `?? []` default would answer
+    // "doc-only" for every caller that omitted the field.
+    it('falls back to the FD-presence rule when branchFiles is absent', () => {
+      const { branchFiles: _omitted, ...withoutBranchFiles } = {
+        ...baseInput,
+        branchFiles: undefined,
+      };
+      const body = composeBody(withoutBranchFiles as PrFlowInput);
+      expect(body).toContain('`pnpm typecheck` passes.');
+      expect(body).not.toContain('Doc-only change');
+    });
+
+    it('treats an explicitly empty branchFiles as doc-only', () => {
+      const body = composeBody({ ...baseInput, branchFiles: [] });
+      expect(body).toContain('Doc-only change');
     });
 
     it('adds the dogfood step only when an FD is present', () => {

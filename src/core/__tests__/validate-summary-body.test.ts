@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { validateSummaryBody } from '../validate-summary-body.js';
+import { loadCommitFiles, validateSummaryBody } from '../validate-summary-body.js';
 
 const GOOD_BODY = [
   'fix(clones): union untracked files into the diff-scoped verdict',
@@ -148,6 +148,92 @@ describe('validateSummaryBody', () => {
         validateSummaryBody({ message: "Merge branch 'main'", stagedFiles: CODE }).success,
       ).toBe(false);
     });
+  });
+});
+
+// `git commit --amend` stages nothing, so a naive staged-set read is empty and
+// the empty-set exemption would let a code commit's body be rewritten away.
+describe('amend shape', () => {
+  const scratchRepo = (): { repo: string; git: (...a: string[]) => string } => {
+    const repo = mkdtempSync(join(tmpdir(), 'noldor-amend-'));
+    const git = (...args: string[]): string =>
+      execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'test');
+    return { repo, git };
+  };
+
+  it('resolves the amended commit’s own files instead of an empty set', async () => {
+    const { repo, git } = scratchRepo();
+    writeFileSync(join(repo, 'f.ts'), 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'seed');
+    writeFileSync(join(repo, 'f.ts'), 'a\nb\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'code change');
+
+    // The state `git commit --amend` presents to commit-msg: nothing staged.
+    expect(git('diff', '--cached', '--name-only')).toBe('');
+    await expect(loadCommitFiles(repo)).resolves.toEqual(['f.ts']);
+  });
+
+  // The shape is "index tree == HEAD tree", which an untracked or unstaged edit
+  // also presents. That is not a false positive in practice: with nothing
+  // staged git refuses to create a commit at all, so commit-msg only runs here
+  // for `--amend` or `--allow-empty`. Pinned so the limit is known, not assumed.
+  it('cannot distinguish an unstaged working tree from an amend', async () => {
+    const { repo, git } = scratchRepo();
+    writeFileSync(join(repo, 'f.ts'), 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'seed');
+    writeFileSync(join(repo, 'g.ts'), 'untracked\n');
+    await expect(loadCommitFiles(repo)).resolves.toEqual(['f.ts']);
+  });
+
+  it('prefers the staged set whenever one exists', async () => {
+    const { repo, git } = scratchRepo();
+    writeFileSync(join(repo, 'f.ts'), 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'seed');
+    writeFileSync(join(repo, 'g.ts'), 'staged\n');
+    git('add', 'g.ts');
+    await expect(loadCommitFiles(repo)).resolves.toEqual(['g.ts']);
+  });
+
+  it('lists the root commit’s files when it has no parent', async () => {
+    const { repo, git } = scratchRepo();
+    writeFileSync(join(repo, 'f.ts'), 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'root');
+    await expect(loadCommitFiles(repo)).resolves.toEqual(['f.ts']);
+  });
+
+  it('is distinguishable from a genuinely empty staged set', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'noldor-amend-'));
+    const git = (...args: string[]): string =>
+      execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'test');
+
+    writeFileSync(join(repo, 'f.ts'), 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'seed');
+    writeFileSync(join(repo, 'f.ts'), 'a\nb\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'code change');
+
+    // Nothing staged, yet the index tree matches HEAD's — the amend shape the
+    // CLI keys on — and HEAD's own files name the code the amend would carry.
+    expect(git('diff', '--cached', '--name-only')).toBe('');
+    expect(git('write-tree')).toBe(git('rev-parse', 'HEAD^{tree}'));
+    expect(git('diff', '--name-only', 'HEAD^', 'HEAD')).toBe('f.ts');
+
+    // Which means the validator, handed those files, still demands a body.
+    expect(validateSummaryBody({ message: 'code change', stagedFiles: ['f.ts'] }).success).toBe(
+      false,
+    );
   });
 });
 
