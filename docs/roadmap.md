@@ -75,19 +75,6 @@ An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never ap
 
 `pnpm noldor design log --support` (Q-0053) already captures prior art into the design ledger, but nothing enforces that it was used — a spec whose ledger renders `Existing support (0) - (none recorded)` passes silently, which means the reuse question was never asked. Spec-lint should reject an approved spec with zero support anchors unless the operator records an explicit `--support "none: <reason>"`. The side benefit is that the CR `reuse` dimension gains a falsifiable claim to check against instead of reviewing in the dark.
 
-### Doctor Ahead-Anchor Dead End
-
-- id: Q-0082
-- area: tooling
-- type: fix
-- since: 2026-08-10
-- size: S
-- impact: med
-- confidence: med
-- parent: version-aware-upgrade-and-migration-chain
-
-`doctor`'s framework-skew check compares the anchor by string `!==` (`src/cli/commands/doctor.ts:63`), so an anchor _ahead_ of the installed version prints `run 'noldor upgrade'` forever while `upgrade` correctly refuses to rewrite it backwards — an advisory dead end with no CLI exit, the same shape as Q-0076 in the opposite direction. Reachable after a downgrade (`pnpm add @david.zoufaly/noldor@<older>`) or a hand-edited anchor. Fix: compare with `semver.lt(anchored, installed)` and give the ahead case its own message (`anchored <a> is ahead of installed <i> — the install is behind, not the anchor`) rather than pointing at a command that cannot help. (surfaced in the code-stage CR of Q-0076, PR #270)
-
 ### Oversize Task Split: Which Phase Owns It
 
 - id: Q-0108
