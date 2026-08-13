@@ -85,20 +85,30 @@ import {
 export interface CliArgs {
   /** Undefined when --port absent — caller falls back to env PORT or default 4321. */
   port: number | undefined;
-  /** Undefined when --docs absent — caller falls back to process.cwd(). */
-  docsPath: string | undefined;
+  /**
+   * Repository root to serve (its docs live at `<root>/docs/`). Undefined when
+   * --root absent — caller falls back to process.cwd().
+   */
+  rootPath: string | undefined;
   /** Undefined when --host absent — caller falls back to DASHBOARD_HOST env or 127.0.0.1 (loopback). */
   host: string | undefined;
+  /** True when the value came from the deprecated --docs spelling — caller prints a deprecation note. */
+  usedDeprecatedDocsFlag: boolean;
 }
 
 export function parseCliArgs(argv: string[]): CliArgs {
   const portIdx = argv.indexOf('--port');
+  const rootIdx = argv.indexOf('--root');
+  // Deprecated alias. Despite the name, --docs was always resolved as a
+  // repository root (loadDocRoots appends `docs/`), so the alias keeps the
+  // working `--docs <repo-root>` invocations alive while README/help move
+  // to --root. --root wins when both are present.
   const docsIdx = argv.indexOf('--docs');
   const hostIdx = argv.indexOf('--host');
   const port = portIdx >= 0 ? Number(argv[portIdx + 1]) : undefined;
-  const docsPath = docsIdx >= 0 ? argv[docsIdx + 1] : undefined;
+  const rootPath = rootIdx >= 0 ? argv[rootIdx + 1] : docsIdx >= 0 ? argv[docsIdx + 1] : undefined;
   const host = hostIdx >= 0 ? argv[hostIdx + 1] : undefined;
-  return { port, docsPath, host };
+  return { port, rootPath, host, usedDeprecatedDocsFlag: rootIdx < 0 && docsIdx >= 0 };
 }
 
 interface RouteResult {
@@ -922,8 +932,18 @@ export async function startServer(
 }
 
 async function main(): Promise<void> {
-  const { port, docsPath, host: hostArg } = parseCliArgs(process.argv.slice(2));
-  setDocRootsOverride(docsPath);
+  const {
+    port,
+    rootPath,
+    host: hostArg,
+    usedDeprecatedDocsFlag,
+  } = parseCliArgs(process.argv.slice(2));
+  if (usedDeprecatedDocsFlag) {
+    console.error(
+      '--docs is deprecated (it has always been resolved as a repository root, not a docs directory) — use --root <repository-root>',
+    );
+  }
+  setDocRootsOverride(rootPath);
   const host = resolveBindHost(hostArg);
   if (port !== undefined && port !== 0 && !isValidPort(port)) {
     console.error(
