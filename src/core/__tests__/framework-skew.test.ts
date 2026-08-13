@@ -55,6 +55,14 @@ describe('frameworkSkewDetail', () => {
     expect(detail).not.toContain('noldor upgrade');
   });
 
+  it('reports no skew for a v-prefixed anchor that is semver-equal to installed', () => {
+    expect(frameworkSkewDetail('v1.2.0', '1.2.0')).toBeNull();
+  });
+
+  it('reports no skew for a build-metadata anchor that is semver-equal to installed', () => {
+    expect(frameworkSkewDetail('1.2.0+build.7', '1.2.0')).toBeNull();
+  });
+
   it('treats a prerelease anchor below installed as lagging', () => {
     expect(frameworkSkewDetail('1.2.0-rc.1', '1.2.0')).toBe(
       "anchored 1.2.0-rc.1 ≠ installed 1.2.0 — run 'noldor upgrade'",
