@@ -3,6 +3,8 @@
  * skipped; each string/template literal collapses to one `LIT` token;
  * identifiers normalize to `ID` and numeric/string literals to `LIT` in the
  * normalized stream (Type-2 clone matching) while keywords stay verbatim.
+ * A declaration-style builder chain (`z.number().int().nonnegative()`) also
+ * collapses to one token — see {@link collapseBuilderChains}.
  * Regex literals get no special handling (they degrade to punctuation and
  * identifier runs — bounded imprecision, never a crash). Deterministic, pure,
  * no fs.
@@ -88,6 +90,105 @@ const KEYWORDS = new Set([
 const isIdentStart = (c: string): boolean => /[A-Za-z_$]/.test(c);
 const isIdentPart = (c: string): boolean => /[\w$]/.test(c);
 const isDigit = (c: string): boolean => c >= '0' && c <= '9';
+
+/** Minimum chained calls before a builder chain is worth collapsing. */
+const MIN_CHAIN_CALLS = 2;
+
+/**
+ * Fold each declaration-style builder chain into a single token.
+ *
+ * A schema field like `applied: z.number().int().nonnegative(),` is thirteen
+ * tokens, and Type-2 normalization makes it identical to every other field
+ * declared with the same validator — so five consecutive fields clear the
+ * 50-token clone floor on their own and any schema-heavy file reads as a clone
+ * of every other one. Weighing the whole chain as one token puts a field at
+ * four tokens, which keeps accidental agreement between a handful of fields
+ * under the floor while a genuinely copied schema (dozens of fields, plus its
+ * surrounding declarations) still clears it.
+ *
+ * A chain qualifies only when it is `<ident>` followed by at least
+ * {@link MIN_CHAIN_CALLS} calls whose arguments are literal-only (empty, or
+ * comma-separated literals). Any call taking an identifier, object or callback
+ * argument holds real code, so the chain is left expanded and keeps its full
+ * token weight — that is what stops the collapse from hiding a duplicated
+ * pipeline. The head identifier still normalizes to `ID` (`z` vs `zod` must not
+ * matter), while method names stay verbatim: `.int()` and `.min()` are distinct
+ * operations rather than renamed variables, so a chain differing in its methods
+ * should not read as a Type-2 clone.
+ */
+export function collapseBuilderChains(tokens: readonly Token[]): Token[] {
+  const out: Token[] = [];
+  let i = 0;
+
+  /**
+   * A method-name position. Not `norm === 'ID'`: half the zod vocabulary
+   * (`.number()`, `.string()`, `.object()`, `.boolean()`) is spelled with a TS
+   * keyword, which the scanner keeps verbatim rather than normalizing.
+   */
+  const isName = (t: Token | undefined): boolean =>
+    t !== undefined && /^[A-Za-z_$][\w$]*$/.test(t.text);
+
+  /** End index (exclusive) of a literal-only arg list opening at `(` = `at`. */
+  const argListEnd = (at: number): number | null => {
+    if (tokens[at]?.norm !== '(') return null;
+    let k = at + 1;
+    let expectArg = true;
+    while (k < tokens.length) {
+      const norm = tokens[k]!.norm;
+      if (norm === ')') return expectArg && k > at + 1 ? null : k + 1;
+      if (expectArg && norm === 'LIT') {
+        expectArg = false;
+        k++;
+        continue;
+      }
+      if (!expectArg && norm === ',') {
+        expectArg = true;
+        k++;
+        continue;
+      }
+      return null;
+    }
+    return null;
+  };
+
+  while (i < tokens.length) {
+    const head = tokens[i]!;
+    if (head.norm !== 'ID') {
+      out.push(head);
+      i++;
+      continue;
+    }
+    let k = i + 1;
+    let calls = 0;
+    let norm = 'CHAIN:ID';
+    while (tokens[k]?.norm === '.' && isName(tokens[k + 1])) {
+      const end = argListEnd(k + 2);
+      if (end === null) break;
+      const args = tokens
+        .slice(k + 3, end - 1)
+        .map((t) => t.norm)
+        .join('');
+      norm += `.${tokens[k + 1]!.text}(${args})`;
+      calls++;
+      k = end;
+    }
+    if (calls < MIN_CHAIN_CALLS) {
+      out.push(head);
+      i++;
+      continue;
+    }
+    const members = tokens.slice(i, k);
+    out.push({
+      text: members.map((t) => t.text).join(''),
+      norm,
+      line: head.line,
+      endLine: members[members.length - 1]!.endLine,
+    });
+    i = k;
+  }
+
+  return out;
+}
 
 /** Tokenize `source`. Never throws — unknown characters emit punctuation tokens. */
 export function tokenize(source: string): Token[] {
@@ -199,5 +300,5 @@ export function tokenize(source: string): Token[] {
     i++;
   }
 
-  return tokens;
+  return collapseBuilderChains(tokens);
 }
