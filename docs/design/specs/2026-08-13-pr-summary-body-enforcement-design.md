@@ -34,7 +34,8 @@ Separately, FD-carrying paths render the FD's `## Summary` via [`loadFdSummary`]
 ## Non-goals
 
 - Mechanically judging *register quality*. A validator can check that a Why section exists and is non-trivial; it cannot check that it reads plainly. That bar stays with the rule text, the human reviewer and the code-stage CR.
-- Rewriting the CR pipeline, the rules engine, or `pickSummarySha`'s selection policy (PR #304 settled that).
+- Rewriting the CR pipeline or the rules engine.
+- Revisiting *why* `pickSummarySha` skips bookkeeping commits — PR #304 settled that intent. Its skip **set** does widen here (see Unit 4), which is a correctness fix to an under-specified predicate, not a change of policy.
 - Retroactively fixing merged PR bodies.
 - Enforcement at `pr-flow` time. Rejected deliberately: a `pr-flow` failure destroys a drain iteration *after* implementation and CR have run (~13 min, ~170k tokens per the finish-mode record), whereas a commit-msg rejection costs one amend.
 
@@ -110,6 +111,8 @@ The `—` separator (not `:`) is deliberate: `Why: …` in a body's last paragra
 
 Registered in [`src/cli/manifest.ts`](../../../src/cli/manifest.ts) under the `validate` group as `summary-body` → `core/validate-summary-body.ts`, and appended to `docs/noldor/script-catalog.md` (the `validate script-catalog` gate rejects an unlisted command).
 
+**Why a separate command rather than folding this into `noldor-validate-trailer.ts`.** That hook already holds the rollout gate, a staged-file read and the `allowlist` import, so folding would save one node spawn and one `git diff --cached` per commit. Rejected on two grounds. First, precedent: `validate noldor-scope` and `validate feature-slug-scope` are *already* separate `commit-msg` jobs sitting beside the trailer hook — this is the established shape for a commit-msg concern, and the trailer hook is about trailers. Second, the standalone form `pnpm noldor validate summary-body <file>` lets an agent check a message before committing (see Usage), which a hook-internal check cannot offer. The per-commit cost is one extra process on a hook chain that already spawns four; ordering still puts the trailer diagnostic first (Unit 3).
+
 ### Unit 3 — commit-msg wiring
 
 A fourth job in the `commit-msg` block of [`lefthook/noldor.yml`](../../../lefthook/noldor.yml), after `noldor-validate-trailer`:
@@ -144,7 +147,9 @@ Three changes:
 
   Deterministic prose over a known-shaped change; no authoring, nothing invented. `<slug>` comes from `session.slug`, falling back to the subject's `retire <slug>` capture.
 
-- **FD-carrying paths**: `fd.summary` stays as the feature framing and the structured body from `summaryCommit` is appended beneath it, separated by a blank line. An attach PR then describes its own enhancement instead of the parent feature. The body is present by construction — Unit 2 required it on the code commit this branch must contain.
+- **`pickSummarySha` skips the whole bookkeeping set** (`src/core/pr-flow-cli.ts`): today it skips only `docs/roadmap.md`, so since Q-0107 co-staged `.noldor/retired-entry-ids.json` it lands on the retirement commit, and on a `full-*` branch it lands on the spec or plan commit. Both are Unit-2-exempt, so the selected commit's body is legitimately empty and the FD append below would add nothing. Reusing `isBookkeepingOnly` in the `find` predicate makes the selection land on the first commit that actually carries code — precisely the commit Unit 2 forced a body onto. The existing `?? commits[0]` fallback is unchanged, so a retirement-only branch still reaches the template above.
+
+- **FD-carrying paths**: `fd.summary` stays as the feature framing and the structured body from `summaryCommit` is appended beneath it, separated by a blank line. An attach PR then describes its own enhancement instead of the parent feature. The body is present by construction *given the selection fix above* — Unit 2 required it on the code commit, and selection now lands there. When the branch genuinely carries no code commit, `summaryCommit.body` is empty and the append is skipped (the FD summary alone stands).
 
 - **`testPlanItems` derives from the diff, not from `fd`**: `touchesCode(branchFiles)` renders the code checklist (`validate:features`, `typecheck`, `test`, dogfood) regardless of FD presence; otherwise the doc-only line stands. The FD-specific dogfood bullet stays conditional on `input.fd`. The predicate is `touchesCode`, **not** a negated `isBookkeepingOnly` — a `docs/noldor/**` micro-chore is neither bookkeeping nor code, and negation would hand it a typecheck/test/dogfood checklist it cannot satisfy.
 
@@ -190,6 +195,7 @@ Per `docs/noldor/testing-principles.md`, real behaviour over mocks:
 - `isBookkeepingOnly`: each glob, a mixed set, an empty set (false), and the real trio from commit `3e2cf1f` (`.noldor/id-counter.json` + spec + FD → true).
 - `isRetirementOnly`: `docs/roadmap.md` alone; the roadmap + `.noldor/retired-entry-ids.json` pair (the post-Q-0107 shape); the pair plus one code file (false).
 - `touchesCode`: `src/**` true; `docs/noldor/**` false; `templates/docs/**` false; `templates/**` non-docs true; a deletion-only set true (the loader keeps `D`).
+- `pickSummarySha`: a branch of `[retirement commit (roadmap + retired-ids), code commit]` selects the code commit; a `full-*` shape of `[spec, plan, code]` selects the code commit; a retirement-only branch still returns `commits[0]`.
 - `composeBody`: retirement-only branch renders the template with the right slug; FD path appends the structured body under `fd.summary`; attach path uses the parent FD summary plus the enhancement's body; code diff with no FD renders the code test plan; `docs/noldor/**`-only diff renders the doc-only line.
 - End-to-end against a real git repo (scratch consumer, real commits, real hook run) that a code commit without a body is rejected and the same commit with one passes — the same shape as the existing hook tests.
 
@@ -204,6 +210,7 @@ Per `docs/noldor/testing-principles.md`, real behaviour over mocks:
 - [ ] A tree without a rollout marker, or pre-rollout, is unaffected.
 - [ ] A retirement-only branch produces a PR Summary carrying why, how and what, naming the retired slug — not the bookkeeping subject alone.
 - [ ] An FD-carrying PR renders the FD summary followed by the summary commit's structured body; an attach PR's body describes the enhancement, not the parent feature.
+- [ ] On a branch whose first commits are bookkeeping (retirement pair, or spec + plan), the PR title and Summary both describe the first *code* commit.
 - [ ] A no-FD PR whose diff touches code renders the code Test Plan checklist, never `Doc-only change`.
 - [ ] `pnpm noldor validate script-catalog`, `pnpm noldor checks template-sync` and `pnpm noldor rules validate` all pass with the new command, twins and rule edit.
 
@@ -268,4 +275,10 @@ pnpm noldor validate summary-body .git/COMMIT_EDITMSG
    -> **Kept.** It is unreachable for hook-validated commits and remains the graceful path for pre-existing branches, `--no-verify` commits and rebases. `composeBody` must never fail; enforcement belongs at the hook (D3).
 
 6. *Does the retirement-only template risk asserting something false?*
-   -> **No.** It only claims what the branch shape proves: every commit touched `docs/roadmap.md` alone, so nothing but bookkeeping shipped. The slug is read from the session marker (D4).
+   -> **No.** It only claims what the branch shape proves: every commit touched the roadmap / retired-ID pair alone, so nothing but bookkeeping shipped. The slug is read from the session marker (D4).
+
+7. *`pickSummarySha` selects a Unit-2-exempt commit on retirement and `full-*` branches — fix in selection or with a second selector?* (CR round 1, D1)
+   -> **Widen the existing predicate to `isBookkeepingOnly`.** One selector keeps the PR title and the Summary body describing the same commit; a second selector could drift them onto different commits. PR #304's intent — skip bookkeeping, describe the change — is preserved; only its under-specified skip set changes (D7).
+
+8. *Fold the body check into `noldor-validate-trailer.ts` to save a process?* (CR round 1, D2)
+   -> **Keep it separate.** `validate noldor-scope` and `validate feature-slug-scope` are already separate `commit-msg` jobs, and the standalone `validate summary-body <file>` pre-check has no equivalent inside a hook. Rationale and cost are stated in Unit 2 rather than left implicit (D8).
