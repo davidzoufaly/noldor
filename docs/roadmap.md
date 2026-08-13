@@ -34,21 +34,6 @@ Three command families build filesystem paths from an unchecked positional argum
 
 (all three confirmed by static path-resolution probe in the read-only audit 2026-08-12)
 
-### Diff-Scoped Clone Gate Flags Mere Adjacency
-
-- id: Q-0095
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: high
-- confidence: high
-- parent: code-clone-detector
-
-`flaggedGroups` ([`src/clones/diff-scope.ts:187`](../src/clones/diff-scope.ts)) reds when **any single instance of a clone group overlaps a changed line at all**, so a three-line graze counts the same as writing the whole copy. Against the module's own stated intent ("did you just write a copy of something that already exists?") that is a false positive, and it fired three times in one session: a one-line `desc:` edit inside the `src/cli/manifest.ts` data table (Q-0094, which had to abandon the edit and ship `noldor help` stale); three added import lines landing inside an import block that matches `src/cr/lanes/verify.ts`; and the tail of a newly inserted function abutting the lane sink-path prologue in `src/cr/lanes/subagent.ts`. Registering a CLI subcommand necessarily edits the manifest table, so the gate blocks a whole class of legitimate change with no ignore knob and no per-finding override — the author-side-rule-injection PR had to push with `LEFTHOOK_EXCLUDE=noldor-clones`.
-
-**The naive fix is wrong**: requiring ≥2 overlapping instances would break the primary case, since pasting an existing block into a new file changes exactly one instance. The predicate needs to be coverage-based — flag when changed lines cover a substantial fraction of some instance, so "I wrote this copy" fires and "my edit abuts a pre-existing clone" does not. Pick the threshold against the three recorded cases (37%, 25%, ~55% coverage) plus a real paste (100%). Worth considering alongside: an inline `// noldor:clone-ok <reason>` marker for the irreducible cases (data tables, import blocks), mirroring how `noldor:cut` waives minimalism findings.
-
 ### Clone Gate Reads Untracked New Files as Green
 
 - id: Q-0123
