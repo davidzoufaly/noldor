@@ -182,15 +182,32 @@ function retiredSlug(subject: string): string | null {
   return /\bretire\s+(\S+)/.exec(subject)?.[1] ?? null;
 }
 
-/** Deterministic Summary for a branch that only retires a roadmap entry. */
-function renderRetirementSummary(input: PrFlowInput, slug: string): string {
+/**
+ * Deterministic Summary for a branch that only retires a roadmap entry.
+ *
+ * The retired-ID clause is conditional on the map actually being in the diff:
+ * `remove-block` records an ID only when the entry carries one, and
+ * `recordRetiredId` no-ops when it is already mapped, so an ID-less entry's
+ * retirement touches the roadmap alone. Claiming the write unconditionally
+ * would assert a file change the diff contradicts — the defect this whole
+ * template exists to avoid.
+ */
+function renderRetirementSummary(
+  input: PrFlowInput,
+  slug: string,
+  files: readonly string[],
+): string {
+  const recordedId = files.includes('.noldor/retired-entry-ids.json');
   return [
     `Bookkeeping: retire \`${slug}\` from the roadmap queue.`,
     '',
     `Why — ${retirementReason(input.summaryCommit.subject)}, so the gate stops surfacing it at Step 0.`,
-    'How — `roadmap remove-block` drops the block and records its ID in',
-    '`.noldor/retired-entry-ids.json`, so existing `blocked-by:` references keep resolving.',
-    'What — one block removed from `docs/roadmap.md`; no code change.',
+    recordedId
+      ? 'How — `roadmap remove-block` drops the block and records its ID in\n`.noldor/retired-entry-ids.json`, so existing `blocked-by:` references keep resolving.'
+      : 'How — `roadmap remove-block` drops the block. The entry carried no `id:`, so\nthere is no retired-ID mapping to record.',
+    recordedId
+      ? 'What — one block removed from `docs/roadmap.md`, one ID recorded; no code change.'
+      : 'What — one block removed from `docs/roadmap.md`; no code change.',
   ].join('\n');
 }
 
@@ -248,7 +265,7 @@ export function composeBody(input: PrFlowInput): string {
     : null;
   const summary =
     retired !== null
-      ? renderRetirementSummary(input, retired)
+      ? renderRetirementSummary(input, retired, branchFiles)
       : input.fd
         ? // The FD names the feature; the summary commit's body explains THIS
           // increment. An attach PR otherwise renders its parent feature's

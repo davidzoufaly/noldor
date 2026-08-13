@@ -87,6 +87,66 @@ describe('validateSummaryBody', () => {
     expect(result.error).toContain('What');
   });
 
+  // `sectionLength` runs marker → next marker or end of body, so anything git
+  // appends below the last section counts toward it. An interactive `git
+  // commit` always appends its comment block, and `-v` appends the whole diff.
+  it('does not let git comment lines pad the final section', () => {
+    const message = [
+      'fix(x): y',
+      '',
+      'Why — the gate printed green for a brand-new file, silently.',
+      'How — ranges now union ls-files output into the changed-range map.',
+      'What — x',
+      '',
+      '# Please enter the commit message for your changes. Lines starting',
+      '# with "#" will be ignored, and an empty message aborts the commit.',
+      '#',
+      '# On branch feat/x',
+      '# Changes to be committed:',
+      '#\tmodified:   src/core/foo.ts',
+    ].join('\n');
+    const result = validateSummaryBody({ message, stagedFiles: ['src/core/foo.ts'] });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('What');
+  });
+
+  // Stripping `#` lines removes the scissors marker but not the diff beneath it,
+  // so the body must also be truncated at the scissors.
+  it('does not let the commit -v diff pad the final section', () => {
+    const message = [
+      'fix(x): y',
+      '',
+      'Why — the gate printed green for a brand-new file, silently.',
+      'How — ranges now union ls-files output into the changed-range map.',
+      'What — x',
+      '',
+      '# ------------------------ >8 ------------------------',
+      '# Do not modify or remove the line above.',
+      'diff --git a/src/core/foo.ts b/src/core/foo.ts',
+      'index 1234567..89abcde 100644',
+      '--- a/src/core/foo.ts',
+      '+++ b/src/core/foo.ts',
+      '@@ -1,3 +1,4 @@',
+      '+const padding = "this text is not part of the commit message";',
+    ].join('\n');
+    const result = validateSummaryBody({ message, stagedFiles: ['src/core/foo.ts'] });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('What');
+  });
+
+  it('still accepts a real body carrying git comment furniture', () => {
+    const message = [
+      'fix(x): y',
+      '',
+      'Why — the gate printed green for a brand-new file, silently.',
+      'How — ranges now union ls-files output into the changed-range map.',
+      'What — src/clones/ranges.ts plus the regression test that pins it.',
+      '',
+      '# Please enter the commit message for your changes.',
+    ].join('\n');
+    expect(validateSummaryBody({ message, stagedFiles: ['src/core/foo.ts'] }).success).toBe(true);
+  });
+
   it('measures a section across its continuation lines', () => {
     const wrapped = [
       'fix(x): y',

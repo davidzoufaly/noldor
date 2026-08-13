@@ -60,10 +60,28 @@ export interface ValidateSummaryBodyResult {
   error?: string;
 }
 
-/** The commit's prose: message minus subject line, minus trailer lines. */
+/**
+ * Git's `commit -v` scissors line. Everything below it is the diff git appends
+ * for the author to read; it is not part of the message.
+ */
+const SCISSORS_RE = /^#\s*-+\s*>8\s*-+/;
+
+/**
+ * The commit's prose: message minus subject, comments, the `-v` diff, and
+ * trailers.
+ *
+ * Dropping git's editor furniture is what makes {@link MIN_SECTION_CHARS} mean
+ * anything. `sectionLength` measures a marker to the next marker or the end of
+ * the body, so without this the final section absorbs the comment block — and
+ * under `git commit -v`, the entire appended diff — and any `What — x` clears
+ * the floor. Truncating at the scissors is required on top of dropping `#`
+ * lines: the marker itself is a comment, but the diff beneath it is not.
+ */
 function bodyOf(message: string): string {
   const [, ...rest] = message.split('\n');
-  return stripTrailers(rest.join('\n'));
+  const scissors = rest.findIndex((l) => SCISSORS_RE.test(l));
+  const lines = scissors === -1 ? rest : rest.slice(0, scissors);
+  return stripTrailers(lines.filter((l) => !l.startsWith('#')).join('\n'));
 }
 
 /** Is this commit written by release automation rather than an author? */
@@ -182,12 +200,11 @@ export async function loadCommitFiles(cwd?: string): Promise<string[] | null> {
   if (staged === null) return null;
   if (staged.length > 0) return staged.split('\n').filter(Boolean);
 
-  const [indexTree, headTree] = await Promise.all([
-    git(['write-tree'], cwd),
-    git(['rev-parse', 'HEAD^{tree}'], cwd),
-  ]);
-  if (indexTree === null || headTree === null || indexTree !== headTree) return [];
-
+  // No index-vs-HEAD tree comparison here: `git diff --cached` IS that
+  // comparison, so an empty result already proves the trees match. Running
+  // `git write-tree` to re-establish it would also write tree objects into
+  // .git/objects from what is otherwise a read-only validation path.
+  //
   // HEAD vs its parent; on a root commit there is no parent, so list HEAD itself.
   const amended =
     (await git(['diff', '--name-only', 'HEAD^', 'HEAD'], cwd)) ??

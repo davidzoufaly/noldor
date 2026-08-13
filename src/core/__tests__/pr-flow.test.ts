@@ -241,6 +241,26 @@ describe('composeBody', () => {
       expect(body).toContain('reorder priorities after Q-0124');
     });
 
+    // remove-block records an ID only when the entry carries one, so an ID-less
+    // entry's retirement touches the roadmap alone.
+    it('does not claim a retired-ID write when the map is not in the diff', () => {
+      const body = composeBody({
+        ...retirementInput('docs(roadmap): retire some-slug — superseded', 'some-slug'),
+        branchFiles: ['docs/roadmap.md'],
+      });
+      expect(body).toContain('Bookkeeping: retire `some-slug`');
+      expect(body).toContain('no retired-ID mapping to record');
+      expect(body).not.toContain('records its ID in');
+    });
+
+    it('claims the retired-ID write when the map IS in the diff', () => {
+      const body = composeBody(
+        retirementInput('docs(roadmap): retire some-slug — superseded', 'some-slug'),
+      );
+      expect(body).toContain('records its ID in');
+      expect(body).toContain('one ID recorded');
+    });
+
     it('takes the slug from the subject, never from the session marker', () => {
       const body = composeBody(
         retirementInput('docs(roadmap): retire real-slug — superseded', 'stale-marker-slug'),
