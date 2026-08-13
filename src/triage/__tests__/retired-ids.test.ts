@@ -48,6 +48,13 @@ describe('retired-ids map', () => {
     expect(Object.keys(loadRetiredIds(mapPath)).sort()).toEqual(['Q-0089', 'Q-0099']);
   });
 
+  it('refuses to record a malformed entry ID (would poison every later load)', () => {
+    expect(() => recordRetiredId('not-an-id', { slug: 'x' }, mapPath)).toThrow(
+      /malformed entry ID/,
+    );
+    expect(loadRetiredIds(mapPath)).toEqual({});
+  });
+
   it('throws loudly on a corrupt map (non-object root)', () => {
     writeFileSync(mapPath, '["Q-0089"]\n', 'utf8');
     expect(() => loadRetiredIds(mapPath)).toThrow(/corrupt map/);

@@ -52,8 +52,14 @@ export function loadRetiredIds(path: string): Record<string, RetiredIdRecord> {
  * Append one retired ID to the map, creating the file on first use. Idempotent:
  * an already-recorded ID is left untouched (first record wins — the original
  * retirement context beats a re-run's) and reported via the return value.
+ * A malformed `id` throws before any write: the block parser accepts any
+ * string for `- id:`, and one bad key would make every later `loadRetiredIds`
+ * throw until the file is hand-edited.
  */
 export function recordRetiredId(id: string, record: RetiredIdRecord, path: string): boolean {
+  if (!ENTRY_ID_RE.test(id)) {
+    throw new Error(`retired-ids: refusing to record malformed entry ID '${id}' (expected Q-NNNN)`);
+  }
   const map = loadRetiredIds(path);
   if (id in map) return false;
   map[id] = record;

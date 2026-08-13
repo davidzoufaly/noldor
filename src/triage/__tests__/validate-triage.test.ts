@@ -394,6 +394,19 @@ Body.
     expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
   });
 
+  it('accepts a blocked-by ref that names a retired entry by slug (map records both forms)', () => {
+    // blocked-by accepts <slug|Q-id>; the CLI unions the map's record slugs
+    // alongside its keys, so the slug form must resolve too.
+    const result = validateTriageInputs({
+      roadmapRaw: roadmapWithBlockedBy('retired-by-slug'),
+      backlogRaw: '# Backlog\n',
+      strict: true,
+      counterExists: false,
+      retiredEntryIds: ['Q-0089', 'retired-by-slug'],
+    });
+    expect(result.errors.filter((e) => e.rule === 'unknown-blocked-by-ref')).toEqual([]);
+  });
+
   it('strictRefs promotes only unknown-blocked-by-ref, leaving other advisories advisory', () => {
     const backlogMissingSizeWithBadRef = `# Backlog
 

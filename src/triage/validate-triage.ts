@@ -55,11 +55,13 @@ export interface ValidateTriageInputs {
    */
   featureEntryIds?: readonly string[];
   /**
-   * IDs from the retired-ID map (`.noldor/retired-entry-ids.json`) — entries
-   * retired by the no-FD paths (fast-track, attach), whose IDs land in no FD
-   * frontmatter. Widens the known-ref set the same way as
+   * IDs *and slugs* from the retired-ID map (`.noldor/retired-entry-ids.json`)
+   * — entries retired by the no-FD paths (fast-track, attach), whose IDs land
+   * in no FD frontmatter. Both forms are included because `blocked-by:` accepts
+   * either (`<slug|Q-id>`). Widens the known-ref set the same way as
    * {@link ValidateTriageInputs.featureEntryIds}. The CLI fills this via
-   * `loadRetiredIds`; tests pass it directly. Defaults to empty.
+   * `loadRetiredIds` (keys + record slugs); tests pass it directly. Defaults to
+   * empty.
    */
   retiredEntryIds?: readonly string[];
   /**
@@ -394,7 +396,11 @@ async function main(): Promise<void> {
   ]);
   const counterExists = existsSync(`${opts.cwd}/${COUNTER_PATH_DEFAULT}`);
   const { featureSlugs, featureEntryIds } = await loadFeatureRefs(`${opts.cwd}/docs/features`);
-  const retiredEntryIds = Object.keys(loadRetiredIds(`${opts.cwd}/${RETIRED_IDS_PATH_DEFAULT}`));
+  const retiredMap = loadRetiredIds(`${opts.cwd}/${RETIRED_IDS_PATH_DEFAULT}`);
+  const retiredEntryIds = [
+    ...Object.keys(retiredMap),
+    ...Object.values(retiredMap).map((r) => r.slug),
+  ];
   const result = validateTriageInputs({
     roadmapRaw,
     backlogRaw,
