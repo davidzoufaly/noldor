@@ -33,6 +33,13 @@ describe(parseRemoveBlockArgs, () => {
     });
   });
 
+  it('does not swallow a following flag as the retiredInto value', () => {
+    expect(parseRemoveBlockArgs(['some-entry', '--retired-into', '--backlog'])).toStrictEqual({
+      slug: 'some-entry',
+      backlog: true,
+    });
+  });
+
   it('omits retiredInto when the flag is absent or empty', () => {
     expect(parseRemoveBlockArgs(['some-entry', '--backlog'])).toStrictEqual({
       slug: 'some-entry',

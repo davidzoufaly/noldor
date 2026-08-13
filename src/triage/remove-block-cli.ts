@@ -21,14 +21,20 @@ export interface RemoveBlockArgs {
  * Parse `remove-block` argv. `--retired-into <fd-slug>` (or `=` form) names the
  * FD that absorbed the entry, so an attach retirement records *where the ID
  * went* and not merely that it went; fast-track carries no FD and omits it.
- * An empty value is dropped rather than recorded, keeping the map's optional
- * field absent-or-meaningful.
+ * An empty value — or a following token that is itself a flag, as in
+ * `remove-block foo --retired-into --backlog` — is dropped rather than
+ * recorded, keeping the map's optional field absent-or-meaningful.
  */
 export function parseRemoveBlockArgs(argv: readonly string[]): RemoveBlockArgs {
   const flagIndex = argv.indexOf('--retired-into');
   const inline = argv.find((a) => a.startsWith('--retired-into='));
+  const spaced = argv[flagIndex + 1];
   const retiredInto =
-    flagIndex >= 0 ? argv[flagIndex + 1] : inline?.slice('--retired-into='.length);
+    flagIndex >= 0
+      ? spaced?.startsWith('--')
+        ? undefined
+        : spaced
+      : inline?.slice('--retired-into='.length);
   const slug = argv.find((a, i) => !a.startsWith('--') && !(flagIndex >= 0 && i === flagIndex + 1));
   return {
     slug,
@@ -89,9 +95,11 @@ function main(): void {
     }
   }
 
+  // Warn before the roadmap write, not after: a failing write must not swallow
+  // the "this ID will dangle" note, which is the whole point of the skip branch.
+  if (recordNote.length > 0) process.stderr.write(recordNote);
   writeFileSync(path, removeBlock(raw, slug).newRaw, 'utf8');
   process.stdout.write(`remove-block: removed ${slug} from ${rel}\n`);
-  if (recordNote.length > 0) process.stderr.write(recordNote);
 }
 
 const invokedDirect = /[\\/]remove-block-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');

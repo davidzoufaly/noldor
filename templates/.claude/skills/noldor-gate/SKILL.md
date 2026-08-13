@@ -101,9 +101,11 @@ When `full-attach` or `specs-only-attach` runs, the parent FD's phase may need t
 
 The CLI only writes when the phase actually changes (prevents an empty-diff commit attempt) and works from any consumer repo — no `./src/` import to resolve.
 
-**Step 2 — commit only if the file changed:**
+**Step 2 — stage the parent FD + the retired-ID map (`/noldor-promote` attach Step 7 may have just written it), commit only if anything staged:**
 
-`git diff --quiet docs/features/<parent-slug>.md || (git add docs/features/<parent-slug>.md && git commit -m "docs(features:<parent-slug>): revert phase done → in-progress for attach session" -m "Noldor-FD: <parent-slug>" -m "Noldor-Phase-Revert: 1")`
+`git add docs/features/<parent-slug>.md && git add .noldor/retired-entry-ids.json 2>/dev/null; git diff --cached --quiet -- docs/features/<parent-slug>.md .noldor/retired-entry-ids.json || git commit -m "docs(features:<parent-slug>): revert phase done → in-progress for attach session" -m "Noldor-FD: <parent-slug>" -m "Noldor-Phase-Revert: 1"`
+
+The map is staged here because attach retires its source block through `remove-block --retired-into <parent-slug>` (`/noldor-promote` Step 6.alt), which writes `.noldor/retired-entry-ids.json` but never stages or commits — and every downstream gate commit is pathspec-scoped to the artifact or the FD, so an unstaged map never reaches `main` and the retired ID dangles anyway. Gating on `git diff --cached --quiet` rather than `git diff --quiet <fd>` is what makes the map land in the common case where the phase-revert itself was a no-op (parent already `in-progress`) and the map is the only change. When that happens the subject describes a revert that didn't occur — reword it to `docs(triage): record retired entry ID absorbed into <parent-slug>` and keep both trailers. The same `2>/dev/null` + `--cached` reasoning as the fast-track retirement above applies: `git add` on an absent map exits 128, and the `-- <paths>` limiter keeps the commit scoped.
 
 The `Noldor-Phase-Revert: 1` trailer is what [`src/hooks/noldor-validate-trailer.ts`](../../../src/hooks/noldor-validate-trailer.ts) reads to bypass the spec-file existence check on `specs-only-*` / `full-attach` paths. The subject line is informational only — it may be reworded freely without breaking the bypass.
 
