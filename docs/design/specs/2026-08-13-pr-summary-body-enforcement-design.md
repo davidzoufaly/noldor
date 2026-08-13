@@ -80,15 +80,17 @@ Two further predicates over the same module, each with its own glob set — one 
   .noldor/rules/**
   *.json                       (root only)
   **/*.{ts,tsx,js,jsx,mjs,cjs}
-  templates/**                 EXCEPT templates/docs/**, templates/.claude/**, templates/AGENTS.md
+  templates/**                 EXCEPT templates/docs/**, templates/.claude/**,
+                                      templates/.opencode/**, templates/AGENTS.md
   ```
 
   Consumed by Unit 4's Test Plan choice. It is **not** the negation of `isBookkeepingOnly`: `docs/noldor/**`, root `*.md` and `templates/docs/**` are neither bookkeeping nor code, and negating the exemption set would render the code checklist for an ordinary micro-chore doc PR — hole #5 inverted rather than closed.
 
-  The three non-obvious members and the three exclusions are each a real PR shape:
-  - `.github/workflows/**` and root `lefthook.yml` gate CI and the commit chain. A change there that renders `Doc-only change; no test plan` is hole #5 in the other direction — the assertion is false and the reviewer has no checklist.
+  **The criterion is "does this change alter executable behaviour?"** — not micro-chore membership, which merely correlates. A reviewer of a behaviour change needs typecheck/test evidence; a reviewer of prose does not. Applied:
+  - `.github/workflows/**` and root `lefthook.yml` gate CI and the commit chain — editing either changes what runs. A change there rendering `Doc-only change; no test plan` is hole #5 in the other direction: the assertion is false and the reviewer gets no checklist. Both are also `MICRO_CHORE_GLOBS` members, which is exactly why the criterion cannot be micro-chore membership; `lefthook.yml` is behaviour and stays code-class.
   - `.noldor/rules/**` is prose that changes gate behaviour, and `pnpm noldor rules validate` is a real check a reviewer should see demanded.
-  - `templates/.claude/**` and `templates/AGENTS.md` are excluded because they are **micro-chore** paths in `MICRO_CHORE_GLOBS`: `checks template-sync` forces editing them alongside `.claude/**`, so a pure skill-prose PR would otherwise get a `typecheck`/`test`/dogfood checklist it cannot satisfy — the same failure this predicate exists to avoid for `docs/noldor/**`.
+  - `templates/.claude/**` and `templates/.opencode/**` are excluded as pure skill- and command-prose twins: `checks template-sync` forces editing them alongside `.claude/**` / `.opencode/**`, so a prose-only PR would otherwise get a `typecheck`/`test`/dogfood checklist with nothing to run — the same failure this predicate avoids for `docs/noldor/**`.
+  - `templates/AGENTS.md` is excluded as the prose twin of root `AGENTS.md`. (It is *not* a `MICRO_CHORE_GLOBS` member — that list holds `*.md` at root only, `templates/.claude/**` and `templates/docs/**/*.md`.)
 
 ### Unit 2 — `src/core/validate-summary-body.ts` (new)
 
@@ -109,9 +111,13 @@ export function validateSummaryBody(input: ValidateSummaryBodyInput): ValidateSu
 Decision order:
 
 1. **Rollout gate.** Reuse `rolloutMarkerExists` + `isPostRollout` from [`src/core/rollout-marker.ts`](../../../src/core/rollout-marker.ts) exactly as `validateTrailer` does, so a pre-rollout consumer is never broken by an upgrade. Not post-rollout → pass.
-2. **Automation exemptions.** `Noldor-Path` of `release-automation` or `release-sweep`, or a subject matching `/^Merge /`, `/^(fixup|squash)!/` or `/^Revert "/` → pass. These messages are machine-shaped and have no author to ask.
+2. **Automation exemptions.** `Noldor-Path` of `release-automation` or `release-sweep`, an in-progress merge, or a subject matching `/^(fixup|squash)!/` or `/^Revert "/` → pass. These messages are machine-shaped and have no author to ask.
 
-   The merge exemption is load-bearing, not defensive. Git runs `commit-msg` for merges and the staged set is the merged content, so without it the hook rejects **every** `git merge`: an operator syncing `main` into a worktree, and `resolveRoadmapConflict`'s merge in [`src/autonomous/salvage.ts`](../../../src/autonomous/salvage.ts) under parallel drain (K>1) — which has no author to amend a body and would fail the salvage outright.
+   **The merge exemption keys on `MERGE_HEAD`, not on the subject.** `git rev-parse -q --verify MERGE_HEAD` resolves during a real merge's `commit-msg` and exits non-zero on a clean tree, so it is a state signal git itself maintains. A `/^Merge /` subject regex would be a forgeable bypass of the entire feature — `git commit -m "Merge branch 'fake'"` with arbitrary code staged would take the exemption, and unlike `--no-verify` it would leave the pre-push receipt gate satisfied, making the forged route *cheaper* than the acknowledged escape hatch rather than equivalent to it.
+
+   `fixup!`, `squash!` and `Revert "` stay subject-matched and are forgeable in the same way. Accepted: a forged `fixup!` is squashed away by the rebase it names or ships with a subject that announces itself, and no comparable state signal exists for them. `MERGE_HEAD` is used precisely *because* the signal exists.
+
+   Scope of the merge case is narrower than it first appears. Git runs `commit-msg` for a merge that creates a commit, so a hand-driven `git merge --no-ff` (an operator syncing `main` into a worktree) needs the exemption. Automated flows do **not**: every in-repo main-sync is `--ff-only` ([`src/autonomous/drain-io.ts`](../../../src/autonomous/drain-io.ts), [`src/prep/prep-promote.ts`](../../../src/prep/prep-promote.ts), [`src/release/preflight-fix.ts`](../../../src/release/preflight-fix.ts)) and a fast-forward creates no commit, and `resolveRoadmapConflict` ([`src/autonomous/salvage.ts`](../../../src/autonomous/salvage.ts)) **rebases** despite its `.worktrees/.merge-<slug>` scratch name — `rebase --continue` fires `prepare-commit-msg` only, never `commit-msg`. Parallel drain therefore cannot be broken by this rule, and cannot produce the merge-commit branch shape either.
 
    `parseTrailers` throws by documented contract ([`src/core/trailers.ts`](../../../src/core/trailers.ts) — "the throw is a load-bearing contract"), so this read is wrapped exactly as [`validate-noldor-scope.ts`](../../../src/core/validate-noldor-scope.ts) wraps its own: on a throw, fall back to matching `/^Noldor-Path:\s*(release-automation|release-sweep)\s*$/m` against the raw message. Without the fallback an `interpret-trailers` failure would fail a release-automation commit closed.
 3. **Bookkeeping exemption.** `stagedFiles.length === 0 || isBookkeepingOnly(stagedFiles)` → pass. The empty case covers `--allow-empty` commits and a `git diff --cached` that returned nothing to read; neither has code to explain.
@@ -159,9 +165,7 @@ Three changes:
   ```
   Bookkeeping: retire `<slug>` from the roadmap queue.
 
-  Why — the entry is being taken off the queue, so the gate stops surfacing it
-  at Step 0. The commit records the removal; it does not record which of
-  shipped / superseded / abandoned / duplicate applies.
+  Why — <reason>, so the gate stops surfacing it at Step 0.
   How — `roadmap remove-block <slug>` drops the block and records its ID in
   `.noldor/retired-entry-ids.json`, so existing `blocked-by:` references keep
   resolving.
@@ -170,11 +174,11 @@ Three changes:
 
   Deterministic prose over a known-shaped change; no authoring, nothing invented. `<slug>` comes from `session.slug`, falling back to the subject's `retire <slug>` capture.
 
-  The Why line deliberately stops at "taken off the queue" and names the four possible reasons without picking one. `roadmap remove-block` does not distinguish shipped from superseded, abandoned or duplicate, and nothing else in the commit carries the reason — so a template asserting "already shipped" would be inventing the one thing the branch shape cannot prove. Stating the ambiguity is honest and still answers why the change exists.
+  `<reason>` is lifted from the retirement subject's own em-dash clause — the gate writes `docs(roadmap): retire <slug> — shipped via fast-track (no FD)`, so the reason is already in the commit, and the template already parses that subject for the slug fallback. When the subject carries no such clause, `<reason>` degrades to `the entry is being taken off the queue`. What the template must never do is *assert* a cause: `roadmap remove-block` treats shipped, superseded, abandoned and duplicate identically, so a hard-coded "already shipped" would invent the one thing the branch shape cannot prove.
 
 - **`pickSummarySha` skips the whole bookkeeping set** (`src/core/pr-flow-cli.ts`): today it skips only `docs/roadmap.md`, so since Q-0107 co-staged `.noldor/retired-entry-ids.json` it lands on the retirement commit, and on a `full-*` branch it lands on the spec or plan commit. Both are Unit-2-exempt, so the selected commit's body is legitimately empty and the FD append below would add nothing. Reusing `isBookkeepingOnly` in the `find` predicate makes the selection land on the first commit that actually carries code — precisely the commit Unit 2 forced a body onto. The existing `?? commits[0]` fallback is unchanged, so a retirement-only branch still reaches the template above.
 
-  The predicate is `c.files.length > 0 && !isBookkeepingOnly(c.files)` — the length guard is required, not belt-and-braces. `git log --name-only` emits **no** file names for a merge commit, and `isBookkeepingOnly([])` is `false` by Unit 1's contract, so the bare negation would select a merge as the first "non-bookkeeping" commit. Today's `files.some((f) => f !== 'docs/roadmap.md')` happens to be `false` on an empty list, so the widening would introduce a regression the current code does not have: on a salvaged branch shaped `[retirement, code, merge-of-main]` the PR title would become `Merge branch 'main'` with an empty body — hole #2, reintroduced on exactly the branches parallel drain produces.
+  The predicate is `c.files.length > 0 && !isBookkeepingOnly(c.files)` — the length guard is required, not belt-and-braces. `git log --name-only` emits **no** file names for a merge commit, and `isBookkeepingOnly([])` is `false` by Unit 1's contract, so the bare negation would select a merge as the first "non-bookkeeping" commit. Today's `files.some((f) => f !== 'docs/roadmap.md')` happens to be `false` on an empty list, so the widening would introduce a regression the current code does not have: on a branch shaped `[retirement, code, merge-of-main]` the PR title would become `Merge branch 'main'` with an empty body — hole #2 reintroduced. That shape comes from a hand-driven `git merge --no-ff`, not from drain (whose syncs are `--ff-only` and whose salvage rebases), but a branch an operator merged `main` into is ordinary and the guard is one clause.
 
 - **FD-carrying paths**: `fd.summary` stays as the feature framing and the structured body from `summaryCommit` is appended beneath it, separated by a blank line. An attach PR then describes its own enhancement instead of the parent feature. The body is present by construction *given the selection fix above* — Unit 2 required it on the code commit, and selection now lands there. When the branch genuinely carries no code commit, `summaryCommit.body` is empty and the append is skipped (the FD summary alone stands).
 
@@ -218,11 +222,11 @@ pnpm noldor pr-flow
 
 Per `docs/noldor/testing-principles.md`, real behaviour over mocks:
 
-- `validateSummaryBody` unit matrix: all three sections present; each one missing; a section present but under `MIN_SECTION_CHARS`; sections in the wrong order (accepted — order of *presence* is not enforced, the rule's ordering is a prose bar); `Why:` colon form (rejected, with the trailer-collision hint); markers inside the trailer block (not counted); bookkeeping-only staged set (passes with no body); `Merge branch 'main'` with code staged (passes); `fixup!`/`Revert "` subjects; `release-automation` path; a `parseTrailers` throw on a `release-automation` message (falls back to the regex, passes); pre-rollout tree.
-- A real `git merge --no-ff` through the installed hook chain, asserting the merge commits — the shape that would otherwise break `resolveRoadmapConflict` under parallel drain.
+- `validateSummaryBody` unit matrix: all three sections present; each one missing; a section present but under `MIN_SECTION_CHARS`; sections in the wrong order (accepted — order of *presence* is not enforced, the rule's ordering is a prose bar); `Why:` colon form (rejected, with the trailer-collision hint); markers inside the trailer block (not counted); bookkeeping-only staged set (passes with no body); `fixup!`/`Revert "` subjects; `release-automation` path; a `parseTrailers` throw on a `release-automation` message (falls back to the regex, passes); pre-rollout tree.
+- Merge handling against a real repo, both directions: a genuine `git merge --no-ff` commits (`MERGE_HEAD` present), and `git commit -m "Merge branch 'fake'"` with code staged and no `MERGE_HEAD` is rejected. The forged case is the one that matters — a subject-keyed exemption would pass it.
 - `isBookkeepingOnly`: each glob, a mixed set, an empty set (false), and the real trio from commit `3e2cf1f` (`.noldor/id-counter.json` + spec + FD → true).
 - `isRetirementOnly`: `docs/roadmap.md` alone; the roadmap + `.noldor/retired-entry-ids.json` pair (the post-Q-0107 shape); the pair plus one code file (false).
-- `touchesCode`: `src/**` true; `docs/noldor/**` false; `templates/docs/**` false; `templates/.claude/**` false; `templates/AGENTS.md` false; `templates/**` non-docs non-claude true; `.github/workflows/**` true; root `lefthook.yml` true; `.noldor/rules/**` true; a deletion-only set true (the loader keeps `D`).
+- `touchesCode`: `src/**` true; `docs/noldor/**` false; `templates/docs/**`, `templates/.claude/**`, `templates/.opencode/**`, `templates/AGENTS.md` all false; `templates/**` outside those exclusions true; `.github/workflows/**` true; root `lefthook.yml` true; `.noldor/rules/**` true; a deletion-only set true (the loader keeps `D`).
 - `pickSummarySha`: a branch of `[retirement commit (roadmap + retired-ids), code commit]` selects the code commit; a `full-*` shape of `[spec, plan, code]` selects the code commit; `[code, merge-of-main]` selects the **code** commit, not the merge (the merge's file list is empty); `[merge-of-main]` alone still returns `commits[0]`; a retirement-only branch still returns `commits[0]`.
 - `composeBody`: retirement-only branch renders the template with the right slug; FD path appends the structured body under `fd.summary`; attach path uses the parent FD summary plus the enhancement's body; code diff with no FD renders the code test plan; `docs/noldor/**`-only diff renders the doc-only line.
 - End-to-end against a real git repo (scratch consumer, real commits, real hook run) that a code commit without a body is rejected and the same commit with one passes — the same shape as the existing hook tests.
@@ -234,8 +238,9 @@ Per `docs/noldor/testing-principles.md`, real behaviour over mocks:
 - [ ] A commit staging only bookkeeping paths (roadmap retirement, phase-flip, spec/plan, `ideas.md` triage, an `id-counter` bump) commits with no body and no warning.
 - [ ] A deletion-only code commit is NOT exempt — the staged-set loader carries no `--diff-filter`.
 - [ ] A `docs/noldor/**`-only PR still renders the doc-only Test Plan line (`touchesCode` is false), so hole #5 is closed rather than inverted.
-- [ ] `release-automation`, `release-sweep`, `Merge `, `fixup!`, `squash!` and `Revert "` commits are exempt — `git merge main` in a worktree and `resolveRoadmapConflict`'s salvage merge both still commit.
-- [ ] A `.github/workflows/**`, root `lefthook.yml` or `.noldor/rules/**` PR renders the code Test Plan; a `templates/.claude/**` skill-prose PR renders the doc-only line.
+- [ ] `release-automation`, `release-sweep`, `fixup!`, `squash!` and `Revert "` commits are exempt, and a real `git merge --no-ff` commits (exemption keyed on `MERGE_HEAD`).
+- [ ] A hand-written `git commit -m "Merge branch 'fake'"` with code staged and no `MERGE_HEAD` is **rejected** — the subject alone buys nothing.
+- [ ] A `.github/workflows/**`, root `lefthook.yml` or `.noldor/rules/**` PR renders the code Test Plan; a `templates/.claude/**` or `templates/.opencode/**` prose PR renders the doc-only line.
 - [ ] A tree without a rollout marker, or pre-rollout, is unaffected.
 - [ ] A retirement-only branch produces a PR Summary carrying why, how and what, naming the retired slug — not the bookkeeping subject alone.
 - [ ] An FD-carrying PR renders the FD summary followed by the summary commit's structured body; an attach PR's body describes the enhancement, not the parent feature.
@@ -315,5 +320,8 @@ pnpm noldor validate summary-body .git/COMMIT_EDITMSG
 9. *Which non-`src` surfaces count as code for the Test Plan?* (CR round 2, D1)
    -> **`.github/workflows/**`, root `lefthook.yml` and `.noldor/rules/**` are code; `templates/.claude/**`, `templates/AGENTS.md`, `templates/docs/**` and `docs/noldor/**` are doc-class.** The line is "does a reviewer need typecheck/test evidence?" — CI config, the hook chain and gate rules all change behaviour; skill and doc prose does not, and `checks template-sync` forces the `templates/.claude/**` twin into otherwise pure-prose PRs (D9).
 
-10. *Does the merge exemption open a bypass — commit code under a `Merge ` subject?* (CR round 2, D1-adjacent)
-    -> **In principle yes, in practice no worse than `--no-verify`.** A merge commit's own diff against its first parent is the conflict resolution, not new work, and every commit it brings in was validated on its own branch. Someone hand-crafting a `Merge `-subject commit to smuggle unexplained code already has simpler options; the pre-push receipt and the code-stage CR still apply (D10).
+10. *Does the merge exemption open a bypass — commit code under a `Merge ` subject?* (CR round 2, revised CR round 3)
+    -> **It would have, so the exemption keys on `MERGE_HEAD` instead.** A subject regex is forgeable and, unlike `--no-verify`, leaves the pre-push receipt gate satisfied — strictly cheaper than the acknowledged escape hatch. `git rev-parse -q --verify MERGE_HEAD` is git's own state and cannot be set by writing a commit message. The earlier "no worse than `--no-verify`" answer was wrong (D10).
+
+11. *Is root `lefthook.yml` code, given it is a `MICRO_CHORE_GLOBS` member?* (CR round 3)
+    -> **Yes, code.** Micro-chore membership is about which *lane* may land a change, not whether a reviewer needs test evidence. `lefthook.yml` wires the hook chain, so a change there alters what runs on every commit. The `templates/.claude/**` exclusion is justified by its content being prose, not by its lane — the criterion is stated explicitly in Unit 1 so the two stop being conflated (D11).
