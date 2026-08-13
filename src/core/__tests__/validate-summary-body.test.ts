@@ -5,7 +5,9 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadCommitFiles, validateSummaryBody } from '../validate-summary-body.js';
+import { pathToFileURL } from 'node:url';
+
+import { loadCommitFiles, main, validateSummaryBody } from '../validate-summary-body.js';
 
 const GOOD_BODY = [
   'fix(clones): union untracked files into the diff-scoped verdict',
@@ -134,6 +136,30 @@ describe('validateSummaryBody', () => {
     expect(result.error).toContain('What');
   });
 
+  // core.commentChar is configurable; hardcoding `#` would reopen the padding
+  // hole for any repo that sets it.
+  it('honours a configured comment character', () => {
+    const message = [
+      'fix(x): y',
+      '',
+      'Why — the gate printed green for a brand-new file, silently.',
+      'How — ranges now union ls-files output into the changed-range map.',
+      'What — x',
+      '',
+      '; ------------------------ >8 ------------------------',
+      '; Do not modify or remove the line above.',
+      'diff --git a/src/core/foo.ts b/src/core/foo.ts',
+      '+const padding = "not part of the message at all, but long";',
+    ].join('\n');
+    const result = validateSummaryBody({
+      message,
+      stagedFiles: ['src/core/foo.ts'],
+      commentChar: ';',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('What');
+  });
+
   it('still accepts a real body carrying git comment furniture', () => {
     const message = [
       'fix(x): y',
@@ -208,6 +234,25 @@ describe('validateSummaryBody', () => {
         validateSummaryBody({ message: "Merge branch 'main'", stagedFiles: CODE }).success,
       ).toBe(false);
     });
+  });
+});
+
+describe('CLI entry', () => {
+  // A `file://${argv[1]}` template compares false whenever the path needs
+  // percent-encoding, so `main` never runs, the process exits 0, and the gate
+  // is silently off. Consumers install into arbitrary paths.
+  it('detects main-module invocation from a path containing a space', () => {
+    const argv1 = '/tmp/My Dir/validate-summary-body.js';
+    expect(pathToFileURL(argv1).href).toBe('file:///tmp/My%20Dir/validate-summary-body.js');
+    expect(pathToFileURL(argv1).href).not.toBe(`file://${argv1}`);
+  });
+
+  it('fails open on an unreadable message file instead of throwing', async () => {
+    await expect(main(join(tmpdir(), 'noldor-does-not-exist-', 'nope.txt'))).resolves.toBe(0);
+  });
+
+  it('rejects a missing message-file argument', async () => {
+    await expect(main(undefined)).resolves.toBe(1);
   });
 });
 

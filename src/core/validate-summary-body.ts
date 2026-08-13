@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 import { isBookkeepingOnly } from './allowlist.js';
@@ -53,6 +55,15 @@ export interface ValidateSummaryBodyInput {
    * `--no-verify` it would leave the pre-push receipt gate satisfied.
    */
   mergeInProgress?: boolean;
+  /**
+   * The repo's `core.commentChar`, resolved by the CLI entry. Defaults to `#`.
+   *
+   * Hardcoding `#` would reopen the hole `ead33c0` closed for any repo that
+   * configures another character: the comment block — and under `commit -v` the
+   * whole appended diff — would survive into the body and pad the final section
+   * past the length floor.
+   */
+  commentChar?: string;
 }
 
 export interface ValidateSummaryBodyResult {
@@ -60,11 +71,17 @@ export interface ValidateSummaryBodyResult {
   error?: string;
 }
 
+/** Git's default comment character. Overridable via `core.commentChar`. */
+const DEFAULT_COMMENT_CHAR = '#';
+
 /**
- * Git's `commit -v` scissors line. Everything below it is the diff git appends
- * for the author to read; it is not part of the message.
+ * Git's `commit -v` scissors line for a given comment character. Everything
+ * below it is the diff git appends for the author to read; not part of the
+ * message.
  */
-const SCISSORS_RE = /^#\s*-+\s*>8\s*-+/;
+function scissorsRe(commentChar: string): RegExp {
+  return new RegExp(`^${commentChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*-+\\s*>8\\s*-+`);
+}
 
 /**
  * The commit's prose: message minus subject, comments, the `-v` diff, and
@@ -77,11 +94,12 @@ const SCISSORS_RE = /^#\s*-+\s*>8\s*-+/;
  * the floor. Truncating at the scissors is required on top of dropping `#`
  * lines: the marker itself is a comment, but the diff beneath it is not.
  */
-function bodyOf(message: string): string {
+function bodyOf(message: string, commentChar = DEFAULT_COMMENT_CHAR): string {
   const [, ...rest] = message.split('\n');
-  const scissors = rest.findIndex((l) => SCISSORS_RE.test(l));
+  const re = scissorsRe(commentChar);
+  const scissors = rest.findIndex((l) => re.test(l));
   const lines = scissors === -1 ? rest : rest.slice(0, scissors);
-  return stripTrailers(lines.filter((l) => !l.startsWith('#')).join('\n'));
+  return stripTrailers(lines.filter((l) => !l.startsWith(commentChar)).join('\n'));
 }
 
 /** Is this commit written by release automation rather than an author? */
@@ -141,7 +159,7 @@ export function validateSummaryBody(input: ValidateSummaryBodyInput): ValidateSu
     return { success: true };
   }
 
-  const body = bodyOf(input.message);
+  const body = bodyOf(input.message, input.commentChar ?? DEFAULT_COMMENT_CHAR);
   const missing: string[] = [];
   const thin: string[] = [];
   for (const section of SECTIONS) {
@@ -239,14 +257,30 @@ export async function main(messageFile: string | undefined): Promise<number> {
     return 0; // empty repo / no HEAD — nothing to enforce against
   }
 
-  const { readFile } = await import('node:fs/promises');
-  const message = await readFile(messageFile, 'utf8');
+  // Fail open on an unreadable / removed message file, like every other IO
+  // failure here — a gate that cannot read its input must not kill the commit.
+  let message: string;
+  try {
+    message = await readFile(messageFile, 'utf8');
+  } catch (err) {
+    console.error(`commit-msg gate skipped: ${(err as Error).message}`);
+    return 0;
+  }
 
   // A git-plumbing failure must never block a commit.
   const stagedFiles = await loadCommitFiles();
   if (stagedFiles === null) return 0;
 
+  // `auto` means git picks a character that starts no line in the message; `#`
+  // is its first candidate and the overwhelmingly common outcome.
+  // noldor:cut assumes '#' under core.commentChar=auto — resolve the actual
+  // character from the message if a repo ever reports a stripped body.
+  const configured = await git(['config', '--get', 'core.commentChar']);
+  const commentChar =
+    configured !== null && configured.length === 1 ? configured : DEFAULT_COMMENT_CHAR;
+
   const result = validateSummaryBody({
+    commentChar,
     message,
     stagedFiles,
     mergeInProgress: await mergeInProgress(),
@@ -258,8 +292,20 @@ export async function main(messageFile: string | undefined): Promise<number> {
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  void main(process.argv[2]).then((code) => {
-    process.exitCode = code;
-  });
+// `pathToFileURL`, not a `file://` template: a repo path needing percent-encoding
+// (a space is enough) makes the naive comparison false, `main` never runs, the
+// process exits 0, and every commit passes with no diagnostic — a silently
+// disabled gate. Consumers install into arbitrary paths. Same form as
+// `src/cli/index.ts`.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  void main(process.argv[2])
+    .then((code) => {
+      process.exitCode = code;
+    })
+    // Fail open, matching the rest of this file: an unreadable message file must
+    // not kill the commit with an unhandled rejection.
+    .catch((err: unknown) => {
+      console.error(`commit-msg gate skipped: ${(err as Error).message}`);
+      process.exitCode = 0;
+    });
 }
