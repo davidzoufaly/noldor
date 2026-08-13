@@ -232,9 +232,9 @@ describe('resolveChangedRanges', () => {
 });
 
 describe('flaggedGroups', () => {
-  it('flags a group whose instance overlaps a changed line', () => {
+  it('flags an instance the change wrote entirely (a real paste, 100% coverage)', () => {
     const r = report([{ tokens: 60, instances: [['src/a.ts', 10, 20]] }]);
-    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[15, 15]] }))).toHaveLength(1);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[10, 20]] }))).toHaveLength(1);
   });
 
   it('leaves a group wholly outside the changed lines alone', () => {
@@ -242,7 +242,66 @@ describe('flaggedGroups', () => {
     expect(flaggedGroups(r, ranges({ 'src/a.ts': [[21, 30]] }))).toHaveLength(0);
   });
 
-  it('flags a straddling group', () => {
+  it('does not flag a one-line graze inside an instance (the Q-0094 data-table edit)', () => {
+    // 1 of 11 lines changed ≈ 9% — the manifest.ts `desc:` edit shape.
+    const r = report([{ tokens: 60, instances: [['src/a.ts', 10, 20]] }]);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[15, 15]] }))).toHaveLength(0);
+  });
+
+  it('does not flag the recorded adjacency coverages (25%, 37%, ~55%)', () => {
+    // 100-line instance so the percentages are exact.
+    const r = report([{ tokens: 200, instances: [['src/a.ts', 1, 100]] }]);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[1, 25]] }))).toHaveLength(0);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[1, 37]] }))).toHaveLength(0);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[1, 55]] }))).toHaveLength(0);
+  });
+
+  it('flags at the 70% coverage threshold inclusively, not one line below it', () => {
+    const r = report([{ tokens: 200, instances: [['src/a.ts', 1, 100]] }]);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[1, 70]] }))).toHaveLength(1);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[1, 69]] }))).toHaveLength(0);
+  });
+
+  it('sums disjoint changed ranges toward one instance coverage', () => {
+    // 40 + 40 = 80 of 100 lines — covered even though no single hunk clears 70%.
+    const r = report([{ tokens: 200, instances: [['src/a.ts', 1, 100]] }]);
+    expect(
+      flaggedGroups(
+        r,
+        ranges({
+          'src/a.ts': [
+            [1, 40],
+            [61, 100],
+          ],
+        }),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('does not double-count overlapping changed ranges', () => {
+    // Two ranges over the same 50 lines are 50% coverage, not 100%.
+    const r = report([{ tokens: 200, instances: [['src/a.ts', 1, 100]] }]);
+    expect(
+      flaggedGroups(
+        r,
+        ranges({
+          'src/a.ts': [
+            [1, 50],
+            [1, 50],
+          ],
+        }),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('clips a changed range to the instance span before measuring coverage', () => {
+    // The change covers 5 of 11 instance lines (≈45%); the 20 lines it wrote
+    // past the instance must not inflate that.
+    const r = report([{ tokens: 60, instances: [['src/a.ts', 10, 20]] }]);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[16, 40]] }))).toHaveLength(0);
+  });
+
+  it('flags a straddling group when the changed side of it was substantially written', () => {
     const r = report([
       {
         tokens: 60,
@@ -252,7 +311,10 @@ describe('flaggedGroups', () => {
         ],
       },
     ]);
-    expect(flaggedGroups(r, ranges({ 'src/b.ts': [[85, 86]] }))).toHaveLength(1);
+    // 9 of 11 lines (≈82%) of the b.ts instance — a paste next to existing code.
+    expect(flaggedGroups(r, ranges({ 'src/b.ts': [[80, 88]] }))).toHaveLength(1);
+    // 2 of 11 lines (≈18%) — an edit that merely lands inside the clone.
+    expect(flaggedGroups(r, ranges({ 'src/b.ts': [[85, 86]] }))).toHaveLength(0);
   });
 
   it('flags a group whose instances are ALL inside the change', () => {
@@ -268,10 +330,10 @@ describe('flaggedGroups', () => {
     expect(flaggedGroups(r, ranges({ 'src/a.ts': [[1, 60]] }))).toHaveLength(1);
   });
 
-  it('flags on a single shared boundary line', () => {
+  it('does not flag on a single shared boundary line', () => {
     const r = report([{ tokens: 60, instances: [['src/a.ts', 10, 20]] }]);
-    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[20, 25]] }))).toHaveLength(1);
-    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[1, 10]] }))).toHaveLength(1);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[20, 25]] }))).toHaveLength(0);
+    expect(flaggedGroups(r, ranges({ 'src/a.ts': [[1, 10]] }))).toHaveLength(0);
   });
 
   it('does not match the same line numbers in a different file', () => {

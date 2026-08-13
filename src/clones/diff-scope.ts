@@ -170,19 +170,47 @@ function autoBase(run: RunGit): string {
   return ref.length > 0 ? ref : resolveDefaultBase(run);
 }
 
-const overlaps = (a: LineRange, b: LineRange): boolean => a.start <= b.end && b.start <= a.end;
+/**
+ * Fraction of an instance's lines the change must have written before the
+ * instance counts as "this change wrote a copy". Picked against the recorded
+ * adjacency false positives (25%, 37%, ~55% coverage — a `desc:` edit inside a
+ * data table, import lines landing in a matching import block, a new function
+ * abutting a pre-existing clone) and a real paste (100%): 0.7 clears the worst
+ * recorded graze by 15 points and still catches a paste diluted by detection
+ * grouping in surrounding code by 30.
+ */
+export const COVERAGE_THRESHOLD = 0.7;
+
+/** Lines of `span` covered by `ranges` — clipped to the span, overlap-safe. */
+function coveredLines(span: LineRange, ranges: readonly LineRange[]): number {
+  const clipped = ranges
+    .map((r) => ({ start: Math.max(r.start, span.start), end: Math.min(r.end, span.end) }))
+    .filter((r) => r.start <= r.end)
+    .sort((a, b) => a.start - b.start);
+  let covered = 0;
+  // Merge as we sum so two hunks over the same lines count them once.
+  let cursor = 0; // last counted line; 0 = none (lines are 1-based)
+  for (const r of clipped) {
+    const start = Math.max(r.start, cursor + 1);
+    if (start > r.end) continue;
+    covered += r.end - start + 1;
+    cursor = r.end;
+  }
+  return covered;
+}
 
 /**
- * Clone groups with at least one instance overlapping a changed line.
+ * Clone groups where the change wrote a substantial fraction of some instance.
  *
- * "At least one inside" rather than the roadmap's "one inside and one outside":
- * a group whose instances are *all* inside the diff is a block pasted twice
- * within one change — the purest case the gate exists to stop, and excluding it
- * would be a hole an author can drive through.
- *
- * `detect.ts` has its own `overlaps`, but it is unexported and compares token
- * indices inside the detection pipeline; reaching into it would couple this gate
- * to detection internals for a one-line comparison.
+ * Mere overlap is not enough: "any changed line inside an instance" flagged a
+ * one-line edit in a data table the same as pasting the whole block (Q-0095),
+ * blocking legitimate change with no override. Requiring ≥2 overlapping
+ * instances would be wrong the other way — pasting an existing block into a new
+ * file changes exactly one instance. Coverage is the predicate that separates
+ * them: "I wrote this copy" clears {@link COVERAGE_THRESHOLD}, "my edit lands
+ * inside a pre-existing clone" does not. A group whose instances are *all*
+ * inside the diff (a block pasted twice within one change) still fires — each
+ * instance is fully covered.
  */
 export function flaggedGroups(report: CloneReport, changed: ChangedRanges): readonly CloneGroup[] {
   return report.groups.filter((group) =>
@@ -190,7 +218,9 @@ export function flaggedGroups(report: CloneReport, changed: ChangedRanges): read
       const ranges = changed.get(instance.file);
       if (ranges === undefined) return false;
       const span: LineRange = { start: instance.startLine, end: instance.endLine };
-      return ranges.some((range) => overlaps(span, range));
+      const total = span.end - span.start + 1;
+      if (total <= 0) return false;
+      return coveredLines(span, ranges) / total >= COVERAGE_THRESHOLD;
     }),
   );
 }
