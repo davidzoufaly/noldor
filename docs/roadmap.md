@@ -62,19 +62,6 @@ A drain cannot see uncommitted triage: children branch from `origin/main`, so ro
 
 An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never appears literally in the document, so any "is this entry still queued?" check written as `grep -q "$slug" docs/roadmap.md` returns FALSE for every live entry — and it fails silently in the safe-looking direction ("already shipped, skip"). It bit a hand-rolled XS drain runner into skipping all 6 eligible entries in 5 seconds with a clean exit, and it is the same root cause as the CR blocker on the 2026-08-12 triage commit, where 12 `[triaged → slug]` markers named shorthand slugs resolving to no block. Expose `pnpm noldor roadmap has-block <slug>` (exit 0/1, honouring the ID alias) so scripts and skills stop re-deriving the predicate, and point the docs at it wherever a slug-presence check is described. (surfaced draining the 2026-08-12 XS batch, PRs #297-#303)
 
-### Milestone YAML Scalar Writer Emits Unreadable Frontmatter
-
-- id: Q-0105
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: med
-- confidence: high
-- parent: decouple-milestones-from-semver
-
-`yamlScalar()` quotes only characters such as colon, hash, braces, brackets and quotes, but YAML implicit scalars also cover booleans, null, numbers and multiline values. Reproduced in a temp consumer: `draftMilestone('true', 'false')` writes `name: true` and `description: false`, and `loadMilestones()` then reports both fields as booleans where `milestoneFrontmatterSchema` requires strings. A shell argument containing a real newline can also inject malformed or additional frontmatter, since newline is neither quoted nor normalized. Stop hand-serializing YAML: adopt the same serializer and parser policy the other frontmatter uses, or implement a scalar encoder proven against the full YAML 1.2 implicit-type set and control characters. Regression matrix: `true`, `false`, `null`, numeric-looking text, dates, leading hyphen, hash, colons, quotes, backslashes, newlines — each must round-trip byte-exact through draft, read and validate. (confirmed by runtime probe in the read-only audit 2026-08-12)
-
 ### Attach Retires an Entry ID and Leaves Dangling Refs
 
 - id: Q-0107
