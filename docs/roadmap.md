@@ -62,19 +62,6 @@ A drain cannot see uncommitted triage: children branch from `origin/main`, so ro
 
 An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never appears literally in the document, so any "is this entry still queued?" check written as `grep -q "$slug" docs/roadmap.md` returns FALSE for every live entry — and it fails silently in the safe-looking direction ("already shipped, skip"). It bit a hand-rolled XS drain runner into skipping all 6 eligible entries in 5 seconds with a clean exit, and it is the same root cause as the CR blocker on the 2026-08-12 triage commit, where 12 `[triaged → slug]` markers named shorthand slugs resolving to no block. Expose `pnpm noldor roadmap has-block <slug>` (exit 0/1, honouring the ID alias) so scripts and skills stop re-deriving the predicate, and point the docs at it wherever a slug-presence check is described. (surfaced draining the 2026-08-12 XS batch, PRs #297-#303)
 
-### Dashboard Docs-Flag Path Contract
-
-- id: Q-0104
-- area: tooling
-- type: fix
-- since: 2026-08-12
-- size: S
-- impact: med
-- confidence: high
-- parent: project-tracking-dashboard
-
-`README.md:34` publishes `pnpm noldor dashboard server --port 4321 --docs ./docs`, and the original extraction design describes the flag as a docs-directory override containing `roadmap.md`, `features/` and `milestones/`. `setDocRootsOverride()` still stores that value as `getDocRoot()`, but `loadDocRoots(cwd)` now treats its argument as a repository root and appends `docs/` (`src/core/doc-roots.ts:47-56`), so the documented command resolves `docs/docs/roadmap.md`, and a focused `setDocRootsOverride('./docs')` followed by a roadmap load fails with ENOENT. Pick and name one contract: keep `--docs <docs-directory>` and teach the dashboard adapter not to append `docs`, preserving the published command and the historical design, or replace it with `--root <repository-root>` and migrate README, help and tests. Acceptance must exercise the packaged CLI against a scratch consumer whose repository root and docs directory carry distinguishable sentinel content — parsing the flag alone proves nothing. (confirmed by runtime probe and design-history comparison in the read-only audit 2026-08-12)
-
 ### Milestone YAML Scalar Writer Emits Unreadable Frontmatter
 
 - id: Q-0105

@@ -31,7 +31,7 @@ pnpm add -D @david.zoufaly/noldor
 ## Dashboard
 
 ```bash
-pnpm noldor dashboard server --port 4321 --docs ./docs
+pnpm noldor dashboard server --port 4321 --root .
 ```
 
 **Overview** — project, activity, and health at a glance:

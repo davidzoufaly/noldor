@@ -76,6 +76,13 @@ const execFileAsync = promisify(execFile);
 
 let docRootsOverride: string | undefined;
 
+/**
+ * Override the repository root the dashboard serves (CLI `--root`). The value
+ * is a REPOSITORY root, not a docs directory: every consumer funnels it
+ * through `loadDocRoots`, which appends `docs/` (so docs resolve at
+ * `<root>/docs/roadmap.md`), or joins root-anchored paths like
+ * `.claude/skills` directly.
+ */
 export function setDocRootsOverride(path: string | undefined): void {
   docRootsOverride = path;
 }
