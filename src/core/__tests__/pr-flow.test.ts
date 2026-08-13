@@ -155,14 +155,130 @@ describe('composeBody', () => {
     );
   });
 
-  it('ignores the summary commit body on FD paths (FD summary wins)', () => {
+  // The FD names the feature; the commit body explains the increment that
+  // shipped. On an attach path the FD is the PARENT's, so an FD-only Summary
+  // describes a feature this PR did not build.
+  it('appends the summary commit body beneath the FD summary on FD paths', () => {
     const input: PrFlowInput = {
       ...baseInput,
-      summaryCommit: { subject: 'feat: whatever', body: 'commit prose that must not leak' },
+      summaryCommit: {
+        subject: 'feat: whatever',
+        body: 'Why — the increment this PR shipped.',
+      },
     };
     const body = composeBody(input);
     expect(body).toContain('A test feature for unit assertions.');
-    expect(body).not.toContain('commit prose that must not leak');
+    expect(body).toContain('Why — the increment this PR shipped.');
+    expect(body.indexOf('A test feature for unit assertions.')).toBeLessThan(
+      body.indexOf('Why — the increment this PR shipped.'),
+    );
+  });
+
+  // PRs #318 and #319: every commit is roadmap-entry bookkeeping, so
+  // `pickSummarySha` has no code commit to fall back from and the Summary was
+  // the retirement subject alone — what-only by construction.
+  describe('retirement-only branches', () => {
+    const retirementInput = (subject: string, slug?: string): PrFlowInput => ({
+      ...baseInput,
+      session: { ...baseInput.session, path: 'fast-track', slug },
+      fd: null,
+      specPath: null,
+      planPath: null,
+      summaryCommit: { subject, body: '' },
+      branchFiles: ['docs/roadmap.md', '.noldor/retired-entry-ids.json'],
+    });
+
+    it('renders why, how and what instead of the bookkeeping subject alone', () => {
+      const body = composeBody(
+        retirementInput(
+          'docs(roadmap): retire doctor-ahead-anchor-dead-end — shipped via fast-track (no FD)',
+          'doctor-ahead-anchor-dead-end',
+        ),
+      );
+      expect(body).toContain('Bookkeeping: retire `doctor-ahead-anchor-dead-end`');
+      expect(body).toContain('Why — ');
+      expect(body).toContain('How — ');
+      expect(body).toContain('What — ');
+    });
+
+    it('quotes the reason from the subject em-dash clause', () => {
+      const body = composeBody(
+        retirementInput(
+          'docs(roadmap): retire some-slug — shipped via fast-track (no FD)',
+          'some-slug',
+        ),
+      );
+      expect(body).toContain('Why — shipped via fast-track (no FD), so the gate stops surfacing');
+    });
+
+    it('degrades when the subject carries no em-dash clause', () => {
+      const body = composeBody(retirementInput('docs(roadmap): retire some-slug', 'some-slug'));
+      expect(body).toContain('Why — the entry is being taken off the queue');
+    });
+
+    it('falls back to the subject capture when the session marker has no slug', () => {
+      const body = composeBody(
+        retirementInput('docs(roadmap): retire orphan-slug — superseded by Q-0124'),
+      );
+      expect(body).toContain('Bookkeeping: retire `orphan-slug`');
+      expect(body).toContain('Why — superseded by Q-0124');
+    });
+
+    it('renders the doc-only Test Plan — nothing but the roadmap changed', () => {
+      const body = composeBody(retirementInput('docs(roadmap): retire some-slug', 'some-slug'));
+      expect(body).toContain('Doc-only change; no test plan');
+    });
+  });
+
+  describe('Test Plan derives from the diff, not from FD presence', () => {
+    // Hole #5: PRs #298, #313 and #315 were code changes rendering
+    // "Doc-only change" because they carried no FD.
+    it('renders the code checklist for a no-FD branch that touched src/**', () => {
+      const body = composeBody({
+        ...baseInput,
+        session: { ...baseInput.session, path: 'fast-track', slug: undefined },
+        fd: null,
+        specPath: null,
+        planPath: null,
+        summaryCommit: { subject: 'fix(clones): union untracked files', body: 'Why — …' },
+        branchFiles: ['src/clones/ranges.ts', 'docs/roadmap.md'],
+      });
+      expect(body).toContain('`pnpm typecheck` passes.');
+      expect(body).not.toContain('Doc-only change');
+      // No FD to point a dogfood step at.
+      expect(body).not.toContain('Manual dogfood');
+    });
+
+    // Hole #5 inverted: the fix must not hand a prose PR a checklist it cannot run.
+    it('keeps the doc-only line for a docs/noldor-only branch', () => {
+      const body = composeBody({
+        ...baseInput,
+        session: { ...baseInput.session, path: 'micro-chore', slug: undefined },
+        fd: null,
+        specPath: null,
+        planPath: null,
+        summaryCommit: { subject: 'docs(noldor): clarify pr-flow', body: '' },
+        branchFiles: ['docs/noldor/pr-flow.md', 'templates/docs/noldor/pr-flow.md'],
+      });
+      expect(body).toContain('Doc-only change; no test plan');
+      expect(body).not.toContain('`pnpm typecheck` passes.');
+    });
+
+    it('adds the dogfood step only when an FD is present', () => {
+      const body = composeBody({
+        ...baseInput,
+        branchFiles: ['src/core/pr-flow.ts'],
+      });
+      expect(body).toContain('Manual dogfood');
+    });
+  });
+
+  it('renders the FD summary alone when the commit carried no body', () => {
+    const input: PrFlowInput = {
+      ...baseInput,
+      summaryCommit: { subject: 'feat: whatever', body: '' },
+    };
+    expect(composeBody(input)).toContain('## Summary\n\nA test feature for unit assertions.\n\n');
   });
 
   it('renders the parent FD link on attach paths (slug undefined, parent set)', () => {

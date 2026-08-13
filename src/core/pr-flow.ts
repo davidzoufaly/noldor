@@ -1,3 +1,4 @@
+import { isRetirementOnly, touchesCode } from './allowlist.js';
 import type { SessionMarker } from './session.js';
 
 export interface FdSummary {
@@ -58,6 +59,15 @@ export interface PrFlowInput {
   verify: VerifySummary | null;
   headSha: string;
   summaryCommit: SummaryCommit;
+  /**
+   * Every path the branch touched, deduped across `base..HEAD`. Decides the
+   * retirement-only Summary template and the Test Plan shape — both are
+   * properties of the whole branch, not of the summary commit alone.
+   *
+   * Optional so existing callers and fixtures keep compiling; absent behaves as
+   * "nothing known", which falls back to the pre-existing rendering.
+   */
+  branchFiles?: readonly string[];
 }
 
 export interface PrFlowResult {
@@ -137,6 +147,38 @@ function renderLinksSection(input: PrFlowInput): string {
   return `## Links\n\n${lines.join('\n')}\n\n`;
 }
 
+/**
+ * The reason a roadmap entry left the queue, quoted — never asserted.
+ *
+ * `roadmap remove-block` treats shipped, superseded, abandoned and duplicate
+ * identically, so the template cannot know which applies. The author already
+ * wrote it into the retirement subject's em-dash clause
+ * (`docs(roadmap): retire <slug> — shipped via fast-track (no FD)`), so lift
+ * that; with no clause, say only what the branch shape proves.
+ */
+function retirementReason(subject: string): string {
+  const clause = subject
+    .split('—')
+    .slice(1)
+    .join('—')
+    .trim()
+    .replace(/[.;,]+$/, '');
+  return clause.length > 0 ? clause : 'the entry is being taken off the queue';
+}
+
+/** Deterministic Summary for a branch that only retires a roadmap entry. */
+function renderRetirementSummary(input: PrFlowInput): string {
+  const slug = input.session.slug ?? /retire\s+(\S+)/.exec(input.summaryCommit.subject)?.[1] ?? '—';
+  return [
+    `Bookkeeping: retire \`${slug}\` from the roadmap queue.`,
+    '',
+    `Why — ${retirementReason(input.summaryCommit.subject)}, so the gate stops surfacing it at Step 0.`,
+    'How — `roadmap remove-block` drops the block and records its ID in',
+    '`.noldor/retired-entry-ids.json`, so existing `blocked-by:` references keep resolving.',
+    'What — one block removed from `docs/roadmap.md`; no code change.',
+  ].join('\n');
+}
+
 export function composeBody(input: PrFlowInput): string {
   if (input.session.path === 'release-sweep') {
     const sweepScope = [
@@ -171,7 +213,24 @@ export function composeBody(input: PrFlowInput): string {
   const noFdSummary = [`${noFdLabel}: ${input.summaryCommit.subject}`]
     .concat(input.summaryCommit.body.length > 0 ? ['', input.summaryCommit.body] : [])
     .join('\n');
-  const summary = input.fd ? input.fd.summary : noFdSummary;
+
+  const branchFiles = input.branchFiles ?? [];
+
+  // A branch whose every commit is roadmap-entry retirement has no code commit
+  // to quote, so `pickSummarySha` falls back to the bookkeeping commit and the
+  // Summary degrades to its subject alone (PRs #318, #319). The shape is known,
+  // so the prose can be composed deterministically instead — no authoring, and
+  // nothing asserted that the branch does not prove.
+  const summary = isRetirementOnly([...branchFiles])
+    ? renderRetirementSummary(input)
+    : input.fd
+      ? // The FD names the feature; the summary commit's body explains THIS
+        // increment. An attach PR otherwise renders its parent feature's
+        // description and never mentions the enhancement that shipped.
+        [input.fd.summary]
+          .concat(input.summaryCommit.body.length > 0 ? ['', input.summaryCommit.body] : [])
+          .join('\n')
+      : noFdSummary;
 
   const scope = [
     `- Gate path: \`${input.session.path}\``,
@@ -189,12 +248,18 @@ export function composeBody(input: PrFlowInput): string {
       ? '> ⚠️ **CR retry exhausted** — codex findings persisted across 3 passes. See passes table below; manual review recommended before merge.\n\n'
       : '';
 
-  const testPlanItems = input.fd
+  // Keyed on the diff, not on FD presence: a no-FD fast-track that rewrites
+  // `src/**` is not a doc-only change, and rendering one asserts something the
+  // diff contradicts (PRs #298, #313, #315). The dogfood bullet still needs an
+  // FD to point at.
+  const testPlanItems = touchesCode([...branchFiles])
     ? [
         '- [ ] `pnpm validate:features` passes (run pre-merge).',
         '- [ ] `pnpm typecheck` passes.',
         '- [ ] `pnpm test` (relevant subset) passes.',
-        '- [ ] Manual dogfood: see feature MD Usage section for acceptance criteria.',
+        ...(input.fd
+          ? ['- [ ] Manual dogfood: see feature MD Usage section for acceptance criteria.']
+          : []),
       ]
     : ['- [ ] Doc-only change; no test plan beyond `pnpm validate:features`.'];
 

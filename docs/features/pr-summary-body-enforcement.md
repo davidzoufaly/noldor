@@ -5,14 +5,14 @@ deps: []
 entry-id: Q-0124
 links:
   code: []
-  tests: []
+  tests:
+    - src/core/__tests__/validate-summary-body.test.ts
 name: PR Summary Body Enforcement
 packages:
   - package.json
 phase: in-progress
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->

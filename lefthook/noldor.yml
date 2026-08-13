@@ -105,6 +105,11 @@ commit-msg:
       run: pnpm noldor validate feature-slug-scope {1}
     - name: noldor-validate-trailer
       run: pnpm noldor hooks validate-trailer {1}
+    # Last of the commit-msg jobs: the trailer diagnostic above is the more
+    # actionable failure (a missing session marker explains itself), so a commit
+    # that is wrong in both ways should report that one first.
+    - name: summary-body
+      run: pnpm noldor validate summary-body {1}
 
 pre-push:
   jobs:

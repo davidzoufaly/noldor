@@ -229,6 +229,10 @@ export const MANIFEST: Record<string, Group> = {
       noldor: { src: 'core/validate-noldor.ts', desc: 'Validate Noldor invariants' },
       'noldor-config': { src: 'validate/noldor-config.ts', desc: 'Validate .noldor/config.json' },
       'noldor-scope': { src: 'core/validate-noldor-scope.ts', desc: 'Validate commit scope' },
+      'summary-body': {
+        src: 'core/validate-summary-body.ts',
+        desc: 'Validate commit body why/how/what',
+      },
       'skill-catalog': { src: 'core/validate-skill-catalog.ts', desc: 'Validate skill catalog' },
       'script-catalog': {
         src: 'cli/validate-script-catalog.ts',

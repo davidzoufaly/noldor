@@ -43,6 +43,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** automatic gate on every commit that touches framework pages.
 - **Source:** [`src/core/validate-noldor-scope.ts`](../../src/core/validate-noldor-scope.ts)
 
+### `validate:summary-body`
+
+- **Trigger:** `pnpm noldor validate summary-body <commit-msg-file>`. Runs in `commit-msg` (`summary-body` job), after `noldor-validate-trailer`. Also runnable by hand against `.git/COMMIT_EDITMSG` to check a message before committing.
+- **Inputs:** commit message file path; staged file list (`git diff --cached --name-only`, no `--diff-filter`, so deletions count); `MERGE_HEAD` presence; the rollout marker.
+- **Outputs:** exit 0 unless the staged set escapes the bookkeeping allowlist and the message body lacks a `Why —`, `How —` or `What —` section of at least 24 characters. Exempt: bookkeeping-only diffs, an empty staged set, `release-automation` / `release-sweep` commits, `fixup!` / `squash!` / `Revert "` subjects, an in-progress merge (keyed on `MERGE_HEAD`, not on a forgeable `Merge ` subject), and any tree that is not post-rollout.
+- **When to use:** automatic gate on every commit that carries code. See [`git-and-commits.md`](git-and-commits.md) § Commit body contract.
+- **Source:** [`src/core/validate-summary-body.ts`](../../src/core/validate-summary-body.ts)
+
 ### `validate:skill-catalog`
 
 - **Trigger:** `pnpm noldor validate skill-catalog`.

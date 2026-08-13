@@ -1,10 +1,13 @@
 // @tests: release-sweep-process-hardening
 import { describe, expect, it } from 'vitest';
 import {
+  isBookkeepingOnly,
   isMicroChoreAllowed,
-  MICRO_CHORE_GLOBS,
   isReleaseSweepAllowed,
+  isRetirementOnly,
+  MICRO_CHORE_GLOBS,
   RELEASE_SWEEP_GLOBS,
+  touchesCode,
 } from '../allowlist';
 
 describe('micro-chore allowlist', () => {
@@ -139,5 +142,113 @@ describe('isReleaseSweepAllowed', () => {
 
   it('exposes the canonical glob list', () => {
     expect(RELEASE_SWEEP_GLOBS).toContain('graphify-out/**');
+  });
+});
+
+describe('isBookkeepingOnly', () => {
+  it('accepts each bookkeeping surface', () => {
+    expect(isBookkeepingOnly(['docs/roadmap.md'])).toBe(true);
+    expect(isBookkeepingOnly(['docs/backlog.md'])).toBe(true);
+    expect(isBookkeepingOnly(['docs/features/some-feature.md'])).toBe(true);
+    expect(isBookkeepingOnly(['docs/design/specs/2026-08-13-x-design.md'])).toBe(true);
+    expect(isBookkeepingOnly(['docs/milestones/poc.md'])).toBe(true);
+    expect(isBookkeepingOnly(['ideas.md'])).toBe(true);
+    expect(isBookkeepingOnly(['.noldor/retired-entry-ids.json'])).toBe(true);
+    expect(isBookkeepingOnly(['.noldor/id-counter.json'])).toBe(true);
+    expect(isBookkeepingOnly(['.noldor/design/some-slug.md'])).toBe(true);
+  });
+
+  // The scaffold trio a `/noldor-gate` spec commit actually stages — the shape
+  // that would otherwise be forced to author a Why/How/What body.
+  it('accepts the real spec-commit trio', () => {
+    expect(
+      isBookkeepingOnly([
+        '.noldor/id-counter.json',
+        'docs/design/specs/2026-08-13-pr-summary-body-enforcement-design.md',
+        'docs/features/pr-summary-body-enforcement.md',
+      ]),
+    ).toBe(true);
+  });
+
+  it('rejects a mixed set — one code file taints all', () => {
+    expect(isBookkeepingOnly(['docs/roadmap.md', 'src/core/allowlist.ts'])).toBe(false);
+  });
+
+  it('rejects docs/noldor pages — prose, but not bookkeeping', () => {
+    expect(isBookkeepingOnly(['docs/noldor/pr-flow.md'])).toBe(false);
+  });
+
+  // An empty set proves nothing; callers decide what emptiness means.
+  it('returns false for an empty set', () => {
+    expect(isBookkeepingOnly([])).toBe(false);
+  });
+});
+
+describe('isRetirementOnly', () => {
+  it('accepts the roadmap alone', () => {
+    expect(isRetirementOnly(['docs/roadmap.md'])).toBe(true);
+  });
+
+  // Post-Q-0107 shape: remove-block records the retired ID beside the removal.
+  it('accepts the roadmap + retired-ID pair', () => {
+    expect(isRetirementOnly(['docs/roadmap.md', '.noldor/retired-entry-ids.json'])).toBe(true);
+  });
+
+  it('rejects the pair plus a code file', () => {
+    expect(
+      isRetirementOnly([
+        'docs/roadmap.md',
+        '.noldor/retired-entry-ids.json',
+        'src/core/framework-skew.ts',
+      ]),
+    ).toBe(false);
+  });
+
+  it('rejects other bookkeeping — an FD edit is not a retirement', () => {
+    expect(isRetirementOnly(['docs/features/some-feature.md'])).toBe(false);
+  });
+
+  it('returns false for an empty set', () => {
+    expect(isRetirementOnly([])).toBe(false);
+  });
+});
+
+describe('touchesCode', () => {
+  it('accepts source and executable surfaces', () => {
+    expect(touchesCode(['src/core/allowlist.ts'])).toBe(true);
+    expect(touchesCode(['bin/noldor.mjs'])).toBe(true);
+    expect(touchesCode(['.github/workflows/publish.yml'])).toBe(true);
+    expect(touchesCode(['.noldor/rules/pr-summary-why-how-what.md'])).toBe(true);
+    expect(touchesCode(['package.json'])).toBe(true);
+  });
+
+  // Also a MICRO_CHORE_GLOBS member — lane membership is not the criterion.
+  it('accepts root lefthook.yml despite its micro-chore lane', () => {
+    expect(touchesCode(['lefthook.yml'])).toBe(true);
+    expect(MICRO_CHORE_GLOBS).toContain('lefthook.yml');
+  });
+
+  it('rejects prose that is neither bookkeeping nor code', () => {
+    expect(touchesCode(['docs/noldor/pr-flow.md'])).toBe(false);
+    expect(touchesCode(['README.md'])).toBe(false);
+  });
+
+  it('rejects the template prose twins', () => {
+    expect(touchesCode(['templates/docs/noldor/pr-flow.md'])).toBe(false);
+    expect(touchesCode(['templates/.claude/skills/noldor-gate/SKILL.md'])).toBe(false);
+    expect(touchesCode(['templates/.opencode/command/noldor-gate.md'])).toBe(false);
+    expect(touchesCode(['templates/AGENTS.md'])).toBe(false);
+  });
+
+  it('accepts templates outside the prose exclusions', () => {
+    expect(touchesCode(['templates/lefthook/noldor.yml'])).toBe(true);
+  });
+
+  it('accepts a mixed set — one code file is enough', () => {
+    expect(touchesCode(['docs/noldor/pr-flow.md', 'src/core/pr-flow.ts'])).toBe(true);
+  });
+
+  it('returns false for an empty set', () => {
+    expect(touchesCode([])).toBe(false);
   });
 });

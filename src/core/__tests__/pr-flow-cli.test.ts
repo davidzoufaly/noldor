@@ -14,9 +14,9 @@ import {
   loadVerifyEvidence,
   parseCommitFileLists,
   pickSummarySha,
-  stripTrailers,
 } from '../pr-flow-cli.js';
 import { writeSession } from '../session.js';
+import { stripTrailers } from '../trailers.js';
 
 describe('shouldPromptForPrApproval', () => {
   it('returns false when config flag is unset (default)', () => {
@@ -308,6 +308,41 @@ describe('pickSummarySha', () => {
 
   it('returns undefined when no commits are ahead of the base', () => {
     expect(pickSummarySha([])).toBeUndefined();
+  });
+
+  // Since Q-0107, `remove-block` records the retired ID beside the removal, so
+  // a roadmap-only skip lands on the retirement commit and describes the PR by
+  // its bookkeeping again.
+  it('skips a retirement commit that co-stages the retired-ID map', () => {
+    const sha = pickSummarySha([
+      { sha: 'retire1', files: ['docs/roadmap.md', '.noldor/retired-entry-ids.json'] },
+      { sha: 'impl2', files: ['src/core/framework-skew.ts'] },
+    ]);
+    expect(sha).toBe('impl2');
+  });
+
+  it('skips the spec and plan commits on a full-* branch', () => {
+    const sha = pickSummarySha([
+      { sha: 'spec1', files: ['docs/design/specs/2026-08-13-x-design.md'] },
+      { sha: 'plan2', files: ['docs/design/plans/2026-08-13-x.md'] },
+      { sha: 'impl3', files: ['src/core/x.ts'] },
+    ]);
+    expect(sha).toBe('impl3');
+  });
+
+  // `git log --name-only` prints no paths for a merge, and isBookkeepingOnly([])
+  // is false — without the length guard the merge wins and the PR is titled
+  // `Merge branch 'main'` with an empty body.
+  it('never picks a merge commit over a code commit', () => {
+    const sha = pickSummarySha([
+      { sha: 'impl1', files: ['src/core/x.ts'] },
+      { sha: 'merge2', files: [] },
+    ]);
+    expect(sha).toBe('impl1');
+  });
+
+  it('falls back to the first commit on a merge-only branch', () => {
+    expect(pickSummarySha([{ sha: 'merge1', files: [] }])).toBe('merge1');
   });
 });
 
