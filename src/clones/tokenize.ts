@@ -108,10 +108,10 @@ const MIN_CHAIN_CALLS = 2;
  *
  * A chain qualifies only when it is `<ident>` followed by at least
  * {@link MIN_CHAIN_CALLS} calls whose arguments are literal-only (empty, or
- * comma-separated literals). Any call taking an identifier, object or callback
- * argument holds real code, so the chain is left expanded and keeps its full
- * token weight — that is what stops the collapse from hiding a duplicated
- * pipeline. The head identifier still normalizes to `ID` (`z` vs `zod` must not
+ * comma-separated literals). One call taking an identifier, object or callback
+ * argument holds real code and disqualifies the entire chain — its literal-only
+ * prefix included — so a duplicated pipeline keeps every token of its weight.
+ * The head identifier still normalizes to `ID` (`z` vs `zod` must not
  * matter), while method names stay verbatim: `.int()` and `.min()` are distinct
  * operations rather than renamed variables, so a chain differing in its methods
  * should not read as a Type-2 clone.
@@ -161,9 +161,19 @@ export function collapseBuilderChains(tokens: readonly Token[]): Token[] {
     let k = i + 1;
     let calls = 0;
     let norm = 'CHAIN:ID';
+    // One real-code call disqualifies the WHOLE chain, prefix included:
+    // collapsing `rows.slice().reverse()` out of `.map(fn)` would shrink a
+    // duplicated pipeline's token weight, which is exactly what must not happen.
+    let realArgs = false;
     while (tokens[k]?.norm === '.' && isName(tokens[k + 1])) {
+      // A property access ends the chain (`z.number().int().description`); only
+      // a call can carry arguments, so only a call can disqualify.
+      if (tokens[k + 2]?.norm !== '(') break;
       const end = argListEnd(k + 2);
-      if (end === null) break;
+      if (end === null) {
+        realArgs = true;
+        break;
+      }
       const args = tokens
         .slice(k + 3, end - 1)
         .map((t) => t.norm)
@@ -172,7 +182,7 @@ export function collapseBuilderChains(tokens: readonly Token[]): Token[] {
       calls++;
       k = end;
     }
-    if (calls < MIN_CHAIN_CALLS) {
+    if (realArgs || calls < MIN_CHAIN_CALLS) {
       out.push(head);
       i++;
       continue;

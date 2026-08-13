@@ -78,11 +78,20 @@ describe('tokenize', () => {
     for (const src of [
       'rows.filter((r) => r.ok).map(pick)',
       'z.record(z.string(), s).default({})',
+      // literal-only PREFIX of a real pipeline — the prefix must not collapse
+      // either, or a duplicated pipeline loses token weight
+      'rows.slice().reverse().map(fn)',
+      'builder.select().from().where(cond).orderBy(x)',
     ]) {
       const toks = tokenize(src);
       expect(toks.some((t) => t.norm.startsWith('CHAIN:'))).toBe(false);
       expect(toks.length).toBeGreaterThan(8);
     }
+  });
+
+  it('a trailing property access ends the chain without disqualifying it', () => {
+    const toks = tokenize('z.number().int().description');
+    expect(toks.map((t) => t.norm)).toEqual(['CHAIN:ID.number().int()', '.', 'ID']);
   });
 
   it('leaves a single call and a property path expanded', () => {
