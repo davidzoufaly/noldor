@@ -15,6 +15,7 @@ packages:
 phase: done
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 Makes "a PR explains itself" a mechanically enforced property rather than a hope. A `pre-push` gate reads the commit **objects** about to cross the repository boundary and rejects any that carries code without a `Why —`, `How —` and `What —` section — every commit newly reachable through a pushed ref, so a valid tip cannot hide an invalid one beneath it. Because it judges what git stored rather than what an author was typing, merge identity comes from parent count and paths from `diff-tree -z`, closing the forged-subject and empty-amend-index holes that a `commit-msg` check structurally cannot. `commit-msg` keeps a demoted advisory that always exits 0, and `pr-flow` composes the PR Summary and Test Plan from the branch's own diff — so a retirement-only branch gets deterministic prose instead of a bookkeeping subject, an attach PR describes its own enhancement rather than its parent feature, and a code change never again claims "Doc-only change".
@@ -67,3 +68,14 @@ As an agent pushing a reviewed branch, I want Noldor to validate the stored mess
 <!-- @prs-since-last-release: pr-summary-body-enforcement -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Tests:**
+  - [`src/core/__tests__/summary-body-rollout.test.ts`](../../src/core/__tests__/summary-body-rollout.test.ts)
+  - [`src/core/__tests__/validate-summary-body.test.ts`](../../src/core/__tests__/validate-summary-body.test.ts)
+  - [`src/hooks/__tests__/validate-pushed-summaries.test.ts`](../../src/hooks/__tests__/validate-pushed-summaries.test.ts)
+
+<!-- /generated: resources -->
