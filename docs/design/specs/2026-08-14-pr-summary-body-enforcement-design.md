@@ -39,7 +39,8 @@ branch or diff data and remain part of the design.
 ## Goals
 
 - Make the blocking decision from immutable commit objects at `pre-push`.
-- Validate every distinct commit newly reachable through each updated ref, so an
+- Validate every distinct commit newly reachable through each updated ref that is
+  not already known to be on that remote or grandfathered at activation, so an
   invalid earlier code commit cannot hide behind a valid tip.
 - Keep `commit-msg` as fast, explicitly best-effort feedback that never blocks a
   commit and never claims authority over the final object.
@@ -56,10 +57,13 @@ branch or diff data and remain part of the design.
 - Generalizing every existing `commit-msg` validator to commit objects. This
   redesign is limited to the summary-body contract exposed by Q-0124.
 - Modeling the physical packfile or destination-wide object inventory. Pre-push
-  exposes each ref's old and new values, not every server ref; the enforceable
-  contract is commits newly reachable through an updated ref. A commit already
-  reachable through another destination ref may be checked again when a new ref
-  introduces it, with the same deterministic result.
+  exposes each ref's old and new values, not every server ref, and this design
+  performs no network query. The enforceable contract is therefore: commits newly
+  reachable through an updated ref, **minus** those reachable from the activation
+  snapshot or from any local tracking ref of the remote being pushed to. The
+  tracking-ref term is a cost bound rather than an integrity claim (see Risks); a
+  commit reachable only through some other, unfetched destination ref may be
+  checked again when a new ref introduces it, with the same deterministic result.
 - Adding a push-time override. Existing release-automation exemptions and
   rollout compatibility remain; an ordinary invalid code commit must be fixed.
 - Rewriting the parked branch's history. Its existing commits already carry
@@ -142,6 +146,13 @@ notice as the blocking adapter (naming the file and the command that creates it)
 and then says nothing about the body. The command's docs state that only pre-push
 is authoritative.
 
+An `invalid` snapshot read is **exit 0 with a printed reason on the advisory side
+only**. Fail-closed applies to the adapter that owns the enforcement claim; the
+`commit-msg` adapter always exits zero, and blocking a commit over a file it has
+no authority to act on would resurrect exactly the provisional-state blocking this
+redesign removes. The operator learns of the corruption at commit time and is
+stopped by pre-push, where it counts.
+
 ### Unit 2 — outgoing commit discovery and object loading
 
 Add `src/hooks/validate-pushed-summaries.ts`. It receives the remote name and the
@@ -186,6 +197,21 @@ suppress a candidate. That is accepted: it is strictly more effort than
 is an author who forgets, not an author who attacks their own pre-push hook. The
 activation snapshot remains immutable precisely because it is the one negative
 source a routine `git fetch` cannot move.
+
+Git passes the hook a remote *name* only when the push names one. For
+`git push https://… main` the first argument is the raw URL, and
+`refs/remotes/<url>/**` matches nothing — silently costing exactly the full
+mainline walk the tracking negatives exist to prevent, on the push shape most
+likely to come from a fresh clone. So the loader first tries to map the argument
+back to a configured remote by matching it against `git config --get-regexp
+'^remote\..*\.url'` (and `pushurl`); on a unique hit it uses that remote's
+tracking namespace. When the argument is a name, the mapping is skipped. When
+neither resolves — an unconfigured URL — the tracking term is simply empty and
+discovery falls back to snapshot-only negatives.
+
+That fallback is a **cost-only degradation and never a correctness change**: fewer
+negatives can only enlarge the candidate set. It is called out here because a
+silent enlargement looks like a hang rather than a policy decision.
 
 When an existing remote ref's `<remote-sha>` is not present locally — the routine
 non-fast-forward case, where the remote moved and this clone has not fetched — the
@@ -433,8 +459,9 @@ Three outcome classes remain visibly distinct:
   offending short SHA and subject with its missing or under-24-character
   sections. It ends with the exact three-line template and says that the stored
   commits must be reworded before pushing.
-- **Infrastructure failure (exit 2):** malformed ref input, `rev-list` failure,
-  an `invalid` activation snapshot read, an unreadable candidate commit object, or
+- **Infrastructure failure (exit 2, blocking adapter only):** malformed ref input,
+  `rev-list` failure, an `invalid` activation snapshot read (the advisory adapter
+  prints the same reason and still exits 0), an unreadable candidate commit object, or
   an unparseable parent row. The message names the failing ref/SHA, the sanitized
   Git argument list, and — for a snapshot problem — the `invalid.reason`. An
   existing ref's locally-unavailable remote-old SHA is deliberately **not** in this
@@ -494,6 +521,10 @@ behavior:
   tip and every tracking tip for the pushed remote as negatives, all delivered on
   stdin rather than argv (a thousand-ref fixture stays under `ARG_MAX`);
 - tracking tips for a *different* remote are not subtracted;
+- a URL-form remote argument resolves through `remote.*.url`/`pushurl` to that
+  remote's tracking namespace, while an unconfigured URL yields an empty tracking
+  term, a larger candidate set, and no infrastructure failure;
+- the exit-1 and exit-2 diagnostics report the negative sources actually used;
 - an existing ref whose remote-old SHA is absent locally drops that one negative
   and still enumerates candidates, without an infrastructure failure;
 - stable SHA deduplication across two ref updates;
@@ -560,7 +591,9 @@ suites:
 Keep a narrow advisory suite in
 `src/core/__tests__/validate-summary-body.test.ts`: likely invalid code produces a
 warning, valid structure stays quiet, and every missing-file/Git-failure/finding
-path exits zero. Existing `allowlist`, `pr-flow`, and `pr-flow-cli` suites remain
+path exits zero — including an `invalid` snapshot read, which prints its reason
+and still exits zero on this adapter while the blocking adapter exits 2 on the
+same file. Existing `allowlist`, `pr-flow`, and `pr-flow-cli` suites remain
 green and continue pinning the retained spike behavior.
 
 One end-to-end scratch test installs the hook configuration against a bare remote:
@@ -608,6 +641,14 @@ updates rather than the current index or `COMMIT_EDITMSG`.
   commit-ref tips; exactly their reachable history is grandfathered.
 - [ ] The snapshot read distinguishes absent from invalid in its return type, and
   the snapshot file is written atomically.
+- [ ] An `invalid` snapshot exits 2 on the blocking adapter and 0 on the advisory
+  adapter, which prints the reason and still lets the commit through.
+- [ ] A push whose remote argument is a URL resolves back to the configured remote
+  for its tracking negatives, and an unconfigured URL degrades to snapshot-only
+  negatives — more validation, never less, and never an infrastructure failure.
+- [ ] The exit-1 and exit-2 diagnostics name the negative sources used: the
+  activation tip count and the resolved remote with its tracking tip count, or
+  that the tracking term was empty.
 - [ ] A commit added after activation on an old side branch remains enforceable
   after any later merge, and root/orphan commits not reachable from a snapshot
   tip enforce normally.
@@ -647,6 +688,18 @@ updates rather than the current index or `COMMIT_EDITMSG`.
   cannot move. Pre-push still cannot see the destination's full ref inventory, so
   a commit reachable only through some *other* unfetched remote ref is re-checked
   deterministically, deduplicated within the push.
+
+  The unconditional stderr notice is reserved for the absent snapshot and is
+  deliberately *not* extended to tracking subtraction, because the two failures
+  are not the same size: an absent snapshot means the gate checks nothing at all,
+  while a forged tracking tip removes specific commits from a gate that still
+  validates everything else. Printing a line on every ordinary push would train
+  operators to ignore it. Instead, the exit-1 and exit-2 diagnostics — the output
+  an operator is already reading — name the negative sources they used: the
+  activation tip count, and the resolved remote plus its tracking tip count (or
+  the fact that the tracking term was empty). Counting how many candidates the
+  tracking tips actually suppressed is not reported, since that would need a
+  second `rev-list` on every push to compute a number nobody acts on.
 - **Activation adds one tracked snapshot.** Consumers must commit
   `.noldor/summary-body-rollout.json` with their init/upgrade changes. If they do
   not, another clone remains advisory-only, matching the established rollout
@@ -729,10 +782,11 @@ single-parent history and need the body when they carry code.
    files, and parents Git will actually transfer (D15).
 
 2. *Which commit objects are checked?*
-   -> **Every distinct, non-grandfathered object newly reachable through an
-   updated ref.** Checking only the tip or `pickSummarySha` would weaken the
+   -> **Every distinct object newly reachable through an updated ref that is
+   neither grandfathered at activation nor already reachable from that remote's
+   tracking refs.** Checking only the tip or `pickSummarySha` would weaken the
    existing every-commit contract and let invalid intermediate commits ship
-   (D11).
+   (D11; negatives refined in CR rounds 2–3).
 
 3. *Should `commit-msg` disappear?*
    -> **No; retain it as exit-zero advice.** It preserves cheap feedback without
@@ -801,7 +855,27 @@ single-parent history and need the body when they carry code.
     safety — widening the candidate set is strictly conservative (CR round 2,
     D3).
 
-14. *How many Git spawns per candidate?*
+14. *Does an `invalid` snapshot block a commit as well as a push?*
+    -> **No; advisory prints the reason and exits 0.** Fail-closed belongs to the
+    adapter holding the enforcement claim. Blocking `commit-msg` on a file it has
+    no authority over would reintroduce the provisional-state blocking this
+    redesign exists to remove (CR round 3).
+
+15. *What if the push names a URL instead of a remote?*
+    -> **Map it back through `remote.*.url`/`pushurl`; otherwise use no tracking
+    negatives.** Git passes the raw URL for `git push https://… main`, so a naive
+    `refs/remotes/<arg>/**` glob would silently restore the unbounded walk. The
+    fallback is cost-only and can never narrow the candidate set (CR round 3).
+
+16. *Should tracking subtraction get the same unconditional notice as an absent
+    snapshot?*
+    -> **No; it is reported inside the exit-1/exit-2 diagnostics instead.** An
+    absent snapshot means nothing is checked; a forged tracking tip removes some
+    commits from a gate that still checks the rest. A line on every ordinary push
+    would be trained away, and counting suppressed candidates would cost a second
+    `rev-list` per push (CR round 3).
+
+17. *How many Git spawns per candidate?*
     -> **Two: one header read, one `diff-tree` for objects still in play.**
     `%P`, `%B`, and the `Noldor-Path` trailer are all header fields, so splitting
     them into three commands paid two extra spawns on every non-merge commit —
