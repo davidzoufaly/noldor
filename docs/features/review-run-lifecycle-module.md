@@ -5,7 +5,10 @@ deps:
   - specs-cr-gate-multi-reviewer
 entry-id: Q-0112
 links:
-  code: []
+  code:
+    - src/core/agent-runner/bounded-capture.ts
+    - src/core/settle-within.ts
+    - src/cr/codex-adapter.ts
   tests:
     - src/core/agent-runner/__tests__/bounded-capture.test.ts
     - src/cr/__tests__/codex-failure.test.ts
@@ -13,7 +16,7 @@ links:
 name: Review-Run Lifecycle Module
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-08-12T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -48,8 +51,11 @@ The three live concerns:
   exits 0 in 307 ms with zero matches, every run logs the unsupported-fallback
   line, and `baseSha` never lands in a sink. This is the live mechanism behind
   Q-0089's symptom (a); that spec's account of a bad sha throwing in `git diff`
-  is true but describes a different path. The fix touches the shared CLI help
-  surface (Q-0115, still in backlog) or replaces the grep with a version check.
+  is true but describes a different path. *Shipped resolution:* neither of the
+  fixes this paragraph originally proposed. The probe was deleted outright —
+  `src/cr/codex.ts` had parsed `--base-sha` all along, and the lane and CLI ship
+  in one package at one version, so there was no capability to detect and no
+  Q-0115 dependency.
 - The codex CR lane orphans codex when the outer `execFile` cap fires. The lane
   shells out through `pnpm`, and `execFile`'s timeout signals only its direct
   child, so the codex grandchild survives, runs to self-completion and burns
@@ -73,11 +79,30 @@ prompt and result semantics.
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an agent running an unattended CR pass, I want the codex review lane to own the process it
+starts, so that a timeout actually stops the review instead of orphaning it to run to completion
+and burn quota against a result nobody will read.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- `pnpm noldor cr orchestrate --slug <s> --artifact <p> --kind spec --lanes codex --base-sha <sha>`
+  — the codex lane runs in-process, so `crReview.dispatchTimeoutMs` group-kills codex itself
+  rather than a `pnpm` wrapper three processes above it. `--base-sha` reaches the sink for the
+  first time: a capability probe used to suppress it, silently making every codex artifact
+  review full-scope.
+- `pnpm noldor cr codex --spec <path> --slug <s> [--base-sha <sha>]` — unchanged in behaviour and
+  still interruptible. It spawns foreground, so Ctrl-C still reaches codex.
+- `spawnAgent(prompt, { stderr: 'capture' })` → `AgentResult.stderr` carries the child's stderr,
+  bounded. The default stays `'inherit'` with `stderr: ''`, so no existing caller changes.
+- `spawnAgent(prompt, { foreground: true })` — spawn in the parent's process group for interactive
+  callers. Rejects alongside `timeoutMs` or `onSpawn`, both of which need a process group.
+- `createBoundedCapture({ headChars, tailChars, limitChars })` → `{ push, value, totalBytes }` —
+  head+tail capture that engages only above the limit, so behaviour is unchanged for every
+  measured case; `totalBytes()` reports the true pre-elision size.
+- `settleWithin(promise, ms, fallback)` — resolve with `fallback` at the cap regardless of whether
+  the underlying work ever settles.
 
 ## PRs
 
