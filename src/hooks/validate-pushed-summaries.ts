@@ -346,12 +346,31 @@ export function validatePushedSummaries(opts: {
   const declared = read.snapshot.grandfatherTips;
   const resolvable = resolvableCommits(git, declared);
   const activationTips = declared.filter((t) => resolvable.has(t));
-  for (const missing of declared.filter((t) => !resolvable.has(t))) {
+  const missing = declared.filter((t) => !resolvable.has(t));
+  if (missing.length > 0) {
+    // ONE line, however many are missing. The snapshot is tracked and shared
+    // while it records the arming machine's local branches and tags, so a fresh
+    // clone or a CI runner legitimately lacks most of those objects — this repo's
+    // own snapshot has 122 tips of which 109 are unreachable from the single
+    // published head. A line per tip would print a hundred-line preamble above
+    // the rejection list and bury the thing the operator needs to read, which is
+    // exactly the "a line printed every time is a line trained away" failure
+    // `describeNegatives` avoids. A sample is enough to fetch from.
+    const sample = missing.slice(0, 3).join(', ');
+    const rest = missing.length > 3 ? `, +${missing.length - 3} more` : '';
     warn(
-      `summary-body: activation tip ${missing} is not in this clone — ` +
-        `validating its history rather than grandfathering it`,
+      `summary-body: ${missing.length} activation tip(s) not in this clone (${sample}${rest}) — ` +
+        `validating their history rather than grandfathering it`,
     );
   }
+
+  // noldor:cut no write-time pruning — ancestors of another recorded tip, and
+  // tips unreachable from any remote, are stored anyway. Both are pure
+  // reductions with no semantic change (an ancestor adds nothing once its
+  // descendant is a negative), so the cost is snapshot size and the warning
+  // above, not correctness. Upgrade path: prune in
+  // `ensureSummaryBodyRolloutSnapshot`, where it is a one-time cost, if a
+  // consumer's snapshot grows past a few hundred tips.
 
   const trackingTips = collectTrackingTips(git, warn);
   const negatives = [...new Set([...activationTips, ...trackingTips])];

@@ -172,6 +172,21 @@ describe('activation snapshot gating', () => {
     expect(r.kind).toBe('violations');
     expect(warnings.join('\n')).toContain('b'.repeat(40));
   });
+
+  it('coalesces many unresolvable tips into one warning line', () => {
+    const dir = armed();
+    // A tracked snapshot records the arming machine's local refs, so another
+    // clone lacks most of them. One line per tip would bury the rejection list
+    // under a hundred-line preamble.
+    const absent = Array.from({ length: 40 }, (_, i) => i.toString(16).padStart(2, '0').repeat(20));
+    writeFileSync(snapshotPath(dir), JSON.stringify({ version: 1, grandfatherTips: absent }));
+    const warnings: string[] = [];
+    scan(dir, [refLine(codeCommit(dir, 'a', 'feat: silent change'))], (m) => warnings.push(m));
+    const tipWarnings = warnings.filter((w) => w.includes('activation tip'));
+    expect(tipWarnings).toHaveLength(1);
+    expect(tipWarnings[0]).toContain('40 activation tip(s)');
+    expect(tipWarnings[0]).toContain('+37 more');
+  });
 });
 
 describe('policy over stored objects', () => {
