@@ -62,6 +62,38 @@ A drain cannot see uncommitted triage: children branch from `origin/main`, so ro
 
 An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never appears literally in the document, so any "is this entry still queued?" check written as `grep -q "$slug" docs/roadmap.md` returns FALSE for every live entry — and it fails silently in the safe-looking direction ("already shipped, skip"). It bit a hand-rolled XS drain runner into skipping all 6 eligible entries in 5 seconds with a clean exit, and it is the same root cause as the CR blocker on the 2026-08-12 triage commit, where 12 `[triaged → slug]` markers named shorthand slugs resolving to no block. Expose `pnpm noldor roadmap has-block <slug>` (exit 0/1, honouring the ID alias) so scripts and skills stop re-deriving the predicate, and point the docs at it wherever a slug-presence check is described. (surfaced draining the 2026-08-12 XS batch, PRs #297-#303)
 
+### Codex Lane Misreports a Model-Version 400 as Expired Auth
+
+- id: Q-0125
+- area: tooling
+- type: fix
+- since: 2026-08-14
+- size: XS
+- impact: med
+- confidence: high
+- parent: specs-cr-gate-multi-reviewer
+
+The codex CR lane diagnoses a failed run as an auth problem regardless of what the API actually rejected, so a model-version error sends the operator to re-authenticate a session that never expired. Measured: `codex-cli 0.133.0` against a configured `gpt-5.6-sol` returns `400 invalid_request_error` carrying "The 'gpt-5.6-sol' model requires a newer version of Codex", and the lane reports `auth looks expired; run: codex login`. Parse the 400 body, or at minimum stop asserting auth whenever the payload names a model. Operator workaround today is `codex exec -c model=gpt-5.5`. The eventual home is Q-0112's per-lane error-shape normalization, which deletes this call site outright — queued standalone because that is an L entry and this is a fast-track-sized correction to a message the operator acts on immediately. (found 2026-08-14 running the codex lane on Q-0124)
+
+### Main-Module Guard Fails on Percent-Encoded Paths
+
+- id: Q-0126
+- area: tooling
+- type: fix
+- since: 2026-08-14
+- size: M
+- impact: high
+- confidence: med
+
+35 module entrypoints gate their CLI body by comparing `import.meta.url` against a hand-built string of `file://` concatenated with `process.argv[1]`. That comparison is false whenever the repository path needs percent-encoding — one space in a directory name is enough — so the module exits 0 having run nothing, with no diagnostic. For the hook and validator entrypoints among them, that is a silently disabled gate: the framework reports success precisely when it checked nothing. `src/core/validate-summary-body.ts:380` and `src/hooks/noldor-pre-push.ts:164` already use the correct `pathToFileURL(process.argv[1] ?? '').href` form; sweep every remaining site to it.
+
+- Confirmed call sites — all 35, measured by grepping `src/` for the literal comparison on 2026-08-14. **`src/hooks/` (6, the material cluster — these are the gates):** `noldor-pre-commit.ts`, `noldor-validate-trailer.ts`, `noldor-inject-trailers.ts`, `noldor-enforce-review-receipt.ts`, `noldor-pre-edit-guard.ts`, `agent-rules-guard.ts`. **`src/worktrees/` (6):** `create-worktree.ts`, `down-worktree.ts`, `up-worktree.ts`, `launch-worktrees.ts`, `worktree-conflicts.ts`, `worktree-status.ts`. **`src/core/` (6):** `validate-noldor-scope.ts`, `validate-noldor.ts`, `validate-skill-catalog.ts`, `changelog.ts`, `rename-plan-only-tier.ts`, `pr-flow-cli.ts`. **`src/rules/` (3):** `cli-list.ts`, `cli-resolve.ts`, `cli-validate.ts`. **`src/features/` (3):** `fill-links-code-gaps.ts`, `migrate-changelog-unreleased.ts`, `migrate-fd-commits-to-prs.ts`. **`src/checks/` (2):** `check-template-sync.ts`, `check-shared-files.ts`. **`src/cr/` (2):** `orchestrate.ts`, `codex.ts`. **`src/design/` (2):** `context-cli.ts`, `log-cli.ts`. **Singles:** `src/triage/validate-triage.ts`, `src/cli/validate-script-catalog.ts`, `src/milestones/validate-milestones.ts`, `src/prep/print-format.ts`, `src/release/index.ts`.
+- Two shape variants, one defect: `src/core/rename-plan-only-tier.ts:109` interpolates a destructured `argv[1]` and `src/milestones/validate-milestones.ts:61` assigns to a `const isMain` rather than branching inline. Both are the same template bug — do not read them as a second class.
+- The regression test wants a fixture checkout whose path contains a space, asserting each swept entrypoint still executes its body — a unit test on the comparison helper alone would not have caught the class, since every site re-derives it inline.
+- Sized M rather than S because the sweep is 35 files, not the ~10 the original report named. The work is still mechanical (one-line replacement per site plus the shared fixture), so the routing note's "a mechanical L can still fast-track" reasoning applies — do not over-prep it on the size label alone. At `M/high/med` it scores 150, a tie with Q-0067 and Q-0127; the file position above them is operator discretion, not a scoring claim.
+
+(found by the code-stage CR on Q-0124, 2026-08-13; scope re-measured 2026-08-14)
+
 ### Spec-Lint Prior-Art Requirement
 
 - id: Q-0067
@@ -74,6 +106,19 @@ An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never ap
 - parent: de-superpowers-vendor-spec-plan-and-worktree-flows
 
 `pnpm noldor design log --support` (Q-0053) already captures prior art into the design ledger, but nothing enforces that it was used — a spec whose ledger renders `Existing support (0) - (none recorded)` passes silently, which means the reuse question was never asked. Spec-lint should reject an approved spec with zero support anchors unless the operator records an explicit `--support "none: <reason>"`. The side benefit is that the CR `reuse` dimension gains a falsifiable claim to check against instead of reviewing in the dark.
+
+### Prefer Noldor Wait Over Harness Monitor Tools
+
+- id: Q-0127
+- area: tooling
+- type: docs
+- since: 2026-08-14
+- size: XS
+- impact: low
+- confidence: med
+- parent: noldor-native-wait-primitive
+
+Nothing tells an agent to reach for the framework's own wait primitive, so a session running inside a harness that ships a generic monitor or polling tool suggests that instead, and `noldor wait` (PR #183) stays invisible at exactly the moment it applies. Record the preference where the agent actually reads it — a scoped rule under `.noldor/rules/` that lands on the relevant stage — rather than as prose in a guide nobody re-reads mid-task. The point is runner-independence: a harness-specific monitor tool is not available when the runner is codex or opencode, while the framework's primitive is.
 
 ### Oversize Task Split: Which Phase Owns It
 

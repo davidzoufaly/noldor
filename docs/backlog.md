@@ -237,3 +237,15 @@ The published package ships two full runtime representations plus development-on
 - confidence: med
 
 macOS ships no `timeout` and no `gtimeout` unless coreutils is installed, so any hand-written supervisor loop that copies the drain's per-iteration timeout gets `command not found` and — with `set -uo pipefail` but no `-e` — silently runs its children UNBOUNDED. The portable shape is to background the child, background a `( sleep N; kill -0 $child && pkill -P $child; kill -TERM $child )` watchdog, `wait $child`, then kill the watchdog. Two deliverables: audit whether `src/autonomous` (or any shipped script, hook or template) depends on a GNU-only binary for the same reason, and record the portable watchdog recipe in `docs/noldor/gotchas.md` so the next hand-rolled runner starts from it. Parked rather than queued because no framework code path is confirmed affected — the failure was in an ad-hoc runner. (surfaced draining the 2026-08-12 XS batch)
+
+### Caveman Output Mode in Noldor
+
+- id: Q-0128
+- area: tooling
+- type: feat
+- since: 2026-08-14
+- size: S
+- impact: low
+- confidence: low
+
+Open question — should the terse, article-free "caveman" response style become a Noldor-owned concern rather than one operator's user-level global skill? The argument for is reproducibility: the token-compression posture would survive a fresh machine, apply to any consumer, and hold across claude, codex and opencode instead of depending on private config. The argument against is that Noldor's posture is about discipline and traceability, not about an agent's voice, and presentation policy inside the framework invites every consumer to want their own. Speculative with no trigger — park until a consumer actually asks for it, or until the global-skill version demonstrably fails to carry into an autonomous drain.
