@@ -16,6 +16,97 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Review-Run Lifecycle Module
+
+- id: Q-0112
+- area: tooling
+- type: refactor
+- since: 2026-08-12
+- size: L
+- impact: med
+- confidence: med
+- parent: specs-cr-gate-multi-reviewer
+
+Expected work, process ownership, bounded output, sink persistence and aggregation have no shared source of truth: orchestrate resolves lanes but aggregate later rediscovers only existing filenames (Q-0100), the codex lane shells through pnpm and owns neither the grandchild process group nor a bounded stream, code/spec/plan dispatch mode is inferred in a lossy ternary (Q-0099), and feature capability is guessed by shelling out to intercepted help. Record a run manifest before dispatch carrying expected lanes, kind, artifact and base; let one process owner handle timeout, signal and group cleanup plus capped diagnostics; write every terminal outcome to an expected sink; aggregate against the manifest rather than directory contents. **Leverage:** missing lanes become explicit red, timeouts cannot burn quota invisibly, code cannot fall into plan heuristics, and delta review stops depending on help prose. **Deletion test:** filename discovery as the expected-set oracle, `codexSupportsBaseSha`, nested pnpm timeout ownership, per-lane error-shape normalization and the duplicated process-kill implementations all go; lane adapters keep only prompt and result semantics.
+
+- `codexSupportsBaseSha()` can never return true, so codex artifact review is always full-scope. It runs `pnpm --silent noldor cr codex --help` and greps for `--base-sha`, but the dispatcher intercepts `--help` first (`src/cli/help.ts:25` prints a one-line usage plus the manifest desc and returns), so the detailed usage string in `src/cr/codex.ts` — which does list `--base-sha` — is unreachable and `runCli`'s `inv.help` branch is dead code. Measured: the probe exits 0 in 307 ms with zero matches, every run logs the unsupported-fallback line, and `baseSha` never lands in a sink. This is the live mechanism behind Q-0089's symptom (a); that spec's account of a bad sha throwing in `git diff` is true but describes a different path. The correct fix touches the shared CLI help surface (Q-0115) or replaces the grep with a version check.
+- The codex CR lane orphans codex when the outer `execFile` cap fires. The lane shells out through `pnpm`, and `execFile`'s timeout signals only its direct child, so the codex grandchild survives, runs to self-completion and burns ChatGPT quota — unattended, in drain mode. Codex-specific: `reviewer` and `verifier` dispatch through `spawnAgent` (`subagent-dispatch.ts:137`, `verify-dispatch.ts:74`), which already spawns detached and group-kills. Three CR rounds on Q-0089 established that an inner cap inside `spawnCodex` drags in a kill path, detached spawning, a Ctrl-C signal reaper and two out-of-process fixture harnesses; routing this lane through `spawnAgent` like the other two is the likelier shape than a second kill implementation.
+- `spawnCodex` accumulates stdout and stderr unbounded in memory. Fine for codex's measured 326 KB, but a runaway child could grow the node heap without limit, and the bounding that exists (`formatStderrTail`, 4000 chars) applies only to what reaches the sink. No measured case yet — the outer `execFile` stopped bounding it once the inner spawn took ownership of the streams — so cap it when the lifecycle owner lands.
+
+(architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
+
+### Prose Rules → Enforce Cascade Rules
+
+- id: Q-0069
+- area: tooling
+- type: refactor
+- since: 2026-08-05
+- size: M
+- impact: med
+- confidence: med
+- parent: rules-cascade-v1
+
+The dimensions that are prose-only today sit buried in a 181-line baseline: error flow (result types, throw only for programmer errors, catch external at the boundary, never swallow) is at line 137 and is machine-unchecked. Migrate them into scoped rule files — `.noldor/rules/error-result-types.md` with `applies-to: ["src/**/*.ts"]`, `stage: [code]`, `enforce: true` — so the rule lands in the enforce bucket exactly on the files being edited rather than in a wall of text the author has to filter mentally. Same treatment for state discipline and concurrency.
+
+- One concrete state-discipline rule the migration should carry, earned over 14 CR rounds on Q-0073 (PR #268): the first cut of finish-mode kept a `finishable` Set that had to be mutated at every ship, skip, merge, retry and timeout leaf, and rounds 5, 10, 11 and 13 each found a different missed `delete`. Replacing it with a verdict recomputed fresh immediately before each spawn (`resolveFinishPrompt`) made the whole class of finding vanish with all 215 autonomous tests passing unchanged. State the rule as "prefer a recomputed decision over maintained state whenever the state has many mutation sites", and pair it with the reviewer-side reading: four rounds of "you missed another unwind" is the reviewer circling a design smell, not four separate bugs.
+
+### Oversize Task Split: Which Phase Owns It
+
+- id: Q-0108
+- area: tooling
+- type: feat
+- since: 2026-08-12
+- size: M
+- impact: high
+- confidence: low
+- parent: framework-auto-split-suggestion-for-big-features-and-plans
+
+Split-check flags an oversize feature or plan, but nothing says at which phase the split should actually happen — triage, promote, spec, or plan — so an L/XL entry can travel the whole pipeline intact and only get decomposed once an agent is already holding the largest possible context. The goal is the inverse: work with the smallest context that can still ship a slice. Settle where the decomposition belongs, what it produces (sibling queue entries, attach children, or plan-level tasks), and how the pieces stay traceable to the original entry ID. Confidence is low because the phase choice is the actual design question, not an implementation detail.
+
+### Traceability Projection Module
+
+- id: Q-0111
+- area: tooling
+- type: refactor
+- since: 2026-08-12
+- size: M
+- impact: med
+- confidence: med
+- parent: feature-md-links-overhaul
+
+Clone detection measured large repeated groups (roughly 223 and 216 tokens) across `sync code-links`, `sync test-links`, `sync doc-links` and `sync spec-links` — tag extraction, filesystem walking, slug grouping, feature-frontmatter loading, array comparison, writing, warnings and CLI summaries — while the behaviour has already diverged between them. Define one projection implementation around source adapters (tag syntax, eligible paths, destination `links.*` key) plus one policy for authoritative empty scans, cached-only slugs, unknown feature tags, deterministic sorting, dry/check/write modes and atomic validated frontmatter writes. **Leverage:** a fix to deletion, scan failure or reporting applies to every traceability kind at once. **Deletion test:** the three or four grouping loops, the `updateFeatureMd` copies, the independent walker exclusion sets and the inconsistent main/report code all go, leaving small readable adapters. Do not over-generalize code-sync's directory-entry preservation into every kind — make such differences explicit strategy data.
+
+- The confirmed symptom: `sync doc-links` and `sync test-links` cannot clear a feature's last removed tag, so stale `links.docs` and `links.tests` survive forever. Both scanners build a map holding only slugs found in the fresh scan and then update only over that map's entries. While some tagged files remain, removed paths disappear correctly; when the last tag or the last tagged file goes, the slug drops out of the map and its cached frontmatter array is never visited. `sync code-links` already documents and implements the correct scanned-union-cached iteration plus an explicit empty-projection policy — that is the intended shape. Tests must start from one cached path, remove the final source tag, run sync, assert the array becomes empty, and prove a missing or unreadable scan root does not masquerade as authoritative emptiness. (confirmed by control-flow comparison)
+
+(architecture candidate, Worth exploring from the read-only audit 2026-08-12)
+
+### Mandatory Codex Review Round
+
+- id: Q-0091
+- area: tooling
+- type: feat
+- since: 2026-08-11
+- size: S
+- impact: med
+- confidence: med
+- blocked-by: Q-0099
+- parent: specs-cr-gate-multi-reviewer
+
+The codex lane is opt-in per `crLanes` today, so a big change can ship having been reviewed by exactly one model family. Require at least one codex round on bigger tasks — gate it on the same `size:` signal the routing policy already uses (L/XL, or the split-check verdict) rather than on operator memory. Blocked until the codex lane actually works headlessly again.
+
+### Codex Lane Misreports a Model-Version 400 as Expired Auth
+
+- id: Q-0125
+- area: tooling
+- type: fix
+- since: 2026-08-14
+- size: XS
+- impact: med
+- confidence: high
+- parent: specs-cr-gate-multi-reviewer
+
+The codex CR lane diagnoses a failed run as an auth problem regardless of what the API actually rejected, so a model-version error sends the operator to re-authenticate a session that never expired. Measured: `codex-cli 0.133.0` against a configured `gpt-5.6-sol` returns `400 invalid_request_error` carrying "The 'gpt-5.6-sol' model requires a newer version of Codex", and the lane reports `auth looks expired; run: codex login`. Parse the 400 body, or at minimum stop asserting auth whenever the payload names a model. Operator workaround today is `codex exec -c model=gpt-5.5`. The eventual home is Q-0112's per-lane error-shape normalization, which deletes this call site outright — queued standalone because that is an L entry and this is a fast-track-sized correction to a message the operator acts on immediately. (found 2026-08-14 running the codex lane on Q-0124)
+
 ### Unvalidated Slug Path Traversal Across CLI Entry Points
 
 - id: Q-0097
@@ -62,19 +153,6 @@ A drain cannot see uncommitted triage: children branch from `origin/main`, so ro
 
 An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never appears literally in the document, so any "is this entry still queued?" check written as `grep -q "$slug" docs/roadmap.md` returns FALSE for every live entry — and it fails silently in the safe-looking direction ("already shipped, skip"). It bit a hand-rolled XS drain runner into skipping all 6 eligible entries in 5 seconds with a clean exit, and it is the same root cause as the CR blocker on the 2026-08-12 triage commit, where 12 `[triaged → slug]` markers named shorthand slugs resolving to no block. Expose `pnpm noldor roadmap has-block <slug>` (exit 0/1, honouring the ID alias) so scripts and skills stop re-deriving the predicate, and point the docs at it wherever a slug-presence check is described. (surfaced draining the 2026-08-12 XS batch, PRs #297-#303)
 
-### Codex Lane Misreports a Model-Version 400 as Expired Auth
-
-- id: Q-0125
-- area: tooling
-- type: fix
-- since: 2026-08-14
-- size: XS
-- impact: med
-- confidence: high
-- parent: specs-cr-gate-multi-reviewer
-
-The codex CR lane diagnoses a failed run as an auth problem regardless of what the API actually rejected, so a model-version error sends the operator to re-authenticate a session that never expired. Measured: `codex-cli 0.133.0` against a configured `gpt-5.6-sol` returns `400 invalid_request_error` carrying "The 'gpt-5.6-sol' model requires a newer version of Codex", and the lane reports `auth looks expired; run: codex login`. Parse the 400 body, or at minimum stop asserting auth whenever the payload names a model. Operator workaround today is `codex exec -c model=gpt-5.5`. The eventual home is Q-0112's per-lane error-shape normalization, which deletes this call site outright — queued standalone because that is an L entry and this is a fast-track-sized correction to a message the operator acts on immediately. (found 2026-08-14 running the codex lane on Q-0124)
-
 ### Main-Module Guard Fails on Percent-Encoded Paths
 
 - id: Q-0126
@@ -120,19 +198,6 @@ The codex CR lane diagnoses a failed run as an auth problem regardless of what t
 
 Nothing tells an agent to reach for the framework's own wait primitive, so a session running inside a harness that ships a generic monitor or polling tool suggests that instead, and `noldor wait` (PR #183) stays invisible at exactly the moment it applies. Record the preference where the agent actually reads it — a scoped rule under `.noldor/rules/` that lands on the relevant stage — rather than as prose in a guide nobody re-reads mid-task. The point is runner-independence: a harness-specific monitor tool is not available when the runner is codex or opencode, while the framework's primitive is.
 
-### Oversize Task Split: Which Phase Owns It
-
-- id: Q-0108
-- area: tooling
-- type: feat
-- since: 2026-08-12
-- size: M
-- impact: high
-- confidence: low
-- parent: framework-auto-split-suggestion-for-big-features-and-plans
-
-Split-check flags an oversize feature or plan, but nothing says at which phase the split should actually happen — triage, promote, spec, or plan — so an L/XL entry can travel the whole pipeline intact and only get decomposed once an agent is already holding the largest possible context. The goal is the inverse: work with the smallest context that can still ship a slice. Settle where the decomposition belongs, what it produces (sibling queue entries, attach children, or plan-level tasks), and how the pieces stay traceable to the original entry ID. Confidence is low because the phase choice is the actual design question, not an implementation detail.
-
 ### Repository Mutation Module
 
 - id: Q-0109
@@ -165,71 +230,6 @@ Durable read-modify-write transitions are scattered across dashboard queue route
 `src/dashboard/data.ts` is 2,533 LOC and mixes module-global override state, document paths, cwd-relative scanners, git subprocesses, graph and package discovery, parsing, and page-specific aggregation. `handleOverview` concurrently invokes loaders that reload features and rescan repository state several times, so one response can be slow and internally inconsistent even without `--docs`; the git timeout increase after hot zones blanked under load was a symptom. Deepen an immutable repository context that anchors every adapter to one resolved root and exposes a coherent snapshot of docs, configuration, scan roots, git identity and history, and traceability inputs for a request or report run. **Leverage:** mixed-root results disappear, two-dashboard execution becomes truthful, duplicate IO and git processes drop, and tests gain deterministic injected snapshots. **Deletion test:** remove `docRootsOverride`, the dashboard `process.cwd()` literals, the default-cwd milestone and git calls, the repeated `loadFeatures()` within one page, and the dashboard-specific reconstruction of SDD input. Preserve streaming and refresh behaviour with an explicit snapshot lifetime rather than an unbounded global cache.
 
 - The confirmed symptom: even reinterpreting `--docs` as a repository-root override (Q-0104) leaves the dashboard building mixed-repository views, because many loaders ignore it. `loadSddInput()` (`src/dashboard/data.ts:1124-1177`) hardcodes `docs/features`, `ideas.md`, `docs/backlog.md`, the design dirs, README, the graph path and the scan roots; `scanRoots()` and `actualPackageNames()` default to cwd; git helpers run without an override-aware `cwd`; milestone groups call `loadMilestones()` and `loadMilestoneBySlug()` with their defaults; feature-body VS Code link rewriting uses `process.cwd()`. Setting the dashboard root to `/private/tmp/not-the-cwd` and calling `loadSddInput()` still returned this checkout's 75 features, `graphify-out/graph.json` and `src` scan root. The failure mode is worse than a clean error: counts, gaps, git activity, milestone state and documents can silently describe different repositories on one page. Test with two complete fixtures whose feature counts, git histories, package layouts and milestone names are deliberately incompatible, and assert no value from fixture A appears while rendering fixture B. (confirmed by runtime probe)
-
-(architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
-
-### Prose Rules → Enforce Cascade Rules
-
-- id: Q-0069
-- area: tooling
-- type: refactor
-- since: 2026-08-05
-- size: M
-- impact: med
-- confidence: med
-- parent: rules-cascade-v1
-
-The dimensions that are prose-only today sit buried in a 181-line baseline: error flow (result types, throw only for programmer errors, catch external at the boundary, never swallow) is at line 137 and is machine-unchecked. Migrate them into scoped rule files — `.noldor/rules/error-result-types.md` with `applies-to: ["src/**/*.ts"]`, `stage: [code]`, `enforce: true` — so the rule lands in the enforce bucket exactly on the files being edited rather than in a wall of text the author has to filter mentally. Same treatment for state discipline and concurrency.
-
-- One concrete state-discipline rule the migration should carry, earned over 14 CR rounds on Q-0073 (PR #268): the first cut of finish-mode kept a `finishable` Set that had to be mutated at every ship, skip, merge, retry and timeout leaf, and rounds 5, 10, 11 and 13 each found a different missed `delete`. Replacing it with a verdict recomputed fresh immediately before each spawn (`resolveFinishPrompt`) made the whole class of finding vanish with all 215 autonomous tests passing unchanged. State the rule as "prefer a recomputed decision over maintained state whenever the state has many mutation sites", and pair it with the reviewer-side reading: four rounds of "you missed another unwind" is the reviewer circling a design smell, not four separate bugs.
-
-### Traceability Projection Module
-
-- id: Q-0111
-- area: tooling
-- type: refactor
-- since: 2026-08-12
-- size: M
-- impact: med
-- confidence: med
-- parent: feature-md-links-overhaul
-
-Clone detection measured large repeated groups (roughly 223 and 216 tokens) across `sync code-links`, `sync test-links`, `sync doc-links` and `sync spec-links` — tag extraction, filesystem walking, slug grouping, feature-frontmatter loading, array comparison, writing, warnings and CLI summaries — while the behaviour has already diverged between them. Define one projection implementation around source adapters (tag syntax, eligible paths, destination `links.*` key) plus one policy for authoritative empty scans, cached-only slugs, unknown feature tags, deterministic sorting, dry/check/write modes and atomic validated frontmatter writes. **Leverage:** a fix to deletion, scan failure or reporting applies to every traceability kind at once. **Deletion test:** the three or four grouping loops, the `updateFeatureMd` copies, the independent walker exclusion sets and the inconsistent main/report code all go, leaving small readable adapters. Do not over-generalize code-sync's directory-entry preservation into every kind — make such differences explicit strategy data.
-
-- The confirmed symptom: `sync doc-links` and `sync test-links` cannot clear a feature's last removed tag, so stale `links.docs` and `links.tests` survive forever. Both scanners build a map holding only slugs found in the fresh scan and then update only over that map's entries. While some tagged files remain, removed paths disappear correctly; when the last tag or the last tagged file goes, the slug drops out of the map and its cached frontmatter array is never visited. `sync code-links` already documents and implements the correct scanned-union-cached iteration plus an explicit empty-projection policy — that is the intended shape. Tests must start from one cached path, remove the final source tag, run sync, assert the array becomes empty, and prove a missing or unreadable scan root does not masquerade as authoritative emptiness. (confirmed by control-flow comparison)
-
-(architecture candidate, Worth exploring from the read-only audit 2026-08-12)
-
-### Mandatory Codex Review Round
-
-- id: Q-0091
-- area: tooling
-- type: feat
-- since: 2026-08-11
-- size: S
-- impact: med
-- confidence: med
-- blocked-by: Q-0099
-- parent: specs-cr-gate-multi-reviewer
-
-The codex lane is opt-in per `crLanes` today, so a big change can ship having been reviewed by exactly one model family. Require at least one codex round on bigger tasks — gate it on the same `size:` signal the routing policy already uses (L/XL, or the split-check verdict) rather than on operator memory. Blocked until the codex lane actually works headlessly again.
-
-### Review-Run Lifecycle Module
-
-- id: Q-0112
-- area: tooling
-- type: refactor
-- since: 2026-08-12
-- size: L
-- impact: med
-- confidence: med
-- parent: specs-cr-gate-multi-reviewer
-
-Expected work, process ownership, bounded output, sink persistence and aggregation have no shared source of truth: orchestrate resolves lanes but aggregate later rediscovers only existing filenames (Q-0100), the codex lane shells through pnpm and owns neither the grandchild process group nor a bounded stream, code/spec/plan dispatch mode is inferred in a lossy ternary (Q-0099), and feature capability is guessed by shelling out to intercepted help. Record a run manifest before dispatch carrying expected lanes, kind, artifact and base; let one process owner handle timeout, signal and group cleanup plus capped diagnostics; write every terminal outcome to an expected sink; aggregate against the manifest rather than directory contents. **Leverage:** missing lanes become explicit red, timeouts cannot burn quota invisibly, code cannot fall into plan heuristics, and delta review stops depending on help prose. **Deletion test:** filename discovery as the expected-set oracle, `codexSupportsBaseSha`, nested pnpm timeout ownership, per-lane error-shape normalization and the duplicated process-kill implementations all go; lane adapters keep only prompt and result semantics.
-
-- `codexSupportsBaseSha()` can never return true, so codex artifact review is always full-scope. It runs `pnpm --silent noldor cr codex --help` and greps for `--base-sha`, but the dispatcher intercepts `--help` first (`src/cli/help.ts:25` prints a one-line usage plus the manifest desc and returns), so the detailed usage string in `src/cr/codex.ts` — which does list `--base-sha` — is unreachable and `runCli`'s `inv.help` branch is dead code. Measured: the probe exits 0 in 307 ms with zero matches, every run logs the unsupported-fallback line, and `baseSha` never lands in a sink. This is the live mechanism behind Q-0089's symptom (a); that spec's account of a bad sha throwing in `git diff` is true but describes a different path. The correct fix touches the shared CLI help surface (Q-0115) or replaces the grep with a version check.
-- The codex CR lane orphans codex when the outer `execFile` cap fires. The lane shells out through `pnpm`, and `execFile`'s timeout signals only its direct child, so the codex grandchild survives, runs to self-completion and burns ChatGPT quota — unattended, in drain mode. Codex-specific: `reviewer` and `verifier` dispatch through `spawnAgent` (`subagent-dispatch.ts:137`, `verify-dispatch.ts:74`), which already spawns detached and group-kills. Three CR rounds on Q-0089 established that an inner cap inside `spawnCodex` drags in a kill path, detached spawning, a Ctrl-C signal reaper and two out-of-process fixture harnesses; routing this lane through `spawnAgent` like the other two is the likelier shape than a second kill implementation.
-- `spawnCodex` accumulates stdout and stderr unbounded in memory. Fine for codex's measured 326 KB, but a runaway child could grow the node heap without limit, and the bounding that exists (`formatStderrTail`, 4000 chars) applies only to what reaches the sink. No measured case yet — the outer `execFile` stopped bounding it once the inner spawn took ownership of the streams — so cap it when the lifecycle owner lands.
 
 (architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
 
