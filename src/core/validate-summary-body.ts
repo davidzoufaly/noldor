@@ -21,13 +21,23 @@ const SECTIONS = ['Why', 'How', 'What'] as const;
 const MIN_SECTION_CHARS = 24;
 
 /**
- * Subjects whose message is machine-shaped, with no author to ask for prose.
+ * Subjects git generates for the autosquash family, where the message is
+ * machine-written and there is no author to ask for prose. `amend!` belongs
+ * here with the other two: `git commit --fixup=reword:<sha>` writes it, runs
+ * `commit-msg`, and stages nothing.
  *
- * Forgeable, unlike the `MERGE_HEAD` signal below — accepted because a forged
- * `fixup!` is squashed away by the rebase it names or ships with a subject that
- * announces itself, and no comparable git state exists for these.
+ * Forgeable, unlike the replay refs below — accepted because a forged marker is
+ * squashed away by the rebase it names or ships with a subject that announces
+ * itself, and git exposes no state for these.
+ *
+ * `Revert "` is deliberately NOT here. A clean `git revert` never reaches
+ * `commit-msg` at all, and `git revert -n` leaves `REVERT_HEAD` set, so
+ * {@link ValidateSummaryBodyInput.replayInProgress} already covers every real
+ * revert. All the subject pattern would add is a forgeable bypass —
+ * `git commit -m 'Revert "x"'` with `src/**` staged — which is exactly what the
+ * `MERGE_HEAD` reasoning rejects for merges.
  */
-const EXEMPT_SUBJECT_RE = /^(?:fixup!|squash!|Revert ")/;
+const EXEMPT_SUBJECT_RE = /^(?:fixup!|squash!|amend!)/;
 
 /** `Noldor-Path` values written by release automation rather than by an author. */
 const AUTOMATION_PATHS = new Set(['release-automation', 'release-sweep']);

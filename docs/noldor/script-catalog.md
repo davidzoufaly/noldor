@@ -45,7 +45,7 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 ### `validate:summary-body`
 
-- **Trigger:** `pnpm noldor validate summary-body <commit-msg-file>`. Runs in `commit-msg` (`summary-body` job), after `noldor-validate-trailer`. Also runnable by hand against `.git/COMMIT_EDITMSG` to check a message before committing.
+- **Trigger:** `pnpm noldor validate summary-body <commit-msg-file>`. Runs in `commit-msg` (`summary-body` job), after `noldor-validate-trailer`. Also runnable by hand against `.git/COMMIT_EDITMSG` to check a message before committing — stage first, since on a clean index it falls back to the amend shape and judges against HEAD's files.
 - **Inputs:** commit message file path; staged file list (`git diff --cached --name-only`, no `--diff-filter`, so deletions count); `MERGE_HEAD` presence; the rollout marker.
 - **Outputs:** exit 0 unless the staged set carries code (a path matching `CODE_GLOBS`) and the message body lacks a `Why —`, `How —` or `What —` section of at least 24 characters. Exempt: any diff carrying no code — bookkeeping and ordinary prose alike — an empty staged set, `release-automation` / `release-sweep` commits, `fixup!` / `squash!` / `Revert "` subjects, an in-progress merge (keyed on `MERGE_HEAD`, not on a forgeable `Merge ` subject), and any tree that is not post-rollout.
 - **When to use:** automatic gate on every commit that carries code. See [`git-and-commits.md`](git-and-commits.md) § Commit body contract.

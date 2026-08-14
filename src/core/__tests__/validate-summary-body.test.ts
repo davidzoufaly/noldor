@@ -264,10 +264,27 @@ describe('validateSummaryBody', () => {
       ).toBe(false);
     });
 
-    it('exempts fixup!, squash! and Revert subjects', () => {
-      for (const subject of ['fixup! fix(x): y', 'squash! fix(x): y', 'Revert "fix(x): y"']) {
+    // `amend!` is written by `git commit --fixup=reword:<sha>`, which runs
+    // commit-msg over a message git generated.
+    it('exempts the autosquash subjects', () => {
+      for (const subject of ['fixup! fix(x): y', 'squash! fix(x): y', 'amend! fix(x): y']) {
         expect(validateSummaryBody({ message: subject, stagedFiles: CODE }).success).toBe(true);
       }
+    });
+
+    // A clean revert never reaches commit-msg and `revert -n` sets REVERT_HEAD,
+    // so the subject would only ever serve as a forgeable bypass.
+    it('does not exempt a Revert subject — replayInProgress covers real reverts', () => {
+      expect(
+        validateSummaryBody({ message: 'Revert "fix(x): y"', stagedFiles: CODE }).success,
+      ).toBe(false);
+      expect(
+        validateSummaryBody({
+          message: 'Revert "fix(x): y"',
+          stagedFiles: CODE,
+          replayInProgress: true,
+        }).success,
+      ).toBe(true);
     });
 
     it('exempts release automation by trailer', () => {

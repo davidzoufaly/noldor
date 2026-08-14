@@ -86,8 +86,10 @@ Enforced by `validate summary-body` in the `commit-msg` chain: each section need
 Check a message without committing:
 
 ```bash
-pnpm noldor validate summary-body .git/COMMIT_EDITMSG
+git add -A && pnpm noldor validate summary-body .git/COMMIT_EDITMSG
 ```
+
+Stage first, and read the verdict as advisory. The command classifies whatever is in the index; on a clean index it falls back to the amend shape and judges the message against **HEAD's** files, so a doc-only message can be rejected because the previous commit touched `src/**`. Inside the `commit-msg` hook the index always holds the real commit, which is where the verdict is authoritative.
 
 The check is structural. Whether the Why reads plainly or in jargon is the `pr-summary-why-how-what` rule's bar, held by the reviewer and the code-stage CR — see [pr-flow.md](pr-flow.md) § Where the title and Summary come from, which is where this body ends up.
 
