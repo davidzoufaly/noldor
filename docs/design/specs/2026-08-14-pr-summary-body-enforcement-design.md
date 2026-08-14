@@ -212,17 +212,34 @@ Git passes the hook a remote *name* only when the push names one. For
 mainline walk the tracking negatives exist to prevent, on the push shape most
 likely to come from a fresh clone.
 
-Rather than guess whether the argument is a name or a URL, the loader resolves it
-by observation, in this order:
+Git already answers this question. A `pre-push` hook receives **two** parameters:
+`$1` is the remote name — or the URL when the push named no remote — and `$2` is
+always the remote URL. They are equal exactly when the push was anonymous. So the
+discriminator is `$1 !== $2`, with no spawn and no heuristic.
 
-1. Enumerate `refs/remotes/<arg>/**`. Those tips are needed anyway on the common
-   named push, so this costs nothing extra. A non-empty result settles it: the
-   argument was a name.
-2. Only when that enumeration is empty, run one URL lookup:
-   `git config -z --get-regexp '^remote\..*\.(push)?url$'` and match the argument
+This requires plumbing the second parameter, which is not wired today:
+[`lefthook/noldor.yml`](../../../lefthook/noldor.yml) passes only `{1}` and
+[`src/hooks/noldor-pre-push.ts`](../../../src/hooks/noldor-pre-push.ts) reads
+`process.argv[2]`. Unit 4 adds `{2}` to the job (and to its consumer template
+twin); the hook reads the URL from `process.argv[3]`.
+
+Resolution then runs:
+
+1. `$1 !== $2` — the argument is a configured remote name. Enumerate
+   `refs/remotes/<name>/**` and stop. No config probe on the ordinary push.
+2. `$1 === $2` — an anonymous URL push. Run one lookup,
+   `git config -z --get-regexp '^remote\..*\.(push)?url$'`, and match the URL
    against the values. On exactly one matching `remote.<name>.` key, enumerate
-   that remote's tracking namespace instead.
-3. Otherwise the tracking term is empty and discovery uses snapshot-only
+   that remote's tracking namespace.
+3. `$2` absent — a consumer whose Lefthook template predates this change. Fall
+   back to enumerating `refs/remotes/<arg>/**` and, only if that is empty, the
+   config probe from step 2. This is the weaker heuristic the second parameter
+   replaces: it misfires on a configured-but-never-fetched remote
+   (`git remote add origin …` then push), where the enumeration is empty for a
+   *name*, and the probe then matches a name against URL values and finds
+   nothing. The cost is an empty tracking term, which is the cost-only
+   degradation below.
+4. Otherwise the tracking term is empty and discovery uses snapshot-only
    negatives.
 
 The pattern is anchored at both ends and covers `pushurl`, so a push-URL-only
@@ -392,6 +409,12 @@ rename it `summary-body-advisory` and document its exit-zero contract. It stays
 after trailer validation so trailer diagnostics remain the first actionable
 message. No new pre-push job is added.
 
+The existing `noldor-pre-push` job gains Git's second hook parameter — `run: pnpm
+noldor hooks pre-push {1} {2}` — in both this file and its consumer template twin,
+so the hook can tell a remote name from a remote URL without a spawn (Unit 2). The
+hook treats `process.argv[3]` as optional: a consumer running a template that
+predates this change still works, on the documented fallback.
+
 Update [`src/cli/manifest.ts`](../../../src/cli/manifest.ts) and the script catalog
 description from “validate” to “advise” without changing the stable command name.
 
@@ -559,11 +582,11 @@ behavior:
   tip and every tracking tip for the pushed remote as negatives, all delivered on
   stdin rather than argv (a thousand-ref fixture stays under `ARG_MAX`);
 - tracking tips for a *different* remote are not subtracted;
-- a named remote resolves from its `refs/remotes/<arg>/**` enumeration alone and
-  issues no config lookup at all;
-- a URL-form argument, whose enumeration is empty, resolves through
-  `remote.*.url` and through `remote.*.pushurl` to that remote's tracking
-  namespace;
+- `$1 !== $2` resolves a named remote with no config lookup at all, including for
+  a configured remote that has never been fetched (empty tracking namespace);
+- `$1 === $2` resolves an anonymous URL push through `remote.*.url` and through
+  `remote.*.pushurl` to that remote's tracking namespace;
+- an absent `$2` falls back to enumerate-then-probe and still pushes;
 - `git config --get-regexp` exiting 1 (no configured remotes) yields an empty
   tracking term and a successful push, not exit 2, while an exit above 1 is an
   infrastructure failure;
@@ -691,7 +714,12 @@ updates rather than the current index or `COMMIT_EDITMSG`.
 - [ ] The snapshot read distinguishes absent from invalid in its return type, and
   the snapshot file is written atomically.
 - [ ] An `invalid` snapshot exits 2 on the blocking adapter and 0 on the advisory
-  adapter, which prints the reason and still lets the commit through.
+  adapter, which prints the reason, still advises on the body — unlike an
+  `absent` read, which stays quiet about it — and still lets the commit through.
+- [ ] The pre-push job passes Git's remote URL as a second parameter, and the
+  hook uses `$1 !== $2` to tell a remote name from a URL without a config probe.
+  A consumer template that predates this still resolves, via the documented
+  enumerate-then-probe fallback.
 - [ ] A push whose remote argument is a URL resolves back to the configured remote
   for its tracking negatives, and an unconfigured URL degrades to snapshot-only
   negatives — more validation, never less, and never an infrastructure failure.
@@ -918,14 +946,16 @@ single-parent history and need the body when they carry code.
     (CR rounds 3–4).
 
 15. *What if the push names a URL instead of a remote?*
-    -> **Enumerate `refs/remotes/<arg>/**` first and treat an empty result as the
-    signal to try `remote.*.(push)?url`; otherwise use no tracking negatives.**
-    Git passes the raw URL for `git push https://… main`, so a naive glob would
-    silently restore the unbounded walk — but a name-vs-URL discriminator is a
-    guess, while an empty enumeration is an observed fact, and it costs no extra
-    spawn on the ordinary named push. A no-match `git config` exit of 1 is data,
-    not failure. The fallback is cost-only and can never narrow the candidate set
-    (CR rounds 3–4).
+    -> **Use Git's own second hook parameter: `$1 !== $2` means the argument is a
+    name.** Git passes the raw URL as `$1` for `git push https://… main`, so a
+    naive glob would silently restore the unbounded walk. An earlier revision
+    inferred the answer from an empty `refs/remotes/<arg>/**` enumeration, but
+    that misreads a configured-but-never-fetched remote as a URL; `$2` is the
+    fact rather than an inference, and costs nothing. The config probe then runs
+    only on a genuinely anonymous push, and its no-match exit of 1 is data, not
+    failure. A consumer whose Lefthook template does not yet pass `{2}` keeps the
+    old enumerate-then-probe path — cost-only, never narrowing the candidate set
+    (CR rounds 3–5).
 
 16. *Should tracking subtraction get the same unconditional notice as an absent
     snapshot?*
