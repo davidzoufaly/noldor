@@ -99,6 +99,20 @@ describe('parseRefLines', () => {
     expect(parseRefLines(['refs/heads/x aaa refs/heads/x'])).toHaveProperty('error');
   });
 
+  it('rejects a pseudo-option in a SHA field instead of feeding it to rev-list', () => {
+    // `git rev-list --stdin` accepts pseudo-options: `--no-walk` collapses the
+    // walk to the tip alone (reinstating "a valid tip hides an invalid commit"),
+    // and `--not` empties the candidate set into a silent pass. Non-option
+    // garbage makes rev-list error out and already fails closed; only this class
+    // fails open, so it is rejected at the boundary.
+    for (const bad of ['--no-walk', '--not', '--all', 'HEAD', 'not-a-sha']) {
+      expect(parseRefLines([`refs/heads/x ${bad} refs/heads/x ${ZERO}`])).toHaveProperty('error');
+      expect(parseRefLines([`refs/heads/x ${'a'.repeat(40)} refs/heads/x ${bad}`])).toHaveProperty(
+        'error',
+      );
+    }
+  });
+
   it('recognises an all-zero SHA at either length', () => {
     // Shape, not a 40-character constant — a SHA-256 repository writes 64 zeroes.
     const dir = armed();

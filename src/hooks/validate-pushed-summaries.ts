@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import {
   CREATE_COMMAND,
   FILE as SNAPSHOT_FILE,
+  isObjectId,
   readSummaryBodyRolloutSnapshot,
 } from '../core/summary-body-rollout.js';
 import {
@@ -105,6 +106,23 @@ export function parseRefLines(lines: readonly string[]): RefUpdate[] | { error: 
       return { error: `malformed pre-push ref line (expected 4 fields): ${JSON.stringify(line)}` };
     }
     const [localRef, localSha, remoteRef, remoteSha] = fields as [string, string, string, string];
+    // Both SHA fields must be object IDs before either reaches `rev-list --stdin`,
+    // which accepts pseudo-options there: a line carrying `--no-walk` would reduce
+    // the candidate set to the tip alone — reinstating the "a valid tip hides an
+    // invalid commit beneath it" hole this module exists to close — and `--not`
+    // would empty it entirely and report a silent pass. Other garbage makes
+    // rev-list error out and fails closed already; only this class fails open,
+    // and validation at a trust boundary is never a permitted cut.
+    for (const [label, sha] of [
+      ['local', localSha],
+      ['remote', remoteSha],
+    ] as const) {
+      if (!isObjectId(sha)) {
+        return {
+          error: `malformed pre-push ref line (${label} sha is not an object ID): ${JSON.stringify(line)}`,
+        };
+      }
+    }
     updates.push({ localRef, localSha, remoteRef, remoteSha });
   }
   return updates;

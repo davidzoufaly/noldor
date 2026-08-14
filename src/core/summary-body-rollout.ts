@@ -45,6 +45,18 @@ export type SummaryBodyRolloutRead =
 /** A syntactically well-formed object ID: hex, SHA-1 (40) or SHA-256 (64). */
 const SHA_RE = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
+/**
+ * Is this a syntactically valid object ID?
+ *
+ * Shared with the pre-push ref-line parser, which must reject anything else
+ * before it reaches `git rev-list --stdin` — that command accepts pseudo-options
+ * such as `--no-walk` and `--not` on stdin, so an unvalidated field there can
+ * shrink the candidate set instead of failing.
+ */
+export function isObjectId(value: string): boolean {
+  return SHA_RE.test(value);
+}
+
 export function snapshotPath(cwd: string = process.cwd()): string {
   return join(cwd, FILE);
 }
