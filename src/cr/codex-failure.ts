@@ -35,9 +35,17 @@ export const AUTH_HINT_RE =
  * tail is sliced by characters; the header says which is which. For codex's ASCII stderr
  * the two coincide.
  */
-export function formatStderrTail(stderr: string, maxChars: number = STDERR_TAIL_CHARS): string {
+export function formatStderrTail(
+  stderr: string,
+  maxChars: number = STDERR_TAIL_CHARS,
+  trueTotalBytes?: number,
+): string {
   if (stderr.length === 0) return '';
-  const totalBytes = Buffer.byteLength(stderr, 'utf8');
+  // Prefer the caller's pre-elision count. Measuring the string we were handed under-reports
+  // exactly when a bounded capture already dropped the middle — and the `[… elided …]` marker
+  // sits at the head/tail seam, far outside a 4000-char tail, so it never reaches the sink to
+  // say so. Silent under-reporting of truncation is the failure this whole module rejects.
+  const totalBytes = trueTotalBytes ?? Buffer.byteLength(stderr, 'utf8');
   const tail = stderr.length > maxChars ? stderr.slice(-maxChars) : stderr;
   return `stderr (last ${tail.length} chars of ${totalBytes} bytes):\n${tail}`;
 }
@@ -57,9 +65,11 @@ export function describeCodexFailure(input: {
   timedOut?: boolean;
   /** The cap that fired, for the timeout message. */
   timeoutMs?: number;
+  /** True pre-elision size of `stderr`; falls back to measuring the string when omitted. */
+  stderrBytes?: number;
 }): string {
   const hint = AUTH_HINT_RE.test(input.stderr) ? ' — auth looks expired; run: codex login' : '';
-  const tail = formatStderrTail(input.stderr);
+  const tail = formatStderrTail(input.stderr, STDERR_TAIL_CHARS, input.stderrBytes);
   // A timeout and a signal kill both surface as a non-zero exit with a SIGKILL note, so the
   // exit code alone cannot tell them apart. Lead with the cap when it is what fired.
   const cause = input.timedOut

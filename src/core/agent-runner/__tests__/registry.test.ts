@@ -107,7 +107,7 @@ describe('spawnAgent', () => {
     f.child().stdout.emit('data', Buffer.from('out'));
     f.child().emit('close', 0);
     const r = await p;
-    expect(r).toEqual({ exitCode: 0, stdout: 'out', stderr: '', timedOut: false });
+    expect(r).toEqual({ exitCode: 0, stdout: 'out', stderr: '', stderrBytes: 0, timedOut: false });
     expect(f.calls[0]!.bin).toBe('claude');
     expect(f.calls[0]!.argv).toEqual([
       '--print',

@@ -42,12 +42,14 @@ export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
   const stdin = formatPrompt(input.ctx);
   let stdout = '';
   let stderr = '';
+  let stderrBytes = 0;
   let exitCode = 0;
   let timedOut = false;
   try {
     const r = await input.spawn({ stdin });
     stdout = r.stdout;
     stderr = r.stderr;
+    stderrBytes = r.stderrBytes;
     exitCode = r.exitCode;
     timedOut = r.timedOut;
   } catch (e) {
@@ -63,6 +65,7 @@ export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
       describeCodexFailure({
         exitCode,
         stderr,
+        stderrBytes,
         version,
         ...(timedOut
           ? { timedOut, ...(input.timeoutMs !== undefined && { timeoutMs: input.timeoutMs }) }

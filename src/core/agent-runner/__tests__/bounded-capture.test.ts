@@ -77,8 +77,10 @@ describe('createBoundedCapture', () => {
 
   it('emits no lone surrogate for well-formed input, whatever the cut', () => {
     // Sweep the cut across a pair boundary; every position must round-trip cleanly.
-    for (let head = 1; head <= 6; head++) {
-      const c = createBoundedCapture({ head, tailChars: 3, limitChars: 8 } as never);
+    // No `as never` here on purpose: the cast previously hid a `head:` typo for `headChars:`,
+    // so every iteration silently used the 64k default and cut nothing at all.
+    for (let headChars = 1; headChars <= 6; headChars++) {
+      const c = createBoundedCapture({ headChars, tailChars: 3, limitChars: 8 });
       c.push(`${PAIR}${PAIR}${PAIR}${'q'.repeat(30)}${PAIR}`);
       expect(hasLoneSurrogate(c.value())).toBe(false);
     }

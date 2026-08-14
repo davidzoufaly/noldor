@@ -123,6 +123,13 @@ export interface AgentResult {
   stdout: string; // '' under stdio: 'inherit'
   /** '' unless `stderr: 'capture'` was requested; always '' under tee (logSink). */
   stderr: string;
+  /**
+   * TRUE pre-elision size of the captured stderr in bytes. Differs from
+   * `Buffer.byteLength(stderr)` exactly when the bounded capture elided a middle section, which
+   * is the case a consumer most needs to report honestly — the elision marker itself sits at
+   * the head/tail seam and never survives into a 4000-char tail. 0 when nothing was captured.
+   */
+  stderrBytes: number;
   timedOut: boolean;
 }
 

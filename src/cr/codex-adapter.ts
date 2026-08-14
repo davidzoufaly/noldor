@@ -16,9 +16,14 @@ import { spawnAgent } from '../core/agent-runner/registry.js';
  * expiry is indistinguishable from an OOM or an operator kill, since both arrive as a
  * non-zero exit with a signal note.
  */
-export type Spawn = (args: {
-  stdin: string;
-}) => Promise<{ stdout: string; stderr: string; exitCode: number; timedOut: boolean }>;
+export type Spawn = (args: { stdin: string }) => Promise<{
+  stdout: string;
+  stderr: string;
+  /** True pre-elision byte count of `stderr`, so a bounded capture cannot under-report itself. */
+  stderrBytes: number;
+  exitCode: number;
+  timedOut: boolean;
+}>;
 
 /** Output schema handed to codex; resolved here because `Spawn` no longer carries argv. */
 export const CR_RECORD_SCHEMA_PATH = fileURLToPath(
@@ -56,8 +61,17 @@ export function makeCodexSpawn(opts: CodexSpawnOpts = {}): Spawn {
       site: 'cr.codex',
       ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
       ...(opts.foreground ? { foreground: true } : {}),
-      ...(opts.timeoutMs !== undefined && !opts.foreground ? { timeoutMs: opts.timeoutMs } : {}),
+      // Passed through unfiltered ON PURPOSE. Dropping it under `foreground` would hand the
+      // caller an uncapped spawn while they believed it capped — the same silent degradation
+      // the registry rejects this pair to prevent. Let the boundary that owns the rule enforce it.
+      ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
     });
-    return { stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode, timedOut: r.timedOut };
+    return {
+      stdout: r.stdout,
+      stderr: r.stderr,
+      stderrBytes: r.stderrBytes,
+      exitCode: r.exitCode,
+      timedOut: r.timedOut,
+    };
   };
 }

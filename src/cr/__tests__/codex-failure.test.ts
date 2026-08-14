@@ -147,3 +147,29 @@ describe('probeCodexVersion', () => {
     vi.useRealTimers();
   });
 });
+
+describe('bounded stderr is reported honestly', () => {
+  it('reports the TRUE pre-elision size, not the length of what survived', () => {
+    // The failure this guards: a bounded capture elides the middle, the `[… elided …]` marker
+    // sits at the head/tail seam far outside the 4000-char tail, and measuring the string we
+    // were handed would silently under-report megabytes as kilobytes.
+    const elided = `${'head'.padEnd(50, 'h')}\n[… elided 9000000 bytes …]\ntail`;
+    const honest = formatStderrTail(elided, STDERR_TAIL_CHARS, 9_000_123);
+    expect(honest).toContain('of 9000123 bytes');
+    expect(honest).not.toContain(`of ${Buffer.byteLength(elided)} bytes`);
+  });
+
+  it('falls back to measuring the string when no true total is supplied', () => {
+    expect(formatStderrTail('abc')).toContain('of 3 bytes');
+  });
+
+  it('threads the true total through describeCodexFailure', () => {
+    const msg = describeCodexFailure({
+      exitCode: 1,
+      stderr: 'boom',
+      version: 'codex 1.0',
+      stderrBytes: 777_000,
+    });
+    expect(msg).toContain('of 777000 bytes');
+  });
+});

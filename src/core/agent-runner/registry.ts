@@ -225,6 +225,13 @@ export function spawnAgent(
       child.stdin?.on('error', () => {});
       child.stdin?.end(prompt);
     }
+    // noldor:cut stdout accumulates unbounded — capping it would guarantee a parse failure
+    // instead of preventing one, since stdout carries the RESULT (a schema-bounded CR record,
+    // measured 12 bytes; opencode NDJSON; claude prose) rather than diagnostics. Truncating a
+    // return value is strictly worse than a large allocation. Upgrade path: if a runner ever
+    // streams unbounded stdout, give it a logSink (tee already never accumulates) rather than
+    // truncating here. The bounded capture below applies to stderr, which is diagnostic and
+    // therefore safe to elide.
     let stdout = '';
     let timedOut = false;
     const stderrCapture = createBoundedCapture();
@@ -301,6 +308,7 @@ export function spawnAgent(
         exitCode,
         stdout: outText,
         stderr: capture ? stderrCapture.value() : '',
+        stderrBytes: capture ? stderrCapture.totalBytes() : 0,
         timedOut,
       });
     });
