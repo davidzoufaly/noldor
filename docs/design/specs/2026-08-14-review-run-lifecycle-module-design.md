@@ -265,6 +265,22 @@ propagates a non-zero exit") more closely than the `Spawn` it borrows today.
 `probeCodexVersion` therefore takes a `PrereqProbe` instead of a `Spawn`, and `Spawn` loses `cmd`
 and `args` entirely — the last reason it carried them.
 
+**Compose the binary name back on.** The seams disagree about what "a version" is, and the
+difference is load-bearing. `probeCodexVersion` returns `stdout`'s first line today — `codex-cli
+0.133.0` — whereas `makeDefaultProbe` pipes through `versionFrom` (`prerequisites.ts:84-87`,
+`out.match(/\d+(\.\d+)+/)`), which yields the bare `0.133.0`. Adopting the probe naively would
+render `0.133.0: exited with exit code 1` and drop *which binary* — leaving the known-version
+branch strictly less informative than the failure branch, since `unknownVersion`
+(`codex-failure.ts:10-12`) keeps the name. So `probeCodexVersion` returns `` `${cmd} ${version}` ``
+on a hit and `unknownVersion(cmd)` on a miss, giving `codex 0.133.0` / `codex (version unknown)` —
+a consistent `<binary> <version>` shape across both branches, which today's output does not have.
+
+**Wiring.** `makeDefaultProbe(cwd)` needs a `cwd` for its `node_modules/.bin` fallback, and
+`RunCodexInput` has neither a probe field nor a `cwd` once `cmd` retires. `reviewWithCodex(review,
+cwd, spawn)` (Unit 1) already holds the `cwd`, so it constructs the probe and `RunCodexInput` gains
+`probe: PrereqProbe` where `cmd` used to sit — keeping `runCodex` injectable for tests without
+reintroducing binary selection.
+
 That also retires `RunCodexInput.cmd`. Its docblock warns that probing a hard-coded `codex` would
 misattribute a failure "precisely where attribution is the point" — true while a caller could
 override the binary. Once the registry owns binary selection (`CODEX_BIN` via `planSpawn`), no
@@ -275,9 +291,11 @@ used `cmd` to point at a fake binary use the registry's existing `spawnImpl` sea
 #### 4c — timeout attribution survives the seam
 
 `AgentResult.timedOut` has no slot in `Spawn`'s result, so without care a `dispatchTimeoutMs` expiry
-would reach the sink as `exited with exit code -1` plus 4a's signal note `terminated by signal
-SIGKILL` — indistinguishable from an OOM kill or an operator `kill`, and a regression against
-today's `ETIMEDOUT`-shaped message.
+would reach the sink as `exited with exit code -1` plus Unit 2's signal-death annotation
+`terminated by signal SIGKILL` — indistinguishable from an OOM kill or an operator `kill`. Today the
+lane's sink instead says `codex lane errored: Command failed: pnpm …` (async `execFile` reports a
+timeout kill as `killed: true` with a `Command failed` message, not an `ETIMEDOUT` code), which at
+least does not misattribute. Losing that would be a regression.
 
 `Spawn`'s result gains `timedOut: boolean`, carried straight through from `AgentResult`.
 `describeCodexFailure` takes it too and leads with `timed out after <dispatchTimeoutMs>ms` when set,
@@ -332,9 +350,10 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 - `grep -r codexSupportsBaseSha src/` returns no matches.
 - `src/cr/codex-spawn.ts` does not exist and `grep -rn "spawnCodex" src/` returns no matches.
 - `grep -n "execFile" src/cr/lanes/codex.ts` returns no matches. (Scoped to the lane on purpose:
-  `src/cr/` keeps legitimate `execFile`/`execFileSync` git shell-outs in `receipt-trailer.ts`,
-  `amend-receipt.ts`, `autofix-cli.ts`, `codex.ts`, `deep-review-spawn.ts` and `lanes/verify.ts`,
-  none of which this spec touches.)
+  `src/cr/` keeps legitimate `execFile`/`execFileSync` shell-outs elsewhere — `receipt-trailer.ts`,
+  `amend-receipt.ts`, `autofix-cli.ts`, `bootstrap-immunity.ts`, `codex.ts`, `deep-review-spawn.ts`,
+  `lanes/verify.ts` and `orchestrate.ts` — none of which this spec's units remove. `orchestrate.ts`
+  *is* edited, by Unit 6, but only to delete the probe plumbing; its own `exec` wrapper stays.)
 - A codex lane run at `--kind spec` with a `baseSha` set and `fullReview` unset writes a sink whose
   `baseSha` field equals the passed sha. (Today this field is never written.)
 - `spawnAgent` with `stderr: 'capture'` returns the child's stderr in `AgentResult.stderr`; with
@@ -359,10 +378,13 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 - `spawnAgent({ foreground: true, timeoutMs: n })` rejects rather than silently dropping the cap.
 - `src/cr/codex.ts`'s CLI path passes `foreground: true`; the codex lane does not. Pinned by a test
   per caller, because this is the property that keeps Ctrl-C working on a hand-run review.
-- `grep -rn "cmd" src/cr/run-codex.ts` shows no `RunCodexInput.cmd` field, and `probeCodexVersion`'s
+- `RunCodexInput` declares no `cmd` field (assert on the interface, or `grep -n "cmd?:"` — a bare
+  `cmd` grep also matches docblocks and cannot verify the absence), and `probeCodexVersion`'s
   signature takes a `PrereqProbe`, not a `Spawn`.
 - `probeCodexVersion` never spawns a review: a test asserts the probe seam is invoked with
   `['--version']` and that no agent spawn occurs on the failure path.
+- `probeCodexVersion` returns `codex 0.133.0` for a probe hit and `codex (version unknown)` for a
+  miss — both branches carry the binary name, pinned by a test on the string shape.
 - A lane run whose child exceeds `dispatchTimeoutMs` produces a sink blocker message beginning
   `timed out after <n>ms`, distinct from the message produced by a signal kill at the same exit code.
 - `pnpm test`, `pnpm typecheck` and `pnpm lint` pass; the CR-lane suites pass with the probe mocks
@@ -403,6 +425,11 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 - **Retiring `RunCodexInput.cmd` removes a test seam some suite may lean on.** Callers move to the
   registry's `spawnImpl` injection, which is where the other runners' tests already sit, but the
   migration is mechanical work this spec is asserting rather than measuring.
+- **The version probe becomes synchronous.** `makeDefaultProbe` uses `execFileSync` with a 5s cap,
+  and retries the `node_modules/.bin` path, so a worst case blocks the event loop for ~10s where the
+  async `Spawn` did not. Confined to the failure path — a green review never probes — and the lane
+  has nothing else in flight at that point, so the block costs latency rather than concurrency.
+  Accepted in exchange for deleting the arbitrary-argv hole in `Spawn`.
 
 ## User Story
 
@@ -492,7 +519,10 @@ caller error rather than silently ignored (4a).
    that matches `probeCodexVersion`'s own docblock better than `Spawn` does. Dropping attribution
    was rejected outright — it is the whole point of the entry that introduced it. This also lets
    `Spawn` shed `cmd`/`args`, and retires `RunCodexInput.cmd`: once the registry owns binary
-   selection, the misattribution its docblock warns about is unreachable.
+   selection, the misattribution its docblock warns about is unreachable. The seam's `versionFrom`
+   normaliser returns digits only, so `probeCodexVersion` composes the binary name back on
+   (`codex 0.133.0`) — which incidentally makes the hit and miss branches share one shape for the
+   first time.
 
 9. *`AgentResult.timedOut` has no slot in `Spawn`'s result, so a timeout becomes indistinguishable
    from a signal kill. How is it carried?*
