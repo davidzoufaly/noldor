@@ -15,6 +15,23 @@ export function laneSinkPath(root: string, slug: string, kind: ArtifactKind, lan
 }
 
 /**
+ * Open a lane run: where its sink goes and when it started.
+ *
+ * Every lane began with these same two statements, which is both duplication and an easy
+ * place to forget the `startedAt` a sink schema requires. Taking them together makes "start a
+ * lane" one call instead of a convention each lane re-implements.
+ */
+export function openLane(
+  input: { repoRoot: string; slug: string; kind: ArtifactKind },
+  lane: string,
+): { sinkPath: string; startedAt: string } {
+  return {
+    sinkPath: laneSinkPath(input.repoRoot, input.slug, input.kind, lane),
+    startedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * Infer a lane from a `.noldor/cr/<slug>-<kind>-<lane>.json` sink filename.
  * Recognizes canonical names AND legacy pre-0.7.0 names (`-subagent.json` /
  * `-verify.json`), mapping the latter to their canonical role-ref — so a sink
