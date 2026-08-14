@@ -275,8 +275,11 @@ matrix is open:
   wants a transcript of a hand-run review is a coherent thing to want. Tee's docblock is framed
   around hours-long unattended children, but nothing in it depends on `detached`.
 - `foreground` + `stdio` → **allowed**, and `'inherit'` is the natural pairing: a non-detached child
-  sharing the terminal is precisely the interactive shape, where `stdio` decides what the operator
-  sees and `foreground` decides who receives their Ctrl-C.
+  sharing the terminal is precisely the interactive shape. Note `stdio` governs **stdout only**
+  (`types.ts:60-64`; `errMode` is computed separately at `registry.ts:145-147`), so on the CLI's live
+  configuration — which also captures stderr — the operator sees the child's stdout live and its
+  stderr only if a failure renders it. `foreground` decides who receives their Ctrl-C, which is
+  orthogonal to both.
 - `stderr: 'capture'` + `logSink` → **rejected.** Not a `foreground` interaction — a Unit 2 one,
   settled here because Unit 2 creates it. Tee already owns both streams and forces
   `AgentResult.stderr` to `''`, so accepting both would silently discard an explicit capture request.
@@ -649,12 +652,17 @@ caller error rather than silently ignored (4a).
    at four defects. The smell was scope: a diagnostic that runs only on the failure path had
    acquired more specification than the lifecycle change itself.
 
-   **What survived the cut, and why those two.** The spec still mandates that the probe be *async*
-   and that it *settle within 5s unconditionally* (4b). Both are properties this spec's own changes
-   destroy if left unstated — Unit 5 puts the probe on the shared orchestrate event loop, and
-   removes the outer `execFile` cap it used to inherit — so they are lifecycle facts, not probe
-   internals. Everything genuinely internal (how the version string is extracted, what a miss
-   returns, what shape gets reported) is already defined and already tested, and stays untouched.
+   **What survived the cut, and why.** The spec still mandates that the probe be *async* and that it
+   *settle within 5s unconditionally* (4b). Both are properties this spec's own changes destroy if
+   left unstated — Unit 5 puts the probe on the shared orchestrate event loop, and removes the outer
+   `execFile` cap it used to inherit — so they are lifecycle facts, not probe internals.
+
+   A third mandate follows from the second rather than standing on its own: the probe exposes an
+   **injection point for its child-spawner**, because a cap that cannot be tested at the level it
+   applies is a claim rather than a property. It is the one genuine internal this spec dictates, and
+   it is dictated only to make the cap provable. Everything else internal (how the version string is
+   extracted, what a miss returns, what shape gets reported) is already defined and already tested,
+   and stays untouched.
 
 9. *`AgentResult.timedOut` has no slot in `Spawn`'s result, so a timeout becomes indistinguishable
    from a signal kill. How is it carried?*
