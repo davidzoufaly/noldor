@@ -17,8 +17,15 @@ operator reading release notes, who needs the reason without the jargon. A
 summary that is only a changelog (what, no why) or only a design essay (why,
 no what) fails this rule.
 
-Scope is the PR-body seam — `composeBody` in `src/core/pr-flow.ts`, any text that
-ends up in `gh pr create --body`, and the commit body that seam quotes from.
+Scope is the PR-body seam — `composeBody` in `src/core/pr-flow.ts`, the text that
+ends up in `gh pr create --body`, and the commit body that seam quotes from —
+**for a change that carries code**. `touchesCode` (`src/core/allowlist.ts`) is the
+predicate, negated: a commit touching only docs, prose or framework bookkeeping
+has no behaviour to explain, so it owes no Why/How/What and a roadmap reorder or
+a README typo is not a violation of this rule. The exemption is that negation
+rather than `isBookkeepingOnly`, so prose that is neither code nor bookkeeping
+(`docs/noldor/**`, root `*.md`, `.claude/**`, the `templates/` prose twins) is
+exempt too.
 
 **A green push is not a compliant summary.** The mechanical floor is the
 `pre-push` hook, which reads each outgoing commit **object** and enforces only
