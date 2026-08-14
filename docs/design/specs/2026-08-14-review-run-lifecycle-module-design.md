@@ -274,14 +274,33 @@ Two properties do belong to this spec, because this spec is what changes them:
 stall their `dispatchTimeoutMs` timers. This is also why the doctor's `PrereqProbe`
 (`prerequisites.ts:38`) is not reused despite being the obvious candidate: it is `execFileSync`-based.
 
-**It must carry its own 5s cap.** Today the probe inherits one transitively — it runs inside the CLI
-child, under the lane's outer `execFile` timeout (`lanes/codex.ts:79`). After Unit 5 that outer cap
-is gone and `dispatchTimeoutMs` covers only the review `spawnAgent` call, so an uncapped probe would
-be a spawn site with no timeout owner at all: a wedged `codex --version` on the failure path would
-hang the lane's promise inside `Promise.allSettled` forever. "Keeps its current behaviour" is
-therefore not the same as "specify nothing" — the cap is the one internal this spec must state,
-because this spec is what removes the cap it used to inherit. A spec about timeout ownership does not
-get to introduce an unowned one.
+**It must settle within 5s, unconditionally.** *On the lane path* the probe inherits a cap today: it
+runs inside the CLI child, under the lane's outer `execFile` timeout (`lanes/codex.ts:79`). (On a
+hand-run `pnpm noldor cr codex` it has never had one — so on the interactive path this is a
+behaviour change, not a preservation.) After Unit 5 that outer cap is gone and `dispatchTimeoutMs`
+covers only the review `spawnAgent` call, leaving the probe a spawn site with no timeout owner at
+all: a wedged `codex --version` on the failure path would hang the lane's promise inside
+`Promise.allSettled` forever.
+
+Passing `timeout: 5000` to `execFile` does **not** deliver this. That option sends `killSignal` and
+then settles only when the child actually exits — a child that traps SIGTERM or sits in
+uninterruptible sleep leaves the callback pending, and the lane hangs exactly as before. That is the
+same defect this whole spec exists to remove (a cap aimed at a process that need not honour it), so
+reproducing it here would be incoherent.
+
+The probe therefore **races**: a 5s timer resolving to `unknownVersion(bin)` against the `execFile`
+callback, whichever lands first, with a best-effort `child.kill()` on the timer branch. The kill is
+best-effort by design — whether the child dies is not allowed to determine whether the caller gets
+an answer. `unknownVersion` is already the probe's contractual "could not answer" value, so a timed-
+out probe degrades to a case the sink already renders.
+
+Isolating the race is what keeps the test cheap. Expressed as a pure
+`settleWithin(promise, ms, fallback)` helper, the property is testable against a promise that never
+resolves — no child process, no never-exit fixture, none of the out-of-process harness cost the
+Q-0089/D6 history counted against an inner cap. The child is irrelevant to the thing under test.
+
+5s matches the cap the deleted `codexSupportsBaseSha` used for its own `--version`-class probe
+(`lanes/codex.ts:42`), so the number is inherited rather than invented.
 
 **Wiring.** `RunCodexInput` gains, where `cmd` used to sit:
 
@@ -290,8 +309,11 @@ probe?: (bin: string) => Promise<string>;   // resolves to the version string or
 ```
 
 defaulting to the real implementation — keeping `runCodex` injectable for tests without
-reintroducing binary selection. It keeps the `bin` parameter, so failure attribution still names the
-binary that actually ran.
+reintroducing binary selection. `bin` is supplied by `runCodex` from the shared `CODEX_BIN`
+(`runners/codex.ts:1`) — the same constant `planSpawn` reads at `registry.ts:73`, which is what makes
+"the binary that actually ran" true rather than merely asserted. The parameter survives `cmd`'s
+retirement because attribution should name a binary, not assume one; it just no longer has a second
+possible value.
 
 That also retires `RunCodexInput.cmd`. Its docblock warns that probing a hard-coded `codex` would
 misattribute a failure "precisely where attribution is the point" — true while a caller could
@@ -405,9 +427,12 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   (`codex-failure.test.ts:133-146`) additionally pin *wrapper* attribution via the retired `cmd`
   override; with binary selection owned by the registry that scenario is unreachable, so they are
   re-pointed at the `bin` argument rather than preserved as written.
-- The probe carries a 5s cap of its own, asserted by a test in which the probe child never exits and
-  the call still settles. Without it the probe has no timeout owner once Unit 5 removes the outer
-  `execFile` it inherits one from today.
+- The probe settles within 5s even when its child never exits, asserted through the pure
+  `settleWithin(promise, ms, fallback)` helper against a promise that never resolves — no child
+  process and no never-exit fixture. `execFile`'s own `timeout` option does not satisfy this: it
+  settles only once the child exits, so a trapped-signal child would still hang the caller.
+- A timed-out probe resolves to `unknownVersion(bin)` rather than rejecting, so the failure path it
+  serves cannot itself become a failure.
 - A lane run whose child exceeds `dispatchTimeoutMs` produces a sink blocker message beginning
   `timed out after <n>ms`, distinct from the message produced by a signal kill at the same exit code.
 - `pnpm test`, `pnpm typecheck` and `pnpm lint` pass; the CR-lane suites pass with the probe mocks
@@ -551,13 +576,18 @@ caller error rather than silently ignored (4a).
 
    Two earlier answers were tried and cut, and the cut is the point. The first reused `PrereqProbe`
    (rejected: synchronous). The second replaced it with a two-layer `VersionProbe` carrying its own
-   cap, normaliser, null semantics and an improved output shape — and rounds 2 through 5 of review
+   type, normaliser, null semantics and an improved output shape — and rounds 2 through 5 of review
    landed on that sub-design every single time while finding nothing about the process-lifecycle
    work this spec owns. A reviewer circling one spot four times is pointing at a design smell, not
    at four defects. The smell was scope: a diagnostic that runs only on the failure path had
-   acquired more specification than the lifecycle change itself. Today's version-string behaviour is
-   already defined and already tested, so the spec now says only what must change and leaves the
-   rest alone.
+   acquired more specification than the lifecycle change itself.
+
+   **What survived the cut, and why those two.** The spec still mandates that the probe be *async*
+   and that it *settle within 5s unconditionally* (4b). Both are properties this spec's own changes
+   destroy if left unstated — Unit 5 puts the probe on the shared orchestrate event loop, and
+   removes the outer `execFile` cap it used to inherit — so they are lifecycle facts, not probe
+   internals. Everything genuinely internal (how the version string is extracted, what a miss
+   returns, what shape gets reported) is already defined and already tested, and stays untouched.
 
 9. *`AgentResult.timedOut` has no slot in `Spawn`'s result, so a timeout becomes indistinguishable
    from a signal kill. How is it carried?*
