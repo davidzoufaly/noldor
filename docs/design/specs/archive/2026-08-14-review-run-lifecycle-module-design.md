@@ -447,10 +447,14 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   and the `vi.mock` keys in `delta.test.ts`, `orchestrate.test.ts` and
   `orchestrate.integration.test.ts` are all gone. Docblock mentions narrating what was deleted are
   permitted and expected, so a bare `grep -r` is not the check — mocking a nonexistent export is
-  the failure this guards against.
+  the failure this guards against. Runnable form — match the syntax only code can have:
+  `grep -rn codexSupportsBaseSha src/ | grep -E "import|export|vi\.fn"` returns nothing.
+  (A comment-stripping grep does not work here: the surviving mentions include a `//` line, and
+  the `execFile` docblock below quotes a call verbatim, parens and all.)
 - `src/cr/codex-spawn.ts` does not exist and `grep -rn "spawnCodex" src/` returns no matches.
-- `src/cr/lanes/codex.ts` contains no `execFile` *call* (its docblock narrates the removed one, so
-  match on code rather than text). (Scoped to the lane on purpose:
+- `src/cr/lanes/codex.ts` makes no `execFile` call. Checked at the import, not the call site —
+  `grep -n "^import.*execFile" src/cr/lanes/codex.ts` returns nothing — because the docblock
+  quotes the removed call verbatim, so matching `execFile(` would flag the narration. (Scoped to the lane on purpose:
   `src/cr/` keeps legitimate `execFile`/`execFileSync` shell-outs elsewhere — `receipt-trailer.ts`,
   `amend-receipt.ts`, `autofix-cli.ts`, `bootstrap-immunity.ts`, `codex.ts`, `deep-review-spawn.ts`,
   `lanes/verify.ts` and `orchestrate.ts` — none of which this spec's units remove. `orchestrate.ts`
