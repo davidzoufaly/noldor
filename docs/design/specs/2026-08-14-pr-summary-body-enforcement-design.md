@@ -236,9 +236,16 @@ The hook therefore keeps its existing single-parameter signature. The remote nam
 it already receives is still used for the destination check in Unit 3; it is
 simply no longer load-bearing for discovery.
 
-That fallback is a **cost-only degradation and never a correctness change**: fewer
-negatives can only enlarge the candidate set. It is called out here because a
-silent enlargement looks like a hang rather than a policy decision.
+The enumeration is the one Git command in this design that is **not** fail-closed.
+A repository with no remotes exits 0 with empty output, so the empty case needs no
+special handling; but on a non-zero exit the tracking term goes empty and
+discovery continues on snapshot-only negatives, with one warning naming the
+failure. This is a **cost-only degradation and never a correctness change** —
+fewer negatives can only enlarge the candidate set, so the worst outcome is a slow
+push, never a skipped commit. Exiting 2 here would let an unrelated `for-each-ref`
+failure block a push on the strength of an optimization the contract does not
+depend on. The warning exists because a silent enlargement looks like a hang
+rather than a policy decision.
 
 When an existing remote ref's `<remote-sha>` is not present locally — the routine
 non-fast-forward case, where the remote moved and this clone has not fetched — the
@@ -429,7 +436,7 @@ The authoritative path is:
 git push
   -> Lefthook buffers pre-push stdin for noldor-pre-push
   -> noldor-pre-push parses destination ref updates
-  -> activation snapshot + this remote's tracking tips supply negative revisions
+  -> activation snapshot + every refs/remotes tip supply negative revisions
   -> validate-pushed-summaries enumerates non-grandfathered SHAs per updated ref
   -> one git log yields parents, stored message and the Noldor-Path trailer
   -> parent count classifies merges; stored message classifies automation/autosquash
@@ -456,7 +463,7 @@ Per SHA, work is ordered from cheapest to most specific:
 
 1. Stop the whole check when the summary-body snapshot read is `absent`, after
    printing the notice. An `invalid` read exits 2. Otherwise use its grandfather
-   tips plus this remote's tracking tips as negatives while enumerating
+   tips plus every `refs/remotes/**` tip as negatives while enumerating
    candidates; no per-object date or ancestry heuristic remains.
 2. Read the commit header once. Skip an object with more than one parent, an
    autosquash subject, or exactly one recognized release-automation
@@ -559,15 +566,15 @@ behavior:
 - strict four-field parsing, SHA-1/SHA-256 all-zero deletion detection, and
   malformed-line rejection;
 - existing-ref and new-ref revision construction, each supplying every grandfather
-  tip and every tracking tip for the pushed remote as negatives, all delivered on
+  tip and every `refs/remotes/**` tip as negatives, all delivered on
   stdin rather than argv (a thousand-ref fixture stays under `ARG_MAX`);
-- tracking tips for a *different* remote are not subtracted;
 - a named push, an anonymous URL push, and an `url.<base>.insteadOf` alias push
   all produce the same tracking negatives, since none of them is inspected;
 - a second remote's tips are subtracted too, and the resulting skip of a commit
   fetched from that other remote is asserted as intended behavior, not a bug;
 - a repository with no remotes enumerates zero tips and pushes on snapshot-only
-  negatives, with no infrastructure failure;
+  negatives, with no infrastructure failure, and a non-zero `for-each-ref` exit
+  warns and degrades identically rather than exiting 2;
 - diagnostics report the negative sources once discovery has resolved them, and
   omit them on failures that abort before that point;
 - an existing ref whose remote-old SHA is absent locally drops that one negative
@@ -658,10 +665,10 @@ updates rather than the current index or `COMMIT_EDITMSG`.
 - [ ] A valid tip does not hide an invalid earlier outgoing commit.
 - [ ] Two invalid outgoing commits are both reported once, even when reachable
   from multiple pushed refs.
-- [ ] New-ref discovery subtracts the activation tips **and** this remote's
-  tracking tips, so pushing a new branch enumerates only what that remote has not
-  been observed to hold — not the whole post-activation mainline. A commit
-  reachable only through some other unfetched destination ref is still checked.
+- [ ] New-ref discovery subtracts the activation tips **and** every
+  `refs/remotes/**` tip, so pushing a new branch enumerates only what no remote
+  has been observed to hold — not the whole post-activation mainline. A commit
+  reachable only through an unfetched ref is still checked.
 - [ ] All positive and negative revisions reach `rev-list` on stdin, so a
   repository with thousands of refs cannot fail the push through `ARG_MAX`.
 - [ ] An existing ref whose remote-old SHA is missing locally drops that negative
@@ -694,15 +701,14 @@ updates rather than the current index or `COMMIT_EDITMSG`.
   covering every remote, so a named push, an anonymous URL push, an `insteadOf`
   alias, and a never-fetched remote all bound identically; the pre-push job needs
   no second parameter and no config probe.
-- [ ] A push whose remote argument is a URL resolves back to the configured remote
-  for its tracking negatives, and an unconfigured URL degrades to snapshot-only
-  negatives — more validation, never less, and never an infrastructure failure.
 - [ ] Diagnostics emitted **after** discovery resolves its negatives name them:
   the activation tip count and the tracking tip count, or that no tracking refs
   exist. Failures that abort earlier — a malformed
   ref line, an `invalid` snapshot — omit the line rather than reporting zeroes.
 - [ ] A repository with no remotes at all enumerates zero tracking tips and still
-  pushes, falling back to snapshot-only negatives.
+  pushes, falling back to snapshot-only negatives. A **failing** `for-each-ref`
+  warns and degrades the same way rather than exiting 2 — the only Git command
+  here that is not fail-closed, because fewer negatives can only widen the check.
 - [ ] A commit added after activation on an old side branch remains enforceable
   after any later merge, and root/orphan commits not reachable from a snapshot
   tip enforce normally.
@@ -848,8 +854,8 @@ single-parent history and need the body when they carry code.
 
 2. *Which commit objects are checked?*
    -> **Every distinct object newly reachable through an updated ref that is
-   neither grandfathered at activation nor already reachable from that remote's
-   tracking refs.** Checking only the tip or `pickSummarySha` would weaken the
+   neither grandfathered at activation nor already reachable from any
+   `refs/remotes/**` tip.** Checking only the tip or `pickSummarySha` would weaken the
    existing every-commit contract and let invalid intermediate commits ship
    (D11; negatives refined in CR rounds 2–3).
 
@@ -863,13 +869,13 @@ single-parent history and need the body when they carry code.
    focused loader remains independently testable (D12–D13).
 
 5. *How are new remote refs bounded?*
-   -> **By the activation-time grandfather tips *and* the pushed remote's
-   tracking tips, as negative revisions on stdin.** Snapshot tips alone left the
-   first push of every new branch re-walking the whole post-activation mainline,
-   growing without bound as the repository ages. Tracking tips bound it to what
-   this clone has not observed on that remote; they are documented as a cost
-   bound, not an integrity property, since `--no-verify` is a cheaper bypass than
-   forging one (CR round 2, D1).
+   -> **By the activation-time grandfather tips *and* every `refs/remotes/**`
+   tip, as negative revisions on stdin.** Snapshot tips alone left the first push
+   of every new branch re-walking the whole post-activation mainline, growing
+   without bound as the repository ages. Tracking tips bound it to what this clone
+   has not observed on any remote; they are documented as a cost bound, not an
+   integrity property, since `--no-verify` is a cheaper bypass than forging one
+   (CR round 2, D1; per-remote scoping dropped in round 7 — see Q15).
 
 6. *What replaces merge/cherry-pick/revert transient state?*
    -> **Parent count only identifies merges; durable single-parent commits
