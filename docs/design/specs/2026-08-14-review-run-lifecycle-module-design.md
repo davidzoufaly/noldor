@@ -263,22 +263,35 @@ behind its own private async `execFile`, with the argv fixed at the call site ra
 by a caller. That is what closes the empty-prompt-review hole, and it lets `Spawn` shed `cmd` and
 `args` entirely, which was the last reason it carried them.
 
-Everything beyond that sentence is deliberately **not specified here**. Earlier drafts of this
-section designed a two-layer probe with its own type, cap, normaliser, null semantics and a changed
-output shape; four review rounds landed on it and none of them landed on the process-lifecycle work
-this spec is actually about. The version string's existing inconsistency (`codex-cli 0.133.0` on a
-hit versus `codex (version unknown)` on a miss) is real but pre-existing, and improving it here was
-scope this spec imported rather than scope it owes. It stays as it is.
+Beyond that sentence, the probe's internals are deliberately **not specified here** — see Q8 for what
+was cut and why. The version string's existing inconsistency (`codex-cli 0.133.0` on a hit versus
+`codex (version unknown)` on a miss) is pre-existing and stays as it is.
 
-The one thing that must not regress: the probe is **async**, so it cannot block the orchestrate
-event loop. That matters only because of Unit 5 — the codex lane now runs inside the orchestrate
-process, where `Promise.allSettled` (`orchestrate.ts:374`) keeps sibling lanes live, so a
-synchronous probe would stall their `dispatchTimeoutMs` timers. This is also why the doctor's
-`PrereqProbe` (`prerequisites.ts:38`) is *not* reused despite being the obvious candidate: it is
-`execFileSync`-based.
+Two properties do belong to this spec, because this spec is what changes them:
 
-**Wiring.** `RunCodexInput` gains `probe?` where `cmd` used to sit, defaulting to the real
-implementation — keeping `runCodex` injectable for tests without reintroducing binary selection.
+**It must be async.** Unit 5 moves the codex lane into the orchestrate process, where
+`Promise.allSettled` (`orchestrate.ts:374`) keeps sibling lanes live, so a synchronous probe would
+stall their `dispatchTimeoutMs` timers. This is also why the doctor's `PrereqProbe`
+(`prerequisites.ts:38`) is not reused despite being the obvious candidate: it is `execFileSync`-based.
+
+**It must carry its own 5s cap.** Today the probe inherits one transitively — it runs inside the CLI
+child, under the lane's outer `execFile` timeout (`lanes/codex.ts:79`). After Unit 5 that outer cap
+is gone and `dispatchTimeoutMs` covers only the review `spawnAgent` call, so an uncapped probe would
+be a spawn site with no timeout owner at all: a wedged `codex --version` on the failure path would
+hang the lane's promise inside `Promise.allSettled` forever. "Keeps its current behaviour" is
+therefore not the same as "specify nothing" — the cap is the one internal this spec must state,
+because this spec is what removes the cap it used to inherit. A spec about timeout ownership does not
+get to introduce an unowned one.
+
+**Wiring.** `RunCodexInput` gains, where `cmd` used to sit:
+
+```ts
+probe?: (bin: string) => Promise<string>;   // resolves to the version string or unknownVersion(bin)
+```
+
+defaulting to the real implementation — keeping `runCodex` injectable for tests without
+reintroducing binary selection. It keeps the `bin` parameter, so failure attribution still names the
+binary that actually ran.
 
 That also retires `RunCodexInput.cmd`. Its docblock warns that probing a hard-coded `codex` would
 misattribute a failure "precisely where attribution is the point" — true while a caller could
@@ -386,7 +399,15 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   (grep). An `async` signature alone does not carry this — `async () => execFileSync(…)` satisfies
   the type and still stalls the loop — so the criterion is on the implementation, not the type.
 - The version string `probeCodexVersion` reports is unchanged from today's, on both the hit and the
-  miss branch — asserted against the existing tests rather than new ones.
+  miss branch, pinned by tests equivalent to the current ones. They cannot be the *same* tests: all
+  six in `codex-failure.test.ts:101-146` inject through the `Spawn` parameter this spec removes, so
+  they are rewritten against the `probe` seam. Two of them
+  (`codex-failure.test.ts:133-146`) additionally pin *wrapper* attribution via the retired `cmd`
+  override; with binary selection owned by the registry that scenario is unreachable, so they are
+  re-pointed at the `bin` argument rather than preserved as written.
+- The probe carries a 5s cap of its own, asserted by a test in which the probe child never exits and
+  the call still settles. Without it the probe has no timeout owner once Unit 5 removes the outer
+  `execFile` it inherits one from today.
 - A lane run whose child exceeds `dispatchTimeoutMs` produces a sink blocker message beginning
   `timed out after <n>ms`, distinct from the message produced by a signal kill at the same exit code.
 - `pnpm test`, `pnpm typecheck` and `pnpm lint` pass; the CR-lane suites pass with the probe mocks
@@ -433,9 +454,8 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   Unit 5 now shares with concurrent lanes. If a future entry wants one seam, the merge direction is
   to make the doctor's async, not to make this one sync.
 - **The version string's hit/miss inconsistency is left in place.** `codex-cli 0.133.0` versus
-  `codex (version unknown)` do not share a shape. Fixing it was drafted here and cut: it is
-  pre-existing, unrelated to process lifecycle, and four review rounds spent on that sub-design
-  produced no finding about the work this spec owns. Left for an entry where it is the subject.
+  `codex (version unknown)` do not share a shape. Pre-existing and unrelated to process lifecycle;
+  left for an entry where it is the subject.
 
 ## User Story
 
