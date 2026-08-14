@@ -45,8 +45,15 @@ export interface ValidateSummaryBodyInput {
   /** Files staged in the commit (`git diff --cached --name-only`, no `--diff-filter`). */
   stagedFiles: string[];
   /**
-   * True when a merge is in progress. Resolved by the CLI entry via
-   * `git rev-parse -q --verify MERGE_HEAD`; absent or false means "not a merge".
+   * True when git is replaying a commit the author did not write: a merge, or a
+   * conflicted `cherry-pick` / `revert` mid-sequencer. Resolved by the CLI entry
+   * from `MERGE_HEAD` / `CHERRY_PICK_HEAD` / `REVERT_HEAD`; absent or false
+   * means "an author is writing this message".
+   *
+   * All three matter. Only the *conflicted* path reaches `commit-msg` — a clean
+   * cherry-pick or revert never runs it — and there the message is the original
+   * commit's, written before this contract existed, so judging it would block
+   * the sequencer on prose nobody here can fix.
    *
    * Fail-closed by design: a caller that never learned the state must not buy
    * the exemption by omission. Keyed on git's own state rather than a `Merge `
@@ -54,7 +61,7 @@ export interface ValidateSummaryBodyInput {
    * with any code staged would otherwise walk past this check, and unlike
    * `--no-verify` it would leave the pre-push receipt gate satisfied.
    */
-  mergeInProgress?: boolean;
+  replayInProgress?: boolean;
   /**
    * The repo's `core.commentChar`, resolved by the CLI entry. Defaults to `#`.
    *
@@ -158,7 +165,7 @@ const TEMPLATE = [
  * CR — a validator can require that a reason exists, never that it is a good one.
  */
 export function validateSummaryBody(input: ValidateSummaryBodyInput): ValidateSummaryBodyResult {
-  if (input.mergeInProgress === true) return { success: true };
+  if (input.replayInProgress === true) return { success: true };
 
   const subject = input.message.split('\n', 1)[0]?.trim() ?? '';
   if (EXEMPT_SUBJECT_RE.test(subject)) return { success: true };
@@ -261,14 +268,24 @@ export async function loadCommitFiles(cwd?: string): Promise<string[] | null> {
   return (amended ?? '').split('\0').filter(Boolean);
 }
 
-/** True while a merge is in progress — git's own state, not a subject line. */
-async function mergeInProgress(): Promise<boolean> {
-  try {
-    await execFileP('git', ['rev-parse', '-q', '--verify', 'MERGE_HEAD']);
-    return true;
-  } catch {
-    return false;
+/**
+ * Pseudo-refs git writes while replaying someone else's commit. Only the
+ * conflicted path reaches `commit-msg` — a clean cherry-pick or revert never
+ * runs it — and there the message belongs to the original author.
+ */
+const REPLAY_REFS = ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD'] as const;
+
+/** True while git is replaying a commit — its own state, not a subject line. */
+async function replayInProgress(): Promise<boolean> {
+  for (const ref of REPLAY_REFS) {
+    try {
+      await execFileP('git', ['rev-parse', '-q', '--verify', ref]);
+      return true;
+    } catch {
+      // not this one; try the next
+    }
   }
+  return false;
 }
 
 export async function main(messageFile: string | undefined): Promise<number> {
@@ -333,7 +350,7 @@ export async function main(messageFile: string | undefined): Promise<number> {
     ...(noldorPath === undefined ? {} : { noldorPath }),
     message,
     stagedFiles,
-    mergeInProgress: await mergeInProgress(),
+    replayInProgress: await replayInProgress(),
   });
   if (!result.success) {
     console.error(`✗ commit-msg gate: ${result.error}`);

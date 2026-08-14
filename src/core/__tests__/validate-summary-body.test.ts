@@ -275,12 +275,12 @@ describe('validateSummaryBody', () => {
       expect(validateSummaryBody({ message, stagedFiles: CODE }).success).toBe(true);
     });
 
-    it('exempts a real merge (mergeInProgress true)', () => {
+    it('exempts a real merge (replayInProgress true)', () => {
       expect(
         validateSummaryBody({
           message: "Merge branch 'main' into feat/x",
           stagedFiles: CODE,
-          mergeInProgress: true,
+          replayInProgress: true,
         }).success,
       ).toBe(true);
     });
@@ -292,7 +292,7 @@ describe('validateSummaryBody', () => {
       ).toBe(false);
     });
 
-    it('rejects when mergeInProgress is absent — omission must not buy the exemption', () => {
+    it('rejects when replayInProgress is absent — omission must not buy the exemption', () => {
       expect(
         validateSummaryBody({ message: "Merge branch 'main'", stagedFiles: CODE }).success,
       ).toBe(false);
@@ -416,6 +416,48 @@ describe('amend shape', () => {
     expect(validateSummaryBody({ message: 'code change', stagedFiles: ['f.ts'] }).success).toBe(
       false,
     );
+  });
+});
+
+// A conflicted cherry-pick / revert DOES run commit-msg, with its own pseudo-ref
+// and no MERGE_HEAD. The message there is the original author's, written before
+// this contract existed, so a MERGE_HEAD-only check blocks the sequencer.
+describe('sequencer replay refs', () => {
+  it('sets CHERRY_PICK_HEAD, not MERGE_HEAD, on a conflicted cherry-pick', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'noldor-replay-'));
+    const git = (...args: string[]): string =>
+      execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+    const refResolves = (ref: string): boolean => {
+      try {
+        execFileSync('git', ['rev-parse', '-q', '--verify', ref], { cwd: repo, stdio: 'pipe' });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    git('init', '-q', '-b', 'main');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'test');
+    writeFileSync(join(repo, 'f.ts'), 'base\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'base');
+    git('checkout', '-q', '-b', 'side');
+    writeFileSync(join(repo, 'f.ts'), 'side\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'side change');
+    git('checkout', '-q', 'main');
+    writeFileSync(join(repo, 'f.ts'), 'main\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'main change');
+
+    try {
+      git('cherry-pick', 'side');
+    } catch {
+      // expected: conflict
+    }
+    expect(refResolves('CHERRY_PICK_HEAD')).toBe(true);
+    expect(refResolves('MERGE_HEAD')).toBe(false);
   });
 });
 
