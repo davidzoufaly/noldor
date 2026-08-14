@@ -13,6 +13,7 @@ import {
   loadCommitFiles,
   loadCommitHeader,
   parseRefLines,
+  describeNegatives,
   renderViolations,
   validatePushedSummaries,
 } from '../validate-pushed-summaries.js';
@@ -170,22 +171,31 @@ describe('activation snapshot gating', () => {
     const r = scan(dir, [refLine(sha)], (m) => warnings.push(m));
     // Omitting an unresolvable tip can only cause MORE validation.
     expect(r.kind).toBe('violations');
-    expect(warnings.join('\n')).toContain('b'.repeat(40));
+    if (r.kind !== 'violations') return;
+    expect(r.negatives.missingTips).toBe(1);
+    expect(describeNegatives(r.negatives)).toContain('b'.repeat(40));
+    // Reported in the diagnostic, never warned: it needs no operator action and
+    // would otherwise fire on every push in every clone but the arming one.
+    expect(warnings.join('\n')).not.toContain('b'.repeat(40));
   });
 
-  it('coalesces many unresolvable tips into one warning line', () => {
+  it('stays silent on a green push even when most snapshot tips are absent', () => {
     const dir = armed();
-    // A tracked snapshot records the arming machine's local refs, so another
-    // clone lacks most of them. One line per tip would bury the rejection list
-    // under a hundred-line preamble.
+    // A tracked snapshot records the arming machine's local refs, so every other
+    // clone lacks most of them. Warning here would fire on every push, forever,
+    // on the same channel that carries rejections — and there is nothing to act
+    // on, since an unresolvable tip only ever causes more validation.
     const absent = Array.from({ length: 40 }, (_, i) => i.toString(16).padStart(2, '0').repeat(20));
     writeFileSync(snapshotPath(dir), JSON.stringify({ version: 1, grandfatherTips: absent }));
     const warnings: string[] = [];
-    scan(dir, [refLine(codeCommit(dir, 'a', 'feat: silent change'))], (m) => warnings.push(m));
-    const tipWarnings = warnings.filter((w) => w.includes('activation tip'));
-    expect(tipWarnings).toHaveLength(1);
-    expect(tipWarnings[0]).toContain('40 activation tip(s)');
-    expect(tipWarnings[0]).toContain('+37 more');
+    const r = scan(dir, [refLine(codeCommit(dir, 'a', `feat: fine\n\n${GOOD}\n`))], (m) =>
+      warnings.push(m),
+    );
+    expect(r.kind).toBe('ok');
+    expect(warnings).toHaveLength(0);
+    if (r.kind !== 'ok') return;
+    expect(r.negatives.missingTips).toBe(40);
+    expect(describeNegatives(r.negatives)).toContain('40 snapshot tip(s)');
   });
 });
 
@@ -454,7 +464,7 @@ describe('renderViolations', () => {
           error: 'missing Why',
         },
       ],
-      { activationTips: 1, trackingTips: 0 },
+      { activationTips: 1, trackingTips: 0, missingTips: 0, missingSample: [] },
     );
     expect(rendered).toContain('\\x0a');
     expect(rendered).toContain('activation tip');

@@ -81,6 +81,10 @@ export interface Violation {
 export interface NegativeSummary {
   activationTips: number;
   trackingTips: number;
+  /** Snapshot tips this clone cannot resolve; reported, never warned about. */
+  missingTips: number;
+  /** A few of those tips, so an operator who wants them can fetch them. */
+  missingSample: string[];
 }
 
 export type SummaryScanResult =
@@ -388,36 +392,34 @@ export function validatePushedSummaries(opts: {
   const resolvable = resolvableCommits(git, declared);
   const activationTips = declared.filter((t) => resolvable.has(t));
   const missing = declared.filter((t) => !resolvable.has(t));
-  if (missing.length > 0) {
-    // ONE line, however many are missing. The snapshot is tracked and shared
-    // while it records the arming machine's local branches and tags, so a fresh
-    // clone or a CI runner legitimately lacks most of those objects — this repo's
-    // own snapshot has 122 tips of which 109 are unreachable from the single
-    // published head. A line per tip would print a hundred-line preamble above
-    // the rejection list and bury the thing the operator needs to read, which is
-    // exactly the "a line printed every time is a line trained away" failure
-    // `describeNegatives` avoids. A sample is enough to fetch from.
-    const sample = missing.slice(0, 3).join(', ');
-    const rest = missing.length > 3 ? `, +${missing.length - 3} more` : '';
-    warn(
-      `summary-body: ${missing.length} activation tip(s) not in this clone (${sample}${rest}) — ` +
-        `validating their history rather than grandfathering it`,
-    );
-  }
 
-  // noldor:cut no write-time pruning — ancestors of another recorded tip, and
-  // tips unreachable from any remote, are stored anyway. Both are pure
-  // reductions with no semantic change (an ancestor adds nothing once its
-  // descendant is a negative), so the cost is snapshot size and the warning
-  // above, not correctness. Upgrade path: prune in
-  // `ensureSummaryBodyRolloutSnapshot`, where it is a one-time cost, if a
-  // consumer's snapshot grows past a few hundred tips.
+  // Deliberately NOT warned about. The snapshot is tracked and shared while it
+  // records the arming machine's *local* branches and tags, so every other clone
+  // legitimately lacks most of those objects — this repo's own snapshot carries
+  // 122 tips of which 109 are unreachable from its single published head. A
+  // warning would therefore fire on every push, forever, in every clone but one,
+  // on the same stderr channel that carries the rejection list: the exact "a line
+  // printed every time is a line trained away" failure `describeNegatives`
+  // exists to avoid. And there is nothing to act on — an unresolvable tip can
+  // only cause MORE validation, never an exemption. So it is reported alongside
+  // the other negative sources, in the diagnostics an operator is already
+  // reading, and is silent on a green push.
+
+  // noldor:cut no write-time pruning — ancestors of another recorded tip are
+  // stored anyway. That is a pure reduction with no semantic change (an ancestor
+  // adds nothing once its descendant is a negative), so the ceiling is snapshot
+  // file size alone. Upgrade path: prune in `ensureSummaryBodyRolloutSnapshot`,
+  // where it is a one-time cost, if a consumer's snapshot grows past a few
+  // hundred tips. Pruning to only remote-reachable tips is NOT the same cut — it
+  // would change which local-only history stays grandfathered.
 
   const trackingTips = collectTrackingTips(git, warn);
   const negatives = [...new Set([...activationTips, ...trackingTips])];
   const summary: NegativeSummary = {
     activationTips: activationTips.length,
     trackingTips: trackingTips.length,
+    missingTips: missing.length,
+    missingSample: missing.slice(0, 3),
   };
 
   const candidates = discoverCandidates(git, parsed, negatives);
@@ -496,5 +498,12 @@ export function renderViolations(
 export function describeNegatives(n: NegativeSummary): string {
   const tracking =
     n.trackingTips === 0 ? 'no remote-tracking tips' : `${n.trackingTips} remote-tracking tip(s)`;
-  return `Skipped history reachable from ${n.activationTips} activation tip(s) and ${tracking}.`;
+  const base = `Skipped history reachable from ${n.activationTips} activation tip(s) and ${tracking}.`;
+  if (n.missingTips === 0) return base;
+  const sample = n.missingSample.join(', ');
+  const rest = n.missingTips > n.missingSample.length ? ', …' : '';
+  return (
+    `${base} ${n.missingTips} snapshot tip(s) are not in this clone (${sample}${rest}), so their ` +
+    `history was validated rather than grandfathered — fetch them to restore that boundary.`
+  );
 }
