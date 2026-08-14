@@ -46,6 +46,13 @@ export function createGitRunner(cwd: string = process.cwd()): GitRunner {
         maxBuffer: MAX_BUFFER,
         ...(stdin === undefined ? {} : { input: stdin }),
       });
+      // A spawn-level failure (git not on PATH, EACCES, cwd gone, maxBuffer
+      // overrun) leaves `status` null and `stderr` empty, so every diagnostic
+      // downstream would render `exit null` and hand the operator a blocked push
+      // with no reason in it. Surface `r.error` as the stderr text instead — the
+      // same line `defaultRunGit` in `src/core/branch-added.ts` already carries
+      // for this exact failure.
+      if (r.error !== undefined) return { status: null, stdout: '', stderr: r.error.message };
       return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
     },
   };

@@ -448,6 +448,15 @@ describe('failure handling', () => {
     expect(warnings.join('\n')).toContain('could not check which activation tips');
   });
 
+  it('surfaces a spawn-level failure instead of rendering "exit null"', () => {
+    // git missing from PATH leaves status null and stderr empty, so the operator
+    // would get a blocked push whose only explanation was `exit null`.
+    const runner = createGitRunner('/nonexistent-directory-for-noldor-test');
+    const r = runner.text(['rev-parse', 'HEAD']);
+    expect(r.status).toBeNull();
+    expect(r.stderr.length).toBeGreaterThan(0);
+  });
+
   it('reports infra — not a pass — when rev-list fails', () => {
     const { runner } = fakeGit((args) =>
       args[0] === 'rev-list' ? { status: 128, stderr: 'bad revision' } : {},
