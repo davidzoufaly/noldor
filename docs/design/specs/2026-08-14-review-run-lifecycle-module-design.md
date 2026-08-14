@@ -194,7 +194,8 @@ while the unbounded-heap hazard goes away. (D3)
 ### Unit 4 — a registry-backed `Spawn`; delete `codex-spawn.ts`
 
 `Spawn` (`codex-spawn.ts:13-17`) is `({ cmd, args, stdin }) => Promise<{ stdout, stderr, exitCode }>`.
-Back it with `spawnAgent`:
+It shrinks to `(stdin) => Promise<{ stdout, stderr, exitCode, timedOut }>` — see 4b and 4c for why
+`cmd`/`args` leave and `timedOut` arrives — and is backed by `spawnAgent`:
 
 ```ts
 spawnAgent(stdin, {
@@ -203,7 +204,8 @@ spawnAgent(stdin, {
   schemaPath,               // registry's codex case already threads it to buildCodexArgv
   needsWrite: false,        // read-only sandbox, unchanged
   stderr: 'capture',
-  timeoutMs,                // from crReview.dispatchTimeoutMs
+  foreground,               // see 4a — false for the lane, true for the interactive CLI
+  timeoutMs,                // from crReview.dispatchTimeoutMs; omitted when foreground
   site: 'cr.codex-lane',
 })
 ```
@@ -214,22 +216,94 @@ stops assembling argv by hand and passes the prompt instead. `src/cr/codex-spawn
 `run-codex.ts` re-exports `Spawn` today for back-compat, so the type moves to wherever the adapter
 lives and the re-export follows it.
 
-D6 of the earlier `codex-headless-dispatch` spec deliberately declined an inner timeout, on the
-reasoning that a cap needs a kill, a kill needs `detached`, and `detached` breaks Ctrl-C. That
-reasoning is not being re-litigated — it is being satisfied by a component that already paid its
-cost: the registry is already `detached: true` for every agent spawn in the framework, and its
-group-kill already exists and is already tested. Adding a second kill path to `spawnCodex` is the
-option this spec rejects; the FD's deletion test asks for *fewer* kill implementations, and there is
-currently exactly one.
+#### 4a — `detached` becomes conditional, because Ctrl-C and group-kill want opposite things
+
+`codex-spawn.ts:30-36` declined `detached` for a specific reason: it removes the child from the
+terminal's foreground process group, so **Ctrl-C stops reaching it**. Staying in the parent's group
+means the platform reaps codex for free when an operator interrupts a hand-run review. The registry
+is `detached: true` unconditionally — which is correct for every caller it has today, because they
+are all unattended, but it never solved the Ctrl-C half. Routing an interactive spawn through it
+as-is would take a hand-run `pnpm noldor cr codex`, make Ctrl-C stop reaching codex, and leave the
+child running to completion after its parent dies. That is the same orphan-quota-burn this spec
+exists to remove, relocated to the interactive path.
+
+The two needs are complementary rather than conflicting, because they belong to different callers:
+
+| caller | supervision | wants |
+| --- | --- | --- |
+| codex CR lane (unattended) | a wall-clock cap | `detached: true` + `timeoutMs` + group-kill |
+| `cr codex` CLI (a human at a terminal) | Ctrl-C | `detached: false`, no cap — the terminal reaps |
+
+So `SpawnAgentOpts` gains `foreground?: boolean` (default `false`, preserving today's behaviour for
+every existing caller). Under `foreground: true` the child is spawned **non-detached**, no timer is
+armed, and `killTree` is never installed — the operator's SIGINT reaches the whole foreground group,
+which is exactly the property `codex-spawn.ts` was protecting. `timeoutMs` together with
+`foreground: true` is a caller error: the cap could not be enforced by a group-kill, so it must be
+rejected at the boundary rather than silently ignored.
+
+Unit 5 is what makes this clean rather than a heuristic. Today `cr codex` is invoked *both* by a
+human and by the lane, so no static answer to "is this interactive?" exists. After Unit 5 the lane
+calls `reviewWithCodex` directly and never shells out, so the CLI entry point is unambiguously the
+interactive one and can pass `foreground: true` as a constant. No TTY sniffing, no env var.
+
+#### 4b — the version probe is not an agent spawn
+
+`probeCodexVersion` (`codex-failure.ts:73-83`) currently borrows `Spawn` to run
+`{ cmd, args: ['--version'], stdin: '' }`, and `run-codex.ts:63` calls it on every non-zero exit. A
+registry-backed `Spawn` cannot honour that: `planSpawn` builds the review argv itself, so an adapter
+that accepted `args` would have to ignore them — turning a `--version` call into a **full codex
+review with an empty prompt**, spending quota on precisely the failure path this spec is hardening.
+
+The category error is older than this spec: asking a binary for its version is a prerequisite probe,
+not an agent dispatch. The repo already has the right seam — `PrereqProbe`
+(`prerequisites.ts:38`) with `makeDefaultProbe(cwd)` (`prerequisites.ts:96`), which runs
+`execFileSync(bin, ['--version'])` under a 5s cap with `stdio: ['ignore','pipe','ignore']`, falls
+back to `node_modules/.bin/<bin>`, normalises the output through `versionFrom`, and returns `null`
+instead of throwing. That matches `probeCodexVersion`'s stated contract ("never throws and never
+propagates a non-zero exit") more closely than the `Spawn` it borrows today.
+
+`probeCodexVersion` therefore takes a `PrereqProbe` instead of a `Spawn`, and `Spawn` loses `cmd`
+and `args` entirely — the last reason it carried them.
+
+That also retires `RunCodexInput.cmd`. Its docblock warns that probing a hard-coded `codex` would
+misattribute a failure "precisely where attribution is the point" — true while a caller could
+override the binary. Once the registry owns binary selection (`CODEX_BIN` via `planSpawn`), no
+caller can, so the hazard the override guarded against cannot occur and the field goes. Tests that
+used `cmd` to point at a fake binary use the registry's existing `spawnImpl` seam
+(`registry.ts:100,130,147`) instead, which is where every other runner's tests already inject.
+
+#### 4c — timeout attribution survives the seam
+
+`AgentResult.timedOut` has no slot in `Spawn`'s result, so without care a `dispatchTimeoutMs` expiry
+would reach the sink as `exited with exit code -1` plus 4a's signal note `terminated by signal
+SIGKILL` — indistinguishable from an OOM kill or an operator `kill`, and a regression against
+today's `ETIMEDOUT`-shaped message.
+
+`Spawn`'s result gains `timedOut: boolean`, carried straight through from `AgentResult`.
+`describeCodexFailure` takes it too and leads with `timed out after <dispatchTimeoutMs>ms` when set,
+falling back to today's `exited with exit code <n>` otherwise. The version and stderr-tail
+attribution are unchanged in both cases.
+
+#### 4d — what D6 is and is not being overridden on
+
+D6 of the earlier `codex-headless-dispatch` spec declined an inner timeout because a cap needs a
+kill, a kill needs `detached`, and `detached` breaks Ctrl-C. Only the first two links are answered
+by reuse: the registry's group-kill already exists and is already tested, so no second kill
+implementation is written (the FD's deletion test asks for fewer, and there is currently exactly
+one). The third link — `detached` breaking Ctrl-C — is a real cost the registry never paid, and 4a
+pays it explicitly rather than by assertion.
 
 Timeout ownership after this unit sits on the process that runs codex, one level down from where it
-sits today, with a group-kill behind it.
+sits today, with a group-kill behind it on the unattended path and an operator's SIGINT on the
+interactive one.
 
 ### Unit 5 — the codex lane goes in-process
 
 `src/cr/lanes/codex.ts` loses `execFile`, the local `exec()` promise wrapper, `extractLaneJson`, the
 `--silent` pnpm-banner workaround, and the `args` array. It calls `reviewWithCodex` (Unit 1) with the
-registry-backed spawn (Unit 4) and maps the result into `LaneFindings` with the same
+registry-backed spawn (Unit 4) in its **unattended** configuration — `foreground` unset, `timeoutMs`
+from `crReview.dispatchTimeoutMs`, so the cap is enforced by the group-kill — and maps the result
+into `LaneFindings` with the same
 `severity === 'high'` blocker/suggestion split it does today. `writeJsonAtomic` to
 `.noldor/cr/<slug>-<kind>-codex.json` and the `LaneResult` shape are unchanged, so orchestrate and
 aggregate see no difference.
@@ -278,6 +352,19 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 - An auth-shaped line at the head of a stderr stream that exceeds `limitChars` still produces the
   `— auth looks expired; run: codex login` hint from `describeCodexFailure`; the same line placed in
   the elided middle does not, and a test pins that as accepted rather than accidental.
+- `spawnAgent` with `foreground: true` spawns **non-detached** (`detached` absent or `false` on the
+  `spawnImpl` call) and arms no timer; with `foreground` omitted it stays `detached: true` with the
+  timer, so no existing caller changes. Asserted per mode through `spawnImpl`, which already records
+  the options object (`registry.test.ts:170` asserts `calls[0].detached`).
+- `spawnAgent({ foreground: true, timeoutMs: n })` rejects rather than silently dropping the cap.
+- `src/cr/codex.ts`'s CLI path passes `foreground: true`; the codex lane does not. Pinned by a test
+  per caller, because this is the property that keeps Ctrl-C working on a hand-run review.
+- `grep -rn "cmd" src/cr/run-codex.ts` shows no `RunCodexInput.cmd` field, and `probeCodexVersion`'s
+  signature takes a `PrereqProbe`, not a `Spawn`.
+- `probeCodexVersion` never spawns a review: a test asserts the probe seam is invoked with
+  `['--version']` and that no agent spawn occurs on the failure path.
+- A lane run whose child exceeds `dispatchTimeoutMs` produces a sink blocker message beginning
+  `timed out after <n>ms`, distinct from the message produced by a signal kill at the same exit code.
 - `pnpm test`, `pnpm typecheck` and `pnpm lint` pass; the CR-lane suites pass with the probe mocks
   removed rather than retargeted.
 
@@ -304,6 +391,18 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 - **512 KB is a judgement call.** It is chosen as ~1.5× the single measured worst case. Too low
   risks eliding content someone later wants; too high defers the hazard. It is a constant in one
   helper, so re-tuning is cheap.
+- **`foreground` is a second spawn mode in a shared component.** 4a adds a branch to `spawnAgent`
+  that only one caller uses today, and a mode nothing else exercises is a mode that rots. Mitigated
+  by pinning both sides with tests and by rejecting the incoherent combination (`foreground` +
+  `timeoutMs`) at the boundary rather than letting it degrade quietly. The alternative — accepting a
+  Ctrl-C regression on the interactive CLI — trades a rot risk for a live defect, which is worse.
+- **The interactive CLI runs uncapped.** Under `foreground: true` no wall-clock cap is armed, so a
+  hand-run review against a wedged codex hangs until the operator interrupts it. Accepted: that is
+  today's behaviour for the CLI, and the operator is present by construction. An uncapped foreground
+  process is not the failure mode this spec is about — an *un-interruptible* one is.
+- **Retiring `RunCodexInput.cmd` removes a test seam some suite may lean on.** Callers move to the
+  registry's `spawnImpl` injection, which is where the other runners' tests already sit, but the
+  migration is mechanical work this spec is asserting rather than measuring.
 
 ## User Story
 
@@ -319,14 +418,21 @@ No new CLI surface. The behaviour changes at existing seams:
 # Artifact review — now genuinely delta-scoped; the sink records baseSha for the first time.
 pnpm noldor cr orchestrate --slug <slug> --artifact <path> --kind spec --lanes codex --base-sha <sha>
 
-# The standalone CLI is unchanged in behaviour and remains independently invocable.
+# The standalone CLI remains independently invocable, and stays interruptible:
+# it spawns foreground (4a), so Ctrl-C still reaches codex. It is no longer the
+# transport the orchestrate lane uses.
 pnpm noldor cr codex --spec <path> --slug <slug> --base-sha <sha>
 ```
 
 A lane timeout (`crReview.dispatchTimeoutMs`) now terminates codex itself rather than the `pnpm`
-wrapper above it. On failure the sink's blocker message carries the codex version, an auth
+wrapper above it, and says so: the blocker message leads with `timed out after <n>ms` rather than a
+bare exit code (4c). On failure the sink's blocker message still carries the codex version, an auth
 remediation hint when the stderr looks auth-shaped, and a bounded stderr tail — unchanged in shape
 from today, but now reachable on the timeout path too.
+
+The interactive CLI takes no `dispatchTimeoutMs`: it runs uncapped under the operator's Ctrl-C,
+which is the supervision it actually has. Passing a cap to a foreground spawn is rejected as a
+caller error rather than silently ignored (4a).
 
 ## Open questions (resolved)
 
@@ -367,3 +473,31 @@ from today, but now reachable on the timeout path too.
    contains the whole context-assembly + `runCodex` + `toFindings` chain; only the trailing
    `process.stdout.write` is CLI-specific. Its docblock already observes that code context is built
    "exactly the way the gate lane does", which is the duplication this removes.
+
+7. *Routing the interactive CLI through a `detached: true` registry breaks Ctrl-C — forward SIGINT,
+   add a non-detached mode, or accept the regression?*
+   -> **Add a non-detached mode: `SpawnAgentOpts.foreground`, default `false`.** (D6) SIGINT
+   forwarding is the "signal reaper" the original D6 named as a cost, and it would install a
+   process-wide handler to solve a problem only one caller has. The regression is not acceptable:
+   it is the same orphan-quota-burn this spec exists to delete, moved onto the interactive path.
+   Conditional detach is small because the two callers want opposite, non-overlapping things — a cap
+   enforced by group-kill when nobody is watching, an operator's SIGINT when someone is. Unit 5 is
+   what makes the caller statically knowable, so no TTY sniffing is needed.
+
+8. *`probeCodexVersion` needs arbitrary `cmd`/`args`, which a registry-backed `Spawn` cannot give.
+   Keep a raw spawn, add a registry seam, or drop version attribution?*
+   -> **Neither — move it to the existing `PrereqProbe` seam.** (D7) Asking a binary for
+   `--version` was never an agent dispatch; `makeDefaultProbe` (`prerequisites.ts:96`) already does
+   exactly this job with a 5s cap, a `node_modules/.bin` fallback, and a `null`-not-throw contract
+   that matches `probeCodexVersion`'s own docblock better than `Spawn` does. Dropping attribution
+   was rejected outright — it is the whole point of the entry that introduced it. This also lets
+   `Spawn` shed `cmd`/`args`, and retires `RunCodexInput.cmd`: once the registry owns binary
+   selection, the misattribution its docblock warns about is unreachable.
+
+9. *`AgentResult.timedOut` has no slot in `Spawn`'s result, so a timeout becomes indistinguishable
+   from a signal kill. How is it carried?*
+   -> **Widen `Spawn`'s result with `timedOut` and lead the failure message with it.** (D8) The
+   alternative — inferring timeout from `exitCode === -1` plus a `SIGKILL` note — is exactly the
+   ambiguity the finding describes, since an OOM kill produces the same pair. `describeCodexFailure`
+   takes the flag and emits `timed out after <n>ms`, keeping version and stderr-tail attribution
+   unchanged on both branches.
