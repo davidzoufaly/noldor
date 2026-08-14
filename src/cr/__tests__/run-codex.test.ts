@@ -1,6 +1,8 @@
 // @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor
 import { describe, expect, it, vi } from 'vitest';
 import { runCodex, type Spawn } from '../run-codex.js';
+import { reviewWithCodex } from '../review-with-codex.js';
+import { REV_RE } from '../cli-args.js';
 
 const ctx = { diff: 'D', featureMd: 'F', rules: 'R' };
 
@@ -169,5 +171,32 @@ describe('runCodex', () => {
     const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.stdin).toMatch(/spec/i);
     expect(call.stdin).toContain('SPEC TEXT');
+  });
+});
+
+describe('base-sha argv-injection guard', () => {
+  const review = (baseSha: string) => ({
+    kind: 'spec' as const,
+    artifact: 'docs/x.md',
+    slug: 's',
+    fullReview: false,
+    baseSha,
+  });
+  const neverSpawn = vi.fn(async () => {
+    throw new Error('spawn must not be reached');
+  });
+
+  it.each([
+    ['--output=/tmp/pwned', 'a git option, not a rev — would turn review into a file write'],
+    ['-x', 'any leading dash is parsed by git as an option'],
+  ])('refuses %s before it reaches a git argv', async (bad) => {
+    const out = await reviewWithCodex(review(bad), process.cwd(), neverSpawn as never);
+    expect(out.findings[0]!.message).toMatch(/invalid baseSha/);
+    expect(neverSpawn).not.toHaveBeenCalled();
+  });
+
+  it('accepts an ordinary sha', () => {
+    expect(REV_RE.test('0f2549ac331daa43a0291a4cb18ecbc8b16238c4')).toBe(true);
+    expect(REV_RE.test('origin/main')).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ArtifactReview } from './cli-args.js';
+import { REV_RE, type ArtifactReview } from './cli-args.js';
 import type { Spawn } from './codex-adapter.js';
 import { buildContext } from './context.js';
 import { runCodex, type ReviewCtx } from './run-codex.js';
@@ -45,6 +45,13 @@ export async function reviewWithCodex(
   opts: { timeoutMs?: number } = {},
 ): Promise<ReviewOutput> {
   try {
+    // Validate BEFORE any value reaches a git argv. This is the shared chokepoint: the CLI
+    // parses `--base-sha` and the orchestrate lane builds its descriptor directly, so guarding
+    // only the parser would leave the lane path — the one that actually carries a caller-supplied
+    // sha now that the always-false capability probe is gone — unguarded.
+    if (review.baseSha !== undefined && !REV_RE.test(review.baseSha)) {
+      throw new Error(`invalid baseSha: ${review.baseSha}`);
+    }
     const rules = readRules(cwd);
     const featureMd = review.slug
       ? readIfExists(cwd, `docs/features/${review.slug}.md`)

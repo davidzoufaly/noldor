@@ -28,7 +28,14 @@ const RANGE_RE = /^(.+)\.\.(.+)$/;
  * consts called `SHA_RE` with different contracts is how the wrong one gets
  * reused.
  */
-const REV_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+/**
+ * A git revision we are willing to put in an argv. The leading-alphanumeric anchor is the
+ * security-relevant half: a value starting with `-` is parsed by git as an OPTION, so an
+ * unvalidated `--base-sha=--output=/tmp/x` would turn a read-only review into a file write.
+ * Exported because the in-process lane builds its review descriptor without going through
+ * {@link parseCliArgs}, so the check has to be available at the shared use site too.
+ */
+export const REV_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
 export function parseCliArgs(argv: readonly string[]): Invocation {
   let lane: Lane = { kind: 'gate' };
@@ -66,6 +73,7 @@ export function parseCliArgs(argv: readonly string[]): Invocation {
       slug = requireValue('--slug', argv[++i]);
     } else if (a === '--base-sha') {
       baseSha = requireValue('--base-sha', argv[++i]);
+      if (!REV_RE.test(baseSha)) throw new Error(`Invalid --base-sha: ${baseSha}`);
     } else if (a === '--full-review') {
       fullReview = true;
     } else if (a === '--paths') {
