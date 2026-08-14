@@ -229,6 +229,16 @@ async function git(args: string[], cwd?: string): Promise<string | null> {
  * measured against HEAD's files too. That is the accepted trade: an empty
  * commit reusing a code commit's file list may be asked for a body, which is a
  * far cheaper error than a silent bypass of the whole gate.
+ *
+ * // noldor:cut amend-with-staged-files reports only the staged paths — amending
+ * a code commit while staging a doc tweak exempts it, and the body can then be
+ * emptied. git exposes no amend signal at `commit-msg` (no env var, no
+ * `MERGE_HEAD` equivalent), and the two available heuristics both fail: unioning
+ * HEAD's files unconditionally would demand a body from every ordinary doc
+ * commit that follows a code commit, and comparing the message to HEAD's would
+ * fire on any re-commit sharing a subject. Upgrade path: if git ever exposes the
+ * amend state, key on it and union HEAD's files. Until then the pre-push receipt
+ * and the code-stage CR remain the backstop.
  */
 export async function loadCommitFiles(cwd?: string): Promise<string[] | null> {
   // `-z` and split on NUL, not newline: without it git quotes any path with

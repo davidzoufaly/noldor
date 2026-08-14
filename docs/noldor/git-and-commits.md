@@ -81,6 +81,8 @@ Enforced by `validate summary-body` in the `commit-msg` chain: each section need
 - **A real merge**, keyed on `MERGE_HEAD` rather than a `Merge ` subject — a subject is forgeable, and unlike `--no-verify` a forged one would leave the pre-push receipt gate satisfied. `git merge --no-ff` commits normally; `git commit -m "Merge branch 'x'"` with code staged does not.
 - Any tree that has not armed `.noldor/rollout-marker`, so an upgrading consumer is never rejected by a rule they have not opted into.
 
+**Known limit.** `git commit --amend` with nothing staged is measured against the amended commit's own files, so a code commit's body cannot be emptied that way. Amending *while staging something new* measures only the newly staged paths — stage a doc tweak onto a code commit and the gate exempts it. Git exposes no amend signal at `commit-msg`, so this is a marked cut rather than an oversight; the pre-push review receipt and the code-stage CR still apply.
+
 Check a message without committing:
 
 ```bash
