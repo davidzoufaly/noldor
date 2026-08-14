@@ -1,5 +1,15 @@
 # Release Notes
 
+## v1.3.0 — 2026-08-14
+
+### Tooling
+
+#### PR Summary Body Enforcement
+
+Noldor now rejects a code commit whose body does not explain the change (#321).
+
+[Feature page](/features/pr-summary-body-enforcement)
+
 ## v1.2.0 — 2026-08-10
 
 No user-facing feature changes in this release — internal work only.

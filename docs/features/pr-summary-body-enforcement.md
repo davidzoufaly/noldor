@@ -14,8 +14,8 @@ packages:
   - package.json
 phase: done
 noldor-tier: specs-only
+introduced: 1.3.0
 ---
-
 ## Summary
 
 Makes "a PR explains itself" a mechanically enforced property rather than a hope. A `pre-push` gate reads the commit **objects** about to cross the repository boundary and rejects any that carries code without a `Why —`, `How —` and `What —` section — every commit newly reachable through a pushed ref, so a valid tip cannot hide an invalid one beneath it. Because it judges what git stored rather than what an author was typing, merge identity comes from parent count and paths from `diff-tree -z`, closing the forged-subject and empty-amend-index holes that a `commit-msg` check structurally cannot. `commit-msg` keeps a demoted advisory that always exits 0, and `pr-flow` composes the PR Summary and Test Plan from the branch's own diff — so a retirement-only branch gets deterministic prose instead of a bookkeeping subject, an attach PR describes its own enhancement rather than its parent feature, and a code change never again claims "Doc-only change".
@@ -68,6 +68,16 @@ As an agent pushing a reviewed branch, I want Noldor to validate the stored mess
 <!-- @prs-since-last-release: pr-summary-body-enforcement -->
 
 ## Changelog
+
+### Initial Release (v1.3.0)
+
+#### Summary
+
+Noldor now rejects a code commit whose body does not explain the change (#321).
+
+#### PRs
+
+- #321: reject a code commit whose body does not explain the change ([link](https://github.com/davidzoufaly/noldor/pull/321))
 
 <!-- generated: resources -->
 

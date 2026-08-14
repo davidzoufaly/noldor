@@ -1,5 +1,57 @@
 # Changelog
 
+## v1.3.0 — 2026-08-14
+
+### Features
+
+- feat(core): reject a code commit whose body does not explain the change (#321) ([93f1ba4](https://github.com/davidzoufaly/noldor/commit/93f1ba480339321b01ff3f53781c10fa4b4667f5)) ([#321](https://github.com/davidzoufaly/noldor/pull/321))
+
+### Fixes
+
+- fix(triage): forward retired entry IDs so blocked-by refs stop dangling (Q-0107) (#317) ([9979819](https://github.com/davidzoufaly/noldor/commit/9979819cc9d1eb94ab53fe0c593fbb6365c55f88)) ([#317](https://github.com/davidzoufaly/noldor/pull/317))
+- fix(milestones): serialize frontmatter via gray-matter, retiring hand-rolled yamlScalar (Q-0105) (#316) ([9fbc26d](https://github.com/davidzoufaly/noldor/commit/9fbc26def7e0cc75a5a7fb64ffd300a4ea76928e)) ([#316](https://github.com/davidzoufaly/noldor/pull/316))
+- fix(dashboard): name the --root repository-root contract for the docs flag (Q-0104) (#315) ([a0bfbdd](https://github.com/davidzoufaly/noldor/commit/a0bfbdd0a4bf9e1f1204c0a4a206bbc663cdb00e)) ([#315](https://github.com/davidzoufaly/noldor/pull/315))
+- fix(clones): union untracked files into the diff-scoped verdict (Q-0123) (#313) ([e173304](https://github.com/davidzoufaly/noldor/commit/e1733047b74dc38132c1ab2e81996421846656fa)) ([#313](https://github.com/davidzoufaly/noldor/pull/313))
+- fix(clones): flag diff-scoped clones on coverage, not mere overlap (Q-0095) (#312) ([984e510](https://github.com/davidzoufaly/noldor/commit/984e5103fe1c739194252e4bd52e1cd398cfc232)) ([#312](https://github.com/davidzoufaly/noldor/pull/312))
+- fix(worktrees): surface worktree session path hazards (Q-0118) (#310) ([3634a6c](https://github.com/davidzoufaly/noldor/commit/3634a6cc2a7d46f33ac1048487842c04e608bc81)) ([#310](https://github.com/davidzoufaly/noldor/pull/310))
+- fix(cr): report a missing expected sink as unresolved (Q-0100) (#309) ([ef66c87](https://github.com/davidzoufaly/noldor/commit/ef66c87ecd2a96cfcd2f69f5eaa3f941eb46a2a3)) ([#309](https://github.com/davidzoufaly/noldor/pull/309))
+- fix(cr): give the codex lane a real code-review path (--code) (#308) ([7114dd0](https://github.com/davidzoufaly/noldor/commit/7114dd068355298213650fac87cc899238d0b6ee)) ([#308](https://github.com/davidzoufaly/noldor/pull/308))
+- fix(docs): repair broken internal links and widen docs-check to design artifacts (#307) ([e8cdb91](https://github.com/davidzoufaly/noldor/commit/e8cdb91ec16d1fa607e74df563435b88bc73a82b)) ([#307](https://github.com/davidzoufaly/noldor/pull/307))
+- fix(core): source the PR title and no-FD summary from the substantive commit (#304) ([3816d20](https://github.com/davidzoufaly/noldor/commit/3816d206d1c8d77a0d0354378129764afa411256)) ([#304](https://github.com/davidzoufaly/noldor/pull/304))
+- fix(dashboard): count zero scripts when scripts/ directory is absent (#298) ([9036fea](https://github.com/davidzoufaly/noldor/commit/9036fea05324d0206ae4d7f4769b24c10318962b)) ([#298](https://github.com/davidzoufaly/noldor/pull/298))
+
+### Other changes
+
+- chore(release-sweep): pre-empt sdd:report drift (#323) ([aa6d998](https://github.com/davidzoufaly/noldor/commit/aa6d9986d4319807a5a64f9d9f7f0f8e9adbd00a)) ([#323](https://github.com/davidzoufaly/noldor/pull/323))
+- docs(triage): queue Q-0125..Q-0128 from the 2026-08-14 ideas batch (#322) ([fac641f](https://github.com/davidzoufaly/noldor/commit/fac641f09e987e75e40870a089b11adc319a9954)) ([#322](https://github.com/davidzoufaly/noldor/pull/322))
+- docs(ideas): capture the Q-0124 spike findings and the commit-object redesign (#320) ([47caf76](https://github.com/davidzoufaly/noldor/commit/47caf7609dc55b8295619d4792988f11f6b728ad)) ([#320](https://github.com/davidzoufaly/noldor/pull/320))
+- docs(roadmap): retire clone-detector-flags-chained-builder-schemas — shipped via fast-track (no FD) (#319) ([34b29e4](https://github.com/davidzoufaly/noldor/commit/34b29e44a2e8625976c354789aee972a8d106b72)) ([#319](https://github.com/davidzoufaly/noldor/pull/319))
+- docs(roadmap): retire doctor-ahead-anchor-dead-end — shipped via fast-track (no FD) (#318) ([ef974e2](https://github.com/davidzoufaly/noldor/commit/ef974e273948206d901a529540dee139c8d9dcf2)) ([#318](https://github.com/davidzoufaly/noldor/pull/318))
+- docs(ideas): file two drain-supervisor lessons from the S/impact-high batch (#314) ([aa0b7f7](https://github.com/davidzoufaly/noldor/commit/aa0b7f7b71d7ca2d3a2c223337a724827dfd0fa4)) ([#314](https://github.com/davidzoufaly/noldor/pull/314))
+- docs(roadmap): split Q-0095 into sibling entries per the Step 0 oversize guard (#311) ([aecbca4](https://github.com/davidzoufaly/noldor/commit/aecbca4955d4949575045a899f49593f968affc4)) ([#311](https://github.com/davidzoufaly/noldor/pull/311))
+- docs(roadmap): triage nine lessons into Q-0118..Q-0122 + two merges (#306) ([25c9d1d](https://github.com/davidzoufaly/noldor/commit/25c9d1dfb2c7a4166cef5697a09f936148b34ec1)) ([#306](https://github.com/davidzoufaly/noldor/pull/306))
+- docs(ideas): archive every stamped bullet under ## Triaged (#305) ([7d88d9f](https://github.com/davidzoufaly/noldor/commit/7d88d9f055d28339a2a8e979fe5a259ec2ad5e8e)) ([#305](https://github.com/davidzoufaly/noldor/pull/305))
+- docs(roadmap): retire triaged-bullet-archive-section — shipped via fast-track (no FD) (#303) ([c7872db](https://github.com/davidzoufaly/noldor/commit/c7872dbd8644b2840c5c3b17cd3b7ae4920e310f)) ([#303](https://github.com/davidzoufaly/noldor/pull/303))
+- docs(roadmap): retire dashboard-favicon-shows-the-project-initial — shipped via fast-track (no FD) (#302) ([1c1e333](https://github.com/davidzoufaly/noldor/commit/1c1e333adaccf100f27309d6ca7447c60aae2fcb)) ([#302](https://github.com/davidzoufaly/noldor/pull/302))
+- docs(roadmap): retire pr-summary-rule-why-how-what — shipped via fast-track (no FD) (#301) ([ac044b2](https://github.com/davidzoufaly/noldor/commit/ac044b2da52dcd690b8058c656d67f150edc3b90)) ([#301](https://github.com/davidzoufaly/noldor/pull/301))
+- docs(roadmap): retire dashboard-roadmap-add-route-writes-invalid-entries — shipped via fast-track (no FD) (#300) ([0d58bd7](https://github.com/davidzoufaly/noldor/commit/0d58bd757913bee59f63a3b525c4d1bef8ebffb4)) ([#300](https://github.com/davidzoufaly/noldor/pull/300))
+- docs(roadmap): retire package-engines-runtime-floor — shipped via fast-track (no FD) (#299) ([7544545](https://github.com/davidzoufaly/noldor/commit/7544545a0ca2bd9759ddeb0d36ac6537f33c591f)) ([#299](https://github.com/davidzoufaly/noldor/pull/299))
+- docs(roadmap): triage 2026-08-12 deep-audit findings into roadmap + backlog (#297) ([ce85517](https://github.com/davidzoufaly/noldor/commit/ce8551714d6a43288efb046deaf50f54b647ae82)) ([#297](https://github.com/davidzoufaly/noldor/pull/297))
+- docs(features:rules-cascade-v1): revert phase done → in-progress for attach session (#296) ([05e0bbf](https://github.com/davidzoufaly/noldor/commit/05e0bbf3aa2ce46276851b5fa0aac251ddfebcb0)) ([#296](https://github.com/davidzoufaly/noldor/pull/296))
+- docs(roadmap): retire clone-duplication-ratchet — shipped via fast-track (no FD) (#295) ([fffea74](https://github.com/davidzoufaly/noldor/commit/fffea745ba2ea9f4d67e49669173e5db753e4ea3)) ([#295](https://github.com/davidzoufaly/noldor/pull/295))
+- docs(ideas): capture 2026-08-12 deep-audit findings + multiagent/task-split ideas (#294) ([2eac5be](https://github.com/davidzoufaly/noldor/commit/2eac5bea9a795ee5b49ec0a2e354467c0903551d)) ([#294](https://github.com/davidzoufaly/noldor/pull/294))
+- docs(features:code-clone-detector): revert phase done → in-progress for attach session (#293) ([f7c52b9](https://github.com/davidzoufaly/noldor/commit/f7c52b98bb105ebf94db2df8a33da402ad8d974a)) ([#293](https://github.com/davidzoufaly/noldor/pull/293))
+- docs(features:release-sweep-process-hardening): revert phase done → in-progress for attach session (#292) ([869b714](https://github.com/davidzoufaly/noldor/commit/869b7145f3a33e581a3614d7507fd2d9a3646993)) ([#292](https://github.com/davidzoufaly/noldor/pull/292))
+- docs(features:specs-cr-gate-multi-reviewer): revert phase done → in-progress for attach session (#291) ([60e2382](https://github.com/davidzoufaly/noldor/commit/60e2382477c5ff299f7c391d8437d696da3889b9)) ([#291](https://github.com/davidzoufaly/noldor/pull/291))
+- docs(roadmap): retire reviewer-lane-dispatch-timeout-configurable — shipped via fast-track (no FD) (#290) ([4487a8d](https://github.com/davidzoufaly/noldor/commit/4487a8d309ee0903cc3cc08d7f942044bdc54d88)) ([#290](https://github.com/davidzoufaly/noldor/pull/290))
+- docs(roadmap): retire sdd-report-quote-normalization — shipped via fast-track (no FD) (#289) ([2ce4078](https://github.com/davidzoufaly/noldor/commit/2ce407844b2fcc89a44db3b568eb7f2a2c22ba19)) ([#289](https://github.com/davidzoufaly/noldor/pull/289))
+- docs(roadmap): retire cr-receipt-amend-must-replace-same-key-trailer — shipped via fast-track (no FD) (#288) ([7a212ab](https://github.com/davidzoufaly/noldor/commit/7a212ab5b0198f97606c2915cc6821b5686068b3)) ([#288](https://github.com/davidzoufaly/noldor/pull/288))
+- docs(roadmap): retire sync-code-links-destructive-without-fd-tags — shipped via fast-track (no FD) (#287) ([1ceef3d](https://github.com/davidzoufaly/noldor/commit/1ceef3dab7f6cb84890890d396b3453747b8c415)) ([#287](https://github.com/davidzoufaly/noldor/pull/287))
+- docs(triage): land Q-0087..Q-0093 — charuy-dogfood + operator triage batch (#286) ([8430935](https://github.com/davidzoufaly/noldor/commit/8430935983e273c7dc86b6067da0377592f9c615)) ([#286](https://github.com/davidzoufaly/noldor/pull/286))
+- docs(roadmap): retire worktree-envlocal-not-ignored — shipped via fast-track (no FD) (#285) ([363c76a](https://github.com/davidzoufaly/noldor/commit/363c76ab7c4d812980906e546a42b95a07e0c67a)) ([#285](https://github.com/davidzoufaly/noldor/pull/285))
+- docs(triage): land Q-0079..Q-0086 — post-v1.2.0 triage batch + impact reorder (#284) ([cc69a4c](https://github.com/davidzoufaly/noldor/commit/cc69a4cdf5001de17cdcb946907b6ece162d238d)) ([#284](https://github.com/davidzoufaly/noldor/pull/284))
+- docs: fix npm package name in README pitch + land post-release roadmap reorder (#283) ([4a77ddd](https://github.com/davidzoufaly/noldor/commit/4a77ddd591011f7fafd97e903fbe636e763f07d9)) ([#283](https://github.com/davidzoufaly/noldor/pull/283))
+
 ## v1.2.0 — 2026-08-10
 
 ### Features
