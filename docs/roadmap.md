@@ -71,6 +71,7 @@ An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never ap
 - size: XS
 - impact: med
 - confidence: high
+- parent: specs-cr-gate-multi-reviewer
 
 The codex CR lane diagnoses a failed run as an auth problem regardless of what the API actually rejected, so a model-version error sends the operator to re-authenticate a session that never expired. Measured: `codex-cli 0.133.0` against a configured `gpt-5.6-sol` returns `400 invalid_request_error` carrying "The 'gpt-5.6-sol' model requires a newer version of Codex", and the lane reports `auth looks expired; run: codex login`. Parse the 400 body, or at minimum stop asserting auth whenever the payload names a model. Operator workaround today is `codex exec -c model=gpt-5.5`. The eventual home is Q-0112's per-lane error-shape normalization, which deletes this call site outright — queued standalone because that is an L entry and this is a fast-track-sized correction to a message the operator acts on immediately. (found 2026-08-14 running the codex lane on Q-0124)
 
