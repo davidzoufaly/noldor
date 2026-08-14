@@ -391,15 +391,6 @@ function fakeGit(handler: (args: readonly string[]) => Partial<GitOutcome<string
       const r = handler(args);
       return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
     },
-    raw(args) {
-      calls.push([...args]);
-      const r = handler(args);
-      return {
-        status: r.status ?? 0,
-        stdout: Buffer.from(r.stdout ?? '', 'utf8'),
-        stderr: r.stderr ?? '',
-      };
-    },
   };
   return { runner, calls };
 }
@@ -417,7 +408,6 @@ describe('failure handling', () => {
           : args[0] === 'remote'
             ? { status: 0, stdout: 'origin\n', stderr: '' }
             : real.text(args, stdin),
-      raw: (args, stdin) => real.raw(args, stdin),
     };
     const r = validatePushedSummaries({
       git: runner,
@@ -440,7 +430,6 @@ describe('failure handling', () => {
         args[0] === 'cat-file'
           ? { status: 128, stdout: '', stderr: 'boom' }
           : real.text(args, stdin),
-      raw: (args, stdin) => real.raw(args, stdin),
     };
     const r = validatePushedSummaries({
       git: runner,

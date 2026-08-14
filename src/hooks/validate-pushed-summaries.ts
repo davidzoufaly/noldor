@@ -35,7 +35,6 @@ export interface GitOutcome<T> {
  */
 export interface GitRunner {
   text(args: readonly string[], stdin?: string): GitOutcome<string>;
-  raw(args: readonly string[], stdin?: string): GitOutcome<Buffer>;
 }
 
 export function createGitRunner(cwd: string = process.cwd()): GitRunner {
@@ -48,18 +47,6 @@ export function createGitRunner(cwd: string = process.cwd()): GitRunner {
         ...(stdin === undefined ? {} : { input: stdin }),
       });
       return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
-    },
-    raw(args, stdin) {
-      const r = spawnSync('git', [...args], {
-        cwd,
-        maxBuffer: MAX_BUFFER,
-        ...(stdin === undefined ? {} : { input: stdin }),
-      });
-      return {
-        status: r.status,
-        stdout: r.stdout ?? Buffer.alloc(0),
-        stderr: (r.stderr ?? Buffer.alloc(0)).toString('utf8'),
-      };
     },
   };
 }
@@ -299,21 +286,25 @@ export function loadCommitHeader(git: GitRunner, sha: string): CommitHeader | { 
 /**
  * The exact paths a commit stored.
  *
- * `-z` is mandatory and the result stays a Buffer until it is split on byte
- * `0x00`: without it git renders a non-ASCII or whitespace-bearing path as a
- * quoted C string, which then matches no glob, so `touchesCode` says false and a
- * real source rewrite is classified as prose. `--root` so a root commit reports
- * its own tree rather than nothing.
+ * `-z` on argv is what does the work: without it git renders a non-ASCII or
+ * whitespace-bearing path as a quoted C string (`"src/caf\303\251.ts"`), which
+ * then matches no glob, so `touchesCode` says false and a real source rewrite is
+ * classified as prose. Splitting on NUL rather than newline is the other half —
+ * a path may legally contain a newline. `--root` so a root commit reports its own
+ * tree rather than nothing.
+ *
+ * // noldor:cut UTF-8 decoding of paths — a path is bytes, and a genuinely
+ * non-UTF-8 one decodes with U+FFFD replacements. Classification still holds,
+ * because every glob that decides it keys on ASCII (`src/`, `.ts`), and those
+ * bytes are unaffected. Upgrade path: split the raw Buffer on `0x00` and decode
+ * each segment as `latin1` if a path's exact bytes ever need to survive.
  */
 export function loadCommitFiles(git: GitRunner, sha: string): string[] | { error: string } {
-  const r = git.raw(['diff-tree', '--root', '-r', '--no-commit-id', '--name-only', '-z', sha]);
+  const r = git.text(['diff-tree', '--root', '-r', '--no-commit-id', '--name-only', '-z', sha]);
   if (r.status !== 0) {
     return { error: `could not read paths for ${sha} (${r.stderr.trim() || `exit ${r.status}`})` };
   }
-  return r.stdout
-    .toString('utf8')
-    .split('\0')
-    .filter((p) => p.length > 0);
+  return r.stdout.split('\0').filter((p) => p.length > 0);
 }
 
 /**
