@@ -51,6 +51,56 @@ Commit-msg hook also enforces `validate:feature-slug-scope` and `validate:noldor
 - **Granular commits** — one commit per logical change. Never squash into a single commit
 - **Commit at every confirmed checkpoint.** On paths that produce a spec or plan artifact, `/noldor-gate` commits the artifact at the Step 2.5 review-handoff confirmation (before the next skill runs) — see [`gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md) Step 2.5 and [`complexity-gating.md`](complexity-gating.md) "Review handoff after spec/plan". A worktree branch thus contains spec, then plan, then implementation as separate commits; rolling back to a prior checkpoint is a single `git reset`.
 
+## Commit body contract
+
+A commit that carries code must explain itself in three sections, each on its own line:
+
+```
+fix(clones): union untracked files into the diff-scoped verdict
+
+Why — a new file has no git post-image, so the clone gate printed "green" for
+a file whose every line was just written. Plainly: the duplicate-code check
+silently skipped brand-new files.
+How — resolveChangedRanges now unions `git ls-files --others` into the
+changed-range map as whole-file spans; an ls-files failure returns null, so
+"unknown" is never printed as clean.
+What — src/clones/ranges.ts plus a regression test; `noldor clones check` now
+reds on a pasted new file.
+
+Noldor-Path: fast-track
+```
+
+Enforced at **`pre-push`**, over the commit objects git has already stored: each section needs at least 24 characters of content. Order of *presence* is what is checked, not sequence.
+
+The mechanical floor is `noldor-pre-push`, not `commit-msg`. A `commit-msg` hook can only read a provisional message file plus whatever repository state one git invocation happens to expose, and that is not the commit git will store — which is how a forged `Merge ` subject, an `--amend` with an empty index, and `git commit -v` editor furniture each walked past the earlier version of this gate. Pre-push reads `git log -1 --format=%B`, `git diff-tree -z` and the object's parent count, none of which can change without producing a different SHA.
+
+Every commit newly reachable through a pushed ref is checked, not just the tip, so a valid tip cannot hide an invalid commit beneath it. Because the remote has not moved when the check fires, a rejection is repaired by rewording the unpublished history and pushing again.
+
+**Use an em dash, not a colon.** `Why:` at the start of a body's last paragraph is a valid git trailer and `git interpret-trailers` absorbs it, which would corrupt the trailer block. The validator rejects the colon form and says so.
+
+**Exempt** — commit freely with no body:
+
+- **Any diff that carries no code.** The gate fires only when a staged path matches `CODE_GLOBS` (`src/**`, `bin/**`, `scripts/**`, `lefthook/**`, root `lefthook.yml`, `.github/workflows/**`, `.noldor/rules/**`, root `*.json`, any `*.ts`/`*.js` family file, and `templates/**` outside its prose twins). So bookkeeping diffs (roadmap, backlog, FDs, design artifacts, milestones, `ideas.md`, the retired-ID map, the id counter) are exempt, and so is prose that is neither bookkeeping nor code — `docs/noldor/**`, root `*.md`, `.claude/**`, `templates/docs/**`, `templates/.claude/**`, `templates/.opencode/**`. A README typo needs no Why/How/What. One code file among the prose is enough to require one.
+- `release-automation` / `release-sweep` commits — recognised only through exactly one such value in git's own final trailer block, so a `Noldor-Path:` line written in body prose buys nothing. At `pre-push` the object must also **corroborate** the claim: `release-automation` needs the `chore(release): vX.Y.Z` subject, and `release-sweep` must touch sweep outputs only. Commit-msg checks the same things, but `--no-verify` skips them, so the bare trailer alone would otherwise be a one-line bypass.
+- **A real merge**, keyed on the object's **parent count** — more than one parent. A subject is forgeable and a pseudo-ref is transient; parent count is neither. `git merge --no-ff` commits normally; `git commit -m "Merge branch 'x'"` with code staged does not.
+- **Cherry-picks and reverts are not exempt.** A durable single-parent commit owes the same explanation however it was produced.
+- **`fixup!` / `squash!` / `amend!` are exempt at `commit-msg` only.** There the object really is provisional. At `pre-push` it is crossing the boundary unsquashed, with nothing guaranteeing the rebase it names ever happens, so exempting it would make `git commit -m 'fixup! x'` a one-token bypass of the whole gate. Rebase before pushing, or use `--no-verify` for a deliberate work-in-progress push.
+- Any tree that has not armed `.noldor/summary-body-rollout.json`, so an upgrading consumer is never rejected by a rule they have not opted into. `noldor init --update` and `noldor upgrade` create it, recording every current commit-ref tip; exactly the history reachable from those tips is grandfathered, on every branch. It must be committed — a clone without it stays advisory-only, and both hooks say so rather than going quiet.
+
+**Known limit.** Blocking feedback arrives at push rather than at commit, so an ignored advisory can create an invalid unpublished commit that a later commit cannot fix — the object itself must be reworded or rebased. That is the deliberate cost of judging the right input; the rejection names every affected SHA in one run.
+
+Merge commits stay exempt even when conflict resolution changed code. Parent count is immutable and closes the whole transient-state class, but it cannot tell a trivial merge from a substantive one; the review receipt and the code-stage CR remain the backstop.
+
+Check a message without committing:
+
+```bash
+git add -A && pnpm noldor validate summary-body .git/COMMIT_EDITMSG
+```
+
+The verdict is **advisory and always exits 0**, here and in the `summary-body-advisory` commit-msg job. It classifies whatever is in the index, which on an amend or an odd invocation is not what the commit will store — the exact mismatch that disqualified this input from blocking. Use it to catch a missing section while the fix is a three-line amend; pre-push decides.
+
+The check is structural. Whether the Why reads plainly or in jargon is the `pr-summary-why-how-what` rule's bar, held by the reviewer and the code-stage CR — see [pr-flow.md](pr-flow.md) § Where the title and Summary come from, which is where this body ends up.
+
 ## Never amend; always create a new commit
 
 - **Always create NEW commits rather than amending**, unless the user explicitly requests a git amend. When a pre-commit hook fails, the commit did NOT happen — so `--amend` would modify the PREVIOUS commit, which may result in destroying work or losing previous changes. Instead, after hook failure, fix the issue, re-stage, and create a NEW commit.

@@ -7,18 +7,44 @@ import { spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { basename, dirname, join, posix, relative } from 'node:path';
 
-/** Test seam — mirrors the `spawnSync` shape this module needs. */
-export interface RunGit {
-  (args: readonly string[]): { status: number | null; stdout: string; stderr: string };
+/** What a git invocation reports back. */
+export interface GitOutcome {
+  status: number | null;
+  stdout: string;
+  stderr: string;
 }
 
-/** The production {@link RunGit}: `spawnSync('git', …)` anchored at `cwd`. */
+/** Per-call knobs. Both default to `spawnSync`'s own behaviour. */
+export interface RunGitOptions {
+  /** Fed to the command's stdin — e.g. revisions for `rev-list --stdin`. */
+  stdin?: string;
+  /** Raise when output can exceed the 1 MiB default (a large `rev-list`). */
+  maxBuffer?: number;
+}
+
+/** Test seam — mirrors the `spawnSync` shape this module needs. */
+export interface RunGit {
+  (args: readonly string[], opts?: RunGitOptions): GitOutcome;
+}
+
+/**
+ * The production {@link RunGit}: `spawnSync('git', …)` anchored at `cwd`.
+ *
+ * Shared rather than re-implemented per caller: the `r.error` handling below is
+ * subtle enough that a second copy drifts on the next fix, and the pre-push
+ * summary validator needs exactly this plus stdin and a larger buffer.
+ */
 export function defaultRunGit(cwd: string | undefined): RunGit {
-  return (args) => {
-    const r = spawnSync('git', [...args], { cwd, encoding: 'utf8' });
-    // A spawn-level failure (git not on PATH, EACCES, cwd gone) leaves `status`
-    // null and `stderr` empty, so every error message downstream would render a
-    // blank reason. Surface `r.error` as the stderr text instead.
+  return (args, opts) => {
+    const r = spawnSync('git', [...args], {
+      cwd,
+      encoding: 'utf8',
+      ...(opts?.maxBuffer === undefined ? {} : { maxBuffer: opts.maxBuffer }),
+      ...(opts?.stdin === undefined ? {} : { input: opts.stdin }),
+    });
+    // A spawn-level failure (git not on PATH, EACCES, cwd gone, maxBuffer
+    // overrun) leaves `status` null and `stderr` empty, so every error message
+    // downstream would render a blank reason. Surface `r.error` instead.
     if (r.error !== undefined) return { status: null, stdout: '', stderr: r.error.message };
     return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
   };

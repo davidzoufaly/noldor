@@ -23,6 +23,10 @@ import { RUNNER_NAMES, type RunnerName } from '../../core/agent-runner/types.js'
 import { loadFrameworkVersion, writeFrameworkVersion } from '../../core/consumer-config.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 import { ensureRolloutMarker } from '../../core/rollout-marker.js';
+import {
+  FILE as SUMMARY_BODY_ROLLOUT_FILE,
+  ensureSummaryBodyRolloutSnapshot,
+} from '../../core/summary-body-rollout.js';
 import { ensureGitignoreBlock } from '../../core/init-gitignore.js';
 
 const argv = process.argv.slice(2);
@@ -104,6 +108,24 @@ try {
   } else if (marker === 'skipped-no-git') {
     console.log(
       'skipped    .noldor/rollout-marker (no git HEAD yet — validators stay in soft mode; re-run init after the first commit)',
+    );
+  }
+  // Separate from the marker above: that one may predate this gate by months and
+  // cannot say which commits existed on side branches when the summary-body
+  // check armed. This snapshot records every current commit-ref tip, so exactly
+  // their history is grandfathered and the next commit on any branch enforces.
+  // Never rewritten once present — advancing the tips would launder every commit
+  // made since activation past the gate.
+  const summarySnapshot = ensureSummaryBodyRolloutSnapshot(consumer);
+  if (summarySnapshot === 'created') {
+    console.log(
+      `created    ${SUMMARY_BODY_ROLLOUT_FILE} — pre-push enforces the Why/How/What body from here. ` +
+        'Commit it with this framework update (the path is micro-chore-allowlisted); until it is committed, ' +
+        'a fresh clone stays advisory-only.',
+    );
+  } else if (summarySnapshot === 'skipped-no-git') {
+    console.log(
+      `skipped    ${SUMMARY_BODY_ROLLOUT_FILE} (no commit-bearing ref yet — the summary-body gate stays advisory-only; re-run init after the first commit)`,
     );
   }
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no

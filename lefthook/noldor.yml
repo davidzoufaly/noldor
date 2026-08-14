@@ -105,6 +105,16 @@ commit-msg:
       run: pnpm noldor validate feature-slug-scope {1}
     - name: noldor-validate-trailer
       run: pnpm noldor hooks validate-trailer {1}
+    # Last of the commit-msg jobs: the trailer diagnostic above is the more
+    # actionable failure (a missing session marker explains itself), so a commit
+    # that is wrong in both ways should report that one first.
+    #
+    # ADVISORY: this job always exits 0. It reads the provisional message file and
+    # the current index, which is not the commit git will store, so it reports and
+    # never rejects. The blocking check is `noldor-pre-push`, which reads the
+    # stored objects.
+    - name: summary-body-advisory
+      run: pnpm noldor validate summary-body {1}
 
 pre-push:
   jobs:

@@ -3,6 +3,34 @@ import { spawnSync } from 'node:child_process';
 export type Trailers = Record<string, string>;
 
 /**
+ * Trailer lines pr-flow injects or git appends — noise in a PR summary.
+ *
+ * Case-insensitive because git trailers are (see `git-interpret-trailers`) and
+ * both casings occur here: `git` writes `Co-authored-by`, the Claude harness
+ * writes `Co-Authored-By`. A case-sensitive match let the latter leak into the
+ * Summary — exactly the noise this exists to strip.
+ */
+const TRAILER_RE = /^(?:noldor-[a-z-]+|co-authored-by|signed-off-by):/i;
+
+/**
+ * Drop trailer lines and collapse the blank runs they leave behind.
+ *
+ * Shared by `composeBody` (which renders the surviving prose as a PR Summary)
+ * and `validateSummaryBody` (which requires Why/How/What within it). Two
+ * independent strippers would eventually disagree on what counts as a trailer,
+ * and the disagreement would surface as a body that passed the commit-msg hook
+ * yet rendered wrong in the PR.
+ */
+export function stripTrailers(body: string): string {
+  return body
+    .split('\n')
+    .filter((line) => !TRAILER_RE.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
  * Parse trailers from a commit message using `git interpret-trailers --parse`.
  * Uses spawnSync with an args array (no shell) to avoid escaping bugs.
  *

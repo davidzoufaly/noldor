@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { spawnSync, spawn } from 'node:child_process';
 import { join } from 'node:path';
 
+import { isBookkeepingOnly } from './allowlist.js';
 import { discoverAddedFiles } from './branch-added.js';
+import { stripTrailers } from './trailers.js';
 import { readSession, clearSession, type SessionMarker } from './session.js';
 import { loadConfig, type NoldorConfig } from './config.js';
 import { promptSelect } from './prompt-stdin.js';
@@ -77,16 +79,6 @@ export interface CommitFiles {
 }
 
 /**
- * Trailer lines pr-flow injects or git appends — noise in a PR summary.
- *
- * Case-insensitive because git trailers are (see `git-interpret-trailers`) and
- * both casings occur here: `git` writes `Co-authored-by`, the Claude harness
- * writes `Co-Authored-By`. A case-sensitive match let the latter leak into the
- * Summary — exactly the noise this exists to strip.
- */
-const TRAILER_RE = /^(?:noldor-[a-z-]+|co-authored-by|signed-off-by):/i;
-
-/**
  * Parse `git log --reverse --format=%x1e%H --name-only <range>`.
  *
  * The record separator leads each entry so a commit's file list cannot be
@@ -117,22 +109,23 @@ export function parseCommitFileLists(out: string): CommitFiles[] {
  * #299-#303 all read "retire <slug> — shipped via fast-track (no FD)" and never
  * named the change that shipped).
  *
- * So: the first commit that touches anything other than the roadmap. A
- * retirement-only branch has no such commit and keeps the first one.
+ * So: the first commit that carries code. The skip set is the whole
+ * {@link isBookkeepingOnly} list, not just the roadmap — since Q-0107
+ * `remove-block` co-stages `.noldor/retired-entry-ids.json`, and a `full-*`
+ * branch leads with its spec and plan commits; a roadmap-only test lands on
+ * those and describes the PR by its bookkeeping again.
+ *
+ * The `files.length > 0` guard is load-bearing: `git log --name-only` prints no
+ * paths for a merge commit and `isBookkeepingOnly([])` is `false`, so without it
+ * a branch an operator merged `main` into would be titled `Merge branch 'main'`
+ * with an empty body.
+ *
+ * A branch with no code commit at all (retirement-only) keeps the first one and
+ * gets `composeBody`'s deterministic retirement template.
  */
 export function pickSummarySha(commits: readonly CommitFiles[]): string | undefined {
-  const substantive = commits.find((c) => c.files.some((f) => f !== 'docs/roadmap.md'));
+  const substantive = commits.find((c) => c.files.length > 0 && !isBookkeepingOnly(c.files));
   return (substantive ?? commits[0])?.sha;
-}
-
-/** Drop trailer lines and collapse the blank runs they leave behind. */
-export function stripTrailers(body: string): string {
-  return body
-    .split('\n')
-    .filter((line) => !TRAILER_RE.test(line))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 }
 
 function execGit(args: readonly string[]): string {
@@ -279,11 +272,28 @@ export async function runCli(cwd: string): Promise<number> {
 
   const branch = execGit(['rev-parse', '--abbrev-ref', 'HEAD']).trim();
   const headSha = execGit(['rev-parse', 'HEAD']).trim();
-  const summarySha = pickSummarySha(
-    parseCommitFileLists(
-      execGit(['log', '--reverse', `--format=${RECORD_SEP}%H`, '--name-only', 'origin/main..HEAD']),
-    ),
+  // One `git log` walk, read twice: which commit the PR describes, and every
+  // path the branch touched (the latter decides the retirement template and the
+  // Test Plan shape in `composeBody`).
+  // `-c core.quotePath=false` so a non-ASCII path arrives verbatim rather than
+  // as `"src/caf\303\251.ts"`, which matches no glob — `isBookkeepingOnly` and
+  // `touchesCode` would then misread the branch and render "Doc-only change"
+  // for a real source rewrite. (`-z` is not usable here: `--name-only` shares
+  // its NUL separator with the format string, and the RECORD_SEP framing this
+  // parser relies on would be lost.)
+  const branchCommits = parseCommitFileLists(
+    execGit([
+      '-c',
+      'core.quotePath=false',
+      'log',
+      '--reverse',
+      `--format=${RECORD_SEP}%H`,
+      '--name-only',
+      'origin/main..HEAD',
+    ]),
   );
+  const summarySha = pickSummarySha(branchCommits);
+  const branchFiles = [...new Set(branchCommits.flatMap((c) => c.files))];
 
   if (summarySha === undefined) {
     process.stderr.write('pnpm pr-flow: no commits ahead of origin/main on current branch.\n');
@@ -326,6 +336,7 @@ export async function runCli(cwd: string): Promise<number> {
     verify,
     headSha,
     summaryCommit,
+    branchFiles,
     spawn: nodeSpawn(),
     onStatus: (line) => process.stderr.write(line + '\n'),
     // Parallel drain K>1: the supervisor's merge coordinator merges; this call stops at PR-open.
