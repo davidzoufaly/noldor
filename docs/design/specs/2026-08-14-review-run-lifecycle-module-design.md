@@ -255,47 +255,57 @@ that accepted `args` would have to ignore them — turning a `--version` call in
 review with an empty prompt**, spending quota on precisely the failure path this spec is hardening.
 
 The category error is older than this spec: asking a binary for its version is a prerequisite probe,
-not an agent dispatch. What the probe actually needs is small and fixed — run `<bin> --version`,
-cap it, take the answer, never throw:
+not an agent dispatch. What it needs is small and fixed — run `<bin> --version`, cap it, take the
+answer, never throw. Two layers, so that neither has to do the other's job:
 
 ```ts
-type VersionProbe = (bin: string) => Promise<string | null>;   // null = could not answer
+// Transport. Runs `<bin> --version` via async execFile under a 5s cap.
+// Returns stdout's first line, trimmed; null when the child fails or says nothing.
+type VersionProbe = (bin: string) => Promise<string | null>;
+
+// Policy. Extracts the version and composes the reported string.
+probeCodexVersion(bin: string, probe: VersionProbe): Promise<string>
 ```
 
 `probeCodexVersion` takes a `VersionProbe` instead of a `Spawn`, and `Spawn` loses `cmd` and `args`
-entirely — the last reason it carried them. The argv is fixed at the definition site rather than
-supplied by a caller, which is what closes the empty-prompt-review hole; the async signature is what
-keeps it off the event loop (see below).
+entirely — the last reason it carried them. The argv is fixed inside the transport rather than
+supplied by a caller, which is what closes the empty-prompt-review hole.
+
+**The regex lives in the policy layer, not the transport.** `VersionProbe` hands back raw text
+(`codex-cli 0.133.0`); `probeCodexVersion` applies `\d+(\.\d+)+` to it. Keeping extraction out of
+the transport is what lets a test inject arbitrary probe output and assert the composed result,
+rather than having to fake a regex match.
 
 **Why not `PrereqProbe`.** The repo's doctor seam (`prerequisites.ts:38`, `makeDefaultProbe` at
-`:96`) is the obvious reuse candidate and was this spec's first answer, but it is **synchronous**
+`:97`) is the obvious reuse candidate and was this spec's first answer, but it is **synchronous**
 (`execFileSync`, 5s cap, retried once against `node_modules/.bin/<bin>`). After Unit 5 the codex
 lane runs inside the orchestrate process, and orchestrate dispatches lanes concurrently through
 `Promise.allSettled` (`orchestrate.ts:374`) — so a sync probe would block the shared event loop for
-up to ~10s while `reviewer` and `verifier` are live, delaying their timers and, worse, their stream
-draining (an unread stderr pipe is the exact hazard `codex-spawn.ts:20-28` documents). The retry
-that doubles that window exists for dev-dep binaries like `lefthook`; `codex` is a global CLI and
-never resolves out of `node_modules`, so the reuse would import the cost without the benefit. An
-async probe with no retry avoids both.
+up to ~10s while `reviewer` and `verifier` are live, delaying their `dispatchTimeoutMs` timers. It
+would also delay draining their streams, though only for the length of the stall: that is latency,
+not the permanent-unread-pipe deadlock `codex-spawn.ts:20-28` documents, and the timer-delay
+argument carries the rejection on its own. The retry that doubles the window exists for dev-dep
+binaries like `lefthook`; `codex` is a global CLI and never resolves out of `node_modules`, so the
+reuse would import the cost without the benefit. An async transport with no retry avoids both, and
+keeps the same 5s cap for the single attempt.
 
-**Compose the binary name back on, and define the miss.** `probeCodexVersion` returns `stdout`'s
-first line today — `codex-cli 0.133.0`. A digits-only normaliser (`versionFrom`,
-`prerequisites.ts:84-87`) would yield a bare `0.133.0`, rendering `0.133.0: exited with exit code 1`
-and dropping *which binary* — leaving the known-version branch strictly less informative than the
-failure branch, since `unknownVersion` (`codex-failure.ts:10-12`) keeps the name. So the probe
-returns `` `${bin} ${version}` `` on a hit and `unknownVersion(bin)` on a miss: `codex 0.133.0` /
-`codex (version unknown)`, one `<binary> <version>` shape across both branches, which today's output
-does not have.
+**Compose the binary name back on.** `probeCodexVersion` returns `stdout`'s first line today —
+`codex-cli 0.133.0`. Reporting the extracted version bare would render `0.133.0: exited with exit
+code 1` and drop *which binary*, leaving the known-version branch strictly less informative than the
+failure branch, since `unknownVersion` (`codex-failure.ts:10-12`) keeps the name. So
+`probeCodexVersion` returns `` `${bin} ${version}` `` on a hit and `unknownVersion(bin)` on a miss:
+`codex 0.133.0` / `codex (version unknown)`, one `<binary> <version>` shape across both branches,
+which today's output does not have.
 
-"Hit" needs a definition, or the shape is only conventionally true. The probe returns `null` — not a
-best-effort string — when the child fails, when stdout is empty, or when stdout carries no
-`\d+(\.\d+)+` group. `versionFrom`'s `out.trim() || '0'` fallback is deliberately *not* copied: it
-suits a doctor table where any answer beats none, and would let `codex <arbitrary multiline stdout>`
-into a sink blocker here. Anything not recognisably a version is a miss, and misses render through
-`unknownVersion`.
+**Define the miss**, or that shape is only conventionally true. `probeCodexVersion` reports
+`unknownVersion(bin)` whenever the transport returns `null` *and* whenever the text it returns
+carries no `\d+(\.\d+)+` group. `versionFrom`'s `out.trim() || '0'` fallback
+(`prerequisites.ts:84-87`) is deliberately not copied: it suits a doctor table where any answer
+beats none, and here it would let `codex <arbitrary multiline stdout>` into a sink blocker. Anything
+not recognisably a version is a miss.
 
-**Wiring.** With no `node_modules` fallback the probe needs no `cwd`. `RunCodexInput` gains
-`probe?: VersionProbe` where `cmd` used to sit, defaulting to the real implementation — keeping
+**Wiring.** With no `node_modules` fallback the transport needs no `cwd`. `RunCodexInput` gains
+`probe?: VersionProbe` where `cmd` used to sit, defaulting to the real transport — keeping
 `runCodex` injectable for tests without reintroducing binary selection.
 
 That also retires `RunCodexInput.cmd`. Its docblock warns that probing a hard-coded `codex` would
@@ -400,8 +410,10 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   signature takes a `VersionProbe`, not a `Spawn`.
 - `probeCodexVersion` never spawns a review: `VersionProbe` takes only `bin`, so no test can pass it
   review argv, and a test asserts no agent spawn occurs on the failure path.
-- `VersionProbe` is async (`Promise<string | null>`) — a type-level assertion, since the whole point
-  is that it cannot block the orchestrate event loop.
+- The probe module contains no `execFileSync`, `spawnSync` or other `*Sync` child-process call
+  (grep), and its default transport is `execFile`-based with a 5s cap. An `async` signature alone
+  does not carry this — `async () => execFileSync(…)` satisfies the type and still stalls the loop —
+  so the criterion is on the implementation, not the type.
 - `probeCodexVersion` returns `codex 0.133.0` for a probe hit and `codex (version unknown)` for a
   miss — both branches carry the binary name, pinned by a test on the string shape.
 - The probe returns `null` (→ `unknownVersion`) when the child fails, when stdout is empty, and when
