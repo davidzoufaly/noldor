@@ -443,9 +443,14 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 
 ## Acceptance criteria
 
-- `grep -r codexSupportsBaseSha src/` returns no matches.
+- No *code* references `codexSupportsBaseSha` remain: the export, its `orchestrate.ts` call site,
+  and the `vi.mock` keys in `delta.test.ts`, `orchestrate.test.ts` and
+  `orchestrate.integration.test.ts` are all gone. Docblock mentions narrating what was deleted are
+  permitted and expected, so a bare `grep -r` is not the check — mocking a nonexistent export is
+  the failure this guards against.
 - `src/cr/codex-spawn.ts` does not exist and `grep -rn "spawnCodex" src/` returns no matches.
-- `grep -n "execFile" src/cr/lanes/codex.ts` returns no matches. (Scoped to the lane on purpose:
+- `src/cr/lanes/codex.ts` contains no `execFile` *call* (its docblock narrates the removed one, so
+  match on code rather than text). (Scoped to the lane on purpose:
   `src/cr/` keeps legitimate `execFile`/`execFileSync` shell-outs elsewhere — `receipt-trailer.ts`,
   `amend-receipt.ts`, `autofix-cli.ts`, `bootstrap-immunity.ts`, `codex.ts`, `deep-review-spawn.ts`,
   `lanes/verify.ts` and `orchestrate.ts` — none of which this spec's units remove. `orchestrate.ts`
