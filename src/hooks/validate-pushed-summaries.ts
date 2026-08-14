@@ -129,8 +129,8 @@ export function parseRefLines(lines: readonly string[]): RefUpdate[] | { error: 
 }
 
 /**
- * Every commit OID currently at a `refs/remotes/**` tip — **all** remotes, with
- * no attempt to identify which one is being pushed to.
+ * Every commit OID at a tracking tip of a configured remote — **all** of them,
+ * with no attempt to identify which one is being pushed to.
  *
  * Scoping these to the destination would be more precise, and four attempts to
  * do it each broke on a git shape the previous one did not model (URL-form hook
@@ -141,7 +141,7 @@ export function parseRefLines(lines: readonly string[]): RefUpdate[] | { error: 
  *
  * Be precise about what that costs, because "cost bound, not integrity claim" is
  * too kind: these are negatives in the same `rev-list` that selects candidates,
- * so **a commit reachable from any tracking ref is exempt from then on**, not
+ * so **a commit reachable from one of these tips is exempt from then on**, not
  * merely cheaper to reach. That is reachable without an adversary. A branch cut
  * before the activation commit does not carry
  * `.noldor/summary-body-rollout.json`, so pushing it reads an absent snapshot,
@@ -149,18 +149,43 @@ export function parseRefLines(lines: readonly string[]): RefUpdate[] | { error: 
  * and are fetched they stay exempt on every later push, and the merge that
  * brings them to the mainline is itself exempt by parent count.
  *
- * This is accepted, not overlooked. The population it exempts is commits some
- * remote already holds — they crossed the boundary this gate defends before it
- * was watching — and the alternative on the table was subtracting nothing and
- * re-walking the whole post-activation mainline on every new branch. Commits
- * authored after activation on a branch that carries the snapshot are unaffected.
+ * Which makes the namespace worth narrowing. Only refs under a namespace of an
+ * actually-configured remote count, so `git update-ref refs/remotes/x/y <sha>`
+ * cannot exempt an arbitrary commit and its whole ancestry offline in one
+ * command — `x` has to be a real remote first. This asks git which remotes
+ * *exist*, never which one is being pushed to, so none of the URL / `insteadOf`
+ * / `pushurl` shapes that broke the four scoping attempts come back.
+ *
+ * What remains exempt is history this clone fetched from a configured remote —
+ * commits that crossed the boundary this gate defends before it was watching —
+ * and the alternative on the table was subtracting nothing and re-walking the
+ * whole post-activation mainline on every new branch. Commits authored after
+ * activation on a branch that carries the snapshot are unaffected.
  *
  * The one git call here that is **not** fail-closed. On a non-zero exit the term
  * goes empty and a warning is printed, because fewer negatives can only *enlarge*
  * the candidate set — the worst outcome is a slow push, never a skipped commit.
  */
 export function collectTrackingTips(git: GitRunner, warn: (msg: string) => void): string[] {
-  const r = git.text(['for-each-ref', '--format=%(objectname)', 'refs/remotes/']);
+  const remotes = git.text(['remote']);
+  if (remotes.status !== 0) {
+    warn(
+      `summary-body: could not list remotes (${remotes.stderr.trim() || `exit ${remotes.status}`}) — ` +
+        `validating more history than usual`,
+    );
+    return [];
+  }
+  // Only namespaces of remotes that actually exist. A repository with none
+  // subtracts nothing here, which is correct rather than a failure: there is no
+  // fetched history to exempt.
+  const namespaces = remotes.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((name) => `refs/remotes/${name}/`);
+  if (namespaces.length === 0) return [];
+
+  const r = git.text(['for-each-ref', '--format=%(objectname)', ...namespaces]);
   if (r.status !== 0) {
     warn(
       `summary-body: could not list remote-tracking refs (${r.stderr.trim() || `exit ${r.status}`}) — ` +

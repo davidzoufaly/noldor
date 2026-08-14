@@ -25,17 +25,25 @@ const SECTIONS = ['Why', 'How', 'What'] as const;
 const MIN_SECTION_CHARS = 24;
 
 /**
- * Subjects git generates for the autosquash family, where the message is
- * machine-written and there is no author to ask for prose. `amend!` belongs
- * here with the other two: `git commit --fixup=reword:<sha>` writes it.
+ * Subjects git generates for the autosquash family: `git commit --fixup`,
+ * `--squash`, and the `amend!` that `--fixup=reword:<sha>` writes.
  *
- * Forgeable, and accepted as such: a forged marker is squashed away by the
- * rebase it names, or ships with a subject that announces itself.
+ * Exempt on the **advisory** side only, and that asymmetry is the point. At
+ * `commit-msg` the object really is provisional — it exists to be folded into
+ * the commit it names, so demanding prose from it is noise. At `pre-push` the
+ * same subject is a one-token bypass of the entire gate: `git commit -m
+ * 'fixup! x'` over any `src/**` change would push clean, and the object is
+ * crossing the boundary *unsquashed*, with nothing to guarantee the rebase it
+ * names ever happens or that its target is even in the push. The parked design's
+ * rationale ("squashed away by the rebase it names") was true of a provisional
+ * message and is false of a stored one, so it does not survive the move.
  *
- * `Merge ` and `Revert "` are deliberately NOT here. Merge identity comes from
- * the object's parent count, which no author can forge; a revert that survives
- * into pushed history is an ordinary single-parent commit and owes the same
- * explanation as any other.
+ * A genuinely in-flight fixup push is the `--no-verify` case, or a rebase away.
+ *
+ * `Merge ` and `Revert "` are deliberately NOT here at all. Merge identity comes
+ * from the object's parent count, which no author can forge; a revert that
+ * survives into pushed history is an ordinary single-parent commit and owes the
+ * same explanation as any other.
  */
 const EXEMPT_SUBJECT_RE = /^(?:fixup!|squash!|amend!)/;
 
@@ -152,11 +160,11 @@ export function isExemptByHeader(input: {
   parentCount: number;
   noldorPath?: string;
 }): boolean {
-  const subject = input.message.split('\n', 1)[0]?.trim() ?? '';
   // Merge identity from the object itself. A single-parent commit whose subject
   // reads `Merge branch 'x'` is an ordinary commit wearing a costume.
   if (input.parentCount > 1) return true;
-  if (EXEMPT_SUBJECT_RE.test(subject)) return true;
+  // Note: no autosquash-subject branch here — see EXEMPT_SUBJECT_RE. That
+  // exemption belongs to the advisory adapter, whose input really is provisional.
   return input.noldorPath !== undefined && AUTOMATION_PATHS.has(input.noldorPath.trim());
 }
 

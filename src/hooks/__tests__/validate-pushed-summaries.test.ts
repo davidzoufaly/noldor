@@ -278,9 +278,19 @@ describe('remote-tracking negatives', () => {
     const dir = armed();
     const sha = codeCommit(dir, 'a', 'feat: silent change');
     // Pretend some remote already holds it. Scoping to a "destination" remote is
-    // deliberately not attempted, so any remote's tip suppresses the candidate.
+    // deliberately not attempted, so any configured remote's tip suppresses it.
+    git(dir, ['remote', 'add', 'elsewhere', 'https://example.invalid/x.git']);
     git(dir, ['update-ref', 'refs/remotes/elsewhere/main', sha]);
     expect(scan(dir, [refLine(sha)]).kind).toBe('ok');
+  });
+
+  it('ignores a tracking ref whose remote is not configured', () => {
+    const dir = armed();
+    const sha = codeCommit(dir, 'a', 'feat: silent change');
+    // Without this, `git update-ref refs/remotes/x/y <sha>` exempts an arbitrary
+    // commit and its whole ancestry offline, in one command.
+    git(dir, ['update-ref', 'refs/remotes/not-a-remote/main', sha]);
+    expect(scan(dir, [refLine(sha)]).kind).toBe('violations');
   });
 
   it('reports zero tracking tips in a repo with no remotes', () => {
@@ -382,7 +392,9 @@ describe('failure handling', () => {
       text: (args, stdin) =>
         args[0] === 'for-each-ref'
           ? { status: 128, stdout: '', stderr: 'boom' }
-          : real.text(args, stdin),
+          : args[0] === 'remote'
+            ? { status: 0, stdout: 'origin\n', stderr: '' }
+            : real.text(args, stdin),
       raw: (args, stdin) => real.raw(args, stdin),
     };
     const r = validatePushedSummaries({
@@ -413,6 +425,7 @@ describe('failure handling', () => {
     const dir = armed();
     const merge = 'd'.repeat(40);
     const { runner, calls } = fakeGit((args) => {
+      if (args[0] === 'remote') return { stdout: '' };
       if (args[0] === 'for-each-ref') return { stdout: '' };
       if (args[0] === 'cat-file') return { stdout: '' };
       if (args[0] === 'rev-list') return { stdout: `${merge}\n` };

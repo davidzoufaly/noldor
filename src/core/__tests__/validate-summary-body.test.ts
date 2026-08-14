@@ -123,9 +123,13 @@ describe('validateSummaryCommit — object-derived exemptions', () => {
     expect(commit({ parentCount: 0, message: 'feat: initial\n' }).success).toBe(false);
   });
 
-  it('exempts the autosquash family', () => {
+  it('enforces the autosquash family — a stored fixup is not disappearing', () => {
+    // Exempting these at pre-push would make `git commit -m 'fixup! x'` a
+    // one-token bypass of the whole gate: the object crosses the boundary
+    // unsquashed, and nothing guarantees the rebase it names ever happens. The
+    // advisory adapter still exempts them, where the object really is provisional.
     for (const prefix of ['fixup!', 'squash!', 'amend!']) {
-      expect(commit({ message: `${prefix} some subject\n` }).success).toBe(true);
+      expect(commit({ message: `${prefix} some subject\n` }).success).toBe(false);
     }
   });
 
