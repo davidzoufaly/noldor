@@ -418,6 +418,35 @@ describe('failure handling', () => {
     expect(warnings.join('\n')).toContain('remote-tracking');
   });
 
+  it('warns and does not blame absent tips when the presence probe fails', () => {
+    const dir = armed();
+    const sha = codeCommit(dir, 'a', 'feat: silent change');
+    const real = createGitRunner(dir);
+    const warnings: string[] = [];
+    const runner: GitRunner = {
+      text: (args, stdin) =>
+        args[0] === 'cat-file'
+          ? { status: 128, stdout: '', stderr: 'boom' }
+          : real.text(args, stdin),
+      raw: (args, stdin) => real.raw(args, stdin),
+    };
+    const r = validatePushedSummaries({
+      git: runner,
+      refLines: [refLine(sha)],
+      cwd: dir,
+      warn: (m) => warnings.push(m),
+    });
+    // Losing the negatives can only widen the check, so the push still proceeds
+    // to a real verdict — but the operator must not be told to fetch objects
+    // they already have.
+    expect(r.kind).toBe('violations');
+    if (r.kind !== 'violations') return;
+    expect(r.negatives.resolveFailed).toBe(true);
+    expect(describeNegatives(r.negatives)).toContain('presence check failed');
+    expect(describeNegatives(r.negatives)).not.toContain('not in this clone');
+    expect(warnings.join('\n')).toContain('could not check which activation tips');
+  });
+
   it('reports infra — not a pass — when rev-list fails', () => {
     const { runner } = fakeGit((args) =>
       args[0] === 'rev-list' ? { status: 128, stderr: 'bad revision' } : {},
@@ -464,7 +493,13 @@ describe('renderViolations', () => {
           error: 'missing Why',
         },
       ],
-      { activationTips: 1, trackingTips: 0, missingTips: 0, missingSample: [] },
+      {
+        activationTips: 1,
+        trackingTips: 0,
+        missingTips: 0,
+        missingSample: [],
+        resolveFailed: false,
+      },
     );
     expect(rendered).toContain('\\x0a');
     expect(rendered).toContain('activation tip');

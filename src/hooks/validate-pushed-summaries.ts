@@ -85,6 +85,12 @@ export interface NegativeSummary {
   missingTips: number;
   /** A few of those tips, so an operator who wants them can fetch them. */
   missingSample: string[];
+  /**
+   * True when the presence probe itself failed, so `missingTips` means "could
+   * not determine" rather than "absent". Without this the diagnostic would tell
+   * an operator to fetch tips that are sitting in their object store.
+   */
+  resolveFailed: boolean;
 }
 
 export type SummaryScanResult =
@@ -214,20 +220,35 @@ export function collectTrackingTips(git: GitRunner, warn: (msg: string) => void)
  * tracked and shared, so another clone legitimately lacks a machine-local
  * activation tip, and that must cost one spawn rather than one per tip.
  */
-export function resolvableCommits(git: GitRunner, shas: readonly string[]): Set<string> {
-  if (shas.length === 0) return new Set();
+export function resolvableCommits(
+  git: GitRunner,
+  shas: readonly string[],
+  warn: (msg: string) => void = () => {},
+): { found: Set<string>; failed: boolean } {
+  if (shas.length === 0) return { found: new Set(), failed: false };
   const r = git.text(
     ['cat-file', '--batch-check=%(objectname) %(objecttype)'],
     `${shas.map((s) => `${s}^{commit}`).join('\n')}\n`,
   );
   const found = new Set<string>();
-  if (r.status !== 0) return found;
+  if (r.status !== 0) {
+    // Distinguished from "nothing resolved", which is what an empty set alone
+    // would say: every tip would then land in `missing`, all grandfathering
+    // would silently vanish, and the diagnostic would tell the operator to fetch
+    // objects they already have. Every other negative-source failure here warns;
+    // this one must too.
+    warn(
+      `summary-body: could not check which activation tips are present ` +
+        `(${r.stderr.trim() || `exit ${r.status}`}) — validating more history than usual`,
+    );
+    return { found, failed: true };
+  }
   const lines = r.stdout.split('\n').filter((l) => l.trim().length > 0);
   lines.forEach((line, i) => {
     const [, type] = line.trim().split(/\s+/);
     if (type === 'commit') found.add(shas[i]!);
   });
-  return found;
+  return { found, failed: false };
 }
 
 /** One stored commit's header facts, from a single `git log`. */
@@ -322,7 +343,10 @@ function discoverCandidates(
     // the negative validates strictly more and leaves git's own "Updates were
     // rejected" as the message the operator sees, instead of pre-empting it with
     // an infrastructure failure.
-    if (!ZERO_SHA_RE.test(u.remoteSha) && resolvableCommits(git, [u.remoteSha]).has(u.remoteSha)) {
+    if (
+      !ZERO_SHA_RE.test(u.remoteSha) &&
+      resolvableCommits(git, [u.remoteSha]).found.has(u.remoteSha)
+    ) {
       revs.push(`^${u.remoteSha}`);
     }
 
@@ -389,9 +413,9 @@ export function validatePushedSummaries(opts: {
   // or one since garbage-collected. Omitting an unresolvable tip can only cause
   // MORE validation, never an exemption — so it warns and continues.
   const declared = read.snapshot.grandfatherTips;
-  const resolvable = resolvableCommits(git, declared);
-  const activationTips = declared.filter((t) => resolvable.has(t));
-  const missing = declared.filter((t) => !resolvable.has(t));
+  const resolvable = resolvableCommits(git, declared, warn);
+  const activationTips = declared.filter((t) => resolvable.found.has(t));
+  const missing = declared.filter((t) => !resolvable.found.has(t));
 
   // Deliberately NOT warned about. The snapshot is tracked and shared while it
   // records the arming machine's *local* branches and tags, so every other clone
@@ -420,6 +444,7 @@ export function validatePushedSummaries(opts: {
     trackingTips: trackingTips.length,
     missingTips: missing.length,
     missingSample: missing.slice(0, 3),
+    resolveFailed: resolvable.failed,
   };
 
   const candidates = discoverCandidates(git, parsed, negatives);
@@ -500,6 +525,15 @@ export function describeNegatives(n: NegativeSummary): string {
     n.trackingTips === 0 ? 'no remote-tracking tips' : `${n.trackingTips} remote-tracking tip(s)`;
   const base = `Skipped history reachable from ${n.activationTips} activation tip(s) and ${tracking}.`;
   if (n.missingTips === 0) return base;
+  if (n.resolveFailed) {
+    // Do not say "not in this clone" — the probe failed, so their presence is
+    // simply unknown and telling the operator to fetch them points at the wrong
+    // cause.
+    return (
+      `${base} The activation-tip presence check failed, so none of the ${n.missingTips} ` +
+      `snapshot tip(s) could be applied and their history was validated instead.`
+    );
+  }
   const sample = n.missingSample.join(', ');
   const rest = n.missingTips > n.missingSample.length ? ', …' : '';
   return (
