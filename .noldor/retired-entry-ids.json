@@ -19,5 +19,9 @@
   "Q-0122": {
     "slug": "clone-detector-flags-chained-builder-schemas",
     "retiredAt": "2026-08-13"
+  },
+  "Q-0112": {
+    "slug": "review-run-lifecycle-module",
+    "retiredAt": "2026-08-14"
   }
 }

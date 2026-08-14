@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { AGENT_ROLES, agentsConfigSchema } from '../types';
 import { loadAgentsConfig, resolveRunner, spawnAgent } from '../registry';
 
@@ -15,8 +16,29 @@ function tmpConfig(agents?: unknown): string {
   return dir;
 }
 
+/**
+ * Readable-shaped fake that actually models `setEncoding`: once set, emitted Buffers are run
+ * through a persistent {@link StringDecoder} before reaching listeners, exactly as a real
+ * stream does. A no-op stub would make the boundary test vacuous — it would pass whether or
+ * not the registry opted into decoding, which is the property under test.
+ */
+class FakeStream extends EventEmitter {
+  private decoder: StringDecoder | null = null;
+  setEncoding(enc: BufferEncoding): this {
+    this.decoder = new StringDecoder(enc);
+    return this;
+  }
+  override emit(event: string, ...args: unknown[]): boolean {
+    if (event === 'data' && this.decoder && Buffer.isBuffer(args[0])) {
+      return super.emit(event, this.decoder.write(args[0]));
+    }
+    return super.emit(event, ...args);
+  }
+}
+
 class FakeChild extends EventEmitter {
-  stdout = new EventEmitter();
+  stdout = new FakeStream();
+  stderr = new FakeStream();
   stdinEnded = '';
   stdin = {
     on: vi.fn(),
@@ -85,7 +107,7 @@ describe('spawnAgent', () => {
     f.child().stdout.emit('data', Buffer.from('out'));
     f.child().emit('close', 0);
     const r = await p;
-    expect(r).toEqual({ exitCode: 0, stdout: 'out', timedOut: false });
+    expect(r).toEqual({ exitCode: 0, stdout: 'out', stderr: '', stderrBytes: 0, timedOut: false });
     expect(f.calls[0]!.bin).toBe('claude');
     expect(f.calls[0]!.argv).toEqual([
       '--print',
@@ -311,5 +333,126 @@ describe('verifier role', () => {
   it('can be remapped via agents.roles like any role', () => {
     const cfg = agentsConfigSchema.parse({ roles: { verifier: { runner: 'opencode' } } });
     expect(resolveRunner('verifier', cfg)).toEqual({ runner: 'opencode' });
+  });
+});
+
+describe('stderr capture', () => {
+  it('accumulates stderr into the result under capture', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-cap-'));
+    const f = fakeSpawn();
+    const p = spawnAgent(
+      'x',
+      { role: 'reviewer', cwd: dir, stderr: 'capture' },
+      { spawnImpl: f.impl as never },
+    );
+    f.child().stderr.emit('data', 'boom');
+    f.child().emit('close', 1);
+    const r = await p;
+    expect(r.stderr).toBe('boom');
+    // capture pipes stderr rather than letting it through to the terminal
+    expect((f.calls[0]!.opts.stdio as string[])[2]).toBe('pipe');
+  });
+
+  it("leaves stderr '' and inherited by default", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-cap-'));
+    const f = fakeSpawn();
+    const p = spawnAgent('x', { role: 'reviewer', cwd: dir }, { spawnImpl: f.impl as never });
+    f.child().emit('close', 0);
+    expect((await p).stderr).toBe('');
+    expect((f.calls[0]!.opts.stdio as string[])[2]).toBe('inherit');
+  });
+
+  it('annotates signal death so it is distinguishable from a plain non-zero exit', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-cap-'));
+    const f = fakeSpawn();
+    const p = spawnAgent(
+      'x',
+      { role: 'reviewer', cwd: dir, stderr: 'capture' },
+      { spawnImpl: f.impl as never },
+    );
+    f.child().emit('close', null, 'SIGKILL');
+    const r = await p;
+    expect(r.exitCode).toBe(-1);
+    // The signal NAME is the point: SIGKILL (group-kill) vs SIGSEGV (crash) vs SIGTERM
+    // (operator) all arrive as exitCode -1, so omitting it would leave the note unable to
+    // distinguish the causes its own comment promises to distinguish.
+    expect(r.stderr).toContain('terminated by signal SIGKILL');
+  });
+
+  it('decodes multi-byte characters that straddle a chunk boundary', async () => {
+    // The bug this guards: a per-chunk `toString('utf8')` corrupts a split sequence into
+    // U+FFFD. `setEncoding` keeps the StringDecoder's state across chunks instead.
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-cap-'));
+    const f = fakeSpawn();
+    const p = spawnAgent('x', { role: 'reviewer', cwd: dir }, { spawnImpl: f.impl as never });
+    const em = Buffer.from('—', 'utf8'); // 3 bytes
+    f.child().stdout.emit('data', em.subarray(0, 2));
+    f.child().stdout.emit('data', em.subarray(2));
+    f.child().emit('close', 0);
+    expect((await p).stdout).toBe('—');
+  });
+});
+
+describe('foreground', () => {
+  const dir = () => mkdtempSync(join(tmpdir(), 'noldor-fg-'));
+
+  it('spawns non-detached and arms no timer', async () => {
+    const f = fakeSpawn();
+    const p = spawnAgent(
+      'x',
+      { role: 'reviewer', cwd: dir(), foreground: true },
+      { spawnImpl: f.impl as never },
+    );
+    f.child().emit('close', 0);
+    await p;
+    expect(f.calls[0]!.opts.detached).toBe(false);
+  });
+
+  it('still detaches by default, so unattended callers keep the group-kill', async () => {
+    const f = fakeSpawn();
+    const p = spawnAgent('x', { role: 'reviewer', cwd: dir() }, { spawnImpl: f.impl as never });
+    f.child().emit('close', 0);
+    await p;
+    expect(f.calls[0]!.opts.detached).toBe(true);
+  });
+
+  it('rejects a cap it could not enforce', async () => {
+    await expect(
+      spawnAgent('x', { role: 'reviewer', cwd: dir(), foreground: true, timeoutMs: 10 }),
+    ).rejects.toThrow(/invalid-options.*timeoutMs/s);
+  });
+
+  it('rejects onSpawn, whose pid would not be a process-group id', async () => {
+    await expect(
+      spawnAgent('x', { role: 'reviewer', cwd: dir(), foreground: true, onSpawn: () => {} }),
+    ).rejects.toThrow(/invalid-options.*onSpawn/s);
+  });
+
+  it('allows capture, which is the interactive CLI’s live configuration', async () => {
+    const f = fakeSpawn();
+    const p = spawnAgent(
+      'x',
+      { role: 'reviewer', cwd: dir(), foreground: true, stderr: 'capture' },
+      { spawnImpl: f.impl as never },
+    );
+    f.child().stderr.emit('data', 'noise');
+    f.child().emit('close', 0);
+    const r = await p;
+    expect(r.stderr).toBe('noise');
+    expect(f.calls[0]!.opts.detached).toBe(false);
+  });
+});
+
+describe('capture + logSink', () => {
+  it('rejects rather than letting tee silently discard the capture', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-both-'));
+    await expect(
+      spawnAgent('x', {
+        role: 'reviewer',
+        cwd: dir,
+        stderr: 'capture',
+        logSink: join(dir, 'log.txt'),
+      }),
+    ).rejects.toThrow(/invalid-options.*logSink/s);
   });
 });

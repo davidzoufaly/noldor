@@ -9,7 +9,6 @@ vi.mock('../lanes/manual.js', () => ({
 }));
 vi.mock('../lanes/codex.js', () => ({
   runCodex: vi.fn(async () => ({ lane: 'codex', sinkPath: 'c', ok: true })),
-  codexSupportsBaseSha: vi.fn(async () => true),
 }));
 vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async () => ({ lane: 'reviewer', sinkPath: 's', ok: true })),

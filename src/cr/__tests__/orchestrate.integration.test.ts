@@ -40,7 +40,6 @@ vi.mock('../lanes/codex.js', () => ({
     });
     return { lane: 'codex', sinkPath: path, ok: true };
   }),
-  codexSupportsBaseSha: vi.fn(async () => true),
 }));
 vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async (input) => {

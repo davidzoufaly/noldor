@@ -16,25 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Review-Run Lifecycle Module
-
-- id: Q-0112
-- area: tooling
-- type: refactor
-- since: 2026-08-12
-- size: L
-- impact: med
-- confidence: med
-- parent: specs-cr-gate-multi-reviewer
-
-Expected work, process ownership, bounded output, sink persistence and aggregation have no shared source of truth: orchestrate resolves lanes but aggregate later rediscovers only existing filenames (Q-0100), the codex lane shells through pnpm and owns neither the grandchild process group nor a bounded stream, code/spec/plan dispatch mode is inferred in a lossy ternary (Q-0099), and feature capability is guessed by shelling out to intercepted help. Record a run manifest before dispatch carrying expected lanes, kind, artifact and base; let one process owner handle timeout, signal and group cleanup plus capped diagnostics; write every terminal outcome to an expected sink; aggregate against the manifest rather than directory contents. **Leverage:** missing lanes become explicit red, timeouts cannot burn quota invisibly, code cannot fall into plan heuristics, and delta review stops depending on help prose. **Deletion test:** filename discovery as the expected-set oracle, `codexSupportsBaseSha`, nested pnpm timeout ownership, per-lane error-shape normalization and the duplicated process-kill implementations all go; lane adapters keep only prompt and result semantics.
-
-- `codexSupportsBaseSha()` can never return true, so codex artifact review is always full-scope. It runs `pnpm --silent noldor cr codex --help` and greps for `--base-sha`, but the dispatcher intercepts `--help` first (`src/cli/help.ts:25` prints a one-line usage plus the manifest desc and returns), so the detailed usage string in `src/cr/codex.ts` — which does list `--base-sha` — is unreachable and `runCli`'s `inv.help` branch is dead code. Measured: the probe exits 0 in 307 ms with zero matches, every run logs the unsupported-fallback line, and `baseSha` never lands in a sink. This is the live mechanism behind Q-0089's symptom (a); that spec's account of a bad sha throwing in `git diff` is true but describes a different path. The correct fix touches the shared CLI help surface (Q-0115) or replaces the grep with a version check.
-- The codex CR lane orphans codex when the outer `execFile` cap fires. The lane shells out through `pnpm`, and `execFile`'s timeout signals only its direct child, so the codex grandchild survives, runs to self-completion and burns ChatGPT quota — unattended, in drain mode. Codex-specific: `reviewer` and `verifier` dispatch through `spawnAgent` (`subagent-dispatch.ts:137`, `verify-dispatch.ts:74`), which already spawns detached and group-kills. Three CR rounds on Q-0089 established that an inner cap inside `spawnCodex` drags in a kill path, detached spawning, a Ctrl-C signal reaper and two out-of-process fixture harnesses; routing this lane through `spawnAgent` like the other two is the likelier shape than a second kill implementation.
-- `spawnCodex` accumulates stdout and stderr unbounded in memory. Fine for codex's measured 326 KB, but a runaway child could grow the node heap without limit, and the bounding that exists (`formatStderrTail`, 4000 chars) applies only to what reaches the sink. No measured case yet — the outer `execFile` stopped bounding it once the inner spawn took ownership of the streams — so cap it when the lifecycle owner lands.
-
-(architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
-
 ### Prose Rules → Enforce Cascade Rules
 
 - id: Q-0069

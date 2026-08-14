@@ -16,9 +16,16 @@ function tmpConfig(): string {
   return dir;
 }
 
+/** Readable-shaped fake — `setEncoding` must exist because the registry calls it. */
+class FakeStream extends EventEmitter {
+  setEncoding(): this {
+    return this;
+  }
+}
+
 class FakeChild extends EventEmitter {
-  stdout = new EventEmitter();
-  stderr = new EventEmitter();
+  stdout = new FakeStream();
+  stderr = new FakeStream();
   stdin = { on: vi.fn(), end: vi.fn() };
   pid = 12345;
   kill(): void {

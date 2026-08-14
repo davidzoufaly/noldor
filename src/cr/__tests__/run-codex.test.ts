@@ -1,7 +1,8 @@
 // @tests: acceptance-verify-lane, make-noldor-agent-agnostic, noldor
-import { existsSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { runCodex, type Spawn } from '../run-codex.js';
+import { reviewWithCodex } from '../review-with-codex.js';
+import { REV_RE } from '../cli-args.js';
 
 const ctx = { diff: 'D', featureMd: 'F', rules: 'R' };
 
@@ -11,6 +12,7 @@ describe('runCodex', () => {
       stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
       stderr: '',
       exitCode: 0,
+      timedOut: false,
     }));
     const out = await runCodex({ ctx, spawn });
     expect(out.summary).toBe('ok');
@@ -29,6 +31,7 @@ describe('runCodex', () => {
       stdout: JSON.stringify({ blockers: 'oops', suggestions: [], summary: '' }),
       stderr: '',
       exitCode: 0,
+      timedOut: false,
     }));
     const out = await runCodex({ ctx, spawn });
     expect(out.blockers[0].message).toMatch(/malformed CR record/i);
@@ -45,6 +48,7 @@ describe('runCodex', () => {
       stdout: '',
       stderr: 'ERROR: no valid credentials found for this account\n',
       exitCode: 1,
+      timedOut: false,
     }));
     const out = await runCodex({ ctx, spawn });
     expect(out.blockers).toHaveLength(1);
@@ -66,20 +70,26 @@ describe('runCodex', () => {
   });
 
   it('names the probed CLI version in a failure, and never throws when the probe fails', async () => {
-    const withVersion: Spawn = vi.fn(async ({ args }) =>
-      args[0] === '--version'
-        ? { stdout: 'codex-cli 0.133.0\n', stderr: '', exitCode: 0 }
-        : { stdout: '', stderr: 'boom', exitCode: 3 },
-    );
-    expect((await runCodex({ ctx, spawn: withVersion })).blockers[0].message).toContain(
-      'codex-cli 0.133.0',
-    );
-
-    const probeThrows: Spawn = vi.fn(async ({ args }) => {
-      if (args[0] === '--version') throw new Error('probe exploded');
-      return { stdout: '', stderr: 'boom', exitCode: 3 };
+    const failing: Spawn = vi.fn(async () => ({
+      stdout: '',
+      stderr: 'boom',
+      exitCode: 3,
+      timedOut: false,
+    }));
+    const named = await runCodex({
+      ctx,
+      spawn: failing,
+      probe: async () => 'codex-cli 0.133.0',
     });
-    const out = await runCodex({ ctx, spawn: probeThrows });
+    expect(named.blockers[0].message).toContain('codex-cli 0.133.0');
+
+    // The probe never throws by contract; if it somehow degrades, the failure it was
+    // attributing must still surface rather than being masked.
+    const out = await runCodex({
+      ctx,
+      spawn: failing,
+      probe: async () => 'codex (version unknown)',
+    });
     expect(out.blockers[0].message).toMatch(/version unknown/);
     expect(out.blockers[0].message).toMatch(/exit code 3/);
   });
@@ -89,36 +99,27 @@ describe('runCodex', () => {
       stdout: `> some banner\n${JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' })}\ntrailing chatter`,
       stderr: '',
       exitCode: 0,
+      timedOut: false,
     }));
     const out = await runCodex({ ctx, spawn });
     expect(out.summary).toBe('ok');
     expect(out.blockers).toEqual([]);
   });
 
-  it('spawns codex with exec --sandbox read-only --output-schema pointing at an existing schema file', async () => {
+  it('hands the prompt to the spawn and owns no argv of its own', async () => {
+    // Argv belongs to the agent registry now (see codex-adapter). runCodex passing only
+    // stdin is what makes it impossible for a caller to redirect the review spawn.
     const spawn: Spawn = vi.fn(async () => ({
       stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
       stderr: '',
       exitCode: 0,
+      timedOut: false,
     }));
     await runCodex({ ctx, spawn });
     expect(spawn).toHaveBeenCalledTimes(1);
     const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.cmd).toBe('codex');
-    expect(call.args).toEqual([
-      'exec',
-      '--sandbox',
-      'read-only',
-      '--skip-git-repo-check',
-      '--output-schema',
-      expect.any(String),
-      // Trailing `-` is the documented explicit spelling of "prompt on stdin".
-      '-',
-    ]);
-    expect(call.args.at(-1)).toBe('-');
-    const schemaPath = call.args[5];
-    expect(schemaPath).toMatch(/cr-record\.schema\.json$/);
-    expect(existsSync(schemaPath)).toBe(true);
+    expect(Object.keys(call)).toEqual(['stdin']);
+    expect(typeof call.stdin).toBe('string');
   });
 
   it('embeds the JSON-only directive at the top of the prompt', async () => {
@@ -126,6 +127,7 @@ describe('runCodex', () => {
       stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
       stderr: '',
       exitCode: 0,
+      timedOut: false,
     }));
     await runCodex({ ctx, spawn });
     const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -138,6 +140,7 @@ describe('runCodex', () => {
       stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
       stderr: '',
       exitCode: 0,
+      timedOut: false,
     }));
     await runCodex({
       ctx: { kind: 'plan', artifact: '## My plan body', featureMd: 'F', rules: 'R' },
@@ -159,6 +162,7 @@ describe('runCodex', () => {
       stdout: JSON.stringify({ blockers: [], suggestions: [], summary: 'ok' }),
       stderr: '',
       exitCode: 0,
+      timedOut: false,
     }));
     await runCodex({
       ctx: { kind: 'spec', artifact: 'SPEC TEXT', featureMd: 'F', rules: 'R' },
@@ -167,5 +171,32 @@ describe('runCodex', () => {
     const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.stdin).toMatch(/spec/i);
     expect(call.stdin).toContain('SPEC TEXT');
+  });
+});
+
+describe('base-sha argv-injection guard', () => {
+  const review = (baseSha: string) => ({
+    kind: 'spec' as const,
+    artifact: 'docs/x.md',
+    slug: 's',
+    fullReview: false,
+    baseSha,
+  });
+  const neverSpawn = vi.fn(async () => {
+    throw new Error('spawn must not be reached');
+  });
+
+  it.each([
+    ['--output=/tmp/pwned', 'a git option, not a rev — would turn review into a file write'],
+    ['-x', 'any leading dash is parsed by git as an option'],
+  ])('refuses %s before it reaches a git argv', async (bad) => {
+    const out = await reviewWithCodex(review(bad), process.cwd(), neverSpawn as never);
+    expect(out.findings[0]!.message).toMatch(/invalid baseSha/);
+    expect(neverSpawn).not.toHaveBeenCalled();
+  });
+
+  it('accepts an ordinary sha', () => {
+    expect(REV_RE.test('0f2549ac331daa43a0291a4cb18ecbc8b16238c4')).toBe(true);
+    expect(REV_RE.test('origin/main')).toBe(true);
   });
 });

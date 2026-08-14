@@ -1,12 +1,11 @@
-import { join } from 'node:path';
 import { writeJsonAtomic } from '../atomic-write.js';
+import { openLane } from '../filename.js';
 import type { Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { promptSelect, promptText } from '../../core/prompt-stdin.js';
 
 export async function runManual(input: LaneInput): Promise<LaneResult> {
-  const sinkPath = join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-manual.json`);
-  const startedAt = new Date().toISOString();
+  const { sinkPath, startedAt } = openLane(input, 'manual');
 
   const verdict = await promptSelect({
     message: `manual review for ${input.artifact} — verdict?`,

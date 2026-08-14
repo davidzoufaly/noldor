@@ -59,9 +59,36 @@ export interface SpawnAgentOpts {
   /**
    * OUTPUT handling only (stdout). stdin is always owned by the runner's
    * prompt-delivery channel (argv-runners ignore stdin; stdin-runners pipe the
-   * prompt in and close). stderr is always inherited for live progress.
+   * prompt in and close). stderr is inherited for live progress unless
+   * {@link SpawnAgentOpts.stderr} asks for it.
    */
   stdio?: 'pipe' | 'inherit';
+  /**
+   * `'capture'` accumulates the child's stderr into {@link AgentResult.stderr} instead of
+   * letting it through to the terminal. Default `'inherit'` — every existing caller keeps
+   * live stderr and an empty `result.stderr`.
+   *
+   * Exists for the codex CR lane, whose failure attribution reads the child's stderr
+   * (`describeCodexFailure` scans it for an auth hint and renders a bounded tail). Rejected
+   * together with {@link SpawnAgentOpts.logSink}: tee already owns both streams and forces
+   * `stderr` to `''`, so accepting both would silently discard an explicit capture request.
+   */
+  stderr?: 'inherit' | 'capture';
+  /**
+   * Spawn the child in the parent's process group instead of its own.
+   *
+   * The default (`false` → `detached: true`) is right for every unattended caller: it makes the
+   * child a group leader so a timeout can group-kill the real agent process rather than a thin
+   * wrapper. It is wrong for an interactive one, because it also removes the child from the
+   * terminal's foreground group, so the operator's Ctrl-C stops reaching it and the child
+   * survives its parent to run to completion.
+   *
+   * `foreground: true` is the interactive answer: the terminal reaps the whole group for free.
+   * It is mutually exclusive with {@link SpawnAgentOpts.timeoutMs} (no group to kill) and with
+   * {@link SpawnAgentOpts.onSpawn} (the pid it would hand back is not a process-group id) —
+   * both rejected rather than silently ignored.
+   */
+  foreground?: boolean;
   /** Requires a schema-grade runner (codex); enforced at resolve time. */
   schemaPath?: string;
   /** Drives codex sandbox mode (workspace-write vs read-only). */
@@ -94,6 +121,15 @@ export interface SpawnAgentOpts {
 export interface AgentResult {
   exitCode: number;
   stdout: string; // '' under stdio: 'inherit'
+  /** '' unless `stderr: 'capture'` was requested; always '' under tee (logSink). */
+  stderr: string;
+  /**
+   * TRUE pre-elision size of the captured stderr in bytes. Differs from
+   * `Buffer.byteLength(stderr)` exactly when the bounded capture elided a middle section, which
+   * is the case a consumer most needs to report honestly — the elision marker itself sits at
+   * the head/tail seam and never survives into a 4000-char tail. 0 when nothing was captured.
+   */
+  stderrBytes: number;
   timedOut: boolean;
 }
 

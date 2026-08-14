@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { createWriteStream, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { appendAgentEvent } from '../agent-events.js';
+import { createBoundedCapture } from './bounded-capture.js';
 import { CAPABILITIES } from './capabilities.js';
 import { USAGE_ADAPTERS } from './usage/index.js';
 import { CLAUDE_BIN, buildClaudeArgv } from './runners/claude.js';
@@ -126,6 +127,34 @@ export function spawnAgent(
       ),
     );
   }
+  // Incoherent option pairs are rejected at the boundary, never silently degraded: each one
+  // would otherwise hand the caller something that looks like the thing they asked for and
+  // is not (an unenforceable cap, a pid that is not a pgid, a capture request tee discards).
+  if (opts.foreground && opts.timeoutMs !== undefined) {
+    return Promise.reject(
+      new Error(
+        `invalid-options: foreground spawns have no process group to kill, so timeoutMs ` +
+          `cannot be enforced. Drop the cap (the operator's Ctrl-C is the supervision) or drop foreground.`,
+      ),
+    );
+  }
+  if (opts.foreground && opts.onSpawn) {
+    return Promise.reject(
+      new Error(
+        `invalid-options: onSpawn receives a process-group id, which exists only under ` +
+          `detached spawning. A foreground child's pid is not a pgid and kill(-pid) on it would ` +
+          `not reach the group the caller means.`,
+      ),
+    );
+  }
+  if (opts.stderr === 'capture' && opts.logSink !== undefined) {
+    return Promise.reject(
+      new Error(
+        `invalid-options: logSink (tee) already owns stderr and forces AgentResult.stderr to '', ` +
+          `so it would silently discard the requested capture. Pick one.`,
+      ),
+    );
+  }
   const plan = planSpawn(resolved, prompt, opts);
   const spawnImpl = deps.spawnImpl ?? nodeSpawn;
   const started = Date.now();
@@ -142,15 +171,20 @@ export function spawnAgent(
     // parent's stdio AND appended to the sink file — never accumulated into
     // `result.stdout` (the `'' under inherit` contract holds for tee callers).
     const tee = opts.logSink !== undefined;
+    const capture = opts.stderr === 'capture';
     const outMode = !tee && opts.stdio === 'inherit' ? 'inherit' : 'pipe';
-    const errMode = tee ? 'pipe' : 'inherit';
+    const errMode = tee || capture ? 'pipe' : 'inherit';
     const child = spawnImpl(plan.bin, plan.argv, {
       cwd: opts.cwd,
       env: opts.env ? { ...process.env, ...opts.env } : process.env,
       // `detached: true` makes the child its own process-group leader (pgid === child.pid),
       // so a group-kill (`process.kill(-pgid)`) reaches the real agent process the CLI spawns
       // — not just the thin wrapper. Without it, a runner SIGKILL orphans the grandchild.
-      detached: true,
+      //
+      // `foreground` inverts this for interactive callers: detaching also removes the child
+      // from the terminal's foreground process group, so Ctrl-C stops reaching it. An
+      // unattended caller wants the group-kill; an operator at a terminal wants their SIGINT.
+      detached: !opts.foreground,
       // stdin owned by prompt delivery; stdout per opts.stdio (tee forces pipe);
       // stderr live unless tee needs a copy of it too.
       stdio: [plan.promptVia === 'stdin' ? 'pipe' : 'ignore', outMode, errMode],
@@ -191,8 +225,16 @@ export function spawnAgent(
       child.stdin?.on('error', () => {});
       child.stdin?.end(prompt);
     }
+    // noldor:cut stdout accumulates unbounded — capping it would guarantee a parse failure
+    // instead of preventing one, since stdout carries the RESULT (a schema-bounded CR record,
+    // measured 12 bytes; opencode NDJSON; claude prose) rather than diagnostics. Truncating a
+    // return value is strictly worse than a large allocation. Upgrade path: if a runner ever
+    // streams unbounded stdout, give it a logSink (tee already never accumulates) rather than
+    // truncating here. The bounded capture below applies to stderr, which is diagnostic and
+    // therefore safe to elide.
     let stdout = '';
     let timedOut = false;
+    const stderrCapture = createBoundedCapture();
     // Group-kill the whole process group on timeout (negative pid = pgid) so the agent
     // grandchild dies with the wrapper. Falls back to a direct `child.kill` if the group
     // kill throws (reused/permission edge) or the pid is unknown. POSIX-only (darwin/Linux);
@@ -217,16 +259,25 @@ export function spawnAgent(
           }, opts.timeoutMs)
         : null;
     if (!tee) {
-      child.stdout?.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString('utf8');
+      // `setEncoding`, not a per-chunk `chunk.toString('utf8')`: the stream's StringDecoder
+      // holds partial UTF-8 sequences across chunk boundaries. Decoding each chunk
+      // independently corrupts any multi-byte character that straddles one into U+FFFD —
+      // realistic wherever an agent echoes reviewed source containing em dashes or non-ASCII.
+      child.stdout?.setEncoding('utf8');
+      child.stdout?.on('data', (chunk: string) => {
+        stdout += chunk;
       });
+    }
+    if (capture) {
+      child.stderr?.setEncoding('utf8');
+      child.stderr?.on('data', (chunk: string) => stderrCapture.push(chunk));
     }
     child.on('error', (err) => {
       if (timer) clearTimeout(timer);
       sink?.end();
       reject(new Error(`spawn-failed: ${err.message}`));
     });
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       if (timer) clearTimeout(timer);
       sink?.end();
       const exitCode = code ?? -1;
@@ -247,7 +298,21 @@ export function spawnAgent(
       });
       const outText =
         exitCode === 0 && opencodeWantsJson(resolved, opts) ? parseOpencodeEvents(stdout) : stdout;
-      resolve({ exitCode, stdout: outText, timedOut });
+      // Signal death already reports a non-zero exit via `code ?? -1`, but the bare number says
+      // nothing about WHY. Under capture, append the reason so a sink blocker can distinguish a
+      // group-kill from an OOM kill without the reader guessing from `-1`.
+      if (capture && code === null) {
+        stderrCapture.push(
+          `\n[spawnAgent] child terminated by signal ${signal ?? 'unknown'} (exit reported as -1)\n`,
+        );
+      }
+      resolve({
+        exitCode,
+        stdout: outText,
+        stderr: capture ? stderrCapture.value() : '',
+        stderrBytes: capture ? stderrCapture.totalBytes() : 0,
+        timedOut,
+      });
     });
   });
 }

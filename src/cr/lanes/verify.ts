@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { laneSinkPath } from '../filename.js';
 import { mkdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { writeJsonAtomic } from '../atomic-write.js';
@@ -23,7 +24,7 @@ export function setSmokeRunner(impl: SmokeRunner): void {
 }
 
 function sinkPathFor(input: LaneInput): string {
-  return join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-verifier.json`);
+  return laneSinkPath(input.repoRoot, input.slug, input.kind, 'verifier');
 }
 
 function basePayload(input: LaneInput, startedAt: string): Omit<LaneFindings, 'summary'> {

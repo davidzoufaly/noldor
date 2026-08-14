@@ -44,11 +44,10 @@ links:
     - src/core/__tests__/prompt-stdin.test.ts
     - src/cr/__tests__/aggregate.test.ts
     - src/cr/__tests__/atomic-write.test.ts
-    - src/cr/__tests__/codex-failure.test.ts
-    - src/cr/__tests__/codex-spawn.test.ts
     - src/cr/__tests__/autofix-cli.test.ts
     - src/cr/__tests__/autofix-ledger.test.ts
     - src/cr/__tests__/autofix.test.ts
+    - src/cr/__tests__/codex-failure.test.ts
     - src/cr/__tests__/codex.test.ts
     - src/cr/__tests__/deep-review-spawn.test.ts
     - src/cr/__tests__/delta.test.ts

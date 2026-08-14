@@ -1,6 +1,5 @@
-// @tests: specs-cr-gate-multi-reviewer
+// @tests: specs-cr-gate-multi-reviewer, review-run-lifecycle-module
 import { describe, expect, it, vi } from 'vitest';
-import type { Spawn } from '../codex-spawn.js';
 import {
   AUTH_HINT_RE,
   STDERR_TAIL_CHARS,
@@ -8,6 +7,7 @@ import {
   describeCodexFailure,
   formatStderrTail,
   probeCodexVersion,
+  PROBE_TIMEOUT_MS,
 } from '../codex-failure.js';
 
 /** The models-cache noise codex 0.133.0 emits on a perfectly healthy run. */
@@ -99,51 +99,77 @@ describe('describeCodexFailure', () => {
 });
 
 describe('probeCodexVersion', () => {
-  const version = (r: { stdout: string; exitCode: number }): Spawn =>
-    vi.fn(async () => ({ stdout: r.stdout, stderr: '', exitCode: r.exitCode }));
+  const ok = (stdout: string) => vi.fn(async () => stdout);
 
   it('returns the first line of a successful probe', async () => {
-    expect(await probeCodexVersion(version({ stdout: 'codex-cli 0.133.0\n', exitCode: 0 }))).toBe(
-      'codex-cli 0.133.0',
-    );
+    expect(await probeCodexVersion('codex', ok('codex-cli 0.133.0\n'))).toBe('codex-cli 0.133.0');
   });
 
-  it('asks the CLI for --version', async () => {
-    const spawn = version({ stdout: 'codex-cli 0.133.0', exitCode: 0 });
-    await probeCodexVersion(spawn);
-    const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.cmd).toBe('codex');
-    expect(call.args).toEqual(['--version']);
+  it('asks the binary it is given, and can be asked for nothing else', async () => {
+    // The seam takes only `bin`. There is no argv to pass, so no caller and no test can
+    // turn the probe into a review spawn — the hole that made this rework necessary.
+    const exec = ok('codex-cli 0.133.0');
+    await probeCodexVersion('/opt/bin/codex-wrapper', exec);
+    expect(exec).toHaveBeenCalledWith('/opt/bin/codex-wrapper');
+    expect(exec.mock.calls[0]).toHaveLength(1);
   });
 
   it.each([
-    ['a non-zero exit', version({ stdout: 'whatever', exitCode: 1 })],
-    ['empty output', version({ stdout: '   \n', exitCode: 0 })],
-  ])('falls back to the unknown marker on %s', async (_label, spawn) => {
-    expect(await probeCodexVersion(spawn)).toBe(unknownVersion());
+    ['empty output', ok('   \n')],
+    ['a rejecting child', vi.fn(async () => Promise.reject(new Error('boom')))],
+  ])('falls back to the unknown marker on %s', async (_label, exec) => {
+    expect(await probeCodexVersion('codex', exec as never)).toBe(unknownVersion());
   });
 
-  it('never throws, even when the spawn itself throws', async () => {
+  it('never throws, even when the exec itself throws synchronously', async () => {
     // An attribution helper that fails must not mask the failure it is attributing.
-    const boom: Spawn = vi.fn(async () => {
-      throw new Error('spawn exploded');
+    const boom = vi.fn(() => {
+      throw new Error('exec exploded');
     });
-    await expect(probeCodexVersion(boom)).resolves.toBe(unknownVersion());
-  });
-
-  it('probes the command it is given, not a hard-coded `codex`', async () => {
-    // runCodex accepts a `cmd` override. Probing a hard-coded `codex` would report the
-    // version of a binary that was never run — misattributing the failure at exactly the
-    // point where attribution is the whole purpose.
-    const spawn = version({ stdout: 'wrapper 9.9.9', exitCode: 0 });
-    await probeCodexVersion(spawn, '/opt/bin/codex-wrapper');
-    const call = (spawn as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.cmd).toBe('/opt/bin/codex-wrapper');
+    await expect(probeCodexVersion('codex', boom as never)).resolves.toBe(unknownVersion());
   });
 
   it('names the probed binary when the version is unknown', async () => {
-    const out = await probeCodexVersion(version({ stdout: '', exitCode: 1 }), '/opt/bin/wrapper');
+    const out = await probeCodexVersion('/opt/bin/wrapper', ok(''));
     expect(out).toBe('/opt/bin/wrapper (version unknown)');
     expect(out).not.toBe(unknownVersion());
+  });
+
+  it('settles at the cap even when the child never answers', async () => {
+    // The property the cap exists for, asserted AT THE PROBE rather than only at the
+    // helper: `execFile`'s own timeout settles on stream close, which a wedged child or a
+    // surviving grandchild can withhold forever.
+    vi.useFakeTimers();
+    const never = vi.fn(() => new Promise<string>(() => {}));
+    const p = probeCodexVersion('codex', never as never);
+    await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS + 1);
+    await expect(p).resolves.toBe(unknownVersion());
+    vi.useRealTimers();
+  });
+});
+
+describe('bounded stderr is reported honestly', () => {
+  it('reports the TRUE pre-elision size, not the length of what survived', () => {
+    // The failure this guards: a bounded capture elides the middle, the `[… elided …]` marker
+    // sits at the head/tail seam far outside the 4000-char tail, and measuring the string we
+    // were handed would silently under-report megabytes as kilobytes.
+    const elided = `${'head'.padEnd(50, 'h')}\n[… elided 9000000 bytes …]\ntail`;
+    const honest = formatStderrTail(elided, STDERR_TAIL_CHARS, 9_000_123);
+    expect(honest).toContain('of 9000123 bytes');
+    expect(honest).not.toContain(`of ${Buffer.byteLength(elided)} bytes`);
+  });
+
+  it('falls back to measuring the string when no true total is supplied', () => {
+    expect(formatStderrTail('abc')).toContain('of 3 bytes');
+  });
+
+  it('threads the true total through describeCodexFailure', () => {
+    const msg = describeCodexFailure({
+      exitCode: 1,
+      stderr: 'boom',
+      version: 'codex 1.0',
+      stderrBytes: 777_000,
+    });
+    expect(msg).toContain('of 777000 bytes');
   });
 });

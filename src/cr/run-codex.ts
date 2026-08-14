@@ -1,13 +1,12 @@
-import { fileURLToPath } from 'node:url';
-import { CODEX_BIN, buildCodexArgv } from '../core/agent-runner/runners/codex.js';
+import { CODEX_BIN } from '../core/agent-runner/runners/codex.js';
 import { describeCodexFailure, probeCodexVersion } from './codex-failure.js';
 import { extractJsonObject } from './extract-json.js';
 import { CrRecordSchema, type CrRecord } from './sidecar.js';
 
-// Homed in codex-spawn.ts beside its canonical implementation; re-exported here so
+// Homed in codex-adapter.ts beside the registry-backed implementation; re-exported here so
 // existing importers (and their test stubs) keep working unchanged.
-export type { Spawn } from './codex-spawn.js';
-import type { Spawn } from './codex-spawn.js';
+export type { Spawn } from './codex-adapter.js';
+import type { Spawn } from './codex-adapter.js';
 
 export interface CodeReviewCtx {
   kind?: 'code';
@@ -28,28 +27,31 @@ export type ReviewCtx = CodeReviewCtx | ArtifactReviewCtx;
 export interface RunCodexInput {
   ctx: ReviewCtx;
   spawn: Spawn;
-  cmd?: string;
+  /**
+   * Injection point for the version probe's child-spawner (failure path only). Defaults to
+   * the real one. This sits where `cmd` used to: binary selection now belongs to the agent
+   * registry, so a caller can no longer point the review at a different binary — and the
+   * misattribution the old `cmd` override guarded against is unreachable.
+   */
+  probe?: (bin: string) => Promise<string>;
+  /** The cap that was armed, so a timeout can name itself in the failure message. */
+  timeoutMs?: number;
 }
 
 export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
-  const cmd = input.cmd ?? CODEX_BIN;
   const stdin = formatPrompt(input.ctx);
   let stdout = '';
   let stderr = '';
+  let stderrBytes = 0;
   let exitCode = 0;
+  let timedOut = false;
   try {
-    const schemaPath = fileURLToPath(new URL('./cr-record.schema.json', import.meta.url));
-    // Argv shape owned by the codex runner module — the CR lane is a registry
-    // consumer, not the owner of the spawn (spec D11). Review spawns never
-    // write: read-only sandbox.
-    const r = await input.spawn({
-      cmd,
-      args: buildCodexArgv({ needsWrite: false, schemaPath }),
-      stdin,
-    });
+    const r = await input.spawn({ stdin });
     stdout = r.stdout;
     stderr = r.stderr;
+    stderrBytes = r.stderrBytes;
     exitCode = r.exitCode;
+    timedOut = r.timedOut;
   } catch (e) {
     return synthBlocker(`codex spawn failed: ${(e as Error).message}`);
   }
@@ -58,10 +60,18 @@ export async function runCodex(input: RunCodexInput): Promise<CrRecord> {
     // only here keeps a green review free of the extra spawn, and the version is present
     // exactly where someone debugging CLI drift will look. An expired ChatGPT session used
     // to surface as a bare `exited with exit code 1` with the explanation discarded.
-    // Probe the SAME command that failed — `cmd` may be an override, and reporting the
-    // version of a binary that was never run misattributes the failure.
-    const version = await probeCodexVersion(input.spawn, cmd);
-    return synthBlocker(describeCodexFailure({ exitCode, stderr, version }));
+    const version = await (input.probe ?? probeCodexVersion)(CODEX_BIN);
+    return synthBlocker(
+      describeCodexFailure({
+        exitCode,
+        stderr,
+        stderrBytes,
+        version,
+        ...(timedOut
+          ? { timedOut, ...(input.timeoutMs !== undefined && { timeoutMs: input.timeoutMs }) }
+          : {}),
+      }),
+    );
   }
   let json: unknown;
   try {
