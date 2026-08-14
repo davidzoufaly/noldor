@@ -147,11 +147,19 @@ and then says nothing about the body. The command's docs state that only pre-pus
 is authoritative.
 
 An `invalid` snapshot read is **exit 0 with a printed reason on the advisory side
-only**. Fail-closed applies to the adapter that owns the enforcement claim; the
-`commit-msg` adapter always exits zero, and blocking a commit over a file it has
-no authority to act on would resurrect exactly the provisional-state blocking this
-redesign removes. The operator learns of the corruption at commit time and is
-stopped by pre-push, where it counts.
+only**, and the advisory **still evaluates the body**. Fail-closed applies to the
+adapter that owns the enforcement claim; the `commit-msg` adapter always exits
+zero, and blocking a commit over a file it has no authority to act on would
+resurrect exactly the provisional-state blocking this redesign removes. The
+operator learns of the corruption at commit time and is stopped by pre-push, where
+it counts.
+
+The asymmetry with `absent` is deliberate. `absent` means the repository never
+activated this feature, so advising about a contract it has not opted into is
+nagging. `invalid` means it *did* activate and the file is now corrupt — the
+contract applies, only its grandfathering boundary is unreadable — and the body
+advice itself never depended on snapshot content, which bounds *which* commits
+pre-push checks rather than what a valid body looks like.
 
 ### Unit 2 — outgoing commit discovery and object loading
 
@@ -202,12 +210,35 @@ Git passes the hook a remote *name* only when the push names one. For
 `git push https://… main` the first argument is the raw URL, and
 `refs/remotes/<url>/**` matches nothing — silently costing exactly the full
 mainline walk the tracking negatives exist to prevent, on the push shape most
-likely to come from a fresh clone. So the loader first tries to map the argument
-back to a configured remote by matching it against `git config --get-regexp
-'^remote\..*\.url'` (and `pushurl`); on a unique hit it uses that remote's
-tracking namespace. When the argument is a name, the mapping is skipped. When
-neither resolves — an unconfigured URL — the tracking term is simply empty and
-discovery falls back to snapshot-only negatives.
+likely to come from a fresh clone.
+
+Rather than guess whether the argument is a name or a URL, the loader resolves it
+by observation, in this order:
+
+1. Enumerate `refs/remotes/<arg>/**`. Those tips are needed anyway on the common
+   named push, so this costs nothing extra. A non-empty result settles it: the
+   argument was a name.
+2. Only when that enumeration is empty, run one URL lookup:
+   `git config -z --get-regexp '^remote\..*\.(push)?url$'` and match the argument
+   against the values. On exactly one matching `remote.<name>.` key, enumerate
+   that remote's tracking namespace instead.
+3. Otherwise the tracking term is empty and discovery uses snapshot-only
+   negatives.
+
+The pattern is anchored at both ends and covers `pushurl`, so a push-URL-only
+remote resolves and a stray `remote.x.urlfoo` key does not. The `-z` form is
+mandatory for the same reason it is everywhere else in this design: a config
+value may contain an embedded newline, and a line-oriented parse could then
+associate a URL with the *wrong* `remote.<name>.` key and subtract another
+remote's tracking tips — silently skipping validation, the one direction
+negatives must never fail.
+
+`git config --get-regexp` **exits 1 when nothing matches**, which is the ordinary
+outcome in a repository with no configured remotes. That exit is data, not
+failure: it means "no match, empty tracking term". Only an exit greater than 1
+is an infrastructure failure. Without this carve-out the fail-closed rule for Git
+command failures would turn a routine anonymous push into exit 2 — the exact
+opposite of the degradation this paragraph promises.
 
 That fallback is a **cost-only degradation and never a correctness change**: fewer
 negatives can only enlarge the candidate set. It is called out here because a
@@ -457,13 +488,20 @@ Three outcome classes remain visibly distinct:
   single-parent code commits lack valid sections. The diagnostic begins
   `pre-push: outgoing commits do not explain themselves`, then lists every
   offending short SHA and subject with its missing or under-24-character
-  sections. It ends with the exact three-line template and says that the stored
-  commits must be reworded before pushing.
+  sections. It then names the negative sources discovery actually used — the
+  activation tip count, and the resolved remote with its tracking tip count or
+  the fact that the tracking term was empty — so the operator can see what was
+  subtracted from the candidate set. It ends with the exact three-line template
+  and says that the stored commits must be reworded before pushing.
 - **Infrastructure failure (exit 2, blocking adapter only):** malformed ref input,
   `rev-list` failure, an `invalid` activation snapshot read (the advisory adapter
   prints the same reason and still exits 0), an unreadable candidate commit object, or
   an unparseable parent row. The message names the failing ref/SHA, the sanitized
-  Git argument list, and — for a snapshot problem — the `invalid.reason`. An
+  Git argument list, and — for a snapshot problem — the `invalid.reason`. It also
+  names the negative sources **when the failure occurred after discovery
+  resolved them**; a malformed ref line or an `invalid` snapshot aborts before
+  any remote or tip count exists, and the diagnostic simply omits what it does not
+  have rather than inventing zeroes. An
   existing ref's locally-unavailable remote-old SHA is deliberately **not** in this
   class: that negative is dropped and validation widens instead, so a routine
   non-fast-forward push still fails with Git's own `Updates were rejected`
@@ -521,10 +559,20 @@ behavior:
   tip and every tracking tip for the pushed remote as negatives, all delivered on
   stdin rather than argv (a thousand-ref fixture stays under `ARG_MAX`);
 - tracking tips for a *different* remote are not subtracted;
-- a URL-form remote argument resolves through `remote.*.url`/`pushurl` to that
-  remote's tracking namespace, while an unconfigured URL yields an empty tracking
-  term, a larger candidate set, and no infrastructure failure;
-- the exit-1 and exit-2 diagnostics report the negative sources actually used;
+- a named remote resolves from its `refs/remotes/<arg>/**` enumeration alone and
+  issues no config lookup at all;
+- a URL-form argument, whose enumeration is empty, resolves through
+  `remote.*.url` and through `remote.*.pushurl` to that remote's tracking
+  namespace;
+- `git config --get-regexp` exiting 1 (no configured remotes) yields an empty
+  tracking term and a successful push, not exit 2, while an exit above 1 is an
+  infrastructure failure;
+- a config value containing an embedded newline cannot associate a URL with the
+  wrong `remote.<name>.` key, because the probe is parsed NUL-delimited;
+- an unconfigured URL yields an empty tracking term, a larger candidate set, and
+  no infrastructure failure;
+- diagnostics report the negative sources once discovery has resolved them, and
+  omit them on failures that abort before that point;
 - an existing ref whose remote-old SHA is absent locally drops that one negative
   and still enumerates candidates, without an infrastructure failure;
 - stable SHA deduplication across two ref updates;
@@ -591,9 +639,10 @@ suites:
 Keep a narrow advisory suite in
 `src/core/__tests__/validate-summary-body.test.ts`: likely invalid code produces a
 warning, valid structure stays quiet, and every missing-file/Git-failure/finding
-path exits zero — including an `invalid` snapshot read, which prints its reason
-and still exits zero on this adapter while the blocking adapter exits 2 on the
-same file. Existing `allowlist`, `pr-flow`, and `pr-flow-cli` suites remain
+path exits zero — including an `invalid` snapshot read, which prints its reason,
+**still advises on the body**, and exits zero on this adapter while the blocking
+adapter exits 2 on the same file. An `absent` read prints the notice and, unlike
+`invalid`, says nothing about the body. Existing `allowlist`, `pr-flow`, and `pr-flow-cli` suites remain
 green and continue pinning the retained spike behavior.
 
 One end-to-end scratch test installs the hook configuration against a bare remote:
@@ -646,9 +695,13 @@ updates rather than the current index or `COMMIT_EDITMSG`.
 - [ ] A push whose remote argument is a URL resolves back to the configured remote
   for its tracking negatives, and an unconfigured URL degrades to snapshot-only
   negatives — more validation, never less, and never an infrastructure failure.
-- [ ] The exit-1 and exit-2 diagnostics name the negative sources used: the
-  activation tip count and the resolved remote with its tracking tip count, or
-  that the tracking term was empty.
+- [ ] Diagnostics emitted **after** discovery resolves its negatives name them:
+  the activation tip count and the resolved remote with its tracking tip count,
+  or that the tracking term was empty. Failures that abort earlier — a malformed
+  ref line, an `invalid` snapshot — omit the line rather than reporting zeroes.
+- [ ] `git config --get-regexp` exiting 1 is read as "no match, empty tracking
+  term"; only an exit above 1 is an infrastructure failure, so an anonymous push
+  in a repository with no configured remote still pushes.
 - [ ] A commit added after activation on an old side branch remains enforceable
   after any later merge, and root/orphan commits not reachable from a snapshot
   tip enforce normally.
@@ -856,16 +909,23 @@ single-parent history and need the body when they carry code.
     D3).
 
 14. *Does an `invalid` snapshot block a commit as well as a push?*
-    -> **No; advisory prints the reason and exits 0.** Fail-closed belongs to the
-    adapter holding the enforcement claim. Blocking `commit-msg` on a file it has
-    no authority over would reintroduce the provisional-state blocking this
-    redesign exists to remove (CR round 3).
+    -> **No; advisory prints the reason, still advises on the body, and exits 0.**
+    Fail-closed belongs to the adapter holding the enforcement claim. Blocking
+    `commit-msg` on a file it has no authority over would reintroduce the
+    provisional-state blocking this redesign exists to remove. It still advises
+    because, unlike `absent`, the repository *has* opted in — only the
+    grandfathering boundary is unreadable, and body advice never depended on it
+    (CR rounds 3–4).
 
 15. *What if the push names a URL instead of a remote?*
-    -> **Map it back through `remote.*.url`/`pushurl`; otherwise use no tracking
-    negatives.** Git passes the raw URL for `git push https://… main`, so a naive
-    `refs/remotes/<arg>/**` glob would silently restore the unbounded walk. The
-    fallback is cost-only and can never narrow the candidate set (CR round 3).
+    -> **Enumerate `refs/remotes/<arg>/**` first and treat an empty result as the
+    signal to try `remote.*.(push)?url`; otherwise use no tracking negatives.**
+    Git passes the raw URL for `git push https://… main`, so a naive glob would
+    silently restore the unbounded walk — but a name-vs-URL discriminator is a
+    guess, while an empty enumeration is an observed fact, and it costs no extra
+    spawn on the ordinary named push. A no-match `git config` exit of 1 is data,
+    not failure. The fallback is cost-only and can never narrow the candidate set
+    (CR rounds 3–4).
 
 16. *Should tracking subtraction get the same unconditional notice as an absent
     snapshot?*
