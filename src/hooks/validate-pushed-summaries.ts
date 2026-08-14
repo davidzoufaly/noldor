@@ -135,9 +135,25 @@ export function parseRefLines(lines: readonly string[]): RefUpdate[] | { error: 
  * Scoping these to the destination would be more precise, and four attempts to
  * do it each broke on a git shape the previous one did not model (URL-form hook
  * arguments, `pushurl`, `insteadOf` aliases, alias-versus-rewritten-URL config
- * storage). Since these tips are a cost bound and never an integrity claim, the
- * destination's identity is not needed: subtracting all of them bounds the walk
- * and deletes that whole classifier.
+ * storage). Rather than keep growing that classifier — the exact failure this
+ * whole redesign exists to stop repeating — the destination's identity is simply
+ * not used.
+ *
+ * Be precise about what that costs, because "cost bound, not integrity claim" is
+ * too kind: these are negatives in the same `rev-list` that selects candidates,
+ * so **a commit reachable from any tracking ref is exempt from then on**, not
+ * merely cheaper to reach. That is reachable without an adversary. A branch cut
+ * before the activation commit does not carry
+ * `.noldor/summary-body-rollout.json`, so pushing it reads an absent snapshot,
+ * reports `inactive`, and validates nothing; once those commits land on a remote
+ * and are fetched they stay exempt on every later push, and the merge that
+ * brings them to the mainline is itself exempt by parent count.
+ *
+ * This is accepted, not overlooked. The population it exempts is commits some
+ * remote already holds — they crossed the boundary this gate defends before it
+ * was watching — and the alternative on the table was subtracting nothing and
+ * re-walking the whole post-activation mainline on every new branch. Commits
+ * authored after activation on a branch that carries the snapshot are unaffected.
  *
  * The one git call here that is **not** fail-closed. On a non-zero exit the term
  * goes empty and a warning is printed, because fewer negatives can only *enlarge*
