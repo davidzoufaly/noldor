@@ -255,31 +255,48 @@ that accepted `args` would have to ignore them — turning a `--version` call in
 review with an empty prompt**, spending quota on precisely the failure path this spec is hardening.
 
 The category error is older than this spec: asking a binary for its version is a prerequisite probe,
-not an agent dispatch. The repo already has the right seam — `PrereqProbe`
-(`prerequisites.ts:38`) with `makeDefaultProbe(cwd)` (`prerequisites.ts:96`), which runs
-`execFileSync(bin, ['--version'])` under a 5s cap with `stdio: ['ignore','pipe','ignore']`, falls
-back to `node_modules/.bin/<bin>`, normalises the output through `versionFrom`, and returns `null`
-instead of throwing. That matches `probeCodexVersion`'s stated contract ("never throws and never
-propagates a non-zero exit") more closely than the `Spawn` it borrows today.
+not an agent dispatch. What the probe actually needs is small and fixed — run `<bin> --version`,
+cap it, take the answer, never throw:
 
-`probeCodexVersion` therefore takes a `PrereqProbe` instead of a `Spawn`, and `Spawn` loses `cmd`
-and `args` entirely — the last reason it carried them.
+```ts
+type VersionProbe = (bin: string) => Promise<string | null>;   // null = could not answer
+```
 
-**Compose the binary name back on.** The seams disagree about what "a version" is, and the
-difference is load-bearing. `probeCodexVersion` returns `stdout`'s first line today — `codex-cli
-0.133.0` — whereas `makeDefaultProbe` pipes through `versionFrom` (`prerequisites.ts:84-87`,
-`out.match(/\d+(\.\d+)+/)`), which yields the bare `0.133.0`. Adopting the probe naively would
-render `0.133.0: exited with exit code 1` and drop *which binary* — leaving the known-version
-branch strictly less informative than the failure branch, since `unknownVersion`
-(`codex-failure.ts:10-12`) keeps the name. So `probeCodexVersion` returns `` `${cmd} ${version}` ``
-on a hit and `unknownVersion(cmd)` on a miss, giving `codex 0.133.0` / `codex (version unknown)` —
-a consistent `<binary> <version>` shape across both branches, which today's output does not have.
+`probeCodexVersion` takes a `VersionProbe` instead of a `Spawn`, and `Spawn` loses `cmd` and `args`
+entirely — the last reason it carried them. The argv is fixed at the definition site rather than
+supplied by a caller, which is what closes the empty-prompt-review hole; the async signature is what
+keeps it off the event loop (see below).
 
-**Wiring.** `makeDefaultProbe(cwd)` needs a `cwd` for its `node_modules/.bin` fallback, and
-`RunCodexInput` has neither a probe field nor a `cwd` once `cmd` retires. `reviewWithCodex(review,
-cwd, spawn)` (Unit 1) already holds the `cwd`, so it constructs the probe and `RunCodexInput` gains
-`probe: PrereqProbe` where `cmd` used to sit — keeping `runCodex` injectable for tests without
-reintroducing binary selection.
+**Why not `PrereqProbe`.** The repo's doctor seam (`prerequisites.ts:38`, `makeDefaultProbe` at
+`:96`) is the obvious reuse candidate and was this spec's first answer, but it is **synchronous**
+(`execFileSync`, 5s cap, retried once against `node_modules/.bin/<bin>`). After Unit 5 the codex
+lane runs inside the orchestrate process, and orchestrate dispatches lanes concurrently through
+`Promise.allSettled` (`orchestrate.ts:374`) — so a sync probe would block the shared event loop for
+up to ~10s while `reviewer` and `verifier` are live, delaying their timers and, worse, their stream
+draining (an unread stderr pipe is the exact hazard `codex-spawn.ts:20-28` documents). The retry
+that doubles that window exists for dev-dep binaries like `lefthook`; `codex` is a global CLI and
+never resolves out of `node_modules`, so the reuse would import the cost without the benefit. An
+async probe with no retry avoids both.
+
+**Compose the binary name back on, and define the miss.** `probeCodexVersion` returns `stdout`'s
+first line today — `codex-cli 0.133.0`. A digits-only normaliser (`versionFrom`,
+`prerequisites.ts:84-87`) would yield a bare `0.133.0`, rendering `0.133.0: exited with exit code 1`
+and dropping *which binary* — leaving the known-version branch strictly less informative than the
+failure branch, since `unknownVersion` (`codex-failure.ts:10-12`) keeps the name. So the probe
+returns `` `${bin} ${version}` `` on a hit and `unknownVersion(bin)` on a miss: `codex 0.133.0` /
+`codex (version unknown)`, one `<binary> <version>` shape across both branches, which today's output
+does not have.
+
+"Hit" needs a definition, or the shape is only conventionally true. The probe returns `null` — not a
+best-effort string — when the child fails, when stdout is empty, or when stdout carries no
+`\d+(\.\d+)+` group. `versionFrom`'s `out.trim() || '0'` fallback is deliberately *not* copied: it
+suits a doctor table where any answer beats none, and would let `codex <arbitrary multiline stdout>`
+into a sink blocker here. Anything not recognisably a version is a miss, and misses render through
+`unknownVersion`.
+
+**Wiring.** With no `node_modules` fallback the probe needs no `cwd`. `RunCodexInput` gains
+`probe?: VersionProbe` where `cmd` used to sit, defaulting to the real implementation — keeping
+`runCodex` injectable for tests without reintroducing binary selection.
 
 That also retires `RunCodexInput.cmd`. Its docblock warns that probing a hard-coded `codex` would
 misattribute a failure "precisely where attribution is the point" — true while a caller could
@@ -380,11 +397,16 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   per caller, because this is the property that keeps Ctrl-C working on a hand-run review.
 - `RunCodexInput` declares no `cmd` field (assert on the interface, or `grep -n "cmd?:"` — a bare
   `cmd` grep also matches docblocks and cannot verify the absence), and `probeCodexVersion`'s
-  signature takes a `PrereqProbe`, not a `Spawn`.
-- `probeCodexVersion` never spawns a review: a test asserts the probe seam is invoked with
-  `['--version']` and that no agent spawn occurs on the failure path.
+  signature takes a `VersionProbe`, not a `Spawn`.
+- `probeCodexVersion` never spawns a review: `VersionProbe` takes only `bin`, so no test can pass it
+  review argv, and a test asserts no agent spawn occurs on the failure path.
+- `VersionProbe` is async (`Promise<string | null>`) — a type-level assertion, since the whole point
+  is that it cannot block the orchestrate event loop.
 - `probeCodexVersion` returns `codex 0.133.0` for a probe hit and `codex (version unknown)` for a
   miss — both branches carry the binary name, pinned by a test on the string shape.
+- The probe returns `null` (→ `unknownVersion`) when the child fails, when stdout is empty, and when
+  stdout contains no `\d+(\.\d+)+` group — the last case pinned explicitly, so no arbitrary stdout
+  can reach a sink blocker as if it were a version.
 - A lane run whose child exceeds `dispatchTimeoutMs` produces a sink blocker message beginning
   `timed out after <n>ms`, distinct from the message produced by a signal kill at the same exit code.
 - `pnpm test`, `pnpm typecheck` and `pnpm lint` pass; the CR-lane suites pass with the probe mocks
@@ -425,11 +447,11 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 - **Retiring `RunCodexInput.cmd` removes a test seam some suite may lean on.** Callers move to the
   registry's `spawnImpl` injection, which is where the other runners' tests already sit, but the
   migration is mechanical work this spec is asserting rather than measuring.
-- **The version probe becomes synchronous.** `makeDefaultProbe` uses `execFileSync` with a 5s cap,
-  and retries the `node_modules/.bin` path, so a worst case blocks the event loop for ~10s where the
-  async `Spawn` did not. Confined to the failure path — a green review never probes — and the lane
-  has nothing else in flight at that point, so the block costs latency rather than concurrency.
-  Accepted in exchange for deleting the arbitrary-argv hole in `Spawn`.
+- **The version probe is a second small spawn site.** 4b defines a `VersionProbe` rather than
+  reusing the doctor's `PrereqProbe`, so the repo carries two ways to ask a binary for its version.
+  Accepted: the doctor's is synchronous by design and would block the orchestrate event loop that
+  Unit 5 now shares with concurrent lanes. If a future entry wants one seam, the merge direction is
+  to make the doctor's async, not to make this one sync.
 
 ## User Story
 
@@ -513,16 +535,22 @@ caller error rather than silently ignored (4a).
 
 8. *`probeCodexVersion` needs arbitrary `cmd`/`args`, which a registry-backed `Spawn` cannot give.
    Keep a raw spawn, add a registry seam, or drop version attribution?*
-   -> **Neither — move it to the existing `PrereqProbe` seam.** (D7) Asking a binary for
-   `--version` was never an agent dispatch; `makeDefaultProbe` (`prerequisites.ts:96`) already does
-   exactly this job with a 5s cap, a `node_modules/.bin` fallback, and a `null`-not-throw contract
-   that matches `probeCodexVersion`'s own docblock better than `Spawn` does. Dropping attribution
-   was rejected outright — it is the whole point of the entry that introduced it. This also lets
-   `Spawn` shed `cmd`/`args`, and retires `RunCodexInput.cmd`: once the registry owns binary
-   selection, the misattribution its docblock warns about is unreachable. The seam's `versionFrom`
-   normaliser returns digits only, so `probeCodexVersion` composes the binary name back on
-   (`codex 0.133.0`) — which incidentally makes the hit and miss branches share one shape for the
-   first time.
+   -> **Neither — give it a purpose-built async `VersionProbe`.** (D7) Asking a binary for
+   `--version` was never an agent dispatch, and the fix is to fix the *argv*, not the transport: a
+   probe whose arguments are fixed at its definition site cannot be talked into running a review,
+   which is the actual hole. Dropping attribution was rejected outright — it is the whole point of
+   the entry that introduced it. This lets `Spawn` shed `cmd`/`args` and retires
+   `RunCodexInput.cmd`: once the registry owns binary selection, the misattribution its docblock
+   warns about is unreachable.
+
+   Reusing the doctor's `PrereqProbe` was this spec's first answer and is **rejected**: it is
+   synchronous, and Unit 5 moves the codex lane into the orchestrate process, where
+   `Promise.allSettled` (`orchestrate.ts:374`) has sibling lanes live — a ~10s `execFileSync` would
+   stall their timers and their stream draining. The retry that doubles that window serves dev-dep
+   binaries, which `codex` is not. The probe also declines `versionFrom`'s `out.trim() || '0'`
+   fallback, returning `null` on anything unrecognisable so a sink blocker can never read
+   `codex <arbitrary stdout>`; the composed `<binary> <version>` shape then holds by construction
+   rather than by luck, across both the hit and miss branches.
 
 9. *`AgentResult.timedOut` has no slot in `Spawn`'s result, so a timeout becomes indistinguishable
    from a signal kill. How is it carried?*
