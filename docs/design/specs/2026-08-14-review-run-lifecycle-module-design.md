@@ -274,19 +274,23 @@ matrix is open:
 - `foreground` + `logSink` → **allowed.** Mechanically orthogonal like capture, and an operator who
   wants a transcript of a hand-run review is a coherent thing to want. Tee's docblock is framed
   around hours-long unattended children, but nothing in it depends on `detached`.
-- `foreground` + `stdio` → **allowed**, and `'inherit'` is the natural pairing: a non-detached child
-  sharing the terminal is precisely the interactive shape. Note `stdio` governs **stdout only**
-  (`types.ts:60-64`; `errMode` is computed separately at `registry.ts:145-147`), so on the CLI's live
-  configuration — which also captures stderr — the operator sees the child's stdout live and its
-  stderr only if a failure renders it. `foreground` decides who receives their Ctrl-C, which is
-  orthogonal to both.
+- `foreground` + `stdio` → **allowed in principle, unreachable here.** `stdio` governs **stdout only**
+  (`types.ts:60-64`; `errMode` is computed separately at `registry.ts:145-147`), and on this spec's
+  paths stdout is not display output — it is the **return value**: the adapter parses the review JSON
+  out of it (`run-codex.ts:68`). Unit 2 makes `AgentResult.stdout` `''` under `'inherit'`, so
+  `'inherit'` here would empty the result and break parsing. Both codex paths therefore keep the
+  registry default `'pipe'`, and the interactive operator sees neither stream live — stderr surfaces
+  only if a failure renders its tail. The pairing is orthogonal and would be fine for some future
+  caller whose stdout is not a return value; no caller this spec defines is one.
 - `stderr: 'capture'` + `logSink` → **rejected.** Not a `foreground` interaction — a Unit 2 one,
   settled here because Unit 2 creates it. Tee already owns both streams and forces
   `AgentResult.stderr` to `''`, so accepting both would silently discard an explicit capture request.
 
-Only the first is reachable with today's callers, and it is the one that carries the interactive
-path. The rest are specified so that a shared component's behaviour in its own configurations is not
-discoverable solely by reading the implementation.
+Only the first row is reachable with today's callers, and it is the one that carries the interactive
+path — the `stdio` row is "allowed" in the contract sense but has no reachable caller here, since
+every codex path needs `'pipe'` to get its result back. The rest are specified so that a shared
+component's behaviour in its own configurations is not discoverable solely by reading the
+implementation.
 
 Unit 5 is what makes this clean rather than a heuristic. Today `cr codex` is invoked *both* by a
 human and by the lane, so no static answer to "is this interactive?" exists. After Unit 5 the lane
