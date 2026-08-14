@@ -6,7 +6,9 @@ entry-id: Q-0124
 links:
   code: []
   tests:
+    - src/core/__tests__/summary-body-rollout.test.ts
     - src/core/__tests__/validate-summary-body.test.ts
+    - src/hooks/__tests__/validate-pushed-summaries.test.ts
 name: PR Summary Body Enforcement
 packages:
   - package.json

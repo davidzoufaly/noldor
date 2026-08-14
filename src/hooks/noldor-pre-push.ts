@@ -1,8 +1,16 @@
 // scripts/hooks/noldor-pre-push.ts
-// pre-push stage: blocks direct pushes to origin/main, enforcing the Noldor PR flow.
+// pre-push stage: blocks direct pushes to origin/main, enforcing the Noldor PR
+// flow, and validates that every outgoing commit object explains itself.
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
+import { pathToFileURL } from 'node:url';
+
+import {
+  createGitRunner,
+  renderViolations,
+  validatePushedSummaries,
+} from './validate-pushed-summaries.js';
 
 export interface PrePushInput {
   remoteName: string;
@@ -74,11 +82,31 @@ async function main(): Promise<number> {
     return 2;
   }
   const refLines = stdinResult.data.split('\n').filter((l) => l.trim().length > 0);
+
+  // Destination check first: a forbidden push fails without paying for any
+  // object walk.
   const result = evaluatePrePush({ remoteName, refLines, env: process.env });
   if (!result.ok) {
     process.stderr.write(`${result.reason}\n`);
     return 1;
   }
+
+  // Every allowed push, including non-origin remotes. A release override permits
+  // the destination; it does not exempt the bodies. Release commits pass on
+  // their own `Noldor-Path` trailer instead, which is a claim git stored rather
+  // than an environment variable the invoking shell set.
+  const scan = validatePushedSummaries({ git: createGitRunner(process.cwd()), refLines });
+  if (scan.kind === 'inactive') {
+    process.stderr.write(`${scan.notice}\n`);
+  } else if (scan.kind === 'infra') {
+    process.stderr.write(`${scan.message}\n`);
+    return 2;
+  } else if (scan.kind === 'violations') {
+    process.stderr.write(`${renderViolations(scan.violations, scan.negatives)}\n`);
+    return 1;
+  }
+
+  // Only now: the receipt records a push that is actually going to happen.
   if (result.override === 'release') {
     const sha = (refLines[0] ?? '').split(/\s+/)[1] ?? 'unknown';
     const { execFileSync } = await import('node:child_process');
@@ -128,6 +156,11 @@ export function readStdinWithTimeout(
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// `pathToFileURL`, not a `file://` template: a repo path needing percent-encoding
+// (a space is enough) makes the naive comparison false, `main` never runs, the
+// process exits 0, and every push passes with no diagnostic — a silently disabled
+// gate, in the one hook that now owns the blocking body decision. Same form as
+// `src/cli/index.ts` and `src/core/validate-summary-body.ts`.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   void main().then((code) => process.exit(code));
 }

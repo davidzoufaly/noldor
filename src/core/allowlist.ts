@@ -9,6 +9,7 @@ export const MICRO_CHORE_GLOBS = [
   'templates/.claude/**', // template twins of `.claude/**` skills — template-sync forces editing both, so the twin must share the micro-chore lane
   'templates/docs/**/*.md', // template twins of `docs/**` pages — check-template-sync forces mirroring both, so the twin must share the micro-chore lane
   '.noldor/rollout-marker', // arming commit: the marker must be committable through the wall it arms
+  '.noldor/summary-body-rollout.json', // same reason: the summary-body activation snapshot must be committable through the gate it arms
 ] as const;
 
 /**

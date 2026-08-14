@@ -1,529 +1,231 @@
 // @tests: pr-summary-body-enforcement
 import { describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { pathToFileURL } from 'node:url';
+import { FILE as SNAPSHOT_FILE } from '../summary-body-rollout.js';
+import { provisionalBody, validateSummaryCommit } from '../validate-summary-body.js';
 
-import { touchesCode } from '../allowlist.js';
-import { loadCommitFiles, main, validateSummaryBody } from '../validate-summary-body.js';
+const CODE = ['src/clones/ranges.ts'];
+const PROSE = ['docs/noldor/pr-flow.md'];
 
 const GOOD_BODY = [
-  'fix(clones): union untracked files into the diff-scoped verdict',
-  '',
   'Why — a new file has no git post-image, so the clone gate printed green',
   'for a file whose every line was just written.',
   'How — resolveChangedRanges now unions `git ls-files --others` into the',
   'changed-range map as whole-file spans.',
-  'What — src/clones/ranges.ts plus a regression test.',
-  '',
-  'Noldor-Path: fast-track',
+  'What — src/clones/ranges.ts plus a regression test now make a pasted file',
+  'participate in diff-scoped clone detection.',
 ].join('\n');
 
-const CODE = ['src/clones/ranges.ts'];
+/** A stored commit object, with the shape git would have written. */
+function commit(over: Partial<Parameters<typeof validateSummaryCommit>[0]> = {}) {
+  return validateSummaryCommit({
+    sha: 'a'.repeat(40),
+    message: `fix(clones): union untracked files\n\n${GOOD_BODY}\n`,
+    files: CODE,
+    parentCount: 1,
+    ...over,
+  });
+}
 
-describe('validateSummaryBody', () => {
+describe('validateSummaryCommit — section contract', () => {
   it('accepts a body carrying all three sections', () => {
-    expect(validateSummaryBody({ message: GOOD_BODY, stagedFiles: CODE }).success).toBe(true);
+    expect(commit().success).toBe(true);
   });
 
-  for (const section of ['Why', 'How', 'What']) {
-    it(`rejects a body missing ${section}`, () => {
-      const message = GOOD_BODY.split('\n')
-        .filter((l) => !l.startsWith(`${section} —`))
+  it('reports each missing section by name', () => {
+    for (const drop of ['Why', 'How', 'What']) {
+      const body = GOOD_BODY.split('\n')
+        .filter((l) => !l.startsWith(`${drop} —`))
         .join('\n');
-      const result = validateSummaryBody({ message, stagedFiles: CODE });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain(section);
-    });
-  }
-
-  it('rejects a section that exists but says nothing', () => {
-    const message = ['fix(x): y', '', 'Why — x', 'How — y', 'What — z'].join('\n');
-    const result = validateSummaryBody({ message, stagedFiles: CODE });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('under 24 chars');
+      const r = commit({ message: `subject\n\n${body}\n` });
+      expect(r.success).toBe(false);
+      expect(r.error).toContain(drop);
+    }
   });
 
-  it('accepts sections in any order — presence is the bar, not sequence', () => {
-    const message = [
-      'fix(x): y',
-      '',
-      'What — src/clones/ranges.ts plus a regression test.',
-      'Why — a new file has no git post-image, so the gate printed green.',
-      'How — resolveChangedRanges unions ls-files output into the range map.',
-    ].join('\n');
-    expect(validateSummaryBody({ message, stagedFiles: CODE }).success).toBe(true);
+  it('treats 24 non-whitespace characters as the floor, not 23', () => {
+    const withWhat = (text: string) =>
+      commit({
+        message: `subject\n\nWhy — ${'w'.repeat(30)}\nHow — ${'h'.repeat(30)}\nWhat — ${text}\n`,
+      });
+
+    expect(withWhat('x'.repeat(23)).success).toBe(false);
+    expect(withWhat('x'.repeat(24)).success).toBe(true);
   });
 
-  // `Why:` in a body's last paragraph is a valid git trailer and
-  // interpret-trailers absorbs it — the reason the markers use an em dash.
-  it('rejects the colon form and says why', () => {
-    const message = [
-      'fix(x): y',
-      '',
-      'Why: a new file has no git post-image, so the gate printed green.',
-      'How: resolveChangedRanges unions ls-files output into the range map.',
-      'What: src/clones/ranges.ts plus a regression test.',
-    ].join('\n');
-    const result = validateSummaryBody({ message, stagedFiles: CODE });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('em dash');
+  it('measures content, not whitespace padding', () => {
+    const padded = `subject\n\nWhy — ${'w'.repeat(30)}\nHow — ${'h'.repeat(30)}\nWhat — ${'x '.repeat(20)}\n`;
+    // 20 'x' characters once the spaces are discounted — under the floor.
+    expect(commit({ message: padded }).success).toBe(false);
   });
 
-  // Trailers are stripped before the sections are measured, so a trailer line
-  // sitting inside a section cannot pad it over the threshold.
-  it('does not count trailer lines toward section content', () => {
-    const padded = [
-      'fix(x): y',
-      '',
-      'Why — the gate printed green for a brand-new file, silently.',
-      'How — ranges now union ls-files output into the changed-range map.',
-      'What — short.',
-      'Noldor-Path: fast-track',
-      'Noldor-FD: some-slug',
-    ].join('\n');
-    const result = validateSummaryBody({ message: padded, stagedFiles: CODE });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('What');
+  it('accepts the sections in any order — order is prose convention, not mechanism', () => {
+    const reordered = ['What', 'Why', 'How'].map((s) => `${s} — ${'z'.repeat(30)}`).join('\n');
+    expect(commit({ message: `subject\n\n${reordered}\n` }).success).toBe(true);
   });
 
-  // `sectionLength` runs marker → next marker or end of body, so anything git
-  // appends below the last section counts toward it. An interactive `git
-  // commit` always appends its comment block, and `-v` appends the whole diff.
-  it('does not let git comment lines pad the final section', () => {
-    const message = [
-      'fix(x): y',
-      '',
-      'Why — the gate printed green for a brand-new file, silently.',
-      'How — ranges now union ls-files output into the changed-range map.',
-      'What — x',
-      '',
-      '# Please enter the commit message for your changes. Lines starting',
-      '# with "#" will be ignored, and an empty message aborts the commit.',
-      '#',
-      '# On branch feat/x',
-      '# Changes to be committed:',
-      '#\tmodified:   src/core/foo.ts',
-    ].join('\n');
-    const result = validateSummaryBody({ message, stagedFiles: ['src/core/foo.ts'] });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('What');
+  it('does not let trailers pad the final section', () => {
+    const thin = `subject\n\nWhy — ${'w'.repeat(30)}\nHow — ${'h'.repeat(30)}\nWhat — x\n\nNoldor-FD: some-feature\nNoldor-Path: fast-track\n`;
+    const r = commit({ message: thin });
+    expect(r.success).toBe(false);
+    expect(r.error).toContain('What');
   });
 
-  // Stripping `#` lines removes the scissors marker but not the diff beneath it,
-  // so the body must also be truncated at the scissors.
-  it('does not let the commit -v diff pad the final section', () => {
-    const message = [
-      'fix(x): y',
-      '',
-      'Why — the gate printed green for a brand-new file, silently.',
-      'How — ranges now union ls-files output into the changed-range map.',
-      'What — x',
-      '',
-      '# ------------------------ >8 ------------------------',
-      '# Do not modify or remove the line above.',
-      'diff --git a/src/core/foo.ts b/src/core/foo.ts',
-      'index 1234567..89abcde 100644',
-      '--- a/src/core/foo.ts',
-      '+++ b/src/core/foo.ts',
-      '@@ -1,3 +1,4 @@',
-      '+const padding = "this text is not part of the commit message";',
-    ].join('\n');
-    const result = validateSummaryBody({ message, stagedFiles: ['src/core/foo.ts'] });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('What');
+  it('hints at the em-dash when the author used a colon', () => {
+    const colons = 'Why: reason\nHow: mechanism\nWhat: outcome';
+    const r = commit({ message: `subject\n\n${colons}\n` });
+    expect(r.success).toBe(false);
+    expect(r.error).toContain('interpret-trailers');
   });
 
-  // core.commentChar is configurable; hardcoding `#` would reopen the padding
-  // hole for any repo that sets it.
-  it('honours a configured comment character', () => {
-    const message = [
-      'fix(x): y',
-      '',
-      'Why — the gate printed green for a brand-new file, silently.',
-      'How — ranges now union ls-files output into the changed-range map.',
-      'What — x',
-      '',
-      '; ------------------------ >8 ------------------------',
-      '; Do not modify or remove the line above.',
-      'diff --git a/src/core/foo.ts b/src/core/foo.ts',
-      '+const padding = "not part of the message at all, but long";',
-    ].join('\n');
-    const result = validateSummaryBody({
-      message,
-      stagedFiles: ['src/core/foo.ts'],
-      commentChar: ';',
-    });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('What');
-  });
-
-  // core.commentChar / core.commentString accept multi-character markers; a
-  // length filter would drop `//` and silently fall back to `#`.
-  it('honours a multi-character comment marker', () => {
-    const message = [
-      'fix(x): y',
-      '',
-      'Why — the gate printed green for a brand-new file, silently.',
-      'How — ranges now union ls-files output into the changed-range map.',
-      'What — x',
-      '',
-      '// ------------------------ >8 ------------------------',
-      '// Do not modify or remove the line above.',
-      'diff --git a/src/core/foo.ts b/src/core/foo.ts',
-      '+const padding = "not part of the message at all, but long";',
-    ].join('\n');
-    const result = validateSummaryBody({
-      message,
-      stagedFiles: ['src/core/foo.ts'],
-      commentChar: '//',
-    });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('What');
-  });
-
-  it('reads the automation exemption from the resolved trailer', () => {
-    expect(
-      validateSummaryBody({
-        message: 'chore(release): v1.3.0',
-        stagedFiles: CODE,
-        noldorPath: 'release-automation',
-      }).success,
-    ).toBe(true);
-    expect(
-      validateSummaryBody({
-        message: 'fix(core): a real change',
-        stagedFiles: CODE,
-        noldorPath: 'fast-track',
-      }).success,
-    ).toBe(false);
-  });
-
-  it('still accepts a real body carrying git comment furniture', () => {
-    const message = [
-      'fix(x): y',
-      '',
-      'Why — the gate printed green for a brand-new file, silently.',
-      'How — ranges now union ls-files output into the changed-range map.',
-      'What — src/clones/ranges.ts plus the regression test that pins it.',
-      '',
-      '# Please enter the commit message for your changes.',
-    ].join('\n');
-    expect(validateSummaryBody({ message, stagedFiles: ['src/core/foo.ts'] }).success).toBe(true);
-  });
-
-  it('measures a section across its continuation lines', () => {
-    const wrapped = [
-      'fix(x): y',
-      '',
-      'Why — the gate printed green for a brand-new file, silently.',
-      'How — ranges now union ls-files output into the changed-range map.',
-      'What — one file,',
-      'plus the regression test that pins it.',
-    ].join('\n');
-    expect(validateSummaryBody({ message: wrapped, stagedFiles: CODE }).success).toBe(true);
-  });
-
-  describe('exemptions', () => {
-    const bare = 'chore: no body at all';
-
-    it('exempts a bookkeeping-only staged set', () => {
-      expect(
-        validateSummaryBody({
-          message: 'docs(roadmap): retire some-slug — shipped via fast-track (no FD)',
-          stagedFiles: ['docs/roadmap.md', '.noldor/retired-entry-ids.json'],
-        }).success,
-      ).toBe(true);
-    });
-
-    it('exempts an empty staged set', () => {
-      expect(validateSummaryBody({ message: bare, stagedFiles: [] }).success).toBe(true);
-    });
-
-    // The third category: prose that is neither bookkeeping nor code. The
-    // contract is "a commit that carries code explains itself", so a README
-    // typo must not demand three sections.
-    it('exempts prose that is neither bookkeeping nor code', () => {
-      for (const file of [
-        'README.md',
-        'docs/noldor/pr-flow.md',
-        '.claude/skills/noldor-gate/SKILL.md',
-        'templates/docs/noldor/pr-flow.md',
-      ]) {
-        expect(validateSummaryBody({ message: bare, stagedFiles: [file] }).success).toBe(true);
-      }
-    });
-
-    it('still demands a body when prose rides alongside code', () => {
-      expect(
-        validateSummaryBody({ message: bare, stagedFiles: ['README.md', 'src/core/foo.ts'] })
-          .success,
-      ).toBe(false);
-    });
-
-    // `amend!` is written by `git commit --fixup=reword:<sha>`, which runs
-    // commit-msg over a message git generated.
-    it('exempts the autosquash subjects', () => {
-      for (const subject of ['fixup! fix(x): y', 'squash! fix(x): y', 'amend! fix(x): y']) {
-        expect(validateSummaryBody({ message: subject, stagedFiles: CODE }).success).toBe(true);
-      }
-    });
-
-    // A clean revert never reaches commit-msg and `revert -n` sets REVERT_HEAD,
-    // so the subject would only ever serve as a forgeable bypass.
-    it('does not exempt a Revert subject — replayInProgress covers real reverts', () => {
-      expect(
-        validateSummaryBody({ message: 'Revert "fix(x): y"', stagedFiles: CODE }).success,
-      ).toBe(false);
-      expect(
-        validateSummaryBody({
-          message: 'Revert "fix(x): y"',
-          stagedFiles: CODE,
-          replayInProgress: true,
-        }).success,
-      ).toBe(true);
-    });
-
-    it('exempts release automation by trailer', () => {
-      const message = ['chore(release): v1.3.0', '', 'Noldor-Path: release-automation'].join('\n');
-      expect(validateSummaryBody({ message, stagedFiles: CODE }).success).toBe(true);
-    });
-
-    it('exempts a real merge (replayInProgress true)', () => {
-      expect(
-        validateSummaryBody({
-          message: "Merge branch 'main' into feat/x",
-          stagedFiles: CODE,
-          replayInProgress: true,
-        }).success,
-      ).toBe(true);
-    });
-
-    // The forgery the MERGE_HEAD keying exists to stop.
-    it('rejects a forged Merge subject with no merge in progress', () => {
-      expect(
-        validateSummaryBody({ message: "Merge branch 'fake'", stagedFiles: CODE }).success,
-      ).toBe(false);
-    });
-
-    it('rejects when replayInProgress is absent — omission must not buy the exemption', () => {
-      expect(
-        validateSummaryBody({ message: "Merge branch 'main'", stagedFiles: CODE }).success,
-      ).toBe(false);
-    });
-  });
-});
-
-describe('CLI entry', () => {
-  // A `file://${argv[1]}` template compares false whenever the path needs
-  // percent-encoding, so `main` never runs, the process exits 0, and the gate
-  // is silently off. Consumers install into arbitrary paths.
-  it('detects main-module invocation from a path containing a space', () => {
-    const argv1 = '/tmp/My Dir/validate-summary-body.js';
-    expect(pathToFileURL(argv1).href).toBe('file:///tmp/My%20Dir/validate-summary-body.js');
-    expect(pathToFileURL(argv1).href).not.toBe(`file://${argv1}`);
-  });
-
-  it('fails open on an unreadable message file instead of throwing', async () => {
-    await expect(main(join(tmpdir(), 'noldor-does-not-exist-', 'nope.txt'))).resolves.toBe(0);
-  });
-
-  it('rejects a missing message-file argument', async () => {
-    await expect(main(undefined)).resolves.toBe(1);
-  });
-});
-
-// `git commit --amend` stages nothing, so a naive staged-set read is empty and
-// the empty-set exemption would let a code commit's body be rewritten away.
-describe('amend shape', () => {
-  const scratchRepo = (): { repo: string; git: (...a: string[]) => string } => {
-    const repo = mkdtempSync(join(tmpdir(), 'noldor-amend-'));
-    const git = (...args: string[]): string =>
-      execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
-    git('init', '-q', '-b', 'main');
-    git('config', 'user.email', 'test@example.com');
-    git('config', 'user.name', 'test');
-    return { repo, git };
-  };
-
-  it('resolves the amended commit’s own files instead of an empty set', async () => {
-    const { repo, git } = scratchRepo();
-    writeFileSync(join(repo, 'f.ts'), 'a\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'seed');
-    writeFileSync(join(repo, 'f.ts'), 'a\nb\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'code change');
-
-    // The state `git commit --amend` presents to commit-msg: nothing staged.
-    expect(git('diff', '--cached', '--name-only')).toBe('');
-    await expect(loadCommitFiles(repo)).resolves.toEqual(['f.ts']);
-  });
-
-  // The shape is "index tree == HEAD tree", which an untracked or unstaged edit
-  // also presents. That is not a false positive in practice: with nothing
-  // staged git refuses to create a commit at all, so commit-msg only runs here
-  // for `--amend` or `--allow-empty`. Pinned so the limit is known, not assumed.
-  it('cannot distinguish an unstaged working tree from an amend', async () => {
-    const { repo, git } = scratchRepo();
-    writeFileSync(join(repo, 'f.ts'), 'a\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'seed');
-    writeFileSync(join(repo, 'g.ts'), 'untracked\n');
-    await expect(loadCommitFiles(repo)).resolves.toEqual(['f.ts']);
-  });
-
-  // Without `-z` git quotes a non-ASCII path, which then matches no glob —
-  // touchesCode says false and a real source rewrite renders "Doc-only change".
-  it('returns a non-ASCII path verbatim, not git-quoted', async () => {
-    const { repo, git } = scratchRepo();
-    writeFileSync(join(repo, 'seed.ts'), 'a\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'seed');
-    writeFileSync(join(repo, 'café.ts'), 'const x = 1;\n');
-    git('add', '.');
-    const files = await loadCommitFiles(repo);
-    expect(files).toEqual(['café.ts']);
-    expect(touchesCode(files ?? [])).toBe(true);
-  });
-
-  it('prefers the staged set whenever one exists', async () => {
-    const { repo, git } = scratchRepo();
-    writeFileSync(join(repo, 'f.ts'), 'a\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'seed');
-    writeFileSync(join(repo, 'g.ts'), 'staged\n');
-    git('add', 'g.ts');
-    await expect(loadCommitFiles(repo)).resolves.toEqual(['g.ts']);
-  });
-
-  it('lists the root commit’s files when it has no parent', async () => {
-    const { repo, git } = scratchRepo();
-    writeFileSync(join(repo, 'f.ts'), 'a\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'root');
-    await expect(loadCommitFiles(repo)).resolves.toEqual(['f.ts']);
-  });
-
-  it('is distinguishable from a genuinely empty staged set', () => {
-    const repo = mkdtempSync(join(tmpdir(), 'noldor-amend-'));
-    const git = (...args: string[]): string =>
-      execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
-    git('init', '-q', '-b', 'main');
-    git('config', 'user.email', 'test@example.com');
-    git('config', 'user.name', 'test');
-
-    writeFileSync(join(repo, 'f.ts'), 'a\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'seed');
-    writeFileSync(join(repo, 'f.ts'), 'a\nb\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'code change');
-
-    // Nothing staged, yet the index tree matches HEAD's — the amend shape the
-    // CLI keys on — and HEAD's own files name the code the amend would carry.
-    expect(git('diff', '--cached', '--name-only')).toBe('');
-    expect(git('write-tree')).toBe(git('rev-parse', 'HEAD^{tree}'));
-    expect(git('diff', '--name-only', 'HEAD^', 'HEAD')).toBe('f.ts');
-
-    // Which means the validator, handed those files, still demands a body.
-    expect(validateSummaryBody({ message: 'code change', stagedFiles: ['f.ts'] }).success).toBe(
-      false,
+  it('returns the subject alongside the verdict, for the rejection list', () => {
+    expect(commit({ message: 'feat(x): a subject line\n\nbody\n' }).subject).toBe(
+      'feat(x): a subject line',
     );
   });
 });
 
-// A conflicted cherry-pick / revert DOES run commit-msg, with its own pseudo-ref
-// and no MERGE_HEAD. The message there is the original author's, written before
-// this contract existed, so a MERGE_HEAD-only check blocks the sequencer.
-describe('sequencer replay refs', () => {
-  it('sets CHERRY_PICK_HEAD, not MERGE_HEAD, on a conflicted cherry-pick', () => {
-    const repo = mkdtempSync(join(tmpdir(), 'noldor-replay-'));
-    const git = (...args: string[]): string =>
-      execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
-    const refResolves = (ref: string): boolean => {
-      try {
-        execFileSync('git', ['rev-parse', '-q', '--verify', ref], { cwd: repo, stdio: 'pipe' });
-        return true;
-      } catch {
-        return false;
-      }
-    };
+describe('validateSummaryCommit — path scope', () => {
+  it('exempts a commit that carries no code', () => {
+    expect(commit({ files: PROSE, message: 'docs: tweak\n' }).success).toBe(true);
+  });
 
-    git('init', '-q', '-b', 'main');
-    git('config', 'user.email', 'test@example.com');
-    git('config', 'user.name', 'test');
-    writeFileSync(join(repo, 'f.ts'), 'base\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'base');
-    git('checkout', '-q', '-b', 'side');
-    writeFileSync(join(repo, 'f.ts'), 'side\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'side change');
-    git('checkout', '-q', 'main');
-    writeFileSync(join(repo, 'f.ts'), 'main\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'main change');
+  it('exempts an empty path set', () => {
+    expect(commit({ files: [], message: 'chore: nothing\n' }).success).toBe(true);
+  });
 
-    try {
-      git('cherry-pick', 'side');
-    } catch {
-      // expected: conflict
-    }
-    expect(refResolves('CHERRY_PICK_HEAD')).toBe(true);
-    expect(refResolves('MERGE_HEAD')).toBe(false);
+  it('requires a body when one code path rides along with prose', () => {
+    expect(commit({ files: [...PROSE, ...CODE], message: 'docs: tweak\n' }).success).toBe(false);
   });
 });
 
-describe('git merge semantics the exemption depends on', () => {
-  // The design rests on two empirical claims about git. Pin them here rather
-  // than trusting prose: a git that stopped setting MERGE_HEAD during
-  // commit-msg would silently disable the exemption.
-  it('sets MERGE_HEAD during a real merge and not on a clean tree', () => {
-    const repo = mkdtempSync(join(tmpdir(), 'noldor-mergehead-'));
-    const git = (...args: string[]): string =>
-      execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
-    git('init', '-q', '-b', 'main');
-    git('config', 'user.email', 'test@example.com');
-    git('config', 'user.name', 'test');
+describe('validateSummaryCommit — object-derived exemptions', () => {
+  it('exempts a merge by parent count', () => {
+    expect(commit({ parentCount: 2, message: "Merge branch 'x'\n" }).success).toBe(true);
+  });
 
-    writeFileSync(join(repo, 'seed.txt'), 'seed\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'seed');
+  it('enforces a single-parent commit wearing a Merge subject', () => {
+    // The forged-subject hole the parked design could not close: with no
+    // MERGE_HEAD to consult, `git commit -m "Merge branch 'x'"` walked past the
+    // gate. Parent count is not forgeable.
+    expect(commit({ parentCount: 1, message: "Merge branch 'x'\n" }).success).toBe(false);
+  });
 
-    const mergeHeadResolves = (): boolean => {
-      try {
-        execFileSync('git', ['rev-parse', '-q', '--verify', 'MERGE_HEAD'], {
-          cwd: repo,
-          stdio: 'pipe',
-        });
-        return true;
-      } catch {
-        return false;
-      }
-    };
+  it('enforces a single-parent commit wearing a Revert subject', () => {
+    expect(commit({ parentCount: 1, message: 'Revert "feat: thing"\n' }).success).toBe(false);
+  });
 
-    expect(mergeHeadResolves()).toBe(false);
+  it('enforces a root commit that carries code', () => {
+    expect(commit({ parentCount: 0, message: 'feat: initial\n' }).success).toBe(false);
+  });
 
-    git('checkout', '-q', '-b', 'side');
-    writeFileSync(join(repo, 'side.txt'), 'side\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'side work');
-    git('checkout', '-q', 'main');
-    writeFileSync(join(repo, 'main.txt'), 'main\n');
-    git('add', '.');
-    git('commit', '-q', '-m', 'main work');
-
-    // --no-commit leaves the merge in progress, which is exactly the state the
-    // commit-msg hook observes mid-merge.
-    try {
-      git('merge', '--no-commit', '--no-ff', 'side');
-    } catch {
-      // a conflict would also leave MERGE_HEAD set; either way the assertion holds
+  it('exempts the autosquash family', () => {
+    for (const prefix of ['fixup!', 'squash!', 'amend!']) {
+      expect(commit({ message: `${prefix} some subject\n` }).success).toBe(true);
     }
-    expect(mergeHeadResolves()).toBe(true);
+  });
+
+  it('exempts release automation through the resolved trailer', () => {
+    for (const path of ['release-automation', 'release-sweep']) {
+      expect(commit({ noldorPath: path, message: 'chore(release): v1\n' }).success).toBe(true);
+    }
+  });
+
+  it('grants no exemption for an unrecognised Noldor-Path value', () => {
+    expect(commit({ noldorPath: 'fast-track', message: 'feat: thing\n' }).success).toBe(false);
+  });
+
+  it('grants no exemption for a Noldor-Path line written in body prose', () => {
+    // `noldorPath` is undefined because git's trailer block held no such key —
+    // the loader never falls back to a regex over the message, so this line is
+    // just text. Forging the exemption would be a one-line bypass otherwise.
+    const forged = 'feat: thing\n\nNoldor-Path: release-automation is what I would like\n';
+    expect(commit({ message: forged, noldorPath: undefined }).success).toBe(false);
+  });
+});
+
+describe('provisionalBody — advisory-only cleanup', () => {
+  it('drops comment lines and the commit -v diff below the scissors', () => {
+    const message = [
+      'subject',
+      '',
+      'Why — real reason that is comfortably long enough to pass',
+      '# Please enter the commit message for your changes.',
+      '# ------------------------ >8 ------------------------',
+      'diff --git a/src/x.ts b/src/x.ts',
+      '+const padding = "would otherwise pad the final section";',
+    ].join('\n');
+    const body = provisionalBody(message);
+    expect(body).not.toContain('diff --git');
+    expect(body).not.toContain('Please enter');
+  });
+
+  it('honours a multi-character comment marker', () => {
+    const message = ['subject', '', 'Why — reason', '// a comment line'].join('\n');
+    expect(provisionalBody(message, '//')).not.toContain('a comment line');
+  });
+});
+
+/** A scratch repo with a snapshot present, so the advisory is active. */
+function scratchRepo(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'noldor-summary-advisory-'));
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['config', 'user.email', 't@example.com'], { cwd: dir });
+  execFileSync('git', ['config', 'user.name', 't'], { cwd: dir });
+  mkdirSync(join(dir, '.noldor'), { recursive: true });
+  return dir;
+}
+
+function runAdvisory(dir: string, messageFile: string): { status: number; stderr: string } {
+  // spawnSync, not execFileSync: the advisory always exits 0, and execFileSync
+  // returns only stdout on success — so its diagnostics, which are the entire
+  // point of this adapter, would be invisible to these assertions.
+  const entry = join(process.cwd(), 'src/core/validate-summary-body.ts');
+  const r = spawnSync('npx', ['tsx', entry, messageFile], { cwd: dir, encoding: 'utf8' });
+  return { status: r.status ?? 1, stderr: r.stderr ?? '' };
+}
+
+describe('advisory adapter — never blocks', () => {
+  it('exits 0 and names the file when the activation snapshot is absent', () => {
+    const dir = scratchRepo();
+    const msg = join(dir, 'MSG');
+    writeFileSync(msg, 'feat: thing\n');
+    const r = runAdvisory(dir, msg);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain(SNAPSHOT_FILE);
+  });
+
+  it('exits 0 on a corrupt snapshot, and still says so', () => {
+    const dir = scratchRepo();
+    writeFileSync(join(dir, SNAPSHOT_FILE), 'not json');
+    const msg = join(dir, 'MSG');
+    writeFileSync(msg, 'feat: thing\n');
+    const r = runAdvisory(dir, msg);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('corrupt');
+  });
+
+  it('exits 0 on a missing message file', () => {
+    const dir = scratchRepo();
+    expect(runAdvisory(dir, join(dir, 'no-such-file')).status).toBe(0);
+  });
+
+  it('exits 0 even when the body is plainly invalid', () => {
+    const dir = scratchRepo();
+    writeFileSync(
+      join(dir, SNAPSHOT_FILE),
+      JSON.stringify({ version: 1, grandfatherTips: ['b'.repeat(40)] }),
+    );
+    writeFileSync(join(dir, 'src.ts'), 'export const x = 1;\n');
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+    const msg = join(dir, 'MSG');
+    writeFileSync(msg, 'feat: thing with no explanation at all\n');
+    // Invalid body, code staged — and still exit 0. Blocking here is exactly
+    // what the redesign removed.
+    expect(runAdvisory(dir, msg).status).toBe(0);
   });
 });
