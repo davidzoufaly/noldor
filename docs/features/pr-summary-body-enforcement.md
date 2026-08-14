@@ -10,7 +10,7 @@ links:
 name: PR Summary Body Enforcement
 packages:
   - package.json
-phase: done
+phase: in-progress
 noldor-tier: specs-only
 ---
 ## Summary
