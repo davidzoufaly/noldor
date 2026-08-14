@@ -274,6 +274,9 @@ matrix is open:
 - `foreground` + `logSink` → **allowed.** Mechanically orthogonal like capture, and an operator who
   wants a transcript of a hand-run review is a coherent thing to want. Tee's docblock is framed
   around hours-long unattended children, but nothing in it depends on `detached`.
+- `foreground` + `stdio` → **allowed**, and `'inherit'` is the natural pairing: a non-detached child
+  sharing the terminal is precisely the interactive shape, where `stdio` decides what the operator
+  sees and `foreground` decides who receives their Ctrl-C.
 - `stderr: 'capture'` + `logSink` → **rejected.** Not a `foreground` interaction — a Unit 2 one,
   settled here because Unit 2 creates it. Tee already owns both streams and forces
   `AgentResult.stderr` to `''`, so accepting both would silently discard an explicit capture request.
@@ -336,15 +339,20 @@ The probe therefore **races**: a 5s timer resolving to `unknownVersion(bin)` aga
 callback, whichever lands first, with a best-effort `child.kill()` on the timer branch. The kill is
 best-effort by design — whether the child dies is not allowed to determine whether the caller gets
 an answer. `unknownVersion` is already the probe's contractual "could not answer" value, so a
-timed-out probe degrades to a case the sink already renders. The never-throw guarantee wraps the
-raced promise itself rather than its result, so when the timer wins and the abandoned `execFile`
-branch later rejects, that rejection is caught rather than surfacing as an unhandled rejection on a
-path whose entire job is to explain someone else's failure.
+timed-out probe degrades to a case the sink already renders. The never-throw guarantee attaches to
+the `execFile` promise itself, not to the race's result, so the abandoned branch carries its own
+handler whatever shape the race takes — `Promise.race` would absorb a late rejection on its own, but
+a hand-rolled timer-plus-`then` would not, and the probe should not depend on which was written.
 
 Isolating the race is what keeps the test cheap. Expressed as a pure
 `settleWithin(promise, ms, fallback)` helper, the property is testable against a promise that never
 resolves — no child process, no never-exit fixture, none of the out-of-process harness cost the
 Q-0089/D6 history counted against an inner cap. The child is irrelevant to the thing under test.
+
+Proving the helper is not the same as proving the probe uses it, so the probe additionally exposes an
+injection point for its child-spawner. That is a probe internal this spec does mandate, and the
+exception is deliberate: a cap nobody can test at the level it applies is a claim, not a property.
+Everything else about the probe's internals stays unspecified per Q8.
 
 5s matches the cap the deleted `codexSupportsBaseSha` used for its own `--version`-class probe
 (`lanes/codex.ts:42`), so the number is inherited rather than invented.
@@ -446,8 +454,10 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   `value()` contains the first `headChars` and the last `tailChars` (each ±1 code unit when a cut
   lands on a surrogate boundary), an elision marker, and `totalBytes()` returns the true pre-elision
   byte count (not the elided string's length). Unit-tested in isolation, no child process.
-- A cut placed mid-surrogate-pair yields no lone surrogate: `value()` is free of U+FFFD when
-  round-tripped, and the pair is either kept whole or dropped whole.
+- A cut placed mid-surrogate-pair yields no lone surrogate: for well-formed input, every pair in
+  `value()` is either kept whole or dropped whole, and a UTF-8 round-trip introduces no U+FFFD. The
+  qualifier matters — a child emitting genuinely invalid UTF-8 already yields U+FFFD at
+  `setEncoding`, before the capture slices anything, and this criterion does not claim otherwise.
 - A stderr stream whose multi-byte character straddles a chunk boundary decodes without U+FFFD under
   both `capture` and the registry's stdout accumulation — a regression test for the `setEncoding`
   fix, driven through `spawnImpl`.
@@ -458,7 +468,12 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   `spawnImpl` call) and arms no timer; with `foreground` omitted it stays `detached: true` with the
   timer, so no existing caller changes. Asserted per mode through `spawnImpl`, which already records
   the options object (`registry.test.ts:170` asserts `calls[0].detached`).
-- `spawnAgent({ foreground: true, timeoutMs: n })` rejects rather than silently dropping the cap.
+- Every row of the 4a option matrix is pinned, not just the one that motivated it:
+  `spawnAgent({ foreground: true, timeoutMs: n })` and `({ foreground: true, onSpawn })` and
+  `({ stderr: 'capture', logSink })` each reject rather than silently dropping the conflicting
+  option; `({ foreground: true, stderr: 'capture' })` works and returns captured stderr — that pair
+  is the interactive CLI's live configuration, so it gets a real behavioural test rather than a
+  rejection assertion; `foreground` with `logSink` and with `stdio` are exercised as permitted.
 - `src/cr/codex.ts`'s CLI path passes `foreground: true`; the codex lane does not. Pinned by a test
   per caller, because this is the property that keeps Ctrl-C working on a hand-run review.
 - `RunCodexInput` declares no `cmd` field (assert on the interface, or `grep -n "cmd?:"` — a bare
