@@ -19,7 +19,7 @@ import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult } from './lane-types.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
-import { codexSupportsBaseSha, runCodex } from './lanes/codex.js';
+import { runCodex } from './lanes/codex.js';
 import { runSubagent } from './lanes/subagent.js';
 import { runVerify } from './lanes/verify.js';
 import { promptSelect } from '../core/prompt-stdin.js';
@@ -359,9 +359,6 @@ export async function run(opts: RunOpts): Promise<RunResult> {
 
   const lanesRun: Lane[] = [...syntheticOks];
 
-  // Pre-cache the codex --base-sha probe result for all-settled batch
-  const codexBaseShaSupport = effective.includes('codex') ? await codexSupportsBaseSha() : false;
-
   // Every lane surviving a `fullReviewOverride` round is there for the same
   // reason — its prior run wasn't green — and each faces the same known-empty
   // artifact diff, so widening the whole batch is right rather than merely safe.
@@ -373,7 +370,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
 
   const settled = await Promise.allSettled(
     effective.map((l) => {
-      if (l === 'codex') return runCodex(dispatchInput, { supportsBaseSha: codexBaseShaSupport });
+      if (l === 'codex') return runCodex(dispatchInput);
       // standalone can't reach here — run() rejects it at entry.
       return LANES[l as Exclude<Lane, 'standalone'>](dispatchInput);
     }),

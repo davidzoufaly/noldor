@@ -1,12 +1,10 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { parseCliArgs, type ArtifactReview, type Invocation } from './cli-args.js';
-import { spawnCodex } from './codex-spawn.js';
+import { makeCodexSpawn, type Spawn } from './codex-adapter.js';
 import { buildContext } from './context.js';
 import { replaceReceiptTrailer } from './receipt-trailer.js';
-import { runCodex, type ReviewCtx, type Spawn } from './run-codex.js';
-import { sidecarFilename, writeSidecar, type CrRecord } from './sidecar.js';
+import { runCodex } from './run-codex.js';
+import { readFeatureMd, readRules, reviewWithCodex, sh } from './review-with-codex.js';
+import { sidecarFilename, writeSidecar } from './sidecar.js';
 
 export interface RunCliInput {
   argv: readonly string[];
@@ -44,7 +42,7 @@ export async function runCli(input: RunCliInput): Promise<number> {
     return 0;
   }
   if (inv.review) {
-    return runReview(inv.review, cwd, input.spawn ?? spawnCodex);
+    return runReview(inv.review, cwd, input.spawn ?? makeCodexSpawn({ foreground: true, cwd }));
   }
 
   const tree = sh(cwd, ['rev-parse', `${refForLane(inv)}^{tree}`]).trim();
@@ -68,7 +66,10 @@ export async function runCli(input: RunCliInput): Promise<number> {
     rules,
   });
 
-  const record = await runCodex({ ctx, spawn: input.spawn ?? spawnCodex });
+  const record = await runCodex({
+    ctx,
+    spawn: input.spawn ?? makeCodexSpawn({ foreground: true, cwd }),
+  });
 
   if (!inv.dryRun) {
     const filename = sidecarFilename(filenameSelector(inv, tree));
@@ -86,92 +87,16 @@ export async function runCli(input: RunCliInput): Promise<number> {
   return 0;
 }
 
-interface OutFinding {
-  file: string;
-  message: string;
-  severity: 'high' | 'med' | 'low';
-  line?: number;
-  suggestion?: string;
-}
-
 /**
- * Orchestrate-lane review: build the review context and print
- * `{ summary, findings }` to stdout for the orchestrate codex lane to consume.
- * Plan/spec read the artifact (or its diff since `--base-sha`) and get the
- * plan-review heuristics; code builds a git-diff context exactly the way the
- * gate lane does and gets the code-review prompt — `--kind code` used to fall
- * through to `--plan`, so codex judged TypeScript against plan heuristics
- * (Q-0099). Always exits 0 when codex ran — findings (including a synthetic
- * "codex spawn failed" blocker) travel in the JSON, never via the exit code,
- * because the lane treats a non-zero exit as an infrastructure error rather
- * than review output.
+ * CLI wrapper over {@link reviewWithCodex}: print `{ summary, findings }` to stdout for a
+ * consumer to parse. Always exits 0 when the review ran — findings (including a synthetic
+ * "codex spawn failed" blocker) travel in the JSON, never via the exit code, because a
+ * non-zero exit here means infrastructure failure rather than review output.
  */
 async function runReview(review: ArtifactReview, cwd: string, spawn: Spawn): Promise<number> {
-  let out: { summary: string; findings: OutFinding[] };
-  try {
-    const rules = readRules(cwd);
-    const featureMd = review.slug
-      ? readIfExists(cwd, `docs/features/${review.slug}.md`)
-      : readFeatureMd(cwd);
-
-    let ctx: ReviewCtx;
-    if (review.kind === 'code') {
-      ctx = buildContext({
-        lane:
-          review.baseSha && !review.fullReview
-            ? { kind: 'range', from: review.baseSha, to: 'HEAD' }
-            : { kind: 'gate' },
-        runGit: (args) => sh(cwd, args),
-        featureMd,
-        rules,
-      });
-    } else {
-      const artifact =
-        review.baseSha && !review.fullReview
-          ? sh(cwd, ['diff', `${review.baseSha}..HEAD`, '--', review.artifact])
-          : readIfExists(cwd, review.artifact);
-      ctx = { kind: review.kind, artifact, featureMd, rules };
-    }
-
-    const record = await runCodex({ ctx, spawn });
-    out = {
-      summary: record.summary || '(no summary provided)',
-      findings: toFindings(record, review.artifact),
-    };
-  } catch (e) {
-    // The contract is: findings travel via stdout, never the exit code (the
-    // orchestrate lane treats a non-zero exit as infrastructure failure). A bad
-    // --base-sha or unreadable artifact becomes a synthetic blocker, not a crash.
-    const message = `${review.kind} review failed: ${(e as Error).message}`;
-    out = { summary: message, findings: [{ file: review.artifact, message, severity: 'high' }] };
-  }
+  const out = await reviewWithCodex(review, cwd, spawn);
   process.stdout.write(JSON.stringify(out) + '\n');
   return 0;
-}
-
-/**
- * Map a codex {@link CrRecord} to the orchestrate lane's `Finding[]` shape.
- * Blockers always become `severity: 'high'` (the lane reclassifies high-severity
- * findings as blockers); suggestions are pinned non-high so they stay
- * suggestions. The codex schema uses `medium`; the lane schema uses `med`.
- */
-function toFindings(record: CrRecord, fallbackFile: string): OutFinding[] {
-  const map = (f: CrRecord['blockers'][number], severity: OutFinding['severity']): OutFinding => {
-    // Document-level findings may carry an empty `file`; the consumer's
-    // findings-schema requires a non-empty string, so fall back to the artifact.
-    const o: OutFinding = {
-      file: f.file || fallbackFile,
-      message: f.message || '(no message provided)',
-      severity,
-    };
-    if (f.line != null) o.line = f.line;
-    if (f.suggestion != null) o.suggestion = f.suggestion;
-    return o;
-  };
-  return [
-    ...record.blockers.map((b) => map(b, 'high')),
-    ...record.suggestions.map((s) => map(s, s.severity == null ? 'low' : 'med')),
-  ];
 }
 
 function isGateLane(inv: Invocation): boolean {
@@ -203,42 +128,6 @@ function hashPaths(paths: readonly string[]): string {
   let h = 0;
   for (const ch of paths.join('|')) h = (Math.imul(31, h) + ch.charCodeAt(0)) | 0;
   return (h >>> 0).toString(16).padStart(8, '0');
-}
-
-function readFeatureMd(cwd: string): string {
-  const session = readSession(cwd);
-  const slug = session?.parent ?? session?.slug;
-  if (!slug) return '';
-  return readIfExists(cwd, `docs/features/${slug}.md`);
-}
-
-function readSession(cwd: string): { parent?: string; slug?: string } | null {
-  try {
-    return JSON.parse(readFileSync(join(cwd, '.noldor', 'session.json'), 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-function readIfExists(cwd: string, rel: string): string {
-  const p = join(cwd, rel);
-  return existsSync(p) ? readFileSync(p, 'utf8') : '';
-}
-
-/**
- * Read the engineering-rules context for a codex review, falling back to
- * `AGENTS.md` when `.claude/engineering-rules.md` is absent. A codex-only
- * consumer tree carries `AGENTS.md` (the native rules file for the codex /
- * opencode runners) but no `.claude/` subtree, so without this fallback the
- * codex CR lane silently reviews with empty rules context. An empty
- * engineering-rules file also falls through (empty rules == no rules).
- */
-function readRules(cwd: string): string {
-  return readIfExists(cwd, '.claude/engineering-rules.md') || readIfExists(cwd, 'AGENTS.md');
-}
-
-function sh(cwd: string, args: string[]): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf8' });
 }
 
 function printFindings(r: {

@@ -1,5 +1,6 @@
+import { execFile } from 'node:child_process';
 import { CODEX_BIN } from '../core/agent-runner/runners/codex.js';
-import type { Spawn } from './codex-spawn.js';
+import { settleWithin } from '../core/settle-within.js';
 
 /**
  * Recorded when the version probe cannot answer. Names the binary that was probed, so an
@@ -52,32 +53,75 @@ export function describeCodexFailure(input: {
   exitCode: number;
   stderr: string;
   version: string;
+  /** Set when the dispatch cap fired. Distinguishes a timeout from an OOM or operator kill. */
+  timedOut?: boolean;
+  /** The cap that fired, for the timeout message. */
+  timeoutMs?: number;
 }): string {
   const hint = AUTH_HINT_RE.test(input.stderr) ? ' — auth looks expired; run: codex login' : '';
   const tail = formatStderrTail(input.stderr);
-  return `${input.version}: exited with exit code ${input.exitCode}${hint}${tail ? `\n\n${tail}` : ''}`;
+  // A timeout and a signal kill both surface as a non-zero exit with a SIGKILL note, so the
+  // exit code alone cannot tell them apart. Lead with the cap when it is what fired.
+  const cause = input.timedOut
+    ? `timed out after ${input.timeoutMs ?? '?'}ms`
+    : `exited with exit code ${input.exitCode}`;
+  return `${input.version}: ${cause}${hint}${tail ? `\n\n${tail}` : ''}`;
 }
+
+/** Cap on the version probe, inherited from the `--version`-class probe this replaces. */
+export const PROBE_TIMEOUT_MS = 5000;
+
+/**
+ * The probe's child-spawner, injectable so the cap can be tested at the level it applies.
+ * Resolves the child's stdout; rejects on any failure.
+ *
+ * Deliberately takes only `bin`: the argv is fixed at the definition site below, so no caller
+ * — and no test — can turn a `--version` call into something else. That is what closes the
+ * hole this replaces, where the probe borrowed the review `Spawn` and an adapter ignoring its
+ * `args` would have spawned a full empty-prompt review on the failure path.
+ */
+export type VersionExec = (bin: string) => Promise<string>;
+
+const defaultVersionExec: VersionExec = (bin) =>
+  new Promise<string>((resolve, reject) => {
+    // The `timeout` here is the best-effort KILL. It is not what guarantees the caller
+    // settles — `settleWithin` below does that — because this callback fires on stream
+    // close, which a wedged child or a surviving grandchild can withhold indefinitely.
+    execFile(bin, ['--version'], { timeout: PROBE_TIMEOUT_MS }, (err, stdout) =>
+      err ? reject(err) : resolve(String(stdout)),
+    );
+  });
 
 /**
  * Ask the installed CLI for its version so a failure is attributable to a specific build
  * — the premise of the entry this fixes was that mocked lane tests cannot catch CLI drift,
  * so a real failure should at least name the CLI that produced it.
  *
- * Runs only on the failure path, so a green review pays nothing for it. Never throws and
- * never propagates a non-zero exit: an attribution helper that fails must not mask the
- * failure it is attributing.
+ * Runs only on the failure path, so a green review pays nothing for it. Never throws, never
+ * propagates a non-zero exit, and never hangs: an attribution helper that fails must not mask
+ * the failure it is attributing, and one that blocks must not become the failure. Anything
+ * unanswerable degrades to {@link unknownVersion}, which the sink already renders.
  *
- * `cmd` MUST be the same command that failed. `runCodex` accepts a `cmd` override, so
- * probing a hard-coded `codex` would report the version of a binary that was never run —
- * misattributing the failure precisely where attribution is the point.
+ * `bin` is supplied by the caller from the shared `CODEX_BIN` — the same constant the agent
+ * registry spawns from — so the version reported is the binary that actually ran.
  */
-export async function probeCodexVersion(spawn: Spawn, cmd: string = CODEX_BIN): Promise<string> {
-  try {
-    const r = await spawn({ cmd, args: ['--version'], stdin: '' });
-    if (r.exitCode !== 0) return unknownVersion(cmd);
-    const first = r.stdout.trim().split('\n')[0]?.trim();
-    return first !== undefined && first.length > 0 ? first : unknownVersion(cmd);
-  } catch {
-    return unknownVersion(cmd);
-  }
+export async function probeCodexVersion(
+  bin: string = CODEX_BIN,
+  exec: VersionExec = defaultVersionExec,
+): Promise<string> {
+  const fallback = unknownVersion(bin);
+  // The async IIFE is load-bearing: `exec(bin).catch(...)` would not catch an exec that
+  // throws SYNCHRONOUSLY, since there is no promise to attach to yet — and "never throws" has
+  // to hold against a broken injected seam too, not just a rejecting child. The `.catch` then
+  // rides the promise itself, so a rejection arriving after the timer already won cannot
+  // surface as an unhandled rejection on a path whose whole job is to explain someone else's
+  // failure.
+  const out = await settleWithin(
+    (async () => exec(bin))().catch(() => null),
+    PROBE_TIMEOUT_MS,
+    null,
+  );
+  if (out === null) return fallback;
+  const first = out.trim().split('\n')[0]?.trim();
+  return first !== undefined && first.length > 0 ? first : fallback;
 }

@@ -6,15 +6,17 @@ deps:
 entry-id: Q-0112
 links:
   code: []
-  tests: []
+  tests:
+    - src/core/agent-runner/__tests__/bounded-capture.test.ts
+    - src/cr/__tests__/codex-failure.test.ts
+    - src/cr/__tests__/lanes/codex.test.ts
 name: Review-Run Lifecycle Module
 packages:
   - scripts
 phase: in-progress
-since: 2026-08-12
+since: 2026-08-12T00:00:00.000Z
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 The codex CR lane owns neither the process it starts nor the capability probe it

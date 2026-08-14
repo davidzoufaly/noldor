@@ -1,186 +1,127 @@
-// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer
+// @tests: acceptance-verify-lane, specs-cr-gate-multi-reviewer, review-run-lifecycle-module
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { execFileFn } = vi.hoisted(() => ({ execFileFn: vi.fn() }));
-vi.mock('node:child_process', () => ({
-  execFile: (
-    cmd: string,
-    args: string[],
-    opts: unknown,
-    cb: (err: Error | null, stdout: string, stderr: string) => void,
-  ) => execFileFn(cmd, args, opts, cb),
-}));
+// The lane now calls reviewWithCodex in-process rather than shelling out through pnpm, so the
+// seam under test is that function — not a child process.
+const { reviewFn } = vi.hoisted(() => ({ reviewFn: vi.fn() }));
+vi.mock('../../review-with-codex.js', () => ({ reviewWithCodex: reviewFn }));
+
+const { spawnFactory } = vi.hoisted(() => ({ spawnFactory: vi.fn(() => 'SPAWN') }));
+vi.mock('../../codex-adapter.js', () => ({ makeCodexSpawn: spawnFactory }));
 
 import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../../core/config.js';
-import { codexSupportsBaseSha, runCodex } from '../../lanes/codex.js';
+import { runCodex } from '../../lanes/codex.js';
 import type { LaneInput } from '../../lane-types.js';
 
 let root: string;
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'codex-'));
   await mkdir(join(root, '.noldor', 'cr'), { recursive: true });
-  execFileFn.mockReset();
+  reviewFn.mockReset();
+  spawnFactory.mockClear();
+  reviewFn.mockResolvedValue({ summary: 'ok', findings: [] });
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const baseInput = (over: Partial<LaneInput> = {}): LaneInput => ({
-  slug: 'x',
-  artifact: 'docs/design/specs/x.md',
-  kind: 'spec',
-  fdPath: 'docs/features/x.md',
-  artifactSha: 'aaa',
-  repoRoot: root,
-  ...over,
-});
+function input(over: Partial<LaneInput> = {}): LaneInput {
+  return {
+    slug: 's',
+    kind: 'spec',
+    artifact: 'docs/design/specs/x.md',
+    repoRoot: root,
+    ...over,
+  } as LaneInput;
+}
 
-describe('runCodex dispatch timeout', () => {
-  const captureTimeout = (): (() => number | undefined) => {
-    let seen: number | undefined;
-    execFileFn.mockImplementation((_c, _a, opts, cb) => {
-      seen = (opts as { timeout?: number }).timeout;
-      cb(null, JSON.stringify({ summary: 'ok', findings: [] }), '');
-    });
-    return () => seen;
-  };
+async function sink(): Promise<Record<string, unknown>> {
+  return JSON.parse(await readFile(join(root, '.noldor', 'cr', 's-spec-codex.json'), 'utf8'));
+}
 
-  it('honours the cap orchestrate resolved from crReview.dispatchTimeoutMs', async () => {
-    const timeout = captureTimeout();
-    await runCodex(baseInput({ dispatchTimeoutMs: 42_000 }));
-    expect(timeout()).toBe(42_000);
+describe('runCodex lane — process ownership', () => {
+  it('spawns unattended: a cap, and no foreground (so the registry detaches and group-kills)', async () => {
+    await runCodex(input({ dispatchTimeoutMs: 4242 }));
+    expect(spawnFactory).toHaveBeenCalledWith({ timeoutMs: 4242, cwd: root });
+    expect(spawnFactory.mock.calls[0]![0]).not.toHaveProperty('foreground');
   });
 
   it('defaults to DEFAULT_DISPATCH_TIMEOUT_MS, not the old hard-coded 120_000', async () => {
-    // The lane used to hard-code `timeout: 120_000`, ignoring the configured cap entirely
-    // (Q-0088 wired the subagent and verifier lanes and missed this one), so a real codex
-    // review running longer than two minutes false-red no matter what the config said.
-    const timeout = captureTimeout();
-    await runCodex(baseInput());
-    expect(timeout()).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
-    expect(timeout()).toBe(900_000);
-    expect(timeout()).not.toBe(120_000);
+    await runCodex(input());
+    expect(spawnFactory).toHaveBeenCalledWith({
+      timeoutMs: DEFAULT_DISPATCH_TIMEOUT_MS,
+      cwd: root,
+    });
+  });
+
+  it('passes the cap to the review so a timeout can name itself', async () => {
+    await runCodex(input({ dispatchTimeoutMs: 999 }));
+    expect(reviewFn.mock.calls[0]![3]).toEqual({ timeoutMs: 999 });
+  });
+
+  it('never shells out', async () => {
+    // The whole point of the unit: no pnpm, no CLI subprocess, nothing between the cap and
+    // codex. reviewWithCodex is called directly with the review descriptor.
+    await runCodex(input());
+    expect(reviewFn).toHaveBeenCalledTimes(1);
+    expect(reviewFn.mock.calls[0]![1]).toBe(root);
+    expect(reviewFn.mock.calls[0]![2]).toBe('SPAWN');
   });
 });
 
-describe('runCodex', () => {
-  it('wraps codex JSON output as LaneFindings', async () => {
-    execFileFn.mockImplementation((_c, _a, _o, cb) => {
-      cb(
-        null,
-        JSON.stringify({
-          summary: 'codex clean',
-          findings: [],
-        }),
-        '',
-      );
+describe('runCodex lane — findings mapping', () => {
+  it('splits findings into blockers and suggestions by severity', async () => {
+    reviewFn.mockResolvedValue({
+      summary: 'two',
+      findings: [
+        { file: 'a.ts', message: 'bad', severity: 'high' },
+        { file: 'b.ts', message: 'meh', severity: 'med' },
+      ],
     });
-    const r = await runCodex(baseInput());
-    expect(r.ok).toBe(true);
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
-    expect(j.lane).toBe('codex');
-    expect(j.summary).toBe('codex clean');
-  });
-
-  it('parses codex JSON even when stdout is polluted (regression: pnpm banner leaked past --silent)', async () => {
-    // Simulate the original failure mode: a pnpm lifecycle banner prefixing the JSON. `--silent`
-    // prevents it at the source, but extractLaneJson must also recover the object if anything else
-    // (codex warnings, npmrc notices) pollutes stdout — a bare JSON.parse would throw on the `>`.
-    execFileFn.mockImplementation((_c, _a, _o, cb) => {
-      cb(
-        null,
-        '\n> noldor@0.2.0 noldor /repo\n> node bin/noldor.mjs "cr" "codex"\n' +
-          JSON.stringify({ summary: 'parsed past banner', findings: [] }),
-        '',
-      );
-    });
-    const r = await runCodex(baseInput());
-    expect(r.ok).toBe(true);
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
-    expect(j.summary).toBe('parsed past banner');
-  });
-
-  it('emits synthetic blocker on non-zero exit', async () => {
-    execFileFn.mockImplementation((_c, _a, _o, cb) => {
-      const err = new Error('exit 1') as NodeJS.ErrnoException & { code?: number };
-      (err as { code?: number }).code = 1;
-      cb(err, '', 'codex barfed');
-    });
-    const r = await runCodex(baseInput());
+    const r = await runCodex(input());
+    const s = await sink();
+    expect(s.blockers).toHaveLength(1);
+    expect(s.suggestions).toHaveLength(1);
     expect(r.ok).toBe(false);
-    const j = JSON.parse(await readFile(r.sinkPath, 'utf8'));
-    expect(j.blockers[0].message).toMatch(/codex.*errored/i);
   });
 
-  it('appends --base-sha when input.baseSha set and CLI supports it', async () => {
-    execFileFn.mockImplementation((_c, args, _o, cb) => {
-      expect(args).toContain('--base-sha');
-      expect(args).toContain('beef');
-      cb(null, JSON.stringify({ summary: 'delta clean', findings: [] }), '');
-    });
-    await runCodex(baseInput({ baseSha: 'beef' }), { supportsBaseSha: true });
+  it('is ok when there are no blockers', async () => {
+    const r = await runCodex(input());
+    expect(r.ok).toBe(true);
+    expect((await sink()).summary).toBe('ok');
   });
 
-  it('falls back to full review when --base-sha unsupported, logs warning', async () => {
-    execFileFn.mockImplementation((_c, args, _o, cb) => {
-      expect(args).not.toContain('--base-sha');
-      cb(null, JSON.stringify({ summary: 'full clean', findings: [] }), '');
-    });
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await runCodex(baseInput({ baseSha: 'beef' }), { supportsBaseSha: false });
-    expect(spy).toHaveBeenCalledWith(expect.stringMatching(/base-sha.*fall back/i));
-    spy.mockRestore();
-  });
-
-  it('invokes the codex CLI via the noldor manifest path (not the retired cr:codex alias)', async () => {
-    let capturedArgs: string[] = [];
-    execFileFn.mockImplementation((_c, args, _o, cb) => {
-      capturedArgs = args;
-      cb(null, JSON.stringify({ summary: 'ok', findings: [] }), '');
-    });
-    await runCodex(baseInput());
-    expect(capturedArgs.slice(0, 4)).toEqual(['--silent', 'noldor', 'cr', 'codex']);
-    expect(capturedArgs).not.toContain('cr:codex');
-  });
-
-  it('passes --spec for spec, --plan for plan, --code for code (never plan heuristics on code)', async () => {
-    let capturedArgs: string[] = [];
-    execFileFn.mockImplementation((_c, args, _o, cb) => {
-      capturedArgs = args;
-      cb(null, JSON.stringify({ summary: 'ok', findings: [] }), '');
-    });
-    await runCodex(baseInput({ kind: 'spec' }));
-    expect(capturedArgs).toContain('--spec');
-    expect(capturedArgs).not.toContain('--plan');
-    await runCodex(baseInput({ kind: 'plan' }));
-    expect(capturedArgs).toContain('--plan');
-    expect(capturedArgs).not.toContain('--spec');
-    // Q-0099: kind 'code' used to fall through the binary ternary to '--plan',
-    // so codex reviewed TypeScript with plan-review heuristics.
-    await runCodex(baseInput({ kind: 'code', artifact: 'src/x.ts' }));
-    expect(capturedArgs).toContain('--code');
-    expect(capturedArgs).not.toContain('--plan');
-    expect(capturedArgs).not.toContain('--spec');
+  it('records the sink path the aggregator expects', async () => {
+    const r = await runCodex(input());
+    expect(r.sinkPath).toBe(join(root, '.noldor', 'cr', 's-spec-codex.json'));
+    expect(r.lane).toBe('codex');
   });
 });
 
-describe('codexSupportsBaseSha', () => {
-  it('probes the manifest help path and detects --base-sha', async () => {
-    execFileFn.mockImplementation((_c, args, _o, cb) => {
-      expect(args.slice(0, 4)).toEqual(['--silent', 'noldor', 'cr', 'codex']);
-      expect(args).toContain('--help');
-      cb(null, 'usage: noldor cr codex ... --base-sha <sha> ...', '');
-    });
-    expect(await codexSupportsBaseSha()).toBe(true);
+describe('runCodex lane — base-sha', () => {
+  it('forwards baseSha to the review and records it in the sink', async () => {
+    // This is the behaviour codexSupportsBaseSha silently suppressed: the probe grepped
+    // intercepted --help output, could never return true, and so every artifact review ran
+    // full-scope with baseSha never reaching a sink.
+    await runCodex(input({ baseSha: 'abc123' }));
+    expect(reviewFn.mock.calls[0]![0]).toMatchObject({ baseSha: 'abc123', fullReview: false });
+    expect((await sink()).baseSha).toBe('abc123');
   });
 
-  it('returns false when help text lacks --base-sha', async () => {
-    execFileFn.mockImplementation((_c, _a, _o, cb) => {
-      cb(null, 'usage without the flag', '');
-    });
-    expect(await codexSupportsBaseSha()).toBe(false);
+  it('omits baseSha from the sink under fullReview', async () => {
+    await runCodex(input({ baseSha: 'abc123', fullReview: true }));
+    expect(reviewFn.mock.calls[0]![0]).toMatchObject({ fullReview: true });
+    expect(await sink()).not.toHaveProperty('baseSha');
+  });
+
+  it('carries the kind through unchanged for all three kinds', async () => {
+    for (const kind of ['spec', 'plan', 'code'] as const) {
+      reviewFn.mockClear();
+      await runCodex(input({ kind }));
+      expect(reviewFn.mock.calls[0]![0]).toMatchObject({ kind });
+    }
   });
 });
