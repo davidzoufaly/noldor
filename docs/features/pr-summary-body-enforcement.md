@@ -12,7 +12,7 @@ links:
 name: PR Summary Body Enforcement
 packages:
   - package.json
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 ---
 ## Summary
@@ -21,7 +21,7 @@ Makes "a PR explains itself" a mechanically enforced property rather than a hope
 
 ## User Story
 
-As an agent shipping a change through the gate, I want the commit-msg hook to reject a code commit whose body does not state why, how and what, so that every PR Noldor opens explains itself — and I find out at commit time, when the fix is a three-line amend, instead of after implementation and code review have already run.
+As an agent pushing a reviewed branch, I want Noldor to validate the stored message, files and parent structure of every outgoing commit, so that a PR cannot ship an unexplained code change because a commit-msg hook misread provisional git state.
 
 ## Usage
 
@@ -35,20 +35,32 @@ As an agent shipping a change through the gate, I want the commit-msg hook to re
    What — the concrete outcome: files, commands, behaviour.
    ```
 
-2. Use an em dash, never a colon — `Why:` at the start of a body's last paragraph is a valid git trailer and `git interpret-trailers` absorbs it. The validator rejects the colon form and says so.
+2. Use an em dash, never a colon — `Why:` at the start of a body's last paragraph is a valid git trailer and `git interpret-trailers` absorbs it. The check rejects the colon form and says so.
 3. Each section needs at least 24 characters of content. Order of presence is checked, not sequence.
+
+**Where it is enforced**
+
+- At `pre-push`, over the commit objects git has already stored — every commit newly reachable through a pushed ref, so a valid tip cannot hide an invalid one beneath it. A rejection names every offending SHA in one run; because the remote has not moved, reword or rebase the unpublished commits and push again rather than reaching for `--no-verify`.
+- At `commit-msg` the `summary-body-advisory` job reports the same finding early and **always exits 0**. It reads a provisional message file and the current index, neither of which is what git will store, so it advises and never certifies.
 
 **Exempt — commit freely with no body**
 
-- Bookkeeping-only diffs (roadmap, backlog, FDs, design artifacts, milestones, `ideas.md`, the retired-ID map, the id counter).
-- `release-automation` / `release-sweep` commits, and `fixup!` / `squash!` / `Revert "` subjects.
-- A real merge, keyed on `MERGE_HEAD` — `git merge --no-ff` commits; a forged `Merge branch 'x'` subject with code staged does not.
-- Any tree that has not armed `.noldor/rollout-marker`.
+- Any diff that carries no code: bookkeeping (roadmap, backlog, FDs, design artifacts, milestones, `ideas.md`, the retired-ID map, the id counter) and ordinary prose alike. One code path among the prose is enough to require a body.
+- `release-automation` / `release-sweep` commits — recognised only through exactly one such value in git's own final trailer block, so a `Noldor-Path:` line written in body prose buys nothing.
+- `fixup!` / `squash!` / `amend!` subjects, which are meant to disappear into the rebase that names them.
+- A real merge, keyed on the object's **parent count**. A single-parent commit wearing a forged `Merge branch 'x'` subject is not exempt, and neither are cherry-picks or reverts that survive into pushed history.
+- Any clone that has not committed `.noldor/summary-body-rollout.json` — though both hooks say so rather than going quiet.
+
+**Activating it**
+
+- `pnpm noldor init --update` (or `pnpm noldor upgrade`) writes `.noldor/summary-body-rollout.json`, recording every commit-ref tip present at that moment. Exactly the history reachable from those tips is grandfathered, on every branch; the next commit on any of them enforces. Commit the file — a clone without it stays advisory-only, and it is never rewritten once created.
 
 **Agent/Programmatic API**
 
-- `pnpm noldor validate summary-body <commit-msg-file>` — check a message without committing (exit 1 with the missing sections named, plus the template). Runs automatically as the `summary-body` job in `commit-msg`.
-- `isBookkeepingOnly(paths)`, `isRetirementOnly(paths)`, `touchesCode(paths)` in [`src/core/allowlist.ts`](../../src/core/allowlist.ts) — the three predicates that decide exemption, the retirement Summary template, and the Test Plan shape.
+- `pnpm noldor hooks pre-push <remote>` — the blocking check, fed git's ref updates on stdin. Exit 1 lists every commit needing rewording; exit 2 signals malformed ref input or a corrupt activation snapshot.
+- `pnpm noldor validate summary-body <commit-msg-file>` — the advisory check. Always exit 0.
+- `validateSummaryCommit(input)` in [`src/core/validate-summary-body.ts`](../../src/core/validate-summary-body.ts) — the pure policy over one stored object (`sha`, `message`, `files`, `parentCount`, `noldorPath`).
+- `isBookkeepingOnly(paths)`, `isRetirementOnly(paths)`, `touchesCode(paths)` in [`src/core/allowlist.ts`](../../src/core/allowlist.ts) — the predicates that decide exemption, the retirement Summary template, and the Test Plan shape.
 
 ## PRs
 
