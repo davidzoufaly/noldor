@@ -1,0 +1,670 @@
+# PR Summary Body Enforcement — Commit-Object Redesign — Design
+
+**Slug:** pr-summary-body-enforcement
+**FD:** docs/features/pr-summary-body-enforcement.md
+**Date:** 2026-08-14
+**Tier:** specs-only
+**Deps:** none
+
+## Problem
+
+The parked Q-0124 spike correctly identified that a code-carrying commit needs a
+structured `Why —` / `How —` / `What —` body, but it enforced that contract at
+the wrong boundary. Its blocking `commit-msg` validator reads a provisional
+message file plus the repository state visible during one Git invocation. The
+commit Git eventually stores is not yet available.
+
+That input mismatch produced 15 real defects over eight code-review rounds. Each
+repair handled one more transient state: `git commit -v` editor furniture,
+`core.commentChar`, multi-character `core.commentString`, an empty index during
+`--amend`, `CHERRY_PICK_HEAD` versus `MERGE_HEAD`, Git-quoted non-ASCII paths,
+and the `amend!` subject written by `--fixup=reword`. The fixes were individually
+correct, but the growing state classifier remained structurally incomplete.
+
+The durable facts already exist once Git has created the commit:
+
+- the stored message is `git log -1 --format=%B <sha>`;
+- the stored path set is `git diff-tree --root -r --no-commit-id --name-only -z <sha>`;
+- merge identity is the commit's parent count;
+- the pre-push hook receives the ref updates whose outgoing commit objects are
+  about to cross the repository boundary.
+
+The spike's other changes do not share this defect. The three path predicates in
+[`src/core/allowlist.ts`](../../../src/core/allowlist.ts), the `composeBody` changes
+in [`src/core/pr-flow.ts`](../../../src/core/pr-flow.ts), and the widened
+`pickSummarySha` selection in
+[`src/core/pr-flow-cli.ts`](../../../src/core/pr-flow-cli.ts) operate on stable
+branch or diff data and remain part of the design.
+
+## Goals
+
+- Make the blocking decision from immutable commit objects at `pre-push`.
+- Validate every distinct commit newly reachable through each updated ref, so an
+  invalid earlier code commit cannot hide behind a valid tip.
+- Keep `commit-msg` as fast, explicitly best-effort feedback that never blocks a
+  commit and never claims authority over the final object.
+- Preserve the spike's reusable path classification, PR Summary composition,
+  summary-commit selection, and diff-derived Test Plan behavior.
+- Report all invalid outgoing commits in one actionable rejection.
+- Add a summary-body-specific activation snapshot so upgrading consumers
+  grandfather exactly the commits reachable from their refs at upgrade time.
+
+## Non-goals
+
+- Judging whether the prose is insightful or genuinely plain-language. The
+  mechanical gate checks structure; the rule and code review judge quality.
+- Generalizing every existing `commit-msg` validator to commit objects. This
+  redesign is limited to the summary-body contract exposed by Q-0124.
+- Modeling the physical packfile or destination-wide object inventory. Pre-push
+  exposes each ref's old and new values, not every server ref; the enforceable
+  contract is commits newly reachable through an updated ref. A commit already
+  reachable through another destination ref may be checked again when a new ref
+  introduces it, with the same deterministic result.
+- Adding a push-time override. Existing release-automation exemptions and
+  rollout compatibility remain; an ordinary invalid code commit must be fixed.
+- Rewriting the parked branch's history. Its existing commits already carry
+  valid structured bodies, so the redesigned gate can validate and ship itself.
+
+## Design
+
+### Architecture
+
+One pure policy is shared by two adapters with deliberately different authority:
+
+1. The blocking adapter loads final commit objects during `pre-push`. It owns the
+   enforcement claim because message, paths, and parents can no longer change
+   without producing a different SHA.
+2. The advisory adapter reads the provisional `commit-msg` file and current
+   index for early feedback. It may miss or over-report invocation-specific
+   shapes, so it always exits zero.
+
+[`src/hooks/noldor-pre-push.ts`](../../../src/hooks/noldor-pre-push.ts) remains the
+only job that consumes hook stdin. It delegates commit discovery and validation
+to a focused module instead of duplicating stdin handling in another Lefthook
+job. Direct-to-`origin/main` protection, release-push receipts, and summary-body
+validation remain separate decisions even though one entrypoint orchestrates
+them.
+
+### Unit 1 — pure summary policy and advisory adapter
+
+Refactor [`src/core/validate-summary-body.ts`](../../../src/core/validate-summary-body.ts)
+around a final-object input:
+
+```ts
+export interface SummaryCommitInput {
+  sha: string;
+  message: string;
+  files: readonly string[];
+  parentCount: number;
+  noldorPath?: string;
+}
+
+export interface SummaryCommitResult {
+  success: boolean;
+  subject: string;
+  error?: string;
+}
+
+export function validateSummaryCommit(input: SummaryCommitInput): SummaryCommitResult;
+```
+
+The function is pure and applies this decision order:
+
+1. `parentCount > 1` passes: merge identity comes from the object, not a subject
+   or pseudo-ref.
+2. `fixup!`, `squash!`, and `amend!` subjects pass because autosquash commits are
+   machine-shaped and intended to disappear.
+3. A resolved final `Noldor-Path` trailer of `release-automation` or
+   `release-sweep` passes.
+4. `!touchesCode(files)` passes. A mixed commit with one code path still requires
+   the body.
+5. The stored body must contain `Why —`, `How —`, and `What —`, each with at
+   least 24 non-whitespace characters before the next section.
+
+There is no replay-state input. A cherry-pick or revert that survives into pushed
+history is a durable single-parent commit and must explain itself like any other
+code commit. A forged `Merge ...` or `Revert "..."` subject buys no exemption.
+Likewise, a `Noldor-Path:`-looking line in body prose buys no automation
+exemption: the blocking adapter supplies `noldorPath` only when Git's final
+trailer block contains exactly one value for that key.
+
+The stored-message path removes `bodyOf(message, commentChar)`, scissors parsing,
+comment-marker configuration, and all staged/amend heuristics from the blocking
+decision. Git has already removed editor furniture before writing the object.
+Trailer stripping and section measurement remain shared pure helpers.
+
+The existing `pnpm noldor validate summary-body <message-file>` entry becomes the
+advisory adapter. It may reuse the spike's provisional-message cleanup and a
+NUL-delimited staged-path read to improve feedback, but it prints `advisory:` and
+returns zero for missing sections, unreadable files, and Git-plumbing failures.
+It stays silent when the summary-body activation snapshot is absent. The command's
+docs state that only pre-push is authoritative.
+
+### Unit 2 — outgoing commit discovery and object loading
+
+Add `src/hooks/validate-pushed-summaries.ts`. It receives the remote name and the
+already-buffered pre-push ref lines; it never reads stdin itself. A small injected
+Git runner keeps command failures and object shapes testable without mocking
+Node's process globals.
+
+For each four-field ref update, candidate discovery uses only the old/new values
+Git supplied and an immutable activation snapshot—never live remote-tracking
+refs:
+
+- a zero local SHA is a deletion and contributes no commit;
+- an existing remote ref contributes
+  `git rev-list --reverse --topo-order <local-sha> ^<remote-sha> ^<grandfather-tip>...`;
+- a new remote ref contributes
+  `git rev-list --reverse --topo-order <local-sha> ^<grandfather-tip>...`;
+- SHAs are deduplicated across ref updates while preserving discovery order.
+
+These ranges mean “newly reachable through this updated ref,” not “bytes absent
+from every destination ref.” The first definition is authoritative from pre-push
+stdin. The second would require a network query and is therefore not used as a
+security boundary. In particular, stale local `refs/remotes/<remote>/**` can
+neither hide nor add candidates.
+
+For each distinct SHA, the loader resolves:
+
+```text
+git rev-list --parents -n 1 <sha>
+git log -1 --format=%B <sha>
+git log -1 --format=%(trailers:key=Noldor-Path,valueonly) <sha>
+git diff-tree --root -r --no-commit-id --name-only -z <sha>
+```
+
+The first command yields `parentCount`; merge commits can pass before loading
+their path set. The `-z` path protocol is mandatory so non-ASCII, whitespace,
+quotes, and newlines remain data rather than Git-formatted prose. Commands use
+argument arrays, never a shell. The trailer-format output is accepted only when
+it contains exactly one non-empty trimmed value; zero, duplicate, or conflicting
+values supply no automation exemption and remain subject to the ordinary body
+contract (the existing trailer validator can report their schema problem).
+
+The negative tips come from a dedicated tracked snapshot,
+`.noldor/summary-body-rollout.json`, rather than the older repository-wide
+`.noldor/rollout-marker`. The latter predates this feature and cannot describe
+which commits were already present when this validator activated.
+
+Add `src/core/summary-body-rollout.ts` with a versioned, fail-closed schema:
+
+```ts
+export interface SummaryBodyRolloutSnapshot {
+  version: 1;
+  grandfatherTips: string[];
+}
+
+export function readSummaryBodyRolloutSnapshot(
+  cwd?: string,
+): SummaryBodyRolloutSnapshot | null;
+export function ensureSummaryBodyRolloutSnapshot(cwd?: string): EnsureMarkerStatus;
+```
+
+`ensureSummaryBodyRolloutSnapshot` records the deduplicated object IDs at the tips
+of `HEAD`, `refs/heads/**`, `refs/remotes/**`, and `refs/tags/**` at activation.
+Each ref is peeled to a commit; annotated tags contribute their target commit and
+refs that do not resolve to commits contribute nothing. The snapshot stores tips,
+not every reachable commit: passing each as a negative revision makes Git exclude
+their complete ancestor closure. A commit on any old side branch is grandfathered
+only when it was reachable from a recorded tip at activation. A commit added to
+that branch later is not an ancestor of the old tip and therefore remains in the
+candidate set—even if the branch subsequently merges the upgraded mainline. New
+orphan/root history is likewise not reachable from a recorded tip and enforces
+normally.
+
+Fresh `noldor init` and `init --update` create the snapshot beside the existing
+general marker; `noldor upgrade` creates it before applying/updating the installed
+framework so all current unpublished refs are grandfathered. The file is reported
+as an upgrade/init artifact and must be committed with the framework update. Add
+it to `MICRO_CHORE_GLOBS`; it already falls outside `CODE_GLOBS`.
+
+Upgrade handles the snapshot independently of the semver migration chain: both
+an empty chain and a non-empty chain report/create it, `--dry-run` reports without
+writing, and an apply that would create it observes the same clean-tree preflight
+as other upgrade writes. This avoids inventing a version-gap migration solely to
+arm a runtime gate. In the self-hosting worktree, the implementation snapshots
+the approved-spec refs before the first code commit, so the new implementation
+objects are not grandfathered.
+
+An absent snapshot means advisory-only compatibility. Malformed JSON, unsupported
+version, an empty/duplicate tip set, or a syntactically invalid SHA fails closed
+as an infrastructure error; corrupt data can never broaden the grandfathered
+set. A syntactically valid tip that is unavailable or no longer resolves to a
+commit in the current clone is omitted from the negative revisions with one
+warning. Omission can only narrow grandfathering and cause extra validation; it
+cannot hide a candidate. Once created, init/upgrade never rewrites the
+snapshot—moving the tips forward would silently grandfather post-activation
+commits.
+
+When no commit-ref tip exists (fresh empty repository), ensure returns
+`skipped-no-git`, writes no snapshot, and tells the operator to rerun init after
+the first commit. This mirrors the existing general rollout-marker bootstrap and
+keeps an empty on-disk snapshot reserved for corruption rather than giving it two
+meanings.
+
+The result aggregates every invalid commit as `{ sha, subject, error }`; it does
+not stop after the first failure.
+
+### Unit 3 — pre-push orchestration
+
+Extend [`src/hooks/noldor-pre-push.ts`](../../../src/hooks/noldor-pre-push.ts) after
+its single bounded stdin read:
+
+1. Parse the ref lines once.
+2. Run the existing direct-`origin/main` decision first. A forbidden destination
+   fails immediately without unnecessary object walks.
+3. Run outgoing summary validation for every allowed push, including non-origin
+   remotes. A release override allows the destination but does not disable body
+   validation; release commits pass through their `Noldor-Path` exemption.
+4. On violations, print one rejection containing every short SHA, subject, and
+   missing/thin section result, then exit 1.
+5. Record the existing release-push receipt only after validation succeeds.
+
+### Unit 4 — non-blocking commit-msg wiring
+
+Keep the existing `summary-body` job in
+[`lefthook/noldor.yml`](../../../lefthook/noldor.yml) and its consumer template, but
+rename it `summary-body-advisory` and document its exit-zero contract. It stays
+after trailer validation so trailer diagnostics remain the first actionable
+message. No new pre-push job is added.
+
+Update [`src/cli/manifest.ts`](../../../src/cli/manifest.ts) and the script catalog
+description from “validate” to “advise” without changing the stable command name.
+
+Revise `.noldor/rules/pr-summary-why-how-what.md` so it names pre-push as the
+mechanical floor, and update `docs/noldor/git-and-commits.md`,
+`docs/noldor/pr-flow.md`, `docs/noldor/script-catalog.md`, and their consumer
+template twins. Refresh `docs/features/pr-summary-body-enforcement.md` so its
+Summary, User Story, and Usage describe the commit-object contract rather than
+the parked commit-msg design.
+
+### Unit 5 — retained spike behavior
+
+Retain, with their existing tests:
+
+- `isBookkeepingOnly`, `isRetirementOnly`, and `touchesCode` in
+  [`src/core/allowlist.ts`](../../../src/core/allowlist.ts);
+- `pickSummarySha` skipping the complete bookkeeping set only when
+  `files.length > 0` in
+  [`src/core/pr-flow-cli.ts`](../../../src/core/pr-flow-cli.ts);
+- the retirement template that quotes the subject's reason instead of inventing
+  one, FD-summary plus commit-body composition, and diff-derived Test Plan in
+  [`src/core/pr-flow.ts`](../../../src/core/pr-flow.ts).
+
+The redesign changes only which boundary can block on the body contract. It does
+not reopen the already-settled PR-composition behavior.
+
+### Data flow
+
+The authoritative path is:
+
+```text
+git push
+  -> Lefthook buffers pre-push stdin for noldor-pre-push
+  -> noldor-pre-push parses destination ref updates
+  -> summary-body activation snapshot supplies immutable negative tips
+  -> validate-pushed-summaries enumerates non-grandfathered SHAs per updated ref
+  -> parent count classifies merges
+  -> stored message classifies automation/autosquash
+  -> diff-tree -z supplies exact committed paths
+  -> validateSummaryCommit checks code-bearing single-parent commits
+  -> all violations are rendered together
+  -> exit 0 permits transfer; exit 1/2 prevents it
+```
+
+Ref-line parsing is strict. Each non-empty line must contain exactly local ref,
+local SHA, remote ref, and remote SHA. An all-zero SHA is recognized with
+`/^0+$/`, not a hard-coded 40-character constant, so the parser does not assume
+SHA-1 repositories. Ref deletions stop after this parse; branch and tag updates
+flow through the same `rev-list` discovery.
+
+The Git runner has distinct text and NUL-delimited result paths. Parent and
+message commands decode UTF-8 text. The `diff-tree -z` result stays a `Buffer`
+until it is split on byte `0x00`; it is never line-split or trimmed. This keeps a
+valid repository path containing whitespace, quotes, or a newline from changing
+classification before it reaches `touchesCode`.
+
+Per SHA, work is ordered from cheapest to most specific:
+
+1. Stop the whole check when the summary-body snapshot is absent. Otherwise use
+   its grandfather tips while enumerating candidates; no per-object date or
+   ancestry heuristic remains.
+2. Read parents; skip an object with more than one parent.
+3. Read the stored message; skip autosquash objects.
+4. Read the final `Noldor-Path` trailer value; skip exactly one recognized
+   release-automation value.
+5. Read the NUL-delimited files and apply `touchesCode`.
+6. Measure the three body sections.
+
+Root commits have zero parents and are validated normally when they carry code.
+For merge commits, path differences against individual parents are irrelevant to
+this contract because parent count already supplies the explicit exemption.
+
+The advisory path deliberately stops short of this claim:
+
+```text
+git commit
+  -> commit-msg receives provisional message file
+  -> advisory reads provisional prose + best-effort staged paths
+  -> advisory prints a warning when the likely code commit lacks sections
+  -> advisory always exits 0
+  -> Git writes the commit object
+```
+
+The next push re-evaluates the resulting object from scratch. No advisory verdict
+or state is cached or forwarded to pre-push.
+
+### Failure behavior and diagnostics
+
+Three outcome classes remain visibly distinct:
+
+- **Policy rejection (exit 1):** one or more newly reachable, post-activation,
+  single-parent code commits lack valid sections. The diagnostic begins
+  `pre-push: outgoing commits do not explain themselves`, then lists every
+  offending short SHA and subject with its missing or under-24-character
+  sections. It ends with the exact three-line template and says that the stored
+  commits must be reworded before pushing.
+- **Infrastructure failure (exit 2):** malformed ref input, `rev-list` failure,
+  a malformed activation snapshot, an unreadable candidate commit object, or an
+  unparseable parent row. The message names the failing ref/SHA and sanitized Git
+  argument list. When an existing ref's remote-old SHA is unavailable locally,
+  it recommends fetching that remote ref and retrying. The hook performs no fetch
+  and no other network action itself.
+- **Advisory finding (exit 0):** the provisional message probably lacks sections,
+  or its files/state cannot be read. The message begins
+  `summary-body advisory:` and explicitly says pre-push will check the stored
+  object. It never rejects the commit.
+
+The blocking path fails closed on infrastructure errors. Failing open would turn
+the sole authoritative check into another silent bypass; a failed push has not
+changed the remote and can be retried safely. The advisory path fails open
+because its input is intentionally non-authoritative.
+
+Diagnostics aggregate policy violations but stop on infrastructure failure: a
+partial scan cannot truthfully say whether the remaining objects pass. Duplicate
+SHAs from multiple ref updates appear once. Subjects are rendered on one line;
+control characters are escaped so a crafted stored subject cannot forge another
+diagnostic entry.
+
+### Testing
+
+Tests follow `docs/noldor/testing-principles.md`: pure policy cases stay small,
+while claims about Git object shape run against scratch repositories and real Git
+commands.
+
+Extend `src/core/__tests__/validate-summary-body.test.ts` with the final-object
+matrix:
+
+- all three sections pass; each missing section and each 23/24-character boundary
+  reports precisely;
+- order remains a prose convention rather than a mechanical requirement;
+- trailer lines do not pad the final section, and the colon form keeps its
+  `interpret-trailers` hint;
+- `touchesCode` false passes, while one code path among prose requires a body;
+- root and single-parent code commits enforce; two-parent commits pass;
+- a single-parent commit with a forged `Merge ...` or `Revert "..."` subject
+  fails;
+- `fixup!`, `squash!`, `amend!`, `release-automation`, and `release-sweep` pass;
+- release exemptions require exactly one recognized value from the final trailer
+  block; a matching body line or duplicate/conflicting values do not exempt;
+- cherry-picked and reverted single-parent objects enforce without any pseudo-ref
+  input.
+
+Add `src/hooks/__tests__/validate-pushed-summaries.test.ts` for range and loader
+behavior:
+
+- strict four-field parsing, SHA-1/SHA-256 all-zero deletion detection, and
+  malformed-line rejection;
+- existing-ref `remote-old..local` and new-ref local-tip argument construction,
+  both with every immutable grandfather tip supplied as a negative revision;
+- stable SHA deduplication across two ref updates;
+- a commit already reachable through another remote ref is still checked when a
+  new updated ref introduces it; stale remote-tracking refs have no effect;
+- a real root commit, ordinary commit, merge commit, cherry-pick, revert, and
+  force-push range;
+- stored message loaded without `commit -v` comments/scissors/diff;
+- `--amend` validated from the amended object's full diff rather than the index;
+- non-ASCII, space-containing, quoted, and newline-containing paths survive the
+  NUL protocol and classify correctly;
+- every commit reachable from an activation tip skips, including old side-branch
+  history merged later;
+- a commit added to that side branch after activation remains a candidate even
+  after the upgraded mainline is merged, closing the ancestry-only bypass;
+- orphan/root history not reachable from a grandfather tip validates normally;
+- an absent snapshot stays advisory-only, while malformed JSON, an unsupported
+  version, an empty/duplicate tip set, or an invalid SHA produces an
+  infrastructure failure;
+- a valid but locally unavailable/garbage-collected grandfather tip is omitted
+  with a warning and its formerly grandfathered commits are conservatively
+  validated when encountered;
+- two invalid objects aggregate, while a loader failure returns infrastructure
+  failure without a partial pass verdict.
+
+Extend `src/hooks/__tests__/noldor-pre-push.test.ts` with orchestration cases:
+
+- direct `origin/main` rejection performs no summary object walk;
+- feature and non-origin pushes validate all outgoing objects;
+- a valid tip does not hide an invalid earlier commit;
+- release override still scans, while correctly trailered automation passes;
+- policy failure exits 1, infrastructure failure exits 2, success exits 0;
+- release-push receipt writes only after summary validation succeeds;
+- the real stdin timeout/error behavior remains unchanged.
+
+Add `src/core/__tests__/summary-body-rollout.test.ts` and extend the init/upgrade
+suites:
+
+- snapshot creation records/deduplicates commit tips from detached/current HEAD,
+  local branches, remote-tracking refs, and commit-pointing tags; annotated tags
+  are peeled and non-commit refs contribute no tip;
+- fresh init and `init --update` create the summary-body snapshot without
+  replacing an existing one;
+- upgrade creates/reports the snapshot in both non-empty and empty migration-chain
+  paths, while `--dry-run` reports without writing;
+- a consumer with multiple unpublished pre-upgrade branches can push every
+  snapshotted history, while the first later commit on any branch enforces;
+- a snapshot copied to another clone omits machine-local unavailable tips without
+  blocking the push or widening grandfathering;
+- a fresh empty repository returns `skipped-no-git`, writes no snapshot, and the
+  init output tells the operator to rerun after the first commit;
+- ensure is idempotent and never advances existing tips.
+
+Keep a narrow advisory suite in
+`src/core/__tests__/validate-summary-body.test.ts`: likely invalid code produces a
+warning, valid structure stays quiet, and every missing-file/Git-failure/finding
+path exits zero. Existing `allowlist`, `pr-flow`, and `pr-flow-cli` suites remain
+green and continue pinning the retained spike behavior.
+
+One end-to-end scratch test installs the hook configuration against a bare remote:
+an invalid earlier code commit plus a valid tip is rejected before the remote ref
+moves; after rewording the invalid object, the same push succeeds. This is the
+acceptance-level proof that the validator reads objects selected by pre-push ref
+updates rather than the current index or `COMMIT_EDITMSG`.
+
+## Acceptance criteria
+
+- [ ] `commit-msg` never rejects because of the summary body; an invalid likely
+  code commit prints an advisory and still creates the commit.
+- [ ] Pushing one code commit without valid `Why —`, `How —`, and `What —`
+  sections fails before the remote ref changes and names that SHA, subject, and
+  every missing/thin section.
+- [ ] A valid tip does not hide an invalid earlier outgoing commit.
+- [ ] Two invalid outgoing commits are both reported once, even when reachable
+  from multiple pushed refs.
+- [ ] New-ref discovery does not consult remote-tracking refs. Commits newly
+  reachable through that ref are checked even if another destination ref may
+  already reach them.
+- [ ] Stored message validation is unaffected by `git commit -v`,
+  `core.commentChar`, or `core.commentString`.
+- [ ] Stored path validation is unaffected by an empty amend index or Git path
+  quoting; deletions and non-ASCII paths classify from `diff-tree -z`.
+- [ ] Merge commits pass only when the object has more than one parent. A forged
+  `Merge ...` subject on a single-parent code commit fails.
+- [ ] Cherry-pick and revert state is not inspected. Their durable single-parent
+  code commits require structured bodies; autosquash objects remain exempt.
+- [ ] Release automation is exempt only through exactly one recognized
+  `Noldor-Path` value in Git's final trailer block; a body line cannot forge it.
+- [ ] Bookkeeping and prose-only objects remain exempt through `touchesCode`,
+  while a mixed commit with one code path enforces.
+- [ ] No summary-body snapshot means advisory-only compatibility. Init/update and
+  upgrade snapshot all current commit-ref tips; exactly their reachable history
+  is grandfathered.
+- [ ] A commit added after activation on an old side branch remains enforceable
+  after any later merge, and root/orphan commits not reachable from a snapshot
+  tip enforce normally.
+- [ ] A present malformed/corrupt summary-body snapshot blocks with infrastructure
+  exit 2 instead of disabling or broadening enforcement.
+- [ ] A valid grandfather SHA unavailable in the current clone is omitted with a
+  warning; the push continues with less grandfathering, never more.
+- [ ] Fresh init without a Git `HEAD` writes no snapshot, reports
+  `skipped-no-git`, and remains advisory-only until init is rerun.
+- [ ] Malformed ref input or unreadable Git objects fail the push with exit 2 and
+  an actionable diagnostic; the hook never fetches or mutates repository state.
+- [ ] Direct `origin/main` protection, review-receipt enforcement, release-push
+  receipts, template sync, and clone checks retain their existing behavior.
+- [ ] The retained retirement Summary, FD/body composition, `pickSummarySha`, and
+  diff-derived Test Plan tests remain green.
+- [ ] `pnpm typecheck`, the targeted Vitest suites, `pnpm test`,
+  `pnpm noldor checks template-sync`, `pnpm noldor validate script-catalog`, and
+  `pnpm noldor rules validate` pass.
+
+## Risks / trade-offs
+
+- **Blocking feedback moves later.** An ignored or missed advisory can create an
+  invalid unpublished commit, and validating every outgoing object means a later
+  correction commit cannot cover it. The operator must reword/recreate the
+  unpublished object before push. This is the deliberate cost of validating the
+  right input; diagnostics identify every affected SHA in one run. No automatic
+  history rewrite is added.
+- **Per-ref reachability can recheck a shared object.** Pre-push does not expose
+  the destination's complete ref inventory. A commit already reachable through
+  one remote ref is checked when a newly created ref also introduces it. The
+  result is deterministic and SHAs are deduplicated within one push; this small
+  repeat cost is preferred to letting stale tracking refs suppress enforcement.
+- **Activation adds one tracked snapshot.** Consumers must commit
+  `.noldor/summary-body-rollout.json` with their init/upgrade changes. If they do
+  not, another clone remains advisory-only, matching the established rollout
+  model. Init/upgrade output names the file and required commit step.
+- **The snapshot grows with local ref count.** One SHA per activation-time commit
+  ref keeps the file compact in ordinary repos and precisely captures side
+  histories. Repositories with many stale refs may record redundant ancestry,
+  but creation deduplicates identical tips and runtime SHA results; no live ref
+  is consulted after activation.
+- **Snapshots can name machine-local commits.** Another clone may not possess an
+  unpublished activation-time tip, and deleted refs may eventually be garbage
+  collected. Such tips are safely omitted at read time: this can produce extra
+  validation of old history, but never an exemption. The warning names the SHA
+  so the operator can fetch it when preserving that grandfather boundary matters.
+- **Per-object Git calls add push latency.** The clear object-level contract is
+  preferred over a packed parser in the first implementation. Deduplication,
+  snapshot negatives, and early merge/automation exits bound common branches;
+  any later optimization must preserve identical inputs and be measured first.
+- **Merge commits are exempt even when conflict resolution changes code.** Parent
+  count is immutable and closes the entire transient-state class, but does not
+  distinguish a trivial merge from a substantive resolution. Review receipt and
+  code review remain the backstop. This is narrower and more auditable than a
+  subject or pseudo-ref heuristic.
+- **Structural prose is still gameable.** Twenty-four characters are a floor,
+  not evidence of a good explanation. The `pr-summary-why-how-what` rule and CR
+  continue to own the quality bar.
+- **The command name still says `validate`.** Keeping
+  `pnpm noldor validate summary-body` avoids a breaking CLI rename, while its
+  description/output make the advisory contract explicit.
+
+## User Story
+
+As an agent pushing a reviewed branch, I want Noldor to validate the immutable
+messages, files, and parent structure of every outgoing commit, so that a PR
+cannot ship an unexplained code change because `commit-msg` misread provisional
+Git state.
+
+## Usage
+
+Write each code-carrying commit with the same structured body:
+
+```text
+fix(clones): union untracked files into the diff-scoped verdict
+
+Why — a new file has no git post-image, so the clone gate silently skipped the
+new content and could report a false clean result.
+How — resolveChangedRanges unions untracked paths into the range map as complete
+file spans before clone coverage is evaluated.
+What — src/clones/ranges.ts and its regression test now make a pasted new file
+participate in diff-scoped clone detection.
+
+Noldor-Path: fast-track
+```
+
+At commit time, `summary-body-advisory` prints early feedback but does not reject
+or certify the commit. The standalone form has the same advisory contract:
+
+```bash
+git add -A
+pnpm noldor validate summary-body .git/COMMIT_EDITMSG
+```
+
+At push time, no extra command is needed. Lefthook invokes
+`pnpm noldor hooks pre-push <remote>`, feeds it Git's ref updates, and validates
+every distinct outgoing object. A rejection names all objects that need
+rewording. Because the remote has not moved, repair only the unpublished history
+and retry the normal push; do not use `--no-verify`.
+
+Bookkeeping/prose-only commits need no body. Merge commits are recognized by
+their parent count. Durable cherry-pick and revert commits are ordinary
+single-parent history and need the body when they carry code.
+
+## Open questions (resolved)
+
+1. *Which boundary owns the blocking decision?*
+   -> **`pre-push` over stored commit objects.** This supersedes the parked
+   spec's commit-msg decision because only the object contains the message,
+   files, and parents Git will actually transfer (D15).
+
+2. *Which commit objects are checked?*
+   -> **Every distinct, non-grandfathered object newly reachable through an
+   updated ref.** Checking only the tip or `pickSummarySha` would weaken the
+   existing every-commit contract and let invalid intermediate commits ship
+   (D11).
+
+3. *Should `commit-msg` disappear?*
+   -> **No; retain it as exit-zero advice.** It preserves cheap feedback without
+   letting provisional state block work or claim correctness (D12).
+
+4. *Should summary validation be another pre-push job?*
+   -> **No; delegate from the existing stdin-owning entrypoint.** One bounded
+   stdin read avoids duplicated/ref-consumption-sensitive hook wiring while the
+   focused loader remains independently testable (D12–D13).
+
+5. *How are new remote refs bounded?*
+   -> **From every immutable activation-time grandfather tip to the new local
+   tip.** Negative revisions exclude exactly the history present at activation
+   without trusting live tracking refs or requiring destination-wide network
+   inventory (spec-review fix).
+
+6. *What replaces merge/cherry-pick/revert transient state?*
+   -> **Parent count only identifies merges; durable single-parent commits
+   enforce.** Cherry-picks and reverts that remain in history should explain
+   themselves, while autosquash subjects remain exempt because those objects are
+   intended to disappear (D12).
+
+7. *Should Git-plumbing errors allow the push?*
+   -> **No; exit 2 without mutating state.** Pre-push is the authoritative and
+   safely retryable boundary, so failing open would recreate a silent bypass
+   (D14).
+
+8. *Which parked-spike work survives?*
+   -> **Keep path predicates, PR composition, summary selection, docs intent, and
+   their tests; replace provisional enforcement.** Those units already consume
+   stable branch/diff inputs and do not share the architectural defect (D13).
+
+9. *Can the existing `.noldor/rollout-marker` grandfather pre-upgrade history?*
+   -> **No; add `.noldor/summary-body-rollout.json`.** The existing marker may
+   predate this validator by months, and one new marker cannot date commits on
+   side branches. The snapshot records all activation-time commit-ref tips, so
+   exactly their ancestor closure is grandfathered and later side-branch commits
+   still enforce (spec-review fixes).
+
+10. *What if another clone cannot resolve a snapshotted machine-local tip?*
+    -> **Omit that negative tip with a warning.** Missing a grandfather input can
+    only cause more commits to be validated; treating it as fatal would make the
+    tracked snapshot non-portable, while treating it as an exemption would fail
+    open (spec-review fix).
