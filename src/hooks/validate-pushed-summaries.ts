@@ -1,5 +1,4 @@
-import { spawnSync } from 'node:child_process';
-
+import { defaultRunGit, type GitOutcome as CoreGitOutcome } from '../core/branch-added.js';
 import {
   CREATE_COMMAND,
   FILE as SNAPSHOT_FILE,
@@ -23,38 +22,31 @@ const ZERO_SHA_RE = /^0+$/;
 /** rev-list over a large history outruns Node's 1 MiB default. */
 const MAX_BUFFER = 64 * 1024 * 1024;
 
-export interface GitOutcome<T> {
-  status: number | null;
-  stdout: T;
-  stderr: string;
-}
+export type GitOutcome = CoreGitOutcome;
 
 /**
  * The git surface this module needs, injected so tests can drive command
  * failures and odd object shapes without mocking process globals.
  */
 export interface GitRunner {
-  text(args: readonly string[], stdin?: string): GitOutcome<string>;
+  text(args: readonly string[], stdin?: string): GitOutcome;
 }
 
+/**
+ * Production runner, delegating to the shared `defaultRunGit` seam rather than
+ * calling `spawnSync` again here.
+ *
+ * The spawn-level error handling (`git` off PATH, EACCES, a deleted cwd, a
+ * `maxBuffer` overrun — all of which leave `status` null and `stderr` empty, so
+ * a diagnostic would read `exit null`) is subtle enough that a second copy
+ * drifts on the next fix. The clone detector and the code reviewer flagged the
+ * duplicate independently, which is a fair sign it was one.
+ */
 export function createGitRunner(cwd: string = process.cwd()): GitRunner {
+  const run = defaultRunGit(cwd);
   return {
-    text(args, stdin) {
-      const r = spawnSync('git', [...args], {
-        cwd,
-        encoding: 'utf8',
-        maxBuffer: MAX_BUFFER,
-        ...(stdin === undefined ? {} : { input: stdin }),
-      });
-      // A spawn-level failure (git not on PATH, EACCES, cwd gone, maxBuffer
-      // overrun) leaves `status` null and `stderr` empty, so every diagnostic
-      // downstream would render `exit null` and hand the operator a blocked push
-      // with no reason in it. Surface `r.error` as the stderr text instead — the
-      // same line `defaultRunGit` in `src/core/branch-added.ts` already carries
-      // for this exact failure.
-      if (r.error !== undefined) return { status: null, stdout: '', stderr: r.error.message };
-      return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
-    },
+    text: (args, stdin) =>
+      run(args, { maxBuffer: MAX_BUFFER, ...(stdin === undefined ? {} : { stdin }) }),
   };
 }
 

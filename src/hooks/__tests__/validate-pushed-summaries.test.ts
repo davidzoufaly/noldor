@@ -380,7 +380,7 @@ describe('path protocol', () => {
 });
 
 /** A runner that answers from a table and records what it was asked. */
-function fakeGit(handler: (args: readonly string[]) => Partial<GitOutcome<string>>): {
+function fakeGit(handler: (args: readonly string[]) => Partial<GitOutcome>): {
   runner: GitRunner;
   calls: string[][];
 } {

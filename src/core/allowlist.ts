@@ -110,6 +110,22 @@ export const CODE_EXCLUDE_GLOBS = [
 ] as const;
 
 /**
+ * True when every path matches at least one of `globs`.
+ *
+ * An empty set returns `false`, for every caller: each asks "is this set
+ * entirely X?", and an empty set proves nothing either way. Callers decide what
+ * emptiness means for them (the summary-body check passes on it; `composeBody`
+ * never sees it, since `pr-flow` exits when no commits are ahead of base).
+ *
+ * Shared because the four allowlist predicates below differed only in which glob
+ * list they consulted, which the clone detector eventually noticed.
+ */
+function everyPathMatches(paths: string[], globs: readonly string[]): boolean {
+  if (paths.length === 0) return false;
+  return paths.every((p) => globs.some((g) => minimatch(p, g, { dot: true })));
+}
+
+/**
  * Returns true when EVERY path is framework bookkeeping — a commit with no
  * behaviour to explain, exempt from the summary-body contract.
  *
@@ -119,8 +135,7 @@ export const CODE_EXCLUDE_GLOBS = [
  * sees it, since `pr-flow` exits when no commits are ahead of base).
  */
 export function isBookkeepingOnly(paths: string[]): boolean {
-  if (paths.length === 0) return false;
-  return paths.every((p) => BOOKKEEPING_GLOBS.some((g) => minimatch(p, g, { dot: true })));
+  return everyPathMatches(paths, BOOKKEEPING_GLOBS);
 }
 
 /**
@@ -128,8 +143,7 @@ export function isBookkeepingOnly(paths: string[]): boolean {
  * shape that gets `composeBody`'s deterministic Summary template.
  */
 export function isRetirementOnly(paths: string[]): boolean {
-  if (paths.length === 0) return false;
-  return paths.every((p) => RETIREMENT_GLOBS.some((g) => minimatch(p, g, { dot: true })));
+  return everyPathMatches(paths, RETIREMENT_GLOBS);
 }
 
 /**
@@ -149,8 +163,7 @@ export function touchesCode(paths: string[]): boolean {
  * A single file outside the allowlist taints the entire set.
  */
 export function isMicroChoreAllowed(paths: string[]): boolean {
-  if (paths.length === 0) return false;
-  return paths.every((p) => MICRO_CHORE_GLOBS.some((g) => minimatch(p, g, { dot: true })));
+  return everyPathMatches(paths, MICRO_CHORE_GLOBS);
 }
 
 /**
@@ -159,6 +172,5 @@ export function isMicroChoreAllowed(paths: string[]): boolean {
  * cannot launder a source-code edit by piggy-backing on a graphify regen.
  */
 export function isReleaseSweepAllowed(paths: string[]): boolean {
-  if (paths.length === 0) return false;
-  return paths.every((p) => RELEASE_SWEEP_GLOBS.some((g) => minimatch(p, g, { dot: true })));
+  return everyPathMatches(paths, RELEASE_SWEEP_GLOBS);
 }
