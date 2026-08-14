@@ -1,3 +1,4 @@
+// @fd: review-run-lifecycle-module
 import { fileURLToPath } from 'node:url';
 import { spawnAgent } from '../core/agent-runner/registry.js';
 

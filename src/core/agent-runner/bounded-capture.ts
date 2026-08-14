@@ -1,3 +1,4 @@
+// @fd: review-run-lifecycle-module
 /**
  * Bounded accumulator for a child's diagnostic stream.
  *

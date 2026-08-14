@@ -1,3 +1,4 @@
+// @fd: review-run-lifecycle-module
 /**
  * Resolve with `p`'s value, or with `fallback` once `ms` elapses — whichever happens first.
  * Never rejects: a rejection from `p` also yields `fallback`.
