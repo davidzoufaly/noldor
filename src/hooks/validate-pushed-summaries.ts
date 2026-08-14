@@ -153,12 +153,25 @@ export function parseRefLines(lines: readonly string[]): RefUpdate[] | { error: 
  * and are fetched they stay exempt on every later push, and the merge that
  * brings them to the mainline is itself exempt by parent count.
  *
- * Which makes the namespace worth narrowing. Only refs under a namespace of an
- * actually-configured remote count, so `git update-ref refs/remotes/x/y <sha>`
- * cannot exempt an arbitrary commit and its whole ancestry offline in one
- * command — `x` has to be a real remote first. This asks git which remotes
- * *exist*, never which one is being pushed to, so none of the URL / `insteadOf`
- * / `pushurl` shapes that broke the four scoping attempts come back.
+ * The namespace is narrowed to configured remotes, but be honest about how
+ * little that buys: every clone already has `origin`, so
+ * `git update-ref refs/remotes/origin/anything <sha>` still exempts an arbitrary
+ * commit and its whole ancestry, offline, in one command. Verified. The
+ * narrowing only rules out namespaces of remotes that do not exist, which no
+ * real workflow produces either way. It is kept because it costs one `git
+ * remote` call and makes the negative source mean what its name says, not
+ * because it closes the hole.
+ *
+ * The real bound is this: **any commit an author can name is one `update-ref`
+ * away from exemption.** That is acceptable only because the same author has
+ * `--no-verify`, which is shorter — a local hook cannot defend against the
+ * person running it, and this one is not trying to. It defends against
+ * forgetting. Anything relying on a stronger claim (a server-side check, a
+ * required status) must not be built on this function.
+ *
+ * Both of these ask git which remotes *exist*, never which one is being pushed
+ * to, so none of the URL / `insteadOf` / `pushurl` shapes that broke the four
+ * scoping attempts come back.
  *
  * What remains exempt is history this clone fetched from a configured remote —
  * commits that crossed the boundary this gate defends before it was watching —
