@@ -86,10 +86,17 @@ reviewWithCodex(review: ArtifactReview, cwd: string, spawn: Spawn):
   Promise<{ summary: string; findings: OutFinding[] }>
 ```
 
-in a module both callers can import. `runReview` becomes the thin CLI wrapper that awaits it and
+in a module both callers can import, and the adapter of Unit 4 lives beside it — both callers need
+it, and `schemaPath` (computed today at `run-codex.ts:41`) moves there with it, since `Spawn` no
+longer carries `args`. `runReview` becomes the thin CLI wrapper that awaits `reviewWithCodex` and
 writes the JSON; the lane awaits it and maps to `LaneFindings` directly. The existing
 findings-travel-via-stdout-never-exit-code contract stays a property of the CLI wrapper, which is
 the only place an exit code is observable.
+
+`ArtifactReview` is the existing type from `cli-args.ts` that `runReview` already takes, and it
+already spans all three kinds — `code` included, which is why Unit 5 can route through it. The name
+reads as artifact-only and is therefore mildly misleading, but it is inherited rather than
+introduced here; renaming a shared CLI type is not this spec's business.
 
 Behaviour is unchanged for the CLI. The `try/catch` that turns a bad `--base-sha` or unreadable
 artifact into a synthetic blocker moves with the body, so both callers inherit it.
@@ -143,6 +150,12 @@ createBoundedCapture(opts?: { headChars?: number; tailChars?: number; limitChars
   totalBytes(): number;   // TRUE pre-elision size, accumulated as Buffer.byteLength per chunk
 }
 ```
+
+Slices land on code-unit boundaries, so a head or tail cut can fall between the halves of a
+surrogate pair and leave a lone surrogate — which renders as U+FFFD, the exact artefact Unit 2
+exists to stop producing. The helper nudges each cut off a surrogate boundary (one code unit) before
+slicing. Cheap, and the alternative is a bounded-capture unit that reintroduces the corruption its
+sibling unit just fixed.
 
 **Chars for slicing, bytes for reporting — deliberately, and they are different numbers.** `push`
 receives already-utf8-decoded strings (the `setEncoding` of Unit 2), so every slice this helper
@@ -240,6 +253,24 @@ armed, and `killTree` is never installed — the operator's SIGINT reaches the w
 which is exactly the property `codex-spawn.ts` was protecting. `timeoutMs` together with
 `foreground: true` is a caller error: the cap could not be enforced by a group-kill, so it must be
 rejected at the boundary rather than silently ignored.
+
+**The other two combinations `foreground` creates get the same treatment.** A new mode on a shared
+component owes an answer for every option it interacts with, not just the one that motivated it:
+
+- `foreground` + `onSpawn` → **rejected.** `onSpawn`'s contract (`types.ts:83-90`) promises the
+  callback receives a *process-group id*, and it is one only because of `detached: true`. Under
+  `foreground` the pid is not a group leader, so the drain's orphan-reaper would register it as a
+  pgid and a later `kill(-pid)` would signal whatever group that pid happens to sit in — someone
+  else's. Handing back a number that is the right type and the wrong thing is worse than refusing.
+- `foreground` + `stderr: 'capture'` → **allowed.** They are orthogonal: capture pipes stderr,
+  `foreground` decides process-group membership.
+- `stderr: 'capture'` + `logSink` → **rejected.** Tee already owns both streams and forces
+  `AgentResult.stderr` to `''`, so accepting both would silently discard an explicit capture
+  request. (Unit 2 defines `''` under tee; this is what stops that from becoming a trap.)
+
+All three are unreachable with today's callers. They are specified anyway because the alternative is
+a shared component whose behaviour in three of its own configurations is discoverable only by
+reading the implementation.
 
 Unit 5 is what makes this clean rather than a heuristic. Today `cr codex` is invoked *both* by a
 human and by the lane, so no static answer to "is this interactive?" exists. After Unit 5 the lane
