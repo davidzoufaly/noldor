@@ -46,7 +46,7 @@ As an agent pushing a reviewed branch, I want Noldor to validate the stored mess
 **Exempt — commit freely with no body**
 
 - Any diff that carries no code: bookkeeping (roadmap, backlog, FDs, design artifacts, milestones, `ideas.md`, the retired-ID map, the id counter) and ordinary prose alike. One code path among the prose is enough to require a body.
-- `release-automation` / `release-sweep` commits — recognised only through exactly one such value in git's own final trailer block, so a `Noldor-Path:` line written in body prose buys nothing.
+- `release-automation` / `release-sweep` commits — recognised only through exactly one such value in git's own final trailer block, and only when the object corroborates it: `release-automation` needs the `chore(release): vX.Y.Z` subject, `release-sweep` must touch sweep outputs only. A `Noldor-Path:` line in body prose buys nothing, and neither does a bare trailer added under `--no-verify`.
 - `fixup!` / `squash!` / `amend!` subjects — **at `commit-msg` only**. At `pre-push` the object is crossing unsquashed, so exempting it there would make one token a bypass of the whole gate; rebase first, or `--no-verify` a deliberate work-in-progress push.
 - A real merge, keyed on the object's **parent count**. A single-parent commit wearing a forged `Merge branch 'x'` subject is not exempt, and neither are cherry-picks or reverts that survive into pushed history.
 - Any clone that has not committed `.noldor/summary-body-rollout.json` — though both hooks say so rather than going quiet.

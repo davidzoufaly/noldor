@@ -455,9 +455,12 @@ export function validatePushedSummaries(opts: {
     const header = loadCommitHeader(git, sha);
     if ('error' in header) return { kind: 'infra', message: `summary-body: ${header.error}` };
 
-    // Exempt objects never reach diff-tree, so a merge costs one command.
-    // Header-only: passing an empty file list to the full check would read as
-    // "carries no code" and exempt every object.
+    // A merge costs one command: parent count is the only exemption decidable
+    // without the path set. Everything else — including the automation trailer,
+    // which must be corroborated by the commit's own subject or paths — needs
+    // diff-tree. Never pass an empty file list to the full check as a shortcut:
+    // `touchesCode([])` is false, so that reads as "carries no code" and exempts
+    // every object.
     if (isExemptByHeader(header)) continue;
 
     const files = loadCommitFiles(git, sha);

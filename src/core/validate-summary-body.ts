@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
-import { touchesCode } from './allowlist.js';
+import { isReleaseSweepAllowed, touchesCode } from './allowlist.js';
 import {
   CREATE_COMMAND,
   FILE as SNAPSHOT_FILE,
@@ -49,6 +49,43 @@ const EXEMPT_SUBJECT_RE = /^(?:fixup!|squash!|amend!)/;
 
 /** `Noldor-Path` values written by release automation rather than by an author. */
 const AUTOMATION_PATHS = new Set(['release-automation', 'release-sweep']);
+
+/** The subject `pnpm release` writes; `release-automation` must carry it. */
+const RELEASE_SUBJECT_RE = /^chore\(release\): v\d+\.\d+\.\d+$/;
+
+/**
+ * Does this object *earn* its automation exemption, rather than merely declare it?
+ *
+ * At `commit-msg` the trailer is corroborated by `validateReleaseAutomation`:
+ * a release subject, and a staged set of release outputs only. None of that
+ * survives `git commit --no-verify`, so accepting the bare trailer at pre-push
+ * would make `--trailer 'Noldor-Path: release-automation'` on any `src/**`
+ * change a one-line bypass of the whole gate — structurally the same hole the
+ * autosquash subjects were closed for, and rejected here for the same reason.
+ *
+ * So the object has to corroborate the claim itself: `release-automation` must
+ * carry the release subject, and `release-sweep` must touch sweep outputs only.
+ *
+ * // noldor:cut subject-only check for release-automation — commit-msg also
+ * requires every file to be a release output, which needs `lockstepPackages`
+ * from consumer config and would make this function impure. The subject gate
+ * already removes the one-line bypass, since a forged trailer now also needs a
+ * `chore(release): vX.Y.Z` subject. Upgrade path: thread the resolved package
+ * paths in through `SummaryCommitInput` and apply the full allowlist here.
+ */
+function earnsAutomationExemption(input: {
+  message: string;
+  files: readonly string[];
+  noldorPath?: string;
+}): boolean {
+  const path = input.noldorPath?.trim();
+  if (path === undefined || !AUTOMATION_PATHS.has(path)) return false;
+
+  if (path === 'release-sweep') return isReleaseSweepAllowed([...input.files]);
+
+  const subject = input.message.split('\n', 1)[0]?.trim() ?? '';
+  return RELEASE_SUBJECT_RE.test(subject);
+}
 
 /** Git's default comment character. Overridable via `core.commentChar`. */
 const DEFAULT_COMMENT_CHAR = '#';
@@ -155,17 +192,13 @@ function storedBody(message: string): string {
  * list: `touchesCode([])` is false, so an empty set reads as "carries no code"
  * and exempts *everything*, silently disabling the gate.
  */
-export function isExemptByHeader(input: {
-  message: string;
-  parentCount: number;
-  noldorPath?: string;
-}): boolean {
-  // Merge identity from the object itself. A single-parent commit whose subject
-  // reads `Merge branch 'x'` is an ordinary commit wearing a costume.
-  if (input.parentCount > 1) return true;
-  // Note: no autosquash-subject branch here — see EXEMPT_SUBJECT_RE. That
-  // exemption belongs to the advisory adapter, whose input really is provisional.
-  return input.noldorPath !== undefined && AUTOMATION_PATHS.has(input.noldorPath.trim());
+export function isExemptByHeader(input: { parentCount: number }): boolean {
+  // Merge identity from the object itself, and nothing else. A single-parent
+  // commit whose subject reads `Merge branch 'x'` is an ordinary commit wearing a
+  // costume; an autosquash subject belongs to the advisory adapter (see
+  // EXEMPT_SUBJECT_RE); and the automation trailer must be corroborated by the
+  // commit's own paths or subject, which are not header facts.
+  return input.parentCount > 1;
 }
 
 /**
@@ -178,6 +211,7 @@ export function validateSummaryCommit(input: SummaryCommitInput): SummaryCommitR
   const subject = input.message.split('\n', 1)[0]?.trim() ?? '';
 
   if (isExemptByHeader(input)) return { success: true, subject };
+  if (earnsAutomationExemption(input)) return { success: true, subject };
 
   // The contract is "a commit that carries code explains itself", so the
   // exemption is the negation of `touchesCode` — not `isBookkeepingOnly`, which

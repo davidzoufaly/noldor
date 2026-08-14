@@ -360,10 +360,22 @@ describe('path protocol', () => {
     expect(scan(dir, [refLine(sha)]).kind).toBe('violations');
   });
 
-  it('exempts release automation carrying exactly one recognised trailer', () => {
+  it('exempts release automation when the object corroborates the trailer', () => {
     const dir = armed();
-    const sha = codeCommit(dir, 'a', 'chore(release): v1\n\nNoldor-Path: release-automation\n');
+    const sha = codeCommit(dir, 'a', 'chore(release): v1.2.3\n\nNoldor-Path: release-automation\n');
     expect(scan(dir, [refLine(sha)]).kind).toBe('ok');
+  });
+
+  it('grants no exemption to a release trailer on an ordinary subject', () => {
+    const dir = armed();
+    // `git commit --no-verify --trailer 'Noldor-Path: release-automation'` would
+    // otherwise push any code change clean, in one line.
+    const sha = codeCommit(
+      dir,
+      'a',
+      'feat(core): sneak it in\n\nNoldor-Path: release-automation\n',
+    );
+    expect(scan(dir, [refLine(sha)]).kind).toBe('violations');
   });
 });
 

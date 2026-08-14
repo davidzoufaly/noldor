@@ -133,10 +133,25 @@ describe('validateSummaryCommit — object-derived exemptions', () => {
     }
   });
 
-  it('exempts release automation through the resolved trailer', () => {
-    for (const path of ['release-automation', 'release-sweep']) {
-      expect(commit({ noldorPath: path, message: 'chore(release): v1\n' }).success).toBe(true);
-    }
+  it('exempts release automation only when the object corroborates the trailer', () => {
+    // release-automation must carry the release subject; release-sweep must
+    // touch sweep outputs only. Otherwise `--trailer 'Noldor-Path:
+    // release-automation'` on any src change would be a one-line bypass, since
+    // commit-msg's corroboration does not survive `--no-verify`.
+    expect(
+      commit({ noldorPath: 'release-automation', message: 'chore(release): v1.2.3\n' }).success,
+    ).toBe(true);
+    expect(
+      commit({ noldorPath: 'release-automation', message: 'feat(core): sneak it in\n' }).success,
+    ).toBe(false);
+
+    expect(
+      commit({ noldorPath: 'release-sweep', files: ['CHANGELOG.md'], message: 'chore: sweep\n' })
+        .success,
+    ).toBe(true);
+    expect(
+      commit({ noldorPath: 'release-sweep', files: CODE, message: 'chore: sweep\n' }).success,
+    ).toBe(false);
   });
 
   it('grants no exemption for an unrecognised Noldor-Path value', () => {
