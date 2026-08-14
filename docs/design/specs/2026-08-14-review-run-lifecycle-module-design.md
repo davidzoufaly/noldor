@@ -137,12 +137,24 @@ message — the same attribution `spawnCodex` produced by resolving with exit 12
 A pure helper, `src/core/agent-runner/bounded-capture.ts`:
 
 ```ts
-createBoundedCapture(opts?: { headBytes?: number; tailBytes?: number; limitBytes?: number }):
-  { push(chunk: string): void; value(): string }
+createBoundedCapture(opts?: { headChars?: number; tailChars?: number; limitChars?: number }): {
+  push(chunk: string): void;
+  value(): string;
+  totalBytes(): number;   // TRUE pre-elision size, accumulated as Buffer.byteLength per chunk
+}
 ```
 
-Below `limitBytes` (default ~512 KB, comfortably above the measured 326 KB) `value()` returns the
-input verbatim — byte-identical to today for every case ever observed. Above it, the buffer keeps a
+**Chars for slicing, bytes for reporting — deliberately, and they are different numbers.** `push`
+receives already-utf8-decoded strings (the `setEncoding` of Unit 2), so every slice this helper
+takes is in JS string units, and so is `formatStderrTail`'s existing `stderr.slice(-maxChars)`.
+Naming the knobs `*Chars` keeps them honest about what they cut. `formatStderrTail` reports
+`of M bytes`, which must stay a real byte count, so the helper accumulates that separately via
+`Buffer.byteLength(chunk, 'utf8')` and exposes it as `totalBytes()`. A string return cannot carry
+that number — recovering it by re-parsing the elision marker would be a parser over our own prose —
+so it is a second method, and `describeCodexFailure` is passed the total alongside the text.
+
+Below `limitChars` (default ~512K chars, comfortably above the measured 326 KB) `value()` returns
+the input verbatim — identical to today for every case ever observed. Above it, the buffer keeps a
 head slice and a tail slice and elides the middle:
 
 ```
@@ -158,9 +170,15 @@ the auth scan runs over the **whole** stderr because *"the actionable line can s
 consumers that exist.
 
 `formatStderrTail` renders `stderr (last N chars of M bytes)`. `M` must stay the **true** pre-elision
-byte count, or a bounded capture would quietly under-report how much the child emitted. The elision
-note carries it, and `formatStderrTail` is passed (or reads) the true total rather than
-`stderr.length`.
+byte count, or a bounded capture would quietly under-report how much the child emitted — so
+`formatStderrTail` gains an optional total parameter fed from `totalBytes()`, falling back to
+`Buffer.byteLength(stderr)` when omitted (preserving today's behaviour for every existing caller).
+
+An auth-shaped line that lands in the **elided middle** — past `headChars`, before the tail window —
+is lost, and with it the `codex login` hint. Accepted: it can only happen above the limit, i.e. in a
+run already larger than anything measured, and the alternative is scanning the whole stream as it
+arrives, which is machinery for a case that has not occurred. The head slice is sized so the
+observed auth line (byte ~400 of 326,525) sits far inside it.
 
 **stdout stays uncapped.** Its content is a JSON `CrRecord` parsed by `extractJsonObject`; truncating
 it converts a large response into a guaranteed parse failure, which is strictly worse than a large
@@ -227,8 +245,9 @@ what keeps an infrastructure failure visible as red rather than as a missing sin
 Remove `codexSupportsBaseSha` (`lanes/codex.ts:39-48`), the `CodexOpts.supportsBaseSha` field, the
 `codexBaseShaSupport` pre-cache at `orchestrate.ts:363`, and the `supportsBaseSha` argument threaded
 into `runCodex` at `orchestrate.ts:378`. `input.baseSha` is passed whenever it is set and
-`fullReview` is not, and lands in the sink's `baseSha` field unconditionally — restoring delta review
-for codex artifact passes, which has never actually run since the probe was introduced.
+`fullReview` is not — the same condition the lane already applies — and in that case it now lands in
+the sink's `baseSha` field instead of being dropped by a probe that always said no. That restores
+delta review for codex artifact passes, which has never actually run since the probe was introduced.
 
 The `console.warn` fallback line at `lanes/codex.ts:68-70` goes with it. Its test doubles
 (`delta.test.ts:12`, `orchestrate.test.ts:13`, `orchestrate.integration.test.ts:43`, all mocking the
@@ -238,7 +257,10 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 
 - `grep -r codexSupportsBaseSha src/` returns no matches.
 - `src/cr/codex-spawn.ts` does not exist and `grep -rn "spawnCodex" src/` returns no matches.
-- `grep -rn "execFile" src/cr/` returns no matches.
+- `grep -n "execFile" src/cr/lanes/codex.ts` returns no matches. (Scoped to the lane on purpose:
+  `src/cr/` keeps legitimate `execFile`/`execFileSync` git shell-outs in `receipt-trailer.ts`,
+  `amend-receipt.ts`, `autofix-cli.ts`, `codex.ts`, `deep-review-spawn.ts` and `lanes/verify.ts`,
+  none of which this spec touches.)
 - A codex lane run at `--kind spec` with a `baseSha` set and `fullReview` unset writes a sink whose
   `baseSha` field equals the passed sha. (Today this field is never written.)
 - `spawnAgent` with `stderr: 'capture'` returns the child's stderr in `AgentResult.stderr`; with
@@ -246,14 +268,16 @@ probe to `true`) are deleted; those suites were asserting against a value produc
 - A `spawnAgent` timeout group-kills the process group and resolves `timedOut: true`, exercised
   through the existing `spawnImpl` seam (`registry.ts:100,130,147`) rather than a new out-of-process
   harness — `registry.test.ts:137-175` already covers the shape.
-- `createBoundedCapture` returns its input verbatim for a total below `limitBytes`; above it,
-  `value()` contains the first `headBytes`, the last `tailBytes`, an elision marker, and the true
-  total byte count. Unit-tested in isolation, no child process.
+- `createBoundedCapture` returns its input verbatim for a total below `limitChars`; above it,
+  `value()` contains the first `headChars`, the last `tailChars` and an elision marker, and
+  `totalBytes()` returns the true pre-elision byte count (not the elided string's length).
+  Unit-tested in isolation, no child process.
 - A stderr stream whose multi-byte character straddles a chunk boundary decodes without U+FFFD under
   both `capture` and the registry's stdout accumulation — a regression test for the `setEncoding`
   fix, driven through `spawnImpl`.
-- An auth-shaped line at the head of a stderr stream that exceeds `limitBytes` still produces the
-  `— auth looks expired; run: codex login` hint from `describeCodexFailure`.
+- An auth-shaped line at the head of a stderr stream that exceeds `limitChars` still produces the
+  `— auth looks expired; run: codex login` hint from `describeCodexFailure`; the same line placed in
+  the elided middle does not, and a test pins that as accepted rather than accidental.
 - `pnpm test`, `pnpm typecheck` and `pnpm lint` pass; the CR-lane suites pass with the probe mocks
   removed rather than retargeted.
 
