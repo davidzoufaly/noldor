@@ -40,7 +40,7 @@ branch or diff data and remain part of the design.
 
 - Make the blocking decision from immutable commit objects at `pre-push`.
 - Validate every distinct commit newly reachable through each updated ref that is
-  not already known to be on that remote or grandfathered at activation, so an
+  neither grandfathered at activation nor already observed on some remote, so an
   invalid earlier code commit cannot hide behind a valid tip.
 - Keep `commit-msg` as fast, explicitly best-effort feedback that never blocks a
   commit and never claims authority over the final object.
@@ -60,10 +60,10 @@ branch or diff data and remain part of the design.
   exposes each ref's old and new values, not every server ref, and this design
   performs no network query. The enforceable contract is therefore: commits newly
   reachable through an updated ref, **minus** those reachable from the activation
-  snapshot or from any local tracking ref of the remote being pushed to. The
+  snapshot or from any local `refs/remotes/**` tip, of any remote. The
   tracking-ref term is a cost bound rather than an integrity claim (see Risks); a
-  commit reachable only through some other, unfetched destination ref may be
-  checked again when a new ref introduces it, with the same deterministic result.
+  commit reachable only through an unfetched destination ref may be checked again
+  when a new ref introduces it, with the same deterministic result.
 - Adding a push-time override. Existing release-automation exemptions and
   rollout compatibility remain; an ordinary invalid code commit must be fixed.
 - Rewriting the parked branch's history. Its existing commits already carry
@@ -176,8 +176,8 @@ Git supplied with two sources of negative revisions:
 - `^<remote-sha>` is a negative whenever the remote ref already exists **and**
   that object is present locally;
 - every activation-snapshot grandfather tip is a negative;
-- every `refs/remotes/<remote>/**` tip for the remote being pushed to is a
-  negative;
+- every `refs/remotes/**` tip is a negative — **all** remotes, with no attempt to
+  identify which one is being pushed to;
 - SHAs are deduplicated across ref updates while preserving discovery order.
 
 All revisions are fed on stdin — `git rev-list --reverse --topo-order --stdin`,
@@ -195,9 +195,35 @@ spec states that plainly rather than claiming an integrity property it does not
 have. Without them, the first push of every new branch subtracts only tips frozen
 at activation, so it re-enumerates the entire post-activation mainline — a set
 that grows monotonically with repository age, making the most common push in this
-workflow the most expensive one. With them, a commit is skipped when it was
-reachable from that remote at the last fetch, which is exactly the population that
-already crossed the boundary this gate defends.
+workflow the most expensive one. With them, a commit is skipped when some remote
+was already observed to hold it, which is the population that already crossed the
+boundary this gate defends.
+
+The tips come from one unconditional enumeration —
+`git for-each-ref --format=%(objectname) refs/remotes/` — with **no attempt to
+identify which remote is being pushed to**. Scoping them to the destination remote
+would be more precise, and it is deliberately not done, because identifying that
+remote from a `pre-push` hook is a classifier over transient Git state and this
+design exists to stop building those. Four successive attempts each failed on a
+shape the previous one did not model: a `refs/remotes/<arg>/**` glob breaks when
+Git passes a URL instead of a name; a `remote.*.url` config probe misses
+`pushurl` and reads a no-match exit 1 as failure; the `$1 !== $2` parameter test
+misreads a `url.<base>.insteadOf` alias as a name; and probing on `$2` misses
+because config stores the alias while `$2` holds the rewritten URL. Each fix was
+correct about its own case and wrong about the next one — the identical shape that
+parked the original commit-msg design.
+
+Dropping the distinction ends the class. There is no `$1`/`$2` discriminator, no
+config probe, no `insteadOf` handling, no URL normalization, no ambiguity guard
+when a remote's `pushurl` equals its `url`, and no second Lefthook parameter to
+plumb. One `for-each-ref` replaces all of it, and it is the same single spawn the
+scoped version needed for its happy path.
+
+What this costs is precision that the contract never claimed: a commit fetched
+from remote A is skipped when pushing to remote B. Under the cost-bound framing
+that is acceptable — the commit demonstrably exists on a remote already, and the
+alternative on the table was subtracting nothing at all. Single-remote
+repositories, which is nearly all of them, see no difference whatsoever.
 
 Forging a tracking ref (`git update-ref refs/remotes/origin/main <sha>`) does
 suppress a candidate. That is accepted: it is strictly more effort than
@@ -206,61 +232,9 @@ is an author who forgets, not an author who attacks their own pre-push hook. The
 activation snapshot remains immutable precisely because it is the one negative
 source a routine `git fetch` cannot move.
 
-Git passes the hook a remote *name* only when the push names one. For
-`git push https://… main` the first argument is the raw URL, and
-`refs/remotes/<url>/**` matches nothing — silently costing exactly the full
-mainline walk the tracking negatives exist to prevent, on the push shape most
-likely to come from a fresh clone.
-
-Git supplies most of the answer. A `pre-push` hook receives **two** parameters:
-`$1` is the remote name — or the URL when the push named no remote — and `$2` is
-always the resolved remote URL. `$1 === $2` therefore proves an anonymous push,
-but the converse does **not** hold: under `url.<base>.insteadOf` /
-`pushInsteadOf`, an anonymous push arrives with `$1` set to the alias and `$2` to
-the rewritten URL, so they differ while no remote was ever named. Treating
-inequality as proof of a name would classify `fake:b` as a remote, enumerate an
-empty `refs/remotes/fake:b/**`, and pay exactly the unbounded mainline walk these
-negatives exist to prevent.
-
-So `$2` is used as the authoritative URL for probing rather than as half of an
-equality test. This requires plumbing the second parameter, which is not wired
-today: [`lefthook/noldor.yml`](../../../lefthook/noldor.yml) passes only `{1}` and
-[`src/hooks/noldor-pre-push.ts`](../../../src/hooks/noldor-pre-push.ts) reads
-`process.argv[2]`. Unit 4 adds `{2}` to the job (and to its consumer template
-twin); the hook reads the URL from `process.argv[3]`.
-
-Resolution runs:
-
-1. When `$1 !== $2`, enumerate `refs/remotes/$1/**`. A non-empty result settles
-   it — the ordinary named push resolves here with no config probe.
-2. Otherwise — an anonymous push (`$1 === $2`), an `insteadOf` alias, or a
-   configured remote never yet fetched — run one lookup,
-   `git config -z --get-regexp '^remote\..*\.(push)?url$'`, matching **`$2`**,
-   which is the real URL in every one of those shapes. On exactly one matching
-   `remote.<name>.` key, enumerate that remote's tracking namespace.
-3. When `$2` is absent, substitute `$1` in step 2's probe. Absent means
-   `undefined` (a shorter argv), the empty string, or the literal unsubstituted
-   `{2}` — a consumer pinning a Lefthook that does not expand the second
-   parameter. All three must be recognized: each is `!== $1`, so a naive
-   inequality check would take step 1 unconditionally and the fallback would
-   never fire.
-4. Otherwise the tracking term is empty and discovery uses snapshot-only
-   negatives.
-
-The pattern is anchored at both ends and covers `pushurl`, so a push-URL-only
-remote resolves and a stray `remote.x.urlfoo` key does not. The `-z` form is
-mandatory for the same reason it is everywhere else in this design: a config
-value may contain an embedded newline, and a line-oriented parse could then
-associate a URL with the *wrong* `remote.<name>.` key and subtract another
-remote's tracking tips — silently skipping validation, the one direction
-negatives must never fail.
-
-`git config --get-regexp` **exits 1 when nothing matches**, which is the ordinary
-outcome in a repository with no configured remotes. That exit is data, not
-failure: it means "no match, empty tracking term". Only an exit greater than 1
-is an infrastructure failure. Without this carve-out the fail-closed rule for Git
-command failures would turn a routine anonymous push into exit 2 — the exact
-opposite of the degradation this paragraph promises.
+The hook therefore keeps its existing single-parameter signature. The remote name
+it already receives is still used for the destination check in Unit 3; it is
+simply no longer load-bearing for discovery.
 
 That fallback is a **cost-only degradation and never a correctness change**: fewer
 negatives can only enlarge the candidate set. It is called out here because a
@@ -412,13 +386,9 @@ Keep the existing `summary-body` job in
 [`lefthook/noldor.yml`](../../../lefthook/noldor.yml) and its consumer template, but
 rename it `summary-body-advisory` and document its exit-zero contract. It stays
 after trailer validation so trailer diagnostics remain the first actionable
-message. No new pre-push job is added.
-
-The existing `noldor-pre-push` job gains Git's second hook parameter — `run: pnpm
-noldor hooks pre-push {1} {2}` — in both this file and its consumer template twin,
-so the hook can tell a remote name from a remote URL without a spawn (Unit 2). The
-hook treats `process.argv[3]` as optional: a consumer running a template that
-predates this change still works, on the documented fallback.
+message. No new pre-push job is added, and the existing `noldor-pre-push` job
+keeps its `{1}`-only signature — Unit 2's unscoped `refs/remotes/` enumeration
+needs no remote identity, so no Lefthook or template change is required here.
 
 Update [`src/cli/manifest.ts`](../../../src/cli/manifest.ts) and the script catalog
 description from “validate” to “advise” without changing the stable command name.
@@ -426,9 +396,12 @@ description from “validate” to “advise” without changing the stable comm
 Revise `.noldor/rules/pr-summary-why-how-what.md` so it names pre-push as the
 mechanical floor, and update `docs/noldor/git-and-commits.md`,
 `docs/noldor/pr-flow.md`, `docs/noldor/script-catalog.md`, and their consumer
-template twins. The script-catalog `hooks pre-push` trigger line must show the
-second parameter, so `pnpm noldor validate script-catalog` and
-`pnpm noldor checks template-sync` both stay green against the new job wiring. Refresh `docs/features/pr-summary-body-enforcement.md` so its
+template twins. These are doc-accuracy edits only:
+[`src/cli/validate-script-catalog.ts`](../../../src/cli/validate-script-catalog.ts)
+diffs `src/…` markdown-link targets against `flattenManifest()` leaves and never
+parses Trigger lines, so `pnpm noldor validate script-catalog` does not gate this
+prose. `pnpm noldor checks template-sync` is the only mechanical gate here, over
+`templates/lefthook/noldor.yml` and the docs twins. Refresh `docs/features/pr-summary-body-enforcement.md` so its
 Summary, User Story, and Usage describe the commit-object contract rather than
 the parked commit-msg design.
 
@@ -519,8 +492,8 @@ Three outcome classes remain visibly distinct:
   `pre-push: outgoing commits do not explain themselves`, then lists every
   offending short SHA and subject with its missing or under-24-character
   sections. It then names the negative sources discovery actually used — the
-  activation tip count, and the resolved remote with its tracking tip count or
-  the fact that the tracking term was empty — so the operator can see what was
+  activation tip count and the tracking tip count (or the fact that no tracking
+  refs exist) — so the operator can see what was
   subtracted from the candidate set. It ends with the exact three-line template
   and says that the stored commits must be reworded before pushing.
 - **Infrastructure failure (exit 2, blocking adapter only):** malformed ref input,
@@ -589,21 +562,12 @@ behavior:
   tip and every tracking tip for the pushed remote as negatives, all delivered on
   stdin rather than argv (a thousand-ref fixture stays under `ARG_MAX`);
 - tracking tips for a *different* remote are not subtracted;
-- an ordinary named push resolves from its `refs/remotes/$1/**` enumeration with
-  no config lookup at all;
-- an anonymous push (`$1 === $2`), an `url.<base>.insteadOf` alias where
-  `$1 !== $2` but no remote was named, and a configured-but-never-fetched remote
-  all fall through to the probe and resolve from `$2` via `remote.*.url` and
-  `remote.*.pushurl`;
-- `$2` absent as `undefined`, `''`, or the literal unsubstituted `{2}` each
-  substitute `$1` in the probe and still push;
-- `git config --get-regexp` exiting 1 (no configured remotes) yields an empty
-  tracking term and a successful push, not exit 2, while an exit above 1 is an
-  infrastructure failure;
-- a config value containing an embedded newline cannot associate a URL with the
-  wrong `remote.<name>.` key, because the probe is parsed NUL-delimited;
-- an unconfigured URL yields an empty tracking term, a larger candidate set, and
-  no infrastructure failure;
+- a named push, an anonymous URL push, and an `url.<base>.insteadOf` alias push
+  all produce the same tracking negatives, since none of them is inspected;
+- a second remote's tips are subtracted too, and the resulting skip of a commit
+  fetched from that other remote is asserted as intended behavior, not a bug;
+- a repository with no remotes enumerates zero tips and pushes on snapshot-only
+  negatives, with no infrastructure failure;
 - diagnostics report the negative sources once discovery has resolved them, and
   omit them on failures that abort before that point;
 - an existing ref whose remote-old SHA is absent locally drops that one negative
@@ -726,21 +690,19 @@ updates rather than the current index or `COMMIT_EDITMSG`.
 - [ ] An `invalid` snapshot exits 2 on the blocking adapter and 0 on the advisory
   adapter, which prints the reason, still advises on the body — unlike an
   `absent` read, which stays quiet about it — and still lets the commit through.
-- [ ] The pre-push job passes Git's remote URL as a second parameter; an ordinary
-  named push resolves its tracking tips without a config probe, while an
-  anonymous push, an `insteadOf` alias, and a never-fetched remote all resolve
-  through a probe keyed on that URL. `$2` absent as `undefined`, `''`, or a
-  literal `{2}` falls back to probing with `$1` rather than skipping the probe.
+- [ ] Tracking negatives come from one unconditional `refs/remotes/` enumeration
+  covering every remote, so a named push, an anonymous URL push, an `insteadOf`
+  alias, and a never-fetched remote all bound identically; the pre-push job needs
+  no second parameter and no config probe.
 - [ ] A push whose remote argument is a URL resolves back to the configured remote
   for its tracking negatives, and an unconfigured URL degrades to snapshot-only
   negatives — more validation, never less, and never an infrastructure failure.
 - [ ] Diagnostics emitted **after** discovery resolves its negatives name them:
-  the activation tip count and the resolved remote with its tracking tip count,
-  or that the tracking term was empty. Failures that abort earlier — a malformed
+  the activation tip count and the tracking tip count, or that no tracking refs
+  exist. Failures that abort earlier — a malformed
   ref line, an `invalid` snapshot — omit the line rather than reporting zeroes.
-- [ ] `git config --get-regexp` exiting 1 is read as "no match, empty tracking
-  term"; only an exit above 1 is an infrastructure failure, so an anonymous push
-  in a repository with no configured remote still pushes.
+- [ ] A repository with no remotes at all enumerates zero tracking tips and still
+  pushes, falling back to snapshot-only negatives.
 - [ ] A commit added after activation on an old side branch remains enforceable
   after any later merge, and root/orphan commits not reachable from a snapshot
   tip enforce normally.
@@ -772,14 +734,25 @@ updates rather than the current index or `COMMIT_EDITMSG`.
   them, the candidate set for a brand-new branch is everything added since
   activation, so the cheapest-looking push in this workflow grows more expensive
   every month the repository lives — unbounded in repo age, not merely a small
-  per-push repeat. Accepting `refs/remotes/<remote>/**` as negatives bounds that
-  to what this clone has not yet seen on the remote, at the price of an input a
+  per-push repeat. Accepting every `refs/remotes/**` tip as a negative bounds that
+  to what this clone has not yet seen on *any* remote, at the price of an input a
   local `git update-ref` can forge. The gate is a local hook that `--no-verify`
   already disables in one flag, so this buys an attacker nothing they lacked; the
   immutable activation snapshot stays the one negative source a routine fetch
   cannot move. Pre-push still cannot see the destination's full ref inventory, so
-  a commit reachable only through some *other* unfetched remote ref is re-checked
+  a commit reachable only through an unfetched remote ref is re-checked
   deterministically, deduplicated within the push.
+
+  Not scoping the tips to the destination remote is deliberate, and it is the
+  second-order cost of that decision: in a multi-remote clone, a commit fetched
+  from remote A is skipped when pushing to remote B, even though B has never seen
+  it. The alternative — identifying the destination remote from inside the hook —
+  was attempted four times and failed four times, each on a Git shape the previous
+  attempt did not model (URL-form arguments, `pushurl`, `insteadOf` aliases,
+  alias-versus-rewritten-URL config storage). Building that classifier is exactly
+  the mistake this whole redesign exists to stop repeating, and the contract it
+  would buy — per-remote precision — was never claimed. Single-remote clones,
+  which is nearly all of them, are unaffected.
 
   The unconditional stderr notice is reserved for the absent snapshot and is
   deliberately *not* extended to tracking subtraction, because the two failures
@@ -788,8 +761,8 @@ updates rather than the current index or `COMMIT_EDITMSG`.
   validates everything else. Printing a line on every ordinary push would train
   operators to ignore it. Instead, the exit-1 and exit-2 diagnostics — the output
   an operator is already reading — name the negative sources they used: the
-  activation tip count, and the resolved remote plus its tracking tip count (or
-  the fact that the tracking term was empty). Counting how many candidates the
+  activation tip count, and the tracking tip count (or the fact that no tracking
+  refs exist). Counting how many candidates the
   tracking tips actually suppressed is not reported, since that would need a
   second `rev-list` on every push to compute a number nobody acts on.
 - **Activation adds one tracked snapshot.** Consumers must commit
@@ -857,7 +830,7 @@ pnpm noldor validate summary-body .git/COMMIT_EDITMSG
 ```
 
 At push time, no extra command is needed. Lefthook invokes
-`pnpm noldor hooks pre-push <remote> <remote-url>`, feeds it Git's ref updates, and validates
+`pnpm noldor hooks pre-push <remote>`, feeds it Git's ref updates, and validates
 every distinct outgoing object. A rejection names all objects that need
 rewording. Because the remote has not moved, repair only the unpublished history
 and retry the normal push; do not use `--no-verify`.
@@ -957,17 +930,20 @@ single-parent history and need the body when they carry code.
     (CR rounds 3–4).
 
 15. *What if the push names a URL instead of a remote?*
-    -> **Enumerate `refs/remotes/$1/**` first, and probe `remote.*.(push)?url`
-    with `$2` whenever that is empty.** Git passes the raw URL as `$1` for
-    `git push https://… main`, so a naive glob would silently restore the
-    unbounded walk. Two earlier revisions each got the discriminator wrong: an
-    empty enumeration misreads a configured-but-never-fetched remote as a URL,
-    and `$1 !== $2` misreads a `url.<base>.insteadOf` alias as a name (verified
-    against real Git — an aliased anonymous push yields unequal parameters). The
-    surviving shape asks Git for the URL rather than for a classification, and
-    lets an empty enumeration mean only "probe further". A no-match `git config`
-    exit of 1 is data, not failure. Every fallback is cost-only and never narrows
-    the candidate set (CR rounds 3–6).
+    -> **Stop asking. Subtract every `refs/remotes/**` tip, of every remote.**
+    Four successive attempts to identify the destination remote from inside the
+    hook each failed on a Git shape the previous one did not model: a
+    `refs/remotes/<arg>/**` glob breaks when Git passes a URL; a `remote.*.url`
+    probe misses `pushurl` and misreads a no-match exit 1 as failure; `$1 !== $2`
+    misreads a `url.<base>.insteadOf` alias as a name; and probing on `$2` misses
+    because config stores the alias while `$2` holds the rewritten URL (the last
+    two verified against real Git). That is the same growing-classifier failure
+    that parked the commit-msg design, reappearing in a *cost optimization*.
+    Since these negatives were never an integrity claim, the destination identity
+    is not needed: one unconditional enumeration bounds the walk, deletes the
+    whole class, and costs a single spawn. The price is that a commit fetched
+    from another remote is skipped — acceptable, and invisible in a single-remote
+    clone (CR rounds 3–7).
 
 16. *Should tracking subtraction get the same unconditional notice as an absent
     snapshot?*
