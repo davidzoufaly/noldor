@@ -17,6 +17,7 @@ import {
 } from '../core/lanes.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult } from './lane-types.js';
+import { laneSinkPath } from './filename.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
 import { runCodex } from './lanes/codex.js';
@@ -128,7 +129,7 @@ interface GuardOpts {
 /** Canonical sink path + any legacy-named path a pre-0.7.0 run may have written. */
 function sinkCandidatePaths(cwd: string, slug: string, kind: ArtifactKind, lane: Lane): string[] {
   const names = [lane, ...(lane in LEGACY_BY_CANONICAL ? [LEGACY_BY_CANONICAL[lane]] : [])];
-  return names.map((n) => join(cwd, '.noldor', 'cr', `${slug}-${kind}-${n}.json`));
+  return names.map((n) => laneSinkPath(cwd, slug, kind, n));
 }
 
 /**

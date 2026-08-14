@@ -1,7 +1,7 @@
-import { join } from 'node:path';
 import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
 import { writeJsonAtomic } from '../atomic-write.js';
 import { makeCodexSpawn } from '../codex-adapter.js';
+import { laneSinkPath } from '../filename.js';
 import type { LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { reviewWithCodex } from '../review-with-codex.js';
@@ -23,7 +23,7 @@ import { reviewWithCodex } from '../review-with-codex.js';
  * package at one version, so there was never a capability question to ask.
  */
 export async function runCodex(input: LaneInput): Promise<LaneResult> {
-  const sinkPath = join(input.repoRoot, '.noldor', 'cr', `${input.slug}-${input.kind}-codex.json`);
+  const sinkPath = laneSinkPath(input.repoRoot, input.slug, input.kind, 'codex');
   const startedAt = new Date().toISOString();
   const timeoutMs = input.dispatchTimeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS;
   const scoped = Boolean(input.baseSha) && !input.fullReview;

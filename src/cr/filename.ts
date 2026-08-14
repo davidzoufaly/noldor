@@ -1,5 +1,18 @@
+import { join } from 'node:path';
 import { LANE_ALIASES, LANE_NAMES } from '../core/lanes.js';
-import type { Lane } from './findings-schema.js';
+import type { ArtifactKind, Lane } from './findings-schema.js';
+
+/**
+ * The one place a CR sink path is built: `<root>/.noldor/cr/<slug>-<kind>-<lane>.json`.
+ *
+ * Every lane computed this inline, which is the shape `inferLaneFromFilename` below has to
+ * parse back — so the writer and the reader of the same convention lived apart, in five copies.
+ * `lane` is a plain string rather than {@link Lane} because orchestrate also renders legacy
+ * pre-0.7.0 names through it when probing for sinks an older run may have written.
+ */
+export function laneSinkPath(root: string, slug: string, kind: ArtifactKind, lane: string): string {
+  return join(root, '.noldor', 'cr', `${slug}-${kind}-${lane}.json`);
+}
 
 /**
  * Infer a lane from a `.noldor/cr/<slug>-<kind>-<lane>.json` sink filename.
