@@ -254,23 +254,33 @@ which is exactly the property `codex-spawn.ts` was protecting. `timeoutMs` toget
 `foreground: true` is a caller error: the cap could not be enforced by a group-kill, so it must be
 rejected at the boundary rather than silently ignored.
 
-**The other two combinations `foreground` creates get the same treatment.** A new mode on a shared
-component owes an answer for every option it interacts with, not just the one that motivated it:
+**Every option `foreground` interacts with gets an answer**, not just the one that motivated it — a
+new mode on a shared component owes that. The same treatment settles one Unit 2 pairing while the
+matrix is open:
 
+- `foreground` + `stderr: 'capture'` → **allowed, and load-bearing.** This is the interactive CLI's
+  actual configuration under this spec: the Unit 4 snippet passes `stderr: 'capture'` on every path
+  and `foreground: true` on the CLI one. Orthogonal by construction — capture decides what happens
+  to a stream, `foreground` decides process-group membership — and it needs a real test, not a
+  defensive note.
+- `foreground` + `timeoutMs` → **rejected**, per the paragraph above: the cap has no group-kill to
+  enforce it.
 - `foreground` + `onSpawn` → **rejected.** `onSpawn`'s contract (`types.ts:83-90`) promises the
   callback receives a *process-group id*, and it is one only because of `detached: true`. Under
-  `foreground` the pid is not a group leader, so the drain's orphan-reaper would register it as a
-  pgid and a later `kill(-pid)` would signal whatever group that pid happens to sit in — someone
-  else's. Handing back a number that is the right type and the wrong thing is worse than refusing.
-- `foreground` + `stderr: 'capture'` → **allowed.** They are orthogonal: capture pipes stderr,
-  `foreground` decides process-group membership.
-- `stderr: 'capture'` + `logSink` → **rejected.** Tee already owns both streams and forces
-  `AgentResult.stderr` to `''`, so accepting both would silently discard an explicit capture
-  request. (Unit 2 defines `''` under tee; this is what stops that from becoming a trap.)
+  `foreground` the pid is not a group leader, so the drain's orphan-reaper would register a
+  non-pgid; a later `kill(-pid)` then usually fails with `ESRCH`, and reaches an unrelated group
+  only in the pid-reuse case. Either way the reaper's premise is false, and handing back a number
+  that is the right type and the wrong thing is worse than refusing.
+- `foreground` + `logSink` → **allowed.** Mechanically orthogonal like capture, and an operator who
+  wants a transcript of a hand-run review is a coherent thing to want. Tee's docblock is framed
+  around hours-long unattended children, but nothing in it depends on `detached`.
+- `stderr: 'capture'` + `logSink` → **rejected.** Not a `foreground` interaction — a Unit 2 one,
+  settled here because Unit 2 creates it. Tee already owns both streams and forces
+  `AgentResult.stderr` to `''`, so accepting both would silently discard an explicit capture request.
 
-All three are unreachable with today's callers. They are specified anyway because the alternative is
-a shared component whose behaviour in three of its own configurations is discoverable only by
-reading the implementation.
+Only the first is reachable with today's callers, and it is the one that carries the interactive
+path. The rest are specified so that a shared component's behaviour in its own configurations is not
+discoverable solely by reading the implementation.
 
 Unit 5 is what makes this clean rather than a heuristic. Today `cr codex` is invoked *both* by a
 human and by the lane, so no static answer to "is this interactive?" exists. After Unit 5 the lane
@@ -313,17 +323,23 @@ covers only the review `spawnAgent` call, leaving the probe a spawn site with no
 all: a wedged `codex --version` on the failure path would hang the lane's promise inside
 `Promise.allSettled` forever.
 
-Passing `timeout: 5000` to `execFile` does **not** deliver this. That option sends `killSignal` and
-then settles only when the child actually exits — a child that traps SIGTERM or sits in
-uninterruptible sleep leaves the callback pending, and the lane hangs exactly as before. That is the
-same defect this whole spec exists to remove (a cap aimed at a process that need not honour it), so
-reproducing it here would be incoherent.
+Passing `timeout: 5000` to `execFile` does **not** deliver this. That option kills, then settles only
+once the callback fires — and the callback waits on stream close, not on the signal. Two cases defeat
+it, and neither is answered by choosing a stronger signal: a child in uninterruptible sleep cannot be
+killed at all, and a child that spawned its own children leaves them holding the inherited stdio
+pipes, so `close` never fires even after the direct child dies. (`killSignal: 'SIGKILL'` answers only
+the trapped-signal case, which is why that is not the argument.) A cap aimed at a process that need
+not honour it is the exact defect this whole spec exists to remove, so reproducing it here would be
+incoherent.
 
 The probe therefore **races**: a 5s timer resolving to `unknownVersion(bin)` against the `execFile`
 callback, whichever lands first, with a best-effort `child.kill()` on the timer branch. The kill is
 best-effort by design — whether the child dies is not allowed to determine whether the caller gets
-an answer. `unknownVersion` is already the probe's contractual "could not answer" value, so a timed-
-out probe degrades to a case the sink already renders.
+an answer. `unknownVersion` is already the probe's contractual "could not answer" value, so a
+timed-out probe degrades to a case the sink already renders. The never-throw guarantee wraps the
+raced promise itself rather than its result, so when the timer wins and the abandoned `execFile`
+branch later rejects, that rejection is caught rather than surfacing as an unhandled rejection on a
+path whose entire job is to explain someone else's failure.
 
 Isolating the race is what keeps the test cheap. Expressed as a pure
 `settleWithin(promise, ms, fallback)` helper, the property is testable against a promise that never
@@ -427,9 +443,11 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   through the existing `spawnImpl` seam (`registry.ts:100,130,147`) rather than a new out-of-process
   harness — `registry.test.ts:137-175` already covers the shape.
 - `createBoundedCapture` returns its input verbatim for a total below `limitChars`; above it,
-  `value()` contains the first `headChars`, the last `tailChars` and an elision marker, and
-  `totalBytes()` returns the true pre-elision byte count (not the elided string's length).
-  Unit-tested in isolation, no child process.
+  `value()` contains the first `headChars` and the last `tailChars` (each ±1 code unit when a cut
+  lands on a surrogate boundary), an elision marker, and `totalBytes()` returns the true pre-elision
+  byte count (not the elided string's length). Unit-tested in isolation, no child process.
+- A cut placed mid-surrogate-pair yields no lone surrogate: `value()` is free of U+FFFD when
+  round-tripped, and the pair is either kept whole or dropped whole.
 - A stderr stream whose multi-byte character straddles a chunk boundary decodes without U+FFFD under
   both `capture` and the registry's stdout accumulation — a regression test for the `setEncoding`
   fix, driven through `spawnImpl`.
@@ -458,10 +476,13 @@ probe to `true`) are deleted; those suites were asserting against a value produc
   (`codex-failure.test.ts:133-146`) additionally pin *wrapper* attribution via the retired `cmd`
   override; with binary selection owned by the registry that scenario is unreachable, so they are
   re-pointed at the `bin` argument rather than preserved as written.
-- The probe settles within 5s even when its child never exits, asserted through the pure
-  `settleWithin(promise, ms, fallback)` helper against a promise that never resolves — no child
-  process and no never-exit fixture. `execFile`'s own `timeout` option does not satisfy this: it
-  settles only once the child exits, so a trapped-signal child would still hang the caller.
+- `settleWithin(promise, ms, fallback)` resolves to `fallback` when its promise never resolves —
+  asserted directly, no child process and no never-exit fixture.
+- **And `probeCodexVersion` actually routes through it**: with an injected `execFile` impl whose
+  callback never fires, the probe resolves to `unknownVersion(bin)` within the cap. The helper test
+  above passes even if the probe never calls the helper, so this second assertion is the one that
+  pins the property; `execFile`'s own `timeout` option would not satisfy it, since it settles on
+  stream close rather than on the signal.
 - A timed-out probe resolves to `unknownVersion(bin)` rather than rejecting, so the failure path it
   serves cannot itself become a failure.
 - A lane run whose child exceeds `dispatchTimeoutMs` produces a sink blocker message beginning
