@@ -370,10 +370,13 @@ describe('stderr capture', () => {
       { role: 'reviewer', cwd: dir, stderr: 'capture' },
       { spawnImpl: f.impl as never },
     );
-    f.child().emit('close', null);
+    f.child().emit('close', null, 'SIGKILL');
     const r = await p;
     expect(r.exitCode).toBe(-1);
-    expect(r.stderr).toContain('terminated by signal');
+    // The signal NAME is the point: SIGKILL (group-kill) vs SIGSEGV (crash) vs SIGTERM
+    // (operator) all arrive as exitCode -1, so omitting it would leave the note unable to
+    // distinguish the causes its own comment promises to distinguish.
+    expect(r.stderr).toContain('terminated by signal SIGKILL');
   });
 
   it('decodes multi-byte characters that straddle a chunk boundary', async () => {

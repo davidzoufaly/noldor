@@ -277,7 +277,7 @@ export function spawnAgent(
       sink?.end();
       reject(new Error(`spawn-failed: ${err.message}`));
     });
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       if (timer) clearTimeout(timer);
       sink?.end();
       const exitCode = code ?? -1;
@@ -302,7 +302,9 @@ export function spawnAgent(
       // nothing about WHY. Under capture, append the reason so a sink blocker can distinguish a
       // group-kill from an OOM kill without the reader guessing from `-1`.
       if (capture && code === null) {
-        stderrCapture.push(`\n[spawnAgent] child terminated by signal (exit reported as -1)\n`);
+        stderrCapture.push(
+          `\n[spawnAgent] child terminated by signal ${signal ?? 'unknown'} (exit reported as -1)\n`,
+        );
       }
       resolve({
         exitCode,
