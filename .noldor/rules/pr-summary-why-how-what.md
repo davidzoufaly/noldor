@@ -1,6 +1,6 @@
 ---
 id: pr-summary-why-how-what
-applies-to: ["src/core/pr-flow.ts", "src/core/pr-flow-cli.ts", "src/core/validate-summary-body.ts"]
+applies-to: ["src/core/pr-flow.ts", "src/core/pr-flow-cli.ts", "src/core/validate-summary-body.ts", "src/hooks/validate-pushed-summaries.ts"]
 stage: [code]
 enforce: true
 links: [docs/noldor/pr-flow.md, docs/noldor/git-and-commits.md]
@@ -20,9 +20,12 @@ no what) fails this rule.
 Scope is the PR-body seam — `composeBody` in `src/core/pr-flow.ts`, any text that
 ends up in `gh pr create --body`, and the commit body that seam quotes from.
 
-**A green commit is not a compliant summary.** `validate summary-body` enforces
-only the *structure*: that a `Why —`, `How —` and `What —` section exist and are
-not trivially short. It cannot tell whether a Why reads plainly or in jargon, so
+**A green push is not a compliant summary.** The mechanical floor is the
+`pre-push` hook, which reads each outgoing commit **object** and enforces only
+the *structure*: that a `Why —`, `How —` and `What —` section exist and are not
+trivially short. (`validate summary-body` at `commit-msg` is advisory and always
+exits 0 — early feedback, never a verdict.) Neither can tell whether a Why reads
+plainly or in jargon, so
 `Why — because resolveChangedRanges did not union ls-files output` passes the
 hook and still fails this rule. The mechanical check is the floor; the two
 registers above are the bar, and they are held by the reviewer and the

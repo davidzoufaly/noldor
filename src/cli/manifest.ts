@@ -230,8 +230,10 @@ export const MANIFEST: Record<string, Group> = {
       'noldor-config': { src: 'validate/noldor-config.ts', desc: 'Validate .noldor/config.json' },
       'noldor-scope': { src: 'core/validate-noldor-scope.ts', desc: 'Validate commit scope' },
       'summary-body': {
+        // Name kept for compatibility; the behaviour is advisory. Blocking lives
+        // in `hooks pre-push`, over stored commit objects.
         src: 'core/validate-summary-body.ts',
-        desc: 'Validate commit body why/how/what',
+        desc: 'Advise on commit body why/how/what (never blocks)',
       },
       'skill-catalog': { src: 'core/validate-skill-catalog.ts', desc: 'Validate skill catalog' },
       'script-catalog': {

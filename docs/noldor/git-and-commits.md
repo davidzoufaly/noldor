@@ -70,18 +70,25 @@ reds on a pasted new file.
 Noldor-Path: fast-track
 ```
 
-Enforced by `validate summary-body` in the `commit-msg` chain: each section needs at least 24 characters of content. Order of *presence* is what is checked, not sequence.
+Enforced at **`pre-push`**, over the commit objects git has already stored: each section needs at least 24 characters of content. Order of *presence* is what is checked, not sequence.
+
+The mechanical floor is `noldor-pre-push`, not `commit-msg`. A `commit-msg` hook can only read a provisional message file plus whatever repository state one git invocation happens to expose, and that is not the commit git will store — which is how a forged `Merge ` subject, an `--amend` with an empty index, and `git commit -v` editor furniture each walked past the earlier version of this gate. Pre-push reads `git log -1 --format=%B`, `git diff-tree -z` and the object's parent count, none of which can change without producing a different SHA.
+
+Every commit newly reachable through a pushed ref is checked, not just the tip, so a valid tip cannot hide an invalid commit beneath it. Because the remote has not moved when the check fires, a rejection is repaired by rewording the unpublished history and pushing again.
 
 **Use an em dash, not a colon.** `Why:` at the start of a body's last paragraph is a valid git trailer and `git interpret-trailers` absorbs it, which would corrupt the trailer block. The validator rejects the colon form and says so.
 
 **Exempt** — commit freely with no body:
 
 - **Any diff that carries no code.** The gate fires only when a staged path matches `CODE_GLOBS` (`src/**`, `bin/**`, `scripts/**`, `lefthook/**`, root `lefthook.yml`, `.github/workflows/**`, `.noldor/rules/**`, root `*.json`, any `*.ts`/`*.js` family file, and `templates/**` outside its prose twins). So bookkeeping diffs (roadmap, backlog, FDs, design artifacts, milestones, `ideas.md`, the retired-ID map, the id counter) are exempt, and so is prose that is neither bookkeeping nor code — `docs/noldor/**`, root `*.md`, `.claude/**`, `templates/docs/**`, `templates/.claude/**`, `templates/.opencode/**`. A README typo needs no Why/How/What. One code file among the prose is enough to require one.
-- `release-automation` / `release-sweep` commits, and `fixup!` / `squash!` / `Revert "` subjects.
-- **A real merge**, keyed on `MERGE_HEAD` rather than a `Merge ` subject — a subject is forgeable, and unlike `--no-verify` a forged one would leave the pre-push receipt gate satisfied. `git merge --no-ff` commits normally; `git commit -m "Merge branch 'x'"` with code staged does not.
-- Any tree that has not armed `.noldor/rollout-marker`, so an upgrading consumer is never rejected by a rule they have not opted into.
+- `release-automation` / `release-sweep` commits — recognised only through exactly one such value in git's own final trailer block, so a `Noldor-Path:` line written in body prose buys nothing — and `fixup!` / `squash!` / `amend!` subjects.
+- **A real merge**, keyed on the object's **parent count** — more than one parent. A subject is forgeable and a pseudo-ref is transient; parent count is neither. `git merge --no-ff` commits normally; `git commit -m "Merge branch 'x'"` with code staged does not.
+- **Cherry-picks and reverts are not exempt.** A durable single-parent commit owes the same explanation however it was produced; only `fixup!` / `squash!` / `amend!` objects, which are meant to disappear into a rebase, are excused.
+- Any tree that has not armed `.noldor/summary-body-rollout.json`, so an upgrading consumer is never rejected by a rule they have not opted into. `noldor init --update` and `noldor upgrade` create it, recording every current commit-ref tip; exactly the history reachable from those tips is grandfathered, on every branch. It must be committed — a clone without it stays advisory-only, and both hooks say so rather than going quiet.
 
-**Known limit.** `git commit --amend` with nothing staged is measured against the amended commit's own files, so a code commit's body cannot be emptied that way. Amending *while staging something new* measures only the newly staged paths — stage a doc tweak onto a code commit and the gate exempts it. Git exposes no amend signal at `commit-msg`, so this is a marked cut rather than an oversight; the pre-push review receipt and the code-stage CR still apply.
+**Known limit.** Blocking feedback arrives at push rather than at commit, so an ignored advisory can create an invalid unpublished commit that a later commit cannot fix — the object itself must be reworded or rebased. That is the deliberate cost of judging the right input; the rejection names every affected SHA in one run.
+
+Merge commits stay exempt even when conflict resolution changed code. Parent count is immutable and closes the whole transient-state class, but it cannot tell a trivial merge from a substantive one; the review receipt and the code-stage CR remain the backstop.
 
 Check a message without committing:
 
@@ -89,7 +96,7 @@ Check a message without committing:
 git add -A && pnpm noldor validate summary-body .git/COMMIT_EDITMSG
 ```
 
-Stage first, and read the verdict as advisory. The command classifies whatever is in the index; on a clean index it falls back to the amend shape and judges the message against **HEAD's** files, so a doc-only message can be rejected because the previous commit touched `src/**`. Inside the `commit-msg` hook the index always holds the real commit, which is where the verdict is authoritative.
+The verdict is **advisory and always exits 0**, here and in the `summary-body-advisory` commit-msg job. It classifies whatever is in the index, which on an amend or an odd invocation is not what the commit will store — the exact mismatch that disqualified this input from blocking. Use it to catch a missing section while the fix is a three-line amend; pre-push decides.
 
 The check is structural. Whether the Why reads plainly or in jargon is the `pr-summary-why-how-what` rule's bar, held by the reviewer and the code-stage CR — see [pr-flow.md](pr-flow.md) § Where the title and Summary come from, which is where this body ends up.
 

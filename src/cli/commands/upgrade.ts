@@ -74,15 +74,19 @@ function loadConfigTolerant(cwd: string): ConsumerConfig {
  * invites it being swept into an unrelated commit. Returns a report line, or null
  * when there was nothing to do.
  */
+function snapshotNeeded(cwd: string): boolean {
+  return !existsSync(snapshotPath(cwd));
+}
+
+/**
+ * Write the snapshot. The caller owns the clean-tree preflight, because it must
+ * run BEFORE any migration writes — checking dirtiness here would fail every
+ * non-empty chain, since `runChain` has by then made the tree dirty itself.
+ */
 function snapshotStep(input: UpgradeInput): string | null {
-  if (existsSync(snapshotPath(input.cwd))) return null;
+  if (!snapshotNeeded(input.cwd)) return null;
   if (input.dryRun) {
     return `[DRY RUN] would create ${SUMMARY_BODY_ROLLOUT_FILE} (grandfathering all current commit-ref tips)`;
-  }
-  if (!input.force && isDirty(input.cwd)) {
-    throw new Error(
-      `refusing to write ${SUMMARY_BODY_ROLLOUT_FILE} on a dirty git tree — commit/stash first, ideally on a fresh branch (\`git switch -c chore/noldor-upgrade\`)`,
-    );
   }
   const status = ensureSummaryBodyRolloutSnapshot(input.cwd);
   if (status === 'skipped-no-git') {
@@ -123,8 +127,15 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
     // `doctor`, which needs the same three-way answer to word its skew warning.
     const lagging = isAnchorLagging(onDiskAnchor, input.installed);
     const applied = lagging && !input.dryRun;
-    // Before the anchor write, so a refusal on a dirty tree does not leave the
-    // anchor advanced past an activation that never happened.
+    // The chain path gets its clean-tree preflight below; this branch has none,
+    // so guard the snapshot write here — and before the anchor write, so a
+    // refusal cannot leave the anchor advanced past an activation that never
+    // happened.
+    if (!input.dryRun && !input.force && snapshotNeeded(input.cwd) && isDirty(input.cwd)) {
+      throw new Error(
+        `refusing to write ${SUMMARY_BODY_ROLLOUT_FILE} on a dirty git tree — commit/stash first, ideally on a fresh branch (\`git switch -c chore/noldor-upgrade\`)`,
+      );
+    }
     const snapshot = snapshotStep(input);
     if (applied) writeFrameworkVersion(input.cwd, input.installed);
     const dry = input.dryRun ? '[DRY RUN] ' : '';
@@ -137,7 +148,7 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
       from,
       to: input.installed,
       steps: 0,
-      applied: applied || snapshot !== null,
+      applied,
       report: snapshot === null ? base : `${base}\n${snapshot}`,
     };
   }

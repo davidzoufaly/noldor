@@ -45,10 +45,10 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 ### `validate:summary-body`
 
-- **Trigger:** `pnpm noldor validate summary-body <commit-msg-file>`. Runs in `commit-msg` (`summary-body` job), after `noldor-validate-trailer`. Also runnable by hand against `.git/COMMIT_EDITMSG` to check a message before committing — stage first, since on a clean index it falls back to the amend shape and judges against HEAD's files.
-- **Inputs:** commit message file path; staged file list (`git diff --cached --name-only`, no `--diff-filter`, so deletions count); `MERGE_HEAD` presence; the rollout marker.
-- **Outputs:** exit 0 unless the staged set carries code (a path matching `CODE_GLOBS`) and the message body lacks a `Why —`, `How —` or `What —` section of at least 24 characters. Exempt: any diff carrying no code — bookkeeping and ordinary prose alike — an empty staged set, `release-automation` / `release-sweep` commits, `fixup!` / `squash!` / `Revert "` subjects, an in-progress merge (keyed on `MERGE_HEAD`, not on a forgeable `Merge ` subject), and any tree that is not post-rollout.
-- **When to use:** automatic gate on every commit that carries code. See [`git-and-commits.md`](git-and-commits.md) § Commit body contract.
+- **Trigger:** `pnpm noldor validate summary-body <commit-msg-file>`. Runs in `commit-msg` (`summary-body-advisory` job), after `noldor-validate-trailer`. Also runnable by hand against `.git/COMMIT_EDITMSG`.
+- **Inputs:** commit message file path; staged file list (`git diff --cached --name-only -z`, no `--diff-filter`, so deletions count); the summary-body activation snapshot.
+- **Outputs:** **always exit 0.** Advisory only: it prints a warning when a likely code commit lacks a `Why —`, `How —` or `What —` section of at least 24 characters, names a missing or corrupt activation snapshot, and stays silent otherwise. It reads a provisional message and the current index, neither of which is what git will store, so it makes no enforcement claim — `hooks pre-push` does.
+- **When to use:** early feedback while the fix is still a three-line amend.
 - **Source:** [`src/core/validate-summary-body.ts`](../../src/core/validate-summary-body.ts)
 
 ### `validate:skill-catalog`
@@ -134,9 +134,9 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 ### `hook:noldor:pre-push`
 
 - **Trigger:** `pnpm noldor hooks pre-push`. Runs in `pre-push` (`noldor-pre-push` job).
-- **Inputs:** the push ref lines (stdin), remote name, env.
-- **Outputs:** blocks any direct push to `origin/main` — all paths must land via PR through the gate end-of-flow. Bypass for the release script only via `NOLDOR_RELEASE_PUSH=1`. Exit 1 with PR-flow instructions otherwise.
-- **Source:** [`src/hooks/noldor-pre-push.ts`](../../src/hooks/noldor-pre-push.ts)
+- **Inputs:** the push ref lines (stdin), remote name, env; the summary-body activation snapshot; the outgoing commit objects themselves.
+- **Outputs:** two decisions, in order. First, blocks any direct push to `origin/main` — all paths must land via PR through the gate end-of-flow; bypass for the release script only via `NOLDOR_RELEASE_PUSH=1`. Second, for every allowed push including non-origin remotes, validates the Why/How/What body of each commit newly reachable through an updated ref (minus the activation snapshot's closure and every `refs/remotes/**` tip). A release override permits the destination but does not exempt the bodies, and the release receipt is written only after validation passes. Exit 1 on a policy rejection listing every offending SHA, exit 2 on malformed ref input or a corrupt snapshot, exit 0 with a notice when the snapshot is absent.
+- **Source:** [`src/hooks/noldor-pre-push.ts`](../../src/hooks/noldor-pre-push.ts), [`src/hooks/validate-pushed-summaries.ts`](../../src/hooks/validate-pushed-summaries.ts)
 
 ### `hook:noldor:pre-edit-guard`
 
