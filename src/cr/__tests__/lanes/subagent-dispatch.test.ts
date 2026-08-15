@@ -155,6 +155,91 @@ describe('buildPrompt review profile', () => {
   });
 });
 
+describe('buildPrompt prior review section', () => {
+  const finding = (over: Record<string, unknown> = {}) => ({
+    file: 'docs/x.md',
+    severity: 'high' as const,
+    message: 'unaddressed blocker',
+    ...over,
+  });
+
+  it('renders blockers as [severity][class] bullets between rules and range line', () => {
+    const p = buildPrompt({
+      ...base,
+      rulesBrief: 'RULE TEXT',
+      priorReview: {
+        mode: 'fixes-in-diff',
+        blockers: [
+          finding({ class: 'mechanical' }),
+          finding({ severity: 'med', message: 'no class here' }),
+        ],
+      },
+    });
+    expect(p).toContain('Prior review round');
+    expect(p).toContain('- [high][mechanical] unaddressed blocker');
+    expect(p).toContain('- [med] no class here'); // class bracket omitted when absent
+    expect(p.indexOf('RULE TEXT')).toBeLessThan(p.indexOf('Prior review round'));
+    expect(p.indexOf('Prior review round')).toBeLessThan(p.indexOf('Range under review:'));
+  });
+
+  it('renders the fixes-in-diff clause for that mode only', () => {
+    const p = buildPrompt({
+      ...base,
+      priorReview: { mode: 'fixes-in-diff', blockers: [finding()] },
+    });
+    expect(p).toContain('The diff under review contains the fixes.');
+    expect(p).toContain('regressions and genuinely new issues remain fully in scope');
+    expect(p).not.toContain('Do not assume any of these blockers were addressed.');
+  });
+
+  it('renders the reexamine clause without asserting the artifact is unchanged', () => {
+    const p = buildPrompt({
+      ...base,
+      priorReview: { mode: 'reexamine', blockers: [finding()] },
+    });
+    expect(p).toContain('Do not assume any of these blockers were addressed.');
+    expect(p).toContain('keeping its message text identical to the listing above');
+    expect(p).not.toMatch(/UNCHANGED/);
+    expect(p).not.toContain('The diff under review contains the fixes.');
+  });
+
+  it('caps at 20 blockers and reports the overflow count', () => {
+    const blockers = Array.from({ length: 23 }, (_, i) => finding({ message: `blocker ${i}` }));
+    const p = buildPrompt({ ...base, priorReview: { mode: 'fixes-in-diff', blockers } });
+    expect(p).toContain('blocker 19');
+    expect(p).not.toContain('blocker 20');
+    expect(p).toContain('…and 3 more prior blockers');
+  });
+
+  it('truncates to 300 chars in fixes-in-diff but never in reexamine; collapses newlines in both', () => {
+    const long = 'x'.repeat(400);
+    const fixP = buildPrompt({
+      ...base,
+      priorReview: { mode: 'fixes-in-diff', blockers: [finding({ message: long })] },
+    });
+    expect(fixP).toContain('x'.repeat(300));
+    expect(fixP).not.toContain('x'.repeat(301));
+    const reP = buildPrompt({
+      ...base,
+      priorReview: { mode: 'reexamine', blockers: [finding({ message: long })] },
+    });
+    expect(reP).toContain('x'.repeat(400));
+
+    const multiline = buildPrompt({
+      ...base,
+      priorReview: { mode: 'reexamine', blockers: [finding({ message: 'line one\n  line two' })] },
+    });
+    expect(multiline).toContain('- [high] line one line two');
+  });
+
+  it('omitted field → no section, prompt identical to the pre-context output', () => {
+    expect(buildPrompt(base)).not.toContain('Prior review round');
+    // Byte-identity with the absent-field shape: an explicit-undefined field
+    // must render exactly the same string.
+    expect(buildPrompt({ ...base, priorReview: undefined })).toBe(buildPrompt(base));
+  });
+});
+
 describe('default dispatcher timeout', () => {
   const spawnCalls = async (): Promise<ReturnType<typeof vi.fn>> => {
     const { spawnAgent } = await import('../../../core/agent-runner/registry.js');

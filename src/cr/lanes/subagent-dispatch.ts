@@ -2,6 +2,7 @@ import { spawnAgent } from '../../core/agent-runner/registry.js';
 import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
 import { DEFAULT_REVIEW_PROFILES } from '../../core/review-profile.js';
 import type { ReviewDimension, ReviewEffort, ReviewProfile } from '../../core/review-profile.js';
+import type { PriorReview } from '../lane-types.js';
 
 export interface DispatchInput {
   artifact: string;
@@ -10,6 +11,13 @@ export interface DispatchInput {
   headSha: string;
   description: string;
   reviewProfile?: ReviewProfile;
+  /**
+   * The prior round's blockers plus the framing mode, resolved by orchestrate
+   * from the lane's previous sink. Omitted on first rounds and green priors —
+   * and the omission must leave the prompt byte-identical to the pre-context
+   * output (same contract as {@link rulesBrief}).
+   */
+  priorReview?: PriorReview;
   /**
    * Pre-rendered text of the cascade rules that BIND the files under review —
    * `renderBrief(..., { enforceOnly: true })`, resolved by the caller because
@@ -87,6 +95,45 @@ export const CUT_MARKER_TOKEN = 'noldor:cut <ceiling> — <upgrade path>';
 // accessibility, explicitly-requested behaviour.
 const CUT_MARKER_GUIDE = `\nRespect \`${CUT_MARKER_TOKEN}\` markers: a marked cut is a deliberate decision. When a finding argues the code should be simpler, leaner, faster, placed at a different layer, or reuse something existing, do not flag the marked cut itself — flag only a wrong ceiling or a real cut left unmarked. A marker never waives a finding about a defect, a vulnerability, a race, an unintended state change, an accessibility regression, or explicitly-requested behaviour that was cut.\n`;
 
+/** Most prior blockers a prompt renders; the rest collapse to a count line. */
+const PRIOR_BLOCKER_CAP = 20;
+/** Per-message bound in `fixes-in-diff` mode, where nothing asks for verbatim re-raise. */
+const PRIOR_MESSAGE_MAX_CHARS = 300;
+
+// `reexamine` must NOT truncate: its clause asks for identical re-raise, so the
+// renderer cannot mangle what it asks to be preserved. Bounded in practice by
+// the single-line reviewer-sink messages (line-based parser) and the cap above.
+const PRIOR_MODE_CLAUSE: Record<PriorReview['mode'], string> = {
+  'fixes-in-diff':
+    'The diff under review contains the fixes. Do not re-raise a blocker the diff resolves. ' +
+    'Before flagging anything that overlaps these, verify against the current content — never ' +
+    'propose a change the content already implements or falsifies. Adjudicated decisions are ' +
+    'settled unless the diff regresses them; regressions and genuinely new issues remain fully in scope.',
+  reexamine:
+    'Do not assume any of these blockers were addressed. Re-examine each against the current ' +
+    'content: re-raise every one that still stands, keeping its message text identical to the ' +
+    "listing above so the finding's identity stays stable across rounds; drop only those the " +
+    'content genuinely resolves; new findings remain fully in scope.',
+};
+
+function renderPriorReview(prior: PriorReview): string {
+  const capped = prior.blockers.slice(0, PRIOR_BLOCKER_CAP);
+  const bullets = capped
+    .map((b) => {
+      const oneLine = b.message.replace(/\s*\n\s*/g, ' ');
+      const msg =
+        prior.mode === 'fixes-in-diff' ? oneLine.slice(0, PRIOR_MESSAGE_MAX_CHARS) : oneLine;
+      return `- [${b.severity}]${b.class ? `[${b.class}]` : ''} ${msg}`;
+    })
+    .join('\n');
+  const overflow = prior.blockers.length - capped.length;
+  const overflowLine = overflow > 0 ? `\n…and ${overflow} more prior blockers` : '';
+  return (
+    `\nPrior review round — the previous reviewer pass over this artifact raised the blockers below.\n` +
+    `${bullets}${overflowLine}\n\n${PRIOR_MODE_CLAUSE[prior.mode]}\n`
+  );
+}
+
 /**
  * Default impl: spawns a headless reviewer-role agent via the agent-runner
  * registry (claude unless the consumer's agents config remaps the role).
@@ -113,11 +160,12 @@ export function buildPrompt(input: DispatchInput): string {
       ? ''
       : `\nBinding rules for the files under review — a violation of any of these is a finding, ` +
         `reported under the dimension it belongs to (they are repo policy, not preference):\n\n${input.rulesBrief}\n`;
+  const priorSection = input.priorReview === undefined ? '' : renderPriorReview(input.priorReview);
   return `You are a Senior Code Reviewer. Review the markdown artifact at \`${input.artifact}\` (description: ${input.description}).
 
 FD summary context:
 ${input.fdSummary}
-${rulesSection}
+${rulesSection}${priorSection}
 Range under review: ${input.baseSha}..${input.headSha}. If they differ, review only the diff; if equal, review the whole artifact.
 
 Review along these dimensions only — do not flag concerns outside them:

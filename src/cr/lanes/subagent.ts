@@ -123,7 +123,14 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
     `${input.slug}-${input.kind}-reviewer.json`,
   );
   const startedAt = new Date().toISOString();
-  const baseShaForSlot = input.baseSha ?? `${input.artifactSha}~1`;
+  // Two shas, two jobs. The PROMPT range honors `fullReview` — equal shas select
+  // buildPrompt's "review the whole artifact" branch (before this, the
+  // fullReviewOverride path deleted baseSha, the flag was ignored, and the
+  // whole-artifact intent never reached the reviewer). RULES resolution keeps
+  // the real change base: `git diff <head> <head>` names no files, which would
+  // silently drop the binding-rules section from every code-kind full review.
+  const rulesBaseSha = input.baseSha ?? `${input.artifactSha}~1`;
+  const promptBaseSha = input.fullReview ? input.artifactSha : rulesBaseSha;
 
   let markdown: string;
   try {
@@ -135,15 +142,16 @@ export async function runSubagent(input: LaneInput): Promise<LaneResult> {
         return '(no FD — fast-track change; review the diff on its own merits)';
       throw err;
     });
-    const rulesBrief = resolveBindingRules(input, baseShaForSlot);
+    const rulesBrief = resolveBindingRules(input, rulesBaseSha);
     markdown = await dispatchSubagent({
       artifact: input.artifact,
       fdSummary,
-      baseSha: baseShaForSlot,
+      baseSha: promptBaseSha,
       headSha: input.artifactSha,
       description: `${input.kind} for FD ${input.slug}`,
       ...(input.reviewProfile ? { reviewProfile: input.reviewProfile } : {}),
       ...(rulesBrief !== undefined ? { rulesBrief } : {}),
+      ...(input.priorReview !== undefined ? { priorReview: input.priorReview } : {}),
       ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
     });
   } catch (err) {

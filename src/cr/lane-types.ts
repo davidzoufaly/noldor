@@ -1,6 +1,17 @@
 // scripts/cr/lane-types.ts
-import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
+import type { ArtifactKind, Finding, Lane, LaneFindings } from './findings-schema.js';
 import type { ReviewProfile } from '../core/review-profile.js';
+
+/**
+ * The prior round's adjudicated blockers plus how the prompt must frame them.
+ * `fixes-in-diff` is granted only when a non-empty fix diff was verified;
+ * every other re-run shape gets `reexamine`, which asserts nothing unverified
+ * — the safe direction is re-confirmation, never suppression.
+ */
+export interface PriorReview {
+  blockers: Finding[];
+  mode: 'fixes-in-diff' | 'reexamine';
+}
 
 export interface LaneInput {
   slug: string;
@@ -17,6 +28,11 @@ export interface LaneInput {
    * ad-hoc runs), which fall back to `DEFAULT_DISPATCH_TIMEOUT_MS`.
    */
   dispatchTimeoutMs?: number;
+  /**
+   * Prior-round context for the reviewer lane. Lane-generic on purpose so other
+   * lanes can opt in later; today only `runSubagent` forwards it into the prompt.
+   */
+  priorReview?: PriorReview;
   repoRoot: string;
 }
 
