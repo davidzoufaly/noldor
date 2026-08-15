@@ -63,6 +63,7 @@ links:
     - src/cr/__tests__/orchestrate.integration.test.ts
     - src/cr/__tests__/orchestrate.test.ts
     - src/cr/__tests__/overwrite-guard.test.ts
+    - src/cr/__tests__/prior-review.test.ts
     - src/cr/__tests__/read-fd-summary.test.ts
     - src/garden/detectors/__tests__/override-audit.test.ts
     - src/metrics/__tests__/cr-and-override.test.ts
@@ -71,7 +72,7 @@ links:
 name: Specs/Plan CR Gate — Multi-Reviewer + Multiterminal Bug Fix
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: full
 introduced: 0.6.0
 ---
@@ -105,6 +106,7 @@ _none — the CR gate is CLI + skill-driven; `/noldor-gate` Step 2.5 and Step 4 
 - `pnpm noldor cr codex [--working | <sha> | <from>..<to>] [--paths a,b] [--rerun] [--dry-run]` — the code-review forms. The bare gate form reviews `main...HEAD` and amends `Noldor-Reviewed-Codex` on a clean pass; the others write a sidecar with no trailer.
 - A codex failure names the CLI version that produced it, appends `run: codex login` when the stderr looks auth-shaped, and carries a bounded stderr tail labelled with its true byte count; a green run records no stderr. `crReview.dispatchTimeoutMs` caps this lane like the others (default 900,000 ms).
 - Reviewer lanes tag each blocker `[mechanical]` / `[design]`; the tag is lifted into `Finding.class` in the sink. An untagged blocker reads as `design`, so it always routes to a human.
+- Re-rounds carry prior context automatically: when the prior reviewer sink holds blockers, orchestrate attaches them to the reviewer prompt — framed `fixes-in-diff` when `--base-sha` verified a non-empty diff, `reexamine` otherwise (fullReviewOverride, explicit `--full-review`) — capped at 20 blockers; first rounds and green priors are unchanged. `--full-review` now genuinely reviews the whole artifact (equal prompt shas) while binding-rules resolution keeps the real change base.
 
 ## PRs
 
