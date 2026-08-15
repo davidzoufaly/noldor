@@ -230,6 +230,19 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   Polls up to 2.5 minutes for unresolved lanes. Exit 0 = artifact-stage clean; exit 1 = blockers surfaced (loop back to Step 2.5 `address-blockers`).
 
+- **Preflight the push-range gates (before any code-stage review).** `pr-flow`'s push fires the pre-push chain (`summary-body` commit-object gate, `template-sync`, `noldor-clones`) only after the review receipt is earned — so a gate failure at push time forces a fix commit, the tree changes, the `Noldor-Reviewed-Subagent` receipt invalidates, and a full code-stage dispatch runs purely to re-earn it (Q-0112: 2 of 6 code-stage dispatches plus 3 failed pushes were this class — zero review value). Run the same checks author-side first, while no receipt exists to lose:
+
+  ```
+  pnpm noldor checks template-sync
+  pnpm noldor clones check
+  printf 'refs/heads/%s %s refs/heads/%s %s\n' \
+    "$(git branch --show-current)" "$(git rev-parse HEAD)" \
+    "$(git branch --show-current)" "$(git rev-parse origin/main)" \
+    | pnpm noldor hooks pre-push origin
+  ```
+
+  The `printf` line replays the blocking summary-body validator over exactly the `origin/main..HEAD` commit range the real push will carry — the advisory `validate summary-body` form never blocks, so it is not a preflight. Fix any red (mirror a template twin, re-record a clones baseline alongside the change that moved it, reword a commit body via rebase/amend) and land the fixes as ordinary commits, then re-run until all three exit 0. A mechanical fix landed here costs one commit; the same fix landed after a green review also costs a receipt re-earn dispatch. `enforce-review-receipt` is deliberately not preflighted — the receipt is earned by the review below, so before it runs the check can only be red.
+
 - **Code-stage orchestrate.** Run the worktree-code lane (default `reviewer`; config `crLanes.code` can override, e.g. `['reviewer', 'codex']` to opt codex back in):
 
   ```
@@ -247,6 +260,16 @@ This pause is the cheapest place to catch architectural drift, missing edge case
   ```
 
   Sink: `.noldor/cr/<slug>-code-reviewer.json`. Trailer amended on tip commit: `Noldor-Reviewed-Subagent: <tree>`.
+
+  **Delta re-earn after a post-green mechanical fix.** `--base-sha origin/main` (the full feature range) is mandatory only for the **first** code-stage pass. When a commit lands *after* the reviewer went green — a push-gate fix the preflight bullet didn't catch, a fmt-hook rewrite, a one-line message reword that still changed the tree — the receipt invalidates, but the already-reviewed range hasn't changed. Re-earn with a delta pass over just the fix instead of re-reviewing the whole feature: capture `git rev-parse HEAD` **before** committing the fix (that tip carried the green receipt), then
+
+  ```
+  pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes reviewer --base-sha <last-green-tip>
+  ```
+
+  (keep `--profile fast-track` when the first pass used it). Orchestrate already supports delta review — this is the same `--base-sha` mechanism the autofix loop uses via its printed `base-sha:` line; the skill just never prescribed it for the push-gate-failure path, which bypasses autofix. The reviewer sees only `<last-green-tip>..HEAD`, so a mechanical fix re-earns the receipt in one cheap dispatch instead of a full-range re-review.
+
+  Recovering the green tip when it wasn't captured: only when the fix landed as a **new commit on top** is it recoverable as `git log -1 --format=%H --grep='^Noldor-Reviewed-Subagent:' origin/main..HEAD` (the receipt-carrying commit sits below the fix). Never use that grep after an amend or rebase rewrite — the rewritten commit keeps the stale trailer text in its message, so the grep returns the new HEAD itself, `<last-green-tip>..HEAD` is empty, and the prior-green gate mints a synthetic OK: a re-earned receipt whose fix was never reviewed. After a rewrite, the pre-fix sha comes from the captured value, or from the reflog — `git rev-parse HEAD@{1}` immediately after a single amend; after a rebase use the branch reflog (`git rev-parse <branch>@{1}`), because HEAD's reflog moves once per replayed commit, so `HEAD@{1}` lands on an intermediate rebase step and the delta would omit rewritten commits.
 
 - **Aggregate code-stage.**
 

@@ -23,5 +23,9 @@
   "Q-0112": {
     "slug": "review-run-lifecycle-module",
     "retiredAt": "2026-08-14"
+  },
+  "Q-0129": {
+    "slug": "cr-receipt-churn-preflight-push-gates-and-delta-re-earn",
+    "retiredAt": "2026-08-15"
   }
 }

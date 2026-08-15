@@ -77,10 +77,36 @@ dependency, so the prompt stays a thin pointer.
 
 - Mark the session autonomous immediately after the session marker exists:
   `pnpm noldor noldor set-autonomous` — never ask autonomous-vs-interactive.
+- Preflight the push-range gates **before** the code-stage CR, while no receipt
+  exists to lose: `pnpm noldor checks template-sync`, `pnpm noldor clones check`,
+  and replay the blocking summary-body validator over the outgoing range —
+  `printf 'refs/heads/%s %s refs/heads/%s %s\n' "$(git branch --show-current)" "$(git rev-parse HEAD)" "$(git branch --show-current)" "$(git rev-parse origin/main)" | pnpm noldor hooks pre-push origin`
+  (the advisory `validate summary-body` form never blocks, so it is not a
+  preflight). Fix any red and commit until all three exit 0. A gate failure
+  discovered at `pr-flow` push instead lands a fix commit that invalidates the
+  `Noldor-Reviewed-Subagent` receipt and burns a full code-stage dispatch
+  re-earning it. `enforce-review-receipt` is not preflighted — before the
+  review below it can only be red.
 - Code-stage CR:
-  `pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --profile fast-track --autonomous`
+  `pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --lanes reviewer --base-sha origin/main --profile fast-track --autonomous`
   (drop `--profile fast-track` on the resume path — that profile is for
-  fast-track roadmap entries).
+  fast-track roadmap entries). `--base-sha origin/main` (the full feature
+  range) is mandatory only on the **first** pass.
+- Post-green mechanical fix (a push-gate red the preflight missed, a fmt-hook
+  rewrite): the receipt invalidates but the reviewed range hasn't changed.
+  Capture the green tip **before** committing the fix (`git rev-parse HEAD`),
+  land the fix, then re-earn with a delta pass — re-run the code-stage
+  orchestrate with `--base-sha <last-green-tip>` instead of `origin/main`, so
+  the reviewer sees only the fix instead of re-reviewing the whole feature.
+  Uncaptured green tip: recoverable via
+  `git log -1 --format=%H --grep='^Noldor-Reviewed-Subagent:' origin/main..HEAD`
+  **only when the fix landed as a new commit on top**. After an amend/rebase
+  rewrite the rewritten commit keeps the stale trailer text, the grep returns
+  the new HEAD itself, the delta is empty, and the prior-green gate mints a
+  synthetic OK — a receipt whose fix was never reviewed. Use the captured sha
+  instead — or `git rev-parse HEAD@{1}` right after a single amend, and
+  `git rev-parse <branch>@{1}` after a rebase (HEAD's reflog moves once per
+  replayed commit, so `HEAD@{1}` is an intermediate rebase step).
 - Ship via `pnpm noldor pr-flow` (auto-merge; polls until the PR merges).
   Under parallel drain the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`:
   `pr-flow` then pushes + opens the PR and returns at PR-open — the
