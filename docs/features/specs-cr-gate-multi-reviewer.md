@@ -71,7 +71,7 @@ links:
 name: Specs/Plan CR Gate — Multi-Reviewer + Multiterminal Bug Fix
 packages:
   - scripts
-phase: done
+phase: in-progress
 noldor-tier: full
 introduced: 0.6.0
 ---

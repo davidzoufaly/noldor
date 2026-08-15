@@ -41,18 +41,6 @@ The artifact-stage address-blockers loop has no termination rule: `cr orchestrat
 
 split-check governs entries (`--entry`), FDs (`--fd`) and plans (`--plan`) but not specs — so Q-0112's spec grew to 677 lines with 22 acceptance criteria, and its self-consistency surface (criteria vs prose vs resolved-questions drift) generated most of an 11-round review tail. Add a `--spec` signal (word count + acceptance-criteria count thresholds), and teach the noldor-spec skill three rules: acceptance criteria pin behavior, not phrasing; budget ~12 criteria; never write review-history meta-narrative into the artifact (it is pure liability surface — Q-0112's spec narrated its own rounds three times and got flagged for it).
 
-### Re-Round Reviewer Context
-
-- id: Q-0132
-- area: tooling
-- type: feat
-- since: 2026-08-15
-- size: M
-- impact: med
-- confidence: med
-
-Every delta re-round dispatches a stateless reviewer with no memory of prior rounds, so it re-litigates settled calls and proposes fixes already falsified by the content (Q-0112 round 12 suggested grep matchers the docblocks defeat, which then had to be corrected in yet another commit). Fix: orchestrate appends the prior sink's findings and their recorded resolutions to the delta-review prompt, so the fresh reviewer sees what was adjudicated and why before it flags. Touches: src/cr/orchestrate.ts, src/cr/lanes/subagent-dispatch.ts
-
 ### Consumer Architecture Doc Surface
 
 - id: Q-0093
