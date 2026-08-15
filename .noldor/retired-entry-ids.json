@@ -32,5 +32,9 @@
     "slug": "re-round-reviewer-context",
     "retiredInto": "specs-cr-gate-multi-reviewer",
     "retiredAt": "2026-08-15"
+  },
+  "Q-0130": {
+    "slug": "bounded-cr-re-rounds-design-only-blockers-and-a-round-cap",
+    "retiredAt": "2026-08-15"
   }
 }
