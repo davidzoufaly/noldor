@@ -104,7 +104,9 @@ dependency, so the prompt stays a thin pointer.
   rewrite the rewritten commit keeps the stale trailer text, the grep returns
   the new HEAD itself, the delta is empty, and the prior-green gate mints a
   synthetic OK — a receipt whose fix was never reviewed. Use the captured sha
-  or `git rev-parse HEAD@{1}` instead.
+  instead — or `git rev-parse HEAD@{1}` right after a single amend, and
+  `git rev-parse <branch>@{1}` after a rebase (HEAD's reflog moves once per
+  replayed commit, so `HEAD@{1}` is an intermediate rebase step).
 - Ship via `pnpm noldor pr-flow` (auto-merge; polls until the PR merges).
   Under parallel drain the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`:
   `pr-flow` then pushes + opens the PR and returns at PR-open — the
