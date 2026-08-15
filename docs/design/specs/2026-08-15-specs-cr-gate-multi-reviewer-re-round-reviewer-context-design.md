@@ -97,7 +97,7 @@ All read/parse failures degrade to "no section" — the lane never errors, never
 4. `buildPrompt` without `priorReview` produces byte-identical output to the pre-change prompt.
 5. An orchestrate delta run whose prior reviewer sink carries ≥1 blocker or suggestion dispatches the reviewer with `priorReview` matching that sink's content.
 6. The `fullReviewOverride` path (empty diff, non-green prior) attaches `priorReview`.
-7. A green or synthetic-OK prior sink attaches nothing.
+7. A prior sink with no blockers *and* no suggestions (including synthetic-OK, which writes both empty) attaches nothing.
 8. An absent, malformed, or unreadable prior sink attaches nothing and the lane still runs (no throw, exit semantics unchanged).
 9. A legacy-named prior sink (pre-0.7.0 lane name) is found and attached via the existing candidate probe.
 10. `manual` / `codex` / `verifier` lane prompts and sinks are unchanged.
