@@ -22,6 +22,7 @@ Every CR re-round dispatches a stateless reviewer with no memory of prior rounds
 - Rendering prior `suggestions` (Minor bullets). They are non-blocking, routinely unfixed, and were never adjudicated — framing them as settled would suppress still-open findings. Blockers only.
 - Codex lane threading. The carrier field is lane-generic; codex ignores it today and can opt in later without schema change.
 - Multi-round history chains. The sink holds exactly the last round; that is the round the current fix commit addresses. Archived sinks under `.noldor/cr/archive/` stay untouched.
+- Consolidating the inline scoped-review predicate (`baseSha && !fullReview`) behind a shared helper. Attempted and reversed during review: TypeScript narrowing forces property-level checks at most of its sites, leaving more inline copies than call sites — the existing inline expressions stay.
 
 ## Design
 
@@ -87,10 +88,9 @@ Do not assume any of these blockers were addressed. Re-examine each against the 
 - The section's bullets are the only structure the renderer emits — prior messages land inside `- ` list items and nothing else, so a message containing prompt-like text (e.g. `Range under review:`) cannot masquerade as a new prompt section.
 - Absent field → zero output change: the prompt is byte-identical to today's.
 
-### Unit 5 — passthrough + full-review range fix (`src/cr/lanes/subagent.ts`, `src/cr/review-scope.ts`)
+### Unit 5 — passthrough + full-review range fix (`src/cr/lanes/subagent.ts`)
 
 - `runSubagent` spreads `input.priorReview` into the `dispatchSubagent` call when present — same conditional-spread idiom the surrounding fields use.
-- **Scoped-review predicate, named once:** new `src/cr/review-scope.ts` exports `isScopedReview({ baseSha, fullReview })` ≡ `Boolean(baseSha) && !fullReview`, replacing the inline copies at `src/cr/lanes/codex.ts:27` and `src/cr/review-with-codex.ts:72`. It is a semantic predicate returning `boolean`, not a type guard. Three sites deliberately do **not** swap, each because control flow must narrow `baseSha` to `string` (or uses a different predicate): `src/cr/review-with-codex.ts:63` (its `review.baseSha` feeds a `from: string` range lane), orchestrate's delta-short-circuit guard (`input.baseSha && !input.fullReview` narrows `input.baseSha` for the `isEmptyDiff` call that follows), and `runSubagent`'s range decision below (conditions on `fullReview` alone).
 - **Two shas, two jobs:** `runSubagent` computes `promptBaseSha = input.fullReview ? input.artifactSha : (input.baseSha ?? \`${input.artifactSha}~1\`)` for the prompt's range line — full review collapses to equal shas, selecting `buildPrompt`'s existing "if equal, review the whole artifact" branch, while non-full runs keep today's fallback exactly (a run with neither `baseSha` nor `fullReview` still prompts `HEAD~1..HEAD`). The rules-resolution base stays what it is today: `rulesBaseSha = input.baseSha ?? \`${input.artifactSha}~1\``, fed to `resolveBindingRules` unchanged — binding rules must keep resolving over the real change set on full reviews (`git diff <head> <head>` yields no files, which would silently drop the rules section from every code-kind full review).
 - This closes a latent flaw the context feature would otherwise inherit: today the `fullReviewOverride` path deletes `baseSha` and sets `fullReview`, but the lane ignores the flag and falls back to `HEAD~1..HEAD` — a *diff* prompt — so the "review the whole artifact" intent never reached the reviewer, and the `reexamine` clause would instruct re-examination of content the prompt scoped out.
 
@@ -106,8 +106,7 @@ All read/parse failures degrade to `null` — no context section, lane runs norm
 
 - `buildPrompt` unit tests (pure fn): both mode clauses, class-bracket omission, sink-order rendering, cap + overflow line, per-mode truncation (300-char in `fixes-in-diff`, untruncated in `reexamine`), newline collapse, byte-identical output when field absent, section position between rules and range line.
 - `orchestrate` unit tests with temp sinks + injected `readPriorSink`/`isEmptyDiff`: red prior + non-empty diff → `fixes-in-diff`; `fullReviewOverride` → `reexamine`; explicit `--full-review` → `reexamine`; green prior → absent; suggestions-only prior → absent; malformed JSON / zod-reject → absent AND not green; legacy-named sink → present; reviewer not in effective set → no read; read-count = 1 for reviewer across green check + attachment; non-reviewer lanes dispatch without `priorReview`.
-- `subagent` tests via `setDispatcher` mock: `priorReview` passthrough; `fullReview: true` → dispatched `baseSha === headSha` while `resolveBindingRules` still receives `input.baseSha ?? HEAD~1`; neither `baseSha` nor `fullReview` → dispatched `baseSha === \`${headSha}~1\`` (AC14's restored fallback).
-- `isScopedReview` consumers (codex lane, review-with-codex) keep their existing behavior — covered by their existing suites after the swap.
+- `subagent` tests via `setDispatcher` mock: `priorReview` passthrough; `fullReview: true` → dispatched `baseSha === headSha` while `resolveBindingRules` still receives `input.baseSha ?? HEAD~1`; neither `baseSha` nor `fullReview` → dispatched `baseSha === \`${headSha}~1\`` (AC13's preserved fallback).
 
 ## Acceptance criteria
 
@@ -123,9 +122,8 @@ All read/parse failures degrade to `null` — no context section, lane runs norm
 10. A legacy-named prior sink (pre-0.7.0 lane name) is found and attached via the existing candidate probe.
 11. `run()` performs exactly one prior-sink read for the reviewer lane per invocation, observed via the injected `readPriorSink` seam; when `reviewer` is not in the effective lane set, it performs none for it; only the reviewer's dispatch input carries `priorReview`.
 12. With `fullReview: true`, `runSubagent` dispatches `baseSha === headSha` (whole-artifact range instruction) while `resolveBindingRules` still receives `input.baseSha ?? HEAD~1` — code-kind full reviews keep their binding-rules section.
-13. `isScopedReview` is the single named source of the scoped-review predicate: `src/cr/lanes/codex.ts` and `src/cr/review-with-codex.ts:72` call it. The three Unit 5 exemptions (`review-with-codex.ts:63`, orchestrate's delta-short-circuit guard, `runSubagent`'s range decision) remain property-level checks, each for the stated narrowing/predicate reason.
-14. A run with neither `baseSha` nor `fullReview` dispatches `baseSha === \`${headSha}~1\`` — today's fallback range, unchanged.
-15. `manual` / `codex` / `verifier` lane prompts and sinks are unchanged; no new files under `.noldor/`; the sink schema is unchanged.
+13. A run with neither `baseSha` nor `fullReview` dispatches `baseSha === \`${headSha}~1\`` — today's fallback range, unchanged.
+14. `manual` / `codex` / `verifier` lane prompts and sinks are unchanged; no new files under `.noldor/`; the sink schema is unchanged.
 
 ## Risks / trade-offs
 
