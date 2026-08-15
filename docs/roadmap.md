@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### CR Receipt Churn: Preflight Push Gates and Delta Re-Earn
-
-- id: Q-0129
-- area: tooling
-- type: fix
-- since: 2026-08-15
-- size: S
-- impact: high
-- confidence: high
-
-Gate Step 4 earns the tree-hash review receipt, and only then does `pr-flow`'s push fire the pre-push gates (`pr-summary-body`, `noldor-clones`, `template-sync`). Each gate failure forces a fix commit, the tree changes, the receipt invalidates, and a full code-stage CR dispatch runs purely to re-earn it. Q-0112's ship: 2 of 6 code-stage dispatches plus 3 failed pushes were this class — zero review value. Two skill-prose fixes: (1) Step 4 runs the push-range checks (summary-body over `origin/main..HEAD`, clones, template-sync) BEFORE the code-stage orchestrate, so mechanical gate fixes land pre-review; (2) when a post-green mechanical fix does land, the re-earn pass runs `--base-sha <last-green-tip>` instead of `origin/main` — orchestrate already supports delta review, the skill just prescribes the full range unconditionally. Touches: .claude/skills/noldor-gate/SKILL.md, docs/noldor/drain-mode.md
-
 ### Bounded CR Re-Rounds: Design-Only Blockers and a Round Cap
 
 - id: Q-0130
