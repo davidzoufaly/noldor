@@ -7,6 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../read-fd-summary.js', () => ({
   readFdSummary: vi.fn(async () => 'FD summary text'),
 }));
+vi.mock('../../../core/branch-added.js', () => ({
+  discoverChangedFiles: vi.fn(() => []),
+}));
+import { discoverChangedFiles } from '../../../core/branch-added.js';
 
 import { setDispatcher } from '../../lanes/subagent-dispatch.js';
 import { runSubagent } from '../../lanes/subagent.js';
@@ -145,5 +149,48 @@ describe('runSubagent', () => {
     );
     await runSubagent(input());
     expect(Object.keys(dispatchSubagent.mock.calls[0][0])).not.toContain('timeoutMs');
+  });
+  it('forwards priorReview to the dispatcher and omits the key when absent', async () => {
+    const clean = await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8');
+    dispatchSubagent.mockResolvedValueOnce(clean);
+    const prior = {
+      mode: 'fixes-in-diff' as const,
+      blockers: [{ file: 'docs/x.md', severity: 'high' as const, message: 'prior blocker' }],
+    };
+    await runSubagent({ ...input(), priorReview: prior });
+    expect(dispatchSubagent).toHaveBeenCalledWith(expect.objectContaining({ priorReview: prior }));
+
+    dispatchSubagent.mockResolvedValueOnce(clean);
+    await runSubagent(input());
+    expect(Object.keys(dispatchSubagent.mock.calls[1][0])).not.toContain('priorReview');
+  });
+  it('fullReview → prompt range collapses to equal shas (whole-artifact branch)', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
+    );
+    await runSubagent({ ...input(), fullReview: true });
+    expect(dispatchSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({ baseSha: 'aaa', headSha: 'aaa' }),
+    );
+  });
+  it('fullReview keeps the rules-resolution base at the real change set', async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
+    );
+    // kind 'code' is what routes through resolveBindingRules.
+    await runSubagent({ ...input(), kind: 'code', fullReview: true });
+    expect(vi.mocked(discoverChangedFiles)).toHaveBeenCalledWith(
+      expect.objectContaining({ base: 'parent', head: 'aaa' }),
+    );
+  });
+  it("neither baseSha nor fullReview → today's HEAD~1 fallback range, unchanged", async () => {
+    dispatchSubagent.mockResolvedValueOnce(
+      await readFile(join(FIX, 'subagent-markdown-clean.md'), 'utf8'),
+    );
+    const { baseSha: _drop, ...noBase } = input();
+    await runSubagent(noBase as LaneInput);
+    expect(dispatchSubagent).toHaveBeenCalledWith(
+      expect.objectContaining({ baseSha: 'aaa~1', headSha: 'aaa' }),
+    );
   });
 });

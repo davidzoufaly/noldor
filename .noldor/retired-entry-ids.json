@@ -27,5 +27,10 @@
   "Q-0129": {
     "slug": "cr-receipt-churn-preflight-push-gates-and-delta-re-earn",
     "retiredAt": "2026-08-15"
+  },
+  "Q-0132": {
+    "slug": "re-round-reviewer-context",
+    "retiredInto": "specs-cr-gate-multi-reviewer",
+    "retiredAt": "2026-08-15"
   }
 }

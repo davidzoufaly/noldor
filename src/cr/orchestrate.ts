@@ -15,8 +15,9 @@ import {
   REVIEWER_MANDATORY_KINDS,
   withMandatoryReviewer,
 } from '../core/lanes.js';
+import { laneFindingsSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
-import type { LaneInput, LaneResult } from './lane-types.js';
+import type { LaneInput, LaneResult, PriorReview } from './lane-types.js';
 import { laneSinkPath } from './filename.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
@@ -155,30 +156,41 @@ async function findExistingSink(
 }
 
 /**
- * True when `lane` has a prior sink that recorded no blockers. Anything else —
- * no sink, unreadable/corrupt sink, or a sink carrying blockers — is false, so
- * callers gate the delta short-circuit on a review that actually went green
- * instead of on the mere presence of a file. Applies to every lane and every
- * artifact kind: a lane-specific exemption would let a red round be cleared by
- * a no-op re-run.
+ * The prior round a lane recorded, schema-validated — or `null` when there is
+ * no usable one (absent path, fs error, unparseable JSON, zod mismatch). The
+ * SINGLE prior-sink read: the delta short-circuit's green check and the
+ * reviewer's prior-round context both derive from this result, so one parse
+ * policy governs both. Deliberately stricter than the loose read it replaced:
+ * a sink zod rejects reads as "not green", so the short-circuit re-reviews
+ * instead of minting a synthetic OK from a file it could not validate.
  */
-async function priorRunWasGreen(
+async function readPriorSinkDefault(
   cwd: string,
   slug: string,
   kind: ArtifactKind,
   lane: Lane,
-): Promise<boolean> {
+): Promise<LaneFindings | null> {
   const path = await findExistingSink(cwd, slug, kind, lane);
-  if (path === null) return false;
+  if (path === null) return null;
   try {
-    const prior = JSON.parse(await readFile(path, 'utf8')) as { blockers?: unknown[] };
-    // `blockers` carries `.default([])` in the sink schema, so an absent key is
-    // a green record, not a malformed one (see findings-schema.ts).
-    const blockers = prior.blockers ?? [];
-    return Array.isArray(blockers) && blockers.length === 0;
+    const parsed = laneFindingsSchema.safeParse(JSON.parse(await readFile(path, 'utf8')));
+    return parsed.success ? parsed.data : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export type ReadPriorSink = typeof readPriorSinkDefault;
+
+/**
+ * True when the prior round actually went green. No sink, an invalid sink, or
+ * a sink carrying blockers is false, so callers gate the delta short-circuit
+ * on a review that went green instead of on the mere presence of a file.
+ * Applies to every lane and every artifact kind: a lane-specific exemption
+ * would let a red round be cleared by a no-op re-run.
+ */
+function priorSinkIsGreen(sink: LaneFindings | null): boolean {
+  return sink !== null && sink.blockers.length === 0;
 }
 
 export async function guardLaneOverwrite(
@@ -241,6 +253,8 @@ export interface RunOpts {
     headSha: string,
     artifact: string,
   ) => Promise<boolean>;
+  /** Injection seam for the prior-sink read (tests assert read counts through it). */
+  readPriorSink?: ReadPriorSink;
 }
 
 export interface RunResult {
@@ -323,12 +337,26 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     },
     { autonomous: opts.args.autonomous },
   );
+  // Prior-round reads happen here — after the guard (its archive action is a
+  // copyFile, so the sink is still on disk) and before any lane can overwrite
+  // its own sink. Read-once: the reviewer's single result feeds both the green
+  // check below and the prior-round context attached at dispatch.
+  const readPrior = opts.readPriorSink ?? readPriorSinkDefault;
+  const reviewerPrior = effective.includes('reviewer')
+    ? await readPrior(cwd, opts.args.slug, opts.args.kind, 'reviewer')
+    : null;
+
   // Delta short-circuit: empty diff + baseSha + !fullReview => synthetic OK for
   // every lane whose prior run went green. Re-reviewing an unchanged artifact is
   // wasteful; synthesizing a pass for a lane that never went green is a lie.
   const isEmptyDiff = opts.isEmptyDiff ?? isEmptyDiffDefault;
   const syntheticOks: Lane[] = [];
   let fullReviewOverride = false;
+  // `fixes-in-diff` only when the delta branch verified a non-empty diff. Every
+  // other shape — fullReviewOverride, explicit --full-review, no baseSha —
+  // keeps `reexamine`, which asserts nothing about whether the artifact changed
+  // (the safe direction is re-confirmation, never suppression).
+  let reviewerMode: PriorReview['mode'] = 'reexamine';
   if (input.baseSha && !input.fullReview) {
     const empty = await isEmptyDiff(cwd, input.baseSha, input.artifactSha, input.artifact);
     if (empty) {
@@ -342,7 +370,11 @@ export async function run(opts: RunOpts): Promise<RunResult> {
         // unaddressed red on `manual` / `codex` / `verifier` — or on any
         // `code`-kind lane, which is the one that amends the push receipt — was
         // overwritten by `blockers: []` on the next no-op re-run.
-        if (!(await priorRunWasGreen(cwd, opts.args.slug, opts.args.kind, l))) {
+        const prior =
+          l === 'reviewer'
+            ? reviewerPrior
+            : await readPrior(cwd, opts.args.slug, opts.args.kind, l);
+        if (!priorSinkIsGreen(prior)) {
           stillToRun.push(l);
           continue;
         }
@@ -355,6 +387,8 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       // artifact instead — a review of zero content is worse than no review,
       // since it writes a green sink.
       if (stillToRun.length > 0) fullReviewOverride = true;
+    } else {
+      reviewerMode = 'fixes-in-diff';
     }
   }
 
@@ -369,11 +403,23 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     delete dispatchInput.baseSha;
   }
 
+  // Prior-round context rides ONLY the reviewer's input — attached per-lane at
+  // the dispatch call, so `manual`/`codex`/`verifier` stay unchanged by
+  // construction rather than by their ignoring an unknown field.
+  const reviewerContext: PriorReview | undefined =
+    reviewerPrior !== null && reviewerPrior.blockers.length > 0
+      ? { blockers: reviewerPrior.blockers, mode: reviewerMode }
+      : undefined;
+
   const settled = await Promise.allSettled(
     effective.map((l) => {
-      if (l === 'codex') return runCodex(dispatchInput);
+      const laneInput =
+        l === 'reviewer' && reviewerContext !== undefined
+          ? { ...dispatchInput, priorReview: reviewerContext }
+          : dispatchInput;
+      if (l === 'codex') return runCodex(laneInput);
       // standalone can't reach here — run() rejects it at entry.
-      return LANES[l as Exclude<Lane, 'standalone'>](dispatchInput);
+      return LANES[l as Exclude<Lane, 'standalone'>](laneInput);
     }),
   );
 
