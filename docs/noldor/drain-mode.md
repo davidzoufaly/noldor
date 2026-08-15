@@ -94,12 +94,17 @@ dependency, so the prompt stays a thin pointer.
   range) is mandatory only on the **first** pass.
 - Post-green mechanical fix (a push-gate red the preflight missed, a fmt-hook
   rewrite): the receipt invalidates but the reviewed range hasn't changed.
-  Capture the green tip **before** committing the fix (`git rev-parse HEAD`;
-  recoverable later via
-  `git log -1 --format=%H --grep='^Noldor-Reviewed-Subagent:' origin/main..HEAD`),
+  Capture the green tip **before** committing the fix (`git rev-parse HEAD`),
   land the fix, then re-earn with a delta pass — re-run the code-stage
   orchestrate with `--base-sha <last-green-tip>` instead of `origin/main`, so
   the reviewer sees only the fix instead of re-reviewing the whole feature.
+  Uncaptured green tip: recoverable via
+  `git log -1 --format=%H --grep='^Noldor-Reviewed-Subagent:' origin/main..HEAD`
+  **only when the fix landed as a new commit on top**. After an amend/rebase
+  rewrite the rewritten commit keeps the stale trailer text, the grep returns
+  the new HEAD itself, the delta is empty, and the prior-green gate mints a
+  synthetic OK — a receipt whose fix was never reviewed. Use the captured sha
+  or `git rev-parse HEAD@{1}` instead.
 - Ship via `pnpm noldor pr-flow` (auto-merge; polls until the PR merges).
   Under parallel drain the supervisor sets `NOLDOR_DRAIN_OPEN_ONLY=1`:
   `pr-flow` then pushes + opens the PR and returns at PR-open — the

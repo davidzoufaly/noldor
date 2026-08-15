@@ -261,13 +261,15 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   Sink: `.noldor/cr/<slug>-code-reviewer.json`. Trailer amended on tip commit: `Noldor-Reviewed-Subagent: <tree>`.
 
-  **Delta re-earn after a post-green mechanical fix.** `--base-sha origin/main` (the full feature range) is mandatory only for the **first** code-stage pass. When a commit lands *after* the reviewer went green — a push-gate fix the preflight bullet didn't catch, a fmt-hook rewrite, a one-line message reword that still changed the tree — the receipt invalidates, but the already-reviewed range hasn't changed. Re-earn with a delta pass over just the fix instead of re-reviewing the whole feature: capture `git rev-parse HEAD` **before** committing the fix (that tip carried the green receipt; after the fix it is recoverable as `git log -1 --format=%H --grep='^Noldor-Reviewed-Subagent:' origin/main..HEAD`), then
+  **Delta re-earn after a post-green mechanical fix.** `--base-sha origin/main` (the full feature range) is mandatory only for the **first** code-stage pass. When a commit lands *after* the reviewer went green — a push-gate fix the preflight bullet didn't catch, a fmt-hook rewrite, a one-line message reword that still changed the tree — the receipt invalidates, but the already-reviewed range hasn't changed. Re-earn with a delta pass over just the fix instead of re-reviewing the whole feature: capture `git rev-parse HEAD` **before** committing the fix (that tip carried the green receipt), then
 
   ```
   pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code --lanes reviewer --base-sha <last-green-tip>
   ```
 
   (keep `--profile fast-track` when the first pass used it). Orchestrate already supports delta review — this is the same `--base-sha` mechanism the autofix loop uses via its printed `base-sha:` line; the skill just never prescribed it for the push-gate-failure path, which bypasses autofix. The reviewer sees only `<last-green-tip>..HEAD`, so a mechanical fix re-earns the receipt in one cheap dispatch instead of a full-range re-review.
+
+  Recovering the green tip when it wasn't captured: only when the fix landed as a **new commit on top** is it recoverable as `git log -1 --format=%H --grep='^Noldor-Reviewed-Subagent:' origin/main..HEAD` (the receipt-carrying commit sits below the fix). Never use that grep after an amend or rebase rewrite — the rewritten commit keeps the stale trailer text in its message, so the grep returns the new HEAD itself, `<last-green-tip>..HEAD` is empty, and the prior-green gate mints a synthetic OK: a re-earned receipt whose fix was never reviewed. After a rewrite, the pre-fix sha comes from the captured value or the reflog (`git rev-parse HEAD@{1}`).
 
 - **Aggregate code-stage.**
 
