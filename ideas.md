@@ -7,7 +7,16 @@ Raw entry point for human-generated ideas. `/triage` promotes bullets into `docs
 
 ## Notes
 
+Why it happened (framework-level): in noldor, root lefthook.yml is SCAFFOLD_ONLY (manifest.ts:22-24) — init copies it only when absent, --update never overwrites, and template-sync/doctor deliberately never report drift on starters. Charuy had a pre-adoption comment-only lefthook.yml, so the extends line was never written and nothing ever checked the wiring. Banner printing while zero jobs run = zero signal.
+
+Yes, noldor can fix this for every consumer — keep consumer ownership of the file but verify wiring: noldor doctor (and init --update) parse the consumer's root lefthook.yml and error when extends doesn't include ./lefthook/noldor.yml, naming the dead jobs and the one-line fix. Structural check, not drift-sync — never clobbers project hooks. Filed as an idea in ~/code/noldor/ideas.md for its triage; ship it there via noldor's own gate when you're in that repo.
+
 ## Priority
+
+- only XS without at least spec?
+- lepší integrace grapfify -> použití v návrhu / designu 
+- snížit počet CR's [triaged 2026-08-15 → cr-receipt-churn-preflight-push-gates-and-delta-re-earn, bounded-cr-re-rounds-design-only-blockers-and-a-round-cap, spec-size-governor, re-round-reviewer-context]
+- napojení na pen.dev
 
 ## Not groomed
 
@@ -48,3 +57,4 @@ Raw capture point for operator/agent lessons + gotchas. `/noldor-absorb` classif
 - codex lane misdiagnoses a model/version failure as an auth failure. Installed `codex-cli 0.133.0` against a configured `gpt-5.6-sol` returns `400 invalid_request_error: "The 'gpt-5.6-sol' model requires a newer version of Codex"`, but `cr codex` reported `auth looks expired; run: codex login` — sending the operator to re-auth for a version problem. Parse the 400 body (or at least stop asserting auth when the payload names a model). Workaround today: `codex exec -c model=gpt-5.5`. (found 2026-08-14 running the codex lane on Q-0124) [triaged 2026-08-14 → codex-lane-misreports-a-model-version-400-as-expired-auth]
 - main-module guard `import.meta.url === \`file://${process.argv[1]}\`` is wrong in ~10 entrypoints (`src/core/validate-noldor-scope.ts`, `validate-noldor.ts`, `validate-skill-catalog.ts`, `changelog.ts`, `rename-plan-only-tier.ts`, `pr-flow-cli.ts`, `src/design/{context,log}-cli.ts`, `src/prep/print-format.ts`). A repo path needing percent-encoding (one space is enough) makes it false → the module's CLI body never runs, exit 0, no diagnostic. For the commit-msg validators that means a **silently disabled gate**. `src/cli/index.ts` and `src/core/validate-summary-body.ts` already use the correct `pathToFileURL(process.argv[1]).href`. Sweep the rest. (found by code-stage CR on Q-0124, 2026-08-13) [triaged 2026-08-14 → main-module-guard-fails-on-percent-encoded-paths]
 - do not suggest monitor -> use internal noldor tool instead [triaged 2026-08-14 → prefer-noldor-wait-over-harness-monitor-tools]
+- adopted consumers can have permanently dead hooks with zero signal: root `lefthook.yml` is SCAFFOLD_ONLY (src/templates/manifest.ts), so a consumer whose root lefthook.yml predates adoption (e.g. a comment-only stub) never gets the `extends: ./lefthook/noldor.yml` line — init skips (file exists), --update never overwrites, template-sync/doctor never report drift on starters → every noldor hook job (trailer injection, commit-msg validation, pre-push summary-body gate) is silently dead while the lefthook banner still prints. Bit Charuy for weeks; found 2026-08-14 when PR #96 shipped a what-only summary despite an armed summary-body rollout. Fix: keep consumer ownership but VERIFY wiring — doctor (and init --update) parse the consumer root lefthook.yml and error/warn when `extends` does not include `./lefthook/noldor.yml`; message names the dead jobs and the one-line fix. Structural wiring check, not drift.
