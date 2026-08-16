@@ -33,9 +33,9 @@ Beyond raw size, two authoring habits inflate the self-consistency surface: acce
 Two new rules, shaped exactly like `assessEntrySplit()`:
 
 - **S1 — spec bulk.** `SPEC_WORD_THRESHOLD = 6000`. Word count comes from a shared `countWords(md: string): number` helper extracted in `split-suggestion.ts` — the existing E1 expression (`trimmed === '' ? 0 : trimmed.split(/\s+/).length`, empty-safe) moves into it and both E1 and S1 call it, so the two rules cannot drift. Fires strictly greater-than. Message suggests splitting the design into sibling attach enhancements, one per concern.
-- **S2 — criteria bloat.** `SPEC_CRITERIA_THRESHOLD = 20`. Count top-level `- ` bullets inside the `## Acceptance criteria` section (from a line matching `/^## Acceptance criteria/i` up to the next `/^## /` or EOF; nested bullets — indented `- ` — are not counted). Message states the ~12-criteria budget and suggests collapsing per-detail criteria into behavior-level ones.
+- **S2 — criteria bloat.** `SPEC_CRITERIA_THRESHOLD = 20`. Count top-level `- ` bullets inside the acceptance section (from the first line matching `/^##\s+Acceptance/i` up to the next `/^## /` or EOF; nested bullets — indented `- ` — are not counted). The loose anchor covers the corpus's real heading variants (`## Acceptance criteria`, bare `## Acceptance` — 61 of 75 historical specs). Message states the ~12-criteria budget and suggests collapsing per-detail criteria into behavior-level ones.
 
-A spec with no `## Acceptance criteria` section counts 0 criteria — S2 stays silent (the format contract requires the section; enforcing its presence is the format's job, not the size governor's).
+A spec with no `## Acceptance*` heading counts 0 criteria — S2 stays silent by design: with no criteria section there is no criteria bloat to measure, and S1 still covers such a spec's raw bulk (the largest heading-less spec in the corpus, 6340 words, trips S1). This describes 14 of 75 legacy specs; new specs follow the `prep format spec` contract, which includes the section.
 
 Signature: `assessSpecSplit(specMd: string): SplitSignal[]` — same return shape, one signal per tripped rule, rule order S1 then S2.
 
@@ -93,9 +93,9 @@ Extend the two existing suites (no new test files):
 
 - `split-check --spec <path>` on a spec ≤6000 words with ≤20 criteria exits 0 with no output.
 - A spec over 6000 words yields an `[S1]` line and exit 2.
-- A spec with more than 20 top-level bullets in its `## Acceptance criteria` section yields an `[S2]` line and exit 2.
-- Nested (indented) bullets and bullets outside the criteria section do not count toward S2.
-- A spec with no `## Acceptance criteria` section never yields S2.
+- A spec with more than 20 top-level bullets in its acceptance section (first `/^##\s+Acceptance/i` heading) yields an `[S2]` line and exit 2; a bare `## Acceptance` heading is matched.
+- Nested (indented) bullets and bullets outside the acceptance section do not count toward S2.
+- A spec with no `## Acceptance*` heading never yields S2.
 - An unreadable `--spec` path exits 1 with usage + error lines on stdout.
 - Passing two mode flags (e.g. `--spec` with `--plan`) exits 1.
 - `SPEC_WORD_THRESHOLD` and `SPEC_CRITERIA_THRESHOLD` are exported constants in `split-suggestion.ts`; E1 and S1 share one `countWords()` helper.
@@ -107,7 +107,7 @@ Extend the two existing suites (no new test files):
 ## Risks / trade-offs
 
 - **Prose wiring, not code.** Step 2.5 runs the check because the gate skill says so — a controller that skips the lint pass skips S1/S2 too. Accepted: identical posture to the existing plan lint, and the reviewer lane remains the backstop.
-- **S2 heading match is format-coupled.** A spec that renames the section (`## Acceptance Criteria & Tests`) still matches the case-insensitive prefix, but a fully renamed heading escapes counting. Accepted: the format contract pins the heading; drift there is a format violation, not a size-governor gap.
+- **S2 coverage is heading-dependent.** The `/^##\s+Acceptance/i` anchor measures 61 of 75 historical specs; the 14 with no acceptance heading are S2-silent (S1 alone covers their bulk), and a future spec that omits or fully renames the heading escapes S2 the same way. Accepted: criteria bloat is only measurable where a criteria section exists, and the reviewer lane sees the whole artifact regardless.
 - **Thresholds may need tuning.** 6000/20 is calibrated to a 74-spec corpus with two known-bad outliers. Constants-not-config keeps retuning a one-line diff.
 
 ## User Story
