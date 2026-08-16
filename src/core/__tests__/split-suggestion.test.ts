@@ -7,9 +7,12 @@ import {
   ENTRY_WORD_THRESHOLD,
   FD_LINKS_CODE_THRESHOLD,
   PLAN_ROW_THRESHOLD,
+  SPEC_CRITERIA_THRESHOLD,
+  SPEC_WORD_THRESHOLD,
   assessEntrySplit,
   assessFdBreadth,
   assessPlanSplit,
+  assessSpecSplit,
 } from '../split-suggestion.js';
 
 function words(n: number): string {
@@ -145,5 +148,70 @@ describe('assessPlanSplit', () => {
 
   it('returns [] for an empty string (one row)', () => {
     expect(assessPlanSplit('')).toEqual([]);
+  });
+});
+
+function specWith(criteriaCount: number, extra = ''): string {
+  const criteria = Array.from({ length: criteriaCount }, (_, i) => `- criterion ${i}`).join('\n');
+  return `# Spec\n\n## Design\n\nprose here\n\n## Acceptance criteria\n\n${criteria}\n\n## Risks\n\n- a risk bullet\n${extra}`;
+}
+
+describe('assessSpecSplit', () => {
+  it('returns [] for an empty string', () => {
+    expect(assessSpecSplit('')).toEqual([]);
+  });
+
+  it('S1: [] at exactly the word threshold, one signal one word over', () => {
+    expect(assessSpecSplit(words(SPEC_WORD_THRESHOLD))).toEqual([]);
+    const signals = assessSpecSplit(words(SPEC_WORD_THRESHOLD + 1));
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({
+      rule: 'S1',
+      value: SPEC_WORD_THRESHOLD + 1,
+      threshold: SPEC_WORD_THRESHOLD,
+    });
+    expect(signals[0].message).toContain('6001 words');
+  });
+
+  it('S2: [] at exactly the criteria threshold, one signal one bullet over', () => {
+    expect(assessSpecSplit(specWith(SPEC_CRITERIA_THRESHOLD))).toEqual([]);
+    const signals = assessSpecSplit(specWith(SPEC_CRITERIA_THRESHOLD + 1));
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({
+      rule: 'S2',
+      value: SPEC_CRITERIA_THRESHOLD + 1,
+      threshold: SPEC_CRITERIA_THRESHOLD,
+    });
+    expect(signals[0].message).toContain('~12');
+  });
+
+  it('S2: a bare "## Acceptance" heading is matched', () => {
+    const criteria = Array.from({ length: 21 }, (_, i) => `- c${i}`).join('\n');
+    const md = `# Spec\n\n## Acceptance\n\n${criteria}\n`;
+    expect(assessSpecSplit(md).map((s) => s.rule)).toEqual(['S2']);
+  });
+
+  it('S2: nested bullets and bullets outside the acceptance section do not count', () => {
+    const nested = Array.from({ length: 25 }, (_, i) => `  - nested ${i}`).join('\n');
+    const md = `# Spec\n\n## Acceptance criteria\n\n- top one\n${nested}\n\n## Risks\n\n${Array.from(
+      { length: 25 },
+      (_, i) => `- risk ${i}`,
+    ).join('\n')}\n`;
+    expect(assessSpecSplit(md)).toEqual([]);
+  });
+
+  it('S2: counting stops at the next ## heading', () => {
+    const md = specWith(SPEC_CRITERIA_THRESHOLD); // Risks section holds 1 more bullet
+    expect(assessSpecSplit(md)).toEqual([]);
+  });
+
+  it('S2: no ## Acceptance* heading → no S2 even with many bullets', () => {
+    const bulletsOnly = Array.from({ length: 30 }, (_, i) => `- item ${i}`).join('\n');
+    expect(assessSpecSplit(`# Spec\n\n## Design\n\n${bulletsOnly}\n`)).toEqual([]);
+  });
+
+  it('fires S1 then S2 in rule order when both trip', () => {
+    const md = specWith(SPEC_CRITERIA_THRESHOLD + 1, `\n${words(SPEC_WORD_THRESHOLD + 1)}\n`);
+    expect(assessSpecSplit(md).map((s) => s.rule)).toEqual(['S1', 'S2']);
   });
 });
