@@ -12,4 +12,4 @@ for programmer errors and invariant violations — a thrown error means "this sh
 happen". Catch external throw sources (subprocess, network, file IO, `parse()`) once at the
 boundary they enter and convert to the result type; interior code trusts typed results.
 Never swallow errors: an empty `catch {}` is a bug — at minimum log and rethrow, ideally
-surface as a result.
+surface as a result. (`eslint/no-empty` covers the machine half; this rule is the semantic half.)
