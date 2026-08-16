@@ -35,7 +35,7 @@ Body (operational restatement of baseline lines 151–156, not a verbatim copy):
 
 - Expected failures return a result type (`{ success: true, data } | { success: false, errors }` or equivalent discriminated union) so callers confront both branches.
 - `throw` is reserved for programmer errors / invariant violations — a thrown error means "this should never happen".
-- External throw sources (subprocess, network, file IO, `parse()`) are caught once at the boundary they enter and converted to the result type; interior code trusts typed results.
+- External throw sources (subprocess, network, file IO, schema-parse of untrusted input) are caught once at the boundary they enter and converted to the result type; interior code trusts typed results. A `parse()` failing on already-validated internal data is a programmer error and may throw — the same line the baseline's Zod section draws (D6, code-CR round 1).
 - Never swallow: an empty `catch {}` is a bug — minimum log-and-rethrow, ideally surface as a result. (`eslint/no-empty` covers the machine half; this rule is the semantic half.)
 
 ### Unit 2 — `.noldor/rules/recompute-over-maintained-state.md`
