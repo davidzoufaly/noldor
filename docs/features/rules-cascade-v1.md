@@ -6,7 +6,13 @@ links:
   spec: lost-pre-extraction
   code:
     - .noldor/rules/lazy-decision-ladder.md
+    - .noldor/rules/error-result-types.md
+    - .noldor/rules/recompute-over-maintained-state.md
+    - .noldor/rules/concurrency-write-discipline.md
     - templates/.noldor/rules/lazy-decision-ladder.md
+    - templates/.noldor/rules/error-result-types.md
+    - templates/.noldor/rules/recompute-over-maintained-state.md
+    - templates/.noldor/rules/concurrency-write-discipline.md
     - src/cr/lanes/subagent-dispatch.ts
     - src/cr/lanes/subagent.ts
     - src/core/branch-added.ts
@@ -58,6 +64,7 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
 - Pre-generation discipline: the `lazy-decision-ladder` rule (enforce bucket, `**/*.ts`, stage `code`) — understand the problem and trace the real flow first, then climb the 7-rung ladder (YAGNI → reuse → stdlib → native → installed dep → one-liner → minimal); never cut trust-boundary validation, data-loss error handling, security, accessibility, or explicitly-requested behaviour.
 - **Injection into the authoring loop is wired** (was deferred through 1.2.0). Two callers ask the cascade: `/noldor-gate` Step 3.5 (and its runner-neutral twin in [`drain-mode.md`](../noldor/drain-mode.md)) tells the author to run `rules brief` before the first edit to a file; the code-stage CR resolves the `enforce` bucket for the changed files and puts their text in the reviewer prompt, so a violation is a finding even when the brief was skipped. Reviewer-side scope is the always-on `reviewer` lane, not the opt-in `codex` lane. Q-0069 (`prose-rules-enforce-cascade-rules`) remains separate: it grows the store, this delivers it.
 - Mark a deliberate, bounded corner-cut with `// noldor:cut <ceiling> — <upgrade path>` — CR reviewer prompts respect the marker for minimalism-class findings (reuse/simplification/efficiency/altitude) and flag only a wrong ceiling or a real cut left unmarked; correctness/security findings are unaffected.
+- Three discipline rules migrated from the prose baseline into the enforce bucket (Q-0069, all `src/**/*.ts`, stage `code`, distributed via `init` twins): `error-result-types` — result types for expected failures, `throw` only for programmer errors, catch external throws once at the boundary, never swallow; `recompute-over-maintained-state` — state with many mutation sites becomes a decision recomputed at each use, and repeated missed-update findings are one design smell, not N bugs; `concurrency-write-discipline` — multi-reader files written atomically (temp-file + rename), subprocess/poll loops sequential on purpose, liveness by fresh probe rather than stale lock/PID files.
 - Consumers receive the rule via `pnpm noldor init` / `init --update` (first distributed rule — `templates/.noldor/rules/` twin).
 
 ## Design Notes
