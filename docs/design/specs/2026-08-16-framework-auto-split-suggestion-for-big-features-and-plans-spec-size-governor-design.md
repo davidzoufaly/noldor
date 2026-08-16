@@ -53,7 +53,7 @@ Routing in [`src/cli/manifest.ts:387`](../../../src/cli/manifest.ts) is unchange
 
 ### Unit 5 — mode-list doc/desc sync
 
-Every surface that enumerates split-check's modes or rules gains S1/S2 + `--spec`, in the same commit as Unit 1/2. Nothing forces these lists to gain the new mode (`validate-script-catalog.ts` diffs only `src/` link targets), so omission rots silently — but the doc pairs themselves are byte-identical twins enforced by `checks template-sync` at pre-commit and pre-push, so each edit must land in **both** the template and its `docs/noldor/` copy:
+Every surface that enumerates split-check's modes or rules gains S1/S2 + `--spec`, in the same PR as Unit 1/2 (commit-scope rules force `docs/noldor/` edits into their own `noldor`-scoped commits, so one commit cannot carry them all). Nothing forces these lists to gain the new mode (`validate-script-catalog.ts` diffs only `src/` link targets), so omission rots silently — but the doc pairs themselves are byte-identical twins enforced by `checks template-sync` at pre-commit and pre-push, so each edit must land in **both** the template and its `docs/noldor/` copy:
 
 - `templates/docs/noldor/complexity-gating.md` + `docs/noldor/complexity-gating.md` — rule table (S1/S2 rows beside E1–P1) and the `Modes:` sentence.
 - `templates/docs/noldor/script-catalog.md` + `docs/noldor/script-catalog.md` — the split-check entry's mode list (`--entry|--fd|--plan` → add `--spec`).
