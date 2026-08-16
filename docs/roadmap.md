@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Bounded CR Re-Rounds: Design-Only Blockers and a Round Cap
-
-- id: Q-0130
-- area: tooling
-- type: fix
-- since: 2026-08-15
-- size: S
-- impact: high
-- confidence: high
-
-The artifact-stage address-blockers loop has no termination rule: `cr orchestrate` exits 1 on ANY blocker, so a `[med]` wording nit forces the same fix-commit-re-review cycle as a design flaw, and delta review of freshly written prose near-guarantees a new finding — each fix is new surface, so the loop self-feeds. Q-0112 spec: rounds 1–3 caught real design flaws, rounds 4–11 were document self-consistency findings seeded by the previous round's fix. Precedent: Q-0073 = 14 rounds, Q-0078 = 11, Q-0124 = 10 ("never fully clean"). The reviewer already tags every blocker `[mechanical]`/`[design]` and autofix already caps at 2 rounds — the manual loop uses neither. Fix: only `[design]`-tagged blockers trigger a re-round; mechanical/wording findings are fixed-and-proceed (the next stage catches regressions); hard cap of 2–3 artifact-stage rounds mirroring autofix's, after which the remaining tail goes to the operator as one batched decision instead of round-by-round. Skill prose first; optional `crReview.maxArtifactRounds` knob later.
-
 ### Spec Size Governor
 
 - id: Q-0131
