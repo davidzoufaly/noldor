@@ -42,18 +42,18 @@ Body (operational restatement of baseline lines 151–156, not a verbatim copy):
 
 Frontmatter: `id: recompute-over-maintained-state`, same scope/stage/enforce, `links: [.claude/engineering-rules.md]`.
 
-Body carries the Q-0073 lesson (PR #268, 14 CR rounds):
+Body (behavioral only — the provenance of this rule is Q-0073 / PR #268, where a set mutated at every ship/skip/merge/retry/timeout leaf produced four separate missed-`delete` review rounds until the state was replaced by a fresh recomputation; that history stays here in the spec and never enters the distributed rule text — D5):
 
-- Prefer a recomputed decision over maintained state whenever the state has many mutation sites. A `finishable` Set mutated at every ship/skip/merge/retry/timeout leaf produced four separate "you missed another `delete`" rounds; replacing it with a verdict recomputed fresh immediately before each use (`resolveFinishPrompt`) erased the class.
-- Reviewer-side reading: repeated rounds of "you missed another unwind site" are the reviewer circling a design smell — treat as one design finding (replace the maintained state), not N separate bugs.
+- Prefer a recomputed decision over maintained state whenever the state has many mutation sites: when a flag, set, or cache must be updated at every branch that could change it, replace it with a pure function that recomputes the answer at each use point.
+- Reviewer-side reading: repeated findings of the same missed-update class against one piece of state are one design finding — replace the maintained state — not N separate bugs.
 
 ### Unit 3 — `.noldor/rules/concurrency-write-discipline.md`
 
-Frontmatter: `id: concurrency-write-discipline`, same scope/stage/enforce, `links: [.claude/engineering-rules.md, src/core/atomic-write.ts]`.
+Frontmatter: `id: concurrency-write-discipline`, same scope/stage/enforce, `links: [.claude/engineering-rules.md]`.
 
-Body (write-time counterpart of `DIMENSION_GUIDE.concurrency`'s review-time tells):
+Body (write-time counterpart of `DIMENSION_GUIDE.concurrency`'s review-time tells; stated generically so the byte-identical twin stays valid in any consumer repo — no noldor-internal paths or symbols in body or links, D4. In this repo the helper the first bullet points at is [`src/core/atomic-write.ts`](../../../src/core/atomic-write.ts) `atomicWriteFileSync`; the rule text deliberately does not name it):
 
-- Non-atomic read-modify-write on shared files is a race; route multi-reader file writes through the house helper ([`src/core/atomic-write.ts`](../../../src/core/atomic-write.ts) `atomicWriteFileSync` — temp file + rename).
+- Non-atomic read-modify-write on shared files is a race; write multi-reader files via temp-file + rename through the repo's atomic-write helper, never in place.
 - git / subprocess / poll loops stay sequential on purpose — `eslint/no-await-in-loop` is off deliberately; `Promise.all` over such steps races the index or the remote.
 - Liveness is a fresh probe (`ps`, an actual connect), never trust in a stale lock or PID file.
 - Machine half stays named in `.oxlintrc.json` (`no-async-promise-executor`); `require-atomic-updates` has no oxlint implementation, which is exactly why this rule exists.
@@ -115,3 +115,5 @@ As a Noldor author or reviewer agent, I want the error-flow, state-discipline, a
 2. _Do the rules distribute to consumers?_ -> Yes, all three get `templates/.noldor/rules/` twins. They mirror already-distributed baseline policy; shipping enforce coverage only to noldor itself would reproduce downstream the exact dogfood gap the entry complains about (D2).
 3. _Ids, scope, flags?_ -> `error-result-types` (entry-named), `recompute-over-maintained-state`, `concurrency-write-discipline`; all `enforce: true`, `stage: [code]`, `applies-to: ["src/**/*.ts"]` including tests — no negation globs until a real false-positive round earns them (D3).
 4. _New tests?_ -> None. Data-only change; rules tests are fixture-store by design, and `rules validate` + `template-sync` + the live-CLI acceptance checks cover the store. Adding a test that pins live-store contents would couple the suite to policy data — the exact coupling `cli-brief.test.ts` documents avoiding (D3).
+5. _May a distributed rule reference noldor-internal paths (`src/core/atomic-write.ts`)?_ -> No. Rule bodies and `links` stay consumer-generic ("the repo's atomic-write helper"); twins ship byte-identical, and `renderBrief` prints links verbatim into consumer prompts (D4, CR round 1).
+6. _May the state rule carry its Q-0073 anecdote?_ -> No. The distributed body is behavioral only; provenance lives in this spec, which is repo-local (D5, CR round 1).
