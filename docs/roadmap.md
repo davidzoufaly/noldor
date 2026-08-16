@@ -43,21 +43,6 @@ Consumers get feature MDs, specs, and plans but no architecture surface — no p
 
 - The same gap holds for Noldor itself, and the scoping spike should decide whether one surface serves both or whether framework-internal architecture is a separate promotable item. The repo has rich feature docs and 107 design artifacts but no root `CONTEXT.md`, no module map and no `docs/adr/`, so maintainers and agents infer current architecture and rationale from 47k runtime LOC plus historical specs whose links are already stale (Q-0098). That makes unusual but intentional constraints — source-at-runtime packaging, adoption-safe advisories, sequential queue writes, graph fallbacks — read as accidental bugs, while genuine cross-module seams such as repository mutation (Q-0109) and snapshot ownership (Q-0110) stay implicit. Wanted: a concise current map in the project's own domain vocabulary showing major modules, dependency direction, durable state, entry points, and where each decision record lives, plus ADRs for active consequential choices rather than backfilled history. Deletion test: a new reader should not have to traverse archived plans to answer "which module owns repository paths, writes, and review completion?" (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
 
-### Prose Rules → Enforce Cascade Rules
-
-- id: Q-0069
-- area: tooling
-- type: refactor
-- since: 2026-08-05
-- size: M
-- impact: med
-- confidence: med
-- parent: rules-cascade-v1
-
-The dimensions that are prose-only today sit buried in a 181-line baseline: error flow (result types, throw only for programmer errors, catch external at the boundary, never swallow) is at line 137 and is machine-unchecked. Migrate them into scoped rule files — `.noldor/rules/error-result-types.md` with `applies-to: ["src/**/*.ts"]`, `stage: [code]`, `enforce: true` — so the rule lands in the enforce bucket exactly on the files being edited rather than in a wall of text the author has to filter mentally. Same treatment for state discipline and concurrency.
-
-- One concrete state-discipline rule the migration should carry, earned over 14 CR rounds on Q-0073 (PR #268): the first cut of finish-mode kept a `finishable` Set that had to be mutated at every ship, skip, merge, retry and timeout leaf, and rounds 5, 10, 11 and 13 each found a different missed `delete`. Replacing it with a verdict recomputed fresh immediately before each spawn (`resolveFinishPrompt`) made the whole class of finding vanish with all 215 autonomous tests passing unchanged. State the rule as "prefer a recomputed decision over maintained state whenever the state has many mutation sites", and pair it with the reviewer-side reading: four rounds of "you missed another unwind" is the reviewer circling a design smell, not four separate bugs.
-
 ### Oversize Task Split: Which Phase Owns It
 
 - id: Q-0108
