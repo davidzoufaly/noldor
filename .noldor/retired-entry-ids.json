@@ -41,5 +41,10 @@
     "slug": "prose-rules-enforce-cascade-rules",
     "retiredInto": "rules-cascade-v1",
     "retiredAt": "2026-08-16"
+  },
+  "Q-0131": {
+    "slug": "spec-size-governor",
+    "retiredInto": "framework-auto-split-suggestion-for-big-features-and-plans",
+    "retiredAt": "2026-08-16"
   }
 }

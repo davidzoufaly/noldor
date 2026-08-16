@@ -6,8 +6,8 @@
  * label against the body it describes — a mislabeled `S` with an L-sized body
  * sails through to a doomed drain iteration (the `prefix-skills-with-noldor`
  * incident). These heuristics measure the artifact itself at each commit
- * point (/noldor-promote step 1.7, noldor-plan post-save, gate Step 2.5 kind=plan,
- * headless drain entry) and *suggest* a split; the framework never
+ * point (/noldor-promote step 1.7, noldor-plan post-save, gate Step 2.5
+ * kind=plan and kind=spec, headless drain entry) and *suggest* a split; the framework never
  * auto-splits and never re-sizes.
  *
  * Thresholds are deliberately exported constants, not config (spec D1/D5):
@@ -17,7 +17,7 @@ import type { BacklogEntry } from '../utils/parse-blocks.js';
 import { extractTouches } from './extract-touches.js';
 
 export interface SplitSignal {
-  readonly rule: string; // 'E1' | 'E2' | 'E3' | 'F1' | 'P1'
+  readonly rule: string; // 'E1' | 'E2' | 'E3' | 'F1' | 'P1' | 'S1' | 'S2'
   readonly value: number;
   readonly threshold: number;
   readonly message: string; // human sentence incl. suggested remedy
@@ -28,8 +28,16 @@ export const ENTRY_BULLET_THRESHOLD = 6;
 export const ENTRY_TOUCHES_THRESHOLD = 8;
 export const FD_LINKS_CODE_THRESHOLD = 30;
 export const PLAN_ROW_THRESHOLD = 1000;
+export const SPEC_WORD_THRESHOLD = 6000;
+export const SPEC_CRITERIA_THRESHOLD = 20;
 
 const SCOPE_BULLET_RE = /^\s*-\s+/;
+
+/** Whitespace-token word count, empty-safe. Shared by E1 and S1 so the two cannot drift. */
+function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+}
 
 /**
  * E1/E2/E3 heuristics over a roadmap/backlog entry body — the free-text
@@ -39,8 +47,7 @@ const SCOPE_BULLET_RE = /^\s*-\s+/;
  */
 export function assessEntrySplit(entry: Pick<BacklogEntry, 'description'>): SplitSignal[] {
   const signals: SplitSignal[] = [];
-  const trimmed = entry.description.trim();
-  const words = trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+  const words = countWords(entry.description);
   if (words > ENTRY_WORD_THRESHOLD) {
     signals.push({
       rule: 'E1',
@@ -117,4 +124,59 @@ export function assessPlanSplit(planMd: string): SplitSignal[] {
         `shippable.`,
     },
   ];
+}
+
+const SPEC_ACCEPTANCE_HEADING_RE = /^##\s+Acceptance/i;
+const SECTION_HEADING_RE = /^## /;
+const TOP_LEVEL_CRITERION_RE = /^(?:-|\d+\.) /;
+
+/**
+ * Top-level list items (`- ` or `N. ` — 6 of the corpus's acceptance
+ * sections are ordered lists) inside the acceptance section: from the first
+ * line matching `## Acceptance*` (case-insensitive — covers `## Acceptance
+ * criteria` and bare `## Acceptance`) up to the next `## ` heading or EOF.
+ * Nested (indented) items are not counted. No matching heading → 0.
+ */
+function countSpecCriteria(specMd: string): number {
+  const lines = specMd.split('\n');
+  const start = lines.findIndex((l) => SPEC_ACCEPTANCE_HEADING_RE.test(l));
+  if (start === -1) return 0;
+  let count = 0;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (SECTION_HEADING_RE.test(lines[i])) break;
+    if (TOP_LEVEL_CRITERION_RE.test(lines[i])) count += 1;
+  }
+  return count;
+}
+
+/**
+ * S1/S2 heuristics over a design-spec markdown body. A spec with no
+ * `## Acceptance*` heading is S2-silent by design — with no criteria section
+ * there is no criteria bloat to measure, and S1 still covers raw bulk.
+ */
+export function assessSpecSplit(specMd: string): SplitSignal[] {
+  const signals: SplitSignal[] = [];
+  const words = countWords(specMd);
+  if (words > SPEC_WORD_THRESHOLD) {
+    signals.push({
+      rule: 'S1',
+      value: words,
+      threshold: SPEC_WORD_THRESHOLD,
+      message:
+        `spec is ${words} words (threshold ${SPEC_WORD_THRESHOLD}) — split the design into ` +
+        `sibling attach enhancements, one per concern, before implementation.`,
+    });
+  }
+  const criteria = countSpecCriteria(specMd);
+  if (criteria > SPEC_CRITERIA_THRESHOLD) {
+    signals.push({
+      rule: 'S2',
+      value: criteria,
+      threshold: SPEC_CRITERIA_THRESHOLD,
+      message:
+        `spec has ${criteria} acceptance criteria (threshold ${SPEC_CRITERIA_THRESHOLD}; ` +
+        `budget ~12) — collapse per-detail criteria into behavior-level ones or split the scope.`,
+    });
+  }
+  return signals;
 }

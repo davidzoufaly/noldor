@@ -386,7 +386,7 @@ export const MANIFEST: Record<string, Group> = {
       },
       'split-check': {
         src: 'core/split-check-cli.ts',
-        desc: 'Suggest a split when an entry/FD/plan exceeds size thresholds',
+        desc: 'Suggest a split when an entry/FD/plan/spec exceeds size thresholds',
       },
       'rename-plan-only-tier': {
         src: 'core/rename-plan-only-tier.ts',

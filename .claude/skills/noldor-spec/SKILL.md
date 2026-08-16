@@ -32,6 +32,9 @@ Turn an idea into a reviewed design document through collaborative dialogue. No 
 ## Rules
 
 - One question per message — never a wall of questions.
+- Acceptance criteria pin behavior, not phrasing — state observable outcomes (exit code, file written, signal emitted), never exact wording of messages or prose structure, which turns every reword into a drift finding.
+- Budget ~12 acceptance criteria. More usually means the spec bundles concerns or pins details; collapse per-detail criteria into behavior-level ones or split the scope (the gate's `split-check --spec` flags >20).
+- Never write review-history meta-narrative into the artifact — no "as flagged in round N", no reviewer-dialogue recaps, no self-references to the spec's own revision process. Pure liability surface that later rounds re-flag.
 - In existing code, follow existing patterns; include targeted improvements only where existing problems affect the work.
 - Open questions section: answer your own questions with a recommendation and a one-line rationale; the operator ratifies rather than originates.
 - The operator's explicit instructions always override this skill.

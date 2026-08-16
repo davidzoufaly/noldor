@@ -9,11 +9,12 @@ import {
   assessEntrySplit,
   assessFdBreadth,
   assessPlanSplit,
+  assessSpecSplit,
   type SplitSignal,
 } from './split-suggestion.js';
 
 /**
- * `pnpm noldor noldor split-check` — suggest a split when an entry/FD/plan
+ * `pnpm noldor noldor split-check` — suggest a split when an entry/FD/plan/spec
  * exceeds the `split-suggestion.ts` size thresholds.
  *
  * Exit contract mirrors `lint-plan-snippets` exactly so skills shell out to
@@ -27,7 +28,8 @@ export interface SplitCheckResult {
   readonly lines: readonly string[];
 }
 
-const USAGE = 'usage: split-check --entry <slug> | --plan <path> | --fd <slug> [--add <path>...]';
+const USAGE =
+  'usage: split-check --entry <slug> | --plan <path> | --spec <path> | --fd <slug> [--add <path>...]';
 
 function usageError(detail: string): SplitCheckResult {
   return { exitCode: 1, lines: [USAGE, `error: ${detail}`] };
@@ -69,23 +71,31 @@ function toResult(signals: readonly SplitSignal[]): SplitCheckResult {
 export function runSplitCheck(args: readonly string[], cwd: string): SplitCheckResult {
   let entry: string | undefined;
   let plan: string | undefined;
+  let spec: string | undefined;
   let fd: string | undefined;
   const add: string[] = [];
   let i = 0;
   while (i < args.length) {
     const flag = args[i];
-    if (flag !== '--entry' && flag !== '--plan' && flag !== '--fd' && flag !== '--add') {
+    if (
+      flag !== '--entry' &&
+      flag !== '--plan' &&
+      flag !== '--spec' &&
+      flag !== '--fd' &&
+      flag !== '--add'
+    ) {
       return usageError(`unknown argument ${flag}`);
     }
     const value = args[i + 1];
     if (value === undefined) return usageError(`missing value after ${flag}`);
     if (flag === '--entry') entry = value;
     else if (flag === '--plan') plan = value;
+    else if (flag === '--spec') spec = value;
     else if (flag === '--fd') fd = value;
     else add.push(value);
     i += 2;
   }
-  const modes = [entry, plan, fd].filter((m) => m !== undefined);
+  const modes = [entry, plan, spec, fd].filter((m) => m !== undefined);
   if (modes.length !== 1) return { exitCode: 1, lines: [USAGE] };
 
   if (entry !== undefined) {
@@ -99,6 +109,13 @@ export function runSplitCheck(args: readonly string[], cwd: string): SplitCheckR
     const md = readFileOrNull(path);
     if (md === null) return usageError(`cannot read plan at ${path}`);
     return toResult(assessPlanSplit(md));
+  }
+
+  if (spec !== undefined) {
+    const path = isAbsolute(spec) ? spec : join(cwd, spec);
+    const md = readFileOrNull(path);
+    if (md === null) return usageError(`cannot read spec at ${path}`);
+    return toResult(assessSpecSplit(md));
   }
 
   const fdPath = join(loadDocRoots(cwd).features, `${fd}.md`);

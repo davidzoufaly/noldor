@@ -116,6 +116,47 @@ describe('runSplitCheck', () => {
     expect(runSplitCheck(['--entry', 'x', '--plan', 'y'], dir).exitCode).toBe(1);
     expect(runSplitCheck(['--entry'], dir).exitCode).toBe(1);
   });
+
+  it('--spec: clean spec → exit 0; >20 criteria → exit 2 with an S2 line', () => {
+    const dir = makeFixtureRepo();
+    const clean = ['# Spec', '', '## Acceptance criteria', '', '- one criterion', ''].join('\n');
+    writeFileSync(join(dir, 'clean-spec.md'), clean);
+    expect(runSplitCheck(['--spec', 'clean-spec.md'], dir)).toEqual({ exitCode: 0, lines: [] });
+    const bloated = [
+      '# Spec',
+      '',
+      '## Acceptance criteria',
+      '',
+      ...Array.from({ length: 21 }, (_, i) => `- criterion ${i}`),
+      '',
+    ].join('\n');
+    writeFileSync(join(dir, 'bloated-spec.md'), bloated);
+    const res = runSplitCheck(['--spec', 'bloated-spec.md'], dir);
+    expect(res.exitCode).toBe(2);
+    expect(res.lines).toHaveLength(1);
+    expect(res.lines[0]).toContain('[S2]');
+  });
+
+  it('--spec: >6000-word spec → exit 2 with an S1 line', () => {
+    const dir = makeFixtureRepo();
+    const big = Array.from({ length: 6001 }, (_, i) => `w${i}`).join(' ');
+    writeFileSync(join(dir, 'big-spec.md'), big);
+    const res = runSplitCheck(['--spec', 'big-spec.md'], dir);
+    expect(res.exitCode).toBe(2);
+    expect(res.lines[0]).toContain('[S1]');
+  });
+
+  it('--spec: unreadable path → exit 1 naming the path', () => {
+    const dir = makeFixtureRepo();
+    const res = runSplitCheck(['--spec', 'missing-spec.md'], dir);
+    expect(res.exitCode).toBe(1);
+    expect(res.lines.join('\n')).toContain('cannot read spec');
+  });
+
+  it('--spec conflicts with --plan → exit 1 usage', () => {
+    const dir = makeFixtureRepo();
+    expect(runSplitCheck(['--spec', 'a.md', '--plan', 'b.md'], dir).exitCode).toBe(1);
+  });
 });
 
 describe('CLI exit-code contract (subprocess, mirrors lint-plan-snippets)', () => {
