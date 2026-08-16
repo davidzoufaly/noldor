@@ -1,9 +1,9 @@
 ---
 id: concurrency-write-discipline
-applies-to: ["src/**/*.ts"]
+applies-to: ["**/*.ts"]
 stage: [code]
 enforce: true
-links: [.claude/engineering-rules.md]
+links: [docs/noldor/rules.md]
 ---
 
 Non-atomic read-modify-write on shared files is a race: write multi-reader files via

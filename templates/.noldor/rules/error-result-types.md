@@ -1,9 +1,9 @@
 ---
 id: error-result-types
-applies-to: ["src/**/*.ts"]
+applies-to: ["**/*.ts"]
 stage: [code]
 enforce: true
-links: [.claude/engineering-rules.md]
+links: [docs/noldor/rules.md]
 ---
 
 Expected failures return a result type (`{ success: true, data } | { success: false, errors }`

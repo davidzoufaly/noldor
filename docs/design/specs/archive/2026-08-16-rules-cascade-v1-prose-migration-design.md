@@ -11,7 +11,7 @@ Three review dimensions are prose-only today: error flow, state discipline, and 
 
 ## Goals
 
-- The three dimensions land in the **enforce** bucket exactly on the files being edited (`src/**/*.ts`, stage `code`), via three new rule files in `.noldor/rules/`.
+- The three dimensions land in the **enforce** bucket exactly on the files being edited (`**/*.ts`, stage `code` — the distributed-rule scope `lazy-decision-ladder` set), via three new rule files in `.noldor/rules/`.
 - The Q-0073 state-discipline lesson is captured as normative rule text, including its reviewer-side reading.
 - Consumers receive all three rules via `pnpm noldor init` / `init --update` (template twins).
 - Existing store integrity gates keep holding: `pnpm noldor rules validate`, `pnpm noldor checks template-sync`.
@@ -29,7 +29,7 @@ Six new markdown files, one FD frontmatter edit, zero code changes.
 
 ### Unit 1 — `.noldor/rules/error-result-types.md`
 
-Frontmatter: `id: error-result-types`, `applies-to: ["src/**/*.ts"]`, `stage: [code]`, `enforce: true`, `links: [.claude/engineering-rules.md]`.
+Frontmatter: `id: error-result-types`, `applies-to: ["**/*.ts"]`, `stage: [code]`, `enforce: true`, `links: [docs/noldor/rules.md]`.
 
 Body (operational restatement of baseline lines 151–156, not a verbatim copy):
 
@@ -40,7 +40,7 @@ Body (operational restatement of baseline lines 151–156, not a verbatim copy):
 
 ### Unit 2 — `.noldor/rules/recompute-over-maintained-state.md`
 
-Frontmatter: `id: recompute-over-maintained-state`, same scope/stage/enforce, `links: [.claude/engineering-rules.md]`.
+Frontmatter: `id: recompute-over-maintained-state`, same scope/stage/enforce/links.
 
 Body (behavioral only — the provenance of this rule is Q-0073 / PR #268, where a set mutated at every ship/skip/merge/retry/timeout leaf produced four separate missed-`delete` review rounds until the state was replaced by a fresh recomputation; that history stays here in the spec and never enters the distributed rule text — D5):
 
@@ -49,7 +49,7 @@ Body (behavioral only — the provenance of this rule is Q-0073 / PR #268, where
 
 ### Unit 3 — `.noldor/rules/concurrency-write-discipline.md`
 
-Frontmatter: `id: concurrency-write-discipline`, same scope/stage/enforce, `links: [.claude/engineering-rules.md]`.
+Frontmatter: `id: concurrency-write-discipline`, same scope/stage/enforce/links.
 
 Body (write-time counterpart of `DIMENSION_GUIDE.concurrency`'s review-time tells; stated generically so the byte-identical twin stays valid in any consumer repo — no noldor-internal paths or symbols in body or links, D4. In this repo the helper the first bullet points at is [`src/core/atomic-write.ts`](../../../src/core/atomic-write.ts) `atomicWriteFileSync`; the rule text deliberately does not name it):
 
@@ -105,7 +105,7 @@ As a Noldor author or reviewer agent, I want the error-flow, state-discipline, a
 
 ## Usage
 
-- `pnpm noldor rules brief --file <path> --stage code` — the three rules render under ENFORCE for any `src/**/*.ts` path (gate Step 3.5 runs this before the first edit).
+- `pnpm noldor rules brief --file <path> --stage code` — the three rules render under ENFORCE for any `*.ts` path (gate Step 3.5 runs this before the first edit).
 - Code-stage CR: orchestrate resolves the enforce bucket for changed files automatically; a violation is a finding even when the brief was skipped.
 - `pnpm noldor rules list` / `rules resolve` — store enumeration includes the new ids.
 - Consumers: `pnpm noldor init` / `init --update` scaffolds the three rules from `templates/.noldor/rules/`.
@@ -114,7 +114,7 @@ As a Noldor author or reviewer agent, I want the error-flow, state-discipline, a
 
 1. _What happens to the matching baseline sections once the rules exist?_ -> Keep the baseline untouched; rule files link back. Matches the `ts-colocate-schema-type` precedent and avoids churning a distributed, twin-synced page (D1).
 2. _Do the rules distribute to consumers?_ -> Yes, all three get `templates/.noldor/rules/` twins. They mirror already-distributed baseline policy; shipping enforce coverage only to noldor itself would reproduce downstream the exact dogfood gap the entry complains about (D2).
-3. _Ids, scope, flags?_ -> `error-result-types` (entry-named), `recompute-over-maintained-state`, `concurrency-write-discipline`; all `enforce: true`, `stage: [code]`, `applies-to: ["src/**/*.ts"]` including tests — no negation globs until a real false-positive round earns them (D3).
+3. _Ids, scope, flags?_ -> `error-result-types` (entry-named), `recompute-over-maintained-state`, `concurrency-write-discipline`; all `enforce: true`, `stage: [code]`, `applies-to: ["**/*.ts"]` including tests — the scope and the `links: [docs/noldor/rules.md]` target mirror `lazy-decision-ladder`, the proven distributed rule: `src/**`-only globs silently match nothing in consumers that keep TS under `packages/`/`apps/`/`scripts/` (`DEFAULT_SCAN_ROOTS`), and the baseline file can be absent in codex-only consumers while `docs/noldor/rules.md` is templated into every repo (D3, revised CR round 4).
 4. _New tests?_ -> None. Data-only change; rules tests are fixture-store by design, and `rules validate` + `template-sync` + the live-CLI acceptance checks cover the store. Adding a test that pins live-store contents would couple the suite to policy data — the exact coupling `cli-brief.test.ts` documents avoiding (D3).
 5. _May a distributed rule reference noldor-internal paths (`src/core/atomic-write.ts`)?_ -> No. Rule bodies and `links` stay consumer-generic ("the repo's atomic-write helper"); twins ship byte-identical, and `renderBrief` prints links verbatim into consumer prompts (D4, CR round 1).
 6. _May the state rule carry its Q-0073 anecdote?_ -> No. The distributed body is behavioral only; provenance lives in this spec, which is repo-local (D5, CR round 1).

@@ -1,9 +1,9 @@
 ---
 id: recompute-over-maintained-state
-applies-to: ["src/**/*.ts"]
+applies-to: ["**/*.ts"]
 stage: [code]
 enforce: true
-links: [.claude/engineering-rules.md]
+links: [docs/noldor/rules.md]
 ---
 
 Prefer a recomputed decision over maintained state whenever the state has many mutation
