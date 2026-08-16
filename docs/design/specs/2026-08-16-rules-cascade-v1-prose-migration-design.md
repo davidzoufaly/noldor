@@ -66,7 +66,7 @@ Byte-identical copies of Units 1–3 under `templates/.noldor/rules/` (same file
 
 Append the three repo-side rule paths + three template-twin paths to `docs/features/rules-cascade-v1.md` frontmatter `links.code` (the generated Resources section follows via the `fd-resources` pre-commit sync — never hand-edit the section itself).
 
-The FD documents the rules it owns in body prose — Usage line 58 describes `lazy-decision-ladder` inline — so frontmatter-only edits would leave the body stale. Unit 5 therefore also adds one Usage bullet naming the three new rule ids with a one-line gist each, written by hand during implementation (Usage prose is authored, not generated; the gate Step 4 automatic `--refresh --usage-only` pass is not relied on here because its changed-file filter is a source-extension allowlist that may exclude `.noldor/rules/*.md`-only diffs).
+The FD documents the rules it owns in body prose — Usage line 58 describes `lazy-decision-ladder` inline — so frontmatter-only edits would leave the body stale. Unit 5 therefore also adds one Usage bullet naming the three new rule ids with a one-line gist each, written by hand during implementation. The gate Step 4 automatic `--refresh --usage-only` pass WILL also fire on this diff (its allowlist includes `*.md`, so `.noldor/rules/*.md` survives the scope filter) and may amend or compress the hand-written bullet; that is acceptable — the acceptance criterion pins the end state (Usage names all three ids), whichever pass produces it.
 
 ### Data flow (unchanged, now carrying 3 more rules)
 
@@ -90,6 +90,7 @@ No new unit tests: this is a data-only change and every rules test runs against 
 - `pnpm noldor validate features` exits 0 after the FD `links.code` edit.
 - `docs/features/rules-cascade-v1.md` Usage names all three new rule ids inline (body prose, not only `links.code` frontmatter).
 - Each rule body ≤ ~15 lines, states behavior not phrasing, and contains no review-history meta-narrative.
+- No rule body or `links` entry in Units 1–3 (or their twins) names a repo-internal source path or symbol (e.g. `src/**`, `atomicWriteFileSync`) — the D4 consumer-generic constraint, machine-checkable by grep.
 
 ## Risks / trade-offs
 
