@@ -16,11 +16,10 @@ links:
 name: Framework Auto-Split Suggestion for Big Features and Plans
 packages:
   - scripts
-phase: done
+phase: in-progress
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
-
 ## Summary
 
 When a feature or plan grows past size thresholds, the framework should suggest a split rather than letting work calcify around an oversized FD or unwieldy plan. Heuristics: word count, scope-bullet count, file-touch breadth (from `links.code`), or for plans the row count. The suggestion surfaces in `/noldor-promote` (feature) and the plan skill before the operator commits to the path. Today the operator is on their own to spot oversized scope — live example: `prefix-skills-with-noldor` sat mislabeled S for weeks until a drain attempt revealed an L-sized self-referential mega-rename (now parked in backlog, re-sized).

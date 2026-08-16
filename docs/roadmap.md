@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Spec Size Governor
-
-- id: Q-0131
-- area: tooling
-- type: feat
-- since: 2026-08-15
-- size: S
-- impact: med
-- confidence: high
-- parent: framework-auto-split-suggestion-for-big-features-and-plans
-
-split-check governs entries (`--entry`), FDs (`--fd`) and plans (`--plan`) but not specs — so Q-0112's spec grew to 677 lines with 22 acceptance criteria, and its self-consistency surface (criteria vs prose vs resolved-questions drift) generated most of an 11-round review tail. Add a `--spec` signal (word count + acceptance-criteria count thresholds), and teach the noldor-spec skill three rules: acceptance criteria pin behavior, not phrasing; budget ~12 criteria; never write review-history meta-narrative into the artifact (it is pure liability surface — Q-0112's spec narrated its own rounds three times and got flagged for it).
-
 ### Consumer Architecture Doc Surface
 
 - id: Q-0093
