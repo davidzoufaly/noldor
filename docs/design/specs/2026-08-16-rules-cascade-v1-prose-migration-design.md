@@ -62,9 +62,11 @@ Body (write-time counterpart of `DIMENSION_GUIDE.concurrency`'s review-time tell
 
 Byte-identical copies of Units 1–3 under `templates/.noldor/rules/` (same filenames), following the `lazy-decision-ladder.md` distribution pattern. `pnpm noldor checks template-sync` gates the pairing from then on.
 
-### Unit 5 — parent FD `links.code`
+### Unit 5 — parent FD `links.code` + Usage refresh
 
 Append the three repo-side rule paths + three template-twin paths to `docs/features/rules-cascade-v1.md` frontmatter `links.code` (the generated Resources section follows via the `fd-resources` pre-commit sync — never hand-edit the section itself).
+
+The FD documents the rules it owns in body prose — Usage line 58 describes `lazy-decision-ladder` inline — so frontmatter-only edits would leave the body stale. Unit 5 therefore also adds one Usage bullet naming the three new rule ids with a one-line gist each, written by hand during implementation (Usage prose is authored, not generated; the gate Step 4 automatic `--refresh --usage-only` pass is not relied on here because its changed-file filter is a source-extension allowlist that may exclude `.noldor/rules/*.md`-only diffs).
 
 ### Data flow (unchanged, now carrying 3 more rules)
 
@@ -86,6 +88,7 @@ No new unit tests: this is a data-only change and every rules test runs against 
 - `pnpm noldor checks template-sync` exits 0 (twins byte-identical).
 - `.claude/engineering-rules.md` and `templates/.claude/engineering-rules.md` are unchanged (`git diff --quiet` on both).
 - `pnpm noldor validate features` exits 0 after the FD `links.code` edit.
+- `docs/features/rules-cascade-v1.md` Usage names all three new rule ids inline (body prose, not only `links.code` frontmatter).
 - Each rule body ≤ ~15 lines, states behavior not phrasing, and contains no review-history meta-narrative.
 
 ## Risks / trade-offs
