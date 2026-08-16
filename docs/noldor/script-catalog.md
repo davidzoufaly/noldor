@@ -386,7 +386,7 @@ Leaf commands (flags land directly after the group name, e.g. `pnpm noldor init 
 | `pnpm noldor fmt`                        | [`src/core/fmt-guard-cli.ts`](../../src/core/fmt-guard-cli.ts) | Format (or `--check`) with the no-target guard (oxfmt wrapper).                              |
 | `pnpm noldor commit`                     | [`src/core/commit-cli.ts`](../../src/core/commit-cli.ts) | Forward args to `git commit`, exit with git's real code, and print an `OK`/`NO-OP`/`FAILED` verdict last — survives `\| tail`. |
 | `pnpm noldor upgrade`                    | [`src/cli/commands/upgrade.ts`](../../src/cli/commands/upgrade.ts) | Run the version-aware migration chain (`--dry-run` / `--from <version>` / `--force`).       |
-| `pnpm noldor noldor split-check`         | [`src/core/split-check-cli.ts`](../../src/core/split-check-cli.ts) | Suggest a split when an entry/FD/plan exceeds size thresholds (`--entry\|--fd\|--plan`).     |
+| `pnpm noldor noldor split-check`         | [`src/core/split-check-cli.ts`](../../src/core/split-check-cli.ts) | Suggest a split when an entry/FD/plan/spec exceeds size thresholds (`--entry\|--fd\|--plan\|--spec`).     |
 | `pnpm noldor roadmap remove-block`       | [`src/triage/remove-block-cli.ts`](../../src/triage/remove-block-cli.ts) | Remove a schema-C block by slug (`--backlog` for backlog.md; absent slug = no-op).          |
 
 ## Prep
