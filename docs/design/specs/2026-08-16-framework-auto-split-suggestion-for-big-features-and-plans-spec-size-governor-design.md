@@ -53,12 +53,14 @@ Routing in [`src/cli/manifest.ts:387`](../../../src/cli/manifest.ts) is unchange
 
 ### Unit 5 — mode-list doc/desc sync
 
-Every surface that enumerates split-check's modes or rules gains S1/S2 + `--spec`, in the same commit as Unit 1/2 so none rots (none of these red CI — `validate-script-catalog.ts` diffs only `src/` link targets):
+Every surface that enumerates split-check's modes or rules gains S1/S2 + `--spec`, in the same commit as Unit 1/2. Nothing forces these lists to gain the new mode (`validate-script-catalog.ts` diffs only `src/` link targets), so omission rots silently — but the doc pairs themselves are byte-identical twins enforced by `checks template-sync` at pre-commit and pre-push, so each edit must land in **both** the template and its `docs/noldor/` copy:
 
-- `templates/docs/noldor/complexity-gating.md` — rule table (S1/S2 rows beside E1–P1) and the `Modes:` sentence. Templated: edit the template, never the rendered `docs/noldor/` copy.
-- `templates/docs/noldor/script-catalog.md` — the split-check entry's mode list (`--entry|--fd|--plan` → add `--spec`).
+- `templates/docs/noldor/complexity-gating.md` + `docs/noldor/complexity-gating.md` — rule table (S1/S2 rows beside E1–P1) and the `Modes:` sentence.
+- `templates/docs/noldor/script-catalog.md` + `docs/noldor/script-catalog.md` — the split-check entry's mode list (`--entry|--fd|--plan` → add `--spec`).
 - `src/cli/manifest.ts` — `split-check.desc`.
 - `src/core/split-suggestion.ts` — `SplitSignal.rule` comment union and the module JSDoc's commit-point list (add gate Step 2.5 kind=spec).
+- `src/core/split-check-cli.ts` — module JSDoc ("suggest a split when an entry/FD/plan exceeds…" → add spec).
+- `docs/features/framework-auto-split-suggestion-for-big-features-and-plans.md` — the Usage fence enumerating modes (`--entry`/`--fd`/`--plan` with rule annotations) and its "gate Step 2.5 `--kind plan`" flow item. The gate's ship-time `noldor-draft-feature-md --refresh --usage-only` regenerates Usage from the changed files, but the fence is listed here so the refresh is checked, not assumed.
 
 ### Unit 3 — gate wiring ([`.claude/skills/noldor-gate/SKILL.md`](../../../.claude/skills/noldor-gate/SKILL.md) + templates twin)
 
@@ -99,7 +101,7 @@ Extend the two existing suites (no new test files):
 - An unreadable `--spec` path exits 1 with usage + error lines on stdout.
 - Passing two mode flags (e.g. `--spec` with `--plan`) exits 1.
 - `SPEC_WORD_THRESHOLD` and `SPEC_CRITERIA_THRESHOLD` are exported constants in `split-suggestion.ts`; E1 and S1 share one `countWords()` helper.
-- The mode/rule enumerations in `templates/docs/noldor/complexity-gating.md`, `templates/docs/noldor/script-catalog.md`, and the manifest `desc` name `--spec` and S1/S2.
+- Every Unit 5 surface names `--spec`/S1/S2: the complexity-gating and script-catalog twins (template + `docs/noldor/` copy each), the manifest `desc`, both module JSDoc/comment sites in `split-suggestion.ts` and `split-check-cli.ts`, and the parent FD's Usage fence.
 - Gate SKILL.md Step 2.5 (live + templates twin) instructs running `split-check --spec` on kind=spec artifacts; `checks template-sync` passes.
 - noldor-spec SKILL.md `## Rules` (live + templates twin) carries the three authoring rules.
 - Existing `--entry` / `--fd` / `--plan` behavior is unchanged (existing tests stay green).
