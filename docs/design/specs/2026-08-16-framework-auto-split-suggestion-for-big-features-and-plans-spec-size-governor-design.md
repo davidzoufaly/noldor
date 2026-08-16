@@ -32,7 +32,7 @@ Beyond raw size, two authoring habits inflate the self-consistency surface: acce
 
 Two new rules, shaped exactly like `assessEntrySplit()`:
 
-- **S1 — spec bulk.** `SPEC_WORD_THRESHOLD = 6000`. Word count = `trim().split(/\s+/).length` over the full markdown (same tokenization as E1). Fires strictly greater-than. Message suggests splitting the design into sibling attach enhancements, one per concern.
+- **S1 — spec bulk.** `SPEC_WORD_THRESHOLD = 6000`. Word count comes from a shared `countWords(md: string): number` helper extracted in `split-suggestion.ts` — the existing E1 expression (`trimmed === '' ? 0 : trimmed.split(/\s+/).length`, empty-safe) moves into it and both E1 and S1 call it, so the two rules cannot drift. Fires strictly greater-than. Message suggests splitting the design into sibling attach enhancements, one per concern.
 - **S2 — criteria bloat.** `SPEC_CRITERIA_THRESHOLD = 20`. Count top-level `- ` bullets inside the `## Acceptance criteria` section (from a line matching `/^## Acceptance criteria/i` up to the next `/^## /` or EOF; nested bullets — indented `- ` — are not counted). Message states the ~12-criteria budget and suggests collapsing per-detail criteria into behavior-level ones.
 
 A spec with no `## Acceptance criteria` section counts 0 criteria — S2 stays silent (the format contract requires the section; enforcing its presence is the format's job, not the size governor's).
@@ -49,7 +49,16 @@ Mirror of the `--plan` branch: accept `--spec <path>` in the arg loop, extend th
 usage: split-check --entry <slug> | --plan <path> | --spec <path> | --fd <slug> [--add <path>...]
 ```
 
-No manifest change: [`src/cli/manifest.ts:387`](../../../src/cli/manifest.ts) already routes `split-check` to this file; flags are parsed internally.
+Routing in [`src/cli/manifest.ts:387`](../../../src/cli/manifest.ts) is unchanged (flags are parsed internally), but the entry's `desc` string enumerates the modes and must gain `--spec`.
+
+### Unit 5 — mode-list doc/desc sync
+
+Every surface that enumerates split-check's modes or rules gains S1/S2 + `--spec`, in the same commit as Unit 1/2 so none rots (none of these red CI — `validate-script-catalog.ts` diffs only `src/` link targets):
+
+- `templates/docs/noldor/complexity-gating.md` — rule table (S1/S2 rows beside E1–P1) and the `Modes:` sentence. Templated: edit the template, never the rendered `docs/noldor/` copy.
+- `templates/docs/noldor/script-catalog.md` — the split-check entry's mode list (`--entry|--fd|--plan` → add `--spec`).
+- `src/cli/manifest.ts` — `split-check.desc`.
+- `src/core/split-suggestion.ts` — `SplitSignal.rule` comment union and the module JSDoc's commit-point list (add gate Step 2.5 kind=spec).
 
 ### Unit 3 — gate wiring ([`.claude/skills/noldor-gate/SKILL.md`](../../../.claude/skills/noldor-gate/SKILL.md) + templates twin)
 
@@ -89,7 +98,8 @@ Extend the two existing suites (no new test files):
 - A spec with no `## Acceptance criteria` section never yields S2.
 - An unreadable `--spec` path exits 1 with usage + error lines on stdout.
 - Passing two mode flags (e.g. `--spec` with `--plan`) exits 1.
-- `SPEC_WORD_THRESHOLD` and `SPEC_CRITERIA_THRESHOLD` are exported constants in `split-suggestion.ts`.
+- `SPEC_WORD_THRESHOLD` and `SPEC_CRITERIA_THRESHOLD` are exported constants in `split-suggestion.ts`; E1 and S1 share one `countWords()` helper.
+- The mode/rule enumerations in `templates/docs/noldor/complexity-gating.md`, `templates/docs/noldor/script-catalog.md`, and the manifest `desc` name `--spec` and S1/S2.
 - Gate SKILL.md Step 2.5 (live + templates twin) instructs running `split-check --spec` on kind=spec artifacts; `checks template-sync` passes.
 - noldor-spec SKILL.md `## Rules` (live + templates twin) carries the three authoring rules.
 - Existing `--entry` / `--fd` / `--plan` behavior is unchanged (existing tests stay green).
@@ -107,7 +117,7 @@ As an operator (or autonomous gate run), I want oversized specs flagged at the S
 ## Usage
 
 - Manual: `pnpm noldor noldor split-check --spec docs/design/specs/2026-08-16-foo-design.md` → exit 0 silent, or `[S1]`/`[S2]` lines + exit 2.
-- Automatic: `/noldor-gate` Step 2.5 runs it on every committed spec artifact and surfaces signal lines in the lane-picker prompt; signals inform, never block.
+- Automatic: `/noldor-gate` Step 2.5 runs it in the lint pass (before the artifact commit) and surfaces signal lines in the lane-picker prompt; signals inform, never block.
 - Authoring: `/noldor-spec` writes specs under the three rules (behavior-pinning criteria, ~12-criteria budget, no review meta-narrative).
 
 ## Open questions (resolved)
