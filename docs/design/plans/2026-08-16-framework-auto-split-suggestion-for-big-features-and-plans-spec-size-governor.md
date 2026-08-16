@@ -128,7 +128,17 @@ export const SPEC_CRITERIA_THRESHOLD = 20;
   readonly rule: string; // 'E1' | 'E2' | 'E3' | 'F1' | 'P1' | 'S1' | 'S2'
 ```
 
-3c. In the module JSDoc (line 9), extend the commit-point list `(/noldor-promote step 1.7, noldor-plan post-save, gate Step 2.5 kind=plan, headless drain entry)` to `(/noldor-promote step 1.7, noldor-plan post-save, gate Step 2.5 kind=plan and kind=spec, headless drain entry)`.
+3c. In the module JSDoc the commit-point list spans lines 9–10 with a wrap:
+
+```
+ * label against the body it describes — a mislabeled `S` with an L-sized body
+ * sails through to a doomed drain iteration (the `prefix-skills-with-noldor`
+ * incident). These heuristics measure the artifact itself at each commit
+ * point (/noldor-promote step 1.7, noldor-plan post-save, gate Step 2.5 kind=plan,
+ * headless drain entry) and *suggest* a split; the framework never
+```
+
+Change only the parenthesized list so it reads `(/noldor-promote step 1.7, noldor-plan post-save, gate Step 2.5 kind=plan and kind=spec, headless drain entry)` — keep the comment wrapped at the same width (re-break the lines as needed).
 
 3d. Add the shared word counter directly below the `SCOPE_BULLET_RE` line, and switch E1 to it — in `assessEntrySplit`, replace the two lines
 
