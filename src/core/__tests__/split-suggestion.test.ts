@@ -210,6 +210,27 @@ describe('assessSpecSplit', () => {
     expect(assessSpecSplit(`# Spec\n\n## Design\n\n${bulletsOnly}\n`)).toEqual([]);
   });
 
+  it('S2: ordered-list criteria count too — 21 × "N. " fires, mixed forms sum', () => {
+    const ordered = Array.from({ length: 21 }, (_, i) => `${i + 1}. criterion ${i}`).join('\n');
+    expect(
+      assessSpecSplit(`# Spec\n\n## Acceptance criteria\n\n${ordered}\n`).map((s) => s.rule),
+    ).toEqual(['S2']);
+    const mixed = [
+      ...Array.from({ length: 11 }, (_, i) => `- dash ${i}`),
+      ...Array.from({ length: 10 }, (_, i) => `${i + 1}. ordered ${i}`),
+    ].join('\n');
+    const signals = assessSpecSplit(`# Spec\n\n## Acceptance\n\n${mixed}\n`);
+    expect(signals).toHaveLength(1);
+    expect(signals[0]).toMatchObject({ rule: 'S2', value: 21 });
+  });
+
+  it('S2: nested ordered items are not counted', () => {
+    const nested = Array.from({ length: 25 }, (_, i) => `   ${i + 1}. nested ${i}`).join('\n');
+    expect(assessSpecSplit(`# Spec\n\n## Acceptance criteria\n\n- top one\n${nested}\n`)).toEqual(
+      [],
+    );
+  });
+
   it('fires S1 then S2 in rule order when both trip', () => {
     const md = specWith(SPEC_CRITERIA_THRESHOLD + 1, `\n${words(SPEC_WORD_THRESHOLD + 1)}\n`);
     expect(assessSpecSplit(md).map((s) => s.rule)).toEqual(['S1', 'S2']);

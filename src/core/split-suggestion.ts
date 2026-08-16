@@ -128,13 +128,14 @@ export function assessPlanSplit(planMd: string): SplitSignal[] {
 
 const SPEC_ACCEPTANCE_HEADING_RE = /^##\s+Acceptance/i;
 const SECTION_HEADING_RE = /^## /;
-const TOP_LEVEL_BULLET_RE = /^- /;
+const TOP_LEVEL_CRITERION_RE = /^(?:-|\d+\.) /;
 
 /**
- * Top-level `- ` bullets inside the acceptance section: from the first line
- * matching `## Acceptance*` (case-insensitive — covers `## Acceptance
+ * Top-level list items (`- ` or `N. ` — 6 of the corpus's acceptance
+ * sections are ordered lists) inside the acceptance section: from the first
+ * line matching `## Acceptance*` (case-insensitive — covers `## Acceptance
  * criteria` and bare `## Acceptance`) up to the next `## ` heading or EOF.
- * Nested (indented) bullets are not counted. No matching heading → 0.
+ * Nested (indented) items are not counted. No matching heading → 0.
  */
 function countSpecCriteria(specMd: string): number {
   const lines = specMd.split('\n');
@@ -143,7 +144,7 @@ function countSpecCriteria(specMd: string): number {
   let count = 0;
   for (let i = start + 1; i < lines.length; i++) {
     if (SECTION_HEADING_RE.test(lines[i])) break;
-    if (TOP_LEVEL_BULLET_RE.test(lines[i])) count += 1;
+    if (TOP_LEVEL_CRITERION_RE.test(lines[i])) count += 1;
   }
   return count;
 }

@@ -33,7 +33,7 @@ Beyond raw size, two authoring habits inflate the self-consistency surface: acce
 Two new rules, shaped exactly like `assessEntrySplit()`:
 
 - **S1 — spec bulk.** `SPEC_WORD_THRESHOLD = 6000`. Word count comes from a shared `countWords(md: string): number` helper extracted in `split-suggestion.ts` — the existing E1 expression (`trimmed === '' ? 0 : trimmed.split(/\s+/).length`, empty-safe) moves into it and both E1 and S1 call it, so the two rules cannot drift. Fires strictly greater-than. Message suggests splitting the design into sibling attach enhancements, one per concern.
-- **S2 — criteria bloat.** `SPEC_CRITERIA_THRESHOLD = 20`. Count top-level `- ` bullets inside the acceptance section (from the first line matching `/^##\s+Acceptance/i` up to the next `/^## /` or EOF; nested bullets — indented `- ` — are not counted). The loose anchor covers the corpus's real heading variants (`## Acceptance criteria`, bare `## Acceptance` — 61 of 75 historical specs). Message states the ~12-criteria budget and suggests collapsing per-detail criteria into behavior-level ones.
+- **S2 — criteria bloat.** `SPEC_CRITERIA_THRESHOLD = 20`. Count top-level list items (`- ` or `N. ` — ordered-list acceptance sections exist in the corpus) inside the acceptance section (from the first line matching `/^##\s+Acceptance/i` up to the next `/^## /` or EOF; nested — indented — items are not counted). The loose anchor covers the corpus's real heading variants (`## Acceptance criteria`, bare `## Acceptance` — 61 of 75 historical specs). Message states the ~12-criteria budget and suggests collapsing per-detail criteria into behavior-level ones.
 
 A spec with no `## Acceptance*` heading counts 0 criteria — S2 stays silent by design: with no criteria section there is no criteria bloat to measure, and S1 still covers such a spec's raw bulk (the largest heading-less spec in the corpus, 6340 words, trips S1). This describes 14 of 75 legacy specs; new specs follow the `prep format spec` contract, which includes the section.
 
@@ -95,8 +95,8 @@ Extend the two existing suites (no new test files):
 
 - `split-check --spec <path>` on a spec ≤6000 words with ≤20 criteria exits 0 with no output.
 - A spec over 6000 words yields an `[S1]` line and exit 2.
-- A spec with more than 20 top-level bullets in its acceptance section (first `/^##\s+Acceptance/i` heading) yields an `[S2]` line and exit 2; a bare `## Acceptance` heading is matched.
-- Nested (indented) bullets and bullets outside the acceptance section do not count toward S2.
+- A spec with more than 20 top-level list items (`- ` or `N. `) in its acceptance section (first `/^##\s+Acceptance/i` heading) yields an `[S2]` line and exit 2; a bare `## Acceptance` heading is matched.
+- Nested (indented) items and items outside the acceptance section do not count toward S2.
 - A spec with no `## Acceptance*` heading never yields S2.
 - An unreadable `--spec` path exits 1 with usage + error lines on stdout.
 - Passing two mode flags (e.g. `--spec` with `--plan`) exits 1.
