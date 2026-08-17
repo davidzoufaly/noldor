@@ -1,54 +1,117 @@
-// `noldor roadmap remove-block <slug> [--backlog] [--retired-into <fd-slug>]` —
+// `noldor roadmap remove-block <slug> [--backlog]
+//   [--retired-into <fd-slug> | --split-into <slug>,<slug>]` —
 // remove a schema-C block from docs/roadmap.md (or docs/backlog.md). Idempotent:
 // an absent slug is a no-op success, so gate/drain flows can call it
 // unconditionally. Portable CLI equivalent of the gate skill's former inline
 // `tsx -e` snippet (consumer repos have no ./src/ tree to import from).
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
+import { parseBacklog, parseRefList, parseRoadmap } from '../utils/parse-blocks.js';
 import { removeBlock } from '../utils/write-blocks.js';
 import { ENTRY_ID_RE } from './entry-id.js';
 import { RETIRED_IDS_PATH_DEFAULT, recordRetiredId } from './retired-ids.js';
 
-/** Parsed `remove-block` argv. `retiredInto` is the attach path's parent FD. */
+/**
+ * Parsed `remove-block` argv. `retiredInto` is the attach path's parent FD;
+ * `splitInto` names the sibling entries a split replaced the block with. The
+ * two are mutually exclusive, so a well-formed value carries at most one.
+ */
 export interface RemoveBlockArgs {
   slug?: string;
   backlog: boolean;
   retiredInto?: string;
+  splitInto?: string[];
+}
+
+/** Parse outcome. A usage conflict is an expected failure, not a throw. */
+export type ParseRemoveBlockResult =
+  | { success: true; data: RemoveBlockArgs }
+  | { success: false; errors: string[] };
+
+/** One value-taking flag's reading: whether it appeared, and what it carried. */
+interface FlagRead {
+  present: boolean;
+  value?: string;
+  /** argv index of a spaced value this flag consumed, so it can't bind as the slug. */
+  valueIndex?: number;
 }
 
 /**
- * Parse `remove-block` argv. `--retired-into <fd-slug>` (or `=` form) names the
- * FD that absorbed the entry, so an attach retirement records *where the ID
- * went* and not merely that it went; fast-track carries no FD and omits it.
- * An empty value — or a following token that is itself a flag, as in
- * `remove-block foo --retired-into --backlog` — is dropped rather than
- * recorded, keeping the map's optional field absent-or-meaningful.
+ * Read one `--flag <value>` / `--flag=<value>` pair.
+ *
+ * `present` is deliberately independent of `value`: a valueless `--split-into`
+ * still counts as supplied, so mutual-exclusion is decided on what the operator
+ * typed rather than on what survived extraction. An empty or flag-shaped value
+ * yields `present: true` with no `value`, keeping downstream optional fields
+ * absent-or-meaningful.
  */
-export function parseRemoveBlockArgs(argv: readonly string[]): RemoveBlockArgs {
-  const flagIndex = argv.indexOf('--retired-into');
-  const inline = argv.find((a) => a.startsWith('--retired-into='));
-  const spaced = argv[flagIndex + 1];
-  const retiredInto =
-    flagIndex >= 0
-      ? spaced?.startsWith('--')
-        ? undefined
-        : spaced
-      : inline?.slice('--retired-into='.length);
-  const slug = argv.find((a, i) => !a.startsWith('--') && !(flagIndex >= 0 && i === flagIndex + 1));
+function readFlag(argv: readonly string[], flag: string): FlagRead {
+  const inlinePrefix = `${flag}=`;
+  const inlineIndex = argv.findIndex((a) => a.startsWith(inlinePrefix));
+  if (inlineIndex >= 0) {
+    const raw = argv[inlineIndex].slice(inlinePrefix.length);
+    return { present: true, ...(raw.length > 0 ? { value: raw } : {}) };
+  }
+  const index = argv.indexOf(flag);
+  if (index < 0) return { present: false };
+  const next = argv[index + 1];
+  if (next === undefined || next.startsWith('--')) return { present: true };
+  return { present: true, value: next, valueIndex: index + 1 };
+}
+
+/**
+ * Parse `remove-block` argv.
+ *
+ * `--retired-into <fd-slug>` names the FD that absorbed the entry, so an attach
+ * retirement records *where the ID went* and not merely that it went;
+ * fast-track carries no FD and omits it. `--split-into <slug>,<slug>` is the
+ * split counterpart, naming the sibling entries that replaced the block.
+ *
+ * The positional slug skips every index a flag consumed as its value, so
+ * `remove-block --split-into a,b my-slug` binds `my-slug` and not `a,b` —
+ * otherwise the command resolves no block and exits 0 with "nothing to do",
+ * a silent no-op that gate and drain flows read as success.
+ */
+export function parseRemoveBlockArgs(argv: readonly string[]): ParseRemoveBlockResult {
+  const retired = readFlag(argv, '--retired-into');
+  const split = readFlag(argv, '--split-into');
+  if (retired.present && split.present) {
+    return {
+      success: false,
+      errors: [
+        '--retired-into and --split-into are mutually exclusive: an entry is either absorbed by a parent FD or split into sibling entries, not both.',
+      ],
+    };
+  }
+  const consumed = new Set(
+    [retired.valueIndex, split.valueIndex].filter((i): i is number => i !== undefined),
+  );
+  const slug = argv.find((a, i) => !a.startsWith('--') && !consumed.has(i));
+  const splitInto = split.value === undefined ? [] : parseRefList(split.value);
   return {
-    slug,
-    backlog: argv.includes('--backlog'),
-    ...(retiredInto !== undefined && retiredInto.length > 0 ? { retiredInto } : {}),
+    success: true,
+    data: {
+      slug,
+      backlog: argv.includes('--backlog'),
+      ...(retired.value !== undefined ? { retiredInto: retired.value } : {}),
+      ...(splitInto.length > 0 ? { splitInto } : {}),
+    },
   };
 }
 
+const USAGE =
+  'usage: noldor roadmap remove-block <slug> [--backlog] [--retired-into <fd-slug> | --split-into <slug>,<slug>]\n';
+
 function main(): void {
-  const { slug, backlog, retiredInto } = parseRemoveBlockArgs(process.argv.slice(2));
+  const parsed = parseRemoveBlockArgs(process.argv.slice(2));
+  if (!parsed.success) {
+    for (const error of parsed.errors) process.stderr.write(`remove-block: ${error}\n`);
+    process.stderr.write(USAGE);
+    process.exit(1);
+  }
+  const { slug, backlog, retiredInto, splitInto } = parsed.data;
   if (!slug) {
-    process.stderr.write(
-      'usage: noldor roadmap remove-block <slug> [--backlog] [--retired-into <fd-slug>]\n',
-    );
+    process.stderr.write(USAGE);
     process.exit(1);
   }
   const rel = backlog ? 'docs/backlog.md' : 'docs/roadmap.md';
@@ -86,6 +149,7 @@ function main(): void {
         {
           slug,
           ...(retiredInto !== undefined ? { retiredInto } : {}),
+          ...(splitInto !== undefined ? { splitInto } : {}),
           retiredAt: new Date().toISOString().slice(0, 10),
         },
         mapPath,

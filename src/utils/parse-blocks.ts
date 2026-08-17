@@ -43,6 +43,16 @@ export interface BacklogEntry {
   since?: string;
   deps?: string[];
   parent?: string;
+  /**
+   * Entry ID (`- split-from: Q-0042`) of the block this entry was split out of.
+   * Written by the split write-back in `/noldor-promote`; the reverse link lives
+   * in `.noldor/retired-entry-ids.json` as `splitInto`. A field rather than body
+   * text so it does not count toward the E2 scope-bullet heuristic that split
+   * suggestion measures — see `docs/noldor/complexity-gating.md`.
+   */
+  splitFrom?: string;
+  /** ISO date (`- recovered: 2026-08-17`) a residue block was recovered from a promotion. Same field-not-body reasoning as {@link BacklogEntry.splitFrom}. */
+  recovered?: string;
   description: string;
   /** 1-based position of this entry in source order — file-wide for roadmap and backlog (no per-section scope). */
   priority?: number;
@@ -167,6 +177,8 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
       confidence: parsed.confidence,
       deps: parsed.deps,
       phase: parsed.phase,
+      splitFrom: parsed.splitFrom,
+      recovered: parsed.recovered,
     });
     pending = null;
   };
@@ -206,20 +218,35 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
 }
 
 /**
- * Recognized schema-C field-bullet keys, as a regex alternation. Single source
- * of truth for both block parsers ({@link parseBlockBody} and `parseEntries`) —
- * a new field key is added here once. Deliberately explicit (not `[\w-]+`) so a
- * hyphenated description bullet like `- opt-in: …` stays in the body instead of
- * being harvested as a field. Any change must stay in sync with the key
- * dispatch in {@link parseBlockBody}.
+ * Recognized schema-C field-bullet keys, as a regex alternation. Deliberately
+ * explicit (not `[\w-]+`) so a hyphenated description bullet like `- opt-in: …`
+ * stays in the body instead of being harvested as a field.
+ *
+ * Single source of truth only for *stripping* a bullet out of the description —
+ * both parsers share this alternation. Surfacing the value is duplicated across
+ * four sites, so adding a key here alone leaves it silently `undefined`. All
+ * four must change together:
+ *
+ * 1. {@link parseBlockBody} — local, key dispatch, return shape (roadmap path)
+ * 2. `parseRoadmap`'s `flush()` — maps the parsed value onto the entry
+ * 3. `parseEntries` — its own `fields` record and entry literal (backlog path)
+ * 4. {@link BacklogEntry} — the field itself
+ *
+ * Collapsing 1–3 onto one harvest is tracked separately; until then this list
+ * is the checklist.
  */
-const FIELD_KEYS = 'area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase';
+const FIELD_KEYS =
+  'area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase|split-from|recovered';
 
 /**
- * Split a comma-separated ref bullet (`deps:` / `blocked-by:`) into trimmed,
- * non-empty refs. Each ref is a kebab slug or a `Q-NNNN` entry ID.
+ * Split a comma-separated ref list into trimmed, non-empty refs. Each ref is a
+ * kebab slug or a `Q-NNNN` entry ID.
+ *
+ * Exported because `roadmap remove-block --split-into a,b` parses the same
+ * shape: a CLI flag and a `deps:` / `blocked-by:` bullet should not disagree
+ * about what a comma list means.
  */
-function parseRefList(value: string): string[] {
+export function parseRefList(value: string): string[] {
   return value
     .split(',')
     .map((s) => s.trim())
@@ -252,6 +279,8 @@ function parseBlockBody(lines: string[]): {
   confidence?: string;
   deps?: string[];
   phase?: string;
+  splitFrom?: string;
+  recovered?: string;
   body: string;
 } {
   let area = '';
@@ -265,6 +294,8 @@ function parseBlockBody(lines: string[]): {
   let deps: string[] | undefined;
   let blockedBy: string[] | undefined;
   let phase: string | undefined;
+  let splitFrom: string | undefined;
+  let recovered: string | undefined;
   const bodyLines: string[] = [];
   for (const line of lines) {
     const fieldMatch = new RegExp(`^-\\s+(${FIELD_KEYS}):\\s*(.+?)\\s*$`).exec(line);
@@ -279,6 +310,8 @@ function parseBlockBody(lines: string[]): {
       else if (key === 'impact') impact = value;
       else if (key === 'confidence') confidence = value;
       else if (key === 'phase') phase = value;
+      else if (key === 'split-from') splitFrom = value;
+      else if (key === 'recovered') recovered = value;
       else if (key === 'deps') deps = parseRefList(value);
       else if (key === 'blocked-by') blockedBy = parseRefList(value);
       continue;
@@ -294,8 +327,10 @@ function parseBlockBody(lines: string[]): {
     impact,
     parent,
     phase,
+    recovered,
     since,
     size,
+    splitFrom,
     type,
   };
 }
@@ -348,6 +383,8 @@ function parseEntries(raw: string): BacklogEntry[] {
       impact: fields.impact,
       confidence: fields.confidence,
       phase: fields.phase,
+      splitFrom: fields['split-from'],
+      recovered: fields.recovered,
       deps: mergeDepFields(
         fields.deps !== undefined ? parseRefList(fields.deps) : undefined,
         fields['blocked-by'] !== undefined ? parseRefList(fields['blocked-by']) : undefined,

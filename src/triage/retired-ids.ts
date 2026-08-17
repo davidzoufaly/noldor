@@ -23,6 +23,18 @@ export interface RetiredIdRecord {
    * --retired-into <fd-slug>` on attach paths. Absent on fast-track (no FD).
    */
   retiredInto?: string;
+  /**
+   * Slugs of the sibling entries this block was split into — written from
+   * `remove-block --split-into <slug>,<slug>`. The split counterpart of
+   * {@link RetiredIdRecord.retiredInto}: both answer *where the work went*, one
+   * pointing at an FD that absorbed it and one at the queue entries that
+   * replaced it. Mutually exclusive with `retiredInto`.
+   *
+   * Provenance only — `blocked-by:` resolution is already restored by the ID
+   * being recorded at all, since {@link retiredRefs} unions the map's keys with
+   * each record's slug.
+   */
+  splitInto?: string[];
   /** ISO date (yyyy-mm-dd) the entry was retired. */
   retiredAt?: string;
 }
