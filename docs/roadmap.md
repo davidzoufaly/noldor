@@ -16,6 +16,30 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Consumer Lefthook Wiring Check
+
+- id: Q-0142
+- area: tooling
+- type: fix
+- since: 2026-08-17
+- size: S
+- impact: high
+- confidence: high
+
+An adopted consumer can carry permanently dead hooks with zero signal. Root `lefthook.yml` is listed in `SCAFFOLD_ONLY_TEMPLATES` (`src/templates/manifest.ts:20-24`) because the consumer owns the file, so `init` copies it only when absent, `init --update` never overwrites it, and `check-template-sync` plus `doctor` deliberately report no drift on starters. A consumer whose root `lefthook.yml` predates adoption — charuy's was a comment-only stub — therefore never receives the `extends: ./lefthook/noldor.yml` line, and nothing anywhere checks the wiring. Every noldor hook job (trailer injection, commit-msg validation, the pre-push summary-body gate) is silently inert while lefthook still prints its banner, which reads as a working install: zero jobs running produces exactly the same output as zero jobs configured. This bit charuy for weeks and surfaced only on 2026-08-14, when its PR #96 shipped a what-only summary despite an armed summary-body rollout. The fix keeps consumer ownership of the file and verifies the wiring instead of syncing it: `doctor` (and `init --update`) parse the consumer's root `lefthook.yml` and fail when `extends` does not include `./lefthook/noldor.yml`, naming the specific jobs that are dead and the one-line repair. A structural wiring assertion, never a drift-sync — it must not clobber project-owned hooks. Prerequisite for Q-0140 in spirit: both are cases where the framework never inspects an adopted surface it depends on.
+
+### pen.dev UI Design Phase
+
+- id: Q-0144
+- area: tooling
+- type: feat
+- since: 2026-08-17
+- size: L
+- impact: high
+- confidence: low
+
+The framework has no UI-design stage: `/noldor-spec` produces prose, and a frontend feature's visual design is either absent from the artifact trail or pasted in as a screenshot nobody validates. Wanted, driven by a live consumer need: a pen.dev-backed design step inside the spec phase where several UI versions can be described, drafted and compared while the spec is still being written, converging on one final design that the spec carries as its own artifact by the time the spec phase closes — design decisions adjudicated with the rest of the spec rather than after it. Two surfaces follow from that. A pipeline stage, so `/noldor-gate` routes UI-bearing work through the design step and the resulting artifact is gate-visible the way specs and plans are (`sizeToPath()` and the path set both move). And a review lane that checks the implemented UI against the chosen pen.dev design, sitting beside the codex and verifier lanes rather than duplicating them. Open questions dominate, hence `confidence: low`: how a pen.dev artifact is referenced and pinned so a spec's design cannot silently change under it; whether version drafts live in pen.dev with only the winner referenced, or all candidates are recorded as the spec's considered alternatives; whether the review lane can compare rendered output to a design mechanically or only prompt a reviewer with both; and what a non-UI feature does with the stage (skipped by predicate, not by operator memory). Related but distinct: Q-0116's design-artifact detector module governs how design artifacts are discovered once they exist, not where they come from. Consumer-blocking, which is why this outranks internal-polish entries below it per the vision's adoption tie-breaker.
+
 ### Traceability Projection Module
 
 - id: Q-0111
@@ -46,6 +70,18 @@ Clone detection measured large repeated groups (roughly 223 and 216 tokens) acro
 - parent: specs-cr-gate-multi-reviewer
 
 The codex lane is opt-in per `crLanes` today, so a big change can ship having been reviewed by exactly one model family. Require at least one codex round on bigger tasks — gate it on the same `size:` signal the routing policy already uses (L/XL, or the split-check verdict) rather than on operator memory. Blocked until the codex lane actually works headlessly again.
+
+### Spec Floor for S-Sized Entries
+
+- id: Q-0143
+- area: tooling
+- type: feat
+- since: 2026-08-17
+- size: S
+- impact: med
+- confidence: med
+
+`sizeToPath()` (`src/core/size-routing.ts`) currently exempts both XS **and** S from any written artifact — `fast-track` for code, `micro-chore` for pure docs — so an S entry can ship with no spec, no plan and no recorded design reasoning at all. The question this entry decides: should XS be the *only* band that escapes a spec, moving S to `specs-only`? Evidence that it should is accumulating from the drain batches. The 2026-08-13 S/med/fix batch found S entries routinely running real CR rounds with genuine design findings, and the 30-minute `--iteration-timeout` sized for XS work killed Q-0107 mid-CR — an S entry doing spec-shaped work under a no-spec tier. A spec floor at S would also give the reviewer lanes the prior context that Q-0132 shipped for, which is worthless on a path that produces no spec to carry context in. Evidence against is the whole point of the routing policy: the drain runner's throughput depends on XS/S needing no prep, and forcing a spec on a genuinely mechanical S fix is the "don't spec the small ones" failure the policy exists to prevent. Decide it as a policy change with a stated rationale rather than a silent constant edit, then land it in one place: `sizeToPath()`, the routing block at the top of this file, [complexity-gating.md](noldor/complexity-gating.md), and every `templates/` twin of those documents (the Q-0093 lesson — a count or policy asserted in prose has no single source of truth, so the sweep must be exhaustive on the first pass). A middle option worth costing before committing to either pole: keep S on `fast-track` but require a spec when the split-check or CR verdict says the entry is spec-shaped, so the floor is earned by signal rather than by band.
 
 ### Codex Lane Misreports a Model-Version 400 as Expired Auth
 
@@ -279,3 +315,18 @@ Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-
 - blocked-by: Q-0093
 
 The dashboard already renders mermaid (`src/dashboard/data.ts:218` swaps a fenced block into a `div.mermaid` container, `src/dashboard/layout.ts:400` loads mermaid 11 with the theme following `prefers-color-scheme`), but its GET table serves only `/framework/<slug>`, `/skills/<slug>` and `/docs/(tutorials|how-to|reference|explanation)/<slug>` — no route reaches `docs/architecture/`, so the diagrams that surface ships render on GitHub and nowhere else locally. Add a route plus handler for the architecture pages and extend the route-sweep regression test that reads `GET_ROUTES` from the same map the router dispatches on. Carved out of Q-0093 at spec review: adding a dashboard subsystem to a docs feature was scope creep, while the claim that the dashboard renders the pages was simply untrue as written.
+
+### Spec Brainstorming Depth Parity
+
+- id: Q-0092
+- area: tooling
+- type: feat
+- since: 2026-08-11
+- size: M
+- impact: med
+- confidence: low
+- parent: de-superpowers-vendor-spec-plan-and-worktree-flows
+
+Brainstorming through the vendored `/noldor-spec` question-first loop does not reach the depth the superpowers `brainstorming` skill gets to — the de-superpowers vendoring preserved the flow's shape but apparently not its interrogative pressure. Fuzzy one-liner: the actual delta between the two prompts has not been diffed, so there is nothing concrete to implement yet. Trigger: run both over the same idea, diff the transcripts, and extract the specific moves the vendored version drops before promoting.
+
+- Promoted from the backlog on 2026-08-17: the trigger above is satisfied, because the operator named a concrete move rather than a suspected delta. The vendored brainstorming step should render its output as part of the spec plan — a written summary section per part of the design, each one to two paragraphs rather than a single sentence, confirmed with the operator part by part before the spec is written. The point is decision quality, not verbosity: a one-line answer per section gives the operator nothing to judge, while a short prose account of how each part will actually work exposes the product and technical choices while they are still cheap to change. That makes this implementable without first diffing the two prompts, though the diff remains the way to find the *other* moves the vendoring dropped. Sequencing note: this is adjacent to Q-0144's requirement that UI design versions be drafted and settled inside the spec phase — both push judgment earlier, into spec writing, and both add a per-section confirmation beat, so check whether they want one shared mechanism before implementing either in isolation.
