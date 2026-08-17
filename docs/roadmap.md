@@ -16,20 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Consumer Architecture Doc Surface
-
-- id: Q-0093
-- area: docs
-- type: feat
-- since: 2026-08-11
-- size: M
-- impact: med
-- confidence: low
-
-Consumers get feature MDs, specs, and plans but no architecture surface — no place that answers "how is this system shaped" above the per-feature level. Idea: a dedicated folder of architecture file(s) in the consumer doc tree, with diagramming. Needs a scoping spike before promotion: whether the content is hand-authored or derived from the graphify AST graph (which already has communities and edges), whether the diagrams are generated or drawn, and how the surface avoids becoming the stalest page in the tree.
-
-- The same gap holds for Noldor itself, and the scoping spike should decide whether one surface serves both or whether framework-internal architecture is a separate promotable item. The repo has rich feature docs and 107 design artifacts but no root `CONTEXT.md`, no module map and no `docs/adr/`, so maintainers and agents infer current architecture and rationale from 47k runtime LOC plus historical specs whose links are already stale (Q-0098). That makes unusual but intentional constraints — source-at-runtime packaging, adoption-safe advisories, sequential queue writes, graph fallbacks — read as accidental bugs, while genuine cross-module seams such as repository mutation (Q-0109) and snapshot ownership (Q-0110) stay implicit. Wanted: a concise current map in the project's own domain vocabulary showing major modules, dependency direction, durable state, entry points, and where each decision record lives, plus ADRs for active consequential choices rather than backfilled history. Deletion test: a new reader should not have to traverse archived plans to answer "which module owns repository paths, writes, and review completion?" (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
-
 ### Traceability Projection Module
 
 - id: Q-0111
