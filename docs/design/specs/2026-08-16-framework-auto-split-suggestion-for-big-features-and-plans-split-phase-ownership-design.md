@@ -103,17 +103,22 @@ No new `--text` / `--bullet` CLI mode. Measuring after the block is written is s
 
 ### U5 — Promote, as the named owner (`.claude/skills/noldor-promote/SKILL.md`)
 
-Step 1.7's option (b) and step 6.5's option (b) share one write-back recipe. Both gain `- split-from: <source-id>` on each emitted sibling alongside the existing carried bullets, and step 1.7(b) gains the `remove-block --split-into` call that records the source ID before the siblings are written. Prose states that promote is the owner, so an operator reading option (b) knows it is the canonical remedy rather than one of several.
+Step 1.7's option (b) and step 6.5's option (b) share one write-back recipe. Both gain `- split-from: <source-id>` on each emitted sibling alongside the existing carried bullets. Prose states that promote is the owner, so an operator reading option (b) knows it is the canonical remedy rather than one of several.
 
-**The recipe must mint entry IDs, which today it does not.** Step 6.5(b) carries `- area:` / `- type:` / `- size:` / `- impact:` / `- recovered:` and no `- id:`. Once `.noldor/id-counter.json` exists — it does in this repo — `validateTriage` raises `missing-entry-id` as an **error** for any entry whose `id` is undefined ([`validate-triage.ts:259`](../../../src/triage/validate-triage.ts#L259)), so following the recipe literally emits blocks that red the regen chain. This is a pre-existing gap in the shipped skill rather than one this design introduces, and it becomes load-bearing the moment splitting is the named remedy, so it is fixed here for both write-back sites:
+**The emitted block must satisfy `validate triage` outright.** Step 6.5(b) today carries `- area:` / `- type:` / `- size:` / `- impact:` / `- recovered:`, which is short of what the validator requires at **error** level on two counts:
 
-Mint before writing, in one call, exactly as `/noldor-triage` step 6 does — IDs are minted, never hand-written:
+- `REQUIRED_FIELDS_ROADMAP = ['area', 'type', 'since', 'size', 'impact']` ([`validate-triage.ts:77`](../../../src/triage/validate-triage.ts#L77)) — `since` is missing from the recipe, and it is required on backlog too.
+- `missing-entry-id` fires for any entry whose `id` is undefined once `.noldor/id-counter.json` exists ([`:259`](../../../src/triage/validate-triage.ts#L259)) — it does in this repo — and the recipe mints no `- id:`.
+
+Both gaps are pre-existing in the shipped skill rather than introduced here, and both become load-bearing the moment splitting is the named remedy, so both write-back sites are fixed. IDs are minted, never hand-written — one call, exactly as `/noldor-triage` step 6 does:
 
 ```
 pnpm noldor triage mint-id --count <n>
 ```
 
-`- id:` is stamped as the **first** bullet of each sibling, ahead of `- area:`, with `- split-from: <source-id>` beside the carried fields. The minted ID is what makes a sibling addressable by `blocked-by:` in its own right; `- split-from:` records where it came from.
+Each sibling carries, in order: `- id:` (minted) first, then `- area:`, `- type:`, `- since:` (the split date), `- size:`, `- impact:`, `- split-from: <source-id>`, `- recovered:`. The minted ID is what makes a sibling addressable by `blocked-by:` in its own right; `- split-from:` records where it came from.
+
+**Siblings are written before the source block is removed.** The inherited mechanics place each sibling "immediately after the original block's position" ([`noldor-promote/SKILL.md:139`](../../../.claude/skills/noldor-promote/SKILL.md#L139)), and `docs/roadmap.md` is priority-ordered by file position — removing the source first destroys the anchor and the slices land wherever the writer guesses rather than at the queue position the work already earned. So step 1.7(b) writes the siblings first, then calls `remove-block --split-into` to drop the source and record the ID. Removal is safe at that point: `remove-block` takes the block up to the next `### ` heading, and the first sibling is exactly that boundary.
 
 ### U6 — Gate Step 2.5 `split-back` (`.claude/skills/noldor-gate/SKILL.md`)
 
@@ -128,7 +133,7 @@ fix-in-place / split-back / back
 `split-back` is non-destructive — the FD, the session marker and the worktree all survive:
 
 1. Operator names the scope that leaves.
-2. Sibling roadmap blocks are written per U5's recipe — minted `- id:` first, then `- split-from: <entry-id>` read from the FD's `entry-id:` frontmatter, beside the carried fields.
+2. Sibling roadmap blocks are written per U5's recipe — minted `- id:` first, then `- area:` / `- type:` / `- since:` / `- size:` / `- impact:`, with `- split-from: <entry-id>` read from the FD's `entry-id:` frontmatter.
 3. The artifact is narrowed to slice 1 on disk.
 4. A **follow-up commit** lands the narrowed artifact plus the roadmap blocks — never an amend. At Step 2.5 the artifact commit carries no review receipt, but an amend would still move the tree under any artifact-stage lane sink already written; a follow-up keeps those sinks' base valid and lets a re-round use `--base-sha`.
 5. `split-check` re-runs on the narrowed artifact and its result is **reported, not enforced**. The operator may proceed whether or not the signal cleared.
@@ -155,8 +160,8 @@ Every edited file under `.claude/skills/` and `docs/noldor/` has a twin under `t
 8. With a split recorded, `pnpm noldor validate triage` reports no `unknown-blocked-by-ref` for a `blocked-by:` naming either the source entry ID or the source slug.
 9. `pnpm noldor checks template-sync` exits 0 — every edited `.claude/skills/**` and `docs/noldor/**` file matches its `templates/` twin.
 10. `docs/noldor/complexity-gating.md` carries a phase-ownership statement naming promote as the owner, sibling roadmap entries as the single scope-split product, and defining scope-split vs document-split.
-11. `.claude/skills/noldor-promote/SKILL.md` steps 1.7(b) and 6.5(b) mint entry IDs via `triage mint-id --count <n>` and stamp `- id:` first plus `- split-from: <source-id>` on each emitted sibling; 1.7(b) calls `remove-block --split-into` to record the source ID before the siblings are written.
-12. A roadmap block emitted by that recipe passes `pnpm noldor validate triage` with `.noldor/id-counter.json` present — no `missing-entry-id`.
+11. `.claude/skills/noldor-promote/SKILL.md` steps 1.7(b) and 6.5(b) mint entry IDs via `triage mint-id --count <n>` and stamp `- id:` first plus `- split-from: <source-id>` on each emitted sibling; 1.7(b) writes the siblings before calling `remove-block --split-into`, so the source block's queue position anchors them.
+12. A roadmap block emitted by that recipe passes `pnpm noldor validate triage` with `.noldor/id-counter.json` present — **zero errors**, not merely no `missing-entry-id`.
 13. `.claude/skills/noldor-triage/SKILL.md` step 8 invokes `split-check --entry` per newly-inserted roadmap block, and states that a non-zero exit does not fail the triage run.
 14. `.claude/skills/noldor-gate/SKILL.md` Step 2.5 reaches `split-back` at both artifact kinds via a second question under `address-blockers`, with no single `AskUserQuestion` exceeding four options; specifies a follow-up commit rather than an amend; counts the round against the existing re-round cap; and leaves `proceed` available regardless of whether the post-carve `split-check` cleared.
 15. `.claude/skills/noldor-plan/SKILL.md` step 6 asks the scope-vs-document diagnosis before any `-part<N>` restructure.
