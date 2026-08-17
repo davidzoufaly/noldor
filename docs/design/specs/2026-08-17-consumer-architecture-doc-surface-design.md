@@ -45,10 +45,17 @@ implicit, so a reviewer re-derives them from ~50k lines of runtime source.
   help one of four diagrams and could not be re-applied after a hand edit.
 - **A configurable diagram taxonomy.** The four IDs are the framework, per the
   vision's "opinionated, not configurable" posture.
-- **Rendering infrastructure.** Mermaid already renders in both targets:
-  `src/dashboard/data.ts:218` swaps a fenced block into a `div.mermaid`
-  container and `src/dashboard/layout.ts:400` loads mermaid 11; GitHub renders
-  the fences natively.
+- **Rendering infrastructure.** GitHub renders ```mermaid fences natively, which
+  is the whole rendering requirement. The dev dashboard has a mermaid renderer
+  (`src/dashboard/data.ts:218`, `src/dashboard/layout.ts:400`) but no route
+  reaches `docs/architecture/` — its GET table serves `/framework/<slug>`,
+  `/skills/<slug>` and `/docs/(tutorials|how-to|reference|explanation)/<slug>`
+  (`src/dashboard/server.ts`). Adding that route is a separate roadmap entry
+  (Q-0134), not part of this surface.
+- **An index page.** Over four fixed pages whose names come from the registry,
+  a generated `index.md` adds nothing a directory listing does not, while adding
+  a renderer, a CLI flag and a page nobody owns. Extra per-subsystem diagrams
+  are discoverable the same way — by looking in the folder.
 - **Validating extra pages.** A repo may add per-subsystem diagrams beside the
   four; only the registry pages are checked.
 
@@ -67,40 +74,51 @@ One closed list, `ARCHITECTURE_PAGES`, of four entries
 | `flows` | the two or three load-bearing runtime flows | `sequenceDiagram` |
 
 Every other unit reads this list, so adding a fifth page is a one-line change
-that propagates to templates, validator, index and release probe at once.
+that propagates to templates, validator and release probe at once.
 
 ### U2 — Page validator (`src/docs/docs-architecture.ts`)
 
-`checkArchitecture(dir)` returns `{ status, findings }` where `status` is
+`checkArchitecture(cwd)` returns `{ status, findings }` where `status` is
 `absent | ok | incomplete`.
 
-`absent` when `dir` does not exist — the single fact every caller keys its
-skip on. Otherwise each registry page is checked for: the file exists; it
-contains at least one ```mermaid fence; the first fence's declared kind (its
-first token) is in `allowedKinds`; no unresolved `<!-- TODO:` placeholder
-remains. Findings name the file and the rule, one per failure, so one pass
-reports everything.
+`absent` when the folder does not exist — the single fact every caller keys its
+skip on. Otherwise each registry page is checked for four things: the file
+exists; it contains at least one ```mermaid fence; the fence declares a kind in
+`allowedKinds`; no unresolved `<!-- TODO:` placeholder remains. Findings name
+the file and the rule, one per failure, so one pass reports everything.
 
-Fence-kind checking is textual, not a mermaid parse — see Risks.
+Reading the kind means the first token of the first **content** line inside the
+fence, after skipping a leading `---` YAML block and any `%%{init: …}%%`
+directive — both legal mermaid preambles that a naive first-line read would
+misclassify as an unknown kind. It is a textual read, not a mermaid parse; see
+Risks.
 
-### U3 — Index renderer
+### U3 — Structural staleness check (same module)
 
-`renderArchitectureIndex(pages, extras)` emits `index.md` opening with
-`<!-- generated: do-not-edit -->`, mirroring `renderHowToIndex`
-(`src/docs/docs-howto.ts:31`). Registry pages render in registry order with
-their `purpose` as the one-liner; any additional `.md` in the folder renders
-under a trailing **Additional diagrams** heading so per-subsystem charts stay
-discoverable. The scan that produces `extras` **skips `index.md` itself**, as
-`loadHowtos` already does (`src/docs/docs-howto.ts:87`) — otherwise the second
-run lists the index inside the index and the output stops being stable. Pure
-function; the writer is idempotent.
+`modules` is the one page whose subject the repo can describe itself, so it gets
+a real staleness signal rather than a calendar one: `checkArchitecture` also
+flags every top-level source directory returned by `scanRoots()`
+(`src/core/repo-paths.ts:25`) that `modules.md` never mentions.
+
+`scanRoots()` is the framework's single source of truth for consumer source
+roots — consumer `scanPaths` when configured, else the layout union — and its
+own docstring forbids hardcoding layout dirs in a new feature. Keying on it is
+what makes the check work on a consumer laid out as `packages/` or `app/`.
+
+This replaces a `SOURCE_DRIFT_PAIRS` entry. A date-based pair over whole-`src`
+would flag the page on nearly every PR at the 30-day tolerance
+(`src/garden/garden-detect.ts:521`), and a detector that always fires is noise.
+The structural form is silent through ordinary edits and speaks exactly when a
+module is added, removed or renamed — which is when a module diagram actually
+goes wrong. Findings are `incomplete`, same as any other.
 
 ### U4 — CLI
 
-`noldor docs architecture [--check | --write-index]`, registered in the existing
-`docs` group of `src/cli/manifest.ts` beside `api`, `howto`, `check` and
-`transclude`. `--check` exits 0 on `ok` and on `absent`, non-zero on
-`incomplete`, printing each finding.
+`noldor docs architecture [--check]`, registered in the existing `docs` group of
+`src/cli/manifest.ts` beside `api`, `howto`, `check` and `transclude`. `--check`
+is the only mode and the default, so the bare invocation and the flagged one
+behave identically. Exits 0 on `ok` and on `absent`, non-zero on `incomplete`,
+printing each finding.
 
 ### U5 — Templates + doc root
 
@@ -117,13 +135,12 @@ drift — the content is consumer-owned.
 `architecture: join(cwd, 'docs', 'architecture')`, so every caller resolves the
 folder against the repo it was handed rather than `process.cwd()`.
 
-### U6 — Garden detector + drift pair
+### U6 — Garden detector
 
-`detectArchitecture(repo)` in `src/garden/garden-detect.ts` wraps U2 and emits a
-finding per `incomplete` result, nothing on `absent`. `SOURCE_DRIFT_PAIRS`
-(same file, line 451) gains `{ sources: ['src'], page:
-'docs/architecture/modules.md' }` — `modules` is the page that tracks code
-shape, so it is the one whose staleness is mechanically detectable.
+`detectArchitecture(repo)` in `src/garden/garden-detect.ts` wraps U2 and emits
+one finding per `incomplete` result, nothing on `absent`. `SOURCE_DRIFT_PAIRS`
+is left untouched — U3 replaces the date-based pair this design first reached
+for.
 
 ### U7 — SDD-report gap
 
@@ -163,32 +180,29 @@ feature's gate blocks the feature's own release.
 
 ## Acceptance criteria
 
-1. `docs/architecture/` in this repo contains `index.md` plus one page per
-   registry id, each carrying at least one mermaid fence and no placeholder
-   marker.
-2. `noldor docs architecture --check` exits 0 on a complete folder.
+1. `docs/architecture/` in this repo contains one page per registry id, each
+   carrying at least one mermaid fence and no placeholder marker.
+2. `noldor docs architecture --check` exits 0 on a complete folder, and the bare
+   invocation behaves identically.
 3. It exits non-zero and names every offending file when a registry page is
-   missing, carries no mermaid fence, opens with a fence kind outside
+   missing, carries no mermaid fence, declares a fence kind outside
    `allowedKinds`, or still carries a placeholder marker.
 4. It exits 0 and reports the folder as absent when `docs/architecture/` does
    not exist.
-5. `noldor docs architecture --write-index` writes an `index.md` carrying the
-   generated-do-not-edit marker with one entry per registry page; a second run
-   produces byte-identical output.
-6. Additional `.md` files in the folder appear in the index under a separate
-   heading and are otherwise ignored by the check; `index.md` never lists
-   itself.
+5. A fence whose graph keyword follows a `---` YAML block or a `%%{init: …}%%`
+   directive is read as its real kind, not rejected.
+6. It reports a finding for every top-level directory from `scanRoots()` that
+   `modules.md` does not mention, and none when all are mentioned; additional
+   `.md` files in the folder are ignored.
 7. Release preflight reports an `architecture` row: `skipped` when the folder is
    absent, `blocking` with a `fix` when incomplete, `ok` when complete.
 8. `RELEASE_SKIP_ARCHITECTURE=1` forces that row to `skipped` and tags it with
    the override.
 9. `garden detect` reports an architecture finding for an incomplete folder and
    none for an absent one.
-10. `garden detect` reports source-drift for `docs/architecture/modules.md` once
-    `src/` was touched more than the tolerance after that page.
-11. `docs/sdd-report.md` carries an architecture gap line while the folder is
+10. `docs/sdd-report.md` carries an architecture gap line while the folder is
     incomplete.
-12. `noldor init` scaffolds the four template pages into a repo that has none,
+11. `noldor init` scaffolds the four template pages into a repo that has none,
     and `doctor` reports no drift after the consumer edits their content.
 
 ## Risks / trade-offs
@@ -197,12 +211,21 @@ feature's gate blocks the feature's own release.
   folder and stalls cannot cut a release. Two escape hatches: never scaffolding
   it at all (absent → skipped), and `RELEASE_SKIP_ARCHITECTURE=1`. Accepted
   deliberately — an advisory-only check is the shape the entry warns about.
-- **Hand-drawn diagrams rot.** The drift pair nags at 30-day granularity on one
-  of four pages; the other three rot unobserved. The alternative — deriving them
-  — cannot express the domain vocabulary and rationale that is half the point.
+- **An empty folder is `incomplete`, not `absent`.** `mkdir docs/architecture`
+  alone flips a repo straight to `blocking`, and the only ways back are removing
+  the folder or setting the override. Keying on directory existence is what makes
+  the skip a single unambiguous fact, so the sharp edge is accepted.
+- **Hand-drawn diagrams rot.** Only `modules` has a mechanical staleness signal
+  (U3); `context`, `containers` and `flows` rot unobserved, because nothing in
+  the repo can tell that an actor or a runtime flow changed. The alternative —
+  deriving them — cannot express the domain vocabulary and the why-intentional
+  reading that is half the point.
 - **Textual fence-kind check.** A syntactically broken mermaid diagram passes
   U2 and fails only when rendered. Parsing mermaid would pull the renderer into
   the validator; not worth it for a check whose job is presence, not beauty.
+- **A mentioned-but-wrong module reads as fresh.** U3 checks that `modules.md`
+  *names* each source root, not that it describes it correctly, so a renamed
+  module is caught and a rewired dependency is not.
 - **A fixed four-ID taxonomy will not fit every repo.** Extra pages are the
   escape hatch, but they are unvalidated, so a repo leaning on them gets less
   from the surface than one that fits.
@@ -227,16 +250,16 @@ noldor init                       # writes docs/architecture/{context,containers
 
 # author: replace each placeholder fence with a real mermaid diagram
 
-noldor docs architecture --check        # presence + fence kind + placeholder scan
-noldor docs architecture --write-index  # regenerate docs/architecture/index.md
+noldor docs architecture --check   # presence, fence kind, placeholders,
+                                   # and source roots missing from modules.md
 
-noldor garden detect                    # incomplete pages + modules.md source drift
-pnpm release                            # architecture row: ok / skipped / blocking
-RELEASE_SKIP_ARCHITECTURE=1 pnpm release  # audited override
+noldor garden detect               # same findings, alongside the other detectors
+pnpm release                       # architecture row: ok / skipped / blocking
+RELEASE_SKIP_ARCHITECTURE=1 pnpm release   # audited override
 ```
 
-Rendered output: GitHub renders the fences natively; the dev dashboard renders
-them as live SVG with the theme following `prefers-color-scheme`.
+Rendered output: GitHub renders the fences natively. The dev dashboard does not
+serve this folder — see Non-goals.
 
 ## Open questions (resolved)
 
@@ -256,9 +279,9 @@ them as live SVG with the theme following `prefers-color-scheme`.
    → **One.** A second framework-internal surface would double the machinery to
    express the same four questions (D4).
 5. *What machinery ships, and does anything seed the diagrams?*
-   → **Scaffold + validator + drift pair, no seeding.** A graph seed helps one
-   of four diagrams and cannot be re-applied after a hand edit, while the drift
-   detector already says when to redraw (D5).
+   → **Scaffold + validator + structural staleness check, no seeding.** A graph
+   seed helps one of four diagrams and cannot be re-applied after a hand edit
+   (D5).
 6. *Folder of pages or a single file, and where?*
    → **`docs/architecture/`, page per diagram.** Peer to `docs/features/` and
    `docs/design/`; not under `docs/user/`, which is product documentation for the
@@ -269,3 +292,14 @@ them as live SVG with the theme following `prefers-color-scheme`.
 8. *Should the FD declare `introduces-gate`?*
    → **No.** U9 ships Noldor's own four pages in the same PR, so the gate is
    green on its first run and never blocks the change that introduces it.
+9. *How is `modules.md` staleness detected?*
+   → **Structurally, not by date.** A `SOURCE_DRIFT_PAIRS` entry over whole-`src`
+   fires on nearly every PR at the 30-day tolerance, and hardcodes one repo's
+   layout into a consumer-facing detector; U3 keys on `scanRoots()` instead and
+   speaks only when a source root is missing from the page.
+10. *Does the surface carry a generated index page?*
+    → **No.** Over four fixed pages an index adds a renderer, a CLI flag and an
+    artifact no unit owns, to duplicate what a directory listing already shows.
+11. *Does the dev dashboard serve the folder?*
+    → **Not here.** No route reaches `docs/architecture/`; adding one is roadmap
+    entry Q-0134 rather than scope creep into a docs feature.

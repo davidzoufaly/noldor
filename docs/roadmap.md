@@ -201,3 +201,17 @@ Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-
 - The confirmed symptom: queue parsing and docs-link checking implement an incomplete fenced-code grammar, recognizing triple backticks but not CommonMark/GFM tilde fences or varying fence lengths. A roadmap holding a tilde-fenced block that contains `### Phantom` plus `- area: tooling`, followed by a real entry, parses as two entries; a markdown link inside that same tilde fence is extracted as a live internal link by `docs-check`. This can fabricate queue entries and dependencies, make writers remove or reorder example text, and produce false broken-link failures. Because `parseRoadmap`, `parseEntries`, `pushEmptyGroupIssues` and `stripCodeRegions` each toggle independently on a triple-backtick prefix, patching one leaves semantic drift. One fence scanner must understand marker character, opening length, up-to-three-space indentation, info strings and a closing fence of sufficient length. Paired fixtures: backticks and tildes, three- and four-character fences, embedded shorter runs, indented fences, unclosed fences. (confirmed by pure-function runtime probe)
 
 (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
+
+### Dashboard Route for the Architecture Doc Surface
+
+- id: Q-0134
+- area: tooling
+- type: feat
+- since: 2026-08-17
+- size: XS
+- impact: low
+- confidence: high
+- split-from: Q-0093
+- blocked-by: Q-0093
+
+The dashboard already renders mermaid (`src/dashboard/data.ts:218` swaps a fenced block into a `div.mermaid` container, `src/dashboard/layout.ts:400` loads mermaid 11 with the theme following `prefers-color-scheme`), but its GET table serves only `/framework/<slug>`, `/skills/<slug>` and `/docs/(tutorials|how-to|reference|explanation)/<slug>` — no route reaches `docs/architecture/`, so the diagrams that surface ships render on GitHub and nowhere else locally. Add a route plus handler for the architecture pages and extend the route-sweep regression test that reads `GET_ROUTES` from the same map the router dispatches on. Carved out of Q-0093 at spec review: adding a dashboard subsystem to a docs feature was scope creep, while the claim that the dashboard renders the pages was simply untrue as written.
