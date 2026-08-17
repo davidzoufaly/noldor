@@ -29,10 +29,10 @@ implicit, so a reviewer re-derives them from ~50k lines of runtime source.
 - A `docs/architecture/` folder holding a small **fixed** set of hand-drawn
   mermaid diagrams that answer system shape, deployable units, internal
   dependency direction and the load-bearing runtime flows.
-- The framework ships the scaffold, a validator, a drift pair, a garden
-  detector, an SDD-report gap and a release gate — not the content.
+- The framework ships the scaffold, a validator, an advisory staleness check, a
+  garden detector, an SDD-report gap and a release gate — not the content.
 - Noldor dogfoods the same four pages it prescribes.
-- A repo without `docs/architecture/` is never blocked by any of it.
+- A repo that has not opted in is never blocked by any of it.
 
 ## Non-goals
 
@@ -73,31 +73,82 @@ One closed list, `ARCHITECTURE_PAGES`, of four entries
 | `modules` | internal dependency direction + which module owns which durable state | `flowchart`, `classDiagram` |
 | `flows` | the two or three load-bearing runtime flows | `sequenceDiagram` |
 
-Every other unit reads this list, so adding a fifth page is a one-line change
-that propagates to templates, validator and release probe at once.
+```ts
+export interface ArchitecturePage {
+  readonly id: string;
+  readonly title: string;
+  readonly purpose: string;
+  readonly allowedKinds: readonly string[];
+}
+export const ARCHITECTURE_PAGES: readonly ArchitecturePage[] = [ /* the four above */ ];
+export type ArchitecturePageId = (typeof ARCHITECTURE_PAGES)[number]['id'];
+```
+
+Every validating unit reads this list, so a fifth page needs no change in the
+validator, the garden detector, the SDD gap or the release probe. It does need
+its own template file, a `SCAFFOLD_ONLY_TEMPLATES` entry and a page in this
+repo — the registry propagates the checking, not the content.
 
 ### U2 — Page validator (`src/docs/docs-architecture.ts`)
 
-`checkArchitecture(cwd)` returns `{ status, findings, advisories }` where
-`status` is `absent | ok | incomplete`. It resolves the folder through
-`loadDocRoots(cwd).architecture` rather than joining its own path string; the
-`DocRoots` interface gains that field alongside the function
-(`src/core/doc-roots.ts:47`).
+```ts
+export interface ArchitectureFinding {
+  readonly page: string;                       // repo-relative path
+  readonly rule: 'missing' | 'no-fence' | 'bad-kind' | 'placeholder' | 'unreadable';
+  readonly message: string;
+}
+export interface ModuleAdvisory {
+  readonly page: string;                       // always the modules page
+  readonly module: string;                     // repo-relative dir, POSIX separators
+  readonly message: string;
+}
+export interface ArchitectureReport {
+  readonly status: 'absent' | 'ok' | 'incomplete';
+  readonly findings: readonly ArchitectureFinding[];
+  readonly advisories: readonly ModuleAdvisory[];
+}
+export async function checkArchitecture(cwd: string): Promise<ArchitectureReport>;
+```
 
-`absent` when the folder does not exist — the single fact every caller keys its
-skip on. Otherwise each registry page is checked for four things: the file
-exists; it contains at least one ```mermaid fence; the fence declares a kind in
-`allowedKinds`; no unresolved `<!-- TODO:` placeholder remains. Each failure
-becomes one entry in `findings`, naming the file and the rule, so one pass
-reports everything; a non-empty `findings` is what makes `status` `incomplete`.
+Async because it reads the filesystem, matching `docs-howto.ts` and
+`docs-check.ts`. It resolves the folder through `loadDocRoots(cwd).architecture`
+rather than joining its own path string; the `DocRoots` interface gains that
+field alongside the function (`src/core/doc-roots.ts:47`).
 
-`advisories` carries U3's module findings, which never affect `status`.
+**Opt-in.** `status` is `absent` when the folder does not exist **or** when every
+registry page is still exactly as scaffolded — present and carrying its
+placeholder marker, with no page edited. An untouched scaffold means the
+consumer has not opted in yet, so `noldor init` cannot put a fresh repo into a
+blocking state. Edit any one page and the folder is live: from then on the
+remaining placeholders are `incomplete`. `absent` is the single fact every
+caller keys its skip on, and `findings` is empty whenever it holds.
 
-Reading the kind means the first token of the first **content** line inside the
-fence, after skipping a leading `---` YAML block and any `%%{init: …}%%`
-directive — both legal mermaid preambles that a naive first-line read would
-misclassify as an unknown kind. It is a textual read, not a mermaid parse; see
-Risks.
+Otherwise each registry page contributes at most one finding per rule: the file
+exists (`missing`); it contains at least one ```mermaid fence (`no-fence`); a
+fence declares a kind in `allowedKinds` (`bad-kind`); no `<!-- TODO:` marker
+remains anywhere in the file (`placeholder`). A non-empty `findings` is what
+makes `status` `incomplete`. `advisories` carries U3's module findings, which
+never affect `status`.
+
+**Multiple fences: one valid fence is enough.** A page satisfies `bad-kind` when
+*any* of its mermaid fences declares an allowed kind, so a page may carry extra
+diagrams of other kinds beside its required one. Reading a fence's kind means
+the first token of its first content line, lowercased before comparison, after
+skipping blank lines, `%%` comment lines, `%%{…}%%` directives and a leading
+`---` YAML block. An unterminated YAML block or fence means that fence yields no
+kind rather than consuming the rest of the file. It is a textual read, not a
+mermaid parse; see Risks.
+
+**Filesystem failures never crash a caller.** Per the repo's result-type rule,
+every read is caught at this boundary: a folder path that is not a directory, an
+unreadable directory, and an unreadable or non-UTF-8 page each become an
+`unreadable` finding naming the path, so `status` is `incomplete` rather than a
+thrown error reaching the CLI, garden or preflight. Only a genuinely non-existent
+folder is `absent`.
+
+**Ordering is deterministic.** Findings sort by registry order then rule;
+advisories sort by module path. Nothing depends on directory-read order, so
+output and tests are stable.
 
 ### U3 — Structural staleness check (same module)
 
@@ -115,18 +166,35 @@ path mention satisfies, so the check would never fire. One level in is the
 granularity that matches what the page draws: `src/core`, `src/cr`,
 `src/garden`, … here; `packages/api`, `packages/web` for a monorepo consumer.
 
-Three rules keep it from firing wrongly:
+```ts
+export async function listModuleDirs(cwd: string): Promise<string[]>;
+```
+
+Returns repo-relative POSIX paths (`src/core`, `packages/api`), sorted and
+deduplicated, so two overlapping scan roots cannot yield the same module twice.
+
+Four rules keep it from firing wrongly:
 
 - **Existence filter.** Only roots that exist on disk contribute. `scanRoots()`
   returns names regardless — its own docstring notes roots that do not exist are
   ENOENT-skipped by every walker — so a standalone consumer with no config would
-  otherwise get findings for `packages`, `apps` and `scripts` it never had.
+  otherwise get findings for `packages`, `apps` and `scripts` it never had. A
+  root that is not a directory, or cannot be read, contributes nothing.
+- **Directories only, and only plain ones.** Symlinks are not followed. A
+  directory is skipped when its name begins with `.` or `_`, or when it is
+  `node_modules`, `dist`, `build`, `coverage`, `__tests__` or `__mocks__` — the
+  generated and test dirs no architecture diagram draws.
 - **Skip when the page is absent.** U2 already reports a missing `modules.md`;
   running the structural pass as well would either throw on the read or bury
-  that one finding under a finding per module.
-- **Path-token match**, not substring: a module counts as named when its path
-  appears delimited by whitespace, backticks, or markdown punctuation. Substring
-  matching would let a root named `app` match the word "apply".
+  that one finding under a finding per module. Same when `status` is `absent`.
+- **Path-token match**, not substring. The page body is split on everything
+  outside `[A-Za-z0-9_./-]`, and a module counts as named when its path equals
+  one of the resulting tokens, or equals such a token with trailing `/`
+  stripped. Comparison is exact and case-sensitive, on POSIX separators.
+  Substring matching would let a root named `app` match the word "apply", and a
+  token rule that ignored `/` would let `src` alone satisfy `src/core`. Mentions
+  anywhere in the file count, including inside the mermaid fences — which is
+  where a module diagram names its modules.
 
 This replaces a `SOURCE_DRIFT_PAIRS` entry. A date-based pair over whole-`src`
 would flag the page on nearly every PR at the 30-day tolerance
@@ -144,16 +212,21 @@ should nag, not stop a release.
 `noldor docs architecture [--check]`, registered in the existing `docs` group of
 `src/cli/manifest.ts` beside `api`, `howto`, `check` and `transclude`. `--check`
 is the only mode and the default, so the bare invocation and the flagged one
-behave identically. Exits 0 on `ok` and on `absent`, non-zero on `incomplete`,
-printing findings and advisories both — advisories labelled as such, since they
-are printed on a run that exits 0.
+behave identically. Exit **0** on `ok` and on `absent`, **1** on `incomplete`.
+Findings print to stderr, advisories to stdout labelled as advisory — they are
+printed on runs that exit 0, so they must not read as failures. Both print in
+the deterministic order U2 fixes, and `absent` prints one line naming why the
+check did not apply.
 
 ### U5 — Templates + doc root
 
 `templates/docs/architecture/{context,containers,modules,flows}.md`, each a
 short prose prompt plus one placeholder mermaid fence carrying the
 `<!-- TODO:` marker U2 rejects — so a scaffolded-but-unwritten folder is
-*visibly* incomplete rather than silently empty. All four paths join
+*visibly* incomplete rather than silently empty, and is what U2's opt-in rule
+recognises as untouched. Each template asks for a prose paragraph beside the
+diagram, so the page carries a textual equivalent for readers and agents that
+consume markdown without rendering mermaid. All four paths join
 `SCAFFOLD_ONLY_TEMPLATES` (`src/templates/manifest.ts:20`, which keys on
 individual file paths, not directories): `init` copies each only when absent,
 `init --update` never overwrites, and `template-sync` / `doctor` never report
@@ -168,43 +241,53 @@ folder against the repo it was handed rather than `process.cwd()`.
 `detectArchitecture(repo)` in `src/garden/garden-detect.ts` wraps U2 and emits
 one finding per entry in **both** `findings` and `advisories`, nothing on
 `absent`. Garden is advisory throughout, so the two classes need no separate
-treatment here. `SOURCE_DRIFT_PAIRS` is left untouched — U3 replaces the
-date-based pair this design first reached for.
+treatment here. `SOURCE_DRIFT_PAIRS` is **not touched at all**: no entry is
+added for this folder and none is removed. U3 is the staleness mechanism
+instead, and an earlier draft's date-based pair was never implemented.
 
 ### U7 — SDD-report gap
 
 `detectArchitectureGaps` in `src/garden/sdd-report.ts`, emitting `Gap` entries
 (the shape imported from `src/core/fd-load.ts`) alongside the existing doc-gap
 detectors, so the standing report carries the same signal without an operator
-running garden. Page-scoped `findings` yield one `Gap` each, keyed on the page;
-U3's `advisories` are module-scoped and yield one `Gap` per unnamed module,
-keyed on `modules.md` — the same `Gap` shape either way, so the report needs no
-new category.
+running garden. Both classes use `category: 'architecture'`. A finding's
+`itemId` is `<page>#<rule>` and an advisory's is `<modules page>#<module>`, so
+every row has a stable identity, the two can never collide on `modules.md`, and
+a repeated run produces no duplicates. `message` is the finding's own message.
 
 ### U8 — Release probe
 
 A new `'architecture'` member of the `PreflightRowId` union
 (`src/release/preflight-types.ts`), appended to `ALL_ROW_IDS` and `PROBES`
 (`src/release/preflight-probes.ts`). `absent` maps to `skipped` with the reason
-in `detail`; `incomplete` maps to `blocking` with a copy-pasteable `fix`; `ok`
-maps to `ok`. `RELEASE_SKIP_ARCHITECTURE=1` routes through the existing
-`overrideSkip` helper so the override is audited like every other.
+in `detail`; `incomplete` maps to `blocking` with `fix` set to
+`noldor docs architecture --check` — the command that reprints every finding;
+`ok` maps to `ok`. `RELEASE_SKIP_ARCHITECTURE=1` routes through the existing
+`overrideSkip` helper so the override is audited like every other, and it is
+checked **first**, so an overridden run reports `skipped` via the override tag
+rather than racing the folder read.
 
 The row set is pinned by a count assertion — `src/release/__tests__/preflight-probes.test.ts:31`
 asserts `ALL_ROW_IDS.length` is 13. Adding the row moves it to 14 in the same
 change; a probe added without touching that line fails the suite.
 
-The absent-to-skipped mapping is what keeps a blocking gate adoption-safe: a
-consumer that has never scaffolded the folder cannot be stopped by it. Scaffold
-it and you have opted into finishing it.
+The absent-to-skipped mapping is what keeps a blocking gate adoption-safe, and
+U2's opt-in rule is what makes that promise survive `noldor init`: scaffolding
+alone leaves the folder untouched and therefore `absent`. Edit a page and you
+have opted into finishing the rest.
 
 ### U9 — Noldor's own four pages
 
 Written in this PR, from the repo as it actually is: `context` (operator and
 agent → the CLI → git, `gh`, graphify), `containers` (the CLI, the lefthook
 hook jobs, the dev dashboard, the `.noldor/*.json` state files), `modules`
-(`src/*` dependency direction with the durable-state owner per module),
-`flows` (gate → CR lanes → `pr-flow` merge).
+(`src/*` dependency direction with the durable-state owner per module), and
+`flows` carrying **two** sequence diagrams — the gate path (spec → CR lanes →
+`pr-flow` merge) and the release path (preflight rows → publish) — which is what
+the registry's "two or three" asks for.
+
+`modules.md` must name every directory U3 enumerates, or this repo trips its own
+advisory on the first run.
 
 This is what makes the release gate green on its own first run, which is why the
 FD does **not** declare `introduces-gate` — there is no window in which the
@@ -219,26 +302,32 @@ feature's gate blocks the feature's own release.
 3. It exits non-zero and names every offending file when a registry page is
    missing, carries no mermaid fence, declares a fence kind outside
    `allowedKinds`, or still carries a placeholder marker.
-4. It exits 0 and reports the folder as absent when `docs/architecture/` does
-   not exist.
-5. A fence whose graph keyword follows a `---` YAML block or a `%%{init: …}%%`
-   directive is read as its real kind, not rejected.
-6. It reports an advisory for every directory one level inside an existing scan
+4. It exits 0 and reports the folder as absent both when `docs/architecture/`
+   does not exist and when every page is still exactly as scaffolded; editing
+   any one page makes the remaining placeholders `incomplete`.
+5. A fence whose graph keyword follows a `---` YAML block, a `%%` comment or a
+   `%%{init: …}%%` directive is read as its real kind; a page carrying several
+   fences passes when any one of them declares an allowed kind.
+6. A folder path that is not a directory, and an unreadable directory or page,
+   each yield an `unreadable` finding rather than a thrown error reaching the
+   CLI, garden or preflight.
+7. It reports an advisory for every directory one level inside an existing scan
    root that `modules.md` does not name by path token, none when all are named,
-   and none at all when `modules.md` is missing; a non-existent scan root
-   contributes nothing. Additional `.md` files in the folder are ignored.
-7. Those advisories leave the exit code at 0 and the status out of `incomplete`,
+   and none at all when `modules.md` is missing. Non-existent roots, hidden and
+   generated directories, and symlinks contribute nothing, and overlapping roots
+   never yield a module twice. Additional `.md` files in the folder are ignored.
+8. Those advisories leave the exit code at 0 and the status out of `incomplete`,
    so they never reach the release row.
-8. Release preflight reports an `architecture` row: `skipped` when the folder is
-   absent, `blocking` with a `fix` when incomplete, `ok` when complete.
-9. `RELEASE_SKIP_ARCHITECTURE=1` forces that row to `skipped` and tags it with
-   the override.
+9. Release preflight reports an `architecture` row: `skipped` when the folder is
+   absent, `blocking` with a `fix` when incomplete, `ok` when complete;
+   `RELEASE_SKIP_ARCHITECTURE=1` forces `skipped` and tags the override.
 10. `garden detect` reports both findings and advisories for the folder, and
-    nothing for an absent one.
-11. `docs/sdd-report.md` carries an architecture gap line while the folder is
-    incomplete.
-12. `noldor init` scaffolds the four template pages into a repo that has none,
-    and `doctor` reports no drift after the consumer edits their content.
+    nothing for an absent one; `docs/sdd-report.md` carries an architecture gap
+    line while the folder is incomplete.
+11. `noldor init` scaffolds the four template pages into a repo that has none
+    and leaves the repo's release row `skipped`; `init --update` never
+    overwrites an edited page; `doctor` reports no drift after the consumer
+    edits content.
 
 ## Risks / trade-offs
 
@@ -247,9 +336,17 @@ feature's gate blocks the feature's own release.
   it at all (absent → skipped), and `RELEASE_SKIP_ARCHITECTURE=1`. Accepted
   deliberately — an advisory-only check is the shape the entry warns about.
 - **An empty folder is `incomplete`, not `absent`.** `mkdir docs/architecture`
-  alone flips a repo straight to `blocking`, and the only ways back are removing
-  the folder or setting the override. Keying on directory existence is what makes
-  the skip a single unambiguous fact, so the sharp edge is accepted.
+  alone flips a repo to `blocking` — the opt-in rule recognises an untouched
+  *scaffold*, not an empty directory, because an empty one carries no evidence
+  either way. The ways back are removing the folder, scaffolding it properly, or
+  the override.
+- **The check only sees presence, never quality.** Every rule it enforces — file
+  exists, a fence declares an allowed kind, no placeholder left, every module
+  named — is satisfiable by a one-node diagram and a list of directory names. It
+  can tell that a page was written; it cannot tell that the page is true. The
+  review stages are where that is caught, and this is why the gate is worth so
+  little on its own and the dogfooded pages (U9) carry the real burden of
+  showing what good looks like.
 - **Hand-drawn diagrams rot.** Only `modules` has a mechanical staleness signal
   (U3); `context`, `containers` and `flows` rot unobserved, because nothing in
   the repo can tell that an actor or a runtime flow changed. The alternative —
@@ -350,3 +447,8 @@ serve this folder — see Non-goals.
     only U2's presence, fence and placeholder rules feed the blocking row.
     Adding a module should nag; stopping a release over a directory rename is a
     heavier price than a stale diagram is worth.
+13. *Does `noldor init` opt a fresh consumer into the blocking gate?*
+    → **No.** A folder whose pages are all still exactly as scaffolded reads as
+    `absent`, so scaffolding alone cannot block a release. Editing any page is
+    the opt-in. Without this rule `init` would hand every new consumer a blocked
+    release, which is the opposite of what the absent-skip was for.
