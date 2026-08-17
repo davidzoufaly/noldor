@@ -329,5 +329,22 @@ Two more sink/receipt traps:
   `cr orchestrate --kind code --base-sha origin/main` to review the new tree
   and mint a fresh receipt on the tip.
 
+Two traps in how a round's result is read:
+
+- **Rounds that keep finding real defects are not evidence of converging
+  quality.** Q-0124's code CR ran 3→3→2→2→1→1→3 blockers over 8 rounds, and
+  from round 2 on nearly every finding was about the *previous round's fix*
+  rather than the original design. Each was genuine and verified, which is why
+  the loop felt productive; what it signalled was a design forcing case-by-case
+  repairs. After ~3 rounds on one artifact, ask whether the findings are
+  independent or each one repairs the last — if the latter, stop and question
+  the design instead of running another round.
+- **A green `verifier` lane is not a second opinion on correctness.** It
+  returned `pass` with 0 blockers on all 8 rounds of Q-0124 while `reviewer`
+  found 15 real defects, including a forgeable `Merge branch 'fake'` bypass.
+  Acceptance-style verification confirms the happy path does what the feature
+  claims; it does not probe adversarial or edge-state cases. Shipping on a green
+  verify alone would have shipped every one of those defects.
+
 Sink-file mechanics (stale sink after amend, archive-to-subdir, headless
 overwrite crash) live in [`gotchas.md`](gotchas.md#cr-sinks).
