@@ -24,6 +24,7 @@ import { loadConsumerConfig } from '../core/consumer-config.js';
 import type { ConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
+import { detectArchitectureFindings } from './detectors/architecture.js';
 import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/override-audit.js';
 import type { ExpectedOverrideRule } from './detectors/override-audit.js';
 import { loadConfigSync } from '../core/config.js';
@@ -571,6 +572,17 @@ export interface ReportInput {
   graphPath: string;
   /** Source roots whose mtime gates graph staleness. */
   graphSrcRoots: string[];
+  /**
+   * Blocking architecture-surface gaps, pre-loaded by the caller because the
+   * check reads the filesystem and {@link collectGaps} is pure with respect to
+   * it. Optional so a caller that does not check the surface (the dashboard)
+   * keeps compiling; omitted means "not checked", not "clean".
+   *
+   * Only the blocking class belongs here — module advisories must never reach
+   * `sddGaps`, which gates the garden auto-restamp and therefore a release. See
+   * `src/garden/detectors/architecture.ts`.
+   */
+  architectureGaps?: Gap[];
 }
 
 /**
@@ -614,6 +626,7 @@ export async function collectGaps(input: ReportInput): Promise<Gap[]> {
     ...detectMissingCoTags(input.features, input.testInputs, input.graphPath, input.graphSrcRoots),
   );
   gaps.push(...(await detectDoneFeaturesMissingCode(input.features)));
+  gaps.push(...(input.architectureGaps ?? []));
   return gaps;
 }
 
@@ -1001,6 +1014,7 @@ async function main(): Promise<void> {
   const gaps = await collectGaps({
     actualPackages,
     allRepoPaths,
+    architectureGaps: await detectArchitectureFindings(process.cwd()),
     backlog,
     docInputs,
     features,

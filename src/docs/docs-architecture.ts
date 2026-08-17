@@ -18,9 +18,13 @@ export interface ArchitectureFinding {
 }
 
 /**
- * A module the code has but the modules page never names. Advisory by design:
- * these never reach `status`, so adding a module nags without blocking a
- * release — see the FD's spec, "Do U3's module findings block a release?".
+ * A module the code has but the modules page never names.
+ *
+ * Advisory by design: these never reach `status`, so they never reach the
+ * release probe. Keeping that promise also constrains how they may be reported
+ * — routing them into garden's `sddGaps` would gate the auto-restamp and block
+ * a release through the receipt row, so they ride their own `GardenFindings`
+ * key. See `src/garden/detectors/architecture.ts`.
  */
 export interface ModuleAdvisory {
   /** Always the modules page. */
