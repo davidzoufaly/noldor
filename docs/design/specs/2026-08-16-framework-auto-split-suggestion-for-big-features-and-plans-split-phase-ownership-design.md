@@ -58,7 +58,18 @@ The resulting phase table replaces the "Informational vs drain" paragraph's impl
 
 ### U2 — `split-from` and `recovered` become parsed fields ([`src/utils/parse-blocks.ts`](../../../src/utils/parse-blocks.ts))
 
-`FIELD_KEYS` gains `split-from` and `recovered`. Following the file's own note that a new field key is *"added here once"*, the change is three coordinated edits: the `FIELD_KEYS` string (line 216), the `parseBlockBody` local + key dispatch + return shape (lines 244–301), and `BacklogEntry` (line 21) with `splitFrom?: string` and `recovered?: string`. Both parsers inherit it — `parseRoadmap` and `parseBacklog` share `parseBlockBody`.
+`FIELD_KEYS` gains `split-from` and `recovered`. The file's header note says a new field key is *"added here once"*, but that holds only for the stripping half: there are **two** independent field-harvest sites, so the change is four coordinated edits.
+
+| # | Site | Edit |
+| --- | --- | --- |
+| 1 | `FIELD_KEYS` (line 216) | add `split-from` and `recovered` to the alternation |
+| 2 | `BacklogEntry` (line 21) | add `splitFrom?: string`, `recovered?: string` |
+| 3 | `parseBlockBody` (lines 244–301) | local + key dispatch + return shape — feeds `parseRoadmap` |
+| 4 | `parseEntries` (lines 303–357) | `splitFrom: fields['split-from']`, `recovered: fields.recovered` in the entry literal — feeds `parseBacklog` |
+
+Edit 4 is the one that is easy to miss. `parseBacklog` ([`:103`](../../../src/utils/parse-blocks.ts#L103)) does **not** call `parseBlockBody`; it delegates to `parseEntries`, which harvests into its own `fields` record and builds the entry object explicitly. The two sites share only the `FIELD_KEYS` regex, so widening it strips the bullets from `description` on both paths for free — but a field left out of the `parseEntries` literal silently stays `undefined` on every backlog block.
+
+That duplication is pre-existing and out of scope here; unifying the two harvest sites is noted as a follow-up in Open questions (8).
 
 Two effects. The bullets stop landing in `description`, so E1's word count and E2's `- ` line count no longer charge an entry for its own provenance. And `- split-from: Q-0108` becomes readable structured data rather than prose an agent has to notice.
 
@@ -68,7 +79,14 @@ Blast radius in this repo is nil: `grep -c '^- recovered:'` returns 0 for both `
 
 `RetiredIdRecord` gains `splitInto?: string[]`, the sibling of the existing `retiredInto`. `roadmap remove-block <slug> --split-into <slug>,<slug>` removes the source block — which is what replacing it with siblings does anyway — and records `{ slug, splitInto, retiredAt }` through the existing `recordRetiredId`, whose first-write-wins idempotence makes re-runs safe.
 
-Reusing this CLI rather than adding one is the whole point: `remove-block` already parses a comma list (`parseRefList`), already writes the map, and [`allowlist.ts:66`](../../../src/core/allowlist.ts#L66) `RETIREMENT_GLOBS` already covers `docs/roadmap.md` plus the map file, so a split commits under the existing retirement scope.
+Reusing this CLI rather than adding one is the whole point: it already removes blocks, already writes the map through `recordRetiredId`, and [`allowlist.ts:66`](../../../src/core/allowlist.ts#L66) `RETIREMENT_GLOBS` already covers `docs/roadmap.md` plus the map file, so a split commits under the existing retirement scope.
+
+**Comma-list parsing is new work.** `remove-block` today parses `--retired-into` as a scalar and has no list handling; [`parseRefList`](../../../src/utils/parse-blocks.ts#L222) is a non-exported local of `parse-blocks.ts` serving field bullets. Export it and call it from `remove-block-cli.ts` — `--split-into a,b` and `- blocked-by: a, b` should agree on what a comma list means, and one exported splitter is cheaper than a second convention.
+
+**Argument parsing needs two fixes, not one flag.** `parseRemoveBlockArgs` ([`remove-block-cli.ts:37`](../../../src/triage/remove-block-cli.ts#L37)) finds the positional slug with `argv.find((a, i) => !a.startsWith('--') && !(flagIndex >= 0 && i === flagIndex + 1))` — an exclusion hard-coded to the single token after `--retired-into`:
+
+- **Flag-before-slug ordering.** `remove-block --split-into a,b my-slug` would bind `slug = 'a,b'`, which resolves to no block and exits 0 with "nothing to do" — a silent no-op that gate and drain flows read as success. The exclusion must cover the token after either flag.
+- **Presence vs value.** The existing drop-empty / drop-flag-following logic collapses a valueless flag to `undefined`, so `--split-into --backlog --retired-into x` would slip past a mutual-exclusion check written against the parsed values. Exclusivity is decided on flag *presence* in `argv`, before value extraction.
 
 `--split-into` and `--retired-into` are mutually exclusive: an entry is either absorbed into a parent FD or divided into siblings. Supplying both is a usage error.
 
@@ -111,13 +129,15 @@ Every edited file under `.claude/skills/` and `docs/noldor/` has a twin under `t
 3. `assessEntrySplit` on a block whose body is otherwise clean does not count `- split-from:` or `- recovered:` toward the E2 scope-bullet total.
 4. `roadmap remove-block <slug> --split-into a,b` removes the block and records `{ slug, splitInto: ['a','b'], retiredAt }` under the entry's ID; a second identical invocation exits 0 and leaves the map unchanged.
 5. `remove-block --split-into` on a block with no `- id:` removes the block, exits 0, and writes no map record.
-6. Passing both `--split-into` and `--retired-into` exits non-zero without modifying the roadmap or the map.
-7. With a split recorded, `pnpm noldor validate triage` reports no `unknown-blocked-by-ref` for a `blocked-by:` naming either the source entry ID or the source slug.
-8. `pnpm noldor checks template-sync` exits 0 — every edited `.claude/skills/**` and `docs/noldor/**` file matches its `templates/` twin.
-9. `docs/noldor/complexity-gating.md` carries a phase-ownership statement naming promote as the owner, sibling roadmap entries as the single scope-split product, and defining scope-split vs document-split.
-10. `.claude/skills/noldor-triage/SKILL.md` step 8 invokes `split-check --entry` per newly-inserted roadmap block, and states that a non-zero exit does not fail the triage run.
-11. `.claude/skills/noldor-gate/SKILL.md` Step 2.5 offers `split-back` at both artifact kinds, specifies a follow-up commit rather than an amend, requires a clean `split-check` re-run before proceeding, and counts the round against the existing re-round cap.
-12. `.claude/skills/noldor-plan/SKILL.md` step 6 asks the scope-vs-document diagnosis before any `-part<N>` restructure.
+6. `remove-block --split-into a,b my-slug` (flag before the positional) removes the block for `my-slug` — the slug does not bind to `a,b`.
+7. Passing both `--split-into` and `--retired-into` exits non-zero without modifying the roadmap or the map, including when either flag is valueless (exclusivity is decided on flag presence, not on parsed values).
+8. With a split recorded, `pnpm noldor validate triage` reports no `unknown-blocked-by-ref` for a `blocked-by:` naming either the source entry ID or the source slug.
+9. `pnpm noldor checks template-sync` exits 0 — every edited `.claude/skills/**` and `docs/noldor/**` file matches its `templates/` twin.
+10. `docs/noldor/complexity-gating.md` carries a phase-ownership statement naming promote as the owner, sibling roadmap entries as the single scope-split product, and defining scope-split vs document-split.
+11. `.claude/skills/noldor-promote/SKILL.md` steps 1.7(b) and 6.5(b) stamp `- split-from: <source-id>` on each emitted sibling, and 1.7(b) calls `remove-block --split-into` to record the source ID before the siblings are written.
+12. `.claude/skills/noldor-triage/SKILL.md` step 8 invokes `split-check --entry` per newly-inserted roadmap block, and states that a non-zero exit does not fail the triage run.
+13. `.claude/skills/noldor-gate/SKILL.md` Step 2.5 offers `split-back` at both artifact kinds, specifies a follow-up commit rather than an amend, requires a clean `split-check` re-run before proceeding, and counts the round against the existing re-round cap.
+14. `.claude/skills/noldor-plan/SKILL.md` step 6 asks the scope-vs-document diagnosis before any `-part<N>` restructure.
 
 ## Risks / trade-offs
 
@@ -182,3 +202,6 @@ pnpm noldor noldor split-check --spec <path>
 
 7. *Does `split-back` amend the artifact commit?*
    -> No — a follow-up commit. An amend moves the tree under any artifact-stage lane sink already written, and the follow-up keeps `--base-sha` usable for a re-round (D7).
+
+8. *Should the two field-harvest sites in `parse-blocks.ts` be unified while adding fields to both?*
+   -> Not here. `parseBlockBody` and `parseEntries` duplicate the harvest for pre-existing reasons (line-number tracking vs split-based parsing), and unifying them would put a parser refactor inside a policy slice. Add the fields to both, and file the unification separately — the file's "added here once" note is already inaccurate and should be corrected with the refactor, not before it.
