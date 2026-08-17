@@ -54,7 +54,8 @@ The resulting phase table replaces the "Informational vs drain" paragraph's impl
 | promote 1.7 | **owner** | split-first → sibling roadmap entries |
 | drain Step 0 | hard stop | exit unscaffolded → escalation (unchanged) |
 | gate 2.5 spec | bounce | `split-back` → carve siblings, narrow the spec |
-| gate 2.5 plan | bounce or document-split | diagnose scope vs verbosity |
+| `noldor-plan` post-save | bounce or document-split | diagnose scope vs verbosity |
+| gate 2.5 plan | bounce or document-split | same diagnosis, at the review pause |
 
 The rules table gains `triage` to its E1/E2/E3 "Surfaces at" cells; no other cell changes.
 
@@ -71,7 +72,7 @@ The rules table gains `triage` to its E1/E2/E3 "Surfaces at" cells; no other cel
 
 Edit 4 is the one that is easy to miss. `parseBacklog` ([`:103`](../../../src/utils/parse-blocks.ts#L103)) does **not** call `parseBlockBody`; it delegates to `parseEntries`, which harvests into its own `fields` record and builds the entry object explicitly. The two sites share only the `FIELD_KEYS` regex, so widening it strips the bullets from `description` on both paths for free — but a field left out of the `parseEntries` literal silently stays `undefined` on every backlog block.
 
-That duplication is pre-existing and out of scope here; unifying the two harvest sites is noted as a follow-up in Open questions (8).
+That duplication is pre-existing and out of scope here; unifying the two harvest sites is noted as a follow-up in Open questions (10).
 
 Two effects. The bullets stop landing in `description`, so E1's word count and E2's `- ` line count no longer charge an entry for its own provenance. And `- split-from: Q-0108` becomes readable structured data rather than prose an agent has to notice.
 
@@ -88,7 +89,7 @@ Reusing this CLI rather than adding one is the whole point: it already removes b
 **Argument parsing needs two fixes, not one flag.** `parseRemoveBlockArgs` ([`remove-block-cli.ts:37`](../../../src/triage/remove-block-cli.ts#L37)) finds the positional slug with `argv.find((a, i) => !a.startsWith('--') && !(flagIndex >= 0 && i === flagIndex + 1))` — an exclusion hard-coded to the single token after `--retired-into`:
 
 - **Flag-before-slug ordering.** `remove-block --split-into a,b my-slug` would bind `slug = 'a,b'`, which resolves to no block and exits 0 with "nothing to do" — a silent no-op that gate and drain flows read as success. The exclusion must cover the token after either flag.
-- **Presence vs value.** The existing drop-empty / drop-flag-following logic collapses a valueless flag to `undefined`, so `--split-into --backlog --retired-into x` would slip past a mutual-exclusion check written against the parsed values. Exclusivity is decided on flag *presence* in `argv`, before value extraction.
+- **Presence vs value.** The existing drop-empty / drop-flag-following logic collapses a valueless flag to `undefined`, so `--split-into --backlog --retired-into x` would slip past a mutual-exclusion check written against the parsed values. Exclusivity is decided on flag *presence* in `argv`, before value extraction. "Present" means a token that **equals `--flag` or starts with `--flag=`** — `parseRemoveBlockArgs` already accepts the inline form for `--retired-into` ([`:30`](../../../src/triage/remove-block-cli.ts#L30)), so a bare `argv.includes('--retired-into')` test would let `--split-into a,b --retired-into=x` through, which is the exact bypass this fix exists to close. `--split-into=a,b` is supported for parity.
 
 `--split-into` and `--retired-into` are mutually exclusive: an entry is either absorbed into a parent FD or divided into siblings. Supplying both is a usage error.
 
@@ -104,6 +105,16 @@ No new `--text` / `--bullet` CLI mode. Measuring after the block is written is s
 
 Step 1.7's option (b) and step 6.5's option (b) share one write-back recipe. Both gain `- split-from: <source-id>` on each emitted sibling alongside the existing carried bullets, and step 1.7(b) gains the `remove-block --split-into` call that records the source ID before the siblings are written. Prose states that promote is the owner, so an operator reading option (b) knows it is the canonical remedy rather than one of several.
 
+**The recipe must mint entry IDs, which today it does not.** Step 6.5(b) carries `- area:` / `- type:` / `- size:` / `- impact:` / `- recovered:` and no `- id:`. Once `.noldor/id-counter.json` exists — it does in this repo — `validateTriage` raises `missing-entry-id` as an **error** for any entry whose `id` is undefined ([`validate-triage.ts:259`](../../../src/triage/validate-triage.ts#L259)), so following the recipe literally emits blocks that red the regen chain. This is a pre-existing gap in the shipped skill rather than one this design introduces, and it becomes load-bearing the moment splitting is the named remedy, so it is fixed here for both write-back sites:
+
+Mint before writing, in one call, exactly as `/noldor-triage` step 6 does — IDs are minted, never hand-written:
+
+```
+pnpm noldor triage mint-id --count <n>
+```
+
+`- id:` is stamped as the **first** bullet of each sibling, ahead of `- area:`, with `- split-from: <source-id>` beside the carried fields. The minted ID is what makes a sibling addressable by `blocked-by:` in its own right; `- split-from:` records where it came from.
+
 ### U6 — Gate Step 2.5 `split-back` (`.claude/skills/noldor-gate/SKILL.md`)
 
 **`split-back` is not a new top-level option.** The continue-dialog is already at the four-option ceiling `AskUserQuestion` enforces — at `--kind plan` it carries `proceed-autonomous / proceed / address-blockers / abort` — so a fifth cannot be built. `split-back` is reached as a **second question under `address-blockers`**, which is also where it belongs: an S1/P1 signal is a blocker, and carving is one way to address it. When the round's findings include a live split signal, picking `address-blockers` asks a follow-up:
@@ -112,12 +123,12 @@ Step 1.7's option (b) and step 6.5's option (b) share one write-back recipe. Bot
 fix-in-place / split-back / back
 ```
 
-`fix-in-place` is the existing autofix-then-operator path, unchanged. Both kinds keep exactly four top-level options, and no existing option is dropped on a heuristic trip.
+`fix-in-place` is the existing autofix-then-operator path, unchanged. Neither kind exceeds four top-level options — `plan` stays at its existing four, `spec` at its existing three — and no existing option is dropped on a heuristic trip.
 
 `split-back` is non-destructive — the FD, the session marker and the worktree all survive:
 
 1. Operator names the scope that leaves.
-2. Sibling roadmap blocks are written per U5's recipe, stamped `- split-from: <entry-id>` (read from the FD's `entry-id:` frontmatter).
+2. Sibling roadmap blocks are written per U5's recipe — minted `- id:` first, then `- split-from: <entry-id>` read from the FD's `entry-id:` frontmatter, beside the carried fields.
 3. The artifact is narrowed to slice 1 on disk.
 4. A **follow-up commit** lands the narrowed artifact plus the roadmap blocks — never an amend. At Step 2.5 the artifact commit carries no review receipt, but an amend would still move the tree under any artifact-stage lane sink already written; a follow-up keeps those sinks' base valid and lets a re-round use `--base-sha`.
 5. `split-check` re-runs on the narrowed artifact and its result is **reported, not enforced**. The operator may proceed whether or not the signal cleared.
@@ -140,14 +151,15 @@ Every edited file under `.claude/skills/` and `docs/noldor/` has a twin under `t
 4. `roadmap remove-block <slug> --split-into a,b` removes the block and records `{ slug, splitInto: ['a','b'], retiredAt }` under the entry's ID; a second identical invocation exits 0 and leaves the map unchanged.
 5. `remove-block --split-into` on a block with no `- id:` removes the block, exits 0, and writes no map record.
 6. `remove-block --split-into a,b my-slug` (flag before the positional) removes the block for `my-slug` — the slug does not bind to `a,b`.
-7. Passing both `--split-into` and `--retired-into` exits non-zero without modifying the roadmap or the map, including when either flag is valueless (exclusivity is decided on flag presence, not on parsed values).
+7. Passing both `--split-into` and `--retired-into` exits non-zero without modifying the roadmap or the map — in every combination of the spaced, inline-`=`, and valueless forms (exclusivity is decided on flag presence, not on parsed values). `--split-into=a,b` behaves identically to `--split-into a,b`.
 8. With a split recorded, `pnpm noldor validate triage` reports no `unknown-blocked-by-ref` for a `blocked-by:` naming either the source entry ID or the source slug.
 9. `pnpm noldor checks template-sync` exits 0 — every edited `.claude/skills/**` and `docs/noldor/**` file matches its `templates/` twin.
 10. `docs/noldor/complexity-gating.md` carries a phase-ownership statement naming promote as the owner, sibling roadmap entries as the single scope-split product, and defining scope-split vs document-split.
-11. `.claude/skills/noldor-promote/SKILL.md` steps 1.7(b) and 6.5(b) stamp `- split-from: <source-id>` on each emitted sibling, and 1.7(b) calls `remove-block --split-into` to record the source ID before the siblings are written.
-12. `.claude/skills/noldor-triage/SKILL.md` step 8 invokes `split-check --entry` per newly-inserted roadmap block, and states that a non-zero exit does not fail the triage run.
-13. `.claude/skills/noldor-gate/SKILL.md` Step 2.5 reaches `split-back` at both artifact kinds via a second question under `address-blockers`, with no single `AskUserQuestion` exceeding four options; specifies a follow-up commit rather than an amend; counts the round against the existing re-round cap; and leaves `proceed` available regardless of whether the post-carve `split-check` cleared.
-14. `.claude/skills/noldor-plan/SKILL.md` step 6 asks the scope-vs-document diagnosis before any `-part<N>` restructure.
+11. `.claude/skills/noldor-promote/SKILL.md` steps 1.7(b) and 6.5(b) mint entry IDs via `triage mint-id --count <n>` and stamp `- id:` first plus `- split-from: <source-id>` on each emitted sibling; 1.7(b) calls `remove-block --split-into` to record the source ID before the siblings are written.
+12. A roadmap block emitted by that recipe passes `pnpm noldor validate triage` with `.noldor/id-counter.json` present — no `missing-entry-id`.
+13. `.claude/skills/noldor-triage/SKILL.md` step 8 invokes `split-check --entry` per newly-inserted roadmap block, and states that a non-zero exit does not fail the triage run.
+14. `.claude/skills/noldor-gate/SKILL.md` Step 2.5 reaches `split-back` at both artifact kinds via a second question under `address-blockers`, with no single `AskUserQuestion` exceeding four options; specifies a follow-up commit rather than an amend; counts the round against the existing re-round cap; and leaves `proceed` available regardless of whether the post-carve `split-check` cleared.
+15. `.claude/skills/noldor-plan/SKILL.md` step 6 asks the scope-vs-document diagnosis before any `-part<N>` restructure.
 
 ## Risks / trade-offs
 
