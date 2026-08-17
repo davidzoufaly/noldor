@@ -35,6 +35,16 @@ export const SCAFFOLD_ONLY_TEMPLATES: ReadonlySet<string> = new Set([
   // and appends their own hooks — template-sync would otherwise clobber those,
   // so this is a scaffold, not a synced twin.
   '.claude/settings.json',
+  // Architecture surface starters: the four registry pages, each shipped with a
+  // placeholder marker. The content is entirely consumer-owned — these describe
+  // THEIR system — so `init` writes them once and template-sync never demands
+  // they match. The markers are also what `checkArchitecture` reads as "still
+  // untouched", which is what keeps `init` from opting a fresh consumer into a
+  // blocking release row.
+  'docs/architecture/context.md',
+  'docs/architecture/containers.md',
+  'docs/architecture/modules.md',
+  'docs/architecture/flows.md',
 ]);
 
 /** Enumerate every file under TEMPLATES_ROOT, returning paths relative to it. */

@@ -472,6 +472,14 @@ The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
 - **When to use:** via `pnpm docs:build`; ad hoc before committing user-doc changes.
 - **Source:** [`src/docs/docs-check.ts`](../../src/docs/docs-check.ts)
 
+### `docs:architecture`
+
+- **Trigger:** `pnpm noldor docs architecture` (`--check` is the only mode, and the default). Also read by `garden detect` and by the release preflight's `architecture` row.
+- **Inputs:** `docs/architecture/{context,containers,modules,flows}.md`, plus the directories one level inside each `scanRoots()` root (for the modules advisory).
+- **Outputs:** exit 0 when the pages are complete, or when the surface is absent — no folder, or a scaffold nobody has edited yet. Exit 1 when a page is missing, carries no mermaid fence, declares a disallowed diagram kind, still holds a `<!-- TODO:` placeholder, or cannot be read. Module advisories print to stdout and never change the exit code.
+- **When to use:** after editing the architecture pages, and whenever a module directory is added or renamed.
+- **Source:** [`src/docs/docs-architecture.ts`](../../src/docs/docs-architecture.ts)
+
 ### `docs:build`
 
 - **Trigger:** `pnpm docs:build`. Composite — runs `docs:api && docs:howto && docs:transclude && sync:doc-links && docs:check && fmt`.

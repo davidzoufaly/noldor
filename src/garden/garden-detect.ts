@@ -29,6 +29,7 @@ import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
 import { detectSkillCodeDrift } from './detectors/skill-code-drift.js';
+import { detectArchitectureGaps } from './detectors/architecture.js';
 import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
 import {
   resolveByLinksPlan,
@@ -773,6 +774,10 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // package.json scripts ∪ script-catalog), catching renamed/removed/regrouped
   // commands a shipped FD still cites.
   sddGaps.push(...(await detectFdCommandRot(repo)));
+  // Architecture surface: missing/unfilled registry pages plus modules the code
+  // has that the modules page never names. Silent on a repo that has not opted
+  // in — see detectArchitectureGaps.
+  sddGaps.push(...(await detectArchitectureGaps(repo)));
   const overrideAudit = auditOverrides({ cwd: repo, ...(await loadOverrideAuditOptions(repo)) });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });

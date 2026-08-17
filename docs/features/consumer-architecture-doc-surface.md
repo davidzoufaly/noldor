@@ -4,16 +4,19 @@ category: Tooling
 deps: []
 entry-id: Q-0093
 links:
-  code: []
-  tests: []
+  code:
+    - src/docs/architecture-schema.ts
+    - src/docs/docs-architecture.ts
+    - src/garden/detectors/architecture.ts
+  tests:
+    - src/docs/__tests__/docs-architecture.test.ts
 name: Consumer Architecture Doc Surface
 packages:
   - noldor
 phase: in-progress
-since: 2026-08-11
+since: 2026-08-11T00:00:00.000Z
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 A `docs/architecture/` folder holding four hand-drawn mermaid diagrams that answer "how is this system shaped" above the per-feature level: `context` (the system, its actors, the externals it talks to), `containers` (deployable and runnable units — FE app, BE service, DB, worker, CLI, infra), `modules` (internal dependency direction and which module owns which durable state) and `flows` (the load-bearing runtime flows). The framework ships the registry, a presence validator, an advisory staleness check, scaffold-only templates, a garden detector, an SDD-report gap and a release probe; consumers write the content. One surface serves both a consumer repo and Noldor itself, which fills the same four pages.
