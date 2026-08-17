@@ -90,7 +90,10 @@ Fence-kind checking is textual, not a mermaid parse — see Risks.
 (`src/docs/docs-howto.ts:31`). Registry pages render in registry order with
 their `purpose` as the one-liner; any additional `.md` in the folder renders
 under a trailing **Additional diagrams** heading so per-subsystem charts stay
-discoverable. Pure function; the writer is idempotent.
+discoverable. The scan that produces `extras` **skips `index.md` itself**, as
+`loadHowtos` already does (`src/docs/docs-howto.ts:87`) — otherwise the second
+run lists the index inside the index and the output stops being stable. Pure
+function; the writer is idempotent.
 
 ### U4 — CLI
 
@@ -138,6 +141,10 @@ in `detail`; `incomplete` maps to `blocking` with a copy-pasteable `fix`; `ok`
 maps to `ok`. `RELEASE_SKIP_ARCHITECTURE=1` routes through the existing
 `overrideSkip` helper so the override is audited like every other.
 
+The row set is pinned by a count assertion — `src/release/__tests__/preflight-probes.test.ts:31`
+asserts `ALL_ROW_IDS.length` is 13. Adding the row moves it to 14 in the same
+change; a probe added without touching that line fails the suite.
+
 The absent-to-skipped mapping is what keeps a blocking gate adoption-safe: a
 consumer that has never scaffolded the folder cannot be stopped by it. Scaffold
 it and you have opted into finishing it.
@@ -169,7 +176,8 @@ feature's gate blocks the feature's own release.
    generated-do-not-edit marker with one entry per registry page; a second run
    produces byte-identical output.
 6. Additional `.md` files in the folder appear in the index under a separate
-   heading and are otherwise ignored by the check.
+   heading and are otherwise ignored by the check; `index.md` never lists
+   itself.
 7. Release preflight reports an `architecture` row: `skipped` when the folder is
    absent, `blocking` with a `fix` when incomplete, `ok` when complete.
 8. `RELEASE_SKIP_ARCHITECTURE=1` forces that row to `skipped` and tags it with
