@@ -16,7 +16,7 @@ links:
 name: Framework Auto-Split Suggestion for Big Features and Plans
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
@@ -43,12 +43,21 @@ pnpm noldor noldor split-check --spec docs/design/specs/2026-07-03-foo-design.md
 
 Exit 0 = clean, 2 = signals on stdout (one per line), 1 = infra error.
 
+**Recording a split**
+
+```
+pnpm noldor roadmap remove-block <slug> --split-into <slice-a>,<slice-b>
+```
+
+Removes the source block and records `splitInto` in `.noldor/retired-entry-ids.json`, so `blocked-by:` references to the split entry keep resolving. Mutually exclusive with `--retired-into`. Each emitted sibling carries `- split-from: <source-id>`.
+
 **In-flow (no extra operator action)**
 
-1. `/noldor-promote <slug>` — step 1.7 runs the entry check automatically; on signals, pick proceed / split-first / abort-and-re-size. Attach picks also see the F1 parent-breadth signal.
-2. `noldor-plan` — post-save check; an oversized plan is restructured into `-part<N>` files before the skill reports done.
-3. `/noldor-gate` Step 2.5 `--kind plan` / `--kind spec` — split findings appear alongside lint findings in the continue-dialog, informational.
-4. Headless drain — an entry whose body trips the signals is bounced to the escalation surface instead of shipped.
+1. `/noldor-triage` — step 8 runs the entry check per newly-inserted roadmap block as a pre-warning. Signals are reported; a non-zero exit never fails the triage run.
+2. `/noldor-promote <slug>` — **step 1.7 owns the split.** On signals, pick proceed / split-first / abort-and-re-size; split-first emits siblings via the sibling-emission recipe (mint `- id:`, write siblings, then `remove-block --split-into`). Attach picks also see the F1 parent-breadth signal.
+3. `noldor-plan` — post-save check; on P1, diagnose scope vs verbosity before restructuring. Oversized *scope* bounces to a scope split; a verbose-but-right-sized plan becomes `-part<N>` files.
+4. `/noldor-gate` Step 2.5 `--kind plan` / `--kind spec` — split findings appear alongside lint findings. `address-blockers` → `split-back` carves siblings back to the roadmap and narrows the artifact, keeping the same session; the post-carve re-check reports, never gates.
+5. Headless drain — an entry whose body trips the signals is bounced to the escalation surface instead of shipped.
 
 **Keyboard shortcut** — none (CLI + skill flow).
 
