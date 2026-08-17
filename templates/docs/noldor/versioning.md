@@ -74,6 +74,14 @@ skip the sweep; minor and major bumps MUST NOT.
      flag includes the Gate compliance section (tier distribution,
      override usage, review-skip counter).
    - `pnpm noldor validate features`
+   - `checkArchitecture(repo)` — the `docs/architecture/` pages must be
+     present, drawn with a diagram kind the registry allows, and free of
+     scaffold placeholders. Skipped entirely for a repo that never opted
+     in: a missing folder and an untouched scaffold both report absent, so
+     `noldor init` cannot block a fresh consumer's first release. Module
+     advisories are not part of this row and never block. See
+     [`garden-and-drift.md`](garden-and-drift.md). `RELEASE_SKIP_ARCHITECTURE=1
+     pnpm release` is the logged break-glass hatch.
    - `checkCrGate(prev-tag..HEAD)` — every code-touching commit must
      show review evidence: a `Noldor-Reviewed(-Subagent|-Codex)` receipt
      or a non-empty override trailer, scanned across the whole squash
@@ -84,9 +92,9 @@ skip the sweep; minor and major bumps MUST NOT.
      `RELEASE_SKIP_CR_GATE=1 pnpm release` remains a logged break-glass
      hatch (e.g. a transition release where the CR pipeline itself was
      added mid-cycle). Same escape-hatch discipline as
-     `RELEASE_SKIP_GATE_COMPLIANCE`; all three skips — the garden gate
-     included — append a `(release)`-tagged line to
-     `.noldor/overrides.log`.
+     `RELEASE_SKIP_GATE_COMPLIANCE`; all four skips — the garden gate and
+     the architecture surface included — append a `(release)`-tagged line
+     to `.noldor/overrides.log`.
 
    **Consumer quality gates (run only if declared in the consumer's
    `package.json`; a repo without one skips it loudly):** `pnpm typecheck`,
