@@ -78,14 +78,20 @@ that propagates to templates, validator and release probe at once.
 
 ### U2 — Page validator (`src/docs/docs-architecture.ts`)
 
-`checkArchitecture(cwd)` returns `{ status, findings }` where `status` is
-`absent | ok | incomplete`.
+`checkArchitecture(cwd)` returns `{ status, findings, advisories }` where
+`status` is `absent | ok | incomplete`. It resolves the folder through
+`loadDocRoots(cwd).architecture` rather than joining its own path string; the
+`DocRoots` interface gains that field alongside the function
+(`src/core/doc-roots.ts:47`).
 
 `absent` when the folder does not exist — the single fact every caller keys its
 skip on. Otherwise each registry page is checked for four things: the file
 exists; it contains at least one ```mermaid fence; the fence declares a kind in
-`allowedKinds`; no unresolved `<!-- TODO:` placeholder remains. Findings name
-the file and the rule, one per failure, so one pass reports everything.
+`allowedKinds`; no unresolved `<!-- TODO:` placeholder remains. Each failure
+becomes one entry in `findings`, naming the file and the rule, so one pass
+reports everything; a non-empty `findings` is what makes `status` `incomplete`.
+
+`advisories` carries U3's module findings, which never affect `status`.
 
 Reading the kind means the first token of the first **content** line inside the
 fence, after skipping a leading `---` YAML block and any `%%{init: …}%%`
@@ -96,21 +102,42 @@ Risks.
 ### U3 — Structural staleness check (same module)
 
 `modules` is the one page whose subject the repo can describe itself, so it gets
-a real staleness signal rather than a calendar one: `checkArchitecture` also
-flags every top-level source directory returned by `scanRoots()`
-(`src/core/repo-paths.ts:25`) that `modules.md` never mentions.
+a real staleness signal rather than a calendar one. `listModuleDirs(cwd)` derives
+the module set, and `checkArchitecture` flags every member `modules.md` does not
+name.
 
-`scanRoots()` is the framework's single source of truth for consumer source
-roots — consumer `scanPaths` when configured, else the layout union — and its
-own docstring forbids hardcoding layout dirs in a new feature. Keying on it is
-what makes the check work on a consumer laid out as `packages/` or `app/`.
+**The module set is one level *inside* each scan root, not the roots.**
+`scanRoots()` (`src/core/repo-paths.ts:25`) returns roots — `['src']` in this
+repo and in the shipped `templates/.noldor/config.json`, `['packages', 'apps',
+'scripts', 'src']` when a consumer sets no `scanPaths`. Checking the roots
+themselves would reduce here to "does `modules.md` contain `src`", which any
+path mention satisfies, so the check would never fire. One level in is the
+granularity that matches what the page draws: `src/core`, `src/cr`,
+`src/garden`, … here; `packages/api`, `packages/web` for a monorepo consumer.
+
+Three rules keep it from firing wrongly:
+
+- **Existence filter.** Only roots that exist on disk contribute. `scanRoots()`
+  returns names regardless — its own docstring notes roots that do not exist are
+  ENOENT-skipped by every walker — so a standalone consumer with no config would
+  otherwise get findings for `packages`, `apps` and `scripts` it never had.
+- **Skip when the page is absent.** U2 already reports a missing `modules.md`;
+  running the structural pass as well would either throw on the read or bury
+  that one finding under a finding per module.
+- **Path-token match**, not substring: a module counts as named when its path
+  appears delimited by whitespace, backticks, or markdown punctuation. Substring
+  matching would let a root named `app` match the word "apply".
 
 This replaces a `SOURCE_DRIFT_PAIRS` entry. A date-based pair over whole-`src`
 would flag the page on nearly every PR at the 30-day tolerance
 (`src/garden/garden-detect.ts:521`), and a detector that always fires is noise.
-The structural form is silent through ordinary edits and speaks exactly when a
-module is added, removed or renamed — which is when a module diagram actually
-goes wrong. Findings are `incomplete`, same as any other.
+The structural form is silent through ordinary edits and speaks when a module is
+added or renamed — which is when a module diagram actually goes wrong.
+
+**These findings are advisory.** They surface through U6 and U7 but do not make
+`checkArchitecture` return `incomplete`, so they never reach U8's blocking row.
+Only U2's presence, fence and placeholder rules block a release. Adding a module
+should nag, not stop a release.
 
 ### U4 — CLI
 
@@ -118,7 +145,8 @@ goes wrong. Findings are `incomplete`, same as any other.
 `src/cli/manifest.ts` beside `api`, `howto`, `check` and `transclude`. `--check`
 is the only mode and the default, so the bare invocation and the flagged one
 behave identically. Exits 0 on `ok` and on `absent`, non-zero on `incomplete`,
-printing each finding.
+printing findings and advisories both — advisories labelled as such, since they
+are printed on a run that exits 0.
 
 ### U5 — Templates + doc root
 
@@ -138,16 +166,20 @@ folder against the repo it was handed rather than `process.cwd()`.
 ### U6 — Garden detector
 
 `detectArchitecture(repo)` in `src/garden/garden-detect.ts` wraps U2 and emits
-one finding per `incomplete` result, nothing on `absent`. `SOURCE_DRIFT_PAIRS`
-is left untouched — U3 replaces the date-based pair this design first reached
-for.
+one finding per entry in **both** `findings` and `advisories`, nothing on
+`absent`. Garden is advisory throughout, so the two classes need no separate
+treatment here. `SOURCE_DRIFT_PAIRS` is left untouched — U3 replaces the
+date-based pair this design first reached for.
 
 ### U7 — SDD-report gap
 
-`detectArchitectureGaps` in `src/garden/sdd-report.ts`, emitting one `Gap`
-(the shape imported from `src/core/fd-load.ts`) per incomplete page alongside
-the existing doc-gap detectors, so the standing report carries the same signal
-without an operator running garden.
+`detectArchitectureGaps` in `src/garden/sdd-report.ts`, emitting `Gap` entries
+(the shape imported from `src/core/fd-load.ts`) alongside the existing doc-gap
+detectors, so the standing report carries the same signal without an operator
+running garden. Page-scoped `findings` yield one `Gap` each, keyed on the page;
+U3's `advisories` are module-scoped and yield one `Gap` per unnamed module,
+keyed on `modules.md` — the same `Gap` shape either way, so the report needs no
+new category.
 
 ### U8 — Release probe
 
@@ -191,18 +223,21 @@ feature's gate blocks the feature's own release.
    not exist.
 5. A fence whose graph keyword follows a `---` YAML block or a `%%{init: …}%%`
    directive is read as its real kind, not rejected.
-6. It reports a finding for every top-level directory from `scanRoots()` that
-   `modules.md` does not mention, and none when all are mentioned; additional
-   `.md` files in the folder are ignored.
-7. Release preflight reports an `architecture` row: `skipped` when the folder is
+6. It reports an advisory for every directory one level inside an existing scan
+   root that `modules.md` does not name by path token, none when all are named,
+   and none at all when `modules.md` is missing; a non-existent scan root
+   contributes nothing. Additional `.md` files in the folder are ignored.
+7. Those advisories leave the exit code at 0 and the status out of `incomplete`,
+   so they never reach the release row.
+8. Release preflight reports an `architecture` row: `skipped` when the folder is
    absent, `blocking` with a `fix` when incomplete, `ok` when complete.
-8. `RELEASE_SKIP_ARCHITECTURE=1` forces that row to `skipped` and tags it with
+9. `RELEASE_SKIP_ARCHITECTURE=1` forces that row to `skipped` and tags it with
    the override.
-9. `garden detect` reports an architecture finding for an incomplete folder and
-   none for an absent one.
-10. `docs/sdd-report.md` carries an architecture gap line while the folder is
+10. `garden detect` reports both findings and advisories for the folder, and
+    nothing for an absent one.
+11. `docs/sdd-report.md` carries an architecture gap line while the folder is
     incomplete.
-11. `noldor init` scaffolds the four template pages into a repo that has none,
+12. `noldor init` scaffolds the four template pages into a repo that has none,
     and `doctor` reports no drift after the consumer edits their content.
 
 ## Risks / trade-offs
@@ -220,6 +255,11 @@ feature's gate blocks the feature's own release.
   the repo can tell that an actor or a runtime flow changed. The alternative —
   deriving them — cannot express the domain vocabulary and the why-intentional
   reading that is half the point.
+- **The one staleness signal there is, is advisory.** U3 nags through garden and
+  the SDD report but never blocks, so a repo can release with a module diagram
+  that omits a module. The reverse — folding it into the blocking row — would
+  stop a release on a directory rename, which is a heavier price than a stale
+  diagram is worth.
 - **Textual fence-kind check.** A syntactically broken mermaid diagram passes
   U2 and fails only when rendered. Parsing mermaid would pull the renderer into
   the validator; not worth it for a check whose job is presence, not beauty.
@@ -293,13 +333,20 @@ serve this folder — see Non-goals.
    → **No.** U9 ships Noldor's own four pages in the same PR, so the gate is
    green on its first run and never blocks the change that introduces it.
 9. *How is `modules.md` staleness detected?*
-   → **Structurally, not by date.** A `SOURCE_DRIFT_PAIRS` entry over whole-`src`
-   fires on nearly every PR at the 30-day tolerance, and hardcodes one repo's
-   layout into a consumer-facing detector; U3 keys on `scanRoots()` instead and
-   speaks only when a source root is missing from the page.
+   → **Structurally, not by date, and one level inside the scan roots.** A
+   `SOURCE_DRIFT_PAIRS` entry over whole-`src` fires on nearly every PR at the
+   30-day tolerance and hardcodes one repo's layout. Checking the roots
+   themselves is no better — `scanRoots()` is `['src']` here and in the shipped
+   template, so the check would reduce to a substring test that always passes.
+   The directories one level in are the modules the page actually draws.
 10. *Does the surface carry a generated index page?*
     → **No.** Over four fixed pages an index adds a renderer, a CLI flag and an
     artifact no unit owns, to duplicate what a directory listing already shows.
 11. *Does the dev dashboard serve the folder?*
     → **Not here.** No route reaches `docs/architecture/`; adding one is roadmap
     entry Q-0134 rather than scope creep into a docs feature.
+12. *Do U3's module findings block a release?*
+    → **No — advisory only.** They surface in garden and the SDD report while
+    only U2's presence, fence and placeholder rules feed the blocking row.
+    Adding a module should nag; stopping a release over a directory rename is a
+    heavier price than a stale diagram is worth.
