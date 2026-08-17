@@ -13,7 +13,7 @@ links:
 name: Consumer Architecture Doc Surface
 packages:
   - noldor
-phase: in-progress
+phase: done
 since: 2026-08-11T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -27,11 +27,46 @@ Scoped out at design time: decision records (`docs/adr/`) are a different artifa
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a maintainer or review agent new to a repository, I want four current diagrams
+that name its actors, runnable units, modules and load-bearing flows, so that I
+can tell how the system is shaped without reading 50k lines of source or
+traversing archived design artifacts.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**CLI**
+
+1. `noldor init` scaffolds `docs/architecture/{context,containers,modules,flows}.md`
+   into a repo that has none. The scaffold is inert: until you edit a page, the
+   surface reports as absent everywhere and blocks nothing.
+2. Replace each page's placeholder mermaid fence with a real diagram, and delete
+   the `<!-- TODO:` line. Write a prose paragraph beside each diagram — it is the
+   textual equivalent for readers and agents that do not render mermaid.
+3. `noldor docs architecture --check` (or the bare `noldor docs architecture`)
+   reports what is missing. Exit 0 when the pages are complete or the surface is
+   absent; exit 1 when a page is missing, carries no mermaid fence, declares a
+   diagram kind outside the registry's `allowedKinds`, still holds a placeholder,
+   or cannot be read.
+4. Module advisories print alongside, naming any directory one level inside a
+   scan root that `modules.md` never mentions. They never change the exit code.
+
+**Agent/Programmatic API**
+
+- `checkArchitecture(cwd)` → `{ status: 'absent' | 'ok' | 'incomplete', findings, advisories }`.
+  Every filesystem failure is caught and returned as a finding, so it never throws.
+- `listModuleDirs(cwd)` → sorted repo-relative module paths, one level inside each
+  existing scan root.
+- `fenceKinds(body)` and `mentionsModule(body, modulePath)` are the pure helpers
+  behind the two checks.
+- `detectArchitectureGaps(repo)` → `Gap[]`, wired into `garden detect` and
+  `docs/sdd-report.md`.
+
+**Release**
+
+- `pnpm release` reports an `architecture` preflight row: `skipped` when the
+  surface is absent, `blocking` when incomplete, `ok` when complete.
+- `RELEASE_SKIP_ARCHITECTURE=1` forces that row to `skipped` and records the
+  override in the audit log.
 
 ## PRs
 
