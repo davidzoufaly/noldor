@@ -114,6 +114,14 @@ Ask: "Confirm all? (y/n/edit) — n means skip everything; edit lets you overrid
    `pnpm noldor validate triage && pnpm noldor sync test-links && pnpm noldor sync doc-links && pnpm noldor validate features`.
    Each must succeed; if any fails, report the failure and the partial state. Do not roll back. `validate:triage` runs first so a missing `size` / `impact` on any newly-inserted roadmap block fails fast before the doc-link sync re-writes derived files.
 
+   **Then run the oversize pre-warning**, one call per newly-inserted roadmap block:
+
+   `pnpm noldor noldor split-check --entry <slug>`
+
+   Exit 0 = clean, continue silently. Exit 2 = signals; echo the captured stdout lines verbatim under the entry's name and tell the operator they may split the row now, while it is still a roadmap edit. Exit 1 = checker infra error; mention it and continue.
+
+   **A non-zero exit never fails the triage run.** Triage is the pre-warn phase, not a gate — the split *owner* is `/noldor-promote` step 1.7 (see [complexity-gating.md → Which phase owns the split](../../../docs/noldor/complexity-gating.md#which-phase-owns-the-split)). The value here is that the operator sees an oversized body two phases before anything has been scaffolded around it; blocking on it would only push the same judgment call into a worse place. Never block on checker infra either.
+
    **Then, for each confirmed `now` row** (in table order; any of the four commands above failing aborts ALL `now` chaining): invoke `/noldor-promote <slug> --tier=<full when size is L/XL, else specs-only>`. `/noldor-promote` reads the just-inserted roadmap block and removes it as it scaffolds the FD — the transient roadmap insert keeps the schema-C contract intact and the `[triaged … → slug]` marker preserves traceability. If `/noldor-promote` fails for a row, report it and continue with the remaining `now` rows; the block stays on the roadmap top for a manual retry.
 9. **Report** to the user:
    - Number of ideas triaged, broken down by target (roadmap / backlog / now — for `now` rows also report each `/noldor-promote` chain outcome: FD scaffolded, or failed-and-left-on-roadmap)

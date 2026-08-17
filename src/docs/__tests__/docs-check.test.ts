@@ -67,4 +67,17 @@ describe(checkLinks, () => {
     expect(errors[0].issues.some((i) => i.includes('does-not-exist.md'))).toBeTruthy();
     expect(errors[0].issues.some((i) => i.includes('missing-anchor'))).toBeTruthy();
   });
+
+  // `#L42` into a .ts file is a source-line anchor, not a heading. Checking it
+  // against the target's headings reported every such link as broken, since a
+  // source file has no markdown headings at all.
+  it('accepts source-line anchors that are within the target', async () => {
+    expect(await checkLinks(['src/fixtures/docs-check/line-anchors.md'])).toStrictEqual([]);
+  });
+
+  it('flags a source-line anchor pointing past end of file', async () => {
+    const errors = await checkLinks(['src/fixtures/docs-check/line-anchors-past-eof.md']);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].issues.some((i) => i.includes('past end of'))).toBeTruthy();
+  });
 });

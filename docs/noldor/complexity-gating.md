@@ -44,9 +44,9 @@ The mapping is encoded once in [`sizeToPath()`](../../src/core/size-routing.ts) 
 
 | Rule | Measures                                        | Threshold    | Surfaces at                                       |
 | ---- | ----------------------------------------------- | ------------ | ------------------------------------------------- |
-| `E1` | entry-body word count                           | > 300 words  | `/noldor-promote` step 1.7; headless drain entry         |
-| `E2` | entry-body scope bullets (`- ` lines)           | > 6 bullets  | `/noldor-promote` step 1.7; headless drain entry         |
-| `E3` | `Touches:` path count (via `extractTouches`)    | > 8 paths    | `/noldor-promote` step 1.7; headless drain entry         |
+| `E1` | entry-body word count                           | > 300 words  | `/noldor-triage` step 8; `/noldor-promote` step 1.7; headless drain entry |
+| `E2` | entry-body scope bullets (`- ` lines)           | > 6 bullets  | `/noldor-triage` step 8; `/noldor-promote` step 1.7; headless drain entry |
+| `E3` | `Touches:` path count (via `extractTouches`)    | > 8 paths    | `/noldor-triage` step 8; `/noldor-promote` step 1.7; headless drain entry |
 | `F1` | parent FD `links.code` ∪ attach touches, deduped | > 30 paths   | `/noldor-promote` step 1.7 attach branch                 |
 | `P1` | plan row count (raw markdown lines)             | > 1000 rows  | `noldor-plan` post-save; `/noldor-gate` Step 2.5 `plan`  |
 | `S1` | spec word count                                 | > 6000 words | `/noldor-gate` Step 2.5 `spec`                           |
@@ -55,6 +55,31 @@ The mapping is encoded once in [`sizeToPath()`](../../src/core/size-routing.ts) 
 The CLI's exit contract mirrors `lint-plan-snippets` exactly — 0 = clean, 2 = signals (one stdout line per signal), 1 = infra error — so skills shell out to both uniformly and never block on checker infra. Modes: `split-check --entry <slug>` (roadmap-then-backlog body heuristics), `split-check --fd <slug> --add <path>...` (attach breadth), `split-check --plan <path>` (row count; the P1 message names the suggested part count, one part ≈ 1000 rows), `split-check --spec <path>` (word bulk + acceptance-criteria items; the S2 message states the ~12-criteria budget).
 
 **Informational vs drain.** Wherever an operator is present the signals are informational: `/noldor-promote` offers proceed / split-first / abort-and-re-size, the `noldor-plan` skill restructures oversized plans into `-part<N>` files before reporting done, and gate Step 2.5 shows split findings alongside lint findings in the continue-dialog. The one hard stop is the headless drain — no operator can absorb the signal there, so a drain entry whose body trips E1/E2/E3 exits without scaffolding and surfaces on the escalation channel instead of shipping (the `prefix-skills-with-noldor` mislabeled-`S` failure mode). Thresholds are exported constants in `split-suggestion.ts`, deliberately not config (`docs/vision.md` posture: opinionated, not configurable); tuning is a one-line diff.
+
+#### Which phase owns the split
+
+Measuring in five places without saying where the split *belongs* let an oversized entry travel the whole pipeline intact and get decomposed only once an agent was holding a spec, an FD and a thousand-row plan. The goal is the inverse: work with the smallest context that can still ship a slice.
+
+**`/noldor-promote` step 1.7 is the owner.** Promote is the boundary between queue-shaped and FD-shaped work. Before it, a split is a roadmap edit and costs nothing; after it, splitting means unwinding an FD scaffold, a category pick, a phase-revert and a retired-ID record. Promote is the last point where splitting is free, and it already carries the remedy.
+
+**Every scope split produces sibling roadmap entries.** One shape to learn, one to document — whichever phase notices the problem.
+
+**Scope split vs document split.** A *scope split* moves scope out of the FD and produces queue siblings. A *document split* moves no scope: `-part<N>` plan files reorganize one FD's plan and stay local. `-part<N>` is therefore not an exception to the single-product rule — it is a different operation. On a `P1` trip, diagnose which one applies before restructuring; a thousand-row plan is more often too much work than too many words.
+
+The table below is role-only. Which rules fire where is the "Surfaces at" column above, and restating it here would make this page its own drift source.
+
+| Phase                    | Role                     | On trip                                                     |
+| ------------------------ | ------------------------ | ----------------------------------------------------------- |
+| `/noldor-triage` step 8  | pre-warn                 | report signals; operator may split rows before they travel   |
+| `/noldor-promote` 1.7    | **owner**                | split-first → sibling roadmap entries                        |
+| headless drain Step 0    | hard stop                | exit unscaffolded → escalation channel                       |
+| gate Step 2.5 `spec`     | bounce                   | `split-back` → carve siblings, narrow the spec               |
+| `noldor-plan` post-save  | bounce or document-split | diagnose scope vs verbosity                                  |
+| gate Step 2.5 `plan`     | bounce or document-split | same diagnosis, at the review pause                          |
+
+**Splits stay traceable in both directions.** Each sibling carries `- split-from: <source-id>`, and `roadmap remove-block <slug> --split-into <slug>,<slug>` records `splitInto` on the source's entry in `.noldor/retired-entry-ids.json` — the split counterpart of `--retired-into`. Both are parsed fields rather than body text, so provenance does not count toward the `E2` bullet heuristic that produced the split. Recording the ID is also what keeps `blocked-by:` references to the source resolving after its block is gone; `splitInto` answers *where the work went*.
+
+Siblings are written **before** the source block is removed. The write-back anchors each sibling immediately after the original block's position, and `docs/roadmap.md` is priority-ordered by file position, so removing first would drop the slices wherever the writer guesses instead of at the queue position the work already earned.
 
 ## Allowlist for `micro-chore`
 

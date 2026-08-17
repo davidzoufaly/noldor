@@ -102,8 +102,16 @@ function extractHeadings(content: string): Set<string> {
 }
 
 /**
+ * GitHub source-line anchors: `#L42` and `#L42-L51`. Matched before the heading
+ * lookup so a link into code is validated as a line reference rather than as a
+ * markdown heading it can never be.
+ */
+const LINE_ANCHOR_RE = /^L(\d+)(?:-L(\d+))?$/;
+
+/**
  * Validate that every internal link in the given MD files resolves to an
- * existing file (and, when present, an existing heading anchor).
+ * existing file, and that its anchor resolves: a heading anchor must name an
+ * existing heading, a `#L<n>` line anchor must be within the target's length.
  *
  * @param paths - Markdown file paths to check
  * @returns One FileError per file with broken links
@@ -138,6 +146,23 @@ export async function checkLinks(paths: string[]): Promise<FileError[]> {
       }
 
       if (anchor) {
+        const lineAnchor = LINE_ANCHOR_RE.exec(anchor);
+        if (lineAnchor) {
+          // `#L42` / `#L42-L51` — a source-line anchor, not a heading. Checking
+          // it against `extractHeadings` was a false positive by construction:
+          // a `.ts` file has no markdown headings, so every line anchor into
+          // code reported as broken. Validate what the anchor actually claims —
+          // that the target has that many lines — which still catches an anchor
+          // left pointing past EOF after the target shrank.
+          const lastLine = Math.max(Number(lineAnchor[1]), Number(lineAnchor[2] ?? lineAnchor[1]));
+          const targetLines = targetContent.split('\n').length;
+          if (lastLine > targetLines) {
+            issues.push(
+              `line ${link.line}: anchor #${anchor} points past end of ${hrefPath} (${targetLines} lines)`,
+            );
+          }
+          continue;
+        }
         const headings = extractHeadings(targetContent);
         if (!headings.has(anchor)) {
           issues.push(`line ${link.line}: missing anchor #${anchor} in ${hrefPath}`);
