@@ -232,8 +232,12 @@ export function parseRoadmap(raw: string): BacklogEntry[] {
  * 3. `parseEntries` — its own `fields` record and entry literal (backlog path)
  * 4. {@link BacklogEntry} — the field itself
  *
- * Collapsing 1–3 onto one harvest is tracked separately; until then this list
- * is the checklist.
+ * noldor:cut 4-site field harvest, fine while keys are added ~yearly (two in the
+ * schema's lifetime) — collapse 1–3 onto one kebab→camel record harvest under
+ * Q-0113 "Queue-Document Grammar Module" (docs/roadmap.md), which owns the
+ * canonical field vocabulary for both parsers. Until then this list is the
+ * checklist, and the four-site fan-out is why it is written out rather than
+ * summarized.
  */
 const FIELD_KEYS =
   'area|id|type|since|parent|size|impact|confidence|deps|blocked-by|phase|split-from|recovered';
