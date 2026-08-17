@@ -58,7 +58,32 @@ The codex lane is opt-in per `crLanes` today, so a big change can ship having be
 - confidence: high
 - parent: specs-cr-gate-multi-reviewer
 
-The codex CR lane diagnoses a failed run as an auth problem regardless of what the API actually rejected, so a model-version error sends the operator to re-authenticate a session that never expired. Measured: `codex-cli 0.133.0` against a configured `gpt-5.6-sol` returns `400 invalid_request_error` carrying "The 'gpt-5.6-sol' model requires a newer version of Codex", and the lane reports `auth looks expired; run: codex login`. Parse the 400 body, or at minimum stop asserting auth whenever the payload names a model. Operator workaround today is `codex exec -c model=gpt-5.5`. The eventual home is Q-0112's per-lane error-shape normalization, which deletes this call site outright — queued standalone because that is an L entry and this is a fast-track-sized correction to a message the operator acts on immediately. (found 2026-08-14 running the codex lane on Q-0124)
+The codex CR lane diagnoses a failed run as an auth problem regardless of what the API actually rejected, so a model-version error sends the operator to re-authenticate a session that never expired. Measured: `codex-cli 0.133.0` against a configured `gpt-5.6-sol` returns `400 invalid_request_error` carrying "The 'gpt-5.6-sol' model requires a newer version of Codex", and the lane reports `auth looks expired; run: codex login`. Parse the 400 body, or at minimum stop asserting auth whenever the payload names a model. Operator remedy, verified 2026-08-17: `npm install -g @openai/codex@latest` (0.133.0 → 0.147.0) clears it — note the binary is npm-global and only symlinked into `/opt/homebrew/bin`, so `brew upgrade codex` silently no-ops and reads as "the fix didn't work". `codex exec -c model=gpt-5.5` also works as a pin. Either way the lane's message sends the operator to the wrong place: surfacing the stderr tail, which already carries the real 400 body, would have answered it immediately. The eventual home is Q-0112's per-lane error-shape normalization, which deletes this call site outright — queued standalone because that is an L entry and this is a fast-track-sized correction to a message the operator acts on immediately. (found 2026-08-14 running the codex lane on Q-0124)
+
+### Feature-Doc Links Point at Code Deleted in PR #328
+
+- id: Q-0138
+- area: docs
+- type: fix
+- since: 2026-08-17
+- size: XS
+- impact: med
+- confidence: high
+
+`pnpm noldor docs check` is red on `main` right now: `docs/features/specs-cr-gate-multi-reviewer.md` links `src/cr/codex-spawn.ts` (line 142) and `src/cr/__tests__/codex-spawn.test.ts` (line 162), both deleted when PR #328 collapsed the codex shell-out into an in-process lane call. The link checker is the only gate that catches this class and it now fails for a reason unrelated to whatever a contributor is changing, which trains people to ignore it. Repoint both links at the surviving `src/cr/lanes/codex.ts` and its test, or drop them if nothing replaced the symbol. Worth checking the same PR's other FDs in one pass — this is link rot from a rename, not a one-off. (found 2026-08-17 shipping Q-0093, PR #333)
+
+### Verify Lane Fail-Closes on Its Own Malformed Output
+
+- id: Q-0137
+- area: tooling
+- type: fix
+- since: 2026-08-17
+- size: S
+- impact: med
+- confidence: high
+- parent: acceptance-verify-lane
+
+Three separate code-stage rounds on Q-0093 returned `verify lane errored: malformed verifier output` wrapping payloads that began "Verified all clauses through real CLI/HTTP/API" and "Verified end-to-end" — the verification had passed and only the serialization broke. In blocking mode the aggregate reads that as red, so `cr orchestrate` withholds the `Noldor-Reviewed-Subagent` receipt and the branch cannot pass its own pre-push gate. A green verification must never block a ship on a formatting failure. Two candidate fixes, not exclusive: have the lane re-request a structured payload once before giving up, and treat a malformed payload whose prose clearly reports success as `warn` rather than `error` so it degrades instead of blocking. Whichever is chosen, the sink should keep the raw payload — the current message truncates the very evidence needed to tell a real failure from a serialization one. (found 2026-08-17 shipping Q-0093, PR #333)
 
 ### Unvalidated Slug Path Traversal Across CLI Entry Points
 
@@ -150,6 +175,32 @@ An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never ap
 - parent: noldor-native-wait-primitive
 
 Nothing tells an agent to reach for the framework's own wait primitive, so a session running inside a harness that ships a generic monitor or polling tool suggests that instead, and `noldor wait` (PR #183) stays invisible at exactly the moment it applies. Record the preference where the agent actually reads it — a scoped rule under `.noldor/rules/` that lands on the relevant stage — rather than as prose in a guide nobody re-reads mid-task. The point is runner-independence: a harness-specific monitor tool is not available when the runner is codex or opencode, while the framework's primitive is.
+
+### Architecture Decision Record Surface
+
+- id: Q-0135
+- area: docs
+- type: feat
+- since: 2026-08-17
+- size: M
+- impact: med
+- confidence: med
+- split-from: Q-0093
+
+Q-0093 shipped `docs/architecture/` and explicitly carved decision records out of it — its Non-goals says ADRs are "a different artifact (append-only, dated, superseded-by chains) with a different lifecycle. Carved to a sibling roadmap entry" — but that sibling was never minted, so the shipped spec references an entry that does not exist. This is it. Wanted: `docs/adr/NNNN-<slug>.md` with validated frontmatter (`status: accepted | superseded`, `date`, `supersedes` / `superseded-by`), an append-only discipline the framework can check, and a `loadDocRoots` key. The demand is already concrete: `Package Runtime Representation ADR` (Q-0117) asks to record the source-at-runtime decision as an ADR and currently has nowhere to put it, and the read-only audit named source-at-runtime packaging, adoption-safe advisories, sequential queue writes and graph fallbacks as decisions whose reasoning survives only in archived specs. Deletion test: a reviewer can answer "why does this bind us today" without opening `docs/design/specs/archive/`. Decide during spec: whether a superseded record is validated for a forward pointer, and whether the surface reuses the architecture registry's opt-in rule so `noldor init` cannot block a consumer who has written no ADRs. (split from Q-0093 at design time, 2026-08-17)
+
+### Typed Advisory and Blocking Gap Channels
+
+- id: Q-0136
+- area: tooling
+- type: refactor
+- since: 2026-08-17
+- size: M
+- impact: med
+- confidence: med
+- parent: doc-gardening-skill
+
+Routing a `Gap` into `sddGaps` blocks a release, and nothing at the push site says so. The chain is four hops: `detectAll` appends to `sddGaps`, `sddGaps` is listed in `FINDING_CATEGORIES` (`src/garden/garden-detect-runner.ts`), that list is the clean test for the release auto-restamp (`src/release/preflight-fix.ts` → `auto-restamp.ts`), and an unstamped garden receipt is a `blocking` preflight row. Q-0093 shipped a detector documented as advisory that blocked releases through exactly this path; the code-stage reviewer caught it, and the fix was a second hand-rolled `GardenFindings` key deliberately kept out of `FINDING_CATEGORIES`. That works but does not generalize — the next detector author faces the same invisible cliff, and `Gap` itself carries no signal about which channel it belongs to. Make the distinction structural: separate the advisory and blocking gap types (or tag the category), let `detectAll` route by type rather than by which array a caller happened to push into, and let `FINDING_CATEGORIES` derive from that rather than being a hand-maintained parallel list. Deletion test: a new detector cannot block a release without saying so in its type. Verify by adding a deliberately-advisory detector and asserting a release still cuts with it firing. (found 2026-08-17 shipping Q-0093, PR #333)
 
 ### Repository Mutation Module
 
