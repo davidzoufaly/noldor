@@ -31,7 +31,7 @@ A related wart: `FIELD_KEYS` at [`parse-blocks.ts:216`](../../../src/utils/parse
 
 - **No auto-splitting and no auto-re-sizing.** The framework suggests; the operator decides. This holds unchanged (`split-suggestion.ts` header comment).
 - **No threshold changes.** All seven constants stay as they are.
-- **No new hard blocks.** The headless drain remains the only place a signal stops work; every operator-present surface stays advisory.
+- **No new hard blocks.** The headless drain remains the only place a signal stops work; every operator-present surface stays advisory, including the post-carve re-check in U6.
 - **No shared `roadmap carve` CLI.** Sibling bodies are authored, not derived, so the write-back stays skill prose in this slice — recorded as a follow-up in Open questions (5).
 
 ## Design
@@ -46,15 +46,17 @@ The "Split suggestion" subsection gains the policy the rules table implies but n
 
 **Scope-split vs document-split.** A *scope split* moves scope out of the FD and produces queue siblings. A *document split* moves no scope: `-part<N>` plan files reorganize one FD's plan and stay local. `-part<N>` therefore does not violate the single-product rule — it is not a scope split.
 
-The resulting phase table replaces the "Informational vs drain" paragraph's implicit ordering:
+The resulting phase table replaces the "Informational vs drain" paragraph's implicit ordering. It is deliberately **role-only** — which rules fire where already lives in the rules table's "Surfaces at" column directly above it, and restating that mapping in the same section would make the authoritative doc its own drift source:
 
-| Phase | Measures | Role | On trip |
-| --- | --- | --- | --- |
-| triage | E1/E2/E3 | pre-warn | report signals; operator may split rows before writing blocks |
-| promote 1.7 | E1/E2/E3, F1 | **owner** | split-first → sibling roadmap entries |
-| drain Step 0 | E1/E2/E3 | hard stop | exit unscaffolded → escalation (unchanged) |
-| gate 2.5 spec | S1/S2 | bounce | `split-back` → carve siblings, narrow the spec |
-| gate 2.5 plan | P1 | bounce or document-split | diagnose scope vs verbosity |
+| Phase | Role | On trip |
+| --- | --- | --- |
+| triage | pre-warn | report signals; operator may split rows before writing blocks |
+| promote 1.7 | **owner** | split-first → sibling roadmap entries |
+| drain Step 0 | hard stop | exit unscaffolded → escalation (unchanged) |
+| gate 2.5 spec | bounce | `split-back` → carve siblings, narrow the spec |
+| gate 2.5 plan | bounce or document-split | diagnose scope vs verbosity |
+
+The rules table gains `triage` to its E1/E2/E3 "Surfaces at" cells; no other cell changes.
 
 ### U2 — `split-from` and `recovered` become parsed fields ([`src/utils/parse-blocks.ts`](../../../src/utils/parse-blocks.ts))
 
@@ -104,15 +106,23 @@ Step 1.7's option (b) and step 6.5's option (b) share one write-back recipe. Bot
 
 ### U6 — Gate Step 2.5 `split-back` (`.claude/skills/noldor-gate/SKILL.md`)
 
-The continue-dialog gains a fourth option at both `--kind spec` and `--kind plan`: `split-back`, alongside `proceed` / `address-blockers` / `abort`. It is non-destructive — the FD, the session marker and the worktree all survive:
+**`split-back` is not a new top-level option.** The continue-dialog is already at the four-option ceiling `AskUserQuestion` enforces — at `--kind plan` it carries `proceed-autonomous / proceed / address-blockers / abort` — so a fifth cannot be built. `split-back` is reached as a **second question under `address-blockers`**, which is also where it belongs: an S1/P1 signal is a blocker, and carving is one way to address it. When the round's findings include a live split signal, picking `address-blockers` asks a follow-up:
+
+```
+fix-in-place / split-back / back
+```
+
+`fix-in-place` is the existing autofix-then-operator path, unchanged. Both kinds keep exactly four top-level options, and no existing option is dropped on a heuristic trip.
+
+`split-back` is non-destructive — the FD, the session marker and the worktree all survive:
 
 1. Operator names the scope that leaves.
 2. Sibling roadmap blocks are written per U5's recipe, stamped `- split-from: <entry-id>` (read from the FD's `entry-id:` frontmatter).
 3. The artifact is narrowed to slice 1 on disk.
 4. A **follow-up commit** lands the narrowed artifact plus the roadmap blocks — never an amend. At Step 2.5 the artifact commit carries no review receipt, but an amend would still move the tree under any artifact-stage lane sink already written; a follow-up keeps those sinks' base valid and lets a re-round use `--base-sha`.
-5. `split-check` re-runs on the narrowed artifact and must exit 0 before the session proceeds.
+5. `split-check` re-runs on the narrowed artifact and its result is **reported, not enforced**. The operator may proceed whether or not the signal cleared.
 
-`split-back` counts as an operator re-round against the gate's existing hard cap of 2 re-rounds per artifact kind per session. It is not exempt: an unbounded carve loop is the same self-feeding failure the cap exists to stop.
+Step 5 is advisory on purpose. Requiring a clean re-run would make this the framework's second hard stop, contradicting the standing rule that every operator-present surface stays advisory and only the headless drain blocks. It would also wedge the session: `split-back` counts as an operator re-round against the existing cap of 2 per artifact kind per session — not exempt, since an unbounded carve loop is the self-feeding failure the cap exists to stop — so at the cap, with the signal still tripping, a required-clean re-run would leave neither `proceed` nor another carve legal. **`proceed` is always available**, at the cap and below it. An operator who carves twice and still trips a threshold has a judgment call to make, not a locked door.
 
 ### U7 — Plan-stage diagnosis (`.claude/skills/noldor-plan/SKILL.md`)
 
@@ -136,7 +146,7 @@ Every edited file under `.claude/skills/` and `docs/noldor/` has a twin under `t
 10. `docs/noldor/complexity-gating.md` carries a phase-ownership statement naming promote as the owner, sibling roadmap entries as the single scope-split product, and defining scope-split vs document-split.
 11. `.claude/skills/noldor-promote/SKILL.md` steps 1.7(b) and 6.5(b) stamp `- split-from: <source-id>` on each emitted sibling, and 1.7(b) calls `remove-block --split-into` to record the source ID before the siblings are written.
 12. `.claude/skills/noldor-triage/SKILL.md` step 8 invokes `split-check --entry` per newly-inserted roadmap block, and states that a non-zero exit does not fail the triage run.
-13. `.claude/skills/noldor-gate/SKILL.md` Step 2.5 offers `split-back` at both artifact kinds, specifies a follow-up commit rather than an amend, requires a clean `split-check` re-run before proceeding, and counts the round against the existing re-round cap.
+13. `.claude/skills/noldor-gate/SKILL.md` Step 2.5 reaches `split-back` at both artifact kinds via a second question under `address-blockers`, with no single `AskUserQuestion` exceeding four options; specifies a follow-up commit rather than an amend; counts the round against the existing re-round cap; and leaves `proceed` available regardless of whether the post-carve `split-check` cleared.
 14. `.claude/skills/noldor-plan/SKILL.md` step 6 asks the scope-vs-document diagnosis before any `-part<N>` restructure.
 
 ## Risks / trade-offs
@@ -147,7 +157,9 @@ Every edited file under `.claude/skills/` and `docs/noldor/` has a twin under `t
 
 **Ownership is prose, not code.** Nothing prevents an operator from splitting at plan stage instead of promote. That is deliberate — the framework's posture is that operator judgment is the ceiling — but it means the policy's effect is measured in habit, not in exit codes.
 
-**`split-back` competes with the re-round cap.** Folding carve rounds into the same budget as blocker rounds means a session that legitimately needs both may hit the cap. The alternative — an exempt carve budget — reintroduces the unbounded loop the cap was written to stop, so the shared budget is the safer default.
+**`split-back` competes with the re-round cap.** Folding carve rounds into the same budget as blocker rounds means a session that legitimately needs both may hit the cap. The alternative — an exempt carve budget — reintroduces the unbounded loop the cap was written to stop, so the shared budget is the safer default. Because the post-carve re-check is advisory, hitting the cap costs momentum, not a wedged session.
+
+**`split-back` is one level deeper than the signal that triggers it.** Nesting under `address-blockers` is what keeps the dialog inside the four-option ceiling, but it also means an operator who reads a split signal and wants to carve must first pick an option that does not name carving. The alternative was dropping `proceed-autonomous` from the plan-kind dialog whenever a split signal fires, which removes an unrelated capability on a heuristic trip.
 
 ## User Story
 
@@ -165,7 +177,7 @@ pnpm noldor roadmap remove-block <slug> --split-into <slice-a>,<slice-b>
 
 Each sibling block carries `- split-from: Q-0108` beside its `- area:` / `- size:` / `- impact:` bullets.
 
-**Gate Step 2.5 — split-back.** When S1/S2 or P1 trips, the continue-dialog offers `split-back` alongside `proceed` / `address-blockers` / `abort`. It carves siblings to the roadmap, narrows the artifact, commits the pair as a follow-up, and re-runs the check — the same session continues.
+**Gate Step 2.5 — split-back.** When S1/S2 or P1 trips, pick `address-blockers`; the follow-up question offers `fix-in-place / split-back / back`. `split-back` carves siblings to the roadmap, narrows the artifact, commits the pair as a follow-up, and re-runs the check for information — the same session continues either way.
 
 **Plan — diagnosis.** On P1 the plan skill asks whether the scope or the document is oversized before restructuring into `-part<N>`.
 
@@ -203,5 +215,11 @@ pnpm noldor noldor split-check --spec <path>
 7. *Does `split-back` amend the artifact commit?*
    -> No — a follow-up commit. An amend moves the tree under any artifact-stage lane sink already written, and the follow-up keeps `--base-sha` usable for a re-round (D7).
 
-8. *Should the two field-harvest sites in `parse-blocks.ts` be unified while adding fields to both?*
+8. *Must the post-carve `split-check` re-run come back clean before the session proceeds?*
+   -> No — report it, never enforce it. Enforcing would create the framework's second hard stop on an operator-present surface, and combined with the shared re-round cap it would wedge a session that carved twice and still trips. `proceed` stays legal at every point.
+
+9. *How does `split-back` fit a dialog already at the four-option `AskUserQuestion` ceiling?*
+   -> As a second question under `address-blockers`, not as a top-level option. A split signal *is* a blocker, so the nesting is semantically right, and it avoids dropping `proceed-autonomous` from the plan-kind dialog on a heuristic trip.
+
+10. *Should the two field-harvest sites in `parse-blocks.ts` be unified while adding fields to both?*
    -> Not here. `parseBlockBody` and `parseEntries` duplicate the harvest for pre-existing reasons (line-number tracking vs split-based parsing), and unifying them would put a parser refactor inside a policy slice. Add the fields to both, and file the unification separately — the file's "added here once" note is already inaccurate and should be corrected with the refactor, not before it.
