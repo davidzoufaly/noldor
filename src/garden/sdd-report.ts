@@ -550,7 +550,7 @@ export function detectPlansWithoutSpec(planPaths: string[], specPaths: string[])
 }
 
 /**
- * Aggregated inputs required to run all 14 gap detectors.
+ * Aggregated inputs required to run all 15 gap detectors.
  *
  * @remarks
  * Exposed so the project-tracking dashboard can build the same input
@@ -589,8 +589,11 @@ export interface ReportInput {
  *   detector order. Categories are not deduplicated.
  *
  * @remarks
- * Pure with respect to the filesystem: callers load inputs once and may
- * reuse them across renderings (CLI text, markdown report, dashboard).
+ * The loaded {@link ReportInput} is reusable across renderings (CLI text,
+ * markdown report, dashboard) — building it is the expensive part, and callers
+ * do it once. The call itself is NOT filesystem-free: it reads the graph for
+ * the co-tag detectors and the architecture folder for the architecture ones,
+ * so each invocation re-observes those on disk.
  */
 export async function collectGaps(input: ReportInput): Promise<Gap[]> {
   const gaps: Gap[] = [];
@@ -624,8 +627,8 @@ export async function collectGaps(input: ReportInput): Promise<Gap[]> {
   // Runs here rather than being pre-loaded by each caller: an optional input
   // would silently drop the whole category for any caller that forgot it, which
   // is exactly the dashboard-vs-report divergence `loadSddInput layout parity`
-  // guards against. `collectGaps` already reads the filesystem for the graph,
-  // so one more repo-root read changes nothing about its contract.
+  // guards against. This function already reads the graph from disk, so a
+  // repo-root read is the same kind of work, not a new kind — see @remarks.
   // Blocking findings only — advisories must never reach `sddGaps`, which gates
   // the garden auto-restamp. See `src/garden/detectors/architecture.ts`.
   gaps.push(...(await detectArchitectureFindings(input.repoRoot ?? process.cwd())));
