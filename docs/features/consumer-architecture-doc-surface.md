@@ -59,8 +59,11 @@ traversing archived design artifacts.
   existing scan root.
 - `fenceKinds(body)` and `mentionsModule(body, modulePath)` are the pure helpers
   behind the two checks.
-- `detectArchitectureGaps(repo)` → `Gap[]`, wired into `garden detect` and
-  `docs/sdd-report.md`.
+- `detectArchitectureFindings(repo)` → `Gap[]` for the blocking class, run inside
+  `collectGaps` so it reaches `docs/sdd-report.md`, `garden detect` and the
+  dashboard alike.
+- `detectArchitectureAdvisories(repo)` → `Gap[]` for the module advisories, which
+  ride garden's own `architectureAdvisories` key and never gate a release.
 
 **Release**
 

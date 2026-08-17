@@ -573,20 +573,15 @@ export interface ReportInput {
   /** Source roots whose mtime gates graph staleness. */
   graphSrcRoots: string[];
   /**
-   * Blocking architecture-surface gaps, pre-loaded by the caller because the
-   * check reads the filesystem and {@link collectGaps} is pure with respect to
-   * it. Optional so a caller that does not check the surface (the dashboard)
-   * keeps compiling; omitted means "not checked", not "clean".
-   *
-   * Only the blocking class belongs here — module advisories must never reach
-   * `sddGaps`, which gates the garden auto-restamp and therefore a release. See
-   * `src/garden/detectors/architecture.ts`.
+   * Repository root for the architecture-surface check. Defaults to
+   * `process.cwd()`, matching how `graphPath` and every other input here
+   * resolve, so neither caller has to thread it today.
    */
-  architectureGaps?: Gap[];
+  repoRoot?: string;
 }
 
 /**
- * Run all 14 SDD detectors against the supplied inputs and return the
+ * Run all 15 SDD detectors against the supplied inputs and return the
  * concatenated list of gaps.
  *
  * @param input - All inputs the detectors need; see {@link ReportInput}.
@@ -626,7 +621,14 @@ export async function collectGaps(input: ReportInput): Promise<Gap[]> {
     ...detectMissingCoTags(input.features, input.testInputs, input.graphPath, input.graphSrcRoots),
   );
   gaps.push(...(await detectDoneFeaturesMissingCode(input.features)));
-  gaps.push(...(input.architectureGaps ?? []));
+  // Runs here rather than being pre-loaded by each caller: an optional input
+  // would silently drop the whole category for any caller that forgot it, which
+  // is exactly the dashboard-vs-report divergence `loadSddInput layout parity`
+  // guards against. `collectGaps` already reads the filesystem for the graph,
+  // so one more repo-root read changes nothing about its contract.
+  // Blocking findings only — advisories must never reach `sddGaps`, which gates
+  // the garden auto-restamp. See `src/garden/detectors/architecture.ts`.
+  gaps.push(...(await detectArchitectureFindings(input.repoRoot ?? process.cwd())));
   return gaps;
 }
 
@@ -789,7 +791,7 @@ function renderStdout(grouped: Map<string, Gap[]>, totalFeatures: number): strin
   const date = new Date().toISOString().slice(0, 10);
   const lines = [`SDD Report — ${date}`, ''];
   if (grouped.size === 0) {
-    lines.push('✓ No gaps detected across 14 categories.');
+    lines.push('✓ No gaps detected across 15 categories.');
     return lines.join('\n');
   }
   for (const [category, gaps] of grouped) {
@@ -883,7 +885,7 @@ function renderReportMd(
   lines.push(`- Total features: ${totalFeatures}`);
   lines.push(`- Untriaged ideas: ${totalIdeasUntriaged}`);
   lines.push(`- Backlog entries: ${totalBacklog}`);
-  lines.push(`- Gap categories with issues: ${grouped.size} / 14`);
+  lines.push(`- Gap categories with issues: ${grouped.size} / 15`);
   lines.push('');
 
   // Code clones — deterministic token-based duplication signal. Strings avoid
@@ -1014,7 +1016,6 @@ async function main(): Promise<void> {
   const gaps = await collectGaps({
     actualPackages,
     allRepoPaths,
-    architectureGaps: await detectArchitectureFindings(process.cwd()),
     backlog,
     docInputs,
     features,
