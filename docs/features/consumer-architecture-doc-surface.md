@@ -10,6 +10,7 @@ links:
     - src/garden/detectors/architecture.ts
   tests:
     - src/docs/__tests__/docs-architecture.test.ts
+    - src/garden/detectors/__tests__/architecture.test.ts
 name: Consumer Architecture Doc Surface
 packages:
   - noldor
