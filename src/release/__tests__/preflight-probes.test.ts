@@ -28,7 +28,7 @@ const ctx = (cwd: string, nowMs = 0) => makeProbeContext({ cwd, scanPaths: ['src
 describe('ALL_ROW_IDS', () => {
   it('has one entry per probe id, with no duplicates', () => {
     expect(new Set(ALL_ROW_IDS).size).toBe(ALL_ROW_IDS.length);
-    expect(ALL_ROW_IDS.length).toBe(13);
+    expect(ALL_ROW_IDS.length).toBe(14);
   });
 
   it('every id round-trips through runProbe as its own row id', async () => {
@@ -221,6 +221,7 @@ describe('probe id coverage', () => {
       'sdd-report',
       'validate-features',
       'gate-compliance',
+      'architecture',
       'cr-gate',
       'npm-name',
     ];

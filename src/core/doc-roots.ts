@@ -10,6 +10,7 @@ export interface DocRoots {
   milestones: string;
   plans: string;
   specs: string;
+  architecture: string;
 }
 
 /**
@@ -35,8 +36,9 @@ function resolveDesignSubdir(cwd: string, sub: 'plans' | 'specs'): string {
  * Returns absolute paths to the standard noldor doc locations anchored at
  * `cwd`: features/ (feature MDs), roadmap.md, backlog.md, vision.md,
  * ideas.md (repo ROOT, not docs/ — tracked here; consumers may gitignore theirs),
- * milestones/ (milestone MDs), plans/ (design/plans), and
- * specs/ (design/specs). Default is `process.cwd()`. Use as a single
+ * milestones/ (milestone MDs), plans/ (design/plans),
+ * specs/ (design/specs), and architecture/ (the C4-ish diagram pages).
+ * Default is `process.cwd()`. Use as a single
  * source of truth instead of scattering `process.cwd()/docs/...` strings
  * across dashboard, garden, and core modules.
  *
@@ -54,5 +56,6 @@ export function loadDocRoots(cwd: string = process.cwd()): DocRoots {
     milestones: join(cwd, 'docs', 'milestones'),
     plans: resolveDesignSubdir(cwd, 'plans'),
     specs: resolveDesignSubdir(cwd, 'specs'),
+    architecture: join(cwd, 'docs', 'architecture'),
   };
 }

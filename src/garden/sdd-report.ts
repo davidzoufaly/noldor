@@ -24,6 +24,7 @@ import { loadConsumerConfig } from '../core/consumer-config.js';
 import type { ConsumerConfig } from '../core/consumer-config.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 
+import { detectArchitectureFindings } from './detectors/architecture.js';
 import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/override-audit.js';
 import type { ExpectedOverrideRule } from './detectors/override-audit.js';
 import { loadConfigSync } from '../core/config.js';
@@ -549,7 +550,7 @@ export function detectPlansWithoutSpec(planPaths: string[], specPaths: string[])
 }
 
 /**
- * Aggregated inputs required to run all 14 gap detectors.
+ * Aggregated inputs required to run all 15 gap detectors.
  *
  * @remarks
  * Exposed so the project-tracking dashboard can build the same input
@@ -571,10 +572,16 @@ export interface ReportInput {
   graphPath: string;
   /** Source roots whose mtime gates graph staleness. */
   graphSrcRoots: string[];
+  /**
+   * Repository root for the architecture-surface check. Defaults to
+   * `process.cwd()`, matching how `graphPath` and every other input here
+   * resolve, so neither caller has to thread it today.
+   */
+  repoRoot?: string;
 }
 
 /**
- * Run all 14 SDD detectors against the supplied inputs and return the
+ * Run all 15 SDD detectors against the supplied inputs and return the
  * concatenated list of gaps.
  *
  * @param input - All inputs the detectors need; see {@link ReportInput}.
@@ -582,8 +589,11 @@ export interface ReportInput {
  *   detector order. Categories are not deduplicated.
  *
  * @remarks
- * Pure with respect to the filesystem: callers load inputs once and may
- * reuse them across renderings (CLI text, markdown report, dashboard).
+ * The loaded {@link ReportInput} is reusable across renderings (CLI text,
+ * markdown report, dashboard) — building it is the expensive part, and callers
+ * do it once. The call itself is NOT filesystem-free: it reads the graph for
+ * the co-tag detectors and the architecture folder for the architecture ones,
+ * so each invocation re-observes those on disk.
  */
 export async function collectGaps(input: ReportInput): Promise<Gap[]> {
   const gaps: Gap[] = [];
@@ -614,6 +624,14 @@ export async function collectGaps(input: ReportInput): Promise<Gap[]> {
     ...detectMissingCoTags(input.features, input.testInputs, input.graphPath, input.graphSrcRoots),
   );
   gaps.push(...(await detectDoneFeaturesMissingCode(input.features)));
+  // Runs here rather than being pre-loaded by each caller: an optional input
+  // would silently drop the whole category for any caller that forgot it, which
+  // is exactly the dashboard-vs-report divergence `loadSddInput layout parity`
+  // guards against. This function already reads the graph from disk, so a
+  // repo-root read is the same kind of work, not a new kind — see @remarks.
+  // Blocking findings only — advisories must never reach `sddGaps`, which gates
+  // the garden auto-restamp. See `src/garden/detectors/architecture.ts`.
+  gaps.push(...(await detectArchitectureFindings(input.repoRoot ?? process.cwd())));
   return gaps;
 }
 
@@ -776,7 +794,7 @@ function renderStdout(grouped: Map<string, Gap[]>, totalFeatures: number): strin
   const date = new Date().toISOString().slice(0, 10);
   const lines = [`SDD Report — ${date}`, ''];
   if (grouped.size === 0) {
-    lines.push('✓ No gaps detected across 14 categories.');
+    lines.push('✓ No gaps detected across 15 categories.');
     return lines.join('\n');
   }
   for (const [category, gaps] of grouped) {
@@ -870,7 +888,7 @@ function renderReportMd(
   lines.push(`- Total features: ${totalFeatures}`);
   lines.push(`- Untriaged ideas: ${totalIdeasUntriaged}`);
   lines.push(`- Backlog entries: ${totalBacklog}`);
-  lines.push(`- Gap categories with issues: ${grouped.size} / 14`);
+  lines.push(`- Gap categories with issues: ${grouped.size} / 15`);
   lines.push('');
 
   // Code clones — deterministic token-based duplication signal. Strings avoid

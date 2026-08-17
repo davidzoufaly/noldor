@@ -29,6 +29,7 @@ import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
 import { detectSkillCodeDrift } from './detectors/skill-code-drift.js';
+import { detectArchitectureAdvisories } from './detectors/architecture.js';
 import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
 import {
   resolveByLinksPlan,
@@ -579,6 +580,17 @@ export interface GardenFindings {
   readonly bootstrapOverrideAudit: readonly BootstrapOverrideFinding[];
   readonly circularBlockedBy: readonly CircularBlockedByFinding[];
   readonly skillDrift: readonly SkillDriftFinding[];
+  /**
+   * Modules the code has that `docs/architecture/modules.md` never names.
+   *
+   * Its own key rather than an `sddGaps` entry, and deliberately absent from
+   * `FINDING_CATEGORIES` in `garden-detect-runner.ts`: that list gates the
+   * auto-restamp, and an unstamped garden receipt is a blocking release row, so
+   * folding these in would make a renamed directory stop a release. The
+   * blocking half of the architecture check reaches `sddGaps` through the SDD
+   * report instead.
+   */
+  readonly architectureAdvisories: readonly SddGap[];
 }
 
 /**
@@ -773,6 +785,11 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // package.json scripts ∪ script-catalog), catching renamed/removed/regrouped
   // commands a shipped FD still cites.
   sddGaps.push(...(await detectFdCommandRot(repo)));
+  // Architecture module advisories are deliberately NOT pushed into sddGaps:
+  // that category gates the auto-restamp, so it would make a renamed directory
+  // block a release. They ride their own key below. The blocking half arrives
+  // through loadSddGaps, since the sdd-report loader runs the same check.
+  const architectureAdvisories = await detectArchitectureAdvisories(repo);
   const overrideAudit = auditOverrides({ cwd: repo, ...(await loadOverrideAuditOptions(repo)) });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
@@ -799,6 +816,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     bootstrapOverrideAudit,
     circularBlockedBy,
     skillDrift,
+    architectureAdvisories,
   };
 }
 

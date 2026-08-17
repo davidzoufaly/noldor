@@ -331,6 +331,10 @@ export const MANIFEST: Record<string, Group> = {
       howto: { src: 'docs/docs-howto.ts', desc: 'Generate how-to docs' },
       check: { src: 'docs/docs-check.ts', desc: 'Validate doc links/tags' },
       transclude: { src: 'docs/docs-transclude.ts', desc: 'Transclude docs blocks' },
+      architecture: {
+        src: 'docs/docs-architecture.ts',
+        desc: 'Check the architecture diagram pages',
+      },
     },
   },
   worktrees: {

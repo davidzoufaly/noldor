@@ -23,6 +23,7 @@ export type PreflightRowId =
   | 'sdd-report'
   | 'validate-features'
   | 'gate-compliance'
+  | 'architecture'
   | 'cr-gate'
   | 'npm-name';
 

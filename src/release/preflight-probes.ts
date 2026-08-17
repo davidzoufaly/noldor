@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { loadConfigSync, resolveSessionTtlHours, type NoldorConfig } from '../core/config.js';
+import { checkArchitecture } from '../docs/docs-architecture.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { isSessionStale, readSession } from '../core/session.js';
 import {
@@ -47,6 +48,7 @@ export const ALL_ROW_IDS: readonly PreflightRowId[] = [
   'sdd-report',
   'validate-features',
   'gate-compliance',
+  'architecture',
   'cr-gate',
   'npm-name',
 ];
@@ -417,6 +419,35 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
           detail: firstLine(out),
           fix: 'Run `pnpm noldor garden detect --gate-compliance` and address each finding.',
         };
+  },
+
+  /**
+   * The architecture surface must be filled in before a release — but only for a
+   * repo that opted in. `checkArchitecture` reports `absent` both for a missing
+   * folder and for an untouched scaffold, so `noldor init` cannot hand a fresh
+   * consumer a blocking row. Module advisories never reach `findings`, so a
+   * renamed directory nags in garden without stopping a release.
+   *
+   * The override is read first: an overridden run must report through the
+   * override tag rather than depending on what the folder happens to hold.
+   */
+  architecture: async (ctx) => {
+    if (process.env.RELEASE_SKIP_ARCHITECTURE === '1') {
+      return overrideSkip('architecture', 'RELEASE_SKIP_ARCHITECTURE');
+    }
+    const report = await checkArchitecture(ctx.cwd);
+    if (report.status === 'absent') {
+      return { id: 'architecture', status: 'skipped', detail: 'no opted-in docs/architecture/' };
+    }
+    if (report.status === 'ok') {
+      return { id: 'architecture', status: 'ok', detail: 'architecture pages complete' };
+    }
+    return {
+      id: 'architecture',
+      status: 'blocking',
+      detail: report.findings[0]?.message ?? 'architecture pages incomplete',
+      fix: 'Run `pnpm noldor docs architecture --check` and fill in each reported page.',
+    };
   },
 
   'cr-gate': async (ctx) => {

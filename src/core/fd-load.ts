@@ -9,7 +9,7 @@ import type { Dirent } from 'node:fs';
 import type { FeatureFrontmatter } from './feature-schema.js';
 
 /**
- * One detected gap from any of the 14 SDD detectors. Categories are stable
+ * One detected gap from any of the 15 SDD detectors. Categories are stable
  * strings used for grouping in the rendered report.
  */
 export interface Gap {
