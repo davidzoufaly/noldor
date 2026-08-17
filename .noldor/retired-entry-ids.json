@@ -46,5 +46,10 @@
     "slug": "spec-size-governor",
     "retiredInto": "framework-auto-split-suggestion-for-big-features-and-plans",
     "retiredAt": "2026-08-16"
+  },
+  "Q-0108": {
+    "slug": "oversize-task-split-which-phase-owns-it",
+    "retiredInto": "framework-auto-split-suggestion-for-big-features-and-plans",
+    "retiredAt": "2026-08-16"
   }
 }

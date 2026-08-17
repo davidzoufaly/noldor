@@ -47,14 +47,45 @@ Split suggested for "<heading>":
 
 Choose:
   (a) proceed anyway — accept the scope as one FD / one attach
-  (b) split first — split the source block into sibling blocks (same write-back
-      mechanics as residue disposition 6.5(b): `### <heading>` placement,
-      carried `- area:`/`- type:`/`- size:`/`- impact:` bullets, and
-      `- recovered: YYYY-MM-DD` provenance), then re-run /noldor-promote on one slice
+  (b) split first — split the source block into sibling blocks (see the
+      sibling-emission recipe below), then re-run /noldor-promote on one slice
   (c) abort and re-size — leave the block in place; fix its `- size:` label
 ```
 
-On (a) continue to step 2 (or step 6.alt on the attach branch); for an F1 signal the (b) remedy is instead: scaffold a child FD rather than attaching. On (b) or (c) stop this promotion after any sibling write-backs — no FD is scaffolded and the source block is not removed. Signals are informational — the operator decides; the framework never auto-splits.
+On (a) continue to step 2 (or step 6.alt on the attach branch); for an F1 signal the (b) remedy is instead: scaffold a child FD rather than attaching. On (b) or (c) stop this promotion after any sibling write-backs — no FD is scaffolded here. Signals are informational — the operator decides; the framework never auto-splits.
+
+**This step is where splits belong.** Promote is the boundary between queue-shaped and FD-shaped work, so it owns scope decomposition for the whole pipeline: option (b) is the canonical remedy, not one of several competing ones. Later phases (`noldor-spec`, `noldor-plan`, gate Step 2.5) bounce back to this same sibling shape rather than inventing their own. See [complexity-gating.md → Which phase owns the split](../../../docs/noldor/complexity-gating.md#which-phase-owns-the-split).
+
+#### Sibling-emission recipe (shared by 1.7(b) and 6.5(b))
+
+Both split paths emit the same block shape. It must satisfy `pnpm noldor validate triage` outright — `area`, `type`, `since`, `size` and `impact` are all required at **error** level on roadmap (`since` on backlog too), and a missing `- id:` is an error once `.noldor/id-counter.json` exists.
+
+1. **Mint IDs first**, one call for all slices — IDs are minted, never hand-written:
+
+   `pnpm noldor triage mint-id --count <n>`
+
+2. **Write each sibling** as `### <slice-title>` at the source block's position (heading level is always 3 — see [triage.md → File format is frozen](../../../docs/noldor/triage.md#file-format-is-frozen)), with bullets in this order:
+
+   ```
+   - id: <minted Q-NNNN>
+   - area: <source's area>
+   - type: <source's type>
+   - since: <today, YYYY-MM-DD>
+   - size: <re-estimated for the slice>
+   - impact: <re-estimated for the slice>
+   - split-from: <source block's id>
+   - recovered: <today, YYYY-MM-DD>
+   ```
+
+   `- split-from:` and `- recovered:` are parsed fields, not body text, so they do not count toward the `E2` scope-bullet heuristic that produced the split.
+
+3. **Then remove the source block**, recording where the work went:
+
+   `pnpm noldor roadmap remove-block <source-slug> --split-into <slice-a>,<slice-b>`
+
+   Order matters: siblings are written **before** the removal. The write-back anchors them at the original block's position, and `docs/roadmap.md` is priority-ordered by file position — removing first destroys the anchor and the slices land wherever the writer guesses instead of at the queue position the work already earned. Removal stays safe in this order: `remove-block` takes the block up to the next `### ` heading, which is now the first sibling.
+
+   `--split-into` and `--retired-into` are mutually exclusive. This skill never stages or commits; `.noldor/retired-entry-ids.json` must be staged by the caller (`/noldor-gate` does this) or the recorded ID never reaches `main`.
 
 2. Parse the block's bullet fields: `id?`, `area`, `since?`, `deps?`, `parent?`, `milestone?`. Source roadmap section determines current bucket but is not carried into the feature MD. The source block's `- id:` (when present) is lifted verbatim into the FD's `entry-id:` frontmatter (step 6) so the stable ID survives the roadmap → FD hop.
 3. If `docs/features/<slug>.md` already exists, stop and tell the user to either edit that file in-place or choose a different slug.
@@ -136,7 +167,7 @@ For each item, choose:
 Apply per-item disposition before step 7:
 
 - (a) — append the residue text to the FD body (Summary or Usage as appropriate; attach branch appends to parent FD).
-- (b) — write the residue as a new sibling block in the source file, always as `### <residue-title>` immediately after the original block's position. The heading level is fixed at 3 regardless of the source's level: roadmap and backlog are flat one-level lists and writers never mint grouping categories (see [triage.md → File format is frozen](../../../docs/noldor/triage.md#file-format-is-frozen)). A legacy `#### <heading>` source still parses, but its residue is emitted at `###`. Carry forward bullets `- area:` (default to source's area), `- type:`, `- size:`, `- impact:`, and add `- recovered: YYYY-MM-DD` for provenance.
+- (b) — write the residue as a new sibling block in the source file, always as `### <residue-title>` immediately after the original block's position, per the **sibling-emission recipe** under step 1.7 above: mint an `- id:` first, then carry `- area:` (default to source's area), `- type:`, `- since:`, `- size:`, `- impact:`, `- split-from: <source id>`, `- recovered: YYYY-MM-DD`. The heading level is fixed at 3 regardless of the source's level: roadmap and backlog are flat one-level lists and writers never mint grouping categories (see [triage.md → File format is frozen](../../../docs/noldor/triage.md#file-format-is-frozen)). A legacy `#### <heading>` source still parses, but its residue is emitted at `###`. Omitting `- id:` or `- since:` here reds `validate triage` on the next regen — the recipe exists so the emitted block passes on the first try.
 - (c) — no write; the residue is erased when step 7 deletes the source block.
 
 **Step 7 must not run until every residue item has an explicit disposition.** If residue scan returns zero items, skip the prompt and proceed.

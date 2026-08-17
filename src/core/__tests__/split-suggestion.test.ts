@@ -15,6 +15,8 @@ import {
   assessSpecSplit,
 } from '../split-suggestion.js';
 
+import { parseRoadmap } from '../../utils/parse-blocks.js';
+
 function words(n: number): string {
   return Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
 }
@@ -234,5 +236,35 @@ describe('assessSpecSplit', () => {
   it('fires S1 then S2 in rule order when both trip', () => {
     const md = specWith(SPEC_CRITERIA_THRESHOLD + 1, `\n${words(SPEC_WORD_THRESHOLD + 1)}\n`);
     expect(assessSpecSplit(md).map((s) => s.rule)).toEqual(['S1', 'S2']);
+  });
+});
+
+describe('provenance bullets and the E2 scope-bullet count', () => {
+  // A split sibling carries `- split-from:` and `- recovered:` to record where
+  // it came from. Before those became parsed fields they stayed in the entry
+  // body, so every sibling was charged two scope bullets for its own
+  // provenance — inflating the heuristic that produced the split.
+  it('does not charge a sibling for its own provenance bullets', () => {
+    const scopeBullets = Array.from(
+      { length: ENTRY_BULLET_THRESHOLD },
+      (_, i) => `- scope concern ${i + 1}`,
+    ).join('\n');
+    const raw = `### Slice A
+
+- id: Q-9001
+- area: tooling
+- type: feat
+- since: 2026-08-17
+- size: S
+- impact: med
+- split-from: Q-0108
+- recovered: 2026-08-17
+
+${scopeBullets}
+`;
+    const entry = parseRoadmap(raw)[0];
+    expect(entry).toBeDefined();
+    // Exactly at the threshold, and comparisons are strictly greater-than.
+    expect(assessEntrySplit(entry!)).toEqual([]);
   });
 });

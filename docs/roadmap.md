@@ -30,19 +30,6 @@ Consumers get feature MDs, specs, and plans but no architecture surface — no p
 
 - The same gap holds for Noldor itself, and the scoping spike should decide whether one surface serves both or whether framework-internal architecture is a separate promotable item. The repo has rich feature docs and 107 design artifacts but no root `CONTEXT.md`, no module map and no `docs/adr/`, so maintainers and agents infer current architecture and rationale from 47k runtime LOC plus historical specs whose links are already stale (Q-0098). That makes unusual but intentional constraints — source-at-runtime packaging, adoption-safe advisories, sequential queue writes, graph fallbacks — read as accidental bugs, while genuine cross-module seams such as repository mutation (Q-0109) and snapshot ownership (Q-0110) stay implicit. Wanted: a concise current map in the project's own domain vocabulary showing major modules, dependency direction, durable state, entry points, and where each decision record lives, plus ADRs for active consequential choices rather than backfilled history. Deletion test: a new reader should not have to traverse archived plans to answer "which module owns repository paths, writes, and review completion?" (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
 
-### Oversize Task Split: Which Phase Owns It
-
-- id: Q-0108
-- area: tooling
-- type: feat
-- since: 2026-08-12
-- size: M
-- impact: high
-- confidence: low
-- parent: framework-auto-split-suggestion-for-big-features-and-plans
-
-Split-check flags an oversize feature or plan, but nothing says at which phase the split should actually happen — triage, promote, spec, or plan — so an L/XL entry can travel the whole pipeline intact and only get decomposed once an agent is already holding the largest possible context. The goal is the inverse: work with the smallest context that can still ship a slice. Settle where the decomposition belongs, what it produces (sibling queue entries, attach children, or plan-level tasks), and how the pieces stay traceable to the original entry ID. Confidence is low because the phase choice is the actual design question, not an implementation detail.
-
 ### Traceability Projection Module
 
 - id: Q-0111

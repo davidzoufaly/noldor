@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadRetiredIds, recordRetiredId } from '../retired-ids.js';
+import { loadRetiredIds, recordRetiredId, retiredRefs } from '../retired-ids.js';
 
 describe('retired-ids map', () => {
   let dir: string;
@@ -68,5 +68,42 @@ describe('retired-ids map', () => {
   it('throws loudly on a record missing its slug', () => {
     writeFileSync(mapPath, JSON.stringify({ 'Q-0089': {} }), 'utf8');
     expect(() => loadRetiredIds(mapPath)).toThrow(/missing a slug/);
+  });
+});
+
+describe('split provenance', () => {
+  let dir: string;
+  let mapPath: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'retired-ids-split-'));
+    mapPath = join(dir, 'retired-entry-ids.json');
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('round-trips splitInto alongside the slug', () => {
+    recordRetiredId(
+      'Q-0108',
+      { slug: 'oversize-entry', splitInto: ['slice-a', 'slice-b'], retiredAt: '2026-08-17' },
+      mapPath,
+    );
+    expect(loadRetiredIds(mapPath)['Q-0108']).toStrictEqual({
+      slug: 'oversize-entry',
+      splitInto: ['slice-a', 'slice-b'],
+      retiredAt: '2026-08-17',
+    });
+  });
+
+  // The recorded ID is what restores blocked-by resolution after a split
+  // replaces the source block; splitInto is provenance layered on top, so both
+  // reference forms must still resolve.
+  it('resolves both ref forms for a split-retired entry', () => {
+    recordRetiredId('Q-0108', { slug: 'oversize-entry', splitInto: ['slice-a'] }, mapPath);
+    const refs = retiredRefs(loadRetiredIds(mapPath));
+    expect(refs.has('Q-0108')).toBe(true);
+    expect(refs.has('oversize-entry')).toBe(true);
   });
 });

@@ -586,3 +586,71 @@ Body.
     expect(parseBacklog(raw)[0]?.id).toBeUndefined();
   });
 });
+
+describe('split provenance fields', () => {
+  const withProvenance = (heading: string) => `### ${heading}
+
+- id: Q-9001
+- area: tooling
+- type: feat
+- since: 2026-08-17
+- size: S
+- impact: med
+- split-from: Q-0108
+- recovered: 2026-08-17
+
+Body text.
+`;
+
+  // Both parsers must surface the fields. They share only the FIELD_KEYS
+  // alternation that strips a bullet from the description — the value is
+  // harvested at four separate sites, so a key added to FIELD_KEYS alone
+  // leaves the field silently undefined on whichever path was missed.
+  it.each([
+    ['parseRoadmap', parseRoadmap],
+    ['parseBacklog', parseBacklog],
+  ])('%s surfaces split-from and recovered as fields', (_label, parse) => {
+    const entry = parse(withProvenance('Slice A'))[0];
+    expect(entry?.splitFrom).toBe('Q-0108');
+    expect(entry?.recovered).toBe('2026-08-17');
+  });
+
+  // The point of making them fields: as body text they inflated the E2
+  // scope-bullet heuristic, so a split sibling was charged for carrying its
+  // own provenance.
+  it.each([
+    ['parseRoadmap', parseRoadmap],
+    ['parseBacklog', parseBacklog],
+  ])('%s keeps them out of the description', (_label, parse) => {
+    expect(parse(withProvenance('Slice A'))[0]?.description).toBe('Body text.');
+  });
+
+  it.each([
+    ['parseRoadmap', parseRoadmap],
+    ['parseBacklog', parseBacklog],
+  ])('%s leaves both undefined when the bullets are absent', (_label, parse) => {
+    const raw = `### Plain Entry
+
+- area: tooling
+
+Body.
+`;
+    const entry = parse(raw)[0];
+    expect(entry?.splitFrom).toBeUndefined();
+    expect(entry?.recovered).toBeUndefined();
+  });
+
+  // FIELD_KEYS is deliberately an explicit alternation rather than [\w-]+, so
+  // a hyphenated prose bullet must stay in the body.
+  it('does not harvest a lookalike description bullet', () => {
+    const raw = `### Lookalike
+
+- area: tooling
+
+- split-from-scratch: not a field
+`;
+    const entry = parseRoadmap(raw)[0];
+    expect(entry?.splitFrom).toBeUndefined();
+    expect(entry?.description).toContain('- split-from-scratch: not a field');
+  });
+});
