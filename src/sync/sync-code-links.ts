@@ -14,9 +14,9 @@ export { scanRoots };
 /**
  * Extract the slug list from a code file's first `// @fd:` comment.
  *
- * Kept as a named export because the tag syntax is a public convention several
- * validators check; everything else this module used to re-export lives on the
- * engine at `./projection.js`.
+ * Exported for this module's own tests only — unlike the `// @tests:` and
+ * `<!-- @feature: -->` extractors, no validator imports this one. Everything else
+ * this module used to re-export lives on the engine at `./projection.js`.
  *
  * @param content - Raw text content of the code file
  * @returns The list of tagged feature slugs

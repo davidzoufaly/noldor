@@ -113,6 +113,7 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
+
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a
@@ -318,23 +319,6 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`src/release/__tests__/release-packages.test.ts`](../../src/release/__tests__/release-packages.test.ts)
   - [`src/release/__tests__/release-version.test.ts`](../../src/release/__tests__/release-version.test.ts)
   - [`src/testing/__tests__/drain-e2e.test.ts`](../../src/testing/__tests__/drain-e2e.test.ts)
-- **Docs:**
-  - [`docs/noldor/README.md`](../../docs/noldor/README.md)
-  - [`docs/noldor/lifecycle.md`](../../docs/noldor/lifecycle.md)
-  - [`docs/noldor/complexity-gating.md`](../../docs/noldor/complexity-gating.md)
-  - [`docs/noldor/workflow.md`](../../docs/noldor/workflow.md)
-  - [`docs/noldor/feature-md-schema.md`](../../docs/noldor/feature-md-schema.md)
-  - [`docs/noldor/worktree-discipline.md`](../../docs/noldor/worktree-discipline.md)
-  - [`docs/noldor/git-and-commits.md`](../../docs/noldor/git-and-commits.md)
-  - [`docs/noldor/doc-conventions.md`](../../docs/noldor/doc-conventions.md)
-  - [`docs/noldor/skill-catalog.md`](../../docs/noldor/skill-catalog.md)
-  - [`docs/noldor/testing-principles.md`](../../docs/noldor/testing-principles.md)
-  - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
-  - [`docs/noldor/triage.md`](../../docs/noldor/triage.md)
-  - [`docs/noldor/garden-and-drift.md`](../../docs/noldor/garden-and-drift.md)
-  - [`docs/noldor/graph-integration.md`](../../docs/noldor/graph-integration.md)
-  - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
-  - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
 
 <!-- /generated: resources -->
 

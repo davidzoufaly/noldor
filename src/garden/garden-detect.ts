@@ -784,14 +784,36 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     loadDocRoots(repo).features,
     adapters.map((a) => a.key),
   );
-  for (const adapter of adapters) {
-    const scan = scans.get(adapter.key);
-    // A scan that could not read a root is not authoritative, so it makes no
-    // drift claims at all — reporting one would be indistinguishable from a
-    // repo whose tags were genuinely deleted.
-    if (!scan || scan.failures.length > 0 || cachedAll.failures.length > 0) continue;
-    const cached = cachedAll.byKey.get(adapter.key) ?? new Map();
-    sddGaps.push(...detectLinksDrift(buildSlugMap(scan.tagged), cached, adapter));
+  // An FD this pass could not parse is loop-invariant across kinds and must be
+  // reported, not swallowed: sddGaps gates releases, so silently skipping drift
+  // detection would read as green precisely when the inputs are broken.
+  for (const failure of cachedAll.failures) {
+    sddGaps.push({
+      category: 'links drift',
+      itemId: basename(failure.root, '.md'),
+      message: `${failure.root}: cannot parse feature MD (${failure.code}) — links drift not checked`,
+    });
+  }
+  if (cachedAll.failures.length === 0) {
+    for (const adapter of adapters) {
+      const scan = scans.get(adapter.key);
+      // A scan that could not read a root is not authoritative, so it makes no
+      // drift claims at all — a claim here would be indistinguishable from a
+      // repo whose tags were genuinely deleted. Report the gap instead.
+      if (!scan) continue;
+      if (scan.failures.length > 0) {
+        for (const failure of scan.failures) {
+          sddGaps.push({
+            category: `links.${adapter.key} drift`,
+            itemId: adapter.key,
+            message: `${failure.root}: unreadable (${failure.code}) — links.${adapter.key} drift not checked`,
+          });
+        }
+        continue;
+      }
+      const cached = cachedAll.byKey.get(adapter.key) ?? new Map();
+      sddGaps.push(...detectLinksDrift(buildSlugMap(scan.tagged), cached, adapter));
+    }
   }
   // FD link targets: stat what every FD's frontmatter points at (code/tests/
   // docs/spec/plan). The 2026-07 audit found 36/50 FDs link-rotted while every

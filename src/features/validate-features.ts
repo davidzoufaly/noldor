@@ -14,7 +14,7 @@ import {
   listDocMds,
   loadDocRoots,
 } from '../core/doc-roots.js';
-import { scanRoots } from '../core/repo-paths.js';
+import { TEST_FILE_RE, scanRoots } from '../core/repo-paths.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
 export interface FileError {
@@ -22,7 +22,6 @@ export interface FileError {
   issues: string[];
 }
 
-const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx)$/;
 // `noldor` excluded so a consumer's vendored `packages/noldor` tests don't trip
 // the tag-presence validator — those tests cover the framework itself, not
 // individual feature slugs the way product tests do (matches pre-migration

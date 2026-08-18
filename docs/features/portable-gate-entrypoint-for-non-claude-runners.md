@@ -19,6 +19,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 The autonomous drain's spawn layer is agent-agnostic (the registry resolves bin + argv for `claude` / `codex` / `opencode`), but the *prompt* it spawns is `/noldor-gate --drain <slug>` — a Claude Code slash-command (`src/autonomous/drain-source.ts:98`). On `codex` (prompt via stdin, no slash-command system) the string is treated as literal text → no gate runs. On `opencode` it only works if a `/noldor-gate` command is vendored into `.opencode/command/` (not present). So the multi-runner promise stops short of the autonomous drain: only claude can actually drive the gate headlessly. PR #119's portable CLIs (`features phase-flip-done`, `phase-revert`, `roadmap remove-block`) cover the gate's *manual steps* but not the drain entrypoint itself. Options: (a) a portable `noldor gate --drain <slug>` CLI entrypoint the drain spawns instead of a slash-command, with the agent CLI wrapping it; or (b) per-runtime vendoring of a `/noldor-gate` command alongside the existing skill. Strategic per the 2026-07 audit: harness-neutrality is the defensible layer.
@@ -68,16 +69,10 @@ This release adds the `promptDispatch` runner capability (#151).
 
 - **Spec:** [`docs/design/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md`](../../docs/design/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md)
 - **Code:**
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
-  - [`src/autonomous/drain-source.ts`](../../src/autonomous/drain-source.ts)
   - [`src/autonomous/gate-prompt.ts`](../../src/autonomous/gate-prompt.ts)
-  - [`src/core/agent-runner/capabilities.ts`](../../src/core/agent-runner/capabilities.ts)
-  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/drain-source.test.ts`](../../src/autonomous/__tests__/drain-source.test.ts)
   - [`src/autonomous/__tests__/gate-prompt.test.ts`](../../src/autonomous/__tests__/gate-prompt.test.ts)
   - [`src/core/agent-runner/__tests__/runners.test.ts`](../../src/core/agent-runner/__tests__/runners.test.ts)
-- **Docs:**
-  - [`docs/noldor/drain-mode.md`](../../docs/noldor/drain-mode.md)
 
 <!-- /generated: resources -->

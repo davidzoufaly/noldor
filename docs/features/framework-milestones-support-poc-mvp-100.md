@@ -51,6 +51,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.4.0
 ---
+
 ## Summary
 
 Add a milestones layer to Noldor — tracking which features belong to which milestone (POC / MVP / 1.0.0 today; arbitrary names if `decouple-milestones-from-semver` lands first). Surfaces in `/noldor-triage` (proposed milestone per bullet), in FD frontmatter (`milestone: <name>`), in `/noldor-garden` (flag features whose milestone has shipped but phase is not done), and in dashboard pages. Pairs with `vision.md`'s current-milestone field.
@@ -137,7 +138,5 @@ feat: connect features to milestones across schema, garden, and dashboard (#108)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts`](../../src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts)
-- **Docs:**
-  - [`docs/noldor/milestones.md`](../../docs/noldor/milestones.md)
 
 <!-- /generated: resources -->

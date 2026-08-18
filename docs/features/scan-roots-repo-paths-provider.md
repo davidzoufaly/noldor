@@ -17,6 +17,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 Remaining hardcoded Charuy-layout scan roots (`packages`/`apps`/`scripts`) outside sdd-report: `src/features/fill-links-code-gaps.ts` (walkRepo ×2, lines 399-401 + 475-477) and `src/dashboard/data.ts` (walkRepo lines 1052-1056 + `readdir('packages')` line 1079) still walk the monorepo trio instead of consumer `scanPaths`, so on a standalone `src/` repo (self-host included) they see nothing. Also hardcoded: `readdir('packages')` for actualPackages in sdd-report main() and dashboard data. Mirror the `scanRoots()` fix shipped for sdd-report in PR #122 (`src/sync/sync-code-links.ts`), and unify the divergent fallbacks into one repo-paths provider — `src/features/propose-pointers.ts` falls back to `['src']` while `scanRoots()` falls back to the 4-dir union; the union semantics must win (PR #122 CR lesson: a `['src']` fallback regresses unconfigured monorepo consumers).
@@ -63,11 +64,6 @@ Added a repo-paths provider exposing `scanRoots` and `actualPackageNames` (#144)
 - **Spec:** [`docs/design/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md`](../../docs/design/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md)
 - **Code:**
   - [`src/core/repo-paths.ts`](../../src/core/repo-paths.ts)
-  - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
-  - [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts)
-  - [`src/features/propose-pointers.ts`](../../src/features/propose-pointers.ts)
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
 - **Tests:**
   - [`src/core/__tests__/repo-paths.test.ts`](../../src/core/__tests__/repo-paths.test.ts)
 

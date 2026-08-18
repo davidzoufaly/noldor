@@ -18,6 +18,7 @@ phase: done
 noldor-tier: full
 introduced: 0.2.0
 ---
+
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
@@ -70,6 +71,7 @@ The framework is now lifted into a dedicated `packages/noldor` workspace package
 - **Plan:**
   - [`docs/design/plans/archive/2026-05-26-noldor-package-lift.md`](../../docs/design/plans/archive/2026-05-26-noldor-package-lift.md)
 - **Tests:**
+  - [`src/checks/__tests__/check-lefthook-wiring.test.ts`](../../src/checks/__tests__/check-lefthook-wiring.test.ts)
   - [`src/cli/__tests__/cli.test.ts`](../../src/cli/__tests__/cli.test.ts)
   - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
 

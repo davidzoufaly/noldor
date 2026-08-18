@@ -97,8 +97,11 @@ export function buildSlugMap(tagged: TaggedFile[]): Map<string, string[]> {
  * repo whose tags were all deleted — and the second reading clears links.
  */
 export interface ScanFailure {
+  /** The path that could not be read — a scan root, a scanned file, or an FD. */
   root: string;
   code: string;
+  /** Which input failed, so the report can suggest a fix that applies to it. */
+  kind: 'root' | 'file' | 'feature-md';
 }
 
 /** One walk of one adapter's roots: what it found, and what it could not read. */
@@ -124,7 +127,7 @@ async function walk(
     // root the consumer named, and any root that exists but cannot be read, is
     // a real gap in the scan's coverage.
     if (code === 'ENOENT' && origin === 'default') return;
-    failures.push({ root: dir, code });
+    failures.push({ root: dir, code, kind: 'root' });
     return;
   }
   for (const entry of entries) {
@@ -168,7 +171,11 @@ export async function collectTagged(adapter: LinkAdapter, repoRoot: string): Pro
         tags: extractTagsWith(content, adapter.tagRe),
       });
     } catch (error) {
-      failures.push({ root: file, code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN' });
+      failures.push({
+        root: file,
+        code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN',
+        kind: 'file',
+      });
     }
   }
   return { tagged, failures };
@@ -216,7 +223,11 @@ export async function collectTaggedMany(
       try {
         content = await readFile(file, 'utf8');
       } catch (error) {
-        failures.push({ root: file, code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN' });
+        failures.push({
+          root: file,
+          code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN',
+          kind: 'file',
+        });
         continue;
       }
       const rel = relative(repoRoot, file);
@@ -241,21 +252,6 @@ export async function collectTaggedMany(
 export interface CachedLoad {
   byKey: Map<LinkAdapter['key'], Map<string, string[]>>;
   failures: ScanFailure[];
-}
-
-/**
- * Load every FD's cached array for one `links.*` key, keyed by slug.
- *
- * @param featuresDir - Directory holding `<slug>.md` feature docs
- * @param key - The `links.*` field to read
- * @returns slug → cached array, dropping unreadable FDs (see {@link loadCachedAll} to observe them)
- */
-export async function loadCached(
-  featuresDir: string,
-  key: LinkAdapter['key'],
-): Promise<Map<string, string[]>> {
-  const { byKey } = await loadCachedAll(featuresDir, [key]);
-  return byKey.get(key) ?? new Map();
 }
 
 /**
@@ -293,6 +289,7 @@ export async function loadCachedAll(
       failures.push({
         root: join(featuresDir, f),
         code: (error as NodeJS.ErrnoException).code ?? 'EPARSE',
+        kind: 'feature-md',
       });
       continue;
     }
@@ -460,18 +457,25 @@ function reportTaglessKept(kept: string[], key: LinkAdapter['key'], quiet: boole
   );
 }
 
+/** How each failing input is described, so the fix suggested actually applies. */
+const FAILURE_LABEL: Record<ScanFailure['kind'], string> = {
+  root: 'cannot read scan root',
+  file: 'cannot read scanned file',
+  'feature-md': 'cannot parse feature MD',
+};
+
 /**
- * Report the roots that made this run non-authoritative and return true when the
+ * Report the inputs that made this run non-authoritative and return true when the
  * run must not clear anything.
  */
 function reportFailures(failures: ScanFailure[]): boolean {
   if (failures.length === 0) return false;
   for (const f of failures) {
-    console.error(`cannot read scan root ${f.root} (${f.code})`);
+    console.error(`${FAILURE_LABEL[f.kind]} ${f.root} (${f.code})`);
   }
   console.error(
-    `${failures.length} scan root(s) unreadable — the scan is not authoritative, ` +
-      'so no links were cleared. Fix the root(s) or drop them from `scanPaths`.',
+    `${failures.length} input(s) could not be read — the scan is not authoritative, ` +
+      'so no links were cleared. Fix them, or drop a stale root from `scanPaths`.',
   );
   return true;
 }

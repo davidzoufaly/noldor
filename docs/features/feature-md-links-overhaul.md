@@ -40,6 +40,7 @@ introduced: 0.3.0
 noldor-tier: full
 updated: 0.4.0
 ---
+
 ## Summary
 
 Cleans up the `links.*` fields on feature MDs so `pnpm sdd:report` produces actionable signal instead of 90+ lines of noise. Five coupled changes shipped:
@@ -100,18 +101,17 @@ matched nothing keeps its cached entries and is named in the tagless-kept report
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/checks/check-feature-slug-scope.ts`](../../src/checks/check-feature-slug-scope.ts)
-  - [`src/core/extract-touches.ts`](../../src/core/extract-touches.ts)
-  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
-  - [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts)
-  - [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts)
-  - [`src/features/validate-features.ts`](../../src/features/validate-features.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
-  - [`src/release/release-commits.ts`](../../src/release/release-commits.ts)
-  - [`src/sync/sync-spec-links.ts`](../../src/sync/sync-spec-links.ts)
+  - [`src/garden/detectors/code-links-drift.ts`](../../src/garden/detectors/code-links-drift.ts)
+  - [`src/sync/adapters/code.ts`](../../src/sync/adapters/code.ts)
+  - [`src/sync/adapters/docs.ts`](../../src/sync/adapters/docs.ts)
+  - [`src/sync/adapters/tests.ts`](../../src/sync/adapters/tests.ts)
+  - [`src/sync/projection.ts`](../../src/sync/projection.ts)
+  - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
+  - [`src/sync/sync-doc-links.ts`](../../src/sync/sync-doc-links.ts)
   - [`src/sync/sync-test-links.ts`](../../src/sync/sync-test-links.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-feature-slug-scope.test.ts`](../../src/checks/__tests__/check-feature-slug-scope.test.ts)
+  - [`src/core/__tests__/doc-roots.test.ts`](../../src/core/__tests__/doc-roots.test.ts)
   - [`src/core/__tests__/extract-touches.test.ts`](../../src/core/__tests__/extract-touches.test.ts)
   - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
   - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
@@ -121,9 +121,11 @@ matched nothing keeps its cached entries and is named in the tagless-kept report
   - [`src/features/__tests__/validate-features.test.ts`](../../src/features/__tests__/validate-features.test.ts)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/garden/detectors/__tests__/code-links-drift.test.ts`](../../src/garden/detectors/__tests__/code-links-drift.test.ts)
   - [`src/release/__tests__/release-changelog.test.ts`](../../src/release/__tests__/release-changelog.test.ts)
   - [`src/release/__tests__/release-commits.test.ts`](../../src/release/__tests__/release-commits.test.ts)
   - [`src/release/__tests__/release-fd-commits.test.ts`](../../src/release/__tests__/release-fd-commits.test.ts)
+  - [`src/sync/__tests__/projection.test.ts`](../../src/sync/__tests__/projection.test.ts)
   - [`src/sync/__tests__/sync-spec-links.test.ts`](../../src/sync/__tests__/sync-spec-links.test.ts)
   - [`src/sync/__tests__/sync-test-links.test.ts`](../../src/sync/__tests__/sync-test-links.test.ts)
 

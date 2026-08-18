@@ -24,6 +24,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
+
 ## Summary
 
 Today a consumer installs Noldor as a `file:` dependency and must keep a clone of `noldor/` as a sibling directory of their repo. That is the single hardest blocker for any project that is not on this machine. Publish the package to a registry so adoption starts with `pnpm add -D @david.zoufaly/noldor`.
@@ -107,8 +108,5 @@ Added a `release.publish` config block that ships default-off for consumer safet
   - [`src/release/__tests__/release-publish-cli.test.ts`](../../src/release/__tests__/release-publish-cli.test.ts)
   - [`src/release/__tests__/release-publish.test.ts`](../../src/release/__tests__/release-publish.test.ts)
   - [`src/testing/__tests__/engines-floor.test.ts`](../../src/testing/__tests__/engines-floor.test.ts)
-- **Docs:**
-  - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
-  - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
 
 <!-- /generated: resources -->

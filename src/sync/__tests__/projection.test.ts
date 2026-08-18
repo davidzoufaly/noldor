@@ -294,6 +294,23 @@ describe('byte-identical FDs', () => {
   });
 });
 
+describe('failure reporting', () => {
+  it('describes each failing input in terms that match how it is fixed', async () => {
+    writeFd('feat', { tests: ['src/gone.test.ts'] });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'unreportable.md'),
+      '---\nname: [unclosed-for-reporting\n---\n\n## Summary\n',
+      'utf8',
+    );
+
+    await runProjection(rooted(testsAdapter, ['src'], 'default'), { cwd: repo, force: true });
+
+    const printed = vi.mocked(console.error).mock.calls.flat().join('\n');
+    expect(printed).toContain('cannot parse feature MD');
+    expect(printed).not.toContain('cannot read scan root');
+  });
+});
+
 describe('collectTaggedMany', () => {
   it('classifies code and tests from one traversal of the shared root', async () => {
     writeFileSync(join(repo, 'src', 'a.ts'), '// @fd: feat\n', 'utf8');
