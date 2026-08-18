@@ -28,23 +28,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 The framework has no UI-design stage: `/noldor-spec` produces prose, and a frontend feature's visual design is either absent from the artifact trail or pasted in as a screenshot nobody validates. Wanted, driven by a live consumer need: a pen.dev-backed design step inside the spec phase where several UI versions can be described, drafted and compared while the spec is still being written, converging on one final design that the spec carries as its own artifact by the time the spec phase closes — design decisions adjudicated with the rest of the spec rather than after it. Two surfaces follow from that. A pipeline stage, so `/noldor-gate` routes UI-bearing work through the design step and the resulting artifact is gate-visible the way specs and plans are (`sizeToPath()` and the path set both move). And a review lane that checks the implemented UI against the chosen pen.dev design, sitting beside the codex and verifier lanes rather than duplicating them. Open questions dominate, hence `confidence: low`: how a pen.dev artifact is referenced and pinned so a spec's design cannot silently change under it; whether version drafts live in pen.dev with only the winner referenced, or all candidates are recorded as the spec's considered alternatives; whether the review lane can compare rendered output to a design mechanically or only prompt a reviewer with both; and what a non-UI feature does with the stage (skipped by predicate, not by operator memory). Related but distinct: Q-0116's design-artifact detector module governs how design artifacts are discovered once they exist, not where they come from. Consumer-blocking, which is why this outranks internal-polish entries below it per the vision's adoption tie-breaker.
 
-### Traceability Projection Module
-
-- id: Q-0111
-- area: tooling
-- type: refactor
-- since: 2026-08-12
-- size: M
-- impact: med
-- confidence: med
-- parent: feature-md-links-overhaul
-
-Clone detection measured large repeated groups (roughly 223 and 216 tokens) across `sync code-links`, `sync test-links`, `sync doc-links` and `sync spec-links` — tag extraction, filesystem walking, slug grouping, feature-frontmatter loading, array comparison, writing, warnings and CLI summaries — while the behaviour has already diverged between them. Define one projection implementation around source adapters (tag syntax, eligible paths, destination `links.*` key) plus one policy for authoritative empty scans, cached-only slugs, unknown feature tags, deterministic sorting, dry/check/write modes and atomic validated frontmatter writes. **Leverage:** a fix to deletion, scan failure or reporting applies to every traceability kind at once. **Deletion test:** the three or four grouping loops, the `updateFeatureMd` copies, the independent walker exclusion sets and the inconsistent main/report code all go, leaving small readable adapters. Do not over-generalize code-sync's directory-entry preservation into every kind — make such differences explicit strategy data.
-
-- The confirmed symptom: `sync doc-links` and `sync test-links` cannot clear a feature's last removed tag, so stale `links.docs` and `links.tests` survive forever. Both scanners build a map holding only slugs found in the fresh scan and then update only over that map's entries. While some tagged files remain, removed paths disappear correctly; when the last tag or the last tagged file goes, the slug drops out of the map and its cached frontmatter array is never visited. `sync code-links` already documents and implements the correct scanned-union-cached iteration plus an explicit empty-projection policy — that is the intended shape. Tests must start from one cached path, remove the final source tag, run sync, assert the array becomes empty, and prove a missing or unreadable scan root does not masquerade as authoritative emptiness. (confirmed by control-flow comparison)
-
-(architecture candidate, Worth exploring from the read-only audit 2026-08-12)
-
 ### Mandatory Codex Review Round
 
 - id: Q-0091
