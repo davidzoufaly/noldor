@@ -18,6 +18,7 @@ links:
     - src/sync/sync-test-links.ts
   tests:
     - src/checks/__tests__/check-feature-slug-scope.test.ts
+    - src/core/__tests__/doc-roots.test.ts
     - src/core/__tests__/extract-touches.test.ts
     - src/core/__tests__/feature-schema-since.test.ts
     - src/core/__tests__/feature-schema.test.ts
