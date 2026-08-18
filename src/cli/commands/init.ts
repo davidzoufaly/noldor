@@ -28,7 +28,7 @@ import {
   ensureSummaryBodyRolloutSnapshot,
 } from '../../core/summary-body-rollout.js';
 import { ensureGitignoreBlock } from '../../core/init-gitignore.js';
-import { ROOT_LEFTHOOK, checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
+import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -138,7 +138,8 @@ try {
   // project's own hooks.
   const wiring = checkLefthookWiring(consumer);
   if (wiring.status !== 'ok') {
-    console.log(`unwired    ${ROOT_LEFTHOOK}: ${wiring.detail}`);
+    const label = wiring.advisory ? 'warn' : 'unwired';
+    console.log(`${label.padEnd(10)} ${wiring.rootName}: ${wiring.detail}`);
   }
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no
   // existing anchor, scaffolded (not `--update`). A fresh scaffold is by

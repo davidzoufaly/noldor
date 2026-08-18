@@ -21,14 +21,35 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 
-/** Consumer-root file that must carry the `extends` line. */
-export const ROOT_LEFTHOOK = 'lefthook.yml';
+/**
+ * Root config filenames lefthook accepts, in its own precedence order. A
+ * consumer that writes `lefthook.yaml` (or the dotted or TOML/JSON forms) has
+ * a perfectly wired repo, so probing only `lefthook.yml` would report
+ * `root-missing` and — now that this check carries an exit code — fail
+ * `doctor` while advising an `init` that would drop a SECOND, ignored config
+ * beside the real one.
+ */
+export const ROOT_CANDIDATES: readonly string[] = [
+  'lefthook.yml',
+  'lefthook.yaml',
+  'lefthook.toml',
+  'lefthook.json',
+  '.lefthook.yml',
+  '.lefthook.yaml',
+  '.lefthook.toml',
+  '.lefthook.json',
+];
+
+/** The filename `init` scaffolds, and the one named when none exists. */
+export const ROOT_LEFTHOOK = ROOT_CANDIDATES[0];
 
 /** Framework hook block the root file must extend, as written in the template. */
 export const NOLDOR_BLOCK = './lefthook/noldor.yml';
 
 /** The one-line repair, quoted verbatim in every failure detail. */
-export const REPAIR = `add '${NOLDOR_BLOCK}' to the 'extends:' list in ${ROOT_LEFTHOOK}`;
+export function repairFor(rootName: string): string {
+  return `add '${NOLDOR_BLOCK}' to the 'extends:' list in ${rootName}`;
+}
 
 /**
  * Why the wiring is not verified-good. `ok` is the only passing state — every
@@ -40,11 +61,25 @@ export type LefthookWiringStatus =
   | 'ok'
   | 'root-missing'
   | 'root-unparseable'
+  | 'root-unreadable-format'
   | 'block-missing'
   | 'not-extended';
 
 export interface LefthookWiringResult {
   readonly status: LefthookWiringStatus;
+  /**
+   * The root config this result is about — whichever {@link ROOT_CANDIDATES}
+   * entry exists, or {@link ROOT_LEFTHOOK} when none does. Callers quote it so
+   * the operator is pointed at their actual file, not at a name they never used.
+   */
+  readonly rootName: string;
+  /**
+   * True when the finding is a *limitation of this check* rather than a defect
+   * in the repo — today only a TOML config, which nothing here can parse.
+   * Callers must warn on these and MUST NOT fail: refusing to verify is not
+   * evidence of breakage, and a hard exit on one would punish a wired repo.
+   */
+  readonly advisory: boolean;
   /** Operator-facing sentence: what is inert, and the one-line repair. */
   readonly detail: string;
   /**
@@ -99,33 +134,68 @@ export function frameworkHooks(cwd: string): string[] {
 }
 
 /**
- * Verify the consumer's root `lefthook.yml` extends the framework hook block.
+ * First existing {@link ROOT_CANDIDATES} entry, or `null` when the consumer has
+ * no lefthook config at all.
+ */
+export function resolveRootConfig(cwd: string): { name: string; path: string } | null {
+  for (const name of ROOT_CANDIDATES) {
+    const path = join(cwd, name);
+    if (existsSync(path)) return { name, path };
+  }
+  return null;
+}
+
+/**
+ * Verify the consumer's root lefthook config extends the framework hook block.
  *
  * Read-only by contract — the root file is project-owned, so a caller acting
- * on a non-`ok` result may print and exit non-zero, never rewrite.
+ * on a non-`ok` result may print and exit non-zero, never rewrite. Callers must
+ * also honor {@link LefthookWiringResult.advisory}: a result this check could
+ * not verify is not a repo defect and must not fail the caller.
  *
  * @param cwd - Consumer repo root.
  */
 export function checkLefthookWiring(cwd: string): LefthookWiringResult {
-  const rootPath = join(cwd, ROOT_LEFTHOOK);
   const deadHooks = frameworkHooks(cwd);
   const dead = deadHooks.length > 0 ? ` Inert hooks: ${deadHooks.join(', ')}.` : '';
+  const root = resolveRootConfig(cwd);
 
-  if (!existsSync(rootPath)) {
+  if (root === null) {
     return {
       status: 'root-missing',
-      detail: `${ROOT_LEFTHOOK} is absent, so lefthook loads no noldor jobs at all.${dead} Run 'noldor init' to scaffold it, or ${REPAIR}.`,
+      rootName: ROOT_LEFTHOOK,
+      advisory: false,
+      detail: `no lefthook config found (looked for ${ROOT_CANDIDATES.join(', ')}), so lefthook loads no noldor jobs at all.${dead} Run 'noldor init' to scaffold ${ROOT_LEFTHOOK}.`,
+      deadHooks,
+    };
+  }
+
+  // TOML is a real lefthook format this module cannot read without adding a
+  // parser dependency for one branch. Report it and let the caller warn: the
+  // repo may well be wired, and a hard failure on "I did not look" would be a
+  // false alarm on a gate that exits non-zero.
+  if (root.name.endsWith('.toml')) {
+    return {
+      status: 'root-unreadable-format',
+      rootName: root.name,
+      advisory: true,
+      // noldor:cut TOML unparsed — add a TOML parser here if consumers adopt it.
+      detail: `${root.name} is TOML, which this check cannot parse, so its wiring is unverified — confirm by hand that it ${repairFor(root.name)}.`,
       deadHooks,
     };
   }
 
   let doc: unknown;
   try {
-    doc = parse(readFileSync(rootPath, 'utf8'));
+    // The yaml parser also accepts JSON (JSON is a YAML 1.2 subset), so the
+    // .json candidates need no separate branch.
+    doc = parse(readFileSync(root.path, 'utf8'));
   } catch (e) {
     return {
       status: 'root-unparseable',
-      detail: `${ROOT_LEFTHOOK} is not valid YAML (${e instanceof Error ? e.message : String(e)}), so its wiring cannot be verified and lefthook may be loading nothing.${dead} Fix the syntax, then ensure it ${REPAIR}.`,
+      rootName: root.name,
+      advisory: false,
+      detail: `${root.name} does not parse (${e instanceof Error ? e.message : String(e)}), so its wiring cannot be verified and lefthook may be loading nothing.${dead} Fix the syntax, then ensure it ${repairFor(root.name)}.`,
       deadHooks,
     };
   }
@@ -133,7 +203,9 @@ export function checkLefthookWiring(cwd: string): LefthookWiringResult {
   if (!existsSync(join(cwd, NOLDOR_BLOCK.replace(/^\.\//, '')))) {
     return {
       status: 'block-missing',
-      detail: `${NOLDOR_BLOCK} is absent, so the ${ROOT_LEFTHOOK} extends line has nothing to load. Run 'noldor init --update' to restore the framework hook block.`,
+      rootName: root.name,
+      advisory: false,
+      detail: `${NOLDOR_BLOCK} is absent, so the ${root.name} extends line has nothing to load. Run 'noldor init --update' to restore the framework hook block.`,
       deadHooks,
     };
   }
@@ -141,14 +213,18 @@ export function checkLefthookWiring(cwd: string): LefthookWiringResult {
   if (!extendsList(doc).some(isNoldorBlock)) {
     return {
       status: 'not-extended',
-      detail: `${ROOT_LEFTHOOK} does not extend ${NOLDOR_BLOCK}, so every noldor hook job is inert while lefthook still prints its banner — zero jobs running reads exactly like a working install.${dead} Repair: ${REPAIR}.`,
+      rootName: root.name,
+      advisory: false,
+      detail: `${root.name} does not extend ${NOLDOR_BLOCK}, so every noldor hook job is inert while lefthook still prints its banner — zero jobs running reads exactly like a working install.${dead} Repair: ${repairFor(root.name)}.`,
       deadHooks,
     };
   }
 
   return {
     status: 'ok',
-    detail: `${ROOT_LEFTHOOK} extends ${NOLDOR_BLOCK}`,
+    rootName: root.name,
+    advisory: false,
+    detail: `${root.name} extends ${NOLDOR_BLOCK}`,
     deadHooks: [],
   };
 }

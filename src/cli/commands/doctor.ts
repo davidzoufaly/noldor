@@ -64,8 +64,14 @@ for (const c of checks) {
 const wiring = checkLefthookWiring(process.cwd());
 let wiringBad = 0;
 if (wiring.status !== 'ok') {
-  wiringBad++;
-  console.log(`${'unwired'.padEnd(12)} hooks: ${wiring.detail}`);
+  // `advisory` means this check could not read the consumer's config format,
+  // not that the repo is broken — warn, never fail, or a wired TOML consumer
+  // would go red for a limitation of ours.
+  if (wiring.advisory) console.log(`${'warn'.padEnd(12)} hooks: ${wiring.detail}`);
+  else {
+    wiringBad++;
+    console.log(`${'unwired'.padEnd(12)} hooks: ${wiring.detail}`);
+  }
 }
 
 // Framework-version skew: advisory only (does NOT affect exit code). A consumer
@@ -96,7 +102,7 @@ if (runnerBad > 0) {
 }
 if (wiringBad > 0) {
   console.error(
-    `\nHook wiring is broken, so noldor's gate jobs never run. This is NOT drift — the root lefthook.yml is yours to own, and 'init --update' will not touch it. Apply the repair above by hand.`,
+    `\nHook wiring is broken, so noldor's gate jobs never run. This is NOT drift — ${wiring.rootName} is yours to own, and 'init --update' will not touch it. Apply the repair above by hand.`,
   );
 }
 process.exit(1);

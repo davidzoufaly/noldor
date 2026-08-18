@@ -6,9 +6,11 @@ import { join } from 'node:path';
 
 import {
   NOLDOR_BLOCK,
+  ROOT_CANDIDATES,
   ROOT_LEFTHOOK,
   checkLefthookWiring,
   frameworkHooks,
+  resolveRootConfig,
 } from '../check-lefthook-wiring.js';
 
 const BLOCK = [
@@ -26,9 +28,9 @@ const BLOCK = [
 ].join('\n');
 
 /** A consumer repo root; `opts.block` omitted means lefthook/noldor.yml is absent. */
-function consumer(opts: { root?: string; block?: string } = {}): string {
+function consumer(opts: { root?: string; block?: string; rootName?: string } = {}): string {
   const dir = mkdtempSync(join(tmpdir(), 'lefthook-wiring-'));
-  if (opts.root !== undefined) writeFileSync(join(dir, ROOT_LEFTHOOK), opts.root);
+  if (opts.root !== undefined) writeFileSync(join(dir, opts.rootName ?? ROOT_LEFTHOOK), opts.root);
   if (opts.block !== undefined) {
     mkdirSync(join(dir, 'lefthook'), { recursive: true });
     writeFileSync(join(dir, 'lefthook/noldor.yml'), opts.block);
@@ -67,6 +69,7 @@ describe('checkLefthookWiring', () => {
   it('fails a comment-only pre-adoption stub, naming the dead hooks and the repair', () => {
     const r = checkLefthookWiring(consumer({ root: '# project hooks go here\n', block: BLOCK }));
     expect(r.status).toBe('not-extended');
+    expect(r.advisory).toBe(false);
     expect(r.deadHooks).toEqual(['pre-commit (2 jobs)', 'commit-msg (1 job)']);
     expect(r.detail).toContain('pre-commit (2 jobs)');
     expect(r.detail).toContain(NOLDOR_BLOCK);
@@ -117,6 +120,58 @@ describe('frameworkHooks', () => {
 
   it('returns an empty list when the block is absent', () => {
     expect(frameworkHooks(consumer({}))).toEqual([]);
+  });
+});
+
+describe('alternate lefthook config filenames', () => {
+  // The check exits non-zero, so a consumer whose config is any other name
+  // lefthook accepts must not be told their repo is unwired — and must
+  // certainly not be told to run an `init` that would drop a second, ignored
+  // config beside the real one.
+  it.each(['lefthook.yaml', '.lefthook.yml', '.lefthook.yaml'])(
+    'verifies a wired %s the same as lefthook.yml',
+    (rootName) => {
+      const r = checkLefthookWiring(consumer({ root: WIRED, block: BLOCK, rootName }));
+      expect(r.status).toBe('ok');
+      expect(r.rootName).toBe(rootName);
+    },
+  );
+
+  it('catches an unwired lefthook.yaml, quoting that filename in the repair', () => {
+    const r = checkLefthookWiring(
+      consumer({ root: '# stub\n', block: BLOCK, rootName: 'lefthook.yaml' }),
+    );
+    expect(r.status).toBe('not-extended');
+    expect(r.advisory).toBe(false);
+    expect(r.detail).toContain('lefthook.yaml');
+    expect(r.detail).not.toContain('lefthook.yml ');
+  });
+
+  it('parses a JSON config, since JSON is a YAML subset', () => {
+    const root = JSON.stringify({ extends: [NOLDOR_BLOCK] });
+    expect(
+      checkLefthookWiring(consumer({ root, block: BLOCK, rootName: 'lefthook.json' })).status,
+    ).toBe('ok');
+  });
+
+  it('reports a TOML config as advisory, never as a failure', () => {
+    const root = `extends = ["${NOLDOR_BLOCK}"]\n`;
+    const r = checkLefthookWiring(consumer({ root, block: BLOCK, rootName: 'lefthook.toml' }));
+    expect(r.status).toBe('root-unreadable-format');
+    expect(r.advisory).toBe(true);
+    expect(r.rootName).toBe('lefthook.toml');
+  });
+
+  it('names every candidate it looked for when none exists', () => {
+    const r = checkLefthookWiring(consumer({ block: BLOCK }));
+    expect(r.status).toBe('root-missing');
+    for (const name of ROOT_CANDIDATES) expect(r.detail).toContain(name);
+  });
+
+  it('resolves in lefthook precedence order when several configs exist', () => {
+    const dir = consumer({ root: WIRED, block: BLOCK });
+    writeFileSync(join(dir, 'lefthook.yaml'), '# ignored\n');
+    expect(resolveRootConfig(dir)?.name).toBe('lefthook.yml');
   });
 });
 
