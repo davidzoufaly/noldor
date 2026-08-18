@@ -6,9 +6,10 @@ import { scanRoots } from '../core/repo-paths.js';
 import { codeAdapter } from './adapters/code.js';
 import { extractTagsWith, parseRunOptions, runProjection } from './projection.js';
 
-// Compatibility re-export: the provider moved to src/core/repo-paths.ts
-// (single definition). Existing importers keep this path; new code should
-// import from '../core/repo-paths.js' directly.
+// Re-export pinned by a test only: `src/core/__tests__/repo-paths.test.ts`
+// asserts this path and `../core/repo-paths.js` resolve to one definition. No
+// production module imports `scanRoots` from here — import it from
+// '../core/repo-paths.js' directly.
 export { scanRoots };
 
 /**

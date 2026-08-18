@@ -784,37 +784,42 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     loadDocRoots(repo).features,
     adapters.map((a) => a.key),
   );
-  // An FD this pass could not parse is loop-invariant across kinds and must be
-  // reported, not swallowed: sddGaps gates releases, so silently skipping drift
-  // detection would read as green precisely when the inputs are broken.
+  // An FD this pass could not parse gets a gap of its own, and is dropped from
+  // the drift claims — but only itself. The other FDs parsed fine and the walk
+  // is already paid for, so suppressing the whole repo's drift over one broken
+  // document would throw away real signal, and sddGaps gates releases.
+  const unparsed = new Set(cachedAll.failures.map((f) => basename(f.root, '.md')));
   for (const failure of cachedAll.failures) {
     sddGaps.push({
       category: 'links drift',
       itemId: basename(failure.root, '.md'),
-      message: `${failure.root}: cannot parse feature MD (${failure.code}) — links drift not checked`,
+      message: `${failure.root}: cannot parse feature MD (${failure.code}) — links drift not checked for it`,
     });
   }
-  if (cachedAll.failures.length === 0) {
-    for (const adapter of adapters) {
-      const scan = scans.get(adapter.key);
-      // A scan that could not read a root is not authoritative, so it makes no
-      // drift claims at all — a claim here would be indistinguishable from a
-      // repo whose tags were genuinely deleted. Report the gap instead.
-      if (!scan) continue;
-      if (scan.failures.length > 0) {
-        for (const failure of scan.failures) {
-          sddGaps.push({
-            category: `links.${adapter.key} drift`,
-            itemId: adapter.key,
-            message: `${failure.root}: unreadable (${failure.code}) — links.${adapter.key} drift not checked`,
-          });
-        }
-        continue;
+  for (const adapter of adapters) {
+    const scan = scans.get(adapter.key);
+    if (!scan) continue;
+    // A scan that could not read a root is not authoritative for its kind, so it
+    // makes no drift claims at all — a claim here would be indistinguishable
+    // from a repo whose tags were genuinely deleted. Report the gap instead.
+    if (scan.failures.length > 0) {
+      for (const failure of scan.failures) {
+        sddGaps.push({
+          category: `links.${adapter.key} drift`,
+          itemId: adapter.key,
+          message: `${failure.root}: unreadable (${failure.code}) — links.${adapter.key} drift not checked`,
+        });
       }
-      const cached = cachedAll.byKey.get(adapter.key) ?? new Map();
-      sddGaps.push(...detectLinksDrift(buildSlugMap(scan.tagged), cached, adapter));
+      continue;
     }
+    const cached = cachedAll.byKey.get(adapter.key) ?? new Map();
+    sddGaps.push(
+      ...detectLinksDrift(buildSlugMap(scan.tagged), cached, adapter).filter(
+        (gap) => !unparsed.has(gap.itemId),
+      ),
+    );
   }
+
   // FD link targets: stat what every FD's frontmatter points at (code/tests/
   // docs/spec/plan). The 2026-07 audit found 36/50 FDs link-rotted while every
   // validator reported green — shape checks and working-dir scans never stat
