@@ -1,11 +1,8 @@
 // @fd: feature-md-links-overhaul
 
-import { scanRoots } from '../../core/repo-paths.js';
+import { CODE_FILE_RE, TEST_FILE_RE, scanRoots } from '../../core/repo-paths.js';
 import { loadConsumerConfig } from '../../core/consumer-config.js';
 import type { LinkAdapter, ScanRoot } from '../projection.js';
-
-const CODE_FILE_RE = /\.(ts|tsx|js|jsx)$/;
-const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx)$/;
 
 /**
  * Label each scan root by whether the consumer named it. A configured root that

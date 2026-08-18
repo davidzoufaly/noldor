@@ -781,7 +781,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   const adapters = [codeAdapter, testsAdapter, docsAdapter];
   const scans = await collectTaggedMany(adapters, repo);
   const cachedAll = await loadCachedAll(
-    join(repo, 'docs/features'),
+    loadDocRoots(repo).features,
     adapters.map((a) => a.key),
   );
   for (const adapter of adapters) {

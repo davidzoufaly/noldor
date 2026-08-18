@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { basename, join, relative } from 'node:path';
+import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
@@ -8,7 +8,12 @@ import { FeatureFrontmatterSchema, type FeatureFrontmatter } from '../core/featu
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
 import { loadConsumerConfig, loadCategories } from '../core/consumer-config.js';
-import { docPresenceRoots, docProjectionRoots, loadDocRoots } from '../core/doc-roots.js';
+import {
+  docPresenceRoots,
+  docProjectionRoots,
+  listDocMds,
+  loadDocRoots,
+} from '../core/doc-roots.js';
 import { scanRoots } from '../core/repo-paths.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
@@ -170,31 +175,6 @@ export async function validatePackagesField(paths: string[]): Promise<FileError[
     }
   }
   return errors;
-}
-
-/**
- * List the `.md` files directly under each absolute root, as repo-relative
- * paths so validator messages stay readable. Missing roots are skipped — a repo
- * with no tutorials is not an error.
- *
- * @param roots - Absolute directories from a doc-roots provider
- * @returns Repo-relative doc paths
- */
-async function listDocMds(roots: string[]): Promise<string[]> {
-  const out: string[] = [];
-  for (const root of roots) {
-    try {
-      const entries = await readdir(root, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.isFile() && entry.name.endsWith('.md')) {
-          out.push(relative(process.cwd(), join(root, entry.name)));
-        }
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
-  }
-  return out;
 }
 
 /**

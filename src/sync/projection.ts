@@ -6,6 +6,7 @@ import { basename, join, relative } from 'node:path';
 import matter from 'gray-matter';
 
 import { atomicWriteFile } from '../core/atomic-write.js';
+import { loadDocRoots } from '../core/doc-roots.js';
 
 /** Where a scan root came from, which decides whether its absence is fatal. */
 export type RootOrigin = 'configured' | 'default';
@@ -439,7 +440,7 @@ function reportFailures(failures: ScanFailure[]): boolean {
  */
 export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {}): Promise<number> {
   const cwd = opts.cwd ?? process.cwd();
-  const featuresDir = opts.featuresDir ?? join(cwd, 'docs', 'features');
+  const featuresDir = opts.featuresDir ?? loadDocRoots(cwd).features;
   const { tagged, failures } = await collectTagged(adapter, cwd);
   if (reportFailures(failures)) return 1;
 

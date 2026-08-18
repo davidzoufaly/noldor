@@ -1,9 +1,9 @@
-// @tests: framework-doc-extraction
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+// @tests: framework-doc-extraction, feature-md-links-overhaul
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { loadDocRoots } from '../doc-roots.js';
+import { docPresenceRoots, docProjectionRoots, listDocMds, loadDocRoots } from '../doc-roots.js';
 
 describe('loadDocRoots', () => {
   it('returns docs/* paths anchored at given cwd', () => {
@@ -62,5 +62,41 @@ describe('loadDocRoots', () => {
       expect(r.plans).toBe(join(dir, 'docs', 'design', 'plans'));
       expect(r.specs).toBe(join(dir, 'docs', 'design', 'specs'));
     });
+  });
+});
+
+describe('doc root providers', () => {
+  it('keeps docs/noldor out of both sets so a templated tree is never scanned or validated', () => {
+    const projection = docProjectionRoots('/tmp/example');
+    const presence = docPresenceRoots('/tmp/example');
+    expect(projection.some((p) => p.endsWith('docs/noldor'))).toBe(false);
+    expect(presence.some((p) => p.endsWith('docs/noldor'))).toBe(false);
+    expect(projection).toContain('/tmp/example/docs/user/how-to');
+    expect(presence).not.toContain('/tmp/example/docs/user/how-to');
+  });
+});
+
+describe(listDocMds, () => {
+  let dir: string;
+
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('finds a doc nested below the root, matching what the tag scan walks', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'doc-roots-'));
+    const root = join(dir, 'docs', 'user', 'how-to');
+    mkdirSync(join(root, 'nested'), { recursive: true });
+    writeFileSync(join(root, 'top.md'), '# top\n', 'utf8');
+    writeFileSync(join(root, 'nested', 'deep.md'), '# deep\n', 'utf8');
+    writeFileSync(join(root, 'nested', 'skip.txt'), 'x', 'utf8');
+
+    await expect(listDocMds([root], dir)).resolves.toEqual([
+      'docs/user/how-to/nested/deep.md',
+      'docs/user/how-to/top.md',
+    ]);
+  });
+
+  it('skips a missing root rather than failing', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'doc-roots-'));
+    await expect(listDocMds([join(dir, 'absent')], dir)).resolves.toEqual([]);
   });
 });

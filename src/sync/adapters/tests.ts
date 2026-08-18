@@ -1,9 +1,8 @@
 // @fd: feature-md-links-overhaul
 
+import { TEST_FILE_RE } from '../../core/repo-paths.js';
 import type { LinkAdapter } from '../projection.js';
 import { originTaggedScanRoots } from './code.js';
-
-const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx|js|jsx)$/;
 
 /** `links.tests`, projected from `// @tests:` tags on test files. */
 export const testsAdapter: LinkAdapter = {
