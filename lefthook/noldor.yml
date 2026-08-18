@@ -11,11 +11,11 @@ pre-commit:
         jobs:
           - name: test-links
             glob: '**/*.test.ts'
-            run: pnpm noldor sync test-links
+            run: pnpm noldor sync test-links --quiet
             stage_fixed: true
           - name: doc-links
             glob: 'docs/**/*.md'
-            run: pnpm noldor sync doc-links
+            run: pnpm noldor sync doc-links --quiet
             stage_fixed: true
           - name: spec-links
             glob: 'docs/design/specs/**/*.md'

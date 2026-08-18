@@ -9,9 +9,7 @@ links:
     - src/core/config.ts
     - src/cli/manifest.ts
     - .github/workflows/publish.yml
-  docs:
-    - docs/noldor/versioning.md
-    - docs/noldor/adoption-guide.md
+  docs: []
   tests:
     - src/release/__tests__/publish-workflow.test.ts
     - src/release/__tests__/release-publish-cli.test.ts
@@ -26,7 +24,6 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
-
 ## Summary
 
 Today a consumer installs Noldor as a `file:` dependency and must keep a clone of `noldor/` as a sibling directory of their repo. That is the single hardest blocker for any project that is not on this machine. Publish the package to a registry so adoption starts with `pnpm add -D @david.zoufaly/noldor`.

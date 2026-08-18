@@ -8,15 +8,13 @@ packages:
 deps: []
 links:
   code:
-    - src/checks/check-feature-slug-scope.ts
-    - src/core/extract-touches.ts
-    - src/core/feature-schema.ts
-    - src/features/fill-links-code-gaps.ts
-    - src/features/migrate-features.ts
-    - src/features/validate-features.ts
-    - src/garden/sdd-report.ts
-    - src/release/release-commits.ts
-    - src/sync/sync-spec-links.ts
+    - src/garden/detectors/code-links-drift.ts
+    - src/sync/adapters/code.ts
+    - src/sync/adapters/docs.ts
+    - src/sync/adapters/tests.ts
+    - src/sync/projection.ts
+    - src/sync/sync-code-links.ts
+    - src/sync/sync-doc-links.ts
     - src/sync/sync-test-links.ts
   tests:
     - src/checks/__tests__/check-feature-slug-scope.test.ts
@@ -29,9 +27,11 @@ links:
     - src/features/__tests__/validate-features.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
+    - src/garden/detectors/__tests__/code-links-drift.test.ts
     - src/release/__tests__/release-changelog.test.ts
     - src/release/__tests__/release-commits.test.ts
     - src/release/__tests__/release-fd-commits.test.ts
+    - src/sync/__tests__/projection.test.ts
     - src/sync/__tests__/sync-spec-links.test.ts
     - src/sync/__tests__/sync-test-links.test.ts
   spec: lost-pre-extraction

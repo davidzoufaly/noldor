@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 
 import matter from 'gray-matter';
 
@@ -8,7 +8,7 @@ import { FeatureFrontmatterSchema, type FeatureFrontmatter } from '../core/featu
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
 import { loadConsumerConfig, loadCategories } from '../core/consumer-config.js';
-import { loadDocRoots } from '../core/doc-roots.js';
+import { docPresenceRoots, docProjectionRoots, loadDocRoots } from '../core/doc-roots.js';
 import { scanRoots } from '../core/repo-paths.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
@@ -170,6 +170,31 @@ export async function validatePackagesField(paths: string[]): Promise<FileError[
     }
   }
   return errors;
+}
+
+/**
+ * List the `.md` files directly under each absolute root, as repo-relative
+ * paths so validator messages stay readable. Missing roots are skipped — a repo
+ * with no tutorials is not an error.
+ *
+ * @param roots - Absolute directories from a doc-roots provider
+ * @returns Repo-relative doc paths
+ */
+async function listDocMds(roots: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const root of roots) {
+    try {
+      const entries = await readdir(root, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isFile() && entry.name.endsWith('.md')) {
+          out.push(relative(process.cwd(), join(root, entry.name)));
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+  }
+  return out;
 }
 
 /**
@@ -351,21 +376,12 @@ async function main(): Promise<void> {
   await collectTestFiles(process.cwd(), allTestFiles);
   const tagErrors = await validateTaggedSlugs(allTestFiles);
 
-  const docFiles: string[] = [];
-  for (const sub of ['docs/user/tutorials', 'docs/user/explanation']) {
-    try {
-      const entries = await readdir(sub, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.isFile() && entry.name.endsWith('.md')) {
-          docFiles.push(join(sub, entry.name));
-        }
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
-  }
-  const docTagPresenceErrors = await validateDocTagPresence(docFiles);
-  const docTagErrors = await validateDocFeatureSlugs(docFiles);
+  // Presence is checked over the narrow set and slug-validity over the wider
+  // projection set, so a how-to page's tag is validated without a how-to being
+  // required to carry one. Both lists come from the same providers the doc
+  // projection reads, so the sync can never honor a tag no validator checks.
+  const docTagPresenceErrors = await validateDocTagPresence(await listDocMds(docPresenceRoots()));
+  const docTagErrors = await validateDocFeatureSlugs(await listDocMds(docProjectionRoots()));
 
   const allErrors = [
     ...errors,

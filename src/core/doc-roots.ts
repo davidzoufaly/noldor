@@ -59,3 +59,42 @@ export function loadDocRoots(cwd: string = process.cwd()): DocRoots {
     architecture: join(cwd, 'docs', 'architecture'),
   };
 }
+
+/**
+ * Doc directories the `<!-- @feature: -->` tag scan projects from, and the same
+ * set `validateDocFeatureSlugs` validates over — so every tag `sync doc-links`
+ * honors is also slug-checked.
+ *
+ * `docs/noldor` is deliberately absent. Its pages are byte-identical twins of
+ * `templates/docs/noldor/`, synced verbatim into every consumer, so a tag added
+ * there must be mirrored into `templates/` or `checks template-sync` fails,
+ * mirroring ships framework-internal FD slugs into consumer trees, and a
+ * consumer's own edit is overwritten on the next upgrade. Excluding it is what
+ * lets slug validation run over the full projection set without redding anyone.
+ *
+ * @param cwd - Consumer root (default `process.cwd()`)
+ * @returns Absolute directory paths, missing ones included (walkers ENOENT-skip)
+ */
+export function docProjectionRoots(cwd: string = process.cwd()): string[] {
+  return [
+    join(cwd, 'docs', 'user', 'tutorials'),
+    join(cwd, 'docs', 'user', 'explanation'),
+    join(cwd, 'docs', 'user', 'how-to'),
+  ];
+}
+
+/**
+ * Doc directories where a `<!-- @feature: -->` tag is *required* — the narrow
+ * subset {@link docProjectionRoots} covers. Read by `validateDocTagPresence` and
+ * by garden's "tutorials without @feature tag" detector.
+ *
+ * Narrower than the projection set because a how-to page documents a task rather
+ * than a feature, so demanding a tag there would red repos that simply have
+ * how-tos.
+ *
+ * @param cwd - Consumer root (default `process.cwd()`)
+ * @returns Absolute directory paths
+ */
+export function docPresenceRoots(cwd: string = process.cwd()): string[] {
+  return [join(cwd, 'docs', 'user', 'tutorials'), join(cwd, 'docs', 'user', 'explanation')];
+}

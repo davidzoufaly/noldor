@@ -16,7 +16,7 @@ import { loadCategories, loadConsumerConfig } from '../core/consumer-config.js';
 import { areaToCategory } from '../lib/area-category.js';
 import { loadMilestoneBySlug, loadMilestones, type Milestone } from '../milestones/lib.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
-import { loadDocRoots } from '../core/doc-roots.js';
+import { docPresenceRoots, loadDocRoots } from '../core/doc-roots.js';
 import { actualPackageNames, scanRoots } from '../core/repo-paths.js';
 import { collectGaps } from '../garden/sdd-report.js';
 import { buildBlockedByGraph, findCyclesInBuild } from '../garden/detectors/circular-blocked-by.js';
@@ -1148,12 +1148,12 @@ export async function loadSddInput(): Promise<ReportInput> {
   const testInputs = await readTextFiles(testFiles);
 
   const docFiles: string[] = [];
-  for (const sub of ['docs/user/tutorials', 'docs/user/explanation']) {
+  for (const root of docPresenceRoots()) {
     try {
-      const entries = await readdir(sub, { withFileTypes: true });
+      const entries = await readdir(root, { withFileTypes: true });
       for (const e of entries) {
         if (e.isFile() && e.name.endsWith('.md')) {
-          docFiles.push(join(sub, e.name));
+          docFiles.push(relative(process.cwd(), join(root, e.name)));
         }
       }
     } catch (error) {
