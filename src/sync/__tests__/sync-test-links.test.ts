@@ -1,5 +1,6 @@
 // @tests: feature-md-links-overhaul
-import { buildSlugToTestsMap, extractTags } from '../sync-test-links.js';
+import { buildSlugMap as buildSlugToTestsMap } from '../projection.js';
+import { extractTags } from '../sync-test-links.js';
 
 describe(extractTags, () => {
   it('parses a single-slug tag comment', () => {

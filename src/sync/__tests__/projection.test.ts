@@ -38,8 +38,8 @@ function writeFd(slug: string, links: Record<string, string[]>): void {
 }
 
 async function cachedFor(slug: string, key: 'code' | 'tests' | 'docs'): Promise<string[]> {
-  const all = await loadCachedAll(join(repo, 'docs', 'features'), [key]);
-  return all.get(key)?.get(slug) ?? [];
+  const { byKey } = await loadCachedAll(join(repo, 'docs', 'features'), [key]);
+  return byKey.get(key)?.get(slug) ?? [];
 }
 
 beforeEach(() => {
@@ -131,6 +131,45 @@ describe('empty-scan policy', () => {
       force: true,
     });
     chmodSync(locked, 0o755);
+
+    expect(exit).toBe(1);
+    await expect(cachedFor('feat', 'tests')).resolves.toEqual(['src/gone.test.ts']);
+  });
+});
+
+describe('unreadable inputs never read as an empty scan', () => {
+  it('clears nothing when a listed file disappears before it is read', async () => {
+    writeFd('feat', { tests: ['src/gone.test.ts'] });
+    const vanishing = join(repo, 'src', 'vanishing.test.ts');
+    writeFileSync(vanishing, '// @tests: feat\n', 'utf8');
+    const adapter: LinkAdapter = {
+      ...testsAdapter,
+      roots: (cwd) => [{ path: join(cwd, 'src'), origin: 'default' }],
+      // Delete the file between the directory listing and the read.
+      eligible: (name) => {
+        if (name === 'vanishing.test.ts') rmSync(vanishing, { force: true });
+        return testsAdapter.eligible(name);
+      },
+    };
+
+    const exit = await runProjection(adapter, { cwd: repo, force: true });
+
+    expect(exit).toBe(1);
+    await expect(cachedFor('feat', 'tests')).resolves.toEqual(['src/gone.test.ts']);
+  });
+
+  it('clears nothing when one FD frontmatter will not parse', async () => {
+    writeFd('feat', { tests: ['src/gone.test.ts'] });
+    writeFileSync(
+      join(repo, 'docs', 'features', 'broken.md'),
+      '---\nname: [unclosed\n---\n\n## Summary\n',
+      'utf8',
+    );
+
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      force: true,
+    });
 
     expect(exit).toBe(1);
     await expect(cachedFor('feat', 'tests')).resolves.toEqual(['src/gone.test.ts']);

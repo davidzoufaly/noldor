@@ -158,8 +158,18 @@ export async function collectTagged(adapter: LinkAdapter, repoRoot: string): Pro
   }
   const tagged: TaggedFile[] = [];
   for (const file of files) {
-    const content = await readFile(file, 'utf8');
-    tagged.push({ path: relative(repoRoot, file), tags: extractTagsWith(content, adapter.tagRe) });
+    // `readdir` listed this path, so a failure here means it vanished mid-run or
+    // cannot be read — either way the scan no longer covers it, which is the
+    // same coverage gap an unreadable root is, not a programmer error.
+    try {
+      const content = await readFile(file, 'utf8');
+      tagged.push({
+        path: relative(repoRoot, file),
+        tags: extractTagsWith(content, adapter.tagRe),
+      });
+    } catch (error) {
+      failures.push({ root: file, code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN' });
+    }
   }
   return { tagged, failures };
 }
@@ -202,7 +212,13 @@ export async function collectTaggedMany(
     for (const file of files) {
       const takers = group.filter((a) => a.eligible(basename(file)));
       if (takers.length === 0) continue;
-      const content = await readFile(file, 'utf8');
+      let content: string;
+      try {
+        content = await readFile(file, 'utf8');
+      } catch (error) {
+        failures.push({ root: file, code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN' });
+        continue;
+      }
       const rel = relative(repoRoot, file);
       for (const adapter of takers) {
         results
@@ -217,13 +233,29 @@ export async function collectTaggedMany(
   return out;
 }
 
-/** Load every FD's cached array for one `links.*` key, keyed by slug. */
+/**
+ * What one pass over the FD directory produced: the cached arrays per key, plus
+ * any FD the pass could not read or parse. A caller that skips the failures is
+ * claiming knowledge of links it never saw.
+ */
+export interface CachedLoad {
+  byKey: Map<LinkAdapter['key'], Map<string, string[]>>;
+  failures: ScanFailure[];
+}
+
+/**
+ * Load every FD's cached array for one `links.*` key, keyed by slug.
+ *
+ * @param featuresDir - Directory holding `<slug>.md` feature docs
+ * @param key - The `links.*` field to read
+ * @returns slug → cached array, dropping unreadable FDs (see {@link loadCachedAll} to observe them)
+ */
 export async function loadCached(
   featuresDir: string,
   key: LinkAdapter['key'],
 ): Promise<Map<string, string[]>> {
-  const all = await loadCachedAll(featuresDir, [key]);
-  return all.get(key) ?? new Map();
+  const { byKey } = await loadCachedAll(featuresDir, [key]);
+  return byKey.get(key) ?? new Map();
 }
 
 /**
@@ -238,9 +270,10 @@ export async function loadCached(
 export async function loadCachedAll(
   featuresDir: string,
   keys: readonly LinkAdapter['key'][],
-): Promise<Map<LinkAdapter['key'], Map<string, string[]>>> {
+): Promise<CachedLoad> {
   const out = new Map<LinkAdapter['key'], Map<string, string[]>>();
   for (const key of keys) out.set(key, new Map());
+  const failures: ScanFailure[] = [];
   let entries: string[] = [];
   try {
     entries = (await readdir(featuresDir)).filter((f) => f.endsWith('.md'));
@@ -248,15 +281,28 @@ export async function loadCachedAll(
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
   for (const f of entries) {
-    const parsed = matter(await readFile(join(featuresDir, f), 'utf8'));
-    const links = (parsed.data.links ?? {}) as Record<string, unknown>;
+    // An FD whose frontmatter will not parse is not a programmer error — it is
+    // a hand-edited file. Aborting here would take down the whole projection
+    // (and `garden detect` with it) over one bad document; recording it keeps
+    // the run honest that it does not know this FD's current links.
+    let links: Record<string, unknown>;
+    try {
+      const parsed = matter(await readFile(join(featuresDir, f), 'utf8'));
+      links = (parsed.data.links ?? {}) as Record<string, unknown>;
+    } catch (error) {
+      failures.push({
+        root: join(featuresDir, f),
+        code: (error as NodeJS.ErrnoException).code ?? 'EPARSE',
+      });
+      continue;
+    }
     const slug = basename(f, '.md');
     for (const key of keys) {
       const value = links[key];
       out.get(key)?.set(slug, Array.isArray(value) ? (value as string[]) : []);
     }
   }
-  return out;
+  return { byKey: out, failures };
 }
 
 /** What the scan projects onto one FD: the array to write, or a refusal. */
@@ -445,7 +491,12 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   if (reportFailures(failures)) return 1;
 
   const scanned = buildSlugMap(tagged);
-  const cached = await loadCached(featuresDir, adapter.key);
+  const load = await loadCachedAll(featuresDir, [adapter.key]);
+  // An FD whose frontmatter would not parse leaves this run unable to say what
+  // its links currently are, so the run makes no claims and writes nothing —
+  // the same posture an unreadable scan root earns.
+  if (reportFailures(load.failures)) return 1;
+  const cached = load.byKey.get(adapter.key) ?? new Map<string, string[]>();
 
   if (opts.check) {
     const drift = diffProjection(scanned, cached, adapter);

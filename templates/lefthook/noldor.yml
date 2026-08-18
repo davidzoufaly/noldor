@@ -7,7 +7,13 @@ pre-commit:
   jobs:
     - name: sync
       group:
-        parallel: true
+        # Serial on purpose. Each of these projects onto the union of scanned and
+        # cached slugs, so all three read-modify-write every docs/features/*.md.
+        # atomic writes keep an individual file from tearing but do not make the
+        # read-modify-write atomic across processes: run in parallel, the last
+        # writer clobbers the others' fields and the loss resurfaces later as a
+        # links drift gap. `sync spec-links` still writes non-atomically too.
+        parallel: false
         jobs:
           - name: test-links
             glob: '**/*.test.ts'

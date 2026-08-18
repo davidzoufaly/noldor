@@ -1,5 +1,6 @@
 // @tests: doc-gardening-skill
-import { buildSlugToDocsMap, extractFeatureTags } from '../sync-doc-links.js';
+import { buildSlugMap as buildSlugToDocsMap } from '../projection.js';
+import { extractFeatureTags } from '../sync-doc-links.js';
 
 describe(extractFeatureTags, () => {
   it('parses a single-slug @feature comment', () => {

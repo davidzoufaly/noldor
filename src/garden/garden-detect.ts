@@ -789,8 +789,8 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     // A scan that could not read a root is not authoritative, so it makes no
     // drift claims at all — reporting one would be indistinguishable from a
     // repo whose tags were genuinely deleted.
-    if (!scan || scan.failures.length > 0) continue;
-    const cached = cachedAll.get(adapter.key) ?? new Map();
+    if (!scan || scan.failures.length > 0 || cachedAll.failures.length > 0) continue;
+    const cached = cachedAll.byKey.get(adapter.key) ?? new Map();
     sddGaps.push(...detectLinksDrift(buildSlugMap(scan.tagged), cached, adapter));
   }
   // FD link targets: stat what every FD's frontmatter points at (code/tests/
