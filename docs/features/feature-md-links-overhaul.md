@@ -1,6 +1,6 @@
 ---
 name: Feature MD Links Overhaul
-phase: done
+phase: in-progress
 area: tooling
 category: Tooling
 packages:
@@ -39,7 +39,6 @@ introduced: 0.3.0
 noldor-tier: full
 updated: 0.4.0
 ---
-
 ## Summary
 
 Cleans up the `links.*` fields on feature MDs so `pnpm sdd:report` produces actionable signal instead of 90+ lines of noise. Five coupled changes shipped:
