@@ -127,6 +127,11 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 - **Roadmap/backlog block headings are Title-Case names, not slugs** — a grep
   for the slug finds nothing. Derive the heading from the slug or grep
   `ideas.md` for its `[triaged → <slug>]` marker.
+- **`pnpm noldor <cmd> --json` is unparseable.** pnpm prints its own
+  `> @scope/noldor@x.y.z noldor …` banner on **stdout**, so `JSON.parse` dies
+  on `Unexpected token '>'` while the exit code stays 0 — the crash names the
+  payload, not the wrapper. Call `node bin/noldor.mjs <cmd> --json` instead,
+  or strip leading non-JSON lines.
 
 ## Release & publish
 

@@ -43,6 +43,15 @@ and escalates the rest to a structured inbox instead of dying or blocking.
 Wall-clock cap per item is the existing `--iteration-timeout` (default 30 min). There is no
 token-budget rail: no token accounting exists yet (the metrics roadmap entry owns it).
 
+The 30-minute default is sized for XS work, and **the cap is not size-aware** — raise
+`--iteration-timeout` explicitly for any S batch (XS entries finish in ~15 min; S entries with
+real CR rounds want 45-60). A batch of S entries otherwise burns one retry each. Note that a
+timeout is **recoverable, not wasted**: the retry inherits the same worktree and branch, so
+Q-0107 was killed mid-CR having already produced 4 commits with green tests and shipped on
+attempt 2 — the cost was one slot, not the entry. What it does leave behind is a branch holding
+finished work, which is exactly the finish-mode case the drain's rebuild path must not destroy
+(see [`drain-mode.md`](drain-mode.md)).
+
 A cycle counts as failed when the drain aborts (exit 1) or ships nothing while producing new
 escalations. Exit-130 cycles (pause/stop/SIGINT) are neutral. A fully-parked queue reads as
 clean — parked items are operator-owned.
@@ -102,6 +111,23 @@ Triage:
 pnpm noldor autonomous inbox            # open escalations
 pnpm noldor autonomous unpark <slug>    # resolve; --source <id> when parked under several
 ```
+
+### The park map as a subset-drain filter
+
+There is no `--only <slug,…>` / `--size` flag yet, and no `autonomous park` command to pair
+with `unpark` — but the park map is a working **selection filter** for draining a chosen
+subset, and a better one than a `.noldor/drain-stop` sentinel. Hand-write
+`.noldor/drain-park.json` with a `"roadmap:<slug>"` key per unwanted-but-eligible entry;
+`parkAwareSource` then hides them, so `--max-features N` cannot overshoot even when an entry
+burns its retries and the loop advances — there is nothing else eligible to advance to. This
+keeps the supervisor's retry, lock, salvage and escalation machinery intact, which the
+documented alternative (per-slug `claude --print "/noldor-gate --drain <slug>"`) forfeits
+entirely. Draining the 2026-08-13 S/med/fix batch this way shipped exactly the intended 5 and
+correctly skipped 8.
+
+Two rough edges while it stays a hand-edit: the operator writes state JSON directly, and no
+`EscalationReason` means "operator scope hold" (`run-aborted` gets borrowed), so
+`autonomous inbox` reads as repo-level failures for the duration of the batch.
 
 ## Unattended launch paths
 

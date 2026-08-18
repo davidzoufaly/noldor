@@ -85,6 +85,8 @@ Add end-to-end test support to the framework. Fuzzy one-liner — needs a spike 
 
 `/noldor-spec` step 3 leaves prior-art discovery to agent discretion — "one `--support` per anchor you found while grounding" — which is unauditable: nothing distinguishes a thorough search from no search at all. A `pnpm noldor design prior-art --slug <s> --query "<description>"` subcommand would seed `--support` entries deterministically by unioning three substrates that already exist: FD `links.code` reverse lookup via `buildFileToFdsMap`, graphify community membership plus export names, and clone-corpus near-signature matching via `src/clones/tokenize.ts`. Parked rather than queued because the ranking quality of that union is unproven — spike it before committing. Trigger: pick up once Q-0067 (spec-lint prior-art requirement) is shipped and the manual `--support` path proves too noisy or too easily satisfied.
 
+- Operator framing of the same want, which widens the target past prior-art seeding: graphify integration is currently good enough for auditing an existing codebase but is not reached for while a design is being written, so the graph's community structure and export names inform nothing at spec time. Prior-art `--support` seeding is the one concrete use named so far, and the substrate it needs (community membership plus export names) is already in `graphify-out/graph.json`. Worth deciding, when this entry is spiked, whether the seam is only the seeder subcommand above or a broader "graph-at-spec-time" surface — the second is a different and larger entry, and inventing it before the seeder proves its ranking would be speculative. (raised 2026-08-17)
+
 ### Better Unit-Test Rules
 
 - id: Q-0071
@@ -147,19 +149,6 @@ Residue from the Q-0075 ship (PR #276, CR rounds 9–16): (a) `DecideResult.base
 - confidence: low
 
 Evaluate removing vendored skills whose value is unclear — candidates raised so far: `noldor-absorb` (lessons intake; overlaps `/noldor-triage` + manual filing?) and `noldor-new-feature` (blank-FD scaffold; overlaps `/noldor-promote`?). For each: measure actual usage, list what breaks without it, and either retire the skill (+ template twins + catalog entries) or document why it stays.
-
-### Spec Brainstorming Depth Parity
-
-- id: Q-0092
-- area: tooling
-- type: feat
-- since: 2026-08-11
-- size: M
-- impact: med
-- confidence: low
-- parent: de-superpowers-vendor-spec-plan-and-worktree-flows
-
-Brainstorming through the vendored `/noldor-spec` question-first loop does not reach the depth the superpowers `brainstorming` skill gets to — the de-superpowers vendoring preserved the flow's shape but apparently not its interrogative pressure. Fuzzy one-liner: the actual delta between the two prompts has not been diffed, so there is nothing concrete to implement yet. Trigger: run both over the same idea, diff the transcripts, and extract the specific moves the vendored version drops before promoting.
 
 ### Multiagent Parallel Session Visibility
 
@@ -250,3 +239,28 @@ Open question — should the terse, article-free "caveman" response style become
 - blocked-by: Q-0117
 
 Adoption assumes a TS/JS consumer with Node already present — `pnpm add`, `npx noldor`, `engines.node >=20` — which covers the entire current market. A self-contained executable (`bun build --compile`, Node SEA, or `deno compile`) removes that floor so a Go, Python or Rust repository could adopt the framework at all, and cuts hook startup further than a `dist` entrypoint alone. This is a packaging change and not a rewrite: 100% of the TypeScript source survives. Distinct from Q-0117 because all three of that entry's options answer which TS representation ships inside the npm tarball, and every one of them still requires Node on the consumer machine; this removes the requirement. Blocked on Q-0117 because the compiled-entrypoint decision is the prerequisite — there is nothing coherent to embed while `bin/noldor.mjs` boots `src` through `tsx`. Costs to weigh before promoting: a cross-platform release matrix (darwin and linux × arm64 and amd64) with per-target smoke tests, keeping the npm package as a thin wrapper so `npx noldor` and every existing consumer keep working, and deciding what happens to the `templates/` payload and any other file the CLI reads from its own package at runtime — an embedded filesystem or an extraction step, neither free. **Explicitly not sufficient for cross-language adoption on its own:** the checks still hardcode the TypeScript toolchain (`CODE_FILE_RE = /\.(ts|tsx|js|jsx)$/` in `src/core/repo-paths.ts:63`, `**/*.tsx` in `src/core/allowlist.ts:90`, the oxlint / oxfmt / vitest / tsc wrappers, dependency-cruiser import graphs), so pluggable per-language check adapters are the separate and larger prerequisite for a non-TS consumer to get value. Park until either that adapter work is on the queue or a concrete non-Node consumer asks. (raised 2026-08-17 assessing a Go-rewrite question)
+
+### Consumer Root README Check
+
+- id: Q-0140
+- area: tooling
+- type: feat
+- since: 2026-08-17
+- size: S
+- impact: med
+- confidence: low
+- blocked-by: Q-0139
+
+An adopted consumer gets no root README scaffold and no root README validation. `templates/` ships `docs/`, `AGENTS.md`, `lefthook/`, `lefthook.yml`, `opencode.json`, `.claude/` and `.opencode/` — there is no `templates/README.md` — and `docs/noldor/doc-conventions.md` states the README carries no auto-generated listing, so the file is unmanaged by design. Of the four mechanisms that touch a root README today only two reach a consumer at all: the internal-link check and the warn-only `pnpm test` rule-pair, plus SDD detector 12 if and only if the repository is a `packages/<prefix>-*` monorepo (live in charuy with 8 packages and a `### Packages` table, dead for every single-package consumer). That leaves the first document a human or a review agent opens as the one adopted surface the framework never inspects. Wanted, without taking ownership of the prose: a structural `doctor` or garden check asserting the README exists, its links resolve, it references the framework entry point (`docs/noldor/README.md`), and it names the repository's own registered doc surfaces. This is the consumer-side generalisation of Q-0139 and should follow it — the checks there are written against this repository's README shape first, and only the ones that survive contact with a foreign README belong in a consumer-facing gate. Park until Q-0139 ships or a consumer's stale README actually costs something. (found 2026-08-17 asking why PR #333 left the root README untouched)
+
+### Module and Plugin Extension Model
+
+- id: Q-0141
+- area: tooling
+- type: refactor
+- since: 2026-08-17
+- size: L
+- impact: med
+- confidence: low
+
+Every framework surface is baked in, and each new one costs the same hand-wired set of touchpoints. Q-0093's architecture doc surface is the measured case: it shipped a page registry in code, a presence validator, a garden detector, an SDD gap slot, a release probe, a CLI subcommand in `src/cli/manifest.ts` and a dashboard route entry (Q-0134) — seven coupled edits for one surface, with the count restated across prose in six documents plus their `templates/` twins (the four-CR-round sweep recorded in `ideas.md`). The design surface, the queue documents and the traceability kinds each carry their own copy of that wiring. Wanted: one extension contract a surface declares itself through — identity, owned paths, validators, detectors, gap channel (advisory versus blocking, per Q-0136), CLI verbs, dashboard route, release probe — so registering a surface is data plus a small adapter rather than edits fanned across the runtime, and so prose counts derive from the registry instead of being asserted by hand. Scope questions to answer before promoting: whether third-party or consumer-authored modules are in scope at all or only first-party ones (the former drags in a stability contract, versioning and a trust boundary the framework has no story for); which existing surfaces are genuinely uniform enough to migrate versus which differences must stay explicit strategy data; and whether the seam is an internal registry only, since a public plugin API is a much larger commitment than the internal deduplication that motivates it. Related but distinct: Q-0133's pluggable per-language check adapters are a parallel adapter axis over the toolchain wrappers, not this registry, and Q-0109 to Q-0113 deepen individual internal seams rather than defining how a surface plugs in. Park until a third surface addition makes the repeated wiring cost concrete or the internal registry is wanted independently. (raised 2026-08-17 from an untriaged ideas bullet)

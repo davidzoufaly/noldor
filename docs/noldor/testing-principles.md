@@ -138,3 +138,19 @@ is a signal for where more tests might help, not a quota.
 3. Reuse shared test fixtures where a canned input works.
 4. Follow determinism practices — especially in e2e / smoke.
 5. `pnpm noldor validate features` passes; commit.
+
+## Tuning a detector
+
+Tuning a detector is a corpus change, not a unit-test change. Measure the
+detector's own counters (`groups` / `duplicatedTokens` for clones, gap counts
+for garden detectors) before and after, and name one genuine finding that MUST
+survive the tuning — otherwise a threshold change that silences everything
+reads as a pass.
+
+- **Derive fixtures from a live run, not from a roadmap entry's example.** The
+  two clone matches Q-0122 was written against had already been refactored away
+  by the time it shipped, so the fixtures had to be re-derived from a fresh
+  `clones report --json`.
+- **A negative fixture written too faithfully stops being negative.** The first
+  "unrelated schemas" case shared field count and wrapper, differing only in
+  name — a genuine Type-2 clone, so the test failed for the right reason.
