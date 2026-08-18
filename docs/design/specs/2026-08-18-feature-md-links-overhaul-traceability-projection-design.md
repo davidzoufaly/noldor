@@ -122,16 +122,33 @@ generalizes `projectLinksCode`'s existing guard, which exists because the same c
 in a repo with no tags at all would otherwise wipe every hand-curated array in one run.
 That is not hypothetical for docs: the six FDs above would lose 24 entries.
 
+**Convergence.** Layer B on its own leaves a repo permanently noisy: the pre-commit hook runs
+`sync doc-links` without `--force`, so the same tagless FDs are re-reported on every commit, and
+`--force` is repo-wide so the only way to converge is to delete every curated entry at once. Two
+things close that. The tagless-kept report prints only under `--check` or an explicit CLI run,
+never in hook mode. And the implementation carries a **one-time in-repo reconciliation** of the
+24 cached `links.docs` entries: where the link is genuine the doc gains a `<!-- @feature: -->`
+tag so the entry becomes scan-derived, and where it is not the entry is dropped. This repo
+converges to zero tagless-kept FDs; a consumer converges the same way, doc by doc.
+
 ### U4 — Doc roots (`src/core/doc-roots.ts`)
 
 Two new exports beside `loadDocRoots`:
 
 - `docProjectionRoots(cwd = process.cwd()): string[]` → `docs/user/tutorials`,
-  `docs/user/explanation`, `docs/user/how-to`, `docs/noldor`. Read by the docs adapter and by
-  `validateDocFeatureSlugs`, so every tag the sync honors is also slug-validated.
+  `docs/user/explanation`, `docs/user/how-to`, `docs/noldor`. Read by the docs adapter alone.
 - `docPresenceRoots(cwd = process.cwd()): string[]` → `docs/user/tutorials`,
-  `docs/user/explanation`. Read by `validateDocTagPresence` and garden detector 11, so the
-  roughly thirty untagged framework docs under `docs/noldor` are never required to carry a tag.
+  `docs/user/explanation`. Read by `validateDocTagPresence`, `validateDocFeatureSlugs` and garden
+  detector 11, so the roughly thirty untagged framework docs under `docs/noldor` are neither
+  required to carry a tag nor slug-validated.
+
+**Slug validation deliberately stays on the narrow set.** `docs/noldor` is a templated twin
+synced verbatim into every consumer ([`migrations/0.6.0.ts:106`](../../../src/migrations/0.6.0.ts)),
+and [`templates/docs/noldor/drain-mode.md:5`](../../../templates/docs/noldor/drain-mode.md) carries
+`portable-gate-entrypoint-for-non-claude-runners` — a Noldor-internal FD slug no consumer has.
+Validating over the wide set therefore exits 1 in every consumer's pre-commit hook on upgrade.
+Leaving the gap is safe because the projection already fails closed on an unknown slug: it warns
+and writes nothing, so no invalid link can reach an FD through the unvalidated path.
 
 Both take an explicit `cwd` and return **absolute** paths, matching `loadDocRoots(cwd)` in the
 same module — one convention, and no implicit-cwd provider (the leak shape Q-0104 left open).
@@ -151,8 +168,12 @@ The three `sync-*-links.ts` files shrink to thin mains that select an adapter an
 so `validate script-catalog` sees no churn.
 
 `--check` and `--force` come from the engine for all three kinds.
-`detectCodeLinksDrift` is replaced by one kind-parameterized detector invoked three times
-in `garden-detect.ts`. Because `diffProjection` excludes FDs the write path would skip,
+`detectCodeLinksDrift` is replaced by one kind-parameterized detector. For `garden detect` the
+engine exposes a multi-adapter entry that traverses the shared `scanRoots()` tree **once** — the
+code and tests adapters differ only in their `eligible` predicate, so one walk classifies both —
+and parses each FD **once**, returning all three cached arrays. Without it a single
+`garden detect` would do two full recursive walks plus three full re-parses of every FD where it
+walks once today. The per-kind CLI path keeps the simple single-adapter call. Because `diffProjection` excludes FDs the write path would skip,
 the 8 currently-drifting FDs surface in the tagless-kept report rather than as `sddGaps`,
 so the release gate stays green.
 
@@ -194,14 +215,21 @@ directory-preservation path for tests or docs.
    produces no tag; the same string at line start does.
 8. `sync doc-links` reads `docs/noldor` and reports
    `docs/noldor/drain-mode.md` under `portable-gate-entrypoint-for-non-claude-runners`.
-9. `validate features` requires a tag only on files under `docPresenceRoots()`, and
-   validates tag slugs over `docProjectionRoots()`.
+9. `validate features` both requires a tag and validates tag slugs only over
+    `docPresenceRoots()`; a consumer whose templated `docs/noldor` carries a framework-internal
+    slug stays green.
 10. `garden detect` emits a links-drift gap for each of the three kinds, and emits none
     for an FD the write path would skip.
 11. A code FD's `links.code` directory entries survive a projection run; no
     directory-preservation path exists for tests or docs.
 12. `validate script-catalog` and the six external importers of the sync modules pass
     unchanged.
+13. The tagless-kept report is silent in pre-commit hook mode and printed under `--check` or an
+    explicit CLI run.
+14. After the one-time reconciliation, a `sync doc-links --check` on this repo reports zero
+    tagless-kept FDs.
+15. One `garden detect` traverses the shared scan tree once and parses each FD once while
+    emitting drift for all three kinds.
 
 ## Risks / trade-offs
 
@@ -216,6 +244,9 @@ directory-preservation path for tests or docs.
   means a consumer's `links.docs` can point at framework-owned files. Accepted: the repo
   already has 24 such cached entries, so this makes an existing practice visible and
   reconcilable rather than introducing it.
+- **The doc slug-validation gap is deliberate.** Tags under `docs/noldor` are honored by the
+  projection but not slug-validated, so a typo there produces a warning and no link rather than a
+  build failure. Accepted in exchange for not redding every consumer on upgrade.
 - **The adapter interface may not survive contact with a fourth kind.** `spec-links` and
   `fd-resources` were deliberately excluded; if either is folded in later the interface
   will need a projection-shape distinction (array vs scalar). Deferred until there is a
@@ -274,11 +305,22 @@ surfaces drift for all three without a manual run.
    already excludes FDs the write path would skip (D6).
 
 7. *Widening the doc roots desynchronizes the sync from the validators — how is that closed?*
-   -> Split the provider: `docProjectionRoots()` (wide) feeds the sync and slug validation,
-   `docPresenceRoots()` (narrow) feeds the presence check and garden detector 11. A single
-   wide list would demand a tag on roughly thirty framework docs and red the build (D7).
+   -> Split the provider: `docProjectionRoots()` (wide) feeds the sync alone, `docPresenceRoots()`
+   (narrow) feeds both validators and garden detector 11. A single wide list would demand a tag on
+   roughly thirty framework docs, and routing slug validation over it would exit 1 in every
+   consumer, because the templated `docs/noldor` twin carries a Noldor-internal slug. The
+   resulting validation gap is safe: the projection warns and writes nothing on an unknown slug (D7, D9).
 
-8. *What module shape?*
+8. *Layer B reports the same tagless FDs forever and `--force` is repo-wide — what converges?*
+   -> Silence the report in hook mode, and reconcile this repo's 24 cached entries once during
+   implementation by tagging the genuine links and dropping the rest. A per-slug `--force` was
+   considered and rejected as new CLI surface that still needs 24 decisions (D10).
+
+9. *Does invoking the detector per kind triple `garden detect`'s IO?*
+   -> Yes, so the engine gets a multi-adapter entry that walks the shared tree once and parses each
+   FD once. `garden detect` is on the release path and the fix is small (D11).
+
+10. *What module shape?*
    -> An engine plus adapter descriptors, with the three existing entrypoints kept as thin
    mains. Shared helpers without adapters would leave policy re-wired per file, which is how
    the three copies diverged in the first place; a single `--kind` entrypoint would point
