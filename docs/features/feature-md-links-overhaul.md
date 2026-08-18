@@ -1,6 +1,6 @@
 ---
 name: Feature MD Links Overhaul
-phase: in-progress
+phase: done
 area: tooling
 category: Tooling
 packages:
@@ -74,6 +74,24 @@ The proposal groups files by FD slug. Lines prefixed `#` are skipped on apply. T
 **Commit attribution** — automatic during `pnpm release`. Reads `git log <last-tag>..HEAD`, attributes each commit to FDs by `links.code` overlap, appends 12-char sha to each match's `links.commits`. Release notes render commit links with subjects fetched lazily via `git show`.
 
 **Release-notes Summary fallback** — `docs/release-notes.md` shows curated prose, never raw commit bullets. For `updated` features, the renderer prefers the per-version `## Changelog > ### <version> > #### Summary` block from the FD; if that's empty or still placeholder, it falls back to the FD's `## Summary` first paragraph. Commit hashes never appear in user-facing release notes — they live in git log + GitHub release pages.
+
+**Traceability projection (`links.code` / `links.tests` / `links.docs`)** — the three
+`sync` commands share one engine, so they take the same flags:
+
+```bash
+pnpm noldor sync code-links            # write links.code from // @fd: tags
+pnpm noldor sync test-links            # write links.tests from // @tests: tags
+pnpm noldor sync doc-links             # write links.docs from <!-- @feature: --> tags
+
+pnpm noldor sync <kind>-links --check  # report drift, exit 1 if stale, write nothing
+pnpm noldor sync <kind>-links --force  # clear entries a tagless scan would otherwise keep
+pnpm noldor sync <kind>-links --quiet  # suppress the tagless-kept report (used by the hooks)
+```
+
+A run whose scan could not read a consumer-configured root clears nothing and exits
+non-zero rather than reading as "no tags anywhere". Without `--force`, an FD whose scan
+matched nothing keeps its cached entries and is named in the tagless-kept report.
+`garden detect` reports drift for all three kinds.
 
 <!-- generated: resources -->
 
