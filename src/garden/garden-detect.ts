@@ -22,7 +22,7 @@ import { detectAllowlistDrift } from './detectors/allowlist-drift.js';
 import { detectTrailerScopeMismatch } from './detectors/trailer-scope-mismatch.js';
 import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
-import { detectLinksDrift } from './detectors/code-links-drift.js';
+import { linksDriftGaps } from './detectors/code-links-drift.js';
 import { detectFdLinkRot } from './detectors/fd-link-rot.js';
 import { detectFdCommandRot } from './detectors/fd-command-rot.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
@@ -33,7 +33,7 @@ import { detectArchitectureAdvisories } from './detectors/architecture.js';
 import { codeAdapter } from '../sync/adapters/code.js';
 import { docsAdapter } from '../sync/adapters/docs.js';
 import { testsAdapter } from '../sync/adapters/tests.js';
-import { buildSlugMap, collectTaggedMany, loadCachedAll } from '../sync/projection.js';
+import { collectTaggedMany, loadCachedAll } from '../sync/projection.js';
 import {
   resolveByLinksPlan,
   resolveByLinksSpec,
@@ -784,41 +784,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     loadDocRoots(repo).features,
     adapters.map((a) => a.key),
   );
-  // An FD this pass could not parse gets a gap of its own, and is dropped from
-  // the drift claims — but only itself. The other FDs parsed fine and the walk
-  // is already paid for, so suppressing the whole repo's drift over one broken
-  // document would throw away real signal, and sddGaps gates releases.
-  const unparsed = new Set(cachedAll.failures.map((f) => basename(f.root, '.md')));
-  for (const failure of cachedAll.failures) {
-    sddGaps.push({
-      category: 'links drift',
-      itemId: basename(failure.root, '.md'),
-      message: `${failure.root}: cannot parse feature MD (${failure.code}) — links drift not checked for it`,
-    });
-  }
-  for (const adapter of adapters) {
-    const scan = scans.get(adapter.key);
-    if (!scan) continue;
-    // A scan that could not read a root is not authoritative for its kind, so it
-    // makes no drift claims at all — a claim here would be indistinguishable
-    // from a repo whose tags were genuinely deleted. Report the gap instead.
-    if (scan.failures.length > 0) {
-      for (const failure of scan.failures) {
-        sddGaps.push({
-          category: `links.${adapter.key} drift`,
-          itemId: adapter.key,
-          message: `${failure.root}: unreadable (${failure.code}) — links.${adapter.key} drift not checked`,
-        });
-      }
-      continue;
-    }
-    const cached = cachedAll.byKey.get(adapter.key) ?? new Map();
-    sddGaps.push(
-      ...detectLinksDrift(buildSlugMap(scan.tagged), cached, adapter).filter(
-        (gap) => !unparsed.has(gap.itemId),
-      ),
-    );
-  }
+  sddGaps.push(...linksDriftGaps(scans, cachedAll, adapters));
 
   // FD link targets: stat what every FD's frontmatter points at (code/tests/
   // docs/spec/plan). The 2026-07 audit found 36/50 FDs link-rotted while every

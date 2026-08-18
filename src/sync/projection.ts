@@ -113,7 +113,6 @@ export interface ScanResult {
 async function walk(
   dir: string,
   origin: RootOrigin,
-  eligible: (name: string) => boolean,
   out: string[],
   failures: ScanFailure[],
 ): Promise<void> {
@@ -137,49 +136,14 @@ async function walk(
     if (entry.isDirectory()) {
       // Nested dirs inherit their root's origin, but their absence is
       // impossible — readdir just listed them — so only read failures surface.
-      await walk(full, origin, eligible, out, failures);
-    } else if (eligible(entry.name)) {
+      await walk(full, origin, out, failures);
+    } else {
       out.push(full);
     }
   }
 }
 
 const EXCLUDED_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git']);
-
-/**
- * Walk one adapter's roots and pair every eligible file with its tags.
- *
- * @param adapter - The kind being scanned
- * @param repoRoot - Absolute consumer root; results are relative to it
- * @returns Tagged files plus any root the walk could not read
- */
-export async function collectTagged(adapter: LinkAdapter, repoRoot: string): Promise<ScanResult> {
-  const files: string[] = [];
-  const failures: ScanFailure[] = [];
-  for (const root of adapter.roots(repoRoot)) {
-    await walk(root.path, root.origin, adapter.eligible, files, failures);
-  }
-  const tagged: TaggedFile[] = [];
-  for (const file of files) {
-    // `readdir` listed this path, so a failure here means it vanished mid-run or
-    // cannot be read — either way the scan no longer covers it, which is the
-    // same coverage gap an unreadable root is, not a programmer error.
-    try {
-      const content = await readFile(file, 'utf8');
-      tagged.push({
-        path: relative(repoRoot, file),
-        tags: extractTagsWith(content, adapter.tagRe),
-      });
-    } catch (error) {
-      failures.push({
-        root: file,
-        code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN',
-        kind: 'file',
-      });
-    }
-  }
-  return { tagged, failures };
-}
 
 /**
  * Scan several kinds in ONE traversal per distinct root set, reading each file
@@ -208,14 +172,23 @@ export async function collectTaggedMany(
   const out = new Map<LinkAdapter['key'], ScanResult>();
   for (const [, group] of groups) {
     const files: string[] = [];
-    const failures: ScanFailure[] = [];
+    const rootFailures: ScanFailure[] = [];
     for (const root of group[0].roots(repoRoot)) {
       // Collect every file once; eligibility is applied per adapter below, so
       // one traversal serves the whole group.
-      await walk(root.path, root.origin, () => true, files, failures);
+      await walk(root.path, root.origin, files, rootFailures);
     }
+    // Failures are per adapter, not per group. An unreadable root breaks the
+    // traversal itself, so every adapter sharing it loses coverage — but an
+    // unreadable *file* only matters to the adapters that would have read it.
+    // Sharing one array made an unreadable test file withdraw links.code claims
+    // over a file the code kind never opens.
     const results = new Map<LinkAdapter['key'], TaggedFile[]>();
-    for (const adapter of group) results.set(adapter.key, []);
+    const failures = new Map<LinkAdapter['key'], ScanFailure[]>();
+    for (const adapter of group) {
+      results.set(adapter.key, []);
+      failures.set(adapter.key, [...rootFailures]);
+    }
     for (const file of files) {
       const takers = group.filter((a) => a.eligible(basename(file)));
       if (takers.length === 0) continue;
@@ -223,11 +196,12 @@ export async function collectTaggedMany(
       try {
         content = await readFile(file, 'utf8');
       } catch (error) {
-        failures.push({
+        const failure: ScanFailure = {
           root: file,
           code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN',
           kind: 'file',
-        });
+        };
+        for (const adapter of takers) failures.get(adapter.key)?.push(failure);
         continue;
       }
       const rel = relative(repoRoot, file);
@@ -238,7 +212,10 @@ export async function collectTaggedMany(
       }
     }
     for (const adapter of group) {
-      out.set(adapter.key, { tagged: results.get(adapter.key) ?? [], failures });
+      out.set(adapter.key, {
+        tagged: results.get(adapter.key) ?? [],
+        failures: failures.get(adapter.key) ?? [],
+      });
     }
   }
   return out;
@@ -274,7 +251,15 @@ export async function loadCachedAll(
   try {
     entries = (await readdir(featuresDir)).filter((f) => f.endsWith('.md'));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
+    // An absent features directory is a legitimately empty cache. Any other
+    // failure means the cache is unknown, not empty — throwing here would
+    // escape the very channel this function exists to fill, and returning
+    // silently would let a caller diff against an empty cache and report every
+    // FD as drifted. It is reported as a `root` failure so callers can tell
+    // "the whole cache is unavailable" from "these individual FDs would not
+    // parse" and withhold cache-dependent claims accordingly.
+    if (code !== 'ENOENT') failures.push({ root: featuresDir, code, kind: 'root' });
   }
   for (const f of entries) {
     // An FD whose frontmatter will not parse is not a programmer error — it is
@@ -491,10 +476,10 @@ function reportFailures(failures: ScanFailure[]): boolean {
 export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {}): Promise<number> {
   const cwd = opts.cwd ?? process.cwd();
   const featuresDir = opts.featuresDir ?? loadDocRoots(cwd).features;
-  const { tagged, failures } = await collectTagged(adapter, cwd);
-  if (reportFailures(failures)) return 1;
+  const scan = (await collectTaggedMany([adapter], cwd)).get(adapter.key);
+  if (!scan || reportFailures(scan.failures)) return 1;
 
-  const scanned = buildSlugMap(tagged);
+  const scanned = buildSlugMap(scan.tagged);
   const load = await loadCachedAll(featuresDir, [adapter.key]);
   // An FD whose frontmatter would not parse leaves this run unable to say what
   // its links currently are, so the run makes no claims and writes nothing —
@@ -543,7 +528,7 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
     }
   }
   console.log(
-    `Scanned ${tagged.length} file(s), wrote links.${adapter.key} on ${updated} feature MD(s).`,
+    `Scanned ${scan.tagged.length} file(s), wrote links.${adapter.key} on ${updated} feature MD(s).`,
   );
   const actionable = skipped.filter((slug) =>
     (cached.get(slug) ?? []).some((p) => !adapter.preserve(p) && !adapter.unownable(p)),

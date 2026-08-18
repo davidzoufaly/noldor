@@ -326,6 +326,24 @@ describe('collectTaggedMany', () => {
     expect(scans.get('tests')?.tagged.map((t) => t.path)).toEqual(['src/a.test.ts']);
   });
 
+  it('attributes an unreadable file only to the kinds that would have read it', async () => {
+    const locked = join(repo, 'src', 'locked.test.ts');
+    writeFileSync(locked, '// @tests: feat\n', 'utf8');
+    chmodSync(locked, 0o000);
+    const adapters = [
+      rooted(codeAdapter, ['src'], 'default'),
+      rooted(testsAdapter, ['src'], 'default'),
+    ];
+
+    const scans = await collectTaggedMany(adapters, repo);
+    chmodSync(locked, 0o644);
+
+    // Only the tests adapter opens *.test.ts, so the code kind keeps full
+    // coverage and its drift claims stay authoritative.
+    expect(scans.get('tests')?.failures).toHaveLength(1);
+    expect(scans.get('code')?.failures).toEqual([]);
+  });
+
   it('reports an unreadable root on every kind sharing it', async () => {
     const adapters = [
       rooted(codeAdapter, ['missing'], 'configured'),
@@ -336,6 +354,33 @@ describe('collectTaggedMany', () => {
 
     expect(scans.get('code')?.failures).toHaveLength(1);
     expect(scans.get('tests')?.failures).toHaveLength(1);
+  });
+});
+
+describe('an unreadable features directory', () => {
+  it('is reported as a root failure rather than thrown, and clears nothing', async () => {
+    const featuresDir = join(repo, 'docs', 'features');
+    writeFd('feat', { tests: ['src/gone.test.ts'] });
+    chmodSync(featuresDir, 0o000);
+
+    const load = await loadCachedAll(featuresDir, ['tests']);
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      force: true,
+    });
+    chmodSync(featuresDir, 0o755);
+
+    // Distinguishable from an absent directory, which is a legitimately empty
+    // cache: a caller that could not tell them apart would diff against nothing
+    // and call every FD drifted.
+    expect(load.failures).toEqual([{ root: featuresDir, code: 'EACCES', kind: 'root' }]);
+    expect(exit).toBe(1);
+    await expect(cachedFor('feat', 'tests')).resolves.toEqual(['src/gone.test.ts']);
+  });
+
+  it('reads an absent features directory as an empty cache, not a failure', async () => {
+    const absent = join(repo, 'docs', 'no-features');
+    await expect(loadCachedAll(absent, ['tests'])).resolves.toMatchObject({ failures: [] });
   });
 });
 
