@@ -8,6 +8,13 @@ import { join } from 'node:path';
 import { FILE as SNAPSHOT_FILE } from '../summary-body-rollout.js';
 import { provisionalBody, validateSummaryCommit } from '../validate-summary-body.js';
 
+// Resolved once, absolutely: every spawn below runs with `cwd` set to a scratch
+// tmpdir OUTSIDE this repo, so `npx tsx` cannot see `node_modules/.bin` and
+// silently fetches tsx from the registry instead — which made these tests fail
+// on any runner with a cold npx cache. Same idiom as the other CLI-spawning
+// suites (src/design/__tests__/archive-cli.test.ts).
+const TSX = join(process.cwd(), 'node_modules/.bin/tsx');
+
 const CODE = ['src/clones/ranges.ts'];
 const PROSE = ['docs/noldor/pr-flow.md'];
 
@@ -204,7 +211,7 @@ function runAdvisory(dir: string, messageFile: string): { status: number; stderr
   // returns only stdout on success — so its diagnostics, which are the entire
   // point of this adapter, would be invisible to these assertions.
   const entry = join(process.cwd(), 'src/core/validate-summary-body.ts');
-  const r = spawnSync('npx', ['tsx', entry, messageFile], { cwd: dir, encoding: 'utf8' });
+  const r = spawnSync(TSX, [entry, messageFile], { cwd: dir, encoding: 'utf8' });
   return { status: r.status ?? 1, stderr: r.stderr ?? '' };
 }
 

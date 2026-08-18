@@ -11,6 +11,13 @@ import { evaluatePrePush, type PrePushInput } from '../noldor-pre-push.js';
 import { readStdinWithTimeout, recordReleasePush } from '../noldor-pre-push.js';
 import { ensureSummaryBodyRolloutSnapshot } from '../../core/summary-body-rollout.js';
 
+// Resolved once, absolutely: `runHook` spawns with `cwd` set to a scratch tmpdir
+// OUTSIDE this repo, so `npx tsx` cannot see `node_modules/.bin` and silently
+// fetches tsx from the registry instead — which made these tests fail on any
+// runner with a cold npx cache. Same idiom as the other CLI-spawning suites
+// (src/design/__tests__/archive-cli.test.ts).
+const TSX = join(process.cwd(), 'node_modules/.bin/tsx');
+
 describe('evaluatePrePush', () => {
   it('allows push to feature branch', () => {
     const input: PrePushInput = {
@@ -188,7 +195,7 @@ function runHook(
   opts: { remote?: string; env?: Record<string, string> } = {},
 ): { status: number; stderr: string } {
   const entry = join(process.cwd(), 'src/hooks/noldor-pre-push.ts');
-  const r = spawnSync('npx', ['tsx', entry, opts.remote ?? 'origin'], {
+  const r = spawnSync(TSX, [entry, opts.remote ?? 'origin'], {
     cwd: dir,
     encoding: 'utf8',
     input: refLines,
