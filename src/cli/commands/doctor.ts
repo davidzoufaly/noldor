@@ -5,7 +5,10 @@
 //    dir, filtered to the consumer's `agents.targets`) against the consumer
 //    copy at the same relative path under `process.cwd()`.
 // 3. presence + version-floor check for every *configured* agent runner.
-// Exit 1 on any prerequisite, drift, or runner problem; exit 0 with counts on clean.
+// 4. structural wiring assertion on the consumer's root `lefthook.yml` — the
+//    one adopted surface phases 2-3 cannot see, because it is scaffold-only
+//    and so exempt from drift.
+// Exit 1 on any prerequisite, drift, runner, or wiring problem; exit 0 with counts on clean.
 // Wired into `pnpm verify` at the consumer side (per spec).
 import {
   TEMPLATES_ROOT,
@@ -13,6 +16,7 @@ import {
   SCAFFOLD_ONLY_TEMPLATES,
 } from '../../templates/manifest.js';
 import { computeDrift } from '../../templates/diff.js';
+import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { checkRunners } from '../../core/agent-runner/doctor-runners.js';
@@ -54,15 +58,31 @@ for (const c of checks) {
   console.log(`${c.status.padEnd(12)} runner ${c.runner}: ${c.detail}`);
 }
 
+// Hook wiring: the root lefthook.yml is consumer-owned and scaffold-only, so
+// the drift pass above skips it by design and would report a comment-only stub
+// as healthy. Verify the extends line instead — never rewrite the file.
+const wiring = checkLefthookWiring(process.cwd());
+let wiringBad = 0;
+if (wiring.status !== 'ok') {
+  // `advisory` means this check could not read the consumer's config format,
+  // not that the repo is broken — warn, never fail, or a wired TOML consumer
+  // would go red for a limitation of ours.
+  if (wiring.advisory) console.log(`${'warn'.padEnd(12)} hooks: ${wiring.detail}`);
+  else {
+    wiringBad++;
+    console.log(`${'unwired'.padEnd(12)} hooks: ${wiring.detail}`);
+  }
+}
+
 // Framework-version skew: advisory only (does NOT affect exit code). A consumer
 // with synced templates but an un-migrated tree should still pass `doctor`
 // green after running `noldor upgrade`.
 const skew = frameworkSkewDetail(loadFrameworkVersion(process.cwd()), installedFrameworkVersion());
 if (skew !== null) console.log(`warn         framework skew: ${skew}`);
 
-if (prereqBad === 0 && bad === 0 && runnerBad === 0) {
+if (prereqBad === 0 && bad === 0 && runnerBad === 0 && wiringBad === 0) {
   console.log(
-    `OK — prerequisites healthy, ${files.length} template files in sync, ${checks.length} runner(s) healthy`,
+    `OK — prerequisites healthy, ${files.length} template files in sync, ${checks.length} runner(s) healthy, hooks wired`,
   );
   process.exit(0);
 }
@@ -78,6 +98,11 @@ if (bad > 0) {
 if (runnerBad > 0) {
   console.error(
     `${runnerBad} runner problem(s). Install the missing CLI or fix agents.versionFloors.`,
+  );
+}
+if (wiringBad > 0) {
+  console.error(
+    `\nHook wiring is broken, so noldor's gate jobs never run. This is NOT drift — ${wiring.rootName} is yours to own, and 'init --update' will not touch it. Apply the repair above by hand.`,
   );
 }
 process.exit(1);

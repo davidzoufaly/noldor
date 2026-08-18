@@ -55,5 +55,9 @@
   "Q-0093": {
     "slug": "consumer-architecture-doc-surface",
     "retiredAt": "2026-08-17"
+  },
+  "Q-0142": {
+    "slug": "consumer-lefthook-wiring-check",
+    "retiredAt": "2026-08-18"
   }
 }

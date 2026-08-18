@@ -5,6 +5,7 @@ deps: []
 links:
   code: []
   tests:
+    - src/checks/__tests__/check-lefthook-wiring.test.ts
     - src/cli/__tests__/cli.test.ts
     - src/templates/__tests__/templates.test.ts
   spec: docs/design/specs/archive/2026-05-26-noldor-package-lift-design.md

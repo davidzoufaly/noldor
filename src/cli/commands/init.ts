@@ -28,6 +28,7 @@ import {
   ensureSummaryBodyRolloutSnapshot,
 } from '../../core/summary-body-rollout.js';
 import { ensureGitignoreBlock } from '../../core/init-gitignore.js';
+import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -127,6 +128,18 @@ try {
     console.log(
       `skipped    ${SUMMARY_BODY_ROLLOUT_FILE} (no commit-bearing ref yet — the summary-body gate stays advisory-only; re-run init after the first commit)`,
     );
+  }
+  // Hook wiring, checked on every run and REPORTED ONLY. The root lefthook.yml
+  // is a scaffold-only starter the consumer owns: copyTemplate above wrote it
+  // only if it was absent, and `--update` deliberately left an existing one
+  // alone. That ownership is exactly why an adopted repo can end up with a
+  // pre-adoption root file that never gained the extends line — and why the
+  // remedy here is a named diagnostic, never a rewrite that would clobber the
+  // project's own hooks.
+  const wiring = checkLefthookWiring(consumer);
+  if (wiring.status !== 'ok') {
+    const label = wiring.advisory ? 'warn' : 'unwired';
+    console.log(`${label.padEnd(10)} ${wiring.rootName}: ${wiring.detail}`);
   }
   // Stamp the framework version ONLY on a fresh scaffold — a tree with no
   // existing anchor, scaffolded (not `--update`). A fresh scaffold is by

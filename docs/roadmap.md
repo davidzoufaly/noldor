@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Consumer Lefthook Wiring Check
-
-- id: Q-0142
-- area: tooling
-- type: fix
-- since: 2026-08-17
-- size: S
-- impact: high
-- confidence: high
-
-An adopted consumer can carry permanently dead hooks with zero signal. Root `lefthook.yml` is listed in `SCAFFOLD_ONLY_TEMPLATES` (`src/templates/manifest.ts:20-24`) because the consumer owns the file, so `init` copies it only when absent, `init --update` never overwrites it, and `check-template-sync` plus `doctor` deliberately report no drift on starters. A consumer whose root `lefthook.yml` predates adoption — charuy's was a comment-only stub — therefore never receives the `extends: ./lefthook/noldor.yml` line, and nothing anywhere checks the wiring. Every noldor hook job (trailer injection, commit-msg validation, the pre-push summary-body gate) is silently inert while lefthook still prints its banner, which reads as a working install: zero jobs running produces exactly the same output as zero jobs configured. This bit charuy for weeks and surfaced only on 2026-08-14, when its PR #96 shipped a what-only summary despite an armed summary-body rollout. The fix keeps consumer ownership of the file and verifies the wiring instead of syncing it: `doctor` (and `init --update`) parse the consumer's root `lefthook.yml` and fail when `extends` does not include `./lefthook/noldor.yml`, naming the specific jobs that are dead and the one-line repair. A structural wiring assertion, never a drift-sync — it must not clobber project-owned hooks. Prerequisite for Q-0140 in spirit: both are cases where the framework never inspects an adopted surface it depends on.
-
 ### pen.dev UI Design Phase
 
 - id: Q-0144
