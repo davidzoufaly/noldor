@@ -126,12 +126,17 @@ That is not hypothetical for docs: the six FDs above would lose 24 entries.
 
 Two new exports beside `loadDocRoots`:
 
-- `docProjectionRoots()` → `docs/user/tutorials`, `docs/user/explanation`,
-  `docs/user/how-to`, `docs/noldor`. Read by the docs adapter and by
+- `docProjectionRoots(cwd = process.cwd()): string[]` → `docs/user/tutorials`,
+  `docs/user/explanation`, `docs/user/how-to`, `docs/noldor`. Read by the docs adapter and by
   `validateDocFeatureSlugs`, so every tag the sync honors is also slug-validated.
-- `docPresenceRoots()` → `docs/user/tutorials`, `docs/user/explanation`. Read by
-  `validateDocTagPresence` and garden detector 11, so the roughly thirty untagged
-  framework docs under `docs/noldor` are never required to carry a tag.
+- `docPresenceRoots(cwd = process.cwd()): string[]` → `docs/user/tutorials`,
+  `docs/user/explanation`. Read by `validateDocTagPresence` and garden detector 11, so the
+  roughly thirty untagged framework docs under `docs/noldor` are never required to carry a tag.
+
+Both take an explicit `cwd` and return **absolute** paths, matching `loadDocRoots(cwd)` in the
+same module — one convention, and no implicit-cwd provider (the leak shape Q-0104 left open).
+Callers that speak repo-relative paths normalize at their own boundary, as the engine already
+does via `relative(repoRoot, file)`.
 
 All four are framework defaults, so a missing one is an ENOENT skip under Layer A.
 `sdd-report.ts` and `dashboard/data.ts` migrate to `docPresenceRoots()`, deleting their
@@ -154,15 +159,19 @@ so the release gate stays green.
 ### Error handling
 
 A slug with no matching `docs/features/<slug>.md` warns and continues (today's behaviour).
-Non-authoritative runs exit 1 with the offending root named. Frontmatter writes stay
-atomic and validated. `--check` exits 1 on drift; a plain run exits 0.
+Non-authoritative runs exit 1 with the offending root named. Frontmatter writes go through
+`atomicWriteFileSync` ([`src/core/atomic-write.ts`](../../../src/core/atomic-write.ts)) or its
+async twin `atomicWriteFile` ([`src/dashboard/api/atomic.ts`](../../../src/dashboard/api/atomic.ts)) —
+a change from today's plain `writeFile` in all three modules. The pre-commit hook writes FD
+frontmatter under `stage_fixed`, so a torn write is reachable. `--check` exits 1 on drift; a plain run exits 0.
 
 ### Testing
 
 Per kind, the clearing case: start from one cached path, remove the final source tag,
 run the projection, assert the array becomes empty under `--force` and is preserved-and-
-reported without it. Per kind, Layer A: a missing configured root and an `EACCES` root
-each yield a non-authoritative run that clears nothing. Docs specifically: a tag inside a
+reported without it. Layer A splits by kind: the missing-configured-root case applies
+to code and tests only (the docs adapter's four roots are all framework defaults, so that branch
+is unreachable for it), while the `EACCES` case is asserted for all three. Docs specifically: a tag inside a
 table cell or after a bullet marker does not match; a tag at line start does. Adapter
 `preserve` behaviour: a directory entry survives a code projection and there is no
 directory-preservation path for tests or docs.
@@ -175,8 +184,9 @@ directory-preservation path for tests or docs.
    `sync doc-links --force` empties that FD's `links.docs`.
 3. Without `--force`, an FD whose scan matched no tags keeps its cached entries and is
    named in the run's tagless-kept report, for all three kinds.
-4. A run whose configured scan root is missing or unreadable clears no FD and exits
-   non-zero, naming the root.
+4. For the code and tests kinds, a run whose consumer-configured scan root is missing
+   clears no FD and exits non-zero, naming the root; for all three kinds an unreadable
+   (non-ENOENT) root does the same.
 5. A run whose only missing roots come from `DEFAULT_SCAN_ROOTS` proceeds normally.
 6. `sync <kind> --check` exits 0 when in sync and non-zero listing each stale FD, for
    all three kinds.
