@@ -191,10 +191,12 @@ export async function checkAdr(cwd: string): Promise<AdrReport> {
 
   // Opt-in is a folder with at least one NNNN-<slug>.md file: a stray README
   // or notes file never opts a repo in, so with zero conforming filenames the
-  // bad-filename findings are suppressed and the surface reads `absent` (spec
-  // AC5). A conforming filename opts in even when its frontmatter fails —
-  // a half-written record is drift to report, not a repo that never adopted.
-  if (conformingFiles === 0 && !findings.some((f) => f.rule === 'unreadable')) {
+  // bad-filename findings — the only kind that can exist here, since per-file
+  // reads happen only on conforming files and directory-level failures return
+  // above — are suppressed and the surface reads `absent` (spec AC5). A
+  // conforming filename opts in even when its frontmatter fails: a
+  // half-written record is drift to report, not a repo that never adopted.
+  if (conformingFiles === 0) {
     return { status: 'absent', findings: [] };
   }
 
