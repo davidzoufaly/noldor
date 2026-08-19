@@ -128,6 +128,18 @@ describe('evaluateUiDesignFreshness', () => {
     expect(v.surfaces[0].status).toBe('uninitialized');
   });
 
+  it('flags UI commits outside every declared surface as an (unmapped) stale row', async () => {
+    await commitFiles(['src/a/x.tsx'], 'feat: a');
+    await commitFiles(['docs/design/ui/baseline/a.pen'], 'docs: a baseline');
+    await commitFiles(['src/other/y.tsx'], 'feat: unmapped ui');
+    const v = await evaluateUiDesignFreshness(cwd, {
+      uiPaths: ['src/a/**', 'src/other/**'],
+      uiSurfaces: { a: ['src/a/**'] },
+    });
+    expect(v.overall).toBe('stale');
+    expect(v.surfaces.find((s) => s.surface === '(unmapped)')?.status).toBe('stale');
+  });
+
   it('multi-surface worst-of aggregation, rows sorted by surface name', async () => {
     await commitFiles(['docs/design/ui/baseline/a.pen'], 'docs: a');
     await commitFiles(['src/a/x.tsx'], 'feat: a drift');

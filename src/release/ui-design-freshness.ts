@@ -220,6 +220,37 @@ export async function evaluateUiDesignFreshness(
     });
   }
 
+  // Declared-surface maps can under-cover uiPaths (the schema cannot prove glob
+  // coverage), so UI commits outside every surface would otherwise be checked
+  // by nobody. Probe the union: when the latest commit across ALL of uiPaths is
+  // not an ancestor of any surface's baseline commit, it touched only unmapped
+  // paths — surface it as its own stale row instead of silently passing.
+  if (config.uiSurfaces !== undefined && surfaces.some((s) => s.baselineCommit !== undefined)) {
+    const all = await latestCommit(cwd, [
+      ...uiPaths.flatMap((g) => braceExpand(g)).map((g) => `:(glob)${g}`),
+      ...GRAPH_IRRELEVANT_EXCLUDES,
+    ]);
+    if (all.ok && all.sha !== '') {
+      let covered = false;
+      for (const s of surfaces) {
+        if (s.baselineCommit === undefined) continue;
+        const probe = await isAncestor(cwd, all.sha, s.baselineCommit);
+        if (probe.ok && probe.isAncestor) {
+          covered = true;
+          break;
+        }
+      }
+      if (!covered) {
+        surfaces.push({
+          surface: '(unmapped)',
+          status: 'stale',
+          uiCommit: all.sha,
+          detail: `UI commit ${all.sha.slice(0, 8)} touches uiPaths outside every declared surface — extend uiSurfaces, then ${REMEDIATION}`,
+        });
+      }
+    }
+  }
+
   const overall = surfaces.reduce<UiFreshnessVerdict['overall']>(
     (worst, s) => (RANK[s.status] > RANK[worst] ? s.status : worst),
     'skipped',
