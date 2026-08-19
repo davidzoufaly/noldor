@@ -313,32 +313,39 @@ export async function loadCachedAll(
     // a hand-edited file. Aborting here would take down the whole projection
     // (and `garden detect` with it) over one bad document; recording it keeps
     // the run honest that it does not know this FD's current links.
+    // Unreadable is not unparseable: the frontmatter may be perfect and the
+    // permissions wrong, so the two say different things to the operator.
+    const fdFailure = (error: unknown, fallback: string, what: string, remedy: string): void => {
+      failures.push({
+        root: join(featuresDir, f),
+        code: (error as NodeJS.ErrnoException).code ?? fallback,
+        kind: 'feature-md',
+        what,
+        remedy,
+      });
+    };
     let links: Record<string, unknown>;
     let raw: string;
     try {
       raw = await readFile(join(featuresDir, f), 'utf8');
     } catch (error) {
-      // Unreadable is not unparseable: the frontmatter may be perfect and the
-      // permissions wrong, so the two say different things to the operator.
-      failures.push({
-        root: join(featuresDir, f),
-        code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN',
-        kind: 'feature-md',
-        what: 'cannot read feature MD',
-        remedy: 'fix permissions on the listed feature MD(s)',
-      });
+      fdFailure(
+        error,
+        'UNKNOWN',
+        'cannot read feature MD',
+        'fix permissions on the listed feature MD(s)',
+      );
       continue;
     }
     try {
       links = (matter(raw).data.links ?? {}) as Record<string, unknown>;
     } catch (error) {
-      failures.push({
-        root: join(featuresDir, f),
-        code: (error as NodeJS.ErrnoException).code ?? 'EPARSE',
-        kind: 'feature-md',
-        what: 'cannot parse feature MD',
-        remedy: 'repair the frontmatter of the listed feature MD(s)',
-      });
+      fdFailure(
+        error,
+        'EPARSE',
+        'cannot parse feature MD',
+        'repair the frontmatter of the listed feature MD(s)',
+      );
       continue;
     }
     const slug = basename(f, '.md');
