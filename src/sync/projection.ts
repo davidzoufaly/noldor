@@ -47,6 +47,14 @@ export interface LinkAdapter {
   tagLabel: string;
 }
 
+/**
+ * A feature slug is a bare filename stem. Tag text is file content — untrusted
+ * input that becomes `docs/features/<slug>.md` — so anything with a separator
+ * or a traversal segment is rejected before it can address a path outside the
+ * feature directory.
+ */
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 /** A scanned file path paired with the slugs it tagged. */
 export interface TaggedFile {
   path: string;
@@ -80,6 +88,10 @@ export function buildSlugMap(tagged: TaggedFile[]): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const { path, tags } of tagged) {
     for (const slug of tags) {
+      if (!SLUG_RE.test(slug)) {
+        console.warn(`WARN: ${path} tags "${slug}", which is not a feature slug — ignored.`);
+        continue;
+      }
       const existing = map.get(slug) ?? [];
       existing.push(path);
       map.set(slug, existing);
@@ -392,8 +404,11 @@ export function diffProjection(
   adapter: LinkAdapter,
 ): ProjectionDrift[] {
   const drift: ProjectionDrift[] = [];
-  const slugs = new Set([...scanned.keys(), ...cached.keys()]);
-  for (const slug of [...slugs].toSorted()) {
+  // Only FDs that exist can drift. A slug that appears solely in the scan names
+  // no feature MD — a typo'd tag, or an FD deleted while its tags remain — and
+  // reporting it as stale links would leave `--check` red with the command it
+  // names unable to clear it. {@link missingFdSlugs} surfaces those instead.
+  for (const slug of [...cached.keys()].toSorted()) {
     const want = (scanned.get(slug) ?? []).toSorted();
     const current = cached.get(slug) ?? [];
     if (project(want, current, adapter).skipped) continue;
@@ -403,6 +418,21 @@ export function diffProjection(
     }
   }
   return drift;
+}
+
+/**
+ * Slugs some file tagged that name no feature MD. Distinct from drift: no sync
+ * run can fix these, only editing the tag or creating the FD can.
+ *
+ * @param scanned - slug → scanned paths
+ * @param cached - slug → cached arrays, keyed by the FDs that exist
+ * @returns The unmatched slugs, sorted
+ */
+export function missingFdSlugs(
+  scanned: Map<string, string[]>,
+  cached: Map<string, string[]>,
+): string[] {
+  return [...scanned.keys()].filter((slug) => !cached.has(slug)).toSorted();
 }
 
 /**
@@ -493,6 +523,19 @@ function reportTaglessKept(kept: string[], key: LinkAdapter['key'], quiet: boole
 }
 
 /**
+ * Name the slugs that match no feature MD. Reported rather than counted as
+ * drift: no sync run can reconcile them, so a drift line would name a command
+ * that cannot clear it.
+ */
+function reportMissingFds(slugs: string[], adapter: LinkAdapter): void {
+  for (const slug of slugs) {
+    console.warn(
+      `WARN: ${adapter.tagLabel} "${slug}" referenced but docs/features/${slug}.md does not exist.`,
+    );
+  }
+}
+
+/**
  * Report the inputs that made this run non-authoritative and return true when the
  * run must not clear anything.
  */
@@ -533,6 +576,7 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
 
   if (opts.check) {
     const drift = diffProjection(scanned, cached, adapter);
+    reportMissingFds(missingFdSlugs(scanned, cached), adapter);
     reportTaglessKept(taglessKeptSlugs(scanned, cached, adapter), adapter.key, opts.quiet ?? false);
     if (drift.length === 0) {
       console.log(`links.${adapter.key} is in sync with ${adapter.tagLabel} tags.`);
@@ -553,30 +597,39 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   // scan map alone is the defect this engine exists to remove.
   const slugs = new Set([...scanned.keys(), ...cached.keys()]);
   let updated = 0;
-  const skipped: string[] = [];
+  const writeFailures: ScanFailure[] = [];
   for (const slug of [...slugs].toSorted()) {
     const featureMd = join(featuresDir, `${slug}.md`);
     const paths = scanned.get(slug) ?? [];
     try {
-      const outcome = await updateFeatureMd(featureMd, paths, adapter, opts.force ?? false);
-      if (outcome === 'updated') updated += 1;
-      if (outcome === 'skipped') skipped.push(slug);
+      if ((await updateFeatureMd(featureMd, paths, adapter, opts.force ?? false)) === 'updated') {
+        updated += 1;
+      }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
+      if (code === 'ENOENT') {
         console.warn(
           `WARN: ${adapter.tagLabel} "${slug}" referenced but ${featureMd} does not exist.`,
         );
-      } else {
-        throw error;
+        continue;
       }
+      // A permission or filesystem error on one FD is an expected failure, not a
+      // programmer error. Rethrowing would abandon every remaining slug midway
+      // through a partially rewritten set and hand the operator a raw stack,
+      // while the read side of this same module reports and exits cleanly.
+      writeFailures.push({
+        root: featureMd,
+        code,
+        kind: 'feature-md',
+        what: 'cannot write feature MD',
+        remedy: 'fix permissions on the listed feature MD(s)',
+      });
     }
   }
   console.log(
     `Scanned ${scan.tagged.length} file(s), wrote links.${adapter.key} on ${updated} feature MD(s).`,
   );
-  const actionable = skipped.filter((slug) =>
-    (cached.get(slug) ?? []).some((p) => !adapter.preserve(p) && !adapter.unownable(p)),
-  );
-  reportTaglessKept(actionable, adapter.key, opts.quiet ?? false);
-  return 0;
+  reportMissingFds(missingFdSlugs(scanned, cached), adapter);
+  reportTaglessKept(taglessKeptSlugs(scanned, cached, adapter), adapter.key, opts.quiet ?? false);
+  return reportFailures(writeFailures) ? 1 : 0;
 }

@@ -1,6 +1,6 @@
 // @tests: feature-md-links-overhaul
 
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -335,6 +335,40 @@ describe('failure reporting', () => {
     // a broken feature MD is not reachable from `scanPaths`.
     expect(printed).toContain('repair the frontmatter');
     expect(printed).not.toContain('scanPaths');
+  });
+});
+
+describe('a tag naming no feature MD', () => {
+  it('is warned about rather than reported as drift', async () => {
+    writeFileSync(join(repo, 'src', 'a.test.ts'), '// @tests: no-such-feature\n', 'utf8');
+    writeFd('feat', { tests: [] });
+
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      check: true,
+    });
+
+    // Drift would name `sync test-links`, which cannot create the missing FD —
+    // a red no command can clear.
+    expect(exit).toBe(0);
+    expect(vi.mocked(console.warn).mock.calls.flat().join('\n')).toContain('no-such-feature');
+  });
+});
+
+describe('a tag that is not a slug', () => {
+  it('never addresses a path outside the feature directory', async () => {
+    const outsider = join(repo, 'docs', 'roadmap.md');
+    const before = '# Roadmap\n\nuntouched\n';
+    writeFileSync(outsider, before, 'utf8');
+    writeFileSync(join(repo, 'src', 'evil.test.ts'), '// @tests: ../roadmap\n', 'utf8');
+    writeFd('feat', { tests: [] });
+
+    await runProjection(rooted(testsAdapter, ['src'], 'default'), { cwd: repo });
+
+    // Tag text is file content: unvalidated, it would be joined onto the
+    // features directory and rewrite whatever it resolved to.
+    expect(readFileSync(outsider, 'utf8')).toBe(before);
+    expect(vi.mocked(console.warn).mock.calls.flat().join('\n')).toContain('not a feature slug');
   });
 });
 
