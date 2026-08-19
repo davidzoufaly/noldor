@@ -337,7 +337,15 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
     return 2;
   }
   const surfaceFlag = flagIdx === -1 ? undefined : argv[flagIdx + 1];
-  const config = loadConsumerConfig(cwd);
+  // loadConsumerConfig throws on a repo with no .noldor/config.json — a
+  // non-adopter running ui-sync gets "nothing to do", never a stack trace.
+  let config: ReturnType<typeof loadConsumerConfig>;
+  try {
+    config = loadConsumerConfig(cwd);
+  } catch {
+    console.log('ui-sync: nothing to do (no consumer config)');
+    return 0;
+  }
   const verdict = await evaluateUiDesignFreshness(cwd, {
     uiPaths: config.uiPaths,
     uiSurfaces: config.uiSurfaces,
