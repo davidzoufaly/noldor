@@ -18,7 +18,14 @@ import {
   type UiSurfaceFreshness,
 } from '../release/ui-design-freshness.js';
 
+/** The freshness engine's synthetic config-gap row — not a real baseline file. */
+const UNMAPPED_SURFACE = '(unmapped)';
+
 export function renderSurfaceReport(s: UiSurfaceFreshness): string {
+  if (s.surface === UNMAPPED_SURFACE) {
+    // Config gap, not a baseline to edit: there is no `(unmapped).pen`.
+    return `${s.surface}: ${s.status}\n  ${s.detail}\n  → extend consumer.uiSurfaces in .noldor/config.json to cover the listed paths, then re-run`;
+  }
   const file = `${BASELINE_DIR}/${s.surface}.pen`;
   const action =
     s.status === 'uninitialized'
@@ -85,6 +92,11 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
   let pending = 0;
   for (const s of rows) {
     console.log(renderSurfaceReport(s));
+    if (s.surface === UNMAPPED_SURFACE) {
+      // Config gap — no baseline file to stage or validate.
+      pending += 1;
+      continue;
+    }
     if (s.status === 'stale' || s.status === 'uninitialized') {
       const rel = `${BASELINE_DIR}/${s.surface}.pen`;
       // Plain `git add` (never --intent-to-add: a no-op on tracked files and

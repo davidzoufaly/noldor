@@ -25,7 +25,19 @@ const LinksSchema = z
   .object({
     code: z.array(z.string()).default([]),
     /** Repo-relative path of the feature's UI-design `.pen` artifact (spec U3). */
-    design: z.string().min(1).optional(),
+    design: z
+      .string()
+      .min(1)
+      .refine(
+        (p) =>
+          p.endsWith('.pen') &&
+          !p.startsWith('/') &&
+          !p.includes('\\') &&
+          !p.split('/').includes('..') &&
+          !/^[a-z][a-z0-9+.-]*:/i.test(p),
+        { message: 'links.design must be a repo-relative POSIX .pen path' },
+      )
+      .optional(),
     docs: z.array(z.string()).default([]),
     plan: z.union([z.string(), z.array(z.string())]).optional(),
     spec: z.string().optional(),
