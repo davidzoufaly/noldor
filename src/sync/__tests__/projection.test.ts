@@ -211,6 +211,29 @@ describe('--force reporting', () => {
   });
 });
 
+describe('the features directory vanishing mid-run', () => {
+  it('is a failure, not a benign per-FD skip', async () => {
+    writeFd('feat', { tests: ['src/gone.test.ts'] });
+    const featuresDir = join(repo, 'docs', 'features');
+    const adapter: LinkAdapter = {
+      ...testsAdapter,
+      roots: (cwd) => [{ path: join(cwd, 'src'), origin: 'default' }],
+      // Remove the directory after the cache load, before the writes.
+      preserve: (p) => {
+        rmSync(featuresDir, { recursive: true, force: true });
+        return testsAdapter.preserve(p);
+      },
+    };
+
+    const exit = await runProjection(adapter, { cwd: repo, force: true });
+
+    // The same ENOENT arrives whether one FD went or the whole directory did.
+    // Calling the second benign would exit 0 having written nothing.
+    expect(exit).toBe(1);
+    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('directory vanished');
+  });
+});
+
 describe('--check', () => {
   it('exits 0 when the cache matches the scan', async () => {
     writeFileSync(join(repo, 'src', 'a.test.ts'), '// @tests: feat\n', 'utf8');

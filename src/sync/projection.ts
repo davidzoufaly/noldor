@@ -1,5 +1,6 @@
 // @fd: feature-md-links-overhaul
 
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 
@@ -599,7 +600,7 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   // Drive the writes off the FDs that exist. Slugs naming no feature MD are
   // reported once by `reportMissingFds`; visiting them here only to catch ENOENT
   // produced a second warning for the same fact. An FD deleted between the load
-  // and the write still surfaces, as a write failure.
+  // and the write is skipped with a warning — it wants no links either way.
   let updated = 0;
   const writeFailures: ScanFailure[] = [];
   for (const slug of [...cached.keys()].toSorted()) {
@@ -611,10 +612,13 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
-      // An FD deleted between the load and the write wants no links at all, so
-      // the race has already resolved itself: say so and carry on rather than
-      // redding a run — the pre-commit hook included — over nothing.
-      if (code === 'ENOENT') {
+      // ENOENT is benign only when this one FD is gone: the race has resolved
+      // itself and a file that no longer exists wants no links. The same code
+      // arrives when the *directory* was removed or renamed mid-run — via the
+      // tmp write or rename inside `atomicWriteFile` — and treating that as
+      // benign would log "disappeared" for every slug and exit 0 having written
+      // nothing, which is the silent green this module exists to prevent.
+      if (code === 'ENOENT' && existsSync(featuresDir)) {
         console.warn(`WARN: ${featureMd} disappeared mid-run — skipped.`);
         continue;
       }
@@ -626,8 +630,12 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
         root: featureMd,
         code,
         kind: 'feature-md',
-        what: 'cannot write feature MD',
-        remedy: 'fix permissions on the listed feature MD(s)',
+        what:
+          code === 'ENOENT' ? 'feature MD directory vanished mid-run' : 'cannot write feature MD',
+        remedy:
+          code === 'ENOENT'
+            ? 'restore the feature MD directory and re-run'
+            : 'fix permissions on the listed feature MD(s)',
       });
     }
   }

@@ -1,6 +1,6 @@
 // @fd: dynamic-fd-file-pointers-via-frontmatter, feature-md-links-overhaul
 
-import { basename, join } from 'node:path';
+import { basename, isAbsolute, join, relative } from 'node:path';
 
 import { buildSlugMap, diffProjection, missingFdSlugs } from '../../sync/projection.js';
 import type { CachedLoad, LinkAdapter, ScanResult } from '../../sync/projection.js';
@@ -64,11 +64,14 @@ export function linksDriftGaps(
   const perFd = cached.failures.filter((f) => f.kind === 'feature-md');
   const unreadable = new Set(perFd.map((f) => basename(f.root, '.md')));
 
+  // Gap text stays repo-relative; the failures carry absolute paths because the
+  // loader walks absolute directories.
+  const rel = (p: string): string => (isAbsolute(p) ? relative(process.cwd(), p) : p);
   for (const failure of cacheUnavailable) {
     gaps.push({
       category: 'links drift',
-      itemId: 'docs/features',
-      message: `${failure.root}: ${failure.what} (${failure.code}) — links drift not checked`,
+      itemId: featuresDir,
+      message: `${rel(failure.root)}: ${failure.what} (${failure.code}) — links drift not checked`,
     });
   }
   // Iterate the failures rather than a set of slugs: each one already says what
@@ -78,7 +81,7 @@ export function linksDriftGaps(
     gaps.push({
       category: 'links drift',
       itemId: basename(failure.root, '.md'),
-      message: `${failure.root}: ${failure.what} (${failure.code}) — links drift not checked for it`,
+      message: `${rel(failure.root)}: ${failure.what} (${failure.code}) — links drift not checked for it`,
     });
   }
 
