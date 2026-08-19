@@ -101,12 +101,22 @@ export interface ScanFailure {
   root: string;
   code: string;
   /**
-   * Which input failed, so the report can suggest a fix that applies to it and
-   * callers can tell the scopes apart. `root` is a scan root the consumer
-   * configured; `features-dir` is the feature-MD directory itself, whose loss
-   * means the whole cache is unknown; `file` and `feature-md` are single files.
+   * How wide the loss is, which is all a *caller* needs: `features-dir` means
+   * the whole cache is unknown, `root` means one kind's traversal is
+   * incomplete, and `file` / `feature-md` cost only that path. Deliberately not
+   * a proxy for how to fix it — see {@link ScanFailure.what} and
+   * {@link ScanFailure.remedy}.
    */
   kind: 'root' | 'features-dir' | 'file' | 'feature-md';
+  /** What went wrong, in the operator's terms, e.g. `cannot parse feature MD`. */
+  what: string;
+  /**
+   * What the operator should change. Written where the failure is raised,
+   * because that is the only place that knows whether this was a permission
+   * problem or a malformed document — a lookup keyed on {@link ScanFailure.kind}
+   * kept naming fixes that did not apply to the input that actually failed.
+   */
+  remedy: string;
 }
 
 /** One walk of one adapter's roots: what it found, and what it could not read. */
@@ -131,7 +141,16 @@ async function walk(
     // root the consumer named, and any root that exists but cannot be read, is
     // a real gap in the scan's coverage.
     if (code === 'ENOENT' && origin === 'default') return;
-    failures.push({ root: dir, code, kind: 'root' });
+    failures.push({
+      root: dir,
+      code,
+      kind: 'root',
+      what: 'cannot read scan root',
+      remedy:
+        code === 'ENOENT'
+          ? 'restore the root, or drop a stale entry from `scanPaths`'
+          : 'fix permissions on the scan root',
+    });
     return;
   }
   for (const entry of entries) {
@@ -205,6 +224,8 @@ export async function collectTaggedMany(
           root: file,
           code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN',
           kind: 'file',
+          what: 'cannot read scanned file',
+          remedy: 'fix permissions on the listed file(s), or remove them',
         };
         for (const adapter of takers) failures.get(adapter.key)?.push(failure);
         continue;
@@ -261,10 +282,18 @@ export async function loadCachedAll(
     // failure means the cache is unknown, not empty — throwing here would
     // escape the very channel this function exists to fill, and returning
     // silently would let a caller diff against an empty cache and report every
-    // FD as drifted. It is reported as a `root` failure so callers can tell
-    // "the whole cache is unavailable" from "these individual FDs would not
-    // parse" and withhold cache-dependent claims accordingly.
-    if (code !== 'ENOENT') failures.push({ root: featuresDir, code, kind: 'features-dir' });
+    // FD as drifted. It gets its own `features-dir` kind so callers can tell
+    // "the whole cache is unavailable" from "these individual FDs failed" and
+    // withhold cache-dependent claims accordingly.
+    if (code !== 'ENOENT') {
+      failures.push({
+        root: featuresDir,
+        code,
+        kind: 'features-dir',
+        what: 'cannot read feature MD directory',
+        remedy: 'fix permissions on the feature MD directory',
+      });
+    }
   }
   for (const f of entries) {
     // An FD whose frontmatter will not parse is not a programmer error — it is
@@ -272,14 +301,30 @@ export async function loadCachedAll(
     // (and `garden detect` with it) over one bad document; recording it keeps
     // the run honest that it does not know this FD's current links.
     let links: Record<string, unknown>;
+    let raw: string;
     try {
-      const parsed = matter(await readFile(join(featuresDir, f), 'utf8'));
-      links = (parsed.data.links ?? {}) as Record<string, unknown>;
+      raw = await readFile(join(featuresDir, f), 'utf8');
+    } catch (error) {
+      // Unreadable is not unparseable: the frontmatter may be perfect and the
+      // permissions wrong, so the two say different things to the operator.
+      failures.push({
+        root: join(featuresDir, f),
+        code: (error as NodeJS.ErrnoException).code ?? 'UNKNOWN',
+        kind: 'feature-md',
+        what: 'cannot read feature MD',
+        remedy: 'fix permissions on the listed feature MD(s)',
+      });
+      continue;
+    }
+    try {
+      links = (matter(raw).data.links ?? {}) as Record<string, unknown>;
     } catch (error) {
       failures.push({
         root: join(featuresDir, f),
         code: (error as NodeJS.ErrnoException).code ?? 'EPARSE',
         kind: 'feature-md',
+        what: 'cannot parse feature MD',
+        remedy: 'repair the frontmatter of the listed feature MD(s)',
       });
       continue;
     }
@@ -447,22 +492,6 @@ function reportTaglessKept(kept: string[], key: LinkAdapter['key'], quiet: boole
   );
 }
 
-/** How each failing input is described, so the fix suggested actually applies. */
-const FAILURE_LABEL: Record<ScanFailure['kind'], string> = {
-  root: 'cannot read scan root',
-  'features-dir': 'cannot read feature MD directory',
-  file: 'cannot read scanned file',
-  'feature-md': 'cannot parse feature MD',
-};
-
-/** The remediation that applies to each failing input. Only a scan root lives in `scanPaths`. */
-const FAILURE_REMEDY: Record<ScanFailure['kind'], string> = {
-  root: 'fix the root, or drop a stale one from `scanPaths`',
-  'features-dir': 'fix permissions on the feature MD directory',
-  file: 'fix permissions on the listed file(s)',
-  'feature-md': 'repair the frontmatter of the listed feature MD(s)',
-};
-
 /**
  * Report the inputs that made this run non-authoritative and return true when the
  * run must not clear anything.
@@ -470,9 +499,9 @@ const FAILURE_REMEDY: Record<ScanFailure['kind'], string> = {
 function reportFailures(failures: ScanFailure[]): boolean {
   if (failures.length === 0) return false;
   for (const f of failures) {
-    console.error(`${FAILURE_LABEL[f.kind]} ${f.root} (${f.code})`);
+    console.error(`${f.what} ${f.root} (${f.code})`);
   }
-  const remedies = [...new Set(failures.map((f) => FAILURE_REMEDY[f.kind]))];
+  const remedies = [...new Set(failures.map((f) => f.remedy))];
   console.error(
     `${failures.length} input(s) could not be read — the scan is not authoritative, ` +
       `so no links were cleared. To fix: ${remedies.join('; ')}.`,

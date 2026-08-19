@@ -67,7 +67,18 @@ describe(linksDriftGaps, () => {
     // drifted, so the gap names the directory and no comparison runs.
     const gaps = linksDriftGaps(
       new Map([['tests', scanOf(['src/a.test.ts'])]]),
-      cacheOf([], [{ root: 'docs/features', code: 'EACCES', kind: 'features-dir' }]),
+      cacheOf(
+        [],
+        [
+          {
+            root: 'docs/features',
+            code: 'EACCES',
+            kind: 'features-dir',
+            what: 'cannot read feature MD directory',
+            remedy: 'fix permissions on the feature MD directory',
+          },
+        ],
+      ),
       [testsAdapter],
     );
     expect(gaps).toHaveLength(1);
@@ -86,7 +97,15 @@ describe(linksDriftGaps, () => {
           ]),
         ],
       ]),
-      failures: [{ root: 'docs/features/broken.md', code: 'EPARSE', kind: 'feature-md' }],
+      failures: [
+        {
+          root: 'docs/features/broken.md',
+          code: 'EPARSE',
+          kind: 'feature-md',
+          what: 'cannot parse feature MD',
+          remedy: 'repair the frontmatter of the listed feature MD(s)',
+        },
+      ],
     };
 
     const gaps = linksDriftGaps(new Map([['tests', scanOf([])]]), cached, [testsAdapter]);
@@ -98,7 +117,21 @@ describe(linksDriftGaps, () => {
   it('withdraws only the kind whose scan root was unreadable', () => {
     const gaps = linksDriftGaps(
       new Map([
-        ['tests', { tagged: [], failures: [{ root: 'src', code: 'EACCES', kind: 'root' }] }],
+        [
+          'tests',
+          {
+            tagged: [],
+            failures: [
+              {
+                root: 'src',
+                code: 'EACCES',
+                kind: 'root',
+                what: 'cannot read scan root',
+                remedy: 'fix permissions on the scan root',
+              },
+            ],
+          },
+        ],
         ['code', scanOf(['src/a.ts'])],
       ]),
       { byKey: new Map(), failures: [] },

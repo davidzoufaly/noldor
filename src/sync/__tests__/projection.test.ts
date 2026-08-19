@@ -176,6 +176,29 @@ describe('unreadable inputs never read as an empty scan', () => {
   });
 });
 
+describe('an unreadable feature MD', () => {
+  it('is described as unreadable, not as unparseable', async () => {
+    writeFd('feat', { tests: ['src/gone.test.ts'] });
+    const locked = join(repo, 'docs', 'features', 'locked.md');
+    writeFileSync(locked, '---\nname: locked\n---\n\n## Summary\n', 'utf8');
+    chmodSync(locked, 0o000);
+
+    const exit = await runProjection(rooted(testsAdapter, ['src'], 'default'), {
+      cwd: repo,
+      force: true,
+    });
+    chmodSync(locked, 0o644);
+
+    const printed = vi.mocked(console.error).mock.calls.flat().join('\n');
+    expect(exit).toBe(1);
+    // Its frontmatter is fine; telling the operator to repair it would send
+    // them at the wrong thing.
+    expect(printed).toContain('cannot read feature MD');
+    expect(printed).toContain('fix permissions');
+    expect(printed).not.toContain('repair the frontmatter');
+  });
+});
+
 describe('--check', () => {
   it('exits 0 when the cache matches the scan', async () => {
     writeFileSync(join(repo, 'src', 'a.test.ts'), '// @tests: feat\n', 'utf8');
@@ -377,7 +400,9 @@ describe('an unreadable features directory', () => {
     // Distinguishable from an absent directory, which is a legitimately empty
     // cache: a caller that could not tell them apart would diff against nothing
     // and call every FD drifted.
-    expect(load.failures).toEqual([{ root: featuresDir, code: 'EACCES', kind: 'features-dir' }]);
+    expect(load.failures).toMatchObject([
+      { root: featuresDir, code: 'EACCES', kind: 'features-dir' },
+    ]);
     expect(exit).toBe(1);
     await expect(cachedFor('feat', 'tests')).resolves.toEqual(['src/gone.test.ts']);
   });
