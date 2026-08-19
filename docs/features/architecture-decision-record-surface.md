@@ -4,8 +4,16 @@ category: Tooling
 deps: []
 entry-id: Q-0135
 links:
-  code: []
-  tests: []
+  code:
+    - src/docs/adr-schema.ts
+    - src/docs/docs-adr.ts
+    - src/docs/adr-new.ts
+    - src/hooks/validate-pushed-adrs.ts
+    - src/garden/detectors/adr.ts
+  tests:
+    - src/docs/__tests__/docs-adr.test.ts
+    - src/hooks/__tests__/validate-pushed-adrs.test.ts
+    - src/garden/detectors/__tests__/adr.test.ts
 name: Architecture Decision Record Surface
 packages:
   - package.json

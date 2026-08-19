@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import { walkRepo } from './fd-load.js';
 
 export interface DocRoots {
+  adr: string;
   features: string;
   roadmap: string;
   backlog: string;
@@ -50,6 +51,7 @@ function resolveDesignSubdir(cwd: string, sub: 'plans' | 'specs'): string {
  */
 export function loadDocRoots(cwd: string = process.cwd()): DocRoots {
   return {
+    adr: join(cwd, 'docs', 'adr'),
     features: join(cwd, 'docs', 'features'),
     roadmap: join(cwd, 'docs', 'roadmap.md'),
     backlog: join(cwd, 'docs', 'backlog.md'),

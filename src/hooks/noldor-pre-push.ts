@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { Readable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 
+import { renderAdrViolations, validatePushedAdrs } from './validate-pushed-adrs.js';
 import {
   createGitRunner,
   renderViolations,
@@ -61,10 +62,19 @@ export function recordReleasePush(opts: {
   sha: string;
   version: string;
 }): void {
-  const dir = join(opts.cwd, '.noldor');
+  appendReceipt(opts.cwd, 'release-pushes.log', `${opts.iso} ${opts.sha} ${opts.version}`);
+}
+
+/** Receipt line per repair push, mirroring {@link recordReleasePush}. */
+export function recordAdrRepair(opts: { cwd: string; iso: string; files: string[] }): void {
+  appendReceipt(opts.cwd, 'adr-repairs.log', `${opts.iso} ${opts.files.join(',')}`);
+}
+
+/** Shared appender for the audited-bypass receipt logs under `.noldor/`. */
+function appendReceipt(cwd: string, filename: string, line: string): void {
+  const dir = join(cwd, '.noldor');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const line = `${opts.iso} ${opts.sha} ${opts.version}\n`;
-  appendFileSync(join(dir, 'release-pushes.log'), line, 'utf8');
+  appendFileSync(join(dir, filename), `${line}\n`, 'utf8');
 }
 
 async function main(): Promise<number> {
@@ -104,6 +114,33 @@ async function main(): Promise<number> {
   } else if (scan.kind === 'violations') {
     process.stderr.write(`${renderViolations(scan.violations, scan.negatives)}\n`);
     return 1;
+  }
+
+  // Append-only gate for docs/adr/ — same every-allowed-push scope as the
+  // summary scan above. A repair push (NOLDOR_ADR_REPAIR=1) proceeds but is
+  // receipted, the same audited-bypass idiom as the release override below.
+  const adrScan = validatePushedAdrs({
+    git: createGitRunner(process.cwd()),
+    refLines,
+    env: process.env,
+  });
+  if (adrScan.kind === 'infra') {
+    process.stderr.write(`${adrScan.message}\n`);
+    return 2;
+  }
+  if (adrScan.kind === 'violations') {
+    process.stderr.write(`${renderAdrViolations(adrScan.violations)}\n`);
+    return 1;
+  }
+  if (adrScan.kind === 'repair') {
+    recordAdrRepair({
+      cwd: process.cwd(),
+      iso: new Date().toISOString(),
+      files: adrScan.violations.map((v) => v.file),
+    });
+    process.stderr.write(
+      `noldor-pre-push: NOLDOR_ADR_REPAIR override — receipted to .noldor/adr-repairs.log\n`,
+    );
   }
 
   // Only now: the receipt records a push that is actually going to happen.
