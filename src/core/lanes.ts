@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Path } from './session.js';
 
 /**
  * CR review lanes. Two are role-routed and carry their runner-role name:
@@ -77,7 +78,7 @@ export const CODEX_MANDATORY_KINDS: readonly ArtifactKind[] = ['spec', 'code'];
  * (`fast-track`, `micro-chore`) and the release paths are exempt, so drains
  * never block on a broken codex CLI.
  */
-export const CODEX_MANDATORY_PATHS: ReadonlySet<string> = new Set([
+export const CODEX_MANDATORY_PATHS: ReadonlySet<Path> = new Set<Path>([
   'specs-only-new',
   'specs-only-attach',
   'full-new',
@@ -85,20 +86,25 @@ export const CODEX_MANDATORY_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The mandate's read of the session marker: a real {@link Path}, `null`/
+ * `undefined` when no marker exists (ad-hoc runs carry no size signal), or
+ * `'corrupt-marker'` when a marker file is present but unreadable — that case
+ * fails CLOSED (mandate assumed on) because a torn marker in a genuine M/L/XL
+ * session must not silently drop the review the size requires.
+ */
+export type SessionPathSignal = Path | 'corrupt-marker' | null | undefined;
+
+/**
  * True when this review round must include the `codex` lane: a mandated kind
  * ({@link CODEX_MANDATORY_KINDS}) inside an M/L/XL session
- * ({@link CODEX_MANDATORY_PATHS}). A missing/unknown session path is exempt —
- * ad-hoc orchestrate runs outside a gate session carry no size signal.
+ * ({@link CODEX_MANDATORY_PATHS}). A missing session path is exempt; a
+ * present-but-unreadable marker (`'corrupt-marker'`) is mandate-on — see
+ * {@link SessionPathSignal}.
  */
-export function codexIsMandatory(
-  kind: ArtifactKind,
-  sessionPath: string | null | undefined,
-): boolean {
-  return (
-    CODEX_MANDATORY_KINDS.includes(kind) &&
-    sessionPath != null &&
-    CODEX_MANDATORY_PATHS.has(sessionPath)
-  );
+export function codexIsMandatory(kind: ArtifactKind, sessionPath: SessionPathSignal): boolean {
+  if (sessionPath == null || !CODEX_MANDATORY_KINDS.includes(kind)) return false;
+  if (sessionPath === 'corrupt-marker') return true;
+  return CODEX_MANDATORY_PATHS.has(sessionPath);
 }
 
 /**
@@ -108,7 +114,7 @@ export function codexIsMandatory(
  */
 export function withMandatoryCodex(
   kind: ArtifactKind,
-  sessionPath: string | null | undefined,
+  sessionPath: SessionPathSignal,
   lanes: readonly Lane[],
 ): Lane[] {
   if (!codexIsMandatory(kind, sessionPath) || lanes.includes('codex')) return [...lanes];

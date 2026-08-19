@@ -17,6 +17,7 @@ import {
   withMandatoryCodex,
   withMandatoryReviewer,
 } from '../core/lanes.js';
+import type { SessionPathSignal } from '../core/lanes.js';
 import { readSession } from '../core/session.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
@@ -60,7 +61,7 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
 export function resolveLanes(
   args: { slug: string; kind: ArtifactKind; lanes?: Lane[]; autonomous?: boolean },
   cfg: NoldorConfig | null,
-  sessionPath?: string | null,
+  sessionPath?: SessionPathSignal,
 ): Lane[] {
   // Every resolved set passes through withMandatoryReviewer: on spec/plan the
   // `reviewer` lane is always-on, so neither an operator's lane pick nor a
@@ -278,14 +279,16 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   const cwd = opts.cwd ?? process.cwd();
   const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
   const reviewProfile = resolveReviewProfile(cfg, opts.args.profile);
-  // Corrupt marker → null with a warning: the codex mandate then cannot be
-  // evaluated, and dropping it silently would look identical to an exempt run.
-  let sessionPath: string | null = null;
+  // readSession only throws when a marker file exists but cannot be parsed —
+  // that fails CLOSED ('corrupt-marker' → mandate assumed on): a torn marker
+  // in a genuine M/L/XL session must not silently drop the mandated codex lane.
+  let sessionPath: SessionPathSignal = null;
   try {
     sessionPath = readSession(cwd)?.path ?? null;
   } catch (err) {
+    sessionPath = 'corrupt-marker';
     console.error(
-      `session marker unreadable — codex mandate cannot be evaluated: ${(err as Error).message}`,
+      `session marker unreadable — codex mandate fails closed: ${(err as Error).message}`,
     );
   }
   const requested = resolveLanes(opts.args, cfg, sessionPath);
@@ -322,7 +325,9 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     requested.includes('codex')
   ) {
     console.error(
-      `lane 'codex' is mandatory for ${opts.args.kind} artifacts on ${sessionPath} sessions (entry size M/L/XL) — added to the requested lanes`,
+      sessionPath === 'corrupt-marker'
+        ? `lane 'codex' is mandatory for ${opts.args.kind} artifacts when the session marker is unreadable (fail-closed) — added to the requested lanes`
+        : `lane 'codex' is mandatory for ${opts.args.kind} artifacts on ${sessionPath} sessions (entry size M/L/XL) — added to the requested lanes`,
     );
   }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });

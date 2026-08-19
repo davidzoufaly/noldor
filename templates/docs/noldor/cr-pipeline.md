@@ -76,7 +76,8 @@ entry size M/L/XL per `sizeToPath()`), orchestrate unions the `codex` lane
 into every `--kind spec` and `--kind code` round (`withMandatoryCodex` in
 `src/core/lanes.ts`), so a big change never ships reviewed by exactly one
 model family. XS/S paths (`fast-track`, `micro-chore`) and sessionless runs
-are exempt, so drains never block on a broken codex CLI. The union is
+are exempt, so drains never block on a broken codex CLI; a
+present-but-unreadable marker fails closed (mandate assumed on). The union is
 idempotent — a configured `crLanes` block that already lists codex is
 unchanged — and the overwrite guard withholds `keep-and-skip` for the
 mandated lane, mirroring the reviewer mandate on spec/plan.
