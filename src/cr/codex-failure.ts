@@ -35,13 +35,15 @@ export const AUTH_HINT_RE =
 export const MODEL_VERSION_RE = /model requires a newer version of codex/i;
 
 /**
- * An `invalid_request_error` whose body names a model, in either order. A model-shaped 400
- * is a request problem, never a credential problem, so it suppresses the auth hint even
- * when the body happens to trip {@link AUTH_HINT_RE} (a "401" inside a request id, appended
- * login boilerplate).
+ * An `invalid_request_error` naming a model on the SAME line, in either order. A
+ * model-shaped 400 is a request problem, never a credential problem, so it suppresses the
+ * auth hint even when the body happens to trip {@link AUTH_HINT_RE} (a "401" inside a
+ * request id, appended login boilerplate). Same-line on purpose: codex stderr runs to
+ * hundreds of KB, and a cross-line pairing would let an unrelated `model` word (an echoed
+ * `-c model=` flag) suppress a genuine auth hint.
  */
 export const MODEL_REQUEST_ERROR_RE =
-  /invalid_request_error[\s\S]*?\bmodel\b|\bmodel\b[\s\S]*?invalid_request_error/i;
+  /invalid_request_error[^\n]*\bmodel\b|\bmodel\b[^\n]*invalid_request_error/i;
 
 /**
  * Pick the remediation hint for a failure's stderr. Precedence: the model-version
@@ -50,7 +52,7 @@ export const MODEL_REQUEST_ERROR_RE =
  * model-shaped 400 explicitly disclaims auth; only then does auth-shaped stderr earn the
  * login hint. Scans the WHOLE stderr — the actionable line can sit far outside any tail.
  */
-export function codexFailureHint(stderr: string): string {
+function codexFailureHint(stderr: string): string {
   if (MODEL_VERSION_RE.test(stderr)) {
     return (
       ' — the configured model requires a newer Codex CLI; run: npm install -g @openai/codex@latest' +

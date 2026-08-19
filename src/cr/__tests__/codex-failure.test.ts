@@ -74,6 +74,13 @@ describe('MODEL_REQUEST_ERROR_RE', () => {
   it('does not match the models-cache noise (no invalid_request_error)', () => {
     expect(MODEL_REQUEST_ERROR_RE.test(MODELS_NOISE)).toBe(false);
   });
+
+  it('does not pair invalid_request_error with a model word on a DIFFERENT line', () => {
+    // Codex stderr runs to hundreds of KB; an echoed `-c model=` flag far from an
+    // unrelated invalid_request_error must not suppress a genuine auth hint.
+    const stderr = `spawning: codex exec -c model=gpt-5.5\n${'x'.repeat(1000)}\n400 invalid_request_error: prompt too long`;
+    expect(MODEL_REQUEST_ERROR_RE.test(stderr)).toBe(false);
+  });
 });
 
 describe('formatStderrTail', () => {
