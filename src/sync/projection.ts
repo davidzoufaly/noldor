@@ -271,6 +271,39 @@ export interface CachedLoad {
 }
 
 /**
+ * Decide what one ENOENT on a feature MD means. The same code arrives whether a
+ * single FD was deleted mid-run — benign, it wants no links either way — or the
+ * whole directory went, which every remaining FD would hit identically and which
+ * must be recorded once rather than repeated per slug.
+ *
+ * Shared by the read and write paths so the two can never disagree about a race
+ * they both face.
+ *
+ * @param featuresDir - Directory the run is projecting onto
+ * @param path - The feature MD that raised ENOENT
+ * @returns `skip` for a vanished FD, otherwise the failure to record before stopping
+ */
+function classifyFdEnoent(
+  featuresDir: string,
+  path: string,
+): { skip: true } | { skip: false; failure: ScanFailure } {
+  if (existsSync(featuresDir)) {
+    console.warn(`WARN: ${path} disappeared mid-run — skipped.`);
+    return { skip: true };
+  }
+  return {
+    skip: false,
+    failure: {
+      root: featuresDir,
+      code: 'ENOENT',
+      kind: 'features-dir',
+      what: 'feature MD directory vanished mid-run',
+      remedy: 'restore the feature MD directory and re-run',
+    },
+  };
+}
+
+/**
  * Load several `links.*` keys in ONE pass over the FD directory. `garden detect`
  * asks for all three, and parsing every FD once per kind is the dominant cost of
  * the drift pass.
@@ -337,17 +370,9 @@ export async function loadCachedAll(
       // empty one: callers would diff every tagged slug against nothing and tell
       // the operator to create files that were never missing.
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        if (existsSync(featuresDir)) {
-          console.warn(`WARN: ${join(featuresDir, f)} disappeared mid-run — skipped.`);
-          continue;
-        }
-        failures.push({
-          root: featuresDir,
-          code: 'ENOENT',
-          kind: 'features-dir',
-          what: 'feature MD directory vanished mid-run',
-          remedy: 'restore the feature MD directory and re-run',
-        });
+        const verdict = classifyFdEnoent(featuresDir, join(featuresDir, f));
+        if (verdict.skip) continue;
+        failures.push(verdict.failure);
         break;
       }
       fdFailure(
@@ -647,20 +672,12 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
       // benign would log "disappeared" for every slug and exit 0 having written
       // nothing, which is the silent green this module exists to prevent.
       if (code === 'ENOENT') {
-        if (existsSync(featuresDir)) {
-          console.warn(`WARN: ${featureMd} disappeared mid-run — skipped.`);
-          continue;
-        }
-        // The directory is gone, so every remaining slug would fail the same
-        // way. Record it once against the directory and stop: repeating it per
+        // The directory being gone means every remaining slug would fail the
+        // same way, so it is recorded once and the loop stops: repeating it per
         // FD would bury the cause and claim the rest were updated.
-        writeFailures.push({
-          root: featuresDir,
-          code,
-          kind: 'features-dir',
-          what: 'feature MD directory vanished mid-run',
-          remedy: 'restore the feature MD directory and re-run',
-        });
+        const verdict = classifyFdEnoent(featuresDir, featureMd);
+        if (verdict.skip) continue;
+        writeFailures.push(verdict.failure);
         break;
       }
       // Any other filesystem error is an expected failure, not a programmer
