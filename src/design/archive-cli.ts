@@ -93,12 +93,13 @@ export function rewriteDesignLinks(
     if (links?.design !== from) continue;
     // Targeted line replace of the frontmatter value, not matter.stringify —
     // re-serializing the whole document would reformat unrelated frontmatter.
-    // The pattern tolerates optional quoting; the escape keeps the path from
-    // being read as regex syntax.
+    // Line-anchored on the `design:` KEY at its indentation so a comment or
+    // unrelated line merely containing the same path can never be the match;
+    // the escape keeps the path from being read as regex syntax.
     const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const next = raw.replace(
-      new RegExp(`(design:\\s*)(["']?)${escaped}\\2`),
-      (_m, prefix: string, quote: string) => `${prefix}${quote}${to}${quote}`,
+      new RegExp(`^(\\s*design:\\s*)(["']?)${escaped}\\2(\\s*)$`, 'm'),
+      (_m, prefix: string, quote: string, tail: string) => `${prefix}${quote}${to}${quote}${tail}`,
     );
     const rel = abs
       .slice(root.length + 1)

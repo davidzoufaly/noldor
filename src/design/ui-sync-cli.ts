@@ -89,12 +89,16 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
       const rel = `${BASELINE_DIR}/${s.surface}.pen`;
       // Plain `git add` (never --intent-to-add: a no-op on tracked files and
       // invisible to `diff --cached`, which would make the ✓ path unreachable).
-      // Missing file (uninitialized, not yet created this run) exits non-zero —
-      // ignore; there is nothing to stage until the session creates it.
-      try {
-        execFileSync('git', ['add', '--', rel], { cwd, stdio: 'ignore' });
-      } catch {
-        /* nothing to stage yet */
+      // A missing file (uninitialized, not yet created this run) is the one
+      // expected failure — anything else (index lock, permissions) is surfaced,
+      // never swallowed into an ordinary "not staged" row.
+      if (existsSync(join(cwd, rel))) {
+        try {
+          execFileSync('git', ['add', '--', rel], { cwd, stdio: 'pipe' });
+        } catch (err) {
+          const stderr = (err as { stderr?: Buffer | string }).stderr?.toString() ?? String(err);
+          console.error(`  ✗ git add failed for ${rel}: ${stderr.trim()}`);
+        }
       }
       const v = validateBaselineFile(join(cwd, rel), { staged: isStaged(cwd, rel) });
       if (v.ok) {

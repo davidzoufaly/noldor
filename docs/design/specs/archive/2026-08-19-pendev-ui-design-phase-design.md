@@ -97,7 +97,7 @@ Gate Step 2.5 commits the `.pen` together with the spec (same commit). The spec 
 
 ### U5 — Ship-time baseline write-back (prose, `/noldor-gate` Step 4)
 
-New Step 4 bullet for FD-carrying paths, ordered **before** the design-archive bullet so baseline edits, archive moves, and `phase: done` ride one flip commit: when the ship-time verdict (U2) is `required`, update every affected surface's `docs/design/ui/baseline/<surface>.pen` (pencil MCP) to reflect the **as-built** UI — starting from the feature `.pen`'s `FINAL:<surface>:` pages (the prefix routes each winner to its baseline file) and adjusting for implementation drift. The approved feature `.pen` itself is not touched (U3 immutability).
+New Step 4 bullet for FD-carrying paths, ordered **after** the design-archive seam (whose empty-index assertion must precede any staging) so baseline edits, archive moves, and `phase: done` ride one flip commit: when the ship-time verdict (U2) is `required`, update every affected surface's `docs/design/ui/baseline/<surface>.pen` (pencil MCP) to reflect the **as-built** UI — starting from the feature `.pen`'s `FINAL:<surface>:` pages (the prefix routes each winner to its baseline file) and adjusting for implementation drift. The approved feature `.pen` itself is not touched (U3 immutability).
 
 If pencil MCP is unavailable at Step 4 in a `required` session, the write-back is skipped **loudly**: the gate prints the debt and the U6 remediation command; U7 turns red until it runs. Ship is not blocked — baseline sync is repayable debt, the artifact trail (feature `.pen`, archived) survives, and blocking PR delivery on editor availability would wedge non-Claude runners.
 
@@ -134,7 +134,7 @@ Wired into: **(a)** `pnpm noldor checks ui-design-freshness` — exits 0 on `fre
 
 ### Data flow
 
-Roadmap entry (`Touches:`) → promote → spec dialogue: spec-time verdict (U2, persisted) → seed from baseline per affected surface (U4) → candidates → one `FINAL:<surface>:` per surface → spec + `.pen` committed (Step 2.5) → spec CR round → plan → implementation → ship: ship-time verdict recomputed → baseline write-back (U5) → archive feature `.pen` + rewrite `links.design` + phase-flip in one commit → freshness green (U7) → pr-flow. Next feature seeds from the just-updated baseline. Any missed write-back → U7 red → U6 `ui-sync`.
+Roadmap entry (`Touches:`) → promote → spec dialogue: spec-time verdict (U2, persisted) → seed from baseline per affected surface (U4) → candidates → one `FINAL:<surface>:` per surface → spec + `.pen` committed (Step 2.5) → spec CR round → plan → implementation → ship: ship-time verdict recomputed → archive feature `.pen` + rewrite `links.design` (index assertion first) → baseline write-back (U5) → phase-flip in one commit → freshness green (U7) → pr-flow. Next feature seeds from the just-updated baseline. Any missed write-back → U7 red → U6 `ui-sync`.
 
 ### Error handling
 
@@ -160,7 +160,7 @@ Roadmap entry (`Touches:`) → promote → spec dialogue: spec-time verdict (U2,
 5. A `required` non-waived spec session commits `docs/design/ui/<date>-<slug>.pen` in the same commit as the spec, seeded from every affected surface's baseline, with exactly one `FINAL:<surface>:` page per affected surface at approval; the artifact is byte-identical from that commit until the archive move, and its pin resolves via the original path per U3.
 6. A `skip` session reaches spec approval with zero design-stage prompts and no `.pen`; a `required` session with pencil MCP unavailable stops for an explicit operator waiver recorded in the session marker (`session.uiWaiver`), distinguishable by automation from a missing artifact.
 7. Ship time recomputes the verdict from `origin/main...HEAD`; the U2 reconciliation matrix holds (emerged-UI ships surface the U6 debt; designed-but-no-UI ships no-op the write-back and still archive).
-8. Gate Step 4 prose (+ templates twin) orders write-back → archive (with link rewrite) → phase-flip in one commit, and runs the freshness check advisory-only after the flip commit, before `pr-flow`; blocking enforcement lives solely in release preflight.
+8. Gate Step 4 prose (+ templates twin) orders index-assertion → archive (with link rewrite) → write-back → phase-flip in one commit, and runs the freshness check advisory-only after the flip commit, before `pr-flow`; blocking enforcement lives solely in release preflight.
 9. `evaluateUiDesignFreshness` returns the U7 discriminated per-surface verdict using commit ancestry; unit-tested for the full matrix including rebase/cherry-pick and shallow-history cases.
 10. `pnpm noldor checks ui-design-freshness` exits 0 on `fresh`/`skipped` and non-zero on `stale`/`uninitialized`, printing per-surface rows with remediation hints; release preflight blocks on `stale` (advisory on `uninitialized`); `doctor` surfaces it as advisory.
 11. `pnpm noldor design ui-sync` reports per-surface verdicts with edit instructions, validates what a Node process can see (existence, non-empty, staged), leaves changes staged without committing, and states that remediation completes at commit; `.pen` content rules (page-name convention) are validated in-session via pencil MCP.

@@ -97,6 +97,12 @@ const UiGlobSchema = z
   })
   .refine((g) => !/[@!+?*]\(/.test(g), {
     message: 'extglob patterns are not supported in uiPaths/uiSurfaces (plain globs + braces only)',
+  })
+  .refine((g) => !g.startsWith('/') && !/^[A-Za-z]:/.test(g) && !g.includes('\\'), {
+    message: 'uiPaths/uiSurfaces globs must be repo-relative POSIX paths',
+  })
+  .refine((g) => !g.split('/').includes('..'), {
+    message: 'uiPaths/uiSurfaces globs must not contain .. segments',
   });
 
 /** Baseline surface names become `docs/design/ui/baseline/<name>.pen` — keep them slug-shaped. */
