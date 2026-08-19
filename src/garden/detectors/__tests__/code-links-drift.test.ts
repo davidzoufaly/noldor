@@ -67,7 +67,7 @@ describe(linksDriftGaps, () => {
     // drifted, so the gap names the directory and no comparison runs.
     const gaps = linksDriftGaps(
       new Map([['tests', scanOf(['src/a.test.ts'])]]),
-      cacheOf([], [{ root: 'docs/features', code: 'EACCES', kind: 'root' }]),
+      cacheOf([], [{ root: 'docs/features', code: 'EACCES', kind: 'features-dir' }]),
       [testsAdapter],
     );
     expect(gaps).toHaveLength(1);

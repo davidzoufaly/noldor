@@ -308,6 +308,10 @@ describe('failure reporting', () => {
     const printed = vi.mocked(console.error).mock.calls.flat().join('\n');
     expect(printed).toContain('cannot parse feature MD');
     expect(printed).not.toContain('cannot read scan root');
+    // The remediation has to name something the operator can actually change:
+    // a broken feature MD is not reachable from `scanPaths`.
+    expect(printed).toContain('repair the frontmatter');
+    expect(printed).not.toContain('scanPaths');
   });
 });
 
@@ -358,7 +362,7 @@ describe('collectTaggedMany', () => {
 });
 
 describe('an unreadable features directory', () => {
-  it('is reported as a root failure rather than thrown, and clears nothing', async () => {
+  it('is reported under its own failure kind rather than thrown, and clears nothing', async () => {
     const featuresDir = join(repo, 'docs', 'features');
     writeFd('feat', { tests: ['src/gone.test.ts'] });
     chmodSync(featuresDir, 0o000);
@@ -373,7 +377,7 @@ describe('an unreadable features directory', () => {
     // Distinguishable from an absent directory, which is a legitimately empty
     // cache: a caller that could not tell them apart would diff against nothing
     // and call every FD drifted.
-    expect(load.failures).toEqual([{ root: featuresDir, code: 'EACCES', kind: 'root' }]);
+    expect(load.failures).toEqual([{ root: featuresDir, code: 'EACCES', kind: 'features-dir' }]);
     expect(exit).toBe(1);
     await expect(cachedFor('feat', 'tests')).resolves.toEqual(['src/gone.test.ts']);
   });

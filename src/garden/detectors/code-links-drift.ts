@@ -58,9 +58,9 @@ export function linksDriftGaps(
   adapters: readonly LinkAdapter[],
 ): Gap[] {
   const gaps: Gap[] = [];
-  const cacheUnavailable = cached.failures.filter((f) => f.kind === 'root');
+  const cacheUnavailable = cached.failures.filter((f) => f.kind === 'features-dir');
   const unparsed = new Set(
-    cached.failures.filter((f) => f.kind !== 'root').map((f) => basename(f.root, '.md')),
+    cached.failures.filter((f) => f.kind === 'feature-md').map((f) => basename(f.root, '.md')),
   );
 
   for (const failure of cacheUnavailable) {

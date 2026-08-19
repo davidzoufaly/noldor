@@ -100,8 +100,13 @@ export interface ScanFailure {
   /** The path that could not be read — a scan root, a scanned file, or an FD. */
   root: string;
   code: string;
-  /** Which input failed, so the report can suggest a fix that applies to it. */
-  kind: 'root' | 'file' | 'feature-md';
+  /**
+   * Which input failed, so the report can suggest a fix that applies to it and
+   * callers can tell the scopes apart. `root` is a scan root the consumer
+   * configured; `features-dir` is the feature-MD directory itself, whose loss
+   * means the whole cache is unknown; `file` and `feature-md` are single files.
+   */
+  kind: 'root' | 'features-dir' | 'file' | 'feature-md';
 }
 
 /** One walk of one adapter's roots: what it found, and what it could not read. */
@@ -259,7 +264,7 @@ export async function loadCachedAll(
     // FD as drifted. It is reported as a `root` failure so callers can tell
     // "the whole cache is unavailable" from "these individual FDs would not
     // parse" and withhold cache-dependent claims accordingly.
-    if (code !== 'ENOENT') failures.push({ root: featuresDir, code, kind: 'root' });
+    if (code !== 'ENOENT') failures.push({ root: featuresDir, code, kind: 'features-dir' });
   }
   for (const f of entries) {
     // An FD whose frontmatter will not parse is not a programmer error — it is
@@ -445,8 +450,17 @@ function reportTaglessKept(kept: string[], key: LinkAdapter['key'], quiet: boole
 /** How each failing input is described, so the fix suggested actually applies. */
 const FAILURE_LABEL: Record<ScanFailure['kind'], string> = {
   root: 'cannot read scan root',
+  'features-dir': 'cannot read feature MD directory',
   file: 'cannot read scanned file',
   'feature-md': 'cannot parse feature MD',
+};
+
+/** The remediation that applies to each failing input. Only a scan root lives in `scanPaths`. */
+const FAILURE_REMEDY: Record<ScanFailure['kind'], string> = {
+  root: 'fix the root, or drop a stale one from `scanPaths`',
+  'features-dir': 'fix permissions on the feature MD directory',
+  file: 'fix permissions on the listed file(s)',
+  'feature-md': 'repair the frontmatter of the listed feature MD(s)',
 };
 
 /**
@@ -458,9 +472,10 @@ function reportFailures(failures: ScanFailure[]): boolean {
   for (const f of failures) {
     console.error(`${FAILURE_LABEL[f.kind]} ${f.root} (${f.code})`);
   }
+  const remedies = [...new Set(failures.map((f) => FAILURE_REMEDY[f.kind]))];
   console.error(
     `${failures.length} input(s) could not be read — the scan is not authoritative, ` +
-      'so no links were cleared. Fix them, or drop a stale root from `scanPaths`.',
+      `so no links were cleared. To fix: ${remedies.join('; ')}.`,
   );
   return true;
 }
