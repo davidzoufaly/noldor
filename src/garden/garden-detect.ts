@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 
 import matter from 'gray-matter';
 
@@ -784,7 +784,11 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     loadDocRoots(repo).features,
     adapters.map((a) => a.key),
   );
-  sddGaps.push(...linksDriftGaps(scans, cachedAll, adapters, loadDocRoots(repo).features));
+  // Repo-relative, like every sibling detector's gap text — an absolute path
+  // here would leak this machine's checkout prefix into the report.
+  sddGaps.push(
+    ...linksDriftGaps(scans, cachedAll, adapters, relative(repo, loadDocRoots(repo).features)),
+  );
 
   // FD link targets: stat what every FD's frontmatter points at (code/tests/
   // docs/spec/plan). The 2026-07 audit found 36/50 FDs link-rotted while every

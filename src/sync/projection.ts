@@ -611,19 +611,23 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
-      // A permission or filesystem error on one FD is an expected failure, not a
-      // programmer error. Rethrowing would abandon every remaining slug midway
-      // through a partially rewritten set and hand the operator a raw stack,
-      // while the read side of this same module reports and exits cleanly.
+      // An FD deleted between the load and the write wants no links at all, so
+      // the race has already resolved itself: say so and carry on rather than
+      // redding a run — the pre-commit hook included — over nothing.
+      if (code === 'ENOENT') {
+        console.warn(`WARN: ${featureMd} disappeared mid-run — skipped.`);
+        continue;
+      }
+      // Any other filesystem error is an expected failure, not a programmer
+      // error. Rethrowing would abandon every remaining slug midway through a
+      // partially rewritten set and hand the operator a raw stack, while the
+      // read side of this same module reports and exits cleanly.
       writeFailures.push({
         root: featureMd,
         code,
         kind: 'feature-md',
-        what: code === 'ENOENT' ? 'feature MD disappeared mid-run' : 'cannot write feature MD',
-        remedy:
-          code === 'ENOENT'
-            ? 're-run the sync; nothing is misconfigured'
-            : 'fix permissions on the listed feature MD(s)',
+        what: 'cannot write feature MD',
+        remedy: 'fix permissions on the listed feature MD(s)',
       });
     }
   }
