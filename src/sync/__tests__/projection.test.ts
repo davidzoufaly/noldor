@@ -199,6 +199,18 @@ describe('an unreadable feature MD', () => {
   });
 });
 
+describe('--force reporting', () => {
+  it('does not claim it kept links it cleared in the same run', async () => {
+    writeFd('feat', { tests: ['src/gone.test.ts'] });
+
+    await runProjection(rooted(testsAdapter, ['src'], 'default'), { cwd: repo, force: true });
+
+    const printed = vi.mocked(console.log).mock.calls.flat().join('\n');
+    await expect(cachedFor('feat', 'tests')).resolves.toEqual([]);
+    expect(printed).not.toContain('existing links kept');
+  });
+});
+
 describe('--check', () => {
   it('exits 0 when the cache matches the scan', async () => {
     writeFileSync(join(repo, 'src', 'a.test.ts'), '// @tests: feat\n', 'utf8');
@@ -349,9 +361,11 @@ describe('a tag naming no feature MD', () => {
     });
 
     // Drift would name `sync test-links`, which cannot create the missing FD —
-    // a red no command can clear.
+    // a red no command can clear. It is gated by garden instead.
     expect(exit).toBe(0);
-    expect(vi.mocked(console.warn).mock.calls.flat().join('\n')).toContain('no-such-feature');
+    const warned = vi.mocked(console.warn).mock.calls.flat().join('\n');
+    expect(warned).toContain('no-such-feature');
+    expect(warned.split('\n').filter((l) => l.includes('no-such-feature'))).toHaveLength(1);
   });
 });
 

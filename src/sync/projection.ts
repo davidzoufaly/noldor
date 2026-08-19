@@ -444,16 +444,21 @@ export function missingFdSlugs(
  * @param scanned - slug → scanned paths
  * @param cached - slug → cached arrays
  * @param adapter - Supplies the preserve and unownable predicates
+ * @param force - When set, nothing is kept, so nothing is reported
  * @returns The affected slugs, sorted
  */
 export function taglessKeptSlugs(
   scanned: Map<string, string[]>,
   cached: Map<string, string[]>,
   adapter: LinkAdapter,
+  force = false,
 ): string[] {
   const kept: string[] = [];
   for (const [slug, current] of cached) {
-    if (!project(scanned.get(slug) ?? [], current, adapter).skipped) continue;
+    // `force` is what decides whether these entries are kept at all, so the
+    // report has to see it: without it a forced run announces it preserved
+    // links it cleared in the same pass.
+    if (!project(scanned.get(slug) ?? [], current, adapter, force).skipped) continue;
     const actionable = current.filter((p) => !adapter.preserve(p) && !adapter.unownable(p));
     if (actionable.length > 0) kept.push(slug);
   }
@@ -527,10 +532,10 @@ function reportTaglessKept(kept: string[], key: LinkAdapter['key'], quiet: boole
  * drift: no sync run can reconcile them, so a drift line would name a command
  * that cannot clear it.
  */
-function reportMissingFds(slugs: string[], adapter: LinkAdapter): void {
+function reportMissingFds(slugs: string[], adapter: LinkAdapter, featuresDir: string): void {
   for (const slug of slugs) {
     console.warn(
-      `WARN: ${adapter.tagLabel} "${slug}" referenced but docs/features/${slug}.md does not exist.`,
+      `WARN: ${adapter.tagLabel} "${slug}" referenced but ${join(featuresDir, `${slug}.md`)} does not exist.`,
     );
   }
 }
@@ -576,7 +581,7 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
 
   if (opts.check) {
     const drift = diffProjection(scanned, cached, adapter);
-    reportMissingFds(missingFdSlugs(scanned, cached), adapter);
+    reportMissingFds(missingFdSlugs(scanned, cached), adapter, featuresDir);
     reportTaglessKept(taglessKeptSlugs(scanned, cached, adapter), adapter.key, opts.quiet ?? false);
     if (drift.length === 0) {
       console.log(`links.${adapter.key} is in sync with ${adapter.tagLabel} tags.`);
@@ -595,10 +600,13 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   // tags were all removed survives only in `cached`; visiting it with an empty
   // path list is what lets the projection clear its stale entries. Iterating the
   // scan map alone is the defect this engine exists to remove.
-  const slugs = new Set([...scanned.keys(), ...cached.keys()]);
+  // Drive the writes off the FDs that exist. Slugs naming no feature MD are
+  // reported once by `reportMissingFds`; visiting them here only to catch ENOENT
+  // produced a second warning for the same fact. An FD deleted between the load
+  // and the write still surfaces, as a write failure.
   let updated = 0;
   const writeFailures: ScanFailure[] = [];
-  for (const slug of [...slugs].toSorted()) {
+  for (const slug of [...cached.keys()].toSorted()) {
     const featureMd = join(featuresDir, `${slug}.md`);
     const paths = scanned.get(slug) ?? [];
     try {
@@ -607,12 +615,6 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
       }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code ?? 'UNKNOWN';
-      if (code === 'ENOENT') {
-        console.warn(
-          `WARN: ${adapter.tagLabel} "${slug}" referenced but ${featureMd} does not exist.`,
-        );
-        continue;
-      }
       // A permission or filesystem error on one FD is an expected failure, not a
       // programmer error. Rethrowing would abandon every remaining slug midway
       // through a partially rewritten set and hand the operator a raw stack,
@@ -629,7 +631,20 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   console.log(
     `Scanned ${scan.tagged.length} file(s), wrote links.${adapter.key} on ${updated} feature MD(s).`,
   );
-  reportMissingFds(missingFdSlugs(scanned, cached), adapter);
-  reportTaglessKept(taglessKeptSlugs(scanned, cached, adapter), adapter.key, opts.quiet ?? false);
-  return reportFailures(writeFailures) ? 1 : 0;
+  reportMissingFds(missingFdSlugs(scanned, cached), adapter, featuresDir);
+  reportTaglessKept(
+    taglessKeptSlugs(scanned, cached, adapter, opts.force ?? false),
+    adapter.key,
+    opts.quiet ?? false,
+  );
+  if (writeFailures.length === 0) return 0;
+  // Deliberately not `reportFailures`: that text says the scan was not
+  // authoritative and nothing was cleared, which is the opposite of what
+  // happened here — the links above were written and only these FDs were missed.
+  for (const f of writeFailures) console.error(`${f.what} ${f.root} (${f.code})`);
+  console.error(
+    `${writeFailures.length} feature MD(s) could not be written — the rest were updated. ` +
+      `To fix: ${[...new Set(writeFailures.map((f) => f.remedy))].join('; ')}.`,
+  );
+  return 1;
 }

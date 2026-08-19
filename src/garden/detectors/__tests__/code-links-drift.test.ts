@@ -167,3 +167,19 @@ describe('gap text follows the failure, not the kind', () => {
     expect(gaps[0].message).not.toContain('cannot parse');
   });
 });
+
+describe('a tag naming no feature MD', () => {
+  it('is gated under its own category rather than reported as drift', () => {
+    const gaps = linksDriftGaps(
+      new Map([['tests', { tagged: [{ path: 'src/a.test.ts', tags: ['ghost'] }], failures: [] }]]),
+      { byKey: new Map([['tests', new Map([['real', []]])]]), failures: [] },
+      [testsAdapter],
+    );
+    const missing = gaps.filter((g) => g.category === 'links.tests missing FD');
+    expect(missing.map((g) => g.itemId)).toEqual(['ghost']);
+    expect(missing[0].message).toContain('does not exist');
+    expect(gaps.some((g) => g.category === 'links.tests drift' && g.itemId === 'ghost')).toBe(
+      false,
+    );
+  });
+});

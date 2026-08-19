@@ -2,7 +2,7 @@
 
 import { basename } from 'node:path';
 
-import { buildSlugMap, diffProjection } from '../../sync/projection.js';
+import { buildSlugMap, diffProjection, missingFdSlugs } from '../../sync/projection.js';
 import type { CachedLoad, LinkAdapter, ScanResult } from '../../sync/projection.js';
 import type { Gap } from '../../core/fd-load.js';
 
@@ -94,12 +94,22 @@ export function linksDriftGaps(
       continue;
     }
     if (cacheUnavailable.length > 0) continue;
+    const scanned = buildSlugMap(scan.tagged);
+    const cachedForKind = cached.byKey.get(adapter.key) ?? new Map<string, string[]>();
+    // A tag naming no feature MD is not drift — no sync run can reconcile it —
+    // but it still has to be gated, or a typo'd tag silently detaches a file
+    // from its feature. It gets its own category so the remedy is honest.
+    for (const slug of missingFdSlugs(scanned, cachedForKind)) {
+      gaps.push({
+        category: `links.${adapter.key} missing FD`,
+        itemId: slug,
+        message: `${adapter.tagLabel} "${slug}" is tagged in ${scanned.get(slug)?.length ?? 0} file(s) but docs/features/${slug}.md does not exist — fix the tag or create the FD`,
+      });
+    }
     gaps.push(
-      ...detectLinksDrift(
-        buildSlugMap(scan.tagged),
-        cached.byKey.get(adapter.key) ?? new Map(),
-        adapter,
-      ).filter((gap) => !unreadable.has(gap.itemId)),
+      ...detectLinksDrift(scanned, cachedForKind, adapter).filter(
+        (gap) => !unreadable.has(gap.itemId),
+      ),
     );
   }
   return gaps;
