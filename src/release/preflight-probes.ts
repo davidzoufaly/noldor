@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { loadConfigSync, resolveSessionTtlHours, type NoldorConfig } from '../core/config.js';
+import { checkAdr } from '../docs/docs-adr.js';
 import { checkArchitecture } from '../docs/docs-architecture.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { isSessionStale, readSession } from '../core/session.js';
@@ -49,6 +50,7 @@ export const ALL_ROW_IDS: readonly PreflightRowId[] = [
   'validate-features',
   'gate-compliance',
   'architecture',
+  'adr',
   'cr-gate',
   'npm-name',
 ];
@@ -141,6 +143,35 @@ function overrideSkip(id: PreflightRowId, envVar: string): PreflightRow {
     status: 'skipped',
     detail: `SKIPPED via ${envVar}=1`,
     override: `${envVar}=1`,
+  };
+}
+
+/**
+ * Shared shape of the doc-surface probes (`architecture`, `adr`): audited
+ * override first, then the surface's own absent/ok/blocking mapping — `absent`
+ * is what keeps a blocking gate adoption-safe for a repo that never opted in.
+ */
+async function docSurfaceRow(
+  id: PreflightRowId,
+  envVar: string,
+  check: () => Promise<{ status: string; findings: readonly { message: string }[] }>,
+  details: { absent: string; ok: string; blocking: string; fix: string },
+): Promise<PreflightRow> {
+  if (process.env[envVar] === '1') {
+    return overrideSkip(id, envVar);
+  }
+  const report = await check();
+  if (report.status === 'absent') {
+    return { id, status: 'skipped', detail: details.absent };
+  }
+  if (report.status === 'ok') {
+    return { id, status: 'ok', detail: details.ok };
+  }
+  return {
+    id,
+    status: 'blocking',
+    detail: report.findings[0]?.message ?? details.blocking,
+    fix: details.fix,
   };
 }
 
@@ -431,24 +462,28 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
    * The override is read first: an overridden run must report through the
    * override tag rather than depending on what the folder happens to hold.
    */
-  architecture: async (ctx) => {
-    if (process.env.RELEASE_SKIP_ARCHITECTURE === '1') {
-      return overrideSkip('architecture', 'RELEASE_SKIP_ARCHITECTURE');
-    }
-    const report = await checkArchitecture(ctx.cwd);
-    if (report.status === 'absent') {
-      return { id: 'architecture', status: 'skipped', detail: 'no opted-in docs/architecture/' };
-    }
-    if (report.status === 'ok') {
-      return { id: 'architecture', status: 'ok', detail: 'architecture pages complete' };
-    }
-    return {
-      id: 'architecture',
-      status: 'blocking',
-      detail: report.findings[0]?.message ?? 'architecture pages incomplete',
+  architecture: (ctx) =>
+    docSurfaceRow('architecture', 'RELEASE_SKIP_ARCHITECTURE', () => checkArchitecture(ctx.cwd), {
+      absent: 'no opted-in docs/architecture/',
+      ok: 'architecture pages complete',
+      blocking: 'architecture pages incomplete',
       fix: 'Run `pnpm noldor docs architecture --check` and fill in each reported page.',
-    };
-  },
+    }),
+
+  /**
+   * Decision records must validate before a release — but only for a repo that
+   * opted in by writing one. `checkAdr` reports `absent` for a missing folder
+   * or one with no records, so a consumer who has written no ADRs is never
+   * blocked. This row is what catches an invalid record landed outside the
+   * push seam (release pushes, override merges, hand edits on main).
+   */
+  adr: (ctx) =>
+    docSurfaceRow('adr', 'RELEASE_SKIP_ADR', () => checkAdr(ctx.cwd), {
+      absent: 'no decision records in docs/adr/',
+      ok: 'decision records valid',
+      blocking: 'decision records invalid',
+      fix: 'Run `pnpm noldor docs adr --check` and repair each reported record.',
+    }),
 
   'cr-gate': async (ctx) => {
     if (process.env.RELEASE_SKIP_CR_GATE === '1') {

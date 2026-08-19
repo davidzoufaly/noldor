@@ -183,19 +183,6 @@ An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never ap
 
 Nothing tells an agent to reach for the framework's own wait primitive, so a session running inside a harness that ships a generic monitor or polling tool suggests that instead, and `noldor wait` (PR #183) stays invisible at exactly the moment it applies. Record the preference where the agent actually reads it — a scoped rule under `.noldor/rules/` that lands on the relevant stage — rather than as prose in a guide nobody re-reads mid-task. The point is runner-independence: a harness-specific monitor tool is not available when the runner is codex or opencode, while the framework's primitive is.
 
-### Architecture Decision Record Surface
-
-- id: Q-0135
-- area: docs
-- type: feat
-- since: 2026-08-17
-- size: M
-- impact: med
-- confidence: med
-- split-from: Q-0093
-
-Q-0093 shipped `docs/architecture/` and explicitly carved decision records out of it — its Non-goals says ADRs are "a different artifact (append-only, dated, superseded-by chains) with a different lifecycle. Carved to a sibling roadmap entry" — but that sibling was never minted, so the shipped spec references an entry that does not exist. This is it. Wanted: `docs/adr/NNNN-<slug>.md` with validated frontmatter (`status: accepted | superseded`, `date`, `supersedes` / `superseded-by`), an append-only discipline the framework can check, and a `loadDocRoots` key. The demand is already concrete: `Package Runtime Representation ADR` (Q-0117) asks to record the source-at-runtime decision as an ADR and currently has nowhere to put it, and the read-only audit named source-at-runtime packaging, adoption-safe advisories, sequential queue writes and graph fallbacks as decisions whose reasoning survives only in archived specs. Deletion test: a reviewer can answer "why does this bind us today" without opening `docs/design/specs/archive/`. Decide during spec: whether a superseded record is validated for a forward pointer, and whether the surface reuses the architecture registry's opt-in rule so `noldor init` cannot block a consumer who has written no ADRs. (split from Q-0093 at design time, 2026-08-17)
-
 ### Typed Advisory and Blocking Gap Channels
 
 - id: Q-0136

@@ -24,6 +24,7 @@ import { loadConsumerConfig } from '../core/consumer-config.js';
 import type { ConsumerConfig } from '../core/consumer-config.js';
 import { docPresenceRoots, listDocMds, loadDocRoots } from '../core/doc-roots.js';
 
+import { detectAdrFindings } from './detectors/adr.js';
 import { detectArchitectureFindings } from './detectors/architecture.js';
 import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/override-audit.js';
 import type { ExpectedOverrideRule } from './detectors/override-audit.js';
@@ -632,6 +633,7 @@ export async function collectGaps(input: ReportInput): Promise<Gap[]> {
   // Blocking findings only — advisories must never reach `sddGaps`, which gates
   // the garden auto-restamp. See `src/garden/detectors/architecture.ts`.
   gaps.push(...(await detectArchitectureFindings(input.repoRoot ?? process.cwd())));
+  gaps.push(...(await detectAdrFindings(input.repoRoot ?? process.cwd())));
   return gaps;
 }
 

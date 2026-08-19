@@ -472,6 +472,22 @@ The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
 - **When to use:** via `pnpm docs:build`; ad hoc before committing user-doc changes.
 - **Source:** [`src/docs/docs-check.ts`](../../src/docs/docs-check.ts)
 
+### `adr:new`
+
+- **Trigger:** `pnpm noldor adr new <slug> [--supersedes NNNN]`.
+- **Inputs:** `docs/adr/` (created when missing); with `--supersedes`, the target record's frontmatter.
+- **Outputs:** `docs/adr/NNNN-<slug>.md` from the template (`status: accepted`, today's date); with `--supersedes`, the target flipped to `status: superseded` with a `superseded-by` pointer, so the pair lands in one commit. Exit 1 on a bad slug or a missing/already-superseded target.
+- **When to use:** recording a binding decision, or replacing one — never edit an accepted record's body in place (the pre-push hook blocks it).
+- **Source:** [`src/docs/adr-new.ts`](../../src/docs/adr-new.ts)
+
+### `docs:adr`
+
+- **Trigger:** `pnpm noldor docs adr` (`--check` is the only mode, and the default). Also read by `garden detect`/the SDD report and by the release preflight's `adr` row.
+- **Inputs:** `docs/adr/*.md`.
+- **Outputs:** exit 0 when every record validates, or when the surface is absent — no folder, or no `NNNN-<slug>.md` records in it. Exit 1 when a filename does not conform, a number repeats, frontmatter fails the schema, or the supersede chain dangles in either direction.
+- **When to use:** after writing or superseding a record; on the release path it runs automatically.
+- **Source:** [`src/docs/docs-adr.ts`](../../src/docs/docs-adr.ts)
+
 ### `docs:architecture`
 
 - **Trigger:** `pnpm noldor docs architecture` (`--check` is the only mode, and the default). Also read by `garden detect` and by the release preflight's `architecture` row.

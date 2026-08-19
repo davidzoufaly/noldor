@@ -331,6 +331,10 @@ export const MANIFEST: Record<string, Group> = {
       howto: { src: 'docs/docs-howto.ts', desc: 'Generate how-to docs' },
       check: { src: 'docs/docs-check.ts', desc: 'Validate doc links/tags' },
       transclude: { src: 'docs/docs-transclude.ts', desc: 'Transclude docs blocks' },
+      adr: {
+        src: 'docs/docs-adr.ts',
+        desc: 'Validate docs/adr/ decision records',
+      },
       architecture: {
         src: 'docs/docs-architecture.ts',
         desc: 'Check the architecture diagram pages',
@@ -435,6 +439,15 @@ export const MANIFEST: Record<string, Group> = {
     desc: 'Run oxfmt with the all-ignored no-op guard',
     subs: {
       '': { src: 'core/fmt-guard-cli.ts', desc: 'Format (or --check) with the no-target guard' },
+    },
+  },
+  adr: {
+    desc: 'Decision records (docs/adr/)',
+    subs: {
+      new: {
+        src: 'docs/adr-new.ts',
+        desc: 'new <slug> [--supersedes NNNN] — mint the next record',
+      },
     },
   },
   commit: {

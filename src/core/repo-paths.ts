@@ -2,7 +2,7 @@
 
 import { readFile, readdir } from 'node:fs/promises';
 import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 import { loadConsumerConfig } from './consumer-config.js';
 
@@ -12,6 +12,15 @@ import { loadConsumerConfig } from './consumer-config.js';
  * Roots that don't exist are ENOENT-skipped by every walker.
  */
 export const DEFAULT_SCAN_ROOTS = ['packages', 'apps', 'scripts', 'src'];
+
+/**
+ * Repo-relative path with POSIX separators, whatever the platform. Hoisted
+ * from per-module copies (docs-architecture, docs-adr) when the code reviewer
+ * flagged the clone; other inlined instances migrate as they are next edited.
+ */
+export function toPosixRelative(cwd: string, abs: string): string {
+  return relative(cwd, abs).split(sep).join('/');
+}
 
 /**
  * Scan roots: consumer `scanPaths` when configured (non-empty), else
