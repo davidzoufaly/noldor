@@ -70,15 +70,20 @@ function git(cwd: string, gitArgs: readonly string[]): { ok: boolean; stderr: st
  * invocations carry no session, and the scan makes attach-parent FDs work for
  * free. Returns the repo-relative FD paths rewritten (already `git add`ed).
  */
-export function rewriteDesignLinks(root: string, from: string, to: string): string[] {
+export function rewriteDesignLinks(
+  root: string,
+  from: string,
+  to: string,
+): { rewritten: string[]; failed: string[] } {
   const featuresDir = loadDocRoots(root).features;
   let entries: string[];
   try {
     entries = readdirSync(featuresDir);
   } catch {
-    return [];
+    return { rewritten: [], failed: [] };
   }
   const rewritten: string[] = [];
+  const failed: string[] = [];
   for (const entry of entries) {
     if (!entry.endsWith('.md')) continue;
     const abs = join(featuresDir, entry);
@@ -95,26 +100,34 @@ export function rewriteDesignLinks(root: string, from: string, to: string): stri
       new RegExp(`(design:\\s*)(["']?)${escaped}\\2`),
       (_m, prefix: string, quote: string) => `${prefix}${quote}${to}${quote}`,
     );
+    const rel = abs
+      .slice(root.length + 1)
+      .split('\\')
+      .join('/');
     if (next === raw) {
       // Parsed value matched but the textual form did not (exotic YAML style:
       // folded scalar, flow mapping). Never stage-and-claim a rewrite that did
       // not happen — a silent dangling link is the exact failure this exists
       // to prevent.
       process.stderr.write(
-        `design archive: WARNING — ${entry} declares links.design ${from} but its YAML form ` +
+        `design archive: ${entry} declares links.design ${from} but its YAML form ` +
           `could not be rewritten textually; repoint it to ${to} by hand\n`,
       );
+      failed.push(rel);
       continue;
     }
     writeFileSync(abs, next, 'utf8');
-    const rel = abs
-      .slice(root.length + 1)
-      .split('\\')
-      .join('/');
-    git(root, ['add', '--', rel]);
+    const add = git(root, ['add', '--', rel]);
+    if (!add.ok) {
+      process.stderr.write(
+        `design archive: git add failed for ${rel} after links.design rewrite — stage it by hand\n${add.stderr}`,
+      );
+      failed.push(rel);
+      continue;
+    }
     rewritten.push(rel);
   }
-  return rewritten;
+  return { rewritten, failed };
 }
 
 async function main(): Promise<number> {
@@ -251,8 +264,17 @@ async function main(): Promise<number> {
     moved += 1;
     process.stdout.write(`archived: ${m.from} → ${m.to}\n`);
     if (m.kind === 'pen') {
-      for (const fd of rewriteDesignLinks(root, m.from, m.to)) {
+      const links = rewriteDesignLinks(root, m.from, m.to);
+      for (const fd of links.rewritten) {
         process.stdout.write(`repointed links.design: ${fd}\n`);
+      }
+      if (links.failed.length > 0) {
+        // The pen moved but an FD still points at the old path: exiting 0 here
+        // would report a clean archive while the docs-link gate is now broken.
+        process.stderr.write(
+          `design archive: ${links.failed.length} FD(s) still reference ${m.from} — fix by hand before committing\n`,
+        );
+        return 1;
       }
     }
   }

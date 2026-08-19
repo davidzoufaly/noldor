@@ -5,6 +5,8 @@
 // surface so one surface's sync cannot mask another's drift.
 
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { braceExpand } from 'minimatch';
@@ -54,9 +56,15 @@ async function git(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: 
   }
 }
 
-async function latestCommit(cwd: string, paths: string[]): Promise<string> {
-  const { stdout } = await git(cwd, ['log', '-1', '--format=%H', '--', ...paths]);
-  return stdout;
+/**
+ * Latest commit touching `paths`. `ok: false` is an operational git failure —
+ * distinct from `sha: ''` (history has no matching commit) — because conflating
+ * them would mint `uninitialized`/red from a broken repo, and every git failure
+ * must degrade to `skipped`.
+ */
+async function latestCommit(cwd: string, paths: string[]): Promise<{ ok: boolean; sha: string }> {
+  const r = await git(cwd, ['log', '-1', '--format=%H', '--', ...paths]);
+  return { ok: r.ok, sha: r.stdout };
 }
 
 /**
@@ -128,21 +136,45 @@ export async function evaluateUiDesignFreshness(
     // minimatch construct wildmatch lacks, so expand them here first —
     // otherwise `src/{a,b}/**` silently matches no history and the surface
     // bypasses enforcement as `skipped`.
-    const uiCommit = await latestCommit(cwd, [
+    const ui = await latestCommit(cwd, [
       ...globs.flatMap((g) => braceExpand(g)).map((g) => `:(glob)${g}`),
       ...GRAPH_IRRELEVANT_EXCLUDES,
     ]);
+    if (!ui.ok) {
+      surfaces.push({ surface, status: 'skipped', detail: 'git log failed — indeterminate' });
+      continue;
+    }
+    const uiCommit = ui.sha;
     if (uiCommit === '') {
       surfaces.push({ surface, status: 'skipped', detail: 'no commits touch this surface' });
       continue;
     }
-    const baselineCommit = await latestCommit(cwd, [baselineFile]);
-    if (baselineCommit === '') {
+    // Existence at HEAD decides `uninitialized`, not history: `git log` still
+    // returns the commit that DELETED the baseline, and a delete that postdates
+    // the UI commit would otherwise classify as fresh with no baseline on disk.
+    if (!existsSync(join(cwd, baselineFile))) {
       surfaces.push({
         surface,
         status: 'uninitialized',
         uiCommit,
-        detail: `${baselineFile} does not exist in history — bootstrap: ${REMEDIATION}`,
+        detail: `${baselineFile} does not exist — bootstrap: ${REMEDIATION}`,
+      });
+      continue;
+    }
+    const baseline = await latestCommit(cwd, [baselineFile]);
+    if (!baseline.ok) {
+      surfaces.push({ surface, status: 'skipped', detail: 'git log failed — indeterminate' });
+      continue;
+    }
+    const baselineCommit = baseline.sha;
+    if (baselineCommit === '') {
+      // On disk but never committed (staged-only bootstrap): committed history
+      // is what U7 reads, so this still counts as uninitialized.
+      surfaces.push({
+        surface,
+        status: 'uninitialized',
+        uiCommit,
+        detail: `${baselineFile} exists but has no committed history — commit it: ${REMEDIATION}`,
       });
       continue;
     }

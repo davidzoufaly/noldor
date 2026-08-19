@@ -82,15 +82,21 @@ export const DevConfigSchema = z
 export type DevConfig = z.infer<typeof DevConfigSchema>;
 
 /**
- * A repo-relative POSIX minimatch glob for UI-surface config. Negation is
- * rejected in v1 (the predicate defines no subtraction semantics), and the
- * schema — not the matcher — is where that contract is enforced.
+ * A repo-relative POSIX glob for UI-surface config. The accepted language is
+ * the intersection the predicate (minimatch) and the freshness engine (git
+ * wildmatch + brace pre-expansion) both implement: plain globs + braces.
+ * Negation and extglobs (`@()`, `!()`, `+()`, `?()`, `*()`) are rejected —
+ * they would match in one engine and silently not in the other, and the
+ * schema, not the matcher, is where that contract is enforced.
  */
 const UiGlobSchema = z
   .string()
   .min(1)
   .refine((g) => !g.startsWith('!'), {
     message: 'negation globs are not supported in uiPaths/uiSurfaces',
+  })
+  .refine((g) => !/[@!+?*]\(/.test(g), {
+    message: 'extglob patterns are not supported in uiPaths/uiSurfaces (plain globs + braces only)',
   });
 
 /** Baseline surface names become `docs/design/ui/baseline/<name>.pen` — keep them slug-shaped. */
