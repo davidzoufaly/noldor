@@ -68,6 +68,7 @@ interface FdFrontmatter {
   links?: {
     code?: string[];
     commits?: string[];
+    design?: string;
     docs?: string[];
     plan?: string | string[];
     spec?: string;
@@ -177,11 +178,13 @@ export async function syncFile(path: string): Promise<boolean> {
   if (fm.links !== undefined) {
     const spec = resolveArchivedPath(fm.links.spec, existsSync);
     const plan = resolveArchivedPathList(fm.links.plan, existsSync);
-    if (spec !== null || plan !== null) {
+    const design = resolveArchivedPath(fm.links.design, existsSync);
+    if (spec !== null || plan !== null || design !== null) {
       data.links = {
         ...fm.links,
         ...(spec !== null ? { spec } : {}),
         ...(plan !== null ? { plan } : {}),
+        ...(design !== null ? { design } : {}),
       };
       frontmatterChanged = true;
     }

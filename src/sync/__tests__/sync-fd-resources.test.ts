@@ -519,3 +519,44 @@ Body.
     }
   });
 });
+
+describe('links.design archive repoint (syncFile)', () => {
+  let tmpDir: string;
+  let prevCwd: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'sync-fd-design-'));
+    prevCwd = process.cwd();
+    process.chdir(tmpDir);
+  });
+
+  afterEach(() => {
+    process.chdir(prevCwd);
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('repoints links.design to archive/ when the file moved there', async () => {
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(join(tmpDir, 'docs/design/ui/archive'), { recursive: true });
+    writeFileSync(join(tmpDir, 'docs/design/ui/archive/2026-08-19-x.pen'), 'pen', 'utf8');
+    const mdPath = join(tmpDir, 'fd.md');
+    writeFileSync(
+      mdPath,
+      `---
+name: Fake
+links:
+  code: []
+  design: docs/design/ui/2026-08-19-x.pen
+---
+
+## Summary
+
+Body.
+`,
+      'utf8',
+    );
+    await syncFile(mdPath);
+    const out = readFileSync(mdPath, 'utf8');
+    expect(out).toContain('design: docs/design/ui/archive/2026-08-19-x.pen');
+  });
+});

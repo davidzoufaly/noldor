@@ -205,3 +205,24 @@ describe('design frontmatter field', () => {
     expect(() => FeatureFrontmatterSchema.parse({ ...base, design: 'auto' })).toThrow();
   });
 });
+
+describe('links.design frontmatter field', () => {
+  const base = {
+    area: 'tooling',
+    category: 'Tooling',
+    links: { code: [], docs: [], tests: [] },
+    name: 'X',
+    packages: ['package.json'],
+    phase: 'in-progress',
+    'noldor-tier': 'specs-only',
+  };
+
+  it('accepts links.design as a repo-relative pen path', () => {
+    expect(() =>
+      FeatureFrontmatterSchema.parse({
+        ...base,
+        links: { ...base.links, design: 'docs/design/ui/2026-08-19-x.pen' },
+      }),
+    ).not.toThrow();
+  });
+});

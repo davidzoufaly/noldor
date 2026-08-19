@@ -24,6 +24,8 @@ export const LOST_SENTINEL = 'lost-pre-extraction';
 const LinksSchema = z
   .object({
     code: z.array(z.string()).default([]),
+    /** Repo-relative path of the feature's UI-design `.pen` artifact (spec U3). */
+    design: z.string().min(1).optional(),
     docs: z.array(z.string()).default([]),
     plan: z.union([z.string(), z.array(z.string())]).optional(),
     spec: z.string().optional(),
