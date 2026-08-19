@@ -330,12 +330,25 @@ export async function loadCachedAll(
       raw = await readFile(join(featuresDir, f), 'utf8');
     } catch (error) {
       // `readdir` listed this FD and it is gone by the time we read it: the same
-      // race the write path waves through, so it is waved through here too. An
-      // FD that no longer exists has no links to know about, and redding the
-      // whole projection over it would contradict the write side of this module.
+      // race the write path waves through, so it is waved through here too — but
+      // only when the directory is still there. The identical ENOENT arrives
+      // when the directory itself went, and skipping every FD then would return
+      // an empty cache with no failures, which is the signal for a legitimately
+      // empty one: callers would diff every tagged slug against nothing and tell
+      // the operator to create files that were never missing.
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        console.warn(`WARN: ${join(featuresDir, f)} disappeared mid-run — skipped.`);
-        continue;
+        if (existsSync(featuresDir)) {
+          console.warn(`WARN: ${join(featuresDir, f)} disappeared mid-run — skipped.`);
+          continue;
+        }
+        failures.push({
+          root: featuresDir,
+          code: 'ENOENT',
+          kind: 'features-dir',
+          what: 'feature MD directory vanished mid-run',
+          remedy: 'restore the feature MD directory and re-run',
+        });
+        break;
       }
       fdFailure(
         error,
