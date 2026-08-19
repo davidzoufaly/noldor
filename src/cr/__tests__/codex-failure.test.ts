@@ -2,6 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   AUTH_HINT_RE,
+  MODEL_VERSION_RE,
+  MODEL_REQUEST_ERROR_RE,
   STDERR_TAIL_CHARS,
   unknownVersion,
   describeCodexFailure,
@@ -13,6 +15,10 @@ import {
 /** The models-cache noise codex 0.133.0 emits on a perfectly healthy run. */
 const MODELS_NOISE =
   'ERROR codex_models_manager::cache: failed to load models cache: unknown variant `max`, expected one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`';
+
+/** The measured 400 body codex-cli 0.133.0 returned for a configured gpt-5.6-sol (2026-08-14). */
+const MODEL_VERSION_400 =
+  "ERROR: request failed: 400 invalid_request_error: The 'gpt-5.6-sol' model requires a newer version of Codex. Please update to continue.";
 
 describe('AUTH_HINT_RE', () => {
   it.each([
@@ -35,6 +41,38 @@ describe('AUTH_HINT_RE', () => {
 
   it('does not match ordinary review output', () => {
     expect(AUTH_HINT_RE.test('Reading prompt from stdin...')).toBe(false);
+  });
+});
+
+describe('MODEL_VERSION_RE', () => {
+  it('matches the measured model-version 400 body', () => {
+    expect(MODEL_VERSION_RE.test(MODEL_VERSION_400)).toBe(true);
+  });
+
+  it('does not match the models-cache noise a healthy run emits', () => {
+    expect(MODEL_VERSION_RE.test(MODELS_NOISE)).toBe(false);
+  });
+
+  it('does not match auth-shaped stderr', () => {
+    expect(MODEL_VERSION_RE.test('ERROR: no valid credentials found')).toBe(false);
+  });
+});
+
+describe('MODEL_REQUEST_ERROR_RE', () => {
+  it('matches an invalid_request_error that names a model', () => {
+    expect(
+      MODEL_REQUEST_ERROR_RE.test(
+        "400 invalid_request_error: The 'gpt-9' model does not exist or you do not have access",
+      ),
+    ).toBe(true);
+  });
+
+  it('does not match an invalid_request_error that names no model', () => {
+    expect(MODEL_REQUEST_ERROR_RE.test('400 invalid_request_error: prompt too long')).toBe(false);
+  });
+
+  it('does not match the models-cache noise (no invalid_request_error)', () => {
+    expect(MODEL_REQUEST_ERROR_RE.test(MODELS_NOISE)).toBe(false);
   });
 });
 
@@ -95,6 +133,38 @@ describe('describeCodexFailure', () => {
     const msg = describeCodexFailure({ exitCode: 2, stderr: MODELS_NOISE, version: 'v' });
     expect(msg).not.toContain('codex login');
     expect(msg).toContain('unknown variant');
+  });
+
+  it('sends the operator to upgrade, not to re-authenticate, on a model-version 400', () => {
+    // The measured failure: codex-cli 0.133.0 against gpt-5.6-sol. The old message said
+    // "auth looks expired; run: codex login" — re-authenticating a session that never
+    // expired. The upgrade is what actually cleared it (0.133.0 → 0.147.0).
+    const msg = describeCodexFailure({
+      exitCode: 1,
+      stderr: MODEL_VERSION_400,
+      version: 'codex-cli 0.133.0',
+    });
+    expect(msg).toContain('npm install -g @openai/codex@latest');
+    expect(msg).not.toContain('codex login');
+  });
+
+  it('lets the upgrade hint win even when the same stderr also looks auth-shaped', () => {
+    // Codex appends generic "run codex login" advice to API failures; the model-version
+    // line is the real cause and must own the remedy.
+    const stderr = `${MODEL_VERSION_400}\nIf this persists, run codex login.`;
+    const msg = describeCodexFailure({ exitCode: 1, stderr, version: 'v' });
+    expect(msg).toContain('npm install -g @openai/codex@latest');
+    expect(msg).not.toContain('auth looks expired');
+  });
+
+  it('never asserts auth when an invalid_request_error names a model', () => {
+    // A model-shaped 400 is a request problem, not a credential problem — even when the
+    // body happens to trip the loose auth regex (e.g. carries "401" in a request id).
+    const stderr =
+      "400 invalid_request_error: The 'gpt-9' model does not exist (req_401abc). Run codex login if needed.";
+    const msg = describeCodexFailure({ exitCode: 1, stderr, version: 'v' });
+    expect(msg).not.toContain('auth looks expired');
+    expect(msg).toContain('not an auth failure');
   });
 });
 
