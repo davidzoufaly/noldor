@@ -15,7 +15,7 @@ so the shipped spec references an entry that does not exist. This is it.
 
 The demand is concrete. `Package Runtime Representation ADR` (Q-0117,
 `docs/backlog.md:191`) asks to record the source-at-runtime distribution
-decision as an ADR and currently has nowhere to put it — and Q-0141
+decision as an ADR and currently has nowhere to put it — and Q-0133
 (self-contained executable) is `blocked-by: Q-0117`, so the missing surface
 sits on a real dependency chain. The 2026-08-12 read-only audit named
 source-at-runtime packaging, adoption-safe advisories, sequential queue writes
@@ -88,7 +88,7 @@ export interface AdrFinding {
   readonly rule:
     | 'bad-filename' | 'dup-number' | 'bad-frontmatter' | 'bad-status'
     | 'bad-date' | 'dangling-superseded-by' | 'missing-superseded-by'
-    | 'bad-supersedes' | 'unreadable';
+    | 'stray-superseded-by' | 'bad-supersedes' | 'unreadable';
   readonly message: string;
 }
 export interface AdrReport {
@@ -112,7 +112,10 @@ Rules, one finding per file per rule:
 - `bad-frontmatter` / `bad-status` / `bad-date` — parse failure, enum
   violation, or a date that is not a real `YYYY-MM-DD` day.
 - `missing-superseded-by` — `status: superseded` without a `superseded-by`.
-- `dangling-superseded-by` — `superseded-by` names a number with no record.
+- `stray-superseded-by` — `superseded-by` present on a record whose `status`
+  is `accepted` (the "only if" direction of the contract).
+- `dangling-superseded-by` — `superseded-by` names a number with no record,
+  regardless of the carrying record's status.
 - `bad-supersedes` — `supersedes` names a number with no record, or one whose
   `status` is not `superseded` (D3: both directions validated, so a flip and
   its successor must land together).
@@ -234,8 +237,8 @@ feature's own shipping (the same argument Q-0093 U9 made).
    (with a line naming why), and the bare invocation behaves identically.
 4. It exits 1 naming file and rule for: a non-conforming filename, a
    duplicate number, unparseable frontmatter, a status outside the enum, an
-   invalid date, `superseded` without `superseded-by`, a `superseded-by`
-   naming no existing record, and a `supersedes` whose target is missing or
+   invalid date, `superseded` without `superseded-by`, a `superseded-by` on an
+   `accepted` record or naming no existing record, and a `supersedes` whose target is missing or
    not `superseded`.
 5. A folder containing only non-record files (e.g. `README.md`) reads as
    `absent`; filesystem failures yield `unreadable` findings, never a throw.
