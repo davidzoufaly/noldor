@@ -54,19 +54,6 @@ The codex lane is opt-in per `crLanes` today, so a big change can ship having be
 
 `sizeToPath()` (`src/core/size-routing.ts`) currently exempts both XS **and** S from any written artifact — `fast-track` for code, `micro-chore` for pure docs — so an S entry can ship with no spec, no plan and no recorded design reasoning at all. The question this entry decides: should XS be the *only* band that escapes a spec, moving S to `specs-only`? Evidence that it should is accumulating from the drain batches. The 2026-08-13 S/med/fix batch found S entries routinely running real CR rounds with genuine design findings, and the 30-minute `--iteration-timeout` sized for XS work killed Q-0107 mid-CR — an S entry doing spec-shaped work under a no-spec tier. A spec floor at S would also give the reviewer lanes the prior context that Q-0132 shipped for, which is worthless on a path that produces no spec to carry context in. Evidence against is the whole point of the routing policy: the drain runner's throughput depends on XS/S needing no prep, and forcing a spec on a genuinely mechanical S fix is the "don't spec the small ones" failure the policy exists to prevent. Decide it as a policy change with a stated rationale rather than a silent constant edit, then land it in one place: `sizeToPath()`, the routing block at the top of this file, [complexity-gating.md](noldor/complexity-gating.md), and every `templates/` twin of those documents (the Q-0093 lesson — a count or policy asserted in prose has no single source of truth, so the sweep must be exhaustive on the first pass). A middle option worth costing before committing to either pole: keep S on `fast-track` but require a spec when the split-check or CR verdict says the entry is spec-shaped, so the floor is earned by signal rather than by band.
 
-### Codex Lane Misreports a Model-Version 400 as Expired Auth
-
-- id: Q-0125
-- area: tooling
-- type: fix
-- since: 2026-08-14
-- size: XS
-- impact: med
-- confidence: high
-- parent: specs-cr-gate-multi-reviewer
-
-The codex CR lane diagnoses a failed run as an auth problem regardless of what the API actually rejected, so a model-version error sends the operator to re-authenticate a session that never expired. Measured: `codex-cli 0.133.0` against a configured `gpt-5.6-sol` returns `400 invalid_request_error` carrying "The 'gpt-5.6-sol' model requires a newer version of Codex", and the lane reports `auth looks expired; run: codex login`. Parse the 400 body, or at minimum stop asserting auth whenever the payload names a model. Operator remedy, verified 2026-08-17: `npm install -g @openai/codex@latest` (0.133.0 → 0.147.0) clears it — note the binary is npm-global and only symlinked into `/opt/homebrew/bin`, so `brew upgrade codex` silently no-ops and reads as "the fix didn't work". `codex exec -c model=gpt-5.5` also works as a pin. Either way the lane's message sends the operator to the wrong place: surfacing the stderr tail, which already carries the real 400 body, would have answered it immediately. The eventual home is Q-0112's per-lane error-shape normalization, which deletes this call site outright — queued standalone because that is an L entry and this is a fast-track-sized correction to a message the operator acts on immediately. (found 2026-08-14 running the codex lane on Q-0124)
-
 ### Feature-Doc Links Point at Code Deleted in PR #328
 
 - id: Q-0138
