@@ -19,6 +19,7 @@ export type PreflightRowId =
   | 'origin-sync'
   | 'gh-auth'
   | 'graph-freshness'
+  | 'ui-design-freshness'
   | 'garden-receipt'
   | 'sdd-report'
   | 'validate-features'

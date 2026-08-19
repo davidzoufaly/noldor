@@ -298,6 +298,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'checks/check-template-sync.ts',
         desc: 'Block templated files drifting from their templates/ copy',
       },
+      'ui-design-freshness': {
+        src: 'checks/check-ui-design-freshness.ts',
+        desc: 'UI baseline freshness per surface; exit 1 on stale/uninitialized — callers choose whether that blocks',
+      },
     },
   },
   graphify: {

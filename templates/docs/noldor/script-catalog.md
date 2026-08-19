@@ -91,6 +91,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** automatic on commit and push. See [`rules.md`](rules.md) § Template sync.
 - **Source:** [`src/checks/check-template-sync.ts`](../../src/checks/check-template-sync.ts)
 
+### `check:ui-design-freshness`
+
+- **Trigger:** `pnpm noldor checks ui-design-freshness`. Run by `/noldor-gate` Step 4 (advisory, after the flip commit) and release preflight (blocking on `stale`).
+- **Inputs:** `consumer.uiPaths` / `consumer.uiSurfaces` from `.noldor/config.json` + git history of the surface globs and `docs/design/ui/baseline/<surface>.pen` files.
+- **Outputs:** per-surface freshness rows (`fresh` / `stale` / `uninitialized` / `skipped`, ancestry-based). Exit 0 on fresh/skipped, exit 1 on stale/uninitialized — callers choose whether that blocks.
+- **When to use:** any time you want to know whether the UI design baseline still reflects the shipped UI. Remediate reds with `pnpm noldor design ui-sync`.
+- **Source:** [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
+
 ### Other validators
 
 | Command                              | Source                                                            | Purpose                                                                    |
