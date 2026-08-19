@@ -579,7 +579,7 @@ describe('evaluateUiDesignFreshness', () => {
 });
 ```
 
-Diverged-branch / shallow-clone cases: assert via the decision function directly rather than building exotic repos — export the pure `classifyAncestry(isAncestorUB: boolean, isAncestorBU: boolean, equal: boolean)` helper and test its four rows (`equal→fresh`, `UB→fresh`, `BU→stale`, `neither→skipped`).
+Diverged-branch / shallow-clone cases: assert via the decision function directly rather than building exotic repos — export the pure `classifyAncestry(equal: boolean, uiIsAncestorOfBaseline: boolean, baselineIsAncestorOfUi: boolean)` helper (exact Task 4 Step 3 signature and parameter order) and test its four rows (`equal→fresh`, `uiIsAncestorOfBaseline→fresh`, `baselineIsAncestorOfUi→stale`, `neither→skipped`).
 
 - [ ] **Step 2: Run to verify FAIL.**
 
