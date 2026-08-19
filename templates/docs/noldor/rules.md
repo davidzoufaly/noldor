@@ -78,7 +78,7 @@ Files Noldor ships into a consumer repo from [`templates/`](../../templates/) (e
 Resolution is only useful if someone asks. Two callers do:
 
 - **Author, before writing** — `pnpm noldor rules brief --file <path> --stage code`, invoked per the `/noldor-gate` Step 3.5 instruction (claude) or the equivalent in [`drain-mode.md`](drain-mode.md) (codex/opencode). Prose is the delivery mechanism deliberately: a `PreToolUse` hook would be the only true per-edit seam, but `.claude/**` is withheld from non-claude consumers, so it would cover one runner of three.
-- **Reviewer, after writing** — the code-stage CR resolves the `enforce` bucket for the files the diff changed and includes their text in the reviewer prompt ([`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts) → `DispatchInput.rulesBrief`). This is what makes `enforce` more than a suggestion: a violation is a finding even when the author never ran the brief. Scope: the always-on `reviewer` lane, not the opt-in `codex` lane, which builds its prompt separately.
+- **Reviewer, after writing** — the code-stage CR resolves the `enforce` bucket for the files the diff changed and includes their text in the reviewer prompt ([`src/cr/lanes/subagent.ts`](../../src/cr/lanes/subagent.ts) → `DispatchInput.rulesBrief`). This is what makes `enforce` more than a suggestion: a violation is a finding even when the author never ran the brief. Scope: the always-on `reviewer` lane, not the `codex` lane (opt-in, forced only on M/L/XL sessions), which builds its prompt separately.
 
 `session.injectedRules` records the ids a brief surfaced. It is an **exposure** record — what this author was shown — and must never be read as a claim that the rules were followed.
 

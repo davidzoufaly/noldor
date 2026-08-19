@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Path } from './session.js';
 
 /**
  * CR review lanes. Two are role-routed and carry their runner-role name:
@@ -58,6 +59,66 @@ export const REVIEWER_MANDATORY_KINDS: readonly ArtifactKind[] = ['spec', 'plan'
 export function withMandatoryReviewer(kind: ArtifactKind, lanes: readonly Lane[]): Lane[] {
   if (!REVIEWER_MANDATORY_KINDS.includes(kind) || lanes.includes('reviewer')) return [...lanes];
   return [...lanes, 'reviewer'];
+}
+
+/**
+ * Artifact kinds that must carry a `codex` second-opinion round on bigger
+ * entries — one early design round (`spec`) plus one full-diff round (`code`).
+ * `plan` is deliberately absent: the mandate is "at least one round from a
+ * second model family", and spec+code brackets the work without tripling the
+ * codex cost on `full-*` paths.
+ */
+export const CODEX_MANDATORY_KINDS: readonly ArtifactKind[] = ['spec', 'code'];
+
+/**
+ * Session paths whose entries are sized M/L/XL — the same size signal the
+ * routing policy encodes in `sizeToPath()` (size-routing.ts): M routes to
+ * `specs-only-*`, L/XL to `full-*`, so the session path is the size band's
+ * projection at review time (the roadmap block is gone by then). XS/S paths
+ * (`fast-track`, `micro-chore`) and the release paths are exempt, so drains
+ * never block on a broken codex CLI.
+ */
+export const CODEX_MANDATORY_PATHS: ReadonlySet<Path> = new Set<Path>([
+  'specs-only-new',
+  'specs-only-attach',
+  'full-new',
+  'full-attach',
+]);
+
+/**
+ * The mandate's read of the session marker: a real {@link Path}, `null`/
+ * `undefined` when no marker exists (ad-hoc runs carry no size signal), or
+ * `'corrupt-marker'` when a marker file is present but unreadable — that case
+ * fails CLOSED (mandate assumed on) because a torn marker in a genuine M/L/XL
+ * session must not silently drop the review the size requires.
+ */
+export type SessionPathSignal = Path | 'corrupt-marker' | null | undefined;
+
+/**
+ * True when this review round must include the `codex` lane: a mandated kind
+ * ({@link CODEX_MANDATORY_KINDS}) inside an M/L/XL session
+ * ({@link CODEX_MANDATORY_PATHS}). A missing session path is exempt; a
+ * present-but-unreadable marker (`'corrupt-marker'`) is mandate-on — see
+ * {@link SessionPathSignal}.
+ */
+export function codexIsMandatory(kind: ArtifactKind, sessionPath: SessionPathSignal): boolean {
+  if (sessionPath == null || !CODEX_MANDATORY_KINDS.includes(kind)) return false;
+  if (sessionPath === 'corrupt-marker') return true;
+  return CODEX_MANDATORY_PATHS.has(sessionPath);
+}
+
+/**
+ * Union `codex` into `lanes` when {@link codexIsMandatory} says this round
+ * requires a second model family. Order-preserving and idempotent, mirroring
+ * {@link withMandatoryReviewer}.
+ */
+export function withMandatoryCodex(
+  kind: ArtifactKind,
+  sessionPath: SessionPathSignal,
+  lanes: readonly Lane[],
+): Lane[] {
+  if (!codexIsMandatory(kind, sessionPath) || lanes.includes('codex')) return [...lanes];
+  return [...lanes, 'codex'];
 }
 
 /**

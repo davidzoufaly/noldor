@@ -84,6 +84,42 @@ describe('resolveLanes', () => {
   it('interactive + no CLI flag => returns empty (signal: skill prompts)', () => {
     expect(resolveLanes({ slug: 'x', kind: 'spec' }, null)).toEqual([]);
   });
+  it('unions codex on spec/code when the session path is spec-bearing (M/L/XL)', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'spec', lanes: ['manual'] }, null, 'full-new')).toEqual([
+      'manual',
+      'reviewer',
+      'codex',
+    ]);
+    expect(
+      resolveLanes({ slug: 'x', kind: 'code', autonomous: true }, null, 'specs-only-new'),
+    ).toEqual(['reviewer', 'codex']);
+  });
+  it('does not force codex on plan kind, XS/S paths, or sessionless runs', () => {
+    expect(
+      resolveLanes({ slug: 'x', kind: 'plan', lanes: ['reviewer'] }, null, 'full-new'),
+    ).toEqual(['reviewer']);
+    expect(resolveLanes({ slug: 'x', kind: 'code', autonomous: true }, null, 'fast-track')).toEqual(
+      ['reviewer'],
+    );
+    expect(resolveLanes({ slug: 'x', kind: 'code', autonomous: true }, null, null)).toEqual([
+      'reviewer',
+    ]);
+  });
+  it('does not duplicate an already-configured codex lane', () => {
+    expect(
+      resolveLanes(
+        { slug: 'x', kind: 'code', autonomous: true },
+        {
+          crLanes: { code: ['reviewer', 'codex'] },
+          autonomous: { skipLanePicker: true, onFailure: 'prompt', requireHumanPrApproval: false },
+        },
+        'full-attach',
+      ),
+    ).toEqual(['reviewer', 'codex']);
+  });
+  it('interactive empty-set sentinel survives a spec-bearing session path', () => {
+    expect(resolveLanes({ slug: 'x', kind: 'spec' }, null, 'full-new')).toEqual([]);
+  });
 });
 
 let root: string;

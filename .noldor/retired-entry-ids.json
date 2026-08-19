@@ -68,5 +68,9 @@
   "Q-0125": {
     "slug": "codex-lane-misreports-a-model-version-400-as-expired-auth",
     "retiredAt": "2026-08-19"
+  },
+  "Q-0091": {
+    "slug": "mandatory-codex-review-round",
+    "retiredAt": "2026-08-19"
   }
 }
