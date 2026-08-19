@@ -86,9 +86,27 @@ export function rewriteDesignLinks(root: string, from: string, to: string): stri
     const parsed = matter(raw);
     const links = (parsed.data as { links?: { design?: string } }).links;
     if (links?.design !== from) continue;
-    // Plain string replace of the frontmatter value, not matter.stringify —
+    // Targeted line replace of the frontmatter value, not matter.stringify —
     // re-serializing the whole document would reformat unrelated frontmatter.
-    writeFileSync(abs, raw.replace(`design: ${from}`, `design: ${to}`), 'utf8');
+    // The pattern tolerates optional quoting; the escape keeps the path from
+    // being read as regex syntax.
+    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const next = raw.replace(
+      new RegExp(`(design:\\s*)(["']?)${escaped}\\2`),
+      (_m, prefix: string, quote: string) => `${prefix}${quote}${to}${quote}`,
+    );
+    if (next === raw) {
+      // Parsed value matched but the textual form did not (exotic YAML style:
+      // folded scalar, flow mapping). Never stage-and-claim a rewrite that did
+      // not happen — a silent dangling link is the exact failure this exists
+      // to prevent.
+      process.stderr.write(
+        `design archive: WARNING — ${entry} declares links.design ${from} but its YAML form ` +
+          `could not be rewritten textually; repoint it to ${to} by hand\n`,
+      );
+      continue;
+    }
+    writeFileSync(abs, next, 'utf8');
     const rel = abs
       .slice(root.length + 1)
       .split('\\')

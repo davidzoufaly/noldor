@@ -17,7 +17,7 @@ links:
     - src/design/archive-resolve.ts
     - src/design/archive-cli.ts
     - src/sync/sync-fd-resources.ts
-  spec: docs/design/specs/2026-08-19-pendev-ui-design-phase-design.md
+  spec: docs/design/specs/archive/2026-08-19-pendev-ui-design-phase-design.md
   tests:
     - src/checks/__tests__/check-ui-design-freshness.test.ts
     - src/core/__tests__/design-artifact-names.test.ts

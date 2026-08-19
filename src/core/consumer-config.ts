@@ -169,19 +169,18 @@ export type BoundaryRule = z.infer<typeof BoundaryRuleSchema>;
 
 /**
  * The consumer's UI-design config slice (`uiPaths`/`uiSurfaces`), or `null`
- * when no consumer config exists — the one boundary where every UI-design
+ * when no consumer config file exists — the one boundary where every UI-design
  * caller (freshness CLI, ui-sync, doctor, release preflight) must treat a
- * missing config as "feature not adopted", never a stack trace.
+ * MISSING config as "feature not adopted". A config that exists but fails to
+ * parse still throws: swallowing it would silently disable the blocking
+ * release check for a repo that did adopt the feature.
  */
 export function loadUiConfig(
   cwd: string,
 ): { uiPaths?: string[]; uiSurfaces?: Record<string, string[]> } | null {
-  try {
-    const consumer = loadConsumerConfig(cwd);
-    return { uiPaths: consumer.uiPaths, uiSurfaces: consumer.uiSurfaces };
-  } catch {
-    return null;
-  }
+  if (!existsSync(join(cwd, CONFIG_FILE))) return null;
+  const consumer = loadConsumerConfig(cwd);
+  return { uiPaths: consumer.uiPaths, uiSurfaces: consumer.uiSurfaces };
 }
 
 const CONFIG_FILE = '.noldor/config.json';

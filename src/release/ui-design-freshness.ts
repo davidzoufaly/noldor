@@ -7,6 +7,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { braceExpand } from 'minimatch';
+
 import type { UiConfig } from '../core/ui-predicate.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from './graph-freshness.js';
 
@@ -57,9 +59,26 @@ async function latestCommit(cwd: string, paths: string[]): Promise<string> {
   return stdout;
 }
 
-async function isAncestor(cwd: string, a: string, b: string): Promise<boolean> {
-  const { ok } = await git(cwd, ['merge-base', '--is-ancestor', a, b]);
-  return ok;
+/**
+ * `git merge-base --is-ancestor` exits 0 = yes, 1 = no, anything else = an
+ * operational failure (missing object, broken repo). The three outcomes must
+ * stay distinct: collapsing an error into "no" can combine with the reverse
+ * probe into a false blocking `stale` — the one verdict U7 forbids minting
+ * from a git failure.
+ */
+async function isAncestor(
+  cwd: string,
+  a: string,
+  b: string,
+): Promise<{ ok: true; isAncestor: boolean } | { ok: false }> {
+  try {
+    await execFileAsync('git', ['merge-base', '--is-ancestor', a, b], { cwd });
+    return { ok: true, isAncestor: true };
+  } catch (err) {
+    const code = (err as { code?: number }).code;
+    if (code === 1) return { ok: true, isAncestor: false };
+    return { ok: false };
+  }
 }
 
 const RANK: Record<UiSurfaceFreshness['status'], number> = {
@@ -105,9 +124,12 @@ export async function evaluateUiDesignFreshness(
     // plain git pathspecs use wildmatch where `*` crosses `/` and `**`
     // degrades. The glob magic makes git honor the same double-star semantics,
     // keeping "one pattern language everywhere" true (the excludes already
-    // rely on it — see GRAPH_IRRELEVANT_EXCLUDES).
+    // rely on it — see GRAPH_IRRELEVANT_EXCLUDES). Braces are the one
+    // minimatch construct wildmatch lacks, so expand them here first —
+    // otherwise `src/{a,b}/**` silently matches no history and the surface
+    // bypasses enforcement as `skipped`.
     const uiCommit = await latestCommit(cwd, [
-      ...globs.map((g) => `:(glob)${g}`),
+      ...globs.flatMap((g) => braceExpand(g)).map((g) => `:(glob)${g}`),
       ...GRAPH_IRRELEVANT_EXCLUDES,
     ]);
     if (uiCommit === '') {
@@ -124,10 +146,19 @@ export async function evaluateUiDesignFreshness(
       });
       continue;
     }
-    const status = classifyAncestry(
-      await isAncestor(cwd, uiCommit, baselineCommit),
-      await isAncestor(cwd, baselineCommit, uiCommit),
-    );
+    const forward = await isAncestor(cwd, uiCommit, baselineCommit);
+    const backward = await isAncestor(cwd, baselineCommit, uiCommit);
+    if (!forward.ok || !backward.ok) {
+      surfaces.push({
+        surface,
+        status: 'skipped',
+        uiCommit,
+        baselineCommit,
+        detail: `git merge-base failed probing ${uiCommit.slice(0, 8)} / ${baselineCommit.slice(0, 8)} — indeterminate, never a false red`,
+      });
+      continue;
+    }
+    const status = classifyAncestry(forward.isAncestor, backward.isAncestor);
     surfaces.push({
       surface,
       status,
