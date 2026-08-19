@@ -7,7 +7,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { braceExpand } from 'minimatch';
+import { braceExpand, minimatch } from 'minimatch';
 
 import type { UiConfig } from '../core/ui-predicate.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from './graph-freshness.js';
@@ -67,8 +67,11 @@ async function latestCommit(cwd: string, paths: string[]): Promise<{ ok: boolean
 
 /**
  * Does `path` exist in the HEAD commit? `git cat-file -e HEAD:<path>` exits 0
- * when present, 1 when absent; anything else (no HEAD, broken repo) is an
- * operational failure kept distinct so the caller degrades to `skipped`.
+ * when present; a missing path exits non-zero WITH a recognizable "does not
+ * exist" / "Not a valid object name" message, while other non-zero exits are
+ * operational failures — kept distinct so the caller degrades to `skipped`
+ * instead of minting a blocking `uninitialized` from a broken repo (exit code
+ * 128 alone is ambiguous between the two, so the stderr text decides).
  */
 async function existsAtHead(
   cwd: string,
@@ -78,8 +81,10 @@ async function existsAtHead(
     await execFileAsync('git', ['cat-file', '-e', `HEAD:${path}`], { cwd });
     return { ok: true, exists: true };
   } catch (err) {
-    const code = (err as { code?: number }).code;
-    if (code === 1 || code === 128) return { ok: true, exists: false };
+    const stderr = String((err as { stderr?: string }).stderr ?? '');
+    if (/does not exist|exists on disk, but not in|Not a valid object name/i.test(stderr)) {
+      return { ok: true, exists: false };
+    }
     return { ok: false };
   }
 }
@@ -222,30 +227,36 @@ export async function evaluateUiDesignFreshness(
 
   // Declared-surface maps can under-cover uiPaths (the schema cannot prove glob
   // coverage), so UI commits outside every surface would otherwise be checked
-  // by nobody. Probe the union: when the latest commit across ALL of uiPaths is
-  // not an ancestor of any surface's baseline commit, it touched only unmapped
-  // paths — surface it as its own stale row instead of silently passing.
-  if (config.uiSurfaces !== undefined && surfaces.some((s) => s.baselineCommit !== undefined)) {
-    const all = await latestCommit(cwd, [
+  // by nobody. Probe the union commit and match its CHANGED PATHS in-process
+  // with minimatch — the same engine the predicate uses — never ancestry, which
+  // an unrelated later baseline commit would falsely satisfy: any changed path
+  // that matches uiPaths but no declared surface is an unmapped UI change.
+  if (config.uiSurfaces !== undefined) {
+    const all = await git(cwd, [
+      'log',
+      '-1',
+      '--format=%H',
+      '--name-only',
+      '--',
       ...uiPaths.flatMap((g) => braceExpand(g)).map((g) => `:(glob)${g}`),
       ...GRAPH_IRRELEVANT_EXCLUDES,
     ]);
-    if (all.ok && all.sha !== '') {
-      let covered = false;
-      for (const s of surfaces) {
-        if (s.baselineCommit === undefined) continue;
-        const probe = await isAncestor(cwd, all.sha, s.baselineCommit);
-        if (probe.ok && probe.isAncestor) {
-          covered = true;
-          break;
-        }
-      }
-      if (!covered) {
+    if (all.ok && all.stdout !== '') {
+      const lines = all.stdout.split('\n');
+      const sha = lines[0].trim();
+      const files = lines.slice(1).filter((l) => l.trim().length > 0);
+      const surfaceGlobs = Object.values(config.uiSurfaces).flat();
+      const unmapped = files.filter(
+        (f) =>
+          uiPaths.some((g) => minimatch(f, g, { dot: true })) &&
+          !surfaceGlobs.some((g) => minimatch(f, g, { dot: true })),
+      );
+      if (unmapped.length > 0) {
         surfaces.push({
           surface: '(unmapped)',
           status: 'stale',
-          uiCommit: all.sha,
-          detail: `UI commit ${all.sha.slice(0, 8)} touches uiPaths outside every declared surface — extend uiSurfaces, then ${REMEDIATION}`,
+          uiCommit: sha,
+          detail: `UI commit ${sha.slice(0, 8)} touches uiPaths outside every declared surface (${unmapped[0]}${unmapped.length > 1 ? ` +${unmapped.length - 1}` : ''}) — extend uiSurfaces, then ${REMEDIATION}`,
         });
       }
     }
