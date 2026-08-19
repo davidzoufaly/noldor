@@ -1,9 +1,9 @@
 // @fd: consumer-architecture-doc-surface
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { basename, join, relative, sep } from 'node:path';
+import { basename, join, sep } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
-import { scanRoots } from '../core/repo-paths.js';
+import { scanRoots, toPosixRelative } from '../core/repo-paths.js';
 import { ARCHITECTURE_PAGES, PLACEHOLDER_MARKER, pageFilename } from './architecture-schema.js';
 
 /** Why one registry page failed. One finding per rule per page, never more. */
@@ -58,11 +58,6 @@ const EXCLUDED_DIRS = new Set([
   '__tests__',
   '__mocks__',
 ]);
-
-/** Repo-relative path with POSIX separators, whatever the platform. */
-function toPosixRelative(cwd: string, abs: string): string {
-  return relative(cwd, abs).split(sep).join('/');
-}
 
 /**
  * Every mermaid fence kind declared in a markdown body, lowercased.

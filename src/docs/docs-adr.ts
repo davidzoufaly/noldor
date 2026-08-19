@@ -1,9 +1,10 @@
 // @fd: architecture-decision-record-surface
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
+import { join } from 'node:path';
 
 import { runIfDirect } from '../core/cli-entry.js';
 import { loadDocRoots } from '../core/doc-roots.js';
+import { toPosixRelative } from '../core/repo-paths.js';
 import { ADR_FILENAME_RE, parseAdrFrontmatter, type AdrFrontmatter } from './adr-schema.js';
 
 /** Why one record failed. One finding per file per rule, never more. */
@@ -34,11 +35,6 @@ export interface AdrReport {
    */
   readonly status: 'absent' | 'ok' | 'invalid';
   readonly findings: readonly AdrFinding[];
-}
-
-/** Repo-relative path with POSIX separators, whatever the platform. */
-function toPosixRelative(cwd: string, abs: string): string {
-  return relative(cwd, abs).split(sep).join('/');
 }
 
 interface RecordRead {
@@ -98,6 +94,7 @@ export async function checkAdr(cwd: string): Promise<AdrReport> {
   const findings: AdrFinding[] = [];
   const records: RecordRead[] = [];
   const byNumber = new Map<string, string[]>();
+  let conformingFiles = 0;
 
   for (const name of entries) {
     const label = `${dirLabel}/${name}`;
@@ -110,6 +107,7 @@ export async function checkAdr(cwd: string): Promise<AdrReport> {
       });
       continue;
     }
+    conformingFiles += 1;
     const number = match[1];
     byNumber.set(number, [...(byNumber.get(number) ?? []), label]);
 
@@ -191,7 +189,12 @@ export async function checkAdr(cwd: string): Promise<AdrReport> {
     }
   }
 
-  if (records.length === 0 && findings.length === 0) {
+  // Opt-in is a folder with at least one NNNN-<slug>.md file: a stray README
+  // or notes file never opts a repo in, so with zero conforming filenames the
+  // bad-filename findings are suppressed and the surface reads `absent` (spec
+  // AC5). A conforming filename opts in even when its frontmatter fails —
+  // a half-written record is drift to report, not a repo that never adopted.
+  if (conformingFiles === 0 && !findings.some((f) => f.rule === 'unreadable')) {
     return { status: 'absent', findings: [] };
   }
 

@@ -40,9 +40,15 @@ describe('checkAdr', () => {
     expect((await checkAdr(repo)).status).toBe('absent');
 
     await writeRecord(repo, 'README.md', '# notes\n');
+    // A stray README is not a record, so the repo has not opted in (AC5).
+    expect((await checkAdr(repo)).status).toBe('absent');
+  });
+
+  it('flags a non-conforming filename once a record exists', async () => {
+    const repo = await makeRepo();
+    await writeRecord(repo, '0001-first.md', VALID);
+    await writeRecord(repo, 'notes.md', '# notes\n');
     const report = await checkAdr(repo);
-    // A stray README is not a record, so the repo has not opted in — but the
-    // non-conforming filename must not silently pass once records exist.
     expect(report.status).toBe('invalid');
     expect(report.findings[0]?.rule).toBe('bad-filename');
   });
