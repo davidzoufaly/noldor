@@ -317,3 +317,26 @@ describe('stampInjectedRules', () => {
     expect(seen).toHaveLength(1);
   });
 });
+
+describe('ui-design fields', () => {
+  const base = { path: 'full-new', slug: 's', startedAt: '2026-08-19T00:00:00Z' };
+
+  it('accepts uiVerdict + uiVerdictPaths + uiWaiver', () => {
+    expect(() =>
+      SessionMarkerSchema.parse({
+        ...base,
+        uiVerdict: 'required',
+        uiVerdictPaths: ['src/dashboard/app/page.tsx'],
+        uiWaiver: { reason: 'pencil MCP unavailable', at: '2026-08-19T10:00:00Z' },
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects an unknown uiVerdict value', () => {
+    expect(() => SessionMarkerSchema.parse({ ...base, uiVerdict: 'maybe' })).toThrow();
+  });
+
+  it('all three fields are optional (back-compat)', () => {
+    expect(() => SessionMarkerSchema.parse(base)).not.toThrow();
+  });
+});

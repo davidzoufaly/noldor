@@ -26,6 +26,15 @@ export const SessionMarkerSchema = z
     startedAt: z.string().min(1),
     autonomous: z.boolean().optional(),
     injectedRules: z.array(z.string().min(1)).optional(),
+    /** Spec-time UI-design verdict (ui-predicate, spec U2). Written by the design step; audit + ship-time reconciliation input. */
+    uiVerdict: z.enum(['required', 'skip']).optional(),
+    /** The candidate paths that matched uiPaths when the verdict was computed. */
+    uiVerdictPaths: z.array(z.string().min(1)).optional(),
+    /** Operator waiver for a required session with no editor (spec U4) — machine-readable, distinguishes waived from missing. */
+    uiWaiver: z
+      .object({ reason: z.string().min(1), at: z.string().min(1) })
+      .strict()
+      .optional(),
     markerVersion: z.literal(2).optional(),
   })
   .strict()

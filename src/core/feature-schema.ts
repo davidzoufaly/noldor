@@ -64,6 +64,9 @@ export const FeatureFrontmatterSchema = z
       )
       .optional(),
     'noldor-tier': z.enum(['specs-only', 'full']),
+    /** UI-design-stage override (ui-predicate, spec U2): absolute in both
+     *  directions. Operator-only — no framework code path writes it. */
+    design: z.enum(['required', 'skip']).optional(),
     updated: semver.optional(),
     /** Optional milestone membership — the slug of a docs/milestones/<slug>.md
      *  file (filename stem == milestone frontmatter `name`). Absent by default;
