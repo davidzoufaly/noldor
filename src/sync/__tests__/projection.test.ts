@@ -230,7 +230,12 @@ describe('the features directory vanishing mid-run', () => {
     // The same ENOENT arrives whether one FD went or the whole directory did.
     // Calling the second benign would exit 0 having written nothing.
     expect(exit).toBe(1);
-    expect(vi.mocked(console.error).mock.calls.flat().join('\n')).toContain('directory vanished');
+    const printed = vi.mocked(console.error).mock.calls.flat().join('\n');
+    expect(printed).toContain('directory vanished');
+    // Reported once against the directory, not once per remaining FD, and the
+    // summary must not claim the rest were updated.
+    expect(printed.split('\n').filter((l) => l.includes('directory vanished'))).toHaveLength(1);
+    expect(printed).toContain('the run stopped there');
   });
 });
 

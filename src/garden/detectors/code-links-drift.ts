@@ -93,7 +93,7 @@ export function linksDriftGaps(
         gaps.push({
           category: `links.${adapter.key} drift`,
           itemId: adapter.key,
-          message: `${failure.root}: unreadable (${failure.code}) — links.${adapter.key} drift not checked`,
+          message: `${rel(failure.root)}: unreadable (${failure.code}) — links.${adapter.key} drift not checked`,
         });
       }
       continue;

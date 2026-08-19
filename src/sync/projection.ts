@@ -618,9 +618,22 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
       // tmp write or rename inside `atomicWriteFile` — and treating that as
       // benign would log "disappeared" for every slug and exit 0 having written
       // nothing, which is the silent green this module exists to prevent.
-      if (code === 'ENOENT' && existsSync(featuresDir)) {
-        console.warn(`WARN: ${featureMd} disappeared mid-run — skipped.`);
-        continue;
+      if (code === 'ENOENT') {
+        if (existsSync(featuresDir)) {
+          console.warn(`WARN: ${featureMd} disappeared mid-run — skipped.`);
+          continue;
+        }
+        // The directory is gone, so every remaining slug would fail the same
+        // way. Record it once against the directory and stop: repeating it per
+        // FD would bury the cause and claim the rest were updated.
+        writeFailures.push({
+          root: featuresDir,
+          code,
+          kind: 'features-dir',
+          what: 'feature MD directory vanished mid-run',
+          remedy: 'restore the feature MD directory and re-run',
+        });
+        break;
       }
       // Any other filesystem error is an expected failure, not a programmer
       // error. Rethrowing would abandon every remaining slug midway through a
@@ -653,8 +666,10 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
   // authoritative and nothing was cleared, which is the opposite of what
   // happened here — the links above were written and only these FDs were missed.
   for (const f of writeFailures) console.error(`${f.what} ${f.root} (${f.code})`);
+  const aborted = writeFailures.some((f) => f.kind === 'features-dir');
   console.error(
-    `${writeFailures.length} feature MD(s) could not be written — the rest were updated. ` +
+    `${writeFailures.length} write(s) failed — ` +
+      (aborted ? 'the run stopped there. ' : 'the other feature MDs were updated. ') +
       `To fix: ${[...new Set(writeFailures.map((f) => f.remedy))].join('; ')}.`,
   );
   return 1;
