@@ -20,16 +20,34 @@ export function originTaggedScanRoots(cwd: string): ScanRoot[] {
   }));
 }
 
+/**
+ * Build an adapter over the consumer's source tree. Both source-tree kinds walk
+ * the same origin-tagged roots and own nothing outside them, so only the tag
+ * syntax, the file predicate and the preserved entries vary.
+ *
+ * @param spec - What distinguishes this kind
+ * @returns The adapter the engine drives
+ */
+export function sourceTreeAdapter(
+  spec: Pick<LinkAdapter, 'key' | 'tagRe' | 'eligible' | 'tagLabel'> &
+    Partial<Pick<LinkAdapter, 'preserve'>>,
+): LinkAdapter {
+  return {
+    roots: originTaggedScanRoots,
+    preserve: () => false,
+    unownable: () => false,
+    ...spec,
+  };
+}
+
 /** `links.code`, projected from `// @fd:` tags on non-test source files. */
-export const codeAdapter: LinkAdapter = {
+export const codeAdapter: LinkAdapter = sourceTreeAdapter({
   key: 'code',
   tagRe: /^\/\/\s*@fd:\s*(.+?)\s*$/m,
-  roots: originTaggedScanRoots,
   eligible: (name) => CODE_FILE_RE.test(name) && !TEST_FILE_RE.test(name),
   // A directory entry carries no file extension and so can never hold a tag.
   // Package-level attribution (`packages/sample-scenes`) is hand-curated and the
   // scan must leave it alone.
   preserve: (p) => !CODE_FILE_RE.test(p),
-  unownable: () => false,
   tagLabel: '// @fd:',
-};
+});

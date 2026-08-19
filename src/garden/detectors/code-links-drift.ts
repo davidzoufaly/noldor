@@ -67,23 +67,23 @@ export function linksDriftGaps(
   // Gap text stays repo-relative; the failures carry absolute paths because the
   // loader walks absolute directories.
   const rel = (p: string): string => (isAbsolute(p) ? relative(process.cwd(), p) : p);
-  for (const failure of cacheUnavailable) {
-    gaps.push({
+  gaps.push(
+    ...cacheUnavailable.map((f) => ({
       category: 'links drift',
       itemId: featuresDir,
-      message: `${rel(failure.root)}: ${failure.what} (${failure.code}) — links drift not checked`,
-    });
-  }
+      message: `${rel(f.root)}: ${f.what} (${f.code}) — links drift not checked`,
+    })),
+  );
   // Iterate the failures rather than a set of slugs: each one already says what
   // went wrong in the operator's terms, and an FD with sound frontmatter but
   // wrong permissions must not be reported as unparseable.
-  for (const failure of perFd) {
-    gaps.push({
+  gaps.push(
+    ...perFd.map((f) => ({
       category: 'links drift',
-      itemId: basename(failure.root, '.md'),
-      message: `${rel(failure.root)}: ${failure.what} (${failure.code}) — links drift not checked for it`,
-    });
-  }
+      itemId: basename(f.root, '.md'),
+      message: `${rel(f.root)}: ${f.what} (${f.code}) — links drift not checked for it`,
+    })),
+  );
 
   for (const adapter of adapters) {
     const scan = scans.get(adapter.key);

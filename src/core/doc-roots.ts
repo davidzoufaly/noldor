@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+
+import { walkRepo } from './fd-load.js';
 
 export interface DocRoots {
   features: string;
@@ -105,35 +106,19 @@ export function docPresenceRoots(cwd: string = process.cwd()): string[] {
  *
  * Recursive on purpose: the tag projection's walker recurses, so a lister that
  * only reads the top level would let `sync doc-links` honor a tag in a
- * subdirectory that no validator ever slug-checks.
- *
- * Missing roots are skipped — a repo with no tutorials directory is not an
- * error — but any other read failure bubbles, since a root that exists and
- * cannot be read is a real gap in coverage rather than an absent one.
+ * subdirectory that no validator ever slug-checks. Delegates to {@link walkRepo}
+ * rather than repeating its hidden-entry and build-artefact rules, and inherits
+ * its policy: a missing root contributes nothing, any other read failure bubbles.
  *
  * @param roots - Absolute directories from {@link docProjectionRoots} or {@link docPresenceRoots}
  * @param cwd - Root the returned paths are relative to (default `process.cwd()`)
  * @returns Repo-relative doc paths
  */
 export async function listDocMds(roots: string[], cwd: string = process.cwd()): Promise<string[]> {
-  const out: string[] = [];
-  const visit = async (dir: string): Promise<void> => {
-    let entries;
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
-      throw error;
-    }
-    for (const entry of entries) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await visit(full);
-      } else if (entry.isFile() && entry.name.endsWith('.md')) {
-        out.push(relative(cwd, full));
-      }
-    }
-  };
-  for (const root of roots) await visit(root);
-  return out.toSorted();
+  const files: string[] = [];
+  for (const root of roots) await walkRepo(root, files);
+  return files
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => relative(cwd, f))
+    .toSorted();
 }
