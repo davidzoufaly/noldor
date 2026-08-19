@@ -6,9 +6,7 @@ links:
   code:
     - src/core/validate-noldor-scope.ts
     - src/core/changelog.ts
-  docs:
-    - docs/noldor/git-and-commits.md
-    - docs/noldor/script-catalog.md
+  docs: []
   tests:
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/validate-noldor-scope.test.ts
@@ -78,8 +76,5 @@ On failure, the validator error itself prints the exact trailer line to add.
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)
   - [`src/core/__tests__/validate-noldor-scope.test.ts`](../../src/core/__tests__/validate-noldor-scope.test.ts)
   - [`src/hooks/__tests__/noldor-validate-trailer.test.ts`](../../src/hooks/__tests__/noldor-validate-trailer.test.ts)
-- **Docs:**
-  - [`docs/noldor/git-and-commits.md`](../../docs/noldor/git-and-commits.md)
-  - [`docs/noldor/script-catalog.md`](../../docs/noldor/script-catalog.md)
 
 <!-- /generated: resources -->

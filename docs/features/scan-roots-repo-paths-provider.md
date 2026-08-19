@@ -5,11 +5,6 @@ deps: []
 links:
   code:
     - src/core/repo-paths.ts
-    - src/sync/sync-code-links.ts
-    - src/features/fill-links-code-gaps.ts
-    - src/features/propose-pointers.ts
-    - src/dashboard/data.ts
-    - src/garden/sdd-report.ts
   docs: []
   tests:
     - src/core/__tests__/repo-paths.test.ts
@@ -69,11 +64,6 @@ Added a repo-paths provider exposing `scanRoots` and `actualPackageNames` (#144)
 - **Spec:** [`docs/design/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md`](../../docs/design/specs/archive/2026-07-03-scan-roots-repo-paths-provider-design.md)
 - **Code:**
   - [`src/core/repo-paths.ts`](../../src/core/repo-paths.ts)
-  - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
-  - [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts)
-  - [`src/features/propose-pointers.ts`](../../src/features/propose-pointers.ts)
-  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
 - **Tests:**
   - [`src/core/__tests__/repo-paths.test.ts`](../../src/core/__tests__/repo-paths.test.ts)
 

@@ -12,8 +12,7 @@ links:
     - src/garden/detectors/bootstrap-override-audit.ts
     - src/garden/detectors/codex-cr-override-audit.ts
     - src/garden/garden-detect.ts
-  docs:
-    - docs/noldor/feature-md-schema.md
+  docs: []
   tests:
     - src/core/__tests__/feature-schema-since.test.ts
     - src/core/__tests__/feature-schema.test.ts
@@ -124,7 +123,5 @@ This release adds bootstrap-immunity for self-gating features (#110), allowing f
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/garden/detectors/__tests__/bootstrap-override-audit.test.ts`](../../src/garden/detectors/__tests__/bootstrap-override-audit.test.ts)
   - [`src/garden/detectors/__tests__/codex-cr-override-audit.test.ts`](../../src/garden/detectors/__tests__/codex-cr-override-audit.test.ts)
-- **Docs:**
-  - [`docs/noldor/feature-md-schema.md`](../../docs/noldor/feature-md-schema.md)
 
 <!-- /generated: resources -->

@@ -9,9 +9,7 @@ links:
     - src/core/config.ts
     - src/cli/manifest.ts
     - .github/workflows/publish.yml
-  docs:
-    - docs/noldor/versioning.md
-    - docs/noldor/adoption-guide.md
+  docs: []
   tests:
     - src/release/__tests__/publish-workflow.test.ts
     - src/release/__tests__/release-publish-cli.test.ts
@@ -110,8 +108,5 @@ Added a `release.publish` config block that ships default-off for consumer safet
   - [`src/release/__tests__/release-publish-cli.test.ts`](../../src/release/__tests__/release-publish-cli.test.ts)
   - [`src/release/__tests__/release-publish.test.ts`](../../src/release/__tests__/release-publish.test.ts)
   - [`src/testing/__tests__/engines-floor.test.ts`](../../src/testing/__tests__/engines-floor.test.ts)
-- **Docs:**
-  - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
-  - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
 
 <!-- /generated: resources -->

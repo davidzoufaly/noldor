@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 
 import matter from 'gray-matter';
 
@@ -22,7 +22,7 @@ import { detectAllowlistDrift } from './detectors/allowlist-drift.js';
 import { detectTrailerScopeMismatch } from './detectors/trailer-scope-mismatch.js';
 import { detectPlanWithoutFd } from './detectors/plan-without-fd.js';
 import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
-import { detectCodeLinksDrift } from './detectors/code-links-drift.js';
+import { linksDriftGaps } from './detectors/code-links-drift.js';
 import { detectFdLinkRot } from './detectors/fd-link-rot.js';
 import { detectFdCommandRot } from './detectors/fd-command-rot.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
@@ -30,7 +30,10 @@ import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-
 import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
 import { detectSkillCodeDrift } from './detectors/skill-code-drift.js';
 import { detectArchitectureAdvisories } from './detectors/architecture.js';
-import { buildSlugToCodeMap, collectTaggedCode, loadCachedCode } from '../sync/sync-code-links.js';
+import { codeAdapter } from '../sync/adapters/code.js';
+import { docsAdapter } from '../sync/adapters/docs.js';
+import { testsAdapter } from '../sync/adapters/tests.js';
+import { collectTaggedMany, loadCachedAll } from '../sync/projection.js';
 import {
   resolveByLinksPlan,
   resolveByLinksSpec,
@@ -769,12 +772,24 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   const milestoneShippedIncomplete = await detectMilestoneShippedIncomplete(repo);
   const circularBlockedBy = await detectCircularBlockedBy(repo);
   const sddGaps = loadSddGaps(repo);
-  // Append the file-side `// @fd:` tag drift: an FD whose cached links.code
-  // diverges from what the tag scan would write. Reuses diffProjection so this
-  // can never disagree with `sync code-links --check`.
-  const scannedCode = buildSlugToCodeMap(await collectTaggedCode(repo));
-  const cachedCode = await loadCachedCode(join(repo, 'docs/features'));
-  sddGaps.push(...detectCodeLinksDrift(scannedCode, cachedCode));
+  // Append tag drift for all three traceability kinds: an FD whose cached
+  // links array diverges from what its tag scan would write. Reuses
+  // diffProjection so this can never disagree with `sync <kind>-links --check`.
+  // One traversal and one FD-parse pass feed all three — the code and tests
+  // adapters walk the same tree and differ only in which files they read, and
+  // re-parsing every FD once per kind would dominate this pass.
+  const adapters = [codeAdapter, testsAdapter, docsAdapter];
+  const scans = await collectTaggedMany(adapters, repo);
+  const cachedAll = await loadCachedAll(
+    loadDocRoots(repo).features,
+    adapters.map((a) => a.key),
+  );
+  // Repo-relative, like every sibling detector's gap text — an absolute path
+  // here would leak this machine's checkout prefix into the report.
+  sddGaps.push(
+    ...linksDriftGaps(scans, cachedAll, adapters, relative(repo, loadDocRoots(repo).features)),
+  );
+
   // FD link targets: stat what every FD's frontmatter points at (code/tests/
   // docs/spec/plan). The 2026-07 audit found 36/50 FDs link-rotted while every
   // validator reported green — shape checks and working-dir scans never stat

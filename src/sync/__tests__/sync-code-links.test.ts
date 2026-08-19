@@ -2,13 +2,23 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { codeAdapter } from '../adapters/code.js';
 import {
-  buildSlugToCodeMap,
-  diffProjection,
-  extractFdTags,
-  projectLinksCode,
-  taglessKeptSlugs,
-} from '../sync-code-links.js';
+  buildSlugMap,
+  diffProjection as diffProjectionWith,
+  project,
+  taglessKeptSlugs as taglessKeptSlugsWith,
+} from '../projection.js';
+import { extractFdTags } from '../sync-code-links.js';
+
+/** The code kind's projection, bound to its adapter — what the CLI runs. */
+const buildSlugToCodeMap = buildSlugMap;
+const projectLinksCode = (scanned: string[], current: string[], force = false) =>
+  project(scanned, current, codeAdapter, force);
+const diffProjection = (scanned: Map<string, string[]>, cached: Map<string, string[]>) =>
+  diffProjectionWith(scanned, cached, codeAdapter);
+const taglessKeptSlugs = (scanned: Map<string, string[]>, cached: Map<string, string[]>) =>
+  taglessKeptSlugsWith(scanned, cached, codeAdapter);
 
 describe('extractFdTags', () => {
   it('parses a single slug', () => {

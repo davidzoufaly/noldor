@@ -4,21 +4,17 @@ category: Tooling
 deps: []
 links:
   code:
-    - docs/roadmap.md
-    - docs/backlog.md
-    - .claude/skills/noldor-triage/SKILL.md
     - .claude/skills/noldor-new-feature/SKILL.md
     - .claude/skills/noldor-promote/SKILL.md
+    - .claude/skills/noldor-triage/SKILL.md
+    - docs/backlog.md
+    - docs/noldor/feature-md-schema.md
+    - docs/noldor/triage.md
+    - docs/roadmap.md
+    - src/triage/backfill-ids-cli.ts
     - src/triage/entry-id.ts
     - src/triage/mint-id-cli.ts
-    - src/triage/backfill-ids-cli.ts
-    - src/triage/score.ts
-    - src/triage/validate-triage.ts
-    - src/utils/parse-blocks.ts
-    - src/core/feature-schema.ts
-    - src/cli/manifest.ts
-    - docs/noldor/triage.md
-    - docs/noldor/feature-md-schema.md
+    - src/triage/retired-ids.ts
   docs: []
   tests:
     - src/triage/__tests__/entry-id.test.ts
@@ -81,21 +77,17 @@ Introduces stable entry IDs (Q-NNNN) for roadmap + backlog (#157).
 
 - **Spec:** [`docs/design/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md`](../../docs/design/specs/archive/2026-07-03-stable-entry-ids-for-roadmap-backlog-design.md)
 - **Code:**
-  - [`docs/roadmap.md`](../../docs/roadmap.md)
-  - [`docs/backlog.md`](../../docs/backlog.md)
-  - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
   - [`.claude/skills/noldor-new-feature/SKILL.md`](../../.claude/skills/noldor-new-feature/SKILL.md)
   - [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md)
+  - [`.claude/skills/noldor-triage/SKILL.md`](../../.claude/skills/noldor-triage/SKILL.md)
+  - [`docs/backlog.md`](../../docs/backlog.md)
+  - [`docs/noldor/feature-md-schema.md`](../../docs/noldor/feature-md-schema.md)
+  - [`docs/noldor/triage.md`](../../docs/noldor/triage.md)
+  - [`docs/roadmap.md`](../../docs/roadmap.md)
+  - [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts)
   - [`src/triage/entry-id.ts`](../../src/triage/entry-id.ts)
   - [`src/triage/mint-id-cli.ts`](../../src/triage/mint-id-cli.ts)
-  - [`src/triage/backfill-ids-cli.ts`](../../src/triage/backfill-ids-cli.ts)
-  - [`src/triage/score.ts`](../../src/triage/score.ts)
-  - [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts)
-  - [`src/utils/parse-blocks.ts`](../../src/utils/parse-blocks.ts)
-  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
-  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
-  - [`docs/noldor/triage.md`](../../docs/noldor/triage.md)
-  - [`docs/noldor/feature-md-schema.md`](../../docs/noldor/feature-md-schema.md)
+  - [`src/triage/retired-ids.ts`](../../src/triage/retired-ids.ts)
 - **Tests:**
   - [`src/triage/__tests__/entry-id.test.ts`](../../src/triage/__tests__/entry-id.test.ts)
   - [`src/triage/__tests__/remove-block-cli.test.ts`](../../src/triage/__tests__/remove-block-cli.test.ts)

@@ -59,5 +59,10 @@
   "Q-0142": {
     "slug": "consumer-lefthook-wiring-check",
     "retiredAt": "2026-08-18"
+  },
+  "Q-0111": {
+    "slug": "traceability-projection-module",
+    "retiredInto": "feature-md-links-overhaul",
+    "retiredAt": "2026-08-18"
   }
 }

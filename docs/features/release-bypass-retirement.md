@@ -11,9 +11,7 @@ links:
     - src/garden/garden-detect.ts
     - src/garden/sdd-report.ts
     - src/garden/garden-receipt.ts
-  docs:
-    - docs/noldor/cr-pipeline.md
-    - docs/noldor/versioning.md
+  docs: []
   tests:
     - src/core/__tests__/config.test.ts
     - src/release/__tests__/release-cr-gate.test.ts
@@ -115,8 +113,5 @@ Added a `release.crGateExemptCommits` config schema (#133).
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/garden/__tests__/garden-receipt.test.ts`](../../src/garden/__tests__/garden-receipt.test.ts)
-- **Docs:**
-  - [`docs/noldor/cr-pipeline.md`](../../docs/noldor/cr-pipeline.md)
-  - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
 
 <!-- /generated: resources -->

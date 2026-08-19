@@ -4,13 +4,8 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/autonomous/drain-io.ts
-    - src/autonomous/drain-source.ts
     - src/autonomous/gate-prompt.ts
-    - src/core/agent-runner/capabilities.ts
-    - src/core/agent-runner/types.ts
-  docs:
-    - docs/noldor/drain-mode.md
+  docs: []
   tests:
     - src/autonomous/__tests__/drain-source.test.ts
     - src/autonomous/__tests__/gate-prompt.test.ts
@@ -74,16 +69,10 @@ This release adds the `promptDispatch` runner capability (#151).
 
 - **Spec:** [`docs/design/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md`](../../docs/design/specs/archive/2026-07-03-portable-gate-entrypoint-for-non-claude-runners-design.md)
 - **Code:**
-  - [`src/autonomous/drain-io.ts`](../../src/autonomous/drain-io.ts)
-  - [`src/autonomous/drain-source.ts`](../../src/autonomous/drain-source.ts)
   - [`src/autonomous/gate-prompt.ts`](../../src/autonomous/gate-prompt.ts)
-  - [`src/core/agent-runner/capabilities.ts`](../../src/core/agent-runner/capabilities.ts)
-  - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/drain-source.test.ts`](../../src/autonomous/__tests__/drain-source.test.ts)
   - [`src/autonomous/__tests__/gate-prompt.test.ts`](../../src/autonomous/__tests__/gate-prompt.test.ts)
   - [`src/core/agent-runner/__tests__/runners.test.ts`](../../src/core/agent-runner/__tests__/runners.test.ts)
-- **Docs:**
-  - [`docs/noldor/drain-mode.md`](../../docs/noldor/drain-mode.md)
 
 <!-- /generated: resources -->

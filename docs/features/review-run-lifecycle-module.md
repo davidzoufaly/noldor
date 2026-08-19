@@ -20,6 +20,7 @@ phase: done
 since: 2026-08-12T00:00:00.000Z
 noldor-tier: specs-only
 ---
+
 ## Summary
 
 The codex CR lane owns neither the process it starts nor the capability probe it
@@ -109,3 +110,18 @@ and burn quota against a result nobody will read.
 <!-- @prs-since-last-release: review-run-lifecycle-module -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`src/core/agent-runner/bounded-capture.ts`](../../src/core/agent-runner/bounded-capture.ts)
+  - [`src/core/settle-within.ts`](../../src/core/settle-within.ts)
+  - [`src/cr/codex-adapter.ts`](../../src/cr/codex-adapter.ts)
+- **Tests:**
+  - [`src/core/agent-runner/__tests__/bounded-capture.test.ts`](../../src/core/agent-runner/__tests__/bounded-capture.test.ts)
+  - [`src/cr/__tests__/codex-failure.test.ts`](../../src/cr/__tests__/codex-failure.test.ts)
+  - [`src/cr/__tests__/lanes/codex.test.ts`](../../src/cr/__tests__/lanes/codex.test.ts)
+
+<!-- /generated: resources -->

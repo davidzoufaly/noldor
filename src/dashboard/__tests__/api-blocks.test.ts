@@ -7,8 +7,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import * as atomicModule from '../api/atomic.js';
-import { atomicWriteFile } from '../api/atomic.js';
+import * as atomicModule from '../../core/atomic-write.js';
+import { atomicWriteFile } from '../../core/atomic-write.js';
 import { handleDemote, handleMove, handlePromote, handleRemove } from '../api/blocks.js';
 
 describe(atomicWriteFile, () => {

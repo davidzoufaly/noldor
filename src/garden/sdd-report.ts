@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import {
@@ -22,7 +22,7 @@ import { extractUntriagedBullets } from '../triage/triage-list-untriaged.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
 import type { ConsumerConfig } from '../core/consumer-config.js';
-import { loadDocRoots } from '../core/doc-roots.js';
+import { docPresenceRoots, listDocMds, loadDocRoots } from '../core/doc-roots.js';
 
 import { detectArchitectureFindings } from './detectors/architecture.js';
 import { commitOnlyTouchesReport, matchesExpectedOverride } from './detectors/override-audit.js';
@@ -996,19 +996,7 @@ async function main(): Promise<void> {
   );
   const testInputs = await readTextFiles(testFiles);
 
-  const docFiles: string[] = [];
-  for (const sub of ['docs/user/tutorials', 'docs/user/explanation']) {
-    try {
-      const entries = await readdir(sub, { withFileTypes: true });
-      for (const e of entries) {
-        if (e.isFile() && e.name.endsWith('.md')) {
-          docFiles.push(join(sub, e.name));
-        }
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
-  }
+  const docFiles = await listDocMds(docPresenceRoots());
   const docInputs = await readTextFiles(docFiles);
 
   const actualPackages = await actualPackageNames();

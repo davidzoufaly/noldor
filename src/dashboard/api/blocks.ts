@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import { countEntries, insertBlock, moveBlock, removeBlock } from '../../utils/write-blocks.js';
 
-import { atomicWriteFile } from './atomic.js';
+import { atomicWriteFile } from '../../core/atomic-write.js';
 
 /**
  * Shape of every dashboard HTTP write response. `etag` is present on 200

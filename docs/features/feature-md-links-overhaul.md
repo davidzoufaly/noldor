@@ -8,18 +8,17 @@ packages:
 deps: []
 links:
   code:
-    - src/checks/check-feature-slug-scope.ts
-    - src/core/extract-touches.ts
-    - src/core/feature-schema.ts
-    - src/features/fill-links-code-gaps.ts
-    - src/features/migrate-features.ts
-    - src/features/validate-features.ts
-    - src/garden/sdd-report.ts
-    - src/release/release-commits.ts
-    - src/sync/sync-spec-links.ts
+    - src/garden/detectors/code-links-drift.ts
+    - src/sync/adapters/code.ts
+    - src/sync/adapters/docs.ts
+    - src/sync/adapters/tests.ts
+    - src/sync/projection.ts
+    - src/sync/sync-code-links.ts
+    - src/sync/sync-doc-links.ts
     - src/sync/sync-test-links.ts
   tests:
     - src/checks/__tests__/check-feature-slug-scope.test.ts
+    - src/core/__tests__/doc-roots.test.ts
     - src/core/__tests__/extract-touches.test.ts
     - src/core/__tests__/feature-schema-since.test.ts
     - src/core/__tests__/feature-schema.test.ts
@@ -29,9 +28,11 @@ links:
     - src/features/__tests__/validate-features.test.ts
     - src/garden/__tests__/graph-fd-lookup.test.ts
     - src/garden/__tests__/sdd-report.test.ts
+    - src/garden/detectors/__tests__/code-links-drift.test.ts
     - src/release/__tests__/release-changelog.test.ts
     - src/release/__tests__/release-commits.test.ts
     - src/release/__tests__/release-fd-commits.test.ts
+    - src/sync/__tests__/projection.test.ts
     - src/sync/__tests__/sync-spec-links.test.ts
     - src/sync/__tests__/sync-test-links.test.ts
   spec: lost-pre-extraction
@@ -76,24 +77,41 @@ The proposal groups files by FD slug. Lines prefixed `#` are skipped on apply. T
 
 **Release-notes Summary fallback** — `docs/release-notes.md` shows curated prose, never raw commit bullets. For `updated` features, the renderer prefers the per-version `## Changelog > ### <version> > #### Summary` block from the FD; if that's empty or still placeholder, it falls back to the FD's `## Summary` first paragraph. Commit hashes never appear in user-facing release notes — they live in git log + GitHub release pages.
 
+**Traceability projection (`links.code` / `links.tests` / `links.docs`)** — the three
+`sync` commands share one engine, so they take the same flags:
+
+```bash
+pnpm noldor sync code-links            # write links.code from // @fd: tags
+pnpm noldor sync test-links            # write links.tests from // @tests: tags
+pnpm noldor sync doc-links             # write links.docs from <!-- @feature: --> tags
+
+pnpm noldor sync <kind>-links --check  # report drift, exit 1 if stale, write nothing
+pnpm noldor sync <kind>-links --force  # clear entries a tagless scan would otherwise keep
+pnpm noldor sync <kind>-links --quiet  # suppress the tagless-kept report (used by the hooks)
+```
+
+A run whose scan could not read a consumer-configured root clears nothing and exits
+non-zero rather than reading as "no tags anywhere". Without `--force`, an FD whose scan
+matched nothing keeps its cached entries and is named in the tagless-kept report.
+`garden detect` reports drift for all three kinds.
+
 <!-- generated: resources -->
 
 ## Resources
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/checks/check-feature-slug-scope.ts`](../../src/checks/check-feature-slug-scope.ts)
-  - [`src/core/extract-touches.ts`](../../src/core/extract-touches.ts)
-  - [`src/core/feature-schema.ts`](../../src/core/feature-schema.ts)
-  - [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts)
-  - [`src/features/migrate-features.ts`](../../src/features/migrate-features.ts)
-  - [`src/features/validate-features.ts`](../../src/features/validate-features.ts)
-  - [`src/garden/sdd-report.ts`](../../src/garden/sdd-report.ts)
-  - [`src/release/release-commits.ts`](../../src/release/release-commits.ts)
-  - [`src/sync/sync-spec-links.ts`](../../src/sync/sync-spec-links.ts)
+  - [`src/garden/detectors/code-links-drift.ts`](../../src/garden/detectors/code-links-drift.ts)
+  - [`src/sync/adapters/code.ts`](../../src/sync/adapters/code.ts)
+  - [`src/sync/adapters/docs.ts`](../../src/sync/adapters/docs.ts)
+  - [`src/sync/adapters/tests.ts`](../../src/sync/adapters/tests.ts)
+  - [`src/sync/projection.ts`](../../src/sync/projection.ts)
+  - [`src/sync/sync-code-links.ts`](../../src/sync/sync-code-links.ts)
+  - [`src/sync/sync-doc-links.ts`](../../src/sync/sync-doc-links.ts)
   - [`src/sync/sync-test-links.ts`](../../src/sync/sync-test-links.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-feature-slug-scope.test.ts`](../../src/checks/__tests__/check-feature-slug-scope.test.ts)
+  - [`src/core/__tests__/doc-roots.test.ts`](../../src/core/__tests__/doc-roots.test.ts)
   - [`src/core/__tests__/extract-touches.test.ts`](../../src/core/__tests__/extract-touches.test.ts)
   - [`src/core/__tests__/feature-schema-since.test.ts`](../../src/core/__tests__/feature-schema-since.test.ts)
   - [`src/core/__tests__/feature-schema.test.ts`](../../src/core/__tests__/feature-schema.test.ts)
@@ -103,9 +121,11 @@ The proposal groups files by FD slug. Lines prefixed `#` are skipped on apply. T
   - [`src/features/__tests__/validate-features.test.ts`](../../src/features/__tests__/validate-features.test.ts)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
+  - [`src/garden/detectors/__tests__/code-links-drift.test.ts`](../../src/garden/detectors/__tests__/code-links-drift.test.ts)
   - [`src/release/__tests__/release-changelog.test.ts`](../../src/release/__tests__/release-changelog.test.ts)
   - [`src/release/__tests__/release-commits.test.ts`](../../src/release/__tests__/release-commits.test.ts)
   - [`src/release/__tests__/release-fd-commits.test.ts`](../../src/release/__tests__/release-fd-commits.test.ts)
+  - [`src/sync/__tests__/projection.test.ts`](../../src/sync/__tests__/projection.test.ts)
   - [`src/sync/__tests__/sync-spec-links.test.ts`](../../src/sync/__tests__/sync-spec-links.test.ts)
   - [`src/sync/__tests__/sync-test-links.test.ts`](../../src/sync/__tests__/sync-test-links.test.ts)
 

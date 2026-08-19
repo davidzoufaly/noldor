@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
+
+import { walkRepo } from './fd-load.js';
 
 export interface DocRoots {
   features: string;
@@ -58,4 +60,65 @@ export function loadDocRoots(cwd: string = process.cwd()): DocRoots {
     specs: resolveDesignSubdir(cwd, 'specs'),
     architecture: join(cwd, 'docs', 'architecture'),
   };
+}
+
+/**
+ * Doc directories the `<!-- @feature: -->` tag scan projects from, and the same
+ * set `validateDocFeatureSlugs` validates over — so every tag `sync doc-links`
+ * honors is also slug-checked.
+ *
+ * `docs/noldor` is deliberately absent. Its pages are byte-identical twins of
+ * `templates/docs/noldor/`, synced verbatim into every consumer, so a tag added
+ * there must be mirrored into `templates/` or `checks template-sync` fails,
+ * mirroring ships framework-internal FD slugs into consumer trees, and a
+ * consumer's own edit is overwritten on the next upgrade. Excluding it is what
+ * lets slug validation run over the full projection set without redding anyone.
+ *
+ * @param cwd - Consumer root (default `process.cwd()`)
+ * @returns Absolute directory paths, missing ones included (walkers ENOENT-skip)
+ */
+export function docProjectionRoots(cwd: string = process.cwd()): string[] {
+  return [
+    join(cwd, 'docs', 'user', 'tutorials'),
+    join(cwd, 'docs', 'user', 'explanation'),
+    join(cwd, 'docs', 'user', 'how-to'),
+  ];
+}
+
+/**
+ * Doc directories where a `<!-- @feature: -->` tag is *required* — the narrow
+ * subset {@link docProjectionRoots} covers. Read by `validateDocTagPresence` and
+ * by garden's "tutorials without @feature tag" detector.
+ *
+ * Narrower than the projection set because a how-to page documents a task rather
+ * than a feature, so demanding a tag there would red repos that simply have
+ * how-tos.
+ *
+ * @param cwd - Consumer root (default `process.cwd()`)
+ * @returns Absolute directory paths
+ */
+export function docPresenceRoots(cwd: string = process.cwd()): string[] {
+  return [join(cwd, 'docs', 'user', 'tutorials'), join(cwd, 'docs', 'user', 'explanation')];
+}
+
+/**
+ * Every `.md` under the given roots, **recursively**, as repo-relative paths.
+ *
+ * Recursive on purpose: the tag projection's walker recurses, so a lister that
+ * only reads the top level would let `sync doc-links` honor a tag in a
+ * subdirectory that no validator ever slug-checks. Delegates to {@link walkRepo}
+ * rather than repeating its hidden-entry and build-artefact rules, and inherits
+ * its policy: a missing root contributes nothing, any other read failure bubbles.
+ *
+ * @param roots - Absolute directories from {@link docProjectionRoots} or {@link docPresenceRoots}
+ * @param cwd - Root the returned paths are relative to (default `process.cwd()`)
+ * @returns Repo-relative doc paths
+ */
+export async function listDocMds(roots: string[], cwd: string = process.cwd()): Promise<string[]> {
+  const files: string[] = [];
+  for (const root of roots) await walkRepo(root, files);
+  return files
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => relative(cwd, f))
+    .toSorted();
 }

@@ -4,7 +4,7 @@ category: Tooling
 deps: []
 links:
   code:
-    - src/dashboard/api/atomic.ts
+    - src/core/atomic-write.ts
     - src/dashboard/api/blocks.ts
     - src/dashboard/data.ts
     - src/dashboard/layout.ts
@@ -98,7 +98,7 @@ This release ships drag-and-drop reordering for the dashboard roadmap and backlo
 
 - **Spec:** _lost-pre-extraction_
 - **Code:**
-  - [`src/dashboard/api/atomic.ts`](../../src/dashboard/api/atomic.ts)
+  - [`src/core/atomic-write.ts`](../../src/core/atomic-write.ts)
   - [`src/dashboard/api/blocks.ts`](../../src/dashboard/api/blocks.ts)
   - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
   - [`src/dashboard/layout.ts`](../../src/dashboard/layout.ts)

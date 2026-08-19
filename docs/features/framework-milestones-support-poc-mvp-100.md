@@ -13,8 +13,7 @@ links:
     - src/dashboard/layout.ts
     - src/dashboard/data.ts
     - src/dashboard/views.ts
-  docs:
-    - docs/noldor/milestones.md
+  docs: []
   tests:
     - src/core/__tests__/feature-schema-since.test.ts
     - src/core/__tests__/feature-schema.test.ts
@@ -139,7 +138,5 @@ feat: connect features to milestones across schema, garden, and dashboard (#108)
   - [`src/garden/__tests__/graph-fd-lookup.test.ts`](../../src/garden/__tests__/graph-fd-lookup.test.ts)
   - [`src/garden/__tests__/sdd-report.test.ts`](../../src/garden/__tests__/sdd-report.test.ts)
   - [`src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts`](../../src/garden/detectors/__tests__/milestone-shipped-incomplete.test.ts)
-- **Docs:**
-  - [`docs/noldor/milestones.md`](../../docs/noldor/milestones.md)
 
 <!-- /generated: resources -->
