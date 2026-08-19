@@ -27,7 +27,7 @@ links:
 name: pen.dev UI Design Phase
 packages:
   - package.json
-phase: in-progress
+phase: done
 since: 2026-08-17T00:00:00.000Z
 noldor-tier: full
 ---
