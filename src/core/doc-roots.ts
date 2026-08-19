@@ -13,6 +13,8 @@ export interface DocRoots {
   milestones: string;
   plans: string;
   specs: string;
+  /** UI-design artifacts: feature `.pen` files + `baseline/` + `archive/`. */
+  designUi: string;
   architecture: string;
 }
 
@@ -60,6 +62,9 @@ export function loadDocRoots(cwd: string = process.cwd()): DocRoots {
     milestones: join(cwd, 'docs', 'milestones'),
     plans: resolveDesignSubdir(cwd, 'plans'),
     specs: resolveDesignSubdir(cwd, 'specs'),
+    // No transition alias: the ui/ subdir postdates the 1.0.0 rename, so no
+    // consumer ever had docs/superpowers/ui to migrate from.
+    designUi: join(cwd, 'docs', 'design', 'ui'),
     architecture: join(cwd, 'docs', 'architecture'),
   };
 }

@@ -41,3 +41,24 @@ export function specSlugFromFilename(filename: string): string | null {
   const match = SPEC_FILE_RE.exec(filename);
   return match?.[1] ?? null;
 }
+
+const PEN_FILE_RE = /^\d{4}-\d{2}-\d{2}-(.+?)\.pen$/;
+
+/**
+ * Derive the dialogue key from a feature UI-design filename
+ * (`2026-08-19-<key>.pen`). Baseline files (`baseline/<surface>.pen`) are
+ * undated and deliberately do not match — they are never archived.
+ *
+ * @param filename - The basename, e.g. `2026-08-19-my-feature.pen`.
+ * @returns The dialogue key (`my-feature`) or `null` when the filename does
+ *   not match the feature-pen naming convention.
+ */
+export function penSlugFromFilename(filename: string): string | null {
+  const match = PEN_FILE_RE.exec(filename);
+  return match?.[1] ?? null;
+}
+
+/** Canonical feature UI-design filename for a dialogue key. */
+export function penFileName(date: string, key: string): string {
+  return `${date}-${key}.pen`;
+}
