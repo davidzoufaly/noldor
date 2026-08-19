@@ -4,7 +4,7 @@
 // code (advisory), release preflight blocks on stale. This binary only reports.
 
 import { runIfDirect } from '../core/cli-entry.js';
-import { loadConsumerConfig } from '../core/consumer-config.js';
+import { loadUiConfig } from '../core/consumer-config.js';
 import {
   evaluateUiDesignFreshness,
   type UiFreshnessVerdict,
@@ -23,19 +23,12 @@ export function renderRows(surfaces: readonly UiSurfaceFreshness[]): string {
 }
 
 export async function main(cwd: string = process.cwd()): Promise<number> {
-  // loadConsumerConfig throws on a repo with no .noldor/config.json — the
-  // check is inert for non-adopters, never a stack trace.
-  let config: ReturnType<typeof loadConsumerConfig>;
-  try {
-    config = loadConsumerConfig(cwd);
-  } catch {
+  const ui = loadUiConfig(cwd);
+  if (ui === null) {
     console.log('ui-design-freshness: skipped (no consumer config)');
     return 0;
   }
-  const verdict = await evaluateUiDesignFreshness(cwd, {
-    uiPaths: config.uiPaths,
-    uiSurfaces: config.uiSurfaces,
-  });
+  const verdict = await evaluateUiDesignFreshness(cwd, ui);
   console.log(`ui-design-freshness: ${verdict.overall}`);
   console.log(renderRows(verdict.surfaces));
   return exitCodeFor(verdict.overall);

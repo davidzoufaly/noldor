@@ -11,7 +11,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { runIfDirect } from '../core/cli-entry.js';
-import { loadConsumerConfig } from '../core/consumer-config.js';
+import { loadUiConfig } from '../core/consumer-config.js';
 import {
   BASELINE_DIR,
   evaluateUiDesignFreshness,
@@ -65,19 +65,12 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
     return 2;
   }
   const surfaceFlag = flagIdx === -1 ? undefined : argv[flagIdx + 1];
-  // loadConsumerConfig throws on a repo with no .noldor/config.json — a
-  // non-adopter running ui-sync gets "nothing to do", never a stack trace.
-  let config: ReturnType<typeof loadConsumerConfig>;
-  try {
-    config = loadConsumerConfig(cwd);
-  } catch {
+  const ui = loadUiConfig(cwd);
+  if (ui === null) {
     console.log('ui-sync: nothing to do (no consumer config)');
     return 0;
   }
-  const verdict = await evaluateUiDesignFreshness(cwd, {
-    uiPaths: config.uiPaths,
-    uiSurfaces: config.uiSurfaces,
-  });
+  const verdict = await evaluateUiDesignFreshness(cwd, ui);
   const rows = verdict.surfaces.filter(
     (s) => surfaceFlag === undefined || s.surface === surfaceFlag,
   );

@@ -22,7 +22,7 @@ import {
   latestGardenScanCommitTs,
   readGardenReceipt,
 } from '../garden/garden-receipt.js';
-import { loadConsumerConfig } from '../core/consumer-config.js';
+import { loadUiConfig } from '../core/consumer-config.js';
 import { inspectTreeState, type TreeState } from './clean-tree.js';
 import { evaluateGraphFreshness } from './graph-freshness.js';
 import { evaluateUiDesignFreshness } from './ui-design-freshness.js';
@@ -338,11 +338,8 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
   'ui-design-freshness': async (ctx) => {
     // Consumer config is a separate loader from NoldorConfig; absence means the
     // repo never adopted the UI-design stage — skipped, never a throw.
-    let ui: { uiPaths?: string[]; uiSurfaces?: Record<string, string[]> };
-    try {
-      const consumer = loadConsumerConfig(ctx.cwd);
-      ui = { uiPaths: consumer.uiPaths, uiSurfaces: consumer.uiSurfaces };
-    } catch {
+    const ui = loadUiConfig(ctx.cwd);
+    if (ui === null) {
       return { id: 'ui-design-freshness', status: 'skipped', detail: 'no consumer config' };
     }
     const verdict = await evaluateUiDesignFreshness(ctx.cwd, ui);

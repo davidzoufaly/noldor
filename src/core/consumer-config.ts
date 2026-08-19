@@ -167,6 +167,23 @@ export const ConsumerConfigSchema = z
 export type ConsumerConfig = z.infer<typeof ConsumerConfigSchema>;
 export type BoundaryRule = z.infer<typeof BoundaryRuleSchema>;
 
+/**
+ * The consumer's UI-design config slice (`uiPaths`/`uiSurfaces`), or `null`
+ * when no consumer config exists — the one boundary where every UI-design
+ * caller (freshness CLI, ui-sync, doctor, release preflight) must treat a
+ * missing config as "feature not adopted", never a stack trace.
+ */
+export function loadUiConfig(
+  cwd: string,
+): { uiPaths?: string[]; uiSurfaces?: Record<string, string[]> } | null {
+  try {
+    const consumer = loadConsumerConfig(cwd);
+    return { uiPaths: consumer.uiPaths, uiSurfaces: consumer.uiSurfaces };
+  } catch {
+    return null;
+  }
+}
+
 const CONFIG_FILE = '.noldor/config.json';
 
 /**
