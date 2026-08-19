@@ -26,6 +26,49 @@ export const AUTH_HINT_RE =
   /codex login|not logged[- ]?in|unauthorized|\b401\b|no valid credentials|auth(?:entication)? (?:failed|expired|required)/i;
 
 /**
+ * The configured model postdates the installed CLI. Measured: codex-cli 0.133.0 against
+ * `gpt-5.6-sol` returns `400 invalid_request_error` carrying "The 'gpt-5.6-sol' model
+ * requires a newer version of Codex" — and codex appends generic login advice to API
+ * failures, so without this check the loose {@link AUTH_HINT_RE} sends the operator to
+ * re-authenticate a session that never expired.
+ */
+export const MODEL_VERSION_RE = /model requires a newer version of codex/i;
+
+/**
+ * An `invalid_request_error` naming a model on the SAME line, in either order. A
+ * model-shaped 400 is a request problem, never a credential problem, so it suppresses the
+ * auth hint even when the body happens to trip {@link AUTH_HINT_RE} (a "401" inside a
+ * request id, appended login boilerplate). Same-line on purpose: codex stderr runs to
+ * hundreds of KB, and a cross-line pairing would let an unrelated `model` word (an echoed
+ * `-c model=` flag) suppress a genuine auth hint.
+ */
+export const MODEL_REQUEST_ERROR_RE =
+  /invalid_request_error[^\n]*\bmodel\b|\bmodel\b[^\n]*invalid_request_error/i;
+
+/**
+ * Pick the remediation hint for a failure's stderr. Precedence: the model-version
+ * rejection owns its remedy (upgrade the CLI — the binary is npm-global, so
+ * `brew upgrade codex` silently no-ops; verified 2026-08-17, 0.133.0 → 0.147.0); any other
+ * model-shaped 400 explicitly disclaims auth; only then does auth-shaped stderr earn the
+ * login hint. Scans the WHOLE stderr — the actionable line can sit far outside any tail.
+ */
+function codexFailureHint(stderr: string): string {
+  if (MODEL_VERSION_RE.test(stderr)) {
+    return (
+      ' — the configured model requires a newer Codex CLI; run: npm install -g @openai/codex@latest' +
+      ' (npm-global binary — brew upgrade codex silently no-ops), or pin an older model: codex exec -c model=<model>'
+    );
+  }
+  if (MODEL_REQUEST_ERROR_RE.test(stderr)) {
+    return ' — request rejected over the named model; not an auth failure (see stderr tail)';
+  }
+  if (AUTH_HINT_RE.test(stderr)) {
+    return ' — auth looks expired; run: codex login';
+  }
+  return '';
+}
+
+/**
  * Render a bounded tail of `stderr` with its true size, or `''` when there is nothing to
  * show. The header always states the full size, so truncation is never silent — codex
  * routinely emits hundreds of KB and a sink is read by both `cr aggregate` and an agent's
@@ -52,9 +95,9 @@ export function formatStderrTail(
 
 /**
  * Compose the message for a codex failure blocker: which CLI version failed, how it
- * failed, an explicit remediation when the stderr looks auth-shaped, and a bounded tail.
+ * failed, an explicit remediation from {@link codexFailureHint}, and a bounded tail.
  *
- * The auth scan runs over the WHOLE stderr rather than the tail — the actionable line can
+ * The hint scan runs over the WHOLE stderr rather than the tail — the actionable line can
  * sit at byte 400 of 326,525, well outside any tail worth putting in a sink.
  */
 export function describeCodexFailure(input: {
@@ -68,7 +111,7 @@ export function describeCodexFailure(input: {
   /** True pre-elision size of `stderr`; falls back to measuring the string when omitted. */
   stderrBytes?: number;
 }): string {
-  const hint = AUTH_HINT_RE.test(input.stderr) ? ' — auth looks expired; run: codex login' : '';
+  const hint = codexFailureHint(input.stderr);
   const tail = formatStderrTail(input.stderr, STDERR_TAIL_CHARS, input.stderrBytes);
   // A timeout and a signal kill both surface as a non-zero exit with a SIGKILL note, so the
   // exit code alone cannot tell them apart. Lead with the cap when it is what fired.

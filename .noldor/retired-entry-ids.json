@@ -64,5 +64,9 @@
     "slug": "traceability-projection-module",
     "retiredInto": "feature-md-links-overhaul",
     "retiredAt": "2026-08-18"
+  },
+  "Q-0125": {
+    "slug": "codex-lane-misreports-a-model-version-400-as-expired-auth",
+    "retiredAt": "2026-08-19"
   }
 }
