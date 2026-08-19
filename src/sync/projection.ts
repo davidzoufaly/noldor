@@ -643,12 +643,11 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
         root: featureMd,
         code,
         kind: 'feature-md',
-        what:
-          code === 'ENOENT' ? 'feature MD directory vanished mid-run' : 'cannot write feature MD',
-        remedy:
-          code === 'ENOENT'
-            ? 'restore the feature MD directory and re-run'
-            : 'fix permissions on the listed feature MD(s)',
+        // Every ENOENT is handled above — skipped per FD, or recorded once
+        // against the directory and the loop broken — so this path is only ever
+        // a permission-class failure.
+        what: 'cannot write feature MD',
+        remedy: 'fix permissions on the listed feature MD(s)',
       });
     }
   }
