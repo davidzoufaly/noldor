@@ -59,22 +59,24 @@ export function linksDriftGaps(
 ): Gap[] {
   const gaps: Gap[] = [];
   const cacheUnavailable = cached.failures.filter((f) => f.kind === 'features-dir');
-  const unparsed = new Set(
-    cached.failures.filter((f) => f.kind === 'feature-md').map((f) => basename(f.root, '.md')),
-  );
+  const perFd = cached.failures.filter((f) => f.kind === 'feature-md');
+  const unreadable = new Set(perFd.map((f) => basename(f.root, '.md')));
 
   for (const failure of cacheUnavailable) {
     gaps.push({
       category: 'links drift',
       itemId: 'docs/features',
-      message: `${failure.root}: cannot read feature MD directory (${failure.code}) — links drift not checked`,
+      message: `${failure.root}: ${failure.what} (${failure.code}) — links drift not checked`,
     });
   }
-  for (const slug of unparsed) {
+  // Iterate the failures rather than a set of slugs: each one already says what
+  // went wrong in the operator's terms, and an FD with sound frontmatter but
+  // wrong permissions must not be reported as unparseable.
+  for (const failure of perFd) {
     gaps.push({
       category: 'links drift',
-      itemId: slug,
-      message: `${slug}: cannot parse feature MD — links drift not checked for it`,
+      itemId: basename(failure.root, '.md'),
+      message: `${failure.root}: ${failure.what} (${failure.code}) — links drift not checked for it`,
     });
   }
 
@@ -97,7 +99,7 @@ export function linksDriftGaps(
         buildSlugMap(scan.tagged),
         cached.byKey.get(adapter.key) ?? new Map(),
         adapter,
-      ).filter((gap) => !unparsed.has(gap.itemId)),
+      ).filter((gap) => !unreadable.has(gap.itemId)),
     );
   }
   return gaps;

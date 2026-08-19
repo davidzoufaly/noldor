@@ -112,6 +112,9 @@ describe(linksDriftGaps, () => {
 
     expect(gaps.some((g) => g.itemId === 'broken')).toBe(true);
     expect(gaps.some((g) => g.itemId === 'feat' || g.itemId === 'other')).toBe(false);
+    // The gap text comes from the failure, so an unreadable FD is never
+    // reported as an unparseable one.
+    expect(gaps.find((g) => g.itemId === 'broken')?.message).toContain('cannot parse feature MD');
   });
 
   it('withdraws only the kind whose scan root was unreadable', () => {
@@ -139,5 +142,28 @@ describe(linksDriftGaps, () => {
     );
     expect(gaps.filter((g) => g.category === 'links.tests drift')).toHaveLength(1);
     expect(gaps.some((g) => g.message.includes('unreadable'))).toBe(true);
+  });
+});
+
+describe('gap text follows the failure, not the kind', () => {
+  it('reports an unreadable FD as unreadable', () => {
+    const gaps = linksDriftGaps(
+      new Map(),
+      {
+        byKey: new Map(),
+        failures: [
+          {
+            root: 'docs/features/locked.md',
+            code: 'EACCES',
+            kind: 'feature-md',
+            what: 'cannot read feature MD',
+            remedy: 'fix permissions on the listed feature MD(s)',
+          },
+        ],
+      },
+      [],
+    );
+    expect(gaps[0].message).toContain('cannot read feature MD');
+    expect(gaps[0].message).not.toContain('cannot parse');
   });
 });
