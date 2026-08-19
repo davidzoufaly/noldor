@@ -174,7 +174,18 @@ blob:
 Blocked output explains the remedy: supersede with
 `noldor adr new <slug> --supersedes NNNN`. The check is skipped entirely when
 the range touches no `docs/adr/` path, so it costs nothing on ordinary
-pushes. Like the rest of the chain it runs only on `origin` pushes.
+pushes. It runs on every allowed push regardless of remote, mirroring
+`validatePushedSummaries` (`src/hooks/noldor-pre-push.ts:96` — only the
+main-destination block is origin-gated).
+
+**Repair override.** `NOLDOR_ADR_REPAIR=1` in the pushing environment lets an
+otherwise-blocked mutation through — the framework's existing idiom for
+audited bypasses (`NOLDOR_RELEASE_PUSH=1`, same hook). Every use appends a
+receipt line (`iso`, ref, files) to `.noldor/adr-repairs.log`, and a garden
+override-audit detector surfaces unexplained entries the way the bootstrap
+and codex override audits do. This is the legal path for the repairs
+append-only cannot express: renumbering a post-merge duplicate, retargeting
+pointers after such a renumber, and un-wedging a broken chain.
 
 Boundary honesty: this guards the push seam. A hand edit committed directly
 to `main` (release pushes, override merges) is out of its reach — that class
@@ -248,7 +259,9 @@ feature's own shipping (the same argument Q-0093 U9 made).
    status-flip-plus-`superseded-by` mutation, passes.
 7. The pre-push check derives its range from the hook's ref lines; a
    new-branch push (zero remote sha) checks against the merge-base with
-   `origin/main`; pushes touching no `docs/adr/` path skip the check.
+   `origin/main`; pushes touching no `docs/adr/` path skip the check; with
+   `NOLDOR_ADR_REPAIR=1` a blocked mutation passes and a receipt line lands
+   in `.noldor/adr-repairs.log`.
 8. Release preflight reports an `adr` row: `skipped` when absent, `blocking`
    with a `fix` when invalid, `ok` when valid; `RELEASE_SKIP_ADR=1` forces
    `skipped` and tags the override; the row-count assertion passes at 15.
@@ -270,10 +283,11 @@ feature's own shipping (the same argument Q-0093 U9 made).
 - **Two records can mint the same number in parallel branches.** Two drain
   children each running `adr new` mint the same `NNNN` with different slugs;
   no git conflict fires. The `dup-number` rule catches it post-merge (garden,
-  SDD report, release row) rather than at push. Renumbering the younger
-  record is the remedy and is legal — append-only starts at the push that
-  first publishes a record, and a not-yet-merged record can still be renamed
-  on its branch.
+  SDD report, release row) rather than at push. The remedy is renumbering the
+  younger record via a `NOLDOR_ADR_REPAIR=1` push — renumbering is a
+  delete-plus-add, which the plain check rightly blocks, so the audited
+  override is the designed repair path, not a workaround. One repair push
+  also carries any pointer retargets the renumber forces.
 - **Blocking release row on a docs artifact.** Same trade Q-0093 accepted,
   same two escape hatches: never opting in, and `RELEASE_SKIP_ADR=1`.
 - **The supersede flip must land with its successor.** D3's fail-closed
