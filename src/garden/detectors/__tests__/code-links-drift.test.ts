@@ -168,6 +168,32 @@ describe('gap text follows the failure, not the kind', () => {
   });
 });
 
+describe('an FD that exists but will not parse', () => {
+  it('is never also reported as missing', () => {
+    const gaps = linksDriftGaps(
+      new Map([['tests', { tagged: [{ path: 'src/a.test.ts', tags: ['feat'] }], failures: [] }]]),
+      {
+        byKey: new Map([['tests', new Map()]]),
+        failures: [
+          {
+            root: 'docs/features/feat.md',
+            code: 'EPARSE',
+            kind: 'feature-md',
+            what: 'cannot parse feature MD',
+            remedy: 'repair the frontmatter of the listed feature MD(s)',
+          },
+        ],
+      },
+      [testsAdapter],
+    );
+    // It was dropped from the cache by the parse failure, so it looks absent —
+    // telling the operator to create a file already on disk is a red they
+    // cannot clear.
+    expect(gaps.filter((g) => g.category === 'links.tests missing FD')).toEqual([]);
+    expect(gaps.some((g) => g.message.includes('cannot parse feature MD'))).toBe(true);
+  });
+});
+
 describe('a tag naming no feature MD', () => {
   it('is gated under its own category rather than reported as drift', () => {
     const gaps = linksDriftGaps(

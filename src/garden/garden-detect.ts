@@ -784,7 +784,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     loadDocRoots(repo).features,
     adapters.map((a) => a.key),
   );
-  sddGaps.push(...linksDriftGaps(scans, cachedAll, adapters));
+  sddGaps.push(...linksDriftGaps(scans, cachedAll, adapters, loadDocRoots(repo).features));
 
   // FD link targets: stat what every FD's frontmatter points at (code/tests/
   // docs/spec/plan). The 2026-07 audit found 36/50 FDs link-rotted while every

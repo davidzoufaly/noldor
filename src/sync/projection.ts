@@ -596,10 +596,6 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
     return 1;
   }
 
-  // Drive the write from the union of scanned and cached slugs. A slug whose
-  // tags were all removed survives only in `cached`; visiting it with an empty
-  // path list is what lets the projection clear its stale entries. Iterating the
-  // scan map alone is the defect this engine exists to remove.
   // Drive the writes off the FDs that exist. Slugs naming no feature MD are
   // reported once by `reportMissingFds`; visiting them here only to catch ENOENT
   // produced a second warning for the same fact. An FD deleted between the load
@@ -623,8 +619,11 @@ export async function runProjection(adapter: LinkAdapter, opts: RunOptions = {})
         root: featureMd,
         code,
         kind: 'feature-md',
-        what: 'cannot write feature MD',
-        remedy: 'fix permissions on the listed feature MD(s)',
+        what: code === 'ENOENT' ? 'feature MD disappeared mid-run' : 'cannot write feature MD',
+        remedy:
+          code === 'ENOENT'
+            ? 're-run the sync; nothing is misconfigured'
+            : 'fix permissions on the listed feature MD(s)',
       });
     }
   }
