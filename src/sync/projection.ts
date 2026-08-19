@@ -329,6 +329,14 @@ export async function loadCachedAll(
     try {
       raw = await readFile(join(featuresDir, f), 'utf8');
     } catch (error) {
+      // `readdir` listed this FD and it is gone by the time we read it: the same
+      // race the write path waves through, so it is waved through here too. An
+      // FD that no longer exists has no links to know about, and redding the
+      // whole projection over it would contradict the write side of this module.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        console.warn(`WARN: ${join(featuresDir, f)} disappeared mid-run — skipped.`);
+        continue;
+      }
       fdFailure(
         error,
         'UNKNOWN',
