@@ -13,8 +13,11 @@ import type { NoldorConfig } from '../core/config.js';
 import {
   LEGACY_BY_CANONICAL,
   REVIEWER_MANDATORY_KINDS,
+  codexIsMandatory,
+  withMandatoryCodex,
   withMandatoryReviewer,
 } from '../core/lanes.js';
+import { readSession } from '../core/session.js';
 import { laneFindingsSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane, LaneFindings } from './findings-schema.js';
 import type { LaneInput, LaneResult, PriorReview } from './lane-types.js';
@@ -57,19 +60,23 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
 export function resolveLanes(
   args: { slug: string; kind: ArtifactKind; lanes?: Lane[]; autonomous?: boolean },
   cfg: NoldorConfig | null,
+  sessionPath?: string | null,
 ): Lane[] {
   // Every resolved set passes through withMandatoryReviewer: on spec/plan the
   // `reviewer` lane is always-on, so neither an operator's lane pick nor a
-  // configured crLanes block can ship an unreviewed artifact.
+  // configured crLanes block can ship an unreviewed artifact. withMandatoryCodex
+  // then unions `codex` on spec/code rounds inside M/L/XL sessions (session
+  // path is the size band's projection — see core/lanes.ts).
+  const mandatory = (lanes: readonly Lane[]): Lane[] =>
+    withMandatoryCodex(args.kind, sessionPath, withMandatoryReviewer(args.kind, lanes));
   // 1. Explicit --lanes always wins.
-  if (args.lanes && args.lanes.length > 0) return withMandatoryReviewer(args.kind, args.lanes);
+  if (args.lanes && args.lanes.length > 0) return mandatory(args.lanes);
   // 2. Autonomous / skipLanePicker path: configured crLanes.<kind> when present,
   //    else the built-in autonomous-safe default (subagent). Never throws — a
   //    missing crLanes block is no longer a hard error.
   if (args.autonomous || cfg?.autonomous?.skipLanePicker) {
     const configured = cfg?.crLanes?.[args.kind];
-    return withMandatoryReviewer(
-      args.kind,
+    return mandatory(
       configured && configured.length > 0 ? configured : DEFAULT_CR_LANES[args.kind],
     );
   }
@@ -121,6 +128,8 @@ interface GuardCtx {
   slug: string;
   kind: ArtifactKind;
   cwd: string;
+  /** True when this round mandates the codex lane (see codexIsMandatory). */
+  codexMandatory?: boolean;
 }
 
 interface GuardOpts {
@@ -209,7 +218,9 @@ export async function guardLaneOverwrite(
     // inspects lanes that ran — so offering it for a mandatory reviewer lane
     // would let a stale (or red) prior sink stand in for the review the kind
     // requires. The mandatory lane gets overwrite / archive-and-overwrite only.
-    const unskippable = lane === 'reviewer' && REVIEWER_MANDATORY_KINDS.includes(ctx.kind);
+    const unskippable =
+      (lane === 'reviewer' && REVIEWER_MANDATORY_KINDS.includes(ctx.kind)) ||
+      (lane === 'codex' && ctx.codexMandatory === true);
     const choices: Array<{ name: string; value: 'overwrite' | 'archive' | 'skip' }> = [
       { name: 'overwrite', value: 'overwrite' },
       { name: 'archive-and-overwrite', value: 'archive' },
@@ -219,7 +230,7 @@ export async function guardLaneOverwrite(
       ? ('archive' as const)
       : await promptSelect({
           message: unskippable
-            ? `reviewer sink already exists for ${ctx.slug}-${ctx.kind}; overwrite? (reviewer is mandatory for ${ctx.kind} — it cannot be skipped)`
+            ? `${lane} sink already exists for ${ctx.slug}-${ctx.kind}; overwrite? (${lane} is mandatory for ${ctx.kind} — it cannot be skipped)`
             : `${lane} sink already exists for ${ctx.slug}-${ctx.kind}; overwrite?`,
           choices,
         });
@@ -267,7 +278,17 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   const cwd = opts.cwd ?? process.cwd();
   const cfg = await loadConfig(join(cwd, '.noldor', 'config.json')).catch(() => null);
   const reviewProfile = resolveReviewProfile(cfg, opts.args.profile);
-  const requested = resolveLanes(opts.args, cfg);
+  // Corrupt marker → null with a warning: the codex mandate then cannot be
+  // evaluated, and dropping it silently would look identical to an exempt run.
+  let sessionPath: string | null = null;
+  try {
+    sessionPath = readSession(cwd)?.path ?? null;
+  } catch (err) {
+    console.error(
+      `session marker unreadable — codex mandate cannot be evaluated: ${(err as Error).message}`,
+    );
+  }
+  const requested = resolveLanes(opts.args, cfg, sessionPath);
   if (requested.includes('standalone')) {
     throw new Error(
       "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
@@ -290,6 +311,18 @@ export async function run(opts: RunOpts): Promise<RunResult> {
   if (picked.length > 0 && !picked.includes('reviewer') && requested.includes('reviewer')) {
     console.error(
       `lane 'reviewer' is mandatory for ${opts.args.kind} artifacts — added to the requested lanes`,
+    );
+  }
+  // Same visibility for the codex union — but not gated on picked.length: the
+  // built-in defaults never include codex, so the mandate adds a lane even on
+  // the defaults path and that too must be announced.
+  if (
+    codexIsMandatory(opts.args.kind, sessionPath) &&
+    !picked.includes('codex') &&
+    requested.includes('codex')
+  ) {
+    console.error(
+      `lane 'codex' is mandatory for ${opts.args.kind} artifacts on ${sessionPath} sessions (entry size M/L/XL) — added to the requested lanes`,
     );
   }
   await mkdir(join(cwd, '.noldor', 'cr'), { recursive: true });
@@ -334,6 +367,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       slug: opts.args.slug,
       kind: opts.args.kind,
       cwd,
+      codexMandatory: codexIsMandatory(opts.args.kind, sessionPath),
     },
     { autonomous: opts.args.autonomous },
   );

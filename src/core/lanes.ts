@@ -61,6 +61,61 @@ export function withMandatoryReviewer(kind: ArtifactKind, lanes: readonly Lane[]
 }
 
 /**
+ * Artifact kinds that must carry a `codex` second-opinion round on bigger
+ * entries — one early design round (`spec`) plus one full-diff round (`code`).
+ * `plan` is deliberately absent: the mandate is "at least one round from a
+ * second model family", and spec+code brackets the work without tripling the
+ * codex cost on `full-*` paths.
+ */
+export const CODEX_MANDATORY_KINDS: readonly ArtifactKind[] = ['spec', 'code'];
+
+/**
+ * Session paths whose entries are sized M/L/XL — the same size signal the
+ * routing policy encodes in `sizeToPath()` (size-routing.ts): M routes to
+ * `specs-only-*`, L/XL to `full-*`, so the session path is the size band's
+ * projection at review time (the roadmap block is gone by then). XS/S paths
+ * (`fast-track`, `micro-chore`) and the release paths are exempt, so drains
+ * never block on a broken codex CLI.
+ */
+export const CODEX_MANDATORY_PATHS: ReadonlySet<string> = new Set([
+  'specs-only-new',
+  'specs-only-attach',
+  'full-new',
+  'full-attach',
+]);
+
+/**
+ * True when this review round must include the `codex` lane: a mandated kind
+ * ({@link CODEX_MANDATORY_KINDS}) inside an M/L/XL session
+ * ({@link CODEX_MANDATORY_PATHS}). A missing/unknown session path is exempt —
+ * ad-hoc orchestrate runs outside a gate session carry no size signal.
+ */
+export function codexIsMandatory(
+  kind: ArtifactKind,
+  sessionPath: string | null | undefined,
+): boolean {
+  return (
+    CODEX_MANDATORY_KINDS.includes(kind) &&
+    sessionPath != null &&
+    CODEX_MANDATORY_PATHS.has(sessionPath)
+  );
+}
+
+/**
+ * Union `codex` into `lanes` when {@link codexIsMandatory} says this round
+ * requires a second model family. Order-preserving and idempotent, mirroring
+ * {@link withMandatoryReviewer}.
+ */
+export function withMandatoryCodex(
+  kind: ArtifactKind,
+  sessionPath: string | null | undefined,
+  lanes: readonly Lane[],
+): Lane[] {
+  if (!codexIsMandatory(kind, sessionPath) || lanes.includes('codex')) return [...lanes];
+  return [...lanes, 'codex'];
+}
+
+/**
  * The `crLanes` kinds that declare a lane set without `reviewer` — the configs
  * `pnpm noldor validate noldor-config` refuses. Runtime lane resolution
  * self-heals such a block via {@link withMandatoryReviewer}; this is the loud
