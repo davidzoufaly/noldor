@@ -185,3 +185,58 @@ describe(resolveArchivePlan, () => {
     expect(plan).toEqual({ key, moves: [], skipped: [] });
   });
 });
+
+describe('pen artifact resolution', () => {
+  const UI = '/repo/docs/design/ui';
+
+  it('resolves the session pen artifact into archive', async () => {
+    const plan = await resolveArchivePlan({
+      repo: REPO,
+      key: 'my-feature',
+      branchAdded: ['docs/design/ui/2026-08-19-my-feature.pen'],
+      readdir: fakeReaddir({
+        [SPECS]: [],
+        [PLANS]: [],
+        [UI]: ['2026-08-19-my-feature.pen', 'baseline'],
+      }),
+    });
+    expect(plan.moves).toContainEqual({
+      kind: 'pen',
+      from: 'docs/design/ui/2026-08-19-my-feature.pen',
+      to: 'docs/design/ui/archive/2026-08-19-my-feature.pen',
+    });
+  });
+
+  it('never touches baseline pens, foreign keys, or non-branch-added files', async () => {
+    const plan = await resolveArchivePlan({
+      repo: REPO,
+      key: 'my-feature',
+      branchAdded: [],
+      readdir: fakeReaddir({
+        [SPECS]: [],
+        [PLANS]: [],
+        [UI]: ['2026-08-19-my-feature.pen', '2026-08-01-other-feature.pen', 'baseline'],
+      }),
+    });
+    expect(plan.moves.filter((m) => m.kind === 'pen')).toEqual([]);
+  });
+
+  it('skips a pen whose basename already exists in archive', async () => {
+    const plan = await resolveArchivePlan({
+      repo: REPO,
+      key: 'my-feature',
+      branchAdded: ['docs/design/ui/2026-08-19-my-feature.pen'],
+      readdir: fakeReaddir({
+        [SPECS]: [],
+        [PLANS]: [],
+        [UI]: ['2026-08-19-my-feature.pen'],
+        [`${UI}/archive`]: ['2026-08-19-my-feature.pen'],
+      }),
+    });
+    expect(plan.moves.filter((m) => m.kind === 'pen')).toEqual([]);
+    expect(plan.skipped).toContainEqual({
+      from: 'docs/design/ui/2026-08-19-my-feature.pen',
+      reason: 'collision',
+    });
+  });
+});

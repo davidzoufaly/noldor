@@ -10,6 +10,7 @@ import { join, relative } from 'node:path';
 
 import {
   ARCHIVE_DIR,
+  penSlugFromFilename,
   planSlugFromFilename,
   specSlugFromFilename,
 } from '../core/design-artifact-names.js';
@@ -17,7 +18,7 @@ import { loadDocRoots } from '../core/doc-roots.js';
 import type { SessionMarker } from '../core/session.js';
 
 export interface ArchiveMove {
-  readonly kind: 'spec' | 'plan';
+  readonly kind: 'spec' | 'plan' | 'pen';
   /** Repo-relative source path, e.g. `docs/design/specs/<date>-<key>-design.md`. */
   readonly from: string;
   /** Repo-relative destination, e.g. `docs/design/specs/archive/<basename>`. */
@@ -103,7 +104,7 @@ interface ResolveOptions {
 }
 
 async function collect(
-  kind: 'spec' | 'plan',
+  kind: ArchiveMove['kind'],
   dir: string,
   repo: string,
   key: string,
@@ -120,15 +121,22 @@ async function collect(
     return { moves, skipped };
   }
 
-  const slugOf = kind === 'spec' ? specSlugFromFilename : planSlugFromFilename;
+  const slugOf =
+    kind === 'spec'
+      ? specSlugFromFilename
+      : kind === 'plan'
+        ? planSlugFromFilename
+        : penSlugFromFilename;
+  const ext = kind === 'pen' ? '.pen' : '.md';
   /** Archive listing, read at most once and only if some entry matches the key. */
   let archived: Set<string> | null = null;
 
   for (const entry of entries) {
     // No file-type check needed: a directory named `<date>-<key>-design.md`
     // could parse to the key, but a directory is never a git path, so the
-    // `branchAdded` gate below excludes it.
-    if (!entry.endsWith('.md')) continue;
+    // `branchAdded` gate below excludes it. (Baseline pens live under
+    // `baseline/` and are undated, so the pen parser never matches them.)
+    if (!entry.endsWith(ext)) continue;
     if (slugOf(entry) !== key) continue;
 
     // `loadDocRoots` returns absolute paths; git speaks repo-relative. Normalize
@@ -171,10 +179,11 @@ export async function resolveArchivePlan(options: ResolveOptions): Promise<Archi
 
   const specs = await collect('spec', roots.specs, repo, key, added, readdir);
   const plans = await collect('plan', roots.plans, repo, key, added, readdir);
+  const pens = await collect('pen', roots.designUi, repo, key, added, readdir);
 
   return {
     key,
-    moves: [...specs.moves, ...plans.moves],
-    skipped: [...specs.skipped, ...plans.skipped],
+    moves: [...specs.moves, ...plans.moves, ...pens.moves],
+    skipped: [...specs.skipped, ...plans.skipped, ...pens.skipped],
   };
 }

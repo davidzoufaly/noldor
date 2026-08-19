@@ -3,8 +3,12 @@
 // archive/ dir and leave the moves staged, so the gate's phase-flip commit
 // carries them. Portable CLI: consumer repos have no ./src/ tree to import from,
 // and prose-dispatch runners (codex/opencode) shell CLIs rather than run skills.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import matter from 'gray-matter';
+
+import { loadDocRoots } from '../core/doc-roots.js';
 
 import {
   defaultRunGit,
@@ -56,6 +60,43 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
 function git(cwd: string, gitArgs: readonly string[]): { ok: boolean; stderr: string } {
   const r = defaultRunGit(cwd)(gitArgs);
   return { ok: r.status === 0, stderr: r.stderr };
+}
+
+/**
+ * Rewrite any FD whose `links.design` names the moved pen artifact to its new
+ * archive path, in the same staged change as the move — the docs-link gate must
+ * never see a dangling target at any commit (spec U3). Scans docs/features/
+ * frontmatter rather than deriving the FD from the session marker: `--slug`
+ * invocations carry no session, and the scan makes attach-parent FDs work for
+ * free. Returns the repo-relative FD paths rewritten (already `git add`ed).
+ */
+export function rewriteDesignLinks(root: string, from: string, to: string): string[] {
+  const featuresDir = loadDocRoots(root).features;
+  let entries: string[];
+  try {
+    entries = readdirSync(featuresDir);
+  } catch {
+    return [];
+  }
+  const rewritten: string[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith('.md')) continue;
+    const abs = join(featuresDir, entry);
+    const raw = readFileSync(abs, 'utf8');
+    const parsed = matter(raw);
+    const links = (parsed.data as { links?: { design?: string } }).links;
+    if (links?.design !== from) continue;
+    // Plain string replace of the frontmatter value, not matter.stringify —
+    // re-serializing the whole document would reformat unrelated frontmatter.
+    writeFileSync(abs, raw.replace(`design: ${from}`, `design: ${to}`), 'utf8');
+    const rel = abs
+      .slice(root.length + 1)
+      .split('\\')
+      .join('/');
+    git(root, ['add', '--', rel]);
+    rewritten.push(rel);
+  }
+  return rewritten;
 }
 
 async function main(): Promise<number> {
@@ -191,6 +232,11 @@ async function main(): Promise<number> {
     }
     moved += 1;
     process.stdout.write(`archived: ${m.from} → ${m.to}\n`);
+    if (m.kind === 'pen') {
+      for (const fd of rewriteDesignLinks(root, m.from, m.to)) {
+        process.stdout.write(`repointed links.design: ${fd}\n`);
+      }
+    }
   }
 
   // Name the collision count in the tail line: a caller reading only the last
