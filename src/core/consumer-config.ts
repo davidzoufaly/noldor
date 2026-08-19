@@ -81,6 +81,21 @@ export const DevConfigSchema = z
   .strict();
 export type DevConfig = z.infer<typeof DevConfigSchema>;
 
+/**
+ * A repo-relative POSIX minimatch glob for UI-surface config. Negation is
+ * rejected in v1 (the predicate defines no subtraction semantics), and the
+ * schema — not the matcher — is where that contract is enforced.
+ */
+const UiGlobSchema = z
+  .string()
+  .min(1)
+  .refine((g) => !g.startsWith('!'), {
+    message: 'negation globs are not supported in uiPaths/uiSurfaces',
+  });
+
+/** Baseline surface names become `docs/design/ui/baseline/<name>.pen` — keep them slug-shaped. */
+const SURFACE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export const ConsumerConfigSchema = z
   .object({
     name: z.string().min(1),
@@ -122,6 +137,20 @@ export const ConsumerConfigSchema = z
     verifyCommands: z.record(z.string(), VerifySurfaceSchema).default({}),
     /** Per-task dev surfaces booted by `worktrees up`. Absent = nothing booted. */
     dev: DevConfigSchema.optional(),
+    /**
+     * Globs naming this consumer's UI source (e.g. `src/dashboard/app/**`).
+     * Drives the UI-design-stage predicate (`src/core/ui-predicate.ts`).
+     * Absent or empty ⇒ the design stage never fires for this consumer.
+     */
+    uiPaths: z.array(UiGlobSchema).optional(),
+    /**
+     * Surface name → glob subset, mapping UI code to baseline files
+     * `docs/design/ui/baseline/<surface>.pen`. Absent with `uiPaths` present ⇒
+     * one implicit surface `app` covering all of `uiPaths`.
+     */
+    uiSurfaces: z
+      .record(z.string().regex(SURFACE_NAME_RE), z.array(UiGlobSchema).min(1))
+      .optional(),
     /**
      * Framework version this consumer tree was last migrated to. Written by
      * `init` (fresh scaffold = current) and `noldor upgrade` (after a chain).
