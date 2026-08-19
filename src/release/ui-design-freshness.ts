@@ -5,8 +5,6 @@
 // surface so one surface's sync cannot mask another's drift.
 
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { braceExpand } from 'minimatch';
@@ -65,6 +63,25 @@ async function git(cwd: string, args: string[]): Promise<{ ok: boolean; stdout: 
 async function latestCommit(cwd: string, paths: string[]): Promise<{ ok: boolean; sha: string }> {
   const r = await git(cwd, ['log', '-1', '--format=%H', '--', ...paths]);
   return { ok: r.ok, sha: r.stdout };
+}
+
+/**
+ * Does `path` exist in the HEAD commit? `git cat-file -e HEAD:<path>` exits 0
+ * when present, 1 when absent; anything else (no HEAD, broken repo) is an
+ * operational failure kept distinct so the caller degrades to `skipped`.
+ */
+async function existsAtHead(
+  cwd: string,
+  path: string,
+): Promise<{ ok: true; exists: boolean } | { ok: false }> {
+  try {
+    await execFileAsync('git', ['cat-file', '-e', `HEAD:${path}`], { cwd });
+    return { ok: true, exists: true };
+  } catch (err) {
+    const code = (err as { code?: number }).code;
+    if (code === 1 || code === 128) return { ok: true, exists: false };
+    return { ok: false };
+  }
 }
 
 /**
@@ -149,35 +166,33 @@ export async function evaluateUiDesignFreshness(
       surfaces.push({ surface, status: 'skipped', detail: 'no commits touch this surface' });
       continue;
     }
-    // Existence at HEAD decides `uninitialized`, not history: `git log` still
-    // returns the commit that DELETED the baseline, and a delete that postdates
-    // the UI commit would otherwise classify as fresh with no baseline on disk.
-    if (!existsSync(join(cwd, baselineFile))) {
+    // Existence AT HEAD decides `uninitialized`, not history and not the
+    // working tree: `git log` still returns the commit that DELETED the
+    // baseline (a delete postdating the UI commit would classify as fresh with
+    // no baseline), and a working-tree check flips on uncommitted deletions or
+    // untracked recreations — U7 reads committed state only.
+    const atHead = await existsAtHead(cwd, baselineFile);
+    if (!atHead.ok) {
+      surfaces.push({ surface, status: 'skipped', detail: 'git cat-file failed — indeterminate' });
+      continue;
+    }
+    if (!atHead.exists) {
       surfaces.push({
         surface,
         status: 'uninitialized',
         uiCommit,
-        detail: `${baselineFile} does not exist — bootstrap: ${REMEDIATION}`,
+        detail: `${baselineFile} is not in HEAD — bootstrap and commit: ${REMEDIATION}`,
       });
       continue;
     }
     const baseline = await latestCommit(cwd, [baselineFile]);
-    if (!baseline.ok) {
+    if (!baseline.ok || baseline.sha === '') {
+      // Present at HEAD but log yields nothing — an inconsistent read, never a
+      // verdict to enforce on.
       surfaces.push({ surface, status: 'skipped', detail: 'git log failed — indeterminate' });
       continue;
     }
     const baselineCommit = baseline.sha;
-    if (baselineCommit === '') {
-      // On disk but never committed (staged-only bootstrap): committed history
-      // is what U7 reads, so this still counts as uninitialized.
-      surfaces.push({
-        surface,
-        status: 'uninitialized',
-        uiCommit,
-        detail: `${baselineFile} exists but has no committed history — commit it: ${REMEDIATION}`,
-      });
-      continue;
-    }
     const forward = await isAncestor(cwd, uiCommit, baselineCommit);
     const backward = await isAncestor(cwd, baselineCommit, uiCommit);
     if (!forward.ok || !backward.ok) {

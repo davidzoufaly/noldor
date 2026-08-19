@@ -113,6 +113,21 @@ describe('evaluateUiDesignFreshness', () => {
     expect(v.overall).toBe('fresh');
   });
 
+  it('committed deletion of the baseline reads uninitialized, never fresh', async () => {
+    await commitFiles(['src/app/page.tsx'], 'feat: ui');
+    await commitFiles(['docs/design/ui/baseline/app.pen'], 'docs: baseline');
+    const { rm: rmFile } = await import('node:fs/promises');
+    await rmFile(join(cwd, 'docs/design/ui/baseline/app.pen'));
+    epoch += 100;
+    await exec('git', ['add', '-A'], cwd);
+    await exec('git', ['commit', '-q', '-m', 'chore: delete baseline'], cwd, {
+      GIT_AUTHOR_DATE: `@${epoch} +0000`,
+      GIT_COMMITTER_DATE: `@${epoch} +0000`,
+    });
+    const v = await evaluateUiDesignFreshness(cwd, { uiPaths: ['src/app/**'] });
+    expect(v.surfaces[0].status).toBe('uninitialized');
+  });
+
   it('multi-surface worst-of aggregation, rows sorted by surface name', async () => {
     await commitFiles(['docs/design/ui/baseline/a.pen'], 'docs: a');
     await commitFiles(['src/a/x.tsx'], 'feat: a drift');
