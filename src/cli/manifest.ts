@@ -71,6 +71,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/archive-cli.ts',
         desc: "Archive this session's spec/plan into docs/design/*/archive/ (staged, not committed)",
       },
+      'ui-sync': {
+        src: 'design/ui-sync-cli.ts',
+        desc: 'Report + validate UI baseline sync per surface; staged-never-committed',
+      },
       context: {
         src: 'design/context-cli.ts',
         desc: 'Print the design-context block (Scope/Decided/Open/Support) for a dialogue',
