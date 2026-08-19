@@ -483,6 +483,8 @@ Expected output: all pass.
 
 ```bash
 git add src/core/session.ts src/features/ src/core/__tests__/session.test.ts
+# ALSO add the frontmatter schema file if Step 2's grep located it outside src/features/
+# (e.g. git add src/core/<schema-file>.ts) — the commit must carry the design: field edit.
 git commit -m "feat(core): session uiVerdict/uiWaiver fields + FD design: override" -m "Noldor-FD: pendev-ui-design-phase"
 ```
 
@@ -579,7 +581,7 @@ describe('evaluateUiDesignFreshness', () => {
 });
 ```
 
-Diverged-branch / shallow-clone cases: assert via the decision function directly rather than building exotic repos — export the pure `classifyAncestry(equal: boolean, uiIsAncestorOfBaseline: boolean, baselineIsAncestorOfUi: boolean)` helper (exact Task 4 Step 3 signature and parameter order) and test its four rows (`equal→fresh`, `uiIsAncestorOfBaseline→fresh`, `baselineIsAncestorOfUi→stale`, `neither→skipped`).
+Diverged-branch / shallow-clone cases: assert via the decision function directly rather than building exotic repos — export the pure `classifyAncestry(uiIsAncestorOfBaseline: boolean, baselineIsAncestorOfUi: boolean)` helper (exact Task 4 Step 3 signature and parameter order; no separate `equal` parameter — `git merge-base --is-ancestor A A` is true, so `U == B` already lands in the first argument) and test its three rows (`uiIsAncestorOfBaseline→fresh`, `baselineIsAncestorOfUi (only)→stale`, `neither→skipped`).
 
 - [ ] **Step 2: Run to verify FAIL.**
 
@@ -623,13 +625,16 @@ export const BASELINE_DIR = 'docs/design/ui/baseline';
 
 const REMEDIATION = 'run `pnpm noldor design ui-sync` in a pencil-capable session, then commit';
 
-/** Pure ancestry classifier — the U7 decision procedure, testable without a repo. */
+/**
+ * Pure ancestry classifier — the U7 decision procedure, testable without a
+ * repo. No `equal` parameter: `git merge-base --is-ancestor A A` exits 0, so
+ * the U == B case already arrives as `uiIsAncestorOfBaseline: true`.
+ */
 export function classifyAncestry(
-  equal: boolean,
   uiIsAncestorOfBaseline: boolean,
   baselineIsAncestorOfUi: boolean,
 ): 'fresh' | 'stale' | 'skipped' {
-  if (equal || uiIsAncestorOfBaseline) return 'fresh';
+  if (uiIsAncestorOfBaseline) return 'fresh';
   if (baselineIsAncestorOfUi) return 'stale';
   return 'skipped'; // unrelated / diverged / shallow-cut — never a false red
 }
@@ -690,7 +695,15 @@ export async function evaluateUiDesignFreshness(
 
   for (const [surface, globs] of Object.entries(surfaceMap).sort(([a], [b]) => a.localeCompare(b))) {
     const baselineFile = `${BASELINE_DIR}/${surface}.pen`;
-    const uiCommit = await latestCommit(cwd, [...globs, ...GRAPH_IRRELEVANT_EXCLUDES]);
+    // `:(glob)` magic: surface globs are minimatch patterns (predicate side);
+    // plain git pathspecs use wildmatch where `*` crosses `/` and `**` degrades.
+    // The glob magic makes git honor the same double-star semantics, keeping
+    // "one pattern language everywhere" true (the excludes already rely on it,
+    // see GRAPH_IRRELEVANT_EXCLUDES in graph-freshness.ts).
+    const uiCommit = await latestCommit(cwd, [
+      ...globs.map((g) => `:(glob)${g}`),
+      ...GRAPH_IRRELEVANT_EXCLUDES,
+    ]);
     if (uiCommit === '') {
       surfaces.push({ surface, status: 'skipped', detail: 'no commits touch this surface' });
       continue;
@@ -706,7 +719,6 @@ export async function evaluateUiDesignFreshness(
       continue;
     }
     const status = classifyAncestry(
-      uiCommit === baselineCommit,
       await isAncestor(cwd, uiCommit, baselineCommit),
       await isAncestor(cwd, baselineCommit, uiCommit),
     );
@@ -833,17 +845,19 @@ export async function main(cwd: string = process.cwd()): Promise<number> {
   return exitCodeFor(verdict.overall);
 }
 
-runIfDirect(import.meta.url, async () => process.exit(await main()));
+runIfDirect('check-ui-design-freshness.ts', 'checks ui-design-freshness', async () =>
+  process.exit(await main()),
+);
 ```
 
-Match `loadConsumerConfig`'s real signature when wiring (it throws when no config — catch and print `skipped (no consumer config)` returning 0, consistent with the check being inert for non-adopters). Match `runIfDirect`'s real call shape from an existing `check-*` file.
+Match `loadConsumerConfig`'s real signature when wiring (it throws when no config — catch and print `skipped (no consumer config)` returning 0, consistent with the check being inert for non-adopters). `runIfDirect` takes `(stem, label, main)` — confirm the exact parameter meanings against `src/core/cli-entry.ts` and an existing `check-*` caller before copying.
 
 - [ ] **Step 4: Register in the manifest.** In `src/cli/manifest.ts`, inside the `checks` group's `sub` map after `'template-sync'`, add:
 
 ```ts
       'ui-design-freshness': {
         src: 'checks/check-ui-design-freshness.ts',
-        desc: 'UI-design baseline freshness per surface (advisory at gate, blocking at release)',
+        desc: 'UI-design baseline freshness per surface; exit 1 on stale/uninitialized — callers choose whether that blocks',
       },
 ```
 

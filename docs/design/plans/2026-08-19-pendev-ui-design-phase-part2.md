@@ -276,11 +276,10 @@ Expected output: module resolution error.
 // @tests: pendev-ui-design-phase
 // `noldor design ui-sync [--surface <name>]` — the report-and-validate half of
 // baseline remediation (spec U6). This CLI cannot read .pen content (pencil MCP
-// is the only reader); it reports U7 verdicts with edit instructions, validates
-// what a Node process can see (exists, non-empty, staged), stages nothing
-// itself beyond `git add` of the named baseline file, and never commits.
-// Remediation completes only when the staged change is COMMITTED — U7 reads
-// committed history.
+// is the only reader); it reports U7 verdicts with edit instructions, plain-
+// `git add`s the named baseline file so validation can see it staged, and never
+// commits. Remediation completes only when the staged change is COMMITTED —
+// U7 reads committed history.
 
 import { existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -332,7 +331,12 @@ export function isStaged(cwd: string, repoRelPath: string): boolean {
 }
 
 export async function main(argv: string[], cwd: string = process.cwd()): Promise<number> {
-  const surfaceFlag = argv.includes('--surface') ? argv[argv.indexOf('--surface') + 1] : undefined;
+  const flagIdx = argv.indexOf('--surface');
+  if (flagIdx !== -1 && argv[flagIdx + 1] === undefined) {
+    console.error('ui-sync: --surface requires a value');
+    return 2;
+  }
+  const surfaceFlag = flagIdx === -1 ? undefined : argv[flagIdx + 1];
   const config = loadConsumerConfig(cwd);
   const verdict = await evaluateUiDesignFreshness(cwd, {
     uiPaths: config.uiPaths,
@@ -341,31 +345,45 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
   const rows = verdict.surfaces.filter((s) => surfaceFlag === undefined || s.surface === surfaceFlag);
   if (rows.length === 0) {
     console.log(surfaceFlag ? `no surface named '${surfaceFlag}'` : 'ui-sync: nothing to do (no uiPaths configured)');
-    return surfaceFlag ? 1 : 0;
+    return surfaceFlag ? 2 : 0;
   }
   let pending = 0;
   for (const s of rows) {
     console.log(renderSurfaceReport(s));
     if (s.status === 'stale' || s.status === 'uninitialized') {
-      pending += 1;
       const rel = `${BASELINE_DIR}/${s.surface}.pen`;
-      execFileSync('git', ['add', '--intent-to-add', '--', rel], { cwd, stdio: 'ignore' });
+      // Plain `git add` (never --intent-to-add: a no-op on tracked files and
+      // invisible to `diff --cached`, which would make the ✓ path unreachable).
+      // Missing file (uninitialized, not yet created this run) exits non-zero —
+      // ignore; there is nothing to stage until the session creates it.
+      try {
+        execFileSync('git', ['add', '--', rel], { cwd, stdio: 'ignore' });
+      } catch {
+        /* nothing to stage yet */
+      }
       const v = validateBaselineFile(`${cwd}/${rel}`, { staged: isStaged(cwd, rel) });
-      console.log(v.ok ? `  ✓ ${v.notice}` : `  ✗ not remediated yet: ${v.reason}`);
+      if (v.ok) {
+        console.log(`  ✓ ${v.notice}`);
+      } else {
+        pending += 1;
+        console.log(`  ✗ not remediated yet: ${v.reason}`);
+      }
     }
   }
   console.log(
     pending === 0
-      ? 'all surfaces fresh'
+      ? 'nothing pending — commit any staged baseline changes to green U7'
       : 'edit the files above via pencil MCP, re-run ui-sync to validate, then COMMIT the staged baseline — U7 greens only after the commit lands',
   );
-  return 0;
+  return pending === 0 ? 0 : 1;
 }
 
-runIfDirect(import.meta.url, async () => process.exit(await main(process.argv.slice(2))));
+runIfDirect('ui-sync-cli.ts', 'design ui-sync', async () =>
+  process.exit(await main(process.argv.slice(2))),
+);
 ```
 
-Adjust `git add --intent-to-add` handling: on a missing file it exits non-zero — wrap in try/catch and ignore (uninitialized surfaces have nothing to stage until the session creates the file). Match `runIfDirect`'s real signature.
+`runIfDirect` takes `(stem, label, main)` — confirm the exact parameter meanings against `src/core/cli-entry.ts` before copying. Exit contract: 0 = nothing pending, 1 = surfaces still awaiting an edit (scriptable), 2 = usage error.
 
 - [ ] **Step 4: Register in the manifest** under the existing `design` group beside `archive`:
 
@@ -479,14 +497,13 @@ links:
     - src/design/archive-resolve.ts
     - src/sync/sync-fd-resources.ts
   spec: docs/design/specs/2026-08-19-pendev-ui-design-phase-design.md
-  design: []
   tests:
     - src/core/__tests__/ui-predicate.test.ts
     - src/release/__tests__/ui-design-freshness.test.ts
     - src/design/__tests__/ui-sync.test.ts
 ```
 
-(`links.design` stays unset — this feature itself is not UI-bearing; drop the empty placeholder line if the schema rejects `[]` for a string field — it will, so omit the key entirely.)
+(`links.design` stays unset — this feature itself is not UI-bearing, so the key is omitted entirely.)
 
 - [ ] **Step 2: Full verification.**
 
