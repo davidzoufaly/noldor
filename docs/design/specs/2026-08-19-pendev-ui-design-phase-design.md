@@ -19,8 +19,8 @@ The third surface from the roadmap entry — a review lane checking implemented 
 ## Goals
 
 - UI-bearing sessions produce a git-pinned design artifact (`.pen`) that the spec links and gate Step 2.5 commits alongside the spec — design adjudicated with the spec, not after it.
-- A shared baseline folder mirrors the shipped UI per surface; feature design work seeds from it and the winning design merges back at ship time.
-- Baseline drift is detected by code, not operator memory: a freshness check reds when UI code moved and the baseline didn't.
+- A shared baseline folder mirrors the shipped UI per surface; feature design work seeds from it and the as-built result merges back at ship time.
+- Baseline drift is detected by code, not operator memory: a per-surface freshness check reds when UI code moved and its baseline didn't, with a defined remediation for every red.
 - Non-UI features skip the whole stage by predicate — zero new prompts, zero cost for non-UI consumers.
 
 ## Non-goals
@@ -28,99 +28,149 @@ The third surface from the roadmap entry — a review lane checking implemented 
 - **UI-review CR lane** — sibling entry Q-0145.
 - **Mechanical render-compare** (screenshot diff against a running app) — deferred until boot recipes exist; the whole comparison story is Q-0145's.
 - **New gate path or artifact kind.** `sizeToPath()` (`src/core/size-routing.ts`) is untouched — a deliberate divergence from the roadmap entry's "sizeToPath() and the path set both move": UI-ness is orthogonal to size, so the stage triggers on a path predicate, not a size band. No `design` entry joins `artifactKindSchema` (`src/core/lanes.ts`); the `.pen` rides the existing `spec` CR round.
-- **Code→`.pen` import.** No mechanical generation of designs from source; baseline sync is a process obligation enforced by check + gate step.
+- **Code→`.pen` import.** No mechanical generation of designs from source; baseline sync is a process obligation enforced by check + gate step + a standalone remediation command.
 - **pen.dev cloud integration.** Artifacts are local files edited via the pencil MCP server; no URL, auth, or network dependency (vision's self-owned posture).
 
 ## Design
 
-### U1 — `consumer.uiPaths` + UI predicate (`src/core/ui-predicate.ts`, new)
+### U1 — Consumer config: `uiPaths` + `uiSurfaces` (`src/core/consumer-config.ts`)
 
-`ConsumerConfigSchema` (`src/core/consumer-config.ts`) gains an optional `uiPaths: string[]` — glob patterns naming the consumer's UI source (e.g. `src/dashboard/app/**`). Absent or empty ⇒ the stage never fires; non-UI consumers opt out by existing configs unchanged (strict schema: the field must be added to the schema in the same change that documents it).
+`ConsumerConfigSchema` gains two optional fields (strict schema — added in the same change that documents them; existing configs without them keep validating):
 
-New module `src/core/ui-predicate.ts` exports:
+- `uiPaths: string[]` — non-empty repo-relative POSIX glob patterns naming the consumer's UI source (e.g. `src/dashboard/app/**`). Drives the UI predicate (U2). Absent or `[]` ⇒ predicate-side never fires.
+- `uiSurfaces: Record<string, string[]>` — surface name → glob subset, mapping UI code to baseline files `docs/design/ui/baseline/<surface>.pen`. Optional; when absent but `uiPaths` present, a single implicit surface `app` covers all of `uiPaths`. Schema rule: every `uiSurfaces` glob list must be non-empty; surface names are slug-shaped (`[a-z0-9-]+`).
 
-- `isUiBearing(paths: string[], uiPaths: string[]): boolean` — glob intersection (reuse the existing `minimatch` idiom in `src/core/allowlist.ts` — its paths-match-globs pattern with `{ dot: true }` at `src/core/allowlist.ts:125` — rather than minting a second matching idiom).
-- `sessionUiVerdict(fd: FeatureFrontmatter | null, candidatePaths: string[], uiPaths: string[]): 'required' | 'skip'` — FD frontmatter override first (`design: required` / `design: skip`, new optional field in the features schema, `src/features/validate-features.ts`), then glob intersection, else `skip`.
+A feature's **affected surfaces** = every surface whose glob list matches ≥1 of the feature's UI-matching paths. A feature may affect multiple surfaces; each affected surface participates in seeding (U4) and write-back (U5). A path matching `uiPaths` but no `uiSurfaces` entry falls into the implicit `app` surface only when `uiSurfaces` is absent; when `uiSurfaces` is declared, such a path is a config gap the predicate reports (verdict still `required`; the design step tells the operator which paths lack a surface so the map gets extended).
 
-Candidate paths at spec time = the roadmap entry's `Touches:` clause (already parsed by `src/core/extract-touches.ts`) plus the spec dialogue's own files-touched list; at ship time = `git diff --name-only origin/main...HEAD`.
+### U2 — UI predicate (`src/core/ui-predicate.ts`, new)
 
-### U2 — Artifact + baseline conventions (`docs/design/ui/`)
+Matching reuses the existing `minimatch` idiom in `src/core/allowlist.ts` (its paths-match-globs pattern with `{ dot: true }` at `src/core/allowlist.ts:125`) — no second matching idiom. All inputs are repo-relative POSIX paths; no negation patterns in v1 (schema rejects `!`-prefixed globs).
 
-- **Feature design:** `docs/design/ui/<date>-<slug>.pen` (attach: `<date>-<parent>-<enhancement>.pen`) — same date-anchored naming as specs/plans, resolved by the same conventions in `src/core/design-artifact-names.ts` (extend its helpers rather than minting a second name scheme).
-- **Shared baseline:** `docs/design/ui/baseline/<surface>.pen` — one file per UI surface (consumer names surfaces; e.g. `dashboard.pen`). Reflects shipped UI as-built. First adoption starts empty; the first shipped UI feature populates it.
-- **Archive:** `docs/design/ui/archive/` — the feature `.pen` moves here at ship time via the existing `design archive` seam (`src/design/archive-cli.ts` + `archive-resolve.ts` extended to resolve `.pen` artifacts by the same dialogue-key rules it applies to specs/plans).
+- `isUiBearing(paths: string[], uiPaths: string[]): boolean` — true when any concrete path matches any glob.
+- `sessionUiVerdict(fd, candidatePaths, uiPaths): 'required' | 'skip'` — precedence, as a truth table:
+
+| FD `design:` | `uiPaths` | candidate ∩ uiPaths | verdict |
+|---|---|---|---|
+| `skip` | any | any | `skip` |
+| `required` | any (even absent) | any | `required` — the override is absolute; it exists precisely for the UI-feature-in-a-new-dir case |
+| unset / no FD | absent or `[]` | — | `skip` |
+| unset / no FD | present | non-empty | `required` |
+| unset / no FD | present | empty (incl. empty candidate set) | `skip` |
+
+**Candidate paths are concrete file paths only.** Sources by evaluation point:
+
+- **Spec time** (design-step entry, after grounding): the roadmap entry's `Touches:` values (via `src/core/extract-touches.ts`) ∪ the FD's `links.code`. A `Touches:`/`links.code` value containing glob metacharacters (`*?[{`) is expanded against the repo tree (`git ls-files -- <value>`) before matching; a value that is an existing directory is treated as `<value>/**`. Values that expand to nothing contribute nothing.
+- **Ship time** (gate Step 4): `git diff --name-only origin/main...HEAD` — the real diff is authoritative; no expansion needed.
+
+**Verdict persistence + reconciliation:** the spec-time verdict is written to the session marker (`session.uiVerdict: 'required' | 'skip'`, plus `uiVerdictPaths` — the matching paths, for audit). It gates only the design step. Ship time **recomputes** the verdict from the real diff (FD override still applies):
+
+- ship-`required` + spec-`required` → write-back runs (U5).
+- ship-`required` + spec-`skip` (UI emerged during implementation) → gate surfaces the mismatch; the write-back obligation stands — the operator (or, autonomous, the gate itself) runs the U6 `ui-sync` remediation to update the baseline; no design artifact exists and none is retroactively required.
+- ship-`skip` + spec-`required` (designed, but no UI code landed) → write-back no-ops; the feature `.pen` still archives.
+
+### U3 — Artifact + baseline conventions (`docs/design/ui/`)
+
+- **Feature design:** `docs/design/ui/<date>-<slug>.pen` (attach: `<date>-<parent>-<enhancement>.pen`) — same date-anchored naming as specs/plans, extended in `src/core/design-artifact-names.ts` (one name scheme, not two).
+- **Shared baseline:** `docs/design/ui/baseline/<surface>.pen`, one per configured surface (U1). Reflects shipped UI as-built. First adoption starts empty; U6 defines bootstrap.
+- **Archive:** `docs/design/ui/archive/` — at ship time the feature `.pen` moves here via the existing `design archive` seam (`src/design/archive-cli.ts` + `archive-resolve.ts` extended to resolve `.pen` artifacts by the same dialogue-key + branch-added-set rules as specs/plans). **The seam also rewrites the FD's `links.design` value to the archive path in the same staged change**, so the docs-link gate never sees a dangling target (mirrors how shipped FDs carry `links.spec: docs/design/specs/archive/…`).
 - `loadDocRoots` gains a `designUi` root beside the existing design roots so consumers on the transition alias keep resolving.
 
-Inside one feature `.pen`: candidate variants live as separate pages/artboards; the winner is marked by page-name convention `FINAL: <name>`; losers may be pruned before the spec-approval commit. The spec's Design section records considered alternatives in prose either way. Pinning = git SHA; `.pen` is opaque to git diff, which is acceptable — the commit boundary is the version boundary.
+Inside one feature `.pen`: candidate variants live as separate pages; the winner is marked by page-name prefix `FINAL:`; losers may be pruned before the spec-approval commit. **Convergence rule: exactly one `FINAL:` page per affected surface at spec-approval** — the design step refuses to conclude with zero or multiple (per surface), and U6's sync command validates the same rule. The spec's Design section records considered alternatives in prose either way.
 
-The FD links the artifact: `links.design: docs/design/ui/<date>-<slug>.pen` — one new optional relation in the links projection engine (`sync` unification, PR #338) so `pnpm noldor sync` and the docs-link gate treat it like `links.code`/`links.tests`/`links.docs`.
+**Immutability + pinning:** the approved feature `.pen` is never edited after the spec-approval commit — implementation drift is captured in the *baseline* at write-back (U5), never by rewriting the adjudicated design. The pin is the commit that introduced the artifact, deterministically resolvable as `git log --diff-filter=A -1 --format=%H -- <path>`; nothing else needs recording. The FD links the artifact: `links.design: docs/design/ui/<date>-<slug>.pen` — one new optional relation in the links projection engine (PR #338) so `pnpm noldor sync` and the docs-link gate treat it like `links.code`/`links.tests`/`links.docs`.
 
-### U3 — Design step inside `noldor-spec` (prose, `.claude/skills/noldor-spec/SKILL.md` + templates twin)
+### U4 — Design step inside `noldor-spec` (prose, `.claude/skills/noldor-spec/SKILL.md` + templates twin)
 
-After grounding (skill step 1), the controller computes the UI verdict (U1). On `required`:
+After grounding (skill step 1), the controller computes the spec-time verdict (U2) and writes it to the session marker. On `required`:
 
-1. **Seed:** copy the relevant baseline pages from `docs/design/ui/baseline/*.pen` into a new feature `.pen` via pencil MCP (`get_app_state` → `execute`). Empty baseline ⇒ start blank and say so.
-2. **Iterate:** draft 2–3 candidate variants as pages during the clarify dialogue; compare in-dialogue (pencil MCP screenshots/state renders); operator picks; mark winner `FINAL:`.
-3. **Record:** spec's Design section names the chosen variant and the considered alternatives; spec links the `.pen` path; FD `links.design` set.
+1. **Seed:** for each affected surface, copy that surface's baseline pages from `docs/design/ui/baseline/<surface>.pen` into a new feature `.pen` via pencil MCP (`get_app_state` → `execute`). Missing/empty baseline ⇒ start blank and say so.
+2. **Iterate:** draft 2–3 candidate variants as pages during the clarify dialogue; compare in-dialogue; operator picks; mark exactly one winner `FINAL:` per affected surface.
+3. **Record:** spec's Design section names the chosen variant and considered alternatives; spec links the `.pen` path; FD `links.design` set.
 
-On `skip`: one line in the spec ("UI verdict: skip — no `uiPaths` intersection"), nothing else. The step adds **zero** prompts for non-UI work.
+On `skip`: one line in the spec ("UI verdict: skip — <reason>"), nothing else. Zero prompts for non-UI work.
 
-Gate Step 2.5 commits the `.pen` together with the spec (same commit; the artifact-commit bullet's pathspec covers both). The spec CR round reviews the spec prose including the recorded design decision; reviewers do not parse `.pen`.
+**Editor degradation:** `required` never silently degrades. If pencil MCP is unavailable in a `required` session, the design step stops for an explicit operator **waiver** (interactive prompt; recorded in spec prose with the operator's rationale — the FD `design:` frontmatter is **never** written by the degradation path, since `design: skip` there would permanently force ship-time verdicts to `skip`). A waived session ships without a feature `.pen`; the baseline debt it creates is caught by U7 (`stale`/`uninitialized`) and repaid via U6. Headless runners never reach this seam: the spec stage is interactive by construction (drain ships fast-track only; `plansSource` resumes FDs whose design stage already ran).
 
-### U4 — Ship-time baseline write-back (prose, `/noldor-gate` Step 4 + drain exemption)
+Gate Step 2.5 commits the `.pen` together with the spec (same commit). The spec CR round reviews the spec prose including the recorded design decision; reviewers do not parse `.pen`.
 
-New Step 4 bullet for FD-carrying paths, ordered **before** the design-archive bullet so both ride the phase-flip commit: when the session's UI verdict is `required`, merge the feature `.pen`'s `FINAL:` pages into the matching `docs/design/ui/baseline/<surface>.pen` (pencil MCP), reflecting what was **actually implemented** (implementation may have drifted from the design — the baseline records as-built, so update the pages to match reality before merging). Then the archive seam moves the feature `.pen` to `archive/`, and the flip commit carries baseline + archive + FD together.
+### U5 — Ship-time baseline write-back (prose, `/noldor-gate` Step 4)
 
-Fast-track/micro-chore skip (no FD, and XS/S UI tweaks are exactly the mechanical band); the freshness check (U5) is the backstop that catches UI drift those paths introduce.
+New Step 4 bullet for FD-carrying paths, ordered **before** the design-archive bullet so baseline edits, archive moves, and `phase: done` ride one flip commit: when the ship-time verdict (U2) is `required`, update every affected surface's `docs/design/ui/baseline/<surface>.pen` (pencil MCP) to reflect the **as-built** UI — starting from the feature `.pen`'s `FINAL:` pages and adjusting for implementation drift. The approved feature `.pen` itself is not touched (U3 immutability).
 
-### U5 — Freshness check (`src/release/ui-design-freshness.ts`, new + CLI)
+If pencil MCP is unavailable at Step 4 in a `required` session, the write-back is skipped **loudly**: the gate prints the debt and the U6 remediation command; U7 turns red until it runs. Ship is not blocked — baseline sync is repayable debt, the artifact trail (feature `.pen`, archived) survives, and blocking PR delivery on editor availability would wedge non-Claude runners.
 
-Mirrors `src/release/graph-freshness.ts` exactly: `evaluateUiDesignFreshness(cwd)` returns `'fresh' | 'stale' | 'skipped'` —
+Fast-track/micro-chore skip this bullet (no FD; XS/S UI tweaks are the mechanical band). Drift they introduce is caught by U7 and repaid by U6.
 
-- `skipped` when `consumer.uiPaths` is absent/empty or `docs/design/ui/baseline/` doesn't exist (feature not adopted).
-- Compare `latestCommitTs(uiPaths)` (with test/doc excludes, reusing `GRAPH_IRRELEVANT_EXCLUDES`-style pathspecs) vs `latestCommitTs(['docs/design/ui/baseline/'])`; UI newer ⇒ `stale` with the canonical message naming both commits.
+### U6 — Standalone sync + bootstrap: `pnpm noldor design ui-sync` (new CLI, `src/design/ui-sync-cli.ts`)
 
-Wired into: **(a)** `pnpm noldor checks ui-design-freshness` CLI for the gate Step 4 author-side preflight list; **(b)** release preflight beside graph-freshness (same blocking semantics, same skip posture); **(c)** `doctor` as advisory. Reported, never thrown.
+The remediation surface for every baseline-debt path (waived sessions, MCP-less ships, fast-track drift, first adoption). Runs in any pencil-capable interactive session:
+
+- `pnpm noldor design ui-sync [--surface <name>]` — prints, per surface, the U7 verdict and the commits involved, then instructs the operator (or controller) to update `baseline/<surface>.pen` to match the current code; validates the result (file exists, parseable via pencil MCP, page names sane) and leaves the change staged, never committing (house style: `archive-cli` precedent).
+- **Bootstrap** is the same command on an `uninitialized` surface: it creates the baseline file from scratch. First adoption = configure `uiPaths`/`uiSurfaces`, run `ui-sync` once per surface.
+
+### U7 — Freshness check (`src/release/ui-design-freshness.ts`, new + CLI)
+
+Follows the shape of `src/release/graph-freshness.ts` (reported, never thrown) but evaluates **per surface** and uses **commit ancestry**, not timestamps:
+
+```ts
+interface UiSurfaceFreshness {
+  surface: string;
+  status: 'fresh' | 'stale' | 'uninitialized' | 'skipped';
+  uiCommit?: string;        // latest commit touching the surface's globs (test/doc-excluded)
+  baselineCommit?: string;  // latest commit touching baseline/<surface>.pen
+  detail: string;           // canonical human-readable reason, incl. remediation hint (U6)
+}
+interface UiFreshnessVerdict { overall: 'fresh' | 'stale' | 'uninitialized' | 'skipped'; surfaces: UiSurfaceFreshness[]; }
+```
+
+- `skipped` (whole check): `uiPaths` absent/empty. `skipped` (per surface): no commits ever touched its globs.
+- `uninitialized`: surface globs have commits but `baseline/<surface>.pen` doesn't exist — the permanently-unadopted hole gets its own visible state instead of hiding in `skipped`.
+- `fresh` / `stale`: let `U` = latest commit touching the surface's globs (with test/doc pathspec excludes, reusing the `GRAPH_IRRELEVANT_EXCLUDES` approach), `B` = latest commit touching the surface's baseline file. Fresh iff `U` is an ancestor of (or equal to) `B`'s commit — concretely: the baseline commit is not older in ancestry terms, evaluated with `git merge-base --is-ancestor U B` (ancestry, not committer timestamps, so rebases/cherry-picks/ties can't lie). Unrelated histories or missing refs (shallow clone, `''` from the log probe) ⇒ per-surface `skipped` with detail — never a crash.
+- `overall` = worst surface status (`stale` > `uninitialized` > `fresh` > `skipped`).
+
+Wired into: **(a)** `pnpm noldor checks ui-design-freshness` — exits 0 on `fresh`/`skipped`, non-zero on `stale`/`uninitialized`, printing every surface row; **(b)** gate Step 4 prose runs it **after** the U5 write-back and before `pr-flow` (pre-write-back staleness is the expected input state, not a blocker — this ordering resolves the circularity by construction); **(c)** release preflight beside graph-freshness — `stale` blocks, `uninitialized` is advisory in v1 (adoption must not brick releases), both with U6 remediation in the message; **(d)** `doctor` as advisory.
 
 ### Data flow
 
-Roadmap entry (`Touches:`) → promote → spec dialogue: UI verdict (U1) → seed from baseline (U3) → candidates → winner `FINAL:` → spec + `.pen` committed (Step 2.5) → spec CR round → plan → implementation → ship: write-back to baseline + archive feature `.pen` + phase-flip in one commit (U4) → freshness check green (U5). Next feature seeds from the just-updated baseline.
+Roadmap entry (`Touches:`) → promote → spec dialogue: spec-time verdict (U2, persisted) → seed from baseline per affected surface (U4) → candidates → one `FINAL:` per surface → spec + `.pen` committed (Step 2.5) → spec CR round → plan → implementation → ship: ship-time verdict recomputed → baseline write-back (U5) → archive feature `.pen` + rewrite `links.design` + phase-flip in one commit → freshness green (U7) → pr-flow. Next feature seeds from the just-updated baseline. Any missed write-back → U7 red → U6 `ui-sync`.
 
 ### Error handling
 
-- **pencil MCP unavailable** (headless, non-Claude runner): the design step degrades loudly — print the skip reason and record the degradation rationale **in spec prose only**; the FD `design:` frontmatter field is **never** written by the degradation path (setting `design: skip` there would permanently force the ship-time verdict to `skip` and silently disable the U4 write-back for a genuinely UI-bearing feature). Never block a spec on editor availability; the freshness check still enforces eventual baseline truth.
-- **Corrupt/unreadable `.pen`:** pencil MCP errors surface to the operator; the file is git-recoverable (`git checkout -- <path>`).
-- **Freshness check on missing git history** (shallow clone): `latestCommitTs` returns '' ⇒ treat as `skipped` with detail, mirroring graph-freshness.
-- **Baseline merge conflict** (two features shipping into one surface file): `.pen` is opaque to git merge — second PR's write-back re-runs on post-merge main state (worktree branches rebase via `--force-with-lease` push flow); a torn baseline is repaired by re-running the write-back from the archived feature `.pen`.
+- **Pencil MCP unavailable:** spec time → explicit operator waiver, never a silent skip (U4); ship time → loud skip + U6 debt (U5). FD `design:` frontmatter never written by either path.
+- **Corrupt/unreadable `.pen`:** pencil MCP errors surface to the operator; the file is git-recoverable (`git checkout -- <path>`); `ui-sync` validates parseability after every sync.
+- **Git edge cases in U7** (shallow clone, unrelated histories, empty log): per-surface `skipped` with detail — reported, never thrown.
+- **Baseline write conflict** (two features shipping into one surface): `.pen` is opaque to git merge; the second PR's write-back re-runs on post-merge state, and a torn baseline is repaired by `ui-sync` (the archived feature `.pen`s and the code are both still available as sources).
 
 ### Testing
 
-- `src/core/__tests__/ui-predicate.test.ts` — glob intersection, FD override both ways, absent `uiPaths` ⇒ skip, empty candidate set ⇒ skip.
-- `src/release/__tests__/ui-design-freshness.test.ts` — fresh/stale/skipped matrix over a fixture repo (same harness as graph-freshness tests).
-- `src/features/__tests__` — `design:` frontmatter field accepted (`required`/`skip`), rejected on other values; `links.design` projection round-trips through the sync engine tests.
-- Skill prose changes carry template twins (`templates/`), verified by `pnpm noldor checks template-sync`.
+- `src/core/__tests__/ui-predicate.test.ts` — the full U2 truth table, glob expansion of `Touches:` values, directory-value expansion, empty candidate set, config-gap reporting (path in `uiPaths` but no surface).
+- `src/release/__tests__/ui-design-freshness.test.ts` — fixture-repo matrix: fresh, stale, uninitialized, per-surface skipped, whole-check skipped, rebase/cherry-pick ordering (ancestry beats timestamps), shallow-history fallback, multi-surface worst-of aggregation.
+- `src/features/__tests__` — `design: required|skip` accepted, other values rejected; `links.design` projection round-trips through the sync-engine tests; archive-seam test covers the `links.design` rewrite.
+- `src/design/__tests__` — `ui-sync` surface resolution + staged-never-committed behavior; archive-resolve extension for `.pen` by dialogue key.
+- Skill prose changes carry template twins, verified by `pnpm noldor checks template-sync`.
 
 ## Acceptance criteria
 
-1. `ConsumerConfigSchema` accepts optional `uiPaths: string[]`; existing consumer configs without it keep validating.
-2. `isUiBearing` / `sessionUiVerdict` exported with the override-then-intersection semantics above; unit-tested.
-3. Features schema accepts optional `design: required | skip` frontmatter; any other value fails `pnpm noldor validate features`.
-4. `links.design` resolves through the links projection engine and the docs-link gate like the other relations.
-5. A UI-bearing spec session (predicate `required`) produces `docs/design/ui/<date>-<slug>.pen` committed in the same commit as the spec.
-6. A non-UI session (predicate `skip`) reaches spec approval with zero design-stage prompts and no `.pen` file.
-7. `pnpm noldor design archive` moves the session's feature `.pen` to `docs/design/ui/archive/` under the same dialogue-key + branch-added-set rules as specs/plans.
-8. Gate Step 4 prose (+ templates twin) orders write-back → archive → phase-flip so baseline, archive move, and `phase: done` land in one commit.
-9. `evaluateUiDesignFreshness` returns `skipped` (no `uiPaths` or no baseline dir), `fresh`, or `stale` per the commit-timestamp comparison; unit-tested for all three.
-10. `pnpm noldor checks ui-design-freshness` exits 0 on fresh/skipped, non-zero on stale, printing the verdict detail.
-11. Release preflight includes the freshness verdict with the same blocking/skip semantics as graph-freshness; `doctor` surfaces it as advisory.
-12. Roadmap carries sibling entry Q-0145 (review lane, `split-from: Q-0144`) and `pnpm noldor validate triage` is green.
+1. `ConsumerConfigSchema` accepts optional `uiPaths` + `uiSurfaces` per U1 (non-empty globs, slug-shaped surface names, `!`-globs rejected); existing consumer configs keep validating.
+2. `sessionUiVerdict` implements the U2 truth table exactly (unit-tested row by row), and the spec-time verdict + matching paths persist in the session marker.
+3. Features schema accepts optional `design: required | skip`; any other value fails `pnpm noldor validate features`; no framework code path ever writes the field.
+4. `links.design` resolves through the links projection engine and docs-link gate; the archive seam rewrites it to the archive path in the same staged change that moves the artifact — no dangling link at any commit.
+5. A `required` spec session commits `docs/design/ui/<date>-<slug>.pen` in the same commit as the spec, seeded from every affected surface's baseline, with exactly one `FINAL:` page per affected surface at approval; the artifact is byte-identical from that commit until the archive move.
+6. A `skip` session reaches spec approval with zero design-stage prompts and no `.pen`; a `required` session with pencil MCP unavailable stops for an explicit operator waiver rather than degrading silently.
+7. Ship time recomputes the verdict from `origin/main...HEAD`; the U2 reconciliation matrix holds (emerged-UI ships surface the U6 debt; designed-but-no-UI ships no-op the write-back and still archive).
+8. Gate Step 4 prose (+ templates twin) orders write-back → archive (with link rewrite) → phase-flip in one commit, and runs the freshness check after write-back, before `pr-flow`.
+9. `evaluateUiDesignFreshness` returns the U7 discriminated per-surface verdict using commit ancestry; unit-tested for the full matrix including rebase/cherry-pick and shallow-history cases.
+10. `pnpm noldor checks ui-design-freshness` exits 0 on `fresh`/`skipped` and non-zero on `stale`/`uninitialized`, printing per-surface rows with remediation hints; release preflight blocks on `stale` (advisory on `uninitialized`); `doctor` surfaces it as advisory.
+11. `pnpm noldor design ui-sync` remediates `stale` and bootstraps `uninitialized` surfaces, validates the one-`FINAL:`-per-surface rule and `.pen` parseability, and leaves changes staged without committing.
+12. Roadmap carries sibling entry Q-0145 (`split-from: Q-0144`) and `pnpm noldor validate triage` is green.
 
 ## Risks / trade-offs
 
-- **`.pen` is opaque to review and merge.** Reviewers adjudicate the design in-dialogue and via spec prose, not by diffing the artifact; concurrent ships into one baseline surface need a re-run of write-back. Accepted: git-SHA pinning is the goal, not diffability.
-- **Baseline truthfulness depends on the write-back step.** Fast-track UI edits bypass it by design; the freshness check narrows the window but a stale-yet-timestamp-fresh baseline (write-back committed but sloppy) is undetectable mechanically. Q-0145's review lane adds the judging eye.
-- **Pencil MCP is a Claude-environment dependency.** Non-Claude runners degrade to skip-with-reason; the framework stays runner-neutral by never hard-requiring the editor.
+- **`.pen` is opaque to review and merge.** Reviewers adjudicate the design in-dialogue and via spec prose, not by diffing the artifact; concurrent ships into one surface need a `ui-sync` repair pass. Accepted: git pinning is the goal, not diffability.
+- **Baseline truthfulness is process-enforced.** U7 proves the baseline *moved after* the UI code moved, not that its content matches the code; a sloppy write-back is mechanically undetectable. Q-0145's review lane adds the judging eye.
+- **Pencil MCP is a Claude-environment dependency.** Spec-time: waiver; ship-time: repayable debt via `ui-sync`. The framework stays runner-neutral by never hard-requiring the editor on a blocking path.
 - **Divergence from entry prose** (`sizeToPath()` untouched) — recorded here and in the ledger; if a future consumer needs size-coupled design routing, that's a new entry.
+- **`uiSurfaces` granularity is consumer judgment.** Too-coarse maps (one surface for everything) weaken per-surface freshness back to the dir-granular check this spec rejects; the adoption guide should recommend one surface per top-level UI area.
 
 ## User Story
 
@@ -128,17 +178,17 @@ As an operator shipping a UI feature through the gate, I want the spec phase to 
 
 ## Usage
 
-- Consumer setup: add `"uiPaths": ["src/dashboard/app/**"]` to `consumer` in `.noldor/config.json`.
-- Spec phase (automatic): on a UI-bearing entry, the design step seeds `docs/design/ui/<date>-<slug>.pen` from `docs/design/ui/baseline/`, iterates variants as pages, marks the winner `FINAL:`; the gate commits it with the spec.
-- Override: set `design: required` or `design: skip` in the FD frontmatter to force either verdict.
-- Freshness: `pnpm noldor checks ui-design-freshness` (author-side); release preflight and `doctor` run it automatically.
+- Consumer setup: add `"uiPaths": ["src/dashboard/app/**"]` (optionally `"uiSurfaces": {"dashboard": ["src/dashboard/app/**"]}`) to `consumer` in `.noldor/config.json`; run `pnpm noldor design ui-sync` once per surface to bootstrap the baseline.
+- Spec phase (automatic): on a UI-bearing entry, the design step seeds `docs/design/ui/<date>-<slug>.pen` from the affected baseline surfaces, iterates variants as pages, marks one winner `FINAL:` per surface; the gate commits it with the spec.
+- Override: set `design: required` or `design: skip` in the FD frontmatter to force either verdict (operator-only field).
+- Freshness: `pnpm noldor checks ui-design-freshness` any time; gate Step 4 and release preflight run it automatically; `pnpm noldor design ui-sync` repairs any red.
 
 ## Open questions (resolved)
 
-1. *Where does the design artifact live and what pins it?* → Repo-committed `.pen` under `docs/design/ui/`, pinned by git SHA; no cloud dependency. (D1)
-2. *All candidates or winner only?* → One `.pen` per feature; candidates as pages inside it; winner marked `FINAL:`; losers prunable; alternatives recorded in spec prose. (D2)
+1. *Where does the design artifact live and what pins it?* → Repo-committed `.pen` under `docs/design/ui/`, pinned by the commit that introduced it (`git log --diff-filter=A`); no cloud dependency. (D1)
+2. *All candidates or winner only?* → One `.pen` per feature; candidates as pages inside it; exactly one winner `FINAL:` per affected surface; losers prunable; alternatives recorded in spec prose. (D2)
 3. *How will the review lane compare?* → Reviewer-prompted with `.pen` structure + code diff; carved out to Q-0145; mechanical compare deferred. (D3)
-4. *How does the shared baseline stay in sync?* → Ship-time write-back at gate Step 4 plus a graph-freshness-style staleness check; drift caught by code. (D5)
-5. *What makes a session UI-bearing?* → `consumer.uiPaths` glob intersection with FD `design:` override; absent config means the stage never fires. (D6)
+4. *How does the shared baseline stay in sync?* → Ship-time write-back at gate Step 4, an ancestry-based per-surface freshness check, and `design ui-sync` as the universal remediation/bootstrap surface. (D5)
+5. *What makes a session UI-bearing?* → `consumer.uiPaths` intersection with an absolute FD `design:` override, per the U2 truth table; verdict persisted at spec time and recomputed at ship time. (D6)
 6. *One spec or split?* → Split: stage + baseline here; review lane as sibling Q-0145 with deps on this feature. (D7)
 7. *New gate path / artifact kind?* → Neither: the design step lives inside `noldor-spec`, the `.pen` rides the spec CR round, `sizeToPath()` untouched — UI-ness is orthogonal to size. (D8)
