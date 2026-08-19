@@ -140,7 +140,7 @@ For `full-new` / `full-attach` paths, the plan-stage continue-dialog gains a fou
 
 Autonomous mode is opt-in per session. The default continue-dialog choice remains `proceed` (interactive between-step checkpoints).
 
-Autonomous CR needs **no** config to work: when `crLanes.<kind>` is absent, orchestrate falls back to the built-in `reviewer`-only defaults (`DEFAULT_CR_LANES`). Add a `crLanes` / `autonomous` block to `.noldor/config.json` only to override those defaults (e.g. opt codex back in, or set `onFailure: 'abort'`). See [`cr-pipeline.md`](cr-pipeline.md#config-driven-defaults) for the full reference.
+Autonomous CR needs **no** config to work: when `crLanes.<kind>` is absent, orchestrate falls back to the built-in `reviewer`-only defaults (`DEFAULT_CR_LANES`). Add a `crLanes` / `autonomous` block to `.noldor/config.json` only to override those defaults (e.g. opt codex back in, or set `onFailure: 'abort'`). On `specs-only-*` / `full-*` sessions (entry size M/L/XL) the codex lane is unioned automatically into spec- and code-stage rounds — see [cr-pipeline.md](cr-pipeline.md#step-4-collapse). See [`cr-pipeline.md`](cr-pipeline.md#config-driven-defaults) for the full reference.
 
 ## Picking your path
 
