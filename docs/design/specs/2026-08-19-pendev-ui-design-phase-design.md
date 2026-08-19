@@ -39,7 +39,7 @@ The third surface from the roadmap entry — a review lane checking implemented 
 
 New module `src/core/ui-predicate.ts` exports:
 
-- `isUiBearing(paths: string[], uiPaths: string[]): boolean` — glob intersection (reuse the `picomatch`/minimatch dependency already used by the boundary rules; follow whatever `src/checks/check-feature-slug-scope.ts` matches globs with).
+- `isUiBearing(paths: string[], uiPaths: string[]): boolean` — glob intersection (reuse the existing `minimatch` idiom in `src/core/allowlist.ts` — its paths-match-globs pattern with `{ dot: true }` at `src/core/allowlist.ts:125` — rather than minting a second matching idiom).
 - `sessionUiVerdict(fd: FeatureFrontmatter | null, candidatePaths: string[], uiPaths: string[]): 'required' | 'skip'` — FD frontmatter override first (`design: required` / `design: skip`, new optional field in the features schema, `src/features/validate-features.ts`), then glob intersection, else `skip`.
 
 Candidate paths at spec time = the roadmap entry's `Touches:` clause (already parsed by `src/core/extract-touches.ts`) plus the spec dialogue's own files-touched list; at ship time = `git diff --name-only origin/main...HEAD`.
@@ -88,7 +88,7 @@ Roadmap entry (`Touches:`) → promote → spec dialogue: UI verdict (U1) → se
 
 ### Error handling
 
-- **pencil MCP unavailable** (headless, non-Claude runner): the design step degrades loudly — print the skip reason, record `design: skip` rationale in the spec, continue. Never block a spec on editor availability; the freshness check still enforces eventual baseline truth.
+- **pencil MCP unavailable** (headless, non-Claude runner): the design step degrades loudly — print the skip reason and record the degradation rationale **in spec prose only**; the FD `design:` frontmatter field is **never** written by the degradation path (setting `design: skip` there would permanently force the ship-time verdict to `skip` and silently disable the U4 write-back for a genuinely UI-bearing feature). Never block a spec on editor availability; the freshness check still enforces eventual baseline truth.
 - **Corrupt/unreadable `.pen`:** pencil MCP errors surface to the operator; the file is git-recoverable (`git checkout -- <path>`).
 - **Freshness check on missing git history** (shallow clone): `latestCommitTs` returns '' ⇒ treat as `skipped` with detail, mirroring graph-freshness.
 - **Baseline merge conflict** (two features shipping into one surface file): `.pen` is opaque to git merge — second PR's write-back re-runs on post-merge main state (worktree branches rebase via `--force-with-lease` push flow); a torn baseline is repaired by re-running the write-back from the archived feature `.pen`.
