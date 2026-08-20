@@ -101,6 +101,10 @@
     "slug": "roadmap-has-block-predicate",
     "retiredAt": "2026-08-20"
   },
+  "Q-0127": {
+    "slug": "prefer-noldor-wait-over-harness-monitor-tools",
+    "retiredAt": "2026-08-20"
+  },
   "Q-0116": {
     "slug": "design-artifact-detector-module",
     "retiredAt": "2026-08-20"

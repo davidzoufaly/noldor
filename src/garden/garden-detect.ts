@@ -238,8 +238,12 @@ async function detectStaleDesignArtifacts(
     let mtimeMs: number;
     try {
       mtimeMs = (await stat(fullPath)).mtimeMs;
-    } catch {
-      continue;
+    } catch (error) {
+      // Only the vanished case is benign — a file with no age has nothing to
+      // flag. Any other IO failure would turn an unreadable artifact into a
+      // silent pass, so it propagates (same policy as readFileIfExists).
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
     }
     if (mtimeMs < ageCutoffMs) {
       findings.push({
