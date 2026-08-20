@@ -10,18 +10,12 @@ import { copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { defaultRunGit, resolveDefaultBase } from '../../core/branch-added.js';
 import { writeJsonAtomic } from '../atomic-write.js';
 import { openLane } from '../filename.js';
 import { loadLaneMode } from '../lane-mode.js';
 import type { Finding, LaneFindings, LaneReasonCode } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
-import {
-  NO_FD_SUMMARY,
-  readFd,
-  resolveUiReviewTarget,
-  type Terminal,
-} from './ui-design-resolve.js';
+import { resolveUiReviewTarget, type Terminal } from './ui-design-resolve.js';
 import {
   UiDispatchError,
   dispatchUiReview,
@@ -129,50 +123,22 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
   }
 
   try {
-    const fd = await readFd(join(input.repoRoot, input.fdPath));
-    const run = defaultRunGit(input.repoRoot);
-    let raw: string;
-    try {
-      raw = await dispatchUiReview({
-        penPath: scratchPen,
-        surfaces: design.surfaces,
-        baseSha: resolveDefaultBase(run),
-        headSha: input.artifactSha,
-        repoRoot: input.repoRoot,
-        fdSummary: 'reason' in fd ? NO_FD_SUMMARY : fd.summary,
-        ...(input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {}),
-      });
-    } catch (err) {
-      const reason: LaneReasonCode =
-        err instanceof UiDispatchError ? err.reason : 'dispatch-failed';
-      return write(
-        {
-          verdict: 'cannot-review',
-          reason,
-          blockers:
-            mode === 'blocking'
-              ? [
-                  {
-                    file: input.artifact,
-                    severity: 'high',
-                    message: `${reason}: ${(err as Error).message}`,
-                  },
-                ]
-              : [],
-          suggestions: [],
-          summary: `cannot-review: ${reason}`,
-          notes: [...notes, (err as Error).message],
-        },
-        mode !== 'blocking',
-      );
-    }
-
-    // Integrity BEFORE the report is trusted: a design that changed under the
-    // reviewer invalidates the review, whatever the review concluded. Hash, not
-    // `git diff` — the index cannot fool a hash, and an uncommitted edit that was
-    // already there is not a mutation.
-    if ((await sha256(design.absPath)) !== hashBefore) {
-      return write(
+    /** Integrity verdict for the repo's design file across the dispatch. */
+    const designChanged = async (): Promise<{ changed: boolean; detail: string }> => {
+      try {
+        return { changed: (await sha256(design.absPath)) !== hashBefore, detail: '' };
+      } catch (err) {
+        // The design became unreadable DURING its own review — deleted or
+        // chmod'd. That is the mutation class the hash exists to catch, so it
+        // reads as changed rather than escaping as an unhandled throw.
+        return {
+          changed: true,
+          detail: `design unreadable after review: ${(err as Error).message}`,
+        };
+      }
+    };
+    const writePenModified = (detail: string): Promise<LaneResult> =>
+      write(
         {
           verdict: 'fail',
           reason: 'pen-modified',
@@ -180,33 +146,75 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
             {
               file: design.repoRelPath,
               severity: 'high',
-              message: `pen-modified: the design changed during review — the verdict cannot be trusted`,
+              message: `pen-modified: the design changed during review — the verdict cannot be trusted${detail ? ` (${detail})` : ''}`,
             },
           ],
           suggestions: [],
           summary: 'fail: pen-modified',
-          notes,
+          ...(notes.length > 0 ? { notes } : {}),
         },
         false,
       );
+
+    const cap = input.dispatchTimeoutMs !== undefined ? { timeoutMs: input.dispatchTimeoutMs } : {};
+    let raw: string | null = null;
+    let dispatchFailure: { reason: LaneReasonCode; message: string } | null = null;
+    try {
+      raw = await dispatchUiReview({
+        penPath: scratchPen,
+        surfaces: design.surfaces,
+        baseSha: design.base,
+        headSha: input.artifactSha,
+        repoRoot: input.repoRoot,
+        fdSummary: design.fdSummary,
+        ...cap,
+      });
+    } catch (err) {
+      dispatchFailure = {
+        reason: err instanceof UiDispatchError ? err.reason : 'dispatch-failed',
+        message: (err as Error).message,
+      };
     }
 
-    const report = parseUiReviewReport(raw);
+    // Integrity is checked BEFORE the dispatch outcome is acted on — including a
+    // failed dispatch. A child that edits the design and then times out would
+    // otherwise land as an advisory-green `timeout` instead of the mandatory
+    // `pen-modified` blocker.
+    const integrity = await designChanged();
+    if (integrity.changed) return writePenModified(integrity.detail);
+
+    if (dispatchFailure !== null) {
+      return writeTerminal(
+        {
+          verdict: 'cannot-review',
+          reason: dispatchFailure.reason,
+          detail: dispatchFailure.message,
+        },
+        notes,
+      );
+    }
+
+    const report = parseUiReviewReport(raw ?? '');
     if (report === null) {
       return writeTerminal(
         {
           verdict: 'cannot-review',
           reason: 'malformed-output',
-          detail: `unparseable child report: ${raw.slice(0, 200)}`,
+          detail: `unparseable child report: ${(raw ?? '').slice(0, 200)}`,
         },
         notes,
       );
     }
     if (report.verdict === 'cannot-review') {
-      const reason: LaneReasonCode =
-        report.reason === 'pen-unreadable' ? 'pen-unreadable' : 'no-feature-pen';
+      // The child's two reasons stay distinct: `no-final-pages` means the design
+      // exists but pins nothing for the scope, `pen-unreadable` that it could not
+      // be opened at all. Different remediation, so different codes.
       return writeTerminal(
-        { verdict: 'cannot-review', reason, detail: `child reported ${report.reason}` },
+        {
+          verdict: 'cannot-review',
+          reason: report.reason,
+          detail: `child reported ${report.reason}`,
+        },
         notes,
         design.repoRelPath,
       );

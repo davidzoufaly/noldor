@@ -1,6 +1,6 @@
 // @tests: ui-design-review-lane
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -229,6 +229,24 @@ describe('runUiReview — rounds it cannot perform', () => {
     expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'surfaces-unmapped' });
   });
 
+  it('reports config-unreadable when the consumer config exists but does not parse', async () => {
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`] });
+    writeFileSync(join(cwd, '.noldor', 'config.json'), '{ not json');
+    const r = await runUiReview(input);
+    // Distinct from no-consumer-config: a broken config is a repo problem, not an opt-out.
+    expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'config-unreadable' });
+    expect(r.ok).toBe(true);
+  });
+
+  it("keeps the child's no-final-pages distinct from no-feature-pen", async () => {
+    setUiDispatcher(async () =>
+      report({ verdict: 'cannot-review', findings: [], reason: 'no-final-pages' }),
+    );
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`] });
+    await runUiReview(input);
+    expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'no-final-pages' });
+  });
+
   it('reports malformed-output when the child emits no parseable report', async () => {
     setUiDispatcher(async () => 'I have thoughts but no json');
     const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`] });
@@ -308,6 +326,30 @@ describe('runUiReview — performed reviews', () => {
       expect(r.ok).toBe(false);
       expect(sink(cwd)).toMatchObject({ verdict: 'fail', reason: 'pen-modified' });
     }
+  });
+
+  it('reports pen-modified even when the dispatch itself then failed', async () => {
+    // A child that edits the design and then times out must not land as an
+    // advisory-green timeout: the mutation invalidates the round either way.
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`] });
+    setUiDispatcher(async () => {
+      writeFileSync(join(cwd, 'docs', 'design', 'ui', `2026-08-20-${SLUG}.pen`), 'MUTATED\n');
+      throw new Error('boom');
+    });
+    const r = await runUiReview(input);
+    expect(r.ok).toBe(false);
+    expect(sink(cwd)).toMatchObject({ verdict: 'fail', reason: 'pen-modified' });
+  });
+
+  it('treats a design that became unreadable during review as modified', async () => {
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`] });
+    setUiDispatcher(async () => {
+      rmSync(join(cwd, 'docs', 'design', 'ui', `2026-08-20-${SLUG}.pen`));
+      return report(PASS);
+    });
+    const r = await runUiReview(input);
+    expect(r.ok).toBe(false);
+    expect(sink(cwd)).toMatchObject({ verdict: 'fail', reason: 'pen-modified' });
   });
 
   it('reviews the archived design once gate Step 4 has moved it', async () => {

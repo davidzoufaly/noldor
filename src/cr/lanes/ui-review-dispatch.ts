@@ -36,13 +36,18 @@ export type ChildReason = z.infer<typeof childReasonSchema>;
  * handled as one class — `malformed-output` — instead of being half-honored.
  */
 export const uiReviewReportSchema = z.discriminatedUnion('verdict', [
-  z.object({ verdict: z.literal('pass'), findings: z.tuple([]).default([]) }),
-  z.object({ verdict: z.literal('fail'), findings: z.array(uiFindingSchema).min(1) }),
-  z.object({
-    verdict: z.literal('cannot-review'),
-    findings: z.tuple([]).default([]),
-    reason: childReasonSchema,
-  }),
+  // `.strict()` on every member: without it an unknown key is stripped, so a
+  // contradictory `{verdict: "pass", reason: "pen-unreadable"}` would parse as a
+  // clean pass — the exact false-trust the union exists to prevent.
+  z.object({ verdict: z.literal('pass'), findings: z.tuple([]).default([]) }).strict(),
+  z.object({ verdict: z.literal('fail'), findings: z.array(uiFindingSchema).min(1) }).strict(),
+  z
+    .object({
+      verdict: z.literal('cannot-review'),
+      findings: z.tuple([]).default([]),
+      reason: childReasonSchema,
+    })
+    .strict(),
 ]);
 export type UiReviewReport = z.infer<typeof uiReviewReportSchema>;
 

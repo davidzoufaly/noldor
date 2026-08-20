@@ -56,6 +56,14 @@ describe('parseUiReviewReport', () => {
       fence({ verdict: 'fail', findings: [{ file: 'a.tsx', severity: 'high', message: 'm' }] }),
     ],
     [
+      'a pass that also carries a reason (contradictory, unknown key)',
+      fence({ verdict: 'pass', findings: [], reason: 'pen-unreadable' }),
+    ],
+    [
+      'a fail that also carries a reason',
+      fence({ verdict: 'fail', findings: [EVIDENCE], reason: 'pen-unreadable' }),
+    ],
+    [
       'a finding missing its code-side file',
       fence({
         verdict: 'fail',

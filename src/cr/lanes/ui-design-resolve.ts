@@ -41,6 +41,10 @@ const fdDesignSliceSchema = z.object({ design: z.enum(['required', 'skip']).opti
 
 /** What the child compared against, once Node has resolved it. */
 export interface ResolvedDesign {
+  /** Whole-feature base the predicate used; the child reviews the same range. */
+  base: string;
+  /** FD `## Summary` (or the no-FD sentence), already read during resolution. */
+  fdSummary: string;
   /** Repo-relative path of the design this session owns. */
   repoRelPath: string;
   /** Absolute path of the same file. */
@@ -159,7 +163,15 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
   const repo = input.repoRoot;
   const run = defaultRunGit(repo);
 
-  const uiConfig = loadUiConfig(repo);
+  // `loadUiConfig` returns null only for a MISSING config; a present-but-invalid
+  // one throws (`loadConsumerConfig`), and an escaping throw would leave the lane
+  // with no sink at all.
+  let uiConfig: ReturnType<typeof loadUiConfig>;
+  try {
+    uiConfig = loadUiConfig(repo);
+  } catch (err) {
+    return terminal('cannot-review', 'config-unreadable', (err as Error).message);
+  }
   if (uiConfig === null) {
     return terminal(
       'not-applicable',
@@ -231,7 +243,9 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
   }
   let owned: string[];
   try {
-    owned = candidates.paths.filter((p) => new Set(discoverAddedFiles({ cwd: repo, base })).has(p));
+    // Two git subprocesses, resolved ONCE — inside the filter this ran per candidate.
+    const added = new Set(discoverAddedFiles({ cwd: repo, base }));
+    owned = candidates.paths.filter((p) => added.has(p));
   } catch (err) {
     return terminal('cannot-review', 'range-unresolvable', (err as Error).message);
   }
@@ -249,6 +263,8 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
   return {
     kind: 'review',
     design: {
+      base,
+      fdSummary: fd.summary,
       repoRelPath: owned[0],
       absPath: join(repo, owned[0]),
       surfaces: verdict.affectedSurfaces,

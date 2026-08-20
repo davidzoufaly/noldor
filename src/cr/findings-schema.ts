@@ -62,7 +62,14 @@ export const laneReasonCodeSchema = z.enum([
   'no-session-key',
   'no-design-artifact',
   'no-feature-pen',
+  // Distinct from `no-feature-pen`: the design exists, but holds no `FINAL:` page
+  // for the surfaces in scope. Different remediation — author the page vs author
+  // the design — so an operator branching on `reason` must be able to tell them apart.
+  'no-final-pages',
   'ambiguous-design',
+  // Consumer config exists but does not parse. Distinct from `no-consumer-config`
+  // (feature unadopted): a broken config is a repo problem, not an opt-out.
+  'config-unreadable',
   'surfaces-unmapped',
   'pen-unreadable',
   'scratch-unavailable',
