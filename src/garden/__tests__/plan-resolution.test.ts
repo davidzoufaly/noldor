@@ -263,4 +263,19 @@ describe('resolveByGraphAdjacency', () => {
     });
     expect(result).toMatchObject({ outcome: 'unreadable' });
   });
+  it('reports none when the edge names an FD that no longer exists', async () => {
+    const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    const result = await resolveByGraphAdjacency({
+      repo: '/tmp/repo',
+      docPath: 'docs/design/plans/2026-06-14-orphan.md',
+      relation: 'plan-of',
+      graphPath: '/tmp/repo/graphify-out/graph.json',
+      readFile: async (p: string) => {
+        if (p.endsWith('graph.json')) return GRAPH;
+        throw enoent;
+      },
+    });
+    // A stale edge must not suppress the age-out signal forever.
+    expect(result).toEqual({ outcome: 'none' });
+  });
 });

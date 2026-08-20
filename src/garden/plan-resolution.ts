@@ -92,8 +92,12 @@ async function scanFdsForOwner(
     let fd: FeatureFrontmatter | null;
     try {
       fd = parseFdFrontmatter(await readFile(fdPath, 'utf8'));
-    } catch {
-      fd = null; // read failure through the seam — candidate is unknown, like a parse failure
+    } catch (error) {
+      // Vanished between the listing and the read — not a candidate at all, so
+      // it must not suppress a finding. Any other read failure leaves the
+      // candidate's links unknown, exactly like a parse failure.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      fd = null;
     }
     if (!fd) {
       if (plausibleOwner(entry.replace(/\.md$/, ''))) unreadable.push(entry);
@@ -189,10 +193,14 @@ export async function resolveByGraphAdjacency(
   let fd: FeatureFrontmatter | null;
   try {
     fd = parseFdFrontmatter(await readFile(fdPath, 'utf8'));
-  } catch {
+  } catch (error) {
+    // A graph edge pointing at an FD that no longer exists is a stale edge, not
+    // a claim of ownership — answer `none` so the artifact can still age out.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { outcome: 'none' };
     fd = null;
   }
-  // The edge names an owner, so ownership is claimed; only its phase is unknown.
+  // The edge names an owner that exists, so ownership is claimed and only its
+  // phase is unknown.
   return fd
     ? { outcome: 'resolved', owner: { fd, slug } }
     : { detail: `unreadable owner FD: ${fdPath}`, outcome: 'unreadable' };
