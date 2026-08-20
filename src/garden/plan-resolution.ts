@@ -12,6 +12,23 @@ export interface ResolvedOwner {
   fd: FeatureFrontmatter;
 }
 
+/**
+ * Outcome of one step in the design-artifact ownership chain.
+ *
+ * `unreadable` is the third state that keeps the chain honest: an FD that
+ * exists but whose frontmatter will not parse claims ownership of unknown
+ * phase, so it must neither be read as "no owner" (which would age the
+ * artifact out and suggest archiving live design work) nor abort the run.
+ * Every resolver returns it for the same input class, and
+ * `detectStaleDesignArtifacts` emits no finding on it. FD validity itself is
+ * owned by `noldor features validate` — a release-preflight probe — not by
+ * the staleness detectors.
+ */
+export type OwnerResolution =
+  | { readonly outcome: 'resolved'; readonly owner: ResolvedOwner }
+  | { readonly outcome: 'none' }
+  | { readonly outcome: 'unreadable'; readonly detail: string };
+
 interface FsSeams {
   /** Test seam — defaults to fs/promises readdir. */
   readdir?: (path: string) => Promise<string[]>;
@@ -27,12 +44,17 @@ interface ResolveByLinksFieldOptions extends FsSeams {
   repo: string;
 }
 
-/** Shared FD scan: returns the first FD (filename order) for which `matches` is true. */
+/**
+ * Shared FD scan: returns the first FD (filename order) for which `matches` is
+ * true. An FD that cannot be read or parsed is a candidate whose links are
+ * unknown — it may be the very owner being looked for — so the scan reports
+ * `unreadable` rather than `none` once it finishes without a match.
+ */
 async function scanFdsForOwner(
   repo: string,
   seams: FsSeams,
   matches: (fd: FeatureFrontmatter) => boolean,
-): Promise<ResolvedOwner | null> {
+): Promise<OwnerResolution> {
   const readdir = seams.readdir ?? ((p) => fsReaddir(p));
   const readFile = seams.readFile ?? ((p, e) => fsReadFile(p, e));
   const featuresDir = loadDocRoots(repo).features;
@@ -40,34 +62,26 @@ async function scanFdsForOwner(
   try {
     entries = await readdir(featuresDir);
   } catch {
-    return null;
+    return { outcome: 'none' };
   }
+  const unreadable: string[] = [];
   for (const entry of entries) {
     if (!entry.endsWith('.md')) continue;
     const fdPath = join(featuresDir, entry);
-    let raw: string;
-    try {
-      raw = await readFile(fdPath, 'utf8');
-    } catch {
-      continue;
-    }
-    let parsed: ReturnType<typeof matter>;
-    try {
-      parsed = matter(raw);
-    } catch {
-      continue;
-    }
     let fd: FeatureFrontmatter;
     try {
-      fd = FeatureFrontmatterSchema.parse(parsed.data);
+      fd = FeatureFrontmatterSchema.parse(matter(await readFile(fdPath, 'utf8')).data);
     } catch {
+      unreadable.push(entry);
       continue;
     }
     if (matches(fd)) {
-      return { slug: entry.replace(/\.md$/, ''), fd };
+      return { outcome: 'resolved', owner: { fd, slug: entry.replace(/\.md$/, '') } };
     }
   }
-  return null;
+  return unreadable.length > 0
+    ? { detail: `unreadable FD(s): ${unreadable.join(', ')}`, outcome: 'unreadable' }
+    : { outcome: 'none' };
 }
 
 /**
@@ -80,7 +94,7 @@ async function scanFdsForOwner(
  */
 export async function resolveByLinksField(
   opts: ResolveByLinksFieldOptions,
-): Promise<ResolvedOwner | null> {
+): Promise<OwnerResolution> {
   return scanFdsForOwner(opts.repo, opts, (fd) => {
     const declared = fd.links[opts.field];
     const paths = Array.isArray(declared) ? declared : declared ? [declared] : [];
@@ -115,35 +129,37 @@ interface ResolveByGraphAdjacencyOptions extends FsSeams {
  * Last-resort fallback in the detector chain: resolve a plan/spec to its owning
  * FD by following the `plan-of` / `spec-of` edge in the enriched
  * `graphify-out/graph.json` (see `src/graphify/enrich-doc-nodes.ts`). Wired in
- * AFTER {@link resolveByLinksField} and BEFORE age-out,
- * so it only ever resolves artifacts the authoritative slug/`links.*` signals
- * miss. A missing graph file, missing node, missing edge, or unreadable owner FD
- * all degrade to `null` (→ today's age-out), never a wrong-direction block.
+ * AFTER {@link resolveByLinksField} and BEFORE age-out, so it only ever
+ * resolves artifacts the authoritative slug/`links.*` signals miss. A missing
+ * graph file, missing node or missing edge is `none` (→ age-out); an edge whose
+ * owner FD exists but will not parse is `unreadable` (→ no finding), never a
+ * wrong-direction block.
  */
 export async function resolveByGraphAdjacency(
   opts: ResolveByGraphAdjacencyOptions,
-): Promise<ResolvedOwner | null> {
+): Promise<OwnerResolution> {
   const readFile = opts.readFile ?? ((p, e) => fsReadFile(p, e));
   const graphPath = opts.graphPath ?? join(opts.repo, 'graphify-out', 'graph.json');
   let data: GraphAdjData;
   try {
     data = JSON.parse(await readFile(graphPath, 'utf8')) as GraphAdjData;
   } catch {
-    return null; // no graph (or unparseable) → no finding
+    return { outcome: 'none' }; // no graph (or unparseable) → no owner signal
   }
   const node = (data.nodes ?? []).find((n) => n.source_file === opts.docPath);
-  if (!node) return null;
+  if (!node) return { outcome: 'none' };
   const edge = (data.links ?? []).find((l) => l.source === node.id && l.relation === opts.relation);
-  if (!edge) return null;
+  if (!edge) return { outcome: 'none' };
   const fdNode = (data.nodes ?? []).find((n) => n.id === edge.target);
-  if (!fdNode?.source_file) return null;
+  if (!fdNode?.source_file) return { outcome: 'none' };
   // FD node source_file is `docs/features/<slug>.md`.
   const slug = basename(fdNode.source_file, '.md');
   const fdPath = join(loadDocRoots(opts.repo).features, `${slug}.md`);
   try {
     const fd = FeatureFrontmatterSchema.parse(matter(await readFile(fdPath, 'utf8')).data);
-    return { slug, fd };
+    return { outcome: 'resolved', owner: { fd, slug } };
   } catch {
-    return null;
+    // The edge names an owner, so ownership is claimed; only its phase is unknown.
+    return { detail: `unreadable owner FD: ${fdPath}`, outcome: 'unreadable' };
   }
 }

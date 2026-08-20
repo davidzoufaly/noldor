@@ -254,11 +254,47 @@ describe.each(ARTIFACT_KINDS)('stale design artifacts — $label', (kind) => {
     expect(await kind.detect(repo)).toHaveLength(0);
   });
 
-  it('propagates non-ENOENT errors when the owning feature MD is malformed', async () => {
-    await writeArtifact('2026-04-19', 'broken');
-    await writeFd('broken', 'not-a-real-phase');
+  // One policy for an FD that exists but will not parse, at every step of the
+  // ownership chain: ownership is claimed with an unknown phase, so no finding
+  // and no throw. `noldor features validate` is what reports the malformed FD.
+  describe('unreadable owner FD', () => {
+    it('emits no finding, and does not throw, when the slug-matched FD is malformed', async () => {
+      const path = await writeArtifact('2024-01-01', 'broken');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeFd('broken', 'not-a-real-phase');
 
-    await expect(kind.detect(repo)).rejects.toThrow();
+      expect(await kind.detect(repo)).toEqual([]);
+    });
+
+    it('emits no finding when an unparseable FD could be the links.* owner', async () => {
+      const path = await writeArtifact('2024-01-01', 'parent-feat-extra');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeFile(join(repo, 'docs/features/parent-feat.md'), 'no frontmatter here\n');
+
+      expect(await kind.detect(repo)).toEqual([]);
+    });
+
+    it('emits no finding when the graph edge names an unparseable owner FD', async () => {
+      const path = await writeArtifact('2024-01-01', 'graph-only');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await mkdir(join(repo, 'graphify-out'), { recursive: true });
+      await writeFile(
+        join(repo, 'graphify-out/graph.json'),
+        JSON.stringify({
+          links: [{ relation: kind.relation, source: 'artifact-node', target: 'fd-node' }],
+          nodes: [
+            {
+              id: 'artifact-node',
+              source_file: join(kind.relDir, kind.fileName('2024-01-01', 'graph-only')),
+            },
+            { id: 'fd-node', source_file: 'docs/features/graph-owner.md' },
+          ],
+        }),
+      );
+      await writeFile(join(repo, 'docs/features/graph-owner.md'), 'no frontmatter here\n');
+
+      expect(await kind.detect(repo)).toEqual([]);
+    });
   });
 });
 

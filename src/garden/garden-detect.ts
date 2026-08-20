@@ -25,6 +25,7 @@ import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
 import { linksDriftGaps } from './detectors/code-links-drift.js';
 import { detectFdLinkRot } from './detectors/fd-link-rot.js';
 import { detectFdCommandRot } from './detectors/fd-command-rot.js';
+import { detectMalformedFds } from './detectors/malformed-fd.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
@@ -38,8 +39,7 @@ import { resolveByGraphAdjacency, resolveByLinksField } from './plan-resolution.
 import { isStaleGraphGap } from './graph-fd-lookup.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
-import type { FeatureFrontmatter } from '../core/feature-schema.js';
-import type { ResolvedOwner } from './plan-resolution.js';
+import type { OwnerResolution } from './plan-resolution.js';
 import type { RulePairInvariant as Invariant } from '../invariants/rule-pairs.js';
 import type { Invariant as ArchitectureInvariant, InvariantResult } from '../invariants/types.js';
 import type { OverrideAuditResult } from './detectors/override-audit.js';
@@ -83,15 +83,30 @@ export type StalePlan = StaleDesignArtifact;
 /** Result type of {@link detectStaleSpecs}. Alias of {@link StaleDesignArtifact}. */
 export type StaleSpec = StaleDesignArtifact;
 
-async function loadFeatureBySlug(repo: string, slug: string): Promise<FeatureFrontmatter | null> {
+/**
+ * Primary ownership step: the FD at `docs/features/<slug>.md`.
+ *
+ * Three outcomes, matching every other step in the chain: `resolved` when the
+ * frontmatter parses, `none` when the file does not exist, and `unreadable`
+ * when it exists but will not parse — an FD that claims ownership of unknown
+ * phase. See {@link OwnerResolution} for why that third state exists.
+ */
+async function loadFeatureBySlug(repo: string, slug: string): Promise<OwnerResolution> {
   const path = join(loadDocRoots(repo).features, `${slug}.md`);
+  let raw: string;
   try {
-    const raw = await readFile(path, 'utf8');
-    const parsed = matter(raw);
-    return FeatureFrontmatterSchema.parse(parsed.data);
+    raw = await readFile(path, 'utf8');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { outcome: 'none' };
+    return { detail: `unreadable FD: ${path}`, outcome: 'unreadable' };
+  }
+  try {
+    return {
+      outcome: 'resolved',
+      owner: { fd: FeatureFrontmatterSchema.parse(matter(raw).data), slug },
+    };
+  } catch {
+    return { detail: `unparseable FD frontmatter: ${path}`, outcome: 'unreadable' };
   }
 }
 
@@ -129,6 +144,28 @@ const SPEC_KIND: DesignArtifactKind = {
   relation: 'spec-of',
   slugFromFilename: specSlugFromFilename,
 };
+
+/**
+ * Resolve the FD that owns one design artifact, first non-`none` step wins:
+ * filename slug → the FD whose `links.plan` / `links.spec` names it → the
+ * `plan-of` / `spec-of` edge in the enriched graph. An `unreadable` step stops
+ * the chain: ownership is claimed and its phase is unknown, so a later step
+ * must not overrule it with a weaker signal.
+ */
+async function resolveOwner(
+  repo: string,
+  slug: string,
+  relPath: string,
+  kind: DesignArtifactKind,
+): Promise<OwnerResolution> {
+  const byFilename = await loadFeatureBySlug(repo, slug);
+  if (byFilename.outcome !== 'none') return byFilename;
+
+  const byLinks = await resolveByLinksField({ docPath: relPath, field: kind.linkField, repo });
+  if (byLinks.outcome !== 'none') return byLinks;
+
+  return resolveByGraphAdjacency({ docPath: relPath, relation: kind.relation, repo });
+}
 
 /**
  * Shared staleness detection for dated design artifacts.
@@ -181,19 +218,21 @@ async function detectStaleDesignArtifacts(
     // '<relDir>/<entry>' forward-slash form.
     const relPath = join(kind.relDir, entry);
 
-    const byFilename = await loadFeatureBySlug(repo, slug);
-    const owner: ResolvedOwner | null = byFilename
-      ? { slug, fd: byFilename }
-      : ((await resolveByLinksField({ docPath: relPath, field: kind.linkField, repo })) ??
-        (await resolveByGraphAdjacency({ docPath: relPath, relation: kind.relation, repo })));
+    const owner = await resolveOwner(repo, slug, relPath, kind);
 
-    if (owner) {
-      if (owner.fd.phase === 'done') {
+    // An owner whose FD cannot be read claims the artifact with an unknown
+    // phase — neither archivable nor age-outable. `features validate` is what
+    // reports the malformed FD itself.
+    if (owner.outcome === 'unreadable') {
+      continue;
+    }
+    if (owner.outcome === 'resolved') {
+      if (owner.owner.fd.phase === 'done') {
         findings.push({
           action: 'archive',
           path: relPath,
           reason: 'feature-done',
-          slug: owner.slug,
+          slug: owner.owner.slug,
         });
       }
       continue;
@@ -759,6 +798,10 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // package.json scripts ∪ script-catalog), catching renamed/removed/regrouped
   // commands a shipped FD still cites.
   sddGaps.push(...(await detectFdCommandRot(repo)));
+  // The staleness chain stays silent on an FD it cannot parse (OwnerResolution
+  // 'unreadable'), so name those FDs here — otherwise one malformed FD would
+  // quietly suppress findings for every artifact it might own.
+  sddGaps.push(...(await detectMalformedFds(repo)));
   // Architecture module advisories are deliberately NOT pushed into sddGaps:
   // that category gates the auto-restamp, so it would make a renamed directory
   // block a release. They ride their own key below. The blocking half arrives
