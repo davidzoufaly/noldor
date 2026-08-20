@@ -84,6 +84,34 @@ describe('resolveByLinksField (links.plan)', () => {
     });
     expect(result).toMatchObject({ outcome: 'unreadable' });
   });
+
+  it('scopes unreadable to FDs that could own the artifact when artifactSlug is given', async () => {
+    const seams = {
+      readdir: async () => ['unrelated.md'],
+      readFile: async () => 'no frontmatter here',
+      repo: '/tmp/repo',
+    };
+    // `unrelated.md` cannot own `foo-extra` by filename, so the scan answers
+    // `none` (→ age-out) rather than blanking the finding.
+    expect(
+      await resolveByLinksField({
+        ...seams,
+        artifactSlug: 'foo-extra',
+        docPath: 'docs/design/plans/2026-04-19-foo-extra.md',
+        field: 'plan',
+      }),
+    ).toEqual({ outcome: 'none' });
+    // A malformed `foo.md` is exactly the attach-path owner shape, so it does.
+    expect(
+      await resolveByLinksField({
+        ...seams,
+        artifactSlug: 'foo-extra',
+        docPath: 'docs/design/plans/2026-04-19-foo-extra.md',
+        field: 'plan',
+        readdir: async () => ['foo.md'],
+      }),
+    ).toMatchObject({ outcome: 'unreadable' });
+  });
 });
 
 describe('resolveByLinksField (links.spec)', () => {

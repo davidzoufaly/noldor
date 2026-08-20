@@ -274,6 +274,18 @@ describe.each(ARTIFACT_KINDS)('stale design artifacts — $label', (kind) => {
       expect(await kind.detect(repo)).toEqual([]);
     });
 
+    it('still age-flags when the unparseable FD could not own this artifact', async () => {
+      // Scoped suppression: one malformed FD must not blank the staleness
+      // surface for artifacts whose filename it cannot plausibly own.
+      const path = await writeArtifact('2024-01-01', 'orphan');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeFile(join(repo, 'docs/features/unrelated-feature.md'), 'no frontmatter here\n');
+
+      const result = await kind.detect(repo);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ reason: 'age-no-feature', slug: 'orphan' });
+    });
+
     it('emits no finding when the graph edge names an unparseable owner FD', async () => {
       const path = await writeArtifact('2024-01-01', 'graph-only');
       await utimes(path, OLD_DATE, OLD_DATE);

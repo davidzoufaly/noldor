@@ -5,7 +5,7 @@ import { basename, join, relative } from 'node:path';
 import { loadConfig } from '../core/config.js';
 import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
-import { listDirIfExists, parseFdFrontmatter } from '../core/fd-load.js';
+import { listDirIfExists, parseFdFrontmatter, readFileIfExists } from '../core/fd-load.js';
 import { INVARIANTS } from '../invariants/rule-pairs.js';
 import { makeInvariants, runInvariants } from '../invariants/index.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
@@ -91,13 +91,12 @@ export type StaleSpec = StaleDesignArtifact;
  */
 async function loadFeatureBySlug(repo: string, slug: string): Promise<OwnerResolution> {
   const path = join(loadDocRoots(repo).features, `${slug}.md`);
-  let raw: string;
-  try {
-    raw = await readFile(path, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { outcome: 'none' };
-    return { detail: `unreadable FD: ${path}`, outcome: 'unreadable' };
-  }
+  // readFileIfExists: absent FD is `none`, any other IO failure propagates —
+  // the same policy detectMalformedFds applies to the same directory, so an
+  // unreadable-by-permissions FD cannot vanish from one detector's report while
+  // aborting another's.
+  const raw = await readFileIfExists(path);
+  if (raw === null) return { outcome: 'none' };
   const fd = parseFdFrontmatter(raw);
   return fd
     ? { outcome: 'resolved', owner: { fd, slug } }
@@ -155,7 +154,12 @@ async function resolveOwner(
   const byFilename = await loadFeatureBySlug(repo, slug);
   if (byFilename.outcome !== 'none') return byFilename;
 
-  const byLinks = await resolveByLinksField({ docPath: relPath, field: kind.linkField, repo });
+  const byLinks = await resolveByLinksField({
+    artifactSlug: slug,
+    docPath: relPath,
+    field: kind.linkField,
+    repo,
+  });
   if (byLinks.outcome !== 'none') return byLinks;
 
   return resolveByGraphAdjacency({ docPath: relPath, relation: kind.relation, repo });

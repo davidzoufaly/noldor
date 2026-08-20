@@ -39,7 +39,29 @@ interface ResolveByLinksFieldOptions extends FsSeams {
   docPath: string;
   /** FD frontmatter field that names artifacts of this kind. */
   field: 'plan' | 'spec';
+  /**
+   * Slug parsed from the artifact's filename. Scopes the `unreadable` verdict:
+   * only an unparseable FD that could plausibly own *this* artifact suppresses
+   * its finding (see {@link couldOwn}). Omit to treat any unparseable FD as a
+   * possible owner — the corpus-wide reading.
+   */
+  artifactSlug?: string;
   repo: string;
+}
+
+/**
+ * Could the FD at `<fdSlug>.md` plausibly own an artifact whose filename slug is
+ * `artifactSlug`, judged on the filename alone?
+ *
+ * True for an exact match and for the attach shape this step exists to cover —
+ * `<date>-<parent>-<enhancement>-design.md`, owned by `<parent>.md` via
+ * `links.spec`. It is a heuristic, and deliberately so: `links.*` may name any
+ * path, so an FD we cannot parse might in principle own anything. Scoping the
+ * `unreadable` verdict this way keeps one malformed FD from blanking the whole
+ * staleness surface, and the FD itself is still named by the `malformed-fd` gap.
+ */
+function couldOwn(fdSlug: string, artifactSlug: string): boolean {
+  return artifactSlug === fdSlug || artifactSlug.startsWith(`${fdSlug}-`);
 }
 
 /**
@@ -52,6 +74,7 @@ async function scanFdsForOwner(
   repo: string,
   seams: FsSeams,
   matches: (fd: FeatureFrontmatter) => boolean,
+  plausibleOwner: (fdSlug: string) => boolean = () => true,
 ): Promise<OwnerResolution> {
   const readdir = seams.readdir ?? ((p) => fsReaddir(p));
   const readFile = seams.readFile ?? ((p, e) => fsReadFile(p, e));
@@ -73,7 +96,7 @@ async function scanFdsForOwner(
       fd = null; // read failure through the seam — candidate is unknown, like a parse failure
     }
     if (!fd) {
-      unreadable.push(entry);
+      if (plausibleOwner(entry.replace(/\.md$/, ''))) unreadable.push(entry);
       continue;
     }
     if (matches(fd)) {
@@ -89,18 +112,25 @@ async function scanFdsForOwner(
  * Fallback resolver in the detector's staleness chain: returns the first FD
  * (filename order) whose `links.plan` / `links.spec` names `docPath` verbatim.
  * Both a bare string and an array are accepted, since `links.plan` allows
- * either. Consumed by `detectStaleDesignArtifacts` when the filename-slug
- * signal matches no FD — multi-feature or infra plans, and attach-path specs
+ * either. When `artifactSlug` is given, an unparseable FD only yields
+ * `unreadable` if it could plausibly own that artifact. Consumed by
+ * `detectStaleDesignArtifacts` when the filename-slug signal matches no FD — multi-feature or infra plans, and attach-path specs
  * (`<date>-<parent>-<enhancement>-design.md`) that a parent FD still owns.
  */
 export async function resolveByLinksField(
   opts: ResolveByLinksFieldOptions,
 ): Promise<OwnerResolution> {
-  return scanFdsForOwner(opts.repo, opts, (fd) => {
-    const declared = fd.links[opts.field];
-    const paths = Array.isArray(declared) ? declared : declared ? [declared] : [];
-    return paths.includes(opts.docPath);
-  });
+  const { artifactSlug } = opts;
+  return scanFdsForOwner(
+    opts.repo,
+    opts,
+    (fd) => {
+      const declared = fd.links[opts.field];
+      const paths = Array.isArray(declared) ? declared : declared ? [declared] : [];
+      return paths.includes(opts.docPath);
+    },
+    artifactSlug === undefined ? undefined : (fdSlug) => couldOwn(fdSlug, artifactSlug),
+  );
 }
 
 interface GraphAdjNode {
