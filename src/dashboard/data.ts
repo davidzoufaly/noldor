@@ -758,6 +758,8 @@ export function rewriteDocLinks(html: string, sourceDir: string): string {
       if (userMatch) return `<a href="/docs/${userMatch[1]}/${userMatch[2]}${tail}"`;
       const fdMatch = /^docs\/features\/(.+)\.md$/.exec(resolved);
       if (fdMatch) return `<a href="/features/${fdMatch[1]}${tail}"`;
+      const archMatch = /^docs\/architecture\/(.+)\.md$/.exec(resolved);
+      if (archMatch) return `<a href="/architecture/${archMatch[1]}${tail}"`;
       return full;
     },
   );
@@ -982,19 +984,30 @@ export async function loadArchitecturePage(
 ): Promise<ArchitectureDocPageDetail | null> {
   const page = ARCHITECTURE_PAGES.find((p) => p.id === slug);
   if (!page) return null;
-  // Non-null: `slug` matched the registry above, and `loadArchitecturePages` emits one
-  // entry per registry page, so the lookup cannot miss.
-  const meta = (await loadArchitecturePages()).find((p) => p.slug === slug)!;
+  // Metadata is derived from the matched registry entry rather than recovered by listing
+  // the whole surface: going through `loadArchitecturePages` would read all four files to
+  // learn what this one entry already says, then read the target again — five reads to
+  // serve one page.
+  const filePath = join(loadDocRoots(getDocRoot()).architecture, pageFilename(page));
+  const base = { slug: page.id, title: page.title, purpose: page.purpose, filePath };
   let raw: string;
   try {
-    raw = await readFile(meta.filePath, 'utf8');
+    raw = await readFile(filePath, 'utf8');
   } catch {
     // A registry page with no file still resolves: the route reports the gap rather than
     // 404-ing, since the page's absence is exactly what a reader needs to be told.
-    return { ...meta, bodyHtml: '<p>This page has not been written yet.</p>' };
+    return {
+      ...base,
+      placeholder: true,
+      bodyHtml: '<p>This page has not been written yet.</p>',
+    };
   }
   const rendered = await renderMarkdown(matter(raw).content);
-  return { ...meta, bodyHtml: rewriteDocLinks(rendered, 'docs/architecture') };
+  return {
+    ...base,
+    placeholder: raw.includes(PLACEHOLDER_MARKER),
+    bodyHtml: rewriteDocLinks(rendered, 'docs/architecture'),
+  };
 }
 
 const USER_DOCS_CATEGORIES = ['tutorials', 'how-to', 'reference', 'explanation'] as const;
