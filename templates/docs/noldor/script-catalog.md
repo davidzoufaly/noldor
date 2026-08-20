@@ -107,6 +107,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** any time you want to know whether the UI design baseline still reflects the shipped UI. Remediate reds with `pnpm noldor design ui-sync`.
 - **Source:** [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
 
+### `check:readme`
+
+- **Trigger:** `pnpm noldor checks readme`. Run advisorily by the `pre-push` hook (`|| true`) and by release preflight (`warn`, never blocking).
+- **Inputs:** root `README.md`, the CLI manifest via `flattenManifest()`, root `package.json` `scripts`, and every directory one level under `docs/` holding markdown.
+- **Outputs:** one line per unresolved command (`pnpm noldor <group> <sub>` against the manifest, `pnpm run <name>` and `pnpm <script>` against root scripts) and one per documentation surface no README link reaches. Operational degradations print as `note:` lines and never change the exit code. Exit 0 clean or when there is no readable README, 1 on findings — callers choose whether that blocks.
+- **When to use:** after adding a CLI subcommand quoted in the README, or after adding a `docs/<dir>/` surface. Repair by editing `README.md`.
+- **Source:** [`src/checks/check-readme.ts`](../../src/checks/check-readme.ts)
+
 ### Other validators
 
 | Command                              | Source                                                            | Purpose                                                                    |
