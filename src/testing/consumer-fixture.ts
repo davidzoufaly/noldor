@@ -73,9 +73,15 @@ export function buildConsumerFixture(opts: BuildFixtureOpts = {}): ConsumerFixtu
   writeFileSync(join(dir, 'docs', 'vision.md'), '# Vision\n\nFixture consumer.\n');
   writeFileSync(join(dir, 'docs', 'ideas.md'), '# Ideas\n');
   writeFileSync(join(dir, 'docs', 'roadmap.md'), ROADMAP(seedSlug));
+  // Root lefthook.yml is consumer-owned and scaffold-only, so `init` never
+  // rewrites it — the fixture therefore has to model an ADOPTED consumer
+  // itself, extends line included. Without it `doctor` reports `unwired`
+  // (checkLefthookWiring) and the contract job reds on a fixture that was
+  // never wired, not on a framework regression. The project-specific job
+  // below the extends is the point: a real consumer keeps its own hooks.
   writeFileSync(
     join(dir, 'lefthook.yml'),
-    'pre-commit:\n  jobs:\n    - run: pnpm noldor validate features\n',
+    'extends:\n  - ./lefthook/noldor.yml\npre-commit:\n  jobs:\n    - run: pnpm noldor validate features\n',
   );
   writeFileSync(
     join(dir, 'package.json'),
