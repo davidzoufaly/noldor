@@ -83,13 +83,25 @@ describe('enumerateDocSurfaces', () => {
     expect(await enumerateDocSurfaces(root)).toEqual(['docs/noldor']);
   });
 
+  it('excludes the pre-1.0.0 superpowers artifact dir', async () => {
+    const root = await makeRepo();
+    await write(root, 'docs/superpowers/specs/b.md', '# b');
+    await write(root, 'docs/noldor/README.md', '# n');
+    expect(await enumerateDocSurfaces(root)).toEqual(['docs/noldor']);
+  });
+
   it('returns empty when docs/ is absent', async () => {
     expect(await enumerateDocSurfaces(await makeRepo())).toEqual([]);
   });
 });
 
 describe('unreachableSurfaces', () => {
-  const empty = { files: new Set<string>(), dirs: new Set<string>(), notes: [] };
+  const empty = {
+    files: new Set<string>(),
+    dirs: new Set<string>(),
+    notes: [],
+    readme: 'ok' as const,
+  };
 
   it('reports a surface nothing reaches', () => {
     expect(unreachableSurfaces(['docs/adr'], empty)).toEqual(['docs/adr']);
@@ -135,8 +147,16 @@ import { join } from 'node:path';
  * accessor also names `adr`, `architecture` and `milestones`, so deriving from
  * it would exclude the very surfaces this check exists to catch. `docs/assets`
  * needs no entry — it holds no markdown, so the predicate below drops it.
+ *
+ * `superpowers` is the pre-1.0.0 home of plans and specs, still resolved by
+ * `resolveDesignSubdir` (`src/core/doc-roots.ts`) for a consumer who bumped the
+ * package but has not run `noldor upgrade`. Without it such a repo enrols
+ * `docs/superpowers/` as a surface and gets a permanent finding demanding a
+ * README link to an artifact directory — the adoption noise this feature's
+ * advisory posture exists to avoid. Delete this member together with that
+ * transition alias (tracked by Q-0006).
  */
-const ARTIFACT_DIRS: ReadonlySet<string> = new Set(['features', 'design']);
+const ARTIFACT_DIRS: ReadonlySet<string> = new Set(['features', 'design', 'superpowers']);
 
 /** True when `dir` holds at least one `.md` at any depth. */
 async function hasMarkdown(dir: string): Promise<boolean> {
@@ -194,6 +214,12 @@ export interface ReachSet {
   readonly dirs: ReadonlySet<string>;
   /** Operational degradations encountered during the walk. Never findings. */
   readonly notes: readonly string[];
+  /**
+   * Readability of the seed. The walk is the single place `README.md` is read,
+   * so it is the single place this is decided; the façade maps it to a status
+   * rather than re-deriving it from a second read.
+   */
+  readonly readme: 'ok' | 'missing' | 'unreadable';
 }
 
 /**
@@ -224,7 +250,7 @@ export function unreachableSurfaces(
 npx vitest run src/docs/__tests__/readme-content.test.ts
 ```
 
-Expected output: `Test Files  1 passed (1)` with 8 passing tests.
+Expected output: `Test Files  1 passed (1)` with 9 passing tests.
 
 - [ ] **Step 5: Commit.**
 
@@ -301,8 +327,9 @@ describe('reachableTargets', () => {
     expect(reached.notes).toEqual([]);
   });
 
-  it('returns an empty set when README.md is absent', async () => {
+  it('reports a missing README once, with no note', async () => {
     const reached = await reachableTargets(await makeRepo());
+    expect(reached.readme).toBe('missing');
     expect(reached.files.size).toBe(0);
     expect(reached.notes).toEqual([]);
   });
@@ -336,6 +363,11 @@ Add the imports this unit needs — `lstat` and `readFile` from `node:fs/promise
  * Every failure is contained: a broken link is `docs check`'s finding and is
  * skipped silently, and every other error becomes a note. Nothing throws.
  *
+ * Each body is read when its path is dequeued and then dropped, so the walk
+ * holds one body at a time rather than every visited file's. The trade-off is
+ * that a read failure is attributed to the unreadable file rather than to the
+ * link that led there.
+ *
  * @param cwd - Repository root
  * @returns Reached markdown files, directly-linked dirs, and any degradations
  */
@@ -343,22 +375,28 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
   const files = new Set<string>();
   const dirs = new Set<string>();
   const notes: string[] = [];
-
-  let seed: string;
-  try {
-    seed = await readFile(join(cwd, 'README.md'), 'utf8');
-  } catch {
-    return { files, dirs, notes };
-  }
-
-  const bodies = new Map<string, string>([['README.md', seed]]);
   const visited = new Set<string>(['README.md']);
   const queue: string[] = ['README.md'];
+  let readme: ReachSet['readme'] = 'ok';
 
   while (queue.length > 0) {
     const from = queue.shift() as string;
-    const body = bodies.get(from);
-    if (body === undefined) continue;
+
+    let body: string;
+    try {
+      body = await readFile(join(cwd, from), 'utf8');
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (from === 'README.md') {
+        readme = code === 'ENOENT' ? 'missing' : 'unreadable';
+        if (readme === 'unreadable') {
+          notes.push(`cannot read README.md: ${code ?? 'unknown'}`);
+        }
+        break; // no seed, nothing to walk
+      }
+      notes.push(`cannot read ${from}: ${code ?? 'unknown'}`);
+      continue;
+    }
 
     for (const link of extractLinks(body)) {
       const withoutFragment = link.href.split('#')[0] ?? '';
@@ -401,17 +439,11 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
       files.add(target);
       if (visited.has(target)) continue;
       visited.add(target);
-      try {
-        bodies.set(target, await readFile(abs, 'utf8'));
-        queue.push(target);
-      } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code;
-        notes.push(`${from}:${link.line}: cannot read ${target}: ${code ?? 'unknown'}`);
-      }
+      queue.push(target); // read at dequeue — no body is retained
     }
   }
 
-  return { files, dirs, notes };
+  return { files, dirs, notes, readme };
 }
 ```
 
@@ -421,7 +453,7 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
 npx vitest run src/docs/__tests__/readme-content.test.ts
 ```
 
-Expected output: `Test Files  1 passed (1)` with 15 passing tests.
+Expected output: `Test Files  1 passed (1)` with 16 passing tests.
 
 - [ ] **Step 5: Commit.**
 
@@ -521,18 +553,12 @@ export interface ReadmeReport {
  * @returns The report; `absent` when there is no readable README
  */
 export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeReport> {
-  try {
-    await readFile(join(cwd, 'README.md'), 'utf8');
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    return {
-      status: 'absent',
-      findings: [],
-      notes: code === 'ENOENT' ? [] : [`cannot read README.md: ${code ?? 'unknown'}`],
-    };
+  const reached = await reachableTargets(cwd);
+  if (reached.readme !== 'ok') {
+    // The walk owns the readability rule and already noted an unreadable file.
+    return { status: 'absent', findings: [], notes: [...reached.notes] };
   }
 
-  const reached = await reachableTargets(cwd);
   const findings = unreachableSurfaces(await enumerateDocSurfaces(cwd), reached).map(
     (surface) => ({
       message: `${surface}/ holds documentation but no link from README.md reaches it`,
@@ -553,7 +579,7 @@ export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeRe
 npx vitest run src/docs/__tests__/readme-content.test.ts
 ```
 
-Expected output: `Test Files  1 passed (1)` with 19 passing tests.
+Expected output: `Test Files  1 passed (1)` with 20 passing tests.
 
 - [ ] **Step 5: Commit.**
 

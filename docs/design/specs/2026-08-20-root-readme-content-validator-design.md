@@ -53,10 +53,12 @@ Each directory **one level under `docs/`** that contains at least one `.md` **re
 
 ```ts
 /** Directories holding per-change workflow artifacts, not reader documentation. */
-const ARTIFACT_DIRS: ReadonlySet<string> = new Set(['features', 'design']);
+const ARTIFACT_DIRS: ReadonlySet<string> = new Set(['features', 'design', 'superpowers']);
 ```
 
-The set is an explicit two-member constant, **not** a derivation from `loadDocRoots()`. That derivation was wrong: `loadDocRoots()` ([`src/core/doc-roots.ts:56-70`](../../../src/core/doc-roots.ts)) also names `adr`, `architecture` and `milestones`, so deriving exclusions from it would exclude the two surfaces this feature exists to catch. It is also unusable by path: its design entries are keyed at `docs/design/{plans,specs,ui}`, two levels deep, so nothing there equals `docs/design`.
+The set is an explicit constant, **not** a derivation from `loadDocRoots()`. That derivation was wrong: `loadDocRoots()` ([`src/core/doc-roots.ts:56-70`](../../../src/core/doc-roots.ts)) also names `adr`, `architecture` and `milestones`, so deriving exclusions from it would exclude the two surfaces this feature exists to catch. It is also unusable by path: its design entries are keyed at `docs/design/{plans,specs,ui}`, two levels deep, so nothing there equals `docs/design`.
+
+`superpowers` is the pre-1.0.0 home of plans and specs, still resolved by `resolveDesignSubdir` ([`src/core/doc-roots.ts:32`](../../../src/core/doc-roots.ts)) for a consumer who bumped the package but has not run `noldor upgrade`. Without it, such a repo enrols `docs/superpowers/` as a surface and carries a permanent finding demanding a README link to an artifact directory — the adoption noise the advisory posture (D14) exists to avoid. It is deleted together with that transition alias, tracked by Q-0006.
 
 Membership rule for future additions, stated so the constant is not arbitrary: a directory is excluded when it holds **one file per change** (a feature doc, a spec, a plan) rather than pages a reader navigates. `docs/assets` needs no entry — it holds 5 non-markdown files and zero `.md`, so the recursive-`.md` predicate drops it.
 
@@ -79,11 +81,19 @@ export interface ReachSet {
   readonly dirs: ReadonlySet<string>;
   /** Operational degradations encountered during the walk. Never findings. */
   readonly notes: readonly string[];
+  /**
+   * Readability of the seed. The walk is the only place `README.md` is read, so
+   * it is the only place this is decided — the façade maps it rather than
+   * re-deriving it from a second read.
+   */
+  readonly readme: 'ok' | 'missing' | 'unreadable';
 }
 export function reachableTargets(cwd: string): Promise<ReachSet>;
 ```
 
-Seeded from `README.md`, then transitively through each reached `.md`, to a fixpoint over a visited set (so link cycles terminate).
+Seeded from `README.md`, then transitively through each reached `.md`, to a fixpoint over a visited set (so link cycles terminate). Each body is read when its path is **dequeued** and then dropped, so the walk holds one body at a time rather than retaining every visited file's; the trade-off is that a read failure is attributed to the unreadable file rather than to the link that led there.
+
+The seed read is also where README readability is classified, and the only place it is: `readme: 'missing' | 'unreadable'` is what Unit 6 maps to `status: 'absent'`. Implementing that rule a second time in the façade is what let the two halves diverge in an earlier draft — the walk stayed silent on an unreadable README while the façade emitted a note.
 
 **Eligible links are whatever `extractLinks` returns** ([`src/docs/docs-check.ts:53`](../../../src/docs/docs-check.ts)) — it already calls `stripCodeRegions` internally, and already drops `https?:` / `mailto:` / `#`-only hrefs via `EXTERNAL_RE` and root-absolute hrefs via `ROOT_ABSOLUTE_RE`. Reusing it is what keeps this check's notion of "a link" identical to the one `docs check` enforces.
 
@@ -191,8 +201,8 @@ export function checkReadme(cwd?: string): Promise<ReadmeReport>;
 
 **`checkReadme` never rejects for an *expected* failure** (D4) — I/O errors, parse errors and malformed input. It degrades each to a note and continues on what it can still evaluate. Programmer errors (a violated invariant, a bug in `flattenManifest`) are deliberately **not** caught: per the repo's engineering rules those must throw, and swallowing them would hide a defect behind a green row.
 
-- `README.md` absent → `status: 'absent'`, no findings.
-- `README.md` unreadable → `status: 'absent'` plus a note. Nothing to check, not a failure of the README.
+- `reached.readme === 'missing'` → `status: 'absent'`, no findings.
+- `reached.readme === 'unreadable'` → `status: 'absent'` plus the note the walk already recorded. Nothing to check, not a failure of the README.
 - Root `package.json` missing or unparseable → `scriptNames = null`; Unit 5 skips steps 3 and 5 and adds one note. The `pnpm noldor` half and the surface half still run.
 - Root `package.json` valid but declaring no `scripts` → `scriptNames` is the **empty set**, not `null`; every quoted repo script is then correctly unresolved.
 - Malformed percent-escape in a link, or any other link-read error → note, continue (Unit 2).

@@ -410,23 +410,19 @@ Expected output: the three new cases fail — `checkReadme` currently returns on
 
 - [ ] **Step 3: Extend `checkReadme` in `src/docs/readme-content.ts`.**
 
-Add `import { flattenManifest } from '../cli/manifest.js';` to the imports. Replace the body of `checkReadme` with:
+Add `import { flattenManifest } from '../cli/manifest.js';` to the imports. Replace the body of `checkReadme` with the version below. Note the second `readFile` is deliberately unguarded: `reached.readme === 'ok'` already proves the file was read once in this same call, so a throw here would be a genuine invariant violation rather than an expected I/O failure — exactly the class the never-rejects contract does not swallow.
 
 ```ts
 export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeReport> {
-  let readme: string;
-  try {
-    readme = await readFile(join(cwd, 'README.md'), 'utf8');
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    return {
-      status: 'absent',
-      findings: [],
-      notes: code === 'ENOENT' ? [] : [`cannot read README.md: ${code ?? 'unknown'}`],
-    };
+  // The walk is the single place README.md is read, and the single place its
+  // readability is decided — so absence is classified there, not re-derived.
+  const reached = await reachableTargets(cwd);
+  if (reached.readme !== 'ok') {
+    return { status: 'absent', findings: [], notes: [...reached.notes] };
   }
+  const readme = await readFile(join(cwd, 'README.md'), 'utf8');
 
-  const notes: string[] = [];
+  const notes: string[] = [...reached.notes];
   let scriptNames: ReadonlySet<string> | null = null;
   try {
     const parsed = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8')) as {
@@ -445,8 +441,6 @@ export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeRe
     scriptNames,
   );
 
-  const reached = await reachableTargets(cwd);
-  notes.push(...reached.notes);
   const surfaceFindings = unreachableSurfaces(await enumerateDocSurfaces(cwd), reached).map(
     (surface) => ({
       message: `${surface}/ holds documentation but no link from README.md reaches it`,
