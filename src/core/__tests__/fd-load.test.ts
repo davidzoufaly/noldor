@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   extractSummary,
+  listDirEntsIfExists,
   listDirIfExists,
   loadSddFeatures,
   parseFdFrontmatter,
@@ -161,5 +162,15 @@ describe('ENOENT-tolerant IO helpers', () => {
 
     expect(await listDirIfExists(dir)).toEqual(['a.md']);
     expect(await listDirIfExists(join(dir, 'nope'))).toEqual([]);
+  });
+
+  it('listDirEntsIfExists distinguishes files from dirs, or returns [] when missing', async () => {
+    await writeFile(join(dir, 'a.md'), 'a\n');
+    await mkdir(join(dir, 'sub'));
+
+    const ents = await listDirEntsIfExists(dir);
+    expect(ents.filter((e) => e.isFile()).map((e) => e.name)).toEqual(['a.md']);
+    expect(ents.filter((e) => e.isDirectory()).map((e) => e.name)).toEqual(['sub']);
+    expect(await listDirEntsIfExists(join(dir, 'nope'))).toEqual([]);
   });
 });

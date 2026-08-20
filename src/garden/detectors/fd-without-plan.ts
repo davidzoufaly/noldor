@@ -45,11 +45,15 @@ export function findCreationSha(fdPath: string, cwd: string): string | null {
 function hasPlan(repo: string, slug: string): boolean {
   const plansDir = join(repo, 'docs/design/plans');
   if (!existsSync(plansDir)) return false;
+  // Narrow guard: only a plans dir that disappeared between the existsSync and
+  // this listing reads as "no plan". Any other IO failure propagates — reading
+  // it as absent would emit a no-plan finding for every in-progress FD.
   let entries: string[];
   try {
     entries = readdirSync(plansDir);
-  } catch {
-    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
   }
   const re = new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${slug}(?:-part\\d+)?\\.md$`);
   return entries.some((e) => re.test(e));

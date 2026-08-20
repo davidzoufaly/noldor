@@ -109,15 +109,9 @@ const EXCLUDED_WALK_DIRS = new Set([
  * @returns Resolves once the walk completes; results are appended to `out`.
  */
 export async function walkRepo(dir: string, out: string[]): Promise<void> {
-  let entries: Dirent[];
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (error) {
-    // A missing top-level scan dir (e.g. no `packages/`/`apps/` in a
-    // single-package consumer) contributes no paths rather than throwing.
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
-    throw error;
-  }
+  // A missing top-level scan dir (e.g. no `packages/`/`apps/` in a
+  // single-package consumer) contributes no paths rather than throwing.
+  const entries = await listDirEntsIfExists(dir);
   for (const entry of entries) {
     const { name } = entry;
     if (name.startsWith('.') && name !== '.github') {
@@ -210,6 +204,23 @@ export async function listDirIfExists(dir: string): Promise<string[]> {
 }
 
 /**
+ * `withFileTypes` sibling of {@link listDirIfExists}, for callers that need to
+ * tell files from directories. Same policy: missing directory yields `[]`,
+ * every other IO failure propagates.
+ *
+ * @param dir - Directory to list.
+ * @returns Directory entries, or `[]` on ENOENT.
+ */
+export async function listDirEntsIfExists(dir: string): Promise<Dirent[]> {
+  try {
+    return await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+/**
  * Guarded frontmatter parse plus the FD schema check — the shape every FD
  * reader needs. Returns `null` for both failure classes, which are one class to
  * a caller: this FD cannot be understood, so skip it and let
@@ -248,13 +259,7 @@ export function parseFdFrontmatter(raw: string): FeatureFrontmatter | null {
  */
 export async function loadSddFeatures(dir: string): Promise<FeatureRecord[]> {
   const result: FeatureRecord[] = [];
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
+  const entries = await listDirEntsIfExists(dir);
 
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.md')) {
@@ -296,15 +301,9 @@ export function extractSummary(md: string): string {
  * @returns Array of paths relative to `process.cwd()`.
  */
 export async function listSpecs(dir: string): Promise<string[]> {
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isFile() && e.name.endsWith('.md'))
-      .map((e) => relative(process.cwd(), join(dir, e.name)));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
+  return (await listDirEntsIfExists(dir))
+    .filter((e) => e.isFile() && e.name.endsWith('.md'))
+    .map((e) => relative(process.cwd(), join(dir, e.name)));
 }
 
 /**
@@ -315,15 +314,9 @@ export async function listSpecs(dir: string): Promise<string[]> {
  * @returns Array of paths relative to `process.cwd()`.
  */
 export async function listPlans(dir: string): Promise<string[]> {
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isFile() && e.name.endsWith('.md'))
-      .map((e) => relative(process.cwd(), join(dir, e.name)));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
+  return (await listDirEntsIfExists(dir))
+    .filter((e) => e.isFile() && e.name.endsWith('.md'))
+    .map((e) => relative(process.cwd(), join(dir, e.name)));
 }
 
 /**
