@@ -39,18 +39,25 @@ export async function detectMalformedFds(repo: string): Promise<Gap[]> {
     // Repo-relative, like every sibling detector's gap text — an absolute path
     // would leak this machine's checkout prefix into the report.
     const relPath = relative(repo, fullPath);
-    let raw: string;
+    // `matter()` itself throws on syntactically broken YAML, so it belongs inside
+    // the guard: the input class this detector exists to report must never be the
+    // input class that aborts it (or `garden detect` dies on the very FD it is
+    // trying to name).
+    let detail: string;
     try {
-      raw = await readFile(fullPath, 'utf8');
-    } catch {
-      continue; // vanished between listing and read — nothing to report
+      const parsed = FeatureFrontmatterSchema.safeParse(
+        matter(await readFile(fullPath, 'utf8')).data,
+      );
+      if (parsed.success) continue;
+      detail = parsed.error.issues[0]?.message ?? 'invalid frontmatter';
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; // vanished mid-scan
+      detail = error instanceof Error ? error.message.split('\n')[0] : 'unreadable';
     }
-    const parsed = FeatureFrontmatterSchema.safeParse(matter(raw).data);
-    if (parsed.success) continue;
     gaps.push({
       category: 'malformed-fd',
       itemId: relPath,
-      message: `${relPath} frontmatter does not parse (${parsed.error.issues[0]?.message ?? 'invalid'}). Staleness detection treats it as an owner of unknown phase, so plans/specs it may own are neither archived nor aged out. Fix with 'pnpm noldor features validate'.`,
+      message: `${relPath} frontmatter does not parse (${detail}). Staleness detection treats it as an owner of unknown phase, so plans/specs it may own are neither archived nor aged out, and corpus passes skip it. Diagnose with 'pnpm noldor features validate'.`,
     });
   }
   return gaps;

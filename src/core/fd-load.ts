@@ -138,9 +138,16 @@ export async function walkRepo(dir: string, out: string[]): Promise<void> {
 /**
  * Load every feature MD in a directory and parse its frontmatter.
  *
+ * An FD whose frontmatter will not parse is **skipped**, not thrown on: this
+ * loader feeds report and dashboard passes over the whole corpus, and one
+ * malformed file must not abort the pass (`garden detect` aborting on a
+ * malformed FD is exactly the failure this policy removes). FD validity is
+ * owned by `noldor features validate`, and `garden detect`'s `malformed-fd`
+ * detector names the skipped files in its report.
+ *
  * @param dir - Directory containing `<slug>.md` feature files (typically
  *   `docs/features`). A missing directory yields an empty array.
- * @returns Array of `{ frontmatter, slug }` records, one per feature MD.
+ * @returns Array of `{ frontmatter, slug }` records, one per parseable feature MD.
  *
  * @remarks
  * Renamed from `loadFeatures` to avoid colliding with the dashboard's
@@ -161,8 +168,14 @@ export async function loadSddFeatures(dir: string): Promise<FeatureRecord[]> {
       continue;
     }
     const slug = entry.name.replace(/\.md$/, '');
-    const raw = await readFile(join(dir, entry.name), 'utf8');
-    const fm = FeatureFrontmatterSchema.parse(matter(raw).data);
+    let fm: FeatureFrontmatter;
+    try {
+      fm = FeatureFrontmatterSchema.parse(
+        matter(await readFile(join(dir, entry.name), 'utf8')).data,
+      );
+    } catch {
+      continue; // malformed FD — reported by `features validate` / the malformed-fd gap
+    }
     result.push({ frontmatter: fm, slug });
   }
   return result;

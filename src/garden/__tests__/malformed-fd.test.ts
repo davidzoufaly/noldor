@@ -54,6 +54,22 @@ describe(detectMalformedFds, () => {
     expect(gaps[0].message).toContain('unknown phase');
   });
 
+  it('reports, rather than throwing on, syntactically broken YAML frontmatter', async () => {
+    // `matter()` throws YAMLException here — the input class the detector exists
+    // to name must not be the one that kills it.
+    await writeFile(
+      join(repo, 'docs/features/broken-yaml.md'),
+      '---\nname: [unclosed\n---\n\nbody\n',
+    );
+
+    const gaps = await detectMalformedFds(repo);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]).toMatchObject({
+      category: 'malformed-fd',
+      itemId: join('docs/features', 'broken-yaml.md'),
+    });
+  });
+
   it('ignores non-markdown files', async () => {
     await writeFile(join(repo, 'docs/features/notes.txt'), 'not an FD\n');
 
