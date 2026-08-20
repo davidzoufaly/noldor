@@ -32,6 +32,7 @@ introduced: 0.1.0
 updated: 0.5.0
 noldor-tier: full
 ---
+
 ## Summary
 
 A `/noldor-garden` skill that bundles the recurring doc-cleanup pass into a single operator-confirmed checklist. Runs deterministic detectors (`src/garden/garden-detect.ts`) to surface stale superpowers plans, unused backlog entries, rule contradictions, SDD gaps, and architecture invariant violations, then executes safe auto-actions (archive, drop) on confirmation.
@@ -75,6 +76,7 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
   - [`src/docs/__tests__/docs-check.test.ts`](../../src/docs/__tests__/docs-check.test.ts)
   - [`src/docs/__tests__/docs-transclude.test.ts`](../../src/docs/__tests__/docs-transclude.test.ts)
   - [`src/garden/__tests__/garden-detect.test.ts`](../../src/garden/__tests__/garden-detect.test.ts)
+  - [`src/garden/__tests__/malformed-fd.test.ts`](../../src/garden/__tests__/malformed-fd.test.ts)
   - [`src/sync/__tests__/sync-doc-links.test.ts`](../../src/sync/__tests__/sync-doc-links.test.ts)
   - [`src/sync/__tests__/sync-fd-resources.test.ts`](../../src/sync/__tests__/sync-fd-resources.test.ts)
   - [`src/triage/__tests__/triage-list-untriaged.test.ts`](../../src/triage/__tests__/triage-list-untriaged.test.ts)

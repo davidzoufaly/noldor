@@ -18,6 +18,7 @@ phase: done
 since: 2026-08-17T00:00:00.000Z
 noldor-tier: full
 ---
+
 ## Summary
 
 Root `README.md` is the only doc surface the framework never inspects for content, so a documentation surface added under `docs/` can become unreachable from the project's front door and nothing notices. Four mechanisms touch the file and none read what it says: `docs check` resolves its links but not its claims (`src/docs/docs-check.ts:222`), the `bootstrap commands` rule-pair asserts one `pnpm test` mention at `severity: 'warn'` (`src/invariants/rule-pairs.ts:62`), SDD detector 12 `detectReadmePackageDrift` keys on a `### Packages` table this repo does not have (`src/garden/sdd-report.ts:490`), and release-sweep step 4 is prose asking an LLM to eyeball the file. The measured miss: Q-0093 shipped a four-page `docs/architecture/` surface and the README stayed silent — the string "architecture" appeared nowhere in it.
@@ -51,3 +52,17 @@ As a framework maintainer (human or agent), I want every documentation surface u
 <!-- @prs-since-last-release: root-readme-content-validator -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Spec:** [`docs/design/specs/archive/2026-08-20-root-readme-content-validator-design.md`](../../docs/design/specs/archive/2026-08-20-root-readme-content-validator-design.md)
+- **Code:**
+  - [`src/checks/check-readme.ts`](../../src/checks/check-readme.ts)
+  - [`src/docs/readme-content.ts`](../../src/docs/readme-content.ts)
+- **Tests:**
+  - [`src/checks/__tests__/check-readme.test.ts`](../../src/checks/__tests__/check-readme.test.ts)
+  - [`src/docs/__tests__/readme-content.test.ts`](../../src/docs/__tests__/readme-content.test.ts)
+
+<!-- /generated: resources -->
