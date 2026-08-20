@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,7 +17,7 @@ import {
 
 import { specSlugFromFilename } from '../../core/design-artifact-names.js';
 
-import type { GateComplianceFindings } from '../garden-detect.js';
+import type { GateComplianceFindings, StaleDesignArtifact } from '../garden-detect.js';
 
 import type { RulePairInvariant as Invariant } from '../../invariants/rule-pairs.js';
 import type { Invariant as ArchitectureInvariant } from '../../invariants/types.js';
@@ -32,7 +32,64 @@ async function makeRepo() {
   return root;
 }
 
-describe('detectStalePlans (primary: feature done)', () => {
+// --- Shared stale-design-artifact matrix (plans + specs) ---------------------
+// detectStalePlans and detectStaleSpecs are two thin callers over one
+// implementation, so the behavioural matrix runs against both kinds rather
+// than drifting per kind (the coverage asymmetry Q-0116 measured).
+
+interface ArtifactKindFixture {
+  readonly label: string;
+  readonly detect: (repo: string) => Promise<StaleDesignArtifact[]>;
+  readonly relDir: string;
+  /** Canonical filename for a dated artifact of this kind. */
+  readonly fileName: (date: string, slug: string) => string;
+  /** FD frontmatter field that names an artifact of this kind verbatim. */
+  readonly linkField: 'plan' | 'spec';
+  /** Enriched-graph edge from artifact node → owning FD node. */
+  readonly relation: 'plan-of' | 'spec-of';
+}
+
+const ARTIFACT_KINDS: readonly ArtifactKindFixture[] = [
+  {
+    label: 'plans',
+    detect: (repo) => detectStalePlans(repo),
+    relDir: 'docs/design/plans',
+    fileName: (date, slug) => `${date}-${slug}.md`,
+    linkField: 'plan',
+    relation: 'plan-of',
+  },
+  {
+    label: 'specs',
+    detect: (repo) => detectStaleSpecs(repo),
+    relDir: 'docs/design/specs',
+    fileName: (date, slug) => `${date}-${slug}-design.md`,
+    linkField: 'spec',
+    relation: 'spec-of',
+  },
+];
+
+const OLD_DATE = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+
+function fd(opts: { name: string; phase: string; link?: string; linkField?: 'plan' | 'spec' }) {
+  const link = opts.link ? `\n  ${opts.linkField}: ${opts.link}` : '';
+  return `---
+name: ${opts.name}
+phase: ${opts.phase}
+area: tooling
+category: Tooling
+packages: ['@acme/web']
+'noldor-tier': specs-only
+links:
+  code: []
+  tests: []
+  docs: []${link}
+---
+
+body
+`;
+}
+
+describe.each(ARTIFACT_KINDS)('stale design artifacts — $label', (kind) => {
   let repo: string;
   beforeEach(async () => {
     repo = await makeRepo();
@@ -41,126 +98,125 @@ describe('detectStalePlans (primary: feature done)', () => {
     await rm(repo, { force: true, recursive: true });
   });
 
-  it('propagates non-ENOENT errors when a feature MD is malformed', async () => {
-    await writeFile(join(repo, 'docs/design/plans/2026-04-19-broken.md'), '# Broken Plan\n');
-    await writeFile(
-      join(repo, 'docs/features/broken.md'),
-      `---
-name: Broken
-phase: not-a-real-phase
----
-body
-`,
-    );
+  /** Write an artifact of this kind; returns its absolute path. */
+  const writeArtifact = async (date: string, slug: string): Promise<string> => {
+    const path = join(repo, kind.relDir, kind.fileName(date, slug));
+    await writeFile(path, `# ${slug}\n`);
+    return path;
+  };
 
-    await expect(detectStalePlans(repo)).rejects.toThrow();
+  const writeFd = async (slug: string, phase: string, link?: string) => {
+    await writeFile(
+      join(repo, 'docs/features', `${slug}.md`),
+      fd({ link, linkField: kind.linkField, name: slug, phase }),
+    );
+  };
+
+  it('does not flag an artifact whose owning feature is in-progress', async () => {
+    await writeArtifact('2026-04-19', 'tooltips');
+    await writeFd('tooltips', 'in-progress');
+
+    expect(await kind.detect(repo)).toHaveLength(0);
   });
 
-  it('flags a plan whose feature is done and has merged PRs', async () => {
-    await writeFile(join(repo, 'docs/design/plans/2026-04-19-tooltips.md'), '# Tooltips Plan\n');
-    await writeFile(
-      join(repo, 'docs/features/tooltips.md'),
-      `---
-name: Tooltips
-phase: done
-area: ui
-category: Tooling
-packages: ['@acme/web']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
+  it('flags an artifact whose owning feature is done', async () => {
+    await writeArtifact('2026-04-19', 'tooltips');
+    await writeFd('tooltips', 'done');
 
-body
-`,
-    );
-
-    const result = await detectStalePlans(repo);
+    const result = await kind.detect(repo);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       action: 'archive',
       reason: 'feature-done',
       slug: 'tooltips',
     });
-    expect(result[0].path).toContain('2026-04-19-tooltips.md');
+    expect(result[0].path).toBe(join(kind.relDir, kind.fileName('2026-04-19', 'tooltips')));
   });
 
-  it('does not flag a plan whose feature is in-progress', async () => {
-    await writeFile(join(repo, 'docs/design/plans/2026-04-19-tooltips.md'), '# Tooltips Plan\n');
-    await writeFile(
-      join(repo, 'docs/features/tooltips.md'),
-      `---
-name: Tooltips
-phase: in-progress
-area: ui
-category: Tooling
-packages: ['@acme/web']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
-
-body
-`,
+  it('does not age-flag an old artifact owned via links by an in-progress FD', async () => {
+    const path = await writeArtifact('2024-01-01', 'parent-feat-extra');
+    await utimes(path, OLD_DATE, OLD_DATE);
+    await writeFd(
+      'parent-feat',
+      'in-progress',
+      join(kind.relDir, kind.fileName('2024-01-01', 'parent-feat-extra')),
     );
 
-    const result = await detectStalePlans(repo);
-    expect(result).toHaveLength(0);
+    expect(await kind.detect(repo)).toHaveLength(0);
   });
 
-  it('flags a done feature even before PR refs are backfilled', async () => {
-    await writeFile(
-      join(repo, 'docs/design/plans/2026-04-29-architecture-invariants.md'),
-      '# Architecture Invariants Plan\n',
-    );
-    await writeFile(
-      join(repo, 'docs/features/architecture-invariants.md'),
-      `---
-name: Architecture Invariants
-phase: done
-area: tooling
-category: Tooling
-packages: ['tooling']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
-body
-`,
+  it('flags an artifact owned via links when the owning FD is done', async () => {
+    await writeArtifact('2024-01-01', 'parent-feat-extra');
+    await writeFd(
+      'parent-feat',
+      'done',
+      join(kind.relDir, kind.fileName('2024-01-01', 'parent-feat-extra')),
     );
 
-    const result = await detectStalePlans(repo);
+    const result = await kind.detect(repo);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       action: 'archive',
       reason: 'feature-done',
-      slug: 'architecture-invariants',
+      slug: 'parent-feat',
+    });
+    expect(result[0].path).toContain(kind.fileName('2024-01-01', 'parent-feat-extra'));
+  });
+
+  it('still age-flags an old artifact when no FD links it', async () => {
+    const path = await writeArtifact('2024-01-01', 'parent-feat-extra');
+    await utimes(path, OLD_DATE, OLD_DATE);
+    await writeFd('unrelated', 'in-progress');
+
+    const result = await kind.detect(repo);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ reason: 'age-no-feature', slug: 'parent-feat-extra' });
+  });
+
+  describe('graph-adjacency fallback', () => {
+    const writeGraph = async (docPath: string, ownerSlug: string) => {
+      await mkdir(join(repo, 'graphify-out'), { recursive: true });
+      await writeFile(
+        join(repo, 'graphify-out/graph.json'),
+        JSON.stringify({
+          links: [{ relation: kind.relation, source: 'artifact-node', target: 'fd-node' }],
+          nodes: [
+            { id: 'artifact-node', source_file: docPath },
+            { id: 'fd-node', source_file: `docs/features/${ownerSlug}.md` },
+          ],
+        }),
+      );
+    };
+
+    it('does not age-flag an old artifact whose only owner is a live FD in the graph', async () => {
+      const path = await writeArtifact('2024-01-01', 'graph-only');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeGraph(join(kind.relDir, kind.fileName('2024-01-01', 'graph-only')), 'graph-owner');
+      await writeFd('graph-owner', 'in-progress');
+
+      expect(await kind.detect(repo)).toHaveLength(0);
+    });
+
+    it('flags an artifact whose graph-resolved owner is done', async () => {
+      await writeArtifact('2024-01-01', 'graph-only');
+      await writeGraph(join(kind.relDir, kind.fileName('2024-01-01', 'graph-only')), 'graph-owner');
+      await writeFd('graph-owner', 'done');
+
+      const result = await kind.detect(repo);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        action: 'archive',
+        reason: 'feature-done',
+        slug: 'graph-owner',
+      });
     });
   });
-});
 
-describe('detectStalePlans (secondary: age + no feature)', () => {
-  let repo: string;
-  beforeEach(async () => {
-    repo = await makeRepo();
-  });
-  afterEach(async () => {
-    await rm(repo, { force: true, recursive: true });
-  });
+  it('flags an ownerless artifact older than the stale-days threshold', async () => {
+    const path = await writeArtifact('2024-01-01', 'orphan');
+    await utimes(path, OLD_DATE, OLD_DATE);
 
-  it('flags a plan with mtime > stale-days threshold and no matching feature', async () => {
-    const plan = join(repo, 'docs/design/plans/2024-01-01-orphan.md');
-    await writeFile(plan, '# Orphan Plan\n');
-    const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
-    await utimes(plan, oldDate, oldDate);
-
-    const result = await detectStalePlans(repo);
+    const result = await kind.detect(repo);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       action: 'archive',
@@ -169,39 +225,88 @@ describe('detectStalePlans (secondary: age + no feature)', () => {
     });
   });
 
-  it('does not flag a recent plan with no feature', async () => {
-    const plan = join(repo, 'docs/design/plans/2026-04-29-recent.md');
-    await writeFile(plan, '# Recent Plan\n');
+  it('does not flag a recent ownerless artifact', async () => {
+    await writeArtifact('2026-04-29', 'recent');
 
-    const result = await detectStalePlans(repo);
-    expect(result).toHaveLength(0);
+    expect(await kind.detect(repo)).toHaveLength(0);
   });
 
-  it('does not flag an old plan whose feature is in-progress', async () => {
-    const plan = join(repo, 'docs/design/plans/2024-01-01-active.md');
-    await writeFile(plan, '# Active Plan\n');
-    const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
-    await utimes(plan, oldDate, oldDate);
-    await writeFile(
-      join(repo, 'docs/features/active.md'),
-      `---
-name: Active
-phase: in-progress
-area: ui
-category: Tooling
-packages: ['@acme/web']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
-body
-`,
+  it('returns no findings when the artifact directory does not exist', async () => {
+    await rm(join(repo, kind.relDir), { force: true, recursive: true });
+
+    expect(await kind.detect(repo)).toEqual([]);
+  });
+
+  it('skips an artifact that vanished between listing and stat', async () => {
+    // Dangling symlink: readdir lists it, stat throws ENOENT — the same shape as
+    // a file archived out from under a concurrent gardening run.
+    await symlink(
+      join(repo, kind.relDir, kind.fileName('2024-01-01', 'gone')),
+      join(repo, kind.relDir, kind.fileName('2024-01-01', 'vanished')),
     );
 
-    const result = await detectStalePlans(repo);
-    expect(result).toHaveLength(0);
+    expect(await kind.detect(repo)).toEqual([]);
+  });
+
+  it('skips files that do not match the naming convention', async () => {
+    await writeFile(join(repo, kind.relDir, 'README.md'), '# index\n');
+
+    expect(await kind.detect(repo)).toHaveLength(0);
+  });
+
+  // One policy for an FD that exists but will not parse, at every step of the
+  // ownership chain: ownership is claimed with an unknown phase, so no finding
+  // and no throw. `noldor features validate` is what reports the malformed FD.
+  describe('unreadable owner FD', () => {
+    it('emits no finding, and does not throw, when the slug-matched FD is malformed', async () => {
+      const path = await writeArtifact('2024-01-01', 'broken');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeFd('broken', 'not-a-real-phase');
+
+      expect(await kind.detect(repo)).toEqual([]);
+    });
+
+    it('emits no finding when an unparseable FD could be the links.* owner', async () => {
+      const path = await writeArtifact('2024-01-01', 'parent-feat-extra');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeFile(join(repo, 'docs/features/parent-feat.md'), 'no frontmatter here\n');
+
+      expect(await kind.detect(repo)).toEqual([]);
+    });
+
+    it('still age-flags when the unparseable FD could not own this artifact', async () => {
+      // Scoped suppression: one malformed FD must not blank the staleness
+      // surface for artifacts whose filename it cannot plausibly own.
+      const path = await writeArtifact('2024-01-01', 'orphan');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await writeFile(join(repo, 'docs/features/unrelated-feature.md'), 'no frontmatter here\n');
+
+      const result = await kind.detect(repo);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ reason: 'age-no-feature', slug: 'orphan' });
+    });
+
+    it('emits no finding when the graph edge names an unparseable owner FD', async () => {
+      const path = await writeArtifact('2024-01-01', 'graph-only');
+      await utimes(path, OLD_DATE, OLD_DATE);
+      await mkdir(join(repo, 'graphify-out'), { recursive: true });
+      await writeFile(
+        join(repo, 'graphify-out/graph.json'),
+        JSON.stringify({
+          links: [{ relation: kind.relation, source: 'artifact-node', target: 'fd-node' }],
+          nodes: [
+            {
+              id: 'artifact-node',
+              source_file: join(kind.relDir, kind.fileName('2024-01-01', 'graph-only')),
+            },
+            { id: 'fd-node', source_file: 'docs/features/graph-owner.md' },
+          ],
+        }),
+      );
+      await writeFile(join(repo, 'docs/features/graph-owner.md'), 'no frontmatter here\n');
+
+      expect(await kind.detect(repo)).toEqual([]);
+    });
   });
 });
 
@@ -538,198 +643,6 @@ describe('specSlugFromFilename', () => {
 
   it('returns null for non-spec filenames', () => {
     expect(specSlugFromFilename('README.md')).toBeNull();
-  });
-});
-
-describe('detectStaleSpecs (primary: feature done)', () => {
-  let repo: string;
-  beforeEach(async () => {
-    repo = await makeRepo();
-  });
-  afterEach(async () => {
-    await rm(repo, { force: true, recursive: true });
-  });
-
-  it('flags a spec whose feature is done', async () => {
-    await writeFile(
-      join(repo, 'docs/design/specs/2026-04-19-tooltips-design.md'),
-      '# Tooltips Spec\n',
-    );
-    await writeFile(
-      join(repo, 'docs/features/tooltips.md'),
-      `---
-name: Tooltips
-phase: done
-area: ui
-category: Tooling
-packages: ['@acme/web']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
-
-body
-`,
-    );
-
-    const result = await detectStaleSpecs(repo);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      action: 'archive',
-      reason: 'feature-done',
-      slug: 'tooltips',
-    });
-    expect(result[0].path).toContain('2026-04-19-tooltips-design.md');
-  });
-
-  it('does not flag a spec whose feature is in-progress', async () => {
-    await writeFile(
-      join(repo, 'docs/design/specs/2026-04-19-tooltips-design.md'),
-      '# Tooltips Spec\n',
-    );
-    await writeFile(
-      join(repo, 'docs/features/tooltips.md'),
-      `---
-name: Tooltips
-phase: in-progress
-area: ui
-category: Tooling
-packages: ['@acme/web']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
-
-body
-`,
-    );
-
-    const result = await detectStaleSpecs(repo);
-    expect(result).toHaveLength(0);
-  });
-
-  it('skips files that do not match the spec naming pattern', async () => {
-    await writeFile(join(repo, 'docs/design/specs/README.md'), '# specs\n');
-    const result = await detectStaleSpecs(repo);
-    expect(result).toHaveLength(0);
-  });
-});
-
-describe('detectStaleSpecs (secondary: age + no feature)', () => {
-  let repo: string;
-  beforeEach(async () => {
-    repo = await makeRepo();
-  });
-  afterEach(async () => {
-    await rm(repo, { force: true, recursive: true });
-  });
-
-  it('flags an old spec with no matching feature', async () => {
-    const spec = join(repo, 'docs/design/specs/2024-01-01-orphan-design.md');
-    await writeFile(spec, '# Orphan Spec\n');
-    const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
-    await utimes(spec, oldDate, oldDate);
-
-    const result = await detectStaleSpecs(repo);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      action: 'archive',
-      reason: 'age-no-feature',
-      slug: 'orphan',
-    });
-  });
-
-  it('does not flag a recent spec with no feature', async () => {
-    await writeFile(join(repo, 'docs/design/specs/2026-04-29-recent-design.md'), '# Recent Spec\n');
-
-    const result = await detectStaleSpecs(repo);
-    expect(result).toHaveLength(0);
-  });
-});
-
-describe('detectStaleSpecs (links.spec ownership fallback)', () => {
-  let repo: string;
-  beforeEach(async () => {
-    repo = await makeRepo();
-  });
-  afterEach(async () => {
-    await rm(repo, { force: true, recursive: true });
-  });
-
-  const fdReferencingSpec = (phase: string): string => `---
-name: Parent Feat
-phase: ${phase}
-area: tooling
-category: Tooling
-packages: ['@acme/web']
-'noldor-tier': full
-links:
-  code: []
-  tests: []
-  docs: []
-  spec: docs/design/specs/2024-01-01-parent-feat-extra-design.md
----
-
-body
-`;
-
-  it('does not age-flag an old spec owned via links.spec by an in-progress FD', async () => {
-    const spec = join(repo, 'docs/design/specs/2024-01-01-parent-feat-extra-design.md');
-    await writeFile(spec, '# Attach Spec\n');
-    const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
-    await utimes(spec, oldDate, oldDate);
-    await writeFile(join(repo, 'docs/features/parent-feat.md'), fdReferencingSpec('in-progress'));
-
-    const result = await detectStaleSpecs(repo);
-    expect(result).toHaveLength(0);
-  });
-
-  it('flags a spec owned via links.spec when the owning FD is done', async () => {
-    const spec = join(repo, 'docs/design/specs/2024-01-01-parent-feat-extra-design.md');
-    await writeFile(spec, '# Attach Spec\n');
-    await writeFile(join(repo, 'docs/features/parent-feat.md'), fdReferencingSpec('done'));
-
-    const result = await detectStaleSpecs(repo);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
-      action: 'archive',
-      reason: 'feature-done',
-      slug: 'parent-feat',
-    });
-    expect(result[0].path).toContain('2024-01-01-parent-feat-extra-design.md');
-  });
-
-  it('still age-flags an old spec when no FD references it via links.spec', async () => {
-    const spec = join(repo, 'docs/design/specs/2024-01-01-parent-feat-extra-design.md');
-    await writeFile(spec, '# Attach Spec\n');
-    const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
-    await utimes(spec, oldDate, oldDate);
-    await writeFile(
-      join(repo, 'docs/features/unrelated.md'),
-      `---
-name: Unrelated
-phase: in-progress
-area: tooling
-category: Tooling
-packages: ['@acme/web']
-'noldor-tier': specs-only
-links:
-  code: []
-  tests: []
-  docs: []
----
-
-body
-`,
-    );
-
-    const result = await detectStaleSpecs(repo);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ reason: 'age-no-feature', slug: 'parent-feat-extra' });
   });
 });
 

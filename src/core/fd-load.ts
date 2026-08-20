@@ -109,15 +109,9 @@ const EXCLUDED_WALK_DIRS = new Set([
  * @returns Resolves once the walk completes; results are appended to `out`.
  */
 export async function walkRepo(dir: string, out: string[]): Promise<void> {
-  let entries: Dirent[];
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (error) {
-    // A missing top-level scan dir (e.g. no `packages/`/`apps/` in a
-    // single-package consumer) contributes no paths rather than throwing.
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
-    throw error;
-  }
+  // A missing top-level scan dir (e.g. no `packages/`/`apps/` in a
+  // single-package consumer) contributes no paths rather than throwing.
+  const entries = await listDirEntsIfExists(dir);
   for (const entry of entries) {
     const { name } = entry;
     if (name.startsWith('.') && name !== '.github') {
@@ -136,11 +130,128 @@ export async function walkRepo(dir: string, out: string[]): Promise<void> {
 }
 
 /**
+ * Result of guarding a `gray-matter` parse. `matter()` throws a `YAMLException`
+ * on syntactically broken frontmatter, so every FD reader that must survive a
+ * malformed file routes through here instead of calling it directly — the
+ * repo-wide policy is that a malformed FD is *reported*, by
+ * `noldor features validate` and by `garden detect`'s `malformed-fd` gap, and
+ * never aborts a read pass.
+ */
+export type FrontmatterParse =
+  | { readonly ok: true; readonly data: Record<string, unknown>; readonly content: string }
+  | { readonly ok: false; readonly error: string };
+
+/**
+ * Parse a markdown file's frontmatter without throwing.
+ *
+ * Only the parse is guarded — read the file yourself, so a genuine IO failure
+ * (EACCES, EISDIR) still surfaces rather than being flattened into "malformed".
+ *
+ * @param raw - Full file contents, frontmatter included.
+ * @returns `{ ok: true, data, content }`, or `{ ok: false, error }` with the
+ *   first line of the YAML error when the frontmatter will not parse.
+ */
+export function readFrontmatter(raw: string): FrontmatterParse {
+  try {
+    // The `{}` matters: `matter()` writes its cache entry BEFORE parsing
+    // (gray-matter index.js), so after one throw every later parse of the same
+    // string returns the cached un-parsed file — empty `data`, whole file as
+    // `content` — and broken YAML starts reading as valid-but-empty
+    // frontmatter. Passing any options object takes the uncached path, which
+    // keeps this function deterministic across calls.
+    const parsed = matter(raw, {});
+    return { content: parsed.content, data: parsed.data as Record<string, unknown>, ok: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: message.split('\n')[0] ?? 'unparseable frontmatter', ok: false };
+  }
+}
+
+/**
+ * Read a file, or `null` when it does not exist.
+ *
+ * The FD-reading policy in one place: a file that vanished between a directory
+ * listing and its read is nothing to process, while any other IO failure
+ * (EACCES, EISDIR) propagates — swallowing it would make a detector or report
+ * claim a clean pass over a file it never read.
+ *
+ * @param path - Absolute or cwd-relative file path.
+ * @returns File contents, or `null` on ENOENT.
+ */
+export async function readFileIfExists(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+/**
+ * List a directory, or `[]` when it does not exist. Directory sibling of
+ * {@link readFileIfExists} — same policy, same reason.
+ *
+ * @param dir - Directory to list.
+ * @returns Entry names, or `[]` on ENOENT.
+ */
+export async function listDirIfExists(dir: string): Promise<string[]> {
+  try {
+    return await readdir(dir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+/**
+ * `withFileTypes` sibling of {@link listDirIfExists}, for callers that need to
+ * tell files from directories. Same policy: missing directory yields `[]`,
+ * every other IO failure propagates.
+ *
+ * @param dir - Directory to list.
+ * @returns Directory entries, or `[]` on ENOENT.
+ */
+export async function listDirEntsIfExists(dir: string): Promise<Dirent[]> {
+  try {
+    return await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+/**
+ * Guarded frontmatter parse plus the FD schema check — the shape every FD
+ * reader needs. Returns `null` for both failure classes, which are one class to
+ * a caller: this FD cannot be understood, so skip it and let
+ * `noldor features validate` / the `malformed-fd` gap report it.
+ *
+ * Only the parse is guarded, exactly as in {@link readFrontmatter}: read the
+ * file yourself so a genuine IO failure still surfaces.
+ *
+ * @param raw - Full FD file contents, frontmatter included.
+ * @returns Validated frontmatter, or `null` when the YAML or the schema fails.
+ */
+export function parseFdFrontmatter(raw: string): FeatureFrontmatter | null {
+  const parsed = readFrontmatter(raw);
+  if (!parsed.ok) return null;
+  const result = FeatureFrontmatterSchema.safeParse(parsed.data);
+  return result.success ? result.data : null;
+}
+
+/**
  * Load every feature MD in a directory and parse its frontmatter.
+ *
+ * An FD whose frontmatter will not parse is **skipped**, not thrown on: this
+ * loader feeds report and dashboard passes over the whole corpus, and one
+ * malformed file must not abort the pass (`garden detect` aborting on a
+ * malformed FD is exactly the failure this policy removes). FD validity is
+ * owned by `noldor features validate`, and `garden detect`'s `malformed-fd`
+ * detector names the skipped files in its report.
  *
  * @param dir - Directory containing `<slug>.md` feature files (typically
  *   `docs/features`). A missing directory yields an empty array.
- * @returns Array of `{ frontmatter, slug }` records, one per feature MD.
+ * @returns Array of `{ frontmatter, slug }` records, one per parseable feature MD.
  *
  * @remarks
  * Renamed from `loadFeatures` to avoid colliding with the dashboard's
@@ -148,21 +259,17 @@ export async function walkRepo(dir: string, out: string[]): Promise<void> {
  */
 export async function loadSddFeatures(dir: string): Promise<FeatureRecord[]> {
   const result: FeatureRecord[] = [];
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
+  const entries = await listDirEntsIfExists(dir);
 
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.md')) {
       continue;
     }
     const slug = entry.name.replace(/\.md$/, '');
-    const raw = await readFile(join(dir, entry.name), 'utf8');
-    const fm = FeatureFrontmatterSchema.parse(matter(raw).data);
+    const raw = await readFileIfExists(join(dir, entry.name));
+    if (raw === null) continue; // vanished between readdir and read
+    const fm = parseFdFrontmatter(raw);
+    if (!fm) continue; // reported by `features validate` / the malformed-fd gap
     result.push({ frontmatter: fm, slug });
   }
   return result;
@@ -194,15 +301,9 @@ export function extractSummary(md: string): string {
  * @returns Array of paths relative to `process.cwd()`.
  */
 export async function listSpecs(dir: string): Promise<string[]> {
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isFile() && e.name.endsWith('.md'))
-      .map((e) => relative(process.cwd(), join(dir, e.name)));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
+  return (await listDirEntsIfExists(dir))
+    .filter((e) => e.isFile() && e.name.endsWith('.md'))
+    .map((e) => relative(process.cwd(), join(dir, e.name)));
 }
 
 /**
@@ -213,15 +314,9 @@ export async function listSpecs(dir: string): Promise<string[]> {
  * @returns Array of paths relative to `process.cwd()`.
  */
 export async function listPlans(dir: string): Promise<string[]> {
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isFile() && e.name.endsWith('.md'))
-      .map((e) => relative(process.cwd(), join(dir, e.name)));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
+  return (await listDirEntsIfExists(dir))
+    .filter((e) => e.isFile() && e.name.endsWith('.md'))
+    .map((e) => relative(process.cwd(), join(dir, e.name)));
 }
 
 /**

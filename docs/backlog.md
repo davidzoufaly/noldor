@@ -175,19 +175,6 @@ Multiagent operation already works in practice — several branches, several wor
 
 `src/cli/manifest.ts` knows dispatch targets and one-line descriptions, while individual handlers separately own detailed usage, flags, defaults, capabilities and validation. The dispatcher intercepts subcommand `--help`, which makes handler usage strings unreachable and breaks the base-SHA probe (Q-0112); ad-hoc argv loops differ silently; several path-building commands omit the shared slug guard (Q-0097). Move enough metadata and parse policy into a single command definition that help, dispatch, capability introspection and validation cannot drift, keeping implementation modules behind a stable seam, and route every external slug-shaped value through the same canonical adapter before any IO regardless of whether the caller is the packaged CLI or a library consumer. Deletion test: handler-local usage copies, copied slug regexes, `process.argv.find` loops and self-shelling help probes all go. Avoid a framework-heavy parser dependency unless the current manifest cannot generate the required behaviour with less code. (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
 
-### Design-Artifact Detector Module
-
-- id: Q-0116
-- area: tooling
-- type: refactor
-- since: 2026-08-12
-- size: S
-- impact: low
-- confidence: med
-- parent: doc-gardening-skill
-
-The largest clone in the repository sits wholly inside `src/garden/garden-detect.ts`: 388 tokens across 107 lines between stale-plan and stale-spec detection. Both implementations enumerate dated markdown, derive a slug, resolve ownership by feature filename then `links.*` then graph adjacency, then apply feature-phase and age policy and emit an archive finding; they differ only in artifact kind, path resolver, link relation and wording. Express those differences as small adapters around one ownership-and-age implementation, so archive-policy fixes and graph-fallback changes stay identical for specs and plans and adding a third design-artifact kind becomes deliberate rather than copied. Deletion test: two 100-plus-line functions collapse to one loop and two shallow strategies, while specific exported result types survive if callers benefit. Run the same behavioural matrix against both kinds: live owner, done owner, attach-name link owner, graph-only owner, stale orphan, recent orphan, missing directory. (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
-
 ### Package Runtime Representation ADR
 
 - id: Q-0117

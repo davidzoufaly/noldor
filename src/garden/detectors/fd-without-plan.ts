@@ -1,11 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import matter from 'gray-matter';
-
-import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
+import { listDirIfExists, parseFdFrontmatter, readFileIfExists } from '../../core/fd-load.js';
 import { isPostRollout } from '../../core/rollout-marker.js';
 
 export interface FdWithoutPlanFinding {
@@ -45,15 +41,8 @@ export function findCreationSha(fdPath: string, cwd: string): string | null {
  * Check whether a plan glob hit exists for `slug` in `docs/design/plans/`.
  * Matches filenames matching `<date>-<slug>.md` or `<date>-<slug>-part<N>.md`.
  */
-function hasPlan(repo: string, slug: string): boolean {
-  const plansDir = join(repo, 'docs/design/plans');
-  if (!existsSync(plansDir)) return false;
-  let entries: string[];
-  try {
-    entries = readdirSync(plansDir);
-  } catch {
-    return false;
-  }
+async function hasPlan(repo: string, slug: string): Promise<boolean> {
+  const entries = await listDirIfExists(join(repo, 'docs/design/plans'));
   const re = new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${slug}(?:-part\\d+)?\\.md$`);
   return entries.some((e) => re.test(e));
 }
@@ -69,12 +58,7 @@ function hasPlan(repo: string, slug: string): boolean {
  */
 export async function detectFdWithoutPlan(repo: string): Promise<FdWithoutPlanFinding[]> {
   const featuresDir = join(repo, 'docs/features');
-  let entries: string[];
-  try {
-    entries = await readdir(featuresDir);
-  } catch {
-    return [];
-  }
+  const entries = await listDirIfExists(featuresDir);
 
   const findings: FdWithoutPlanFinding[] = [];
 
@@ -85,20 +69,13 @@ export async function detectFdWithoutPlan(repo: string): Promise<FdWithoutPlanFi
     const fullPath = join(featuresDir, entry);
     const relPath = join('docs/features', entry);
 
-    let raw: string;
-    try {
-      raw = await readFile(fullPath, 'utf8');
-    } catch {
-      continue;
-    }
+    const raw = await readFileIfExists(fullPath);
+    if (raw === null) continue; // vanished between readdir and read
 
-    const parsed = matter(raw);
-    let fm: ReturnType<typeof FeatureFrontmatterSchema.parse>;
-    try {
-      fm = FeatureFrontmatterSchema.parse(parsed.data);
-    } catch {
-      continue;
-    }
+    // Guarded parse — see tier-mismatch.ts: broken YAML is reported by the
+    // `malformed-fd` gap, never by aborting a detector run.
+    const fm = parseFdFrontmatter(raw);
+    if (!fm) continue;
 
     // Skip done FDs entirely
     if (fm.phase !== 'in-progress') continue;
@@ -110,7 +87,7 @@ export async function detectFdWithoutPlan(repo: string): Promise<FdWithoutPlanFi
     if (!isPostRollout(creationSha, repo)) continue; // grandfathered pre-rollout
 
     // Check for a matching plan
-    if (hasPlan(repo, slug)) continue;
+    if (await hasPlan(repo, slug)) continue;
 
     findings.push({
       slug,

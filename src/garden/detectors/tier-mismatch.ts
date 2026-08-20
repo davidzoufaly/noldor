@@ -1,9 +1,6 @@
-import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import matter from 'gray-matter';
-
-import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
+import { listDirIfExists, parseFdFrontmatter, readFileIfExists } from '../../core/fd-load.js';
 
 export interface TierMismatchFinding {
   readonly slug: string;
@@ -21,12 +18,7 @@ export interface TierMismatchFinding {
  */
 export async function detectTierMismatch(repo: string): Promise<TierMismatchFinding[]> {
   const featuresDir = join(repo, 'docs/features');
-  let entries: string[];
-  try {
-    entries = await readdir(featuresDir);
-  } catch {
-    return [];
-  }
+  const entries = await listDirIfExists(featuresDir);
 
   const findings: TierMismatchFinding[] = [];
 
@@ -37,20 +29,13 @@ export async function detectTierMismatch(repo: string): Promise<TierMismatchFind
     const slug = entry.replace(/\.md$/, '');
     const relPath = join('docs/features', entry);
 
-    let raw: string;
-    try {
-      raw = await readFile(fullPath, 'utf8');
-    } catch {
-      continue;
-    }
+    const raw = await readFileIfExists(fullPath);
+    if (raw === null) continue; // vanished between readdir and read
 
-    const parsed = matter(raw);
-    let fm: ReturnType<typeof FeatureFrontmatterSchema.parse>;
-    try {
-      fm = FeatureFrontmatterSchema.parse(parsed.data);
-    } catch {
-      continue;
-    }
+    // Guarded parse: broken YAML must not abort the detector run — a malformed
+    // FD is the `malformed-fd` gap's finding, not this detector's.
+    const fm = parseFdFrontmatter(raw);
+    if (!fm) continue;
 
     if (fm['noldor-tier'] === 'full' && !fm.links.spec) {
       findings.push({

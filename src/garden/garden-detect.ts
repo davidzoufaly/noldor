@@ -1,13 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
-
-import matter from 'gray-matter';
 
 import { loadConfig } from '../core/config.js';
 import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
-import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
+import { listDirIfExists, parseFdFrontmatter, readFileIfExists } from '../core/fd-load.js';
 import { INVARIANTS } from '../invariants/rule-pairs.js';
 import { makeInvariants, runInvariants } from '../invariants/index.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
@@ -25,6 +23,7 @@ import { detectFdWithoutPlan } from './detectors/fd-without-plan.js';
 import { linksDriftGaps } from './detectors/code-links-drift.js';
 import { detectFdLinkRot } from './detectors/fd-link-rot.js';
 import { detectFdCommandRot } from './detectors/fd-command-rot.js';
+import { detectMalformedFds } from './detectors/malformed-fd.js';
 import { detectMigrationCoverage } from './detectors/migration-coverage.js';
 import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-incomplete.js';
 import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
@@ -34,15 +33,11 @@ import { codeAdapter } from '../sync/adapters/code.js';
 import { docsAdapter } from '../sync/adapters/docs.js';
 import { testsAdapter } from '../sync/adapters/tests.js';
 import { collectTaggedMany, loadCachedAll } from '../sync/projection.js';
-import {
-  resolveByLinksPlan,
-  resolveByLinksSpec,
-  resolveByGraphAdjacency,
-} from './plan-resolution.js';
+import { resolveByGraphAdjacency, resolveByLinksField } from './plan-resolution.js';
 import { isStaleGraphGap } from './graph-fd-lookup.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 
-import type { FeatureFrontmatter } from '../core/feature-schema.js';
+import type { OwnerResolution } from './plan-resolution.js';
 import type { RulePairInvariant as Invariant } from '../invariants/rule-pairs.js';
 import type { Invariant as ArchitectureInvariant, InvariantResult } from '../invariants/types.js';
 import type { OverrideAuditResult } from './detectors/override-audit.js';
@@ -59,120 +54,198 @@ import type { CircularBlockedByFinding } from './detectors/circular-blocked-by.j
 import type { SkillDriftFinding } from './detectors/skill-code-drift.js';
 
 // --- Defaults ---
-/** Age threshold (in days) for plans with no matching feature MD. */
+/** Age threshold (in days) for a design artifact with no resolvable owner FD. */
 const STALE_DAYS_DEFAULT = 60;
 /** Shared with `backlog-demote.ts` so detector + auto-demotion agree on "stale". */
 const UNUSED_BACKLOG_DAYS_DEFAULT = STALE_BACKLOG_DAYS_DEFAULT;
 
 /**
- * One stale plan finding. The detector emits these for plans whose matching
- * feature is done + shipped, or (secondary signal) plans untouched for
- * longer than the staleness threshold with no matching feature MD.
+ * One stale design-artifact finding — a plan in `docs/design/plans/` or a spec
+ * in `docs/design/specs/`. Emitted when the owning feature has shipped
+ * (`phase: done`) or (secondary signal) the file is older than the staleness
+ * threshold and no owner resolves at all.
+ *
+ * Plans and specs share this shape: `garden detect` reports them under
+ * separate `stalePlans` / `staleSpecs` keys, but a finding carries no kind
+ * discriminator — the key it arrives under is the kind.
  */
-export interface StalePlan {
+export interface StaleDesignArtifact {
   readonly path: string;
   readonly slug: string;
   readonly reason: 'feature-done' | 'age-no-feature';
   readonly action: 'archive';
 }
 
-async function loadFeatureBySlug(repo: string, slug: string): Promise<FeatureFrontmatter | null> {
+/** Result type of {@link detectStalePlans}. Alias of {@link StaleDesignArtifact}. */
+export type StalePlan = StaleDesignArtifact;
+/** Result type of {@link detectStaleSpecs}. Alias of {@link StaleDesignArtifact}. */
+export type StaleSpec = StaleDesignArtifact;
+
+/**
+ * Primary ownership step: the FD at `docs/features/<slug>.md`.
+ *
+ * Three outcomes, matching every other step in the chain: `resolved` when the
+ * frontmatter parses, `none` when the file does not exist, and `unreadable`
+ * when it exists but will not parse — an FD that claims ownership of unknown
+ * phase. See {@link OwnerResolution} for why that third state exists.
+ */
+async function loadFeatureBySlug(repo: string, slug: string): Promise<OwnerResolution> {
   const path = join(loadDocRoots(repo).features, `${slug}.md`);
-  try {
-    const raw = await readFile(path, 'utf8');
-    const parsed = matter(raw);
-    return FeatureFrontmatterSchema.parse(parsed.data);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
-  }
+  // readFileIfExists: absent FD is `none`, any other IO failure propagates —
+  // the same policy detectMalformedFds applies to the same directory, so an
+  // unreadable-by-permissions FD cannot vanish from one detector's report while
+  // aborting another's.
+  const raw = await readFileIfExists(path);
+  if (raw === null) return { outcome: 'none' };
+  const fd = parseFdFrontmatter(raw);
+  return fd
+    ? { outcome: 'resolved', owner: { fd, slug } }
+    : { detail: `unparseable FD frontmatter: ${path}`, outcome: 'unreadable' };
 }
 
 /**
- * Detect stale plans.
+ * Everything that differs between plan staleness and spec staleness. The
+ * detection policy itself — enumerate, derive a slug, resolve an owner by
+ * filename then `links.*` then graph adjacency, then apply phase-and-age
+ * policy — lives once in {@link detectStaleDesignArtifacts}.
+ */
+interface DesignArtifactKind {
+  /** `loadDocRoots` key naming the directory the artifacts live in. */
+  readonly docRoot: 'plans' | 'specs';
+  /** Presentation prefix; ALSO matched verbatim against FDs' `links.*` (see below). */
+  readonly relDir: string;
+  /** Filename→slug parser; `null` for filenames outside the naming convention. */
+  readonly slugFromFilename: (filename: string) => string | null;
+  /** FD frontmatter field naming artifacts of this kind (ownership fallback). */
+  readonly linkField: 'plan' | 'spec';
+  /** Enriched-graph edge for the last-resort adjacency fallback. */
+  readonly relation: 'plan-of' | 'spec-of';
+}
+
+const PLAN_KIND: DesignArtifactKind = {
+  docRoot: 'plans',
+  linkField: 'plan',
+  relDir: 'docs/design/plans',
+  relation: 'plan-of',
+  slugFromFilename: planSlugFromFilename,
+};
+
+const SPEC_KIND: DesignArtifactKind = {
+  docRoot: 'specs',
+  linkField: 'spec',
+  relDir: 'docs/design/specs',
+  relation: 'spec-of',
+  slugFromFilename: specSlugFromFilename,
+};
+
+/**
+ * Resolve the FD that owns one design artifact, first non-`none` step wins:
+ * filename slug → the FD whose `links.plan` / `links.spec` names it → the
+ * `plan-of` / `spec-of` edge in the enriched graph. An `unreadable` step stops
+ * the chain: ownership is claimed and its phase is unknown, so a later step
+ * must not overrule it with a weaker signal.
+ */
+async function resolveOwner(
+  repo: string,
+  slug: string,
+  relPath: string,
+  kind: DesignArtifactKind,
+): Promise<OwnerResolution> {
+  const byFilename = await loadFeatureBySlug(repo, slug);
+  if (byFilename.outcome !== 'none') return byFilename;
+
+  const byLinks = await resolveByLinksField({
+    artifactSlug: slug,
+    docPath: relPath,
+    field: kind.linkField,
+    repo,
+  });
+  if (byLinks.outcome !== 'none') return byLinks;
+
+  return resolveByGraphAdjacency({ docPath: relPath, relation: kind.relation, repo });
+}
+
+/**
+ * Shared staleness detection for dated design artifacts.
  *
- * Primary signal: matching feature MD has `phase: done` and merged PRs.
- * Secondary signal: file mtime older than `staleDays` AND no matching
- * feature MD exists.
+ * Primary signal: the owning feature MD has `phase: done`. Ownership resolves
+ * in three steps, first hit wins — filename slug → `docs/features/<slug>.md`,
+ * then the FD whose `links.plan` / `links.spec` names the artifact verbatim
+ * (this is what covers attach-path artifacts, whose filename slug matches no
+ * FD but whose parent FD still owns them), then the `plan-of` / `spec-of` edge
+ * in the enriched `graphify-out/graph.json`. A live owner at any step
+ * suppresses the age-out signal; a done owner archives as `feature-done`.
+ *
+ * Secondary signal: no owner resolves at all AND the file mtime is older than
+ * `staleDays`. A missing or stale graph therefore degrades to age-out, never
+ * to a wrong-direction block.
  *
  * @param repo - Repository root.
  * @param staleDays - Age threshold in days for the secondary signal.
- *   Defaults to 180.
- * @returns One StalePlan per flagged plan file.
+ * @param kind - Plan/spec differences; see {@link DesignArtifactKind}.
+ * @returns One finding per flagged artifact file.
  */
-export async function detectStalePlans(
+async function detectStaleDesignArtifacts(
   repo: string,
-  staleDays = STALE_DAYS_DEFAULT,
-): Promise<StalePlan[]> {
-  const plansDir = loadDocRoots(repo).plans;
-  let entries: string[];
-  try {
-    entries = await readdir(plansDir);
-  } catch {
-    return [];
-  }
+  staleDays: number,
+  kind: DesignArtifactKind,
+): Promise<StaleDesignArtifact[]> {
+  const dir = loadDocRoots(repo)[kind.docRoot];
+  const entries = await listDirIfExists(dir);
 
   const ageCutoffMs = Date.now() - staleDays * 24 * 60 * 60 * 1000;
-  const findings: StalePlan[] = [];
+  const findings: StaleDesignArtifact[] = [];
 
   for (const entry of entries) {
     if (!entry.endsWith('.md')) {
       continue;
     }
-    const slug = planSlugFromFilename(entry);
+    const slug = kind.slugFromFilename(entry);
     if (!slug) {
       continue;
     }
 
-    const fullPath = join(plansDir, entry);
-    // Presentation string — relative path shown in garden output, not used for IO.
-    const relPath = join('docs/design/plans', entry);
-    const feature = await loadFeatureBySlug(repo, slug);
+    const fullPath = join(dir, entry);
+    // Not used for IO. Shown in garden output AND matched verbatim against FDs'
+    // links.plan / links.spec by the fallback below — keep the exact
+    // '<relDir>/<entry>' forward-slash form.
+    const relPath = join(kind.relDir, entry);
 
-    if (feature) {
-      if (feature.phase === 'done') {
+    const owner = await resolveOwner(repo, slug, relPath, kind);
+
+    // An owner whose FD cannot be read claims the artifact with an unknown
+    // phase — neither archivable nor age-outable. `features validate` is what
+    // reports the malformed FD itself.
+    if (owner.outcome === 'unreadable') {
+      continue;
+    }
+    if (owner.outcome === 'resolved') {
+      if (owner.owner.fd.phase === 'done') {
         findings.push({
           action: 'archive',
           path: relPath,
           reason: 'feature-done',
-          slug,
+          slug: owner.owner.slug,
         });
       }
       continue;
     }
 
-    // Fallback — scan FDs' links.plan for this plan path.
-    const byLinks = await resolveByLinksPlan({ planPath: relPath, repo });
-    if (byLinks) {
-      if (byLinks.fd.phase === 'done') {
-        findings.push({
-          action: 'archive',
-          path: relPath,
-          reason: 'feature-done',
-          slug: byLinks.slug,
-        });
-      }
-      continue;
+    // The readdir snapshot can outlive the file — a concurrent `design archive`,
+    // gardening pass or editor save-rename removes it between listing and stat.
+    // A file that vanished has no age to flag, so skip rather than abort the run
+    // (every other read in this chain degrades the same way).
+    let mtimeMs: number;
+    try {
+      mtimeMs = (await stat(fullPath)).mtimeMs;
+    } catch (error) {
+      // Only the vanished case is benign — a file with no age has nothing to
+      // flag. Any other IO failure would turn an unreadable artifact into a
+      // silent pass, so it propagates (same policy as readFileIfExists).
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
     }
-
-    // Last-resort fallback — graph adjacency (plan-of edge in the enriched graph.json).
-    // Catches plans no slug/links.* signal owns; a live owner suppresses age-out, a
-    // done owner archives as feature-done. Missing/stale graph degrades to age-out.
-    const byGraph = await resolveByGraphAdjacency({ repo, docPath: relPath, relation: 'plan-of' });
-    if (byGraph) {
-      if (byGraph.fd.phase === 'done') {
-        findings.push({
-          action: 'archive',
-          path: relPath,
-          reason: 'feature-done',
-          slug: byGraph.slug,
-        });
-      }
-      continue;
-    }
-
-    const st = await stat(fullPath);
-    if (st.mtimeMs < ageCutoffMs) {
+    if (mtimeMs < ageCutoffMs) {
       findings.push({
         action: 'archive',
         path: relPath,
@@ -185,22 +258,24 @@ export async function detectStalePlans(
 }
 
 /**
- * One stale spec finding. Mirror of {@link StalePlan} for design specs in
- * `docs/design/specs/`. Emitted when the matching feature has shipped
- * (`phase: done`) or (secondary signal) the file is older than the staleness
- * threshold and no matching feature MD exists.
+ * Detect stale plans in `docs/design/plans/`. Thin caller over
+ * {@link detectStaleDesignArtifacts} — see it for the policy.
+ *
+ * @param repo - Repository root.
+ * @param staleDays - Age threshold in days for the secondary signal.
+ *   Defaults to {@link STALE_DAYS_DEFAULT}.
+ * @returns One StalePlan per flagged plan file.
  */
-export interface StaleSpec {
-  readonly path: string;
-  readonly slug: string;
-  readonly reason: 'feature-done' | 'age-no-feature';
-  readonly action: 'archive';
+export async function detectStalePlans(
+  repo: string,
+  staleDays = STALE_DAYS_DEFAULT,
+): Promise<StalePlan[]> {
+  return detectStaleDesignArtifacts(repo, staleDays, PLAN_KIND);
 }
 
 /**
- * Detect stale specs. Mirrors {@link detectStalePlans}: shipped features
- * imply the spec is archive-ready; old specs without a feature owner age
- * out the same way.
+ * Detect stale specs in `docs/design/specs/`. Thin caller over
+ * {@link detectStaleDesignArtifacts} — see it for the policy.
  *
  * @param repo - Repository root.
  * @param staleDays - Age threshold in days for the secondary signal.
@@ -211,87 +286,7 @@ export async function detectStaleSpecs(
   repo: string,
   staleDays = STALE_DAYS_DEFAULT,
 ): Promise<StaleSpec[]> {
-  const specsDir = loadDocRoots(repo).specs;
-  let entries: string[];
-  try {
-    entries = await readdir(specsDir);
-  } catch {
-    return [];
-  }
-
-  const ageCutoffMs = Date.now() - staleDays * 24 * 60 * 60 * 1000;
-  const findings: StaleSpec[] = [];
-
-  for (const entry of entries) {
-    if (!entry.endsWith('.md')) {
-      continue;
-    }
-    const slug = specSlugFromFilename(entry);
-    if (!slug) {
-      continue;
-    }
-
-    const fullPath = join(specsDir, entry);
-    // Not used for IO. Shown in garden output AND matched verbatim against FDs'
-    // links.spec by the fallback below — keep the exact
-    // 'docs/design/specs/<entry>' forward-slash form.
-    const relPath = join('docs/design/specs', entry);
-    const feature = await loadFeatureBySlug(repo, slug);
-
-    if (feature) {
-      if (feature.phase === 'done') {
-        findings.push({
-          action: 'archive',
-          path: relPath,
-          reason: 'feature-done',
-          slug,
-        });
-      }
-      continue;
-    }
-
-    // Fallback — scan FDs' links.spec for this spec path. Catches attach-path
-    // specs (`<date>-<parent>-<enhancement>-design.md`) whose filename slug
-    // matches no FD but whose parent FD still owns them: live owner suppresses
-    // the age-out signal, done owner archives as feature-done.
-    const byLinks = await resolveByLinksSpec({ repo, specPath: relPath });
-    if (byLinks) {
-      if (byLinks.fd.phase === 'done') {
-        findings.push({
-          action: 'archive',
-          path: relPath,
-          reason: 'feature-done',
-          slug: byLinks.slug,
-        });
-      }
-      continue;
-    }
-
-    // Last-resort fallback — graph adjacency (spec-of edge in the enriched graph.json).
-    const byGraph = await resolveByGraphAdjacency({ repo, docPath: relPath, relation: 'spec-of' });
-    if (byGraph) {
-      if (byGraph.fd.phase === 'done') {
-        findings.push({
-          action: 'archive',
-          path: relPath,
-          reason: 'feature-done',
-          slug: byGraph.slug,
-        });
-      }
-      continue;
-    }
-
-    const st = await stat(fullPath);
-    if (st.mtimeMs < ageCutoffMs) {
-      findings.push({
-        action: 'archive',
-        path: relPath,
-        reason: 'age-no-feature',
-        slug,
-      });
-    }
-  }
-  return findings;
+  return detectStaleDesignArtifacts(repo, staleDays, SPEC_KIND);
 }
 
 /**
@@ -313,12 +308,8 @@ export interface UnusedBacklog {
  * @returns Set of slugs derived from filenames in `docs/features/`.
  */
 async function listFeatureSlugs(repo: string): Promise<Set<string>> {
-  try {
-    const entries = await readdir(loadDocRoots(repo).features);
-    return new Set(entries.filter((e) => e.endsWith('.md')).map((e) => e.replace(/\.md$/, '')));
-  } catch {
-    return new Set();
-  }
+  const entries = await listDirIfExists(loadDocRoots(repo).features);
+  return new Set(entries.filter((e) => e.endsWith('.md')).map((e) => e.replace(/\.md$/, '')));
 }
 
 /**
@@ -800,6 +791,10 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // package.json scripts ∪ script-catalog), catching renamed/removed/regrouped
   // commands a shipped FD still cites.
   sddGaps.push(...(await detectFdCommandRot(repo)));
+  // The staleness chain stays silent on an FD it cannot parse (OwnerResolution
+  // 'unreadable'), so name those FDs here — otherwise one malformed FD would
+  // quietly suppress findings for every artifact it might own.
+  sddGaps.push(...(await detectMalformedFds(repo)));
   // Architecture module advisories are deliberately NOT pushed into sddGaps:
   // that category gates the auto-restamp, so it would make a renamed directory
   // block a release. They ride their own key below. The blocking half arrives

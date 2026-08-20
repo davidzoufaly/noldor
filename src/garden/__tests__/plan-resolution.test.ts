@@ -1,12 +1,8 @@
 // @tests: graphify-plan-of-edges-nodes-for-plans-specs, outcome-telemetry-and-effectiveness-metrics
 import { describe, it, expect } from 'vitest';
-import {
-  resolveByLinksPlan,
-  resolveByLinksSpec,
-  resolveByGraphAdjacency,
-} from '../plan-resolution';
+import { resolveByGraphAdjacency, resolveByLinksField } from '../plan-resolution';
 
-describe('resolveByLinksPlan', () => {
+describe('resolveByLinksField (links.plan)', () => {
   it('returns the FD whose links.plan contains the plan path', async () => {
     const reads = new Map<string, string>([
       [
@@ -18,54 +14,57 @@ describe('resolveByLinksPlan', () => {
         '---\nname: Bar\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\nnoldor-tier: specs-only\n---\n',
       ],
     ]);
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-foo.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md', 'bar.md'],
       readFile: async (p: string) => reads.get(p.replace('/tmp/repo/', '')) ?? '',
     });
-    expect(result).not.toBeNull();
-    expect(result?.fd.name).toBe('Foo');
-    expect(result?.slug).toBe('foo');
+    expect(result.outcome).toBe('resolved');
+    expect(result).toMatchObject({ owner: { fd: { name: 'Foo' }, slug: 'foo' } });
   });
 
   it('handles plan as a single string (not array)', async () => {
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-foo.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
         '---\nname: Foo\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  plan: docs/design/plans/2026-04-19-foo.md\nnoldor-tier: full\n---\n',
     });
-    expect(result).not.toBeNull();
-    expect(result?.slug).toBe('foo');
+    expect(result).toMatchObject({ outcome: 'resolved', owner: { slug: 'foo' } });
   });
 
-  it('returns null when no FD references the plan', async () => {
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-orphan.md',
+  it('reports none when no FD references the plan', async () => {
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-orphan.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
         '---\nname: Foo\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\nnoldor-tier: specs-only\n---\n',
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ outcome: 'none' });
   });
 
   it('ignores FDs without a links.plan field', async () => {
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-foo.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
         '---\nname: Foo\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\nnoldor-tier: specs-only\n---\n',
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ outcome: 'none' });
   });
 
   it('skips files that do not parse as FDs without throwing', async () => {
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-foo.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md', 'malformed.md'],
       readFile: async (p: string) => {
@@ -73,12 +72,49 @@ describe('resolveByLinksPlan', () => {
         return '---\nname: Foo\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  plan:\n    - docs/design/plans/2026-04-19-foo.md\nnoldor-tier: specs-only\n---\n';
       },
     });
-    expect(result).not.toBeNull();
-    expect(result?.slug).toBe('foo');
+    expect(result).toMatchObject({ outcome: 'resolved', owner: { slug: 'foo' } });
+  });
+  it('reports unreadable when a candidate FD does not parse and nothing matched', async () => {
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
+      repo: '/tmp/repo',
+      readdir: async () => ['malformed.md'],
+      readFile: async () => 'no frontmatter here',
+    });
+    expect(result).toMatchObject({ outcome: 'unreadable' });
+  });
+
+  it('scopes unreadable to FDs that could own the artifact when artifactSlug is given', async () => {
+    const seams = {
+      readdir: async () => ['unrelated.md'],
+      readFile: async () => 'no frontmatter here',
+      repo: '/tmp/repo',
+    };
+    // `unrelated.md` cannot own `foo-extra` by filename, so the scan answers
+    // `none` (→ age-out) rather than blanking the finding.
+    expect(
+      await resolveByLinksField({
+        ...seams,
+        artifactSlug: 'foo-extra',
+        docPath: 'docs/design/plans/2026-04-19-foo-extra.md',
+        field: 'plan',
+      }),
+    ).toEqual({ outcome: 'none' });
+    // A malformed `foo.md` is exactly the attach-path owner shape, so it does.
+    expect(
+      await resolveByLinksField({
+        ...seams,
+        artifactSlug: 'foo-extra',
+        docPath: 'docs/design/plans/2026-04-19-foo-extra.md',
+        field: 'plan',
+        readdir: async () => ['foo.md'],
+      }),
+    ).toMatchObject({ outcome: 'unreadable' });
   });
 });
 
-describe('resolveByLinksSpec', () => {
+describe('resolveByLinksField (links.spec)', () => {
   it('returns the FD whose links.spec matches the spec path', async () => {
     const reads = new Map<string, string>([
       [
@@ -90,31 +126,33 @@ describe('resolveByLinksSpec', () => {
         '---\nname: Bar\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\nnoldor-tier: specs-only\n---\n',
       ],
     ]);
-    const result = await resolveByLinksSpec({
-      specPath: 'docs/design/specs/2026-05-15-parent-feat-extra-design.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/specs/2026-05-15-parent-feat-extra-design.md',
+      field: 'spec',
       repo: '/tmp/repo',
       readdir: async () => ['parent-feat.md', 'bar.md'],
       readFile: async (p: string) => reads.get(p.replace('/tmp/repo/', '')) ?? '',
     });
-    expect(result).not.toBeNull();
-    expect(result?.fd.name).toBe('Parent Feat');
-    expect(result?.slug).toBe('parent-feat');
+    expect(result.outcome).toBe('resolved');
+    expect(result).toMatchObject({ owner: { fd: { name: 'Parent Feat' }, slug: 'parent-feat' } });
   });
 
-  it('returns null when no FD references the spec', async () => {
-    const result = await resolveByLinksSpec({
-      specPath: 'docs/design/specs/2026-05-15-orphan-design.md',
+  it('reports none when no FD references the spec', async () => {
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/specs/2026-05-15-orphan-design.md',
+      field: 'spec',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
         '---\nname: Foo\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\nnoldor-tier: specs-only\n---\n',
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ outcome: 'none' });
   });
 
   it('skips files that do not parse as FDs without throwing', async () => {
-    const result = await resolveByLinksSpec({
-      specPath: 'docs/design/specs/2026-05-15-foo-extra-design.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/specs/2026-05-15-foo-extra-design.md',
+      field: 'spec',
       repo: '/tmp/repo',
       readdir: async () => ['malformed.md', 'foo.md'],
       readFile: async (p: string) => {
@@ -122,8 +160,17 @@ describe('resolveByLinksSpec', () => {
         return '---\nname: Foo\nphase: done\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\n  spec: docs/design/specs/2026-05-15-foo-extra-design.md\nnoldor-tier: full\n---\n';
       },
     });
-    expect(result).not.toBeNull();
-    expect(result?.slug).toBe('foo');
+    expect(result).toMatchObject({ outcome: 'resolved', owner: { slug: 'foo' } });
+  });
+  it('reports unreadable when a candidate FD does not parse and nothing matched', async () => {
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/specs/2026-05-15-foo-extra-design.md',
+      field: 'spec',
+      repo: '/tmp/repo',
+      readdir: async () => ['malformed.md'],
+      readFile: async () => 'no frontmatter here',
+    });
+    expect(result).toMatchObject({ outcome: 'unreadable' });
   });
 });
 
@@ -165,11 +212,13 @@ describe('resolveByGraphAdjacency', () => {
       graphPath: '/tmp/repo/graphify-out/graph.json',
       readFile: seamFor(GRAPH),
     });
-    expect(result?.slug).toBe('owner');
-    expect(result?.fd.phase).toBe('done');
+    expect(result).toMatchObject({
+      outcome: 'resolved',
+      owner: { fd: { phase: 'done' }, slug: 'owner' },
+    });
   });
 
-  it('returns null on a missing graph file', async () => {
+  it('reports none on a missing graph file', async () => {
     const result = await resolveByGraphAdjacency({
       repo: '/tmp/repo',
       docPath: 'docs/design/plans/2026-06-14-orphan.md',
@@ -177,10 +226,10 @@ describe('resolveByGraphAdjacency', () => {
       graphPath: '/tmp/repo/graphify-out/graph.json',
       readFile: seamFor(null),
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ outcome: 'none' });
   });
 
-  it('returns null when no node matches the docPath', async () => {
+  it('reports none when no node matches the docPath', async () => {
     const result = await resolveByGraphAdjacency({
       repo: '/tmp/repo',
       docPath: 'docs/design/plans/2026-06-14-nonexistent.md',
@@ -188,10 +237,10 @@ describe('resolveByGraphAdjacency', () => {
       graphPath: '/tmp/repo/graphify-out/graph.json',
       readFile: seamFor(GRAPH),
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ outcome: 'none' });
   });
 
-  it('returns null when the relation does not match (spec-of asked, only plan-of present)', async () => {
+  it('reports none when the relation does not match (spec-of asked, only plan-of present)', async () => {
     const result = await resolveByGraphAdjacency({
       repo: '/tmp/repo',
       docPath: 'docs/design/plans/2026-06-14-orphan.md',
@@ -199,6 +248,34 @@ describe('resolveByGraphAdjacency', () => {
       graphPath: '/tmp/repo/graphify-out/graph.json',
       readFile: seamFor(GRAPH),
     });
-    expect(result).toBeNull();
+    expect(result).toEqual({ outcome: 'none' });
+  });
+  it('reports unreadable when the edge names an owner FD that does not parse', async () => {
+    const result = await resolveByGraphAdjacency({
+      repo: '/tmp/repo',
+      docPath: 'docs/design/plans/2026-06-14-orphan.md',
+      relation: 'plan-of',
+      graphPath: '/tmp/repo/graphify-out/graph.json',
+      readFile: async (p: string) => {
+        if (p.endsWith('graph.json')) return GRAPH;
+        return 'no frontmatter here';
+      },
+    });
+    expect(result).toMatchObject({ outcome: 'unreadable' });
+  });
+  it('reports none when the edge names an FD that no longer exists', async () => {
+    const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    const result = await resolveByGraphAdjacency({
+      repo: '/tmp/repo',
+      docPath: 'docs/design/plans/2026-06-14-orphan.md',
+      relation: 'plan-of',
+      graphPath: '/tmp/repo/graphify-out/graph.json',
+      readFile: async (p: string) => {
+        if (p.endsWith('graph.json')) return GRAPH;
+        throw enoent;
+      },
+    });
+    // A stale edge must not suppress the age-out signal forever.
+    expect(result).toEqual({ outcome: 'none' });
   });
 });
