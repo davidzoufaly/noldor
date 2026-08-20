@@ -33,7 +33,16 @@ const ARTIFACT_DIRS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * True when a repo-relative path lives inside an artifact directory. Those pages
+ * True when a repo-relative path IS or lives inside an artifact directory —
+ * accepting both a file and a directory, so the file and directory call sites in
+ * the walk share one honest test rather than one of them faking a basename.
+ *
+ * `docs` alone is length 1 and never matches, which is right: it is not a
+ * surface either. The file site runs only after an `.md` check, so a file
+ * literally named `docs/features.md` reads its own basename as the segment and
+ * correctly does not match.
+ *
+ * Those pages
  * are machine-written (`sync fd-resources` / `sync doc-links` fill an FD's
  * Resources section from `links.docs`), so they are neither surfaces nor
  * *routes*: letting the walk pass through one would let a generated link satisfy
@@ -41,7 +50,7 @@ const ARTIFACT_DIRS: ReadonlySet<string> = new Set([
  */
 function isArtifactPath(target: string): boolean {
   const parts = target.split('/');
-  return parts[0] === 'docs' && parts.length > 2 && ARTIFACT_DIRS.has(parts[1] ?? '');
+  return parts[0] === 'docs' && parts.length > 1 && ARTIFACT_DIRS.has(parts[1] ?? '');
 }
 
 /** Surfaces found under `docs/`, plus anything that could not be inspected. */
@@ -225,7 +234,7 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
 
       if (stats.isSymbolicLink()) continue; // not followed
       if (stats.isDirectory()) {
-        if (!isArtifactPath(`${target}/x.md`)) dirs.add(target);
+        if (!isArtifactPath(target)) dirs.add(target);
         continue;
       }
       if (!target.endsWith('.md')) continue; // cannot satisfy a surface
