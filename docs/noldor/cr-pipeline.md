@@ -296,6 +296,56 @@ consumers adopt the lane observation-first.
 so reviewers see behavioral proof on the PR itself. Missing or off-shape sink
 ⇒ the section is omitted; the PR still opens.
 
+## UI-design review lane
+
+The `ui-reviewer` lane (code artifacts only) asks whether the implemented UI
+matches the design the session approved — the gap the freshness check cannot
+see, since that compares commit ancestry and never opens a `.pen`.
+
+How it runs:
+
+- **Firing** is recomputed in-lane from the real change: candidate paths are the
+  diff from the remote default branch to the round's head, intersected with
+  `consumer.uiPaths`/`uiSurfaces` (`sessionUiVerdict`). The round's `--base-sha`
+  is deliberately ignored — every delta shape narrows it, and a fragment of the
+  branch describes neither the as-built UI nor which commit added the design.
+- **Design resolution** is a path, never content: the session's dialogue key
+  selects a dated `.pen` under `docs/design/ui/` (archive first — gate Step 4
+  archives it in the flip commit), gated on the branch-added set so a foreign
+  feature's design can never be picked up. Two matches decline as
+  `ambiguous-design` rather than guessing.
+- **Dispatch** spawns `role: ui-reviewer` against a private scratch COPY of the
+  design. The child reads it through pencil MCP — `.pen` is encrypted, so pencil
+  is the only reader — and compares the `FINAL:<surface>` pages against the diff.
+  The lane hashes the repo's `.pen` across the dispatch; a change under the
+  reviewer is `pen-modified` and reds in **both** modes.
+- **Verdicts** land in `.noldor/cr/<slug>-code-ui-reviewer.json` as
+  `pass | fail | cannot-review | not-applicable` plus a machine-readable
+  `reason`. `not-applicable` = nothing to review (no UI in range, `design: skip`,
+  operator waiver, unadopted config). `cannot-review` = there was, and the
+  comparison could not be performed (no design artifact, pencil unavailable,
+  malformed output). A fast-track session that changed UI paths gets
+  `cannot-review`, never `not-applicable` — that would be a bypass.
+
+Policy: `autonomous.uiReviewMode: "blocking" | "advisory"` (default `advisory`)
+governs review outcomes only. Advisory maps findings to `low` suggestions and
+greens `cannot-review`; blocking maps findings to blockers and reds
+`cannot-review` too, since an un-performed design review does not satisfy "a UI
+ship must actually be design-reviewed". Artifact integrity (`pen-modified`) is
+outside the knob.
+
+What it does NOT judge: pixel geometry, spacing, color, type, motion and
+interactivity are unpinned until the design stage defines a marking convention;
+mechanical render-compare (screenshot diff against a booted app) is a separate
+roadmap entry. Every finding must name both sides it compared — the design page
+and element, and the code file.
+
+Opt in via `crLanes.code: ["reviewer", "ui-reviewer"]`, and route the role to a
+pencil-capable runner when `reviewer` is mapped elsewhere:
+`agents.roles: { "ui-reviewer": { "runner": "claude" } }`. The lane is excluded
+from the delta short-circuit, so it re-runs on every code round rather than
+inheriting a synthetic OK from an unchanged `--artifact` path.
+
 ## Deferred (post-MVP)
 
 - Brainstorm-loop per finding.

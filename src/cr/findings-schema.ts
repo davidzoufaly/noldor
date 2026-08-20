@@ -28,6 +28,55 @@ export type Finding = z.infer<typeof findingSchema>;
 export const verifyVerdictValueSchema = z.enum(['pass', 'fail', 'cannot-verify']);
 export type VerifyVerdictValue = z.infer<typeof verifyVerdictValueSchema>;
 
+/**
+ * The `ui-reviewer` lane's verdict vocabulary — deliberately its OWN enum rather
+ * than members added to {@link verifyVerdictValueSchema}: that schema is the
+ * verifier child's INPUT contract (`lanes/verify-dispatch.ts` imports it), so a
+ * shared enum would let a verifier child emit `cannot-review` and fall through
+ * `verify.ts`'s `verdict === 'fail'` branch as a FAIL.
+ *
+ * `not-applicable` = there was nothing to review (no UI in range, waived,
+ * unadopted). `cannot-review` = there was, and the comparison could not be
+ * performed — the honest outcome that must never read as a pass.
+ */
+export const uiReviewVerdictValueSchema = z.enum([
+  'pass',
+  'fail',
+  'cannot-review',
+  'not-applicable',
+]);
+export type UiReviewVerdictValue = z.infer<typeof uiReviewVerdictValueSchema>;
+
+/**
+ * Closed reason vocabulary for a sink that did not perform (or could not trust)
+ * its review. An enum rather than free text because the Usage contract tells
+ * operators to branch on it; `notes` carries the human sentence beside it.
+ */
+export const laneReasonCodeSchema = z.enum([
+  // not-applicable classes
+  'no-ui-paths',
+  'design-skip',
+  'no-consumer-config',
+  'waived',
+  // cannot-review classes
+  'no-session-key',
+  'no-design-artifact',
+  'no-feature-pen',
+  'ambiguous-design',
+  'surfaces-unmapped',
+  'pen-unreadable',
+  'scratch-unavailable',
+  'dispatch-failed',
+  'timeout',
+  'malformed-output',
+  'range-unresolvable',
+  'fd-unreadable',
+  'design-dir-unreadable',
+  // integrity
+  'pen-modified',
+]);
+export type LaneReasonCode = z.infer<typeof laneReasonCodeSchema>;
+
 export const verifyEvidenceSchema = z.object({
   command: z.string().min(1),
   observed: z.string(),
@@ -45,8 +94,13 @@ export const laneFindingsSchema = z.object({
   notes: z.array(z.string()).optional(),
   baseSha: z.string().optional(),
   fullReview: z.boolean().optional(),
-  // verify-lane verdict payload (absent on every other lane)
-  verdict: verifyVerdictValueSchema.optional(),
+  // Lane verdict payload (absent on the lanes that carry none). A union of the two
+  // vocabularies, so a sink reader accepts either while each lane's own dispatch
+  // parser still accepts only its own — and every pre-union sink still parses.
+  verdict: z.union([verifyVerdictValueSchema, uiReviewVerdictValueSchema]).optional(),
+  // Machine-readable companion to `verdict` for rounds that did not perform a
+  // review. Optional: the lanes that always review emit no reason.
+  reason: laneReasonCodeSchema.optional(),
   evidence: z.array(verifyEvidenceSchema).optional(),
   mismatches: z.array(z.string()).optional(),
   templateSha: z.string().optional(),

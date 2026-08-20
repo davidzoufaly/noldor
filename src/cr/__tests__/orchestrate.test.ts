@@ -1,6 +1,6 @@
 // @tests: acceptance-verify-lane, autonomous-plan-to-pr-merge, specs-cr-gate-multi-reviewer
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -526,6 +526,63 @@ describe('verify lane wiring', () => {
         cwd: mkdtempSync(join(tmpdir(), 'noldor-orch-')),
       }),
     ).rejects.toThrow(/code-only/);
+  });
+});
+
+describe('ui-review lane wiring', () => {
+  it('rejects ui-reviewer for non-code kinds at entry', async () => {
+    for (const kind of ['spec', 'plan'] as const) {
+      await expect(
+        run({
+          args: {
+            slug: 's',
+            artifact: 'spec.md',
+            kind,
+            lanes: ['ui-reviewer'],
+            fullReview: false,
+            autonomous: true,
+          },
+          cwd: mkdtempSync(join(tmpdir(), 'noldor-orch-ui-')),
+        }),
+      ).rejects.toThrow(/code-only/);
+    }
+  });
+
+  it('never mints a synthetic OK for ui-reviewer on an empty artifact diff', async () => {
+    // The lane's review object is the UI diff plus a design file, not --artifact;
+    // and an advisory `cannot-review` sink carries no blockers, so a synthetic OK
+    // would overwrite an un-performed review with a verdict-less green.
+    const cwd = mkdtempSync(join(tmpdir(), 'noldor-orch-ui-delta-'));
+    mkdirSync(join(cwd, '.noldor', 'cr'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.noldor', 'cr', 's-code-ui-reviewer.json'),
+      JSON.stringify({
+        lane: 'ui-reviewer',
+        artifact: 'a.ts',
+        kind: 'code',
+        slug: 's',
+        blockers: [],
+        suggestions: [],
+        summary: 'cannot-review: pen-unreadable',
+        verdict: 'cannot-review',
+        reason: 'pen-unreadable',
+        startedAt: new Date().toISOString(),
+      }),
+    );
+    const result = await run({
+      args: {
+        slug: 's',
+        artifact: 'a.ts',
+        kind: 'code',
+        lanes: ['ui-reviewer'],
+        baseSha: 'base',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).not.toContain('ui-reviewer');
   });
 });
 

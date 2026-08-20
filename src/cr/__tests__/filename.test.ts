@@ -15,6 +15,13 @@ describe('inferLaneFromFilename', () => {
   it('resolves verifier (canonical)', () => {
     expect(inferLaneFromFilename('foo-code-verifier.json')).toBe('verifier');
   });
+  it('resolves ui-reviewer, not reviewer, for the overlapping suffix', () => {
+    // `-ui-reviewer.json` also ends with `-reviewer.json`: a declaration-order
+    // scan would attribute a UI sink to the mandatory reviewer lane, letting a
+    // red UI round stand in for the review the kind requires.
+    expect(inferLaneFromFilename('foo-code-ui-reviewer.json')).toBe('ui-reviewer');
+    expect(inferLaneFromFilename('foo-code-reviewer.json')).toBe('reviewer');
+  });
   it('resolves legacy -subagent.json to reviewer (pre-0.7.0 sink)', () => {
     expect(inferLaneFromFilename('foo-code-subagent.json')).toBe('reviewer');
   });

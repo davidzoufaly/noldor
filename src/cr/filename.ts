@@ -38,11 +38,19 @@ export function openLane(
  * written before the crLanes→role migration still resolves.
  */
 export function inferLaneFromFilename(file: string): Lane | null {
-  for (const l of LANE_NAMES) {
-    if (file.endsWith(`-${l}.json`)) return l as Lane;
-  }
-  for (const [legacy, canonical] of Object.entries(LANE_ALIASES)) {
-    if (file.endsWith(`-${legacy}.json`)) return canonical as Lane;
+  // Longest name first, canonical and legacy alike: `-ui-reviewer.json` also ends
+  // with `-reviewer.json`, so a declaration-order scan would attribute a UI sink
+  // to the mandatory `reviewer` lane. Sorting by length makes any future
+  // overlapping name safe without a per-name special case.
+  const candidates: Array<[suffix: string, lane: string]> = [
+    ...LANE_NAMES.map((l): [string, string] => [l, l]),
+    ...Object.entries(LANE_ALIASES).map(([legacy, canonical]): [string, string] => [
+      legacy,
+      canonical,
+    ]),
+  ].sort(([a], [b]) => b.length - a.length);
+  for (const [suffix, lane] of candidates) {
+    if (file.endsWith(`-${suffix}.json`)) return lane as Lane;
   }
   return null;
 }
