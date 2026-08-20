@@ -12,6 +12,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { runIfDirect } from '../core/cli-entry.js';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 import { resolveEntryRef } from './entry-id.js';
 
@@ -56,11 +57,12 @@ export function hasBlock(
 
 const USAGE = 'usage: noldor roadmap has-block <slug|Q-NNNN> [--backlog] [--quiet]\n';
 
-function main(): void {
-  const { ref, backlog, quiet } = parseHasBlockArgs(process.argv.slice(2));
+/** Resolve the predicate and return the process exit code. */
+async function main(argv: string[]): Promise<number> {
+  const { ref, backlog, quiet } = parseHasBlockArgs(argv);
   if (ref === undefined) {
     process.stderr.write(USAGE);
-    process.exit(2);
+    return 2;
   }
   const cwd = process.cwd();
   const rel = backlog ? 'docs/backlog.md' : 'docs/roadmap.md';
@@ -72,7 +74,7 @@ function main(): void {
       // Exit 2, never 1: "the document is missing" is not "the entry is absent", and a
       // script branching on 1 would read a broken checkout as a shipped entry.
       process.stderr.write(`has-block: ${rel} not found\n`);
-      process.exit(2);
+      return 2;
     }
     const read = (p: string): string => (existsSync(p) ? readFileSync(p, 'utf8') : '');
     ({ present, slug } = hasBlock(
@@ -90,14 +92,13 @@ function main(): void {
     // on this predicate would then skip a live entry because the file was unreadable —
     // `existsSync` guards only non-existence (a directory at that path throws EISDIR).
     process.stderr.write(`has-block: ${e instanceof Error ? e.message : String(e)}\n`);
-    process.exit(2);
+    return 2;
   }
   if (!quiet) {
     const named = slug === ref ? slug : `${ref} → ${slug}`;
     process.stdout.write(`has-block: ${named} ${present ? 'present in' : 'absent from'} ${rel}\n`);
   }
-  process.exit(present ? 0 : 1);
+  return present ? 0 : 1;
 }
 
-const invokedDirect = /[\\/]has-block-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) main();
+runIfDirect('has-block-cli', 'has-block', main);
