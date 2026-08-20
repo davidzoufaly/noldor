@@ -28,7 +28,7 @@ const ctx = (cwd: string, nowMs = 0) => makeProbeContext({ cwd, scanPaths: ['src
 describe('ALL_ROW_IDS', () => {
   it('has one entry per probe id, with no duplicates', () => {
     expect(new Set(ALL_ROW_IDS).size).toBe(ALL_ROW_IDS.length);
-    expect(ALL_ROW_IDS.length).toBe(16);
+    expect(ALL_ROW_IDS.length).toBe(17);
   });
 
   it('every id round-trips through runProbe as its own row id', async () => {
@@ -224,9 +224,47 @@ describe('probe id coverage', () => {
       'gate-compliance',
       'architecture',
       'adr',
+      'readme',
       'cr-gate',
       'npm-name',
     ];
     expect([...ALL_ROW_IDS].sort()).toEqual([...ids].sort());
+  });
+});
+
+describe('readme row', () => {
+  it('renders warn on findings, never blocking', async () => {
+    const cwd = repo();
+    writeFileSync(join(cwd, 'README.md'), 'no links', 'utf8');
+    mkdirSync(join(cwd, 'docs', 'architecture'), { recursive: true });
+    writeFileSync(join(cwd, 'docs', 'architecture', 'context.md'), '# c', 'utf8');
+    const row = await runProbe('readme', ctx(cwd));
+    expect(row.status).toBe('warn');
+    expect(row.detail).toContain('docs/architecture');
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it('is ok when the README reaches every surface', async () => {
+    const cwd = repo();
+    writeFileSync(join(cwd, 'README.md'), '[a](docs/adr/)', 'utf8');
+    mkdirSync(join(cwd, 'docs', 'adr'), { recursive: true });
+    writeFileSync(join(cwd, 'docs', 'adr', '0001-x.md'), '# x', 'utf8');
+    const row = await runProbe('readme', ctx(cwd));
+    expect(row.status).toBe('ok');
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it('skips with no README, and under the audited override', async () => {
+    const cwd = repo();
+    expect((await runProbe('readme', ctx(cwd))).status).toBe('skipped');
+    process.env.RELEASE_SKIP_README = '1';
+    try {
+      const row = await runProbe('readme', ctx(cwd));
+      expect(row.status).toBe('skipped');
+      expect(row.override).toBe('RELEASE_SKIP_README=1');
+    } finally {
+      delete process.env.RELEASE_SKIP_README;
+    }
+    rmSync(cwd, { recursive: true, force: true });
   });
 });
