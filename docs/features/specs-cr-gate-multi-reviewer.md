@@ -25,7 +25,6 @@ links:
     - src/cr/orchestrate-args.ts
     - src/cr/codex.ts
     - src/cr/codex-failure.ts
-    - src/cr/codex-spawn.ts
     - src/cr/extract-json.ts
     - src/cr/run-codex.ts
     - src/cr/lanes/manual.ts
@@ -140,7 +139,6 @@ _none — the CR gate is CLI + skill-driven; `/noldor-gate` Step 2.5 and Step 4 
   - [`src/cr/orchestrate-args.ts`](../../src/cr/orchestrate-args.ts)
   - [`src/cr/codex.ts`](../../src/cr/codex.ts)
   - [`src/cr/codex-failure.ts`](../../src/cr/codex-failure.ts)
-  - [`src/cr/codex-spawn.ts`](../../src/cr/codex-spawn.ts)
   - [`src/cr/extract-json.ts`](../../src/cr/extract-json.ts)
   - [`src/cr/run-codex.ts`](../../src/cr/run-codex.ts)
   - [`src/cr/lanes/manual.ts`](../../src/cr/lanes/manual.ts)
