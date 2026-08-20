@@ -32,6 +32,18 @@ const ARTIFACT_DIRS: ReadonlySet<string> = new Set([
   'milestones',
 ]);
 
+/**
+ * True when a repo-relative path lives inside an artifact directory. Those pages
+ * are machine-written (`sync fd-resources` / `sync doc-links` fill an FD's
+ * Resources section from `links.docs`), so they are neither surfaces nor
+ * *routes*: letting the walk pass through one would let a generated link satisfy
+ * the very gate the artifact's feature exists to enforce.
+ */
+function isArtifactPath(target: string): boolean {
+  const parts = target.split('/');
+  return parts[0] === 'docs' && parts.length > 2 && ARTIFACT_DIRS.has(parts[1] ?? '');
+}
+
 /** Surfaces found under `docs/`, plus anything that could not be inspected. */
 export interface SurfaceScan {
   /** Repo-relative POSIX dirs, sorted. */
@@ -136,6 +148,11 @@ export function unreachableSurfaces(
  * prose backticks, and counting those would make the check green while the
  * reader still has no route.
  *
+ * Artifact directories are dead ends, not just non-surfaces: the walk neither
+ * records nor traverses a page inside one. Their Resources sections are written
+ * by `sync fd-resources` from `links.docs`, so a generated link could otherwise
+ * satisfy the gate on the README's behalf.
+ *
  * Every failure is contained: a broken link is `docs check`'s finding and is
  * skipped silently, and every other error becomes a note. Nothing throws.
  *
@@ -208,10 +225,12 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
 
       if (stats.isSymbolicLink()) continue; // not followed
       if (stats.isDirectory()) {
-        dirs.add(target);
+        if (!isArtifactPath(`${target}/x.md`)) dirs.add(target);
         continue;
       }
       if (!target.endsWith('.md')) continue; // cannot satisfy a surface
+      // Dead end: neither a surface nor a route. See `isArtifactPath`.
+      if (isArtifactPath(target)) continue;
 
       files.add(target);
       if (visited.has(target)) continue;

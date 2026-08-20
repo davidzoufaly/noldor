@@ -229,3 +229,24 @@ describe('carved-out and repaired behaviours', () => {
     expect(scan.notes[0]).toContain('cannot walk docs/');
   });
 });
+
+describe('artifact dirs are dead ends, not just non-surfaces', () => {
+  it('a route through a feature doc does not satisfy a surface', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '[docs hub](docs/noldor/README.md)');
+    await write(root, 'docs/noldor/README.md', 'see [FD](../features/x.md)');
+    await write(root, 'docs/features/x.md', '- [ctx](../architecture/context.md)');
+    await write(root, 'docs/architecture/context.md', '# c');
+    const report = await checkReadme(root);
+    expect(report.status).toBe('findings');
+    expect(report.findings[0]?.message).toContain('docs/architecture');
+  });
+
+  it('a direct link to an artifact dir does not register it', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '[fds](docs/features/)');
+    await write(root, 'docs/features/x.md', '# x');
+    const reached = await reachableTargets(root);
+    expect(reached.dirs.size).toBe(0);
+  });
+});

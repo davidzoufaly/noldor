@@ -38,7 +38,7 @@ As a framework maintainer (human or agent), I want every documentation surface u
 
 **Agent/Programmatic API**
 
-- `pnpm noldor checks readme` — checks doc-surface reachability. Exit 0 clean, exit 1 when findings exist. Operational degradations (unreadable link target, missing `package.json`) print as `note:` lines and never change the exit code.
+- `pnpm noldor checks readme` — checks doc-surface reachability. Exit 0 clean, exit 1 when findings exist. Operational degradations (an unreadable link target, a malformed percent-escape, a `docs/` directory that cannot be walked) print as `note:` lines and never change the exit code.
 - Runs automatically as an advisory `pre-push` job wired `pnpm noldor checks readme || true`, so it reports without blocking the push. Fix a finding by editing `README.md` and pushing again — no separate micro-chore needed.
 - `pnpm release --preflight` renders a `readme` row carrying any notes in its detail. Findings show as `warn` and never abort a release. `RELEASE_SKIP_README=1` skips the row and records the override.
 
