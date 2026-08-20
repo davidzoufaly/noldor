@@ -143,9 +143,12 @@ not evidence about that detail.
 
 ### U6 — Verdicts and the mode knob
 
-Contract: exactly one fenced ` ```json ` block, last-fence-wins, zod-validated —
-`parseVerifyVerdict`'s shape, reused rather than re-invented, so malformed output
-is one failure class instead of a tolerant parser's long tail.
+The child emits exactly one fenced ` ```json ` block, last fence wins. The
+**schema is this lane's own**, in `ui-review-dispatch.ts` — the verifier's
+`verifyVerdictSchema` ([`src/cr/lanes/verify-dispatch.ts`](../../../src/cr/lanes/verify-dispatch.ts))
+carries no `findings` field and no `cannot-review` member, so reusing it would
+strip every finding and turn every honest cannot-review into "malformed output".
+Only the last-fence extraction idiom is shared, not the schema:
 
 ```json
 {"verdict": "pass" | "fail" | "cannot-review",
@@ -153,17 +156,23 @@ is one failure class instead of a tolerant parser's long tail.
  "reason": "only for cannot-review"}
 ```
 
-`verdict` in `laneFindingsSchema`
-([`src/cr/findings-schema.ts`](../../../src/cr/findings-schema.ts)) widens to
-`pass | fail | cannot-verify | cannot-review`, so the honest outcome is a
-first-class value rather than prose in `summary`. `cannot-review` is the single
-outcome for every "could not compare" state, each with a distinct `reason`: no
-dialogue key, no feature `.pen`, the child reporting the `.pen` unreadable
-(pencil absent, non-pencil runner, `execute` error), dispatch failure or timeout,
-and malformed output.
+`laneFindingsSchema.verdict`
+([`src/cr/findings-schema.ts`](../../../src/cr/findings-schema.ts)) becomes a
+union of the existing `verifyVerdictValueSchema` and a new
+`uiReviewVerdictValueSchema`, rather than a widened single enum.
+`verifyVerdictValueSchema` itself is left untouched, because
+`verify-dispatch.ts` imports it as the verifier child's *input* contract: adding
+`cannot-review` there would make it parse from a verifier child and fall through
+`verify.ts`'s `// verdict === 'fail'` branch as a FAIL. The sink field accepts
+both vocabularies; each lane's dispatch parser accepts only its own.
 
-`autonomous.uiReviewMode` (`'blocking' | 'advisory'`, default `'advisory'`) decides
-loudness, mirroring `verifyMode` exactly:
+`cannot-review` is the single outcome for every "could not compare" state, each
+with a distinct `reason`: no dialogue key, no feature `.pen`, the child reporting
+the `.pen` unreadable (pencil absent, non-pencil runner, `execute` error),
+dispatch failure or timeout, and malformed output.
+
+`autonomous.uiReviewMode` (`'blocking' | 'advisory'`, default `'advisory'`)
+decides loudness:
 
 | verdict | advisory (default) | blocking |
 | --- | --- | --- |
@@ -171,9 +180,37 @@ loudness, mirroring `verifyMode` exactly:
 | `fail` | findings as `suggestions` (severity `low`), `ok: true` | findings as `blockers`, `ok: false` |
 | `cannot-review` | `ok: true`, reason in `notes` | one high blocker, `ok: false` |
 
+This is close to `verifyMode` but not identical: `verify.ts` returns `ok: true`
+for an honest `cannot-verify` in *both* modes and reds only on parse/dispatch
+failure. Reddening every `cannot-review` under `blocking` is the deliberate
+divergence — an adopter who flips the knob is asking for "a UI ship must
+actually be design-reviewed", which an honest non-comparison does not satisfy.
+
 Under `blocking`, `ok: false` reds the orchestrate round, which withholds the
-`Noldor-Reviewed-Subagent` receipt amend and so blocks the push — the lane needs no
-enforcement mechanism of its own.
+`Noldor-Reviewed-Subagent` receipt amend and so blocks the push — the lane needs
+no enforcement mechanism of its own.
+
+### U6b — Boundary guards (one sink on every terminating path)
+
+Every input the lane reads can fail, and each failure must still leave a sink —
+`aggregate` reads sinks, and the expected-lanes record makes a missing one
+`unresolved`. The guards, with the real signatures they guard:
+
+| step | failure | handling |
+| --- | --- | --- |
+| `loadUiConfig(repoRoot)` | returns `null` (no consumer config) | `not-applicable` sink — the feature is unadopted, not broken |
+| `readSession(repoRoot)` | returns `null`, or **throws** on a torn marker | catch; no key ⇒ `cannot-review` (`reason: no-session-key`) |
+| `dialogueKeyFromSession` | `kind: 'invalid'` (marker missing `slug`/`parent`) | `cannot-review` (`reason: no-session-key`) |
+| `discoverChangedFiles` | throws on an unresolvable ref | catch ⇒ `cannot-review` (`reason: range-unresolvable`) |
+| `artifactSha` | `''` when git is unavailable ([`src/cr/orchestrate.ts`](../../../src/cr/orchestrate.ts) defaults it so) | never string-concatenated into a rev; empty ⇒ `range-unresolvable` |
+| directory read | `.pen` dir absent / unreadable | treat as no match ⇒ U4's no-`.pen` path |
+
+`loadUiConfig` returning `null` is guarded by every existing caller
+([`src/design/ui-sync-cli.ts`](../../../src/design/ui-sync-cli.ts),
+[`src/checks/check-ui-design-freshness.ts`](../../../src/checks/check-ui-design-freshness.ts));
+`readSession`'s throw is guarded in
+[`src/cr/orchestrate.ts`](../../../src/cr/orchestrate.ts) for the codex mandate.
+This lane follows both precedents rather than inventing a third posture.
 
 ### U7 — Gate wiring
 
@@ -202,12 +239,17 @@ plus the config key, with `templates/` twins updated in the same pass.
    `verdict: cannot-review` with a distinguishing `reason`, and no dispatch.
 8. A child reporting the `.pen` unreadable produces `cannot-review`, never findings.
 9. Dispatch failure, timeout, and unparseable output each produce `cannot-review`
-   with a reason naming which.
+   with a reason naming which; a `fail` verdict's findings survive parsing into the
+   sink (they are not stripped by a schema that lacks the field).
 10. Under `advisory`, `fail` and `cannot-review` both write `ok: true` — findings
     land as `suggestions`; under `blocking`, both write `ok: false` with blockers.
 11. Every terminating path writes exactly one schema-valid sink at
-    `.noldor/cr/<slug>-code-ui-reviewer.json`.
-12. A red `ui-reviewer` under `blocking` leaves the tip commit without a
+    `.noldor/cr/<slug>-code-ui-reviewer.json` — including a `null` consumer config,
+    an absent or torn session marker, and an unresolvable diff range.
+12. A verifier child emitting `cannot-review` still fails the verifier's own parse
+    (its input enum is unchanged), so the widened sink field cannot reroute a
+    verifier round through the UI vocabulary.
+13. A red `ui-reviewer` under `blocking` leaves the tip commit without a
     `Noldor-Reviewed-Subagent` receipt.
 
 ## Risks / trade-offs
@@ -225,8 +267,10 @@ plus the config key, with `templates/` twins updated in the same pass.
   path. Correct at Step 4 (the archive move is committed by then) but it would also
   read an uncommitted edit. Accepted for the same reason the design step accepts it:
   pencil MCP opens files, not blobs.
-- **Widening `laneFindingsSchema.verdict`** touches a shared schema. Additive only —
-  every existing sink still parses.
+- **Widening `laneFindingsSchema.verdict`** touches a shared schema. Additive and
+  union-shaped, with each lane's dispatch parser still accepting only its own
+  vocabulary — so every existing sink parses and no lane gains a verdict it cannot
+  produce.
 - **Prompt-enforced scope.** "Only contradictions of what the design pins" is
   prose, so a chatty model can still moralize about spacing. Advisory default and
   the `severity` field bound the damage.
