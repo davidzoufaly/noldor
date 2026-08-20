@@ -29,6 +29,14 @@ interface ResolveByLinksSpecOptions extends FsSeams {
   repo: string;
 }
 
+interface ResolveByLinksFieldOptions extends FsSeams {
+  /** Artifact path as written in the FD, e.g. `docs/design/specs/<f>.md`. */
+  docPath: string;
+  /** FD frontmatter field that names artifacts of this kind. */
+  field: 'plan' | 'spec';
+  repo: string;
+}
+
 /** Shared FD scan: returns the first FD (filename order) for which `matches` is true. */
 async function scanFdsForOwner(
   repo: string,
@@ -73,6 +81,22 @@ async function scanFdsForOwner(
 }
 
 /**
+ * Ownership fallback shared by {@link resolveByLinksPlan} and
+ * {@link resolveByLinksSpec}: returns the first FD (filename order) whose
+ * `links.<field>` names `docPath` verbatim. Both a bare string and an array
+ * are accepted, since `links.plan` allows either.
+ */
+export async function resolveByLinksField(
+  opts: ResolveByLinksFieldOptions,
+): Promise<ResolvedOwner | null> {
+  return scanFdsForOwner(opts.repo, opts, (fd) => {
+    const declared = fd.links[opts.field];
+    const paths = Array.isArray(declared) ? declared : declared ? [declared] : [];
+    return paths.includes(opts.docPath);
+  });
+}
+
+/**
  * Fallback resolver in the detector's plan-staleness chain. Scans every
  * `docs/features/*.md` FD; if any has `links.plan` containing the plan
  * path (verbatim string match, single string or array), returns that FD
@@ -87,11 +111,7 @@ async function scanFdsForOwner(
 export async function resolveByLinksPlan(
   opts: ResolveByLinksPlanOptions,
 ): Promise<ResolvedOwner | null> {
-  return scanFdsForOwner(opts.repo, opts, (fd) => {
-    const planList = (fd.links as { plan?: string | string[] }).plan;
-    const plans = Array.isArray(planList) ? planList : planList ? [planList] : [];
-    return plans.includes(opts.planPath);
-  });
+  return resolveByLinksField({ ...opts, docPath: opts.planPath, field: 'plan' });
 }
 
 /**
@@ -105,7 +125,7 @@ export async function resolveByLinksPlan(
 export async function resolveByLinksSpec(
   opts: ResolveByLinksSpecOptions,
 ): Promise<ResolvedOwner | null> {
-  return scanFdsForOwner(opts.repo, opts, (fd) => fd.links.spec === opts.specPath);
+  return resolveByLinksField({ ...opts, docPath: opts.specPath, field: 'spec' });
 }
 
 interface GraphAdjNode {
