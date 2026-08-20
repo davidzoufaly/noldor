@@ -8,8 +8,8 @@ links: [docs/features/noldor-native-wait-primitive.md, docs/noldor/rules.md]
 
 Waiting on framework state — a drain heartbeat, a CR lane sink, any `.noldor/*.json` a
 producer writes — goes through `pnpm noldor wait <state-file> --until <cond>` (add
-`--fail-if`, `--emit <dotpath>`, `--interval-ms`, `--timeout-ms`; exits 0 matched, 1
-fail-if matched, 2 timeout, 3 usage error). Reach for it before any monitor, watch, or
+`--fail-if`, `--emit <dotpath>`, `--interval-ms`, `--timeout-ms`, `--quiet`; exits 0
+matched, 1 fail-if matched, 2 timeout, 3 usage error). Reach for it before any monitor, watch, or
 polling tool the surrounding harness happens to offer.
 
 The reason is runner-independence, not preference: a harness-specific monitor exists only
