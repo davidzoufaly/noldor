@@ -46,6 +46,19 @@ describe('errMessage', () => {
     expect(errMessage(hostile)).toContain('could not be described');
   });
 
+  it('ignores a non-string message on an Error instance', () => {
+    // `message` is typed string but not enforced at runtime; returning it raw
+    // would hand the caller a non-string where its sink schema demands text.
+    const weird = Object.assign(new Error('x'), { message: { not: 'a string' } });
+    expect(errMessage(weird)).toBe('Error (no message)');
+  });
+
+  it('always returns a string', () => {
+    const weird = Object.assign(new TypeError(), { message: 42 });
+    expect(typeof errMessage(weird)).toBe('string');
+    expect(errMessage(weird)).toBe('TypeError (no message)');
+  });
+
   it('never returns an empty string', () => {
     for (const v of [undefined, null, '', 0, false, new Error(), {}, []]) {
       expect(errMessage(v).length).toBeGreaterThan(0);

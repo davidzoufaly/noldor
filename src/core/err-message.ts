@@ -15,10 +15,14 @@
 export function errMessage(err: unknown): string {
   try {
     if (err instanceof Error) {
-      // An Error with an empty message still identifies itself by name; falling
-      // through to JSON.stringify would yield `{}`, since Error's own
-      // properties are non-enumerable.
-      return err.message === '' ? `${err.name} (no message)` : err.message;
+      // `message` is typed `string` but nothing enforces it at runtime: a caught
+      // value can be an Error whose message was overwritten with an object, or a
+      // subclass with a getter. Only a non-empty STRING is usable; anything else
+      // falls back to the name, which every Error has.
+      const named = typeof err.name === 'string' && err.name !== '' ? err.name : 'Error';
+      return typeof err.message === 'string' && err.message !== ''
+        ? err.message
+        : `${named} (no message)`;
     }
     if (typeof err === 'string') return err === '' ? 'empty string throw' : err;
     const json = JSON.stringify(err);

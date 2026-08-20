@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
 import { loadLaneMode } from '../lane-mode.js';
-import { openLaneSink } from '../lane-sink.js';
+import { openLaneSink, type SinkPayload } from '../lane-sink.js';
 import { isAbsolute, join } from 'node:path';
 import { loadVerifyCommands } from '../../core/consumer-config.js';
-import type { Finding, LaneFindings } from '../findings-schema.js';
+import type { Finding } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { extractFdAcceptance } from '../read-fd-summary.js';
 import { resolvePort } from '../../verify/port.js';
@@ -19,16 +19,11 @@ export function setSmokeRunner(impl: SmokeRunner): void {
   smokeRunner = impl;
 }
 
-function basePayload(input: LaneInput, startedAt: string): Omit<LaneFindings, 'summary'> {
+/** Only what this lane decides — `openLaneSink` owns the identity fields. */
+function basePayload(input: LaneInput): Omit<SinkPayload, 'summary'> {
   return {
-    lane: 'verifier',
-    artifact: input.artifact,
-    kind: input.kind,
-    slug: input.slug,
     blockers: [],
     suggestions: [],
-    startedAt,
-    finishedAt: new Date().toISOString(),
     ...(input.baseSha ? { baseSha: input.baseSha } : {}),
     ...(input.fullReview ? { fullReview: true } : {}),
   };
@@ -70,12 +65,8 @@ function commitProse(repoRoot: string, baseSha: string, headSha: string): Promis
 }
 
 export async function runVerify(input: LaneInput): Promise<LaneResult> {
-  const sink = openLaneSink(input, 'verifier');
-  const startedAt = sink.startedAt;
+  const { write } = openLaneSink(input, 'verifier');
   const mode = await loadLaneMode(input.repoRoot, 'verifyMode');
-
-  const write = (payload: LaneFindings, ok: boolean): Promise<LaneResult> =>
-    sink.write(payload, ok);
 
   // 1. Smoke floor — blocking in BOTH modes (stop-the-line; spec Unit 4 step 2).
   const port = await resolvePort(input.repoRoot);
@@ -84,7 +75,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     const failed = smoke.surfaces.filter((s) => !s.ok);
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         blockers: failed.map((s) =>
           mkFinding(
             input.artifact,
@@ -119,7 +110,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   if (!acceptance) {
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         summary: 'cannot-verify: no acceptance text (no FD, empty commit prose)',
         verdict: 'cannot-verify',
         notes: ['no acceptance text available — no FD and empty commit prose for the range'],
@@ -160,7 +151,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     if (mode === 'blocking') {
       return write(
         {
-          ...basePayload(input, startedAt),
+          ...basePayload(input),
           blockers: [mkFinding(input.artifact, `verify lane errored: ${detail}`, 'high')],
           summary: 'verify lane errored (fail-closed in blocking mode)',
           verdict: 'fail',
@@ -170,7 +161,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     }
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         summary: 'cannot-verify: no trustworthy verdict',
         verdict: 'cannot-verify',
         notes: [`no trustworthy verdict — ${detail}`],
@@ -183,7 +174,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   if (parsed.verdict === 'pass') {
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         summary: 'verified: observed behavior matches acceptance text',
         verdict: 'pass',
         evidence: parsed.evidence,
@@ -194,7 +185,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   if (parsed.verdict === 'cannot-verify') {
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         summary: `cannot-verify: ${parsed.reason ?? 'no reason given'}`,
         verdict: 'cannot-verify',
         evidence: parsed.evidence,
@@ -208,7 +199,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   if (mode === 'blocking') {
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         blockers: findings,
         summary: 'verify FAIL: observed behavior mismatches acceptance text',
         verdict: 'fail',
@@ -220,7 +211,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   }
   return write(
     {
-      ...basePayload(input, startedAt),
+      ...basePayload(input),
       suggestions: findings.map((f) => ({ ...f, severity: 'low' as const })),
       summary: 'ADVISORY FAIL: observed behavior mismatches acceptance text (advisory mode)',
       verdict: 'fail',
