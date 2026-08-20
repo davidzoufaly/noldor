@@ -12,6 +12,15 @@
 
 **Ships:** the same command, now catching a renamed subcommand or a missing script that the README still quotes.
 
+> **Every Commit step below must carry a body.** The blocking pre-push
+> `summary-body` gate rejects any outgoing commit whose message is subject plus
+> trailers only — verified on this branch, where three such commits had to be
+> reworded before the range would push. Write the message to a file with `Why —`,
+> `How —` and `What —` paragraphs and commit with `git commit -F <file>`; keep
+> `Noldor-FD` (and any sibling-scope trailer) in one trailing paragraph, because
+> a separate `-m` starts a new paragraph and `git interpret-trailers --parse`
+> then returns only the last one.
+
 ---
 
 ## File Structure
@@ -170,7 +179,10 @@ Expected output: `Test Files  1 passed (1)` with 20 passing tests.
 
 ```bash
 git add src/docs/readme-content.ts src/docs/__tests__/readme-content.test.ts
-git commit -m "feat(docs): lex the pnpm commands the README quotes" -m "Noldor-FD: root-readme-content-validator"
+git commit -F <(printf '%s\n\n%s\n\n%s\n' \
+  "feat(docs): lex the pnpm commands the README quotes" \
+  "Why — …  How — …  What — … (three paragraphs, see the note at the top)" \
+  "Noldor-FD: root-readme-content-validator")
 ```
 
 ---
@@ -353,7 +365,10 @@ Expected output: `Test Files  1 passed (1)` with 26 passing tests.
 
 ```bash
 git add src/docs/readme-content.ts src/docs/__tests__/readme-content.test.ts
-git commit -m "feat(docs): resolve README commands against the manifest and scripts" -m "Noldor-FD: root-readme-content-validator"
+git commit -F <(printf '%s\n\n%s\n\n%s\n' \
+  "feat(docs): resolve README commands against the manifest and scripts" \
+  "Why — …  How — …  What — … (three paragraphs, see the note at the top)" \
+  "Noldor-FD: root-readme-content-validator")
 ```
 
 ---
@@ -473,5 +488,8 @@ Expected output: exit 1, with a line naming `docs/adr` and a line naming `docs/a
 
 ```bash
 git add src/docs/readme-content.ts src/docs/__tests__/readme-content.test.ts
-git commit -m "feat(docs): resolve README commands inside checkReadme" -m "Noldor-FD: root-readme-content-validator"
+git commit -F <(printf '%s\n\n%s\n\n%s\n' \
+  "feat(docs): resolve README commands inside checkReadme" \
+  "Why — …  How — …  What — … (three paragraphs, see the note at the top)" \
+  "Noldor-FD: root-readme-content-validator")
 ```

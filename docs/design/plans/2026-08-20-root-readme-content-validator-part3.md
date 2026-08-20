@@ -12,6 +12,15 @@
 
 **Ships:** the check running automatically at push and at release, and a README with no findings.
 
+> **Every Commit step below must carry a body.** The blocking pre-push
+> `summary-body` gate rejects any outgoing commit whose message is subject plus
+> trailers only — verified on this branch, where three such commits had to be
+> reworded before the range would push. Write the message to a file with `Why —`,
+> `How —` and `What —` paragraphs and commit with `git commit -F <file>`; keep
+> `Noldor-FD` (and any sibling-scope trailer) in one trailing paragraph, because
+> a separate `-m` starts a new paragraph and `git interpret-trailers --parse`
+> then returns only the last one.
+
 ---
 
 ## File Structure
@@ -156,7 +165,10 @@ Expected output: every test in the file passes, including the row-order assertio
 
 ```bash
 git add src/release/preflight-types.ts src/release/preflight-probes.ts src/release/__tests__/preflight-probes.test.ts
-git commit -m "feat(release): add an advisory readme preflight row" -m "Noldor-FD: root-readme-content-validator"
+git commit -F <(printf '%s\n\n%s\n\n%s\n' \
+  "feat(release): add an advisory readme preflight row" \
+  "Why — …  How — …  What — … (three paragraphs, see the note at the top)" \
+  "Noldor-FD: root-readme-content-validator")
 ```
 
 ---
@@ -215,7 +227,10 @@ Expected output: both commands exit 0 — the catalog cites the new entrypoint a
 
 ```bash
 git add lefthook/noldor.yml templates/lefthook/noldor.yml docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md
-git commit -m "feat(checks): wire checks readme as an advisory pre-push job" -m "Noldor-FD: root-readme-content-validator"
+git commit -F <(printf '%s\n\n%s\n\n%s\n' \
+  "feat(checks): wire checks readme as an advisory pre-push job" \
+  "Why — …  How — …  What — … (three paragraphs, see the note at the top)" \
+  "Noldor-FD: root-readme-content-validator")
 ```
 
 ---
@@ -263,5 +278,8 @@ Expected output: `docs check` reports only the pre-existing broken link in `docs
 
 ```bash
 git add README.md
-git commit -m "docs(readme): link the architecture and ADR surfaces from ## Docs" -m "Noldor-FD: root-readme-content-validator"
+git commit -F <(printf '%s\n\n%s\n\n%s\n' \
+  "docs(readme): link the architecture and ADR surfaces from ## Docs" \
+  "Why — …  How — …  What — … (three paragraphs, see the note at the top)" \
+  "Noldor-FD: root-readme-content-validator")
 ```
