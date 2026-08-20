@@ -412,6 +412,7 @@ Leaf commands (flags land directly after the group name, e.g. `pnpm noldor init 
 | `pnpm noldor upgrade`                    | [`src/cli/commands/upgrade.ts`](../../src/cli/commands/upgrade.ts) | Run the version-aware migration chain (`--dry-run` / `--from <version>` / `--force`).       |
 | `pnpm noldor noldor split-check`         | [`src/core/split-check-cli.ts`](../../src/core/split-check-cli.ts) | Suggest a split when an entry/FD/plan/spec exceeds size thresholds (`--entry\|--fd\|--plan\|--spec`).     |
 | `pnpm noldor roadmap remove-block`       | [`src/triage/remove-block-cli.ts`](../../src/triage/remove-block-cli.ts) | Remove a schema-C block by slug (`--backlog` for backlog.md; absent slug = no-op).          |
+| `pnpm noldor roadmap has-block`          | [`src/triage/has-block-cli.ts`](../../src/triage/has-block-cli.ts) | Is an entry still queued? exit 0 present / 1 absent / 2 error. Accepts a slug or a `Q-NNNN` ID (`--backlog`, `--quiet`). Use instead of `grep`-ing the slug: slugs are derived from headings and never appear literally in the document. |
 
 ## Prep
 

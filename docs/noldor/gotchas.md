@@ -125,8 +125,13 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
 - **oxlint `--deny-warnings` rejects `new Array(n)`** (unicorn/no-new-array) —
   use `Array.from({ length: n })`.
 - **Roadmap/backlog block headings are Title-Case names, not slugs** — a grep
-  for the slug finds nothing. Derive the heading from the slug or grep
-  `ideas.md` for its `[triaged → <slug>]` marker.
+  for the slug finds nothing, and it fails in the safe-looking direction: a
+  script reading `grep -q "$slug" docs/roadmap.md` as "already shipped" skips
+  every live entry with a clean exit. Use `pnpm noldor roadmap has-block
+  <slug|Q-NNNN>` (exit 0 present / 1 absent / 2 error) instead of re-deriving
+  the predicate; it honours the entry-ID alias. To find the block by hand,
+  derive the heading from the slug or grep `ideas.md` for its
+  `[triaged → <slug>]` marker.
 - **`pnpm noldor <cmd> --json` is unparseable.** pnpm prints its own
   `> @scope/noldor@x.y.z noldor …` banner on **stdout**, so `JSON.parse` dies
   on `Unexpected token '>'` while the exit code stays 0 — the crash names the

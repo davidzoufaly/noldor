@@ -209,6 +209,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'triage/remove-block-cli.ts',
         desc: 'Remove a schema-C block by slug (--backlog for docs/backlog.md; absent slug = no-op)',
       },
+      'has-block': {
+        src: 'triage/has-block-cli.ts',
+        desc: 'Is an entry still queued? exit 0 present / 1 absent / 2 error (slug or Q-NNNN; --backlog, --quiet)',
+      },
     },
   },
   milestones: {
