@@ -210,3 +210,48 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
 
   return { files, dirs, notes, readme, body: seedBody };
 }
+
+export type ReadmeStatus = 'absent' | 'ok' | 'findings';
+
+/** One thing the README claims, or fails to say, that does not hold. */
+export interface Finding {
+  readonly message: string;
+}
+
+/** What `checks readme` found, shaped for both the CLI and `docSurfaceRow`. */
+export interface ReadmeReport {
+  readonly status: ReadmeStatus;
+  readonly findings: readonly Finding[];
+  /** Degradations: what could not be checked, and why. Never findings. */
+  readonly notes: readonly string[];
+}
+
+/**
+ * Run the README checks over `cwd`.
+ *
+ * Never rejects for an EXPECTED failure — I/O errors, parse errors and
+ * malformed input each degrade to a note and the rest of the check continues.
+ * Programmer errors are deliberately not caught: swallowing one would hide a
+ * defect behind a green release row. `notes` never affect `status`, so a
+ * degraded run reports its degradation rather than masquerading as a failure.
+ *
+ * @param cwd - Repository root
+ * @returns The report; `absent` when there is no readable README
+ */
+export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeReport> {
+  const reached = await reachableTargets(cwd);
+  if (reached.readme !== 'ok') {
+    // The walk owns the readability rule and already noted an unreadable file.
+    return { status: 'absent', findings: [], notes: [...reached.notes] };
+  }
+
+  const findings = unreachableSurfaces(await enumerateDocSurfaces(cwd), reached).map((surface) => ({
+    message: `${surface}/ holds documentation but no link from README.md reaches it`,
+  }));
+
+  return {
+    status: findings.length > 0 ? 'findings' : 'ok',
+    findings,
+    notes: [...reached.notes],
+  };
+}

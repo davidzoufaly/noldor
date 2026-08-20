@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { enumerateDocSurfaces, reachableTargets, unreachableSurfaces } from '../readme-content.js';
+import {
+  checkReadme,
+  enumerateDocSurfaces,
+  reachableTargets,
+  unreachableSurfaces,
+} from '../readme-content.js';
 
 const roots: string[] = [];
 
@@ -163,5 +168,39 @@ describe('reachableTargets', () => {
     expect(reached.files.size).toBe(0);
     expect(reached.notes).toEqual([]);
     expect(reached.body).toBe('');
+  });
+});
+
+describe('checkReadme', () => {
+  it('is absent when there is no README', async () => {
+    const report = await checkReadme(await makeRepo());
+    expect(report.status).toBe('absent');
+    expect(report.findings).toEqual([]);
+  });
+
+  it('is ok when every surface is reached', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '[a](docs/adr/)');
+    await write(root, 'docs/adr/0001-x.md', '# x');
+    const report = await checkReadme(root);
+    expect(report.status).toBe('ok');
+    expect(report.findings).toEqual([]);
+  });
+
+  it('reports an unreached surface', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', 'nothing linked');
+    await write(root, 'docs/architecture/context.md', '# c');
+    const report = await checkReadme(root);
+    expect(report.status).toBe('findings');
+    expect(report.findings[0]?.message).toContain('docs/architecture');
+  });
+
+  it('surfaces walk notes without changing status', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '[bad](docs/a%zz.md)');
+    const report = await checkReadme(root);
+    expect(report.notes).toHaveLength(1);
+    expect(report.status).toBe('ok');
   });
 });
