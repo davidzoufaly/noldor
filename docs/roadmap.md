@@ -198,20 +198,6 @@ Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-
 
 (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
 
-### Dashboard Route for the Architecture Doc Surface
-
-- id: Q-0134
-- area: tooling
-- type: feat
-- since: 2026-08-17
-- size: XS
-- impact: low
-- confidence: high
-- split-from: Q-0093
-- blocked-by: Q-0093
-
-The dashboard already renders mermaid (`src/dashboard/data.ts:218` swaps a fenced block into a `div.mermaid` container, `src/dashboard/layout.ts:400` loads mermaid 11 with the theme following `prefers-color-scheme`), but its GET table serves only `/framework/<slug>`, `/skills/<slug>` and `/docs/(tutorials|how-to|reference|explanation)/<slug>` — no route reaches `docs/architecture/`, so the diagrams that surface ships render on GitHub and nowhere else locally. Add a route plus handler for the architecture pages and extend the route-sweep regression test that reads `GET_ROUTES` from the same map the router dispatches on. Carved out of Q-0093 at spec review: adding a dashboard subsystem to a docs feature was scope creep, while the claim that the dashboard renders the pages was simply untrue as written.
-
 ### Spec Brainstorming Depth Parity
 
 - id: Q-0092
