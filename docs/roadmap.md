@@ -102,19 +102,6 @@ Three command families build filesystem paths from an unchecked positional argum
 
 (all three confirmed by static path-resolution probe in the read-only audit 2026-08-12)
 
-### Roadmap Has-Block Predicate
-
-- id: Q-0119
-- area: tooling
-- type: feat
-- since: 2026-08-12
-- size: XS
-- impact: med
-- confidence: high
-- parent: stable-entry-ids-for-roadmap-backlog
-
-An entry's slug is `slugify(heading)` (`src/utils/parse-blocks.ts`) and never appears literally in the document, so any "is this entry still queued?" check written as `grep -q "$slug" docs/roadmap.md` returns FALSE for every live entry — and it fails silently in the safe-looking direction ("already shipped, skip"). It bit a hand-rolled XS drain runner into skipping all 6 eligible entries in 5 seconds with a clean exit, and it is the same root cause as the CR blocker on the 2026-08-12 triage commit, where 12 `[triaged → slug]` markers named shorthand slugs resolving to no block. Expose `pnpm noldor roadmap has-block <slug>` (exit 0/1, honouring the ID alias) so scripts and skills stop re-deriving the predicate, and point the docs at it wherever a slug-presence check is described. (surfaced draining the 2026-08-12 XS batch, PRs #297-#303)
-
 ### Main-Module Guard Fails on Percent-Encoded Paths
 
 - id: Q-0126

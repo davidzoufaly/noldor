@@ -97,6 +97,10 @@
     "slug": "feature-doc-links-point-at-code-deleted-in-pr-328",
     "retiredAt": "2026-08-20"
   },
+  "Q-0119": {
+    "slug": "roadmap-has-block-predicate",
+    "retiredAt": "2026-08-20"
+  },
   "Q-0116": {
     "slug": "design-artifact-detector-module",
     "retiredAt": "2026-08-20"

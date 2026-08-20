@@ -18,6 +18,7 @@ links:
   docs: []
   tests:
     - src/triage/__tests__/entry-id.test.ts
+    - src/triage/__tests__/has-block.test.ts
     - src/triage/__tests__/remove-block-cli.test.ts
     - src/triage/__tests__/retired-ids.test.ts
   spec: >-
@@ -90,6 +91,7 @@ Introduces stable entry IDs (Q-NNNN) for roadmap + backlog (#157).
   - [`src/triage/retired-ids.ts`](../../src/triage/retired-ids.ts)
 - **Tests:**
   - [`src/triage/__tests__/entry-id.test.ts`](../../src/triage/__tests__/entry-id.test.ts)
+  - [`src/triage/__tests__/has-block.test.ts`](../../src/triage/__tests__/has-block.test.ts)
   - [`src/triage/__tests__/remove-block-cli.test.ts`](../../src/triage/__tests__/remove-block-cli.test.ts)
   - [`src/triage/__tests__/retired-ids.test.ts`](../../src/triage/__tests__/retired-ids.test.ts)
 
