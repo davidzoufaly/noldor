@@ -4,7 +4,9 @@ category: Tooling
 deps: []
 entry-id: Q-0139
 links:
-  code: []
+  code:
+    - src/checks/check-readme.ts
+    - src/docs/readme-content.ts
   tests:
     - src/checks/__tests__/check-readme.test.ts
     - src/docs/__tests__/readme-content.test.ts
@@ -12,7 +14,7 @@ links:
 name: Root README Content Validator
 packages:
   - package.json
-phase: in-progress
+phase: done
 since: 2026-08-17T00:00:00.000Z
 noldor-tier: full
 ---
