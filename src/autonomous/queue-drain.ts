@@ -7,8 +7,10 @@ import {
   roadmapSource,
   plansSource,
   specsSource,
+  selectionNotAtRef,
   type SourceId,
   type DrainSource,
+  type SelectionFilter,
 } from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { writeState, projectDrainState } from './drain-state.js';
@@ -43,7 +45,12 @@ export interface ParsedArgs {
   json: boolean;
   source: SourceId;
   concurrency: number;
+  /** `--size` / `--only` narrowing; absent when the run is unnarrowed. */
+  selection?: SelectionFilter;
 }
+
+/** Sizes a roadmap block may declare — `--size` is validated against this set. */
+const SIZES = new Set(['XS', 'S', 'M', 'L', 'XL']);
 
 function intFlag(args: readonly string[], name: string, def: number): number {
   const i = args.indexOf(name);
@@ -64,10 +71,53 @@ function parseSource(args: readonly string[]): SourceId {
   return v;
 }
 
-/** Parse the drain CLI flags. Throws on a non-positive integer flag or bad --source. */
+/**
+ * Parse a comma-separated list flag (`--size XS,S`, `--only a,b`). Absent → `undefined`
+ * (no constraint on that axis); present but empty throws rather than silently admitting
+ * everything, since `--only` with a typo'd empty value would otherwise drain the queue.
+ */
+function listFlag(args: readonly string[], name: string): Set<string> | undefined {
+  const i = args.indexOf(name);
+  if (i === -1) return undefined;
+  const items = (args[i + 1] ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (items.length === 0) throw new Error(`${name} must be a comma-separated non-empty list`);
+  return new Set(items);
+}
+
+/**
+ * Build the `--size` / `--only` narrowing, or `undefined` when the run is unnarrowed.
+ * Throws when a size is not one of {@link SIZES} — a typo'd size would otherwise select
+ * nothing and read as an empty queue. Roadmap-only: an in-progress FD is selected by
+ * committed-design presence, so narrowing by size on `--source plans` would silently
+ * no-op; fail loud instead.
+ */
+function parseSelection(args: readonly string[], source: SourceId): SelectionFilter | undefined {
+  const raw = listFlag(args, '--size');
+  const only = listFlag(args, '--only');
+  if (raw === undefined && only === undefined) return undefined;
+  if (source !== 'roadmap') {
+    throw new Error('--size / --only apply to --source roadmap only');
+  }
+  const sizes = raw === undefined ? undefined : new Set([...raw].map((s) => s.toUpperCase()));
+  const bad = sizes === undefined ? [] : [...sizes].filter((s) => !SIZES.has(s));
+  if (bad.length > 0) {
+    throw new Error(`--size must be one of ${[...SIZES].join(', ')} (got ${bad.join(', ')})`);
+  }
+  return {
+    ...(sizes !== undefined ? { sizes } : {}),
+    ...(only !== undefined ? { only } : {}),
+  };
+}
+
+/** Parse the drain CLI flags. Throws on a non-positive integer flag, bad --source, or bad --size. */
 export function parseArgs(args: readonly string[]): ParsedArgs {
   const maxFeatures = intFlag(args, '--max-features', 20);
   const maxRetries = intFlag(args, '--max-retries', 2);
+  const source = parseSource(args);
+  const selection = parseSelection(args, source);
   return {
     maxFeatures,
     maxRetries,
@@ -75,8 +125,9 @@ export function parseArgs(args: readonly string[]): ParsedArgs {
     timeoutMs: intFlag(args, '--iteration-timeout', 30 * 60 * 1000),
     dryRun: args.includes('--dry-run'),
     json: args.includes('--json'),
-    source: parseSource(args),
+    source,
     concurrency: intFlag(args, '--concurrency', 1),
+    ...(selection !== undefined ? { selection } : {}),
   };
 }
 
@@ -103,8 +154,10 @@ export function assertConfig(cfg: Partial<NoldorConfig>): void {
 }
 
 /** Build the matching {@link DrainSource}. `specs` throws (phase 2) → caller exits 1. */
-function buildSource(id: SourceId, cwd: string): DrainSource {
-  if (id === 'roadmap') return roadmapSource(cwd);
+function buildSource(id: SourceId, cwd: string, selection?: SelectionFilter): DrainSource {
+  // `parseSelection` already rejected a narrowing on any non-roadmap source, so the other
+  // two branches cannot silently drop one.
+  if (id === 'roadmap') return roadmapSource(cwd, selection);
   if (id === 'plans') return plansSource(cwd);
   return specsSource(cwd); // throws — phase 2
 }
@@ -117,7 +170,7 @@ async function main(): Promise<void> {
   try {
     parsed = parseArgs(args);
     assertConfig(loadConfigSync() ?? {});
-    source = buildSource(parsed.source, cwd); // --source specs throws here → exit 1
+    source = buildSource(parsed.source, cwd, parsed.selection); // --source specs throws here → exit 1
   } catch (e) {
     process.stderr.write(`${(e as Error).message}\n`);
     process.exit(1);
@@ -178,6 +231,28 @@ async function main(): Promise<void> {
   }
 
   const drainSource = parkAwareSource(source, () => loadPark(cwd));
+
+  // Uncommitted-triage guard: children branch from `origin/main`, so a block that exists
+  // only in this working tree is invisible to them while the eligibility read above (the
+  // local tree) selected it happily — the child then finds nothing to implement and burns a
+  // whole agent run. `assertQueueSourceSynced` (in the reconcile above) counts commits, so
+  // it catches an unpushed triage COMMIT but not an uncommitted edit; this closes that half.
+  // Park-aware source, so a parked entry cannot trip it. Under --dry-run the finding is a
+  // warning: nothing spawns, and aborting the preview would hide the very plan being previewed.
+  const notOnOrigin = selectionNotAtRef(drainSource, 'origin/main');
+  if (notOnOrigin.length > 0) {
+    const detail =
+      `drain: ${notOnOrigin.length} selected entr${notOnOrigin.length === 1 ? 'y is' : 'ies are'} ` +
+      `not on origin/main — commit and push the triage before draining:\n` +
+      notOnOrigin.map((s) => `  - ${s}`).join('\n');
+    if (parsed.dryRun) {
+      process.stdout.write(`${detail}\n`);
+    } else {
+      releaseLock(cwd, { startedAt });
+      process.stderr.write(`${detail}\n`);
+      process.exit(1);
+    }
+  }
   // Attached runs tee child output into the shared watch log so the dashboard's
   // live drain pane works in every mode. The detached watch daemon already has
   // whole-process stdio redirected into the same file (watch-detach.ts) and

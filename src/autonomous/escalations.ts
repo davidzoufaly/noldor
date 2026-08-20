@@ -315,6 +315,7 @@ export function unparkSlug(
  */
 export function parkAwareSource(inner: DrainSource, getParked: () => ParkMap): DrainSource {
   const finishPrompt = inner.finishPrompt?.bind(inner);
+  const parseAllAtRef = inner.parseAllAtRef?.bind(inner);
   return {
     id: inner.id,
     nextItem(skip) {
@@ -326,6 +327,10 @@ export function parkAwareSource(inner: DrainSource, getParked: () => ParkMap): D
     parseAll: () => inner.parseAll(),
     gatePrompt: (slug) => inner.gatePrompt(slug),
     ...(finishPrompt !== undefined ? { finishPrompt } : {}),
+    // Same conditional-forward discipline as `finishPrompt`: absence is meaningful —
+    // `selectionNotAtRef` reads a missing `parseAllAtRef` as "this source cannot answer
+    // for a ref" and no-ops, so an always-defined stub would make the guard lie.
+    ...(parseAllAtRef !== undefined ? { parseAllAtRef } : {}),
     branchFor: (slug) => inner.branchFor(slug),
   };
 }

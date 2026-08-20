@@ -21,6 +21,7 @@ links:
     - src/autonomous/__tests__/drain-eligibility.test.ts
     - src/autonomous/__tests__/drain-lock.test.ts
     - src/autonomous/__tests__/drain-reconcile.test.ts
+    - src/autonomous/__tests__/drain-selection.test.ts
     - src/autonomous/__tests__/drain-state.test.ts
     - src/autonomous/__tests__/escalations.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
@@ -39,7 +40,6 @@ phase: done
 noldor-tier: full
 introduced: 0.3.0
 ---
-
 ## Summary
 
 An external supervisor that drains the roadmap's fast-track (XS/S) queue autonomously — spawning a fresh `claude --print "/noldor-gate --drain <slug>"` per entry, one auto-merged PR at a time, with retry-then-skip, a concurrency lock, and a per-iteration timeout. Each feature runs in a clean context, so always-clear is preserved without a human between features.
@@ -55,8 +55,10 @@ As an operator with a backlog of small (XS/S) roadmap entries, I want one comman
 1. Ensure `.noldor/config.json` sets `autonomous: { "onFailure": "abort", "skipLanePicker": true, "requireHumanPrApproval": false }` — the drain refuses to start otherwise (headless-safe precondition).
 2. From the main workspace on a clean, synced `main`, run `pnpm noldor autonomous queue-drain`.
 3. Preview without spawning or merging anything: `--dry-run`. Tune with `--max-features N` (default 20), `--max-retries N` (default 2), `--iteration-timeout MS` (default 30 min). Add `--json` for a machine-readable summary.
-4. The runner ships each fast-track (XS/S) roadmap entry as its own auto-merged PR, skipping M/L/XL and `Touches:`/multi-scope entries, until the queue is drained, all-remaining are skipped, or `--max-features` is hit.
-5. Stop cleanly between iterations with SIGINT (Ctrl-C) or `touch .noldor/drain-stop` (exit 130).
+4. Narrow *which* entries the run may ship — a different axis from `--max-features`, which bounds top-N in priority ORDER: `--size XS` (comma-separated, case-insensitive, validated against XS/S/M/L/XL) and `--only <slug,slug>`. Both apply to `--source roadmap` only and are refused elsewhere. Narrowed-out entries appear in the skip log with the narrowing as their reason; the success oracle's universe stays unnarrowed.
+5. The runner ships each fast-track (XS/S) roadmap entry as its own auto-merged PR, skipping M/L/XL and `Touches:`/multi-scope entries, until the queue is drained, all-remaining are skipped, or `--max-features` is hit.
+6. Stop cleanly between iterations with SIGINT (Ctrl-C) or `touch .noldor/drain-stop` (exit 130).
+7. The run aborts (exit 1) when a selected entry exists only in the working tree: children branch from `origin/main`, so an uncommitted triage block is invisible to them. Commit and push the triage, then re-run. `--dry-run` reports the same finding as a warning instead of aborting.
 
 **Agent API**
 
