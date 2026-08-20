@@ -552,14 +552,6 @@ export function renderFrameworkIndex(pages: FrameworkPage[], skills: SkillPage[]
 }
 
 /**
- * Render a single framework page: title, breadcrumb back to index,
- * source-file path, and the link-rewritten body in `.body` for
- * markdown styling.
- *
- * @param page - Detail from `loadFrameworkPage`
- * @returns HTML body string
- */
-/**
  * The shared shape of a rendered doc page: title, a breadcrumb line carrying the source
  * path, an optional lead paragraph, then the body in `.body` for markdown styling.
  * Extracted when the clone gate flagged the framework and architecture renderers as one
@@ -579,6 +571,14 @@ function renderDocPage(opts: {
     <div class="body">${opts.bodyHtml}</div>`;
 }
 
+/**
+ * Render a single framework page: title, breadcrumb back to index,
+ * source-file path, and the link-rewritten body in `.body` for
+ * markdown styling.
+ *
+ * @param page - Detail from `loadFrameworkPage`
+ * @returns HTML body string
+ */
 export function renderFrameworkPage(page: FrameworkPageDetail): string {
   return renderDocPage({
     title: page.title,
@@ -702,9 +702,13 @@ export function renderUserDocsIndex(
  * @returns HTML body string
  */
 export function renderUserDoc(category: string, doc: UserDocDetail): string {
-  return `<h1>${escapeHtml(doc.title)}</h1>
-    <p><a href="/docs">← back to docs</a> · <code>docs/user/${escapeHtml(category)}/${escapeHtml(doc.slug)}.md</code></p>
-    <div class="body">${doc.bodyHtml}</div>`;
+  return renderDocPage({
+    title: doc.title,
+    backHref: '/docs',
+    backLabel: '← back to docs',
+    sourcePath: `docs/user/${category}/${doc.slug}.md`,
+    bodyHtml: doc.bodyHtml,
+  });
 }
 
 const DRAG_GRIP_SVG = `<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg>`;
