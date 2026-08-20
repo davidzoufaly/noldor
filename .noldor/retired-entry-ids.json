@@ -76,5 +76,9 @@
   "Q-0144": {
     "slug": "pendev-ui-design-phase",
     "retiredAt": "2026-08-19"
+  },
+  "Q-0145": {
+    "slug": "ui-design-review-lane",
+    "retiredAt": "2026-08-20"
   }
 }
