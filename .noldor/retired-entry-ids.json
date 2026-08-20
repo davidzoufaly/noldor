@@ -89,6 +89,14 @@
     "slug": "queue-drain-selection-and-staleness-guards",
     "retiredAt": "2026-08-20"
   },
+  "Q-0149": {
+    "slug": "plan-format-contract-prescribes-a-commit-the-push-gate-rejects",
+    "retiredAt": "2026-08-20"
+  },
+  "Q-0138": {
+    "slug": "feature-doc-links-point-at-code-deleted-in-pr-328",
+    "retiredAt": "2026-08-20"
+  },
   "Q-0116": {
     "slug": "design-artifact-detector-module",
     "retiredAt": "2026-08-20"

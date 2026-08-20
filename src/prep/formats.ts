@@ -5,6 +5,8 @@
  * `pnpm noldor prep format <spec|plan>` (see `print-format.ts`).
  */
 
+import { MIN_SECTION_CHARS, sectionMarkers } from '../core/summary-body-contract.js';
+
 export const SPEC_FORMAT = [
   'SPEC FORMAT (mirror the modern Noldor convention):',
   '- H1: "# <Human Name> — Design"',
@@ -24,6 +26,6 @@ export const PLAN_FORMAT = [
   '- **Goal:** / **Architecture:** / **Tech Stack:** lines, then a --- rule',
   '- ## File Structure (one bullet per touched file: path — responsibility), then --- ',
   '- ## Task N: <name> blocks; each: **Files:** (Create:/Modify:/Test: exact paths) then "- [ ] **Step N: <imperative>**".',
-  '- TDD order per task: failing test -> run-to-verify-FAIL -> implement -> run-to-verify-PASS -> Commit (fenced bash: git add <paths> ; git commit -m "<conventional-commit>" -m "Noldor-FD: <slug>").',
+  `- TDD order per task: failing test -> run-to-verify-FAIL -> implement -> run-to-verify-PASS -> Commit (fenced bash: git add <paths> ; git commit -F <message-file>). The message file is a conventional-commit subject, a blank line, a body whose sections start with the markers ${sectionMarkers()} verbatim (em dash, NOT "Why:" — a colon is a valid git trailer and interpret-trailers absorbs it), each carrying at least ${String(MIN_SECTION_CHARS)} non-whitespace characters, then ONE trailing paragraph with every trailer ("Noldor-FD: <slug>", plus any other). Two rules the gates enforce: the blocking pre-push summary-body validator REJECTS a subject-plus-trailers commit with no body, and a second -m starts a new paragraph, after which \`git interpret-trailers --parse\` returns only the last one and strands Noldor-FD.`,
   '- Each step = ONE 2-5 min action; code steps show COMPLETE real code; command steps show the exact command + Expected output. NO placeholders.',
 ].join('\n');
