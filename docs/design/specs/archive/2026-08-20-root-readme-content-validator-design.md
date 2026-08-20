@@ -6,6 +6,15 @@
 **Tier:** full
 **Deps:** none blocking. Q-0136 (typed advisory/blocking gap channels) is a follow-up, not a prerequisite — see Design § Channel. Q-0147 carries the residue named in Risks.
 
+> **Shipped scope is narrower than this document.** The command-resolution half
+> (Units 4 and 5, and the command clauses of Unit 6) was cut at code review:
+> `src/garden/detectors/fd-command-rot.ts` already owns command resolution with a
+> stricter tokenizer and a ~33-entry built-in list, and the implementation
+> specified here produced verified false findings on `pnpm --filter web run
+> build`, `pnpm remove`, `pnpm publish` and `pnpm noldor docs --help`. That half
+> is tracked as Q-0148. What shipped is doc-surface reachability, plus the
+> advisory channel and wiring described below.
+
 ## Problem
 
 Root `README.md` is the only doc surface the framework never inspects for content. Four mechanisms touch the file and none read what it says:

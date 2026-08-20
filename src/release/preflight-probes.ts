@@ -530,6 +530,14 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
    * blocked. This row is what catches an invalid record landed outside the
    * push seam (release pushes, override merges, hand edits on main).
    */
+  adr: (ctx) =>
+    docSurfaceRow('adr', 'RELEASE_SKIP_ADR', () => checkAdr(ctx.cwd), {
+      absent: 'no decision records in docs/adr/',
+      ok: 'decision records valid',
+      blocking: 'decision records invalid',
+      fix: 'Run `pnpm noldor docs adr --check` and repair each reported record.',
+    }),
+
   /**
    * README content drift. `warn`, never blocking: the README is consumer-owned
    * and sits outside `RELEASE_SWEEP_GLOBS`, so a stale line must not withhold a
@@ -542,20 +550,12 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       () => checkReadme(ctx.cwd),
       {
         absent: 'no readable README.md',
-        ok: 'README commands and doc-surface links resolve',
+        ok: 'every docs/ surface is reachable from README.md',
         blocking: 'README content drift',
         fix: 'Run `pnpm noldor checks readme` and repair each reported line.',
       },
       { severity: 'warn' },
     ),
-
-  adr: (ctx) =>
-    docSurfaceRow('adr', 'RELEASE_SKIP_ADR', () => checkAdr(ctx.cwd), {
-      absent: 'no decision records in docs/adr/',
-      ok: 'decision records valid',
-      blocking: 'decision records invalid',
-      fix: 'Run `pnpm noldor docs adr --check` and repair each reported record.',
-    }),
 
   'cr-gate': async (ctx) => {
     if (process.env.RELEASE_SKIP_CR_GATE === '1') {

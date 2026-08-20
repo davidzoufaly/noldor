@@ -7,9 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   checkReadme,
   enumerateDocSurfaces,
-  parseReadmeCommands,
   reachableTargets,
-  resolveCommands,
   unreachableSurfaces,
 } from '../readme-content.js';
 
@@ -36,13 +34,13 @@ describe('enumerateDocSurfaces', () => {
     const root = await makeRepo();
     await write(root, 'docs/adr/0001-x.md', '# x');
     await write(root, 'docs/architecture/context.md', '# c');
-    expect(await enumerateDocSurfaces(root)).toEqual(['docs/adr', 'docs/architecture']);
+    expect((await enumerateDocSurfaces(root)).surfaces).toEqual(['docs/adr', 'docs/architecture']);
   });
 
   it('finds markdown nested any depth down', async () => {
     const root = await makeRepo();
     await write(root, 'docs/user/how-to/index.md', '# h');
-    expect(await enumerateDocSurfaces(root)).toEqual(['docs/user']);
+    expect((await enumerateDocSurfaces(root)).surfaces).toEqual(['docs/user']);
   });
 
   it('excludes the artifact dirs and dirs with no markdown', async () => {
@@ -51,24 +49,24 @@ describe('enumerateDocSurfaces', () => {
     await write(root, 'docs/design/specs/b.md', '# b');
     await write(root, 'docs/assets/logo.png', 'binary');
     await write(root, 'docs/noldor/README.md', '# n');
-    expect(await enumerateDocSurfaces(root)).toEqual(['docs/noldor']);
+    expect((await enumerateDocSurfaces(root)).surfaces).toEqual(['docs/noldor']);
   });
 
   it('excludes the pre-1.0.0 superpowers artifact dir', async () => {
     const root = await makeRepo();
     await write(root, 'docs/superpowers/specs/b.md', '# b');
     await write(root, 'docs/noldor/README.md', '# n');
-    expect(await enumerateDocSurfaces(root)).toEqual(['docs/noldor']);
+    expect((await enumerateDocSurfaces(root)).surfaces).toEqual(['docs/noldor']);
   });
 
   it('ignores a markdown file sitting directly in docs/', async () => {
     const root = await makeRepo();
     await write(root, 'docs/vision.md', '# v');
-    expect(await enumerateDocSurfaces(root)).toEqual([]);
+    expect((await enumerateDocSurfaces(root)).surfaces).toEqual([]);
   });
 
   it('returns empty when docs/ is absent', async () => {
-    expect(await enumerateDocSurfaces(await makeRepo())).toEqual([]);
+    expect((await enumerateDocSurfaces(await makeRepo())).surfaces).toEqual([]);
   });
 });
 
@@ -78,7 +76,6 @@ describe('unreachableSurfaces', () => {
     dirs: new Set<string>(),
     notes: [],
     readme: 'ok' as const,
-    body: '',
   };
 
   it('reports a surface nothing reaches', () => {
@@ -112,13 +109,6 @@ describe('reachableTargets', () => {
     expect(reached.files.has('docs/user/how-to/index.md')).toBe(true);
     expect(reached.notes).toEqual([]);
     expect(reached.readme).toBe('ok');
-  });
-
-  it('carries the seed body so no caller re-reads it', async () => {
-    const root = await makeRepo();
-    await write(root, 'README.md', '# seed body');
-    const reached = await reachableTargets(root);
-    expect(reached.body).toBe('# seed body');
   });
 
   it('records a directory target in dirs and does not descend', async () => {
@@ -169,7 +159,6 @@ describe('reachableTargets', () => {
     expect(reached.readme).toBe('missing');
     expect(reached.files.size).toBe(0);
     expect(reached.notes).toEqual([]);
-    expect(reached.body).toBe('');
   });
 });
 
@@ -201,8 +190,6 @@ describe('checkReadme', () => {
   it('surfaces walk notes without changing status', async () => {
     const root = await makeRepo();
     await write(root, 'README.md', '[bad](docs/a%zz.md)');
-    // A readable package.json isolates the walk's note from the script-source one.
-    await write(root, 'package.json', '{"scripts":{}}');
     const report = await checkReadme(root);
     expect(report.notes).toHaveLength(1);
     expect(report.notes[0]).toContain('malformed percent-escape');
@@ -210,116 +197,35 @@ describe('checkReadme', () => {
   });
 });
 
-describe('parseReadmeCommands', () => {
-  it('reads fenced and inline commands, keeping only pnpm', () => {
-    const cmds = parseReadmeCommands(
-      ['```bash', 'pnpm noldor doctor', 'node bin/x.mjs', '```', 'run `pnpm test` now'].join('\n'),
-    );
-    expect(cmds.map((c) => c.argv.join(' '))).toEqual(['pnpm noldor doctor', 'pnpm test']);
-    expect(cmds[0]?.line).toBe(2);
-    expect(cmds[1]?.line).toBe(5);
-  });
-
-  it('strips a prompt prefix and a trailing comment', () => {
-    const cmds = parseReadmeCommands(
-      ['```bash', '$ pnpm noldor init  # scaffold', '```'].join('\n'),
-    );
-    expect(cmds).toHaveLength(1);
-    expect(cmds[0]?.argv).toEqual(['pnpm', 'noldor', 'init']);
-  });
-
-  it('splits on shell operators', () => {
-    const cmds = parseReadmeCommands(['```bash', 'pnpm build && pnpm test', '```'].join('\n'));
-    expect(cmds.map((c) => c.argv.join(' '))).toEqual(['pnpm build', 'pnpm test']);
-  });
-
-  it('joins a backslash continuation and attributes the first line', () => {
-    const cmds = parseReadmeCommands(['```bash', 'pnpm noldor \\', '  doctor', '```'].join('\n'));
-    expect(cmds).toHaveLength(1);
-    expect(cmds[0]?.argv).toEqual(['pnpm', 'noldor', 'doctor']);
-    expect(cmds[0]?.line).toBe(2);
-  });
-
-  it('drops a command carrying a placeholder token', () => {
-    const cmds = parseReadmeCommands(
-      ['```bash', 'pnpm noldor cr orchestrate --slug <slug>', '```'].join('\n'),
-    );
-    expect(cmds).toEqual([]);
-  });
-});
-
-describe('resolveCommands', () => {
-  const manifest = new Set(['doctor', 'init', 'docs architecture', 'validate features']);
-  const scripts = new Set(['test', 'build']);
-  const parse = (body: string) => parseReadmeCommands(['```bash', body, '```'].join('\n'));
-
-  it('accepts a leaf group, a group with a sub, and a known script', () => {
-    expect(resolveCommands(parse('pnpm noldor doctor'), manifest, scripts)).toEqual([]);
-    expect(resolveCommands(parse('pnpm noldor docs architecture'), manifest, scripts)).toEqual([]);
-    expect(resolveCommands(parse('pnpm test'), manifest, scripts)).toEqual([]);
-  });
-
-  it('skips flag tokens wherever they sit', () => {
-    expect(
-      resolveCommands(parse('pnpm noldor docs architecture --check'), manifest, scripts),
-    ).toEqual([]);
-    expect(resolveCommands(parse('pnpm noldor --help'), manifest, scripts)).toEqual([]);
-  });
-
-  it('reports a bad subcommand but treats a leaf group extra token as positional', () => {
-    const bad = resolveCommands(parse('pnpm noldor docs typo'), manifest, scripts);
-    expect(bad).toHaveLength(1);
-    expect(bad[0]?.message).toContain('docs typo');
-    expect(resolveCommands(parse('pnpm noldor doctor extra'), manifest, scripts)).toEqual([]);
-  });
-
-  it('validates pnpm run and ignores package-manager passthrough verbs', () => {
-    const bad = resolveCommands(parse('pnpm run nope'), manifest, scripts);
-    expect(bad).toHaveLength(1);
-    expect(bad[0]?.message).toContain('nope');
-    expect(resolveCommands(parse('pnpm add -D @scope/pkg'), manifest, scripts)).toEqual([]);
-    expect(resolveCommands(parse('pnpm install'), manifest, scripts)).toEqual([]);
-  });
-
-  it('reports every quoted script when scripts is empty but skips when it is null', () => {
-    expect(resolveCommands(parse('pnpm test'), manifest, new Set())).toHaveLength(1);
-    expect(resolveCommands(parse('pnpm test'), manifest, null)).toEqual([]);
-  });
-
-  it('deduplicates a command quoted more than once, citing the first line', () => {
-    const body = ['```bash', 'pnpm noldor docs typo', 'pnpm noldor docs typo', '```'].join('\n');
-    const found = resolveCommands(parseReadmeCommands(body), manifest, scripts);
-    expect(found).toHaveLength(1);
-    expect(found[0]?.message).toContain('README.md:2');
-  });
-});
-
-describe('checkReadme command half', () => {
-  it('reports a quoted command that does not resolve', async () => {
+describe('carved-out and repaired behaviours', () => {
+  it('excludes docs/milestones, which holds one file per milestone', async () => {
     const root = await makeRepo();
-    await write(root, 'README.md', '`pnpm noldor nosuchgroup`');
-    await write(root, 'package.json', '{}');
-    const report = await checkReadme(root);
-    expect(report.status).toBe('findings');
-    expect(report.findings[0]?.message).toContain('nosuchgroup');
+    await write(root, 'docs/milestones/mvp.md', '# mvp');
+    await write(root, 'docs/noldor/README.md', '# n');
+    expect((await enumerateDocSurfaces(root)).surfaces).toEqual(['docs/noldor']);
   });
 
-  it('notes an unreadable package.json and still checks surfaces', async () => {
+  it('a directory link INTO a surface satisfies that surface', async () => {
     const root = await makeRepo();
-    await write(root, 'README.md', '`pnpm test`');
-    await write(root, 'package.json', 'not json');
+    await write(root, 'README.md', '[diagrams](docs/architecture/diagrams/)');
+    await write(root, 'docs/architecture/diagrams/c4.md', '# c4');
     const report = await checkReadme(root);
-    expect(report.notes.some((n) => n.includes('package.json'))).toBe(true);
-    expect(report.findings).toEqual([]);
     expect(report.status).toBe('ok');
+    expect(report.findings).toEqual([]);
   });
 
-  it('reports a quoted script when package.json declares none', async () => {
+  it('an absent docs/ is silent, not a note', async () => {
+    const scan = await enumerateDocSurfaces(await makeRepo());
+    expect(scan.surfaces).toEqual([]);
+    expect(scan.notes).toEqual([]);
+  });
+
+  it('a docs path that is a file, not a directory, becomes a note', async () => {
     const root = await makeRepo();
-    await write(root, 'README.md', '`pnpm test`');
-    await write(root, 'package.json', '{}');
-    const report = await checkReadme(root);
-    expect(report.status).toBe('findings');
-    expect(report.findings[0]?.message).toContain('pnpm test');
+    await write(root, 'docs', 'not a directory');
+    const scan = await enumerateDocSurfaces(root);
+    expect(scan.surfaces).toEqual([]);
+    expect(scan.notes).toHaveLength(1);
+    expect(scan.notes[0]).toContain('cannot walk docs/');
   });
 });
