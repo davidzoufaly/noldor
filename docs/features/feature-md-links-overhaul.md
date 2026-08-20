@@ -38,9 +38,8 @@ links:
   spec: lost-pre-extraction
 introduced: 0.3.0
 noldor-tier: full
-updated: 0.4.0
+updated: 1.4.0
 ---
-
 ## Summary
 
 Cleans up the `links.*` fields on feature MDs so `pnpm sdd:report` produces actionable signal instead of 90+ lines of noise. Five coupled changes shipped:
@@ -132,6 +131,16 @@ matched nothing keeps its cached entries and is named in the tagless-kept report
 <!-- /generated: resources -->
 
 ## Changelog
+
+### 1.4.0
+
+#### Summary
+
+This release unifies `links.code`, `links.tests` and `links.docs` behind one projection engine (#338).
+
+#### PRs
+
+- #338: unify links.code, links.tests and links.docs behind one projection engine ([link](https://github.com/davidzoufaly/noldor/pull/338))
 
 ### 0.4.0
 

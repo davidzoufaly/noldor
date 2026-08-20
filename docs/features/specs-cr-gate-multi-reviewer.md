@@ -74,8 +74,8 @@ packages:
 phase: done
 noldor-tier: full
 introduced: 0.6.0
+updated: 1.4.0
 ---
-
 ## Summary
 
 Layer a CR gate at the spec/plan stage (before code) with parallel reviewers, orchestrated by `pnpm noldor cr orchestrate --kind <spec|plan|code>`: `manual` (operator pass over the artifact); `codex` (`pnpm noldor cr codex`, opt-in per `crLanes`; unioned automatically at `--kind spec` / `--kind code` on M/L/XL sessions); `reviewer` (senior-reviewer subagent over the artifact diff — a self-contained `claude -p` prompt in [`src/cr/lanes/subagent-dispatch.ts`](../../src/cr/lanes/subagent-dispatch.ts), mandatory at `--kind spec` / `--kind plan`); `verifier` (acceptance-verification lane); and `standalone` (a spawned separate terminal running `claude` with max-thinking, reusing the multiterminal-development flow). Each lane writes `.noldor/cr/<slug>-<kind>-<lane>.json`; `cr aggregate` decides green/red and `cr escalate` / `cr autofix` handle a red. Outcomes feed back into the spec/plan before promotion to code. Closes the early-feedback gap at `/noldor-gate` Step 2.5.
@@ -113,6 +113,16 @@ _none — the CR gate is CLI + skill-driven; `/noldor-gate` Step 2.5 and Step 4 
 <!-- @prs-since-last-release: specs-cr-gate-multi-reviewer -->
 
 ## Changelog
+
+### 1.4.0
+
+#### Summary
+
+This release threads prior-round reviewer context into re-round prompts (#328).
+
+#### PRs
+
+- #328: thread prior-round reviewer context into re-round prompts ([link](https://github.com/davidzoufaly/noldor/pull/328))
 
 <!-- generated: resources -->
 

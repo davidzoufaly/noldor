@@ -19,6 +19,7 @@ packages:
 phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
+updated: 1.4.0
 ---
 ## Summary
 
@@ -66,6 +67,17 @@ Removes the source block and records `splitInto` in `.noldor/retired-entry-ids.j
 <!-- @prs-since-last-release: framework-auto-split-suggestion-for-big-features-and-plans -->
 
 ## Changelog
+
+### 1.4.0
+
+#### Summary
+
+Split provenance fields are now parsed and splits recorded in the retired-ID map (#332), and `assessSpecSplit` adds S1/S2 spec size signals (#331).
+
+#### PRs
+
+- #332: parse split provenance fields and record splits in the retired-ID map ([link](https://github.com/davidzoufaly/noldor/pull/332))
+- #331: add assessSpecSplit S1/S2 spec size signals ([link](https://github.com/davidzoufaly/noldor/pull/331))
 
 ### Initial Release (v0.5.0)
 

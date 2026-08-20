@@ -17,8 +17,8 @@ packages:
 phase: done
 since: 2026-08-17T00:00:00.000Z
 noldor-tier: full
+introduced: 1.4.0
 ---
-
 ## Summary
 
 Root `README.md` is the only doc surface the framework never inspects for content, so a documentation surface added under `docs/` can become unreachable from the project's front door and nothing notices. Four mechanisms touch the file and none read what it says: `docs check` resolves its links but not its claims (`src/docs/docs-check.ts:222`), the `bootstrap commands` rule-pair asserts one `pnpm test` mention at `severity: 'warn'` (`src/invariants/rule-pairs.ts:62`), SDD detector 12 `detectReadmePackageDrift` keys on a `### Packages` table this repo does not have (`src/garden/sdd-report.ts:490`), and release-sweep step 4 is prose asking an LLM to eyeball the file. The measured miss: Q-0093 shipped a four-page `docs/architecture/` surface and the README stayed silent — the string "architecture" appeared nowhere in it.
@@ -52,6 +52,16 @@ As a framework maintainer (human or agent), I want every documentation surface u
 <!-- @prs-since-last-release: root-readme-content-validator -->
 
 ## Changelog
+
+### Initial Release (v1.4.0)
+
+#### Summary
+
+This release adds doc-surface enumeration and a reachability verdict (#345).
+
+#### PRs
+
+- #345: add doc-surface enumeration and reachability verdict ([link](https://github.com/davidzoufaly/noldor/pull/345))
 
 <!-- generated: resources -->
 

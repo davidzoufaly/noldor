@@ -29,8 +29,8 @@ packages:
 phase: done
 since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.4.0
 ---
-
 ## Summary
 
 Second slice of Q-0144 (pen.dev UI Design Phase, shipped in PR #342): a code-stage CR lane, `ui-reviewer`, that checks the implemented UI against the feature's committed `.pen` design. It mirrors the `reviewer` lane's dispatch shape — the lane resolves the `.pen` path and the affected surfaces, and the dispatched child opens the design itself through pencil MCP (Node cannot read an encrypted `.pen`), compares it against the diff, and returns a verdict the lane writes into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses, recomputed from the real diff; non-UI and waived sessions get an explicit `not-applicable` sink, and a session whose design cannot be read gets `cannot-review` rather than a green. Advisory by default, blocking behind one config knob. Mechanical render-compare (screenshot diff against a running app) is out of scope — tracked as Q-0146.
@@ -70,6 +70,16 @@ The lane is code-only — passing it at `--kind spec` or `--kind plan` is reject
 <!-- @prs-since-last-release: ui-design-review-lane -->
 
 ## Changelog
+
+### Initial Release (v1.4.0)
+
+#### Summary
+
+This release adds the ui-reviewer lane, a design-fidelity review that checks work against the session's `.pen` (#343).
+
+#### PRs
+
+- #343: add the ui-reviewer lane — design-fidelity review against the session's .pen ([link](https://github.com/davidzoufaly/noldor/pull/343))
 
 <!-- generated: resources -->
 

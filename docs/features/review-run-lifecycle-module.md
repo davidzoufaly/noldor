@@ -19,8 +19,8 @@ packages:
 phase: done
 since: 2026-08-12T00:00:00.000Z
 noldor-tier: specs-only
+introduced: 1.4.0
 ---
-
 ## Summary
 
 The codex CR lane owns neither the process it starts nor the capability probe it
@@ -110,6 +110,16 @@ and burn quota against a result nobody will read.
 <!-- @prs-since-last-release: review-run-lifecycle-module -->
 
 ## Changelog
+
+### Initial Release (v1.4.0)
+
+#### Summary
+
+This release adds bounded stderr capture and a foreground spawn mode (#326).
+
+#### PRs
+
+- #326: add bounded stderr capture and a foreground spawn mode ([link](https://github.com/davidzoufaly/noldor/pull/326))
 
 <!-- generated: resources -->
 

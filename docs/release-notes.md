@@ -1,5 +1,69 @@
 # Release Notes
 
+## v1.4.0 — 2026-08-20
+
+### Tooling
+
+#### Architecture Decision Record Surface
+
+This release adds the decision-record surface: a validator, an authoring CLI, an append-only push gate, and a release row (#339).
+
+[Feature page](/features/architecture-decision-record-surface)
+
+#### Consumer Architecture Doc Surface
+
+This release adds the architecture doc surface (#333).
+
+[Feature page](/features/consumer-architecture-doc-surface)
+
+#### Feature MD Links Overhaul *(updated)*
+
+This release unifies `links.code`, `links.tests` and `links.docs` behind one projection engine (#338).
+
+[Feature page](/features/feature-md-links-overhaul)
+
+#### Framework Auto-Split Suggestion for Big Features and Plans *(updated)*
+
+Split provenance fields are now parsed and splits recorded in the retired-ID map (#332), and `assessSpecSplit` adds S1/S2 spec size signals (#331).
+
+[Feature page](/features/framework-auto-split-suggestion-for-big-features-and-plans)
+
+#### pen.dev UI Design Phase
+
+Consumer config schema now accepts `uiPaths` and `uiSurfaces` (#342).
+
+[Feature page](/features/pendev-ui-design-phase)
+
+#### Review-Run Lifecycle Module
+
+This release adds bounded stderr capture and a foreground spawn mode (#326).
+
+[Feature page](/features/review-run-lifecycle-module)
+
+#### Root README Content Validator
+
+This release adds doc-surface enumeration and a reachability verdict (#345).
+
+[Feature page](/features/root-readme-content-validator)
+
+#### Rules Cascade v1 *(updated)*
+
+This release migrates the error-flow, state, and concurrency disciplines into enforce cascade rules (#330).
+
+[Feature page](/features/rules-cascade-v1)
+
+#### Specs/Plan CR Gate — Multi-Reviewer + Multiterminal Bug Fix *(updated)*
+
+This release threads prior-round reviewer context into re-round prompts (#328).
+
+[Feature page](/features/specs-cr-gate-multi-reviewer)
+
+#### UI-Design Review Lane
+
+This release adds the ui-reviewer lane, a design-fidelity review that checks work against the session's `.pen` (#343).
+
+[Feature page](/features/ui-design-review-lane)
+
 ## v1.3.0 — 2026-08-14
 
 ### Tooling

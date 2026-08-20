@@ -1,5 +1,49 @@
 # Changelog
 
+## v1.4.0 — 2026-08-20
+
+### Features
+
+- feat(dashboard): serve the architecture doc surface (#353) ([1e7a5c4](https://github.com/davidzoufaly/noldor/commit/1e7a5c4dbab6d971e10b1a08476efedb5b6aaeb1)) ([#353](https://github.com/davidzoufaly/noldor/pull/353))
+- feat(rules): record the noldor-wait preference as a scoped rule (#352) ([be061ac](https://github.com/davidzoufaly/noldor/commit/be061acd4723e6b50627d53d8c6ec58d57de4598)) ([#352](https://github.com/davidzoufaly/noldor/pull/352))
+- feat(triage): add roadmap has-block, the queued-entry predicate (#351) ([fdc4687](https://github.com/davidzoufaly/noldor/commit/fdc4687dff71c1c89a412459505de2312480cbf8)) ([#351](https://github.com/davidzoufaly/noldor/pull/351))
+- feat(autonomous): add drain selection narrowing and the uncommitted-triage guard (#348) ([242ed80](https://github.com/davidzoufaly/noldor/commit/242ed80325e6f0ed1b82f52e20f3528ab0e8f36f)) ([#348](https://github.com/davidzoufaly/noldor/pull/348))
+- feat(docs): add doc-surface enumeration and reachability verdict (#345) ([fd2ce3b](https://github.com/davidzoufaly/noldor/commit/fd2ce3b2cc99c690512e367f479b05ad3552e905)) ([#345](https://github.com/davidzoufaly/noldor/pull/345))
+- feat(cr): add the ui-reviewer lane — design-fidelity review against the session's .pen (#343) ([5dba1c7](https://github.com/davidzoufaly/noldor/commit/5dba1c7d8dfe30276abca308abc4436b8a908f7a)) ([#343](https://github.com/davidzoufaly/noldor/pull/343))
+- feat(core): add uiPaths + uiSurfaces to consumer config schema (#342) ([2221d4c](https://github.com/davidzoufaly/noldor/commit/2221d4cc4352554ffc9c7e81d5d92881655bdc62)) ([#342](https://github.com/davidzoufaly/noldor/pull/342))
+- feat(cr): force a codex round at spec+code stages on M/L/XL sessions (#341) ([5b9cc42](https://github.com/davidzoufaly/noldor/commit/5b9cc42ddb0fbc53ac4512286cc59414d7402fcf)) ([#341](https://github.com/davidzoufaly/noldor/pull/341))
+- feat(adr): add the decision-record surface — validator, authoring CLI, append-only push gate, release row (#339) ([1f1f4c0](https://github.com/davidzoufaly/noldor/commit/1f1f4c0f407008fd9ca16cd1a9909524c414691b)) ([#339](https://github.com/davidzoufaly/noldor/pull/339))
+- feat(sync): unify links.code, links.tests and links.docs behind one projection engine (#338) ([caa969a](https://github.com/davidzoufaly/noldor/commit/caa969a36af4efc190d2fb88a4432bbc9c3f82cd)) ([#338](https://github.com/davidzoufaly/noldor/pull/338))
+- feat(docs): add the architecture doc surface (#333) ([5c35053](https://github.com/davidzoufaly/noldor/commit/5c35053cee5db2986e4628ce099a28b227b95d76)) ([#333](https://github.com/davidzoufaly/noldor/pull/333))
+- feat(triage): parse split provenance fields and record splits in the retired-ID map (#332) ([0b1acf0](https://github.com/davidzoufaly/noldor/commit/0b1acf059ffb0777a58d3d3e88e0ae01a050230a)) ([#332](https://github.com/davidzoufaly/noldor/pull/332))
+- feat(split-check): add assessSpecSplit S1/S2 spec size signals (#331) ([a84c39b](https://github.com/davidzoufaly/noldor/commit/a84c39bd6622181191bb9390101a2c7635b78566)) ([#331](https://github.com/davidzoufaly/noldor/pull/331))
+- feat(rules): migrate error-flow, state and concurrency disciplines into enforce cascade rules (#330) ([888ea00](https://github.com/davidzoufaly/noldor/commit/888ea008d810d2b1ece1dbfdb63d00374c8adc1c)) ([#330](https://github.com/davidzoufaly/noldor/pull/330))
+- feat(cr): thread prior-round reviewer context into re-round prompts (#328) ([5acbe68](https://github.com/davidzoufaly/noldor/commit/5acbe6852ac01ce54d3ab4a59def4f71580662ca)) ([#328](https://github.com/davidzoufaly/noldor/pull/328))
+- feat(agent-runner): add bounded stderr capture and a foreground spawn mode (#326) ([cd9c9d8](https://github.com/davidzoufaly/noldor/commit/cd9c9d8e97a19871305f92010e91a64ab6ec626c)) ([#326](https://github.com/davidzoufaly/noldor/pull/326))
+
+### Fixes
+
+- fix(prep): prescribe a plan commit shape the push gate accepts (#349) ([a5ca6c1](https://github.com/davidzoufaly/noldor/commit/a5ca6c141ad49cc867f61e7ace453d78304889cb)) ([#349](https://github.com/davidzoufaly/noldor/pull/349))
+- fix(cr): route the codex model-version 400 to an upgrade hint instead of asserting expired auth (#340) ([1f1b2e2](https://github.com/davidzoufaly/noldor/commit/1f1b2e25857771100b6a2642767c8498734acef7)) ([#340](https://github.com/davidzoufaly/noldor/pull/340))
+- fix(checks): verify the consumer's root lefthook wiring in doctor and init (#337) ([7cc597f](https://github.com/davidzoufaly/noldor/commit/7cc597f80153ddb26962a23181fd95638f054ad3)) ([#337](https://github.com/davidzoufaly/noldor/pull/337))
+- fix(tests): spawn the repo-local tsx instead of npx in CLI-spawning suites (#336) ([dab1c77](https://github.com/davidzoufaly/noldor/commit/dab1c77bb1a5edfeff806ba5026df75701cd8e8d)) ([#336](https://github.com/davidzoufaly/noldor/pull/336))
+
+### Other changes
+
+- chore(garden): regen sdd-report after the sweep and exemption merges (#356) ([a597b56](https://github.com/davidzoufaly/noldor/commit/a597b56d16cff01bcd0223edb6fb93c0de4f9f20)) ([#356](https://github.com/davidzoufaly/noldor/pull/356))
+- chore(release): exempt the sweep squash from the CR receipt gate (#355) ([9461457](https://github.com/davidzoufaly/noldor/commit/9461457978d07ed19f658cb96a05ad0fc85ec7c1)) ([#355](https://github.com/davidzoufaly/noldor/pull/355))
+- chore(release-sweep): pre-empt sdd:report drift (#354) ([32b851a](https://github.com/davidzoufaly/noldor/commit/32b851a1b70e7db0b8b0cbdff8a74aeb29bbd2d6)) ([#354](https://github.com/davidzoufaly/noldor/pull/354))
+- refactor(garden): collapse stale-plan/stale-spec detection onto one implementation (#347) ([46994e9](https://github.com/davidzoufaly/noldor/commit/46994e913309b8c9c779b312d8ab6155b5ac3daf)) ([#347](https://github.com/davidzoufaly/noldor/pull/347))
+- docs(roadmap): retire feature-doc-links-point-at-code-deleted-in-pr-328 — shipped via fast-track (no FD) (#350) ([b48fb8f](https://github.com/davidzoufaly/noldor/commit/b48fb8fb570642acd0899e62bf646460f20a15cd)) ([#350](https://github.com/davidzoufaly/noldor/pull/350))
+- docs(triage): ship the pending queue-document triage (Q-0149, Q-0150, Q-0151, Q-0152) (#346) ([985dcb8](https://github.com/davidzoufaly/noldor/commit/985dcb88316e0a6d193108ca0a1f723e8fdbaa88)) ([#346](https://github.com/davidzoufaly/noldor/pull/346))
+- docs(triage): file Q-0145 lessons + raise Q-0139 in the roadmap (#344) ([d8a11f5](https://github.com/davidzoufaly/noldor/commit/d8a11f50fbd76f0d54d3842fd3e12d04e08863d9)) ([#344](https://github.com/davidzoufaly/noldor/pull/344))
+- docs(triage): queue Q-0139..Q-0144 and absorb operator lessons into the runbooks (#335) ([0be9ffe](https://github.com/davidzoufaly/noldor/commit/0be9ffeb1bc23d4f3f133a1a2b7e9bd4fb05a8c5)) ([#335](https://github.com/davidzoufaly/noldor/pull/335))
+- docs(triage): queue the Q-0093 followups and land the pending backlog triage (#334) ([04c9799](https://github.com/davidzoufaly/noldor/commit/04c9799efe7093022e77912d962e6acfcff7469d)) ([#334](https://github.com/davidzoufaly/noldor/pull/334))
+- docs(gate): bound artifact-stage re-rounds — design-only triggers + hard cap (#329) ([abda394](https://github.com/davidzoufaly/noldor/commit/abda3944e0580c5e49de822d21eca66d227914e1)) ([#329](https://github.com/davidzoufaly/noldor/pull/329))
+- docs(noldor-gate): preflight push-range gates before code-stage CR + delta receipt re-earn (#327) ([46ece54](https://github.com/davidzoufaly/noldor/commit/46ece544d34c361992805afb6aeec7421ae7bc96)) ([#327](https://github.com/davidzoufaly/noldor/pull/327))
+- docs(rules): scope pr-summary-why-how-what to code-carrying changes (#325) ([4ed8ad7](https://github.com/davidzoufaly/noldor/commit/4ed8ad76a0b952b15ad9fdbd7f9001c20862f28f)) ([#325](https://github.com/davidzoufaly/noldor/pull/325))
+- docs(roadmap): re-prioritize the queue order (#324) ([8749cc0](https://github.com/davidzoufaly/noldor/commit/8749cc0ea782ab09b1a03d9209d9e52afc26376f)) ([#324](https://github.com/davidzoufaly/noldor/pull/324))
+
 ## v1.3.0 — 2026-08-14
 
 ### Features

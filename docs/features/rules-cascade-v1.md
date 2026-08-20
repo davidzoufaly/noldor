@@ -46,8 +46,8 @@ packages:
 phase: done
 noldor-tier: full
 introduced: 0.2.0
+updated: 1.4.0
 ---
-
 ## Summary
 
 Retroactive FD for the Rules Cascade v1 substrate (PR #2, 2026-06-01) — the layered agent-rules system: rule MDs are loaded (`src/rules/load.ts`), resolved through the cascade with overrides (`src/rules/resolve.ts`), cached (`src/rules/index-cache.ts`), keyed to lifecycle stages (`src/core/rules/stage.ts` — the `Stage` union + `pathToStage` session-path projection), plus the `agent-rules-guard` hook (an Agent-dispatch prompt guard, currently unwired). Four thin CLI wrappers (`cli-cores`, `cli-list`, `cli-resolve`, `cli-validate`) expose the cascade. Shipped before FD-trailer dogfooding began, so no `Noldor-FD:` history exists; this FD backfills ownership so the code stops floating unreferenced (2026-07-03 tag judgment pass).
@@ -74,6 +74,16 @@ As a Noldor operator, I want repo rules expressed as layered, resolvable rule do
 - Cascade semantics live in `src/rules/resolve.ts`; `index-cache.ts` memoizes the rule index keyed by file mtimes.
 
 ## Changelog
+
+### 1.4.0
+
+#### Summary
+
+This release migrates the error-flow, state, and concurrency disciplines into enforce cascade rules (#330).
+
+#### PRs
+
+- #330: migrate error-flow, state and concurrency disciplines into enforce cascade rules ([link](https://github.com/davidzoufaly/noldor/pull/330))
 
 ### 0.2.0
 
