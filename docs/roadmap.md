@@ -31,19 +31,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Mechanical render-compare for the UI-design review lane: screenshot-diff the running app against the feature's committed `.pen` design instead of reasoning over the extracted design structure. Deferred out of Q-0145 because it needs a per-consumer app-boot recipe (how to start the app, which route renders a surface, how to reach a given state) that does not exist yet — the structural lane ships first and this earns its slice once boot recipes land. Depends on the structural lane for the sink shape and the `consumer.uiPaths` surface predicate.
 
-### Root README Content Validator
-
-- id: Q-0139
-- area: tooling
-- type: feat
-- since: 2026-08-17
-- size: M
-- impact: med
-- confidence: med
-- blocked-by: Q-0136
-
-Root `README.md` is the one doc surface the framework never inspects for content, so every capability it adds drifts out of the README silently. Four mechanisms touch the file and none of them read what it says: `pnpm noldor docs check` includes it but only resolves internal links (`src/docs/docs-check.ts:223`), the `bootstrap commands` rule-pair asserts a `pnpm test` mention at `severity: 'warn'` (`src/invariants/rule-pairs.ts:63`, soft by design because the README is consumer-owned), SDD detector 12 `detectReadmePackageDrift` (`src/garden/sdd-report.ts:489`) keys on `packages/<prefix>-*` directories and is therefore dead in this repository, and release-sweep step 4 is prose asking an LLM to eyeball the architecture, stack and command sections. The miss is concrete: Q-0093 added a `docs architecture` subcommand to `src/cli/manifest.ts` plus a four-page `docs/architecture/` surface carrying its own presence validator, garden detector, SDD gap and release probe, and the README's `## CLI reference` and `## Docs` sections both stayed silent — the string "architecture" appears nowhere in it. Wanted: three structural checks mirroring the registry Q-0093 already built — `src/cli/manifest.ts` against the README CLI-reference section, every registered doc surface reachable from `## Docs`, and every command quoted in `## Quick start` / `## Daily workflow` present in root `package.json` `scripts`. Two constraints bind the design. The README sits deliberately outside `RELEASE_SWEEP_GLOBS` (`src/core/allowlist.ts:20`), so a finding is always operator-fixed in a separate micro-chore rather than repaired in place by the sweep. And the finding must land on a non-blocking channel — routing it to `sddGaps` would let a README typo withhold a release through the four-hop chain Q-0136 exists to make structural, which is why this is blocked on that entry. Deletion test: adding a CLI subcommand or a doc surface without touching the README fails a check that names the missing section. (found 2026-08-17 asking why PR #333 left the root README untouched)
-
 ### Spec Floor for S-Sized Entries
 
 - id: Q-0143
@@ -55,6 +42,34 @@ Root `README.md` is the one doc surface the framework never inspects for content
 - confidence: med
 
 `sizeToPath()` (`src/core/size-routing.ts`) currently exempts both XS **and** S from any written artifact — `fast-track` for code, `micro-chore` for pure docs — so an S entry can ship with no spec, no plan and no recorded design reasoning at all. The question this entry decides: should XS be the *only* band that escapes a spec, moving S to `specs-only`? Evidence that it should is accumulating from the drain batches. The 2026-08-13 S/med/fix batch found S entries routinely running real CR rounds with genuine design findings, and the 30-minute `--iteration-timeout` sized for XS work killed Q-0107 mid-CR — an S entry doing spec-shaped work under a no-spec tier. A spec floor at S would also give the reviewer lanes the prior context that Q-0132 shipped for, which is worthless on a path that produces no spec to carry context in. Evidence against is the whole point of the routing policy: the drain runner's throughput depends on XS/S needing no prep, and forcing a spec on a genuinely mechanical S fix is the "don't spec the small ones" failure the policy exists to prevent. Decide it as a policy change with a stated rationale rather than a silent constant edit, then land it in one place: `sizeToPath()`, the routing block at the top of this file, [complexity-gating.md](noldor/complexity-gating.md), and every `templates/` twin of those documents (the Q-0093 lesson — a count or policy asserted in prose has no single source of truth, so the sweep must be exhaustive on the first pass). A middle option worth costing before committing to either pole: keep S on `fast-track` but require a spec when the split-check or CR verdict says the entry is spec-shaped, so the floor is earned by signal rather than by band.
+
+### README Command Validation On The Existing Resolver
+
+- id: Q-0148
+- area: tooling
+- type: feat
+- since: 2026-08-20
+- size: S
+- impact: med
+- confidence: high
+- split-from: Q-0139
+- recovered: 2026-08-20
+
+Q-0139 shipped doc-surface reachability but cut its command half at code review, so nothing checks that a command the root `README.md` quotes still resolves. The cut was a reuse finding, not a scope objection: `src/garden/detectors/fd-command-rot.ts` already implements this capability and does it better — an exported `commandTokens()` whose `isTerminator` stops at the first flag, operator or placeholder; `PNPM_BUILTINS` with ~33 entries; `extractCommandRefs()` over inline spans and fenced blocks; `refResolves()` trying `<group> <sub>` then one token; and a registry unioning manifest leaves, bare group names, `package.json` scripts and script-catalog colon aliases. The second implementation in `readme-content.ts` filtered flags out instead of stopping at them, so a flag's value slid into the group slot (`pnpm --filter web run build` reported `pnpm web`; `pnpm noldor --root . checks readme` reported `pnpm noldor .`), listed 4 built-ins so `pnpm remove`, `pnpm publish`, `pnpm why`, `pnpm dedupe` and `pnpm up` all false-flagged, and reported `pnpm noldor docs --help` as needing a subcommand, contradicting its own acceptance criterion. Wanted: build the README command check on those helpers — `buildCommandRegistry` needs exporting, or lifting beside `commandTokens` — rather than a third copy (the `scripts?: Record<string, …>` read alone already has four). Two extras to decide in scope: the `## CLI reference` table quotes **bare** group names in table cells, not `pnpm …` invocations, so `commandTokens` returns null for every row and the most drift-exposed section of the README stays unchecked unless the extraction is widened for it; and `fd-command-rot` is FD-scoped today, so the seam that lets it target an arbitrary markdown file is part of the work. Deletion test: rename a manifest group the README quotes and the check names the stale invocation. (carved from Q-0139 at code review 2026-08-20, where the duplicate implementation's false positives were reproduced against the live manifest)
+
+### Manifest Aliases Escape Both CLI Documentation Gates
+
+- id: Q-0147
+- area: tooling
+- type: fix
+- since: 2026-08-20
+- size: S
+- impact: med
+- confidence: high
+- split-from: Q-0139
+- recovered: 2026-08-20
+
+A subcommand added to an existing `MANIFEST` group and pointed at an already-catalogued entrypoint is checked by nothing. `validate script-catalog` (`src/cli/validate-script-catalog.ts`) joins the manifest against `docs/noldor/script-catalog.md` on the `src` path, and `manifestSrcSet`'s own docstring (`src/cli/validate-script-catalog.ts:26-31`) states that aliases sharing an entrypoint collapse so "documenting that source once satisfies every alias" — so `missingFromCatalog` stays empty. Q-0139's README check runs README → registry only (its `## CLI reference` section declares itself a non-exhaustive journey-critical subset), so it does not fire either. The live example is `autonomous run` and `autonomous queue-drain`, which share `autonomous/queue-drain.ts`: a third alias on that entrypoint would be invisible to both gates. Q-0139's FD deletion test read "adding a CLI subcommand or a doc surface without touching the README fails a check that names the missing section"; the doc-surface half ships there, and this entry is the CLI half. Wanted: make the catalog diff join on the leaf `command` as well as `src`, so every `<group> <sub>` needs a mention even when its entrypoint is already documented — deciding first whether an alias deserves its own catalog row or a shared row that must name every alias it covers. Deletion test: add an alias to an existing entrypoint and `validate script-catalog` names it. (found 2026-08-20 at Q-0139 spec review, where it was recorded as a risk rather than claimed as covered)
 
 ### Feature-Doc Links Point at Code Deleted in PR #328
 

@@ -15,6 +15,7 @@ import { promisify } from 'node:util';
 import { loadConfigSync, resolveSessionTtlHours, type NoldorConfig } from '../core/config.js';
 import { checkAdr } from '../docs/docs-adr.js';
 import { checkArchitecture } from '../docs/docs-architecture.js';
+import { checkReadme } from '../docs/readme-content.js';
 import { noldorCliCommand } from '../core/noldor-cli.js';
 import { isSessionStale, readSession } from '../core/session.js';
 import {
@@ -54,6 +55,7 @@ export const ALL_ROW_IDS: readonly PreflightRowId[] = [
   'gate-compliance',
   'architecture',
   'adr',
+  'readme',
   'cr-gate',
   'npm-name',
 ];
@@ -157,23 +159,31 @@ function overrideSkip(id: PreflightRowId, envVar: string): PreflightRow {
 async function docSurfaceRow(
   id: PreflightRowId,
   envVar: string,
-  check: () => Promise<{ status: string; findings: readonly { message: string }[] }>,
+  check: () => Promise<{
+    status: string;
+    findings: readonly { message: string }[];
+    notes?: readonly string[];
+  }>,
   details: { absent: string; ok: string; blocking: string; fix: string },
+  opts?: { severity?: 'blocking' | 'warn' },
 ): Promise<PreflightRow> {
   if (process.env[envVar] === '1') {
     return overrideSkip(id, envVar);
   }
   const report = await check();
+  // Notes ride the detail, or a degraded check renders as clean.
+  const suffix =
+    report.notes !== undefined && report.notes.length > 0 ? ` — ${report.notes.join('; ')}` : '';
   if (report.status === 'absent') {
-    return { id, status: 'skipped', detail: details.absent };
+    return { id, status: 'skipped', detail: details.absent + suffix };
   }
   if (report.status === 'ok') {
-    return { id, status: 'ok', detail: details.ok };
+    return { id, status: 'ok', detail: details.ok + suffix };
   }
   return {
     id,
-    status: 'blocking',
-    detail: report.findings[0]?.message ?? details.blocking,
+    status: opts?.severity ?? 'blocking',
+    detail: (report.findings[0]?.message ?? details.blocking) + suffix,
     fix: details.fix,
   };
 }
@@ -527,6 +537,25 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       blocking: 'decision records invalid',
       fix: 'Run `pnpm noldor docs adr --check` and repair each reported record.',
     }),
+
+  /**
+   * README content drift. `warn`, never blocking: the README is consumer-owned
+   * and sits outside `RELEASE_SWEEP_GLOBS`, so a stale line must not withhold a
+   * release.
+   */
+  readme: (ctx) =>
+    docSurfaceRow(
+      'readme',
+      'RELEASE_SKIP_README',
+      () => checkReadme(ctx.cwd),
+      {
+        absent: 'no readable README.md',
+        ok: 'every docs/ surface is reachable from README.md',
+        blocking: 'README content drift',
+        fix: 'Run `pnpm noldor checks readme` and repair each reported line.',
+      },
+      { severity: 'warn' },
+    ),
 
   'cr-gate': async (ctx) => {
     if (process.env.RELEASE_SKIP_CR_GATE === '1') {

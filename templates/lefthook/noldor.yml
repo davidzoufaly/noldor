@@ -133,3 +133,9 @@ pre-push:
       run: pnpm noldor checks template-sync
     - name: noldor-clones
       run: pnpm noldor clones check
+    # ADVISORY: `|| true` is deliberate. The check reports README drift, but the
+    # README is consumer-owned and this block ships byte-identical to every
+    # consumer, so a red must not gate their push. `checks readme` itself still
+    # exits 1, so anyone who wants it to gate can call it directly.
+    - name: readme
+      run: pnpm noldor checks readme || true

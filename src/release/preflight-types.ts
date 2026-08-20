@@ -26,6 +26,7 @@ export type PreflightRowId =
   | 'gate-compliance'
   | 'architecture'
   | 'adr'
+  | 'readme'
   | 'cr-gate'
   | 'npm-name';
 

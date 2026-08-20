@@ -107,6 +107,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** any time you want to know whether the UI design baseline still reflects the shipped UI. Remediate reds with `pnpm noldor design ui-sync`.
 - **Source:** [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
 
+### `check:readme`
+
+- **Trigger:** `pnpm noldor checks readme`. Run advisorily by the `pre-push` hook (`|| true`) and by release preflight (`warn`, never blocking).
+- **Inputs:** root `README.md` and every directory one level under `docs/` holding markdown (minus the per-change artifact dirs).
+- **Outputs:** one line per documentation surface no README link reaches, found by a transitive markdown-link walk seeded from the README. Operational degradations print as `note:` lines and never change the exit code. Exit 0 clean or when there is no readable README, 1 on findings — callers choose whether that blocks. Command validation is out of scope (Q-0148).
+- **When to use:** after adding a `docs/<dir>/` documentation surface. Repair by linking it from `README.md`.
+- **Source:** [`src/checks/check-readme.ts`](../../src/checks/check-readme.ts)
+
 ### Other validators
 
 | Command                              | Source                                                            | Purpose                                                                    |
@@ -353,7 +361,7 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 
 - **Trigger:** `pnpm release --preflight` (add `--fix` to apply the safe remedies). Read-only by default — safe to run any time.
 - **Inputs:** `.noldor/session.json`, `.noldor/release-state.json`, the working tree + `origin/main`, `gh` auth, `graphify-out/graph.json`, `.noldor/garden-receipt`, `docs/sdd-report.md`, `docs/features/*.md`, the previous tag, and `release.publish` config for the npm-name probe.
-- **Outputs:** one report row per gate — `session-marker`, `release-state`, `branch`, `tree-clean`, `origin-sync`, `gh-auth`, `graph-freshness`, `garden-receipt`, `sdd-report`, `validate-features`, `gate-compliance`, `architecture`, `cr-gate`, `npm-name` — ordered blocking → warn → ok → skipped, each blocking/warn row carrying a `fix:` line, closed by a counts line and an explicit `not run` line naming the consumer scripts preflight does not execute (`typecheck`, `test`, `test:smoke`, `test:e2e`, `build`, `docs:build`). Exit 1 when any row is blocking. `--fix` applies exactly three guarded remedies: remove a session marker past its TTL, fast-forward a strictly-behind clean `main`, re-stamp the garden receipt when `garden detect` is clean. It never commits, never regenerates the graph, never touches a dirty tree, and never deletes a live gate session.
+- **Outputs:** one report row per gate — `session-marker`, `release-state`, `branch`, `tree-clean`, `origin-sync`, `gh-auth`, `graph-freshness`, `garden-receipt`, `sdd-report`, `validate-features`, `gate-compliance`, `architecture`, `readme`, `cr-gate`, `npm-name` — ordered blocking → warn → ok → skipped, each blocking/warn row carrying a `fix:` line, closed by a counts line and an explicit `not run` line naming the consumer scripts preflight does not execute (`typecheck`, `test`, `test:smoke`, `test:e2e`, `build`, `docs:build`). Exit 1 when any row is blocking. `--fix` applies exactly three guarded remedies: remove a session marker past its TTL, fast-forward a strictly-behind clean `main`, re-stamp the garden receipt when `garden detect` is clean. It never commits, never regenerates the graph, never touches a dirty tree, and never deletes a live gate session.
 - **When to use:** before tagging, and any time `pnpm release` aborts — the same aggregate runs as the release's own first rung, so a green preflight means the release will get past its state gates.
 - **Source:** [`src/release/preflight.ts`](../../src/release/preflight.ts), [`src/release/preflight-probes.ts`](../../src/release/preflight-probes.ts), [`src/release/preflight-fix.ts`](../../src/release/preflight-fix.ts), [`src/release/preflight-render.ts`](../../src/release/preflight-render.ts)
 
