@@ -524,65 +524,67 @@ async function handleArchitectureIndex(): Promise<RouteResult> {
   };
 }
 
-async function handleArchitecturePage(
-  _params: URLSearchParams,
-  pathParams: Record<string, string>,
-): Promise<RouteResult> {
-  const page = await loadArchitecturePage(pathParams.slug);
-  if (!page) {
-    // Only a slug outside the closed registry 404s. A registry page whose file is missing
-    // still renders, reporting the gap — that absence is information, not a dead link.
-    return { status: 404, body: '<h1>Not found</h1>', title: '404', activeNav: '/architecture' };
-  }
-  return {
-    status: 200,
-    body: renderArchitecturePage(page),
-    title: `architecture / ${page.slug}`,
-    activeNav: '/architecture',
+/**
+ * The load-or-404 shape every `<section>/<slug>` detail route repeats: resolve the slug,
+ * render it, or answer 404 under the section's nav. Extracted because the diff-scoped
+ * clone gate flagged the four hand-rolled copies as one group (71 tokens) when the
+ * architecture route added a fifth — the duplication was pre-existing, and adding to it
+ * is what surfaced it.
+ */
+function detailRoute<T>(opts: {
+  load: (slug: string) => Promise<T | null>;
+  render: (item: T) => string;
+  /** Page title; takes the loaded item too, since some sections title from its content. */
+  title: (slug: string, item: T) => string;
+  activeNav: string;
+  /** 404 body; defaults to a bare heading when a section has nothing to add. */
+  notFoundBody?: (slug: string) => string;
+  /** 404 page title; defaults to '404'. */
+  notFoundTitle?: string;
+}): RouteMatch['handler'] {
+  return async (_params, pathParams) => {
+    const slug = pathParams.slug;
+    const item = await opts.load(slug);
+    if (!item) {
+      return {
+        status: 404,
+        body: opts.notFoundBody?.(slug) ?? '<h1>Not found</h1>',
+        title: opts.notFoundTitle ?? '404',
+        activeNav: opts.activeNav,
+      };
+    }
+    return {
+      status: 200,
+      body: opts.render(item),
+      title: opts.title(slug, item),
+      activeNav: opts.activeNav,
+    };
   };
 }
 
-async function handleFrameworkPage(
-  _params: URLSearchParams,
-  pathParams: Record<string, string>,
-): Promise<RouteResult> {
-  const page = await loadFrameworkPage(pathParams.slug);
-  if (!page) {
-    return {
-      status: 404,
-      body: '<h1>Not found</h1>',
-      title: '404',
-      activeNav: '/framework',
-    };
-  }
-  return {
-    status: 200,
-    body: renderFrameworkPage(page),
-    title: `framework / ${page.slug}`,
-    activeNav: '/framework',
-  };
-}
+// Only a slug outside the closed registry 404s here. A registry page whose file is
+// missing still renders, reporting the gap — that absence is information, not a dead link.
+const handleArchitecturePage = detailRoute({
+  load: loadArchitecturePage,
+  render: renderArchitecturePage,
+  title: (slug) => `architecture / ${slug}`,
+  activeNav: '/architecture',
+});
 
-async function handleSkillPage(
-  _params: URLSearchParams,
-  pathParams: Record<string, string>,
-): Promise<RouteResult> {
-  const skill = await loadSkill(pathParams.slug);
-  if (!skill) {
-    return {
-      status: 404,
-      body: `<h1>Not found</h1><p>No skill named <code>${pathParams.slug}</code>.</p>`,
-      title: '404',
-      activeNav: '/framework',
-    };
-  }
-  return {
-    status: 200,
-    body: renderSkillPage(skill),
-    title: `skills / ${skill.slug}`,
-    activeNav: '/framework',
-  };
-}
+const handleFrameworkPage = detailRoute({
+  load: loadFrameworkPage,
+  render: renderFrameworkPage,
+  title: (slug) => `framework / ${slug}`,
+  activeNav: '/framework',
+});
+
+const handleSkillPage = detailRoute({
+  load: loadSkill,
+  render: renderSkillPage,
+  title: (slug) => `skills / ${slug}`,
+  activeNav: '/framework',
+  notFoundBody: (slug) => `<h1>Not found</h1><p>No skill named <code>${slug}</code>.</p>`,
+});
 
 async function handleUserDocsIndex(params: URLSearchParams): Promise<RouteResult> {
   const categories = await loadUserDocs();
@@ -703,26 +705,14 @@ async function handleFeatures(params: URLSearchParams): Promise<RouteResult> {
   };
 }
 
-async function handleFeatureDetail(
-  _params: URLSearchParams,
-  pathParams: Record<string, string>,
-): Promise<RouteResult> {
-  const detail = await loadFeatureDetail(pathParams.slug);
-  if (!detail) {
-    return {
-      status: 404,
-      body: `<h1>Not found</h1><p>No feature MD for slug <code>${pathParams.slug}</code>.</p>`,
-      title: 'Not found',
-      activeNav: '/features',
-    };
-  }
-  return {
-    status: 200,
-    body: renderFeatureDetail(detail),
-    title: detail.frontmatter.name,
-    activeNav: '/features',
-  };
-}
+const handleFeatureDetail = detailRoute({
+  load: loadFeatureDetail,
+  render: renderFeatureDetail,
+  title: (_slug, detail) => detail.frontmatter.name,
+  activeNav: '/features',
+  notFoundBody: (slug) => `<h1>Not found</h1><p>No feature MD for slug <code>${slug}</code>.</p>`,
+  notFoundTitle: 'Not found',
+});
 
 async function handleGaps(params: URLSearchParams): Promise<RouteResult> {
   const gaps = await loadGaps();

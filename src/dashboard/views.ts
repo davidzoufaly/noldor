@@ -559,10 +559,34 @@ export function renderFrameworkIndex(pages: FrameworkPage[], skills: SkillPage[]
  * @param page - Detail from `loadFrameworkPage`
  * @returns HTML body string
  */
+/**
+ * The shared shape of a rendered doc page: title, a breadcrumb line carrying the source
+ * path, an optional lead paragraph, then the body in `.body` for markdown styling.
+ * Extracted when the clone gate flagged the framework and architecture renderers as one
+ * group (65 tokens) — the same page, twice, differing only in section and source dir.
+ */
+function renderDocPage(opts: {
+  title: string;
+  backHref: string;
+  backLabel: string;
+  sourcePath: string;
+  lead?: string;
+  bodyHtml: string;
+}): string {
+  const lead = opts.lead === undefined ? '' : `\n    <p>${escapeHtml(opts.lead)}</p>`;
+  return `<h1>${escapeHtml(opts.title)}</h1>
+    <p><a href="${opts.backHref}">${escapeHtml(opts.backLabel)}</a> · <code>${escapeHtml(opts.sourcePath)}</code></p>${lead}
+    <div class="body">${opts.bodyHtml}</div>`;
+}
+
 export function renderFrameworkPage(page: FrameworkPageDetail): string {
-  return `<h1>${escapeHtml(page.title)}</h1>
-    <p><a href="/framework">← back to framework index</a> · <code>docs/noldor/${escapeHtml(page.slug)}.md</code></p>
-    <div class="body">${page.bodyHtml}</div>`;
+  return renderDocPage({
+    title: page.title,
+    backHref: '/framework',
+    backLabel: '← back to framework index',
+    sourcePath: `docs/noldor/${page.slug}.md`,
+    bodyHtml: page.bodyHtml,
+  });
 }
 
 /**
@@ -591,10 +615,14 @@ export function renderArchitectureIndex(pages: ArchitectureDocPage[]): string {
  * than only on GitHub, which is the gap this route closes.
  */
 export function renderArchitecturePage(page: ArchitectureDocPageDetail): string {
-  return `<h1>${escapeHtml(page.title)}</h1>
-    <p><a href="/architecture">← back to architecture index</a> · <code>docs/architecture/${escapeHtml(page.slug)}.md</code></p>
-    <p>${escapeHtml(page.purpose)}</p>
-    <div class="body">${page.bodyHtml}</div>`;
+  return renderDocPage({
+    title: page.title,
+    backHref: '/architecture',
+    backLabel: '← back to architecture index',
+    sourcePath: `docs/architecture/${page.slug}.md`,
+    lead: page.purpose,
+    bodyHtml: page.bodyHtml,
+  });
 }
 
 /**
