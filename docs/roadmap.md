@@ -71,18 +71,6 @@ Q-0139 shipped doc-surface reachability but cut its command half at code review,
 
 A subcommand added to an existing `MANIFEST` group and pointed at an already-catalogued entrypoint is checked by nothing. `validate script-catalog` (`src/cli/validate-script-catalog.ts`) joins the manifest against `docs/noldor/script-catalog.md` on the `src` path, and `manifestSrcSet`'s own docstring (`src/cli/validate-script-catalog.ts:26-31`) states that aliases sharing an entrypoint collapse so "documenting that source once satisfies every alias" — so `missingFromCatalog` stays empty. Q-0139's README check runs README → registry only (its `## CLI reference` section declares itself a non-exhaustive journey-critical subset), so it does not fire either. The live example is `autonomous run` and `autonomous queue-drain`, which share `autonomous/queue-drain.ts`: a third alias on that entrypoint would be invisible to both gates. Q-0139's FD deletion test read "adding a CLI subcommand or a doc surface without touching the README fails a check that names the missing section"; the doc-surface half ships there, and this entry is the CLI half. Wanted: make the catalog diff join on the leaf `command` as well as `src`, so every `<group> <sub>` needs a mention even when its entrypoint is already documented — deciding first whether an alias deserves its own catalog row or a shared row that must name every alias it covers. Deletion test: add an alias to an existing entrypoint and `validate script-catalog` names it. (found 2026-08-20 at Q-0139 spec review, where it was recorded as a risk rather than claimed as covered)
 
-### Feature-Doc Links Point at Code Deleted in PR #328
-
-- id: Q-0138
-- area: docs
-- type: fix
-- since: 2026-08-17
-- size: XS
-- impact: med
-- confidence: high
-
-`pnpm noldor docs check` is red on `main` right now: `docs/features/specs-cr-gate-multi-reviewer.md` links `src/cr/codex-spawn.ts` (line 142) and `src/cr/__tests__/codex-spawn.test.ts` (line 162), both deleted when PR #328 collapsed the codex shell-out into an in-process lane call. The link checker is the only gate that catches this class and it now fails for a reason unrelated to whatever a contributor is changing, which trains people to ignore it. Repoint both links at the surviving `src/cr/lanes/codex.ts` and its test, or drop them if nothing replaced the symbol. Worth checking the same PR's other FDs in one pass — this is link rot from a rename, not a one-off. (found 2026-08-17 shipping Q-0093, PR #333)
-
 ### Verify Lane Fail-Closes on Its Own Malformed Output
 
 - id: Q-0137
