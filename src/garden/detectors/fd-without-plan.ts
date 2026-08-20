@@ -1,9 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { parseFdFrontmatter } from '../../core/fd-load.js';
+import { listDirIfExists, parseFdFrontmatter, readFileIfExists } from '../../core/fd-load.js';
 import { isPostRollout } from '../../core/rollout-marker.js';
 
 export interface FdWithoutPlanFinding {
@@ -67,12 +66,7 @@ function hasPlan(repo: string, slug: string): boolean {
  */
 export async function detectFdWithoutPlan(repo: string): Promise<FdWithoutPlanFinding[]> {
   const featuresDir = join(repo, 'docs/features');
-  let entries: string[];
-  try {
-    entries = await readdir(featuresDir);
-  } catch {
-    return [];
-  }
+  const entries = await listDirIfExists(featuresDir);
 
   const findings: FdWithoutPlanFinding[] = [];
 
@@ -83,12 +77,8 @@ export async function detectFdWithoutPlan(repo: string): Promise<FdWithoutPlanFi
     const fullPath = join(featuresDir, entry);
     const relPath = join('docs/features', entry);
 
-    let raw: string;
-    try {
-      raw = await readFile(fullPath, 'utf8');
-    } catch {
-      continue;
-    }
+    const raw = await readFileIfExists(fullPath);
+    if (raw === null) continue; // vanished between readdir and read
 
     // Guarded parse — see tier-mismatch.ts: broken YAML is reported by the
     // `malformed-fd` gap, never by aborting a detector run.

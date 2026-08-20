@@ -4,11 +4,10 @@
 // or one malformed FD would quietly stop staleness reporting for every artifact
 // whose owner it might be. This detector is that counterweight: it names the
 // malformed FDs themselves, once, as gaps.
-import { readFile, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 import { loadDocRoots } from '../../core/doc-roots.js';
-import { readFrontmatter } from '../../core/fd-load.js';
+import { listDirIfExists, readFileIfExists, readFrontmatter } from '../../core/fd-load.js';
 import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
 
 import type { Gap } from '../../core/fd-load.js';
@@ -25,12 +24,7 @@ import type { Gap } from '../../core/fd-load.js';
  */
 export async function detectMalformedFds(repo: string): Promise<Gap[]> {
   const featuresDir = loadDocRoots(repo).features;
-  let entries: string[];
-  try {
-    entries = await readdir(featuresDir);
-  } catch {
-    return [];
-  }
+  const entries = await listDirIfExists(featuresDir);
 
   const gaps: Gap[] = [];
   for (const entry of entries.filter((e) => e.endsWith('.md')).sort()) {
@@ -38,13 +32,8 @@ export async function detectMalformedFds(repo: string): Promise<Gap[]> {
     // Repo-relative, like every sibling detector's gap text — an absolute path
     // would leak this machine's checkout prefix into the report.
     const relPath = relative(repo, fullPath);
-    let raw: string;
-    try {
-      raw = await readFile(fullPath, 'utf8');
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; // vanished mid-scan
-      throw error; // a genuine IO failure is not the malformed-FD class
-    }
+    const raw = await readFileIfExists(fullPath);
+    if (raw === null) continue; // vanished mid-scan
     // Broken YAML and a schema mismatch are the same finding for an operator:
     // the FD cannot be understood. `readFrontmatter` is what keeps the first
     // class from aborting the detector that exists to report it.

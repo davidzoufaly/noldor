@@ -174,6 +174,42 @@ export function readFrontmatter(raw: string): FrontmatterParse {
 }
 
 /**
+ * Read a file, or `null` when it does not exist.
+ *
+ * The FD-reading policy in one place: a file that vanished between a directory
+ * listing and its read is nothing to process, while any other IO failure
+ * (EACCES, EISDIR) propagates — swallowing it would make a detector or report
+ * claim a clean pass over a file it never read.
+ *
+ * @param path - Absolute or cwd-relative file path.
+ * @returns File contents, or `null` on ENOENT.
+ */
+export async function readFileIfExists(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+/**
+ * List a directory, or `[]` when it does not exist. Directory sibling of
+ * {@link readFileIfExists} — same policy, same reason.
+ *
+ * @param dir - Directory to list.
+ * @returns Entry names, or `[]` on ENOENT.
+ */
+export async function listDirIfExists(dir: string): Promise<string[]> {
+  try {
+    return await readdir(dir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+/**
  * Guarded frontmatter parse plus the FD schema check — the shape every FD
  * reader needs. Returns `null` for both failure classes, which are one class to
  * a caller: this FD cannot be understood, so skip it and let
@@ -225,15 +261,8 @@ export async function loadSddFeatures(dir: string): Promise<FeatureRecord[]> {
       continue;
     }
     const slug = entry.name.replace(/\.md$/, '');
-    let raw: string;
-    try {
-      raw = await readFile(join(dir, entry.name), 'utf8');
-    } catch (error) {
-      // Vanished between readdir and read — nothing to load. Any other IO
-      // failure is not the malformed-FD class and must not be swallowed.
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
-      throw error;
-    }
+    const raw = await readFileIfExists(join(dir, entry.name));
+    if (raw === null) continue; // vanished between readdir and read
     const fm = parseFdFrontmatter(raw);
     if (!fm) continue; // reported by `features validate` / the malformed-fd gap
     result.push({ frontmatter: fm, slug });

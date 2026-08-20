@@ -1,13 +1,15 @@
-import { describe, expect, it } from 'vitest';
-
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { describe, expect, it } from 'vitest';
+
 import {
   extractSummary,
+  listDirIfExists,
   loadSddFeatures,
   parseFdFrontmatter,
+  readFileIfExists,
   readFrontmatter,
 } from '../fd-load.js';
 
@@ -52,7 +54,6 @@ body
   let dir: string;
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'fd-load-'));
-    await mkdir(dir, { recursive: true });
   });
   afterEach(async () => {
     await rm(dir, { force: true, recursive: true });
@@ -130,5 +131,35 @@ body
   it('returns null for broken YAML and for a schema mismatch alike', () => {
     expect(parseFdFrontmatter('---\nname: [unclosed\n---\n')).toBeNull();
     expect(parseFdFrontmatter(VALID.replace('in-progress', 'not-a-phase'))).toBeNull();
+  });
+});
+
+describe('ENOENT-tolerant IO helpers', () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'fd-io-'));
+  });
+  afterEach(async () => {
+    await rm(dir, { force: true, recursive: true });
+  });
+
+  it('readFileIfExists returns contents, or null for a missing file', async () => {
+    await writeFile(join(dir, 'there.md'), 'hi\n');
+
+    expect(await readFileIfExists(join(dir, 'there.md'))).toBe('hi\n');
+    expect(await readFileIfExists(join(dir, 'gone.md'))).toBeNull();
+  });
+
+  it('readFileIfExists propagates a non-ENOENT failure instead of masking it', async () => {
+    // A directory read as a file is EISDIR — the class that must never look
+    // like "nothing to process".
+    await expect(readFileIfExists(dir)).rejects.toThrow();
+  });
+
+  it('listDirIfExists lists entries, or returns [] for a missing directory', async () => {
+    await writeFile(join(dir, 'a.md'), 'a\n');
+
+    expect(await listDirIfExists(dir)).toEqual(['a.md']);
+    expect(await listDirIfExists(join(dir, 'nope'))).toEqual([]);
   });
 });
