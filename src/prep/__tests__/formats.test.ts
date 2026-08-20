@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 
 import { buildDraftPrompt } from '../draft.js';
 import { PLAN_FORMAT, SPEC_FORMAT } from '../formats.js';
-import { SECTIONS, validateSummaryCommit } from '../../core/validate-summary-body.js';
+import {
+  MIN_SECTION_CHARS,
+  SECTIONS,
+  SECTION_SEPARATOR,
+} from '../../core/summary-body-contract.js';
+import { validateSummaryCommit } from '../../core/validate-summary-body.js';
 
 import type { PrepEntry } from '../types.js';
 
@@ -44,10 +49,19 @@ describe('PLAN_FORMAT', () => {
       expect(PLAN_FORMAT).not.toContain('-m "<conventional-commit>" -m "Noldor-FD: <slug>"');
     });
 
-    it('names every section the blocking summary-body validator requires', () => {
-      // Sourced from the validator's own list, so adding a section there fails here
-      // rather than silently leaving the contract prescribing an unpushable commit.
-      for (const section of SECTIONS) expect(PLAN_FORMAT).toContain(section);
+    it('prescribes each section as the MARKER the gate matches, not the bare word', () => {
+      // The gate matches `Why —` literally (`sectionLength`), so a contract naming the
+      // bare word admits `Why:` and the commit is then refused. Asserting the marker is
+      // what makes this guard able to catch that class — the bare-word form passed while
+      // the contract said "Why / How / What" and an executor could still write `Why:`.
+      for (const section of SECTIONS) {
+        expect(PLAN_FORMAT).toContain(`${section} ${SECTION_SEPARATOR}`);
+      }
+      expect(PLAN_FORMAT).toContain('em dash');
+    });
+
+    it('states the per-section length floor the gate enforces', () => {
+      expect(PLAN_FORMAT).toContain(String(MIN_SECTION_CHARS));
     });
 
     it('warns that a second -m strands the trailers', () => {
@@ -77,6 +91,31 @@ describe('PLAN_FORMAT', () => {
         parentCount: 1,
       });
       expect(r.error).toBeUndefined();
+    });
+
+    it('and the colon form the contract now forbids is genuinely refused', () => {
+      // Proves the marker requirement is load-bearing rather than stylistic: swap the
+      // em dashes for colons in an otherwise-identical body and the gate rejects it.
+      const colonBody = [
+        'feat(scope): do the thing',
+        '',
+        'Why: the queue document and the gate disagreed about commit shape, so a plan',
+        'executor produced commits its own push gate refused.',
+        '',
+        'How: the contract now prescribes a message file whose body carries the sections',
+        'the validator checks for, with the trailers kept in one trailing paragraph.',
+        '',
+        'What: one string in the format contract plus the skill step that restates it.',
+        '',
+        'Noldor-FD: some-slug',
+      ].join('\n');
+      const r = validateSummaryCommit({
+        sha: 'b'.repeat(40),
+        message: colonBody,
+        files: ['src/prep/formats.ts'],
+        parentCount: 1,
+      });
+      expect(r.error).toMatch(/missing Why, How, What/);
     });
   });
 });
