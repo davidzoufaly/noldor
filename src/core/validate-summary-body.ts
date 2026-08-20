@@ -13,8 +13,13 @@ import { parseTrailers, stripTrailers } from './trailers.js';
 
 const execFileP = promisify(execFile);
 
-/** Section markers a summary-worthy commit body must carry. */
-const SECTIONS = ['Why', 'How', 'What'] as const;
+/**
+ * Section markers a summary-worthy commit body must carry. Exported because the plan
+ * format contract (`src/prep/formats.ts`) prescribes the commit shape an executor
+ * produces, and that prescription must be the same list this gate enforces — the two
+ * drifting apart is what made the contract prescribe a commit its own push gate refused.
+ */
+export const SECTIONS = ['Why', 'How', 'What'] as const;
 
 /**
  * Minimum content per section, in non-whitespace characters.
