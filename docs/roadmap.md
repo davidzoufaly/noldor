@@ -43,6 +43,20 @@ Mechanical render-compare for the UI-design review lane: screenshot-diff the run
 
 `sizeToPath()` (`src/core/size-routing.ts`) currently exempts both XS **and** S from any written artifact — `fast-track` for code, `micro-chore` for pure docs — so an S entry can ship with no spec, no plan and no recorded design reasoning at all. The question this entry decides: should XS be the *only* band that escapes a spec, moving S to `specs-only`? Evidence that it should is accumulating from the drain batches. The 2026-08-13 S/med/fix batch found S entries routinely running real CR rounds with genuine design findings, and the 30-minute `--iteration-timeout` sized for XS work killed Q-0107 mid-CR — an S entry doing spec-shaped work under a no-spec tier. A spec floor at S would also give the reviewer lanes the prior context that Q-0132 shipped for, which is worthless on a path that produces no spec to carry context in. Evidence against is the whole point of the routing policy: the drain runner's throughput depends on XS/S needing no prep, and forcing a spec on a genuinely mechanical S fix is the "don't spec the small ones" failure the policy exists to prevent. Decide it as a policy change with a stated rationale rather than a silent constant edit, then land it in one place: `sizeToPath()`, the routing block at the top of this file, [complexity-gating.md](noldor/complexity-gating.md), and every `templates/` twin of those documents (the Q-0093 lesson — a count or policy asserted in prose has no single source of truth, so the sweep must be exhaustive on the first pass). A middle option worth costing before committing to either pole: keep S on `fast-track` but require a spec when the split-check or CR verdict says the entry is spec-shaped, so the floor is earned by signal rather than by band.
 
+### Manifest Aliases Escape Both CLI Documentation Gates
+
+- id: Q-0147
+- area: tooling
+- type: fix
+- since: 2026-08-20
+- size: S
+- impact: med
+- confidence: high
+- split-from: Q-0139
+- recovered: 2026-08-20
+
+A subcommand added to an existing `MANIFEST` group and pointed at an already-catalogued entrypoint is checked by nothing. `validate script-catalog` (`src/cli/validate-script-catalog.ts`) joins the manifest against `docs/noldor/script-catalog.md` on the `src` path, and `manifestSrcSet`'s own docstring (`src/cli/validate-script-catalog.ts:26-31`) states that aliases sharing an entrypoint collapse so "documenting that source once satisfies every alias" — so `missingFromCatalog` stays empty. Q-0139's README check runs README → registry only (its `## CLI reference` section declares itself a non-exhaustive journey-critical subset), so it does not fire either. The live example is `autonomous run` and `autonomous queue-drain`, which share `autonomous/queue-drain.ts`: a third alias on that entrypoint would be invisible to both gates. Q-0139's FD deletion test read "adding a CLI subcommand or a doc surface without touching the README fails a check that names the missing section"; the doc-surface half ships there, and this entry is the CLI half. Wanted: make the catalog diff join on the leaf `command` as well as `src`, so every `<group> <sub>` needs a mention even when its entrypoint is already documented — deciding first whether an alias deserves its own catalog row or a shared row that must name every alias it covers. Deletion test: add an alias to an existing entrypoint and `validate script-catalog` names it. (found 2026-08-20 at Q-0139 spec review, where it was recorded as a risk rather than claimed as covered)
+
 ### Feature-Doc Links Point at Code Deleted in PR #328
 
 - id: Q-0138
