@@ -1,5 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { listDirIfExists, parseFdFrontmatter, readFileIfExists } from '../../core/fd-load.js';
@@ -42,19 +41,8 @@ export function findCreationSha(fdPath: string, cwd: string): string | null {
  * Check whether a plan glob hit exists for `slug` in `docs/design/plans/`.
  * Matches filenames matching `<date>-<slug>.md` or `<date>-<slug>-part<N>.md`.
  */
-function hasPlan(repo: string, slug: string): boolean {
-  const plansDir = join(repo, 'docs/design/plans');
-  if (!existsSync(plansDir)) return false;
-  // Narrow guard: only a plans dir that disappeared between the existsSync and
-  // this listing reads as "no plan". Any other IO failure propagates — reading
-  // it as absent would emit a no-plan finding for every in-progress FD.
-  let entries: string[];
-  try {
-    entries = readdirSync(plansDir);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
-    throw error;
-  }
+async function hasPlan(repo: string, slug: string): Promise<boolean> {
+  const entries = await listDirIfExists(join(repo, 'docs/design/plans'));
   const re = new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${slug}(?:-part\\d+)?\\.md$`);
   return entries.some((e) => re.test(e));
 }
@@ -99,7 +87,7 @@ export async function detectFdWithoutPlan(repo: string): Promise<FdWithoutPlanFi
     if (!isPostRollout(creationSha, repo)) continue; // grandfathered pre-rollout
 
     // Check for a matching plan
-    if (hasPlan(repo, slug)) continue;
+    if (await hasPlan(repo, slug)) continue;
 
     findings.push({
       slug,

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 
 import matter from 'gray-matter';
@@ -7,6 +7,7 @@ import matter from 'gray-matter';
 import { loadConfig } from '../core/config.js';
 import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
+import { listDirIfExists } from '../core/fd-load.js';
 import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { INVARIANTS } from '../invariants/rule-pairs.js';
 import { makeInvariants, runInvariants } from '../invariants/index.js';
@@ -193,12 +194,7 @@ async function detectStaleDesignArtifacts(
   kind: DesignArtifactKind,
 ): Promise<StaleDesignArtifact[]> {
   const dir = loadDocRoots(repo)[kind.docRoot];
-  let entries: string[];
-  try {
-    entries = await readdir(dir);
-  } catch {
-    return [];
-  }
+  const entries = await listDirIfExists(dir);
 
   const ageCutoffMs = Date.now() - staleDays * 24 * 60 * 60 * 1000;
   const findings: StaleDesignArtifact[] = [];
@@ -311,12 +307,8 @@ export interface UnusedBacklog {
  * @returns Set of slugs derived from filenames in `docs/features/`.
  */
 async function listFeatureSlugs(repo: string): Promise<Set<string>> {
-  try {
-    const entries = await readdir(loadDocRoots(repo).features);
-    return new Set(entries.filter((e) => e.endsWith('.md')).map((e) => e.replace(/\.md$/, '')));
-  } catch {
-    return new Set();
-  }
+  const entries = await listDirIfExists(loadDocRoots(repo).features);
+  return new Set(entries.filter((e) => e.endsWith('.md')).map((e) => e.replace(/\.md$/, '')));
 }
 
 /**
