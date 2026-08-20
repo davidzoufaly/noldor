@@ -9,20 +9,15 @@ import {
   FILE as SNAPSHOT_FILE,
   readSummaryBodyRolloutSnapshot,
 } from './summary-body-rollout.js';
+import { MIN_SECTION_CHARS, SECTIONS, SECTION_SEPARATOR } from './summary-body-contract.js';
 import { parseTrailers, stripTrailers } from './trailers.js';
 
 const execFileP = promisify(execFile);
 
-/** Section markers a summary-worthy commit body must carry. */
-const SECTIONS = ['Why', 'How', 'What'] as const;
-
-/**
- * Minimum content per section, in non-whitespace characters.
- *
- * Long enough to reject `Why — x`, short enough never to block an honest
- * one-line reason. Any threshold is arbitrary; this one is cheap to change.
- */
-const MIN_SECTION_CHARS = 24;
+// SECTIONS / MIN_SECTION_CHARS live in `summary-body-contract.ts` so the plan format
+// contract can prescribe the same shape this gate enforces without importing this
+// module's IO surface. Re-exported for existing callers of this module.
+export { SECTIONS, MIN_SECTION_CHARS };
 
 /**
  * Subjects git generates for the autosquash family: `git commit --fixup`,
@@ -134,12 +129,14 @@ export interface SummaryCommitResult {
  */
 function sectionLength(body: string, section: string): number | null {
   const lines = body.split('\n');
-  const start = lines.findIndex((l) => l.startsWith(`${section} —`));
+  const start = lines.findIndex((l) => l.startsWith(`${section} ${SECTION_SEPARATOR}`));
   if (start === -1) return null;
   const rest = lines.slice(start + 1);
-  const end = rest.findIndex((l) => SECTIONS.some((s) => l.startsWith(`${s} —`)));
+  const end = rest.findIndex((l) =>
+    SECTIONS.some((s) => l.startsWith(`${s} ${SECTION_SEPARATOR}`)),
+  );
   const own = [
-    lines[start]!.slice(`${section} —`.length),
+    lines[start]!.slice(`${section} ${SECTION_SEPARATOR}`.length),
     ...(end === -1 ? rest : rest.slice(0, end)),
   ];
   return own.join('').replace(/\s/g, '').length;

@@ -88,5 +88,9 @@
   "Q-0121": {
     "slug": "queue-drain-selection-and-staleness-guards",
     "retiredAt": "2026-08-20"
+  },
+  "Q-0149": {
+    "slug": "plan-format-contract-prescribes-a-commit-the-push-gate-rejects",
+    "retiredAt": "2026-08-20"
   }
 }
