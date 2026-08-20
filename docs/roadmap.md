@@ -16,20 +16,20 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### UI-Design Review Lane
+### UI Render-Compare Lane
 
-- id: Q-0145
+- id: Q-0146
 - area: tooling
 - type: feat
-- since: 2026-08-19
+- since: 2026-08-20
 - size: M
-- impact: high
-- confidence: med
-- deps: pendev-ui-design-phase
-- split-from: Q-0144
-- recovered: 2026-08-19
+- impact: med
+- confidence: low
+- deps: ui-design-review-lane
+- split-from: Q-0145
+- recovered: 2026-08-20
 
-Second slice of Q-0144 (pen.dev UI Design Phase): a reviewer-prompted CR lane that checks the implemented UI against the feature's committed `.pen` design. Mirrors the `reviewer` lane's subagent-dispatch shape: the lane feeds the reviewer the design structure extracted from the committed `.pen` (via pencil MCP — layout tree, components, copy) plus the code diff, and emits blockers into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses; skipped cleanly for non-UI sessions. Mechanical render-compare (screenshot diff against a running app) is explicitly deferred — a later enhancement once boot recipes exist. Blocked until the design stage (pendev-ui-design-phase) ships artifacts to review against.
+Mechanical render-compare for the UI-design review lane: screenshot-diff the running app against the feature's committed `.pen` design instead of reasoning over the extracted design structure. Deferred out of Q-0145 because it needs a per-consumer app-boot recipe (how to start the app, which route renders a surface, how to reach a given state) that does not exist yet — the structural lane ships first and this earns its slice once boot recipes land. Depends on the structural lane for the sink shape and the `consumer.uiPaths` surface predicate.
 
 ### Spec Floor for S-Sized Entries
 

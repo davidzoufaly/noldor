@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { spawnAgent } from '../../core/agent-runner/registry.js';
-import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
+import { createDispatcherSeam } from '../lane-spawn.js';
+import { fencedJsonInstruction } from './prompt-parts.js';
+import { parseFencedJson } from '../extract-json.js';
 import { verifyEvidenceSchema, verifyVerdictValueSchema } from '../findings-schema.js';
 import type { VerifySurface } from '../../core/consumer-config.js';
 
@@ -49,44 +50,23 @@ Hard rules:
 3. Kill every process you start.
 4. \`cannot-verify\` is an honest outcome when no boot path reaches the behavior — use it with a reason instead of guessing.
 
-When done, emit EXACTLY ONE fenced json block as the last thing in your output:
-
-\`\`\`json
-{"verdict": "pass" | "fail" | "cannot-verify", "evidence": [{"command": "...", "observed": "..."}], "mismatches": ["..."], "reason": "only for cannot-verify"}
-\`\`\``;
+${fencedJsonInstruction(
+  `{"verdict": "pass" | "fail" | "cannot-verify", "evidence": [{"command": "...", "observed": "..."}], "mismatches": ["..."], "reason": "only for cannot-verify"}`,
+)}`;
 }
 
 /** Last fenced ```json block wins; null on absence or schema mismatch. */
-export function parseVerifyVerdict(md: string): VerifyVerdict | null {
-  const fences = [...md.matchAll(/```json\s*\n([\s\S]*?)```/g)];
-  const last = fences.at(-1)?.[1];
-  if (!last) return null;
-  try {
-    return verifyVerdictSchema.parse(JSON.parse(last));
-  } catch {
-    return null;
-  }
-}
+export const parseVerifyVerdict = (md: string): VerifyVerdict | null =>
+  parseFencedJson(md, verifyVerdictSchema);
 
-type VerifyDispatcher = (input: VerifyDispatchInput) => Promise<string>;
-
-let dispatcher: VerifyDispatcher = async (input) => {
-  const r = await spawnAgent(buildVerifyPrompt(input), {
-    role: 'verifier',
-    timeoutMs: input.timeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS,
-    site: 'cr.verify-dispatch',
-  });
-  if (r.timedOut || r.exitCode !== 0) {
-    throw new Error(`verify dispatch failed: exit ${r.exitCode}${r.timedOut ? ' (timeout)' : ''}`);
-  }
-  return r.stdout;
-};
+const seam = createDispatcherSeam<VerifyDispatchInput>(buildVerifyPrompt, {
+  role: 'verifier',
+  site: 'cr.verify-dispatch',
+  onFailure: (f) => {
+    throw new Error(`verify dispatch failed: exit ${f.exitCode}${f.timedOut ? ' (timeout)' : ''}`);
+  },
+});
 
 /** Test seam, mirroring subagent-dispatch's setDispatcher. */
-export function setVerifyDispatcher(impl: VerifyDispatcher): void {
-  dispatcher = impl;
-}
-
-export function dispatchVerify(input: VerifyDispatchInput): Promise<string> {
-  return dispatcher(input);
-}
+export const setVerifyDispatcher = seam.setDispatcher;
+export const dispatchVerify = seam.dispatch;

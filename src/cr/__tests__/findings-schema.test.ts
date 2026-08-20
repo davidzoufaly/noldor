@@ -118,4 +118,39 @@ describe('verify lane extensions', () => {
     expect(parsed.verdict).toBe('fail');
     expect(parsed.evidence?.[0].command).toContain('curl');
   });
+
+  describe('ui-reviewer verdict vocabulary', () => {
+    const base = {
+      lane: 'ui-reviewer',
+      artifact: 'src/ui/Panel.tsx',
+      kind: 'code',
+      slug: 's',
+      summary: 'x',
+      startedAt: new Date().toISOString(),
+    };
+
+    it('accepts the UI verdicts alongside the verifier ones', () => {
+      for (const verdict of ['pass', 'fail', 'cannot-review', 'not-applicable']) {
+        expect(laneFindingsSchema.safeParse({ ...base, verdict }).success).toBe(true);
+      }
+      expect(
+        laneFindingsSchema.safeParse({ ...base, lane: 'verifier', verdict: 'cannot-verify' })
+          .success,
+      ).toBe(true);
+    });
+
+    it('accepts a reason drawn from the closed vocabulary and rejects anything else', () => {
+      expect(
+        laneFindingsSchema.safeParse({ ...base, verdict: 'not-applicable', reason: 'waived' })
+          .success,
+      ).toBe(true);
+      expect(
+        laneFindingsSchema.safeParse({ ...base, verdict: 'pass', reason: 'because' }).success,
+      ).toBe(false);
+    });
+
+    it('still parses a sink written before the verdict field was a union', () => {
+      expect(laneFindingsSchema.safeParse({ ...base, lane: 'reviewer' }).success).toBe(true);
+    });
+  });
 });

@@ -185,6 +185,27 @@ describe('verifyMode', () => {
   });
 });
 
+describe('uiReviewMode', () => {
+  it('defaults to advisory so adopting the ui-reviewer lane cannot red a pipeline', () => {
+    expect(autonomousConfigSchema.parse({}).uiReviewMode).toBe('advisory');
+  });
+
+  it('accepts blocking', () => {
+    expect(autonomousConfigSchema.parse({ uiReviewMode: 'blocking' }).uiReviewMode).toBe(
+      'blocking',
+    );
+  });
+
+  it('rejects a value that is neither, rather than silently defaulting', () => {
+    expect(autonomousConfigSchema.safeParse({ uiReviewMode: 'loud' }).success).toBe(false);
+  });
+
+  it('is independent of verifyMode', () => {
+    const cfg = autonomousConfigSchema.parse({ verifyMode: 'blocking' });
+    expect(cfg.uiReviewMode).toBe('advisory');
+  });
+});
+
 import { resolveReviewProfile } from '../config.js';
 
 describe('resolveReviewProfile', () => {

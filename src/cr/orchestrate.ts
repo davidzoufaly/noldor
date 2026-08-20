@@ -27,6 +27,7 @@ import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
 import { runCodex } from './lanes/codex.js';
 import { runSubagent } from './lanes/subagent.js';
+import { runUiReview } from './lanes/ui-review.js';
 import { runVerify } from './lanes/verify.js';
 import { promptSelect } from '../core/prompt-stdin.js';
 import { amendSubagentReceipt } from './amend-receipt.js';
@@ -56,7 +57,18 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
   codex: runCodex,
   reviewer: runSubagent,
   verifier: runVerify,
+  'ui-reviewer': runUiReview,
 };
+
+/**
+ * Lanes whose review object is NOT the `--artifact` path, so the empty-artifact-diff
+ * short-circuit below cannot speak for them. `ui-reviewer` reviews the UI diff
+ * against a design file, and at code stage `--artifact` is only a label; worse, an
+ * advisory `cannot-review` sink carries no blockers, so `priorSinkIsGreen` reads it
+ * green and a synthetic OK would overwrite it with a payload carrying no `verdict`
+ * at all — a lane that compared nothing then reads as reviewed.
+ */
+const NO_DELTA_SHORTCIRCUIT: ReadonlySet<Lane> = new Set<Lane>(['ui-reviewer']);
 
 export function resolveLanes(
   args: { slug: string; kind: ArtifactKind; lanes?: Lane[]; autonomous?: boolean },
@@ -297,10 +309,12 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
     );
   }
-  if (requested.includes('verifier') && opts.args.kind !== 'code') {
-    throw new Error(
-      "lane 'verifier' is code-only — remove it from --lanes / crLanes for spec/plan artifacts",
-    );
+  for (const codeOnly of ['verifier', 'ui-reviewer'] as const) {
+    if (requested.includes(codeOnly) && opts.args.kind !== 'code') {
+      throw new Error(
+        `lane '${codeOnly}' is code-only — remove it from --lanes / crLanes for spec/plan artifacts`,
+      );
+    }
   }
   // Visibility for the mandatory-reviewer union: an operator pick or a crLanes
   // block that omitted `reviewer` on a spec/plan silently gains it, so say so
@@ -401,6 +415,10 @@ export async function run(opts: RunOpts): Promise<RunResult> {
     if (empty) {
       const stillToRun: Lane[] = [];
       for (const l of effective) {
+        if (NO_DELTA_SHORTCIRCUIT.has(l)) {
+          stillToRun.push(l);
+          continue;
+        }
         // "No changes since prior run" presupposes a prior run that went green.
         // A lane with no sink was never reviewed at all, and one with a red sink
         // has blockers nobody addressed — synthesizing a pass in either case

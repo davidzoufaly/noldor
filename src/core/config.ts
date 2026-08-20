@@ -58,6 +58,14 @@ export const autonomousConfigSchema = z.object({
   // Governs ONLY the verify lane's agent judgment; the smoke floor blocks in
   // both modes (stop-the-line). Advisory default = one bake-in release.
   verifyMode: z.enum(['blocking', 'advisory']).default('advisory'),
+  // Governs the ui-reviewer lane's review outcomes only. Advisory default so
+  // adopting the lane cannot red an existing pipeline; `blocking` is the posture
+  // for a consumer whose reviewer runners are pencil-capable, and it reds an
+  // honest `cannot-review` too — an un-performed design review does not satisfy
+  // "a UI ship must actually be design-reviewed". Artifact-integrity failure
+  // (`pen-modified`) reds in BOTH modes; the knob is about review outcomes, not
+  // about trusting a design file that changed under the reviewer.
+  uiReviewMode: z.enum(['blocking', 'advisory']).default('advisory'),
   // Wall-clock cap per item is the existing --iteration-timeout flag (30 min default), not a
   // duplicate rail here. Token-budget rail deliberately omitted: no token accounting exists yet.
   watch: watchConfigSchema.optional(),

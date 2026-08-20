@@ -3,14 +3,23 @@ import type { Path } from './session.js';
 
 /**
  * CR review lanes. Two are role-routed and carry their runner-role name:
- * `reviewer` (→ reviewer role, was `subagent`) and `verifier` (→ verifier role,
- * was `verify`). The other three are non-role literals: `manual` (human stdin),
+ * `reviewer` (→ reviewer role, was `subagent`), `verifier` (→ verifier role,
+ * was `verify`) and `ui-reviewer` (→ ui-reviewer role, code-only design-fidelity
+ * review against the session's committed `.pen`). The other three are non-role
+ * literals: `manual` (human stdin),
  * `codex` (hard-pinned to the codex runner — role config can't re-route it), and
  * `standalone` (escalate-only iTerm deep-review, not an orchestrate lane).
  * `reviewer` is the only fully-unattended lane — see DEFAULT_CR_LANES in ./config.ts.
  * Lives in core/ because the repo-wide config loader validates `crLanes` against it.
  */
-const CANONICAL_LANES = ['manual', 'codex', 'reviewer', 'standalone', 'verifier'] as const;
+const CANONICAL_LANES = [
+  'manual',
+  'codex',
+  'reviewer',
+  'standalone',
+  'verifier',
+  'ui-reviewer',
+] as const;
 
 /** The canonical lane names as a plain array (the preprocess-wrapped `laneSchema`
  * has no `.options`, so callers that need to enumerate lane names use this). */

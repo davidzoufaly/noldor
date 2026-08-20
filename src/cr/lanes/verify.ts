@@ -1,19 +1,15 @@
 import { execFile } from 'node:child_process';
-import { laneSinkPath } from '../filename.js';
-import { mkdir } from 'node:fs/promises';
-import { dirname, isAbsolute, join } from 'node:path';
-import { writeJsonAtomic } from '../atomic-write.js';
-import { loadConfig } from '../../core/config.js';
+import { loadLaneMode } from '../lane-mode.js';
+import { openLaneSink, type SinkPayload } from '../lane-sink.js';
+import { isAbsolute, join } from 'node:path';
 import { loadVerifyCommands } from '../../core/consumer-config.js';
-import type { Finding, LaneFindings } from '../findings-schema.js';
+import type { Finding } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { extractFdAcceptance } from '../read-fd-summary.js';
 import { resolvePort } from '../../verify/port.js';
 import { runSmoke } from '../../verify/smoke.js';
 import type { SmokeReport } from '../../verify/smoke.js';
 import { dispatchVerify, parseVerifyVerdict } from './verify-dispatch.js';
-
-type VerifyMode = 'blocking' | 'advisory';
 
 type SmokeRunner = (cwd: string, port: number) => Promise<SmokeReport>;
 let smokeRunner: SmokeRunner = (cwd, port) => runSmoke(cwd, port);
@@ -23,20 +19,11 @@ export function setSmokeRunner(impl: SmokeRunner): void {
   smokeRunner = impl;
 }
 
-function sinkPathFor(input: LaneInput): string {
-  return laneSinkPath(input.repoRoot, input.slug, input.kind, 'verifier');
-}
-
-function basePayload(input: LaneInput, startedAt: string): Omit<LaneFindings, 'summary'> {
+/** Only what this lane decides — `openLaneSink` owns the identity fields. */
+function basePayload(input: LaneInput): Omit<SinkPayload, 'summary'> {
   return {
-    lane: 'verifier',
-    artifact: input.artifact,
-    kind: input.kind,
-    slug: input.slug,
     blockers: [],
     suggestions: [],
-    startedAt,
-    finishedAt: new Date().toISOString(),
     ...(input.baseSha ? { baseSha: input.baseSha } : {}),
     ...(input.fullReview ? { fullReview: true } : {}),
   };
@@ -78,18 +65,8 @@ function commitProse(repoRoot: string, baseSha: string, headSha: string): Promis
 }
 
 export async function runVerify(input: LaneInput): Promise<LaneResult> {
-  const sinkPath = sinkPathFor(input);
-  const startedAt = new Date().toISOString();
-  const cfg = await loadConfig(join(input.repoRoot, '.noldor', 'config.json')).catch(() => null);
-  const mode: VerifyMode = cfg?.autonomous?.verifyMode ?? 'advisory';
-
-  const write = async (payload: LaneFindings, ok: boolean): Promise<LaneResult> => {
-    // Orchestrate pre-creates .noldor/cr/, but the lane stays self-sufficient
-    // for direct callers and unit tests.
-    await mkdir(dirname(sinkPath), { recursive: true });
-    await writeJsonAtomic(sinkPath, payload);
-    return { lane: 'verifier', sinkPath, ok };
-  };
+  const { write } = openLaneSink(input, 'verifier');
+  const mode = await loadLaneMode(input.repoRoot, 'verifyMode');
 
   // 1. Smoke floor — blocking in BOTH modes (stop-the-line; spec Unit 4 step 2).
   const port = await resolvePort(input.repoRoot);
@@ -98,7 +75,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     const failed = smoke.surfaces.filter((s) => !s.ok);
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         blockers: failed.map((s) =>
           mkFinding(
             input.artifact,
@@ -133,7 +110,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   if (!acceptance) {
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         summary: 'cannot-verify: no acceptance text (no FD, empty commit prose)',
         verdict: 'cannot-verify',
         notes: ['no acceptance text available — no FD and empty commit prose for the range'],
@@ -174,7 +151,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     if (mode === 'blocking') {
       return write(
         {
-          ...basePayload(input, startedAt),
+          ...basePayload(input),
           blockers: [mkFinding(input.artifact, `verify lane errored: ${detail}`, 'high')],
           summary: 'verify lane errored (fail-closed in blocking mode)',
           verdict: 'fail',
@@ -184,7 +161,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
     }
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         summary: 'cannot-verify: no trustworthy verdict',
         verdict: 'cannot-verify',
         notes: [`no trustworthy verdict — ${detail}`],
@@ -197,7 +174,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   if (parsed.verdict === 'pass') {
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         summary: 'verified: observed behavior matches acceptance text',
         verdict: 'pass',
         evidence: parsed.evidence,
@@ -208,7 +185,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   if (parsed.verdict === 'cannot-verify') {
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         summary: `cannot-verify: ${parsed.reason ?? 'no reason given'}`,
         verdict: 'cannot-verify',
         evidence: parsed.evidence,
@@ -222,7 +199,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   if (mode === 'blocking') {
     return write(
       {
-        ...basePayload(input, startedAt),
+        ...basePayload(input),
         blockers: findings,
         summary: 'verify FAIL: observed behavior mismatches acceptance text',
         verdict: 'fail',
@@ -234,7 +211,7 @@ export async function runVerify(input: LaneInput): Promise<LaneResult> {
   }
   return write(
     {
-      ...basePayload(input, startedAt),
+      ...basePayload(input),
       suggestions: findings.map((f) => ({ ...f, severity: 'low' as const })),
       summary: 'ADVISORY FAIL: observed behavior mismatches acceptance text (advisory mode)',
       verdict: 'fail',
