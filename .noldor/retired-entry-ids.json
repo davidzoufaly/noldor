@@ -108,5 +108,9 @@
   "Q-0116": {
     "slug": "design-artifact-detector-module",
     "retiredAt": "2026-08-20"
+  },
+  "Q-0134": {
+    "slug": "dashboard-route-for-the-architecture-doc-surface",
+    "retiredAt": "2026-08-20"
   }
 }

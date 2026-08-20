@@ -64,7 +64,10 @@ const NAV_GROUPS: Array<{ label: string; links: Array<{ href: string; label: str
   },
   {
     label: 'Framework',
-    links: [{ href: '/framework', label: 'Framework' }],
+    links: [
+      { href: '/framework', label: 'Framework' },
+      { href: '/architecture', label: 'Architecture' },
+    ],
   },
 ];
 

@@ -17,6 +17,11 @@ import { areaToCategory } from '../lib/area-category.js';
 import { loadMilestoneBySlug, loadMilestones, type Milestone } from '../milestones/lib.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
 import { docPresenceRoots, listDocMds, loadDocRoots } from '../core/doc-roots.js';
+import {
+  ARCHITECTURE_PAGES,
+  PLACEHOLDER_MARKER,
+  pageFilename,
+} from '../docs/architecture-schema.js';
 import { actualPackageNames, scanRoots } from '../core/repo-paths.js';
 import { collectGaps } from '../garden/sdd-report.js';
 import { buildBlockedByGraph, findCyclesInBuild } from '../garden/detectors/circular-blocked-by.js';
@@ -753,6 +758,8 @@ export function rewriteDocLinks(html: string, sourceDir: string): string {
       if (userMatch) return `<a href="/docs/${userMatch[1]}/${userMatch[2]}${tail}"`;
       const fdMatch = /^docs\/features\/(.+)\.md$/.exec(resolved);
       if (fdMatch) return `<a href="/features/${fdMatch[1]}${tail}"`;
+      const archMatch = /^docs\/architecture\/(.+)\.md$/.exec(resolved);
+      if (archMatch) return `<a href="/architecture/${archMatch[1]}${tail}"`;
       return full;
     },
   );
@@ -919,6 +926,88 @@ export async function loadFrameworkPages(): Promise<FrameworkPage[]> {
 
 export interface FrameworkPageDetail extends FrameworkPage {
   bodyHtml: string;
+}
+
+/** One architecture-surface page, as the dashboard serves it. */
+export interface ArchitectureDocPage {
+  /** Registry page id — also the filename stem and the route segment. */
+  slug: string;
+  title: string;
+  /** One-line statement of what the page answers, from the registry. */
+  purpose: string;
+  filePath: string;
+  /** True when the page is missing or still carries the scaffold marker. */
+  placeholder: boolean;
+}
+
+export interface ArchitectureDocPageDetail extends ArchitectureDocPage {
+  bodyHtml: string;
+}
+
+/**
+ * The architecture surface as pages, in registry order.
+ *
+ * Identity comes from `ARCHITECTURE_PAGES` rather than from a directory scan, so the
+ * dashboard lists the four questions the surface must answer even when a page is missing
+ * — a missing page is surface debt worth showing, not an entry to omit. That also keeps
+ * the fifth page free: adding one to the registry adds it here.
+ */
+export async function loadArchitecturePages(): Promise<ArchitectureDocPage[]> {
+  const dir = loadDocRoots(getDocRoot()).architecture;
+  return Promise.all(
+    ARCHITECTURE_PAGES.map(async (page) => {
+      const filePath = join(dir, pageFilename(page));
+      let raw: string | null;
+      try {
+        raw = await readFile(filePath, 'utf8');
+      } catch {
+        raw = null; // missing or unreadable — reported as a placeholder, never thrown
+      }
+      return {
+        slug: page.id,
+        title: page.title,
+        purpose: page.purpose,
+        filePath,
+        placeholder: raw === null || raw.includes(PLACEHOLDER_MARKER),
+      };
+    }),
+  );
+}
+
+/**
+ * One architecture page with its markdown rendered, or `null` when `slug` is not a
+ * registry id. Mermaid fences survive `renderMarkdown` as `div.mermaid` containers, which
+ * the layout's mermaid bundle then draws — the diagrams are the whole point of the surface.
+ */
+export async function loadArchitecturePage(
+  slug: string,
+): Promise<ArchitectureDocPageDetail | null> {
+  const page = ARCHITECTURE_PAGES.find((p) => p.id === slug);
+  if (!page) return null;
+  // Metadata is derived from the matched registry entry rather than recovered by listing
+  // the whole surface: going through `loadArchitecturePages` would read all four files to
+  // learn what this one entry already says, then read the target again — five reads to
+  // serve one page.
+  const filePath = join(loadDocRoots(getDocRoot()).architecture, pageFilename(page));
+  const base = { slug: page.id, title: page.title, purpose: page.purpose, filePath };
+  let raw: string;
+  try {
+    raw = await readFile(filePath, 'utf8');
+  } catch {
+    // A registry page with no file still resolves: the route reports the gap rather than
+    // 404-ing, since the page's absence is exactly what a reader needs to be told.
+    return {
+      ...base,
+      placeholder: true,
+      bodyHtml: '<p>This page has not been written yet.</p>',
+    };
+  }
+  const rendered = await renderMarkdown(matter(raw).content);
+  return {
+    ...base,
+    placeholder: raw.includes(PLACEHOLDER_MARKER),
+    bodyHtml: rewriteDocLinks(rendered, 'docs/architecture'),
+  };
 }
 
 const USER_DOCS_CATEGORIES = ['tutorials', 'how-to', 'reference', 'explanation'] as const;

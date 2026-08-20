@@ -11,6 +11,8 @@ import type {
   AgentActivity,
   AgentRunGroup,
   LiveAgentRow,
+  ArchitectureDocPage,
+  ArchitectureDocPageDetail,
   DrainObservation,
   DashboardCounts,
   FeatureDetail,
@@ -550,6 +552,26 @@ export function renderFrameworkIndex(pages: FrameworkPage[], skills: SkillPage[]
 }
 
 /**
+ * The shared shape of a rendered doc page: title, a breadcrumb line carrying the source
+ * path, an optional lead paragraph, then the body in `.body` for markdown styling.
+ * Extracted when the clone gate flagged the framework and architecture renderers as one
+ * group (65 tokens) — the same page, twice, differing only in section and source dir.
+ */
+function renderDocPage(opts: {
+  title: string;
+  backHref: string;
+  backLabel: string;
+  sourcePath: string;
+  lead?: string;
+  bodyHtml: string;
+}): string {
+  const lead = opts.lead === undefined ? '' : `\n    <p>${escapeHtml(opts.lead)}</p>`;
+  return `<h1>${escapeHtml(opts.title)}</h1>
+    <p><a href="${opts.backHref}">${escapeHtml(opts.backLabel)}</a> · <code>${escapeHtml(opts.sourcePath)}</code></p>${lead}
+    <div class="body">${opts.bodyHtml}</div>`;
+}
+
+/**
  * Render a single framework page: title, breadcrumb back to index,
  * source-file path, and the link-rewritten body in `.body` for
  * markdown styling.
@@ -558,9 +580,49 @@ export function renderFrameworkIndex(pages: FrameworkPage[], skills: SkillPage[]
  * @returns HTML body string
  */
 export function renderFrameworkPage(page: FrameworkPageDetail): string {
-  return `<h1>${escapeHtml(page.title)}</h1>
-    <p><a href="/framework">← back to framework index</a> · <code>docs/noldor/${escapeHtml(page.slug)}.md</code></p>
-    <div class="body">${page.bodyHtml}</div>`;
+  return renderDocPage({
+    title: page.title,
+    backHref: '/framework',
+    backLabel: '← back to framework index',
+    sourcePath: `docs/noldor/${page.slug}.md`,
+    bodyHtml: page.bodyHtml,
+  });
+}
+
+/**
+ * The architecture index: one row per registry page, with its purpose and whether it is
+ * still a scaffold. Unwritten pages are listed rather than hidden — the surface's own
+ * validator treats a placeholder as debt, and the index should read the same way.
+ */
+export function renderArchitectureIndex(pages: ArchitectureDocPage[]): string {
+  const rows = pages
+    .map(
+      (p) =>
+        `<tr><td><a href="/architecture/${escapeHtml(p.slug)}">${escapeHtml(p.title)}</a></td>` +
+        `<td>${escapeHtml(p.purpose)}</td>` +
+        `<td>${p.placeholder ? 'not written yet' : 'written'}</td></tr>`,
+    )
+    .join('\n');
+  return `<h1>Architecture</h1>
+    <p>The four questions an architecture surface answers · <code>docs/architecture/</code></p>
+    <table><thead><tr><th>Page</th><th>Answers</th><th>State</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+/**
+ * One architecture page. The rendered body carries `div.mermaid` containers for its
+ * fences, which the layout's mermaid bundle draws — so the diagrams render here rather
+ * than only on GitHub, which is the gap this route closes.
+ */
+export function renderArchitecturePage(page: ArchitectureDocPageDetail): string {
+  return renderDocPage({
+    title: page.title,
+    backHref: '/architecture',
+    backLabel: '← back to architecture index',
+    sourcePath: `docs/architecture/${page.slug}.md`,
+    lead: page.purpose,
+    bodyHtml: page.bodyHtml,
+  });
 }
 
 /**
@@ -640,9 +702,13 @@ export function renderUserDocsIndex(
  * @returns HTML body string
  */
 export function renderUserDoc(category: string, doc: UserDocDetail): string {
-  return `<h1>${escapeHtml(doc.title)}</h1>
-    <p><a href="/docs">← back to docs</a> · <code>docs/user/${escapeHtml(category)}/${escapeHtml(doc.slug)}.md</code></p>
-    <div class="body">${doc.bodyHtml}</div>`;
+  return renderDocPage({
+    title: doc.title,
+    backHref: '/docs',
+    backLabel: '← back to docs',
+    sourcePath: `docs/user/${category}/${doc.slug}.md`,
+    bodyHtml: doc.bodyHtml,
+  });
 }
 
 const DRAG_GRIP_SVG = `<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/></svg>`;
