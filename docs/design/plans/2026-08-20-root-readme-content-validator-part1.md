@@ -19,6 +19,7 @@
 - `src/checks/check-readme.ts` — **Create.** CLI shell: `main(cwd)` → exit code, `runIfDirect` tail. No evaluation logic.
 - `src/checks/__tests__/check-readme.test.ts` — **Create.** Exit-code and rendering tests.
 - `src/cli/manifest.ts` — **Modify.** Register `checks readme`.
+- `docs/noldor/script-catalog.md` + `templates/docs/noldor/script-catalog.md` — **Modify.** The `check:readme` entry. Lands here rather than in Part 3 because the pre-commit `script-catalog` job globs `src/cli/manifest.ts`.
 
 ---
 
@@ -123,8 +124,8 @@ Expected output: the run fails to collect the file, reporting that `../readme-co
 
 ```ts
 // @fd: root-readme-content-validator
-import { lstat, readFile, readdir } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 
 /**
  * Directories one level under `docs/` that hold per-change workflow artifacts —
@@ -136,11 +137,6 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
  * needs no entry — it holds no markdown, so the predicate below drops it.
  */
 const ARTIFACT_DIRS: ReadonlySet<string> = new Set(['features', 'design']);
-
-/** Repo-relative POSIX path, for stable comparison and diagnostics. */
-function toPosix(p: string): string {
-  return p.split(sep).join('/');
-}
 
 /** True when `dir` holds at least one `.md` at any depth. */
 async function hasMarkdown(dir: string): Promise<boolean> {
@@ -323,7 +319,7 @@ Expected output: the file fails to collect with `reachableTargets is not exporte
 
 - [ ] **Step 3: Add `reachableTargets` to `src/docs/readme-content.ts`.**
 
-Add `import { extractLinks } from './docs-check.js';` to the imports, then append:
+Add the imports this unit needs — `lstat` and `readFile` from `node:fs/promises`, `dirname` and `resolve` from `node:path`, `import { toPosixRelative } from '../core/repo-paths.js';` and `import { extractLinks } from './docs-check.js';`. `toPosixRelative` is the shared helper both sibling doc-surface modules already use (`src/docs/docs-adr.ts:7`, `src/docs/docs-architecture.ts:6`); its own docstring records that it was hoisted when the reviewer flagged the per-module copies, so re-inlining one would re-trip the clone ratchet. Then append:
 
 ```ts
 /**
@@ -380,7 +376,7 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
       }
 
       const abs = resolve(join(cwd, dirname(from)), decoded);
-      const target = toPosix(relative(cwd, abs));
+      const target = toPosixRelative(cwd, abs);
       if (target === '' || target.startsWith('..')) continue; // escapes the repo root
 
       let stats;
@@ -681,7 +677,38 @@ In the `checks` group's `subs`, after the `'ui-design-freshness'` entry, add:
       },
 ```
 
-- [ ] **Step 5: Run the test to verify it PASSES.**
+- [ ] **Step 5: Document the new entrypoint in `docs/noldor/script-catalog.md`, and mirror the twin.**
+
+This cannot wait for Part 3: the pre-commit `script-catalog` job globs `src/cli/manifest.ts` (`lefthook/noldor.yml:86-88`), so the Step 4 registration makes Step 8's commit fail until the catalog cites the new source. After the `### \`check:ui-design-freshness\`` block, insert:
+
+```markdown
+### `check:readme`
+
+- **Trigger:** `pnpm noldor checks readme`. Run advisorily by the `pre-push` hook (`|| true`) and by release preflight (`warn`, never blocking).
+- **Inputs:** root `README.md`, the CLI manifest via `flattenManifest()`, root `package.json` `scripts`, and every directory one level under `docs/` holding markdown.
+- **Outputs:** one line per unresolved command (`pnpm noldor <group> <sub>` against the manifest, `pnpm run <name>` and `pnpm <script>` against root scripts) and one per documentation surface no README link reaches. Operational degradations print as `note:` lines and never change the exit code. Exit 0 clean or when there is no readable README, 1 on findings — callers choose whether that blocks.
+- **When to use:** after adding a CLI subcommand quoted in the README, or after adding a `docs/<dir>/` surface. Repair by editing `README.md`.
+- **Source:** [`src/checks/check-readme.ts`](../../src/checks/check-readme.ts)
+```
+
+Then mirror it:
+
+```bash
+cp docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md
+diff docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md && echo IDENTICAL
+```
+
+Expected output: `IDENTICAL`.
+
+- [ ] **Step 6: Verify the catalog and template gates.**
+
+```bash
+node bin/noldor.mjs validate script-catalog && node bin/noldor.mjs checks template-sync
+```
+
+Expected output: both exit 0.
+
+- [ ] **Step 7: Run the test to verify it PASSES.**
 
 ```bash
 npx vitest run src/checks/__tests__/check-readme.test.ts && npx tsc --noEmit
@@ -689,7 +716,7 @@ npx vitest run src/checks/__tests__/check-readme.test.ts && npx tsc --noEmit
 
 Expected output: `Test Files  1 passed (1)` with 4 passing tests, then `tsc` prints nothing.
 
-- [ ] **Step 6: Run the check against this repository to see the real findings.**
+- [ ] **Step 8: Run the check against this repository to see the real findings.**
 
 ```bash
 node bin/noldor.mjs checks readme
@@ -697,10 +724,10 @@ node bin/noldor.mjs checks readme
 
 Expected output: exit 1, with a line naming `docs/adr` and a line naming `docs/architecture` (Task 9 repairs both).
 
-- [ ] **Step 7: Commit.**
+- [ ] **Step 9: Commit.**
 
 ```bash
-git add src/checks/check-readme.ts src/checks/__tests__/check-readme.test.ts src/cli/manifest.ts
+git add src/checks/check-readme.ts src/checks/__tests__/check-readme.test.ts src/cli/manifest.ts docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md
 git commit -m "feat(checks): add the checks readme CLI surface" -m "Noldor-FD: root-readme-content-validator"
 ```
 

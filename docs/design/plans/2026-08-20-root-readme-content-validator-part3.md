@@ -21,7 +21,7 @@
 - `src/release/__tests__/preflight-probes.test.ts` — **Modify.** Add `'readme'` to the row-order assertion list; add the warn and override cases.
 - `lefthook/noldor.yml` — **Modify.** Advisory `readme` job on `pre-push`.
 - `templates/lefthook/noldor.yml` — **Modify.** Byte-identical twin.
-- `docs/noldor/script-catalog.md` — **Modify.** `check:readme` entry, and `readme` added to the preflight row-id prose.
+- `docs/noldor/script-catalog.md` — **Modify.** Add `readme` to the preflight row-id prose. (The `check:readme` entry itself lands in Part 1 Task 4, beside the manifest registration the pre-commit job globs.)
 - `templates/docs/noldor/script-catalog.md` — **Modify.** Byte-identical twin.
 - `README.md` — **Modify.** Link `docs/architecture/` and `docs/adr/` from `## Docs`.
 
@@ -188,25 +188,13 @@ diff lefthook/noldor.yml templates/lefthook/noldor.yml && echo IDENTICAL
 
 Expected output: `IDENTICAL`.
 
-- [ ] **Step 3: Add the catalog entry to `docs/noldor/script-catalog.md`.**
+- [ ] **Step 3: Add `readme` to the preflight row-id prose in `docs/noldor/script-catalog.md`.**
 
-After the `### \`check:ui-design-freshness\`` block, insert:
-
-```markdown
-### `check:readme`
-
-- **Trigger:** `pnpm noldor checks readme`. Run advisorily by the `pre-push` hook (`|| true`) and by release preflight (`warn`, never blocking).
-- **Inputs:** root `README.md`, the CLI manifest via `flattenManifest()`, root `package.json` `scripts`, and every directory one level under `docs/` holding markdown.
-- **Outputs:** one line per unresolved command (`pnpm noldor <group> <sub>` against the manifest, `pnpm run <name>` and `pnpm <script>` against root scripts) and one per documentation surface no README link reaches. Operational degradations print as `note:` lines and never change the exit code. Exit 0 clean or when there is no readable README, 1 on findings — callers choose whether that blocks.
-- **When to use:** after adding a CLI subcommand quoted in the README, or after adding a `docs/<dir>/` surface. Repair by editing `README.md`.
-- **Source:** [`src/checks/check-readme.ts`](../../src/checks/check-readme.ts)
-```
-
-- [ ] **Step 4: Add `readme` to the preflight row-id prose in the same file.**
+The `### \`check:readme\`` entry itself already landed in Part 1 Task 4 — the pre-commit `script-catalog` job globs `src/cli/manifest.ts`, so it had to accompany the registration. Only the preflight row-id list is outstanding here.
 
 On the release-preflight `- **Outputs:**` line, insert `` `readme`, `` into the row-id list immediately after `` `architecture`, ``.
 
-- [ ] **Step 5: Mirror the catalog into its twin.**
+- [ ] **Step 4: Mirror the catalog into its twin.**
 
 ```bash
 cp docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md
@@ -215,7 +203,7 @@ diff docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md && ec
 
 Expected output: `IDENTICAL`.
 
-- [ ] **Step 6: Verify the catalog gate and the template gate.**
+- [ ] **Step 5: Verify the catalog gate and the template gate.**
 
 ```bash
 node bin/noldor.mjs validate script-catalog && node bin/noldor.mjs checks template-sync
@@ -223,7 +211,7 @@ node bin/noldor.mjs validate script-catalog && node bin/noldor.mjs checks templa
 
 Expected output: both commands exit 0 — the catalog cites the new entrypoint and no template has drifted.
 
-- [ ] **Step 7: Commit.**
+- [ ] **Step 6: Commit.**
 
 ```bash
 git add lefthook/noldor.yml templates/lefthook/noldor.yml docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md
