@@ -65,6 +65,14 @@ describe('queue-drain CLI helpers', () => {
     expect(() => parseArgs(['--size', 'XS,tiny'])).toThrow(/--size must be one of/);
   });
 
+  it('rejects a --size the roadmap source can never ship', () => {
+    expect(() => parseArgs(['--size', 'M,L'])).toThrow(/can never ship on --source roadmap/);
+  });
+
+  it('accepts a mixed --size as long as one size is fast-track', () => {
+    expect(parseArgs(['--size', 'XS,M']).selection?.sizes).toEqual(new Set(['XS', 'M']));
+  });
+
   it('rejects an empty --size / --only value', () => {
     expect(() => parseArgs(['--size', ''])).toThrow(/non-empty list/);
     expect(() => parseArgs(['--only', ','])).toThrow(/non-empty list/);

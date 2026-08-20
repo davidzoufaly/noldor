@@ -219,6 +219,9 @@ async function main(): Promise<void> {
       // other reconcile throw (gh/network hiccup) rides the consecutiveFailures
       // rail like a failed cycle, so one transient error can't kill the daemon.
       const baseSource = roadmapSource(cwd);
+      // One binding per cycle, shared by the staleness guard below and the runDrain call
+      // further down — both need the same park-aware view.
+      const cycleSource = parkAwareSource(baseSource, () => loadPark(cwd));
       try {
         const reconcileDeps = makeReconcileDeps(
           cwd,
@@ -228,18 +231,24 @@ async function main(): Promise<void> {
         );
         const report = await reconcileDeadRun(reconcileDeps, baseSource, parsed.dryRun);
         if (!reportIsEmpty(report)) out(formatReconcile(report));
-        // Uncommitted-triage guard, inside this try so it rides the same two-tier handling
-        // as a divergence — and classified as persistent below, since an uncommitted edit
-        // does not clear itself on the next cycle. The daemon needs this MORE than the CLI
-        // does: it is the mode where an operator's working-tree roadmap edit can sit for
-        // hours while cycles keep burning agent runs on blocks the children cannot see.
-        // `assertQueueSourceSyncedAt` above catches only the committed-but-unpushed half.
-        const notAtRef = selectionNotAtRef(
-          parkAwareSource(baseSource, () => loadPark(cwd)),
-          'origin/main',
-          parsed.maxFeatures,
-        );
-        if (notAtRef.length > 0) throw new Error(formatNotAtRef(notAtRef, 'origin/main'));
+        // Uncommitted-triage guard, inside this try so a real finding rides the same
+        // two-tier handling as a divergence — and classified as persistent below, since an
+        // uncommitted edit does not clear itself on the next cycle. The daemon needs this
+        // MORE than the CLI does: it is the mode where an operator's working-tree roadmap
+        // edit can sit for hours while cycles keep burning agent runs on blocks the
+        // children cannot see. `assertQueueSourceSyncedAt` above catches only the
+        // committed-but-unpushed half.
+        //
+        // Under --dry-run it reports and continues, matching the CLI's deliberate choice
+        // (queue-drain.ts): nothing spawns, so there is nothing to protect, and aborting
+        // would hide the very cycle plan being previewed. Throwing here would instead hit
+        // the dry-run reconcile-failure branch below and end the preview.
+        const notAtRef = selectionNotAtRef(cycleSource, 'origin/main', parsed.maxFeatures);
+        if (notAtRef.length > 0) {
+          const detail = formatNotAtRef(notAtRef, 'origin/main');
+          if (parsed.dryRun) out(detail);
+          else throw new Error(detail);
+        }
       } catch (e) {
         const now = new Date().toISOString();
         const evidence = e instanceof Error ? e.message : String(e);
@@ -301,7 +310,7 @@ async function main(): Promise<void> {
         continue;
       }
 
-      const source = parkAwareSource(baseSource, () => loadPark(cwd));
+      const source = cycleSource;
       // Per-CYCLE run id (spec D7): each cycle is one runDrain with its own
       // outcome totals. The ambient env copy feeds salvage + nested spawns.
       const runId = `${new Date().toISOString()}.${String(process.pid)}`;

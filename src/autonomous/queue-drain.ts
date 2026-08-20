@@ -14,6 +14,7 @@ import {
   type SelectionFilter,
 } from './drain-source.js';
 import { sizeSchema } from '../triage/score.js';
+import { sizeToPath } from '../core/size-routing.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { writeState, projectDrainState } from './drain-state.js';
 import { makePhaseTap } from './phase-events.js';
@@ -111,6 +112,16 @@ function parseSelection(args: readonly string[], source: SourceId): SelectionFil
   const bad = sizes === undefined ? [] : [...sizes].filter((s) => !SIZES.includes(s));
   if (bad.length > 0) {
     throw new Error(`--size must be one of ${SIZES.join(', ')} (got ${bad.join(', ')})`);
+  }
+  // A size the roadmap source can never ship is a guaranteed-empty run: `roadmapSource`
+  // admits fast-track entries only, so `--size M` would drain nothing and exit 0, which
+  // reads as a drained queue. Fast-track membership comes from `sizeToPath` — the size→path
+  // policy's own answer — rather than a restated {XS, S} literal.
+  if (sizes !== undefined && ![...sizes].some((s) => sizeToPath(s, false) === 'fast-track')) {
+    throw new Error(
+      `--size ${[...sizes].join(', ')} can never ship on --source roadmap, which drains ` +
+        `fast-track entries only — include a fast-track size`,
+    );
   }
   return {
     ...(sizes !== undefined ? { sizes } : {}),

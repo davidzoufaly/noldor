@@ -145,12 +145,19 @@ export function formatNotAtRef(missing: readonly string[], ref: string): string 
  * an **uncommitted** one — which is the case the entry was filed for.
  *
  * Only `eligible` candidates count (an entry the run will skip anyway — wrong size, unmet
- * dep, `--size` narrowing — cannot waste a spawn), and only the first `cap` of them: the
- * loop stops at `--max-features`, so a stale block sitting below that bound is never
- * reached and must not abort a run whose head is clean. Returns `[]` when the source
- * cannot answer for `ref` — a guard that cannot judge must never abort. Terminates on
- * `cap` or on queue exhaustion, whichever comes first (each answered slug enters `skip`,
- * so `nextItem` eventually returns `null`).
+ * dep, `--size` narrowing — cannot waste a spawn), and only the first `cap` of them, so a
+ * stale block far down the queue cannot abort a run whose head is clean.
+ *
+ * `cap` is deliberately an approximation, not a bound the loop guarantees: callers pass
+ * `--max-features`, which bounds *ships*, and a skipped or failed entry pushes the
+ * attempt frontier deeper than that. So the guard is not exhaustive — an entry beyond the
+ * cap that is only in the working tree still burns one run before its own `remove-block`
+ * no-ops. Checking the whole queue instead would trade that bounded miss for a false
+ * abort on every clean-headed run, which is the worse failure: it ships nothing at all.
+ *
+ * Returns `[]` when the source cannot answer for `ref` — a guard that cannot judge must
+ * never abort. Terminates on `cap` or on queue exhaustion, whichever comes first (each
+ * answered slug enters `skip`, so `nextItem` eventually returns `null`).
  */
 export function selectionNotAtRef(source: DrainSource, ref: string, cap: number): string[] {
   const atRef = source.parseAllAtRef?.(ref);
