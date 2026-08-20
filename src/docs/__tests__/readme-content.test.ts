@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { enumerateDocSurfaces, unreachableSurfaces } from '../readme-content.js';
+import { enumerateDocSurfaces, reachableTargets, unreachableSurfaces } from '../readme-content.js';
 
 const roots: string[] = [];
 
@@ -91,5 +91,77 @@ describe('unreachableSurfaces', () => {
   it('a sibling prefix match does not satisfy the surface', () => {
     const reached = { ...empty, files: new Set(['docs/adr-notes/x.md']) };
     expect(unreachableSurfaces(['docs/adr'], reached)).toEqual(['docs/adr']);
+  });
+});
+
+describe('reachableTargets', () => {
+  it('follows a multi-hop route and terminates on a cycle', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '[hub](docs/noldor/README.md)');
+    await write(root, 'docs/noldor/README.md', '[t](triage.md) [back](../../README.md)');
+    await write(root, 'docs/noldor/triage.md', '[h](../user/how-to/index.md)');
+    await write(root, 'docs/user/how-to/index.md', '# how-to');
+    const reached = await reachableTargets(root);
+    expect(reached.files.has('docs/user/how-to/index.md')).toBe(true);
+    expect(reached.notes).toEqual([]);
+    expect(reached.readme).toBe('ok');
+  });
+
+  it('carries the seed body so no caller re-reads it', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '# seed body');
+    const reached = await reachableTargets(root);
+    expect(reached.body).toBe('# seed body');
+  });
+
+  it('records a directory target in dirs and does not descend', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '[adrs](docs/adr/)');
+    await write(root, 'docs/adr/0001-x.md', '# x');
+    const reached = await reachableTargets(root);
+    expect([...reached.dirs]).toEqual(['docs/adr']);
+    expect(reached.files.has('docs/adr/0001-x.md')).toBe(false);
+  });
+
+  it('ignores prose backticks, and strips fragments and queries', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', 'see `docs/adr/` then [a](docs/architecture/context.md#top)');
+    await write(root, 'docs/architecture/context.md', '# c');
+    const reached = await reachableTargets(root);
+    expect(reached.dirs.size).toBe(0);
+    expect(reached.files.has('docs/architecture/context.md')).toBe(true);
+  });
+
+  it('does not record a non-markdown target', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '![logo](docs/assets/logo.png)');
+    await write(root, 'docs/assets/logo.png', 'binary');
+    const reached = await reachableTargets(root);
+    expect(reached.files.size).toBe(0);
+    expect(reached.dirs.size).toBe(0);
+  });
+
+  it('notes a malformed percent-escape instead of throwing', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '[bad](docs/a%zz.md)');
+    const reached = await reachableTargets(root);
+    expect(reached.notes).toHaveLength(1);
+    expect(reached.notes[0]).toContain('malformed percent-escape');
+  });
+
+  it('is silent on a broken link and drops a repo-escaping target', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '[gone](docs/nope.md) [out](../escape.md)');
+    const reached = await reachableTargets(root);
+    expect(reached.files.size).toBe(0);
+    expect(reached.notes).toEqual([]);
+  });
+
+  it('reports a missing README once, with no note', async () => {
+    const reached = await reachableTargets(await makeRepo());
+    expect(reached.readme).toBe('missing');
+    expect(reached.files.size).toBe(0);
+    expect(reached.notes).toEqual([]);
+    expect(reached.body).toBe('');
   });
 });

@@ -5,7 +5,8 @@ deps: []
 entry-id: Q-0139
 links:
   code: []
-  tests: []
+  tests:
+    - src/docs/__tests__/readme-content.test.ts
   spec: docs/design/specs/2026-08-20-root-readme-content-validator-design.md
 name: Root README Content Validator
 packages:

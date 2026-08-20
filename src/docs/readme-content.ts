@@ -1,9 +1,10 @@
 // @fd: root-readme-content-validator
-import { join } from 'node:path';
+import { lstat, readFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 
 import { toPosixRelative } from '../core/repo-paths.js';
 
-import { walkMd } from './docs-check.js';
+import { extractLinks, walkMd } from './docs-check.js';
 
 /**
  * Directories one level under `docs/` that hold per-change workflow artifacts —
@@ -108,4 +109,104 @@ export function unreachableSurfaces(
     }
     return true;
   });
+}
+
+/**
+ * Every markdown file and directory the README link graph reaches, to a
+ * fixpoint over a visited set so link cycles terminate.
+ *
+ * Eligibility is whatever {@link extractLinks} yields — it already strips code
+ * regions and drops external and root-absolute hrefs, so this check's notion of
+ * "a link" is identical to the one `docs check` enforces. That matters: the
+ * surfaces this check exists to catch are named in the rule pages only inside
+ * prose backticks, and counting those would make the check green while the
+ * reader still has no route.
+ *
+ * Every failure is contained: a broken link is `docs check`'s finding and is
+ * skipped silently, and every other error becomes a note. Nothing throws.
+ *
+ * Each body is read when its path is dequeued and then dropped, so the walk
+ * holds one body at a time rather than every visited file's. The trade-off is
+ * that a read failure is attributed to the unreadable file rather than to the
+ * link that led there.
+ *
+ * @param cwd - Repository root
+ * @returns Reached markdown files, directly-linked dirs, degradations, and the
+ *   seed's readability plus its body
+ */
+export async function reachableTargets(cwd: string): Promise<ReachSet> {
+  const files = new Set<string>();
+  const dirs = new Set<string>();
+  const notes: string[] = [];
+  const visited = new Set<string>(['README.md']);
+  const queue: string[] = ['README.md'];
+  let readme: ReachSet['readme'] = 'ok';
+  let seedBody = '';
+
+  while (queue.length > 0) {
+    const from = queue.shift() as string;
+
+    let body: string;
+    try {
+      body = await readFile(join(cwd, from), 'utf8');
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (from === 'README.md') {
+        readme = code === 'ENOENT' ? 'missing' : 'unreadable';
+        if (readme === 'unreadable') {
+          notes.push(`cannot read README.md: ${code ?? 'unknown'}`);
+        }
+        break; // no seed, nothing to walk
+      }
+      notes.push(`cannot read ${from}: ${code ?? 'unknown'}`);
+      continue;
+    }
+    if (from === 'README.md') seedBody = body;
+
+    for (const link of extractLinks(body)) {
+      const withoutFragment = link.href.split('#')[0] ?? '';
+      const bare = withoutFragment.split('?')[0] ?? '';
+      if (bare === '') continue;
+
+      let decoded: string;
+      try {
+        decoded = decodeURIComponent(bare);
+      } catch {
+        // URIError, not a filesystem error — it would otherwise escape the
+        // handling below and crash the walk this contract exists to protect.
+        notes.push(`${from}:${link.line}: malformed percent-escape in ${bare} — link skipped`);
+        continue;
+      }
+
+      const abs = resolve(join(cwd, dirname(from)), decoded);
+      const target = toPosixRelative(cwd, abs);
+      if (target === '' || target.startsWith('..')) continue; // escapes the repo root
+
+      let stats;
+      try {
+        stats = await lstat(abs);
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        // ENOENT is a broken link — `docs check`'s finding, not this one's.
+        if (code !== 'ENOENT') {
+          notes.push(`${from}:${link.line}: cannot stat ${target}: ${code ?? 'unknown'}`);
+        }
+        continue;
+      }
+
+      if (stats.isSymbolicLink()) continue; // not followed
+      if (stats.isDirectory()) {
+        dirs.add(target);
+        continue;
+      }
+      if (!target.endsWith('.md')) continue; // cannot satisfy a surface
+
+      files.add(target);
+      if (visited.has(target)) continue;
+      visited.add(target);
+      queue.push(target); // read at dequeue — no body is retained
+    }
+  }
+
+  return { files, dirs, notes, readme, body: seedBody };
 }
