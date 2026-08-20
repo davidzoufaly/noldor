@@ -10,6 +10,7 @@ import { readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { GET_ROUTES, startServer } from '../server.js';
+import { ARCHITECTURE_PAGES } from '../../docs/architecture-schema.js';
 
 import type { Server } from 'node:http';
 
@@ -36,7 +37,15 @@ async function expectHealthy(route: string): Promise<void> {
 describe('dashboard route sweep', () => {
   it('covers every static GET route in the routing table', () => {
     // Belt-and-suspenders: the map must keep serving the known core surfaces.
-    for (const must of ['/', '/roadmap', '/features', '/agents', '/agents/log', '/api/agents']) {
+    for (const must of [
+      '/',
+      '/roadmap',
+      '/features',
+      '/agents',
+      '/agents/log',
+      '/api/agents',
+      '/architecture',
+    ]) {
       expect(GET_ROUTES).toContain(must);
     }
   });
@@ -63,6 +72,10 @@ describe('dashboard route sweep', () => {
     if (feature !== null) probes.push(`/features/${feature}`);
     const fwPage = firstSlug('docs/noldor', /\.md$/);
     if (fwPage !== null) probes.push(`/framework/${fwPage}`);
+    // Architecture slugs come from the closed registry, not the directory: a page whose
+    // file is missing still routes (it reports the gap), so probing the registry covers
+    // the route even on a repo that has not written the surface yet.
+    for (const page of ARCHITECTURE_PAGES) probes.push(`/architecture/${page.id}`);
     // Self-host always has FDs + framework pages; an empty probe list means the
     // fixture assumptions broke — fail loudly rather than sweep nothing.
     expect(probes.length).toBeGreaterThan(0);

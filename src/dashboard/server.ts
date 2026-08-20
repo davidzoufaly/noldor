@@ -17,6 +17,8 @@ import {
   loadFeatureDetail,
   loadFeatureGitTimestamps,
   loadFeatures,
+  loadArchitecturePage,
+  loadArchitecturePages,
   loadFrameworkPage,
   loadFrameworkPages,
   loadGaps,
@@ -45,6 +47,8 @@ import {
   renderBacklog,
   renderFeatureDetail,
   renderFeatures,
+  renderArchitectureIndex,
+  renderArchitecturePage,
   renderFrameworkIndex,
   renderFrameworkPage,
   renderGaps,
@@ -180,6 +184,7 @@ const STATIC_GET_HANDLERS: Record<string, RouteMatch['handler']> = {
   '/agents': handleAgents,
   '/agents/log': handleAgentsLog,
   '/metrics': handleMetrics,
+  '/architecture': handleArchitectureIndex,
   '/framework': handleFrameworkIndex,
   '/docs': handleUserDocsIndex,
   '/release-notes': handleReleaseNotes,
@@ -198,6 +203,8 @@ function matchRoute(method: string, pathname: string): RouteMatch | null {
       ? STATIC_GET_HANDLERS[pathname]
       : undefined;
     if (staticHandler) return { handler: staticHandler, pathParams: {} };
+    const archMatch = /^\/architecture\/([a-z0-9-]+)$/.exec(pathname);
+    if (archMatch) return { handler: handleArchitecturePage, pathParams: { slug: archMatch[1] } };
     const fwMatch = /^\/framework\/([a-z0-9-]+)$/.exec(pathname);
     if (fwMatch) return { handler: handleFrameworkPage, pathParams: { slug: fwMatch[1] } };
     const skillMatch = /^\/skills\/([a-z0-9-]+)$/.exec(pathname);
@@ -505,6 +512,33 @@ async function handleFrameworkIndex(): Promise<RouteResult> {
     body: renderFrameworkIndex(pages, skills),
     title: 'framework',
     activeNav: '/framework',
+  };
+}
+
+async function handleArchitectureIndex(): Promise<RouteResult> {
+  return {
+    status: 200,
+    body: renderArchitectureIndex(await loadArchitecturePages()),
+    title: 'architecture',
+    activeNav: '/architecture',
+  };
+}
+
+async function handleArchitecturePage(
+  _params: URLSearchParams,
+  pathParams: Record<string, string>,
+): Promise<RouteResult> {
+  const page = await loadArchitecturePage(pathParams.slug);
+  if (!page) {
+    // Only a slug outside the closed registry 404s. A registry page whose file is missing
+    // still renders, reporting the gap — that absence is information, not a dead link.
+    return { status: 404, body: '<h1>Not found</h1>', title: '404', activeNav: '/architecture' };
+  }
+  return {
+    status: 200,
+    body: renderArchitecturePage(page),
+    title: `architecture / ${page.slug}`,
+    activeNav: '/architecture',
   };
 }
 

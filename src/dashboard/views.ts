@@ -11,6 +11,8 @@ import type {
   AgentActivity,
   AgentRunGroup,
   LiveAgentRow,
+  ArchitectureDocPage,
+  ArchitectureDocPageDetail,
   DrainObservation,
   DashboardCounts,
   FeatureDetail,
@@ -560,6 +562,38 @@ export function renderFrameworkIndex(pages: FrameworkPage[], skills: SkillPage[]
 export function renderFrameworkPage(page: FrameworkPageDetail): string {
   return `<h1>${escapeHtml(page.title)}</h1>
     <p><a href="/framework">← back to framework index</a> · <code>docs/noldor/${escapeHtml(page.slug)}.md</code></p>
+    <div class="body">${page.bodyHtml}</div>`;
+}
+
+/**
+ * The architecture index: one row per registry page, with its purpose and whether it is
+ * still a scaffold. Unwritten pages are listed rather than hidden — the surface's own
+ * validator treats a placeholder as debt, and the index should read the same way.
+ */
+export function renderArchitectureIndex(pages: ArchitectureDocPage[]): string {
+  const rows = pages
+    .map(
+      (p) =>
+        `<tr><td><a href="/architecture/${escapeHtml(p.slug)}">${escapeHtml(p.title)}</a></td>` +
+        `<td>${escapeHtml(p.purpose)}</td>` +
+        `<td>${p.placeholder ? 'not written yet' : 'written'}</td></tr>`,
+    )
+    .join('\n');
+  return `<h1>Architecture</h1>
+    <p>The four questions an architecture surface answers · <code>docs/architecture/</code></p>
+    <table><thead><tr><th>Page</th><th>Answers</th><th>State</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+/**
+ * One architecture page. The rendered body carries `div.mermaid` containers for its
+ * fences, which the layout's mermaid bundle draws — so the diagrams render here rather
+ * than only on GitHub, which is the gap this route closes.
+ */
+export function renderArchitecturePage(page: ArchitectureDocPageDetail): string {
+  return `<h1>${escapeHtml(page.title)}</h1>
+    <p><a href="/architecture">← back to architecture index</a> · <code>docs/architecture/${escapeHtml(page.slug)}.md</code></p>
+    <p>${escapeHtml(page.purpose)}</p>
     <div class="body">${page.bodyHtml}</div>`;
 }
 
