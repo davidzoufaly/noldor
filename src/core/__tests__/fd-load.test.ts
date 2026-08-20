@@ -4,7 +4,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { extractSummary, loadSddFeatures, readFrontmatter } from '../fd-load.js';
+import {
+  extractSummary,
+  loadSddFeatures,
+  parseFdFrontmatter,
+  readFrontmatter,
+} from '../fd-load.js';
 
 // @tests: sdd-detector-5-idea-merge-semantic-similarity
 describe(extractSummary, () => {
@@ -98,5 +103,32 @@ describe(readFrontmatter, () => {
     const raw = '---\nname: {still: broken\n---\n\nbody\n';
     expect(readFrontmatter(raw).ok).toBe(false);
     expect(readFrontmatter(raw).ok).toBe(false);
+  });
+});
+
+describe(parseFdFrontmatter, () => {
+  const VALID = `---
+name: Valid
+phase: in-progress
+area: tooling
+category: Tooling
+packages: ['@acme/web']
+'noldor-tier': specs-only
+links:
+  code: []
+  tests: []
+  docs: []
+---
+
+body
+`;
+
+  it('returns the validated frontmatter for a well-formed FD', () => {
+    expect(parseFdFrontmatter(VALID)).toMatchObject({ name: 'Valid', phase: 'in-progress' });
+  });
+
+  it('returns null for broken YAML and for a schema mismatch alike', () => {
+    expect(parseFdFrontmatter('---\nname: [unclosed\n---\n')).toBeNull();
+    expect(parseFdFrontmatter(VALID.replace('in-progress', 'not-a-phase'))).toBeNull();
   });
 });

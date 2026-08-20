@@ -174,6 +174,25 @@ export function readFrontmatter(raw: string): FrontmatterParse {
 }
 
 /**
+ * Guarded frontmatter parse plus the FD schema check — the shape every FD
+ * reader needs. Returns `null` for both failure classes, which are one class to
+ * a caller: this FD cannot be understood, so skip it and let
+ * `noldor features validate` / the `malformed-fd` gap report it.
+ *
+ * Only the parse is guarded, exactly as in {@link readFrontmatter}: read the
+ * file yourself so a genuine IO failure still surfaces.
+ *
+ * @param raw - Full FD file contents, frontmatter included.
+ * @returns Validated frontmatter, or `null` when the YAML or the schema fails.
+ */
+export function parseFdFrontmatter(raw: string): FeatureFrontmatter | null {
+  const parsed = readFrontmatter(raw);
+  if (!parsed.ok) return null;
+  const result = FeatureFrontmatterSchema.safeParse(parsed.data);
+  return result.success ? result.data : null;
+}
+
+/**
  * Load every feature MD in a directory and parse its frontmatter.
  *
  * An FD whose frontmatter will not parse is **skipped**, not thrown on: this
@@ -206,13 +225,18 @@ export async function loadSddFeatures(dir: string): Promise<FeatureRecord[]> {
       continue;
     }
     const slug = entry.name.replace(/\.md$/, '');
-    // Read unguarded on purpose: a genuine IO failure is not the malformed-FD
-    // class and must not be silently swallowed (`error-result-types`).
-    const parsed = readFrontmatter(await readFile(join(dir, entry.name), 'utf8'));
-    if (!parsed.ok) continue; // reported by `features validate` / the malformed-fd gap
-    const fm = FeatureFrontmatterSchema.safeParse(parsed.data);
-    if (!fm.success) continue; // same — schema-invalid FDs are named, not thrown on
-    result.push({ frontmatter: fm.data, slug });
+    let raw: string;
+    try {
+      raw = await readFile(join(dir, entry.name), 'utf8');
+    } catch (error) {
+      // Vanished between readdir and read — nothing to load. Any other IO
+      // failure is not the malformed-FD class and must not be swallowed.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
+    const fm = parseFdFrontmatter(raw);
+    if (!fm) continue; // reported by `features validate` / the malformed-fd gap
+    result.push({ frontmatter: fm, slug });
   }
   return result;
 }

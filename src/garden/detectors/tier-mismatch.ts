@@ -1,8 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { readFrontmatter } from '../../core/fd-load.js';
-import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
+import { parseFdFrontmatter } from '../../core/fd-load.js';
 
 export interface TierMismatchFinding {
   readonly slug: string;
@@ -45,11 +44,8 @@ export async function detectTierMismatch(repo: string): Promise<TierMismatchFind
 
     // Guarded parse: broken YAML must not abort the detector run — a malformed
     // FD is the `malformed-fd` gap's finding, not this detector's.
-    const parsed = readFrontmatter(raw);
-    if (!parsed.ok) continue;
-    const result = FeatureFrontmatterSchema.safeParse(parsed.data);
-    if (!result.success) continue;
-    const fm = result.data;
+    const fm = parseFdFrontmatter(raw);
+    if (!fm) continue;
 
     if (fm['noldor-tier'] === 'full' && !fm.links.spec) {
       findings.push({
