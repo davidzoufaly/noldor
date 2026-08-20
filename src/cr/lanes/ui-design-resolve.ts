@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
+import { errMessage } from '../../core/err-message.js';
 import {
   defaultRunGit,
   discoverAddedFiles,
@@ -23,7 +24,6 @@ import { readSession } from '../../core/session.js';
 import { sessionUiVerdict, type UiFrontmatter } from '../../core/ui-predicate.js';
 import { dialogueKeyFromSession } from '../../design/archive-resolve.js';
 import type { LaneReasonCode } from '../findings-schema.js';
-import { errMessage } from '../lane-spawn.js';
 import type { LaneInput } from '../lane-types.js';
 import { readFdSummary } from '../read-fd-summary.js';
 

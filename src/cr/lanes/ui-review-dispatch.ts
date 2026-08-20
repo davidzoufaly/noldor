@@ -105,15 +105,16 @@ Every finding must name both sides it compared: the design page and the element 
 
 If you cannot read the design at all, report \`cannot-review\` with reason \`pen-unreadable\`. If you can read the file but it holds no \`FINAL:\` page for the scope above, report \`cannot-review\` with reason \`no-final-pages\`. Both are honest outcomes — never guess a verdict from the code alone.
 
-${fencedJsonInstruction(
-  `// exactly one of these three shapes, with NO other keys:
-{"verdict": "pass", "findings": []}
-{"verdict": "fail", "findings": [{"file": "...", "line": 1, "severity": "high" | "med" | "low",
-                                  "message": "...", "designPage": "...", "designElement": "..."}]}
-{"verdict": "cannot-review", "findings": [], "reason": "pen-unreadable" | "no-final-pages"}`,
-)}
+Report in exactly one of three shapes, with NO other keys:
+- pass: \`verdict\` "pass" and an empty \`findings\` array.
+- fail: \`verdict\` "fail" and a non-empty \`findings\` array, each entry carrying \`file\`, \`severity\` ("high" | "med" | "low"), \`message\`, \`designPage\`, \`designElement\`, and optionally \`line\`.
+- cannot-review: \`verdict\` "cannot-review", an empty \`findings\` array, and \`reason\` ("pen-unreadable" | "no-final-pages").
 
-Emit no key beyond the ones its shape lists — not \`reason\` on a \`pass\`, not a \`summary\` or \`notes\` field. The shapes are validated strictly, so one extra key makes the whole report unreadable.`;
+Emit no key beyond the ones your shape lists — not \`reason\` on a pass, not a \`summary\` or \`notes\` field. The shapes are validated strictly, so one extra key makes the whole report unreadable.
+
+${fencedJsonInstruction(
+  `{"verdict": "fail", "findings": [{"file": "src/ui/Panel.tsx", "line": 42, "severity": "high", "message": "...", "designPage": "FINAL:app: default", "designElement": "Submit"}]}`,
+)}`;
 }
 
 /**

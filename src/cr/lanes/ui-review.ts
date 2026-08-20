@@ -10,10 +10,10 @@ import { copyFile, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { errMessage } from '../../core/err-message.js';
 import type { Finding, LaneReasonCode } from '../findings-schema.js';
 import { loadLaneMode } from '../lane-mode.js';
 import { openLaneSink } from '../lane-sink.js';
-import { errMessage } from '../lane-spawn.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { resolveUiReviewTarget, type Terminal } from './ui-design-resolve.js';
 import {

@@ -20,6 +20,7 @@ links:
     - src/core/agent-runner/types.ts
     - src/core/config.ts
   tests:
+    - src/core/__tests__/err-message.test.ts
     - src/cr/__tests__/lanes/ui-review-dispatch.test.ts
     - src/cr/__tests__/lanes/ui-review.test.ts
 name: UI-Design Review Lane

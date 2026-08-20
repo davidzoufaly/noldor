@@ -1,9 +1,7 @@
 import { execFile } from 'node:child_process';
-import { laneSinkPath } from '../filename.js';
 import { loadLaneMode } from '../lane-mode.js';
-import { mkdir } from 'node:fs/promises';
-import { dirname, isAbsolute, join } from 'node:path';
-import { writeJsonAtomic } from '../atomic-write.js';
+import { openLaneSink } from '../lane-sink.js';
+import { isAbsolute, join } from 'node:path';
 import { loadVerifyCommands } from '../../core/consumer-config.js';
 import type { Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
@@ -19,10 +17,6 @@ let smokeRunner: SmokeRunner = (cwd, port) => runSmoke(cwd, port);
 /** Test seam — production code never calls this. */
 export function setSmokeRunner(impl: SmokeRunner): void {
   smokeRunner = impl;
-}
-
-function sinkPathFor(input: LaneInput): string {
-  return laneSinkPath(input.repoRoot, input.slug, input.kind, 'verifier');
 }
 
 function basePayload(input: LaneInput, startedAt: string): Omit<LaneFindings, 'summary'> {
@@ -76,17 +70,12 @@ function commitProse(repoRoot: string, baseSha: string, headSha: string): Promis
 }
 
 export async function runVerify(input: LaneInput): Promise<LaneResult> {
-  const sinkPath = sinkPathFor(input);
-  const startedAt = new Date().toISOString();
+  const sink = openLaneSink(input, 'verifier');
+  const startedAt = sink.startedAt;
   const mode = await loadLaneMode(input.repoRoot, 'verifyMode');
 
-  const write = async (payload: LaneFindings, ok: boolean): Promise<LaneResult> => {
-    // Orchestrate pre-creates .noldor/cr/, but the lane stays self-sufficient
-    // for direct callers and unit tests.
-    await mkdir(dirname(sinkPath), { recursive: true });
-    await writeJsonAtomic(sinkPath, payload);
-    return { lane: 'verifier', sinkPath, ok };
-  };
+  const write = (payload: LaneFindings, ok: boolean): Promise<LaneResult> =>
+    sink.write(payload, ok);
 
   // 1. Smoke floor — blocking in BOTH modes (stop-the-line; spec Unit 4 step 2).
   const port = await resolvePort(input.repoRoot);
