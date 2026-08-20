@@ -28,11 +28,19 @@ Design: [`docs/design/specs/2026-08-20-root-readme-content-validator-design.md`]
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As a framework maintainer (human or agent), I want the README's quoted commands and doc-surface links checked against the real CLI manifest and the real `docs/` tree at push time, so that a subcommand or documentation surface I add cannot drift out of the project's front door unnoticed.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**Agent/Programmatic API**
+
+- `pnpm noldor checks readme` — runs both checks. Exit 0 clean, exit 1 when findings exist. Operational degradations (unreadable link target, missing `package.json`) print as `note:` lines and never change the exit code.
+- Runs automatically as an advisory `pre-push` job wired `pnpm noldor checks readme || true`, so it reports without blocking the push. Fix a finding by editing `README.md` and pushing again — no separate micro-chore needed.
+- `pnpm release --preflight` renders a `readme` row carrying any notes in its detail. Findings show as `warn` and never abort a release. `RELEASE_SKIP_README=1` skips the row and records the override.
+
+**UI** — _none: this is a CLI and hook surface with no dashboard route._
+
+**Keyboard shortcut** — _none for v1: the check has no interactive surface to bind._
 
 ## PRs
 
