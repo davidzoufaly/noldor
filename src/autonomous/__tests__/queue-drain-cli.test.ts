@@ -47,6 +47,41 @@ describe('queue-drain CLI helpers', () => {
     expect(() => parseArgs(['--concurrency', '0'])).toThrow(/positive integer/);
   });
 
+  it('leaves selection undefined when neither --size nor --only is given', () => {
+    expect(parseArgs([]).selection).toBeUndefined();
+  });
+
+  it('upper-cases --size into the selection set', () => {
+    expect(parseArgs(['--size', 'xs,s']).selection?.sizes).toEqual(new Set(['XS', 'S']));
+  });
+
+  it('reads --only as a slug set', () => {
+    expect(parseArgs(['--only', 'a-slug, b-slug']).selection?.only).toEqual(
+      new Set(['a-slug', 'b-slug']),
+    );
+  });
+
+  it('rejects an unknown --size rather than selecting nothing', () => {
+    expect(() => parseArgs(['--size', 'XS,tiny'])).toThrow(/--size must be one of/);
+  });
+
+  it('rejects a --size the roadmap source can never ship', () => {
+    expect(() => parseArgs(['--size', 'M,L'])).toThrow(/can never ship on --source roadmap/);
+  });
+
+  it('accepts a mixed --size as long as one size is fast-track', () => {
+    expect(parseArgs(['--size', 'XS,M']).selection?.sizes).toEqual(new Set(['XS', 'M']));
+  });
+
+  it('rejects an empty --size / --only value', () => {
+    expect(() => parseArgs(['--size', ''])).toThrow(/non-empty list/);
+    expect(() => parseArgs(['--only', ','])).toThrow(/non-empty list/);
+  });
+
+  it('rejects narrowing on a non-roadmap source instead of silently no-opping', () => {
+    expect(() => parseArgs(['--source', 'plans', '--size', 'XS'])).toThrow(/roadmap only/);
+  });
+
   it('assertConfig passes the headless precondition set', () => {
     expect(() =>
       assertConfig({

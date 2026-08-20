@@ -84,5 +84,9 @@
   "Q-0139": {
     "slug": "root-readme-content-validator",
     "retiredAt": "2026-08-20"
+  },
+  "Q-0121": {
+    "slug": "queue-drain-selection-and-staleness-guards",
+    "retiredAt": "2026-08-20"
   }
 }

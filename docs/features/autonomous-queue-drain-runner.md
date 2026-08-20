@@ -21,6 +21,7 @@ links:
     - src/autonomous/__tests__/drain-eligibility.test.ts
     - src/autonomous/__tests__/drain-lock.test.ts
     - src/autonomous/__tests__/drain-reconcile.test.ts
+    - src/autonomous/__tests__/drain-selection.test.ts
     - src/autonomous/__tests__/drain-state.test.ts
     - src/autonomous/__tests__/escalations.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
@@ -55,8 +56,10 @@ As an operator with a backlog of small (XS/S) roadmap entries, I want one comman
 1. Ensure `.noldor/config.json` sets `autonomous: { "onFailure": "abort", "skipLanePicker": true, "requireHumanPrApproval": false }` — the drain refuses to start otherwise (headless-safe precondition).
 2. From the main workspace on a clean, synced `main`, run `pnpm noldor autonomous queue-drain`.
 3. Preview without spawning or merging anything: `--dry-run`. Tune with `--max-features N` (default 20), `--max-retries N` (default 2), `--iteration-timeout MS` (default 30 min). Add `--json` for a machine-readable summary.
-4. The runner ships each fast-track (XS/S) roadmap entry as its own auto-merged PR, skipping M/L/XL and `Touches:`/multi-scope entries, until the queue is drained, all-remaining are skipped, or `--max-features` is hit.
-5. Stop cleanly between iterations with SIGINT (Ctrl-C) or `touch .noldor/drain-stop` (exit 130).
+4. Narrow *which* entries the run may ship — a different axis from `--max-features`, which bounds top-N in priority ORDER: `--size XS` (comma-separated, case-insensitive, validated against the triage size enum) and `--only <slug,slug>` (every slug must resolve against the queue). Both apply to `--source roadmap` only and are refused elsewhere; a value matching nothing is an error rather than a run that ships nothing and exits 0. Narrowed-out entries appear in the skip log with the narrowing as their reason; the success oracle's universe stays unnarrowed.
+5. The runner ships each fast-track (XS/S) roadmap entry as its own auto-merged PR, skipping M/L/XL and `Touches:`/multi-scope entries, until the queue is drained, all-remaining are skipped, or `--max-features` is hit.
+6. Stop cleanly between iterations with SIGINT (Ctrl-C) or `touch .noldor/drain-stop` (exit 130).
+7. The run aborts (exit 1) when an entry it would actually attempt exists only in the working tree: children branch from `origin/main`, so an uncommitted triage block is invisible to them. Only the first `--max-features` eligible entries are checked, so a stale block below that bound cannot abort a run whose head is clean. Commit and push the triage, then re-run. `--dry-run` reports the finding as a warning instead (on stderr under `--json`, so the payload stays parseable). `autonomous watch` applies the same guard at each cycle start and treats a finding like a divergence — pause, escalation, exit 1 — since an uncommitted edit needs a human rather than another cycle.
 
 **Agent API**
 
@@ -109,6 +112,7 @@ a merged PR (not merely a clean child exit).
   - [`src/autonomous/__tests__/drain-eligibility.test.ts`](../../src/autonomous/__tests__/drain-eligibility.test.ts)
   - [`src/autonomous/__tests__/drain-lock.test.ts`](../../src/autonomous/__tests__/drain-lock.test.ts)
   - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
+  - [`src/autonomous/__tests__/drain-selection.test.ts`](../../src/autonomous/__tests__/drain-selection.test.ts)
   - [`src/autonomous/__tests__/drain-state.test.ts`](../../src/autonomous/__tests__/drain-state.test.ts)
   - [`src/autonomous/__tests__/escalations.test.ts`](../../src/autonomous/__tests__/escalations.test.ts)
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)

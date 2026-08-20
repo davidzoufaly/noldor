@@ -126,21 +126,6 @@ Three command families build filesystem paths from an unchecked positional argum
 
 (all three confirmed by static path-resolution probe in the read-only audit 2026-08-12)
 
-### Queue-Drain Selection and Staleness Guards
-
-- id: Q-0121
-- area: tooling
-- type: feat
-- since: 2026-08-12
-- size: XS
-- impact: med
-- confidence: high
-- parent: autonomous-queue-drain-runner
-
-A drain cannot see uncommitted triage: children branch from `origin/main`, so roadmap blocks that exist only in the local working tree are invisible to them while the supervisor's own eligibility read (the local tree) lists them happily. The failure mode is a child that finds no block to implement and a `remove-block` that no-ops — a full agent run burned on nothing. `queue-drain` can assert this cheaply: compare its selected entry set against `git show origin/main:docs/roadmap.md` and abort with `N entries not on origin/main` before spawning anything. (surfaced draining the 2026-08-12 XS batch)
-
-- The same command's missing selection lever: `autonomous queue-drain` has no size filter. `--max-features` takes top-N in priority ORDER and eligibility is fast-track = XS **or** S, so "ship only the XS ones" is not expressible when XS entries sit below S entries in the queue. The 2026-08-12 batch had to bypass the supervisor entirely and spawn `claude --print "/noldor-gate --drain <slug>"` per slug (`NOLDOR_DRAIN=1`, `--disallowed-tools AskUserQuestion`, `--permission-mode bypassPermissions`), forfeiting the retry, skip, lock and escalation machinery. A `--size XS` and/or `--only <slug,slug>` flag makes the supervisor usable for a filtered batch. (surfaced draining the 2026-08-12 XS batch)
-
 ### Roadmap Has-Block Predicate
 
 - id: Q-0119
