@@ -55,6 +55,14 @@ Seeded from every internal link in `README.md`, then transitively through each r
 
 Seeding from the whole README rather than the `## Docs` section is deliberate (D2/D3): the README links `adoption-guide.md` from `## Quick start` and `lifecycle.md` from `## Daily workflow`, and a reader who arrives that way has genuinely reached the page.
 
+**Link-target error paths.** `checkLinks` ([`src/docs/docs-check.ts:133-146`](../../../src/docs/docs-check.ts)) shows the three cases an unguarded `readFile` on a link target hits, and the walk must handle each explicitly — the last one currently `throw`s, which would crash `checks readme` instead of reporting:
+
+- `ENOENT` — broken link. **Skip and continue.** A missing target is `docs check`'s finding, not this check's; reporting it here would duplicate an existing gate and couple two independent failures.
+- `EISDIR` — the href names a directory (e.g. `[ADRs](docs/adr/)`). **The directory counts as reaching its surface** (see below), and the walk does not descend into it.
+- Any other code — **skip and continue**, recording nothing. Unit 6 never rejects; see the operational-error contract there.
+
+**Directory-link semantics.** Unit 3's rule is "a surface is reached when at least one `.md` beneath it is in the reached set", and a directory link resolves to no `.md` at all. Left there, the three links this PR adds under `## Docs` (D10) would satisfy nobody and the check would ship red. So a link whose target resolves to a directory marks that directory's surface **reached directly**, without contributing any `.md` to the reached set. Both link shapes therefore work: `[ADRs](docs/adr/)` and `[ADR 0001](docs/adr/0001-absent-doc-surfaces-skip-release-gates.md)`.
+
 ### Unit 3 — surface verdict (`unreachableSurfaces`)
 
 Pure set operation over Unit 1's surfaces and Unit 2's reached set. A surface is **reached** when at least one `.md` anywhere beneath it is in the reached set (D12). No per-surface `index.md` is required — `docs/adr/` holds numbered records and `docs/user/` holds only `how-to/index.md`, and demanding index pages would turn a validator into a doc-authoring feature.
@@ -101,6 +109,9 @@ A `readme` job on `pre-push`, beside `template-sync` and `clones check` — the 
 
 - `lefthook/noldor.yml` + `templates/lefthook/noldor.yml` — the new pre-push job, mirrored.
 - `docs/noldor/script-catalog.md` + `templates/docs/noldor/script-catalog.md` — a source link for `src/checks/check-readme.ts`, or `validate script-catalog` blocks on `missingFromCatalog`.
+- `ALL_ROW_IDS` ([`src/release/preflight-probes.ts:42`](../../../src/release/preflight-probes.ts)) — a plain `readonly PreflightRowId[]`, not a derived or exhaustive-checked list, and it is what `preflight.ts:72` iterates to build the report. Adding `'readme'` to the `PreflightRowId` union alone leaves the row **silently unrendered with a green typecheck**, so the array needs the same edit.
+- `src/release/__tests__/preflight-probes.test.ts:226` — asserts `ALL_ROW_IDS` equals a hand-written id list, so it needs `'readme'` too.
+- `docs/noldor/script-catalog.md:356` + its `templates/` twin — the release-preflight entry enumerates every row id in prose. (Pre-existing drift, not introduced here: that prose already omits `ui-design-freshness` and `adr`, listing 14 of the 16 live ids. This spec adds `readme`; repairing the two stale omissions is separate residue.)
 - `README.md` — three links added under `## Docs` so `docs/adr/`, `docs/architecture/` and `docs/user/` become reachable (D10). The check ships green and the feature dogfoods itself.
 
 ## Acceptance criteria
