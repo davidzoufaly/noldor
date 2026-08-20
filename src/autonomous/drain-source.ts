@@ -1,4 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { relative } from 'node:path';
 
 import {
   getSuggestions,
@@ -34,6 +36,50 @@ export interface DrainCandidate {
   eligible: boolean;
   /** why not, for the skip log */
   reason?: string;
+  /**
+   * Raw `- size:` of the source entry, verbatim (`'XS'`, `'S'`, …). Present only on a
+   * source whose items carry a size axis — `roadmapSource` does; `plansSource` does not,
+   * since an in-progress FD is selected by committed-design presence, not by size.
+   * Carried on the candidate so {@link selectionReason} can filter without a second parse.
+   */
+  size?: string;
+}
+
+/**
+ * Operator-supplied selection narrowing from `--size` / `--only`. An absent member means
+ * "no constraint on that axis"; an entry must satisfy every member that IS present.
+ *
+ * This is the lever Q-0121 names: `--max-features` takes top-N in priority ORDER, and
+ * fast-track eligibility is XS **or** S, so "ship only the XS ones" is inexpressible when
+ * XS entries sit below S entries in the queue. Narrowing selection is a different axis
+ * from bounding it.
+ */
+export interface SelectionFilter {
+  /** Upper-cased sizes to admit, e.g. `{'XS'}`. */
+  sizes?: ReadonlySet<string>;
+  /** Slugs to admit. */
+  only?: ReadonlySet<string>;
+}
+
+/**
+ * Why `filter` excludes this entry, or `undefined` when it admits it (including when
+ * there is no filter at all). Pure so both the source and its tests read the same
+ * decision; the returned string lands in the drain's skip log verbatim.
+ *
+ * A size-less entry is excluded by any `sizes` constraint rather than admitted: an
+ * unsized roadmap block routes to no gate path, so admitting it would spawn a child
+ * for work the size→path policy cannot place.
+ */
+export function selectionReason(
+  entry: { slug: string; size?: string },
+  filter: SelectionFilter | undefined,
+): string | undefined {
+  if (filter === undefined) return undefined;
+  if (filter.only !== undefined && !filter.only.has(entry.slug)) return 'not in --only selection';
+  if (filter.sizes !== undefined && !filter.sizes.has((entry.size ?? '').toUpperCase())) {
+    return `size ${entry.size ?? '(none)'} not in --size selection (${[...filter.sizes].join(', ')})`;
+  }
+  return undefined;
 }
 
 /**
@@ -60,6 +106,76 @@ export interface DrainSource {
   finishPrompt?(slug: string): string;
   /** branch the shipped PR lives on, for `openPrExistsFor` */
   branchFor(slug: string): string;
+  /**
+   * Slugs present in this source's document **at a git ref** — the queue as the spawned
+   * children will read it, since they branch from `origin/main` rather than from the
+   * supervisor's working tree. `null` means "cannot answer": the ref or the path is
+   * unreadable there. Optional, and only a source backed by a single tracked document can
+   * implement it — `roadmapSource` does; `plansSource`, whose universe is a directory of
+   * feature docs, deliberately omits it and {@link selectionNotAtRef} then no-ops.
+   */
+  parseAllAtRef?(ref: string): string[] | null;
+}
+
+/**
+ * Stable marker in {@link formatNotAtRef}'s message. Both entrypoints classify on it —
+ * `watch` treats it like a divergence (a persistent operator condition that will not clear
+ * itself on the next cycle), so it must not drift with the surrounding prose.
+ */
+export const NOT_AT_REF_MARKER = 'uncommitted or unpushed triage';
+
+/** The abort/warn text for a {@link selectionNotAtRef} finding. One phrasing, both callers. */
+export function formatNotAtRef(missing: readonly string[], ref: string): string {
+  const plural = missing.length === 1 ? 'entry is' : 'entries are';
+  return (
+    `drain: ${NOT_AT_REF_MARKER} — ${missing.length} selected ${plural} not present at ${ref}; ` +
+    `commit and push before draining:\n${missing.map((s) => `  - ${s}`).join('\n')}`
+  );
+}
+
+/**
+ * The slugs this run would actually attempt that are MISSING from the source document at
+ * `ref` — the staleness guard Q-0121 asks for. Children branch from `origin/main`, so a
+ * block that exists only in the supervisor's working tree is invisible to them while the
+ * supervisor's own eligibility read (the local tree) lists it happily: the child finds no
+ * block to implement, its `remove-block` no-ops, and a full agent run burns on nothing.
+ *
+ * Complements {@link assertQueueSourceSynced} rather than repeating it: that guard counts
+ * commits on `origin/main..HEAD`, so it catches an unpushed triage commit but is blind to
+ * an **uncommitted** one — which is the case the entry was filed for.
+ *
+ * Only `eligible` candidates count (an entry the run will skip anyway — wrong size, unmet
+ * dep, `--size` narrowing — cannot waste a spawn), and only the first `cap` of them, so a
+ * stale block far down the queue cannot abort a run whose head is clean.
+ *
+ * `cap` is deliberately an approximation, not a bound the loop guarantees: callers pass
+ * `--max-features`, which bounds *ships*, and a skipped or failed entry pushes the
+ * attempt frontier deeper than that. So the guard is not exhaustive — an entry beyond the
+ * cap that is only in the working tree still burns one run before its own `remove-block`
+ * no-ops. Checking the whole queue instead would trade that bounded miss for a false
+ * abort on every clean-headed run, which is the worse failure: it ships nothing at all.
+ *
+ * Returns `[]` when the source cannot answer for `ref` — a guard that cannot judge must
+ * never abort. Terminates on `cap` or on queue exhaustion, whichever comes first (each
+ * answered slug enters `skip`, so `nextItem` eventually returns `null`).
+ */
+export function selectionNotAtRef(source: DrainSource, ref: string, cap: number): string[] {
+  const atRef = source.parseAllAtRef?.(ref);
+  if (atRef === undefined || atRef === null) return [];
+  const present = new Set(atRef);
+  const bound = source.parseAll().length + 1;
+  const missing: string[] = [];
+  const skip = new Set<string>();
+  let considered = 0;
+  for (let i = 0; i < bound && considered < cap; i++) {
+    const next = source.nextItem(skip);
+    if (next === null) break;
+    skip.add(next.slug);
+    if (!next.eligible) continue;
+    considered++;
+    if (!present.has(next.slug)) missing.push(next.slug);
+  }
+  return missing;
 }
 
 /** Escape a slug for safe embedding in a RegExp (slugs are kebab-case, but be defensive). */
@@ -87,7 +203,7 @@ function implementerDispatch(cwd: string): PromptDispatch {
  * runner (claude/stub → `/noldor-gate --drain <slug>` verbatim, codex/opencode → self-contained prose
  * directive — see src/autonomous/gate-prompt.ts); the branch is `fast/<slug>`.
  */
-export function roadmapSource(cwd: string): DrainSource {
+export function roadmapSource(cwd: string, selection?: SelectionFilter): DrainSource {
   const read = (): string => readFileSync(loadDocRoots(cwd).roadmap, 'utf8');
   const dispatch = implementerDispatch(cwd);
   return {
@@ -110,25 +226,40 @@ export function roadmapSource(cwd: string): DrainSource {
       const queued = new Set(parseRoadmap(read()).map((e) => e.slug));
       const unmetDeps = (top.deps ?? []).filter((d) => d !== top.slug && queued.has(d));
       const depsBlocked = unmetDeps.length > 0;
-      const eligible = fastTrack && drainOk && !depsBlocked;
-      // Distinguish the ineligibility causes (a non-fast-track size, an unmet dep,
-      // or a Touches/multi-scope residue) so the skip log is accurate.
-      const reason = !fastTrack
-        ? 'not a fast-track XS/S entry (roadmap source ships fast-track only)'
-        : depsBlocked
-          ? `blocked by unshipped dep(s) still in queue: ${unmetDeps.join(', ')}`
-          : !drainOk
-            ? 'multi-scope or Touches-bearing entry — needs human /noldor-promote residue disposition'
-            : undefined;
+      // Operator narrowing is reported FIRST: when a run is explicitly scoped, "you asked
+      // for XS only" explains the absence better than a property of the entry itself.
+      const narrowed = selectionReason(top, selection);
+      const eligible = narrowed === undefined && fastTrack && drainOk && !depsBlocked;
+      // Distinguish the ineligibility causes (the operator's own narrowing, a non-fast-track
+      // size, an unmet dep, or a Touches/multi-scope residue) so the skip log is accurate.
+      const reason =
+        narrowed ??
+        (!fastTrack
+          ? 'not a fast-track XS/S entry (roadmap source ships fast-track only)'
+          : depsBlocked
+            ? `blocked by unshipped dep(s) still in queue: ${unmetDeps.join(', ')}`
+            : !drainOk
+              ? 'multi-scope or Touches-bearing entry — needs human /noldor-promote residue disposition'
+              : undefined);
       return {
         slug: top.slug,
         description,
         eligible,
+        ...(top.size !== undefined ? { size: top.size } : {}),
         ...(reason !== undefined ? { reason } : {}),
       };
     },
     parseAll() {
+      // Deliberately NOT narrowed by `selection`: this is the success oracle's universe
+      // (absence === shipped) and the reconcile prune's in-flight set. A filtered universe
+      // would read every out-of-selection entry as already shipped and prune live worktrees.
       return parseRoadmap(read()).map((e) => e.slug);
+    },
+    parseAllAtRef(ref) {
+      const rel = relative(cwd, loadDocRoots(cwd).roadmap);
+      const r = spawnSync('git', ['show', `${ref}:${rel}`], { cwd, encoding: 'utf8' });
+      if (r.status !== 0 || typeof r.stdout !== 'string') return null; // ref/path unreadable — cannot judge
+      return parseRoadmap(r.stdout).map((e) => e.slug);
     },
     gatePrompt(slug) {
       return buildDrainGatePrompt(slug, dispatch);
