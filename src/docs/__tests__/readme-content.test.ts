@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   checkReadme,
   enumerateDocSurfaces,
+  parseReadmeCommands,
   reachableTargets,
+  resolveCommands,
   unreachableSurfaces,
 } from '../readme-content.js';
 
@@ -199,8 +201,125 @@ describe('checkReadme', () => {
   it('surfaces walk notes without changing status', async () => {
     const root = await makeRepo();
     await write(root, 'README.md', '[bad](docs/a%zz.md)');
+    // A readable package.json isolates the walk's note from the script-source one.
+    await write(root, 'package.json', '{"scripts":{}}');
     const report = await checkReadme(root);
     expect(report.notes).toHaveLength(1);
+    expect(report.notes[0]).toContain('malformed percent-escape');
     expect(report.status).toBe('ok');
+  });
+});
+
+describe('parseReadmeCommands', () => {
+  it('reads fenced and inline commands, keeping only pnpm', () => {
+    const cmds = parseReadmeCommands(
+      ['```bash', 'pnpm noldor doctor', 'node bin/x.mjs', '```', 'run `pnpm test` now'].join('\n'),
+    );
+    expect(cmds.map((c) => c.argv.join(' '))).toEqual(['pnpm noldor doctor', 'pnpm test']);
+    expect(cmds[0]?.line).toBe(2);
+    expect(cmds[1]?.line).toBe(5);
+  });
+
+  it('strips a prompt prefix and a trailing comment', () => {
+    const cmds = parseReadmeCommands(
+      ['```bash', '$ pnpm noldor init  # scaffold', '```'].join('\n'),
+    );
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0]?.argv).toEqual(['pnpm', 'noldor', 'init']);
+  });
+
+  it('splits on shell operators', () => {
+    const cmds = parseReadmeCommands(['```bash', 'pnpm build && pnpm test', '```'].join('\n'));
+    expect(cmds.map((c) => c.argv.join(' '))).toEqual(['pnpm build', 'pnpm test']);
+  });
+
+  it('joins a backslash continuation and attributes the first line', () => {
+    const cmds = parseReadmeCommands(['```bash', 'pnpm noldor \\', '  doctor', '```'].join('\n'));
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0]?.argv).toEqual(['pnpm', 'noldor', 'doctor']);
+    expect(cmds[0]?.line).toBe(2);
+  });
+
+  it('drops a command carrying a placeholder token', () => {
+    const cmds = parseReadmeCommands(
+      ['```bash', 'pnpm noldor cr orchestrate --slug <slug>', '```'].join('\n'),
+    );
+    expect(cmds).toEqual([]);
+  });
+});
+
+describe('resolveCommands', () => {
+  const manifest = new Set(['doctor', 'init', 'docs architecture', 'validate features']);
+  const scripts = new Set(['test', 'build']);
+  const parse = (body: string) => parseReadmeCommands(['```bash', body, '```'].join('\n'));
+
+  it('accepts a leaf group, a group with a sub, and a known script', () => {
+    expect(resolveCommands(parse('pnpm noldor doctor'), manifest, scripts)).toEqual([]);
+    expect(resolveCommands(parse('pnpm noldor docs architecture'), manifest, scripts)).toEqual([]);
+    expect(resolveCommands(parse('pnpm test'), manifest, scripts)).toEqual([]);
+  });
+
+  it('skips flag tokens wherever they sit', () => {
+    expect(
+      resolveCommands(parse('pnpm noldor docs architecture --check'), manifest, scripts),
+    ).toEqual([]);
+    expect(resolveCommands(parse('pnpm noldor --help'), manifest, scripts)).toEqual([]);
+  });
+
+  it('reports a bad subcommand but treats a leaf group extra token as positional', () => {
+    const bad = resolveCommands(parse('pnpm noldor docs typo'), manifest, scripts);
+    expect(bad).toHaveLength(1);
+    expect(bad[0]?.message).toContain('docs typo');
+    expect(resolveCommands(parse('pnpm noldor doctor extra'), manifest, scripts)).toEqual([]);
+  });
+
+  it('validates pnpm run and ignores package-manager passthrough verbs', () => {
+    const bad = resolveCommands(parse('pnpm run nope'), manifest, scripts);
+    expect(bad).toHaveLength(1);
+    expect(bad[0]?.message).toContain('nope');
+    expect(resolveCommands(parse('pnpm add -D @scope/pkg'), manifest, scripts)).toEqual([]);
+    expect(resolveCommands(parse('pnpm install'), manifest, scripts)).toEqual([]);
+  });
+
+  it('reports every quoted script when scripts is empty but skips when it is null', () => {
+    expect(resolveCommands(parse('pnpm test'), manifest, new Set())).toHaveLength(1);
+    expect(resolveCommands(parse('pnpm test'), manifest, null)).toEqual([]);
+  });
+
+  it('deduplicates a command quoted more than once, citing the first line', () => {
+    const body = ['```bash', 'pnpm noldor docs typo', 'pnpm noldor docs typo', '```'].join('\n');
+    const found = resolveCommands(parseReadmeCommands(body), manifest, scripts);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toContain('README.md:2');
+  });
+});
+
+describe('checkReadme command half', () => {
+  it('reports a quoted command that does not resolve', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '`pnpm noldor nosuchgroup`');
+    await write(root, 'package.json', '{}');
+    const report = await checkReadme(root);
+    expect(report.status).toBe('findings');
+    expect(report.findings[0]?.message).toContain('nosuchgroup');
+  });
+
+  it('notes an unreadable package.json and still checks surfaces', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '`pnpm test`');
+    await write(root, 'package.json', 'not json');
+    const report = await checkReadme(root);
+    expect(report.notes.some((n) => n.includes('package.json'))).toBe(true);
+    expect(report.findings).toEqual([]);
+    expect(report.status).toBe('ok');
+  });
+
+  it('reports a quoted script when package.json declares none', async () => {
+    const root = await makeRepo();
+    await write(root, 'README.md', '`pnpm test`');
+    await write(root, 'package.json', '{}');
+    const report = await checkReadme(root);
+    expect(report.status).toBe('findings');
+    expect(report.findings[0]?.message).toContain('pnpm test');
   });
 });

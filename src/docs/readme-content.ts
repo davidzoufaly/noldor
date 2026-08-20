@@ -2,6 +2,7 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
+import { flattenManifest } from '../cli/manifest.js';
 import { toPosixRelative } from '../core/repo-paths.js';
 
 import { extractLinks, walkMd } from './docs-check.js';
@@ -239,19 +240,207 @@ export interface ReadmeReport {
  * @returns The report; `absent` when there is no readable README
  */
 export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeReport> {
+  // The walk is the single place README.md is read, and the single place its
+  // readability is decided — so absence is classified there, not re-derived,
+  // and the body it already read is reused rather than fetched again.
   const reached = await reachableTargets(cwd);
   if (reached.readme !== 'ok') {
-    // The walk owns the readability rule and already noted an unreadable file.
     return { status: 'absent', findings: [], notes: [...reached.notes] };
   }
 
-  const findings = unreachableSurfaces(await enumerateDocSurfaces(cwd), reached).map((surface) => ({
-    message: `${surface}/ holds documentation but no link from README.md reaches it`,
-  }));
+  const notes: string[] = [...reached.notes];
+  let scriptNames: ReadonlySet<string> | null = null;
+  try {
+    const parsed = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    // An absent `scripts` map means the valid script set is EMPTY, not unknown.
+    scriptNames = new Set(Object.keys(parsed.scripts ?? {}));
+  } catch {
+    notes.push('root package.json missing or invalid — script resolution skipped');
+  }
 
-  return {
-    status: findings.length > 0 ? 'findings' : 'ok',
-    findings,
-    notes: [...reached.notes],
+  const manifestCommands = new Set(flattenManifest().map((leaf) => leaf.command));
+  const commandFindings = resolveCommands(
+    parseReadmeCommands(reached.body),
+    manifestCommands,
+    scriptNames,
+  );
+
+  const surfaceFindings = unreachableSurfaces(await enumerateDocSurfaces(cwd), reached).map(
+    (surface) => ({
+      message: `${surface}/ holds documentation but no link from README.md reaches it`,
+    }),
+  );
+
+  const findings = [...commandFindings, ...surfaceFindings];
+  return { status: findings.length > 0 ? 'findings' : 'ok', findings, notes };
+}
+
+/** Leading shell prompt in a documented command. */
+const PROMPT_RE = /^\s*[$>]\s+/;
+/** A token documenting a shape rather than an invocation, e.g. `<slug>`. */
+const PLACEHOLDER_RE = /[<>]/;
+const INLINE_CODE_RE = /`([^`]+)`/g;
+const FENCE_RE = /^\s*```/;
+
+/** One command as written in the README. */
+export interface QuotedCommand {
+  /** The command as written, for diagnostics. */
+  readonly raw: string;
+  /** Whitespace-split tokens, prompt prefix and comment removed. */
+  readonly argv: readonly string[];
+  /** 1-based line in `README.md`. */
+  readonly line: number;
+}
+
+/**
+ * Lex every `pnpm` command the README quotes, from fenced blocks and inline
+ * code alike.
+ *
+ * Deliberately MANIFEST-unaware: it cannot know whether the token after a group
+ * is a subcommand or a positional argument, so it does not try. Resolution owns
+ * that, reading the manifest's own shape.
+ *
+ * @param content - Raw `README.md` body
+ * @returns One entry per lexed `pnpm` command, in document order
+ */
+export function parseReadmeCommands(content: string): readonly QuotedCommand[] {
+  const out: QuotedCommand[] = [];
+
+  const emit = (text: string, line: number): void => {
+    const commentIndex = text.indexOf('#');
+    const withoutComment = commentIndex === -1 ? text : text.slice(0, commentIndex);
+    for (const piece of withoutComment.replace(PROMPT_RE, '').split(/&&|\|\||;|\|/)) {
+      const argv = piece
+        .trim()
+        .split(/\s+/)
+        .filter((t) => t.length > 0);
+      if (argv[0] !== 'pnpm') continue;
+      if (argv.some((t) => PLACEHOLDER_RE.test(t))) continue;
+      out.push({ raw: piece.trim(), argv, line });
+    }
   };
+
+  const lines = content.split('\n');
+  let inFence = false;
+  let pending = '';
+  let pendingLine = 0;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? '';
+    if (FENCE_RE.test(line)) {
+      inFence = !inFence;
+      pending = '';
+      continue;
+    }
+    if (inFence) {
+      const trimmed = line.replace(/\s+$/, '');
+      if (trimmed.endsWith('\\')) {
+        if (pending === '') pendingLine = i + 1;
+        pending += `${trimmed.slice(0, -1)} `;
+        continue;
+      }
+      const at = pending === '' ? i + 1 : pendingLine;
+      const full = pending + line;
+      pending = '';
+      emit(full, at);
+      continue;
+    }
+    const re = new RegExp(INLINE_CODE_RE.source, 'g');
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(line)) !== null) {
+      emit(match[1] ?? '', i + 1);
+    }
+  }
+
+  return out;
+}
+
+/**
+ * `pnpm` verbs whose arguments are package specifiers or external binaries
+ * rather than repo-owned names, so nothing local can resolve them.
+ */
+const PM_PASSTHROUGH: ReadonlySet<string> = new Set(['add', 'install', 'dlx', 'exec']);
+
+/**
+ * Resolve every lexed command against the manifest and the root scripts.
+ *
+ * Direction is README → registry only: a manifest entry the README never
+ * mentions is not a finding, because `## CLI reference` declares itself a
+ * non-exhaustive subset.
+ *
+ * The group branch reads the manifest's own leaf/group shape rather than
+ * falling back from a longest match — a fallback cannot tell a positional
+ * argument from a mistyped subcommand, and this can.
+ *
+ * @param cmds - From {@link parseReadmeCommands}
+ * @param manifestCommands - `flattenManifest()` leaf command strings
+ * @param scriptNames - Root script names; empty means none declared, `null`
+ *   means the source was unavailable and script resolution is skipped
+ * @returns One finding per distinct unresolved command, citing its first line
+ */
+export function resolveCommands(
+  cmds: readonly QuotedCommand[],
+  manifestCommands: ReadonlySet<string>,
+  scriptNames: ReadonlySet<string> | null,
+): readonly Finding[] {
+  const leafGroups = new Set<string>();
+  const subGroups = new Set<string>();
+  for (const command of manifestCommands) {
+    const space = command.indexOf(' ');
+    if (space === -1) leafGroups.add(command);
+    else subGroups.add(command.slice(0, space));
+  }
+
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  const report = (key: string, message: string): void => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    findings.push({ message });
+  };
+
+  for (const cmd of cmds) {
+    const words = cmd.argv.filter((t) => !t.startsWith('-'));
+    const verb = words[1];
+    if (verb === undefined || PM_PASSTHROUGH.has(verb)) continue;
+    const at = `README.md:${cmd.line}`;
+
+    if (verb === 'run') {
+      const name = words[2];
+      if (name === undefined || scriptNames === null) continue;
+      if (!scriptNames.has(name)) {
+        report(`run ${name}`, `${at}: \`pnpm run ${name}\` — no such script in root package.json`);
+      }
+      continue;
+    }
+
+    if (verb === 'noldor') {
+      const group = words[2];
+      if (group === undefined) continue; // `pnpm noldor --help`
+      const sub = words[3];
+      if (subGroups.has(group)) {
+        if (sub === undefined) {
+          report(`noldor ${group}`, `${at}: \`pnpm noldor ${group}\` — needs a subcommand`);
+        } else if (!manifestCommands.has(`${group} ${sub}`)) {
+          report(
+            `noldor ${group} ${sub}`,
+            `${at}: \`pnpm noldor ${group} ${sub}\` — no such subcommand`,
+          );
+        }
+        continue;
+      }
+      if (leafGroups.has(group)) continue; // any further token is a positional
+      report(`noldor ${group}`, `${at}: \`pnpm noldor ${group}\` — no such command group`);
+      continue;
+    }
+
+    if (scriptNames === null) continue;
+    if (!scriptNames.has(verb)) {
+      report(`script ${verb}`, `${at}: \`pnpm ${verb}\` — no such script in root package.json`);
+    }
+  }
+
+  return findings;
 }
