@@ -6,14 +6,14 @@
 // indistinguishable from a lane that passed (Q-0100).
 
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
-import { writeJsonAtomic } from '../atomic-write.js';
-import { openLane } from '../filename.js';
+import type { Finding, LaneReasonCode } from '../findings-schema.js';
 import { loadLaneMode } from '../lane-mode.js';
-import type { Finding, LaneFindings, LaneReasonCode } from '../findings-schema.js';
+import { openLaneSink } from '../lane-sink.js';
+import { errMessage } from '../lane-spawn.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { resolveUiReviewTarget, type Terminal } from './ui-design-resolve.js';
 import {
@@ -39,25 +39,8 @@ const toFinding = (f: UiFinding): Finding => ({
 });
 
 export async function runUiReview(input: LaneInput): Promise<LaneResult> {
-  const { sinkPath, startedAt } = openLane(input, LANE);
+  const { write } = openLaneSink(input, LANE);
   const mode = await loadLaneMode(input.repoRoot, 'uiReviewMode');
-
-  const write = async (
-    payload: Omit<LaneFindings, 'lane' | 'artifact' | 'kind' | 'slug' | 'startedAt'>,
-    ok: boolean,
-  ): Promise<LaneResult> => {
-    await mkdir(dirname(sinkPath), { recursive: true });
-    await writeJsonAtomic(sinkPath, {
-      lane: LANE,
-      artifact: input.artifact,
-      kind: input.kind,
-      slug: input.slug,
-      startedAt,
-      finishedAt: new Date().toISOString(),
-      ...payload,
-    } satisfies LaneFindings);
-    return { lane: LANE, sinkPath, ok };
-  };
 
   /**
    * The one writer for every outcome that performed no comparison. A round that
@@ -108,15 +91,15 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
     await copyFile(design.absPath, scratchPen);
   } catch (err) {
     if (scratchDir !== null) {
-      await rm(scratchDir, { recursive: true, force: true }).catch((e: Error) => {
-        console.error(`ui-review: scratch cleanup failed: ${e.message}`);
+      await rm(scratchDir, { recursive: true, force: true }).catch((e: unknown) => {
+        console.error(`ui-review: scratch cleanup failed: ${errMessage(e)}`);
       });
     }
     return writeTerminal(
       {
         verdict: 'cannot-review',
         reason: 'scratch-unavailable',
-        detail: `could not stage a design copy: ${(err as Error).message}`,
+        detail: `could not stage a design copy: ${errMessage(err)}`,
       },
       notes,
     );
@@ -133,7 +116,7 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
         // reads as changed rather than escaping as an unhandled throw.
         return {
           changed: true,
-          detail: `design unreadable after review: ${(err as Error).message}`,
+          detail: `design unreadable after review: ${errMessage(err)}`,
         };
       }
     };
@@ -172,7 +155,7 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
     } catch (err) {
       dispatchFailure = {
         reason: err instanceof UiDispatchError ? err.reason : 'dispatch-failed',
-        message: (err as Error).message,
+        message: errMessage(err),
       };
     }
 
@@ -256,8 +239,8 @@ export async function runUiReview(input: LaneInput): Promise<LaneResult> {
   } finally {
     // Cleanup never rewrites an already-written sink: losing a tmpdir costs disk,
     // rewriting a sink costs the round's honesty.
-    await rm(scratchDir, { recursive: true, force: true }).catch((err: Error) => {
-      console.error(`ui-review: scratch cleanup failed for ${scratchDir}: ${err.message}`);
+    await rm(scratchDir, { recursive: true, force: true }).catch((err: unknown) => {
+      console.error(`ui-review: scratch cleanup failed for ${scratchDir}: ${errMessage(err)}`);
     });
   }
 }

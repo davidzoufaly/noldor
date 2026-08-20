@@ -106,13 +106,14 @@ Every finding must name both sides it compared: the design page and the element 
 If you cannot read the design at all, report \`cannot-review\` with reason \`pen-unreadable\`. If you can read the file but it holds no \`FINAL:\` page for the scope above, report \`cannot-review\` with reason \`no-final-pages\`. Both are honest outcomes — never guess a verdict from the code alone.
 
 ${fencedJsonInstruction(
-  `{"verdict": "pass" | "fail" | "cannot-review",
- "findings": [{"file": "...", "line": 1, "severity": "high" | "med" | "low",
-               "message": "...", "designPage": "...", "designElement": "..."}],
- "reason": "pen-unreadable" | "no-final-pages"}`,
+  `// exactly one of these three shapes, with NO other keys:
+{"verdict": "pass", "findings": []}
+{"verdict": "fail", "findings": [{"file": "...", "line": 1, "severity": "high" | "med" | "low",
+                                  "message": "...", "designPage": "...", "designElement": "..."}]}
+{"verdict": "cannot-review", "findings": [], "reason": "pen-unreadable" | "no-final-pages"}`,
 )}
 
-\`pass\` and \`cannot-review\` carry an empty \`findings\` array; \`fail\` carries at least one; \`reason\` appears only on \`cannot-review\`.`;
+Emit no key beyond the ones its shape lists — not \`reason\` on a \`pass\`, not a \`summary\` or \`notes\` field. The shapes are validated strictly, so one extra key makes the whole report unreadable.`;
 }
 
 /**

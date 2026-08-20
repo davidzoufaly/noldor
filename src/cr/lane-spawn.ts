@@ -9,6 +9,25 @@ import { spawnAgent } from '../core/agent-runner/registry.js';
 import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../core/config.js';
 import type { AgentRole } from '../core/agent-runner/types.js';
 
+/**
+ * Message text for a caught value of unknown type.
+ *
+ * A rejected promise can carry anything — a string, an object, `undefined` — so
+ * `(err as Error).message` yields `undefined` exactly when a lane most needs a
+ * diagnostic. Every lane failure path routes its caught value through here.
+ */
+export function errMessage(err: unknown): string {
+  if (err instanceof Error && err.message !== '') return err.message;
+  if (typeof err === 'string' && err !== '') return err;
+  try {
+    return `non-Error throw: ${JSON.stringify(err)}`;
+  } catch {
+    // A value that cannot even be serialized (circular, BigInt) still has to
+    // produce SOME detail rather than throwing inside the error path.
+    return `non-Error throw: ${String(err)}`;
+  }
+}
+
 /** Why a dispatch produced nothing usable. */
 export type LaneSpawnFailure = 'timeout' | 'dispatch-failed';
 

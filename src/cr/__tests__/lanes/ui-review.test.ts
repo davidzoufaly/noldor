@@ -352,6 +352,18 @@ describe('runUiReview — performed reviews', () => {
     expect(sink(cwd)).toMatchObject({ verdict: 'fail', reason: 'pen-modified' });
   });
 
+  it('keeps a usable detail when the dispatcher rejects with a non-Error value', async () => {
+    const { cwd, input } = repo({ pens: [`2026-08-20-${SLUG}.pen`] });
+    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    setUiDispatcher(async () => {
+      throw 'plain string rejection';
+    });
+    await runUiReview(input);
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'dispatch-failed' });
+    expect((s.notes as string[]).join(' ')).toContain('plain string rejection');
+  });
+
   it('reviews the archived design once gate Step 4 has moved it', async () => {
     const { seen } = capture(PASS);
     const { cwd, input } = repo({ pens: [join('archive', `2026-08-20-${SLUG}.pen`)] });

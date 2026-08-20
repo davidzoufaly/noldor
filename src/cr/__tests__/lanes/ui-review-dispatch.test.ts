@@ -96,6 +96,17 @@ describe('buildUiReviewPrompt', () => {
     expect(p).toMatch(/Do not edit it/);
   });
 
+  it('shows one shape per verdict, so a copied template cannot carry a stray key', () => {
+    const p = buildUiReviewPrompt(INPUT);
+    expect(p).toContain('{"verdict": "pass", "findings": []}');
+    // The `pass` shape must not print `reason` — a child echoing it would emit a
+    // key `.strict()` rejects, turning a substantively fine report into
+    // malformed-output.
+    const passLine = p.split('\n').find((l) => l.includes('"verdict": "pass"')) ?? '';
+    expect(passLine).not.toContain('reason');
+    expect(p).toContain('Emit no key beyond the ones its shape lists');
+  });
+
   it('states the non-normative properties so unpinned details are not flagged', () => {
     const p = buildUiReviewPrompt(INPUT);
     expect(p).toContain('NOT NORMATIVE');

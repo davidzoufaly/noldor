@@ -23,6 +23,7 @@ import { readSession } from '../../core/session.js';
 import { sessionUiVerdict, type UiFrontmatter } from '../../core/ui-predicate.js';
 import { dialogueKeyFromSession } from '../../design/archive-resolve.js';
 import type { LaneReasonCode } from '../findings-schema.js';
+import { errMessage } from '../lane-spawn.js';
 import type { LaneInput } from '../lane-types.js';
 import { readFdSummary } from '../read-fd-summary.js';
 
@@ -94,7 +95,7 @@ export async function readFd(
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return { fm: {}, summary: NO_FD_SUMMARY };
     }
-    return { reason: 'fd-unreadable', detail: `FD unreadable: ${(err as Error).message}` };
+    return { reason: 'fd-unreadable', detail: `FD unreadable: ${errMessage(err)}` };
   }
   let data: unknown;
   try {
@@ -102,7 +103,7 @@ export async function readFd(
   } catch (err) {
     return {
       reason: 'fd-unreadable',
-      detail: `FD frontmatter unparseable: ${(err as Error).message}`,
+      detail: `FD frontmatter unparseable: ${errMessage(err)}`,
     };
   }
   const parsed = fdDesignSliceSchema.safeParse(data);
@@ -137,7 +138,7 @@ async function collectCandidates(
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue;
       return {
         reason: 'design-dir-unreadable',
-        detail: `${dir} unreadable: ${(err as Error).message}`,
+        detail: `${dir} unreadable: ${errMessage(err)}`,
       };
     }
     for (const entry of entries) {
@@ -170,7 +171,7 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
   try {
     uiConfig = loadUiConfig(repo);
   } catch (err) {
-    return terminal('cannot-review', 'config-unreadable', (err as Error).message);
+    return terminal('cannot-review', 'config-unreadable', errMessage(err));
   }
   if (uiConfig === null) {
     return terminal(
@@ -194,7 +195,7 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
     if (input.artifactSha === '') throw new Error('no HEAD sha (git unavailable)');
     changed = discoverChangedFiles({ cwd: repo, base, head: input.artifactSha });
   } catch (err) {
-    return terminal('cannot-review', 'range-unresolvable', (err as Error).message);
+    return terminal('cannot-review', 'range-unresolvable', errMessage(err));
   }
 
   const verdict = sessionUiVerdict(fd.fm, changed, uiConfig);
@@ -247,7 +248,7 @@ export async function resolveUiReviewTarget(input: LaneInput): Promise<Resolutio
     const added = new Set(discoverAddedFiles({ cwd: repo, base }));
     owned = candidates.paths.filter((p) => added.has(p));
   } catch (err) {
-    return terminal('cannot-review', 'range-unresolvable', (err as Error).message);
+    return terminal('cannot-review', 'range-unresolvable', errMessage(err));
   }
   if (owned.length === 0) {
     return terminal('cannot-review', 'no-feature-pen', `no design artifact for key '${key.key}'`);
