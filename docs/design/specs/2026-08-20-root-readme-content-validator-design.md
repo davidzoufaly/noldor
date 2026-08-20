@@ -68,10 +68,17 @@ Measured survivors on this repo: `adr` (1 md), `architecture` (4), `noldor` (26)
 
 ```ts
 export interface ReachSet {
-  /** Repo-relative POSIX paths of every reached file. */
+  /**
+   * Repo-relative POSIX paths of every reached **markdown** file. Non-`.md`
+   * targets are never recorded: they cannot satisfy a documentation surface
+   * (Unit 3) and are not traversed, so keeping them would only let an image
+   * link mark a surface reachable.
+   */
   readonly files: ReadonlySet<string>;
   /** Repo-relative POSIX dirs reached directly by a directory-target link. */
   readonly dirs: ReadonlySet<string>;
+  /** Operational degradations encountered during the walk. Never findings. */
+  readonly notes: readonly string[];
 }
 export function reachableTargets(cwd: string): Promise<ReachSet>;
 ```
@@ -84,15 +91,17 @@ Seeded from `README.md`, then transitively through each reached `.md`, to a fixp
 
 **Canonicalization**, in order: strip the `#fragment` and any `?query`; percent-decode; resolve against the containing file's directory; normalize. Comparisons are byte-exact on the resulting POSIX path — no case folding, so a case-mismatched link is unreachable on a case-sensitive filesystem and the finding says so.
 
+`decodeURIComponent` throws `URIError` on a malformed escape (`docs/a%zz.md`), which is not a filesystem error and would otherwise escape the error handling below and crash the walk. Decode inside `try`/`catch`: on failure, drop that link and append one note.
+
 **Traversal root is the repository, not `docs/`.** A route through a root-level markdown file (`CHANGELOG.md`, `CONTRIBUTING.md`) is a legitimate reader path. A canonicalized target that escapes the repository root is dropped, and symlinks are not followed — both silently, as neither is this check's concern.
 
-**Only `.md` targets are traversed.** A non-`.md` file target is recorded in `files` (it was reached) but not read.
+**Only `.md` targets are traversed, and only they are recorded.** A non-`.md` file target is neither read nor added to `files` — see the `ReachSet.files` note above.
 
 **Link-target error paths.** `checkLinks` ([`src/docs/docs-check.ts:133-146`](../../../src/docs/docs-check.ts)) shows the cases a `readFile` on a link target hits. The last one currently `throw`s, which would crash `checks readme` rather than report:
 
 - `ENOENT` — broken link. **Skip and continue, silently.** A missing target is `docs check`'s finding; duplicating it here would couple two independent gates.
 - `EISDIR` — the href names a directory. Add it to `ReachSet.dirs`; do not descend.
-- Any other code — **skip and continue**, appending one operational note (Unit 6). Never a finding, never a throw.
+- Any other code — **skip and continue**, appending one note to `ReachSet.notes`. Never a finding, never a throw.
 
 **Directory-link semantics.** Unit 3's rule is "reached when at least one `.md` beneath it is in the reached set", and a directory link resolves to no `.md` at all. Left there, the three links this PR adds under `## Docs` (D10) would satisfy nobody and the check would ship red. So a directory target marks that surface **reached directly** via `ReachSet.dirs`. Both shapes work: `[ADRs](docs/adr/)` and `[ADR 0001](docs/adr/0001-absent-doc-surfaces-skip-release-gates.md)`.
 
@@ -105,7 +114,7 @@ export function unreachableSurfaces(
 ): readonly string[];
 ```
 
-Pure. A surface is **reached** when it is in `reached.dirs`, or when any path in `reached.files` is equal to or beneath it (D12). No per-surface `index.md` is required — `docs/adr/` holds numbered records and `docs/user/` holds only `how-to/index.md`, and demanding index pages would turn a validator into a doc-authoring feature.
+Pure. A surface is **reached** when it is in `reached.dirs`, or when any path in `reached.files` — which holds markdown only — is equal to or beneath it (D12). A link to an image or other non-markdown file beneath a surface therefore does not satisfy it. No per-surface `index.md` is required — `docs/adr/` holds numbered records and `docs/user/` holds only `how-to/index.md`, and demanding index pages would turn a validator into a doc-authoring feature.
 
 ### Unit 4 — command extraction (lexical only)
 
@@ -139,18 +148,29 @@ export interface Finding {
 export function resolveCommands(
   cmds: readonly QuotedCommand[],
   manifestCommands: ReadonlySet<string>,
-  /** Root package.json script names; null when unreadable — see Unit 6. */
+  /**
+   * Root `package.json` script names. An **empty set** means the file was read
+   * and declares no scripts, so every quoted repo script is unresolved. `null`
+   * means the source was unavailable or invalid and script resolution is
+   * skipped entirely — see Unit 6. Conflating the two would silently disable
+   * the check on a scriptless manifest.
+   */
   scriptNames: ReadonlySet<string> | null,
 ): readonly Finding[];
 ```
 
 Pure. `manifestCommands` is `new Set(flattenManifest().map((l) => l.command))` ([`src/cli/manifest.ts:515`](../../../src/cli/manifest.ts) — `command` is the bare group for a `''`-subcommand leaf, else `<group> <sub>`). Resolution per command, in order:
 
-1. Drop leading global flags. A command that is only `pnpm noldor` plus flags (`pnpm noldor --help`) resolves trivially.
+1. **Ignore every flag token** (any token starting `-`) when selecting the tokens below; a command that yields no non-flag token after `pnpm noldor` (`pnpm noldor --help`) resolves trivially. Flags are skipped wherever they sit, not only when leading: `pnpm noldor docs --help` must form `<a> = docs`, not `<b> = --help`.
 2. `pnpm add|install|dlx|exec …` → out of scope (Non-goals), no finding.
 3. `pnpm run <name>` → resolve `<name>` against `scriptNames`. This closes the contradiction in the earlier draft, where `pnpm run missing-script` was silently accepted (D13).
-4. `pnpm noldor <a> <b> …` → **longest match first**: if `"<a> <b>"` is in `manifestCommands`, resolved; else if `"<a>"` is, resolved (and `<b>` is a positional); else unresolved.
+4. `pnpm noldor <a> <b> …`, where `<a>` and `<b>` are the first two **non-flag** tokens, resolved from `MANIFEST`'s shape rather than by fallback:
+   - `<a>` is a group whose `subs` is the single `''` key (a leaf group such as `doctor`, `init`, `pr-flow`) → `"<a>"` must be in `manifestCommands`, and `<b>` is a positional argument, unexamined.
+   - `<a>` is a group with named subs (such as `docs`, `validate`, `cr`) → `"<a> <b>"` must be in `manifestCommands`. There is **no bare-group fallback**, because `flattenManifest` never emits such a group as a leaf — so `pnpm noldor docs typo` is correctly unresolved rather than passing on `<a>` alone.
+   - `<a>` is not a group at all → unresolved.
 5. `pnpm <name> …` → resolve `<name>` against `scriptNames`.
+
+The group-shape branch is what makes resolution deterministic. A plain longest-match-then-fallback cannot tell a positional from a mistyped subcommand; reading `MANIFEST`'s own leaf/group distinction can.
 
 Direction is README→registry only (D1): a manifest entry with no README mention is not a finding. Findings are **deduplicated by normalized command**, each citing the first line it appeared on, so a command quoted five times yields one finding.
 
@@ -169,12 +189,15 @@ export function checkReadme(cwd?: string): Promise<ReadmeReport>;
 
 `{ status, findings }` is deliberately the shape `docSurfaceRow` already consumes; `notes` is additive.
 
-**`checkReadme` never rejects** (D4). Every operational failure degrades to a note and the check continues on what it can still evaluate:
+**`checkReadme` never rejects for an *expected* failure** (D4) — I/O errors, parse errors and malformed input. It degrades each to a note and continues on what it can still evaluate. Programmer errors (a violated invariant, a bug in `flattenManifest`) are deliberately **not** caught: per the repo's engineering rules those must throw, and swallowing them would hide a defect behind a green row.
 
 - `README.md` absent → `status: 'absent'`, no findings.
 - `README.md` unreadable → `status: 'absent'` plus a note. Nothing to check, not a failure of the README.
-- Root `package.json` missing, unparseable, or carrying no `scripts` → `scriptNames = null`. Unit 5 **skips steps 3 and 5** and adds one note; the `pnpm noldor` half and the whole surface half still run.
-- Any other filesystem error → note, continue.
+- Root `package.json` missing or unparseable → `scriptNames = null`; Unit 5 skips steps 3 and 5 and adds one note. The `pnpm noldor` half and the surface half still run.
+- Root `package.json` valid but declaring no `scripts` → `scriptNames` is the **empty set**, not `null`; every quoted repo script is then correctly unresolved.
+- Malformed percent-escape in a link, or any other link-read error → note, continue (Unit 2).
+
+`status` derivation: `'absent'` when there is no readable README; otherwise `'findings'` when `findings` is non-empty and `'ok'` when it is not. **Notes never affect `status`**, so a degraded run reports `ok` with its degradation visible rather than masquerading as a failure.
 
 This is what makes the never-blocks guarantee real rather than asserted: a rejected promise inside a preflight probe would surface as a crashed release.
 
@@ -187,7 +210,9 @@ export function main(cwd?: string): Promise<number>;
 runIfDirect('check-readme', 'checks readme', async () => main());
 ```
 
-Prints one line per finding, then each note prefixed `note:`. Exit 1 when `findings` is non-empty; notes never affect the exit code. Registered as `checks readme` in `src/cli/manifest.ts`. Callers choose whether exit 1 blocks — per D14, none do.
+Prints one line per finding, then each note prefixed `note:`. Exit 1 when `findings` is non-empty; notes never affect the exit code. Registered as `checks readme` in `src/cli/manifest.ts`.
+
+The **command itself keeps exiting 1** — that is what makes it usable in CI or by a consumer who wants it to gate. Advisory is a property of the *call site*, not the binary: the pre-push job neutralizes the code with `|| true` (see Wiring), mirroring `check-ui-design-freshness`'s "callers choose whether that blocks".
 
 ### Unit 8 — release preflight row
 
@@ -211,7 +236,14 @@ A new `readme` row calls `checkReadme` with `{ severity: 'warn' }` and an audite
 
 ### Wiring
 
-A `readme` job on `pre-push`, beside `template-sync` and `clones check` — but **advisory: it reports and exits 0** (D14, superseding the blocking form of D7).
+A `readme` job on `pre-push`, beside `template-sync` and `clones check` — but **advisory**, and the mechanism is explicit rather than implied:
+
+```yaml
+    - name: readme
+      run: pnpm noldor checks readme || true
+```
+
+`|| true` is chosen over an `--advisory` flag or a never-failing binary because it keeps the advisory decision visible at the call site in a file the operator reads, and leaves `checks readme` itself usable as a gate by anyone who wants one. `templates/lefthook/noldor.yml` is byte-identical, so this choice ships to every consumer and is worth stating rather than inferring (D14, superseding the blocking form of D7).
 
 The reason is adoption. There is no `templates/README.md`, and `templates/lefthook/noldor.yml` is byte-identical to `lefthook/noldor.yml`, so this job ships to every consumer and would run against a README the framework itself calls consumer-owned — the stated reason the `bootstrap commands` rule-pair sits at `severity: 'warn'`. A blocking job would red a fresh consumer's first push over an unlinked `docs/` directory, or over a `pnpm <script>` that lives in a workspace package rather than root `package.json` (Unit 5 reads root only). Advisory keeps the signal at exactly the moment it is actionable without gating anyone's adoption.
 
@@ -223,10 +255,11 @@ Visibility, not blocking, is what the founding failure needed: PR #333 shipped b
 
 - `lefthook/noldor.yml` + `templates/lefthook/noldor.yml` — the new advisory pre-push job, mirrored.
 - `docs/noldor/script-catalog.md` + `templates/docs/noldor/script-catalog.md` — a source link for `src/checks/check-readme.ts`, or `validate script-catalog` blocks on `missingFromCatalog`.
+- `docSurfaceRow`'s `check` callback type — widened to accept an optional `notes?: readonly string[]` which the row appends to its `detail`. Without this the notes Unit 6 produces are dropped at the preflight boundary and a degraded check renders as clean.
 - `ALL_ROW_IDS` ([`src/release/preflight-probes.ts:42`](../../../src/release/preflight-probes.ts)) — a plain `readonly PreflightRowId[]`, not derived and not exhaustive-checked, and it is what `preflight.ts:72` iterates to build the report. Adding `'readme'` to the union alone leaves the row **silently unrendered with a green typecheck**, so the array needs the same edit.
 - `src/release/__tests__/preflight-probes.test.ts:226` — asserts `ALL_ROW_IDS` equals a hand-written id list, so it needs `'readme'` too.
 - `docs/noldor/script-catalog.md:356` + its twin — the release-preflight entry enumerates every row id in prose. (Pre-existing drift, not introduced here: that prose already omits `ui-design-freshness` and `adr`, listing 14 of the 16 live ids. This spec adds `readme`; repairing the two stale omissions is separate residue.)
-- `README.md` — links added under `## Docs` so `docs/adr/`, `docs/architecture/` and `docs/user/` become reachable (D10). The check ships green and the feature dogfoods itself.
+- `README.md` — links added under `## Docs` so `docs/adr/` and `docs/architecture/` become reachable (D10). **`docs/user/` needs no link**: it is already reachable via `README.md` → `docs/noldor/README.md:23` → `docs/noldor/triage.md:18` → `[How-to index](../user/how-to/index.md)`. Two surfaces are unreachable today, not three. The check ships green and the feature dogfoods itself.
 
 ## Acceptance criteria
 
@@ -238,14 +271,17 @@ Visibility, not blocking, is what the founding failure needed: PR #333 shipped b
 6. `docs/assets` (zero `.md`), `docs/features` and `docs/design` are never reported as unreachable.
 7. A surface path appearing only inside prose backticks does not reach it; the same path as a markdown link does.
 8. `pnpm run <name>` with `<name>` absent from root `package.json` `scripts` is reported; `pnpm add|install|dlx|exec` and `pnpm noldor --help` never are.
-9. Both `[ADRs](docs/adr/)` and a link to a specific `.md` beneath it satisfy the `docs/adr` surface.
-10. A surface is satisfied by a reached `.md` at any depth beneath it, with no `index.md` present.
-11. A multi-hop route terminates on a link cycle, and a route passing through a root-level markdown file outside `docs/` counts as reaching its target.
-12. A command quoted on five lines yields exactly one finding, citing the first line.
-13. A broken link (`ENOENT`) produces no finding from this check; an unreadable linked file produces a note and does not change the exit code.
-14. A missing or malformed root `package.json` skips script resolution with a note while surface and `pnpm noldor` checks still run; `checkReadme` resolves rather than rejects for every simulated failure mode.
-15. Release preflight renders a `readme` row; with findings its status is `warn` and `blockingIds()` omits it. `RELEASE_SKIP_README=1` renders it `skipped` with the override recorded; a repo with no `README.md` renders it `skipped` and the CLI exits 0.
-16. The advisory `pre-push` `readme` job exits 0 on a repo with findings, is byte-identical in `templates/lefthook/noldor.yml`, and `pnpm noldor validate script-catalog` passes with the new entrypoint documented.
+9. `pnpm noldor docs --help` resolves — flag tokens are skipped wherever they sit when selecting the group and subcommand tokens.
+10. `pnpm noldor docs typo` is reported (a group with named subs has no bare fallback), while `pnpm noldor doctor extra` is not (a `''`-leaf group's extra token is a positional).
+11. Both `[ADRs](docs/adr/)` and a link to a specific `.md` beneath it satisfy the `docs/adr` surface.
+12. A surface is satisfied by a reached `.md` at any depth with no `index.md` present; a link to a **non-markdown** file beneath a surface does **not** satisfy it.
+13. A multi-hop route terminates on a link cycle, and a route through a root-level markdown file outside `docs/` counts as reaching its target.
+14. A command quoted on five lines yields exactly one finding, citing the first line.
+15. A broken link (`ENOENT`) produces no finding from this check; an unreadable linked file and a malformed percent-escape (`docs/a%zz.md`) each produce a note without changing the exit code or throwing.
+16. A missing or unparseable root `package.json` skips script resolution with a note while the surface and `pnpm noldor` halves still run; a **valid** `package.json` declaring no `scripts` instead reports every quoted repo script as unresolved.
+17. `checkReadme` resolves rather than rejects for every simulated I/O and parse failure; a thrown programmer error is not swallowed; notes never change `status`.
+18. Release preflight renders a `readme` row whose `detail` surfaces any notes; with findings its status is `warn` and `blockingIds()` omits it. `RELEASE_SKIP_README=1` renders it `skipped` with the override recorded; a repo with no `README.md` renders it `skipped` and the CLI exits 0.
+19. The `pre-push` `readme` job runs `pnpm noldor checks readme || true`, exits 0 on a repo with findings, is byte-identical in `templates/lefthook/noldor.yml`, and `pnpm noldor validate script-catalog` passes with the new entrypoint documented.
 
 ## Risks / trade-offs
 
@@ -253,6 +289,7 @@ Visibility, not blocking, is what the founding failure needed: PR #333 shipped b
 - **Walk cost on every push.** Unit 2 reads the reachable set (≈260 `.md` here, bounded by reachability rather than the tree). Comparable to `docs check`, which already reads every one. If it proves slow the remedy is caching by tree sha, not narrowing the check.
 - **Advisory everywhere means a determined author can ignore it.** Accepted (D14): the alternative reds a fresh consumer's first push against a README the framework does not own.
 - **A consumer with a private docs directory gets a standing note.** Accepted rather than configured (D9): an unlinked `docs/<dir>/` is a genuine discoverability gap and the fix is one link. Advisory wiring keeps the cost at noise rather than breakage.
+- **Shell-grammar coverage is deliberately partial.** Unit 4 lexes prompt prefixes, comments, continuations, operators and placeholders, but does not define dequoting, escaped whitespace inside quotes, or malformed-quote recovery. A README quoting a command with embedded quoted whitespace may mis-tokenize. Advisory wiring bounds the cost to a false note; the one concrete case the review named (a flag between `noldor` and the subcommand) is fixed in Unit 5 step 1.
 - **Reachability is link-shaped, not comprehension-shaped.** A README can link every surface and still describe them wrongly. This raises the floor from "unnavigable" to "navigable"; it does not verify the prose is accurate.
 - **Unit 5 reads root `package.json` only.** A monorepo consumer quoting a workspace-package script gets a false finding. Advisory wiring bounds the damage; per-workspace resolution is deferred.
 - **`docs/user/` is a projection target.** `docProjectionRoots()` treats it as generated. Including it means a generated surface must be linked by hand — judged correct: generated or not, a reader needs a route.
@@ -280,7 +317,7 @@ At release, `pnpm release --preflight` renders a `readme` row. It is advisory: f
    → **Auto-enrolled directories minus an explicit two-member artifact set (D2, D9, revised).** Deriving the exclusions from `loadDocRoots()` was wrong — it names `adr`, `architecture` and `milestones` too, so it would exclude the surfaces the feature targets.
 
 3. *Direct link from `## Docs`, or a transitive walk?*
-   → **Transitive, seeded from the whole README, traversal root the repository (D2).** It respects the `docs/noldor/README.md` hub, admits legitimate routes through root-level markdown, and still has teeth: three surfaces are unreachable today.
+   → **Transitive, seeded from the whole README, traversal root the repository (D2).** It respects the `docs/noldor/README.md` hub, admits legitimate routes through root-level markdown, and still has teeth: `docs/adr` and `docs/architecture` are unreachable today. (`docs/user` is already reachable through `triage.md:18`, so the surface count is two, not three.)
 
 4. *Do checks #1 and #3 stay separate?*
    → **They merge (D3).** 12 of the 16 quoted commands are `pnpm noldor` forms resolving through `MANIFEST`, so the two were the same check.
@@ -308,3 +345,15 @@ At release, `pnpm release --preflight` renders a `readme` row. It is advisory: f
 
 12. *What happens on an operational error?*
     → **A note, never a finding, never a rejection (D4 blocker).** `checkReadme` degrades per-source and keeps checking what it can.
+
+13. *Does an image or asset link satisfy a doc surface?*
+    → **No.** `ReachSet.files` records markdown only, so a non-markdown target is neither traversed nor counted (round-2 blocker).
+
+14. *Does a `package.json` with no `scripts` disable script checking?*
+    → **No.** Empty set means "no valid script names", so every quoted repo script is unresolved; only an unavailable or invalid file yields `null` (round-2 blocker).
+
+15. *How does an advisory pre-push job exit 0 while the CLI exits 1?*
+    → **`|| true` at the call site.** The binary stays gate-capable; the advisory decision lives in `lefthook/noldor.yml` where an operator reads it, and ships explicitly through the byte-identical twin (round-2 blocker).
+
+16. *Are the FD's `User Story` / `Usage` TODO placeholders drift?*
+    → **No — they are the gate's design.** `/noldor-draft-feature-md <slug> --from-spec` runs next and fills both from this spec. The FD's *Summary*, which did carry superseded roadmap text, is corrected in this round.
