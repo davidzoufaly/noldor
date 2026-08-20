@@ -7,9 +7,9 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { braceExpand, minimatch } from 'minimatch';
+import { braceExpand } from 'minimatch';
 
-import type { UiConfig } from '../core/ui-predicate.js';
+import { isUiBearing, type UiConfig } from '../core/ui-predicate.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from './graph-freshness.js';
 
 const execFileAsync = promisify(execFile);
@@ -247,9 +247,7 @@ export async function evaluateUiDesignFreshness(
       const files = lines.slice(1).filter((l) => l.trim().length > 0);
       const surfaceGlobs = Object.values(config.uiSurfaces).flat();
       const unmapped = files.filter(
-        (f) =>
-          uiPaths.some((g) => minimatch(f, g, { dot: true })) &&
-          !surfaceGlobs.some((g) => minimatch(f, g, { dot: true })),
+        (f) => isUiBearing([f], uiPaths) && !isUiBearing([f], surfaceGlobs),
       );
       if (unmapped.length > 0) {
         surfaces.push({
