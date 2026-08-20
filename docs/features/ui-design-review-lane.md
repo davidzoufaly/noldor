@@ -20,7 +20,7 @@ links:
 name: UI-Design Review Lane
 packages:
   - package.json
-phase: in-progress
+phase: done
 since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -53,6 +53,10 @@ pnpm noldor cr aggregate --slug <slug> --kind code
 ```
 
 Sink: `.noldor/cr/<slug>-code-ui-reviewer.json`. Read `verdict` before `blockers`: `not-applicable` means the round had no UI to review, `cannot-review` means no comparison happened and `reason` names the class. Flip `uiReviewMode` to `blocking` once your reviewer runners are pencil-capable.
+
+Under `advisory` a `fail` lands as `low` suggestions rather than blockers; under `blocking` it blocks with the severities the reviewer assigned. A design file that changes during its own review (`reason: pen-modified`) blocks in both modes.
+
+The lane is code-only — passing it at `--kind spec` or `--kind plan` is rejected at entry — and it is excluded from the empty-diff short-circuit, so it re-runs on every code round instead of inheriting a prior green.
 
 ## PRs
 
