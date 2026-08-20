@@ -19,16 +19,6 @@ interface FsSeams {
   readFile?: (path: string, encoding: 'utf8') => Promise<string>;
 }
 
-interface ResolveByLinksPlanOptions extends FsSeams {
-  planPath: string;
-  repo: string;
-}
-
-interface ResolveByLinksSpecOptions extends FsSeams {
-  specPath: string;
-  repo: string;
-}
-
 interface ResolveByLinksFieldOptions extends FsSeams {
   /** Artifact path as written in the FD, e.g. `docs/design/specs/<f>.md`. */
   docPath: string;
@@ -81,10 +71,12 @@ async function scanFdsForOwner(
 }
 
 /**
- * Ownership fallback shared by {@link resolveByLinksPlan} and
- * {@link resolveByLinksSpec}: returns the first FD (filename order) whose
- * `links.<field>` names `docPath` verbatim. Both a bare string and an array
- * are accepted, since `links.plan` allows either.
+ * Fallback resolver in the detector's staleness chain: returns the first FD
+ * (filename order) whose `links.plan` / `links.spec` names `docPath` verbatim.
+ * Both a bare string and an array are accepted, since `links.plan` allows
+ * either. Consumed by `detectStaleDesignArtifacts` when the filename-slug
+ * signal matches no FD — multi-feature or infra plans, and attach-path specs
+ * (`<date>-<parent>-<enhancement>-design.md`) that a parent FD still owns.
  */
 export async function resolveByLinksField(
   opts: ResolveByLinksFieldOptions,
@@ -94,38 +86,6 @@ export async function resolveByLinksField(
     const paths = Array.isArray(declared) ? declared : declared ? [declared] : [];
     return paths.includes(opts.docPath);
   });
-}
-
-/**
- * Fallback resolver in the detector's plan-staleness chain. Scans every
- * `docs/features/*.md` FD; if any has `links.plan` containing the plan
- * path (verbatim string match, single string or array), returns that FD
- * as the owner. Used when the filename-slug heuristic
- * (`detectStalePlans` primary signal) doesn't match any FD — e.g.
- * multi-feature plans, infra plans.
- *
- * Today's hit rate is zero: no existing FD uses `links.plan` (audited
- * 2026-05-17 during release-sweep-process-hardening part 3 planning).
- * Future-facing for parent FDs that adopt the field.
- */
-export async function resolveByLinksPlan(
-  opts: ResolveByLinksPlanOptions,
-): Promise<ResolvedOwner | null> {
-  return resolveByLinksField({ ...opts, docPath: opts.planPath, field: 'plan' });
-}
-
-/**
- * Spec analog of {@link resolveByLinksPlan}: returns the FD whose
- * `links.spec` matches the spec path verbatim. Covers attach-path specs
- * (`<date>-<parent>-<enhancement>-design.md`) whose filename slug never
- * matches an FD but which a parent FD still owns via its `spec:` link —
- * without this, `detectStaleSpecs`' age-out signal flags them as archive
- * candidates while the owning work is live.
- */
-export async function resolveByLinksSpec(
-  opts: ResolveByLinksSpecOptions,
-): Promise<ResolvedOwner | null> {
-  return resolveByLinksField({ ...opts, docPath: opts.specPath, field: 'spec' });
 }
 
 interface GraphAdjNode {
@@ -155,7 +115,7 @@ interface ResolveByGraphAdjacencyOptions extends FsSeams {
  * Last-resort fallback in the detector chain: resolve a plan/spec to its owning
  * FD by following the `plan-of` / `spec-of` edge in the enriched
  * `graphify-out/graph.json` (see `src/graphify/enrich-doc-nodes.ts`). Wired in
- * AFTER {@link resolveByLinksPlan}/{@link resolveByLinksSpec} and BEFORE age-out,
+ * AFTER {@link resolveByLinksField} and BEFORE age-out,
  * so it only ever resolves artifacts the authoritative slug/`links.*` signals
  * miss. A missing graph file, missing node, missing edge, or unreadable owner FD
  * all degrade to `null` (→ today's age-out), never a wrong-direction block.

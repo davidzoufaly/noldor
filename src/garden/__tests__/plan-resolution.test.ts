@@ -1,12 +1,8 @@
 // @tests: graphify-plan-of-edges-nodes-for-plans-specs, outcome-telemetry-and-effectiveness-metrics
 import { describe, it, expect } from 'vitest';
-import {
-  resolveByLinksPlan,
-  resolveByLinksSpec,
-  resolveByGraphAdjacency,
-} from '../plan-resolution';
+import { resolveByGraphAdjacency, resolveByLinksField } from '../plan-resolution';
 
-describe('resolveByLinksPlan', () => {
+describe('resolveByLinksField (links.plan)', () => {
   it('returns the FD whose links.plan contains the plan path', async () => {
     const reads = new Map<string, string>([
       [
@@ -18,8 +14,9 @@ describe('resolveByLinksPlan', () => {
         '---\nname: Bar\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\nnoldor-tier: specs-only\n---\n',
       ],
     ]);
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-foo.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md', 'bar.md'],
       readFile: async (p: string) => reads.get(p.replace('/tmp/repo/', '')) ?? '',
@@ -30,8 +27,9 @@ describe('resolveByLinksPlan', () => {
   });
 
   it('handles plan as a single string (not array)', async () => {
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-foo.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
@@ -42,8 +40,9 @@ describe('resolveByLinksPlan', () => {
   });
 
   it('returns null when no FD references the plan', async () => {
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-orphan.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-orphan.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
@@ -53,8 +52,9 @@ describe('resolveByLinksPlan', () => {
   });
 
   it('ignores FDs without a links.plan field', async () => {
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-foo.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
@@ -64,8 +64,9 @@ describe('resolveByLinksPlan', () => {
   });
 
   it('skips files that do not parse as FDs without throwing', async () => {
-    const result = await resolveByLinksPlan({
-      planPath: 'docs/design/plans/2026-04-19-foo.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/plans/2026-04-19-foo.md',
+      field: 'plan',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md', 'malformed.md'],
       readFile: async (p: string) => {
@@ -78,7 +79,7 @@ describe('resolveByLinksPlan', () => {
   });
 });
 
-describe('resolveByLinksSpec', () => {
+describe('resolveByLinksField (links.spec)', () => {
   it('returns the FD whose links.spec matches the spec path', async () => {
     const reads = new Map<string, string>([
       [
@@ -90,8 +91,9 @@ describe('resolveByLinksSpec', () => {
         '---\nname: Bar\nphase: in-progress\narea: tooling\ncategory: Tooling\npackages:\n  - scripts\nlinks:\n  code: []\n  tests: []\nnoldor-tier: specs-only\n---\n',
       ],
     ]);
-    const result = await resolveByLinksSpec({
-      specPath: 'docs/design/specs/2026-05-15-parent-feat-extra-design.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/specs/2026-05-15-parent-feat-extra-design.md',
+      field: 'spec',
       repo: '/tmp/repo',
       readdir: async () => ['parent-feat.md', 'bar.md'],
       readFile: async (p: string) => reads.get(p.replace('/tmp/repo/', '')) ?? '',
@@ -102,8 +104,9 @@ describe('resolveByLinksSpec', () => {
   });
 
   it('returns null when no FD references the spec', async () => {
-    const result = await resolveByLinksSpec({
-      specPath: 'docs/design/specs/2026-05-15-orphan-design.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/specs/2026-05-15-orphan-design.md',
+      field: 'spec',
       repo: '/tmp/repo',
       readdir: async () => ['foo.md'],
       readFile: async () =>
@@ -113,8 +116,9 @@ describe('resolveByLinksSpec', () => {
   });
 
   it('skips files that do not parse as FDs without throwing', async () => {
-    const result = await resolveByLinksSpec({
-      specPath: 'docs/design/specs/2026-05-15-foo-extra-design.md',
+    const result = await resolveByLinksField({
+      docPath: 'docs/design/specs/2026-05-15-foo-extra-design.md',
+      field: 'spec',
       repo: '/tmp/repo',
       readdir: async () => ['malformed.md', 'foo.md'],
       readFile: async (p: string) => {
