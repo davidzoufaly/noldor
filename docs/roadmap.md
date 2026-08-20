@@ -31,19 +31,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Mechanical render-compare for the UI-design review lane: screenshot-diff the running app against the feature's committed `.pen` design instead of reasoning over the extracted design structure. Deferred out of Q-0145 because it needs a per-consumer app-boot recipe (how to start the app, which route renders a surface, how to reach a given state) that does not exist yet — the structural lane ships first and this earns its slice once boot recipes land. Depends on the structural lane for the sink shape and the `consumer.uiPaths` surface predicate.
 
-### Root README Content Validator
-
-- id: Q-0139
-- area: tooling
-- type: feat
-- since: 2026-08-17
-- size: M
-- impact: med
-- confidence: med
-- blocked-by: Q-0136
-
-Root `README.md` is the one doc surface the framework never inspects for content, so every capability it adds drifts out of the README silently. Four mechanisms touch the file and none of them read what it says: `pnpm noldor docs check` includes it but only resolves internal links (`src/docs/docs-check.ts:223`), the `bootstrap commands` rule-pair asserts a `pnpm test` mention at `severity: 'warn'` (`src/invariants/rule-pairs.ts:63`, soft by design because the README is consumer-owned), SDD detector 12 `detectReadmePackageDrift` (`src/garden/sdd-report.ts:489`) keys on `packages/<prefix>-*` directories and is therefore dead in this repository, and release-sweep step 4 is prose asking an LLM to eyeball the architecture, stack and command sections. The miss is concrete: Q-0093 added a `docs architecture` subcommand to `src/cli/manifest.ts` plus a four-page `docs/architecture/` surface carrying its own presence validator, garden detector, SDD gap and release probe, and the README's `## CLI reference` and `## Docs` sections both stayed silent — the string "architecture" appears nowhere in it. Wanted: three structural checks mirroring the registry Q-0093 already built — `src/cli/manifest.ts` against the README CLI-reference section, every registered doc surface reachable from `## Docs`, and every command quoted in `## Quick start` / `## Daily workflow` present in root `package.json` `scripts`. Two constraints bind the design. The README sits deliberately outside `RELEASE_SWEEP_GLOBS` (`src/core/allowlist.ts:20`), so a finding is always operator-fixed in a separate micro-chore rather than repaired in place by the sweep. And the finding must land on a non-blocking channel — routing it to `sddGaps` would let a README typo withhold a release through the four-hop chain Q-0136 exists to make structural, which is why this is blocked on that entry. Deletion test: adding a CLI subcommand or a doc surface without touching the README fails a check that names the missing section. (found 2026-08-17 asking why PR #333 left the root README untouched)
-
 ### Spec Floor for S-Sized Entries
 
 - id: Q-0143

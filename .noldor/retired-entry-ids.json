@@ -80,5 +80,9 @@
   "Q-0145": {
     "slug": "ui-design-review-lane",
     "retiredAt": "2026-08-20"
+  },
+  "Q-0139": {
+    "slug": "root-readme-content-validator",
+    "retiredAt": "2026-08-20"
   }
 }
