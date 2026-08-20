@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process';
 import { laneSinkPath } from '../filename.js';
+import { loadLaneMode } from '../lane-mode.js';
 import { mkdir } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { writeJsonAtomic } from '../atomic-write.js';
-import { loadConfig } from '../../core/config.js';
 import { loadVerifyCommands } from '../../core/consumer-config.js';
 import type { Finding, LaneFindings } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
@@ -12,8 +12,6 @@ import { resolvePort } from '../../verify/port.js';
 import { runSmoke } from '../../verify/smoke.js';
 import type { SmokeReport } from '../../verify/smoke.js';
 import { dispatchVerify, parseVerifyVerdict } from './verify-dispatch.js';
-
-type VerifyMode = 'blocking' | 'advisory';
 
 type SmokeRunner = (cwd: string, port: number) => Promise<SmokeReport>;
 let smokeRunner: SmokeRunner = (cwd, port) => runSmoke(cwd, port);
@@ -80,8 +78,7 @@ function commitProse(repoRoot: string, baseSha: string, headSha: string): Promis
 export async function runVerify(input: LaneInput): Promise<LaneResult> {
   const sinkPath = sinkPathFor(input);
   const startedAt = new Date().toISOString();
-  const cfg = await loadConfig(join(input.repoRoot, '.noldor', 'config.json')).catch(() => null);
-  const mode: VerifyMode = cfg?.autonomous?.verifyMode ?? 'advisory';
+  const mode = await loadLaneMode(input.repoRoot, 'verifyMode');
 
   const write = async (payload: LaneFindings, ok: boolean): Promise<LaneResult> => {
     // Orchestrate pre-creates .noldor/cr/, but the lane stays self-sufficient

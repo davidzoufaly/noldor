@@ -6,8 +6,9 @@
 
 import { z } from 'zod';
 
-import { spawnAgent } from '../../core/agent-runner/registry.js';
-import { DEFAULT_DISPATCH_TIMEOUT_MS } from '../../core/config.js';
+import { parseFencedJson } from '../extract-json.js';
+import { createDispatcherSeam } from '../lane-spawn.js';
+import { fencedJsonInstruction } from './prompt-parts.js';
 
 /**
  * One finding from the child. `designPage` + `designElement` are REQUIRED: a
@@ -99,45 +100,23 @@ Every finding must name both sides it compared: the design page and the element 
 
 If you cannot read the design at all, report \`cannot-review\` with reason \`pen-unreadable\`. If you can read the file but it holds no \`FINAL:\` page for the scope above, report \`cannot-review\` with reason \`no-final-pages\`. Both are honest outcomes — never guess a verdict from the code alone.
 
-Emit EXACTLY ONE fenced json block as the last thing in your output:
-
-\`\`\`json
-{"verdict": "pass" | "fail" | "cannot-review",
+${fencedJsonInstruction(
+  `{"verdict": "pass" | "fail" | "cannot-review",
  "findings": [{"file": "...", "line": 1, "severity": "high" | "med" | "low",
                "message": "...", "designPage": "...", "designElement": "..."}],
- "reason": "pen-unreadable" | "no-final-pages"}
-\`\`\`
+ "reason": "pen-unreadable" | "no-final-pages"}`,
+)}
 
 \`pass\` and \`cannot-review\` carry an empty \`findings\` array; \`fail\` carries at least one; \`reason\` appears only on \`cannot-review\`.`;
 }
 
-/** Last fenced ```json block wins; null on absence, bad JSON, or schema mismatch. */
-export function parseUiReviewReport(md: string): UiReviewReport | null {
-  const fences = [...md.matchAll(/```json\s*\n([\s\S]*?)```/g)];
-  const last = fences.at(-1)?.[1];
-  if (last === undefined) return null;
-  try {
-    return uiReviewReportSchema.parse(JSON.parse(last));
-  } catch {
-    // Bad JSON and a schema mismatch are one class for the caller
-    // (`malformed-output`) — the distinction changes nothing it can do.
-    return null;
-  }
-}
-
-type UiDispatcher = (input: UiDispatchInput) => Promise<string>;
-
-let dispatcher: UiDispatcher = async (input) => {
-  const r = await spawnAgent(buildUiReviewPrompt(input), {
-    role: 'ui-reviewer',
-    timeoutMs: input.timeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS,
-    site: 'cr.ui-review-dispatch',
-  });
-  if (r.timedOut) throw new UiDispatchError('timeout', `ui-review dispatch timed out`);
-  if (r.exitCode !== 0)
-    throw new UiDispatchError('dispatch-failed', `ui-review dispatch failed: exit ${r.exitCode}`);
-  return r.stdout;
-};
+/**
+ * Last fenced ```json block wins; null on absence, bad JSON, or schema mismatch.
+ * All three are one class for the caller (`malformed-output`) — the distinction
+ * changes nothing it can do.
+ */
+export const parseUiReviewReport = (md: string): UiReviewReport | null =>
+  parseFencedJson(md, uiReviewReportSchema);
 
 /** Carries which reason code the lane should record, so the sink stays specific. */
 export class UiDispatchError extends Error {
@@ -150,11 +129,17 @@ export class UiDispatchError extends Error {
   }
 }
 
-/** Test seam — production code never calls this. */
-export function setUiDispatcher(impl: UiDispatcher): void {
-  dispatcher = impl;
-}
+const seam = createDispatcherSeam<UiDispatchInput>(buildUiReviewPrompt, {
+  role: 'ui-reviewer',
+  site: 'cr.ui-review-dispatch',
+  onFailure: (f) => {
+    throw new UiDispatchError(
+      f.reason,
+      f.timedOut ? 'ui-review dispatch timed out' : `ui-review dispatch failed: exit ${f.exitCode}`,
+    );
+  },
+});
 
-export function dispatchUiReview(input: UiDispatchInput): Promise<string> {
-  return dispatcher(input);
-}
+/** Test seam — production code never calls this. */
+export const setUiDispatcher = seam.setDispatcher;
+export const dispatchUiReview = seam.dispatch;

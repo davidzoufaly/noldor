@@ -8,6 +8,11 @@ links:
   code:
     - src/cr/lanes/ui-review.ts
     - src/cr/lanes/ui-review-dispatch.ts
+    - src/cr/lanes/ui-design-resolve.ts
+    - src/cr/lanes/prompt-parts.ts
+    - src/cr/lane-spawn.ts
+    - src/cr/lane-mode.ts
+    - src/cr/extract-json.ts
     - src/cr/findings-schema.ts
     - src/cr/filename.ts
     - src/cr/orchestrate.ts

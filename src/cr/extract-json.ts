@@ -21,3 +21,46 @@ export function extractJsonObject(text: string): unknown {
   }
   return JSON.parse(text.slice(start, end + 1));
 }
+
+/**
+ * Parse the LAST fenced ```json block in an agent's prose output.
+ *
+ * Lane children are told to emit exactly one fenced block as the final thing
+ * they say; taking the last one means a model that reasons in JSON mid-answer
+ * cannot fool the parser with an earlier draft. Shared by every lane whose child
+ * returns a structured verdict (`lanes/verify-dispatch.ts`,
+ * `lanes/ui-review-dispatch.ts`) — the extraction idiom is common even where the
+ * verdict SCHEMAS deliberately are not.
+ *
+ * @returns The parsed value, or `null` when there is no fence or its body is not
+ *   JSON. Callers own schema validation, so a shape mismatch is theirs to detect.
+ */
+export function parseLastJsonFence(md: string): unknown | null {
+  const fences = [...md.matchAll(/```json\s*\n([\s\S]*?)```/g)];
+  const last = fences.at(-1)?.[1];
+  if (last === undefined) return null;
+  try {
+    return JSON.parse(last);
+  } catch {
+    // Bad JSON and an absent fence are one class for every caller: there is no
+    // trustworthy verdict either way.
+    return null;
+  }
+}
+
+/**
+ * The whole "read a lane child's structured verdict" step: last fenced block,
+ * then schema validation. An absent fence, unparseable JSON and a shape mismatch
+ * collapse to `null` on purpose — no caller can do anything different about them,
+ * and each lane reports the single "no trustworthy verdict" outcome its contract
+ * defines.
+ */
+export function parseFencedJson<T>(
+  md: string,
+  schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false } },
+): T | null {
+  const raw = parseLastJsonFence(md);
+  if (raw === null) return null;
+  const parsed = schema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
