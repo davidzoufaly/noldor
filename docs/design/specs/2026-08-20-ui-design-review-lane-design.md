@@ -92,45 +92,52 @@ overlapping name is safe by construction.
 (`guardLaneOverwrite` is unaffected — it resolves exact filenames through
 `sinkCandidatePaths`, never this parser.)
 
-### U3 — Firing predicate (recomputed, never inherited)
+### U3 — Firing predicate (recomputed, whole-feature, never inherited)
 
-The lane decides for itself, from the change under review:
+The lane decides for itself, and always over the **whole feature** — not over the
+round's prompt range:
 
-- **predicate base**, resolved independently of the prompt range:
-  `input.baseSha ?? resolveDefaultBase(run)`
+- **base**: `resolveDefaultBase(run)`
   ([`src/core/branch-added.ts`](../../../src/core/branch-added.ts)) — the remote's
-  default branch, i.e. the whole feature. This split mirrors
-  [`src/cr/lanes/subagent.ts`](../../../src/cr/lanes/subagent.ts)'s
-  `rulesBaseSha` / `promptBaseSha` and exists for a concrete reason: on the
-  `fullReview` path orchestrate **deletes `baseSha`**, so a `${artifactSha}~1`
-  fallback would scope the predicate to the tip commit alone and read `skip` for a
-  branch whose UI landed earlier — a green sink in the round meant to be widest.
-  No revision string is ever built by concatenation onto `artifactSha`, which
-  orchestrate leaves `''` when git is unavailable.
-- **candidate paths**: `discoverChangedFiles({ cwd, base, head })`. The helper
-  throws on an unresolvable ref; U6b maps that to a sink.
+  default branch. `input.baseSha` is deliberately **not** consulted, in either the
+  `??` or the override position. Every delta shape sets it to something narrower:
+  the `fullReview` path deletes it, the receipt re-earn recipe passes
+  `--base-sha <last-green-tip>`, and the autofix loop passes its recorded base. Any
+  of those would scope the predicate to a fragment, so a feature whose UI landed in
+  an earlier commit would read `skip` and mint a green sink.
+- **head**: `input.artifactSha` (the tip orchestrate resolved). Empty string means
+  git was unavailable — U6b's `range-unresolvable`, never a rev built by
+  concatenation.
+- **candidate paths**: `discoverChangedFiles({ cwd, base, head })`, which throws on
+  an unresolvable ref (U6b).
 - **verdict**: `sessionUiVerdict(fdFrontmatter, candidatePaths, uiConfig)`
-  ([`src/core/ui-predicate.ts`](../../../src/core/ui-predicate.ts)) — the same call
-  gate Step 4 makes for the baseline write-back, so the FD `design:` override keeps
-  working in both directions.
+  ([`src/core/ui-predicate.ts`](../../../src/core/ui-predicate.ts)) — the same
+  predicate function gate Step 4 uses for the baseline write-back, so the FD
+  `design:` override keeps working in both directions. The gate derives its
+  candidates from a three-dot range and this lane from `discoverChangedFiles`'s
+  two-dot form; on a branch whose base moved they can differ, and this lane's
+  answer is the one that governs the review.
 
-`session.uiVerdict` is deliberately not consulted: it is a spec-time prediction
-from `Touches:`/`links.code`, and this lane's question is what actually changed.
+`session.uiVerdict` is not consulted: it is a spec-time prediction from
+`Touches:`/`links.code`, and this lane's question is what actually changed.
 
-Verdict handling:
+Consequence, stated because it is a cost: this lane never benefits from
+orchestrate's delta short-circuit, and U7 excludes it from that path.
 
-| verdict | affected surfaces | lane does |
+**Verdict handling, in precedence order.** The first matching row wins:
+
+| # | condition | lane does |
 | --- | --- | --- |
-| `skip` | — | `not-applicable` sink, no dispatch |
-| `required` | ≥1 named surface (incl. the implicit `app` when no `uiSurfaces` block exists) | review those surfaces' `FINAL:` pages |
-| `required` | 0 — only reachable via an FD `design: required` override whose diff matches no `uiPaths` | review every `FINAL:` page in the file |
-| `required` | ≥1 surface **plus** `unmappedPaths` | review the matched surfaces; list the unmapped paths in `notes` |
+| 1 | verdict `skip` | `not-applicable`, reason `no-ui-paths` (or `design-skip` when the FD override produced it), no dispatch |
+| 2 | `required`, ≥1 affected surface | review those surfaces' `FINAL:` pages; any `unmappedPaths` ride `notes` |
+| 3 | `required`, 0 surfaces, `unmappedPaths` non-empty | `cannot-review`, reason `surfaces-unmapped` — the changed UI paths belong to no declared surface, so which pages to review is unknowable |
+| 4 | `required`, 0 surfaces, no unmapped paths (FD `design: required` whose diff matched nothing) | review every `FINAL:` page in the file |
 
-The last row is the config-gap case, and it is a note rather than a finding: an
-under-covering `uiSurfaces` map is the design step's problem to fix, not grounds
-for reddening a code round. The zero-surface row is override-only — with no
-`uiSurfaces` block and ≥1 matching path the predicate returns the implicit `app`,
-never an empty set.
+Row 3 is the `uiSurfaces`-under-covers-`uiPaths` case: with a `uiSurfaces` block
+present and a matched path owned by no glob, `affectedSurfaces` is `[]` and no FD
+override is involved. Zero surfaces therefore has two distinct causes, and rows 3
+and 4 are separated by `unmappedPaths` rather than by the surface count alone. Under `advisory` row 3 is a green with a note; under `blocking` it reds
+and the remedy is extending `uiSurfaces`.
 
 ### U4 — Resolving the feature `.pen`
 
@@ -147,7 +154,12 @@ Node resolves a *path*, never content:
    sibling, whose basename parses to that key via `penSlugFromFilename`
    ([`src/core/design-artifact-names.ts`](../../../src/core/design-artifact-names.ts)) —
    which by construction never matches an undated `baseline/<surface>.pen`.
-4. **Ownership gate**: keep only candidates in `discoverAddedFiles({ base })` — the
+4. **Ownership gate**: keep only candidates in
+   `discoverAddedFiles({ base: resolveDefaultBase(run) })` — the base is bound to
+   the default branch for the same reason U3's is, and more sharply: this helper
+   gates on `merge-base(base, HEAD)`, so a delta round's narrower base would put
+   the merge base *after* the commit that added the `.pen` and the session's own
+   design would stop counting as added, yielding a false `no-feature-pen`. It is the
    same merge-base gate `resolveArchivePlan` documents as load-bearing. Filename
    matching alone is not sufficient: `<parent>-<enhancement>` is not injective and
    the parsers ignore the date prefix, so an ungated match can resolve a *foreign*
@@ -158,7 +170,13 @@ Node resolves a *path*, never content:
    candidates. Guessing is worse than declining: the wrong design yields findings
    that read as authoritative.
 
-`kind: 'none'` (fast-track, micro-chore) and `kind: 'invalid'` route to U6b.
+`kind: 'invalid'` routes to U6b. `kind: 'none'` (fast-track, micro-chore) is **not**
+an automatic pass: a session with no design dialogue that nonetheless changed UI
+paths gets `cannot-review` (`no-design-artifact`), not `not-applicable`. Collapsing
+it to `not-applicable` would hand a fast-track that genuinely reworked a surface a
+green sink under `blocking` — a bypass of exactly the guarantee the knob buys. Only
+a `kind: 'none'` session whose verdict is `skip` is `not-applicable`, and that is
+row 1 of U3, reached before this step.
 
 ### U5 — Dispatch
 
@@ -168,19 +186,30 @@ consume it from there). Prompt builder and parser live in `ui-review-dispatch.ts
 sink policy in `ui-review.ts` — the two-module split both sibling lanes use.
 
 **Read-only by construction.** pencil `execute` is the editor's *write* API, so the
-lane never points the child at the repo's own file: it copies the resolved `.pen`
-to a scratch path outside the repo (`os.tmpdir()`) and passes that. A mutation then
-cannot dirty the tree the receipt amend is about to stamp. As a backstop the lane
-asserts `git diff --quiet -- <penPath>` after the dispatch and, if the assertion
-fails, emits a high blocker in both modes — a modified design artifact invalidates
-the review that produced it. The scratch copy is removed on every exit path.
+lane never points the child at the repo's own file. It creates a unique private
+scratch dir (`mkdtemp` under `os.tmpdir()`, mode `0700` — a fixed name would
+collide between concurrent worktree rounds and is a symlink-clobber target), copies
+the resolved `.pen` in, and passes the copy's path. A mutation therefore cannot
+dirty the tree the receipt amend is about to stamp.
+
+Integrity is checked by **content hash, not git**: the lane sha256s the repo's
+`.pen` before the copy and again after the dispatch returns. `git diff --quiet`
+was the wrong instrument — it reports a pre-existing unstaged edit as a child
+mutation, reads clean when a mutation was staged, and contradicts this spec's own
+acceptance of reviewing an uncommitted working-tree edit. A hash mismatch is
+`pen-modified` (U6), which reds in **both** modes. Scratch dir removal happens on
+every exit path; a cleanup failure is logged and never alters an already-written
+sink, and a failure to *create* or *copy* is `scratch-unavailable`.
+
+**Exact range.** The child receives the same whole-feature range U3 computed
+(`resolveDefaultBase(run)..artifactSha`), not the round's prompt range. The review
+object is the as-built UI, which a fragment of the branch does not describe.
 
 **Exact prompt inputs** (the child extracts; the lane does not):
 
 - the scratch `.pen` path, and the surface names in scope from U3;
-- the diff range `base..head` and the repo root — the child reads the diff itself
-  with git, the same way the `reviewer` lane's child does; the lane does not inline
-  a diff;
+- that range and the repo root — the child reads the diff itself with git, the same
+  way the `reviewer` lane's child does; the lane does not inline a diff;
 - the FD summary, inline (`readFdSummary`), as context for intent.
 
 The child is instructed to open the design through pencil MCP (`get_app_state` for
@@ -197,13 +226,21 @@ defines it. **Normative** — a contradiction here is a finding:
   vice-versa);
 - literal text of labels, headings, button copy, and empty/error/loading messages,
   compared after whitespace trimming;
-- which elements are interactive, where the design marks that;
-- the set of states/variants the design authored as separate `FINAL:` pages.
+- the set of `FINAL:` pages in scope, each taken as one authored state under its own
+  page name — no state or breakpoint naming convention beyond `FINAL:<surface>: <name>`
+  is assumed or required.
 
-**Not normative** unless the design annotates it explicitly: pixel geometry,
-spacing and color values, font choices, animation. A state or breakpoint the design
-never authored is unpinned — its absence from the design is not evidence about the
-code, and the lane must not infer a missing variant.
+**Not normative**: pixel geometry, spacing and color values, font choices,
+animation, and interactivity. Those need a marking convention the design stage does
+not define, and inventing one here would be a second feature. A state or breakpoint
+the design never authored is unpinned — its absence is not evidence about the code,
+and the lane must not infer a missing variant.
+
+**Code side, bounded.** "Present in the design, absent in the code" is judged
+against what the changed files *render* on the reviewed surface — not against every
+symbol they export. Helpers, providers and unrendered components have no design
+counterpart and are out of scope, as is copy that reaches the UI through
+localization or interpolation rather than as a literal.
 
 **Evidence requirement.** Every finding names both sides: the design page plus the
 element or label, and the code file (with symbol or line where known). A finding
@@ -224,7 +261,16 @@ payload is rejected rather than half-honored (rejection is handled as
 
 - `pass` — `findings` empty, no `reason`;
 - `fail` — `findings` non-empty, each carrying the U5b evidence, no `reason`;
-- `cannot-review` — `findings` empty, `reason` required and non-empty.
+- `cannot-review` — `findings` empty, `reason` required and drawn from the code list
+  below (an unrecognized code is `malformed-output`, so the vocabulary is closed
+  rather than merely non-empty).
+
+A child `finding` is `{ file, message, severity: 'high' | 'med' | 'low', line?,
+designPage, designElement }`, where `designPage` and `designElement` carry the U5b
+two-sided evidence and are required. The sink conversion folds them into the
+message as a `[<designPage> › <designElement>]` prefix, because `findingSchema`
+([`src/cr/findings-schema.ts`](../../../src/cr/findings-schema.ts)) is a shared
+shape this lane does not get to extend for itself.
 
 `laneFindingsSchema.verdict`
 ([`src/cr/findings-schema.ts`](../../../src/cr/findings-schema.ts)) becomes a union
@@ -237,14 +283,25 @@ verifier child emit `cannot-review` and fall through `verify.ts`'s
 each lane's dispatch parser accepts only its own, and each lane is the only writer
 of its own sink, so no other lane can emit a UI verdict.
 
-`aggregate` is unaffected by the widening: it decides on `blockers` and lane `ok`,
-never on `verdict`, which is diagnostic. Readers that *do* branch on `verdict`
-(operators, the gate's summary) get the reason codes below.
+`aggregate` is unaffected by the widening: it decides on a sink's `blockers` and on
+a missing `finishedAt` ([`src/cr/aggregate.ts`](../../../src/cr/aggregate.ts)),
+never on `verdict`. (`ok` is a `LaneResult` field that only orchestrate's exit code
+sees — it is not in the sink.) Readers that *do* branch on `verdict` — operators,
+the gate's summary — get the reason codes below.
 
-**Reason codes** — stable, one per failure class: `waived`, `no-session-key`,
-`no-feature-pen`, `ambiguous-design`, `pen-unreadable` (pencil absent, runner not
-pencil-capable, `execute` error), `dispatch-failed`, `timeout`,
-`malformed-output`, `range-unresolvable`, `fd-unreadable`, `pen-modified`.
+**`reason` is a real sink field.** `laneFindingsSchema` gains an optional
+`reason: z.enum([...])` alongside the widened `verdict`, rather than the reason
+living in prose: the Usage contract tells operators to read it, and `notes` is free
+text no reader can branch on. `notes` keeps the human sentence; `reason` carries the
+code.
+
+**Reason codes** — closed vocabulary, one per class. Not-applicable classes:
+`no-ui-paths`, `design-skip`, `no-consumer-config`, `waived`. Cannot-review
+classes: `no-session-key`, `no-design-artifact`, `no-feature-pen`,
+`ambiguous-design`, `surfaces-unmapped`, `pen-unreadable` (pencil absent, runner
+not pencil-capable, `execute` error), `scratch-unavailable`, `dispatch-failed`,
+`timeout`, `malformed-output`, `range-unresolvable`, `fd-unreadable`,
+`design-dir-unreadable`. Integrity: `pen-modified`.
 
 **Sink mapping.** `autonomous.uiReviewMode` (`'blocking' | 'advisory'`, default
 `'advisory'`) decides loudness; `verdict` and `reason` are written identically in
@@ -252,10 +309,17 @@ both modes, so only `ok` and the findings' placement change:
 
 | verdict | advisory (default) | blocking |
 | --- | --- | --- |
-| `not-applicable` | `ok: true`, reason in `notes`, no findings | same |
+| `not-applicable` | `ok: true`, no findings | same |
 | `pass` | `ok: true` | `ok: true` |
 | `fail` | findings → `suggestions`, severity forced to `low`, `ok: true` | findings → `blockers`, child severities preserved, `ok: false` |
-| `cannot-review` | `ok: true`, reason in `notes` | one high blocker naming the reason, `ok: false` |
+| `cannot-review` | `ok: true` | one high blocker naming the reason, `ok: false` |
+| `fail` + `reason: pen-modified` | one high blocker, `ok: false` | one high blocker, `ok: false` |
+
+The last row is the one place the knob does not apply, and it is a different kind of
+event: the mode governs *review outcomes*, while a modified design artifact
+invalidates the review itself, so there is no honest advisory reading of it. Its
+blocker is lane-generated (the child produced no findings), which is why the row
+names `fail` with a reason rather than reusing the child's union.
 
 Severity is preserved only where it is actionable: an advisory round's findings are
 suggestions by definition, so they normalize to `low`; a blocking round keeps what
@@ -281,11 +345,14 @@ Every input the lane reads can fail, and each failure must still leave a sink �
 | --- | --- | --- |
 | `loadUiConfig(repoRoot)` | returns `null` (no consumer config) | `not-applicable` — unadopted, not broken |
 | `readSession(repoRoot)` | returns `null`, or **throws** on a torn marker | catch ⇒ `cannot-review` (`no-session-key`) |
-| `dialogueKeyFromSession` | `kind: 'none'` or `kind: 'invalid'` | `not-applicable` for `none` (fast-track carries no design); `cannot-review` (`no-session-key`) for `invalid` |
+| `dialogueKeyFromSession` | `kind: 'none'` or `kind: 'invalid'` | `none` reaches this step only with a `required` verdict ⇒ `cannot-review` (`no-design-artifact`); `invalid` ⇒ `cannot-review` (`no-session-key`) |
 | `discoverChangedFiles` / `discoverAddedFiles` | throw on an unresolvable ref or missing merge base | catch ⇒ `cannot-review` (`range-unresolvable`) |
 | `artifactSha` | `''` when git is unavailable | never concatenated into a rev; empty ⇒ `range-unresolvable` |
-| FD read | absent (fast-track) or malformed | absent ⇒ empty summary, review continues (the `reviewer` lane already treats a missing FD as legitimate); malformed ⇒ `cannot-review` (`fd-unreadable`) |
-| `.pen` dir read | absent / unreadable | treat as no match ⇒ U4's zero-survivor path |
+| FD read | absent (fast-track) or malformed | absent ⇒ frontmatter defaults to `{}` (no `design:` override, so the predicate decides on globs alone) and the summary to the `reviewer` lane's no-FD sentence; malformed ⇒ `cannot-review` (`fd-unreadable`) |
+| `.pen` dir read | absent | no match ⇒ U4's zero-survivor path (`no-feature-pen`) |
+| `.pen` dir read | present but unreadable (EACCES) | `cannot-review` (`design-dir-unreadable`) — distinct from "no design exists" |
+| scratch dir / copy | `mkdtemp` or `copyFile` fails | `cannot-review` (`scratch-unavailable`) |
+| scratch cleanup | fails after the sink was written | logged only; never rewrites the sink |
 | sink write | fails (EACCES, full disk) | rethrow. Nothing can record a failure to record; orchestrate's `allSettled` reds the round and the expected-lanes record reports `unresolved`. AC12's "exactly one sink" is qualified on this one case |
 
 `loadUiConfig`'s `null` is guarded by every existing caller
@@ -305,6 +372,16 @@ autonomous config schema, so an invalid value is rejected by
 the lane as an opt-in code lane; no new step. The docs surface is one row in the
 CR-lane table plus the config key, with `templates/` twins updated in the same pass.
 
+`ui-reviewer` is excluded from orchestrate's delta short-circuit. That path mints a
+synthetic OK when `git diff base..head -- <artifact>` is empty and the prior sink
+was green ([`src/cr/orchestrate.ts`](../../../src/cr/orchestrate.ts)) — but this
+lane's review object is the UI diff plus a design file, not the `--artifact` path,
+which at code stage is only a label. Worse, an advisory `cannot-review` sink
+carries no blockers, so `priorSinkIsGreen` reads it green and the synthetic
+overwrite replaces it with a sink carrying no `verdict` at all: a lane that never
+compared anything would then read as reviewed. Excluding the lane keeps `verdict`
+trustworthy, at the cost of always re-running it.
+
 The lane runs one extra `discoverChangedFiles` over a range the `reviewer` lane
 also resolves in the same round. Accepted: one git subprocess against a shared
 mutable cache is the wrong trade, and the two callers want different bases (the
@@ -312,48 +389,55 @@ reviewer's rules base is the prompt range; this predicate's is the whole feature
 
 ## Acceptance criteria
 
-1. `ui-reviewer` is accepted in `crLanes.code` by `validate noldor-config`;
-   `--lanes ui-reviewer --kind spec` (or `plan`) exits non-zero with a code-only
-   message; an invalid `uiReviewMode` value is rejected and its default is
-   `advisory`.
+1. `ui-reviewer` is accepted in `crLanes.code` by `validate noldor-config`, is
+   absent from `DEFAULT_CR_LANES`, and `--lanes ui-reviewer --kind spec` (or
+   `plan`) exits non-zero with a code-only message; an invalid `uiReviewMode` is
+   rejected and its default is `advisory`.
 2. `inferLaneFromFilename` returns `ui-reviewer` for `x-code-ui-reviewer.json`,
    `reviewer` for `x-code-reviewer.json`, and the correct lane for every legacy
-   alias, with matching order independent of enum declaration order.
-3. A round whose diff matches no `uiPaths` writes a `not-applicable` sink and
-   dispatches nothing; FD `design: skip` does the same even when paths match, and
-   `design: required` dispatches even when they do not.
-4. On the `fullReview` path (orchestrate having deleted `baseSha`) the predicate
-   still sees the whole feature: a branch whose UI landed in an earlier commit
-   dispatches rather than writing a green sink.
-5. `.pen` resolution prefers nothing by accident: exactly one branch-added
-   candidate is reviewed, zero yields `no-feature-pen`, two or more yields
-   `ambiguous-design` naming the candidates, and a foreign feature's live `.pen`
-   is never selected.
-6. `session.uiWaiver` yields `not-applicable` (`waived`) with no dispatch.
-7. The prompt names the scratch `.pen` path (never the repo path), the in-scope
-   surface names, the diff range and the repo root; zero in-scope surfaces means
-   every `FINAL:` page, and unmapped paths ride `notes` rather than findings.
-8. The lane leaves the repo's `.pen` byte-identical: a child mutation is caught by
-   the post-dispatch assertion and emitted as a high blocker in both modes, and the
-   scratch copy is removed on every exit path.
-9. The child schema rejects `pass`-with-findings, `fail`-without-findings, and
-   `cannot-review`-without-reason, each handled as `malformed-output`; a `fail`
-   verdict's findings survive parsing into the sink.
-10. Every failure class writes its documented reason code, and dispatch failure,
-    timeout and unparseable output are distinguishable from each other.
-11. Mode matrix holds: under `advisory`, `fail` and `cannot-review` write
-    `ok: true` with findings as `low` suggestions; under `blocking`, both write
-    `ok: false` with child severities preserved on `fail`.
+   alias, independent of enum declaration order.
+3. The predicate ignores `input.baseSha` entirely: given an explicit
+   `--base-sha <tip>` or a `fullReview` round with `baseSha` deleted, a branch
+   whose UI landed in an earlier commit still dispatches.
+4. The four U3 rows resolve in precedence order — `skip` ⇒ `not-applicable`;
+   surfaces present ⇒ those pages with unmapped paths in `notes`; zero surfaces
+   with unmapped paths ⇒ `surfaces-unmapped`; zero surfaces without ⇒ every
+   `FINAL:` page.
+5. `.pen` resolution is ownership-gated against the default-branch merge base:
+   exactly one candidate is reviewed, zero ⇒ `no-feature-pen`, two or more ⇒
+   `ambiguous-design` naming them, a foreign feature's live `.pen` is never
+   selected, and a delta round does not lose the branch's own `.pen`.
+6. `session.uiWaiver` ⇒ `not-applicable` (`waived`); a `kind: 'none'` session whose
+   diff matches `uiPaths` ⇒ `cannot-review` (`no-design-artifact`), never a green.
+7. The prompt names the scratch path (never the repo path), the in-scope surfaces,
+   the whole-feature range and the repo root.
+8. The repo's `.pen` is byte-identical after the round, proven by sha256 before and
+   after; a mismatch writes one high blocker with `ok: false` in **both** modes, and
+   the scratch dir is unique, `0700`, and removed on every exit path.
+9. The child schema rejects `pass`-with-findings, `fail`-without-findings,
+   `cannot-review` without a recognized reason code, and a finding missing
+   `designPage`/`designElement` — each handled as `malformed-output`; a `fail`
+   verdict's findings survive into the sink with their evidence prefix.
+10. Every failure class writes its documented `reason` code into the sink's `reason`
+    field, and dispatch failure, timeout, malformed output, `scratch-unavailable`
+    and `design-dir-unreadable` are mutually distinguishable.
+11. Mode matrix holds: under `advisory`, `fail` and `cannot-review` write `ok: true`
+    with findings as `low` suggestions; under `blocking`, both write `ok: false`
+    with child severities preserved on `fail`.
 12. Every terminating path writes exactly one schema-valid sink at
     `.noldor/cr/<slug>-code-ui-reviewer.json` — including `null` consumer config, an
-    absent or torn session marker, and an unresolvable range — except a failure of
-    the sink write itself, which reds the round via `unresolved`.
+    absent or torn session marker, an absent or malformed FD, and an unresolvable
+    range — except a failure of the sink write itself, which reds the round via
+    `unresolved`.
 13. A verifier child emitting `cannot-review` still fails the verifier's own parse,
-    so the widened sink field cannot reroute a verifier round through the UI
-    vocabulary; `aggregate`'s exit code is unchanged by any `verdict` value.
-14. A red `ui-reviewer` under `blocking` leaves the tip commit without a
-    `Noldor-Reviewed-Subagent` receipt; a `pass`, a `not-applicable`, and an
-    advisory `fail` all leave the receipt earned.
+    and `aggregate`'s exit code is unchanged by any `verdict` or `reason` value.
+14. An empty-artifact-diff re-run does **not** mint a synthetic OK for this lane:
+    a prior advisory `cannot-review` sink is not overwritten by a verdict-less one.
+15. Under `blocking`, a red `ui-reviewer` withholds the `Noldor-Reviewed-Subagent`
+    receipt for that round; a `pass`, a `not-applicable` and an advisory `fail` do
+    not withhold it (whether the receipt is earned still depends on the other lanes).
+16. Consumer docs and their `templates/` twins carry the lane row and the
+    `uiReviewMode` key, and the template-sync check passes.
 
 ## Risks / trade-offs
 
@@ -374,7 +458,14 @@ reviewer's rules base is the prompt range; this predicate's is the whole feature
   move is committed by then), and pencil opens files, not blobs.
 - **U5b is prompt-enforced.** A normative/non-normative list bounds a chatty model
   far better than "material difference" did, but it is still prose. Advisory default
-  and the evidence requirement bound the damage.
+  and the required two-sided evidence bound the damage.
+- **No delta short-circuit, ever.** This lane re-runs on every code round of an
+  adopting consumer, including no-op re-pushes. The alternative — a synthetic OK
+  minted from an advisory `cannot-review` — is a sink that claims a review nobody
+  performed, which costs more than the dispatch.
+- **Interactivity and visual tokens are unpinned.** Until the design stage defines a
+  marking convention, a design can pin a control's existence but not that it is
+  clickable. Narrower than the roadmap entry implied, and honest about it.
 - **Union-shaped sink verdict** touches a shared schema. Additive, with each lane's
   dispatch parser accepting only its own vocabulary, so every existing sink parses
   and no lane gains a verdict it cannot produce.
@@ -436,9 +527,19 @@ comparison happened and `reason` says which class. Flip `uiReviewMode` to
    both vocabularies (D7). Widening the verifier's own enum would reroute verifier
    rounds; a first-class value beats a sentence in `summary`.
 8. *What stops the reviewer from editing the design it reviews?*
-   -> Scratch copy plus a post-dispatch `git diff --quiet` assertion (D8). pencil
-   `execute` is a write API and prose is not a permission boundary.
+   -> A private scratch copy, plus a sha256 comparison of the repo file across the
+   dispatch (D8). pencil `execute` is a write API and prose is not a permission
+   boundary.
 9. *Which `.pen` properties are normative?*
    -> Hierarchy, inventory, copy, interactivity and authored states; geometry,
    spacing, color, type and motion only where annotated (D9). Without this the
    review is a taste argument.
+10. *Does the predicate follow the round's `--base-sha`?*
+    -> No — always the default branch (D10). Every delta shape narrows that base,
+    and a fragment of a branch does not describe the as-built UI.
+11. *How is the design artifact proven unmodified?*
+    -> sha256 before and after, not `git diff` (D11), which conflates a
+    pre-existing unstaged edit with a child mutation and misses a staged one.
+12. *Is a fast-track UI change without any design a pass?*
+    -> No — `cannot-review` (`no-design-artifact`) (D12). `not-applicable` there
+    would be a blocking-mode bypass for the sessions most likely to skip design.
