@@ -2,13 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 
-import matter from 'gray-matter';
-
 import { loadConfig } from '../core/config.js';
 import { planSlugFromFilename, specSlugFromFilename } from '../core/design-artifact-names.js';
 import { loadDocRoots } from '../core/doc-roots.js';
-import { listDirIfExists } from '../core/fd-load.js';
-import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
+import { listDirIfExists, parseFdFrontmatter } from '../core/fd-load.js';
 import { INVARIANTS } from '../invariants/rule-pairs.js';
 import { makeInvariants, runInvariants } from '../invariants/index.js';
 import { parseBacklog } from '../utils/parse-blocks.js';
@@ -101,14 +98,10 @@ async function loadFeatureBySlug(repo: string, slug: string): Promise<OwnerResol
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { outcome: 'none' };
     return { detail: `unreadable FD: ${path}`, outcome: 'unreadable' };
   }
-  try {
-    return {
-      outcome: 'resolved',
-      owner: { fd: FeatureFrontmatterSchema.parse(matter(raw).data), slug },
-    };
-  } catch {
-    return { detail: `unparseable FD frontmatter: ${path}`, outcome: 'unreadable' };
-  }
+  const fd = parseFdFrontmatter(raw);
+  return fd
+    ? { outcome: 'resolved', owner: { fd, slug } }
+    : { detail: `unparseable FD frontmatter: ${path}`, outcome: 'unreadable' };
 }
 
 /**

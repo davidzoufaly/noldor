@@ -1,10 +1,8 @@
 import { readdir as fsReaddir, readFile as fsReadFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
-import matter from 'gray-matter';
-
 import { loadDocRoots } from '../core/doc-roots.js';
-import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
+import { parseFdFrontmatter } from '../core/fd-load.js';
 import type { FeatureFrontmatter } from '../core/feature-schema.js';
 
 export interface ResolvedOwner {
@@ -68,10 +66,13 @@ async function scanFdsForOwner(
   for (const entry of entries) {
     if (!entry.endsWith('.md')) continue;
     const fdPath = join(featuresDir, entry);
-    let fd: FeatureFrontmatter;
+    let fd: FeatureFrontmatter | null;
     try {
-      fd = FeatureFrontmatterSchema.parse(matter(await readFile(fdPath, 'utf8')).data);
+      fd = parseFdFrontmatter(await readFile(fdPath, 'utf8'));
     } catch {
+      fd = null; // read failure through the seam — candidate is unknown, like a parse failure
+    }
+    if (!fd) {
       unreadable.push(entry);
       continue;
     }
@@ -155,11 +156,14 @@ export async function resolveByGraphAdjacency(
   // FD node source_file is `docs/features/<slug>.md`.
   const slug = basename(fdNode.source_file, '.md');
   const fdPath = join(loadDocRoots(opts.repo).features, `${slug}.md`);
+  let fd: FeatureFrontmatter | null;
   try {
-    const fd = FeatureFrontmatterSchema.parse(matter(await readFile(fdPath, 'utf8')).data);
-    return { outcome: 'resolved', owner: { fd, slug } };
+    fd = parseFdFrontmatter(await readFile(fdPath, 'utf8'));
   } catch {
-    // The edge names an owner, so ownership is claimed; only its phase is unknown.
-    return { detail: `unreadable owner FD: ${fdPath}`, outcome: 'unreadable' };
+    fd = null;
   }
+  // The edge names an owner, so ownership is claimed; only its phase is unknown.
+  return fd
+    ? { outcome: 'resolved', owner: { fd, slug } }
+    : { detail: `unreadable owner FD: ${fdPath}`, outcome: 'unreadable' };
 }
