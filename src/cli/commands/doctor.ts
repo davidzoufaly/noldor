@@ -17,6 +17,8 @@ import {
 } from '../../templates/manifest.js';
 import { computeDrift } from '../../templates/diff.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
+import { loadUiConfig } from '../../core/consumer-config.js';
+import { evaluateUiDesignFreshness } from '../../release/ui-design-freshness.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { checkRunners } from '../../core/agent-runner/doctor-runners.js';
@@ -79,6 +81,19 @@ if (wiring.status !== 'ok') {
 // green after running `noldor upgrade`.
 const skew = frameworkSkewDetail(loadFrameworkVersion(process.cwd()), installedFrameworkVersion());
 if (skew !== null) console.log(`warn         framework skew: ${skew}`);
+
+// UI-design baseline freshness: advisory only (does NOT affect exit code).
+// The blocking enforcement point is release preflight; doctor just surfaces
+// the debt early. Absent consumer config / uiPaths ⇒ silent (not adopted).
+const uiConfig = loadUiConfig(process.cwd());
+if (uiConfig !== null) {
+  const uiVerdict = await evaluateUiDesignFreshness(process.cwd(), uiConfig);
+  for (const s of uiVerdict.surfaces) {
+    if (s.status === 'stale' || s.status === 'uninitialized') {
+      console.log(`warn         ui-design: ${s.surface} ${s.status} — ${s.detail}`);
+    }
+  }
+}
 
 if (prereqBad === 0 && bad === 0 && runnerBad === 0 && wiringBad === 0) {
   console.log(

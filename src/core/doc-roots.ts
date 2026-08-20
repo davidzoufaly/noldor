@@ -13,6 +13,8 @@ export interface DocRoots {
   milestones: string;
   plans: string;
   specs: string;
+  /** UI-design artifacts: feature `.pen` files + `baseline/` + `archive/`. */
+  designUi: string;
   architecture: string;
 }
 
@@ -27,7 +29,7 @@ export interface DocRoots {
  * TRANSITION ALIAS — delete this fallback in the release after 1.0.0, once
  * every consumer has run the 1.0.0 migration. Tracked by Q-0006.
  */
-function resolveDesignSubdir(cwd: string, sub: 'plans' | 'specs'): string {
+function resolveDesignSubdir(cwd: string, sub: 'plans' | 'specs' | 'ui'): string {
   const next = join(cwd, 'docs', 'design', sub);
   if (existsSync(next)) return next;
   const legacy = join(cwd, 'docs', 'superpowers', sub);
@@ -60,6 +62,11 @@ export function loadDocRoots(cwd: string = process.cwd()): DocRoots {
     milestones: join(cwd, 'docs', 'milestones'),
     plans: resolveDesignSubdir(cwd, 'plans'),
     specs: resolveDesignSubdir(cwd, 'specs'),
+    // Routed through the same resolver as plans/specs for consistency on a
+    // not-yet-migrated consumer. In practice the legacy branch never fires —
+    // the ui/ subdir postdates the 1.0.0 rename, so docs/superpowers/ui never
+    // exists — but one resolution policy beats two.
+    designUi: resolveDesignSubdir(cwd, 'ui'),
     architecture: join(cwd, 'docs', 'architecture'),
   };
 }

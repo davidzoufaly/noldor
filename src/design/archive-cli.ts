@@ -3,8 +3,12 @@
 // archive/ dir and leave the moves staged, so the gate's phase-flip commit
 // carries them. Portable CLI: consumer repos have no ./src/ tree to import from,
 // and prose-dispatch runners (codex/opencode) shell CLIs rather than run skills.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import matter from 'gray-matter';
+
+import { loadDocRoots } from '../core/doc-roots.js';
 
 import {
   defaultRunGit,
@@ -56,6 +60,75 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
 function git(cwd: string, gitArgs: readonly string[]): { ok: boolean; stderr: string } {
   const r = defaultRunGit(cwd)(gitArgs);
   return { ok: r.status === 0, stderr: r.stderr };
+}
+
+/**
+ * Rewrite any FD whose `links.design` names the moved pen artifact to its new
+ * archive path, in the same staged change as the move — the docs-link gate must
+ * never see a dangling target at any commit (spec U3). Scans docs/features/
+ * frontmatter rather than deriving the FD from the session marker: `--slug`
+ * invocations carry no session, and the scan makes attach-parent FDs work for
+ * free. Returns the repo-relative FD paths rewritten (already `git add`ed).
+ */
+export function rewriteDesignLinks(
+  root: string,
+  from: string,
+  to: string,
+): { rewritten: string[]; failed: string[] } {
+  const featuresDir = loadDocRoots(root).features;
+  let entries: string[];
+  try {
+    entries = readdirSync(featuresDir);
+  } catch {
+    return { rewritten: [], failed: [] };
+  }
+  const rewritten: string[] = [];
+  const failed: string[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith('.md')) continue;
+    const abs = join(featuresDir, entry);
+    const raw = readFileSync(abs, 'utf8');
+    const parsed = matter(raw);
+    const links = (parsed.data as { links?: { design?: string } }).links;
+    if (links?.design !== from) continue;
+    // Targeted line replace of the frontmatter value, not matter.stringify —
+    // re-serializing the whole document would reformat unrelated frontmatter.
+    // Line-anchored on the `design:` KEY at its indentation so a comment or
+    // unrelated line merely containing the same path can never be the match;
+    // the escape keeps the path from being read as regex syntax.
+    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const next = raw.replace(
+      new RegExp(`^(\\s*design:\\s*)(["']?)${escaped}\\2(\\s*)$`, 'm'),
+      (_m, prefix: string, quote: string, tail: string) => `${prefix}${quote}${to}${quote}${tail}`,
+    );
+    const rel = abs
+      .slice(root.length + 1)
+      .split('\\')
+      .join('/');
+    if (next === raw) {
+      // Parsed value matched but the textual form did not (exotic YAML style:
+      // folded scalar, flow mapping). Never stage-and-claim a rewrite that did
+      // not happen — a silent dangling link is the exact failure this exists
+      // to prevent.
+      process.stderr.write(
+        `design archive: ${entry} declares links.design ${from} but its YAML form ` +
+          `could not be rewritten textually; repoint it to ${to} by hand\n`,
+      );
+      failed.push(rel);
+      continue;
+    }
+    writeFileSync(abs, next, 'utf8');
+    const add = git(root, ['add', '--', rel]);
+    if (!add.ok) {
+      process.stderr.write(
+        `design archive: git add failed for ${rel} after links.design rewrite — stage it by hand\n${add.stderr}`,
+      );
+      failed.push(rel);
+      continue;
+    }
+    rewritten.push(rel);
+  }
+  return { rewritten, failed };
 }
 
 async function main(): Promise<number> {
@@ -191,6 +264,20 @@ async function main(): Promise<number> {
     }
     moved += 1;
     process.stdout.write(`archived: ${m.from} → ${m.to}\n`);
+    if (m.kind === 'pen') {
+      const links = rewriteDesignLinks(root, m.from, m.to);
+      for (const fd of links.rewritten) {
+        process.stdout.write(`repointed links.design: ${fd}\n`);
+      }
+      if (links.failed.length > 0) {
+        // The pen moved but an FD still points at the old path: exiting 0 here
+        // would report a clean archive while the docs-link gate is now broken.
+        process.stderr.write(
+          `design archive: ${links.failed.length} FD(s) still reference ${m.from} — fix by hand before committing\n`,
+        );
+        return 1;
+      }
+    }
   }
 
   // Name the collision count in the tail line: a caller reading only the last

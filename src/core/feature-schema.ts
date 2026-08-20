@@ -24,6 +24,20 @@ export const LOST_SENTINEL = 'lost-pre-extraction';
 const LinksSchema = z
   .object({
     code: z.array(z.string()).default([]),
+    /** Repo-relative path of the feature's UI-design `.pen` artifact (spec U3). */
+    design: z
+      .string()
+      .min(1)
+      .refine(
+        (p) =>
+          p.endsWith('.pen') &&
+          !p.startsWith('/') &&
+          !p.includes('\\') &&
+          !p.split('/').includes('..') &&
+          !/^[a-z][a-z0-9+.-]*:/i.test(p),
+        { message: 'links.design must be a repo-relative POSIX .pen path' },
+      )
+      .optional(),
     docs: z.array(z.string()).default([]),
     plan: z.union([z.string(), z.array(z.string())]).optional(),
     spec: z.string().optional(),
@@ -64,6 +78,9 @@ export const FeatureFrontmatterSchema = z
       )
       .optional(),
     'noldor-tier': z.enum(['specs-only', 'full']),
+    /** UI-design-stage override (ui-predicate, spec U2): absolute in both
+     *  directions. Operator-only — no framework code path writes it. */
+    design: z.enum(['required', 'skip']).optional(),
     updated: semver.optional(),
     /** Optional milestone membership — the slug of a docs/milestones/<slug>.md
      *  file (filename stem == milestone frontmatter `name`). Absent by default;

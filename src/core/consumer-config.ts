@@ -81,6 +81,33 @@ export const DevConfigSchema = z
   .strict();
 export type DevConfig = z.infer<typeof DevConfigSchema>;
 
+/**
+ * A repo-relative POSIX glob for UI-surface config. The accepted language is
+ * the intersection the predicate (minimatch) and the freshness engine (git
+ * wildmatch + brace pre-expansion) both implement: plain globs + braces.
+ * Negation and extglobs (`@()`, `!()`, `+()`, `?()`, `*()`) are rejected —
+ * they would match in one engine and silently not in the other, and the
+ * schema, not the matcher, is where that contract is enforced.
+ */
+const UiGlobSchema = z
+  .string()
+  .min(1)
+  .refine((g) => !g.startsWith('!'), {
+    message: 'negation globs are not supported in uiPaths/uiSurfaces',
+  })
+  .refine((g) => !/[@!+?*]\(/.test(g), {
+    message: 'extglob patterns are not supported in uiPaths/uiSurfaces (plain globs + braces only)',
+  })
+  .refine((g) => !g.startsWith('/') && !/^[A-Za-z]:/.test(g) && !g.includes('\\'), {
+    message: 'uiPaths/uiSurfaces globs must be repo-relative POSIX paths',
+  })
+  .refine((g) => !g.split('/').includes('..'), {
+    message: 'uiPaths/uiSurfaces globs must not contain .. segments',
+  });
+
+/** Baseline surface names become `docs/design/ui/baseline/<name>.pen` — keep them slug-shaped. */
+const SURFACE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export const ConsumerConfigSchema = z
   .object({
     name: z.string().min(1),
@@ -123,6 +150,20 @@ export const ConsumerConfigSchema = z
     /** Per-task dev surfaces booted by `worktrees up`. Absent = nothing booted. */
     dev: DevConfigSchema.optional(),
     /**
+     * Globs naming this consumer's UI source (e.g. `src/dashboard/app/**`).
+     * Drives the UI-design-stage predicate (`src/core/ui-predicate.ts`).
+     * Absent or empty ⇒ the design stage never fires for this consumer.
+     */
+    uiPaths: z.array(UiGlobSchema).optional(),
+    /**
+     * Surface name → glob subset, mapping UI code to baseline files
+     * `docs/design/ui/baseline/<surface>.pen`. Absent with `uiPaths` present ⇒
+     * one implicit surface `app` covering all of `uiPaths`.
+     */
+    uiSurfaces: z
+      .record(z.string().regex(SURFACE_NAME_RE), z.array(UiGlobSchema).min(1))
+      .optional(),
+    /**
      * Framework version this consumer tree was last migrated to. Written by
      * `init` (fresh scaffold = current) and `noldor upgrade` (after a chain).
      * Absent on a tree scaffolded before the upgrade feature; `upgrade --from`
@@ -137,6 +178,22 @@ export const ConsumerConfigSchema = z
 
 export type ConsumerConfig = z.infer<typeof ConsumerConfigSchema>;
 export type BoundaryRule = z.infer<typeof BoundaryRuleSchema>;
+
+/**
+ * The consumer's UI-design config slice (`uiPaths`/`uiSurfaces`), or `null`
+ * when no consumer config file exists — the one boundary where every UI-design
+ * caller (freshness CLI, ui-sync, doctor, release preflight) must treat a
+ * MISSING config as "feature not adopted". A config that exists but fails to
+ * parse still throws: swallowing it would silently disable the blocking
+ * release check for a repo that did adopt the feature.
+ */
+export function loadUiConfig(
+  cwd: string,
+): { uiPaths?: string[]; uiSurfaces?: Record<string, string[]> } | null {
+  if (!existsSync(join(cwd, CONFIG_FILE))) return null;
+  const consumer = loadConsumerConfig(cwd);
+  return { uiPaths: consumer.uiPaths, uiSurfaces: consumer.uiSurfaces };
+}
 
 const CONFIG_FILE = '.noldor/config.json';
 

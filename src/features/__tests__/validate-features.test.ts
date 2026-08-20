@@ -9,6 +9,7 @@ import {
   validateTestTagPresence,
   validateTierVsSpec,
 } from '../validate-features.js';
+import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
 
 // @tests: feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
 describe(validateFiles, () => {
@@ -180,5 +181,48 @@ describe(validateTierVsSpec, () => {
     };
     const errors = validateTierVsSpec(fd, 'test-feature');
     expect(errors).toStrictEqual([]);
+  });
+});
+
+describe('design frontmatter field', () => {
+  const base = {
+    area: 'tooling',
+    category: 'Tooling',
+    links: { code: [], docs: [], tests: [] },
+    name: 'X',
+    packages: ['package.json'],
+    phase: 'in-progress',
+    'noldor-tier': 'specs-only',
+  };
+
+  it('accepts design: required and design: skip', () => {
+    for (const design of ['required', 'skip']) {
+      expect(() => FeatureFrontmatterSchema.parse({ ...base, design })).not.toThrow();
+    }
+  });
+
+  it('rejects any other design value', () => {
+    expect(() => FeatureFrontmatterSchema.parse({ ...base, design: 'auto' })).toThrow();
+  });
+});
+
+describe('links.design frontmatter field', () => {
+  const base = {
+    area: 'tooling',
+    category: 'Tooling',
+    links: { code: [], docs: [], tests: [] },
+    name: 'X',
+    packages: ['package.json'],
+    phase: 'in-progress',
+    'noldor-tier': 'specs-only',
+  };
+
+  it('accepts links.design as a repo-relative pen path', () => {
+    expect(() =>
+      FeatureFrontmatterSchema.parse({
+        ...base,
+        links: { ...base.links, design: 'docs/design/ui/2026-08-19-x.pen' },
+      }),
+    ).not.toThrow();
   });
 });

@@ -229,6 +229,8 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   Garden's `detectStaleSpecs` / `detectStalePlans` remain the backstop for exceptions (pre-flip-era debt, skipped flips, orphans, age-outs).
 
+- **UI baseline write-back (UI-bearing sessions only).** Runs AFTER the archive seam above — the empty-index assertion precedes the archive step, and the write-back's staged baselines then join the archive moves in the same flip commit below. When `session.uiWaiver` is present, skip the write-back entirely: a waived session has no feature `.pen` to start from — print the debt + `pnpm noldor design ui-sync` (the freshness check stays red until repaid) and continue. Otherwise recompute the UI verdict from the real diff: candidate paths = `git diff --name-only origin/main...HEAD`, config = `consumer.uiPaths`/`uiSurfaces`, FD `design:` override still absolute. On `skip`: continue (a spec-time `required` with no UI diff no-ops here; the feature `.pen` was already archived above). On `required`: for every affected surface, update `docs/design/ui/baseline/<surface>.pen` via pencil MCP to the as-built UI — start from the archived feature `.pen`'s `FINAL:<surface>:` pages, adjust for implementation drift; never edit the feature `.pen` itself. Stage the baseline files; they ride the flip commit with the archive moves. Spec-time `skip` that turned ship-time `required` (UI emerged during implementation): same write-back via the `ui-sync` flow — no retroactive design artifact is required. Pencil MCP unavailable: skip LOUDLY — print the debt + `pnpm noldor design ui-sync`; do NOT block the ship on it.
+
 - **Flip FD `phase: in-progress → done`** for all FD-carrying paths (`specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`). Read `slug` (new-FD paths) or `parent` (attach paths) from `.noldor/session.json`. Then commit the index — FD plus the archive moves staged above:
 
   `pnpm noldor features phase-flip-done <slug>`
@@ -242,6 +244,8 @@ This pause is the cheapest place to catch architectural drift, missing edge case
   `release-markers.ts:fillMarkers` remains the release-time safety net for any FD that didn't get flipped at end-of-flow (forgot, manual commits, etc.) — its branches still accept `phase: in-progress + introduced` as input. Trade-off: the `### <version> (in-progress)` changelog label no longer renders for enhancement cycles whose Step 4 flip succeeded — the original asymmetric design in `framework-pr-flow-agent-auto-merge` spec §3 is superseded by this end-of-flow flip. The `(in-progress)` label still renders for FDs caught by the release-time safety net.
 
   Fast-track and micro-chore paths skip this step — neither carries an FD.
+
+- **UI freshness (advisory).** Run `pnpm noldor checks ui-design-freshness` — AFTER the flip commit (the check reads committed history; staged edits are invisible to it). Print its per-surface rows. Advisory at this seam: never block `pr-flow` on its exit code — the blocking enforcement point is release preflight. A red here means baseline debt: surface it plus the `pnpm noldor design ui-sync` remediation and continue.
 
 - **Wait for in-flight standalone from Step 2.5.** Before code-stage review starts, drain any artifact-stage lanes that are still running (a standalone-claude spawned earlier may still be writing its sink):
 

@@ -72,5 +72,9 @@
   "Q-0091": {
     "slug": "mandatory-codex-review-round",
     "retiredAt": "2026-08-19"
+  },
+  "Q-0144": {
+    "slug": "pendev-ui-design-phase",
+    "retiredAt": "2026-08-19"
   }
 }

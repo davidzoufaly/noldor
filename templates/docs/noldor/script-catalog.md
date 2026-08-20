@@ -91,6 +91,22 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** automatic on commit and push. See [`rules.md`](rules.md) § Template sync.
 - **Source:** [`src/checks/check-template-sync.ts`](../../src/checks/check-template-sync.ts)
 
+### `design:ui-sync`
+
+- **Trigger:** `pnpm noldor design ui-sync [--surface <name>]`. Run in a pencil-capable interactive session whenever `checks ui-design-freshness` reports `stale` or `uninitialized`.
+- **Inputs:** `consumer.uiPaths` / `consumer.uiSurfaces` + the per-surface freshness verdict + `docs/design/ui/baseline/<surface>.pen` files on disk.
+- **Outputs:** per-surface report with edit instructions; plain-`git add`s the named baseline files and validates what a Node process can see (exists, non-empty, staged) — `.pen` content rules are validated in-session via pencil MCP. Exit 0 = nothing pending, 1 = surfaces still awaiting an edit, 2 = usage error. Never commits; remediation completes when the staged change is committed.
+- **When to use:** repairing baseline drift (stale) or bootstrapping a new surface (uninitialized). See `check:ui-design-freshness`.
+- **Source:** [`src/design/ui-sync-cli.ts`](../../src/design/ui-sync-cli.ts)
+
+### `check:ui-design-freshness`
+
+- **Trigger:** `pnpm noldor checks ui-design-freshness`. Run by `/noldor-gate` Step 4 (advisory, after the flip commit) and release preflight (blocking on `stale`).
+- **Inputs:** `consumer.uiPaths` / `consumer.uiSurfaces` from `.noldor/config.json` + git history of the surface globs and `docs/design/ui/baseline/<surface>.pen` files.
+- **Outputs:** per-surface freshness rows (`fresh` / `stale` / `uninitialized` / `skipped`, ancestry-based). Exit 0 on fresh/skipped, exit 1 on stale/uninitialized — callers choose whether that blocks.
+- **When to use:** any time you want to know whether the UI design baseline still reflects the shipped UI. Remediate reds with `pnpm noldor design ui-sync`.
+- **Source:** [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
+
 ### Other validators
 
 | Command                              | Source                                                            | Purpose                                                                    |

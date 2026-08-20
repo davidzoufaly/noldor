@@ -16,17 +16,20 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### pen.dev UI Design Phase
+### UI-Design Review Lane
 
-- id: Q-0144
+- id: Q-0145
 - area: tooling
 - type: feat
-- since: 2026-08-17
-- size: L
+- since: 2026-08-19
+- size: M
 - impact: high
-- confidence: low
+- confidence: med
+- deps: pendev-ui-design-phase
+- split-from: Q-0144
+- recovered: 2026-08-19
 
-The framework has no UI-design stage: `/noldor-spec` produces prose, and a frontend feature's visual design is either absent from the artifact trail or pasted in as a screenshot nobody validates. Wanted, driven by a live consumer need: a pen.dev-backed design step inside the spec phase where several UI versions can be described, drafted and compared while the spec is still being written, converging on one final design that the spec carries as its own artifact by the time the spec phase closes — design decisions adjudicated with the rest of the spec rather than after it. Two surfaces follow from that. A pipeline stage, so `/noldor-gate` routes UI-bearing work through the design step and the resulting artifact is gate-visible the way specs and plans are (`sizeToPath()` and the path set both move). And a review lane that checks the implemented UI against the chosen pen.dev design, sitting beside the codex and verifier lanes rather than duplicating them. Open questions dominate, hence `confidence: low`: how a pen.dev artifact is referenced and pinned so a spec's design cannot silently change under it; whether version drafts live in pen.dev with only the winner referenced, or all candidates are recorded as the spec's considered alternatives; whether the review lane can compare rendered output to a design mechanically or only prompt a reviewer with both; and what a non-UI feature does with the stage (skipped by predicate, not by operator memory). Related but distinct: Q-0116's design-artifact detector module governs how design artifacts are discovered once they exist, not where they come from. Consumer-blocking, which is why this outranks internal-polish entries below it per the vision's adoption tie-breaker.
+Second slice of Q-0144 (pen.dev UI Design Phase): a reviewer-prompted CR lane that checks the implemented UI against the feature's committed `.pen` design. Mirrors the `reviewer` lane's subagent-dispatch shape: the lane feeds the reviewer the design structure extracted from the committed `.pen` (via pencil MCP — layout tree, components, copy) plus the code diff, and emits blockers into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses; skipped cleanly for non-UI sessions. Mechanical render-compare (screenshot diff against a running app) is explicitly deferred — a later enhancement once boot recipes exist. Blocked until the design stage (pendev-ui-design-phase) ships artifacts to review against.
 
 ### Spec Floor for S-Sized Entries
 

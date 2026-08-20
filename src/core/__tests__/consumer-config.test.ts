@@ -220,3 +220,47 @@ describe('dev config', () => {
     expect(loadDevSurfaces(process.cwd())).toEqual({});
   });
 });
+
+describe('uiPaths + uiSurfaces', () => {
+  it('both absent parses (back-compat)', () => {
+    expect(() => ConsumerConfigSchema.parse(MINIMAL_CONSUMER)).not.toThrow();
+  });
+
+  it('accepts uiPaths globs and a surface map', () => {
+    const cfg = ConsumerConfigSchema.parse({
+      ...MINIMAL_CONSUMER,
+      uiPaths: ['src/dashboard/app/**'],
+      uiSurfaces: { dashboard: ['src/dashboard/app/**'] },
+    });
+    expect(cfg.uiPaths).toEqual(['src/dashboard/app/**']);
+    expect(cfg.uiSurfaces).toEqual({ dashboard: ['src/dashboard/app/**'] });
+  });
+
+  it('rejects negation globs in uiPaths', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({ ...MINIMAL_CONSUMER, uiPaths: ['!src/a/**'] }),
+    ).toThrow();
+  });
+
+  it('rejects empty-string globs in uiPaths', () => {
+    expect(() => ConsumerConfigSchema.parse({ ...MINIMAL_CONSUMER, uiPaths: [''] })).toThrow();
+  });
+
+  it('rejects a uiSurfaces entry with an empty glob list', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({ ...MINIMAL_CONSUMER, uiSurfaces: { app: [] } }),
+    ).toThrow();
+  });
+
+  it('rejects a non-slug surface name', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({ ...MINIMAL_CONSUMER, uiSurfaces: { 'Bad Name': ['a/**'] } }),
+    ).toThrow();
+  });
+
+  it('rejects negation globs inside uiSurfaces lists', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({ ...MINIMAL_CONSUMER, uiSurfaces: { app: ['!a/**'] } }),
+    ).toThrow();
+  });
+});

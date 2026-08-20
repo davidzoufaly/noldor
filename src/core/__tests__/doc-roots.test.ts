@@ -16,6 +16,7 @@ describe('loadDocRoots', () => {
     expect(r.milestones).toBe('/tmp/example/docs/milestones');
     expect(r.plans).toBe('/tmp/example/docs/design/plans');
     expect(r.specs).toBe('/tmp/example/docs/design/specs');
+    expect(r.designUi).toBe('/tmp/example/docs/design/ui');
   });
 
   it('defaults to process.cwd() when omitted', () => {

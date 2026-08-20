@@ -22,8 +22,10 @@ import {
   latestGardenScanCommitTs,
   readGardenReceipt,
 } from '../garden/garden-receipt.js';
+import { loadUiConfig } from '../core/consumer-config.js';
 import { inspectTreeState, type TreeState } from './clean-tree.js';
 import { evaluateGraphFreshness } from './graph-freshness.js';
+import { evaluateUiDesignFreshness } from './ui-design-freshness.js';
 import { readPkgIdentity } from './release-publish.js';
 import { checkCrGate } from './release-cr-gate.js';
 import { readReleaseState } from './release-state.js';
@@ -45,6 +47,7 @@ export const ALL_ROW_IDS: readonly PreflightRowId[] = [
   'origin-sync',
   'gh-auth',
   'graph-freshness',
+  'ui-design-freshness',
   'garden-receipt',
   'sdd-report',
   'validate-features',
@@ -329,6 +332,46 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
       status: 'blocking',
       detail: verdict.detail,
       fix: 'Regenerate the graph (/graphify) and commit it. Not auto-fixable — graph generation is an agent skill.',
+    };
+  },
+
+  'ui-design-freshness': async (ctx) => {
+    // Consumer config is a separate loader from NoldorConfig; absence means the
+    // repo never adopted the UI-design stage — skipped, never a throw.
+    const ui = loadUiConfig(ctx.cwd);
+    if (ui === null) {
+      return { id: 'ui-design-freshness', status: 'skipped', detail: 'no consumer config' };
+    }
+    const verdict = await evaluateUiDesignFreshness(ctx.cwd, ui);
+    if (verdict.overall === 'skipped') {
+      return {
+        id: 'ui-design-freshness',
+        status: 'skipped',
+        detail: 'no uiPaths configured / no surface history',
+      };
+    }
+    if (verdict.overall === 'fresh') {
+      return { id: 'ui-design-freshness', status: 'ok', detail: 'all UI baselines fresh' };
+    }
+    if (verdict.overall === 'uninitialized') {
+      // v1: adoption must not brick releases — advisory only.
+      return {
+        id: 'ui-design-freshness',
+        status: 'warn',
+        detail: `uninitialized baseline surface(s): ${verdict.surfaces
+          .filter((s) => s.status === 'uninitialized')
+          .map((s) => s.surface)
+          .join(', ')}`,
+      };
+    }
+    return {
+      id: 'ui-design-freshness',
+      status: 'blocking',
+      detail: verdict.surfaces
+        .filter((s) => s.status === 'stale')
+        .map((s) => `${s.surface}: ${s.detail}`)
+        .join('; '),
+      fix: 'Run `pnpm noldor design ui-sync` in a pencil-capable session and commit the baseline. Not auto-fixable — baseline editing is an agent skill.',
     };
   },
 

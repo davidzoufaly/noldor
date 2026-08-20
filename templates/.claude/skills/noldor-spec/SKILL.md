@@ -11,6 +11,13 @@ Turn an idea into a reviewed design document through collaborative dialogue. No 
 ## Flow
 
 1. **Ground yourself.** Read `docs/vision.md`, the FD at `docs/features/<slug>.md` when one exists, and the real code, docs, and tests the idea touches. Cite actual file paths and symbols in the design — a spec that references no real code is a failure.
+1.5. **UI design step (predicate-gated).** Compute the UI verdict: candidate paths = the roadmap entry's `Touches:` values ∪ the FD's `links.code` (glob values expanded per `src/core/ui-predicate.ts` semantics), config = `consumer.uiPaths`/`uiSurfaces`, FD `design:` override absolute both ways. Write the verdict to the session marker (`uiVerdict`, `uiVerdictPaths`). On `skip`: add one line to the spec ("UI verdict: skip — <reason>") and continue to step 2 — nothing else. On `required`:
+   - **Zero affected surfaces OR any unmapped paths ⇒ do not proceed:** prompt the operator to extend `uiPaths`/`uiSurfaces` (config edit rides the branch) or accept the implicit `app` surface; the step refuses to conclude while the surface set is empty or the verdict's `unmappedPaths` is non-empty — a partially-mapped verdict would leave those paths outside every baseline.
+   - **Seed:** create `docs/design/ui/<date>-<dialogue-key>.pen`; for each affected surface, copy its pages from `docs/design/ui/baseline/<surface>.pen` via pencil MCP, naming them `BASE:<surface>: <name>`. Empty/missing baseline ⇒ start blank and say so.
+   - **Iterate:** draft 2–3 candidate variants as pages during the clarify dialogue; converge with the operator; mark exactly one winner `FINAL:<surface>: <name>` per affected surface (page-name check happens here, in-session — the CLI cannot read `.pen`).
+   - **Record:** name the chosen variant + considered alternatives in the spec's Design section; link the `.pen` path in the spec; set FD `links.design`.
+   - **Editor unavailable:** stop for an explicit operator waiver — record it in the session marker (`uiWaiver: { reason, at }`) and in spec prose; never write the FD `design:` field. A waived session produces no `.pen` and no `links.design`.
+   The `.pen` commits WITH the spec at gate Step 2.5 (same commit). The approved artifact is never edited afterwards; as-built drift lands in the baseline at gate Step 4.
 2. **Scope check.** If the request spans multiple independent subsystems, say so before refining details and help decompose; spec the first sub-project only.
 3. **Clarify — with the design state rendered inline every time.** Ask questions ONE per message, multiple-choice preferred. Stop when purpose, constraints, and success criteria are clear. Don't re-ask what the roadmap entry or FD body already answers — confirm it instead.
 
