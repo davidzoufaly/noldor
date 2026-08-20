@@ -89,6 +89,10 @@
       {
         "sha": "19a74a10e8e844e021b08fe616992eae1b56f977",
         "reason": "pre-rollout-marker CI-workflow fast-track (#117); shipped before receipt enforcement armed"
+      },
+      {
+        "sha": "32b851a1b70e7db0b8b0cbdff8a74aeb29bbd2d6",
+        "reason": "release-sweep squash (#354) mixed one micro-chore ideas.md capture with three release-sweep commits, so the all-paths-exempt rule did not fire; the diff is bookkeeping only (graphify-out, docs/sdd-report.md, FD Resources blocks, ideas.md) with zero code to review"
       }
     ]
   },
