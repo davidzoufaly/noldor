@@ -9,9 +9,12 @@ import {
   roadmapSource,
   selectionNotAtRef,
   selectionReason,
+  formatNotAtRef,
+  NOT_AT_REF_MARKER,
   type DrainCandidate,
   type DrainSource,
 } from '../drain-source.js';
+import { assertOnlyResolves } from '../queue-drain.js';
 
 /** A roadmap block: `### Name` + field bullets + free-text body (what parseRoadmap wants). */
 function block(name: string, size: string, body = 'Something to do.'): string {
@@ -175,21 +178,68 @@ describe('selectionNotAtRef', () => {
       [cand('local-only', true), cand('shipped-from-main', true)],
       ['shipped-from-main'],
     );
-    expect(selectionNotAtRef(src, 'origin/main')).toEqual(['local-only']);
+    expect(selectionNotAtRef(src, 'origin/main', 20)).toEqual(['local-only']);
   });
 
   it('ignores an ineligible entry — it cannot waste a spawn', () => {
     const src = stubSource([cand('local-only', false)], []);
-    expect(selectionNotAtRef(src, 'origin/main')).toEqual([]);
+    expect(selectionNotAtRef(src, 'origin/main', 20)).toEqual([]);
   });
 
   it('is empty when every eligible entry is on the ref', () => {
     const src = stubSource([cand('a', true), cand('b', true)], ['a', 'b']);
-    expect(selectionNotAtRef(src, 'origin/main')).toEqual([]);
+    expect(selectionNotAtRef(src, 'origin/main', 20)).toEqual([]);
   });
 
   it('no-ops when the source cannot answer for a ref', () => {
-    expect(selectionNotAtRef(stubSource([cand('a', true)], undefined), 'origin/main')).toEqual([]);
-    expect(selectionNotAtRef(stubSource([cand('a', true)], null), 'origin/main')).toEqual([]);
+    expect(selectionNotAtRef(stubSource([cand('a', true)], undefined), 'origin/main', 20)).toEqual(
+      [],
+    );
+    expect(selectionNotAtRef(stubSource([cand('a', true)], null), 'origin/main', 20)).toEqual([]);
+  });
+
+  it('stops at the cap — a stale block below --max-features must not abort a clean head', () => {
+    // The run ships one entry; `deep-stale` sits below that bound and is never reached.
+    const src = stubSource([cand('head', true), cand('deep-stale', true)], ['head']);
+    expect(selectionNotAtRef(src, 'origin/main', 1)).toEqual([]);
+    expect(selectionNotAtRef(src, 'origin/main', 2)).toEqual(['deep-stale']);
+  });
+
+  it('counts only eligible entries against the cap', () => {
+    // An ineligible head must not consume the single slot and mask the stale entry behind it.
+    const src = stubSource([cand('skipped', false), cand('local-only', true)], []);
+    expect(selectionNotAtRef(src, 'origin/main', 1)).toEqual(['local-only']);
+  });
+});
+
+describe('formatNotAtRef', () => {
+  it('carries the marker both entrypoints classify on, and names the ref', () => {
+    const msg = formatNotAtRef(['a'], 'origin/main');
+    expect(msg).toContain(NOT_AT_REF_MARKER);
+    expect(msg).toContain('origin/main');
+    expect(msg).toContain('1 selected entry is');
+  });
+
+  it('pluralises past one entry', () => {
+    expect(formatNotAtRef(['a', 'b'], 'origin/main')).toContain('2 selected entries are');
+  });
+});
+
+describe('assertOnlyResolves', () => {
+  const src = stubSource([cand('real-slug', true)], null);
+
+  it('passes when every --only slug is in the queue', () => {
+    expect(() => assertOnlyResolves({ only: new Set(['real-slug']) }, src)).not.toThrow();
+  });
+
+  it('throws on a slug the queue does not hold, rather than draining nothing', () => {
+    expect(() => assertOnlyResolves({ only: new Set(['typoed-slug']) }, src)).toThrow(
+      /not in the queue: typoed-slug/,
+    );
+  });
+
+  it('is a no-op without --only', () => {
+    expect(() => assertOnlyResolves(undefined, src)).not.toThrow();
+    expect(() => assertOnlyResolves({ sizes: new Set(['XS']) }, src)).not.toThrow();
   });
 });

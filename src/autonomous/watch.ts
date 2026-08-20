@@ -4,7 +4,12 @@ import { fileURLToPath } from 'node:url';
 
 import { loadConfigSync } from '../core/config.js';
 import { runDrain, type DrainDeps, type DrainResult } from './drain-loop.js';
-import { roadmapSource } from './drain-source.js';
+import {
+  roadmapSource,
+  selectionNotAtRef,
+  formatNotAtRef,
+  NOT_AT_REF_MARKER,
+} from './drain-source.js';
 import { acquireLock, releaseLock } from './drain-lock.js';
 import { detachWatch, WATCH_LOG_REL } from './watch-detach.js';
 import { writeState, projectDrainState } from './drain-state.js';
@@ -223,6 +228,18 @@ async function main(): Promise<void> {
         );
         const report = await reconcileDeadRun(reconcileDeps, baseSource, parsed.dryRun);
         if (!reportIsEmpty(report)) out(formatReconcile(report));
+        // Uncommitted-triage guard, inside this try so it rides the same two-tier handling
+        // as a divergence — and classified as persistent below, since an uncommitted edit
+        // does not clear itself on the next cycle. The daemon needs this MORE than the CLI
+        // does: it is the mode where an operator's working-tree roadmap edit can sit for
+        // hours while cycles keep burning agent runs on blocks the children cannot see.
+        // `assertQueueSourceSyncedAt` above catches only the committed-but-unpushed half.
+        const notAtRef = selectionNotAtRef(
+          parkAwareSource(baseSource, () => loadPark(cwd)),
+          'origin/main',
+          parsed.maxFeatures,
+        );
+        if (notAtRef.length > 0) throw new Error(formatNotAtRef(notAtRef, 'origin/main'));
       } catch (e) {
         const now = new Date().toISOString();
         const evidence = e instanceof Error ? e.message : String(e);
@@ -233,7 +250,11 @@ async function main(): Promise<void> {
           exitCode = 1;
           break;
         }
-        const divergence = evidence.includes('local main is ahead of origin/main');
+        // Both are persistent operator conditions — an unpushed commit and an uncommitted
+        // block each need a human, so retrying on the next cycle would only burn cycles.
+        const divergence =
+          evidence.includes('local main is ahead of origin/main') ||
+          evidence.includes(NOT_AT_REF_MARKER);
         const failures = state.consecutiveFailures + 1;
         const trip = divergence || failures >= rails.maxConsecutiveFailures;
         applyCycleVerdict(

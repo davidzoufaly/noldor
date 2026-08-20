@@ -118,6 +118,22 @@ export interface DrainSource {
 }
 
 /**
+ * Stable marker in {@link formatNotAtRef}'s message. Both entrypoints classify on it —
+ * `watch` treats it like a divergence (a persistent operator condition that will not clear
+ * itself on the next cycle), so it must not drift with the surrounding prose.
+ */
+export const NOT_AT_REF_MARKER = 'uncommitted or unpushed triage';
+
+/** The abort/warn text for a {@link selectionNotAtRef} finding. One phrasing, both callers. */
+export function formatNotAtRef(missing: readonly string[], ref: string): string {
+  const plural = missing.length === 1 ? 'entry is' : 'entries are';
+  return (
+    `drain: ${NOT_AT_REF_MARKER} — ${missing.length} selected ${plural} not present at ${ref}; ` +
+    `commit and push before draining:\n${missing.map((s) => `  - ${s}`).join('\n')}`
+  );
+}
+
+/**
  * The slugs this run would actually attempt that are MISSING from the source document at
  * `ref` — the staleness guard Q-0121 asks for. Children branch from `origin/main`, so a
  * block that exists only in the supervisor's working tree is invisible to them while the
@@ -128,24 +144,29 @@ export interface DrainSource {
  * commits on `origin/main..HEAD`, so it catches an unpushed triage commit but is blind to
  * an **uncommitted** one — which is the case the entry was filed for.
  *
- * Only `eligible` candidates count; an entry the run will skip anyway (wrong size, unmet
- * dep, `--size` narrowing) cannot waste a spawn. Returns `[]` when the source cannot
- * answer for `ref` — a guard that cannot judge must never abort. The walk is bounded by
- * the universe size, which is also its natural terminator (each answered slug enters
- * `skip`, so `nextItem` returns `null` once the queue is exhausted).
+ * Only `eligible` candidates count (an entry the run will skip anyway — wrong size, unmet
+ * dep, `--size` narrowing — cannot waste a spawn), and only the first `cap` of them: the
+ * loop stops at `--max-features`, so a stale block sitting below that bound is never
+ * reached and must not abort a run whose head is clean. Returns `[]` when the source
+ * cannot answer for `ref` — a guard that cannot judge must never abort. Terminates on
+ * `cap` or on queue exhaustion, whichever comes first (each answered slug enters `skip`,
+ * so `nextItem` eventually returns `null`).
  */
-export function selectionNotAtRef(source: DrainSource, ref: string): string[] {
+export function selectionNotAtRef(source: DrainSource, ref: string, cap: number): string[] {
   const atRef = source.parseAllAtRef?.(ref);
   if (atRef === undefined || atRef === null) return [];
   const present = new Set(atRef);
   const bound = source.parseAll().length + 1;
   const missing: string[] = [];
   const skip = new Set<string>();
-  for (let i = 0; i < bound; i++) {
+  let considered = 0;
+  for (let i = 0; i < bound && considered < cap; i++) {
     const next = source.nextItem(skip);
     if (next === null) break;
     skip.add(next.slug);
-    if (next.eligible && !present.has(next.slug)) missing.push(next.slug);
+    if (!next.eligible) continue;
+    considered++;
+    if (!present.has(next.slug)) missing.push(next.slug);
   }
   return missing;
 }
