@@ -31,18 +31,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Mechanical render-compare for the UI-design review lane: screenshot-diff the running app against the feature's committed `.pen` design instead of reasoning over the extracted design structure. Deferred out of Q-0145 because it needs a per-consumer app-boot recipe (how to start the app, which route renders a surface, how to reach a given state) that does not exist yet — the structural lane ships first and this earns its slice once boot recipes land. Depends on the structural lane for the sink shape and the `consumer.uiPaths` surface predicate.
 
-### Spec Floor for S-Sized Entries
-
-- id: Q-0143
-- area: tooling
-- type: feat
-- since: 2026-08-17
-- size: S
-- impact: med
-- confidence: med
-
-`sizeToPath()` (`src/core/size-routing.ts`) currently exempts both XS **and** S from any written artifact — `fast-track` for code, `micro-chore` for pure docs — so an S entry can ship with no spec, no plan and no recorded design reasoning at all. The question this entry decides: should XS be the *only* band that escapes a spec, moving S to `specs-only`? Evidence that it should is accumulating from the drain batches. The 2026-08-13 S/med/fix batch found S entries routinely running real CR rounds with genuine design findings, and the 30-minute `--iteration-timeout` sized for XS work killed Q-0107 mid-CR — an S entry doing spec-shaped work under a no-spec tier. A spec floor at S would also give the reviewer lanes the prior context that Q-0132 shipped for, which is worthless on a path that produces no spec to carry context in. Evidence against is the whole point of the routing policy: the drain runner's throughput depends on XS/S needing no prep, and forcing a spec on a genuinely mechanical S fix is the "don't spec the small ones" failure the policy exists to prevent. Decide it as a policy change with a stated rationale rather than a silent constant edit, then land it in one place: `sizeToPath()`, the routing block at the top of this file, [complexity-gating.md](noldor/complexity-gating.md), and every `templates/` twin of those documents (the Q-0093 lesson — a count or policy asserted in prose has no single source of truth, so the sweep must be exhaustive on the first pass). A middle option worth costing before committing to either pole: keep S on `fast-track` but require a spec when the split-check or CR verdict says the entry is spec-shaped, so the floor is earned by signal rather than by band.
-
 ### README Command Validation On The Existing Resolver
 
 - id: Q-0148
@@ -56,6 +44,30 @@ Mechanical render-compare for the UI-design review lane: screenshot-diff the run
 - recovered: 2026-08-20
 
 Q-0139 shipped doc-surface reachability but cut its command half at code review, so nothing checks that a command the root `README.md` quotes still resolves. The cut was a reuse finding, not a scope objection: `src/garden/detectors/fd-command-rot.ts` already implements this capability and does it better — an exported `commandTokens()` whose `isTerminator` stops at the first flag, operator or placeholder; `PNPM_BUILTINS` with ~33 entries; `extractCommandRefs()` over inline spans and fenced blocks; `refResolves()` trying `<group> <sub>` then one token; and a registry unioning manifest leaves, bare group names, `package.json` scripts and script-catalog colon aliases. The second implementation in `readme-content.ts` filtered flags out instead of stopping at them, so a flag's value slid into the group slot (`pnpm --filter web run build` reported `pnpm web`; `pnpm noldor --root . checks readme` reported `pnpm noldor .`), listed 4 built-ins so `pnpm remove`, `pnpm publish`, `pnpm why`, `pnpm dedupe` and `pnpm up` all false-flagged, and reported `pnpm noldor docs --help` as needing a subcommand, contradicting its own acceptance criterion. Wanted: build the README command check on those helpers — `buildCommandRegistry` needs exporting, or lifting beside `commandTokens` — rather than a third copy (the `scripts?: Record<string, …>` read alone already has four). Two extras to decide in scope: the `## CLI reference` table quotes **bare** group names in table cells, not `pnpm …` invocations, so `commandTokens` returns null for every row and the most drift-exposed section of the README stays unchecked unless the extraction is widened for it; and `fd-command-rot` is FD-scoped today, so the seam that lets it target an arbitrary markdown file is part of the work. Deletion test: rename a manifest group the README quotes and the check names the stale invocation. (carved from Q-0139 at code review 2026-08-20, where the duplicate implementation's false positives were reproduced against the live manifest)
+
+### Plan Format Contract Prescribes A Commit The Push Gate Rejects
+
+- id: Q-0149
+- area: tooling
+- type: fix
+- since: 2026-08-20
+- size: XS
+- impact: high
+- confidence: high
+
+`pnpm noldor prep format plan` prints, as the required shape of every task's Commit step, `git commit -m "<conventional-commit>" -m "Noldor-FD: <slug>"` — a subject plus a trailer paragraph and no body. The blocking pre-push `summary-body` validator rejects exactly that: `commit body must explain the change (missing Why, How, What.)`. So the framework's own plan format instructs an executor to produce commits its own push gate refuses. Measured on Q-0139 (PR #345): three task commits landed in the prescribed form, the push was refused, and they had to be reworded with `git filter-branch --msg-filter` before the range would push. Neither of the two spec rounds nor the two plan rounds caught it, because every reviewer read the plan against the format contract rather than against the gate. The fix is one string in the format contract plus the `noldor-plan` skill's step 4, which restates the same shape: prescribe a message file with `Why —` / `How —` / `What —` and keep the trailers in one trailing paragraph, because a separate `-m` starts a new paragraph and `git interpret-trailers --parse` then returns only the last one, stranding `Noldor-FD`. Deletion test: generate a plan, follow its Commit step verbatim, and the push succeeds. (found 2026-08-20 executing Q-0139)
+
+### Plan Split Guidance Permits A Part That Ships Nothing
+
+- id: Q-0150
+- area: tooling
+- type: fix
+- since: 2026-08-20
+- size: S
+- impact: med
+- confidence: med
+
+`noldor-plan` step 6 requires each `-part<N>` file to be "independently shippable software", but the P1 signal it reacts to is a row count, and the obvious way to halve a row count is a horizontal cut along the task list — which yields a first part of pure library units that ship no capability at all. Q-0139 hit this twice: the monolith tripped P1 at 1336 rows, the horizontal cut left part one at 1081 and still over, and a second horizontal cut would have produced exactly such a part. The working split was vertical — part one shipped the doc-surface check end to end including its CLI, part two extended the same command — which took two extra restructuring passes to discover because nothing in the guidance says so. Wanted: state the vertical rule explicitly (each part must move a user-visible capability, so cut along capability, never along the unit list), and give the P1 remedy prose a worked example of both cuts so the wrong one is visibly wrong. Consider also whether the checker can say anything useful here — a part whose tasks touch no entry-point or CLI file is a candidate signal, though a false-positive-prone one. Deletion test: a plan split into parts where part one registers no runnable surface is flagged or documented as wrong. (found 2026-08-20 splitting the Q-0139 plan)
 
 ### Manifest Aliases Escape Both CLI Documentation Gates
 
