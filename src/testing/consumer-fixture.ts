@@ -3,6 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync, existsSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { NOLDOR_BLOCK } from '../checks/check-lefthook-wiring.js';
+
 export interface ConsumerFixture {
   dir: string;
   seedSlug: string;
@@ -79,9 +81,11 @@ export function buildConsumerFixture(opts: BuildFixtureOpts = {}): ConsumerFixtu
   // (checkLefthookWiring) and the contract job reds on a fixture that was
   // never wired, not on a framework regression. The project-specific job
   // below the extends is the point: a real consumer keeps its own hooks.
+  // The block path comes from the check's own constant so the fixture cannot
+  // drift from the path the check and the shipped template agree on.
   writeFileSync(
     join(dir, 'lefthook.yml'),
-    'extends:\n  - ./lefthook/noldor.yml\npre-commit:\n  jobs:\n    - run: pnpm noldor validate features\n',
+    `extends:\n  - ${NOLDOR_BLOCK}\npre-commit:\n  jobs:\n    - run: pnpm noldor validate features\n`,
   );
   writeFileSync(
     join(dir, 'package.json'),
