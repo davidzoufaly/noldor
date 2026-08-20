@@ -148,6 +148,8 @@ Migration-chain and semver policy: [`versioning.md`](docs/noldor/versioning.md).
 
 The framework rule pages live under [`docs/noldor/`](docs/noldor/README.md) — that index is the single source of truth, keyed by what you are trying to do.
 
+Two further surfaces sit beside it: the four architecture pages under [`docs/architecture/`](docs/architecture/context.md) (context, containers, modules, flows) and the decision records under [`docs/adr/`](docs/adr/).
+
 ## Contributing
 
 Framework contributors work against a clone. A consumer repo on the same machine can point at it with a `file:` dependency (assumes `noldor/` is a sibling, e.g. `~/code/noldor/` next to `~/code/charuy/`):
