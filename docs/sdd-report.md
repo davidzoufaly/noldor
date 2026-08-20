@@ -33,6 +33,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `9461457` — CR round ran reviewer + verifier; verifier verdict pass (it stripped and re-added the entry to prove the offender count moves 2 -> 1), reviewer verdict approve with one med design blocker arguing the waiver treats the symptom rather than the allowlist gap. Operator accepted the blocker and filed it to ideas.md rather than widening this release into a gate refactor. No unaddressed correctness finding stands.
 - `46994e9` — roadmap triage on main, no gate session — the entries
 - `985dcb8` — queue-document triage with no gate session — parking two backlog entries touches only docs/backlog.md and the ID counter, the same shape as the preceding triage commit
 - `fd2ce3b` — verify lane hit Q-0137 — reviewer approved, codex found no blocking issue, and the verifier's own payload reports "Verified feature at tip 421f7a6 ... exercised whole promised surface through real CLI", so the red is that lane's known serialization failure rather than a finding. Q-0137 documents this exact case: a green verification must never block a ship on a formatting failure.
@@ -98,8 +99,8 @@ blind spots: Entries whose roadmap size/parent could not be recovered from histo
 {
   "perLane": {
     "reviewer": {
-      "blockers": 11,
-      "suggestions": 43
+      "blockers": 12,
+      "suggestions": 45
     },
     "verifier": {
       "blockers": 0,
@@ -138,7 +139,7 @@ blind spots: Approximation: a corrective commit is attributed by trailer + subje
       "spec-lint-prior-art-requirement": 1,
       "mandatory-codex-review-round": 1
     },
-    "meanDurationMs": 989192
+    "meanDurationMs": 979631
   }
 }
 ```
@@ -219,11 +220,11 @@ blind spots: null = no usage data, not zero usage: operator-driven interactive s
 
 ### Untriaged ideas in ideas.md
 
-- `ideas.md:61` — `/noldor-gate --drain <slug>` invoked \*\*by hand\*\* (no supervisor) carries no `--finish` signal, yet the drain-mode Step 1 override says to force-recreate `fast/<slug>` and delete it on the remote as "abandoned work safe to discard". On Q-0107 that branch held 7 commits with green tests from a prior child that never opened a PR — obeying the override literally would have destroyed finished work, unrecoverably on the remote side. The finish-vs-rebuild decision lives only in the supervisor (which knows whether the prior child exited 0), so an interactively-invoked drain has no way to know it. Gate should derive the branch state itself before destroying anything: `git log origin/main..fast/<slug>` non-empty + clean worktree ⇒ finish mode (deliver), empty or dirty ⇒ rebuild. (absorbed from a lesson, surfaced shipping Q-0107, PR #317)
-- `ideas.md:62` — `cr autofix record --since` rejects a ref that `cr orchestrate --base-sha` accepts: `--since origin/main` exits 2 with `--since must be a hex sha (4-40 chars)`. The gate skill says to pass "the printed base-sha", so the asymmetry only bites a controller re-deriving the value — but then every caller needs `$(git rev-parse origin/main)` for one command and not the other. Accept any `git rev-parse`-able ref in `record` (resolve it, store the sha). (absorbed from a lesson, surfaced shipping Q-0107, PR #317)
-- `ideas.md:63` — Gate Step 4's "wait for in-flight" `cr aggregate --slug <slug>` (no `--kind`) re-reds on a stale addressed spec sink: fix-and-proceed at the re-round cap leaves the artifact-stage sink red by design (no re-dispatch), so the kind-less aggregate exits 1 on findings already fixed in commits, and the controller has to recognise the staleness by hand and proceed on the Q-0069 precedent (code-stage green earns the receipt). Either kind-scope the wait step to running/standalone lanes, or have fix-and-proceed archive/annotate the sink it consciously leaves red. (absorbed from a lesson, surfaced shipping Q-0131 attach, PR #331)
-- `ideas.md:64` — `autonomous` needs a `park` CLI to pair with `unpark`, plus an `operator-hold` EscalationReason. The park map is today the only working selection filter for a subset drain (recipe now in `docs/noldor/autonomy.md`), but it is a hand-edit of `.noldor/drain-park.json`, and borrowing `run-aborted` for a scope hold makes `autonomous inbox` read as repo-level failures for the whole batch. Either give park a CLI and the reason code, or implement the `--only <slug,…>` / `--size` flags Q-0121 already asks for and the hack goes away. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)
-- `ideas.md:65` — `--iteration-timeout` should scale with `size:` the way routing already does — XS entries finish in ~15 min while S entries with real CR rounds want 45-60, so a batch of S entries on the 30-minute default systematically burns one retry each (Q-0107 was killed mid-CR with 4 commits and green tests already produced). Operator workaround documented in `docs/noldor/autonomy.md`; the fix is a size-aware cap. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)
+- `ideas.md:62` — `/noldor-gate --drain <slug>` invoked \*\*by hand\*\* (no supervisor) carries no `--finish` signal, yet the drain-mode Step 1 override says to force-recreate `fast/<slug>` and delete it on the remote as "abandoned work safe to discard". On Q-0107 that branch held 7 commits with green tests from a prior child that never opened a PR — obeying the override literally would have destroyed finished work, unrecoverably on the remote side. The finish-vs-rebuild decision lives only in the supervisor (which knows whether the prior child exited 0), so an interactively-invoked drain has no way to know it. Gate should derive the branch state itself before destroying anything: `git log origin/main..fast/<slug>` non-empty + clean worktree ⇒ finish mode (deliver), empty or dirty ⇒ rebuild. (absorbed from a lesson, surfaced shipping Q-0107, PR #317)
+- `ideas.md:63` — `cr autofix record --since` rejects a ref that `cr orchestrate --base-sha` accepts: `--since origin/main` exits 2 with `--since must be a hex sha (4-40 chars)`. The gate skill says to pass "the printed base-sha", so the asymmetry only bites a controller re-deriving the value — but then every caller needs `$(git rev-parse origin/main)` for one command and not the other. Accept any `git rev-parse`-able ref in `record` (resolve it, store the sha). (absorbed from a lesson, surfaced shipping Q-0107, PR #317)
+- `ideas.md:64` — Gate Step 4's "wait for in-flight" `cr aggregate --slug <slug>` (no `--kind`) re-reds on a stale addressed spec sink: fix-and-proceed at the re-round cap leaves the artifact-stage sink red by design (no re-dispatch), so the kind-less aggregate exits 1 on findings already fixed in commits, and the controller has to recognise the staleness by hand and proceed on the Q-0069 precedent (code-stage green earns the receipt). Either kind-scope the wait step to running/standalone lanes, or have fix-and-proceed archive/annotate the sink it consciously leaves red. (absorbed from a lesson, surfaced shipping Q-0131 attach, PR #331)
+- `ideas.md:65` — `autonomous` needs a `park` CLI to pair with `unpark`, plus an `operator-hold` EscalationReason. The park map is today the only working selection filter for a subset drain (recipe now in `docs/noldor/autonomy.md`), but it is a hand-edit of `.noldor/drain-park.json`, and borrowing `run-aborted` for a scope hold makes `autonomous inbox` read as repo-level failures for the whole batch. Either give park a CLI and the reason code, or implement the `--only <slug,…>` / `--size` flags Q-0121 already asks for and the hack goes away. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)
+- `ideas.md:66` — `--iteration-timeout` should scale with `size:` the way routing already does — XS entries finish in ~15 min while S entries with real CR rounds want 45-60, so a batch of S entries on the 30-minute default systematically burns one retry each (Q-0107 was killed mid-CR with 4 commits and green tests already produced). Operator workaround documented in `docs/noldor/autonomy.md`; the fix is a size-aware cap. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)
 
 ### Stale backlog entries (>90 days)
 
