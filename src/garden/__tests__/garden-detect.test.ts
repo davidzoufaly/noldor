@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -233,6 +233,17 @@ describe.each(ARTIFACT_KINDS)('stale design artifacts — $label', (kind) => {
 
   it('returns no findings when the artifact directory does not exist', async () => {
     await rm(join(repo, kind.relDir), { force: true, recursive: true });
+
+    expect(await kind.detect(repo)).toEqual([]);
+  });
+
+  it('skips an artifact that vanished between listing and stat', async () => {
+    // Dangling symlink: readdir lists it, stat throws ENOENT — the same shape as
+    // a file archived out from under a concurrent gardening run.
+    await symlink(
+      join(repo, kind.relDir, kind.fileName('2024-01-01', 'gone')),
+      join(repo, kind.relDir, kind.fileName('2024-01-01', 'vanished')),
+    );
 
     expect(await kind.detect(repo)).toEqual([]);
   });

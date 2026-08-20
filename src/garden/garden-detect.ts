@@ -199,8 +199,17 @@ async function detectStaleDesignArtifacts(
       continue;
     }
 
-    const st = await stat(fullPath);
-    if (st.mtimeMs < ageCutoffMs) {
+    // The readdir snapshot can outlive the file — a concurrent `design archive`,
+    // gardening pass or editor save-rename removes it between listing and stat.
+    // A file that vanished has no age to flag, so skip rather than abort the run
+    // (every other read in this chain degrades the same way).
+    let mtimeMs: number;
+    try {
+      mtimeMs = (await stat(fullPath)).mtimeMs;
+    } catch {
+      continue;
+    }
+    if (mtimeMs < ageCutoffMs) {
       findings.push({
         action: 'archive',
         path: relPath,
