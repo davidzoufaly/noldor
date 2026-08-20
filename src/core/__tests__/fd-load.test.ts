@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { extractSummary, loadSddFeatures } from '../fd-load.js';
+import { extractSummary, loadSddFeatures, readFrontmatter } from '../fd-load.js';
 
 // @tests: sdd-detector-5-idea-merge-semantic-similarity
 describe(extractSummary, () => {
@@ -77,5 +77,26 @@ body
     await rm(dir, { force: true, recursive: true });
 
     expect(await loadSddFeatures(dir)).toEqual([]);
+  });
+});
+
+describe(readFrontmatter, () => {
+  it('returns the parsed data and content for well-formed frontmatter', () => {
+    const parsed = readFrontmatter('---\nname: Foo\n---\n\nbody\n');
+    expect(parsed).toMatchObject({ data: { name: 'Foo' }, ok: true });
+  });
+
+  it('reports broken YAML instead of throwing', () => {
+    const parsed = readFrontmatter('---\nname: [unclosed\n---\n\nbody\n');
+    expect(parsed.ok).toBe(false);
+  });
+
+  it('reports the same broken YAML on every call', () => {
+    // gray-matter caches the file object BEFORE parsing, so an unguarded second
+    // matter() call on the same broken string returns empty data instead of
+    // throwing — this function must not inherit that.
+    const raw = '---\nname: {still: broken\n---\n\nbody\n';
+    expect(readFrontmatter(raw).ok).toBe(false);
+    expect(readFrontmatter(raw).ok).toBe(false);
   });
 });

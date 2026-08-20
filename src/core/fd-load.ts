@@ -136,6 +136,44 @@ export async function walkRepo(dir: string, out: string[]): Promise<void> {
 }
 
 /**
+ * Result of guarding a `gray-matter` parse. `matter()` throws a `YAMLException`
+ * on syntactically broken frontmatter, so every FD reader that must survive a
+ * malformed file routes through here instead of calling it directly — the
+ * repo-wide policy is that a malformed FD is *reported*, by
+ * `noldor features validate` and by `garden detect`'s `malformed-fd` gap, and
+ * never aborts a read pass.
+ */
+export type FrontmatterParse =
+  | { readonly ok: true; readonly data: Record<string, unknown>; readonly content: string }
+  | { readonly ok: false; readonly error: string };
+
+/**
+ * Parse a markdown file's frontmatter without throwing.
+ *
+ * Only the parse is guarded — read the file yourself, so a genuine IO failure
+ * (EACCES, EISDIR) still surfaces rather than being flattened into "malformed".
+ *
+ * @param raw - Full file contents, frontmatter included.
+ * @returns `{ ok: true, data, content }`, or `{ ok: false, error }` with the
+ *   first line of the YAML error when the frontmatter will not parse.
+ */
+export function readFrontmatter(raw: string): FrontmatterParse {
+  try {
+    // The `{}` matters: `matter()` writes its cache entry BEFORE parsing
+    // (gray-matter index.js), so after one throw every later parse of the same
+    // string returns the cached un-parsed file — empty `data`, whole file as
+    // `content` — and broken YAML starts reading as valid-but-empty
+    // frontmatter. Passing any options object takes the uncached path, which
+    // keeps this function deterministic across calls.
+    const parsed = matter(raw, {});
+    return { content: parsed.content, data: parsed.data as Record<string, unknown>, ok: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: message.split('\n')[0] ?? 'unparseable frontmatter', ok: false };
+  }
+}
+
+/**
  * Load every feature MD in a directory and parse its frontmatter.
  *
  * An FD whose frontmatter will not parse is **skipped**, not thrown on: this
@@ -168,15 +206,13 @@ export async function loadSddFeatures(dir: string): Promise<FeatureRecord[]> {
       continue;
     }
     const slug = entry.name.replace(/\.md$/, '');
-    let fm: FeatureFrontmatter;
-    try {
-      fm = FeatureFrontmatterSchema.parse(
-        matter(await readFile(join(dir, entry.name), 'utf8')).data,
-      );
-    } catch {
-      continue; // malformed FD — reported by `features validate` / the malformed-fd gap
-    }
-    result.push({ frontmatter: fm, slug });
+    // Read unguarded on purpose: a genuine IO failure is not the malformed-FD
+    // class and must not be silently swallowed (`error-result-types`).
+    const parsed = readFrontmatter(await readFile(join(dir, entry.name), 'utf8'));
+    if (!parsed.ok) continue; // reported by `features validate` / the malformed-fd gap
+    const fm = FeatureFrontmatterSchema.safeParse(parsed.data);
+    if (!fm.success) continue; // same — schema-invalid FDs are named, not thrown on
+    result.push({ frontmatter: fm.data, slug });
   }
   return result;
 }

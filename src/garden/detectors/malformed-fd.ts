@@ -7,9 +7,8 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
-import matter from 'gray-matter';
-
 import { loadDocRoots } from '../../core/doc-roots.js';
+import { readFrontmatter } from '../../core/fd-load.js';
 import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
 
 import type { Gap } from '../../core/fd-load.js';
@@ -39,20 +38,24 @@ export async function detectMalformedFds(repo: string): Promise<Gap[]> {
     // Repo-relative, like every sibling detector's gap text — an absolute path
     // would leak this machine's checkout prefix into the report.
     const relPath = relative(repo, fullPath);
-    // `matter()` itself throws on syntactically broken YAML, so it belongs inside
-    // the guard: the input class this detector exists to report must never be the
-    // input class that aborts it (or `garden detect` dies on the very FD it is
-    // trying to name).
-    let detail: string;
+    let raw: string;
     try {
-      const parsed = FeatureFrontmatterSchema.safeParse(
-        matter(await readFile(fullPath, 'utf8')).data,
-      );
-      if (parsed.success) continue;
-      detail = parsed.error.issues[0]?.message ?? 'invalid frontmatter';
+      raw = await readFile(fullPath, 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; // vanished mid-scan
-      detail = error instanceof Error ? error.message.split('\n')[0] : 'unreadable';
+      throw error; // a genuine IO failure is not the malformed-FD class
+    }
+    // Broken YAML and a schema mismatch are the same finding for an operator:
+    // the FD cannot be understood. `readFrontmatter` is what keeps the first
+    // class from aborting the detector that exists to report it.
+    const parsed = readFrontmatter(raw);
+    let detail: string;
+    if (!parsed.ok) {
+      detail = parsed.error;
+    } else {
+      const fm = FeatureFrontmatterSchema.safeParse(parsed.data);
+      if (fm.success) continue;
+      detail = fm.error.issues[0]?.message ?? 'invalid frontmatter';
     }
     gaps.push({
       category: 'malformed-fd',

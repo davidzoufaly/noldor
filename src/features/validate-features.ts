@@ -2,8 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
-import matter from 'gray-matter';
-
+import { readFrontmatter } from '../core/fd-load.js';
 import { FeatureFrontmatterSchema, type FeatureFrontmatter } from '../core/feature-schema.js';
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
@@ -74,7 +73,14 @@ export async function validateFiles(paths: string[]): Promise<FileError[]> {
 
   for (const path of paths) {
     const raw = await readFile(path, 'utf8');
-    const parsed = matter(raw);
+    // Broken YAML is a validation *finding*, not a crash: this command is the
+    // loud authority on FD validity, so it must be able to name the file whose
+    // frontmatter will not parse (`readFrontmatter` guards `matter()`).
+    const parsed = readFrontmatter(raw);
+    if (!parsed.ok) {
+      errors.push({ file: path, issues: [`frontmatter does not parse: ${parsed.error}`] });
+      continue;
+    }
     const result = FeatureFrontmatterSchema.safeParse(parsed.data);
 
     const fileErrors: string[] = [];
@@ -158,7 +164,8 @@ export async function validatePackagesField(paths: string[]): Promise<FileError[
   const errors: FileError[] = [];
   for (const path of paths) {
     const raw = await readFile(path, 'utf8');
-    const parsed = matter(raw);
+    const parsed = readFrontmatter(raw);
+    if (!parsed.ok) continue; // validateFiles already reported it
     const result = FeatureFrontmatterSchema.safeParse(parsed.data);
     if (!result.success) continue;
     const declared = new Set(result.data.packages.map(normalizeDeclaredPackage));

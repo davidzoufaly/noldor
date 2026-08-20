@@ -3,8 +3,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import matter from 'gray-matter';
-
+import { readFrontmatter } from '../../core/fd-load.js';
 import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
 import { isPostRollout } from '../../core/rollout-marker.js';
 
@@ -92,13 +91,13 @@ export async function detectFdWithoutPlan(repo: string): Promise<FdWithoutPlanFi
       continue;
     }
 
-    const parsed = matter(raw);
-    let fm: ReturnType<typeof FeatureFrontmatterSchema.parse>;
-    try {
-      fm = FeatureFrontmatterSchema.parse(parsed.data);
-    } catch {
-      continue;
-    }
+    // Guarded parse — see tier-mismatch.ts: broken YAML is reported by the
+    // `malformed-fd` gap, never by aborting a detector run.
+    const parsed = readFrontmatter(raw);
+    if (!parsed.ok) continue;
+    const result = FeatureFrontmatterSchema.safeParse(parsed.data);
+    if (!result.success) continue;
+    const fm = result.data;
 
     // Skip done FDs entirely
     if (fm.phase !== 'in-progress') continue;
