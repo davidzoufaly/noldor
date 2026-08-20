@@ -42,11 +42,14 @@ export function parseHasBlockArgs(argv: readonly string[]): HasBlockArgs {
  */
 export function hasBlock(
   ref: string,
-  raw: string,
   paths: { roadmapRaw: string; backlogRaw: string; featuresDir: string },
   backlog = false,
 ): { present: boolean; slug: string } {
   const slug = resolveEntryRef(ref, paths);
+  // The document to search is derived from `backlog`, never passed alongside it: a
+  // separate `raw` parameter could disagree with the flag, and then the answer would be
+  // "present in a document nobody asked about" — a wrong answer with a confident exit code.
+  const raw = backlog ? paths.backlogRaw : paths.roadmapRaw;
   const entries = backlog ? parseBacklog(raw) : parseRoadmap(raw);
   return { present: entries.some((e) => e.slug === slug), slug };
 }
@@ -61,27 +64,34 @@ function main(): void {
   }
   const cwd = process.cwd();
   const rel = backlog ? 'docs/backlog.md' : 'docs/roadmap.md';
-  const path = join(cwd, rel);
-  if (!existsSync(path)) {
-    // Exit 2, never 1: "the document is missing" is not "the entry is absent", and a
-    // script branching on 1 would read a broken checkout as a shipped entry.
-    process.stderr.write(`has-block: ${rel} not found\n`);
+  let present: boolean;
+  let slug: string;
+  try {
+    const path = join(cwd, rel);
+    if (!existsSync(path)) {
+      // Exit 2, never 1: "the document is missing" is not "the entry is absent", and a
+      // script branching on 1 would read a broken checkout as a shipped entry.
+      process.stderr.write(`has-block: ${rel} not found\n`);
+      process.exit(2);
+    }
+    const read = (p: string): string => (existsSync(p) ? readFileSync(p, 'utf8') : '');
+    ({ present, slug } = hasBlock(
+      ref,
+      {
+        roadmapRaw: read(join(cwd, 'docs/roadmap.md')),
+        backlogRaw: read(join(cwd, 'docs/backlog.md')),
+        featuresDir: join(cwd, 'docs/features'),
+      },
+      backlog,
+    ));
+  } catch (e) {
+    // Every throw lands here for the same reason the missing-document branch exits 2: an
+    // unhandled IO or parse error would exit 1, and 1 means "absent". A caller gating work
+    // on this predicate would then skip a live entry because the file was unreadable —
+    // `existsSync` guards only non-existence (a directory at that path throws EISDIR).
+    process.stderr.write(`has-block: ${e instanceof Error ? e.message : String(e)}\n`);
     process.exit(2);
   }
-  const roadmapPath = join(cwd, 'docs/roadmap.md');
-  const backlogPath = join(cwd, 'docs/backlog.md');
-  const read = (p: string): string => (existsSync(p) ? readFileSync(p, 'utf8') : '');
-  const raw = readFileSync(path, 'utf8');
-  const { present, slug } = hasBlock(
-    ref,
-    raw,
-    {
-      roadmapRaw: read(roadmapPath),
-      backlogRaw: read(backlogPath),
-      featuresDir: join(cwd, 'docs/features'),
-    },
-    backlog,
-  );
   if (!quiet) {
     const named = slug === ref ? slug : `${ref} → ${slug}`;
     process.stdout.write(`has-block: ${named} ${present ? 'present in' : 'absent from'} ${rel}\n`);

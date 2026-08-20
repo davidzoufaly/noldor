@@ -46,30 +46,37 @@ describe('hasBlock', () => {
     // The slug never appears literally in the document — this is exactly what a
     // `grep -q "$slug" docs/roadmap.md` gets wrong, in the safe-looking direction.
     expect(ROADMAP).not.toContain('live-entry');
-    expect(hasBlock('live-entry', ROADMAP, paths).present).toBe(true);
+    expect(hasBlock('live-entry', paths).present).toBe(true);
   });
 
   it('finds the same entry by its stable ID, reporting the slug it resolved to', () => {
-    const r = hasBlock('Q-0001', ROADMAP, paths);
+    const r = hasBlock('Q-0001', paths);
     expect(r.present).toBe(true);
     expect(r.slug).toBe('live-entry');
   });
 
   it('reports absent for a shipped slug', () => {
-    expect(hasBlock('already-shipped', ROADMAP, paths).present).toBe(false);
+    expect(hasBlock('already-shipped', paths).present).toBe(false);
   });
 
   it('reports absent for an unknown ID, which resolves to itself', () => {
-    const r = hasBlock('Q-9999', ROADMAP, paths);
+    const r = hasBlock('Q-9999', paths);
     expect(r.present).toBe(false);
     expect(r.slug).toBe('Q-9999');
   });
 
-  it('reads the backlog when asked', () => {
-    const backlogRaw = block('Parked Entry');
-    const p = { roadmapRaw: ROADMAP, backlogRaw, featuresDir: '/nonexistent' };
-    expect(hasBlock('parked-entry', backlogRaw, p, true).present).toBe(true);
-    expect(hasBlock('parked-entry', ROADMAP, p, false).present).toBe(false);
+  it('reads the backlog when asked, and the roadmap otherwise', () => {
+    // The searched document follows the flag, so there is no way to ask about the
+    // backlog and be answered from the roadmap.
+    const p = {
+      roadmapRaw: ROADMAP,
+      backlogRaw: block('Parked Entry'),
+      featuresDir: '/nonexistent',
+    };
+    expect(hasBlock('parked-entry', p, true).present).toBe(true);
+    expect(hasBlock('parked-entry', p, false).present).toBe(false);
+    expect(hasBlock('live-entry', p, true).present).toBe(false);
+    expect(hasBlock('live-entry', p, false).present).toBe(true);
   });
 });
 
@@ -89,7 +96,11 @@ describe('has-block CLI exit codes', () => {
         execFileSync(tsx, [cli, ...args], { cwd: dir, stdio: 'pipe' });
         return 0;
       } catch (e) {
-        return (e as { status: number }).status;
+        // A spawn failure carries no `status`; returning undefined would silently read as
+        // a passing assertion, so fail loudly on a broken harness instead.
+        const status = (e as { status?: number }).status;
+        if (typeof status !== 'number') throw e;
+        return status;
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -111,5 +122,26 @@ describe('has-block CLI exit codes', () => {
   it('exits 2 when the document is missing, not 1', () => {
     // A broken checkout must not read as a shipped entry.
     expect(run(['live-entry', '--quiet'], null)).toBe(2);
+  });
+
+  it('exits 2 when the document is unreadable, not 1', () => {
+    // `existsSync` passes for a directory at that path, so the read throws EISDIR.
+    // Without the catch that lands on exit 1 — "absent" — and a caller skips live work.
+    const dir = mkdtempSync(join(tmpdir(), 'has-block-dir-'));
+    try {
+      mkdirSync(join(dir, 'docs', 'roadmap.md'), { recursive: true });
+      let status: number;
+      try {
+        execFileSync(tsx, [cli, 'live-entry', '--quiet'], { cwd: dir, stdio: 'pipe' });
+        status = 0;
+      } catch (e) {
+        const s = (e as { status?: number }).status;
+        if (typeof s !== 'number') throw e;
+        status = s;
+      }
+      expect(status).toBe(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
