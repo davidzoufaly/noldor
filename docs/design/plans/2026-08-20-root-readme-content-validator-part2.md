@@ -410,17 +410,18 @@ Expected output: the three new cases fail — `checkReadme` currently returns on
 
 - [ ] **Step 3: Extend `checkReadme` in `src/docs/readme-content.ts`.**
 
-Add `import { flattenManifest } from '../cli/manifest.js';` to the imports. Replace the body of `checkReadme` with the version below. Note the second `readFile` is deliberately unguarded: `reached.readme === 'ok'` already proves the file was read once in this same call, so a throw here would be a genuine invariant violation rather than an expected I/O failure — exactly the class the never-rejects contract does not swallow.
+Add `import { flattenManifest } from '../cli/manifest.js';` to the imports. Replace the body of `checkReadme` with the version below. It consumes `reached.body` rather than reading `README.md` again — a second read is not merely wasteful: the file can be deleted or chmod-ed between the two, and rejecting there would break the never-rejects contract on exactly the expected-I/O class it covers.
 
 ```ts
 export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeReport> {
   // The walk is the single place README.md is read, and the single place its
-  // readability is decided — so absence is classified there, not re-derived.
+  // readability is decided — so absence is classified there, not re-derived,
+  // and the body it already read is reused rather than fetched again.
   const reached = await reachableTargets(cwd);
   if (reached.readme !== 'ok') {
     return { status: 'absent', findings: [], notes: [...reached.notes] };
   }
-  const readme = await readFile(join(cwd, 'README.md'), 'utf8');
+  const readme = reached.body;
 
   const notes: string[] = [...reached.notes];
   let scriptNames: ReadonlySet<string> | null = null;

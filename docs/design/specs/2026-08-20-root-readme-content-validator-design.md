@@ -49,7 +49,7 @@ So the gap is not "the README is not exhaustive". It is that **nothing checks th
 export function enumerateDocSurfaces(cwd: string): Promise<readonly string[]>;
 ```
 
-Each directory **one level under `docs/`** that contains at least one `.md` **recursively**, minus an explicit exclusion set:
+Each directory **one level under `docs/`** that contains at least one `.md` **recursively**, minus an explicit exclusion set. It walks `docs/` once through the shared `walkMd` ([`src/docs/docs-check.ts:189`](../../../src/docs/docs-check.ts)) rather than recursing per candidate directory, inheriting its `node_modules` / `dist` / `coverage` exclusions and its design-archive exemptions. `walkMd` throws on ENOENT where a local copy would swallow, so the wrapping `try`/`catch` is load-bearing: it is what makes a repo with no `docs/` report no surfaces instead of failing the check.
 
 ```ts
 /** Directories holding per-change workflow artifacts, not reader documentation. */
@@ -87,6 +87,13 @@ export interface ReachSet {
    * re-deriving it from a second read.
    */
   readonly readme: 'ok' | 'missing' | 'unreadable';
+  /**
+   * The seed body, `''` unless `readme === 'ok'`. Carried so no caller re-reads
+   * the file: a second read can fail after the first succeeded (deleted or
+   * chmod-ed in between) and reject a promise the contract says never rejects
+   * on expected I/O.
+   */
+  readonly body: string;
 }
 export function reachableTargets(cwd: string): Promise<ReachSet>;
 ```
@@ -204,6 +211,7 @@ export function checkReadme(cwd?: string): Promise<ReadmeReport>;
 - `reached.readme === 'missing'` → `status: 'absent'`, no findings.
 - `reached.readme === 'unreadable'` → `status: 'absent'` plus the note the walk already recorded. Nothing to check, not a failure of the README.
 - Root `package.json` missing or unparseable → `scriptNames = null`; Unit 5 skips steps 3 and 5 and adds one note. The `pnpm noldor` half and the surface half still run.
+- The README body comes from `ReachSet.body`, never a second read — the file can be removed between two reads, and rejecting there would break this contract on precisely the expected-I/O class it covers.
 - Root `package.json` valid but declaring no `scripts` → `scriptNames` is the **empty set**, not `null`; every quoted repo script is then correctly unresolved.
 - Malformed percent-escape in a link, or any other link-read error → note, continue (Unit 2).
 

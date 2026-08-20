@@ -101,6 +101,7 @@ describe('unreachableSurfaces', () => {
     dirs: new Set<string>(),
     notes: [],
     readme: 'ok' as const,
+    body: '',
   };
 
   it('reports a surface nothing reaches', () => {
@@ -136,8 +137,11 @@ Expected output: the run fails to collect the file, reporting that `../readme-co
 
 ```ts
 // @fd: root-readme-content-validator
-import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+
+import { toPosixRelative } from '../core/repo-paths.js';
+
+import { walkMd } from './docs-check.js';
 
 /**
  * Directories one level under `docs/` that hold per-change workflow artifacts —
@@ -158,47 +162,40 @@ import { join } from 'node:path';
  */
 const ARTIFACT_DIRS: ReadonlySet<string> = new Set(['features', 'design', 'superpowers']);
 
-/** True when `dir` holds at least one `.md` at any depth. */
-async function hasMarkdown(dir: string): Promise<boolean> {
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return false;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue;
-    if (entry.isDirectory()) {
-      if (await hasMarkdown(join(dir, entry.name))) return true;
-    } else if (entry.name.endsWith('.md')) {
-      return true;
-    }
-  }
-  return false;
-}
-
 /**
  * Every documentation surface: a directory one level under `docs/` that holds
  * markdown and is not an artifact directory. Auto-enrolling by construction —
  * a new surface needs no registration to be checked.
  *
+ * Walks `docs/` once via the shared {@link walkMd}, rather than once per
+ * candidate directory, and inherits its `node_modules` / `dist` / `coverage`
+ * exclusions and its design-archive exemptions (which is why `rel` is `'docs'`).
+ *
  * @param cwd - Repository root
  * @returns Repo-relative POSIX dirs, sorted
  */
 export async function enumerateDocSurfaces(cwd: string): Promise<readonly string[]> {
-  let entries;
+  const docsDir = join(cwd, 'docs');
+  const hits: string[] = [];
   try {
-    entries = await readdir(join(cwd, 'docs'), { withFileTypes: true });
+    // `walkMd` throws on ENOENT — this catch is what makes a repo with no
+    // `docs/` report no surfaces instead of failing the check.
+    await walkMd(docsDir, hits, 'docs');
   } catch {
     return [];
   }
-  const out: string[] = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
-    if (ARTIFACT_DIRS.has(entry.name)) continue;
-    if (await hasMarkdown(join(cwd, 'docs', entry.name))) out.push(`docs/${entry.name}`);
+
+  const surfaces = new Set<string>();
+  for (const hit of hits) {
+    const segment = toPosixRelative(docsDir, hit).split('/')[0];
+    if (segment === undefined || segment === '') continue;
+    if (!hit.endsWith('.md')) continue;
+    if (ARTIFACT_DIRS.has(segment)) continue;
+    // A `.md` directly in `docs/` belongs to no surface directory.
+    if (toPosixRelative(docsDir, hit) === segment) continue;
+    surfaces.add(`docs/${segment}`);
   }
-  return out.toSorted();
+  return [...surfaces].toSorted();
 }
 
 /** What the README link graph reaches. */
@@ -220,6 +217,13 @@ export interface ReachSet {
    * rather than re-deriving it from a second read.
    */
   readonly readme: 'ok' | 'missing' | 'unreadable';
+  /**
+   * The seed body, `''` unless `readme === 'ok'`. Carried so no caller re-reads
+   * the file: a second read is not merely wasteful, it can fail after the first
+   * succeeded (deleted or chmod-ed in between) and reject a promise this
+   * module's contract says never rejects on expected I/O.
+   */
+  readonly body: string;
 }
 
 /**
@@ -346,7 +350,7 @@ Expected output: the file fails to collect with `reachableTargets is not exporte
 
 - [ ] **Step 3: Add `reachableTargets` to `src/docs/readme-content.ts`.**
 
-Add the imports this unit needs — `lstat` and `readFile` from `node:fs/promises`, `dirname` and `resolve` from `node:path`, `import { toPosixRelative } from '../core/repo-paths.js';` and `import { extractLinks } from './docs-check.js';`. `toPosixRelative` is the shared helper both sibling doc-surface modules already use (`src/docs/docs-adr.ts:7`, `src/docs/docs-architecture.ts:6`); its own docstring records that it was hoisted when the reviewer flagged the per-module copies, so re-inlining one would re-trip the clone ratchet. Then append:
+Add the imports this unit needs — `lstat` and `readFile` from `node:fs/promises`, `dirname` and `resolve` from `node:path`, and widen the existing `./docs-check.js` import to `import { extractLinks, walkMd } from './docs-check.js';`. `toPosixRelative` is already imported by Task 1. Then append:
 
 ```ts
 /**
@@ -378,6 +382,7 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
   const visited = new Set<string>(['README.md']);
   const queue: string[] = ['README.md'];
   let readme: ReachSet['readme'] = 'ok';
+  let seedBody = '';
 
   while (queue.length > 0) {
     const from = queue.shift() as string;
@@ -397,6 +402,7 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
       notes.push(`cannot read ${from}: ${code ?? 'unknown'}`);
       continue;
     }
+    if (from === 'README.md') seedBody = body;
 
     for (const link of extractLinks(body)) {
       const withoutFragment = link.href.split('#')[0] ?? '';
@@ -443,7 +449,7 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
     }
   }
 
-  return { files, dirs, notes, readme };
+  return { files, dirs, notes, readme, body: seedBody };
 }
 ```
 
@@ -752,9 +758,16 @@ Expected output: exit 1, with a line naming `docs/adr` and a line naming `docs/a
 
 - [ ] **Step 9: Commit.**
 
+This commit stages `docs/noldor/` under a `feat(checks)` subject, so the
+commit-msg `noldor-scope` gate needs a sibling-scope trailer. Both trailers must
+ride **one** `-m`: a separate `-m` starts a new paragraph, and
+`git interpret-trailers --parse` then returns only the last paragraph, stranding
+`Noldor-FD` and tripping the trailer validator instead.
+
 ```bash
 git add src/checks/check-readme.ts src/checks/__tests__/check-readme.test.ts src/cli/manifest.ts docs/noldor/script-catalog.md templates/docs/noldor/script-catalog.md
-git commit -m "feat(checks): add the checks readme CLI surface" -m "Noldor-FD: root-readme-content-validator"
+git commit -m "feat(checks): add the checks readme CLI surface" -m "Noldor-FD: root-readme-content-validator
+Noldor-Sibling-Scope: noldor:script-catalog"
 ```
 
 ---
