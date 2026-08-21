@@ -8,173 +8,252 @@
 
 ## Problem
 
-The package ships two complete runtime representations and runs neither one
-cleanly. `package.json.files` lists both `dist` and `src`, while
+The package ships two complete runtime representations and executes the wrong
+one. `package.json.files` lists both `dist` and `src`, while
 [`bin/noldor.mjs`](../../../bin/noldor.mjs) registers `tsx/esm/api` and imports
-`src/cli/index.ts` — so compiled `dist` is published but never executed, and
-the source inclusion drags test suites and fixtures along with it. Measured on
-this checkout: `npm pack --dry-run` yields 2258 entries / 2.23 MB packed /
-8.75 MB unpacked, of which 1444 files are `dist` and 737 are `src`.
+`src/cli/index.ts` — so compiled `dist` is published but dead, and the source
+inclusion drags test suites and fixtures along. Measured here: `npm pack
+--dry-run` yields 2258 entries / 2.23 MB packed / 8.75 MB unpacked, 1444 files
+of `dist` and 737 of `src`.
 
-Source-at-runtime also costs latency on every invocation, because the whole
-entry graph is transpiled before any work starts. Measured: `noldor --help`
-0.094s through tsx versus 0.058s from `dist`; `validate features` 0.24s;
-`checks invariants` 0.44s. A single commit fires roughly eight CLI boots
-through the lefthook chain, totalling 2.2–2.8s of operator-felt wait per
-commit.
+Source-at-runtime costs latency on every invocation, because the entry graph is
+transpiled before any work starts. Measured: `noldor --help` 0.094s through tsx
+versus 0.058s from `dist`; `validate features` 0.24s; `checks invariants`
+0.44s. One commit fires roughly eight CLI boots through the lefthook chain —
+2.2–2.8s of operator-felt wait.
 
-Running `dist` today does not work at all beyond `--help` and `--version`:
-[`src/cli/manifest.ts`](../../../src/cli/manifest.ts) holds 112 entries whose
-`src` field is an `src`-relative **`.ts`** path, and
-[`dispatch()`](../../../src/cli/index.ts) resolves that path against its own
-directory, so `node dist/cli/index.js triage validate` dies with
-`ERR_MODULE_NOT_FOUND` on `dist/triage/validate-triage.ts`.
+Running `dist` today fails past `--help`: [`src/cli/manifest.ts`](../../../src/cli/manifest.ts)
+holds 112 entries whose `src` field is an `src`-relative **`.ts`** path, and
+[`dispatch()`](../../../src/cli/index.ts) resolves it against its own directory,
+so `node dist/cli/index.js triage validate` dies with `ERR_MODULE_NOT_FOUND` on
+`dist/triage/validate-triage.ts`.
+
+`tsc` also emits only JavaScript, so eight module-adjacent runtime assets have
+no `dist` twin at all (verified absent in `dist`, present in `src`):
+
+| Asset | Read by |
+| --- | --- |
+| `src/cr/cr-record.schema.json` | [`codex-adapter.ts:30`](../../../src/cr/codex-adapter.ts) via `new URL('./cr-record.schema.json', import.meta.url)` |
+| `src/dashboard/static/dist/agents.js`, `drag.js` | [`server.ts:394`](../../../src/dashboard/server.ts) `STATIC_ROOT` |
+| `src/testing/fixtures/canned/add-greeting-helper.json` | [`stub-gate.ts:17`](../../../src/testing/stub-gate.ts) `cannedPath()` |
+| `src/invariants/.dependency-cruiser.cjs` | dependency-cruiser config discovery |
+| `src/cr/standalone-prompt.md`, `src/cr/lanes/escalate-prompt.md` | [`deep-review-spawn.ts:32`](../../../src/cr/deep-review-spawn.ts) |
+| `src/dashboard/static/tsconfig.json` | build-time only for the browser bundle |
+
+A dist runtime that ignores them serves 404s for every dashboard static asset
+and kills the codex CR lane.
 
 ## Goals
 
-1. Exactly one runtime tree in the published tarball, and it is the one that
-   executes.
+1. Exactly one executable runtime tree in the published tarball, and it is the
+   one that runs.
 2. No invocation transpiles TypeScript when a current build exists.
-3. A stale build can never serve a command — correctness is unconditional, not
-   dependent on the operator remembering to build.
-4. The CLI surface, the `exports` map and every consumer-visible behaviour stay
-   byte-identical.
+3. No *implicit* path ever serves a stale or partial build. Only an explicit
+   `NOLDOR_RUNTIME=dist` override can, and it says so on stderr.
+4. The CLI contract — command set, flags, exit codes, stdout contracts — stays
+   unchanged. `doctor` gains one additive row; new failure modes appear only on
+   explicit override misuse.
 
 ## Non-goals
 
-- Bundling `dist` into a single file (esbuild or equivalent). The 112 dynamic
-  manifest imports are the dispatch mechanism, and collapsing them buys little
-  over plain `dist`.
-- A self-contained executable. That is Q-0133, which blocks on this decision.
-- Adding a public JavaScript API. `exports` continues to expose only
-  `./templates/*`.
+- Bundling `dist` into a single file. The 112 dynamic manifest imports are the
+  dispatch mechanism.
+- A self-contained executable (Q-0133, which blocks on this).
+- A public JavaScript API. `exports` keeps exposing only `./templates/*`.
 - Rewriting the manifest's 112 entries.
+- Fixing `PROMPT_TEMPLATE_PATH` ([`deep-review-spawn.ts:32`](../../../src/cr/deep-review-spawn.ts)),
+  which resolves `src/cr/standalone-prompt.md` against the *consumer's* repo
+  root and already misses in every installed package, swallowed by
+  `.catch(() => '')`. Pre-existing and orthogonal; the asset unit below carries
+  the file so a later fix has something to point at.
 
 ## Design
 
-### U1 — Runtime selector in `bin/noldor.mjs`
+### U1 — Runtime selector (`bin/runtime-select.mjs`)
 
-`bin/noldor.mjs` gains a runtime decision between its existing
-`assertNodeFloor()` call and the import of the CLI entry:
+A new dependency-free `bin/runtime-select.mjs`, beside the existing
+`bin/engines-check.mjs`, exports `selectRuntime(packageRoot)` returning
+`{ runtime: 'dist' | 'source', reason, stale }`. It must be plain `.mjs`
+because it runs before any TypeScript is loadable.
 
-1. `NOLDOR_RUNTIME=dist` forces the compiled path and exits non-zero with a
-   build hint when `dist/cli/index.js` is absent. `NOLDOR_RUNTIME=source`
-   forces the tsx path. Any other value is a usage error.
-2. With no override: run `dist/cli/index.js` when it exists and is current per
-   U2; otherwise register `tsx/esm/api` and import `src/cli/index.ts`.
-3. When `src` is absent (the installed-package shape) `dist` is current by
-   definition and the freshness walk is skipped.
+Decision order:
 
-The selector lives in a new dependency-free `bin/runtime-select.mjs` beside the
-existing `bin/engines-check.mjs`, because it must run before any TypeScript is
-loadable. Same constraint, same shape, same file family.
+1. `NOLDOR_RUNTIME=dist` — run `dist` unconditionally. Absent `dist/cli/index.js`
+   exits non-zero naming `pnpm build`. A stale or unverifiable build runs anyway
+   and prints one stderr line saying so; this is the debug escape hatch Goal 3
+   carves out.
+2. `NOLDOR_RUNTIME=source` — register tsx, import `src/cli/index.ts`. Absent
+   `src` or `tsx` (the installed-package shape) exits non-zero naming which one
+   is missing.
+3. Any other `NOLDOR_RUNTIME` value — usage error, exit non-zero.
+4. No `src/` directory (installed package) — `dist` unconditionally; the
+   freshness comparison has no inputs and is skipped, reported as
+   `reason: 'no-source-tree'`.
+5. Otherwise — `dist` when U2 says current, else source.
 
-### U2 — Freshness stamp
+`bin/noldor.mjs` calls it between `assertNodeFloor()` and the entry import, and
+sets `process.env.NOLDOR_RUNTIME_ACTIVE` to the chosen runtime plus
+`NOLDOR_RUNTIME_REASON` to the reason before importing, which is how U7 reads
+it. Every child process spawned through `NOLDOR_BIN`
+([`noldor-cli.ts:12`](../../../src/core/noldor-cli.ts)) runs the selector
+itself, so the value always describes the process reporting it.
 
-`pnpm build` becomes `tsc && node bin/write-build-stamp.mjs`, which writes
-`dist/.build-stamp` containing the build's wall-clock time. The selector
-compares the newest `mtime` among `src/**/*.ts` against that stamp: newer
-source means stale build means tsx fallback.
+[`bin/noldor-stub-gate.mjs`](../../../bin/noldor-stub-gate.mjs) ships via
+`files: bin` and today top-level-imports `tsx/esm/api` plus
+`../src/testing/stub-gate.ts`; `buildStubArgv`
+([`stub.ts:11`](../../../src/core/agent-runner/runners/stub.ts)) makes it
+reachable for any consumer configuring the `stub` runner. It gets the same
+selector treatment, and its canned-fixture asset is carried by U3.
 
-A stamp file is required rather than reading a `dist` artifact's `mtime`:
-verified that a no-op incremental `tsc` leaves `dist/cli/index.js` untouched,
-so any single emitted file is an unreliable proxy for "when did we last
-build".
+### U2 — Freshness
 
-Measured cost of the source walk on this tree (644 `.ts` files): 5.6ms.
+`pnpm build` becomes: capture the start time, run `tsc`, run the asset copy
+(U3), then atomically write `dist/.build-stamp` (temp file + rename) recording
 
-### U3 — Extension translation in `dispatch()`
+- the captured **start** time — not the finish time, so a source file edited
+  while `tsc` ran reads as newer than the stamp and fails toward slow-but-correct;
+- a `inputsDigest`: a hash over the sorted relative paths of the compiled input
+  set plus `tsconfig.json`'s content hash. A digest mismatch means files were
+  added, deleted or the compiler configuration moved, none of which an mtime
+  comparison can see; obsolete `dist` output after a deletion is exactly this
+  case.
 
-[`dispatch()`](../../../src/cli/index.ts) keeps resolving the manifest's
-`src`-relative path against `SRC_ROOT`, which already points at `dist/` when
-the router is `dist/cli/index.js` (both trees put the router one level below
-their root). The only change is the extension: when the router itself is not a
-`.ts` file, rewrite a trailing `.ts` to `.js`.
+`selectRuntime` reads the stamp and answers `current` only when the digest
+matches and every compiled input's mtime is at or below the stamp time. A
+missing, malformed or unreadable stamp counts as stale, never as current.
 
-The manifest keeps naming real source files, which is what the skills and the
-`skill-code-drift` / `fd-command-rot` detectors cite. Neither detector resolves
-`SubCmd.src` on disk, so nothing else is affected.
+The input set mirrors `tsconfig.json` — `include: src/**/*.ts` minus
+`src/**/__tests__/**`, `src/**/*.test.ts`, `src/fixtures/**` — so a TDD commit
+touching only tests does not invalidate a good build. Measured cost of the
+walk over the whole `src` tree (644 files, a superset of the compiled set):
+5.6ms.
 
-### U4 — Packaging
+Concurrency: `pnpm build` creates `dist/.build-lock` before invoking `tsc` and
+removes it after the stamp rename. `selectRuntime` treats a present lock as
+stale, so an invocation landing mid-build takes the source path rather than
+reading a half-rewritten tree. A lock older than 10 minutes is ignored as
+abandoned.
 
-`files` becomes `dist/**/*.js`, `bin`, `templates` — dropping `src` entirely
-and, within `dist`, the declaration and sourcemap classes that no consumer can
-reach through an `exports` map limited to `./templates/*`. Measured classes in
-`dist`: 1.88 MB of `.js`, 1.37 MB of `.js.map`, 0.72 MB of `.d.ts`, 0.25 MB of
-`.d.ts.map`.
+### U3 — Runtime asset copy
 
-`tsx` moves from `dependencies` to `devDependencies`; the fallback path needs
-it only in a source checkout. `prepare` already runs `tsc`, which npm executes
-before `pack` and `publish`, so the published `dist` cannot be missing.
+`bin/copy-runtime-assets.mjs`, run by `pnpm build` after `tsc`, mirrors every
+non-`.ts` file under `src/` that is not test-only into the same relative path
+under `dist/`, and fails non-zero when its manifest and the filesystem
+disagree. The manifest is the seven runtime assets tabulated in Problem
+(`src/dashboard/static/tsconfig.json` is build-time only and excluded) — an
+explicit list, not a glob, so a new runtime asset is a deliberate edit rather
+than a silent inclusion.
 
-### U5 — Invariant and documentation updates
+### U4 — Extension translation in `dispatch()`
 
-[`src/core/prerequisites.ts:49`](../../../src/core/prerequisites.ts) currently
-records `whereAssumed: 'bin/noldor.mjs + tsx runtime execute all CLI surfaces'`
-for the Node floor. That text becomes the dist-first statement. The
-`NOLDOR_BIN` docstring in
-[`src/core/noldor-cli.ts`](../../../src/core/noldor-cli.ts) says the bin "boots
-`src/cli/index.ts` via tsx" and gets the same treatment, as does any
-architecture page asserting the tsx runtime.
+[`dispatch()`](../../../src/cli/index.ts) keeps resolving the manifest path
+against `SRC_ROOT`, which already points at `dist/` when the router is
+`dist/cli/index.js` (both trees put the router one level below their root). The
+only change: when the router itself is not a `.ts` file, rewrite a trailing
+`.ts` to `.js`. The manifest keeps naming real source files, which is what the
+skills and the `skill-code-drift` / `fd-command-rot` detectors cite; neither
+resolves `SubCmd.src` on disk.
 
-### U6 — One build job in the pre-commit chain
+### U5 — Packaging
 
-`lefthook/noldor.yml` gains a `build` job at the head of the pre-commit chain
-(measured 0.15–0.21s incremental, 0.15s no-op), so the jobs behind it all take
-the compiled path instead of each paying its own transpile.
+`files` becomes `dist` (whole tree, so U3's assets travel), `bin`, `templates`,
+minus `dist/**/*.d.ts`, `dist/**/*.d.ts.map` and `dist/**/*.map` via negated
+patterns, and minus `src` entirely. Measured `dist` classes: 1.88 MB `.js`,
+1.37 MB `.js.map`, 0.72 MB `.d.ts`, 0.25 MB `.d.ts.map`; no consumer can reach
+declarations through an `exports` map limited to `./templates/*`.
+
+`tsx` moves to `devDependencies`. `prepare` changes from bare `tsc` to the same
+stamped build path as `pnpm build` — otherwise a plain `pnpm install` in a
+checkout leaves `dist` present with no stamp, and the selector correctly but
+uselessly reads stale forever.
+
+### U6 — One build job in the self-host hook chain
+
+The build job goes in the repo's **root** [`lefthook.yml`](../../../lefthook.yml),
+not `lefthook/noldor.yml`. That file is a synced consumer twin: it is
+byte-identical to `templates/lefthook/noldor.yml`, absent from
+`SCAFFOLD_ONLY_TEMPLATES` ([`manifest.ts:20`](../../../src/templates/manifest.ts)),
+and `checkTemplateSync` ([`check-template-sync.ts:28`](../../../src/checks/check-template-sync.ts))
+enforces the identity — so editing it either reds `checks shared-files` or
+pushes `pnpm build` onto every consumer, over a `src` tree they do not ship.
+
+Placement is *after* the last source-mutating job, not at the head: `fmt`
+(`stage_fixed: true`, globbing `*.ts`) and `code-links-auto-high` (which runs
+`pnpm fmt`) rewrite `src/**/*.ts` mid-chain, and any build before them is
+invalidated by their own writes. The job sits immediately before the
+`noldor-pre-commit` / `validate` group, whose jobs are the eight boots that
+benefit.
 
 ### U7 — Runtime visibility in `doctor`
 
-`noldor doctor` reports which runtime served the invocation and, in a source
-checkout, whether the build is current. This is the observable that the
-contract test asserts against, and it is what an operator reads when a hook
-feels slow.
+`doctor` gains one additive row reporting `NOLDOR_RUNTIME_ACTIVE` and
+`NOLDOR_RUNTIME_REASON` as set by U1 — `dist`, `source`, and for a source
+checkout whether the build was current, stale or locked. Installed packages
+report `dist (no-source-tree)`. Nothing else prints a runtime line; per-command
+output stays unchanged per Goal 4.
 
 ### U8 — Packed-consumer verification
 
-`scripts/test-contract.mjs` already packs the package and installs it into a
-fixture. It gains assertions that the tarball carries no `src/` entry, that
-`node_modules/tsx` is absent in the consumer install, and that `doctor` in that
-fixture reports the dist runtime.
+[`scripts/test-contract.mjs`](../../../scripts/test-contract.mjs) already packs
+and installs into a fixture. It gains: no `src/` entry in the tarball; every
+one of U3's runtime assets present under `dist/`; `node_modules/tsx` absent in
+the consumer install; `doctor` reporting the dist runtime; and `--help` invoked
+for every subcommand in `flattenManifest()` inside the packed fixture, which is
+what proves each compiled module and its adjacent assets actually shipped.
 
 ## Acceptance criteria
 
-1. `noldor --help` in a source checkout with a current build runs the compiled
-   entry, and `doctor` reports the dist runtime.
-2. Touching any `src/**/*.ts` after a build makes the next invocation fall back
-   to source and still succeed.
-3. `NOLDOR_RUNTIME=source` runs the tsx path even with a current build;
-   `NOLDOR_RUNTIME=dist` with no `dist` exits non-zero naming the build
-   command; an unrecognised value is a usage error.
-4. Every subcommand in `MANIFEST` resolves to an existing module under both
-   runtimes, asserted by iterating `flattenManifest()` rather than by sampling.
-5. `npm pack --dry-run --json` lists no `src/` entry, no `.d.ts`, no `.map`,
-   and both entry count and unpacked size fall below today's 2258 / 8.75 MB.
-6. A packed install in the contract fixture runs `doctor`, `init`,
-   `validate features` and `garden detect` green with no `tsx` in the
-   consumer's `node_modules`.
-7. The pre-commit chain builds once, and every job behind that build reports
-   the dist runtime.
-8. The freshness decision is computed before any dispatch, and its cost on this
-   repo's tree stays at or below 20ms.
-9. `prerequisites.ts` no longer asserts a tsx-only runtime, and `doctor` does
-   not require `tsx` when serving from `dist`.
-10. `pnpm verify` and `pnpm test:contract` pass under both runtimes.
+1. In a source checkout with a current build, an invocation runs the compiled
+   entry and `doctor` reports the dist runtime; touching a compiled input
+   afterwards makes the next invocation take the source path and still succeed.
+2. Touching only a test file, or any path `tsconfig.json` excludes, leaves the
+   build current.
+3. Adding or deleting a compiled input, or editing `tsconfig.json`, marks the
+   build stale even when no surviving file's mtime moved.
+4. A present `dist/.build-lock` forces the source path; a lock older than ten
+   minutes is ignored.
+5. A missing, truncated or malformed `dist/.build-stamp` reads as stale.
+6. `NOLDOR_RUNTIME=dist` runs dist with a current build silently and with a
+   stale one after a stderr notice; with no `dist` it exits non-zero naming the
+   build command. `NOLDOR_RUNTIME=source` with no `src` or no `tsx` exits
+   non-zero naming which is absent. An unrecognised value is a usage error.
+7. Every subcommand in `flattenManifest()` resolves to an existing module under
+   both runtimes, iterated rather than sampled.
+8. Every asset in U3's manifest exists under `dist/` after `pnpm build`, and the
+   build fails non-zero when the manifest and the filesystem disagree.
+9. `npm pack --dry-run --json` lists no `src/`, no `.d.ts`, no `.map`, every U3
+   asset, and both entry count and unpacked size below today's 2258 / 8.75 MB.
+10. In the packed fixture with no `tsx` installed, `doctor` reports the dist
+    runtime and `--help` exits 0 for every subcommand in `flattenManifest()`.
+11. A commit exercising the hook chain builds once, and every job in the
+    `validate` group behind that build reports the dist runtime.
+12. `selectRuntime` costs ≤20ms on this repo's tree — median of five warm runs,
+    measured by the plan's own benchmark script and recorded in the plan.
+13. `prerequisites.ts` no longer asserts a tsx-only runtime, and its two
+    template twins (`templates/docs/noldor/adoption-guide.md:16`,
+    `templates/docs/noldor/versioning.md:199`) carry the dist-first wording, so
+    `checks template-sync` stays green.
+14. `pnpm verify` and `pnpm test:contract` pass with `NOLDOR_RUNTIME` unset, and
+    again with it forced to each value.
 
 ## Risks / trade-offs
 
-- **`mtime` is coarse.** A `git checkout` rewrites source timestamps, so the
-  first invocation after a branch switch reads as stale and falls back to
-  source. The failure direction is correct-but-slower, never stale-but-fast.
-- **Two boot paths to maintain.** Mitigated by criterion 10 running the whole
-  suite both ways, and by the override making each path directly selectable.
-- **Stack traces move to compiled line numbers** once maps leave the tarball.
-  `NOLDOR_RUNTIME=source` in a checkout is the debugging answer; a consumer bug
-  report cites dist positions, which is what a CLI without a public API needs.
-- **The pre-commit build job adds 0.15–0.21s** to every commit and pays for
-  roughly eight boots behind it.
-- **Dropping `src` removes an unsupported deep-import escape hatch.** The
-  `exports` map already blocks those imports, so nothing supported changes.
+- **`mtime` plus digest is still not a content hash.** A backdated write that
+  preserves the input set defeats it. Hashing 361 files on every boot would
+  cost more than the transpile it saves; the digest closes the add/delete/config
+  hole, and the lock closes the mid-build hole.
+- **`git checkout` rewrites source timestamps**, so the first invocation after a
+  branch switch reads stale and falls back to source — slower, never stale.
+- **Two boot paths to maintain.** Criterion 14 runs the whole suite under both,
+  and the override makes each directly selectable.
+- **Stack traces move to compiled positions** once maps leave the tarball.
+  `NOLDOR_RUNTIME=source` is the answer in a checkout; a consumer bug report
+  cites dist positions.
+- **U3's explicit manifest can go stale** when someone adds a runtime asset.
+  Criterion 8's fail-closed check is what turns that into a red build instead of
+  a runtime 404.
+- **The build job adds 0.15–0.21s** per commit and pays for the eight boots
+  behind it.
 
 ## User Story
 
@@ -186,17 +265,17 @@ runtime trees.
 ## Usage
 
 ```bash
-# Normal use — unchanged. Runtime is selected automatically.
+# Normal use — unchanged. The runtime is selected automatically.
 pnpm noldor triage validate
 
-# Force a runtime (debugging, or proving which path served a command)
+# Force a runtime: debugging, or proving which path served a command
 NOLDOR_RUNTIME=source pnpm noldor checks invariants
-NOLDOR_RUNTIME=dist   pnpm noldor checks invariants
+NOLDOR_RUNTIME=dist   pnpm noldor checks invariants   # warns on stderr if stale
 
 # Refresh the compiled runtime by hand; the pre-commit chain also does this
 pnpm build
 
-# Report the active runtime and whether the build is current
+# Report the active runtime, and whether the build is current
 pnpm noldor doctor
 ```
 
@@ -204,30 +283,41 @@ pnpm noldor doctor
 
 1. *Which runtime representation should the package settle on?*
    → **dist-canonical with a tsx fallback.** Publishing only runtime source
-   (the archived entry's first option) fixes tarball waste but keeps the
-   transpile tax, which is the operator-felt half of the problem (D1).
+   fixes tarball waste but keeps the transpile tax, which is the
+   operator-felt half of the problem (D1).
 
 2. *How does a source checkout avoid serving a stale build?*
-   → **A 5.6ms freshness gate plus one build job in the pre-commit chain.** The
-   gate makes correctness unconditional; the build job is what makes the local
-   fast path actually happen, since `dist` is otherwise stale during active
-   development (D2).
+   → **Start-time stamp + input digest + build lock, plus one build job in the
+   self-host chain.** The gate makes the implicit path unconditionally correct;
+   the build job is what makes the fast path actually happen, since `dist` is
+   otherwise stale throughout active development (D2).
 
 3. *How does dispatch resolve a manifest entry under both runtimes?*
-   → **Keep `.ts` in the manifest and rewrite the extension at dispatch.** The
-   manifest keeps naming real files for the detectors and skills that cite it,
-   and no fs probe is added (D3).
+   → **Keep `.ts` in the manifest, rewrite the extension at dispatch.** The
+   manifest keeps naming real files for the detectors and skills citing it, and
+   no fs probe is added (D3).
 
 4. *What represents "when did we last build"?*
-   → **An explicit `dist/.build-stamp` written by `pnpm build`.** A no-op
-   incremental `tsc` was verified not to rewrite `dist/cli/index.js`, so no
-   single emitted file is a trustworthy proxy (D4).
+   → **An explicit `dist/.build-stamp`.** A no-op incremental `tsc` was
+   verified not to rewrite `dist/cli/index.js`, so no emitted file is a
+   trustworthy proxy (D4).
 
 5. *Do sourcemaps and declarations belong in the tarball?*
-   → **No.** With `exports` limited to `./templates/*` no consumer can import
-   them, and they are 2.34 MB of the 8.75 MB unpacked. `NOLDOR_RUNTIME=source`
-   covers debugging in a checkout (D5).
+   → **No.** `exports` makes them unreachable and they are 2.34 MB of the 8.75
+   MB unpacked; `NOLDOR_RUNTIME=source` covers debugging (D5).
 
-6. *Does anything still need `tsx` at consumer runtime?*
-   → **No.** It becomes a devDependency, and criterion 6 asserts its absence in
-   the packed-install fixture (D6).
+6. *May a forced `NOLDOR_RUNTIME=dist` serve a stale build?*
+   → **Yes, with a stderr notice.** An override that silently re-derived the
+   default would be useless for the one job it has — running the compiled tree
+   you are debugging. Goal 3 is scoped to implicit selection (D6).
+
+7. *How does `doctor` know which runtime served the process?*
+   → **`NOLDOR_RUNTIME_ACTIVE` / `NOLDOR_RUNTIME_REASON`, set by the selector
+   before the entry import.** Hook jobs are separate children spawned through
+   `NOLDOR_BIN`; each runs the selector itself, so the reported value always
+   belongs to the reporting process (D7).
+
+8. *Where does the build job live, given the twin?*
+   → **The root `lefthook.yml`.** `lefthook/noldor.yml` is byte-identical to
+   its template twin and enforced by `checkTemplateSync`, so a build job there
+   either reds the sync check or pushes `pnpm build` onto consumers (D8).
