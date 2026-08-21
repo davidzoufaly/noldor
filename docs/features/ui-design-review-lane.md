@@ -26,7 +26,7 @@ links:
 name: UI-Design Review Lane
 packages:
   - package.json
-phase: done
+phase: in-progress
 since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0

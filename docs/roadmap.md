@@ -16,21 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### UI Render-Compare Lane
-
-- id: Q-0146
-- area: tooling
-- type: feat
-- since: 2026-08-20
-- size: M
-- impact: med
-- confidence: low
-- deps: ui-design-review-lane
-- split-from: Q-0145
-- recovered: 2026-08-20
-
-Mechanical render-compare for the UI-design review lane: screenshot-diff the running app against the feature's committed `.pen` design instead of reasoning over the extracted design structure. Deferred out of Q-0145 because it needs a per-consumer app-boot recipe (how to start the app, which route renders a surface, how to reach a given state) that does not exist yet — the structural lane ships first and this earns its slice once boot recipes land. Depends on the structural lane for the sink shape and the `consumer.uiPaths` surface predicate.
-
 ### Plan Split Guidance Permits A Part That Ships Nothing
 
 - id: Q-0150
