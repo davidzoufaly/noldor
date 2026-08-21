@@ -33,8 +33,25 @@ export const NON_RUNTIME_FILES = {
     'no reader — boundaries.ts builds cruise() options in code',
 };
 
-/** Path segments and suffixes `tsconfig.json` excludes from compilation. */
-const EXCLUDED = [/(^|\/)__tests__(\/|$)/, /\.test\.ts$/, /^src\/fixtures(\/|$)/];
+/**
+ * Paths neither the compiler nor the asset scan looks at: what `tsconfig.json`
+ * excludes, plus generated trees that live under `src/`.
+ *
+ * `graphify-out` is a cache directory (gitignored at `.gitignore:54`) holding
+ * hundreds of files in any workspace that has run graphify. Listing it here
+ * rather than asking git what is ignored is deliberate: `prepare` runs the build
+ * with the package root inside a consumer's `node_modules/`, which git reports as
+ * ignored wholesale — so a git query would silently turn the fail-closed asset
+ * scan into a no-op exactly where it matters. A future generated tree therefore
+ * reds the build until someone adds it here, which is the behaviour a
+ * fail-closed guard should have.
+ */
+const EXCLUDED = [
+  /(^|\/)__tests__(\/|$)/,
+  /\.test\.ts$/,
+  /^src\/fixtures(\/|$)/,
+  /(^|\/)graphify-out(\/|$)/,
+];
 
 const isExcluded = (rel) => EXCLUDED.some((re) => re.test(rel));
 const toPosix = (p) => p.split(sep).join('/');
