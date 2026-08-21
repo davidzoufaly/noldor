@@ -1,17 +1,21 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 
-// `typescript` is a peer-ish tool: present in TS consumers, absent in JS ones
-// (it lives in noldor's devDependencies, so consumer installs never carry it).
-// Import it lazily inside run() — a static import crashes `checks invariants`
-// for every JS consumer at module load (ERR_MODULE_NOT_FOUND).
-import type TsModule from 'typescript';
-
 import type { Invariant, InvariantResult, InvariantViolation } from './types.js';
 
-type Ts = typeof TsModule;
+// This invariant deliberately carries no `typescript` dependency. TypeScript 7
+// dropped the in-process JS compiler API (`ts.createSourceFile` and friends) —
+// the published package exports only `version` plus the `unstable/*` surfaces,
+// where parsing means spawning the tsgo API server against a real tsconfig
+// project. A doc-lint over top-level declarations does not need a type checker,
+// and going dependency-free also lets JS consumers run it (they never had
+// `typescript` on disk, which is why the old code imported it lazily).
 
 const PACKAGE_GLOB_DIRS = ['packages', 'apps'] as const;
+
+/** `export { a, b as c } from './mod.js'` — group 1 = specifiers, group 2 = module. */
+const EXPORT_FROM_RE =
+  /^[ \t]*export[ \t]+(?:type[ \t]+)?\{([^}]*)\}[ \t]*from[ \t]*['"]([^'"]+)['"]/gm;
 
 async function findIndexFiles(repoRoot: string): Promise<string[]> {
   const indices: string[] = [];
@@ -36,17 +40,78 @@ async function findIndexFiles(repoRoot: string): Promise<string[]> {
   return indices;
 }
 
-function hasTsdoc(ts: Ts, node: TsModule.Node, sourceText: string): boolean {
-  const ranges = ts.getLeadingCommentRanges(sourceText, node.getFullStart()) ?? [];
-  return ranges.some((r) => {
-    const text = sourceText.slice(r.pos, r.end);
-    return text.startsWith('/**');
-  });
+/**
+ * Comments in the trivia directly above `declStart`, innermost first.
+ *
+ * Mirrors what `ts.getLeadingCommentRanges` returned for a statement node: the
+ * contiguous run of block and line comments separated from the declaration (and
+ * from each other) by whitespace only.
+ */
+function leadingComments(text: string, declStart: number): string[] {
+  const comments: string[] = [];
+  let pos = declStart;
+  for (;;) {
+    let i = pos - 1;
+    while (i >= 0 && /\s/.test(text[i] as string)) {
+      i--;
+    }
+    if (i < 1) {
+      break;
+    }
+    if (text[i] === '/' && text[i - 1] === '*') {
+      const start = text.lastIndexOf('/*', i - 1);
+      if (start < 0) {
+        break;
+      }
+      comments.push(text.slice(start, i + 1));
+      pos = start;
+      continue;
+    }
+    const lineStart = text.lastIndexOf('\n', i) + 1;
+    const line = text.slice(lineStart, i + 1);
+    if (line.trimStart().startsWith('//')) {
+      comments.push(line.trim());
+      pos = lineStart;
+      continue;
+    }
+    break;
+  }
+  return comments;
 }
 
-function isInternal(ts: Ts, node: TsModule.Node, sourceText: string): boolean {
-  const ranges = ts.getLeadingCommentRanges(sourceText, node.getFullStart()) ?? [];
-  return ranges.some((r) => sourceText.slice(r.pos, r.end).includes('@internal'));
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+interface Declaration {
+  /** Offset of the first non-whitespace character of the declaration statement. */
+  readonly start: number;
+  /** 1-based line of `start`. */
+  readonly line: number;
+}
+
+/**
+ * Locate a top-level declaration of `name`.
+ *
+ * Anchored at column 0 on purpose: the replaced implementation walked
+ * `sourceFile.statements`, so only top-level declarations ever matched. A
+ * pattern that tolerated indentation would match a nested declaration of the
+ * same name first and mask the public one (or flag the wrong line).
+ *
+ * noldor:cut single-declarator statements — a name in a second declarator
+ * (`export const a = 1, b = 2`) is not found and so is not flagged; extend the
+ * pattern to scan the declarator list when a consumer hits it.
+ */
+function findDeclaration(sourceText: string, name: string): Declaration | null {
+  const pattern = new RegExp(
+    `^(?:export[ \\t]+(?:default[ \\t]+)?)?(?:declare[ \\t]+)?(?:abstract[ \\t]+)?(?:async[ \\t]+)?(?:function[ \\t]*\\*?|class|interface|type|const|let|var|enum)[ \\t]+${escapeForRegExp(name)}\\b`,
+    'm',
+  );
+  const match = pattern.exec(sourceText);
+  if (!match) {
+    return null;
+  }
+  return { line: sourceText.slice(0, match.index).split('\n').length, start: match.index };
 }
 
 interface ReExport {
@@ -54,23 +119,23 @@ interface ReExport {
   readonly fromFileBase: string;
 }
 
-function collectReExports(ts: Ts, sourceFile: TsModule.SourceFile, indexDir: string): ReExport[] {
+function collectReExports(indexText: string, indexDir: string): ReExport[] {
   const out: ReExport[] = [];
-  for (const stmt of sourceFile.statements) {
-    if (!ts.isExportDeclaration(stmt) || !stmt.moduleSpecifier) {
-      continue;
-    }
-    if (!ts.isStringLiteral(stmt.moduleSpecifier)) {
-      continue;
-    }
-    const spec = stmt.moduleSpecifier.text;
+  for (const match of indexText.matchAll(EXPORT_FROM_RE)) {
+    const spec = match[2] as string;
     const resolvedRel = spec.replace(/\.(js|ts|tsx)$/, '');
     const resolved = resolve(indexDir, resolvedRel);
-    if (!stmt.exportClause || !ts.isNamedExports(stmt.exportClause)) {
-      continue;
-    }
-    for (const el of stmt.exportClause.elements) {
-      out.push({ fromFileBase: resolved, name: el.propertyName?.text ?? el.name.text });
+    for (const raw of (match[1] as string).split(',')) {
+      // `a`, `a as b`, `type a`, `default as a` → the name in the source module
+      const name = raw
+        .trim()
+        .replace(/^type[ \t]+/, '')
+        .split(/[ \t]+as[ \t]+/)[0]
+        ?.trim();
+      if (!name) {
+        continue;
+      }
+      out.push({ fromFileBase: resolved, name });
     }
   }
   return out;
@@ -98,40 +163,6 @@ async function readResolvedSourceFile(
   return null;
 }
 
-function createSourceFile(ts: Ts, filePath: string, sourceText: string): TsModule.SourceFile {
-  const scriptKind = filePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-  return ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, scriptKind);
-}
-
-function findDeclaration(
-  ts: Ts,
-  sourceFile: TsModule.SourceFile,
-  name: string,
-): TsModule.Node | null {
-  for (const stmt of sourceFile.statements) {
-    if (ts.isFunctionDeclaration(stmt) && stmt.name?.text === name) {
-      return stmt;
-    }
-    if (ts.isClassDeclaration(stmt) && stmt.name?.text === name) {
-      return stmt;
-    }
-    if (ts.isInterfaceDeclaration(stmt) && stmt.name.text === name) {
-      return stmt;
-    }
-    if (ts.isTypeAliasDeclaration(stmt) && stmt.name.text === name) {
-      return stmt;
-    }
-    if (ts.isVariableStatement(stmt)) {
-      for (const decl of stmt.declarationList.declarations) {
-        if (ts.isIdentifier(decl.name) && decl.name.text === name) {
-          return stmt;
-        }
-      }
-    }
-  }
-  return null;
-}
-
 /**
  * Build the public-api-tsdoc invariant plugin.
  *
@@ -148,36 +179,20 @@ export function makePublicApiTsdocInvariant(repoRoot: string): Invariant {
       const start = Date.now();
       const violations: InvariantViolation[] = [];
       const indices = await findIndexFiles(repoRoot);
-      // No package indices → nothing to scan; return before touching the
-      // typescript module so JS consumers never need it on disk.
-      if (indices.length === 0) {
-        return { invariant: 'public-api-tsdoc', violations, durationMs: Date.now() - start };
-      }
-      let ts: Ts;
-      try {
-        ts = (await import('typescript')).default;
-      } catch {
-        console.error(
-          "public-api-tsdoc: 'typescript' not installed — skipping (add it as a devDependency to enable this invariant)",
-        );
-        return { invariant: 'public-api-tsdoc', violations, durationMs: Date.now() - start };
-      }
       for (const idxPath of indices) {
         const idxText = await readFile(idxPath, 'utf8');
-        const idxSf = createSourceFile(ts, idxPath, idxText);
-        const reExports = collectReExports(ts, idxSf, dirname(idxPath));
+        const reExports = collectReExports(idxText, dirname(idxPath));
         for (const re of reExports) {
           const resolved = await readResolvedSourceFile(re.fromFileBase);
           if (!resolved) continue;
-          const srcSf = createSourceFile(ts, resolved.path, resolved.text);
-          const decl = findDeclaration(ts, srcSf, re.name);
+          const decl = findDeclaration(resolved.text, re.name);
           if (!decl) continue;
-          if (isInternal(ts, decl, resolved.text)) continue;
-          if (!hasTsdoc(ts, decl, resolved.text)) {
-            const { line } = srcSf.getLineAndCharacterOfPosition(decl.getStart());
+          const comments = leadingComments(resolved.text, decl.start);
+          if (comments.some((comment) => comment.includes('@internal'))) continue;
+          if (!comments.some((comment) => comment.startsWith('/**'))) {
             violations.push({
               file: relative(repoRoot, resolved.path),
-              line: line + 1,
+              line: decl.line,
               message: `exported '${re.name}' missing TSDoc`,
             });
           }
