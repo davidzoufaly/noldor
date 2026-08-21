@@ -180,35 +180,55 @@ export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
   const pkg = installedPackage(fixtureDir);
   const problems: string[] = [];
 
-  // codex-adapter.ts computes CR_RECORD_SCHEMA_PATH from its own module URL —
+  // Both probes below import a packaged module and let IT compute a path from
+  // its own URL — the resolution that moves when a module changes directory
+  // depth. The module URL travels as argv, never interpolated into source, so a
+  // quote or '#' in a temp dir cannot break the child.
+  const probe = (moduleRelative: string, assertion: string): string | null => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `const { existsSync } = await import('node:fs');
+         const m = await import(process.argv[1]);
+         ${assertion}`,
+        pathToFileURL(join(pkg, moduleRelative)).href,
+      ],
+      { encoding: 'utf8', env: scrubbedEnv() },
+    );
+    return result.status === 0 ? null : result.stderr.slice(0, 300);
+  };
+
+  // codex-adapter.ts computes CR_RECORD_SCHEMA_PATH via new URL + fileURLToPath —
   // pure string math, so importing it proves nothing on its own. Read the export
-  // back and check the path it produced actually exists in the package: that is
-  // the resolution which moves if a module changes directory depth.
-  const adapter = spawnSync(
-    process.execPath,
-    [
-      '--input-type=module',
-      '-e',
-      `const { existsSync } = await import('node:fs');
-       const m = await import(process.argv[1]);
-       const p = m.CR_RECORD_SCHEMA_PATH;
-       if (typeof p !== 'string') throw new Error('CR_RECORD_SCHEMA_PATH is not exported');
-       if (!existsSync(p)) throw new Error('schema path does not resolve: ' + p);`,
-      pathToFileURL(join(pkg, 'dist/cr/codex-adapter.js')).href,
-    ],
-    { encoding: 'utf8', env: scrubbedEnv() },
+  // back and check the path it produced exists.
+  const schemaFailure = probe(
+    'dist/cr/codex-adapter.js',
+    `const p = m.CR_RECORD_SCHEMA_PATH;
+     if (typeof p !== 'string') throw new Error('CR_RECORD_SCHEMA_PATH is not exported');
+     if (!existsSync(p)) throw new Error('schema path does not resolve: ' + p);`,
   );
-  if (adapter.status !== 0) {
-    problems.push(`packaged cr-record schema does not resolve: ${adapter.stderr.slice(0, 300)}`);
+  if (schemaFailure !== null) {
+    problems.push(`packaged cr-record schema does not resolve: ${schemaFailure}`);
   }
 
-  // The stub-gate entry is the one that used to import tsx statically. Two
-  // things are checked without running applyStubGate, which would write canned
-  // files, rewrite docs/roadmap.md and commit inside the fixture:
-  //   1. its module graph loads from the package;
-  //   2. the canned fixture resolves against the packaged module's own URL —
-  //      `cannedPath()` in src/testing/stub-gate.ts computes exactly this, and it
-  //      is the sibling of CR_RECORD_SCHEMA_PATH that breaks on a depth change.
+  // cannedPath() is the sibling resolution, called rather than re-implemented so
+  // the check follows the code if its layout changes.
+  const cannedFailure = probe(
+    'dist/testing/stub-gate.js',
+    `if (typeof m.cannedPath !== 'function') throw new Error('cannedPath is not exported');
+     const p = m.cannedPath('add-greeting-helper');
+     if (!existsSync(p)) throw new Error('cannedPath does not resolve: ' + p);`,
+  );
+  if (cannedFailure !== null) {
+    problems.push(`packaged cannedPath does not resolve: ${cannedFailure}`);
+  }
+
+  // The stub-gate entry is the one that used to import tsx statically; this
+  // proves its module graph loads from the package. It stops at the entry's own
+  // argument parsing rather than running applyStubGate, which would write canned
+  // files, rewrite docs/roadmap.md and commit inside the fixture.
   const stub = spawnSync(process.execPath, [join(pkg, 'bin/noldor-stub-gate.mjs')], {
     cwd: fixtureDir,
     encoding: 'utf8',
@@ -219,24 +239,6 @@ export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
     /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find (?:module|package)|SyntaxError|ERR_UNSUPPORTED/;
   if (stub.status === null || loadFailure.test(stubOutput)) {
     problems.push(`packaged stub-gate entry failed to load: ${stubOutput.slice(0, 300)}`);
-  }
-
-  const canned = spawnSync(
-    process.execPath,
-    [
-      '--input-type=module',
-      '-e',
-      `const { existsSync } = await import('node:fs');
-       const m = await import(process.argv[1]);
-       if (typeof m.cannedPath !== 'function') throw new Error('cannedPath is not exported');
-       const p = m.cannedPath('add-greeting-helper');
-       if (!existsSync(p)) throw new Error('cannedPath does not resolve: ' + p);`,
-      pathToFileURL(join(pkg, 'dist/testing/stub-gate.js')).href,
-    ],
-    { encoding: 'utf8', env: scrubbedEnv() },
-  );
-  if (canned.status !== 0) {
-    problems.push(`packaged cannedPath does not resolve: ${canned.stderr.slice(0, 300)}`);
   }
 
   return problems;
