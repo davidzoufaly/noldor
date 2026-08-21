@@ -15,10 +15,10 @@ export interface CliResult {
 }
 
 /**
- * The ambient environment minus every runtime override, so what the contract
- * proves cannot depend on the operator's shell.
+ * The ambient environment minus the whole `NOLDOR_*` namespace, so what the
+ * contract proves cannot depend on the operator's shell.
  *
- * @returns A copy of `process.env` with `NOLDOR_RUNTIME*` removed.
+ * @returns A copy of `process.env` with every `NOLDOR_*` key removed.
  */
 function scrubbedEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
@@ -227,15 +227,16 @@ export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
       '--input-type=module',
       '-e',
       `const { existsSync } = await import('node:fs');
-       const { fileURLToPath } = await import('node:url');
-       const p = fileURLToPath(new URL('./fixtures/canned/add-greeting-helper.json', process.argv[1]));
-       if (!existsSync(p)) throw new Error('canned fixture does not resolve beside stub-gate: ' + p);`,
+       const m = await import(process.argv[1]);
+       if (typeof m.cannedPath !== 'function') throw new Error('cannedPath is not exported');
+       const p = m.cannedPath('add-greeting-helper');
+       if (!existsSync(p)) throw new Error('cannedPath does not resolve: ' + p);`,
       pathToFileURL(join(pkg, 'dist/testing/stub-gate.js')).href,
     ],
     { encoding: 'utf8', env: scrubbedEnv() },
   );
   if (canned.status !== 0) {
-    problems.push(`packaged canned fixture does not resolve: ${canned.stderr.slice(0, 300)}`);
+    problems.push(`packaged cannedPath does not resolve: ${canned.stderr.slice(0, 300)}`);
   }
 
   return problems;

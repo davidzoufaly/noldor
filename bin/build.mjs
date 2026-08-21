@@ -15,6 +15,7 @@ import {
   mkdirSync,
   openSync,
   closeSync,
+  linkSync,
   readFileSync,
   readdirSync,
   statSync,
@@ -115,11 +116,26 @@ function acquireLock(attempt = 0) {
   }
 
   if (claimed.trim() !== raw.trim()) {
-    // Not the lock we inspected — another builder owns this one.
+    // Not the lock we inspected — a winner re-created it in the window. Restore
+    // by LINK, never by rename: link fails EEXIST if some other builder created
+    // a lock while this name was absent, so restoring can never clobber a lock
+    // that legitimately exists now.
+    //
+    // noldor:cut renameSync aside — POSIX offers no conditional unlink, so the
+    // name is briefly absent between the rename and the restore and a third
+    // builder can take it. Bounded to that window and it always ends with ONE
+    // lock present; upgrade to an inode-identity claim (open + fstat, compare
+    // st_ino) if it ever bites.
     try {
-      renameSync(claim, lock);
-    } catch {
-      // Restoring failed; the owner will re-create or reclaim it itself.
+      linkSync(claim, lock);
+      rmSync(claim, { force: true });
+    } catch (error) {
+      if (error.code === 'EEXIST') {
+        // A newer lock owns the name — drop our copy and leave theirs alone.
+        rmSync(claim, { force: true });
+      } else {
+        console.error(`noldor build: could not restore ${LOCK_FILE}: ${error.message}`);
+      }
     }
     console.error(`noldor build: already in progress (${LOCK_FILE})`);
     process.exit(1);

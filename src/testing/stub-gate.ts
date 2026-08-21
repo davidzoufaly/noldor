@@ -14,7 +14,17 @@ export interface StubGateOpts {
   slug: string;
 }
 
-function cannedPath(slug: string): string {
+/**
+ * Absolute path to a canned response, resolved beside this module.
+ *
+ * Exported so the packaged-consumer contract can call the real resolver: a probe
+ * that re-implemented this literal would test itself, not the layout that moves
+ * when a module changes directory depth.
+ *
+ * @param slug - Canned fixture slug.
+ * @returns Absolute path to the fixture JSON.
+ */
+export function cannedPath(slug: string): string {
   const here = dirname(fileURLToPath(import.meta.url));
   return join(here, 'fixtures', 'canned', `${slug}.json`);
 }
