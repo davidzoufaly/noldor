@@ -2,6 +2,12 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
+import {
+  buildCommandRegistry,
+  extractCommandRefs,
+  refResolves,
+  tableBareNames,
+} from '../cli/command-registry.js';
 import { toPosixRelative } from '../core/repo-paths.js';
 
 import { extractLinks, walkMd } from './docs-check.js';
@@ -251,6 +257,49 @@ export async function reachableTargets(cwd: string): Promise<ReachSet> {
   return { files, dirs, notes, readme };
 }
 
+/**
+ * Every command the README quotes that no longer resolves against the live CLI
+ * surface, in two extractions over one registry:
+ *
+ * - **Invocations** — backticked `pnpm …` / `noldor …` spans and fenced-block
+ *   lines, via the same `commandTokens` / `refResolves` pair the
+ *   fd-command-rot detector uses (Q-0148 exists because a second, weaker
+ *   implementation here misparsed `pnpm --filter web run build` as `pnpm web`
+ *   and false-flagged pnpm built-ins).
+ * - **Table cells** — the `## CLI reference` table quotes *bare* group names
+ *   (`` `init` ``, `` `cr` ``) that `commandTokens` rightly rejects, so table
+ *   cells get their own pass. A table counts as a command table only when a
+ *   strict majority of its bare backticked names resolve; that self-calibration
+ *   is what keeps the platform-assets and gate-paths tables (whose cells
+ *   resolve to nothing) from false-flagging, with no heading-text coupling.
+ *   Deletion test: rename a manifest group the README quotes and the stale
+ *   name is the minority member of a still-majority-resolved table.
+ *
+ * Pure over its inputs; the caller owns reading the README and the registry.
+ */
+export function commandFindings(body: string, registry: Set<string>): Finding[] {
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  const flag = (display: string): void => {
+    if (seen.has(display)) return;
+    seen.add(display);
+    findings.push({
+      message: `README.md quotes a command not in the CLI surface (manifest/scripts/script-catalog): ${display}`,
+    });
+  };
+
+  for (const ref of extractCommandRefs(body)) {
+    if (!refResolves(ref.tokens, registry)) flag(ref.display);
+  }
+
+  for (const names of tableBareNames(body)) {
+    const unresolved = names.filter((n) => !registry.has(n));
+    if (unresolved.length * 2 < names.length) for (const n of unresolved) flag(n);
+  }
+
+  return findings;
+}
+
 export type ReadmeStatus = 'absent' | 'ok' | 'findings';
 
 /** One thing the README fails to say that it should. */
@@ -267,15 +316,11 @@ export interface ReadmeReport {
 }
 
 /**
- * Check that every documentation surface under `docs/` is reachable by following
- * links from the root `README.md`.
- *
- * Scope is deliberately reachability only. Validating the commands the README
- * quotes is tracked separately (Q-0148): `src/garden/detectors/fd-command-rot.ts`
- * already owns command resolution — `commandTokens`, the ~33-entry
- * `PNPM_BUILTINS`, and a registry unioning manifest leaves, bare group names,
- * `package.json` scripts and script-catalog aliases — so that half belongs on
- * those helpers rather than in a second, weaker implementation here.
+ * Check the root `README.md` on two axes: every documentation surface under
+ * `docs/` is reachable by following links from it, and every command it quotes
+ * still resolves against the live CLI surface (via the shared
+ * `src/cli/command-registry.ts` helpers the fd-command-rot detector also uses —
+ * one resolver, not a third copy; Q-0148).
  *
  * Never rejects for an EXPECTED failure — I/O errors and malformed input each
  * degrade to a note and the rest of the check continues. Programmer errors are
@@ -294,13 +339,25 @@ export async function checkReadme(cwd: string = process.cwd()): Promise<ReadmeRe
   }
 
   const scan = await enumerateDocSurfaces(cwd);
-  const findings = unreachableSurfaces(scan.surfaces, reached).map((surface) => ({
+  const findings: Finding[] = unreachableSurfaces(scan.surfaces, reached).map((surface) => ({
     message: `${surface}/ holds documentation but no link from README.md reaches it`,
   }));
+
+  const notes = [...reached.notes, ...scan.notes];
+  try {
+    // Re-read rather than threading the body out of the walk: the walk drops
+    // each body at dequeue by design, and `readme === 'ok'` above already
+    // proved the seed readable — a failure here is a genuine race, noted.
+    const body = await readFile(join(cwd, 'README.md'), 'utf8');
+    findings.push(...commandFindings(body, await buildCommandRegistry(cwd)));
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    notes.push(`cannot re-read README.md for command check: ${code ?? 'unknown'}`);
+  }
 
   return {
     status: findings.length > 0 ? 'findings' : 'ok',
     findings,
-    notes: [...reached.notes, ...scan.notes],
+    notes,
   };
 }

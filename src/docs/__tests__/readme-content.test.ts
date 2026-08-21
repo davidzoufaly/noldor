@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   checkReadme,
+  commandFindings,
   enumerateDocSurfaces,
   reachableTargets,
   unreachableSurfaces,
@@ -193,6 +194,93 @@ describe('checkReadme', () => {
     const report = await checkReadme(root);
     expect(report.notes).toHaveLength(1);
     expect(report.notes[0]).toContain('malformed percent-escape');
+    expect(report.status).toBe('ok');
+  });
+});
+
+describe('commandFindings', () => {
+  const registry = new Set(['garden', 'garden detect', 'doctor', 'cr', 'init', 'docs', 'release']);
+
+  it('flags a quoted invocation whose group no longer resolves', () => {
+    // A subcommand under a LIVE group is never flagged (trailing positional
+    // args never affect resolution — the resolver's longest-prefix contract);
+    // the rot this catches is a renamed/dropped group or script.
+    const body = 'Run `pnpm noldor renamed-group detect` to rot.';
+    expect(commandFindings(body, registry).map((f) => f.message)).toEqual([
+      'README.md quotes a command not in the CLI surface (manifest/scripts/script-catalog): renamed-group detect',
+    ]);
+    expect(commandFindings('`pnpm noldor garden nonexistent`', registry)).toEqual([]);
+  });
+
+  it('passes resolvable invocations, built-ins, and flag-bearing forms', () => {
+    const body = [
+      '`pnpm noldor garden detect`, `pnpm install`, `pnpm remove foo`,',
+      '`pnpm --filter web run build`, `pnpm noldor docs --help`',
+    ].join('\n');
+    expect(commandFindings(body, registry)).toEqual([]);
+  });
+
+  it('flags a stale bare name in a majority-resolved table', () => {
+    const body = [
+      '| Group | What |',
+      '| --- | --- |',
+      '| `init` | scaffold |',
+      '| `doctor` | health |',
+      '| `cr` | review |',
+      '| `renamed-away` | stale |',
+    ].join('\n');
+    expect(commandFindings(body, registry).map((f) => f.message)).toEqual([
+      'README.md quotes a command not in the CLI surface (manifest/scripts/script-catalog): renamed-away',
+    ]);
+  });
+
+  it('leaves non-command tables alone even though nothing in them resolves', () => {
+    const body = [
+      '| Platform | Asset |',
+      '| --- | --- |',
+      '| Linux | `noldor-linux-amd64` |',
+      '| macOS | `noldor-darwin-arm64` |',
+      '',
+      '| Path | For |',
+      '| --- | --- |',
+      '| `micro-chore` | tiny |',
+      '| `fast-track` | small |',
+    ].join('\n');
+    expect(commandFindings(body, registry)).toEqual([]);
+  });
+
+  it('dedupes a stale command quoted more than once', () => {
+    const body = 'First `pnpm noldor gone` then again `pnpm noldor gone --flag`.';
+    expect(commandFindings(body, registry)).toHaveLength(1);
+  });
+});
+
+describe('checkReadme command validation', () => {
+  it('reports a stale invocation alongside reachability', async () => {
+    const root = await makeRepo();
+    await write(
+      root,
+      'README.md',
+      '[a](docs/adr/)\n\nRun `pnpm noldor definitely-not-a-real-group xyz`.\n',
+    );
+    await write(root, 'docs/adr/0001-x.md', '# x');
+    const report = await checkReadme(root);
+    expect(report.status).toBe('findings');
+    expect(report.findings.map((f) => f.message)).toEqual([
+      'README.md quotes a command not in the CLI surface (manifest/scripts/script-catalog): definitely-not-a-real-group xyz',
+    ]);
+  });
+
+  it('accepts real manifest groups quoted bare in a command table', async () => {
+    const root = await makeRepo();
+    await write(
+      root,
+      'README.md',
+      ['| Group | What |', '| --- | --- |', '| `doctor` | health |', '| `cr` | review |'].join(
+        '\n',
+      ),
+    );
+    const report = await checkReadme(root);
     expect(report.status).toBe('ok');
   });
 });

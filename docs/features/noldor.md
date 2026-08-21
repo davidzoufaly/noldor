@@ -53,6 +53,7 @@ links:
     - .claude/skills/noldor-promote/SKILL.md
     - docs/noldor/pr-flow.md
   tests:
+    - src/cli/__tests__/command-registry.test.ts
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/commit-wrapper.test.ts
     - src/core/__tests__/fmt-guard.test.ts
@@ -113,7 +114,6 @@ noldor-tier: full
 introduced: 0.4.0
 updated: 0.5.0
 ---
-
 ## Summary
 
 Noldor is the Charuy-internal dev-loop framework extracted into a

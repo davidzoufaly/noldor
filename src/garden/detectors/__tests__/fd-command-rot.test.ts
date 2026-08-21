@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { commandTokens, detectFdCommandRot } from '../fd-command-rot.js';
+import { detectFdCommandRot } from '../fd-command-rot.js';
 
 interface FdSpec {
   slug: string;
@@ -42,36 +42,8 @@ function repoWith(
   return repo;
 }
 
-describe('commandTokens', () => {
-  it('strips pnpm/noldor launchers and keeps leading command words', () => {
-    expect(commandTokens('pnpm noldor garden detect')).toEqual(['garden', 'detect']);
-    expect(commandTokens('noldor doctor')).toEqual(['doctor']);
-    expect(commandTokens('pnpm release')).toEqual(['release']);
-    expect(commandTokens('pnpm noldor:changelog')).toEqual(['noldor:changelog']);
-  });
-
-  it('stops at flags, placeholders, and inline shell comments', () => {
-    expect(commandTokens('pnpm noldor autonomous run --source plans')).toEqual([
-      'autonomous',
-      'run',
-    ]);
-    expect(commandTokens('pnpm noldor worktrees create <slug>')).toEqual(['worktrees', 'create']);
-    expect(commandTokens('pnpm validate:milestones # snapshot schema')).toEqual([
-      'validate:milestones',
-    ]);
-    expect(commandTokens('pnpm noldor classify-feature-track [--apply]')).toEqual([
-      'classify-feature-track',
-    ]);
-  });
-
-  it('rejects non-commands and pnpm built-ins', () => {
-    expect(commandTokens('some prose text')).toBeNull();
-    expect(commandTokens('pnpm install')).toBeNull();
-    expect(commandTokens('pnpm pack')).toBeNull();
-    expect(commandTokens('pnpm noldor')).toBeNull();
-  });
-});
-
+// `commandTokens` and friends moved to `src/cli/command-registry.ts` (Q-0148);
+// their unit coverage lives in `src/cli/__tests__/command-registry.test.ts`.
 describe('detectFdCommandRot', () => {
   it('flags a documented command that resolves against nothing in the CLI surface', async () => {
     const repo = repoWith([

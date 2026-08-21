@@ -122,5 +122,9 @@
     "slug": "spec-brainstorming-depth-parity",
     "retiredInto": "de-superpowers-vendor-spec-plan-and-worktree-flows",
     "retiredAt": "2026-08-21"
+  },
+  "Q-0148": {
+    "slug": "readme-command-validation-on-the-existing-resolver",
+    "retiredAt": "2026-08-21"
   }
 }
