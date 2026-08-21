@@ -33,23 +33,23 @@
 **Files:**
 Create: `src/binary/bun-floor.ts`
 
-- [ ] **Step 1: Assert bun is installed.** Run:
+- [x] **Step 1: Assert bun is installed.** Run:
   ```bash
   bun --version
   ```
   Expected output: a dotted version (e.g. `1.2.x`). If the command is missing: STOP — install bun (`curl -fsSL https://bun.sh/install | bash`) before continuing; no later task may proceed.
-- [ ] **Step 2: Build dist.** Run `pnpm build`. Expected output ends with the build stamp line; `dist/cli/index.js` exists.
-- [ ] **Step 3: Compile the existing CLI as-is.** Run:
+- [x] **Step 2: Build dist.** Run `pnpm build`. Expected output ends with the build stamp line; `dist/cli/index.js` exists.
+- [x] **Step 3: Compile the existing CLI as-is.** Run:
   ```bash
   mkdir -p /tmp/noldor-spike && bun build --compile dist/cli/index.js --outfile /tmp/noldor-spike/noldor-spike
   ```
   Expected output: bun reports the bundle + `compile` success; the outfile exists and is executable.
-- [ ] **Step 4: Probe basic execution in a fixture.** Run:
+- [x] **Step 4: Probe basic execution in a fixture.** Run:
   ```bash
   cd "$(mktemp -d)" && git init -q . && /tmp/noldor-spike/noldor-spike --version; echo "exit=$?"
   ```
-  Expected output: the version from `package.json`, then `exit=0`. Also run `/tmp/noldor-spike/noldor-spike --help` → usage text, exit 0. Any crash referencing module resolution, top-level await, or `import.meta` ⇒ **STOP: spike failed — fall back to Node SEA re-spec (spec Unit 0); do not continue.**
-- [ ] **Step 5: Probe multi-input file embedding (`Bun.embeddedFiles`).** Create `/tmp/noldor-spike/probe.pack` containing `hello-pack`, then `/tmp/noldor-spike/probe.js`:
+  Expected output: `--help` → usage text, exit 0 (proves the bundled module graph, top-level await, and routing all work). `--version` is EXPECTED to fail here with `ENOENT … /package.json` — the unmodified CLI walks its package root (inventory site 1), which is exactly what the asset-root seam later fixes; that failure confirms the design's premise. Any crash from `--help` referencing module resolution, top-level await, or `import.meta` ⇒ **STOP: spike failed — fall back to Node SEA re-spec (spec Unit 0); do not continue.**
+- [x] **Step 5: Probe multi-input file embedding (`Bun.embeddedFiles`).** Create `/tmp/noldor-spike/probe.pack` containing `hello-pack`, then `/tmp/noldor-spike/probe.js`:
   ```js
   const f = Bun.embeddedFiles.find((x) => x.name.endsWith('.pack'));
   console.log(f ? Buffer.from(await f.arrayBuffer()).toString('utf8') : 'MISSING');
@@ -59,7 +59,7 @@ Create: `src/binary/bun-floor.ts`
   cd /tmp/noldor-spike && bun build --compile probe.js probe.pack --outfile probe-bin && ./probe-bin
   ```
   Expected output: `hello-pack`. This proves the embed mechanics Unit 2 uses — the pack rides as an extra compile input and is read back as bytes, so the compiled entry carries **no `.pack` import statement** (keeps `bin/import-graph.mjs`'s dist audit clean).
-- [ ] **Step 6: Probe subprocess spawn + env-before-dynamic-import ordering.** Create `/tmp/noldor-spike/spawn.js`:
+- [x] **Step 6: Probe subprocess spawn + env-before-dynamic-import ordering.** Create `/tmp/noldor-spike/spawn.js`:
   ```js
   import { spawnSync } from 'node:child_process';
   const r = spawnSync('git', ['--version'], { encoding: 'utf8' });
@@ -76,8 +76,8 @@ Create: `src/binary/bun-floor.ts`
   console.log(seen);
   ```
   Run `bun build --compile ord-a.js --outfile ord-bin && ./ord-bin` — Expected output: `set-before-import`. Anything else ⇒ **STOP: spike failed** (bundler evaluates modules eagerly; the entry design is unsound under bun — Node SEA fallback).
-- [ ] **Step 7: Probe an interactive prompt under a PTY (operator-present check).** Run the spike binary's `init` in a scratch git dir under `script -q /dev/null` and answer one prompt. Expected: the `@inquirer/prompts` prompt renders and accepts input. (Local-only assertion; CI never runs this.)
-- [ ] **Step 8: Record the pin.** Create `src/binary/bun-floor.ts` with the version Step 1 printed (example shows 1.2.19 — write the real one):
+- [x] **Step 7: Probe an interactive prompt under a PTY (operator-present check).** Run the spike binary's `init` in a scratch git dir under `script -q /dev/null` and answer one prompt. Expected: the `@inquirer/prompts` prompt renders and accepts input. (Local-only assertion; CI never runs this.)
+- [x] **Step 8: Record the pin.** Create `src/binary/bun-floor.ts` with the version Step 1 printed (example shows 1.2.19 — write the real one):
   ```ts
   /**
    * Minimum Bun version for `pnpm build:binary` and the release matrix — the
@@ -86,8 +86,8 @@ Create: `src/binary/bun-floor.ts`
    */
   export const BUN_FLOOR = '1.2.19';
   ```
-- [ ] **Step 9: Verify typecheck passes.** Run `pnpm typecheck`. Expected: exit 0.
-- [ ] **Step 10: Commit.** Write `/tmp/msg-spike.txt`:
+- [x] **Step 9: Verify typecheck passes.** Run `pnpm typecheck`. Expected: exit 0.
+- [x] **Step 10: Commit.** Write `/tmp/msg-spike.txt`:
   ```
   feat(binary): record spike-verified bun floor
 
@@ -118,7 +118,7 @@ Create: `src/binary/bun-floor.ts`
 Create: `src/binary/asset-root.ts`
 Test: `src/binary/__tests__/asset-root.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Create `src/binary/__tests__/asset-root.test.ts`:
+- [x] **Step 1: Write the failing test.** Create `src/binary/__tests__/asset-root.test.ts`:
   ```ts
   // @tests: single-static-binary-distribution
   import { describe, expect, it } from 'vitest';
@@ -177,8 +177,8 @@ Test: `src/binary/__tests__/asset-root.test.ts`
     });
   });
   ```
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/asset-root.test.ts` — Expected: FAIL (module not found).
-- [ ] **Step 3: Implement.** Create `src/binary/asset-root.ts`:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/asset-root.test.ts` — Expected: FAIL (module not found).
+- [x] **Step 3: Implement.** Create `src/binary/asset-root.ts`:
   ```ts
   import { isAbsolute, join } from 'node:path';
 
@@ -234,8 +234,8 @@ Test: `src/binary/__tests__/asset-root.test.ts`
     return join(home, '.cache', 'noldor', version, 'pkg');
   }
   ```
-- [ ] **Step 4: Run to verify PASS.** Same command as Step 2 — Expected: all tests pass.
-- [ ] **Step 5: Commit.** Write `/tmp/msg-assetroot.txt`:
+- [x] **Step 4: Run to verify PASS.** Same command as Step 2 — Expected: all tests pass.
+- [x] **Step 5: Commit.** Write `/tmp/msg-assetroot.txt`:
   ```
   feat(binary): asset-root resolver — channel marker + cache path equations
 
@@ -256,7 +256,7 @@ Test: `src/binary/__tests__/asset-root.test.ts`
 Create: `src/binary/asset-pack.ts`
 Test: `src/binary/__tests__/asset-pack.test.ts`
 
-- [ ] **Step 1: Write the failing test.** Create `src/binary/__tests__/asset-pack.test.ts`:
+- [x] **Step 1: Write the failing test.** Create `src/binary/__tests__/asset-pack.test.ts`:
   ```ts
   // @tests: single-static-binary-distribution
   import { describe, expect, it } from 'vitest';
@@ -329,8 +329,8 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
     });
   });
   ```
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/asset-pack.test.ts` — Expected: FAIL (module not found).
-- [ ] **Step 3: Implement.** Create `src/binary/asset-pack.ts`:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/asset-pack.test.ts` — Expected: FAIL (module not found).
+- [x] **Step 3: Implement.** Create `src/binary/asset-pack.ts`:
   ```ts
   /**
    * Framed asset pack (spec Unit 1): magic NPAK + u32le formatVersion(=1) +
@@ -434,8 +434,8 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
   }
   ```
   (Overlap between entries is allowed by this reader only in the harmless shared-bytes sense; the writer never produces it and the bounds check stops any read outside the data section — the rejection classes from the spec's table that matter for safety are all enforced.)
-- [ ] **Step 4: Run to verify PASS.** Same command — Expected: all pass.
-- [ ] **Step 5: Commit.** Write `/tmp/msg-pack.txt`:
+- [x] **Step 4: Run to verify PASS.** Same command — Expected: all pass.
+- [x] **Step 5: Commit.** Write `/tmp/msg-pack.txt`:
   ```
   feat(binary): framed asset-pack writer/reader
 
@@ -456,7 +456,7 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
 Modify: `src/binary/asset-pack.ts`
 Test: `src/binary/__tests__/asset-pack.test.ts`
 
-- [ ] **Step 1: Append the failing tests** to `src/binary/__tests__/asset-pack.test.ts`:
+- [x] **Step 1: Append the failing tests** to `src/binary/__tests__/asset-pack.test.ts`:
   ```ts
   import { mkdtempSync, readFileSync, renameSync, statSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
   import { tmpdir } from 'node:os';
@@ -581,8 +581,8 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
     });
   });
   ```
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/asset-pack.test.ts` — Expected: FAIL (`extractAssets` not exported).
-- [ ] **Step 3: Implement.** Append to `src/binary/asset-pack.ts`:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/asset-pack.test.ts` — Expected: FAIL (`extractAssets` not exported).
+- [x] **Step 3: Implement.** Append to `src/binary/asset-pack.ts`:
   ```ts
   import { createHash } from 'node:crypto';
   import * as realFs from 'node:fs';
@@ -664,8 +664,8 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
     }
   }
   ```
-- [ ] **Step 4: Run to verify PASS.** Same command — Expected: all pass (including the earlier round-trip suite).
-- [ ] **Step 5: Commit.** Write `/tmp/msg-extract.txt`:
+- [x] **Step 4: Run to verify PASS.** Same command — Expected: all pass (including the earlier round-trip suite).
+- [x] **Step 5: Commit.** Write `/tmp/msg-extract.txt`:
   ```
   feat(binary): atomic pack extractor with digest marker
 
@@ -686,7 +686,7 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
 Modify: `src/templates/manifest.ts`, `src/dashboard/server.ts`, `src/cr/codex-adapter.ts`
 Test: `src/binary/__tests__/asset-root.test.ts`
 
-- [ ] **Step 1: Append the failing seam tests** to `src/binary/__tests__/asset-root.test.ts`:
+- [x] **Step 1: Append the failing seam tests** to `src/binary/__tests__/asset-root.test.ts`:
   ```ts
   import { afterEach } from 'vitest';
 
@@ -722,8 +722,8 @@ Test: `src/binary/__tests__/asset-root.test.ts`
   });
   ```
   Also add `vi` to the vitest import at the top of the file: `import { afterEach, describe, expect, it, vi } from 'vitest';` (merge with the existing import line).
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/asset-root.test.ts` — Expected: the two "follows NOLDOR_ASSET_ROOT" tests FAIL.
-- [ ] **Step 3: Implement seam 1.** In `src/templates/manifest.ts`, replace:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/asset-root.test.ts` — Expected: the two "follows NOLDOR_ASSET_ROOT" tests FAIL.
+- [x] **Step 3: Implement seam 1.** In `src/templates/manifest.ts`, replace:
   ```ts
   const here = dirname(fileURLToPath(import.meta.url));
   export const TEMPLATES_ROOT = join(here, '..', '..', 'templates');
@@ -743,7 +743,7 @@ Test: `src/binary/__tests__/asset-root.test.ts`
     : join(here, '..', '..', 'templates');
   ```
   (Put the `import` with the other imports at the top of the file.)
-- [ ] **Step 4: Implement seam 2.** In `src/dashboard/server.ts`, replace:
+- [x] **Step 4: Implement seam 2.** In `src/dashboard/server.ts`, replace:
   ```ts
   const STATIC_ROOT = fileURLToPath(new URL('./static/dist', import.meta.url));
   ```
@@ -755,7 +755,7 @@ Test: `src/binary/__tests__/asset-root.test.ts`
     : fileURLToPath(new URL('./static/dist', import.meta.url));
   ```
   adding `import { assetRoot } from '../binary/asset-root.js';` to the imports (and `join` from `node:path` if not present).
-- [ ] **Step 5: Implement seam 3.** In `src/cr/codex-adapter.ts`, replace:
+- [x] **Step 5: Implement seam 3.** In `src/cr/codex-adapter.ts`, replace:
   ```ts
   export const CR_RECORD_SCHEMA_PATH = fileURLToPath(
     new URL('./cr-record.schema.json', import.meta.url),
@@ -769,8 +769,8 @@ Test: `src/binary/__tests__/asset-root.test.ts`
     : fileURLToPath(new URL('./cr-record.schema.json', import.meta.url));
   ```
   adding `import { assetRoot } from '../binary/asset-root.js';` (and `join` from `node:path`).
-- [ ] **Step 6: Run to verify PASS.** `pnpm vitest run src/binary/__tests__/asset-root.test.ts` — Expected: all pass. Then run the neighbourhood suites to prove the inert path: `pnpm vitest run src/templates src/dashboard src/cr` — Expected: all pass.
-- [ ] **Step 7: Commit.** Write `/tmp/msg-seams.txt`:
+- [x] **Step 6: Run to verify PASS.** `pnpm vitest run src/binary/__tests__/asset-root.test.ts` — Expected: all pass. Then run the neighbourhood suites to prove the inert path: `pnpm vitest run src/templates src/dashboard src/cr` — Expected: all pass.
+- [x] **Step 7: Commit.** Write `/tmp/msg-seams.txt`:
   ```
   feat(binary): asset-root seam at the three package-read sites
 
@@ -792,7 +792,7 @@ Test: `src/binary/__tests__/asset-root.test.ts`
 Modify: `src/core/noldor-cli.ts`, `src/dashboard/ensure.ts`, `src/autonomous/watch-detach.ts`, `src/core/agent-runner/runners/stub.ts`, `src/core/agent-runner/doctor-runners.ts`
 Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else create)
 
-- [ ] **Step 1: Write the failing test.** Check for an existing test: `ls src/core/__tests__/noldor-cli.test.ts` — extend it if present; otherwise create it with:
+- [x] **Step 1: Write the failing test.** Check for an existing test: `ls src/core/__tests__/noldor-cli.test.ts` — extend it if present; otherwise create it with:
   ```ts
   // @tests: single-static-binary-distribution
   import { afterEach, describe, expect, it } from 'vitest';
@@ -823,8 +823,8 @@ Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else 
     });
   });
   ```
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/core/__tests__/noldor-cli.test.ts` — Expected: the binary-channel test FAILS.
-- [ ] **Step 3: Implement the branch.** In `src/core/noldor-cli.ts`, replace the `noldorCliCommand` body:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/core/__tests__/noldor-cli.test.ts` — Expected: the binary-channel test FAILS.
+- [x] **Step 3: Implement the branch.** In `src/core/noldor-cli.ts`, replace the `noldorCliCommand` body:
   ```ts
   import { isBinaryChannel } from '../binary/asset-root.js';
 
@@ -835,7 +835,7 @@ Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else 
     return [process.execPath, [NOLDOR_BIN, ...args]];
   }
   ```
-- [ ] **Step 4: Converge `spawnDetachedServer`.** In `src/dashboard/ensure.ts`, replace the launcher lines:
+- [x] **Step 4: Converge `spawnDetachedServer`.** In `src/dashboard/ensure.ts`, replace the launcher lines:
   ```ts
   const here = dirname(fileURLToPath(import.meta.url));
   // `src/dashboard/` (or `dist/dashboard/`) → package root is two levels up.
@@ -848,7 +848,7 @@ Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else 
   const child = spawn(cliCmd, cliArgs, {
   ```
   adding `import { noldorCliCommand } from '../core/noldor-cli.js';` and deleting the now-unused `here`/`fileURLToPath` bindings in this function (keep other uses elsewhere in the file intact).
-- [ ] **Step 5: Converge the watch detach spawn.** In `src/autonomous/watch-detach.ts`: delete `binPathFrom()` and rewrite `detachChildArgv` to return the full command tuple:
+- [x] **Step 5: Converge the watch detach spawn.** In `src/autonomous/watch-detach.ts`: delete `binPathFrom()` and rewrite `detachChildArgv` to return the full command tuple:
   ```ts
   import { noldorCliCommand } from '../core/noldor-cli.js';
 
@@ -867,7 +867,7 @@ Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else 
   const child = deps.spawn(detachCmd, detachArgs, {
   ```
   Update the existing watch-detach tests: any assertion on `binPathFrom`/`detachChildArgv` becomes an assertion that `detachChildCommand(args)` equals `noldorCliCommand(['autonomous', 'watch', ...strippedArgs])`; run `pnpm vitest run src/autonomous` and fix compile errors the rename surfaces until green.
-- [ ] **Step 6: Stub refusal.** In `src/core/agent-runner/runners/stub.ts`, at the top of `buildStubArgv`:
+- [x] **Step 6: Stub refusal.** In `src/core/agent-runner/runners/stub.ts`, at the top of `buildStubArgv`:
   ```ts
   import { isBinaryChannel } from '../../../binary/asset-root.js';
 
@@ -893,8 +893,8 @@ Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else 
   }
   ```
   Add a unit test beside the existing doctor-runners tests asserting the stub check returns `missing` with that detail when `NOLDOR_BINARY='1'` (set/restore env in the test).
-- [ ] **Step 7: Run to verify PASS.** `pnpm vitest run src/core src/autonomous src/dashboard` — Expected: all pass. Then `pnpm typecheck` — Expected: exit 0. Then `pnpm test:contract` — Expected: green as-is: the harness derives expected tarball entries live from `expectedOutputs()` in `bin/build-manifest.mjs` (no recorded snapshot exists), so the new `dist/binary/*.js` files join the expectation automatically; a red means a real packaging breakage, not a stale fixture.
-- [ ] **Step 8: Commit.** Write `/tmp/msg-selfexec.txt`:
+- [x] **Step 7: Run to verify PASS.** `pnpm vitest run src/core src/autonomous src/dashboard` — Expected: all pass. Then `pnpm typecheck` — Expected: exit 0. Then `pnpm test:contract` — Expected: green as-is: the harness derives expected tarball entries live from `expectedOutputs()` in `bin/build-manifest.mjs` (no recorded snapshot exists), so the new `dist/binary/*.js` files join the expectation automatically; a red means a real packaging breakage, not a stale fixture.
+- [x] **Step 8: Commit.** Write `/tmp/msg-selfexec.txt`:
   ```
   feat(binary): self-exec seam — launchers converge on noldorCliCommand
 

@@ -34,7 +34,7 @@ Create: `src/binary/entry.ts`, `src/binary/ambient.d.ts`
 Modify: `src/cli/commands/init.ts`, `bin/build-manifest.mjs`
 Test: `src/cli/__tests__/` (existing init test file if present; else assertion via the adopt guard unit below)
 
-- [ ] **Step 1: Write the failing adopt-refusal test.** Locate the init command tests (`ls src/cli/__tests__/ | grep -i init`); add to the matching file (or create `src/cli/__tests__/init-adopt-guard.test.ts`):
+- [x] **Step 1: Write the failing adopt-refusal test.** Locate the init command tests (`ls src/cli/__tests__/ | grep -i init`); add to the matching file (or create `src/cli/__tests__/init-adopt-guard.test.ts`):
   ```ts
   // @tests: single-static-binary-distribution
   import { afterEach, describe, expect, it } from 'vitest';
@@ -54,8 +54,8 @@ Test: `src/cli/__tests__/` (existing init test file if present; else assertion v
     });
   });
   ```
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/cli/__tests__/init-adopt-guard.test.ts` — Expected: FAIL (module not found).
-- [ ] **Step 3: Implement the guard.** Create `src/cli/commands/init-adopt-guard.ts`:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/cli/__tests__/init-adopt-guard.test.ts` — Expected: FAIL (module not found).
+- [x] **Step 3: Implement the guard.** Create `src/cli/commands/init-adopt-guard.ts`:
   ```ts
   import { isBinaryChannel } from '../../binary/asset-root.js';
 
@@ -83,7 +83,7 @@ Test: `src/cli/__tests__/` (existing init test file if present; else assertion v
   }
   ```
   with `import { assertAdoptAllowed } from './init-adopt-guard.js';` among the imports.
-- [ ] **Step 4: Implement the entry + ambient decls.** Create `src/binary/ambient.d.ts`:
+- [x] **Step 4: Implement the entry + ambient decls.** Create `src/binary/ambient.d.ts`:
   ```ts
   /** Compile-time constant injected by `bun build --define` (spec Unit 2). */
   declare const NOLDOR_BINARY_VERSION: string;
@@ -128,15 +128,15 @@ Test: `src/cli/__tests__/` (existing init test file if present; else assertion v
 
   await import('../cli/index.js');
   ```
-- [ ] **Step 5: Teach the build manifest that declaration files emit nothing.** `bin/build-manifest.mjs`'s `expectedOutputs()` maps every compiled input `src/**/*.ts → dist/**/*.js` — `src/binary/ambient.d.ts` would therefore demand a phantom `dist/binary/ambient.d.js` and fail the build's own output check (tsc emits nothing for a `.d.ts`). In `expectedOutputs()`, filter declaration files out of the compiled mapping (keep them in `compiledInputs`/`digestInputs` so type-only edits still invalidate the build stamp):
+- [x] **Step 5: Teach the build manifest that declaration files emit nothing.** `bin/build-manifest.mjs`'s `expectedOutputs()` maps every compiled input `src/**/*.ts → dist/**/*.js` — `src/binary/ambient.d.ts` would therefore demand a phantom `dist/binary/ambient.d.js` and fail the build's own output check (tsc emits nothing for a `.d.ts`). In `expectedOutputs()`, filter declaration files out of the compiled mapping (keep them in `compiledInputs`/`digestInputs` so type-only edits still invalidate the build stamp):
   ```js
   const compiled = compiledInputs(root)
     // .d.ts files are digest inputs but produce no dist output.
     .filter((rel) => !rel.endsWith('.d.ts'))
     .map((rel) => rel.replace(/^src\//, '').replace(/\.ts$/, '.js'));
   ```
-- [ ] **Step 6: Verify compile + inert path + contract.** Run `pnpm typecheck` — Expected: exit 0 (ambient decls satisfy the entry). Run `pnpm build` — Expected: build succeeds; `dist/binary/entry.js` exists and NO `dist/binary/ambient.d.js` is demanded. Run `pnpm test` — Expected: green (nothing imports the entry under Node; seams inert). Run `pnpm test:contract` — Expected: green as-is: the harness derives its expected tarball entries live from `expectedOutputs()` (there is no recorded snapshot file), so new `src/binary/*.ts` files join the expectation automatically; a red here means a real breakage (most likely the `.d.ts` mapping this task just fixed), not a stale fixture.
-- [ ] **Step 7: Commit.** Write `/tmp/msg-entry.txt`:
+- [x] **Step 6: Verify compile + inert path + contract.** Run `pnpm typecheck` — Expected: exit 0 (ambient decls satisfy the entry). Run `pnpm build` — Expected: build succeeds; `dist/binary/entry.js` exists and NO `dist/binary/ambient.d.js` is demanded. Run `pnpm test` — Expected: green (nothing imports the entry under Node; seams inert). Run `pnpm test:contract` — Expected: green as-is: the harness derives its expected tarball entries live from `expectedOutputs()` (there is no recorded snapshot file), so new `src/binary/*.ts` files join the expectation automatically; a red here means a real breakage (most likely the `.d.ts` mapping this task just fixed), not a stale fixture.
+- [x] **Step 7: Commit.** Write `/tmp/msg-entry.txt`:
   ```
   feat(binary): compile entrypoint, ambient decls, adopt refusal
 
@@ -161,7 +161,7 @@ Create: `bin/build-binary.mjs`
 Modify: `package.json`
 Test: `src/binary/__tests__/build-pipeline.test.ts`
 
-- [ ] **Step 1: Write the failing test** for the derived pack list. Create `src/binary/__tests__/build-pipeline.test.ts`:
+- [x] **Step 1: Write the failing test** for the derived pack list. Create `src/binary/__tests__/build-pipeline.test.ts`:
   ```ts
   // @tests: single-static-binary-distribution
   import { describe, expect, it } from 'vitest';
@@ -178,8 +178,8 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
     });
   });
   ```
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/build-pipeline.test.ts` — Expected: FAIL (`pack-list.js` missing).
-- [ ] **Step 3: Implement the list module.** Create `src/binary/pack-list.ts`:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/build-pipeline.test.ts` — Expected: FAIL (`pack-list.js` missing).
+- [x] **Step 3: Implement the list module.** Create `src/binary/pack-list.ts`:
   ```ts
   import { readdirSync, statSync } from 'node:fs';
   import { join, relative, sep } from 'node:path';
@@ -221,8 +221,8 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
   }
   ```
   (Adjust the specifier to exactly what `pack-list.ts` uses.)
-- [ ] **Step 4: Run to verify PASS.** Same command (build dist first if the dashboard static bundle is missing: `pnpm build`). Expected: pass.
-- [ ] **Step 5: Implement the build script.** Create `bin/build-binary.mjs`:
+- [x] **Step 4: Run to verify PASS.** Same command (build dist first if the dashboard static bundle is missing: `pnpm build`). Expected: pass.
+- [x] **Step 5: Implement the build script.** Create `bin/build-binary.mjs`:
   ```js
   #!/usr/bin/env node
   // pnpm build:binary [--target=<bun-target>] [--outfile=<path>]
@@ -288,12 +288,12 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
   if (compile.status !== 0) fail('bun compile failed');
   console.log(`built ${outfile} (bun ${bunVersion}, version ${pkg.version})`);
   ```
-- [ ] **Step 6: Wire the script.** In `package.json` scripts, add:
+- [x] **Step 6: Wire the script.** In `package.json` scripts, add:
   ```json
   "build:binary": "node bin/build-binary.mjs"
   ```
-- [ ] **Step 7: Run to verify.** `pnpm build:binary` — Expected: `assets.pack: <N> entries` then `built out/noldor …`; `./out/noldor --version` prints the package version (host has bun from Part 1's spike). Machines without bun: the guard's exit-1 message is itself the verification.
-- [ ] **Step 8: Commit.** Write `/tmp/msg-buildbin.txt`:
+- [x] **Step 7: Run to verify.** `pnpm build:binary` — Expected: `assets.pack: <N> entries` then `built out/noldor …`; `./out/noldor --version` prints the package version (host has bun from Part 1's spike). Machines without bun: the guard's exit-1 message is itself the verification.
+- [x] **Step 8: Commit.** Write `/tmp/msg-buildbin.txt`:
   ```
   feat(binary): build:binary pipeline — guard, pack assembly, bun compile
 
@@ -315,7 +315,7 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
 Create: `bin/generate-notices.mjs`
 Test: `src/binary/__tests__/build-pipeline.test.ts`
 
-- [ ] **Step 1: Append the failing test:**
+- [x] **Step 1: Append the failing test:**
   ```ts
   import { execFileSync } from 'node:child_process';
 
@@ -331,8 +331,8 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
   });
   ```
   (Add `readFileSync` to the node:fs import in the test file.)
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/build-pipeline.test.ts` — Expected: notices test FAILS (script missing).
-- [ ] **Step 3: Implement.** Create `bin/generate-notices.mjs`:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/build-pipeline.test.ts` — Expected: notices test FAILS (script missing).
+- [x] **Step 3: Implement.** Create `bin/generate-notices.mjs`:
   ```js
   #!/usr/bin/env node
   // THIRD_PARTY_NOTICES.txt generator (spec Unit 5). Fail-closed: a production
@@ -366,8 +366,8 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
   if (process.argv.includes('--stdout')) process.stdout.write(out);
   else writeFileSync(join(root, 'THIRD_PARTY_NOTICES.txt'), out);
   ```
-- [ ] **Step 4: Run to verify PASS.** `pnpm vitest run src/binary/__tests__/build-pipeline.test.ts` — Expected: all pass.
-- [ ] **Step 5: Commit.** Write `/tmp/msg-notices.txt`:
+- [x] **Step 4: Run to verify PASS.** `pnpm vitest run src/binary/__tests__/build-pipeline.test.ts` — Expected: all pass.
+- [x] **Step 5: Commit.** Write `/tmp/msg-notices.txt`:
   ```
   feat(binary): fail-closed third-party notices generator
 
@@ -387,7 +387,7 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
 **Files:**
 Create: `scripts/smoke-binary.sh`
 
-- [ ] **Step 1: Implement.** Create `scripts/smoke-binary.sh` (the 7 assertions of spec Unit 6):
+- [x] **Step 1: Implement.** Create `scripts/smoke-binary.sh` (the 7 assertions of spec Unit 6):
   ```sh
   #!/bin/sh
   # Native smoke for a built noldor binary. Usage: scripts/smoke-binary.sh <binary> <expected-version>
@@ -456,12 +456,12 @@ Create: `scripts/smoke-binary.sh`
   echo "smoke: OK ($BIN, $EXPECTED_VERSION)"
   ```
   **Adjust two facts against the real tree while implementing** (the executor must verify, not trust this listing): (a) the dashboard pidfile path — read `src/dashboard/ensure.ts` for where the detached spawn records its pid/log and use that exact path, killing by port scan (`kill $(lsof -ti :$PORT)` is unavailable — prefer the pidfile) only if none exists; (b) whether plain `noldor dashboard` is the ensure-entry subcommand (read `src/cli/index.ts` routing) — if ensure rides a different verb, use that verb here and in AC5's wording. `sleep 0.5` fallback: if the runner's sh lacks fractional sleep, use `sleep 1` with 10 iterations.
-- [ ] **Step 2: Make it executable + run locally.**
+- [x] **Step 2: Make it executable + run locally.**
   ```bash
   chmod +x scripts/smoke-binary.sh && pnpm build:binary && scripts/smoke-binary.sh out/noldor "$(node -p "require('./package.json').version")"
   ```
   Expected output: `smoke: OK (…)`. Fix any assertion that trips (this is the plan's local integration gate for Part 1's seams).
-- [ ] **Step 3: Commit.** Write `/tmp/msg-smoke.txt`:
+- [x] **Step 3: Commit.** Write `/tmp/msg-smoke.txt`:
   ```
   feat(binary): native smoke suite for built binaries
 
@@ -482,7 +482,7 @@ Create: `scripts/smoke-binary.sh`
 **Files:**
 Create: `.github/workflows/release-binaries.yml`
 
-- [ ] **Step 1: Implement.** Create `.github/workflows/release-binaries.yml`:
+- [x] **Step 1: Implement.** Create `.github/workflows/release-binaries.yml`:
   ```yaml
   name: release-binaries
   on:
@@ -572,8 +572,8 @@ Create: `.github/workflows/release-binaries.yml`
             gh release upload "$GITHUB_REF_NAME" assets/SHA256SUMS --clobber
   ```
   **Verify while implementing:** the `read bun floor` step is deliberately dependency-free (regex over the source constant) — confirm the regex matches Task 1 of Part 1's `bun-floor.ts` line exactly; `sha256sum` exists on ubuntu (release job runs there only). The `.version` files must NOT enter `SHA256SUMS` (the grep) nor be uploaded.
-- [ ] **Step 2: Validate the workflow file.** Run `npx --yes @action-validator/cli .github/workflows/release-binaries.yml 2>/dev/null || node -e "require('yaml').parse(require('fs').readFileSync('.github/workflows/release-binaries.yml','utf8')); console.log('yaml ok')"` — Expected: `yaml ok` (or validator pass). Full behavior is only provable on a real tag; the version guard + sentinel order are code-reviewed here.
-- [ ] **Step 3: Commit.** Write `/tmp/msg-workflow.txt`:
+- [x] **Step 2: Validate the workflow file.** Run `npx --yes @action-validator/cli .github/workflows/release-binaries.yml 2>/dev/null || node -e "require('yaml').parse(require('fs').readFileSync('.github/workflows/release-binaries.yml','utf8')); console.log('yaml ok')"` — Expected: `yaml ok` (or validator pass). Full behavior is only provable on a real tag; the version guard + sentinel order are code-reviewed here.
+- [x] **Step 3: Commit.** Write `/tmp/msg-workflow.txt`:
   ```
   feat(binary): 4-target release workflow with sentinel-ordered uploads
 
@@ -595,7 +595,7 @@ Create: `.github/workflows/release-binaries.yml`
 Create: `install.sh`
 Test: `src/binary/__tests__/install-mapping.test.ts`
 
-- [ ] **Step 1: Write the failing mapping test.** Create `src/binary/__tests__/install-mapping.test.ts`:
+- [x] **Step 1: Write the failing mapping test.** Create `src/binary/__tests__/install-mapping.test.ts`:
   ```ts
   // @tests: single-static-binary-distribution
   import { execFileSync } from 'node:child_process';
@@ -620,8 +620,8 @@ Test: `src/binary/__tests__/install-mapping.test.ts`
     });
   });
   ```
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/install-mapping.test.ts` — Expected: FAIL (install.sh missing).
-- [ ] **Step 3: Implement.** Create `install.sh`:
+- [x] **Step 2: Run to verify FAIL.** `pnpm vitest run src/binary/__tests__/install-mapping.test.ts` — Expected: FAIL (install.sh missing).
+- [x] **Step 3: Implement.** Create `install.sh`:
   ```sh
   #!/bin/sh
   # noldor binary installer (spec Unit 7).
@@ -683,8 +683,8 @@ Test: `src/binary/__tests__/install-mapping.test.ts`
   echo "install: installed $DEST_DIR/noldor"
   case ":$PATH:" in *":$DEST_DIR:"*) ;; *) echo "install: NOTE — $DEST_DIR is not on PATH" ;; esac
   ```
-- [ ] **Step 4: Run to verify PASS.** `pnpm vitest run src/binary/__tests__/install-mapping.test.ts` — Expected: all pass. Also `sh -n install.sh` — Expected: exit 0 (syntax).
-- [ ] **Step 5: Commit.** Write `/tmp/msg-install.txt`:
+- [x] **Step 4: Run to verify PASS.** `pnpm vitest run src/binary/__tests__/install-mapping.test.ts` — Expected: all pass. Also `sh -n install.sh` — Expected: exit 0 (syntax).
+- [x] **Step 5: Commit.** Write `/tmp/msg-install.txt`:
   ```
   feat(binary): checksum-verified POSIX installer
 
@@ -704,7 +704,7 @@ Test: `src/binary/__tests__/install-mapping.test.ts`
 **Files:**
 Modify: `README.md`, `docs/noldor/gotchas.md` (+ the adoption/hooks page `docs/noldor/` — locate the page that documents lefthook wiring, e.g. via `grep -rl lefthook docs/noldor/ | head -3`)
 
-- [ ] **Step 1: README distribution section.** Add under the existing install section:
+- [x] **Step 1: README distribution section.** Add under the existing install section:
   ```markdown
   ### Binary install (no Node required)
 
@@ -730,7 +730,7 @@ Modify: `README.md`, `docs/noldor/gotchas.md` (+ the adoption/hooks page `docs/n
   is unchanged.
   ```
   (Strip the zero-width escapes around the inner fence when writing.)
-- [ ] **Step 2: gotchas.** Append to `docs/noldor/gotchas.md`:
+- [x] **Step 2: gotchas.** Append to `docs/noldor/gotchas.md`:
   ```markdown
   ## Binary channel: cache + env semantics
 
@@ -745,9 +745,9 @@ Modify: `README.md`, `docs/noldor/gotchas.md` (+ the adoption/hooks page `docs/n
   - `NOLDOR_BINARY` is set to `'1'` by the binary entry itself — never set it
     by hand on the npm channel; it flips subprocess self-exec semantics.
   ```
-- [ ] **Step 3: hooks note.** On the located lefthook/adoption page, add one paragraph: templates keep `pnpm noldor …`; a consumer wanting faster hooks may point lefthook commands at the installed binary (`noldor hooks …`) manually — behavior identical, startup faster, npm channel remains the default.
-- [ ] **Step 4: Docs gates.** Run `pnpm noldor checks template-sync` — Expected: exit 0 (README/gotchas have no template twins; if the hooks page has one under `templates/docs/…`, mirror the same paragraph there and re-run to green).
-- [ ] **Step 5: Commit.** Write `/tmp/msg-docs.txt`:
+- [x] **Step 3: hooks note.** On the located lefthook/adoption page, add one paragraph: templates keep `pnpm noldor …`; a consumer wanting faster hooks may point lefthook commands at the installed binary (`noldor hooks …`) manually — behavior identical, startup faster, npm channel remains the default.
+- [x] **Step 4: Docs gates.** Run `pnpm noldor checks template-sync` — Expected: exit 0 (README/gotchas have no template twins; if the hooks page has one under `templates/docs/…`, mirror the same paragraph there and re-run to green).
+- [x] **Step 5: Commit.** Write `/tmp/msg-docs.txt`:
   ```
   docs(binary): distribution channel — README table, gotchas, hooks note
 
