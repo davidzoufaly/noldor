@@ -14,11 +14,10 @@ name: Noldor Package Lift
 packages:
   - noldor
   - scripts
-phase: done
+phase: in-progress
 noldor-tier: full
 introduced: 0.2.0
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
