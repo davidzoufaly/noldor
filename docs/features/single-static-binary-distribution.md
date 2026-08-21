@@ -22,11 +22,28 @@ Adoption assumes a TS/JS consumer with Node already present — `pnpm add`, `npx
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator of a non-Node repository (Go, Python, Rust), I want to install noldor as a single self-contained binary, so that I can adopt the framework's gate/docs/queue discipline without Node, pnpm, or any JS toolchain on my machine.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**CLI**
+
+1. Install (checksum-verified, defaults to `~/.local/bin`): `curl -fsSL https://raw.githubusercontent.com/davidzoufaly/noldor/main/install.sh | sh`
+2. Pin a version (env on the shell side of the pipe): `curl -fsSL … | NOLDOR_VERSION=v1.5.0 sh`
+3. Verify: `noldor --version`
+4. First run extracts embedded assets to a version-keyed cache (`~/Library/Caches/noldor/<version>/pkg` on macOS, `$XDG_CACHE_HOME/noldor/<version>/pkg` elsewhere); later runs reuse it.
+
+**Maintainer**
+
+- `pnpm build:binary` — compile a host-target binary locally (requires bun at the pinned floor).
+- Tag `v*` — CI builds all four targets, smokes each natively, attaches binaries + `SHA256SUMS` + notices to the GitHub release.
+
+**Overrides**
+
+- `NOLDOR_CACHE_DIR=<dir>` — cache base; version key still appended.
+- `NOLDOR_ASSET_ROOT=<abs path>` — pre-extracted package root; skips extraction entirely.
+
+**Binary-channel limits** — `init --adopt` and the `stub` runner are npm-channel-only; commands spawning consumer JS tooling fail with their ordinary tool-missing errors. Node consumers: nothing changes (`pnpm add -D @david.zoufaly/noldor`).
 
 ## PRs
 
