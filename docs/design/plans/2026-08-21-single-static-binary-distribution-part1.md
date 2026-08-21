@@ -52,24 +52,33 @@ Create: `src/binary/bun-floor.ts`
   cd "$(mktemp -d)" && git init -q . && /tmp/noldor-spike/noldor-spike --version; echo "exit=$?"
   ```
   Expected output: the version from `package.json`, then `exit=0`. Also run `/tmp/noldor-spike/noldor-spike --help` → usage text, exit 0. Any crash referencing module resolution, top-level await, or `import.meta` ⇒ **STOP: spike failed — fall back to Node SEA re-spec (spec Unit 0); do not continue.**
-- [ ] **Step 5: Probe file embedding with import attributes.** Create `/tmp/noldor-spike/probe.pack` containing `hello-pack`, then `/tmp/noldor-spike/probe.js`:
+- [ ] **Step 5: Probe multi-input file embedding (`Bun.embeddedFiles`).** Create `/tmp/noldor-spike/probe.pack` containing `hello-pack`, then `/tmp/noldor-spike/probe.js`:
   ```js
-  import packPath from './probe.pack' with { type: 'file' };
-  import { readFileSync } from 'node:fs';
-  console.log(readFileSync(packPath, 'utf8'));
+  const f = Bun.embeddedFiles.find((x) => x.name.endsWith('.pack'));
+  console.log(f ? Buffer.from(await f.arrayBuffer()).toString('utf8') : 'MISSING');
   ```
   Run:
   ```bash
-  cd /tmp/noldor-spike && bun build --compile probe.js --outfile probe-bin && ./probe-bin
+  cd /tmp/noldor-spike && bun build --compile probe.js probe.pack --outfile probe-bin && ./probe-bin
   ```
-  Expected output: `hello-pack`. This proves the embed mechanics Unit 2 uses (`readFileSync` on an embedded path).
-- [ ] **Step 6: Probe subprocess spawn.** Create `/tmp/noldor-spike/spawn.js`:
+  Expected output: `hello-pack`. This proves the embed mechanics Unit 2 uses — the pack rides as an extra compile input and is read back as bytes, so the compiled entry carries **no `.pack` import statement** (keeps `bin/import-graph.mjs`'s dist audit clean).
+- [ ] **Step 6: Probe subprocess spawn + env-before-dynamic-import ordering.** Create `/tmp/noldor-spike/spawn.js`:
   ```js
   import { spawnSync } from 'node:child_process';
   const r = spawnSync('git', ['--version'], { encoding: 'utf8' });
   console.log(r.status, r.stdout.trim());
   ```
-  Compile + run as in Step 5. Expected output: `0 git version …`.
+  Compile + run as in Step 5. Expected output: `0 git version …`. Then probe that a bundled dynamic import still sees env set beforehand (the entry's whole mechanism — seams read env at module top level): create `/tmp/noldor-spike/ord-b.js`:
+  ```js
+  export const seen = process.env.SPIKE_ORDER ?? 'UNSET';
+  ```
+  and `/tmp/noldor-spike/ord-a.js`:
+  ```js
+  process.env.SPIKE_ORDER = 'set-before-import';
+  const { seen } = await import('./ord-b.js');
+  console.log(seen);
+  ```
+  Run `bun build --compile ord-a.js --outfile ord-bin && ./ord-bin` — Expected output: `set-before-import`. Anything else ⇒ **STOP: spike failed** (bundler evaluates modules eagerly; the entry design is unsound under bun — Node SEA fallback).
 - [ ] **Step 7: Probe an interactive prompt under a PTY (operator-present check).** Run the spike binary's `init` in a scratch git dir under `script -q /dev/null` and answer one prompt. Expected: the `@inquirer/prompts` prompt renders and accepts input. (Local-only assertion; CI never runs this.)
 - [ ] **Step 8: Record the pin.** Create `src/binary/bun-floor.ts` with the version Step 1 printed (example shows 1.2.19 — write the real one):
   ```ts
@@ -452,7 +461,7 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
 
 - [ ] **Step 1: Append the failing tests** to `src/binary/__tests__/asset-pack.test.ts`:
   ```ts
-  import { mkdtempSync, readFileSync, statSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+  import { mkdtempSync, readFileSync, renameSync, statSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
   import { tmpdir } from 'node:os';
   import { join } from 'node:path';
   import { extractAssets, MARKER_NAME } from '../asset-pack.js';
@@ -503,24 +512,60 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
       expect(existsSync(join(dest, 'junk.txt'))).toBe(false);
     });
 
-    it('accepts a concurrent winner: rename failure + matching marker → extracted=false', () => {
+    it('accepts a concurrent winner: publish rename loses, digest re-verify wins', () => {
       const base = tmpBase();
       const packPath = join(base, 'assets.pack');
       writeFileSync(packPath, packOf('one'));
       const dest = join(base, 'pkg');
       extractAssets(packPath, dest); // "the other process" already published
-      const failingFs = {
-        renameSync: () => {
-          const err = new Error('exists') as NodeJS.ErrnoException;
-          err.code = 'ENOTEMPTY';
+      // Stateful mock: the FIRST marker read (the pre-check) misses so the
+      // extract path runs; the publish rename then loses the race; the
+      // SECOND marker read (re-verify) sees the real winner.
+      let markerReads = 0;
+      const racingFs = {
+        readFileSync: ((...args: Parameters<typeof readFileSync>) => {
+          if (String(args[0]).endsWith(MARKER_NAME) && markerReads++ === 0) {
+            const err = new Error('miss') as NodeJS.ErrnoException;
+            err.code = 'ENOENT';
+            throw err;
+          }
+          return readFileSync(...args);
+        }) as typeof readFileSync,
+        renameSync: (from: string, to: string) => {
+          if (to === dest) {
+            const err = new Error('exists') as NodeJS.ErrnoException;
+            err.code = 'ENOTEMPTY';
+            throw err;
+          }
+          const err = new Error('gone') as NodeJS.ErrnoException;
+          err.code = 'ENOENT'; // aside-rename: the winner already moved dest
           throw err;
         },
       };
-      // Force the miss path by removing the marker read: simulate via a fresh
-      // dest2 that the failing rename can never publish — winner check falls
-      // back to the real dest marker.
-      const r = extractAssets(packPath, dest, failingFs);
+      const r = extractAssets(packPath, dest, racingFs);
       expect(r.extracted).toBe(false);
+      expect(markerReads).toBeGreaterThan(1); // the re-verify branch actually ran
+    });
+
+    it('treats a lost aside-rename (ENOENT) as a race, not a failure', () => {
+      const base = tmpBase();
+      const packPath = join(base, 'assets.pack');
+      writeFileSync(packPath, packOf('one'));
+      const dest = join(base, 'pkg');
+      mkdirSync(dest, { recursive: true }); // stale markerless dest
+      const asideLoser = {
+        renameSync: (from: string, to: string) => {
+          if (to.includes('.stale-')) {
+            const err = new Error('gone') as NodeJS.ErrnoException;
+            err.code = 'ENOENT'; // another process moved dest aside first
+            throw err;
+          }
+          return renameSync(from, to);
+        },
+      };
+      const r = extractAssets(packPath, dest, asideLoser);
+      expect(r.extracted).toBe(true); // our publish still landed on the vacated name
+      expect(readFileSync(join(dest, 'templates/a.txt'), 'utf8')).toBe('one');
     });
 
     it('propagates non-race failures with the attempted path', () => {
@@ -569,12 +614,14 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
    * digest. Returns { extracted } — false means a valid cache was reused.
    */
   export function extractAssets(
-    packPath: string,
+    packSource: string | Buffer,
     dest: string,
     fsOverride: Partial<ExtractFs> = {},
   ): { extracted: boolean } {
     const fs: ExtractFs = { ...realFs, ...fsOverride };
-    const pack = fs.readFileSync(packPath) as Buffer;
+    // string = a pack file on disk (build/tests); Buffer = the embedded pack's
+    // bytes handed over by the binary entry (Bun.embeddedFiles has no fs path).
+    const pack = typeof packSource === 'string' ? (fs.readFileSync(packSource) as Buffer) : packSource;
     const digest = createHash('sha256').update(pack).digest('hex');
     if (markerDigest(fs, dest) === digest) return { extracted: false };
 
@@ -591,11 +638,18 @@ Test: `src/binary/__tests__/asset-pack.test.ts`
 
       if (fs.existsSync(dest)) {
         // Never rm a dir another process may be publishing — rename it aside.
+        // A concurrent racer may vacate dest first: its aside-rename winning
+        // makes ours throw ENOENT, which is a race signal, not a failure —
+        // fall through and try to publish onto the vacated name.
         const aside = `${dest}.stale-${process.pid}`;
-        fs.renameSync(dest, aside);
-        fs.renameSync(temp, dest);
-        fs.rmSync(aside, { recursive: true, force: true });
-        return { extracted: true };
+        try {
+          fs.renameSync(dest, aside);
+          fs.renameSync(temp, dest);
+          fs.rmSync(aside, { recursive: true, force: true });
+          return { extracted: true };
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
       }
       fs.renameSync(temp, dest);
       return { extracted: true };
@@ -920,21 +974,25 @@ Test: `src/cli/__tests__/` (existing init test file if present; else assertion v
   /** Compile-time constant injected by `bun build --define` (spec Unit 2). */
   declare const NOLDOR_BINARY_VERSION: string;
 
-  /** Embedded-file import (bun `with { type: 'file' }`): resolves to a runtime path. */
-  declare module '*.pack' {
-    const path: string;
-    export default path;
-  }
+  /**
+   * Minimal Bun surface the entry touches. The pack rides as an extra compile
+   * input and is read back as bytes — no `.pack` import statement exists, so
+   * the dist import-graph audit never sees it. bun-types is deliberately not
+   * a dependency.
+   */
+  declare const Bun: {
+    embeddedFiles: Array<{ name: string; arrayBuffer(): Promise<ArrayBuffer> }>;
+  };
   ```
   Create `src/binary/entry.ts`:
   ```ts
   /* eslint-disable no-console */
   // Binary-channel entrypoint (spec Unit 2). Compiled by tsgo to
-  // dist/binary/entry.js, then `bun build --compile` bundles it with the
-  // embedded assets.pack. Never imported under Node — bin/noldor.mjs is the
-  // npm-channel entry.
-  import packPath from '../../assets.pack' with { type: 'file' };
-
+  // dist/binary/entry.js, then `bun build --compile dist/binary/entry.js
+  // assets.pack` bundles it WITH the pack as an embedded extra input. Never
+  // imported under Node — bin/noldor.mjs is the npm-channel entry. Env is set
+  // BEFORE the dynamic CLI import so module-top-level seam reads see it
+  // (ordering spike-verified, Task 1 Step 6).
   import { assetRoot, resolveAssetCachePath } from './asset-root.js';
   import { extractAssets } from './asset-pack.js';
 
@@ -942,8 +1000,14 @@ Test: `src/cli/__tests__/` (existing init test file if present; else assertion v
 
   const operatorRoot = assetRoot();
   if (operatorRoot === null) {
+    const embedded = Bun.embeddedFiles.find((f) => f.name.endsWith('.pack'));
+    if (!embedded) {
+      console.error('noldor: embedded assets.pack missing — rebuild the binary');
+      process.exit(1);
+    }
+    const pack = Buffer.from(await embedded.arrayBuffer());
     const dest = resolveAssetCachePath(NOLDOR_BINARY_VERSION);
-    const { extracted } = extractAssets(packPath, dest);
+    const { extracted } = extractAssets(pack, dest);
     if (extracted) console.error(`noldor: extracted assets to ${dest}`);
     process.env.NOLDOR_ASSET_ROOT = dest;
   }

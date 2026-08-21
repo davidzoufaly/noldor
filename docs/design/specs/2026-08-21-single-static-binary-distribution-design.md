@@ -79,7 +79,7 @@ The compile entrypoint, replacing the `bin/noldor.mjs` chain on this channel onl
 
 **Write-refusal guard:** `init --adopt` (and any template-migration write path) checks `isBinaryChannel()` and exits 1 with `adopt requires the npm channel — the binary's template root is a shared read-only cache` (`src/cli/commands/init.ts` adopt branch). This closes the cross-repo leak where an adopt snapshot into the shared cache would silently surface in every repo on the machine.
 
-Embedding mechanics (D3): `assets.pack` is built **before** the compile step and imported by the entry as `import packPath from '../../assets.pack' with { type: 'file' }` — bun bundles the file and the import resolves to its embedded runtime path, readable via `node:fs`. Under tsgo the entry compiles to `dist/binary/entry.js`; the `.pack` import specifier survives verbatim for bun to resolve at bundle time.
+Embedding mechanics (D3): `assets.pack` is built **before** the compile step and passed to bun as an **extra compile input** (`bun build --compile dist/binary/entry.js assets.pack`); at runtime the entry locates it via `Bun.embeddedFiles` and hands its bytes to the extractor. No `.pack` import statement exists in the compiled entry — deliberately, so the dist import-graph audit (`bin/import-graph.mjs`) stays clean and tsgo never sees a non-JS import specifier. The ambient decl file provides the minimal `Bun.embeddedFiles` type; `bun-types` is not a dependency.
 
 ### Unit 3 — asset-root seam (three read sites)
 

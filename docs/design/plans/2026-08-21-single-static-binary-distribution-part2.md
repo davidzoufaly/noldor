@@ -149,7 +149,7 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
   mkdirSync(join(root, 'out'), { recursive: true });
   const outfile = outArg ? outArg.slice('--outfile='.length) : join('out', 'noldor');
   const args = [
-    'build', '--compile', 'dist/binary/entry.js',
+    'build', '--compile', 'dist/binary/entry.js', 'assets.pack',
     `--define`, `NOLDOR_BINARY_VERSION=${JSON.stringify(pkg.version)}`,
     '--outfile', outfile,
   ];
