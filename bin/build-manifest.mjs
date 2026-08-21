@@ -102,7 +102,11 @@ export function expectedOutputs(root) {
   const compiled = compiledInputs(root).map((rel) =>
     rel.replace(/^src\//, '').replace(/\.ts$/, '.js'),
   );
-  const assets = RUNTIME_ASSETS.map((rel) => rel.replace(/^src\//, ''));
+  // Mirrors digestInputs: only assets present in src are expected in dist, so
+  // removing one drops it from both the digest and the prune's keep-set.
+  const assets = RUNTIME_ASSETS.filter((rel) => existsSync(join(root, rel))).map((rel) =>
+    rel.replace(/^src\//, ''),
+  );
   return [...compiled, ...assets].sort();
 }
 

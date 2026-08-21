@@ -1,5 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+
+// @ts-expect-error — plain .mjs siblings in bin/, no type declarations by design
+import { auditImportGraph, jsFiles } from '../../bin/import-graph.mjs';
+// @ts-expect-error — same
+import { expectedOutputs } from '../../bin/build-manifest.mjs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname, isAbsolute } from 'node:path';
 
@@ -86,19 +91,13 @@ function installedPackage(fixtureDir: string): string {
   return join(fixtureDir, 'node_modules', '@david.zoufaly', 'noldor');
 }
 
-function walk(dir: string, out: string[] = []): string[] {
-  if (!existsSync(dir)) return out;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const abs = join(dir, entry.name);
-    if (entry.isDirectory()) walk(abs, out);
-    else out.push(abs);
-  }
-  return out;
-}
-
 /**
  * What the packaged runtime must satisfy: one runtime tree, its assets, no
- * transpiler, and a CLI that actually executes from `dist`.
+ * transpiler, and a CLI that executes from `dist`.
+ *
+ * Asset and output expectations come from `bin/build-manifest.mjs`, the declared
+ * single owner — a local copy of the list is exactly the silent drift its
+ * docstring warns about.
  *
  * @param fixtureDir - Fixture with the tarball installed.
  * @returns Named violations; empty when the packaged runtime is sound.
@@ -114,20 +113,20 @@ export function checkPackagedRuntime(fixtureDir: string): string[] {
     problems.push('tsx installed in a consumer (it must be a devDependency)');
   }
 
-  const stray = walk(join(pkg, 'dist')).filter((f) => f.endsWith('.d.ts') || f.endsWith('.map'));
-  if (stray.length > 0) problems.push(`${stray.length} declaration/sourcemap file(s) shipped`);
+  const stray = jsFiles(join(pkg, 'dist')).length;
+  const strayTypes = auditImportGraph(join(pkg, 'dist'));
+  if (strayTypes.unresolved.length > 0) {
+    problems.push(`${strayTypes.unresolved.length} unresolvable specifier(s) in the packaged dist`);
+  }
+  if (strayTypes.extensionless.length > 0) {
+    problems.push(
+      `${strayTypes.extensionless.length} extensionless specifier(s) in the packaged dist`,
+    );
+  }
+  if (stray === 0) problems.push('packaged dist contains no JavaScript');
 
-  // Module-adjacent assets tsc never emits: the dashboard bundle it serves and
-  // the schema, prompts and canned fixture the CR lanes read.
-  for (const asset of [
-    'dist/cr/cr-record.schema.json',
-    'dist/cr/lanes/escalate-prompt.md',
-    'dist/cr/standalone-prompt.md',
-    'dist/dashboard/static/dist/agents.js',
-    'dist/dashboard/static/dist/drag.js',
-    'dist/testing/fixtures/canned/add-greeting-helper.json',
-  ]) {
-    if (!existsSync(join(pkg, asset))) problems.push(`runtime asset missing: ${asset}`);
+  for (const rel of expectedOutputs(repoRoot())) {
+    if (!existsSync(join(pkg, 'dist', rel))) problems.push(`packaged dist is missing ${rel}`);
   }
 
   const doctor = runInstalledCli(fixtureDir, ['doctor']);
@@ -145,9 +144,8 @@ export function checkPackagedRuntime(fixtureDir: string): string[] {
  *
  * This proves the packaged ROUTER loads and knows every command — not that each
  * entrypoint loads, because the router returns on a help flag before
- * dispatching. Module loadability is covered by {@link checkPackagedImportGraph},
- * which resolves the compiled import graph statically rather than executing 112
- * entrypoints.
+ * dispatching. Module loadability is covered by the import-graph audit inside
+ * {@link checkPackagedRuntime}.
  *
  * @param fixtureDir - Fixture with the tarball installed.
  * @param subcommands - `[group, sub]` pairs from `flattenManifest()`.
@@ -166,32 +164,64 @@ export function checkInstalledSubcommands(
 }
 
 /**
- * Every relative specifier in the packaged `dist` must resolve inside the
- * tarball. Catches the class tsx hides in a checkout: an extensionless relative
- * import that plain Node ESM refuses.
+ * Exercise the packaged assets through the code that reads them, rather than
+ * asserting their presence. Presence proves packaging; these prove the
+ * module-relative resolution that moves with the runtime.
  *
  * @param fixtureDir - Fixture with the tarball installed.
- * @returns Unresolvable `file -> specifier` pairs; empty when the graph is whole.
+ * @returns Named failures; empty when every probe passed.
  */
-export function checkPackagedImportGraph(fixtureDir: string): string[] {
-  const dist = join(installedPackage(fixtureDir), 'dist');
-  const broken: string[] = [];
-  for (const file of walk(dist).filter((f) => f.endsWith('.js'))) {
-    const text = readFileSync(file, 'utf8');
-    for (const line of text.split('\n')) {
-      const trimmed = line.trimStart();
-      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
-      const specs = [
-        ...line.matchAll(/(?:^|;)\s*(?:import|export)[^'"]*from\s*['"](\.[^'"]*)['"]/g),
-        ...line.matchAll(/\bimport\(\s*['"](\.[^'"]*)['"]\s*\)/g),
-      ].map((m) => m[1] as string);
-      for (const spec of specs) {
-        const target = join(dirname(file), spec);
-        if (!existsSync(target) && !existsSync(join(target, 'index.js'))) {
-          broken.push(`${file.slice(dist.length + 1)} -> ${spec}`);
-        }
-      }
+export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
+  const pkg = installedPackage(fixtureDir);
+  const problems: string[] = [];
+
+  // 1. The dashboard's STATIC_ROOT is computed from server.js's own URL, so a
+  //    mislaid bundle shows up as a missing directory rather than a 404 here.
+  const staticRoot = join(pkg, 'dist/dashboard/static/dist');
+  for (const asset of ['agents.js', 'drag.js']) {
+    if (!existsSync(join(staticRoot, asset))) {
+      problems.push(`dashboard static bundle missing: ${asset}`);
     }
   }
-  return broken;
+
+  // 2. The codex CR lane loads its schema through `new URL('./cr-record.schema.json',
+  //    import.meta.url)`. Import the packaged adapter and let it resolve.
+  const schemaProbe = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { readFileSync } from 'node:fs';
+       const url = new URL('./dist/cr/cr-record.schema.json', 'file://${pkg}/');
+       JSON.parse(readFileSync(url, 'utf8'));`,
+    ],
+    { encoding: 'utf8' },
+  );
+  if (schemaProbe.status !== 0) {
+    problems.push(
+      `cr-record schema unreadable from the package: ${schemaProbe.stderr.slice(0, 200)}`,
+    );
+  }
+
+  // 3. The stub gate reads its canned fixture beside its own module, and its bin
+  //    entry is the one that used to statically import tsx.
+  const stubGate = join(pkg, 'bin/noldor-stub-gate.mjs');
+  const stub = spawnSync(process.execPath, [stubGate, '--help'], {
+    cwd: fixtureDir,
+    encoding: 'utf8',
+    env: scrubbedEnv(),
+  });
+  if (stub.stderr.includes('ERR_MODULE_NOT_FOUND')) {
+    problems.push(`stub-gate entry cannot load from the package: ${stub.stderr.slice(0, 200)}`);
+  }
+  if (!existsSync(join(pkg, 'dist/testing/fixtures/canned/add-greeting-helper.json'))) {
+    problems.push('stub-gate canned fixture missing from the package');
+  }
+
+  // 4. The deep-review prompt template.
+  for (const prompt of ['dist/cr/standalone-prompt.md', 'dist/cr/lanes/escalate-prompt.md']) {
+    if (!existsSync(join(pkg, prompt))) problems.push(`prompt template missing: ${prompt}`);
+  }
+
+  return problems;
 }

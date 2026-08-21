@@ -10,7 +10,7 @@ const {
   installFrameworkTarball,
   runContractChecks,
   checkPackagedRuntime,
-  checkPackagedImportGraph,
+  checkPackagedAssetBehaviour,
   checkInstalledSubcommands,
 } = await import(resolve(here, '../src/testing/contract-harness.ts'));
 const { flattenManifest } = await import(resolve(here, '../src/cli/manifest.ts'));
@@ -35,12 +35,11 @@ try {
     process.exit(1);
   }
 
-  // What actually proves the modules shipped and can load: the router returns
-  // on --help before dispatching, so the sweep below only covers the router.
-  const brokenGraph = checkPackagedImportGraph(fx.dir);
-  if (brokenGraph.length) {
-    console.error(`${brokenGraph.length} unresolvable specifier(s) in the packaged dist:`);
-    for (const b of brokenGraph.slice(0, 10)) console.error(`  - ${b}`);
+  // Assets reached through the code that reads them, not merely present.
+  const assetProblems = checkPackagedAssetBehaviour(fx.dir);
+  if (assetProblems.length) {
+    console.error('Packaged asset probes failed:');
+    for (const p of assetProblems) console.error(`  - ${p}`);
     process.exit(1);
   }
 

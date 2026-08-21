@@ -10,14 +10,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 // @ts-expect-error — plain .mjs sibling with no type declarations by design
 import { STAMP_VERSION, computeDigest, selectRuntime } from '../../../bin/runtime-select.mjs';
+// @ts-expect-error — same
+import { expectedOutputs } from '../../../bin/build-manifest.mjs';
 
 const REPO_ROOT = join(import.meta.dirname, '../../..');
 
 let root: string;
 
-function tree(opts: { dist?: boolean; source?: boolean } = {}): string {
+function tree(opts: { dist?: boolean; source?: boolean; tsx?: boolean } = {}): string {
   const dir = mkdtempSync(join(tmpdir(), 'runtime-select-'));
   writeFileSync(join(dir, 'tsconfig.json'), '{}\n');
+  // A checkout has tsx to fall back to; the two no-tsx cases opt out.
+  if (opts.tsx !== false) mkdirSync(join(dir, 'node_modules/tsx'), { recursive: true });
   if (opts.source !== false) {
     mkdirSync(join(dir, 'src/cli'), { recursive: true });
     writeFileSync(join(dir, 'src/cli/index.ts'), 'export {};\n');
@@ -72,7 +76,14 @@ describe('selectRuntime overrides', () => {
   });
 
   it('errors when forced source finds no installed tsx', () => {
-    expect(selectRuntime(root, { NOLDOR_RUNTIME: 'source' }).reason).toBe('forced-source-no-tsx');
+    const noTsx = tree({ tsx: false });
+    try {
+      expect(selectRuntime(noTsx, { NOLDOR_RUNTIME: 'source' }).reason).toBe(
+        'forced-source-no-tsx',
+      );
+    } finally {
+      rmSync(noTsx, { force: true, recursive: true });
+    }
   });
 
   it('serves a forced dist even when stale, flagged for the caller to announce', () => {
@@ -99,21 +110,27 @@ describe('selectRuntime freshness', () => {
   });
 
   it('reports digest-mismatch when a digest input changed', () => {
-    stamp(root, { digest: 'stale', outputs: [], version: STAMP_VERSION });
+    stamp(root, { digest: 'stale', outputs: expectedOutputs(root), version: STAMP_VERSION });
     expect(selectRuntime(root, {}).reason).toBe('digest-mismatch');
   });
 
-  it('reports missing-output when a recorded output is gone', () => {
+  it('reports missing-output when a required output is gone', () => {
+    writeFileSync(join(root, 'src/cli/extra.ts'), 'export {};\n');
     stamp(root, {
       digest: computeDigest(root),
-      outputs: ['cli/index.js', 'gone.js'],
+      outputs: expectedOutputs(root),
       version: STAMP_VERSION,
     });
+    // cli/extra.js is required by the stamp's own output set but never emitted.
     expect(selectRuntime(root, {}).reason).toBe('missing-output');
   });
 
   it('selects dist when the digest matches and every output exists', () => {
-    stamp(root, { digest: computeDigest(root), outputs: ['cli/index.js'], version: STAMP_VERSION });
+    stamp(root, {
+      digest: computeDigest(root),
+      outputs: expectedOutputs(root),
+      version: STAMP_VERSION,
+    });
     expect(selectRuntime(root, {})).toEqual({
       reason: 'digest-match',
       runtime: 'dist',
@@ -137,7 +154,11 @@ describe('selectRuntime freshness', () => {
   });
 
   it('takes the source path while a live build holds the lock, and leaves the lock alone', () => {
-    stamp(root, { digest: computeDigest(root), outputs: ['cli/index.js'], version: STAMP_VERSION });
+    stamp(root, {
+      digest: computeDigest(root),
+      outputs: expectedOutputs(root),
+      version: STAMP_VERSION,
+    });
     writeFileSync(join(root, 'dist/.build-lock'), String(process.pid));
     expect(selectRuntime(root, {}).reason).toBe('build-in-progress');
     expect(selectRuntime(root, {}).stale).toBe(true);
@@ -145,7 +166,11 @@ describe('selectRuntime freshness', () => {
   });
 
   it('ignores a lock left by a dead pid', () => {
-    stamp(root, { digest: computeDigest(root), outputs: ['cli/index.js'], version: STAMP_VERSION });
+    stamp(root, {
+      digest: computeDigest(root),
+      outputs: expectedOutputs(root),
+      version: STAMP_VERSION,
+    });
     writeFileSync(join(root, 'dist/.build-lock'), '4194304');
     expect(selectRuntime(root, {}).reason).toBe('digest-match');
   });
@@ -160,6 +185,58 @@ describe('selectRuntime freshness', () => {
       });
     } finally {
       rmSync(installed, { force: true, recursive: true });
+    }
+  });
+
+  it('rejects a stamp whose outputs are a subset of what the sources require', () => {
+    // A digest match with an incomplete output list would otherwise bless a tree
+    // missing compiled modules.
+    mkdirSync(join(root, 'src/extra'), { recursive: true });
+    writeFileSync(join(root, 'src/extra/mod.ts'), 'export {};\n');
+    stamp(root, { digest: computeDigest(root), outputs: ['cli/index.js'], version: STAMP_VERSION });
+    expect(selectRuntime(root, {}).reason).toBe('bad-stamp');
+  });
+
+  it('rejects a windows-style traversal in an outputs entry', () => {
+    stamp(root, {
+      digest: computeDigest(root),
+      outputs: ['..\\escape.js'],
+      version: STAMP_VERSION,
+    });
+    expect(selectRuntime(root, {}).reason).toBe('bad-stamp');
+  });
+
+  it('treats an unparseable lock as held rather than absent', () => {
+    stamp(root, {
+      digest: computeDigest(root),
+      outputs: expectedOutputs(root),
+      version: STAMP_VERSION,
+    });
+    // The pid is written just after the exclusive create; a reader landing in
+    // that window must not read a live build as abandoned.
+    writeFileSync(join(root, 'dist/.build-lock'), '');
+    expect(selectRuntime(root, {}).reason).toBe('build-in-progress');
+  });
+
+  it('serves a stale dist with a notice when no tsx is available to fall back to', () => {
+    const noTsx = tree({ tsx: false });
+    try {
+      expect(selectRuntime(noTsx, {})).toEqual({
+        reason: 'stale-dist-no-tsx',
+        runtime: 'dist',
+        stale: true,
+      });
+    } finally {
+      rmSync(noTsx, { force: true, recursive: true });
+    }
+  });
+
+  it('errors when there is neither a dist nor a tsx to run src with', () => {
+    const bare = tree({ dist: false, tsx: false });
+    try {
+      expect(selectRuntime(bare, {}).reason).toBe('no-runtime');
+    } finally {
+      rmSync(bare, { force: true, recursive: true });
     }
   });
 

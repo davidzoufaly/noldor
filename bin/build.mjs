@@ -19,7 +19,6 @@ import {
   readdirSync,
   renameSync,
   rmSync,
-  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -47,17 +46,28 @@ function acquireLock() {
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
   }
-  const pid = Number.parseInt(readFileSync(lock, 'utf8').trim(), 10);
-  if (pidAlive(pid)) {
+  let pid = Number.NaN;
+  try {
+    pid = Number.parseInt(readFileSync(lock, 'utf8').trim(), 10);
+  } catch {
+    // Released between the create and the read — retry the acquire.
+    return acquireLock();
+  }
+  // An unparseable pid means the holder is between its create and its write.
+  // Fail closed rather than treating a live build as abandoned.
+  if (!Number.isInteger(pid) || pidAlive(pid)) {
     // Non-zero on purpose: exiting 0 would let a packaging or test step proceed
     // against a tree still being written, or one the first builder later fails
     // to finish.
-    console.error(`noldor build: already in progress (pid ${pid})`);
+    console.error(
+      `noldor build: already in progress (pid ${Number.isInteger(pid) ? pid : 'unknown'})`,
+    );
     process.exit(1);
   }
   // A crashed build. Only the builder reclaims a dead-pid lock — never the
-  // runtime selector, which runs in every read-only invocation.
-  unlinkSync(lock);
+  // runtime selector, which runs in every read-only invocation. `force` because
+  // two builders can both reach this line.
+  rmSync(lock, { force: true });
   return acquireLock();
 }
 
@@ -99,8 +109,12 @@ function runTsc() {
 }
 
 mkdirSync(join(root, 'dist'), { recursive: true });
-rmSync(join(root, STAMP_FILE), { force: true });
+// Lock first, THEN drop the stamp. Deleting it before acquiring would let a
+// waiting builder erase the stamp a live builder is about to write, and a
+// subsequent failure would leave that new stamp validating a tree this process
+// had already started rewriting.
 acquireLock();
+rmSync(join(root, STAMP_FILE), { force: true });
 process.on('SIGINT', () => {
   releaseLock();
   process.exit(130);

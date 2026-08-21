@@ -15,6 +15,7 @@ const ERROR_EXITS = {
   'forced-dist-absent': 1,
   'forced-source-no-src': 1,
   'forced-source-no-tsx': 1,
+  'no-runtime': 1,
 };
 
 const ERROR_MESSAGES = {
@@ -25,6 +26,8 @@ const ERROR_MESSAGES = {
   'forced-source-no-src': () => 'NOLDOR_RUNTIME=source but this install carries no src/ tree',
   'forced-source-no-tsx': () =>
     'NOLDOR_RUNTIME=source but tsx is not installed (it is a devDependency)',
+  'no-runtime': () =>
+    'neither a compiled dist nor an installed tsx to run src with — run `pnpm build`',
 };
 
 function trace(runtime, reason) {
