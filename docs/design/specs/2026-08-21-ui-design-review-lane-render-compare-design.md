@@ -21,8 +21,8 @@ Two facts shape the design:
 
 ## Goals
 
-- A code-stage CR lane, `render-compare`, that boots the consumer's app from a declared recipe, captures per-surface screenshots of real routes, rasterizes the session's approved `FINAL:` pages, and pixel-diffs the pair deterministically — no dispatched reviewer judgment in the verdict.
-- A `consumer.uiBoot` recipe schema that reuses `verifyCommands` for boot/health and declares route + screenshot capture per surface.
+- A code-stage CR lane, `render-compare`, that boots the consumer's app from a declared recipe, captures per-surface screenshots of real routes, rasterizes each surface's selected `FINAL:` page, and pixel-diffs the pair deterministically — no dispatched reviewer judgment in the verdict.
+- A `consumer.uiBoot` recipe schema that reuses `verifyCommands` for boot/health and declares route, page selection, and screenshot capture per surface.
 - An explicit, machine-recorded capability gate: the `.pen` export spike is implementation task 0, and its failure stops the feature honestly instead of shipping a lane that can never run.
 - Same honesty contract as Q-0145: every terminating path writes exactly one sink; `verdict`/`reason` say what actually happened; advisory by default, blocking behind a knob.
 - Reuse, not duplication: target resolution (`resolveUiReviewTarget`), scratch-copy + sha256 integrity, sink conventions, and the reason-code vocabulary all extend Q-0145's implementation.
@@ -30,8 +30,8 @@ Two facts shape the design:
 ## Non-goals
 
 - **Model-judgment comparison.** A child reasoning over screenshots is Q-0145's failure mode with extra steps; the verdict here is computed by a diff algorithm. A dispatched agent appears in exactly one role: running the export script against the scratch `.pen` when export requires pencil MCP (see R5) — it exports, it does not judge.
-- **Fine-grained inventory/copy findings.** Font-level and text-level fidelity is the structural lane's territory; this lane's findings are regions and percentages, not element narratives.
-- **Reaching arbitrary app states.** v1 captures each surface's declared route as-rendered (default state). `FINAL:` pages whose state the route does not show are named in `notes` as uncaptured, never silently dropped. A state-script convention is a later slice.
+- **Fine-grained inventory/copy findings.** Font-level and text-level fidelity is the structural lane's territory; this lane's findings are regions and ratios, not element narratives. Corollary, stated as a limitation in Risks: a blank render diffed against a mostly-blank design page scores a low ratio and passes here — the structural lane's inventory check is the guard for that case.
+- **Reaching arbitrary app states.** v1 captures each surface's declared route as-rendered (default state) and diffs it against one selected `FINAL:` page per surface. Non-selected `FINAL:` pages are named in `notes` as unreviewed, never silently dropped. A state-script convention is a later slice.
 - **Replacing the `ui-reviewer` lane.** Sibling, not successor; a consumer can run either or both.
 - **Design-side quality judgment, baseline review, spec/plan-stage variants** — same exclusions as Q-0145, same reasons.
 
@@ -39,7 +39,7 @@ Two facts shape the design:
 
 ### R0 — Export spike (capability gate, implementation task 0)
 
-Before any lane code: prove a headless-enough `.pen` → PNG path. Candidate mechanisms, tried in order: (1) a pencil MCP `execute` script against an open scratch `.pen` that renders/exports a page to PNG bytes on disk — the script API surface is undocumented from outside an open file, so this is discovery, not implementation; (2) a pencil desktop CLI export flag, if one exists. The spike's deliverable is a recorded result either way: a working export invocation (command/script + constraints, e.g. "editor app must be running") written into this spec's R5, or a negative result written to the roadmap when the entry re-parks. **A failed spike stops this feature at zero lane code shipped** — the recipe schema and lane units below are specified but not built. This unit exists because the operator chose the pixel-diff mechanism knowing the export path is unproven; the gate converts that risk into a bounded first task instead of a mid-implementation surprise.
+Before any lane code: prove a headless-enough `.pen` → PNG path. Candidate mechanisms, tried in order: (1) a pencil MCP `execute` script against an open scratch `.pen` that renders/exports a page to PNG bytes on disk — the script API surface is undocumented from outside an open file, so this is discovery, not implementation; (2) a pencil desktop CLI export flag, if one exists. The spike's deliverable is a recorded result either way: a working export invocation (command/script + constraints, e.g. "editor app must be running") written into R5's *Export invocation* subsection, or a negative result recorded via the sanctioned intake flow — an `ideas.md` bullet carrying the evidence, triaged back onto the roadmap by `/noldor-triage` (roadmap files are never hand-edited outside triage/promote). **A failed spike stops this feature at zero lane code shipped** — the recipe schema and lane units below are specified but not built. This unit exists because the operator chose the pixel-diff mechanism knowing the export path is unproven; the gate converts that risk into a bounded first task instead of a mid-implementation surprise.
 
 ### R1 — Lane and role registration
 
@@ -54,12 +54,24 @@ New consumer-config block, validated by `validate noldor-config`:
   "dashboard": {
     "verifyCommand": "dashboard",
     "route": "/",
-    "screenshotCommand": "npx playwright screenshot --viewport-size={width},{height} {url} {out}"
+    "page": "overview",
+    "screenshotCommand": "npx playwright screenshot --viewport-size={width},{height} {url} {out}",
+    "maxDiffRatio": 0.25,
+    "captureTimeoutMs": 60000
   }
 }
 ```
 
-Keyed by **surface name** — the same names `uiSurfaces` declares, which is what ties a recipe to the `FINAL:<surface>:` pages it captures. `verifyCommand` references an existing `consumer.verifyCommands` entry of `kind: "server"` (reusing its `command`, `healthPath`, `readyTimeoutMs` — boot is not respecified); `route` is the path that renders the surface; `screenshotCommand` is a consumer-owned template with `{url}`, `{out}`, `{width}`, `{height}` placeholders, following the `{port}` templating precedent. `{width}`/`{height}` are filled from the exported design raster's dimensions so the two images are size-comparable by construction. Validation cross-checks that `verifyCommand` resolves and that recipe keys exist in `uiSurfaces`.
+Keyed by **surface name** — the same names `uiSurfaces` declares, which ties a recipe to the `FINAL:<surface>:` pages it reviews. Fields:
+
+- `verifyCommand` (required) — references an existing `consumer.verifyCommands` entry of `kind: "server"`, reusing its `command`, `healthPath`, `readyTimeoutMs`; boot is not respecified.
+- `route` (required) — the path that renders the surface. Validated against the URL-path charset `^[A-Za-z0-9\-._~/?#\[\]@!$&'()*+,;=%]*$` and required to start with `/`; the lane URL-joins it, never shell-interprets it.
+- `page` (optional) — the `<name>` part of the one `FINAL:<surface>: <name>` page this route renders, resolving the surface↔pages cardinality: a surface with exactly one `FINAL:` page needs no selector (that page is selected); a surface with several and no `page` is `cannot-review` (`page-ambiguous`) naming the candidates; a `page` naming no existing `FINAL:` page is the same code. Non-selected pages ride `notes` as unreviewed.
+- `screenshotCommand` (required) — consumer-owned template. All four placeholders `{url}`, `{out}`, `{width}`, `{height}` are required at validate time; any other `{token}` is rejected. Executed via `/bin/sh -c` after placeholder substitution (the `verifyCommands`/`runShell` precedent — [`src/verify/smoke.ts`](../../../src/verify/smoke.ts)), cwd = repo root, environment inherited. Substitution is safe by construction: `{out}` is a lane-generated absolute scratch path (sanitized, no spaces), `{width}`/`{height}` are integers from the decoded raster, `{url}` is built from `127.0.0.1`, the lane-owned port, and the charset-validated `route`.
+- `maxDiffRatio` (optional, default `0.25`) — finite number in `[0, 1]` inclusive; anything else is rejected at validate.
+- `captureTimeoutMs` (optional, default `60000`, clamped to `[1, 120000]`) — wall cap on one `screenshotCommand` run.
+
+Validation cross-checks that `verifyCommand` resolves to a `kind: "server"` entry and that every recipe key is declared in `uiSurfaces`.
 
 ### R3 — Firing predicate and target resolution (reused)
 
@@ -67,19 +79,31 @@ Identical inputs to Q-0145 U3/U4, by calling the same `resolveUiReviewTarget` ([
 
 ### R4 — Boot and capture (screenshot half)
 
-Extract the boot/probe/kill machinery from `runSmoke` ([`src/verify/smoke.ts`](../../../src/verify/smoke.ts)) into a shared helper rather than copying it: pre-boot occupancy check, detached own-process-group spawn, `waitForHttp200` against `healthPath`, SIGKILL of the process group on every exit path. Port resolution follows the worktree dev-surfaces convention ([`src/worktrees/dev-surfaces.ts`](../../../src/worktrees/dev-surfaces.ts) — exact helper pinned at implementation). Then per affected surface, in order: (1) **route probe** — GET `{url}` = `http://127.0.0.1:{port}{route}` (following redirects, bounded by the same probe-fetch timeout the health check uses); a non-2xx final status or probe timeout is `route-unreachable` — this is what keeps a 404/500 route from producing a confident pixel verdict against an error page; (2) **capture** — run `screenshotCommand` with `{url}`, `{out}` = a path in the lane's scratch dir, `{width}`/`{height}` = the design raster's dimensions (R5 runs first). Non-zero exit or a missing/empty output file is `screenshot-failed`; boot failure (including a pre-occupied port) is `boot-failed`. All are `cannot-review` classes, never silent.
+Extract the boot/probe/kill machinery from `runSmoke` ([`src/verify/smoke.ts`](../../../src/verify/smoke.ts)) into a shared helper rather than copying it: pre-boot occupancy check, detached own-process-group spawn, `waitForHttp200` against `healthPath`, SIGKILL of the process group on every exit path. Surfaces are **grouped by `verifyCommand`**: each distinct referenced entry boots once, sequentially (one port serves the group, matching `runSmoke`'s sequential posture); the group's surfaces are processed against that instance; the process group is killed before the next boot and on every exit path including timeouts and thrown errors. Port resolution is the same path the verify lane's `runSmoke` caller uses today (the port injected into `{port}`); the render-compare lane resolves it once per boot group. A boot failure — spawn error, no HTTP 200 within `readyTimeoutMs`, or a pre-occupied port — marks **that group's surfaces** `boot-failed` and processing continues with the next group.
+
+Per surface in a booted group, in order: (1) **route probe** — GET `{url}` = `http://127.0.0.1:{port}{route}` (following redirects, bounded by the same probe-fetch timeout the health check uses); a non-2xx final status or probe timeout is `route-unreachable` — this is what keeps a 404/500 route from producing a confident pixel verdict against an error page; (2) **capture** — run `screenshotCommand` (substituted per R2) under `captureTimeoutMs`; timeout kills the command's process group and is `screenshot-failed`, as are a non-zero exit, a missing/empty output file, or an output `pngjs` cannot decode. The stderr tail of a failed capture rides `notes` for diagnosis.
 
 ### R5 — Design raster export
 
-The mechanism the R0 spike proved, run per in-scope `FINAL:` page against the **scratch copy** of the `.pen` (scratch-copy + sha256-before/after integrity reused verbatim from `ui-review.ts`; `pen-modified` reds in both modes). If export is MCP-mediated, the lane dispatches one exporter child (role `render-compare`) whose entire instruction is: open the scratch `.pen`, export the named pages to the named output paths, report the file list — no judgment, no findings; its output is validated by the files existing and parsing as PNG, not by trusting the report. If export is CLI-mediated, no child is dispatched at all. Export failure per page is `export-failed`; a page exported with unparseable/zero-dimension output is the same code. The exported raster's dimensions feed R4's `{width}`/`{height}`. This section is finalized by the spike: the invocation, its environmental constraints (e.g. editor app running — which likely confines the lane to interactive sessions and is recorded as an adoption constraint if so), and the child role's existence are all spike outputs.
+The mechanism the R0 spike proved, run per selected `FINAL:` page against the **scratch copy** of the `.pen`. The scratch-copy + sha256 integrity discipline is reused verbatim from `ui-review.ts`, with the roles now explicit: the **repo file's** hash before/after the round is the only `pen-modified` trigger (reds in both modes); the **scratch copy** is expendable — an exporter is allowed to touch it (open-state metadata, save-on-export), and no hash is taken of it. If export is MCP-mediated, the lane dispatches one exporter child (role `render-compare`) whose entire instruction is: open the scratch `.pen`, export the named pages to the named output paths, exit — no judgment, no findings; the child's report is not trusted, its output files are: each expected PNG must exist and decode via `pngjs` with positive dimensions, anything else is `export-failed` for that surface. The child runs under `LaneInput.dispatchTimeoutMs` like every dispatched lane; a timeout or spawn failure is `export-failed` with the detail in `notes` (the export stage needs no separate code — the stage is unambiguous from the sink's per-surface rows). If export is CLI-mediated, no child is dispatched and the same output validation applies. The decoded raster's dimensions feed R4's `{width}`/`{height}`, so the pair is size-comparable by construction at `deviceScaleFactor` 1 — a consumer whose screenshot tool emits 2× rasters must pin its scale factor in `screenshotCommand` (named in Risks; the `dimension-mismatch` message states both observed sizes to make the misconfiguration one-glance).
+
+**Export invocation (completed by the R0 spike, in-session, before R4–R8 code lands):** *to be filled by the spike with the exact command/script, its environmental constraints (e.g. editor app running — if so, recorded as an adoption constraint confining the lane to interactive sessions), and whether the exporter child role exists.* This subsection being unfilled after the spike, or filled with a negative result, stops the feature per R0 — it is the one deliberately incomplete region of this spec, and AC1 makes its resolution a precondition of every other unit shipping.
 
 ### R6 — Diff engine and thresholds
 
-`pixelmatch` + `pngjs` join the framework's dependencies (small, pure-JS, no native/browser footprint — unlike playwright, which stays consumer-side). Per surface: compare screenshot vs design raster at equal dimensions; a dimension mismatch after R4's sizing is `dimension-mismatch` (`cannot-review` — something in the capture pipeline lied, do not resize-and-pretend). The verdict is threshold-gated, tuned for coarse drift: `diffRatio = differing pixels / total pixels` with pixelmatch's per-pixel `threshold` at a forgiving default (anti-aliasing tolerant), and a surface fails when `diffRatio > maxDiffRatio` (default `0.25`, per-recipe override `"maxDiffRatio": 0.1` in `uiBoot.<surface>`). Defaults are deliberately loose: cross-engine rendering guarantees a nonzero floor, and the lane's job is layout breakage, blank renders, and moved/missing regions — not font fidelity. A `fail` finding carries the surface, both image paths (design raster + screenshot, both persisted into `.noldor/cr/render-compare/<slug>/` so the operator can look), the diff image path, and the ratio vs the threshold. `pass` carries the ratios in `notes` so a creeping ratio is visible before it crosses.
+`pixelmatch` + `pngjs` join the framework's dependencies (small, pure-JS, no native/browser footprint — unlike playwright, which stays consumer-side). Both images are decoded to RGBA via `pngjs`; alpha is compared as pixelmatch sees it (no pre-flattening). Result-affecting pixelmatch options are **pinned constants, not config**: `threshold: 0.2` (per-pixel color tolerance, antialiasing-friendly), `includeAA: false` (anti-aliased pixels are not counted as differences); everything else at library defaults. A dimension mismatch between the pair after R4's sizing is `dimension-mismatch` (`cannot-review` — something in the capture pipeline lied; the lane never resizes-and-pretends). `diffRatio = differing pixels / total pixels`; the surface **fails iff `diffRatio > maxDiffRatio`** (strict; ratios exactly at the threshold pass). Severity is ratio-derived and fully deterministic: `high` when `diffRatio > 2 × maxDiffRatio`, else `med` — there is no separate blank-render heuristic (dropped deliberately: a blankness predicate is a second algorithm with its own false positives, and the blank-vs-blank case is the structural lane's territory per Non-goals).
 
-### R7 — Verdicts, reasons, mode knob
+Per-surface artifacts — design raster, screenshot, and pixelmatch's diff image — are persisted under `.noldor/cr/render-compare/<slug>/` with sanitized filenames (`<surface>` reduced to `[a-z0-9-]`): `<surface>.design.png`, `<surface>.shot.png`, `<surface>.diff.png`. The directory is rebuilt atomically per round: written to a fresh temp sibling, then swapped in place of the prior round's, so a crashed round never leaves a mixed set. Sink entries reference these as repo-relative paths. The directory is workspace evidence, not history: it joins the gitignore in the same change that introduces it. Worktree rounds write inside their own tree's `.noldor/`, so concurrent features cannot cross-write.
 
-Sink at `.noldor/cr/<slug>-code-render-compare.json`, same `laneFindingsSchema` shape, same verdict vocabulary (`pass | fail | cannot-review | not-applicable`). New reason codes joining the closed vocabulary: `no-boot-recipe`, `boot-failed`, `route-unreachable`, `screenshot-failed`, `export-failed`, `dimension-mismatch`. All applicable Q-0145 codes (`no-feature-pen`, `ambiguous-design`, `pen-modified`, `scratch-unavailable`, `range-unresolvable`, …) apply unchanged. Mode knob: `autonomous.renderCompareMode` (`'blocking' | 'advisory'`, default `'advisory'`), separate from `uiReviewMode` — an adopter's confidence in structural review and in a booted-app pixel pipeline diverge. Same mode matrix as Q-0145 U6: advisory `fail` → `low` suggestions with `ok: true`; blocking `fail` → blockers (severity `high` when `diffRatio > 2×maxDiffRatio` or the render is blank, else `med`) with `ok: false`; `pen-modified` reds in both modes.
+### R7 — Verdicts, aggregation, reasons, mode knob
+
+Sink at `.noldor/cr/<slug>-code-render-compare.json`, standard `laneFindingsSchema` shape — no schema extensions. A failing surface becomes one standard `Finding`: `file` = the repo-relative diff-image path, `severity` per R6's rule (`high`/`med` are the schema's canonical spellings, already used by the sibling lanes), `message` = `[<surface>] diffRatio <observed> > <threshold> — design=<path> shot=<path>`. A passing surface contributes a `notes` row `[<surface>] diffRatio <observed> ≤ <threshold>` so creeping drift is visible before it crosses.
+
+**Multi-surface aggregation (deterministic, total).** Every bootable affected surface is processed to its own per-surface outcome — `pass`, `fail`, or a `cannot-review` class — and a per-surface failure never aborts the round (boot failure fails its group's surfaces, processing continues). The sink's single verdict is the worst outcome by precedence **`fail` > `cannot-review` > `pass`** (`not-applicable` only ever appears alone, from R3's terminals). The top-level `reason` is set only when the verdict is `cannot-review` or `not-applicable`: the failing class of the highest-precedence surface, ties broken by surface name ascending — every per-surface outcome is in the sink regardless (`fail` rows as findings, `cannot-review` rows as `notes` lines carrying their own class, `pass` rows as ratio notes), so the single `reason` is a headline, not the record.
+
+**Closed reason vocabulary — full enumeration.** Inherited from Q-0145, unchanged triggers: `waived`, `no-ui-paths`, `design-skip`, `no-consumer-config` (not-applicable classes); `no-session-key`, `no-design-artifact`, `no-feature-pen`, `ambiguous-design`, `range-unresolvable`, `fd-unreadable`, `design-dir-unreadable`, `scratch-unavailable` (cannot-review classes); `pen-modified` (integrity). New, this lane only: `no-boot-recipe` (zero bootable affected surfaces), `page-ambiguous` (R2's selector unresolvable), `boot-failed` (spawn/health/occupancy), `route-unreachable` (R4's probe), `screenshot-failed` (capture exit/timeout/missing/undecodable), `export-failed` (R5's output validation, child spawn/timeout included), `dimension-mismatch` (R6). `surfaces-unmapped` and `pen-unreadable` are **not** in this lane's vocabulary — the former is produced inside `resolveUiReviewTarget`'s terminals and arrives via R3 unchanged; the latter is the structural child's code, and this lane's equivalent failure surfaces as `export-failed`.
+
+Mode knob: `autonomous.renderCompareMode` (`'blocking' | 'advisory'`, default `'advisory'`), separate from `uiReviewMode` — an adopter's confidence in structural review and in a booted-app pixel pipeline diverge. Mode matrix as Q-0145 U6: advisory `fail` → findings as `low` suggestions, `ok: true`; blocking `fail` → findings as blockers with R6 severities, `ok: false`; blocking `cannot-review` → one high blocker naming the headline reason, `ok: false`; advisory `cannot-review` → `ok: true`; `pen-modified` → one high blocker, `ok: false`, **both** modes.
 
 ### R8 — Gate wiring and docs
 
@@ -87,25 +111,29 @@ Sink at `.noldor/cr/<slug>-code-render-compare.json`, same `laneFindingsSchema` 
 
 ## Acceptance criteria
 
-1. The R0 spike result is recorded before any lane code: a working export invocation in this spec, or a re-parked entry carrying the negative result — a session that shipped lane code without a recorded spike outcome is a spec violation.
+1. The R0 spike result is recorded before any lane code ships: a working export invocation filled into R5's subsection, or a negative result captured as an `ideas.md` intake bullet (never a hand-edited roadmap) with the session stopping at zero lane code.
 2. `render-compare` is accepted in `crLanes.code`, absent from `DEFAULT_CR_LANES`, rejected at `--kind spec|plan`, and excluded from the delta short-circuit.
-3. `validate noldor-config` rejects a `uiBoot` entry whose `verifyCommand` does not resolve to a `kind: "server"` verify command or whose key is not in `uiSurfaces`; an invalid `renderCompareMode` or non-numeric/out-of-range `maxDiffRatio` is rejected; defaults are `advisory` and `0.25`.
-4. A verdict-`skip` round writes `not-applicable` without booting; a waived session writes `not-applicable` (`waived`); zero bootable affected surfaces writes `cannot-review` (`no-boot-recipe`).
-5. Boot failure, an unreachable route (non-2xx after redirects, or probe timeout), screenshot failure, export failure, and dimension mismatch write mutually distinguishable reason codes, and the app process group is killed on every exit path including timeouts and sink-write failure.
-6. The repo's `.pen` is sha256-identical across the round; a mismatch writes the `pen-modified` high blocker in both modes; export always runs against the scratch copy.
-7. The diff is deterministic: same screenshot + same raster + same config ⇒ identical verdict and ratio; no agent output influences pass/fail (an exporter child, when one exists, is validated by produced files only).
-8. A `fail` finding names the surface, persists design raster + screenshot + diff image under `.noldor/cr/render-compare/<slug>/`, and states the ratio vs threshold; a `pass` sink carries per-surface ratios in `notes`.
-9. Mode matrix holds: advisory `fail` → `low` suggestions, `ok: true`; blocking `fail` → blockers with the R7 severity rule, `ok: false`; blocking `cannot-review` reds, advisory does not.
-10. Every terminating path writes exactly one schema-valid sink (Q-0145's U6b table plus the new boot/capture/export rows), except a sink-write failure, which reds via `unresolved`; `ui-reviewer` and `render-compare` sinks coexist without filename misattribution.
-11. Consumer docs and `templates/` twins carry the lane row, the `uiBoot` schema (including `maxDiffRatio`), and the `renderCompareMode` key; template-sync passes.
+3. `validate noldor-config` rejects: a `uiBoot` key not in `uiSurfaces`; a `verifyCommand` not resolving to a `kind: "server"` entry; a `screenshotCommand` missing any of the four placeholders or carrying an unknown `{token}`; a `route` failing the charset/leading-`/` rule; a non-finite or out-of-`[0,1]` `maxDiffRatio`; an invalid `renderCompareMode`. Defaults: `advisory`, `0.25`, `captureTimeoutMs` 60000.
+4. Terminal resolution: verdict-`skip` ⇒ `not-applicable` without booting; waived ⇒ `not-applicable` (`waived`); zero bootable affected surfaces ⇒ `no-boot-recipe`; a multi-`FINAL:`-page surface without a `page` selector (or with a dangling one) ⇒ `page-ambiguous` naming candidates.
+5. `boot-failed`, `route-unreachable`, `screenshot-failed`, `export-failed`, and `dimension-mismatch` are mutually distinguishable, each fires from its documented trigger, and every spawned process group (app boots, capture commands, exporter child) is killed on every exit path including timeouts.
+6. The repo `.pen`'s sha256 before/after the round is the sole `pen-modified` trigger (one high blocker, `ok: false`, both modes); exporter mutation of the scratch copy alone does not trip it.
+7. The diff is deterministic and validated by versioned raster fixtures (no app boot): identical pair ⇒ pass at ratio 0; antialiasing-jitter pair ⇒ pass under the default threshold; a blanked region and a shifted region ⇒ fail with `high`/`med` per the 2× rule; a size-mismatched pair ⇒ `dimension-mismatch`. Fixture expectations pin the constants (`threshold: 0.2`, `includeAA: false`).
+8. A `fail` finding's `file` is the repo-relative diff image; its message carries surface, observed ratio, threshold, and both image paths; all three per-surface images exist under `.noldor/cr/render-compare/<slug>/` with sanitized names, the directory is atomically rebuilt per round, and it is gitignored.
+9. Mode matrix holds: advisory `fail` ⇒ `low` suggestions with `ok: true`; blocking `fail` ⇒ blockers with ratio-derived severities and `ok: false`; blocking `cannot-review` reds, advisory does not.
+10. Multi-surface aggregation: per-surface outcomes are all present in one sink (findings for fails, class-carrying notes for cannot-reviews, ratio notes for passes); the top verdict follows `fail` > `cannot-review` > `pass`; a boot failure fails only its group's surfaces and processing continues.
+11. Every terminating path writes exactly one schema-valid sink — including `null` consumer config, torn session marker, malformed FD, unresolvable range, and every R4/R5/R6 failure row — except a sink-write failure, which reds via `unresolved`; `ui-reviewer` and `render-compare` sinks coexist without filename misattribution.
+12. Consumer docs and `templates/` twins carry the lane row, the full `uiBoot` schema, and the `renderCompareMode` key; template-sync passes.
 
 ## Risks / trade-offs
 
 - **The export spike can fail, and the feature dies at task 0.** Accepted knowingly: the operator chose pixel-diff over a shippable-today judgment hybrid. The spike is cheap, its negative result re-parks the entry with evidence, and no half-built lane ships.
 - **Export may be editor-bound.** If the only working path requires the pencil desktop app running, the lane is unusable in headless CI — an adoption constraint recorded at spike time, not discovered by consumers. Advisory default means it degrades to `cannot-review` (`export-failed`) there, honestly.
 - **Cross-engine rendering floor.** Fonts and antialiasing guarantee nonzero diff ratios on faithful implementations; the loose default threshold trades sensitivity for signal. A consumer chasing precision tightens `maxDiffRatio` per surface and owns the false-positive rate.
-- **Dynamic app content.** Live data behind a route differs from design placeholders and inflates ratios; the loose threshold absorbs some, masking/state-scripting is the deferred slice. Named per-surface override is the interim remedy.
-- **Consumer-owned screenshot command.** `npx playwright screenshot` requires the consumer's toolchain; the framework adds only pixelmatch+pngjs. A consumer without a browser cannot adopt — `screenshot-failed` names it.
+- **Blank-vs-blank passes.** With no blankness heuristic, a blank render diffed against a mostly-empty design page scores low and passes; the structural lane's inventory review is the intended guard. Named limitation, not a bug.
+- **Dynamic app content.** Live data behind a route differs from design placeholders and inflates ratios; the loose threshold absorbs some, masking/state-scripting is the deferred slice. The per-surface override is the interim remedy.
+- **Scale-factor mismatch.** A screenshot tool emitting 2× rasters hits `dimension-mismatch` every round; the message names both observed sizes, and the remedy (pin `deviceScaleFactor`/`--device-scale-factor=1` in `screenshotCommand`) lands in the config-reference docs.
+- **Consumer-owned screenshot command.** `npx playwright screenshot` requires the consumer's toolchain and floats its version; docs recommend a pinned devDependency invocation (`pnpm exec playwright …`). The framework adds only pixelmatch+pngjs. A consumer without a browser cannot adopt — `screenshot-failed` names it.
+- **Persisted screenshots may carry consumer data.** They are workspace-local evidence, gitignored, overwritten per round, and never uploaded by the lane; consumers with stricter hygiene delete `.noldor/cr/render-compare/` at will — nothing reads it back.
 - **Boot cost per round.** Seconds-to-minutes per code round; opt-in and short-circuit-excluded, so adopters pay knowingly.
 
 ## User Story
@@ -114,17 +142,25 @@ As an agent shipping a UI-bearing feature, I want the code-stage CR to boot the 
 
 ## Usage
 
-Declare the recipe and opt in, per consumer, in `.noldor/config.json`:
+Declare the recipe and opt in, per consumer, in `.noldor/config.json` (complete, adoptable example — `verifyCommands` included):
 
 ```json
 {
   "consumer": {
     "uiSurfaces": { "dashboard": ["src/dashboard/**"] },
+    "verifyCommands": {
+      "dashboard": {
+        "command": "pnpm dev --port {port}",
+        "kind": "server",
+        "healthPath": "/"
+      }
+    },
     "uiBoot": {
       "dashboard": {
         "verifyCommand": "dashboard",
         "route": "/",
-        "screenshotCommand": "npx playwright screenshot --viewport-size={width},{height} {url} {out}",
+        "page": "overview",
+        "screenshotCommand": "pnpm exec playwright screenshot --viewport-size={width},{height} {url} {out}",
         "maxDiffRatio": 0.25
       }
     }
@@ -142,25 +178,31 @@ pnpm noldor cr orchestrate --slug <slug> --artifact <code-paths> --kind code \
 pnpm noldor cr aggregate --slug <slug> --kind code
 ```
 
-Sink: `.noldor/cr/<slug>-code-render-compare.json`. Read `verdict` before `blockers`; `reason` names why a review did not happen (`no-boot-recipe`, `boot-failed`, `screenshot-failed`, `export-failed`, …). On a `fail`, open the persisted diff image under `.noldor/cr/render-compare/<slug>/` before arguing with the ratio. Flip `renderCompareMode` to `blocking` once the pipeline is reliable in your CI.
+Sink: `.noldor/cr/<slug>-code-render-compare.json`. Read `verdict` before `blockers`; `reason` is the headline failure class and the per-surface rows in findings/`notes` are the record. On a `fail`, open the persisted diff image under `.noldor/cr/render-compare/<slug>/` before arguing with the ratio. Flip `renderCompareMode` to `blocking` once the pipeline is reliable in your CI.
 
 ## Open questions (resolved)
 
 1. *Pixel diff or model comparison?*
    -> True pixel-diff, blocking on the export spike (D1, operator-decided). Model judgment over screenshots is Q-0145 with extra steps; the entry's value is a deterministic verdict.
 2. *What if the export path does not exist?*
-   -> R0 spike as implementation task 0; a negative result re-parks the entry with evidence and zero lane code ships (D-spike). Cheaper than discovering it mid-build.
+   -> R0 spike as implementation task 0; a negative result re-parks the entry via the ideas.md intake flow with evidence, and zero lane code ships (D2). Cheaper than discovering it mid-build.
 3. *Where does the boot recipe live?*
-   -> `consumer.uiBoot`, keyed by surface, referencing `verifyCommands` for boot/health (D2). Boot machinery exists and is consumer-owned; respecifying per lane would drift.
+   -> `consumer.uiBoot`, keyed by surface, referencing `verifyCommands` for boot/health (D3). Boot machinery exists and is consumer-owned; respecifying per lane would drift.
 4. *Who takes the screenshot?*
-   -> The lane, via a consumer-declared `screenshotCommand` template (D3). Framework stays browser-free; capture stays mechanical and runner-independent.
+   -> The lane, via a consumer-declared `screenshotCommand` template with a validated placeholder contract (D4). Framework stays browser-free; capture stays mechanical and runner-independent.
 5. *New lane or a mode of `ui-reviewer`?*
-   -> New sibling lane `render-compare` (D4). Different failure surface, different trust curve, independent adoption decision.
+   -> New sibling lane `render-compare` (D5). Different failure surface, different trust curve, independent adoption decision.
 6. *Same mode knob as `ui-reviewer`?*
-   -> Separate `renderCompareMode`, default advisory (D5). Confidence in the two pipelines diverges, especially in CI.
+   -> Separate `renderCompareMode`, default advisory (D6). Confidence in the two pipelines diverges, especially in CI.
 7. *How do two rendering engines compare without permanent redness?*
-   -> Coarse-drift thresholds: anti-aliasing-tolerant pixelmatch, `maxDiffRatio` default 0.25 with per-surface override (D6). The lane detects breakage, not font fidelity — that split is what keeps both lanes honest.
-8. *`FINAL:` pages whose state the route cannot show?*
-   -> Uncaptured pages named in `notes`, never silently dropped; state-reach is a later slice (D7).
-9. *Partial recipe coverage?*
-   -> Review the bootable subset, name the gap in `notes`; wholesale `no-boot-recipe` only at zero (D8). A partial honest review beats none.
+   -> Coarse-drift thresholds: pinned pixelmatch constants (`threshold: 0.2`, `includeAA: false`), `maxDiffRatio` default 0.25 with per-surface override, fixture-validated (D7). The lane detects breakage, not font fidelity — that split keeps both lanes honest.
+8. *Which `FINAL:` page does the route's screenshot diff against?*
+   -> One selected page per surface: auto when the surface has exactly one, the recipe's `page` field otherwise, `page-ambiguous` when unresolvable (D8). Diff-all-take-best was rejected — a best-of-N verdict hides which state was actually reviewed.
+9. *Multi-surface rounds — one verdict from many outcomes?*
+   -> Process every surface, aggregate by `fail` > `cannot-review` > `pass`, headline `reason` from the highest-precedence failure, full per-surface record in the sink (D9). A single opaque verdict would erase partial coverage.
+10. *Blank-render detection?*
+    -> Dropped; severity is purely ratio-derived and the blank-vs-blank case is named a limitation guarded by the structural lane (D10). A blankness predicate is a second algorithm with its own false-positive budget.
+11. *`FINAL:` pages whose state the route cannot show?*
+    -> Non-selected pages named in `notes`, never silently dropped; state-reach is a later slice (D11).
+12. *Partial recipe coverage?*
+    -> Review the bootable subset, name the gap in `notes`; wholesale `no-boot-recipe` only at zero (D12). A partial honest review beats none.
