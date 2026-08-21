@@ -7,6 +7,7 @@
 // assertion would notice. Plain `.mjs` because the selector runs before any
 // TypeScript is loadable.
 
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
@@ -119,8 +120,40 @@ export function expectedOutputs(root) {
  */
 export function unmanifestedAssets(root) {
   const known = new Set([...RUNTIME_ASSETS, ...Object.keys(NON_RUNTIME_FILES)]);
-  return allSourceFiles(root).filter(
+  const candidates = allSourceFiles(root).filter(
     (rel) => !rel.endsWith('.ts') && !isExcluded(rel) && !known.has(rel),
+  );
+  // Generated trees live under src/ too — `src/graphify-out/` holds hundreds of
+  // cache files and is gitignored. The scan walks the filesystem, not the index,
+  // so it must ask git what is ignored or every consumer with graphify output
+  // has a red build.
+  const ignored = gitIgnored(root, candidates);
+  return candidates.filter((rel) => !ignored.has(rel));
+}
+
+/**
+ * Which of `paths` git ignores.
+ *
+ * @param root - Package root (the git work tree).
+ * @param paths - Repo-relative candidate paths.
+ * @returns The ignored subset. Empty when git cannot answer, which keeps the
+ *   caller's fail-closed posture rather than silently widening what ships.
+ */
+function gitIgnored(root, paths) {
+  if (paths.length === 0) return new Set();
+  const result = spawnSync('git', ['check-ignore', '--stdin'], {
+    cwd: root,
+    encoding: 'utf8',
+    input: paths.join('\n'),
+  });
+  // 0 = some paths ignored (printed), 1 = none ignored, anything else = git could
+  // not answer (not a work tree, git missing).
+  if (result.status !== 0 && result.status !== 1) return new Set();
+  return new Set(
+    result.stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0),
   );
 }
 
