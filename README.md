@@ -69,25 +69,6 @@ pnpm noldor doctor            # prerequisite + template-skew health check → gr
 
 **Prerequisites (non-negotiable pre-1.0):** Node ≥ 20, pnpm ≥ 9, git ≥ 2.30, gh CLI ≥ 2, lefthook ≥ 1, plus `lint` / `fmt` / `fmt:check` / `test` scripts. `pnpm noldor doctor` probes every row. Full table: the [adoption guide](docs/noldor/adoption-guide.md).
 
-### Binary install (no Node required)
-
-For repositories without a JS toolchain (Go, Python, Rust):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/davidzoufaly/noldor/main/install.sh | sh
-# pin a version (env on the shell side of the pipe):
-curl -fsSL https://raw.githubusercontent.com/davidzoufaly/noldor/main/install.sh | NOLDOR_VERSION=v1.5.0 sh
-```
-
-| Platform | Asset | Floor |
-|---|---|---|
-| Linux amd64 (glibc) | `noldor-linux-amd64` | glibc 2.35+ |
-| Linux arm64 (glibc) | `noldor-linux-arm64` | glibc 2.35+ |
-| macOS Intel | `noldor-darwin-amd64` | macOS 13+ |
-| macOS Apple Silicon | `noldor-darwin-arm64` | macOS 13+ |
-
-The binary carries the full CLI (first run extracts embedded assets to a version-keyed cache). Commands that shell out to consumer-side JS tooling (oxlint/oxfmt/vitest/tsc checks, the codex CR lane) fail with their ordinary tool-missing errors — per-language check adapters are a separate track, so this is **not sufficient for cross-language adoption on its own**. `init --adopt` and the `stub` runner require the npm channel. The npm package stays the primary channel for JS/TS consumers.
-
 ---
 
 ## Daily workflow

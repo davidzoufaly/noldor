@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import { glob } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { argv, exit } from 'node:process';
 
@@ -61,11 +62,6 @@ const FILE_GLOBS = [
 async function collectFiles(): Promise<string[]> {
   const seen = new Set<string>();
   for (const pattern of FILE_GLOBS) {
-    // Lazy import: fs.promises.glob is a named export bun's runtime (1.1.x)
-    // does not provide, and a top-level import hoists into the compiled
-    // bundle's startup. This codemod is an npm-channel maintainer tool — under
-    // the binary it fails here, at invocation, not at process start.
-    const { glob } = await import('node:fs/promises');
     for await (const path of glob(pattern)) {
       seen.add(path.replace(/\\/g, '/'));
     }

@@ -1,8 +1,6 @@
 // @fd: review-run-lifecycle-module
-import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnAgent } from '../core/agent-runner/registry.js';
-import { assetRoot } from '../binary/asset-root.js';
 
 /**
  * Contract for running one codex review.
@@ -27,16 +25,10 @@ export type Spawn = (args: { stdin: string }) => Promise<{
   timedOut: boolean;
 }>;
 
-/**
- * Output schema handed to codex; resolved here because `Spawn` no longer
- * carries argv. The external codex process must be able to open() this path,
- * so on the binary channel it resolves into the extracted asset root — a
- * virtual in-binary path would be unreadable to a child process (spec Unit 3).
- */
-const schemaSeamRoot = assetRoot();
-export const CR_RECORD_SCHEMA_PATH = schemaSeamRoot
-  ? join(schemaSeamRoot, 'dist/cr/cr-record.schema.json')
-  : fileURLToPath(new URL('./cr-record.schema.json', import.meta.url));
+/** Output schema handed to codex; resolved here because `Spawn` no longer carries argv. */
+export const CR_RECORD_SCHEMA_PATH = fileURLToPath(
+  new URL('./cr-record.schema.json', import.meta.url),
+);
 
 export interface CodexSpawnOpts {
   /** Wall-clock cap. Omitted on the interactive path, where the operator's Ctrl-C supervises. */
