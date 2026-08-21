@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { tally } from '../../utils/tally.js';
 import { join } from 'node:path';
 
 import { isBootstrapReason } from '../../cr/gate-registry.js';
@@ -46,9 +47,7 @@ export function auditCodexCrOverrides(input: AuditInput): Finding[] {
       findings.push({ kind: 'short-reason', reason: r.reason, ts: r.ts });
     }
   }
-  const counts = new Map<string, number>();
-  for (const r of recent) counts.set(r.reason, (counts.get(r.reason) ?? 0) + 1);
-  for (const [reason, count] of counts) {
+  for (const [reason, count] of tally(recent.map((r) => r.reason))) {
     if (count >= freqThreshold && reason.trim().length >= minLen) {
       findings.push({ kind: 'repeated', reason, count });
     }

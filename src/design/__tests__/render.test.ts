@@ -16,6 +16,7 @@ const state: LedgerState = {
     { id: 'O2', text: 'already answered', resolvedBy: 'D2' },
   ].map((o) => ({ resolvedBy: null, ...o })),
   support: ['src/foo.ts:12 — already does X'],
+  confirmed: [],
   unparsed: [],
 };
 

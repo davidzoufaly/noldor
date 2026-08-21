@@ -117,5 +117,10 @@
     "slug": "package-runtime-representation-adr",
     "retiredInto": "noldor-package-lift",
     "retiredAt": "2026-08-21"
+  },
+  "Q-0092": {
+    "slug": "spec-brainstorming-depth-parity",
+    "retiredInto": "de-superpowers-vendor-spec-plan-and-worktree-flows",
+    "retiredAt": "2026-08-21"
   }
 }
