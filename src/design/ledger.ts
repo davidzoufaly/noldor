@@ -8,10 +8,21 @@ import { readSession } from '../core/session.js';
 import { parseRoadmap } from '../utils/parse-blocks.js';
 import { slugify } from '../utils/slugify.js';
 
-/** A settled decision. `id` is `D<n>`, minted in source order and never reused. */
+/**
+ * A settled decision. `id` is `D<n>`, minted in source order and never reused.
+ *
+ * The three optional fields are what make a decision auditable instead of merely
+ * recorded: `why` is the reasoning, `insteadOf` the alternative that was rejected
+ * and why not, `section` the artifact heading the decision binds. All three are
+ * absent on any ledger written before they existed, which is why they are
+ * optional rather than defaulted — see {@link serializeLedger}.
+ */
 export interface Decision {
   id: string;
   text: string;
+  section?: string;
+  why?: string;
+  insteadOf?: string;
 }
 
 /**
@@ -24,6 +35,24 @@ export interface OpenThread {
   id: string;
   text: string;
   resolvedBy: string | null;
+  /**
+   * Artifact heading this thread belongs to. A thread carries no `why` or
+   * `insteadOf`: it is a question, so it has no reasoning and no road not taken
+   * yet. Either field under an `O` entry is a fail-closed parse error rather
+   * than a tolerated extra, so a mis-flagged value can never be silently lost.
+   */
+  section?: string;
+}
+
+/**
+ * An operator-confirmed artifact heading, with the digest of the body they
+ * approved. `digest` is the first eight lowercase hex characters of the sha256
+ * of `extractSection`'s output for that heading — enough to notice an edit, and
+ * short enough to keep the ledger line readable.
+ */
+export interface Confirmation {
+  name: string;
+  digest: string;
 }
 
 export interface LedgerState {
@@ -33,6 +62,8 @@ export interface LedgerState {
   decided: Decision[];
   open: OpenThread[];
   support: string[];
+  /** Confirmed headings in confirmation order. */
+  confirmed: Confirmation[];
   /**
    * Section names whose body could not be parsed, deduped. The renderer surfaces
    * these and degrades; the writer refuses to touch a ledger with any entry here
@@ -52,7 +83,7 @@ export interface LedgerState {
  * `design log` rather than merely ignored. Refusing beats silent data loss;
  * reading (and rendering) still degrades gracefully.
  */
-const SECTIONS = ['Entry', 'Scope', 'Decided', 'Open', 'Existing support'] as const;
+const SECTIONS = ['Entry', 'Scope', 'Decided', 'Open', 'Existing support', 'Confirmed'] as const;
 type SectionName = (typeof SECTIONS)[number];
 
 /**
@@ -106,7 +137,15 @@ export function ledgerPath(cwd: string, slug: string): string {
 
 /** A ledger with every heading present and no content — the first-write shape. */
 export function emptyLedger(): LedgerState {
-  return { entry: null, scope: null, decided: [], open: [], support: [], unparsed: [] };
+  return {
+    entry: null,
+    scope: null,
+    decided: [],
+    open: [],
+    support: [],
+    confirmed: [],
+    unparsed: [],
+  };
 }
 
 /**
@@ -156,6 +195,68 @@ function splitSections(raw: string): {
   return { sections, duplicates, unknown };
 }
 
+/** Canonical sub-bullet: exactly two leading spaces, a known key, a non-blank value. */
+const SUBBULLET_RE = /^ {2}- (section|why|instead-of): (\S.*)$/;
+
+/**
+ * Anything *shaped* like a sub-bullet. Wider than {@link SUBBULLET_RE} on
+ * purpose: a line that looks like a field but is not canonical (one space, three
+ * spaces, an unknown key, an empty value) must be *detected* rather than merely
+ * unrecognized, because the writer reserializes from parsed state and would
+ * otherwise erase it — the same silent-data-loss class the unknown-heading rule
+ * refuses.
+ */
+const SUBBULLET_SHAPE_RE = /^ *- *[A-Za-z][A-Za-z-]* *:/;
+
+/** Storage line for an entry (`- D1 …` / `- O1 …`): a bullet at column 0. */
+const ENTRY_LINE_RE = /^- \S/;
+
+/** Confirmed line: `- <name> · <8 hex>`. */
+const CONFIRMED_RE = /^- (\S.*?) · ([0-9a-f]{8})$/;
+
+/** Field key as stored, mapped to the {@link Decision} property it fills. */
+const FIELD_KEYS = {
+  section: 'section',
+  why: 'why',
+  'instead-of': 'insteadOf',
+} as const;
+type FieldKey = keyof typeof FIELD_KEYS;
+
+/**
+ * Group a section's lines into entries with their sub-bullets.
+ *
+ * @returns `null` when any line fails the grammar — an orphan sub-bullet, a
+ *   near-miss sub-bullet shape, an unknown key, a duplicate key, or a line that
+ *   is neither. The caller turns that into an `unparsed` entry; there is no
+ *   partial success, because a half-read `Decided` would let the next write
+ *   re-mint an existing id.
+ */
+function groupEntries(
+  body: readonly string[],
+): { line: string; fields: Partial<Record<FieldKey, string>> }[] | null {
+  const out: { line: string; fields: Partial<Record<FieldKey, string>> }[] = [];
+  for (const line of body) {
+    const canonical = line.match(SUBBULLET_RE);
+    if (canonical) {
+      const last = out[out.length - 1];
+      if (last === undefined) return null; // sub-bullet before any entry
+      const key = canonical[1] as FieldKey;
+      if (last.fields[key] !== undefined) return null; // duplicate key
+      last.fields[key] = canonical[2]!;
+      continue;
+    }
+    if (ENTRY_LINE_RE.test(line)) {
+      // An entry line can itself match the loose shape (`- section: x` with no
+      // indent), so the entry test has to come before the near-miss test.
+      out.push({ line, fields: {} });
+      continue;
+    }
+    if (SUBBULLET_SHAPE_RE.test(line)) return null; // near-miss sub-bullet
+    return null; // neither an entry nor a field
+  }
+  return out;
+}
+
 /** Strip the storage bullet from a value line, or `null` when not a bullet. */
 function unbullet(line: string): string | null {
   const m = line.match(/^- (.*)$/);
@@ -190,29 +291,53 @@ export function parseLedger(raw: string): LedgerState {
     else state.scope = values.join(' ');
   }
 
-  for (const line of sections.get('Decided') ?? []) {
-    const m = line.match(/^- (D\d+) (.*)$/);
-    if (!m) {
-      state.unparsed.push('Decided');
-      state.decided = [];
-      break;
+  const decidedEntries = groupEntries(sections.get('Decided') ?? []);
+  if (decidedEntries === null) state.unparsed.push('Decided');
+  else {
+    for (const entry of decidedEntries) {
+      const m = entry.line.match(/^- (D\d+) (.*)$/);
+      if (!m) {
+        state.unparsed.push('Decided');
+        state.decided = [];
+        break;
+      }
+      const d: Decision = { id: m[1]!, text: m[2]! };
+      for (const [key, prop] of Object.entries(FIELD_KEYS)) {
+        const value = entry.fields[key as FieldKey];
+        if (value !== undefined) d[prop] = value;
+      }
+      state.decided.push(d);
     }
-    state.decided.push({ id: m[1], text: m[2] });
   }
 
-  for (const line of sections.get('Open') ?? []) {
-    const resolved = line.match(/^- (O\d+) ~~(.*)~~ → (D\d+|\(resolved\))$/);
-    if (resolved) {
-      state.open.push({ id: resolved[1], text: resolved[2], resolvedBy: resolved[3] });
-      continue;
+  const openEntries = groupEntries(sections.get('Open') ?? []);
+  if (openEntries === null) state.unparsed.push('Open');
+  else {
+    for (const entry of openEntries) {
+      // `why`/`instead-of` are decision-only: a thread has no reasoning yet, so
+      // accepting one here would store a value the renderer never shows and the
+      // next write would drop. Fail closed instead.
+      if (entry.fields.why !== undefined || entry.fields['instead-of'] !== undefined) {
+        state.unparsed.push('Open');
+        state.open = [];
+        break;
+      }
+      const resolved = entry.line.match(/^- (O\d+) ~~(.*)~~ → (D\d+|\(resolved\))$/);
+      const plain = resolved ? null : entry.line.match(/^- (O\d+) (.*)$/);
+      const m = resolved ?? plain;
+      if (!m) {
+        state.unparsed.push('Open');
+        state.open = [];
+        break;
+      }
+      const o: OpenThread = {
+        id: m[1]!,
+        text: m[2]!,
+        resolvedBy: resolved ? resolved[3]! : null,
+      };
+      if (entry.fields.section !== undefined) o.section = entry.fields.section;
+      state.open.push(o);
     }
-    const plain = line.match(/^- (O\d+) (.*)$/);
-    if (!plain) {
-      state.unparsed.push('Open');
-      state.open = [];
-      break;
-    }
-    state.open.push({ id: plain[1], text: plain[2], resolvedBy: null });
   }
 
   for (const line of sections.get('Existing support') ?? []) {
@@ -225,13 +350,39 @@ export function parseLedger(raw: string): LedgerState {
     state.support.push(value);
   }
 
+  for (const line of sections.get('Confirmed') ?? []) {
+    const m = line.match(CONFIRMED_RE);
+    // A duplicate name would make one heading both fresh and stale depending on
+    // which record the renderer reached first.
+    if (!m || state.confirmed.some((c) => c.name === m[1])) {
+      state.unparsed.push('Confirmed');
+      state.confirmed = [];
+      break;
+    }
+    state.confirmed.push({ name: m[1]!, digest: m[2]! });
+  }
+
   // A section can trip two detectors at once (duplicate heading *and* an
   // unparseable body); report each name once so the writer's error names it once.
   state.unparsed = [...new Set(state.unparsed)];
   return state;
 }
 
-/** Render a ledger back to its on-disk form. Every value is a column-0 bullet. */
+/**
+ * Render a ledger back to its on-disk form. Every entry value is a column-0
+ * bullet; every field is a two-space-indented sub-bullet beneath its entry, in
+ * canonical `section → why → instead-of` order.
+ *
+ * `Decision` stores named fields with no memory of input order, so a hand-written
+ * ledger whose sub-bullets arrive in another order re-serializes canonically.
+ * That is the one respect in which the round trip is semantic rather than
+ * byte-preserving.
+ *
+ * `Confirmed` is the only heading emitted conditionally. Every other heading is
+ * written whether or not it has a body — the shape every ledger predating this
+ * change already has on disk — so emitting an empty `## Confirmed` too would
+ * rewrite all of them on their next touch.
+ */
 export function serializeLedger(slug: string, state: LedgerState): string {
   const lines = [`# Design ledger — ${slug}`, ''];
   const section = (name: SectionName, body: string[]): void => {
@@ -239,22 +390,35 @@ export function serializeLedger(slug: string, state: LedgerState): string {
     for (const b of body) lines.push(b);
     if (body.length > 0) lines.push('');
   };
+  const fields = (d: Decision | OpenThread): string[] =>
+    (Object.entries(FIELD_KEYS) as [FieldKey, (typeof FIELD_KEYS)[FieldKey]][])
+      .map(([key, prop]) => [key, (d as Decision)[prop]] as const)
+      .filter((pair): pair is [FieldKey, string] => pair[1] !== undefined)
+      .map(([key, value]) => `  - ${key}: ${value}`);
+
   section('Entry', state.entry === null ? [] : [`- ${state.entry}`]);
   section('Scope', state.scope === null ? [] : [`- ${state.scope}`]);
   section(
     'Decided',
-    state.decided.map((d) => `- ${d.id} ${d.text}`),
+    state.decided.flatMap((d) => [`- ${d.id} ${d.text}`, ...fields(d)]),
   );
   section(
     'Open',
-    state.open.map((o) =>
+    state.open.flatMap((o) => [
       o.resolvedBy === null ? `- ${o.id} ${o.text}` : `- ${o.id} ~~${o.text}~~ → ${o.resolvedBy}`,
-    ),
+      ...fields(o),
+    ]),
   );
   section(
     'Existing support',
     state.support.map((s) => `- ${s}`),
   );
+  if (state.confirmed.length > 0) {
+    section(
+      'Confirmed',
+      state.confirmed.map((c) => `- ${c.name} · ${c.digest}`),
+    );
+  }
   return `${lines.join('\n').trimEnd()}\n`;
 }
 

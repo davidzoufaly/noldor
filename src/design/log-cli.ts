@@ -101,6 +101,7 @@ export function applyLog(state: LedgerState, args: LogArgs): LedgerState | { err
     decided: [...state.decided],
     open: [...state.open],
     support: [...state.support, ...args.support.map(normalize)],
+    confirmed: [...state.confirmed],
     unparsed: [],
   };
 
