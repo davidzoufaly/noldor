@@ -1,6 +1,5 @@
 // @tests: noldor-package-lift
 
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -46,18 +45,17 @@ describe('manifest entrypoints under both runtimes', () => {
 });
 
 describe('the runtime-asset scan', () => {
-  it('ignores generated trees git ignores, and still flags real assets', () => {
-    // src/graphify-out/ holds hundreds of gitignored cache files. The scan walks
-    // the filesystem, not the index, so without asking git every consumer with
-    // graphify output gets a red build — while a genuinely new runtime asset
-    // must still fail closed.
+  it('ignores generated trees, and still flags a real new asset beside them', () => {
+    // src/graphify-out/ is a cache directory holding hundreds of files in any
+    // workspace that has run graphify. It is excluded statically rather than by
+    // asking git: `prepare` runs the build with the package root inside a
+    // consumer's node_modules/, which git reports as ignored wholesale, so a git
+    // query would switch this fail-closed scan off precisely there.
     const repo = mkdtempSync(join(tmpdir(), 'asset-scan-'));
     try {
-      execFileSync('git', ['init', '-q'], { cwd: repo });
-      mkdirSync(join(repo, 'src/graphify-out/cache'), { recursive: true });
+      mkdirSync(join(repo, 'src/graphify-out/cache/ast'), { recursive: true });
       mkdirSync(join(repo, 'src/cr'), { recursive: true });
-      writeFileSync(join(repo, '.gitignore'), '*/graphify-out/\n');
-      writeFileSync(join(repo, 'src/graphify-out/cache/ast.json'), '{}\n');
+      writeFileSync(join(repo, 'src/graphify-out/cache/ast/abc.json'), '{}\n');
 
       expect(unmanifestedAssets(repo)).toEqual([]);
 

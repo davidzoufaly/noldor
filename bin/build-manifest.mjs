@@ -7,7 +7,6 @@
 // assertion would notice. Plain `.mjs` because the selector runs before any
 // TypeScript is loadable.
 
-import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
@@ -34,8 +33,25 @@ export const NON_RUNTIME_FILES = {
     'no reader — boundaries.ts builds cruise() options in code',
 };
 
-/** Path segments and suffixes `tsconfig.json` excludes from compilation. */
-const EXCLUDED = [/(^|\/)__tests__(\/|$)/, /\.test\.ts$/, /^src\/fixtures(\/|$)/];
+/**
+ * Paths neither the compiler nor the asset scan looks at: what `tsconfig.json`
+ * excludes, plus generated trees that live under `src/`.
+ *
+ * `graphify-out` is a cache directory (gitignored at `.gitignore:54`) holding
+ * hundreds of files in any workspace that has run graphify. Listing it here
+ * rather than asking git what is ignored is deliberate: `prepare` runs the build
+ * with the package root inside a consumer's `node_modules/`, which git reports as
+ * ignored wholesale — so a git query would silently turn the fail-closed asset
+ * scan into a no-op exactly where it matters. A future generated tree therefore
+ * reds the build until someone adds it here, which is the behaviour a
+ * fail-closed guard should have.
+ */
+const EXCLUDED = [
+  /(^|\/)__tests__(\/|$)/,
+  /\.test\.ts$/,
+  /^src\/fixtures(\/|$)/,
+  /(^|\/)graphify-out(\/|$)/,
+];
 
 const isExcluded = (rel) => EXCLUDED.some((re) => re.test(rel));
 const toPosix = (p) => p.split(sep).join('/');
@@ -120,40 +136,8 @@ export function expectedOutputs(root) {
  */
 export function unmanifestedAssets(root) {
   const known = new Set([...RUNTIME_ASSETS, ...Object.keys(NON_RUNTIME_FILES)]);
-  const candidates = allSourceFiles(root).filter(
+  return allSourceFiles(root).filter(
     (rel) => !rel.endsWith('.ts') && !isExcluded(rel) && !known.has(rel),
-  );
-  // Generated trees live under src/ too — `src/graphify-out/` holds hundreds of
-  // cache files and is gitignored. The scan walks the filesystem, not the index,
-  // so it must ask git what is ignored or every consumer with graphify output
-  // has a red build.
-  const ignored = gitIgnored(root, candidates);
-  return candidates.filter((rel) => !ignored.has(rel));
-}
-
-/**
- * Which of `paths` git ignores.
- *
- * @param root - Package root (the git work tree).
- * @param paths - Repo-relative candidate paths.
- * @returns The ignored subset. Empty when git cannot answer, which keeps the
- *   caller's fail-closed posture rather than silently widening what ships.
- */
-function gitIgnored(root, paths) {
-  if (paths.length === 0) return new Set();
-  const result = spawnSync('git', ['check-ignore', '--stdin'], {
-    cwd: root,
-    encoding: 'utf8',
-    input: paths.join('\n'),
-  });
-  // 0 = some paths ignored (printed), 1 = none ignored, anything else = git could
-  // not answer (not a work tree, git missing).
-  if (result.status !== 0 && result.status !== 1) return new Set();
-  return new Set(
-    result.stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0),
   );
 }
 
