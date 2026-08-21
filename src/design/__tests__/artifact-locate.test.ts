@@ -233,6 +233,36 @@ describe('locateArtifact — override', () => {
     ]);
   });
 
+  it('vets every sibling the plan cohort pulls in', () => {
+    // The sibling walk once bypassed vet(), so a same-stem symlink could leak a
+    // file from outside the plans root into chat.
+    const cwd = repo();
+    plan(cwd, `2026-08-21-${SLUG}-part1.md`);
+    const outside = join(cwd, 'secret.md');
+    writeFileSync(outside, 'leak');
+    symlinkSync(outside, join(cwd, 'docs', 'design', 'plans', `2026-08-21-${SLUG}-part2.md`));
+    const r = locateArtifact(cwd, {
+      slug: SLUG,
+      kind: 'plan',
+      override: `docs/design/plans/2026-08-21-${SLUG}-part1.md`,
+    });
+    expect(r.status).toBe('rejected');
+    expect(r.status === 'rejected' && r.reason).toMatch(/outside/);
+  });
+
+  it('applies the duplicate-part check to an override cohort', () => {
+    const cwd = repo();
+    plan(cwd, `2026-08-21-${SLUG}.md`);
+    plan(cwd, `2026-08-21-${SLUG}-part1.md`);
+    const r = locateArtifact(cwd, {
+      slug: SLUG,
+      kind: 'plan',
+      override: `docs/design/plans/2026-08-21-${SLUG}.md`,
+    });
+    expect(r.status).toBe('rejected');
+    expect(r.status === 'rejected' && r.reason).toMatch(/part number/);
+  });
+
   it('leaves a spec override as the single file named', () => {
     const cwd = repo();
     const p = spec(cwd, `2026-08-21-${SLUG}-design.md`);

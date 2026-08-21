@@ -10,7 +10,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { isAbsolute, join, resolve, sep } from 'node:path';
+import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { resolveExisting } from '../core/branch-added.js';
 import { loadDocRoots } from '../core/doc-roots.js';
@@ -97,22 +97,81 @@ function vet(
 }
 
 /**
- * Every part of the split plan `path` belongs to, in part-number order.
+ * Turn a set of candidate filenames into a vetted, ordered cohort — or the reason
+ * they do not form one.
  *
- * Returns just `[path]` when the file is not part of a cohort, so the caller can
- * treat one-element and many-element results identically.
+ * Shared by discovery and by a plan `--spec` override, deliberately: an earlier
+ * revision expanded an override through its own sibling walk, which skipped
+ * `vet` (so a same-stem symlink could leak a file from outside the root into
+ * chat), skipped the duplicate-part check, and degraded to a single file when the
+ * directory could not be listed. One path means those three guarantees cannot
+ * diverge from the discovery path again.
  */
-function generationSiblings(path: string, root: string): string[] {
-  const self = path.slice(root.length + 1);
-  const stem = generationStem(self);
-  let names: string[];
-  try {
-    names = readdirSync(root);
-  } catch {
-    return [path];
+function assembleCohort(
+  root: string,
+  names: readonly string[],
+  kind: ArtifactKind,
+  label: string,
+): LocateResult {
+  if (names.length === 0) return { status: 'none' };
+
+  // Every match must belong to one generation. `extractPlanSlug` strips both the
+  // date prefix and a `plan<n>-` prefix, so two generations collapse onto one slug
+  // even when their part numbers do not overlap, and blending them would let
+  // `extractSection` resolve a heading to prose the operator never approved.
+  const stems = [...new Set(names.map(generationStem))];
+  if (stems.length > 1) {
+    return {
+      status: 'rejected',
+      reason: `${label} matches ${stems.length} generations (${stems.sort().join(', ')}) — name one with --spec`,
+    };
   }
-  const cohort = names.filter((n) => n.endsWith('.md') && generationStem(n) === stem);
-  return cohort.sort((a, b) => partNumber(a) - partNumber(b)).map((n) => join(root, n));
+
+  // Within one generation, part numbers must be distinct. A part-less file is
+  // part 1, so `<slug>.md` alongside `<slug>-part1.md` is a duplicate, not a pair.
+  const byPart = new Map<number, string[]>();
+  for (const name of names) {
+    const n = partNumber(name);
+    byPart.set(n, [...(byPart.get(n) ?? []), name]);
+  }
+  const collided = [...byPart.values()].filter((g) => g.length > 1).flat();
+  if (collided.length > 0) {
+    return {
+      status: 'rejected',
+      reason: `${collided.length} ${kind} files share ${label} and part number (${collided.sort().join(', ')}) — name one with --spec`,
+    };
+  }
+
+  const paths: string[] = [];
+  for (const name of [...names].sort((a, b) => partNumber(a) - partNumber(b))) {
+    const vetted = vet(join(root, name), root);
+    if (!vetted.ok) return { status: 'rejected', reason: vetted.reason };
+    paths.push(vetted.path);
+  }
+  return { status: 'found', paths };
+}
+
+/** Filenames in `root`, or the reason it cannot be listed. */
+function listRoot(
+  root: string,
+): { ok: true; names: string[] } | { ok: false; result: LocateResult } {
+  try {
+    return { ok: true, names: readdirSync(root) };
+  } catch (e) {
+    // Only a *missing* directory is an absence — a repo that has never written
+    // this kind of artifact. A permission error or a non-directory at the
+    // configured root is a misconfiguration, and reporting it as "no artifact
+    // yet" would silently suppress the checklist and every warning forever.
+    const code = (e as { code?: string }).code;
+    if (code === 'ENOENT') return { ok: false, result: { status: 'none' } };
+    return {
+      ok: false,
+      result: {
+        status: 'rejected',
+        reason: `${root}: cannot be listed (${code ?? 'unknown error'})`,
+      },
+    };
+  }
 }
 
 /**
@@ -139,35 +198,27 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
     const abs = isAbsolute(opts.override) ? opts.override : resolve(cwd, opts.override);
     const vetted = vet(abs, root);
     if (!vetted.ok) return { status: 'rejected', reason: vetted.reason };
-    // An override that names one part of a split plan expands to its whole
-    // generation. Honouring it literally would hand the caller a subset, and a
-    // subset is exactly what the all-or-nothing approval invariant forbids: a
-    // heading present in a sibling part would read as absent, and
-    // `--confirm-section` would digest a partial plan.
-    if (kind === 'plan') {
-      const cohort = generationSiblings(vetted.path, root);
-      if (cohort.length > 1) return { status: 'found', paths: cohort };
-    }
-    return { status: 'found', paths: [vetted.path] };
+    // A spec override is the one file named. A plan override expands to its whole
+    // generation: handing back one part of a split plan is the subset the
+    // all-or-nothing approval rule forbids, since a heading living in a sibling
+    // part would read as absent and `--confirm-section` would digest a fragment.
+    if (kind !== 'plan') return { status: 'found', paths: [vetted.path] };
+    const listed = listRoot(root);
+    if (!listed.ok) return listed.result;
+    const stem = generationStem(basename(vetted.path));
+    const cohort = listed.names.filter((n) => n.endsWith('.md') && generationStem(n) === stem);
+    return assembleCohort(root, cohort, kind, `override '${opts.override}'`);
   }
 
-  let names: string[];
-  try {
-    names = readdirSync(root);
-  } catch (e) {
-    // Only a *missing* directory is an absence — a repo that has never written
-    // this kind of artifact. A permission error or a non-directory at the
-    // configured root is a misconfiguration, and reporting it as "no artifact
-    // yet" would silently suppress the checklist and every warning forever.
-    const code = (e as { code?: string }).code;
-    if (code === 'ENOENT') return { status: 'none' };
-    return { status: 'rejected', reason: `${root}: cannot be listed (${code ?? 'unknown error'})` };
-  }
+  const listed = listRoot(root);
+  if (!listed.ok) return listed.result;
 
   const extract = kind === 'spec' ? extractSpecSlug : extractPlanSlug;
-  const matches = names.filter((n) => n.endsWith('.md') && extract(n) === opts.slug);
+  const matches = listed.names.filter((n) => n.endsWith('.md') && extract(n) === opts.slug);
   if (matches.length === 0) return { status: 'none' };
 
+  // Two spec generations for one slug have no defensible winner, and a spec is
+  // never split, so any multiple match is ambiguous rather than a cohort.
   if (kind === 'spec' && matches.length > 1) {
     return {
       status: 'rejected',
@@ -175,48 +226,7 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
     };
   }
 
-  // Two checks, because a plan slug can be ambiguous in two independent ways and
-  // either one lets `view.section` resolve a heading to prose the operator never
-  // approved — the failure `--confirm-section` must never record.
-  //
-  // First: every match must belong to one generation. `extractPlanSlug` strips
-  // both the date prefix and a `plan<n>-` prefix, so two generations collapse onto
-  // one slug even when their part numbers do not overlap.
-  const stems = [...new Set(matches.map(generationStem))];
-  if (stems.length > 1) {
-    return {
-      status: 'rejected',
-      reason:
-        `${kind} slug '${opts.slug}' matches ${stems.length} generations ` +
-        `(${stems.sort().join(', ')}) — name one with --spec`,
-    };
-  }
-
-  // Second: within one generation, parts must be distinct. A part-less file is
-  // part 1, so `<slug>.md` alongside `<slug>-part1.md` is a duplicate, not a pair.
-  const byPart = new Map<number, string[]>();
-  for (const name of matches) {
-    const n = partNumber(name);
-    byPart.set(n, [...(byPart.get(n) ?? []), name]);
-  }
-  const collided = [...byPart.values()].filter((g) => g.length > 1).flat();
-  if (collided.length > 0) {
-    return {
-      status: 'rejected',
-      reason:
-        `${collided.length} ${kind} files share slug '${opts.slug}' and part number ` +
-        `(${collided.sort().join(', ')}) — name one with --spec`,
-    };
-  }
-
-  const ordered = [...matches].sort((a, b) => partNumber(a) - partNumber(b));
-  const paths: string[] = [];
-  for (const name of ordered) {
-    const vetted = vet(join(root, name), root);
-    if (!vetted.ok) return { status: 'rejected', reason: vetted.reason };
-    paths.push(vetted.path);
-  }
-  return { status: 'found', paths };
+  return assembleCohort(root, matches, kind, `slug '${opts.slug}'`);
 }
 
 /**
