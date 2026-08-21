@@ -12,6 +12,9 @@
 
 ## File Structure
 
+- `src/binary/entry.ts` — binary-only compile entrypoint (bake, mark, extract, import CLI)
+- `src/binary/ambient.d.ts` — `NOLDOR_BINARY_VERSION` + minimal `Bun.embeddedFiles` declarations
+- `src/cli/commands/init-adopt-guard.ts` + `src/cli/commands/init.ts` — `--adopt` refusal on binary channel
 - `bin/build-binary.mjs` — bun-floor guard, dist build, pack assembly, `bun build --compile`
 - `bin/generate-notices.mjs` — THIRD_PARTY_NOTICES.txt generator (fail-closed)
 - `scripts/smoke-binary.sh` — the 7-assertion native smoke suite (spec Unit 6)
@@ -24,7 +27,128 @@
 
 ---
 
-## Task 1: `bin/build-binary.mjs` + pack assembly
+## Task 1: binary entry + ambient decls + adopt refusal
+
+**Files:**
+Create: `src/binary/entry.ts`, `src/binary/ambient.d.ts`
+Modify: `src/cli/commands/init.ts`
+Test: `src/cli/__tests__/` (existing init test file if present; else assertion via the adopt guard unit below)
+
+- [ ] **Step 1: Write the failing adopt-refusal test.** Locate the init command tests (`ls src/cli/__tests__/ | grep -i init`); add to the matching file (or create `src/cli/__tests__/init-adopt-guard.test.ts`):
+  ```ts
+  // @tests: single-static-binary-distribution
+  import { afterEach, describe, expect, it } from 'vitest';
+  import { assertAdoptAllowed } from '../commands/init-adopt-guard.js';
+
+  describe('adopt on the binary channel', () => {
+    afterEach(() => delete process.env.NOLDOR_BINARY);
+
+    it('throws with the npm-channel pointer when NOLDOR_BINARY=1', () => {
+      process.env.NOLDOR_BINARY = '1';
+      expect(() => assertAdoptAllowed()).toThrow(/npm channel/);
+    });
+
+    it('allows adopt on the npm channel', () => {
+      delete process.env.NOLDOR_BINARY;
+      expect(() => assertAdoptAllowed()).not.toThrow();
+    });
+  });
+  ```
+- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/cli/__tests__/init-adopt-guard.test.ts` — Expected: FAIL (module not found).
+- [ ] **Step 3: Implement the guard.** Create `src/cli/commands/init-adopt-guard.ts`:
+  ```ts
+  import { isBinaryChannel } from '../../binary/asset-root.js';
+
+  /**
+   * `init --adopt` writes consumer snapshots INTO the package templates root.
+   * On the binary channel that root is the shared version-keyed cache — a
+   * write there would leak one repo's snapshot into every repo on the machine
+   * (spec Unit 2 write-refusal guard).
+   */
+  export function assertAdoptAllowed(): void {
+    if (isBinaryChannel()) {
+      throw new Error(
+        'adopt requires the npm channel — the binary\'s template root is a shared read-only cache',
+      );
+    }
+  }
+  ```
+  In `src/cli/commands/init.ts`, at the top of the `if (adopt) {` branch (before `templateFiles()` is called):
+  ```ts
+  try {
+    assertAdoptAllowed();
+  } catch (error) {
+    console.error((error as Error).message);
+    process.exit(1);
+  }
+  ```
+  with `import { assertAdoptAllowed } from './init-adopt-guard.js';` among the imports.
+- [ ] **Step 4: Implement the entry + ambient decls.** Create `src/binary/ambient.d.ts`:
+  ```ts
+  /** Compile-time constant injected by `bun build --define` (spec Unit 2). */
+  declare const NOLDOR_BINARY_VERSION: string;
+
+  /**
+   * Minimal Bun surface the entry touches. The pack rides as an extra compile
+   * input and is read back as bytes — no `.pack` import statement exists, so
+   * the dist import-graph audit never sees it. bun-types is deliberately not
+   * a dependency.
+   */
+  declare const Bun: {
+    embeddedFiles: Array<{ name: string; arrayBuffer(): Promise<ArrayBuffer> }>;
+  };
+  ```
+  Create `src/binary/entry.ts`:
+  ```ts
+  /* eslint-disable no-console */
+  // Binary-channel entrypoint (spec Unit 2). Compiled by tsgo to
+  // dist/binary/entry.js, then `bun build --compile dist/binary/entry.js
+  // assets.pack` bundles it WITH the pack as an embedded extra input. Never
+  // imported under Node — bin/noldor.mjs is the npm-channel entry. Env is set
+  // BEFORE the dynamic CLI import so module-top-level seam reads see it
+  // (ordering spike-verified, Part 1 Task 1 Step 6).
+  import { assetRoot, resolveAssetCachePath } from './asset-root.js';
+  import { extractAssets } from './asset-pack.js';
+
+  process.env.NOLDOR_BINARY = '1';
+
+  const operatorRoot = assetRoot();
+  if (operatorRoot === null) {
+    const embedded = Bun.embeddedFiles.find((f) => f.name.endsWith('.pack'));
+    if (!embedded) {
+      console.error('noldor: embedded assets.pack missing — rebuild the binary');
+      process.exit(1);
+    }
+    const pack = Buffer.from(await embedded.arrayBuffer());
+    const dest = resolveAssetCachePath(NOLDOR_BINARY_VERSION);
+    const { extracted } = extractAssets(pack, dest);
+    if (extracted) console.error(`noldor: extracted assets to ${dest}`);
+    process.env.NOLDOR_ASSET_ROOT = dest;
+  }
+
+  await import('../cli/index.js');
+  ```
+- [ ] **Step 5: Verify compile + inert path.** Run `pnpm typecheck` — Expected: exit 0 (ambient decls satisfy the entry). Run `pnpm build` — Expected: build succeeds; `dist/binary/entry.js` and `dist/binary/asset-root.js` exist. Run the full suite `pnpm test` — Expected: green (nothing imports the entry under Node; seams inert).
+- [ ] **Step 6: Update the tarball contract snapshot.** Run `pnpm test:contract` — if it FAILS on new tarball entries (`dist/binary/*`), update the recorded snapshot per the failing assertion's message (the packed-entry list fixture), re-run, and confirm green. Expected final output: contract suite passes with the `dist/binary/entry.js` + `dist/binary/pack-list.js` (Task 2) recorded as inert additions; Part 1 already recorded the library entries.
+- [ ] **Step 7: Commit.** Write `/tmp/msg-entry.txt`:
+  ```
+  feat(binary): compile entrypoint, ambient decls, adopt refusal
+
+  Entry bakes the version, marks the channel, extracts on miss with the
+  stderr oracle line, then imports the dist CLI; init --adopt refuses on the
+  binary channel (spec Unit 2). Tarball snapshot records the inert
+  dist/binary entries.
+
+  Noldor-FD: single-static-binary-distribution
+  ```
+  ```bash
+  git add src/binary/entry.ts src/binary/ambient.d.ts src/cli/commands/init-adopt-guard.ts src/cli/commands/init.ts src/cli/__tests__ src/testing && git commit -F /tmp/msg-entry.txt
+  ```
+  (Include whichever snapshot file Step 6 touched; `git status --short` first if unsure.)
+
+---
+
+## Task 2: `bin/build-binary.mjs` + pack assembly
 
 **Files:**
 Create: `bin/build-binary.mjs`
@@ -179,7 +303,7 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
 
 ---
 
-## Task 2: notices generator (fail-closed)
+## Task 3: notices generator (fail-closed)
 
 **Files:**
 Create: `bin/generate-notices.mjs`
@@ -252,7 +376,7 @@ Test: `src/binary/__tests__/build-pipeline.test.ts`
 
 ---
 
-## Task 3: smoke suite
+## Task 4: smoke suite
 
 **Files:**
 Create: `scripts/smoke-binary.sh`
@@ -347,7 +471,7 @@ Create: `scripts/smoke-binary.sh`
 
 ---
 
-## Task 4: release workflow
+## Task 5: release workflow
 
 **Files:**
 Create: `.github/workflows/release-binaries.yml`
@@ -459,7 +583,7 @@ Create: `.github/workflows/release-binaries.yml`
 
 ---
 
-## Task 5: installer
+## Task 6: installer
 
 **Files:**
 Create: `install.sh`
@@ -569,7 +693,7 @@ Test: `src/binary/__tests__/install-mapping.test.ts`
 
 ---
 
-## Task 6: docs
+## Task 7: docs
 
 **Files:**
 Modify: `README.md`, `docs/noldor/gotchas.md` (+ the adoption/hooks page `docs/noldor/` — locate the page that documents lefthook wiring, e.g. via `grep -rl lefthook docs/noldor/ | head -3`)

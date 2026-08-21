@@ -2,9 +2,9 @@
 
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
-**Goal:** Everything the binary needs *inside* the package: channel/asset-root resolution, the framed asset pack + extractor, the three asset-read seams, the self-exec seam, and the compile entrypoint — all inert on the npm channel (env unset ⇒ byte-identical behavior).
+**Goal:** The binary's in-package runtime: channel/asset-root resolution, the framed asset pack + extractor, the three asset-read seams, and the self-exec seam — all inert on the npm channel (env unset ⇒ byte-identical behavior). The compile entrypoint itself opens Part 2 (its consumer, the build script, lives there).
 
-**Architecture:** New `src/binary/` module (asset-root, asset-pack, entry, ambient decls). Three read sites and one spawn helper consult it first; two hand-rolled launchers converge on `noldorCliCommand()`; `init --adopt` and the stub runner refuse on the binary channel. Spec: `docs/design/specs/2026-08-21-single-static-binary-distribution-design.md`.
+**Architecture:** New `src/binary/` module (asset-root, asset-pack). Three read sites consult it first; two hand-rolled launchers converge on `noldorCliCommand()`; the stub runner refuses on the binary channel. Spec: `docs/design/specs/2026-08-21-single-static-binary-distribution-design.md`.
 
 **Tech Stack:** TypeScript (tsgo), vitest, node:fs/crypto only — no new dependencies. Bun is used by the spike task only (external tool).
 
@@ -15,8 +15,6 @@
 - `src/binary/bun-floor.ts` — spike-recorded Bun version pin (single exported constant)
 - `src/binary/asset-root.ts` — `isBinaryChannel()`, `assetRoot()`, `resolveAssetCachePath()`
 - `src/binary/asset-pack.ts` — pack writer/reader + `extractAssets()` (framing, validation, atomic extract)
-- `src/binary/entry.ts` — binary-only compile entrypoint (bake, mark, extract, import CLI)
-- `src/binary/ambient.d.ts` — `NOLDOR_BINARY_VERSION` + `*.pack` module declarations
 - `src/binary/__tests__/asset-root.test.ts` — env/platform matrix
 - `src/binary/__tests__/asset-pack.test.ts` — round-trip + rejection table + extractor protocol
 - `src/templates/manifest.ts` — `TEMPLATES_ROOT` consults `assetRoot()` first (seam 1)
@@ -27,7 +25,6 @@
 - `src/autonomous/watch-detach.ts` — detach spawn uses `noldorCliCommand()`
 - `src/core/agent-runner/doctor-runners.ts` — stub probe reports unavailable on binary channel
 - `src/core/agent-runner/runners/stub.ts` — `buildStubArgv` throws on binary channel
-- `src/cli/commands/init.ts` — `--adopt` refusal on binary channel
 
 ---
 
@@ -896,7 +893,7 @@ Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else 
   }
   ```
   Add a unit test beside the existing doctor-runners tests asserting the stub check returns `missing` with that detail when `NOLDOR_BINARY='1'` (set/restore env in the test).
-- [ ] **Step 7: Run to verify PASS.** `pnpm vitest run src/core src/autonomous src/dashboard` — Expected: all pass. Then `pnpm typecheck` — Expected: exit 0.
+- [ ] **Step 7: Run to verify PASS.** `pnpm vitest run src/core src/autonomous src/dashboard` — Expected: all pass. Then `pnpm typecheck` — Expected: exit 0. Then `pnpm test:contract` — if it FAILS on new tarball entries (`dist/binary/asset-root.js`, `dist/binary/asset-pack.js`, `dist/binary/bun-floor.js`), update the recorded packed-entry snapshot per the failing assertion's message and re-run to green; include the snapshot file in the commit below.
 - [ ] **Step 8: Commit.** Write `/tmp/msg-selfexec.txt`:
   ```
   feat(binary): self-exec seam — launchers converge on noldorCliCommand
@@ -911,123 +908,3 @@ Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else 
   git add src/core/noldor-cli.ts src/dashboard/ensure.ts src/autonomous/watch-detach.ts src/core/agent-runner/runners/stub.ts src/core/agent-runner/doctor-runners.ts src/core/__tests__/noldor-cli.test.ts src/autonomous/__tests__ src/core/agent-runner/__tests__ && git commit -F /tmp/msg-selfexec.txt
   ```
 
----
-
-## Task 7: binary entry + ambient decls + adopt refusal
-
-**Files:**
-Create: `src/binary/entry.ts`, `src/binary/ambient.d.ts`
-Modify: `src/cli/commands/init.ts`
-Test: `src/cli/__tests__/` (existing init test file if present; else assertion via the adopt guard unit below)
-
-- [ ] **Step 1: Write the failing adopt-refusal test.** Locate the init command tests (`ls src/cli/__tests__/ | grep -i init`); add to the matching file (or create `src/cli/__tests__/init-adopt-guard.test.ts`):
-  ```ts
-  // @tests: single-static-binary-distribution
-  import { afterEach, describe, expect, it } from 'vitest';
-  import { assertAdoptAllowed } from '../commands/init-adopt-guard.js';
-
-  describe('adopt on the binary channel', () => {
-    afterEach(() => delete process.env.NOLDOR_BINARY);
-
-    it('throws with the npm-channel pointer when NOLDOR_BINARY=1', () => {
-      process.env.NOLDOR_BINARY = '1';
-      expect(() => assertAdoptAllowed()).toThrow(/npm channel/);
-    });
-
-    it('allows adopt on the npm channel', () => {
-      delete process.env.NOLDOR_BINARY;
-      expect(() => assertAdoptAllowed()).not.toThrow();
-    });
-  });
-  ```
-- [ ] **Step 2: Run to verify FAIL.** `pnpm vitest run src/cli/__tests__/init-adopt-guard.test.ts` — Expected: FAIL (module not found).
-- [ ] **Step 3: Implement the guard.** Create `src/cli/commands/init-adopt-guard.ts`:
-  ```ts
-  import { isBinaryChannel } from '../../binary/asset-root.js';
-
-  /**
-   * `init --adopt` writes consumer snapshots INTO the package templates root.
-   * On the binary channel that root is the shared version-keyed cache — a
-   * write there would leak one repo's snapshot into every repo on the machine
-   * (spec Unit 2 write-refusal guard).
-   */
-  export function assertAdoptAllowed(): void {
-    if (isBinaryChannel()) {
-      throw new Error(
-        'adopt requires the npm channel — the binary\'s template root is a shared read-only cache',
-      );
-    }
-  }
-  ```
-  In `src/cli/commands/init.ts`, at the top of the `if (adopt) {` branch (before `templateFiles()` is called):
-  ```ts
-  try {
-    assertAdoptAllowed();
-  } catch (error) {
-    console.error((error as Error).message);
-    process.exit(1);
-  }
-  ```
-  with `import { assertAdoptAllowed } from './init-adopt-guard.js';` among the imports.
-- [ ] **Step 4: Implement the entry + ambient decls.** Create `src/binary/ambient.d.ts`:
-  ```ts
-  /** Compile-time constant injected by `bun build --define` (spec Unit 2). */
-  declare const NOLDOR_BINARY_VERSION: string;
-
-  /**
-   * Minimal Bun surface the entry touches. The pack rides as an extra compile
-   * input and is read back as bytes — no `.pack` import statement exists, so
-   * the dist import-graph audit never sees it. bun-types is deliberately not
-   * a dependency.
-   */
-  declare const Bun: {
-    embeddedFiles: Array<{ name: string; arrayBuffer(): Promise<ArrayBuffer> }>;
-  };
-  ```
-  Create `src/binary/entry.ts`:
-  ```ts
-  /* eslint-disable no-console */
-  // Binary-channel entrypoint (spec Unit 2). Compiled by tsgo to
-  // dist/binary/entry.js, then `bun build --compile dist/binary/entry.js
-  // assets.pack` bundles it WITH the pack as an embedded extra input. Never
-  // imported under Node — bin/noldor.mjs is the npm-channel entry. Env is set
-  // BEFORE the dynamic CLI import so module-top-level seam reads see it
-  // (ordering spike-verified, Task 1 Step 6).
-  import { assetRoot, resolveAssetCachePath } from './asset-root.js';
-  import { extractAssets } from './asset-pack.js';
-
-  process.env.NOLDOR_BINARY = '1';
-
-  const operatorRoot = assetRoot();
-  if (operatorRoot === null) {
-    const embedded = Bun.embeddedFiles.find((f) => f.name.endsWith('.pack'));
-    if (!embedded) {
-      console.error('noldor: embedded assets.pack missing — rebuild the binary');
-      process.exit(1);
-    }
-    const pack = Buffer.from(await embedded.arrayBuffer());
-    const dest = resolveAssetCachePath(NOLDOR_BINARY_VERSION);
-    const { extracted } = extractAssets(pack, dest);
-    if (extracted) console.error(`noldor: extracted assets to ${dest}`);
-    process.env.NOLDOR_ASSET_ROOT = dest;
-  }
-
-  await import('../cli/index.js');
-  ```
-- [ ] **Step 5: Verify compile + inert path.** Run `pnpm typecheck` — Expected: exit 0 (ambient decls satisfy the entry). Run `pnpm build` — Expected: build succeeds; `dist/binary/entry.js` and `dist/binary/asset-root.js` exist. Run the full suite `pnpm test` — Expected: green (nothing imports the entry under Node; seams inert).
-- [ ] **Step 6: Update the tarball contract snapshot.** Run `pnpm test:contract` — if it FAILS on new tarball entries (`dist/binary/*`), update the recorded snapshot per the failing assertion's message (the packed-entry list fixture), re-run, and confirm green. Expected final output: contract suite passes with the `dist/binary/*` entries recorded as inert additions.
-- [ ] **Step 7: Commit.** Write `/tmp/msg-entry.txt`:
-  ```
-  feat(binary): compile entrypoint, ambient decls, adopt refusal
-
-  Entry bakes the version, marks the channel, extracts on miss with the
-  stderr oracle line, then imports the dist CLI; init --adopt refuses on the
-  binary channel (spec Unit 2). Tarball snapshot records the inert
-  dist/binary entries.
-
-  Noldor-FD: single-static-binary-distribution
-  ```
-  ```bash
-  git add src/binary/entry.ts src/binary/ambient.d.ts src/cli/commands/init-adopt-guard.ts src/cli/commands/init.ts src/cli/__tests__ src/testing && git commit -F /tmp/msg-entry.txt
-  ```
-  (Include whichever snapshot file Step 6 touched; `git status --short` first if unsure.)
