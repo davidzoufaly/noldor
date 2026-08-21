@@ -182,6 +182,11 @@ export function repoRoot(cwd?: string, runGit?: RunGit): string {
 /**
  * Symlink-resolved form of `p`, resolving as much of it as exists on disk.
  *
+ * Exported for `src/design/artifact-locate.ts`, which needs the same two
+ * properties on both sides of a containment compare: throw-free (a typo'd
+ * `--spec` must be a rejection, not a crash) and symlink-resolved (an unresolved
+ * `join(cwd, …)` root rejects every legal path under a `/var` cwd).
+ *
  * Both sides of a `relative()` call must be in the same symlink form or the
  * result escapes: on macOS a caller may hold `/private/var/…` while `cwd` is the
  * `/var/…` symlink. Plain `realpathSync` cannot do it alone — it throws on a path
@@ -189,7 +194,7 @@ export function repoRoot(cwd?: string, runGit?: RunGit): string {
  * written), which would leave that side unresolved and reintroduce the mismatch.
  * So resolve the deepest existing ancestor and re-append the rest.
  */
-function resolveExisting(p: string): string {
+export function resolveExisting(p: string): string {
   const tail: string[] = [];
   let cur = p;
   for (;;) {

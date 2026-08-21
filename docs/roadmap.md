@@ -197,18 +197,3 @@ Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-
 - The confirmed symptom: queue parsing and docs-link checking implement an incomplete fenced-code grammar, recognizing triple backticks but not CommonMark/GFM tilde fences or varying fence lengths. A roadmap holding a tilde-fenced block that contains `### Phantom` plus `- area: tooling`, followed by a real entry, parses as two entries; a markdown link inside that same tilde fence is extracted as a live internal link by `docs-check`. This can fabricate queue entries and dependencies, make writers remove or reorder example text, and produce false broken-link failures. Because `parseRoadmap`, `parseEntries`, `pushEmptyGroupIssues` and `stripCodeRegions` each toggle independently on a triple-backtick prefix, patching one leaves semantic drift. One fence scanner must understand marker character, opening length, up-to-three-space indentation, info strings and a closing fence of sufficient length. Paired fixtures: backticks and tildes, three- and four-character fences, embedded shorter runs, indented fences, unclosed fences. (confirmed by pure-function runtime probe)
 
 (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
-
-### Spec Brainstorming Depth Parity
-
-- id: Q-0092
-- area: tooling
-- type: feat
-- since: 2026-08-11
-- size: M
-- impact: med
-- confidence: low
-- parent: de-superpowers-vendor-spec-plan-and-worktree-flows
-
-Brainstorming through the vendored `/noldor-spec` question-first loop does not reach the depth the superpowers `brainstorming` skill gets to — the de-superpowers vendoring preserved the flow's shape but apparently not its interrogative pressure. Fuzzy one-liner: the actual delta between the two prompts has not been diffed, so there is nothing concrete to implement yet. Trigger: run both over the same idea, diff the transcripts, and extract the specific moves the vendored version drops before promoting.
-
-- Promoted from the backlog on 2026-08-17: the trigger above is satisfied, because the operator named a concrete move rather than a suspected delta. The vendored brainstorming step should render its output as part of the spec plan — a written summary section per part of the design, each one to two paragraphs rather than a single sentence, confirmed with the operator part by part before the spec is written. The point is decision quality, not verbosity: a one-line answer per section gives the operator nothing to judge, while a short prose account of how each part will actually work exposes the product and technical choices while they are still cheap to change. That makes this implementable without first diffing the two prompts, though the diff remains the way to find the *other* moves the vendoring dropped. Sequencing note: this is adjacent to Q-0144's requirement that UI design versions be drafted and settled inside the spec phase — both push judgment earlier, into spec writing, and both add a per-section confirmation beat, so check whether they want one shared mechanism before implementing either in isolation.

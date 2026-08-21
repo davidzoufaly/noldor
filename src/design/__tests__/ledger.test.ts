@@ -333,6 +333,7 @@ describe('parseLedger / serializeLedger', () => {
           { id: 'O2', text: 'y', resolvedBy: 'D1' },
         ],
         support: ['src/foo.ts:1 — does X'],
+        confirmed: [],
         unparsed: [],
       }),
     );

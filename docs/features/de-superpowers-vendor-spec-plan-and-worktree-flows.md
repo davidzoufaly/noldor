@@ -7,6 +7,8 @@ links:
     - .claude/skills/noldor-spec/
     - .claude/skills/noldor-plan/
     - src/design/
+    - src/utils/markdown-sections.ts
+    - src/utils/tally.ts
     - src/worktrees/
     - src/prep/draft.ts
     - src/prep/formats.ts
@@ -18,10 +20,16 @@ links:
     - docs/noldor/workflow.md
     - docs/noldor/skill-catalog.md
   tests:
+    - src/design/__tests__/artifact-locate.test.ts
+    - src/design/__tests__/cli-fields.test.ts
+    - src/design/__tests__/ledger-fields.test.ts
     - src/design/__tests__/ledger.test.ts
+    - src/design/__tests__/render-digest.test.ts
     - src/design/__tests__/render.test.ts
     - src/prep/__tests__/formats.test.ts
     - src/prep/__tests__/print-format.test.ts
+    - src/utils/__tests__/markdown-sections.test.ts
+    - src/utils/__tests__/tally.test.ts
     - src/worktrees/__tests__/create-worktree.test.ts
     - src/worktrees/__tests__/dev-surfaces.test.ts
     - src/worktrees/__tests__/down-worktree.test.ts
@@ -52,7 +60,10 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
 
 - Spec stage (gate-invoked or standalone): invoke the `noldor-spec` skill — dialogues to a design, writes `docs/design/specs/YYYY-MM-DD-<slug>-design.md` per `pnpm noldor prep format spec`.
 - Plan stage: invoke the `noldor-plan` skill — writes `docs/design/plans/YYYY-MM-DD-<slug>.md` per `pnpm noldor prep format plan`.
-- Design context during either dialogue (agent-agnostic, plain inline text): seed once with `pnpm noldor design log --slug <dialogue-slug> [--entry <roadmap-slug>] --support "<path:line> — already does X"`; before every question run `pnpm noldor design context --slug <dialogue-slug> [--kind plan]` and paste its stdout verbatim inside a fenced code block above the question; after every answer run `pnpm noldor design log --slug <dialogue-slug> [--resolve <O-id>] --decide "<what was settled>" [--open "<new thread>"]`. Dialogue slug is the feature slug on `*-new` paths, `<parent>-<enhancement>` on `*-attach`.
+- Design context during either dialogue (agent-agnostic, plain inline text): seed once with `pnpm noldor design log --slug <dialogue-slug> [--entry <roadmap-slug>] --support "<path:line> — already does X"`; before every question run `pnpm noldor design context --slug <dialogue-slug> --section "<H2 or H3 name>" [--kind plan] [--spec <path>] [--full]` and paste its stdout verbatim inside a fenced code block above the question; after every answer run `pnpm noldor design log --slug <dialogue-slug> [--resolve <O-id>] --decide "<what was settled>" --because "<why>" --instead-of "<what was rejected and why not>" --section "<heading>" [--open "<new thread>"]`. Dialogue slug is the feature slug on `*-new` paths, `<parent>-<enhancement>` on `*-attach`.
+- Draft-first: the spec skeleton is written to its real path with every `pnpm noldor prep format spec` section present *before* question 1, so each question renders that heading's current draft above itself. `--because` and `--instead-of` take exactly one `--decide`; `--section` applies to every record the invocation mints.
+- Per-heading sign-off: `pnpm noldor design log --slug <dialogue-slug> [--kind plan] [--spec <path>] --confirm-section "<heading>"` records the heading with a digest of the approved body, so the rendered checklist marks it `✓` and re-marks it `✎` once the prose changes. Re-run it to re-confirm after an edit, `--unconfirm-section` to withdraw. Confirming a heading the artifact does not carry exits non-zero; nothing else is gated on confirmation. In a plan dialogue `--kind plan` is required — the flag defaults to `spec`, so omitting it digests the wrong artifact.
+- Reading the block: the heading under discussion renders in full with the decisions bound to it and their reasoning; every other entry collapses to its first sentence plus a `(+why)` / `(+alt)` / `(+N more)` marker naming what was withheld, and `--full` expands everything. `⚠` lines flag a `--section`, a stored tag, or a confirmation that matches no heading.
 - Ledger inspection / reset: the running state lives at `.noldor/design/<slug>.md` (untracked, gitignored by `noldor init`). Read it freely; never hand-edit it — `design log` fails closed on a file it cannot parse, while `design context` degrades and flags `⚠ ledger section unparsed`.
 - Worktree: `pnpm noldor worktrees create <slug>` from the main workspace (`--branch <name>` overrides the default `feat/<slug>` naming — the gate's fast-track path passes `fast/<desc>`; `--no-install` skips dependency install on restores).
 - Format contract inspection (any agent, any repo with noldor installed): `pnpm noldor prep format <spec|plan>`.
@@ -73,6 +84,8 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
   - [`.claude/skills/noldor-spec/`](../../.claude/skills/noldor-spec/)
   - [`.claude/skills/noldor-plan/`](../../.claude/skills/noldor-plan/)
   - [`src/design/`](../../src/design/)
+  - [`src/utils/markdown-sections.ts`](../../src/utils/markdown-sections.ts)
+  - [`src/utils/tally.ts`](../../src/utils/tally.ts)
   - [`src/worktrees/`](../../src/worktrees/)
   - [`src/prep/draft.ts`](../../src/prep/draft.ts)
   - [`src/prep/formats.ts`](../../src/prep/formats.ts)
@@ -84,10 +97,16 @@ As a framework adopter (human or agent) without the superpowers Claude Code plug
   - [`docs/noldor/workflow.md`](../../docs/noldor/workflow.md)
   - [`docs/noldor/skill-catalog.md`](../../docs/noldor/skill-catalog.md)
 - **Tests:**
+  - [`src/design/__tests__/artifact-locate.test.ts`](../../src/design/__tests__/artifact-locate.test.ts)
+  - [`src/design/__tests__/cli-fields.test.ts`](../../src/design/__tests__/cli-fields.test.ts)
+  - [`src/design/__tests__/ledger-fields.test.ts`](../../src/design/__tests__/ledger-fields.test.ts)
   - [`src/design/__tests__/ledger.test.ts`](../../src/design/__tests__/ledger.test.ts)
+  - [`src/design/__tests__/render-digest.test.ts`](../../src/design/__tests__/render-digest.test.ts)
   - [`src/design/__tests__/render.test.ts`](../../src/design/__tests__/render.test.ts)
   - [`src/prep/__tests__/formats.test.ts`](../../src/prep/__tests__/formats.test.ts)
   - [`src/prep/__tests__/print-format.test.ts`](../../src/prep/__tests__/print-format.test.ts)
+  - [`src/utils/__tests__/markdown-sections.test.ts`](../../src/utils/__tests__/markdown-sections.test.ts)
+  - [`src/utils/__tests__/tally.test.ts`](../../src/utils/__tests__/tally.test.ts)
   - [`src/worktrees/__tests__/create-worktree.test.ts`](../../src/worktrees/__tests__/create-worktree.test.ts)
   - [`src/worktrees/__tests__/dev-surfaces.test.ts`](../../src/worktrees/__tests__/dev-surfaces.test.ts)
   - [`src/worktrees/__tests__/down-worktree.test.ts`](../../src/worktrees/__tests__/down-worktree.test.ts)
