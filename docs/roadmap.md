@@ -31,20 +31,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 Mechanical render-compare for the UI-design review lane: screenshot-diff the running app against the feature's committed `.pen` design instead of reasoning over the extracted design structure. Deferred out of Q-0145 because it needs a per-consumer app-boot recipe (how to start the app, which route renders a surface, how to reach a given state) that does not exist yet — the structural lane ships first and this earns its slice once boot recipes land. Depends on the structural lane for the sink shape and the `consumer.uiPaths` surface predicate.
 
-### README Command Validation On The Existing Resolver
-
-- id: Q-0148
-- area: tooling
-- type: feat
-- since: 2026-08-20
-- size: S
-- impact: med
-- confidence: high
-- split-from: Q-0139
-- recovered: 2026-08-20
-
-Q-0139 shipped doc-surface reachability but cut its command half at code review, so nothing checks that a command the root `README.md` quotes still resolves. The cut was a reuse finding, not a scope objection: `src/garden/detectors/fd-command-rot.ts` already implements this capability and does it better — an exported `commandTokens()` whose `isTerminator` stops at the first flag, operator or placeholder; `PNPM_BUILTINS` with ~33 entries; `extractCommandRefs()` over inline spans and fenced blocks; `refResolves()` trying `<group> <sub>` then one token; and a registry unioning manifest leaves, bare group names, `package.json` scripts and script-catalog colon aliases. The second implementation in `readme-content.ts` filtered flags out instead of stopping at them, so a flag's value slid into the group slot (`pnpm --filter web run build` reported `pnpm web`; `pnpm noldor --root . checks readme` reported `pnpm noldor .`), listed 4 built-ins so `pnpm remove`, `pnpm publish`, `pnpm why`, `pnpm dedupe` and `pnpm up` all false-flagged, and reported `pnpm noldor docs --help` as needing a subcommand, contradicting its own acceptance criterion. Wanted: build the README command check on those helpers — `buildCommandRegistry` needs exporting, or lifting beside `commandTokens` — rather than a third copy (the `scripts?: Record<string, …>` read alone already has four). Two extras to decide in scope: the `## CLI reference` table quotes **bare** group names in table cells, not `pnpm …` invocations, so `commandTokens` returns null for every row and the most drift-exposed section of the README stays unchecked unless the extraction is widened for it; and `fd-command-rot` is FD-scoped today, so the seam that lets it target an arbitrary markdown file is part of the work. Deletion test: rename a manifest group the README quotes and the check names the stale invocation. (carved from Q-0139 at code review 2026-08-20, where the duplicate implementation's false positives were reproduced against the live manifest)
-
 ### Plan Split Guidance Permits A Part That Ships Nothing
 
 - id: Q-0150
