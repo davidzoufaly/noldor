@@ -75,19 +75,35 @@ function acquireLock(attempt = 0) {
   }
 
   if (!Number.isInteger(pid)) {
-    // No pid yet: the holder is between its exclusive create and its write, or
-    // it was killed in that window. A young empty lock is respected; an old one
-    // is debris, so the builder is never permanently jammed by a SIGKILL.
-    const ageMs = Date.now() - statSync(lock).mtimeMs;
+    // No pid yet: the holder is between its exclusive create and its write, or it
+    // was killed in that window. A young empty lock is respected; an old one is
+    // debris, so a SIGKILL there cannot jam the builder permanently.
+    let ageMs;
+    try {
+      ageMs = Date.now() - statSync(lock).mtimeMs;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      return acquireLock(attempt + 1); // released while we looked at it
+    }
     if (ageMs < 5000) {
       console.error(`noldor build: already in progress (starting up, ${LOCK_FILE})`);
       process.exit(1);
     }
   }
 
-  // A crashed build. Only the builder reclaims a lock — never the runtime
-  // selector, which runs in every read-only invocation.
-  rmSync(lock, { force: true });
+  // Claim the stale lock by RENAME, not by remove-then-create. Rename is atomic
+  // on one inode, so of two builders that both saw the same dead pid exactly one
+  // succeeds; the loser gets ENOENT, retries, and meets the winner's fresh lock
+  // as EEXIST, where the attempt bound fails it closed. A plain rmSync here would
+  // let the loser delete the winner's LIVE lock and both would rewrite dist.
+  const claim = `${lock}.${process.pid}`;
+  try {
+    renameSync(lock, claim);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return acquireLock(attempt + 1);
+  }
+  rmSync(claim, { force: true });
   return acquireLock(attempt + 1);
 }
 

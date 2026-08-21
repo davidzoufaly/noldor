@@ -176,36 +176,40 @@ export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
   const pkg = installedPackage(fixtureDir);
   const problems: string[] = [];
 
-  // codex-adapter.ts resolves its schema via `new URL('./cr-record.schema.json',
-  // import.meta.url)`. Import the packaged module so a wrong relative path fails
-  // here rather than in a consumer's CR lane. The path travels as argv, never
-  // interpolated into source — a quote or '#' in a temp dir would break that.
+  // codex-adapter.ts computes CR_RECORD_SCHEMA_PATH from its own module URL —
+  // pure string math, so importing it proves nothing on its own. Read the export
+  // back and check the path it produced actually exists in the package: that is
+  // the resolution which moves if a module changes directory depth.
   const adapter = spawnSync(
     process.execPath,
     [
       '--input-type=module',
       '-e',
-      'await import(process.argv[1]);',
+      `const { existsSync } = await import('node:fs');
+       const m = await import(process.argv[1]);
+       const p = m.CR_RECORD_SCHEMA_PATH;
+       if (typeof p !== 'string') throw new Error('CR_RECORD_SCHEMA_PATH is not exported');
+       if (!existsSync(p)) throw new Error('schema path does not resolve: ' + p);`,
       pathToFileURL(join(pkg, 'dist/cr/codex-adapter.js')).href,
     ],
     { encoding: 'utf8', env: scrubbedEnv() },
   );
   if (adapter.status !== 0) {
-    problems.push(`packaged codex-adapter failed to load: ${adapter.stderr.slice(0, 300)}`);
+    problems.push(`packaged cr-record schema does not resolve: ${adapter.stderr.slice(0, 300)}`);
   }
 
-  // The stub-gate entry is the one that used to import tsx statically, and its
-  // canned fixture is resolved beside its own module. A usage error is a PASS
-  // here — it proves the module graph loaded and reached its own argument
-  // parsing. Only load-time failures count.
-  const stub = spawnSync(
-    process.execPath,
-    [join(pkg, 'bin/noldor-stub-gate.mjs'), '--resume', 'add-greeting-helper'],
-    { cwd: fixtureDir, encoding: 'utf8', env: scrubbedEnv() },
-  );
-  const loadFailure =
-    /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find (?:module|package)|SyntaxError|ERR_UNSUPPORTED/;
+  // The stub-gate entry is the one that used to import tsx statically. This
+  // proves its module graph loads from the package; it stops at the entry's own
+  // argument parsing rather than running applyStubGate, which would write to and
+  // commit in the fixture.
+  const stub = spawnSync(process.execPath, [join(pkg, 'bin/noldor-stub-gate.mjs')], {
+    cwd: fixtureDir,
+    encoding: 'utf8',
+    env: scrubbedEnv(),
+  });
   const stubOutput = `${stub.stderr}${stub.stdout}`;
+  const loadFailure =
+    /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find (?:module|package)|SyntaxError|ERR_UNSUPPORTED|ENOENT/;
   if (stub.status === null || loadFailure.test(stubOutput)) {
     problems.push(`packaged stub-gate entry failed to load: ${stubOutput.slice(0, 300)}`);
   }
