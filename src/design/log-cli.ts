@@ -2,6 +2,7 @@
 // IDs. The writer half of the inline-design-context loop; `design context`
 // (context-cli.ts) is the reader.
 
+import { digestBody, locateArtifact, readArtifact, type ArtifactKind } from './artifact-locate.js';
 import {
   normalize,
   nextId,
@@ -9,7 +10,9 @@ import {
   validateSlug,
   writeLedger,
   ledgerPath,
+  type Decision,
   type LedgerState,
+  type OpenThread,
 } from './ledger.js';
 
 export interface LogArgs {
@@ -20,11 +23,24 @@ export interface LogArgs {
   open: string[];
   resolve: string[];
   support: string[];
+  /** Rationale for the single decision this invocation mints. */
+  because?: string;
+  /** Rejected alternative for that same decision. */
+  insteadOf?: string;
+  /** Artifact heading every record minted here belongs to. */
+  section?: string;
+  confirmSection?: string;
+  unconfirmSection?: string;
+  /** Artifact kind + override, needed only to hash a `--confirm-section` body. */
+  kind: ArtifactKind;
+  spec?: string;
 }
 
 const USAGE =
   'usage: noldor design log --slug <slug> [--entry <roadmap-slug>] [--scope <text>] ' +
-  '[--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]...';
+  '[--decide <text>]... [--open <text>]... [--resolve <id>]... [--support <text>]... ' +
+  '[--because <text>] [--instead-of <text>] [--section <heading>] ' +
+  '[--confirm-section <heading>] [--unconfirm-section <heading>] [--kind spec|plan] [--spec <path>]';
 
 const LOG_FLAGS = new Set([
   '--slug',
@@ -34,11 +50,18 @@ const LOG_FLAGS = new Set([
   '--open',
   '--resolve',
   '--support',
+  '--because',
+  '--instead-of',
+  '--section',
+  '--confirm-section',
+  '--unconfirm-section',
+  '--kind',
+  '--spec',
 ]);
 
 /** Parse argv into {@link LogArgs}. Repeatable flags accumulate in argv order. */
 export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string } {
-  const args: LogArgs = { slug: '', decide: [], open: [], resolve: [], support: [] };
+  const args: LogArgs = { slug: '', decide: [], open: [], resolve: [], support: [], kind: 'spec' };
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     const value = argv[i + 1];
@@ -75,6 +98,28 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
       case '--support':
         args.support.push(value);
         break;
+      case '--because':
+        args.because = value;
+        break;
+      case '--instead-of':
+        args.insteadOf = value;
+        break;
+      case '--section':
+        args.section = value;
+        break;
+      case '--confirm-section':
+        args.confirmSection = value;
+        break;
+      case '--unconfirm-section':
+        args.unconfirmSection = value;
+        break;
+      case '--kind':
+        if (value !== 'spec' && value !== 'plan') return { error: '--kind: expected spec|plan' };
+        args.kind = value;
+        break;
+      case '--spec':
+        args.spec = value;
+        break;
       // Unreachable while LOG_FLAGS and this switch agree; kept so a future flag
       // added to one and not the other fails loudly instead of being ignored.
       default:
@@ -82,6 +127,24 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
     }
   }
   if (args.slug === '') return { error: '--slug is required' };
+  // `--decide` is repeatable, so a rationale in the same invocation has no
+  // unambiguous owner unless there is exactly one decision to own it. Guessing
+  // (first? all?) would silently attach a reason to the wrong answer, and
+  // dropping it would lose the value the operator just typed.
+  for (const [flag, value] of [
+    ['--because', args.because],
+    ['--instead-of', args.insteadOf],
+  ] as const) {
+    if (value === undefined) continue;
+    if (args.decide.length !== 1) {
+      return {
+        error: `${flag} needs exactly one --decide in the same invocation (got ${args.decide.length})`,
+      };
+    }
+  }
+  if (args.confirmSection !== undefined && args.confirmSection === args.unconfirmSection) {
+    return { error: `--confirm-section and --unconfirm-section name the same heading` };
+  }
   return args;
 }
 
@@ -92,9 +155,20 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
  * common shape: "this answer resolves O2 and becomes D5"). A resolve with no
  * accompanying `--decide` is marked `(resolved)`.
  *
+ * `--section` attaches to *every* record minted here, decisions and threads
+ * alike, so a mixed invocation needs no disambiguation rule. `--because` and
+ * `--instead-of` attach to the one decision the parser already guaranteed.
+ *
+ * @param confirmDigest - Body digest for `--confirm-section`, hashed by the
+ *   caller. Required whenever `args.confirmSection` is set: this function does no
+ *   I/O, so it cannot read the heading itself.
  * @returns The new state, or an error message (unknown `--resolve` target).
  */
-export function applyLog(state: LedgerState, args: LogArgs): LedgerState | { error: string } {
+export function applyLog(
+  state: LedgerState,
+  args: LogArgs,
+  confirmDigest?: string,
+): LedgerState | { error: string } {
   const next: LedgerState = {
     entry: args.entry === undefined ? state.entry : normalize(args.entry),
     scope: args.scope === undefined ? state.scope : normalize(args.scope),
@@ -105,14 +179,36 @@ export function applyLog(state: LedgerState, args: LogArgs): LedgerState | { err
     unparsed: [],
   };
 
+  const section = args.section === undefined ? undefined : normalize(args.section);
   const mintedDecisions: string[] = [];
   for (const text of args.decide) {
     const id = nextId('D', next.decided);
-    next.decided.push({ id, text: normalize(text) });
+    const d: Decision = { id, text: normalize(text) };
+    if (section !== undefined) d.section = section;
+    if (args.because !== undefined) d.why = normalize(args.because);
+    if (args.insteadOf !== undefined) d.insteadOf = normalize(args.insteadOf);
+    next.decided.push(d);
     mintedDecisions.push(id);
   }
   for (const text of args.open) {
-    next.open.push({ id: nextId('O', next.open), text: normalize(text), resolvedBy: null });
+    const o: OpenThread = { id: nextId('O', next.open), text: normalize(text), resolvedBy: null };
+    if (section !== undefined) o.section = section;
+    next.open.push(o);
+  }
+
+  if (args.unconfirmSection !== undefined) {
+    const name = normalize(args.unconfirmSection);
+    next.confirmed = next.confirmed.filter((c) => c.name !== name);
+  }
+  if (args.confirmSection !== undefined && confirmDigest !== undefined) {
+    const name = normalize(args.confirmSection);
+    // Replace rather than append: re-confirming after an edit is the documented
+    // way to refresh a stale approval, and two records for one heading would make
+    // the same heading read as both fresh and stale.
+    next.confirmed = [
+      ...next.confirmed.filter((c) => c.name !== name),
+      { name, digest: confirmDigest },
+    ];
   }
 
   const target = mintedDecisions[0] ?? '(resolved)';
@@ -171,7 +267,41 @@ export function runLog(
     return 1;
   }
 
-  const applied = applyLog(state, parsed);
+  let confirmDigest: string | undefined;
+  if (parsed.confirmSection !== undefined) {
+    // The only write that reads the artifact. An approval needs the bytes it
+    // approved, so a heading that cannot be found is a hard error rather than a
+    // record with no digest — which the ledger grammar could not even serialize.
+    const located = locateArtifact(cwd, {
+      slug: parsed.slug,
+      kind: parsed.kind,
+      ...(parsed.spec === undefined ? {} : { override: parsed.spec }),
+    });
+    if (located.status === 'rejected') {
+      err(`design log: ${located.reason}\n`);
+      return 1;
+    }
+    const view = located.status === 'found' ? readArtifact(located.paths) : null;
+    if (view === null) {
+      err(
+        `design log: --confirm-section '${parsed.confirmSection}': no ${parsed.kind} on disk for ` +
+          `slug '${parsed.slug}' — nothing to confirm.\n`,
+      );
+      return 1;
+    }
+    const body = view.section(parsed.confirmSection);
+    if (body === null) {
+      const legal = view.headings.map((h) => h.name).join(', ') || '(none)';
+      err(
+        `design log: --confirm-section '${parsed.confirmSection}' matches no heading — ` +
+          `legal: ${legal}\n`,
+      );
+      return 1;
+    }
+    confirmDigest = digestBody(body);
+  }
+
+  const applied = applyLog(state, parsed, confirmDigest);
   if ('error' in applied) {
     err(`${applied.error}\n`);
     return 1;

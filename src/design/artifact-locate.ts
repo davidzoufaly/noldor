@@ -8,12 +8,14 @@
 // are deliberately unused: they return paths relative to `process.cwd()`, which
 // is the wrong anchor inside a worktree and inside a test.
 
-import { readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 
 import { resolveExisting } from '../core/branch-added.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { extractPlanSlug, extractSpecSlug } from '../core/fd-load.js';
+import { extractSection, listHeadings } from '../utils/markdown-sections.js';
 
 export type ArtifactKind = 'spec' | 'plan';
 
@@ -128,4 +130,73 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
     paths.push(vetted.path);
   }
   return { status: 'found', paths };
+}
+
+/**
+ * Digest of one heading body: the first eight lowercase hex characters of its
+ * sha256.
+ *
+ * Eight is enough to notice an edit and short enough to keep a `## Confirmed`
+ * line readable. The input is exactly `extractSection`'s output — UTF-8, LF, outer
+ * blanks trimmed — so an H2's digest covers its descendant H3s and editing a unit
+ * restales its parent's approval.
+ */
+export function digestBody(body: string): string {
+  return createHash('sha256').update(body, 'utf8').digest('hex').slice(0, 8);
+}
+
+/** One heading of the located artifact, with the digest of its current body. */
+export interface ArtifactHeading {
+  name: string;
+  depth: 2 | 3;
+  digest: string;
+}
+
+/**
+ * The heading list and section bodies of a located artifact.
+ *
+ * Several paths means a split plan: headings union across the parts in
+ * part-number order and a section lookup searches them in the same order, so one
+ * dialogue can address a plan that was split for context-window reasons without
+ * knowing it was split.
+ */
+export interface ArtifactView {
+  headings: ArtifactHeading[];
+  section: (name: string) => string | null;
+}
+
+/**
+ * Read the located artifact.
+ *
+ * @returns The view, or `null` when no part could be read — a file that vanished
+ *   between `locateArtifact` and here is an absent draft, not a crash.
+ */
+export function readArtifact(paths: readonly string[]): ArtifactView | null {
+  const docs: string[] = [];
+  for (const p of paths) {
+    try {
+      docs.push(readFileSync(p, 'utf8'));
+    } catch {
+      // Skip the unreadable part rather than failing the whole dialogue; a
+      // partial plan still renders, and the missing headings simply do not appear.
+    }
+  }
+  if (docs.length === 0) return null;
+
+  const headings: ArtifactHeading[] = [];
+  for (const md of docs) {
+    for (const h of listHeadings(md)) {
+      headings.push({ ...h, digest: digestBody(extractSection(md, h.name) ?? '') });
+    }
+  }
+  return {
+    headings,
+    section: (name) => {
+      for (const md of docs) {
+        const body = extractSection(md, name);
+        if (body !== null) return body;
+      }
+      return null;
+    },
+  };
 }
