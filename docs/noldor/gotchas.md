@@ -160,3 +160,19 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   with the fix — no second `pnpm release`, no re-hitting the graph/garden/sdd
   gates. Then `rm .noldor/release-state.json` (resume can't finalize once
   HEAD moved past the bump commit).
+
+## Binary channel: cache + env semantics
+
+- Extracted assets live at `~/Library/Caches/noldor/<version>/pkg` (darwin) /
+  `$XDG_CACHE_HOME/noldor/<version>/pkg` (else). Old versions are never
+  evicted — litter, not corruption; safe to delete.
+- `NOLDOR_CACHE_DIR` overrides the base; the `<version>/pkg` key is STILL
+  appended (stale-cache-across-upgrades guard).
+- `NOLDOR_ASSET_ROOT` (absolute path required) skips extraction entirely —
+  both channels honor it as an operator override of the package root.
+- `NOLDOR_BINARY` is set to `'1'` by the binary entry itself — never set it
+  by hand on the npm channel; it flips subprocess spawns to direct self-exec
+  and refuses `init --adopt` + the `stub` runner.
+- Faster hooks (optional): lefthook templates keep `pnpm noldor …`; a consumer
+  may point lefthook commands at an installed `noldor` binary manually —
+  identical behavior, faster startup, npm channel stays the default.
