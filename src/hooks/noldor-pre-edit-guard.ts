@@ -5,8 +5,8 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
-import { readSession } from '../core/session';
-import { rolloutMarkerExists } from '../core/rollout-marker';
+import { readSession } from '../core/session.js';
+import { rolloutMarkerExists } from '../core/rollout-marker.js';
 
 export interface PreEditResult {
   ok: boolean;

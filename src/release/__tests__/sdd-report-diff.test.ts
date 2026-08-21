@@ -10,7 +10,7 @@ import {
 } from '../../garden/sdd-report-format.js';
 import { COLLECTORS } from '../../metrics/compute.js';
 import type { MetricResult } from '../../metrics/types.js';
-import { emptyFacts } from '../../metrics/__tests__/fixtures';
+import { emptyFacts } from '../../metrics/__tests__/fixtures.js';
 import { onlyVolatileSectionsChanged } from '../sdd-report-diff.js';
 
 // Build the count line via the shared format helper the real report uses, so a

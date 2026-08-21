@@ -1,6 +1,6 @@
 // @tests: drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-agent-dispatch-for-research-jobs
 import { describe, expect, it } from 'vitest';
-import { agentsConfigSchema } from '../types';
+import { agentsConfigSchema } from '../types.js';
 
 describe('agentsConfigSchema', () => {
   it('fills defaults on empty object', () => {

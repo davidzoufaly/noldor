@@ -11,8 +11,8 @@ import {
   readBaseline,
   writeBaseline,
 } from '../baseline';
-import { DEFAULT_CLONE_OPTIONS, detectClones } from '../detect';
-import type { CloneOptions, CloneReport } from '../detect';
+import { DEFAULT_CLONE_OPTIONS, detectClones } from '../detect.js';
+import type { CloneOptions, CloneReport } from '../detect.js';
 
 const OPTS: CloneOptions = { minTokens: 30, minLines: 5, gapTokens: 10 };
 

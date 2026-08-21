@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { enforceReviewReceipt } from '../noldor-enforce-review-receipt';
+import { enforceReviewReceipt } from '../noldor-enforce-review-receipt.js';
 
 /**
  * Create a repo with an initial commit and a second commit carrying the given trailers.

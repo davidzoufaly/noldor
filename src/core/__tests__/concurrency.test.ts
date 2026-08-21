@@ -1,6 +1,6 @@
 // @tests: parallel-agent-dispatch-for-research-jobs
 import { describe, expect, it } from 'vitest';
-import { runWithConcurrency } from '../concurrency';
+import { runWithConcurrency } from '../concurrency.js';
 
 describe('runWithConcurrency', () => {
   it('processes every item exactly once', async () => {

@@ -13,7 +13,7 @@ Noldor is opinionated, not configurable (vision). It hard-assumes its home stack
 
 | Prerequisite | Floor | Where assumed | If absent |
 | ------------ | ----- | ------------- | --------- |
-| Node.js | ≥ 20 | `bin/noldor.mjs` + tsx runtime execute every CLI surface | nothing runs |
+| Node.js | ≥ 20 | `bin/noldor.mjs` executes every CLI surface from `dist` | nothing runs |
 | pnpm | ≥ 9 | every scaffolded lefthook job and the gate/release/prep pipelines shell out via `pnpm …` | hooks and pipelines error mid-run |
 | git | ≥ 2.30 | worktrees, `interpret-trailers`, porcelain parsing across `src/` | drain/gate/pr-flow fail on git verbs |
 | gh CLI | ≥ 2 | pr-flow PR create/merge, release, drain salvage | ship steps fail at PR creation |

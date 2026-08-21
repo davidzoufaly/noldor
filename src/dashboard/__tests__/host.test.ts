@@ -1,6 +1,6 @@
 // @tests: state-file-fail-open-hardening
 import { describe, expect, it, afterEach } from 'vitest';
-import { resolveBindHost, healthUrl } from '../host';
+import { resolveBindHost, healthUrl } from '../host.js';
 
 describe('resolveBindHost', () => {
   const prev = process.env.DASHBOARD_HOST;

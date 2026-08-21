@@ -5,8 +5,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
-import { AGENT_ROLES, agentsConfigSchema } from '../types';
-import { loadAgentsConfig, resolveRunner, spawnAgent } from '../registry';
+import { AGENT_ROLES, agentsConfigSchema } from '../types.js';
+import { loadAgentsConfig, resolveRunner, spawnAgent } from '../registry.js';
 
 function tmpConfig(agents?: unknown): string {
   const dir = mkdtempSync(join(tmpdir(), 'noldor-registry-'));

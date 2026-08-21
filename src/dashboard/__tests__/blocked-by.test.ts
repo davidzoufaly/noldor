@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadBlockedByGraph, setDocRootsOverride } from '../data';
-import { renderBlockedBy } from '../views';
+import { loadBlockedByGraph, setDocRootsOverride } from '../data.js';
+import { renderBlockedBy } from '../views.js';
 
 function fixtureRepo(roadmap: string, backlog = '# Backlog\n'): string {
   const repo = mkdtempSync(join(tmpdir(), 'noldor-blocked-by-'));

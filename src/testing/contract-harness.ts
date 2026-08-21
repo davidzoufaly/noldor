@@ -1,11 +1,35 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+
+// @ts-expect-error — plain .mjs siblings in bin/, no type declarations by design
+import { auditImportGraph } from '../../bin/import-graph.mjs';
+// @ts-expect-error — same
+import { expectedOutputs } from '../../bin/build-manifest.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join, dirname, isAbsolute } from 'node:path';
 
 export interface CliResult {
   exitCode: number;
   stdout: string;
   stderr: string;
+}
+
+/**
+ * The ambient environment minus the whole `NOLDOR_*` namespace, so what the
+ * contract proves cannot depend on the operator's shell.
+ *
+ * @returns A copy of `process.env` with every `NOLDOR_*` key removed.
+ */
+function scrubbedEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  // Every NOLDOR_* var, not just the runtime ones: NOLDOR_STUB_SLUG in an
+  // operator's or CI's ambient environment would make the stub-gate probe run
+  // applyStubGate — writing canned files, rewriting docs/roadmap.md and
+  // committing inside the fixture — instead of stopping at argument parsing.
+  for (const key of Object.keys(env)) {
+    if (key.startsWith('NOLDOR_')) delete env[key];
+  }
+  return env;
 }
 
 /** Repo root: src/testing/ -> src/ -> root. */
@@ -20,7 +44,7 @@ function repoRoot(): string {
  */
 export function runConsumerCli(cwd: string, args: string[]): CliResult {
   const bin = join(repoRoot(), 'bin', 'noldor.mjs');
-  const r = spawnSync('node', [bin, ...args], { cwd, encoding: 'utf8' });
+  const r = spawnSync('node', [bin, ...args], { cwd, encoding: 'utf8', env: scrubbedEnv() });
   return { exitCode: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
@@ -32,7 +56,7 @@ export function runConsumerCli(cwd: string, args: string[]): CliResult {
  */
 export function runInstalledCli(cwd: string, args: string[]): CliResult {
   const bin = join(cwd, 'node_modules', '.bin', 'noldor');
-  const r = spawnSync(bin, args, { cwd, encoding: 'utf8' });
+  const r = spawnSync(bin, args, { cwd, encoding: 'utf8', env: scrubbedEnv() });
   return { exitCode: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
@@ -64,4 +88,158 @@ export function runContractChecks(fixtureDir: string): Record<string, number> {
   ];
   for (const [name, args] of steps) out[name] = runConsumerCli(fixtureDir, args).exitCode;
   return out;
+}
+
+/** The installed package root inside a fixture. */
+function installedPackage(fixtureDir: string): string {
+  return join(fixtureDir, 'node_modules', '@david.zoufaly', 'noldor');
+}
+
+/**
+ * What the packaged runtime must satisfy: one runtime tree, its assets, no
+ * transpiler, and a CLI that executes from `dist`.
+ *
+ * Asset and output expectations come from `bin/build-manifest.mjs`, the declared
+ * single owner — a local copy of the list is exactly the silent drift its
+ * docstring warns about.
+ *
+ * @param fixtureDir - Fixture with the tarball installed.
+ * @returns Named violations; empty when the packaged runtime is sound.
+ */
+export function checkPackagedRuntime(fixtureDir: string): string[] {
+  const pkg = installedPackage(fixtureDir);
+  const problems: string[] = [];
+
+  if (existsSync(join(pkg, 'src'))) problems.push('tarball still carries src/');
+  if (!existsSync(join(pkg, 'dist/cli/index.js')))
+    problems.push('tarball has no dist/cli/index.js');
+  if (existsSync(join(fixtureDir, 'node_modules', 'tsx'))) {
+    problems.push('tsx installed in a consumer (it must be a devDependency)');
+  }
+
+  // Every compiled module and runtime asset the current sources require, per the
+  // manifest that owns that list — never a copy of it.
+  for (const rel of expectedOutputs(repoRoot())) {
+    if (!existsSync(join(pkg, 'dist', rel))) problems.push(`packaged dist is missing ${rel}`);
+  }
+
+  // Name the offenders: a count alone leaves CI red with nothing to act on.
+  const graph = auditImportGraph(join(pkg, 'dist'));
+  for (const entry of graph.unresolved.slice(0, 10)) {
+    problems.push(`unresolvable specifier in packaged dist: ${entry}`);
+  }
+  for (const entry of graph.extensionless.slice(0, 10)) {
+    problems.push(`extensionless specifier in packaged dist: ${entry}`);
+  }
+
+  const doctor = runInstalledCli(fixtureDir, ['doctor']);
+  if (!doctor.stdout.includes('runtime: dist (no-source-tree)')) {
+    problems.push(
+      `installed doctor did not report the dist runtime: ${doctor.stdout.slice(0, 200)}`,
+    );
+  }
+
+  return problems;
+}
+
+/**
+ * `--help` through the installed CLI for every subcommand the manifest declares.
+ *
+ * This proves the packaged ROUTER loads and knows every command — not that each
+ * entrypoint loads, because the router returns on a help flag before
+ * dispatching. Module loadability is covered by the import-graph audit inside
+ * {@link checkPackagedRuntime}.
+ *
+ * @param fixtureDir - Fixture with the tarball installed.
+ * @param subcommands - `[group, sub]` pairs from `flattenManifest()`.
+ * @returns Subcommands whose help did not exit 0.
+ */
+export function checkInstalledSubcommands(
+  fixtureDir: string,
+  subcommands: readonly (readonly [string, string])[],
+): string[] {
+  const failed: string[] = [];
+  for (const [group, sub] of subcommands) {
+    const args = sub === '' ? [group, '--help'] : [group, sub, '--help'];
+    if (runInstalledCli(fixtureDir, args).exitCode !== 0) failed.push(`${group} ${sub}`.trim());
+  }
+  return failed;
+}
+
+/**
+ * Exercise the two module-relative resolutions that MOVE with the runtime, in
+ * the packaged tree. Presence of every asset is already covered by
+ * {@link checkPackagedRuntime}'s `expectedOutputs` loop; these probe the code
+ * paths that compute a path from their own module URL, which is what breaks when
+ * a module changes directory depth.
+ *
+ * @param fixtureDir - Fixture with the tarball installed.
+ * @returns Named failures; empty when both probes passed.
+ */
+export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
+  const pkg = installedPackage(fixtureDir);
+  const problems: string[] = [];
+
+  // Both probes below import a packaged module and let IT compute a path from
+  // its own URL — the resolution that moves when a module changes directory
+  // depth. The module URL travels as argv, never interpolated into source, so a
+  // quote or '#' in a temp dir cannot break the child.
+  const probe = (moduleRelative: string, assertion: string): string | null => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `const { existsSync } = await import('node:fs');
+         const m = await import(process.argv[1]);
+         ${assertion}`,
+        pathToFileURL(join(pkg, moduleRelative)).href,
+      ],
+      { encoding: 'utf8', env: scrubbedEnv() },
+    );
+    return result.status === 0 ? null : result.stderr.slice(0, 300);
+  };
+
+  // codex-adapter.ts computes CR_RECORD_SCHEMA_PATH via new URL + fileURLToPath —
+  // pure string math, so importing it proves nothing on its own. Read the export
+  // back and check the path it produced exists.
+  const schemaFailure = probe(
+    'dist/cr/codex-adapter.js',
+    `const p = m.CR_RECORD_SCHEMA_PATH;
+     if (typeof p !== 'string') throw new Error('CR_RECORD_SCHEMA_PATH is not exported');
+     if (!existsSync(p)) throw new Error('schema path does not resolve: ' + p);`,
+  );
+  if (schemaFailure !== null) {
+    problems.push(`packaged cr-record schema does not resolve: ${schemaFailure}`);
+  }
+
+  // cannedPath() is the sibling resolution, called rather than re-implemented so
+  // the check follows the code if its layout changes.
+  const cannedFailure = probe(
+    'dist/testing/stub-gate.js',
+    `if (typeof m.cannedPath !== 'function') throw new Error('cannedPath is not exported');
+     const p = m.cannedPath('add-greeting-helper');
+     if (!existsSync(p)) throw new Error('cannedPath does not resolve: ' + p);`,
+  );
+  if (cannedFailure !== null) {
+    problems.push(`packaged cannedPath does not resolve: ${cannedFailure}`);
+  }
+
+  // The stub-gate entry is the one that used to import tsx statically; this
+  // proves its module graph loads from the package. It stops at the entry's own
+  // argument parsing rather than running applyStubGate, which would write canned
+  // files, rewrite docs/roadmap.md and commit inside the fixture.
+  const stub = spawnSync(process.execPath, [join(pkg, 'bin/noldor-stub-gate.mjs')], {
+    cwd: fixtureDir,
+    encoding: 'utf8',
+    env: scrubbedEnv(),
+  });
+  const stubOutput = `${stub.stderr}${stub.stdout}`;
+  const loadFailure =
+    /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find (?:module|package)|SyntaxError|ERR_UNSUPPORTED/;
+  if (stub.status === null || loadFailure.test(stubOutput)) {
+    problems.push(`packaged stub-gate entry failed to load: ${stubOutput.slice(0, 300)}`);
+  }
+
+  return problems;
 }

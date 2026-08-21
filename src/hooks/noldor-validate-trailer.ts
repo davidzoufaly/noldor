@@ -4,14 +4,14 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync, appendFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
-import { parseTrailers, detectDroppedTrailers } from '../core/trailers';
-import { ARCHIVE_DIR } from '../core/design-artifact-names';
-import { renameDestExists, toRepoRelative } from '../core/branch-added';
-import { loadDocRoots } from '../core/doc-roots';
-import { PATHS, sessionMarkerExists } from '../core/session';
-import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
-import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
-import { loadConsumerConfig } from '../core/consumer-config';
+import { parseTrailers, detectDroppedTrailers } from '../core/trailers.js';
+import { ARCHIVE_DIR } from '../core/design-artifact-names.js';
+import { renameDestExists, toRepoRelative } from '../core/branch-added.js';
+import { loadDocRoots } from '../core/doc-roots.js';
+import { PATHS, sessionMarkerExists } from '../core/session.js';
+import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist.js';
+import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
+import { loadConsumerConfig } from '../core/consumer-config.js';
 
 export interface ValidationResult {
   ok: boolean;

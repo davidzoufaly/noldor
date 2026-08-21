@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { injectTrailers } from '../noldor-inject-trailers';
+import { injectTrailers } from '../noldor-inject-trailers.js';
 
 describe('injectTrailers', () => {
   it('injects path + FD from session marker', () => {

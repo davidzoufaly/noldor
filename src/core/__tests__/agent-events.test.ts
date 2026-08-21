@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { appendAgentEvent, type AgentEvent } from '../agent-events';
+import { appendAgentEvent, type AgentEvent } from '../agent-events.js';
 
 const EVENT: AgentEvent = {
   ts: '2026-06-11T00:00:00.000Z',

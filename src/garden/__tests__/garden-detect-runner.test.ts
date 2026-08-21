@@ -1,6 +1,6 @@
 // @tests: framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics
 import { describe, it, expect, vi } from 'vitest';
-import { runGardenDetectViaCli } from '../garden-detect-runner';
+import { runGardenDetectViaCli } from '../garden-detect-runner.js';
 
 // Helper: simulate CLI stdout that may carry banner/log lines before the JSON.
 function pnpmStdout(json: object): string {

@@ -1,7 +1,7 @@
 // @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard
 import { describe, expect, it } from 'vitest';
-import { renderMetrics } from '../views';
-import type { MetricResult, MetricsReport } from '../../metrics/types';
+import { renderMetrics } from '../views.js';
+import type { MetricResult, MetricsReport } from '../../metrics/types.js';
 
 function report(metrics: MetricResult[]): MetricsReport {
   return {

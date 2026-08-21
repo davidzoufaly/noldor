@@ -112,5 +112,10 @@
   "Q-0134": {
     "slug": "dashboard-route-for-the-architecture-doc-surface",
     "retiredAt": "2026-08-20"
+  },
+  "Q-0117": {
+    "slug": "package-runtime-representation-adr",
+    "retiredInto": "noldor-package-lift",
+    "retiredAt": "2026-08-21"
   }
 }

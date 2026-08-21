@@ -1,6 +1,6 @@
 // @tests: review-run-lifecycle-module
 import { describe, expect, it } from 'vitest';
-import { createBoundedCapture } from '../bounded-capture';
+import { createBoundedCapture } from '../bounded-capture.js';
 
 /** Astral character (U+1F600) — two UTF-16 code units, four UTF-8 bytes. */
 const PAIR = '\u{1F600}';

@@ -1,7 +1,7 @@
 // @tests: outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it } from 'vitest';
-import { formatReport, parseArgs } from '../compute-cli';
-import type { MetricsReport } from '../types';
+import { formatReport, parseArgs } from '../compute-cli.js';
+import type { MetricsReport } from '../types.js';
 
 const REPORT: MetricsReport = {
   generatedAt: '2026-06-12T00:00:00.000Z',

@@ -1,6 +1,6 @@
 // @tests: parallel-agent-dispatch-for-research-jobs
 import { describe, expect, it } from 'vitest';
-import { FALLBACK_META, researchMetaSchema, taskSpecSchema, tasksFileSchema } from '../types';
+import { FALLBACK_META, researchMetaSchema, taskSpecSchema, tasksFileSchema } from '../types.js';
 
 describe('taskSpecSchema', () => {
   it('accepts a minimal task and defaults scope to []', () => {

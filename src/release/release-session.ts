@@ -1,4 +1,4 @@
-import { readSession, writeSession, clearSession } from '../core/session';
+import { readSession, writeSession, clearSession } from '../core/session.js';
 
 export async function withReleaseSession<T>(cwd: string, work: () => Promise<T>): Promise<T> {
   const existing = readSession(cwd);

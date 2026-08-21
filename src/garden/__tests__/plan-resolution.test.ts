@@ -1,6 +1,6 @@
 // @tests: graphify-plan-of-edges-nodes-for-plans-specs, outcome-telemetry-and-effectiveness-metrics
 import { describe, it, expect } from 'vitest';
-import { resolveByGraphAdjacency, resolveByLinksField } from '../plan-resolution';
+import { resolveByGraphAdjacency, resolveByLinksField } from '../plan-resolution.js';
 
 describe('resolveByLinksField (links.plan)', () => {
   it('returns the FD whose links.plan contains the plan path', async () => {

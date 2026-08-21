@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnAgent } from '../registry';
+import { spawnAgent } from '../registry.js';
 
 function tmpConfig(): string {
   const dir = mkdtempSync(join(tmpdir(), 'noldor-logsink-'));

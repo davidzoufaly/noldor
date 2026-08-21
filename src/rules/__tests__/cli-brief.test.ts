@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseBriefArgs, runBrief } from '../cli-brief';
+import { parseBriefArgs, runBrief } from '../cli-brief.js';
 
 /**
  * A repo holding a FIXTURE rule store, never the live `.noldor/rules/`: Q-0069

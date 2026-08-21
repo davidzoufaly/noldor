@@ -1,9 +1,9 @@
 // @tests: make-noldor-agent-agnostic, portable-gate-entrypoint-for-non-claude-runners
 import { describe, expect, it } from 'vitest';
-import { CAPABILITIES } from '../capabilities';
-import { CLAUDE_BIN, buildClaudeArgv } from '../runners/claude';
-import { CODEX_BIN, CODEX_PROMPT_VIA, buildCodexArgv } from '../runners/codex';
-import { OPENCODE_BIN, buildOpencodeArgv } from '../runners/opencode';
+import { CAPABILITIES } from '../capabilities.js';
+import { CLAUDE_BIN, buildClaudeArgv } from '../runners/claude.js';
+import { CODEX_BIN, CODEX_PROMPT_VIA, buildCodexArgv } from '../runners/codex.js';
+import { OPENCODE_BIN, buildOpencodeArgv } from '../runners/opencode.js';
 
 describe('capability matrix', () => {
   it('encodes the spec table', () => {

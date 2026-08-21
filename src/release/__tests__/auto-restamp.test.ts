@@ -1,6 +1,6 @@
 // @tests: noldor
 import { describe, it, expect, vi } from 'vitest';
-import { autoStampOnCleanDetect } from '../auto-restamp';
+import { autoStampOnCleanDetect } from '../auto-restamp.js';
 
 describe('autoStampOnCleanDetect', () => {
   it('stamps the receipt when detect exits 0 with empty findings', async () => {

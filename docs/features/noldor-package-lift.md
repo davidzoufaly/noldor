@@ -7,6 +7,9 @@ links:
   tests:
     - src/checks/__tests__/check-lefthook-wiring.test.ts
     - src/cli/__tests__/cli.test.ts
+    - src/cli/__tests__/dist-import-graph.test.ts
+    - src/cli/__tests__/runtime-parity.test.ts
+    - src/cli/__tests__/runtime-select.test.ts
     - src/templates/__tests__/templates.test.ts
   spec: docs/design/specs/archive/2026-05-26-noldor-package-lift-design.md
   plan: docs/design/plans/archive/2026-05-26-noldor-package-lift.md
@@ -18,7 +21,6 @@ phase: done
 noldor-tier: full
 introduced: 0.2.0
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
@@ -46,6 +48,14 @@ the product, and any other repo can adopt it through `noldor init`.
 **Evolving the framework (first-party dev repo)**
 
 - Edit the `packages/noldor/templates/…` copy, run `pnpm noldor init --update` to propagate, commit both — never hand-edit the consumer copy.
+
+**Runtime**
+
+- Nothing to configure: every invocation runs compiled `dist` when the build matches the working tree, and falls back to `src` through tsx when it does not. An installed package carries only `dist`.
+- `NOLDOR_RUNTIME=source` forces the tsx path (source-level stack traces while debugging); `NOLDOR_RUNTIME=dist` forces the compiled path and warns on stderr if the build is stale. Unset and empty both mean "decide automatically".
+- `pnpm build` refreshes the compiled runtime, prunes anything the current sources no longer produce, and stamps the result. The pre-commit chain runs it once so the framework's own hook jobs execute compiled code.
+- `pnpm noldor doctor` reports which runtime served the process and why, e.g. `runtime: dist (digest-match)` or `runtime: source (digest-mismatch)`.
+- `pnpm bench:runtime` prints the median cost of the freshness decision over five warm runs.
 
 ## PRs
 

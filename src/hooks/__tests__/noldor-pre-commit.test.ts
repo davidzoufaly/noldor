@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runPreCommit, logOverride } from '../noldor-pre-commit';
+import { runPreCommit, logOverride } from '../noldor-pre-commit.js';
 
 function setupRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'qfpc-'));
