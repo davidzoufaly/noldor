@@ -3,9 +3,9 @@ import { mkdtempSync, readFileSync, existsSync, writeFileSync, mkdirSync } from 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { noldorCliCommand } from '../../core/noldor-cli.js';
 import {
-  binPathFrom,
-  detachChildArgv,
+  detachChildCommand,
   detachWatch,
   stripDetach,
   WATCH_LOG_REL,
@@ -27,21 +27,11 @@ describe('stripDetach', () => {
   });
 });
 
-describe('binPathFrom', () => {
-  it('resolves the package bin two levels up from the module dir', () => {
-    expect(binPathFrom('/pkg/src/autonomous')).toBe('/pkg/bin/noldor.mjs');
-  });
-});
-
-describe('detachChildArgv', () => {
-  it('builds the re-invocation argv sans --detach', () => {
-    expect(detachChildArgv('/pkg/src/autonomous', ['--detach', '--interval', '5'])).toEqual([
-      '/pkg/bin/noldor.mjs',
-      'autonomous',
-      'watch',
-      '--interval',
-      '5',
-    ]);
+describe('detachChildCommand', () => {
+  it('routes the re-invocation (sans --detach) through noldorCliCommand', () => {
+    expect(detachChildCommand(['--detach', '--interval', '5'])).toEqual(
+      noldorCliCommand(['autonomous', 'watch', '--interval', '5']),
+    );
   });
 });
 
@@ -64,7 +54,7 @@ describe('detachWatch', () => {
       return { pid: 4242, unref: () => {} };
     }) as unknown as typeof import('node:child_process').spawn;
 
-    const res = detachWatch(cwd, '/pkg/src/autonomous', ['--detach', '--once'], {
+    const res = detachWatch(cwd, ['--detach', '--once'], {
       spawn: fakeSpawn,
     });
 
@@ -74,7 +64,7 @@ describe('detachWatch', () => {
     expect(res.logPath).toBe(join(cwd, WATCH_LOG_REL));
     expect(res.pidPath).toBe(join(cwd, WATCH_PID_REL));
     expect(readFileSync(res.pidPath, 'utf8').trim()).toBe('4242');
-    expect(spawnedArgv).toEqual(['/pkg/bin/noldor.mjs', 'autonomous', 'watch', '--once']);
+    expect(spawnedArgv).toEqual(noldorCliCommand(['autonomous', 'watch', '--once'])[1]);
   });
 
   it('refuses when a live drain lock is held (no second daemon)', () => {
@@ -92,7 +82,7 @@ describe('detachWatch', () => {
       return { pid: 1, unref: () => {} };
     }) as unknown as typeof import('node:child_process').spawn;
 
-    const res = detachWatch(cwd, '/pkg/src/autonomous', ['--detach'], { spawn: fakeSpawn });
+    const res = detachWatch(cwd, ['--detach'], { spawn: fakeSpawn });
 
     expect(res.ok).toBe(false);
     if (res.ok) throw new Error('unreachable');

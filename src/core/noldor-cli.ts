@@ -1,6 +1,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { isBinaryChannel } from '../binary/asset-root.js';
+
 /**
  * Absolute path to the noldor CLI entrypoint (`bin/noldor.mjs`), resolved
  * relative to this module so it works whether noldor runs from its own repo
@@ -28,5 +30,8 @@ export const NOLDOR_BIN = resolve(
  * subprocess calls must go through it to stay consumer-agnostic.
  */
 export function noldorCliCommand(args: string[]): [string, string[]] {
+  // Binary channel (spec Unit 3b): process.execPath IS the CLI — re-exec it
+  // directly; bin/noldor.mjs does not exist on disk there.
+  if (isBinaryChannel()) return [process.execPath, args];
   return [process.execPath, [NOLDOR_BIN, ...args]];
 }
