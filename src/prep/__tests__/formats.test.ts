@@ -8,7 +8,7 @@ import {
   SECTIONS,
   SECTION_SEPARATOR,
 } from '../../core/summary-body-contract.js';
-import { validateSummaryCommit } from '../../core/validate-summary-body.js';
+import { measureSections } from '../../core/summary-body-contract.js';
 
 import type { PrepEntry } from '../types.js';
 
@@ -39,11 +39,11 @@ describe('PLAN_FORMAT', () => {
     expect(PLAN_FORMAT).not.toContain('REQUIRED SUB-SKILL');
   });
 
-  // The contract prescribes the commit an executor produces, so a commit built by
-  // following it verbatim must survive the gates that commit meets. Measured on Q-0139
-  // (PR #345): three task commits landed in the old prescribed form, the push was
-  // refused, and the range had to be reworded with filter-branch before it would go.
-  describe('the prescribed commit passes the gates it will meet', () => {
+  // The contract prescribes the commit an executor produces, so a summary body built
+  // by following it verbatim must survive the PR gate it meets (`validatePrSummary`
+  // measures the same sections via measureSections). Measured on Q-0139 (PR #345):
+  // commits landed in the old prescribed form and the delivery was refused.
+  describe('the prescribed summary passes the gate it will meet', () => {
     it('prescribes a message file, not the subject-plus-trailer -m pair the push gate refuses', () => {
       expect(PLAN_FORMAT).toContain('git commit -F <message-file>');
       expect(PLAN_FORMAT).not.toContain('-m "<conventional-commit>" -m "Noldor-FD: <slug>"');
@@ -69,52 +69,34 @@ describe('PLAN_FORMAT', () => {
       expect(PLAN_FORMAT).toContain('ONE trailing paragraph');
     });
 
-    it('produces a body the validator accepts when followed', () => {
-      // Build the message the contract describes and run the real validator over it.
-      const message = [
-        'feat(scope): do the thing',
+    it('produces a body the gate accepts when followed', () => {
+      // Build the body the contract describes and run the real measurement over it.
+      const body = [
+        'Why — the queue document and the gate disagreed about summary shape, so a plan',
+        'executor produced a PR its own delivery gate refused.',
         '',
-        'Why — the queue document and the gate disagreed about commit shape, so a plan',
-        'executor produced commits its own push gate refused.',
-        '',
-        'How — the contract now prescribes a message file whose body carries the sections',
-        'the validator checks for, with the trailers kept in one trailing paragraph.',
+        'How — the contract now prescribes a summary body whose sections carry the markers',
+        'the gate checks for, measured at PR-open by validatePrSummary.',
         '',
         'What — one string in the format contract plus the skill step that restates it.',
-        '',
-        'Noldor-FD: some-slug',
       ].join('\n');
-      const r = validateSummaryCommit({
-        sha: 'a'.repeat(40),
-        message,
-        files: ['src/prep/formats.ts'],
-        parentCount: 1,
-      });
-      expect(r.error).toBeUndefined();
+      expect(measureSections(body)).toEqual({ ok: true });
     });
 
     it('and the colon form the contract now forbids is genuinely refused', () => {
       // Proves the marker requirement is load-bearing rather than stylistic: swap the
       // em dashes for colons in an otherwise-identical body and the gate rejects it.
       const colonBody = [
-        'feat(scope): do the thing',
+        'Why: the queue document and the gate disagreed about summary shape, so a plan',
+        'executor produced a PR its own delivery gate refused.',
         '',
-        'Why: the queue document and the gate disagreed about commit shape, so a plan',
-        'executor produced commits its own push gate refused.',
-        '',
-        'How: the contract now prescribes a message file whose body carries the sections',
-        'the validator checks for, with the trailers kept in one trailing paragraph.',
+        'How: the contract now prescribes a summary body whose sections carry the markers',
+        'the gate checks for, measured at PR-open by validatePrSummary.',
         '',
         'What: one string in the format contract plus the skill step that restates it.',
-        '',
-        'Noldor-FD: some-slug',
       ].join('\n');
-      const r = validateSummaryCommit({
-        sha: 'b'.repeat(40),
-        message: colonBody,
-        files: ['src/prep/formats.ts'],
-        parentCount: 1,
-      });
+      const r = measureSections(colonBody);
+      expect(r.ok).toBe(false);
       expect(r.error).toMatch(/missing Why, How, What/);
     });
   });

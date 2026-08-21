@@ -255,7 +255,7 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   Polls up to 2.5 minutes for unresolved lanes. Exit 0 = artifact-stage clean; exit 1 = blockers surfaced (loop back to Step 2.5 `address-blockers`).
 
-- **Preflight the push-range gates (before any code-stage review).** `pr-flow`'s push fires the pre-push chain (`summary-body` commit-object gate, `template-sync`, `noldor-clones`) only after the review receipt is earned — so a gate failure at push time forces a fix commit, the tree changes, the `Noldor-Reviewed-Subagent` receipt invalidates, and a full code-stage dispatch runs purely to re-earn it (Q-0112: 2 of 6 code-stage dispatches plus 3 failed pushes were this class — zero review value). Run the same checks author-side first, while no receipt exists to lose:
+- **Preflight the push-range gates (before any code-stage review).** `pr-flow`'s push fires the pre-push chain (main-push block + docs/adr/ append-only scan, `template-sync`, `noldor-clones`) only after the review receipt is earned — so a gate failure at push time forces a fix commit, the tree changes, the `Noldor-Reviewed-Subagent` receipt invalidates, and a full code-stage dispatch runs purely to re-earn it (Q-0112: 2 of 6 code-stage dispatches plus 3 failed pushes were this class — zero review value). Run the same checks author-side first, while no receipt exists to lose:
 
   ```
   pnpm noldor checks template-sync
@@ -266,7 +266,7 @@ This pause is the cheapest place to catch architectural drift, missing edge case
     | pnpm noldor hooks pre-push origin
   ```
 
-  The `printf` line replays the blocking summary-body validator over exactly the `origin/main..HEAD` commit range the real push will carry — the advisory `validate summary-body` form never blocks, so it is not a preflight. Fix any red (mirror a template twin, re-record a clones baseline alongside the change that moved it, reword a commit body via rebase/amend) and land the fixes as ordinary commits, then re-run until all three exit 0. A mechanical fix landed here costs one commit; the same fix landed after a green review also costs a receipt re-earn dispatch. `enforce-review-receipt` is deliberately not preflighted — the receipt is earned by the review below, so before it runs the check can only be red.
+  The `printf` line replays the blocking pre-push chain over exactly the `origin/main..HEAD` commit range the real push will carry. Separately, confirm the first substantive commit's body carries `Why — / How — / What —` sections (24+ non-whitespace chars each): `pr-flow` composes the PR Summary from it and `validatePrSummary` refuses delivery without them — cheaper to check now than at PR-open. Fix any red (mirror a template twin, re-record a clones baseline alongside the change that moved it, reword a commit body via rebase/amend) and land the fixes as ordinary commits, then re-run until all three exit 0. A mechanical fix landed here costs one commit; the same fix landed after a green review also costs a receipt re-earn dispatch. `enforce-review-receipt` is deliberately not preflighted — the receipt is earned by the review below, so before it runs the check can only be red.
 
 - **Code-stage orchestrate.** Run the worktree-code lane (default `reviewer`; config `crLanes.code` can override, e.g. `['reviewer', 'codex']` to opt codex back in — and on `specs-only-*` / `full-*` paths orchestrate forces `codex` into the set regardless, so an M/L/XL feature never ships reviewed by one model family):
 

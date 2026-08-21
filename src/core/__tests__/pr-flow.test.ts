@@ -12,6 +12,8 @@ import {
   isLinkedWorktree,
   pollChecksBeforeMerge,
   GhPreflightError,
+  PrSummaryError,
+  validatePrSummary,
   MergeTimeoutError,
   PrClosedWithoutMergeError,
   ChecksFailedError,
@@ -604,6 +606,21 @@ describe('pollAutoMerge', () => {
   });
 });
 
+// Delivery fixtures carry a gate-passing summary body: openAndAutoMerge now
+// runs validatePrSummary before anything else, and baseInput's empty body would
+// be rejected at the door on its code-carrying session.
+const shipInput: PrFlowInput = {
+  ...baseInput,
+  summaryCommit: {
+    subject: baseInput.summaryCommit.subject,
+    body: [
+      'Why — the scaffold was missing and every consumer had to hand-write it.',
+      'How — a generator renders the template into the target tree at init time.',
+      'What — src/scripts/scaffold.ts plus its test, wired into the init command.',
+    ].join('\n'),
+  },
+};
+
 describe('openAndAutoMerge', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -637,7 +654,7 @@ describe('openAndAutoMerge', () => {
       }
       return { stdout: '', exitCode: 1 };
     });
-    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    const result = await openAndAutoMerge({ ...shipInput, spawn });
     if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.prUrl).toBe('https://github.com/davidzoufaly/acme/pull/42');
     expect(result.prNumber).toBe(42);
@@ -669,7 +686,7 @@ describe('openAndAutoMerge', () => {
         return { stdout: 'https://github.com/davidzoufaly/acme/pull/7', exitCode: 0 };
       return { stdout: '', exitCode: 1 };
     });
-    const result = await openAndAutoMerge({ ...baseInput, spawn, openOnly: true });
+    const result = await openAndAutoMerge({ ...shipInput, spawn, openOnly: true });
     if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.prUrl).toBe('https://github.com/davidzoufaly/acme/pull/7');
     expect(result.prNumber).toBe(7);
@@ -682,7 +699,7 @@ describe('openAndAutoMerge', () => {
 
   it('throws GhPreflightError before any git push when gh missing', async () => {
     const spawn: SpawnFn = vi.fn(async () => ({ stdout: '', exitCode: 127 }));
-    await expect(openAndAutoMerge({ ...baseInput, spawn })).rejects.toThrow(GhPreflightError);
+    await expect(openAndAutoMerge({ ...shipInput, spawn })).rejects.toThrow(GhPreflightError);
     expect(spawn).toHaveBeenCalledTimes(1);
   });
 
@@ -716,7 +733,7 @@ describe('openAndAutoMerge', () => {
       }
       return { stdout: '', exitCode: 1 };
     });
-    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    const result = await openAndAutoMerge({ ...shipInput, spawn });
     if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.prNumber).toBe(77);
     expect(result.mergedAt).toBe('2026-05-16T19:55:13Z');
@@ -760,7 +777,7 @@ describe('openAndAutoMerge', () => {
       }
       return { stdout: '', exitCode: 1 };
     });
-    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    const result = await openAndAutoMerge({ ...shipInput, spawn });
     if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.mergedAt).toBe('2026-05-16T20:00:00Z');
   });
@@ -789,7 +806,7 @@ describe('openAndAutoMerge', () => {
       }
       return { stdout: '', exitCode: 1 };
     });
-    await expect(openAndAutoMerge({ ...baseInput, spawn })).rejects.toThrow(
+    await expect(openAndAutoMerge({ ...shipInput, spawn })).rejects.toThrow(
       /direct merge fallback exit 1; PR state is "OPEN"/,
     );
   });
@@ -809,7 +826,7 @@ describe('openAndAutoMerge', () => {
         return { stdout: '- 1111111\n- 2222222\n', exitCode: 0 };
       return { stdout: '', exitCode: 1 };
     });
-    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    const result = await openAndAutoMerge({ ...shipInput, spawn });
     if (!('skipped' in result)) throw new Error('expected skip, got delivery');
     expect(result.skipped).toBe(true);
     expect(result.reason).toMatch(/already exist on origin\/main \(patch-id match\)/);
@@ -840,7 +857,7 @@ describe('openAndAutoMerge', () => {
         };
       return { stdout: '', exitCode: 1 };
     });
-    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    const result = await openAndAutoMerge({ ...shipInput, spawn });
     if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.prNumber).toBe(50);
   });
@@ -867,7 +884,7 @@ describe('openAndAutoMerge', () => {
         };
       return { stdout: '', exitCode: 1 };
     });
-    const result = await openAndAutoMerge({ ...baseInput, spawn });
+    const result = await openAndAutoMerge({ ...shipInput, spawn });
     if ('skipped' in result) throw new Error('expected delivery, got skip');
     expect(result.prNumber).toBe(51);
     // Fetch failed ⇒ `git cherry` is never attempted.
@@ -1526,5 +1543,63 @@ describe('pollChecksBeforeMerge', () => {
       pollChecksBeforeMerge({ prUrl, spawn, intervalMs: 1, timeoutMs: 60_000 }),
     ).resolves.toBeUndefined();
     expect(cycle).toBe(3);
+  });
+});
+
+describe('validatePrSummary', () => {
+  it('rejects a code-carrying PR whose Summary lacks the three sections', () => {
+    const r = validatePrSummary({ ...baseInput, branchFiles: ['src/core/x.ts'] });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toMatch(/missing Why, How, What/);
+      expect(r.error).toContain(baseInput.summaryCommit.subject);
+    }
+  });
+
+  it('accepts a code-carrying PR whose summary commit body carries the sections', () => {
+    const r = validatePrSummary({ ...shipInput, branchFiles: ['src/core/x.ts'] });
+    expect(r.ok).toBe(true);
+  });
+
+  it('exempts a branch that carries no code', () => {
+    const r = validatePrSummary({ ...baseInput, branchFiles: ['docs/roadmap.md'] });
+    expect(r.ok).toBe(true);
+  });
+
+  it('exempts the release-sweep automation path', () => {
+    const r = validatePrSummary({
+      ...baseInput,
+      session: { ...baseInput.session, path: 'release-sweep' },
+      branchFiles: ['src/core/x.ts'],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('exempts a retirement-only branch (deterministic template already explains it)', () => {
+    const r = validatePrSummary({
+      ...baseInput,
+      fd: null,
+      session: { ...baseInput.session, path: 'fast-track' },
+      summaryCommit: {
+        subject: 'docs(roadmap): retire some-slug — shipped via fast-track (no FD)',
+        body: '',
+      },
+      branchFiles: ['docs/roadmap.md', '.noldor/retired-entry-ids.json'],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('with no branchFiles, falls back to FD presence as the code signal', () => {
+    // fd !== null reads as code-carrying — the same fallback composeBody uses.
+    const r = validatePrSummary({ ...baseInput });
+    expect(r.ok).toBe(false);
+  });
+
+  it('openAndAutoMerge throws PrSummaryError before spawning anything', async () => {
+    const spawn: SpawnFn = vi.fn(async () => ({ stdout: '', exitCode: 0 }));
+    await expect(
+      openAndAutoMerge({ ...baseInput, branchFiles: ['src/core/x.ts'], spawn }),
+    ).rejects.toThrow(PrSummaryError);
+    expect(spawn).not.toHaveBeenCalled();
   });
 });

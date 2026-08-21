@@ -79,10 +79,13 @@ dependency, so the prompt stays a thin pointer.
   `pnpm noldor noldor set-autonomous` — never ask autonomous-vs-interactive.
 - Preflight the push-range gates **before** the code-stage CR, while no receipt
   exists to lose: `pnpm noldor checks template-sync`, `pnpm noldor clones check`,
-  and replay the blocking summary-body validator over the outgoing range —
-  `printf 'refs/heads/%s %s refs/heads/%s %s\n' "$(git branch --show-current)" "$(git rev-parse HEAD)" "$(git branch --show-current)" "$(git rev-parse origin/main)" | pnpm noldor hooks pre-push origin`
-  (the advisory `validate summary-body` form never blocks, so it is not a
-  preflight). Fix any red and commit until all three exit 0. A gate failure
+  and replay the pre-push chain (main-push block + docs/adr/ append-only scan)
+  over the outgoing range —
+  `printf 'refs/heads/%s %s refs/heads/%s %s\n' "$(git branch --show-current)" "$(git rev-parse HEAD)" "$(git branch --show-current)" "$(git rev-parse origin/main)" | pnpm noldor hooks pre-push origin`.
+  Also make sure the first substantive commit's body carries `Why — / How — /
+  What —` sections (24+ chars each): `pr-flow` validates the composed PR body
+  (`validatePrSummary`) and refuses delivery without them.
+  Fix any red and commit until all three exit 0. A gate failure
   discovered at `pr-flow` push instead lands a fix commit that invalidates the
   `Noldor-Reviewed-Subagent` receipt and burns a full code-stage dispatch
   re-earning it. `enforce-review-receipt` is not preflighted — before the

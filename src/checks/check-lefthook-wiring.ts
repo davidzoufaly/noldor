@@ -9,7 +9,7 @@
 //
 // A repo whose root `lefthook.yml` predates adoption therefore never receives
 // that line, and every noldor job — trailer injection, commit-msg validation,
-// the pre-push summary-body gate — is silently inert while lefthook still
+// the pre-push gates — is silently inert while lefthook still
 // prints its banner. Zero jobs running looks exactly like zero jobs
 // configured, so the failure has no signal at all until a gate that was
 // believed armed lets something through.

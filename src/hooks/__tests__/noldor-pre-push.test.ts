@@ -9,7 +9,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { evaluatePrePush, type PrePushInput } from '../noldor-pre-push.js';
 import { readStdinWithTimeout, recordReleasePush } from '../noldor-pre-push.js';
-import { ensureSummaryBodyRolloutSnapshot } from '../../core/summary-body-rollout.js';
 
 // Resolved once, absolutely: `runHook` spawns with `cwd` set to a scratch tmpdir
 // OUTSIDE this repo, so `npx tsx` cannot see `node_modules/.bin` and silently
@@ -152,16 +151,9 @@ describe('readStdinWithTimeout', () => {
 // ---------------------------------------------------------------------------
 // Orchestration: the hook end-to-end over real commit objects.
 //
-// Subprocess rather than a direct `main()` call: the whole claim of the redesign
-// is that the blocking decision is made from what git STORED, so these drive the
-// real entrypoint with real stdin against real repositories.
+// Subprocess rather than a direct `main()` call: these drive the real
+// entrypoint with real stdin against real repositories.
 // ---------------------------------------------------------------------------
-
-const GOOD_BODY = [
-  'Why — the gate read a provisional message file and guessed at the path set.',
-  'How — pre-push now loads each outgoing commit object and reads its real paths.',
-  'What — src/hooks/noldor-pre-push.ts delegates to validate-pushed-summaries.',
-].join('\n');
 
 function sh(dir: string, args: string[]): string {
   return execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
@@ -177,7 +169,6 @@ function scratch(): string {
   writeFileSync(join(dir, 'README.md'), 'seed\n');
   sh(dir, ['add', '-A']);
   sh(dir, ['commit', '-q', '--no-verify', '-m', 'docs: seed']);
-  ensureSummaryBodyRolloutSnapshot(dir);
   return dir;
 }
 
@@ -207,44 +198,18 @@ function runHook(
 const ZEROES = '0'.repeat(40);
 
 describe('pre-push orchestration', () => {
-  it('rejects a direct origin/main push before walking any object', () => {
+  it('rejects a direct origin/main push', () => {
     const dir = scratch();
-    // Deliberately invalid too: the message proves which check fired first.
     const sha = addCode(dir, 'a', 'feat: silent change');
     const r = runHook(dir, `refs/heads/main ${sha} refs/heads/main ${ZEROES}\n`);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('Direct push to origin/main is blocked');
-    expect(r.stderr).not.toContain('do not explain themselves');
   });
 
-  it('passes a feature push whose commits explain themselves', () => {
+  it('passes a feature push regardless of commit-body shape (bodies are free-form)', () => {
     const dir = scratch();
-    const sha = addCode(dir, 'a', `feat: explain\n\n${GOOD_BODY}\n`);
+    const sha = addCode(dir, 'a', 'feat: silent change');
     expect(runHook(dir, `refs/heads/f ${sha} refs/heads/f ${ZEROES}\n`).status).toBe(0);
-  });
-
-  it('rejects a feature push carrying an unexplained code commit', () => {
-    const dir = scratch();
-    const sha = addCode(dir, 'a', 'feat: silent change');
-    const r = runHook(dir, `refs/heads/f ${sha} refs/heads/f ${ZEROES}\n`);
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain('do not explain themselves');
-    expect(r.stderr).toContain(sha.slice(0, 8));
-  });
-
-  it('validates a non-origin remote too', () => {
-    const dir = scratch();
-    const sha = addCode(dir, 'a', 'feat: silent change');
-    const r = runHook(dir, `refs/heads/f ${sha} refs/heads/f ${ZEROES}\n`, { remote: 'fork' });
-    expect(r.status).toBe(1);
-  });
-
-  it('exits 2 on a corrupt activation snapshot', () => {
-    const dir = scratch();
-    writeFileSync(join(dir, '.noldor/summary-body-rollout.json'), 'corrupt');
-    const sha = addCode(dir, 'a', `feat: explain\n\n${GOOD_BODY}\n`);
-    const r = runHook(dir, `refs/heads/f ${sha} refs/heads/f ${ZEROES}\n`);
-    expect(r.status).toBe(2);
   });
 
   it('exits 2 on a malformed ref line', () => {
@@ -253,31 +218,9 @@ describe('pre-push orchestration', () => {
     expect(r.status).toBe(2);
   });
 
-  it('passes with a notice — never silently — when the gate is not activated', () => {
+  it('writes the release receipt under the release override', () => {
     const dir = scratch();
-    rmSync(join(dir, '.noldor/summary-body-rollout.json'));
-    const sha = addCode(dir, 'a', 'feat: silent change');
-    const r = runHook(dir, `refs/heads/f ${sha} refs/heads/f ${ZEROES}\n`);
-    expect(r.status).toBe(0);
-    expect(r.stderr).toContain('summary-body-rollout.json');
-  });
-
-  it('still validates bodies under a release override, and writes no receipt when they fail', () => {
-    const dir = scratch();
-    const sha = addCode(dir, 'a', 'feat: silent change');
-    const r = runHook(dir, `refs/heads/main ${sha} refs/heads/main ${ZEROES}\n`, {
-      env: { NOLDOR_RELEASE_PUSH: '1' },
-    });
-    // The override permits the destination; it does not exempt the bodies.
-    expect(r.status).toBe(1);
-    expect(r.stderr).toContain('do not explain themselves');
-    // And the receipt must not claim a push that never happened.
-    expect(existsSync(join(dir, '.noldor/release-pushes.log'))).toBe(false);
-  });
-
-  it('writes the release receipt once validation has passed', () => {
-    const dir = scratch();
-    const sha = addCode(dir, 'a', `feat: explain\n\n${GOOD_BODY}\n`);
+    const sha = addCode(dir, 'a', 'feat: release push');
     const r = runHook(dir, `refs/heads/main ${sha} refs/heads/main ${ZEROES}\n`, {
       env: { NOLDOR_RELEASE_PUSH: '1' },
     });

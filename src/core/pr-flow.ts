@@ -1,5 +1,6 @@
 import { isRetirementOnly, touchesCode } from './allowlist.js';
 import type { SessionMarker } from './session.js';
+import { measureSections, summaryBodyTemplate } from './summary-body-contract.js';
 
 export interface FdSummary {
   name: string;
@@ -211,24 +212,12 @@ function renderRetirementSummary(
   ].join('\n');
 }
 
-export function composeBody(input: PrFlowInput): string {
-  if (input.session.path === 'release-sweep') {
-    const sweepScope = [
-      `- Gate path: \`${input.session.path}\``,
-      `- Worktree branch: \`${input.branch}\``,
-    ].join('\n');
-    return [
-      '## Pre-release sweep',
-      '',
-      'Pre-release sweep results. Lands as a single PR; merge gates the release-confirmation prompt below.',
-      '',
-      '## Scope',
-      '',
-      sweepScope,
-      '',
-    ].join('\n');
-  }
-
+/**
+ * The Summary section's text, shared by {@link composeBody} and
+ * {@link validatePrSummary} so the gate measures exactly the prose the PR will
+ * carry — never a reconstruction that can drift from it.
+ */
+function composeSummary(input: PrFlowInput): string {
   // No-FD paths (micro-chore, fast-track) have no FD summary to draw from, so
   // they fall back to the summary commit — labelled by the actual gate path.
   // fast-track is a code change, not a doc-only micro-chore; mislabelling it
@@ -263,17 +252,82 @@ export function composeBody(input: PrFlowInput): string {
   const retired = isRetirementOnly([...branchFiles])
     ? retiredSlug(input.summaryCommit.subject)
     : null;
-  const summary =
-    retired !== null
-      ? renderRetirementSummary(input, retired, branchFiles)
-      : input.fd
-        ? // The FD names the feature; the summary commit's body explains THIS
-          // increment. An attach PR otherwise renders its parent feature's
-          // description and never mentions the enhancement that shipped.
-          [input.fd.summary]
-            .concat(input.summaryCommit.body.length > 0 ? ['', input.summaryCommit.body] : [])
-            .join('\n')
-        : noFdSummary;
+  return retired !== null
+    ? renderRetirementSummary(input, retired, branchFiles)
+    : input.fd
+      ? // The FD names the feature; the summary commit's body explains THIS
+        // increment. An attach PR otherwise renders its parent feature's
+        // description and never mentions the enhancement that shipped.
+        [input.fd.summary]
+          .concat(input.summaryCommit.body.length > 0 ? ['', input.summaryCommit.body] : [])
+          .join('\n')
+      : noFdSummary;
+}
+
+/**
+ * Does this branch carry code, for the "a PR that carries code explains itself"
+ * contract?
+ *
+ * Keyed on the diff, not on FD presence: a no-FD fast-track that rewrites
+ * `src/**` is not a doc-only change (PRs #298, #313, #315). With no
+ * `branchFiles`, fall back to the pre-existing FD-presence rule rather than to
+ * `touchesCode([])`, which is `false` and would answer "doc-only" for every
+ * caller that omitted the field — failing open.
+ */
+function branchCarriesCode(input: PrFlowInput): boolean {
+  return input.branchFiles === undefined ? input.fd !== null : touchesCode([...input.branchFiles]);
+}
+
+/**
+ * The Why/How/What gate, at the PR seam.
+ *
+ * This is the ONLY mechanical enforcement of the summary shape: commit bodies
+ * are free-form (the per-commit pre-push gate is retired), and a PR explains
+ * itself exactly once — in the body `gh pr create` receives. Measures the same
+ * Summary text {@link composeBody} renders, so a pass here is a property of the
+ * actual PR, not of any one commit.
+ *
+ * Exemptions mirror the composition: a `release-sweep` PR renders a
+ * deterministic automation body with no prose to demand, and a branch that
+ * carries no code has no behaviour to explain.
+ */
+export function validatePrSummary(input: PrFlowInput): { ok: true } | { ok: false; error: string } {
+  if (input.session.path === 'release-sweep') return { ok: true };
+  if (!branchCarriesCode(input)) return { ok: true };
+
+  const measured = measureSections(composeSummary(input));
+  if (measured.ok) return { ok: true };
+
+  return {
+    ok: false,
+    error:
+      `pr-flow: the PR body must explain the change (${measured.error})\n\n` +
+      `${summaryBodyTemplate()}\n\n` +
+      `The Summary is composed from the summary commit ` +
+      `(${JSON.stringify(input.summaryCommit.subject)}) — amend that commit's body to carry ` +
+      `the three sections, then re-run pr-flow.`,
+  };
+}
+
+export function composeBody(input: PrFlowInput): string {
+  if (input.session.path === 'release-sweep') {
+    const sweepScope = [
+      `- Gate path: \`${input.session.path}\``,
+      `- Worktree branch: \`${input.branch}\``,
+    ].join('\n');
+    return [
+      '## Pre-release sweep',
+      '',
+      'Pre-release sweep results. Lands as a single PR; merge gates the release-confirmation prompt below.',
+      '',
+      '## Scope',
+      '',
+      sweepScope,
+      '',
+    ].join('\n');
+  }
+
+  const summary = composeSummary(input);
 
   const scope = [
     `- Gate path: \`${input.session.path}\``,
@@ -291,16 +345,10 @@ export function composeBody(input: PrFlowInput): string {
       ? '> ⚠️ **CR retry exhausted** — codex findings persisted across 3 passes. See passes table below; manual review recommended before merge.\n\n'
       : '';
 
-  // Keyed on the diff, not on FD presence: a no-FD fast-track that rewrites
-  // `src/**` is not a doc-only change, and rendering one asserts something the
-  // diff contradicts (PRs #298, #313, #315). The dogfood bullet still needs an
-  // FD to point at.
-  //
-  // With no `branchFiles`, fall back to the pre-existing FD-presence rule rather
-  // than to `touchesCode([])`, which is `false` and would answer "doc-only" for
-  // every caller that omitted the field — failing open into the very bug above.
-  const carriesCode =
-    input.branchFiles === undefined ? input.fd !== null : touchesCode([...input.branchFiles]);
+  // See branchCarriesCode: keyed on the diff, not on FD presence, so a no-FD
+  // fast-track that rewrites `src/**` renders a code Test Plan. The dogfood
+  // bullet still needs an FD to point at.
+  const carriesCode = branchCarriesCode(input);
   const testPlanItems = carriesCode
     ? [
         '- [ ] `pnpm validate:features` passes (run pre-merge).',
@@ -340,6 +388,14 @@ export class GhPreflightError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'GhPreflightError';
+  }
+}
+
+/** Thrown by {@link openAndAutoMerge} when {@link validatePrSummary} rejects. */
+export class PrSummaryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PrSummaryError';
   }
 }
 
@@ -623,6 +679,13 @@ export async function checkRedundantDelivery(opts: {
 export async function openAndAutoMerge(
   input: OpenAndAutoMergeInput,
 ): Promise<PrFlowResult | RedundantDelivery> {
+  // The Why/How/What gate, before anything leaves the machine: a rejection here
+  // costs an amend of the summary commit, not a pushed branch with a missing PR.
+  const summaryVerdict = validatePrSummary(input);
+  if (!summaryVerdict.ok) {
+    throw new PrSummaryError(summaryVerdict.error);
+  }
+
   await preflightGh({ spawn: input.spawn });
 
   // Idempotency guard: skip the push/PR when the branch's commits already landed on
