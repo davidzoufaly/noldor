@@ -1,4 +1,4 @@
-import type { Decision, LedgerState, OpenThread } from './ledger.js';
+import { normalize, type Decision, type LedgerState, type OpenThread } from './ledger.js';
 
 /** One addressable artifact heading, with the digest of its current body. */
 export interface RenderHeading {
@@ -76,7 +76,7 @@ function fieldLines(d: Decision, indent: string): string[] {
   const out: string[] = [];
   if (d.section !== undefined) out.push(`${indent}section: ${d.section}`);
   if (d.why !== undefined) out.push(`${indent}why: ${d.why}`);
-  if (d.insteadOf !== undefined) out.push(`${indent}alt: ${d.insteadOf}`);
+  if (d.insteadOf !== undefined) out.push(`${indent}instead-of: ${d.insteadOf}`);
   return out;
 }
 
@@ -97,8 +97,22 @@ function indentProse(prose: string): string[] {
   return prose.split('\n').map((l) => (l.trim() === '' ? '' : `    ${l}`));
 }
 
-/** Marker for one heading. First match wins; `▸` outranks confirmation state. */
-function marker(h: RenderHeading, opts: RenderOpts, confirmedBy: Map<string, string>): string {
+/**
+ * Marker for one heading. `▸` outranks confirmation state.
+ *
+ * `authoritative` is false for a repeated name's second and later occurrences.
+ * Everything else in the block — `extractSection`, the confirmation digest, the
+ * heading position — resolves a duplicated name to its first occurrence, so
+ * marking the later ones current or confirmed would contradict the rest of the
+ * output. They render plain, and the duplicate itself is a warning.
+ */
+function marker(
+  h: RenderHeading,
+  opts: RenderOpts,
+  confirmedBy: Map<string, string>,
+  authoritative: boolean,
+): string {
+  if (!authoritative) return '·';
   if (opts.section === h.name) return '▸';
   const digest = confirmedBy.get(h.name);
   if (digest === undefined) return '·';
@@ -150,8 +164,9 @@ export function renderContext(state: LedgerState, opts: RenderOpts): string {
 
   if (headings.length > 0) {
     lines.push('Headings');
-    for (const h of headings) {
-      lines.push(`  ${marker(h, opts, confirmedBy)} ${'  '.repeat(h.depth - 2)}${h.name}`);
+    for (const [i, h] of headings.entries()) {
+      const first = headings.findIndex((x) => x.name === h.name) === i;
+      lines.push(`  ${marker(h, opts, confirmedBy, first)} ${'  '.repeat(h.depth - 2)}${h.name}`);
     }
     lines.push('');
   }
@@ -183,10 +198,12 @@ export function renderContext(state: LedgerState, opts: RenderOpts): string {
   }
 
   const elsewhere = state.decided.filter((d) => !shownHere.has(d.id));
-  // Under a focus heading the bucket lists fewer rows than the ledger holds, so
-  // the label names both numbers rather than a count that disagrees with the rows.
+  // Under a focus heading the bucket may list fewer rows than the ledger holds,
+  // so the label names both numbers rather than a count that disagrees with the
+  // rows. Keyed on the focus, not on whether anything was actually bound to it:
+  // "Decided (3)" under an active focus reads as though nothing was withheld.
   lines.push(
-    shownHere.size > 0
+    focus !== null
       ? `Decided elsewhere (${elsewhere.length} of ${state.decided.length})`
       : `Decided (${state.decided.length})`,
   );
@@ -249,7 +266,12 @@ function collectWarnings(
   const legal = headings.map((h) => h.name).join(', ');
 
   if (opts.section !== undefined && !known.has(opts.section)) {
-    out.push(`⚠ --section '${opts.section}' matches no heading — legal: ${legal}`);
+    // `--section` arrives straight from argv, so it is the one value in this block
+    // that has not been through the ledger writer. Without `normalize` a value
+    // carrying a line terminator plus a fence would emit extra lines into output
+    // the skills paste inside a fenced block — the forgery `indentProse` and
+    // `ledger.normalize` exist to close.
+    out.push(`⚠ --section '${normalize(opts.section)}' matches no heading — legal: ${legal}`);
   }
 
   const tagged: (Decision | OpenThread)[] = [...state.decided, ...state.open];

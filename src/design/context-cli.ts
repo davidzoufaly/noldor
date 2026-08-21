@@ -3,6 +3,7 @@
 // is the writer. Skills paste this stdout, inside a fenced code block,
 // immediately above every design question.
 
+import { runIfDirect } from '../core/cli-entry.js';
 import { locateArtifact, readArtifact, type ArtifactKind } from './artifact-locate.js';
 import { loadScope, readLedger, validateSlug } from './ledger.js';
 import { renderContext, type RenderHeading } from './render.js';
@@ -111,7 +112,15 @@ export function runContext(
     return 1;
   }
 
-  const view = located.status === 'found' ? readArtifact(located.paths) : null;
+  let view = null;
+  if (located.status === 'found') {
+    const read = readArtifact(located.paths);
+    if (read.status === 'rejected') {
+      err(`design context: ${read.reason}\n`);
+      return 1;
+    }
+    view = read.view;
+  }
   const headings: RenderHeading[] = view?.headings ?? [];
   const prose = view !== null && parsed.section !== undefined ? view.section(parsed.section) : null;
 
@@ -139,6 +148,10 @@ export function runContext(
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  process.exit(runContext(process.argv.slice(2), process.cwd()));
-}
+// `runIfDirect` rather than comparing `import.meta.url` to `process.argv[1]`: the
+// CLI router hands the module a raw path while `import.meta.url` is
+// percent-encoded, so any path containing a space made that comparison false —
+// the command imported the module, ran nothing, and exited 0.
+runIfDirect('context-cli', 'design context', async () =>
+  runContext(process.argv.slice(2), process.cwd()),
+);

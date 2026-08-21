@@ -2,6 +2,7 @@
 // IDs. The writer half of the inline-design-context loop; `design context`
 // (context-cli.ts) is the reader.
 
+import { runIfDirect } from '../core/cli-entry.js';
 import { digestBody, locateArtifact, readArtifact, type ArtifactKind } from './artifact-locate.js';
 import {
   normalize,
@@ -159,6 +160,13 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
  * alike, so a mixed invocation needs no disambiguation rule. `--because` and
  * `--instead-of` attach to the one decision the parser already guaranteed.
  *
+ * Read-modify-write is not atomic and is not locked: `runLog` reads, applies and
+ * writes. One dialogue is a single writer by construction — the skills run this
+ * once per answer, in sequence — so the assumption holds for the intended use,
+ * but two concurrent invocations would have the second clobber the first and
+ * re-mint the same `D`/`O` id. Batching independent `design log` calls in one
+ * turn is therefore unsafe; keep them sequential.
+ *
  * @param confirmDigest - Body digest for `--confirm-section`, hashed by the
  *   caller. Required whenever `args.confirmSection` is set: this function does no
  *   I/O, so it cannot read the heading itself.
@@ -281,14 +289,19 @@ export function runLog(
       err(`design log: ${located.reason}\n`);
       return 1;
     }
-    const view = located.status === 'found' ? readArtifact(located.paths) : null;
-    if (view === null) {
+    if (located.status === 'none') {
       err(
         `design log: --confirm-section '${parsed.confirmSection}': no ${parsed.kind} on disk for ` +
           `slug '${parsed.slug}' — nothing to confirm.\n`,
       );
       return 1;
     }
+    const read = readArtifact(located.paths);
+    if (read.status === 'rejected') {
+      err(`design log: ${read.reason}\n`);
+      return 1;
+    }
+    const view = read.view;
     const body = view.section(parsed.confirmSection);
     if (body === null) {
       const legal = view.headings.map((h) => h.name).join(', ') || '(none)';
@@ -311,6 +324,7 @@ export function runLog(
   return 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  process.exit(runLog(process.argv.slice(2), process.cwd()));
-}
+// See the same note in `context-cli.ts`: the raw-path vs percent-encoded-URL
+// comparison silently no-opped on any path containing a space, which for this
+// command meant the operator's decision was written nowhere and exit was 0.
+runIfDirect('log-cli', 'design log', async () => runLog(process.argv.slice(2), process.cwd()));

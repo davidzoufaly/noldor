@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { locateArtifact } from '../artifact-locate.js';
+import { locateArtifact, readArtifact } from '../artifact-locate.js';
 
 const SLUG = 'my-feature';
 
@@ -55,6 +55,17 @@ describe('locateArtifact — discovery', () => {
   it('returns none when the root does not exist', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'noldor-locate-bare-'));
     expect(locateArtifact(cwd, { slug: SLUG }).status).toBe('none');
+  });
+
+  it('rejects rather than reporting none when the root is not a directory', () => {
+    // A misconfigured root reported as an absence would suppress the checklist
+    // and every warning forever, with nothing on screen to explain why.
+    const cwd = mkdtempSync(join(tmpdir(), 'noldor-locate-file-root-'));
+    mkdirSync(join(cwd, 'docs', 'design'), { recursive: true });
+    writeFileSync(join(cwd, 'docs', 'design', 'specs'), 'not a directory');
+    const r = locateArtifact(cwd, { slug: SLUG });
+    expect(r.status).toBe('rejected');
+    expect(r.status === 'rejected' && r.reason).toMatch(/cannot be listed/);
   });
 
   it('orders split plan parts by part number, not lexically', () => {
@@ -185,5 +196,36 @@ describe('locateArtifact — override', () => {
       override: `docs/design/specs/2026-08-21-${SLUG}-design.md`,
     });
     expect(r.status).toBe('found');
+  });
+});
+
+describe('readArtifact', () => {
+  it('reads a single spec', () => {
+    const cwd = repo();
+    const p = spec(cwd, `2026-08-21-${SLUG}-design.md`, '## Alpha\n\nbody\n');
+    const r = readArtifact([p]);
+    expect(r.status).toBe('read');
+    expect(r.status === 'read' && r.view.headings.map((h) => h.name)).toEqual(['Alpha']);
+    expect(r.status === 'read' && r.view.section('Alpha')).toBe('body');
+  });
+
+  it('unions the headings of a split plan in the order given', () => {
+    const cwd = repo();
+    const a = plan(cwd, `2026-08-21-${SLUG}.md`);
+    const b = join(cwd, 'docs', 'design', 'plans', `2026-08-21-${SLUG}-part2.md`);
+    writeFileSync(b, '## Task 2\nsecond\n');
+    const r = readArtifact([a, b]);
+    expect(r.status === 'read' && r.view.headings.map((h) => h.name)).toEqual(['Task 1', 'Task 2']);
+    expect(r.status === 'read' && r.view.section('Task 2')).toBe('second');
+  });
+
+  it('rejects when any part is unreadable rather than rendering a subset', () => {
+    // Rendering a partial split plan would let --confirm-section store an
+    // approval digest for prose the operator never saw.
+    const cwd = repo();
+    const a = plan(cwd, `2026-08-21-${SLUG}.md`);
+    const r = readArtifact([a, join(cwd, 'docs', 'design', 'plans', 'gone.md')]);
+    expect(r.status).toBe('rejected');
+    expect(r.status === 'rejected' && r.reason).toMatch(/cannot be read/);
   });
 });

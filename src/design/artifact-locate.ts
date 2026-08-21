@@ -105,10 +105,14 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
   let names: string[];
   try {
     names = readdirSync(root);
-  } catch {
-    // A repo that has never written this kind of artifact has no directory. That
-    // is an absence, not a misconfiguration.
-    return { status: 'none' };
+  } catch (e) {
+    // Only a *missing* directory is an absence — a repo that has never written
+    // this kind of artifact. A permission error or a non-directory at the
+    // configured root is a misconfiguration, and reporting it as "no artifact
+    // yet" would silently suppress the checklist and every warning forever.
+    const code = (e as { code?: string }).code;
+    if (code === 'ENOENT') return { status: 'none' };
+    return { status: 'rejected', reason: `${root}: cannot be listed (${code ?? 'unknown error'})` };
   }
 
   const extract = kind === 'spec' ? extractSpecSlug : extractPlanSlug;
@@ -165,23 +169,28 @@ export interface ArtifactView {
   section: (name: string) => string | null;
 }
 
+export type ReadResult =
+  | { status: 'read'; view: ArtifactView }
+  | { status: 'rejected'; reason: string };
+
 /**
- * Read the located artifact.
+ * Read every part of the located artifact.
  *
- * @returns The view, or `null` when no part could be read — a file that vanished
- *   between `locateArtifact` and here is an absent draft, not a crash.
+ * All-or-nothing on purpose. Skipping an unreadable part of a split plan would
+ * let the block render, and `--confirm-section` store an approval digest, against
+ * a *subset* of the plan — an approval of prose the operator never saw. One
+ * unreadable part is a rejection.
  */
-export function readArtifact(paths: readonly string[]): ArtifactView | null {
+export function readArtifact(paths: readonly string[]): ReadResult {
   const docs: string[] = [];
   for (const p of paths) {
     try {
       docs.push(readFileSync(p, 'utf8'));
     } catch {
-      // Skip the unreadable part rather than failing the whole dialogue; a
-      // partial plan still renders, and the missing headings simply do not appear.
+      return { status: 'rejected', reason: `${p}: cannot be read` };
     }
   }
-  if (docs.length === 0) return null;
+  if (docs.length === 0) return { status: 'rejected', reason: 'no artifact parts to read' };
 
   const headings: ArtifactHeading[] = [];
   for (const md of docs) {
@@ -190,13 +199,16 @@ export function readArtifact(paths: readonly string[]): ArtifactView | null {
     }
   }
   return {
-    headings,
-    section: (name) => {
-      for (const md of docs) {
-        const body = extractSection(md, name);
-        if (body !== null) return body;
-      }
-      return null;
+    status: 'read',
+    view: {
+      headings,
+      section: (name) => {
+        for (const md of docs) {
+          const body = extractSection(md, name);
+          if (body !== null) return body;
+        }
+        return null;
+      },
     },
   };
 }

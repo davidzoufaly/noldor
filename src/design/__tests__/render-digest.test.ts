@@ -76,7 +76,7 @@ describe('focus heading', () => {
     expect(out).toContain('    first para');
     expect(out).toContain('  - D1 Bound to Design.');
     expect(out).toContain('      why: because');
-    expect(out).toContain('      alt: other');
+    expect(out).toContain('      instead-of: other');
     // D1 is shown above, so the bucket lists the other two and says so.
     expect(out).toContain('Decided elsewhere (2 of 3)');
     expect(out).not.toContain('- D1 Bound to Design. (+why)');
@@ -95,6 +95,12 @@ describe('focus heading', () => {
 
   it('numbers the heading position in the status line', () => {
     expect(renderContext(state, opts)).toContain('heading 2/3');
+  });
+
+  it('keeps the elsewhere label when the focus heading has no bound decisions', () => {
+    // "Decided (3)" under an active focus reads as though nothing was withheld.
+    const out = renderContext(state, { ...base, section: 'Unit 1' });
+    expect(out).toContain('Decided elsewhere (3 of 3)');
   });
 });
 
@@ -149,6 +155,16 @@ describe('checklist markers', () => {
     expect(out).not.toContain('  ✓ Problem');
   });
 
+  it('marks only the first occurrence of a duplicated name', () => {
+    const dup: RenderHeading[] = [
+      { name: 'Design', depth: 2, digest: 'bbbbbbbb' },
+      { name: 'Design', depth: 2, digest: 'bbbbbbbb' },
+    ];
+    const out = renderContext(state, { ...base, headings: dup, section: 'Design' });
+    expect(out.match(/ {2}▸ Design/g)).toHaveLength(1);
+    expect(out).toContain('  · Design');
+  });
+
   it('indents an H3 under its H2', () => {
     const out = renderContext(state, base);
     expect(out).toContain('  ·   Unit 1');
@@ -195,6 +211,17 @@ describe('warnings', () => {
   });
 });
 
+describe('warning containment', () => {
+  it('collapses a line terminator in --section before printing it', () => {
+    const out = renderContext(state, { ...base, section: 'evil\n```\n## Forged' });
+    for (const line of out.split('\n')) {
+      expect(line.startsWith('```')).toBe(false);
+      expect(line.startsWith('#')).toBe(false);
+    }
+    expect(out).toContain("⚠ --section 'evil ``` ## Forged' matches no heading");
+  });
+});
+
 describe('--full', () => {
   it('expands every value and every field, header and checklist included', () => {
     const out = renderContext(state, { ...base, full: true });
@@ -202,6 +229,7 @@ describe('--full', () => {
     expect(out).toContain('- Short scope. And a second sentence that the digest should hide.');
     expect(out).toContain('- D3 Untagged. With a tail sentence.');
     expect(out).toContain('    why: because');
+    expect(out).toContain('    instead-of: other');
     expect(out).not.toContain('(+why)');
     expect(out).not.toContain('(+1 more)');
   });

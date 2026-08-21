@@ -198,16 +198,6 @@ function splitSections(raw: string): {
 /** Canonical sub-bullet: exactly two leading spaces, a known key, a non-blank value. */
 const SUBBULLET_RE = /^ {2}- (section|why|instead-of): (\S.*)$/;
 
-/**
- * Anything *shaped* like a sub-bullet. Wider than {@link SUBBULLET_RE} on
- * purpose: a line that looks like a field but is not canonical (one space, three
- * spaces, an unknown key, an empty value) must be *detected* rather than merely
- * unrecognized, because the writer reserializes from parsed state and would
- * otherwise erase it — the same silent-data-loss class the unknown-heading rule
- * refuses.
- */
-const SUBBULLET_SHAPE_RE = /^ *- *[A-Za-z][A-Za-z-]* *:/;
-
 /** Storage line for an entry (`- D1 …` / `- O1 …`): a bullet at column 0. */
 const ENTRY_LINE_RE = /^- \S/;
 
@@ -246,13 +236,15 @@ function groupEntries(
       continue;
     }
     if (ENTRY_LINE_RE.test(line)) {
-      // An entry line can itself match the loose shape (`- section: x` with no
-      // indent), so the entry test has to come before the near-miss test.
       out.push({ line, fields: {} });
       continue;
     }
-    if (SUBBULLET_SHAPE_RE.test(line)) return null; // near-miss sub-bullet
-    return null; // neither an entry nor a field
+    // Anything else fails closed, which is what covers the near-misses: one or
+    // three spaces of indentation, an unknown key, an empty value. The writer
+    // reserializes from parsed state, so a line merely *ignored* here would be
+    // erased on the next write — the silent-data-loss class the unknown-heading
+    // rule already refuses.
+    return null;
   }
   return out;
 }
