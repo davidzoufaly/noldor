@@ -72,8 +72,12 @@ function sectionLength(body: string, section: string): number | null {
  * Pure section measurement + diagnostic. The `Why:` hint matters because a colon
  * form is a valid git trailer, so an author who wrote `Why:` in a commit body
  * would see it absorbed by interpret-trailers — the em-dash marker avoids that.
+ *
+ * A discriminated union, not `{ ok; error? }`: the failure branch always
+ * carries its diagnostic, so a caller cannot render `undefined` into a
+ * rejection message.
  */
-export function measureSections(body: string): { ok: boolean; error?: string } {
+export function measureSections(body: string): { ok: true } | { ok: false; error: string } {
   const missing: string[] = [];
   const thin: string[] = [];
   for (const section of SECTIONS) {

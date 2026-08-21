@@ -27,6 +27,13 @@ rather than `isBookkeepingOnly`, so prose that is neither code nor bookkeeping
 (`docs/noldor/**`, root `*.md`, `.claude/**`, the `templates/` prose twins) is
 exempt too.
 
+Two further carve-outs, matching what `composeBody` can actually render:
+`release-sweep` sessions (the sweep PR body is a deterministic automation
+template with no prose seam — its code motion is reviewed at the sweep's own
+confirmation gate, not through a PR summary) and retirement-only branches
+(their Why/How/What is rendered from a deterministic template, and they carry
+no code anyway). `validatePrSummary` exempts exactly these.
+
 **A green delivery is not a compliant summary.** The mechanical floor is
 `validatePrSummary` (`src/core/pr-flow.ts`), which runs at the top of
 `openAndAutoMerge` and enforces only the *structure*: that a `Why —`, `How —`

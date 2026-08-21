@@ -7,8 +7,8 @@ import {
   MIN_SECTION_CHARS,
   SECTIONS,
   SECTION_SEPARATOR,
+  measureSections,
 } from '../../core/summary-body-contract.js';
-import { measureSections } from '../../core/summary-body-contract.js';
 
 import type { PrepEntry } from '../types.js';
 
@@ -96,7 +96,7 @@ describe('PLAN_FORMAT', () => {
         'What: one string in the format contract plus the skill step that restates it.',
       ].join('\n');
       const r = measureSections(colonBody);
-      expect(r.ok).toBe(false);
+      if (r.ok) throw new Error('expected the colon form to be refused');
       expect(r.error).toMatch(/missing Why, How, What/);
     });
   });
