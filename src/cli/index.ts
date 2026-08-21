@@ -35,6 +35,16 @@ async function dispatch(srcRelative: string, argsAfterModulePath: string[]): Pro
   // both work with this layout. The dynamic import then triggers the module's
   // top-level execution.
   process.argv = [process.argv[0]!, modPath, ...argsAfterModulePath];
+  // Binary channel: the compiled bundle cannot resolve a computed file URL —
+  // the entry installed a static-thunk table instead (spec Unit 2). The argv
+  // reshape above still holds: runIfDirect-style guards match on the argv[1]
+  // suffix, which the computed modPath preserves.
+  const table = globalThis.__NOLDOR_COMMAND_IMPORTS;
+  const thunk = table?.[srcRelative];
+  if (thunk) {
+    await thunk();
+    return;
+  }
   await import(pathToFileURL(modPath).href);
 }
 

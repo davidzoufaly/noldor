@@ -61,6 +61,12 @@ const args = [
   'assets.pack',
   '--define',
   `NOLDOR_BINARY_VERSION=${JSON.stringify(pkg.version)}`,
+  // dependency-cruiser's optional webpack integration deep-imports a legacy
+  // enhanced-resolve path that no longer exists; the code path never executes
+  // on our API usage, but the bundler resolves eagerly — keep it external so
+  // the require stays a lazy runtime lookup (it is never reached).
+  '--external',
+  'tsconfig-paths-webpack-plugin',
   '--outfile',
   outfile,
 ];

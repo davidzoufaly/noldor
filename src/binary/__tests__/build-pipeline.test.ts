@@ -15,6 +15,17 @@ describe('packFileList', () => {
   });
 });
 
+describe('command-table.gen', () => {
+  it('carries a static thunk for every unique manifest src (regen: bin/generate-command-table.mjs)', async () => {
+    const { MANIFEST } = await import('../../cli/manifest.js');
+    const { COMMAND_IMPORTS } = await import('../command-table.gen.js');
+    const srcs = [
+      ...new Set(Object.values(MANIFEST).flatMap((g) => Object.values(g.subs).map((s) => s.src))),
+    ].sort();
+    expect(Object.keys(COMMAND_IMPORTS).sort()).toEqual(srcs);
+  });
+});
+
 describe('generate-notices', () => {
   it('lists every production dependency plus the Bun runtime', () => {
     const out = execFileSync('node', ['bin/generate-notices.mjs', '--stdout'], {

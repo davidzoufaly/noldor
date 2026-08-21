@@ -7,8 +7,13 @@
 // (ordering spike-verified).
 import { extractAssets } from './asset-pack.js';
 import { assetRoot, resolveAssetCachePath } from './asset-root.js';
+import { COMMAND_IMPORTS } from './command-table.gen.js';
 
 process.env.NOLDOR_BINARY = '1';
+// The router's computed dynamic imports are opaque to the bundler; this
+// statically-imported table is how every command module enters the compiled
+// graph, and how dispatch() resolves them at runtime (spec Unit 2).
+globalThis.__NOLDOR_COMMAND_IMPORTS = COMMAND_IMPORTS;
 
 const operatorRoot = assetRoot();
 if (operatorRoot === null) {

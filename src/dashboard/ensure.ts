@@ -93,7 +93,10 @@ export function spawnDetachedServer(port: number): void {
   // Routed through noldorCliCommand so the launcher is correct on both
   // channels — bin/noldor.mjs under Node, direct self-exec under the compiled
   // binary (spec Unit 3b).
-  const [cliCmd, cliArgs] = noldorCliCommand(['dashboard', 'server']);
+  // Port rides argv, not env: bun's detached spawn does not reliably deliver
+  // an env override to the re-exec'd binary child, and an explicit flag is
+  // channel-independent anyway. env PORT stays for any external supervisor.
+  const [cliCmd, cliArgs] = noldorCliCommand(['dashboard', 'server', '--port', String(port)]);
   const child = spawn(cliCmd, cliArgs, {
     cwd: root,
     detached: true,

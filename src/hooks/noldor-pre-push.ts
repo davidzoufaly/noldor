@@ -6,8 +6,8 @@
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
-import { pathToFileURL } from 'node:url';
 
+import { invokedDirectly } from '../core/cli-entry.js';
 import { createGitRunner } from './pre-push-range.js';
 import { renderAdrViolations, validatePushedAdrs } from './validate-pushed-adrs.js';
 
@@ -176,10 +176,11 @@ export function readStdinWithTimeout(
   });
 }
 
-// `pathToFileURL`, not a `file://` template: a repo path needing percent-encoding
-// (a space is enough) makes the naive comparison false, `main` never runs, the
-// process exits 0, and every push passes with no diagnostic — a silently disabled
-// gate. Same form as `src/cli/index.ts`.
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+// argv[1]-suffix guard (invokedDirectly), not an import.meta.url comparison:
+// under the compiled binary every bundled module shares one import.meta.url,
+// so a URL-equality guard is false forever and the gate silently disables —
+// while dispatch()'s argv reshape preserves the module-path suffix on both
+// channels. Percent-encoding hazards are also moot for a suffix test.
+if (invokedDirectly('noldor-pre-push')) {
   void main().then((code) => process.exit(code));
 }
