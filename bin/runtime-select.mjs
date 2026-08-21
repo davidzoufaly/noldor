@@ -101,15 +101,6 @@ function readStamp(root) {
   if (parsed?.version !== STAMP_VERSION || typeof parsed.digest !== 'string') {
     return { error: 'bad-stamp' };
   }
-  if (!Array.isArray(parsed.outputs) || parsed.outputs.some((o) => typeof o !== 'string')) {
-    return { error: 'bad-stamp' };
-  }
-  // An entry escaping dist/ would let a malformed stamp point the presence
-  // check anywhere on disk. Backslashes are rejected too: a '..\\' segment is a
-  // traversal on Windows that a '/'-only split would not see.
-  const escapes = (o) =>
-    o.startsWith('/') || /^[a-zA-Z]:/.test(o) || o.split(/[/\\]/).includes('..');
-  if (parsed.outputs.some(escapes)) return { error: 'bad-stamp' };
   return { stamp: parsed };
 }
 
@@ -175,14 +166,11 @@ export function currentState(root, hasSource = existsSync(join(root, 'src/cli/in
   const { error, stamp } = readStamp(root);
   if (error) return error;
 
-  // The recorded output list must BE the set the current sources require. A
-  // stamp whose digest matches but whose outputs are a subset would otherwise
-  // bless a tree missing compiled modules.
+  // Outputs are DERIVED from the current sources, never read back from the
+  // stamp: a matching digest already implies the same input list, so a recorded
+  // list could only disagree on a forged stamp — and the presence loop below
+  // would have to catch that anyway.
   const expected = expectedOutputs(root);
-  const recorded = new Set(stamp.outputs);
-  if (recorded.size !== expected.length || expected.some((out) => !recorded.has(out))) {
-    return 'bad-stamp';
-  }
 
   const digest = tryComputeDigest(root);
   if (digest === null) return 'digest-mismatch';

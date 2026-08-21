@@ -2,10 +2,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 // @ts-expect-error — plain .mjs siblings in bin/, no type declarations by design
-import { auditImportGraph, jsFiles } from '../../bin/import-graph.mjs';
+import { auditImportGraph } from '../../bin/import-graph.mjs';
 // @ts-expect-error — same
 import { expectedOutputs } from '../../bin/build-manifest.mjs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join, dirname, isAbsolute } from 'node:path';
 
 export interface CliResult {
@@ -113,20 +113,19 @@ export function checkPackagedRuntime(fixtureDir: string): string[] {
     problems.push('tsx installed in a consumer (it must be a devDependency)');
   }
 
-  const stray = jsFiles(join(pkg, 'dist')).length;
-  const strayTypes = auditImportGraph(join(pkg, 'dist'));
-  if (strayTypes.unresolved.length > 0) {
-    problems.push(`${strayTypes.unresolved.length} unresolvable specifier(s) in the packaged dist`);
-  }
-  if (strayTypes.extensionless.length > 0) {
-    problems.push(
-      `${strayTypes.extensionless.length} extensionless specifier(s) in the packaged dist`,
-    );
-  }
-  if (stray === 0) problems.push('packaged dist contains no JavaScript');
-
+  // Every compiled module and runtime asset the current sources require, per the
+  // manifest that owns that list — never a copy of it.
   for (const rel of expectedOutputs(repoRoot())) {
     if (!existsSync(join(pkg, 'dist', rel))) problems.push(`packaged dist is missing ${rel}`);
+  }
+
+  // Name the offenders: a count alone leaves CI red with nothing to act on.
+  const graph = auditImportGraph(join(pkg, 'dist'));
+  for (const entry of graph.unresolved.slice(0, 10)) {
+    problems.push(`unresolvable specifier in packaged dist: ${entry}`);
+  }
+  for (const entry of graph.extensionless.slice(0, 10)) {
+    problems.push(`extensionless specifier in packaged dist: ${entry}`);
   }
 
   const doctor = runInstalledCli(fixtureDir, ['doctor']);
@@ -164,63 +163,51 @@ export function checkInstalledSubcommands(
 }
 
 /**
- * Exercise the packaged assets through the code that reads them, rather than
- * asserting their presence. Presence proves packaging; these prove the
- * module-relative resolution that moves with the runtime.
+ * Exercise the two module-relative resolutions that MOVE with the runtime, in
+ * the packaged tree. Presence of every asset is already covered by
+ * {@link checkPackagedRuntime}'s `expectedOutputs` loop; these probe the code
+ * paths that compute a path from their own module URL, which is what breaks when
+ * a module changes directory depth.
  *
  * @param fixtureDir - Fixture with the tarball installed.
- * @returns Named failures; empty when every probe passed.
+ * @returns Named failures; empty when both probes passed.
  */
 export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
   const pkg = installedPackage(fixtureDir);
   const problems: string[] = [];
 
-  // 1. The dashboard's STATIC_ROOT is computed from server.js's own URL, so a
-  //    mislaid bundle shows up as a missing directory rather than a 404 here.
-  const staticRoot = join(pkg, 'dist/dashboard/static/dist');
-  for (const asset of ['agents.js', 'drag.js']) {
-    if (!existsSync(join(staticRoot, asset))) {
-      problems.push(`dashboard static bundle missing: ${asset}`);
-    }
-  }
-
-  // 2. The codex CR lane loads its schema through `new URL('./cr-record.schema.json',
-  //    import.meta.url)`. Import the packaged adapter and let it resolve.
-  const schemaProbe = spawnSync(
+  // codex-adapter.ts resolves its schema via `new URL('./cr-record.schema.json',
+  // import.meta.url)`. Import the packaged module so a wrong relative path fails
+  // here rather than in a consumer's CR lane. The path travels as argv, never
+  // interpolated into source — a quote or '#' in a temp dir would break that.
+  const adapter = spawnSync(
     process.execPath,
     [
       '--input-type=module',
       '-e',
-      `import { readFileSync } from 'node:fs';
-       const url = new URL('./dist/cr/cr-record.schema.json', 'file://${pkg}/');
-       JSON.parse(readFileSync(url, 'utf8'));`,
+      'await import(process.argv[1]);',
+      pathToFileURL(join(pkg, 'dist/cr/codex-adapter.js')).href,
     ],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', env: scrubbedEnv() },
   );
-  if (schemaProbe.status !== 0) {
-    problems.push(
-      `cr-record schema unreadable from the package: ${schemaProbe.stderr.slice(0, 200)}`,
-    );
+  if (adapter.status !== 0) {
+    problems.push(`packaged codex-adapter failed to load: ${adapter.stderr.slice(0, 300)}`);
   }
 
-  // 3. The stub gate reads its canned fixture beside its own module, and its bin
-  //    entry is the one that used to statically import tsx.
-  const stubGate = join(pkg, 'bin/noldor-stub-gate.mjs');
-  const stub = spawnSync(process.execPath, [stubGate, '--help'], {
-    cwd: fixtureDir,
-    encoding: 'utf8',
-    env: scrubbedEnv(),
-  });
-  if (stub.stderr.includes('ERR_MODULE_NOT_FOUND')) {
-    problems.push(`stub-gate entry cannot load from the package: ${stub.stderr.slice(0, 200)}`);
-  }
-  if (!existsSync(join(pkg, 'dist/testing/fixtures/canned/add-greeting-helper.json'))) {
-    problems.push('stub-gate canned fixture missing from the package');
-  }
-
-  // 4. The deep-review prompt template.
-  for (const prompt of ['dist/cr/standalone-prompt.md', 'dist/cr/lanes/escalate-prompt.md']) {
-    if (!existsSync(join(pkg, prompt))) problems.push(`prompt template missing: ${prompt}`);
+  // The stub-gate entry is the one that used to import tsx statically, and its
+  // canned fixture is resolved beside its own module. A usage error is a PASS
+  // here — it proves the module graph loaded and reached its own argument
+  // parsing. Only load-time failures count.
+  const stub = spawnSync(
+    process.execPath,
+    [join(pkg, 'bin/noldor-stub-gate.mjs'), '--resume', 'add-greeting-helper'],
+    { cwd: fixtureDir, encoding: 'utf8', env: scrubbedEnv() },
+  );
+  const loadFailure =
+    /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find (?:module|package)|SyntaxError|ERR_UNSUPPORTED/;
+  const stubOutput = `${stub.stderr}${stub.stdout}`;
+  if (stub.status === null || loadFailure.test(stubOutput)) {
+    problems.push(`packaged stub-gate entry failed to load: ${stubOutput.slice(0, 300)}`);
   }
 
   return problems;

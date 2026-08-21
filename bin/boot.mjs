@@ -63,10 +63,15 @@ export async function boot(root, entries) {
     process.exit(exit);
   }
 
-  if (reason === 'forced-dist-stale') {
-    console.error(
-      'noldor: NOLDOR_RUNTIME=dist is serving a stale build (run `pnpm build` to refresh)',
-    );
+  // Any dist that does not match the sources says so, however it was chosen — a
+  // prod-only install silently running mismatched code is the failure this
+  // notice exists to prevent.
+  if (runtime === 'dist' && stale) {
+    const why =
+      reason === 'stale-dist-no-tsx'
+        ? 'no tsx installed to run src instead'
+        : 'NOLDOR_RUNTIME=dist';
+    console.error(`noldor: serving a stale build (${why}) — run \`pnpm build\` to refresh`);
   }
 
   process.env.NOLDOR_RUNTIME_ACTIVE = runtime;
@@ -80,5 +85,4 @@ export async function boot(root, entries) {
     return;
   }
   await import(pathToFileURL(join(root, entries.dist)).href);
-  void stale;
 }

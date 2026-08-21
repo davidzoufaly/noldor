@@ -17,6 +17,7 @@ import {
   closeSync,
   readFileSync,
   readdirSync,
+  statSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -36,7 +37,7 @@ import {
 const root = process.cwd();
 const toPosix = (p) => p.split(sep).join('/');
 
-function acquireLock() {
+function acquireLock(attempt = 0) {
   const lock = join(root, LOCK_FILE);
   try {
     const fd = openSync(lock, 'wx');
@@ -46,29 +47,48 @@ function acquireLock() {
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
   }
-  let pid = Number.NaN;
-  try {
-    pid = Number.parseInt(readFileSync(lock, 'utf8').trim(), 10);
-  } catch {
-    // Released between the create and the read — retry the acquire.
-    return acquireLock();
+
+  // A second attempt means we already reclaimed a lock once and lost the race to
+  // recreate it: another builder won, so fail closed rather than removing the
+  // lock it is holding. This bound is also what keeps a persistent read error
+  // (EACCES, EISDIR) from recursing until the stack blows.
+  if (attempt > 0) {
+    console.error(`noldor build: already in progress (${LOCK_FILE})`);
+    process.exit(1);
   }
-  // An unparseable pid means the holder is between its create and its write.
-  // Fail closed rather than treating a live build as abandoned.
-  if (!Number.isInteger(pid) || pidAlive(pid)) {
+
+  let raw;
+  try {
+    raw = readFileSync(lock, 'utf8');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return acquireLock(attempt + 1); // released between the create and the read
+  }
+
+  const pid = Number.parseInt(raw.trim(), 10);
+  if (Number.isInteger(pid) && pidAlive(pid)) {
     // Non-zero on purpose: exiting 0 would let a packaging or test step proceed
     // against a tree still being written, or one the first builder later fails
     // to finish.
-    console.error(
-      `noldor build: already in progress (pid ${Number.isInteger(pid) ? pid : 'unknown'})`,
-    );
+    console.error(`noldor build: already in progress (pid ${pid}, ${LOCK_FILE})`);
     process.exit(1);
   }
-  // A crashed build. Only the builder reclaims a dead-pid lock — never the
-  // runtime selector, which runs in every read-only invocation. `force` because
-  // two builders can both reach this line.
+
+  if (!Number.isInteger(pid)) {
+    // No pid yet: the holder is between its exclusive create and its write, or
+    // it was killed in that window. A young empty lock is respected; an old one
+    // is debris, so the builder is never permanently jammed by a SIGKILL.
+    const ageMs = Date.now() - statSync(lock).mtimeMs;
+    if (ageMs < 5000) {
+      console.error(`noldor build: already in progress (starting up, ${LOCK_FILE})`);
+      process.exit(1);
+    }
+  }
+
+  // A crashed build. Only the builder reclaims a lock — never the runtime
+  // selector, which runs in every read-only invocation.
   rmSync(lock, { force: true });
-  return acquireLock();
+  return acquireLock(attempt + 1);
 }
 
 function releaseLock() {
@@ -141,7 +161,7 @@ try {
   const tmp = join(root, `${STAMP_FILE}.tmp`);
   writeFileSync(
     tmp,
-    `${JSON.stringify({ algo: 'sha256', digest: digestEnd, outputs: expected, version: STAMP_VERSION })}\n`,
+    `${JSON.stringify({ algo: 'sha256', digest: digestEnd, version: STAMP_VERSION })}\n`,
   );
   renameSync(tmp, join(root, STAMP_FILE));
   console.log(`noldor build: ${expected.length} outputs, ${pruned} pruned`);
