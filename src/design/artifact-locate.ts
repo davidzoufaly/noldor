@@ -95,6 +95,9 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
   const root = resolveExisting(kind === 'spec' ? roots.specs : roots.plans);
 
   if (opts.override !== undefined) {
+    // One override names one file, deliberately — including for a split plan. The
+    // operator asking for a specific part is the escape hatch from the ambiguity
+    // rules below, so honouring it literally is the point.
     const abs = isAbsolute(opts.override) ? opts.override : resolve(cwd, opts.override);
     const vetted = vet(abs, root);
     return vetted.ok
@@ -126,7 +129,28 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
     };
   }
 
-  const ordered = [...matches].sort((a, b) => partNumber(a) - partNumber(b) || a.localeCompare(b));
+  // Parts of one split plan carry distinct `-part<n>` suffixes. Two files sharing
+  // a part number are not parts — they are two *generations*, which
+  // `extractPlanSlug` also collapses onto one slug because it strips a `^plan\d+-`
+  // prefix (`2026-04-14-plan2-engine.md`). Unioning their headings would let
+  // `--confirm-section` hash a body from the stale generation, so this is the same
+  // ambiguity the spec branch above refuses, and it gets the same answer.
+  const byPart = new Map<number, string[]>();
+  for (const name of matches) {
+    const n = partNumber(name);
+    byPart.set(n, [...(byPart.get(n) ?? []), name]);
+  }
+  const collided = [...byPart.values()].filter((g) => g.length > 1).flat();
+  if (collided.length > 0) {
+    return {
+      status: 'rejected',
+      reason:
+        `${collided.length} ${kind} files share slug '${opts.slug}' and part number ` +
+        `(${collided.sort().join(', ')}) — name one with --spec`,
+    };
+  }
+
+  const ordered = [...matches].sort((a, b) => partNumber(a) - partNumber(b));
   const paths: string[] = [];
   for (const name of ordered) {
     const vetted = vet(join(root, name), root);

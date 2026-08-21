@@ -4,8 +4,11 @@ description: Noldor plan — decompose an approved spec into a bite-size TDD pla
 
 Run the Noldor plan flow. Read the approved spec + `docs/noldor/workflow.md`, then:
 
-1. Map every file to create/modify (one responsibility each).
-1.5. Any question while planning names its heading:
+1. Draft a skeleton plan first — header, `## File Structure`, one `## Task N` heading per
+   known task with a sentence each — per `pnpm noldor prep format plan`, BEFORE asking
+   anything. Say it is a strawman; without it the `--section` loop has no prose to render.
+2. Map every file to create/modify (one responsibility each).
+2.5. Any question while planning names its heading:
    `pnpm noldor design context --slug <slug> --kind plan --section "<heading>"` pasted above it,
    then `pnpm noldor design log --slug <slug> --decide "…" --because "…" --section "…"`.
    `--kind plan --confirm-section "<heading>"` on a signed-off task block — `--kind plan`

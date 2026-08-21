@@ -83,6 +83,24 @@ describe('locateArtifact — discovery', () => {
     ]);
   });
 
+  it('rejects two plan generations that share a part number', () => {
+    // extractPlanSlug strips a `^plan\d+-` prefix, so two generations collapse
+    // onto one slug and would blend as if they were parts of one split plan.
+    const cwd = repo();
+    plan(cwd, `2026-08-21-plan2-${SLUG}.md`);
+    plan(cwd, `2026-08-21-plan5-${SLUG}.md`);
+    const r = locateArtifact(cwd, { slug: SLUG, kind: 'plan' });
+    expect(r.status).toBe('rejected');
+    expect(r.status === 'rejected' && r.reason).toMatch(/share slug .* and part number/);
+  });
+
+  it('still accepts genuine parts, which carry distinct part numbers', () => {
+    const cwd = repo();
+    plan(cwd, `2026-08-21-${SLUG}-part1.md`);
+    plan(cwd, `2026-08-21-${SLUG}-part2.md`);
+    expect(locateArtifact(cwd, { slug: SLUG, kind: 'plan' }).status).toBe('found');
+  });
+
   it('defaults kind to spec', () => {
     const cwd = repo();
     spec(cwd, `2026-08-21-${SLUG}-design.md`);

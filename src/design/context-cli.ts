@@ -121,7 +121,7 @@ export function runContext(
     }
     view = read.view;
   }
-  const headings: RenderHeading[] = view?.headings ?? [];
+  const headings: RenderHeading[] = view === null ? [] : view.headings;
   const prose = view !== null && parsed.section !== undefined ? view.section(parsed.section) : null;
 
   const state = readLedger(cwd, parsed.slug);
