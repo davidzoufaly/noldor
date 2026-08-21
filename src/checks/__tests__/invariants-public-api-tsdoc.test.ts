@@ -107,6 +107,18 @@ describe('public-api-tsdoc plugin', () => {
     expect(result.violations[0]?.line).toBe(3);
   });
 
+  it('ignores a nested declaration that shadows the exported name', async () => {
+    await writeFile(
+      join(repo, 'packages/foo/src/foo.ts'),
+      `function wrapper() {\n  /** local doc */\n  const add = 1;\n  return add;\n}\n\nexport function add(a: number, b: number): number { return a + b + wrapper(); }\n`,
+    );
+    await writeFile(join(repo, 'packages/foo/src/index.ts'), `export { add } from './foo.js';\n`);
+    const inv = makePublicApiTsdocInvariant(repo);
+    const result = await inv.run();
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]?.line).toBe(7);
+  });
+
   it('passes when no package indices exist (JS consumer shape)', async () => {
     const bare = await mkdtemp(join(tmpdir(), 'inv-tsdoc-bare-'));
     try {

@@ -93,22 +93,25 @@ interface Declaration {
 /**
  * Locate a top-level declaration of `name`.
  *
+ * Anchored at column 0 on purpose: the replaced implementation walked
+ * `sourceFile.statements`, so only top-level declarations ever matched. A
+ * pattern that tolerated indentation would match a nested declaration of the
+ * same name first and mask the public one (or flag the wrong line).
+ *
  * noldor:cut single-declarator statements — a name in a second declarator
  * (`export const a = 1, b = 2`) is not found and so is not flagged; extend the
  * pattern to scan the declarator list when a consumer hits it.
  */
 function findDeclaration(sourceText: string, name: string): Declaration | null {
   const pattern = new RegExp(
-    `^[ \\t]*(?:export[ \\t]+(?:default[ \\t]+)?)?(?:declare[ \\t]+)?(?:abstract[ \\t]+)?(?:async[ \\t]+)?(?:function[ \\t]*\\*?|class|interface|type|const|let|var|enum)[ \\t]+${escapeForRegExp(name)}\\b`,
+    `^(?:export[ \\t]+(?:default[ \\t]+)?)?(?:declare[ \\t]+)?(?:abstract[ \\t]+)?(?:async[ \\t]+)?(?:function[ \\t]*\\*?|class|interface|type|const|let|var|enum)[ \\t]+${escapeForRegExp(name)}\\b`,
     'm',
   );
   const match = pattern.exec(sourceText);
   if (!match) {
     return null;
   }
-  const leadingWhitespace = /^[ \t]*/.exec(match[0])?.[0].length ?? 0;
-  const start = match.index + leadingWhitespace;
-  return { line: sourceText.slice(0, start).split('\n').length, start };
+  return { line: sourceText.slice(0, match.index).split('\n').length, start: match.index };
 }
 
 interface ReExport {

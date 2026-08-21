@@ -6,7 +6,11 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { BoundaryRuleSchema } from '../../core/consumer-config.js';
-import { findUnparseableTsExtensions, makeBoundariesInvariant } from '../boundaries.js';
+import {
+  containsTsSources,
+  findUnparseableTsExtensions,
+  makeBoundariesInvariant,
+} from '../boundaries.js';
 
 // Regex-string rule in dependency-cruiser's forbidden-rule shape — the
 // "regex strings, not globs" contract documented in consumer-config.ts.
@@ -97,5 +101,37 @@ describe('findUnparseableTsExtensions', () => {
         { available: true, extension: '.js' },
       ]),
     ).toEqual(['.ts', '.tsx']);
+  });
+});
+
+describe('containsTsSources', () => {
+  let root: string;
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'contains-ts-'));
+  });
+  afterEach(() => {
+    rmSync(root, { force: true, recursive: true });
+  });
+
+  it('is false for a JS-only tree', async () => {
+    mkdirSync(join(root, 'src/nested'), { recursive: true });
+    writeFileSync(join(root, 'src/a.js'), 'export const a = 1;\n');
+    writeFileSync(join(root, 'src/nested/b.mjs'), 'export const b = 2;\n');
+    expect(await containsTsSources(root, ['src'])).toBe(false);
+  });
+
+  it('finds a TypeScript source nested below a scan path', async () => {
+    mkdirSync(join(root, 'src/nested'), { recursive: true });
+    writeFileSync(join(root, 'src/a.js'), 'export const a = 1;\n');
+    writeFileSync(join(root, 'src/nested/b.ts'), 'export const b = 2;\n');
+    expect(await containsTsSources(root, ['src'])).toBe(true);
+  });
+
+  it('ignores node_modules and dot directories', async () => {
+    mkdirSync(join(root, 'src/node_modules'), { recursive: true });
+    mkdirSync(join(root, 'src/.cache'), { recursive: true });
+    writeFileSync(join(root, 'src/node_modules/dep.ts'), 'export const d = 1;\n');
+    writeFileSync(join(root, 'src/.cache/tmp.ts'), 'export const t = 1;\n');
+    expect(await containsTsSources(root, ['src'])).toBe(false);
   });
 });
