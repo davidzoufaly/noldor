@@ -65,6 +65,27 @@ describe('rejection table (spec Unit 1 format rules)', () => {
     pack.writeUInt32LE(99, 4);
     expect(() => readPack(pack)).toThrow(/format version/);
   });
+  it('reader rejects overlapping entry ranges', () => {
+    const pack = buildPack('9.9.9', [
+      { path: 'a.txt', mode: 0o644, data: Buffer.from('aaaa') },
+      { path: 'b.txt', mode: 0o644, data: Buffer.from('bbbb') },
+    ]);
+    const indexLen = pack.readUInt32LE(8);
+    const idx = JSON.parse(pack.subarray(12, 12 + indexLen).toString('utf8')) as {
+      pkgVersion: string;
+      entries: Array<{ path: string; offset: number; size: number; mode: number }>;
+    };
+    const second = idx.entries[1];
+    if (second) second.offset = 1; // now overlaps the first entry's [0,4) range
+    const newIdx = Buffer.from(JSON.stringify(idx), 'utf8');
+    const head = Buffer.from(pack.subarray(0, 8));
+    const lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32LE(newIdx.length, 0);
+    expect(() =>
+      readPack(Buffer.concat([head, lenBuf, newIdx, pack.subarray(12 + indexLen)])),
+    ).toThrow(/overlap/);
+  });
+
   it('reader rejects out-of-bounds entries', () => {
     const pack = buildPack('9.9.9', [{ path: 'a.txt', mode: 0o644, data: Buffer.from('x') }]);
     const indexLen = pack.readUInt32LE(8);

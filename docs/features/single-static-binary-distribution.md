@@ -12,7 +12,7 @@ links:
     - src/binary/__tests__/install-mapping.test.ts
     - src/cli/__tests__/init-adopt-guard.test.ts
     - src/core/__tests__/noldor-cli.test.ts
-  spec: docs/design/specs/2026-08-21-single-static-binary-distribution-design.md
+  spec: docs/design/specs/archive/2026-08-21-single-static-binary-distribution-design.md
 name: Single Static Binary Distribution
 packages:
   - noldor

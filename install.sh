@@ -34,6 +34,8 @@ case "$VERSION" in
   v*) BASE="https://github.com/$REPO/releases/download/$VERSION" ;;
   *) BASE="https://github.com/$REPO/releases/download/v$VERSION" ;;
 esac
+# Test seam: point the download base at a local server (integration tests).
+BASE="${NOLDOR_BASE_URL:-$BASE}"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT INT TERM

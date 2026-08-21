@@ -6,8 +6,15 @@ set -eu
 
 BIN="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 EXPECTED_VERSION="$2"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT INT TERM
+
+# npm-channel baseline (tree-equality oracle) — BEFORE the PATH strip, while
+# node is still reachable. Same command the binary will run in its fixture.
+BASELINE="$WORK/baseline"; mkdir -p "$BASELINE"
+( cd "$BASELINE" && git init -q . && node "$REPO_ROOT/bin/noldor.mjs" init >/dev/null 2>&1 ) \
+  || { echo "smoke: FAIL — npm-channel baseline init failed" >&2; exit 1; }
 
 # Minimal PATH: symlink git + coreutils, never node/npm/pnpm/bun.
 TOOLDIR="$WORK/tools"
@@ -38,9 +45,13 @@ find "$NOLDOR_CACHE_DIR" -name .noldor-pack-ok | grep -q . || fail "no cache mar
 "$BIN" --help >/dev/null 2>"$WORK/second-stderr" || fail "second --help exited non-zero"
 grep -q "noldor: extracted assets to" "$WORK/second-stderr" && fail "second run re-extracted"
 
-# 4. init materializes templates; adopt refuses
+# 4. init materializes templates; adopt refuses; tree matches the npm channel
 "$BIN" init >/dev/null 2>&1 || fail "init exited non-zero"
 [ -f lefthook.yml ] || fail "init did not materialize lefthook.yml"
+diff -r -x .git "$FIX" "$BASELINE" >/dev/null 2>&1 || {
+  diff -r -x .git "$FIX" "$BASELINE" | head -10 >&2
+  fail "binary init tree differs from npm-channel init tree"
+}
 if "$BIN" init --adopt >/dev/null 2>"$WORK/adopt-stderr"; then
   fail "init --adopt unexpectedly succeeded on the binary channel"
 fi

@@ -15,18 +15,26 @@ process.env.NOLDOR_BINARY = '1';
 // graph, and how dispatch() resolves them at runtime (spec Unit 2).
 globalThis.__NOLDOR_COMMAND_IMPORTS = COMMAND_IMPORTS;
 
-const operatorRoot = assetRoot();
-if (operatorRoot === null) {
-  const embedded = Bun.embeddedFiles.find((f) => f.name.endsWith('.pack'));
-  if (!embedded) {
-    console.error('noldor: embedded assets.pack missing — rebuild the binary');
-    process.exit(1);
+// The one boundary the asset-root/extractor throw contract names: env
+// misconfiguration and extraction failures exit 1 with the message, never a
+// stack trace (spec Unit 1/2 error handling).
+try {
+  const operatorRoot = assetRoot();
+  if (operatorRoot === null) {
+    const embedded = Bun.embeddedFiles.find((f) => f.name.endsWith('.pack'));
+    if (!embedded) {
+      console.error('noldor: embedded assets.pack missing — rebuild the binary');
+      process.exit(1);
+    }
+    const pack = Buffer.from(await embedded.arrayBuffer());
+    const dest = resolveAssetCachePath(NOLDOR_BINARY_VERSION);
+    const { extracted } = extractAssets(pack, dest);
+    if (extracted) console.error(`noldor: extracted assets to ${dest}`);
+    process.env.NOLDOR_ASSET_ROOT = dest;
   }
-  const pack = Buffer.from(await embedded.arrayBuffer());
-  const dest = resolveAssetCachePath(NOLDOR_BINARY_VERSION);
-  const { extracted } = extractAssets(pack, dest);
-  if (extracted) console.error(`noldor: extracted assets to ${dest}`);
-  process.env.NOLDOR_ASSET_ROOT = dest;
+} catch (error) {
+  console.error(`noldor: ${(error as Error).message}`);
+  process.exit(1);
 }
 
 await import('../cli/index.js');

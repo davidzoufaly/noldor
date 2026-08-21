@@ -101,6 +101,19 @@ export function readPack(pack: Buffer): { pkgVersion: string; entries: PackEntry
       data: pack.subarray(dataStart + e.offset, dataStart + e.offset + e.size),
     };
   });
+  // Overlap rejection (spec Unit 1 format rules): ranges must tile without
+  // sharing bytes — shared ranges are a malformed writer, not a compression
+  // scheme this reader supports.
+  const ranges = raw.entries
+    .map((e) => ({ path: e.path, start: e.offset, end: e.offset + e.size }))
+    .sort((a, b) => a.start - b.start);
+  for (let i = 1; i < ranges.length; i++) {
+    const prev = ranges[i - 1];
+    const cur = ranges[i];
+    if (prev && cur && cur.start < prev.end) {
+      throw new Error(`pack entries overlap: ${prev.path} and ${cur.path}`);
+    }
+  }
   return { pkgVersion: raw.pkgVersion, entries };
 }
 

@@ -26,6 +26,21 @@ try {
 const build = spawnSync('node', ['bin/build.mjs'], { stdio: 'inherit' });
 if (build.status !== 0) fail('dist build failed');
 
+// 2b. Regenerate the command table from the freshly-built manifest, then
+// rebuild if it changed — a stale table would ship a binary whose new
+// subcommand falls through to an unresolvable path import. The sync unit test
+// guards the committed file; this guards the artifact.
+const regen = spawnSync('node', ['bin/generate-command-table.mjs'], {
+  stdio: 'pipe',
+  encoding: 'utf8',
+});
+if (regen.status !== 0) fail('command-table regeneration failed');
+if (!regen.stdout.includes('up to date')) {
+  console.log(regen.stdout.trim());
+  const rebuild = spawnSync('node', ['bin/build.mjs'], { stdio: 'inherit' });
+  if (rebuild.status !== 0) fail('dist rebuild after table regen failed');
+}
+
 const { BUN_FLOOR } = await import(join(root, 'dist/binary/bun-floor.js'));
 const lt = (a, b) => {
   const pa = a.split('.').map(Number);
