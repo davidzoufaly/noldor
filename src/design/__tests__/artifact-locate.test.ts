@@ -83,12 +83,33 @@ describe('locateArtifact — discovery', () => {
     ]);
   });
 
-  it('rejects two plan generations that share a part number', () => {
+  it('rejects two plan generations distinguished only by a planN prefix', () => {
     // extractPlanSlug strips a `^plan\d+-` prefix, so two generations collapse
     // onto one slug and would blend as if they were parts of one split plan.
     const cwd = repo();
     plan(cwd, `2026-08-21-plan2-${SLUG}.md`);
     plan(cwd, `2026-08-21-plan5-${SLUG}.md`);
+    const r = locateArtifact(cwd, { slug: SLUG, kind: 'plan' });
+    expect(r.status).toBe('rejected');
+    expect(r.status === 'rejected' && r.reason).toMatch(/matches 2 generations/);
+  });
+
+  it('rejects a part-less generation mixed with a split generation', () => {
+    // Non-overlapping part numbers are not enough: these are two generations, and
+    // blending them lets view.section resolve a heading to the stale one.
+    const cwd = repo();
+    plan(cwd, `2026-08-20-plan1-${SLUG}.md`);
+    plan(cwd, `2026-08-21-plan2-${SLUG}-part1.md`);
+    plan(cwd, `2026-08-21-plan2-${SLUG}-part2.md`);
+    const r = locateArtifact(cwd, { slug: SLUG, kind: 'plan' });
+    expect(r.status).toBe('rejected');
+    expect(r.status === 'rejected' && r.reason).toMatch(/matches 2 generations/);
+  });
+
+  it('treats a part-less file as part 1, so it collides with -part1', () => {
+    const cwd = repo();
+    plan(cwd, `2026-08-21-${SLUG}.md`);
+    plan(cwd, `2026-08-21-${SLUG}-part1.md`);
     const r = locateArtifact(cwd, { slug: SLUG, kind: 'plan' });
     expect(r.status).toBe('rejected');
     expect(r.status === 'rejected' && r.reason).toMatch(/share slug .* and part number/);

@@ -41,10 +41,29 @@ export interface LocateOpts {
   override?: string;
 }
 
-/** Part number of a split plan filename; a part-less plan sorts first. */
+/**
+ * Part number of a split plan filename. A part-less file **is part 1**, not part
+ * 0 — so `<slug>.md` and `<slug>-part1.md` name the same part and collide, which
+ * is what the caller's ambiguity check needs them to do.
+ */
 function partNumber(filename: string): number {
   const m = filename.match(/-part(\d+)\.md$/);
-  return m ? Number.parseInt(m[1]!, 10) : 0;
+  return m ? Number.parseInt(m[1]!, 10) : 1;
+}
+
+/**
+ * The generation a plan file belongs to: its name with any `-part<n>` suffix
+ * removed.
+ *
+ * Parts of one split plan share a stem; two *generations* of a plan do not, since
+ * they differ by date prefix or `plan<n>-` prefix — both of which
+ * `extractPlanSlug` strips, so they collapse onto one slug. Grouping by part
+ * number alone misses the case where the generations happen to use different part
+ * numbers, and blending those would let `view.section` resolve a heading to the
+ * stale generation.
+ */
+function generationStem(filename: string): string {
+  return filename.replace(/-part\d+\.md$/, '.md');
 }
 
 /**
@@ -129,12 +148,25 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
     };
   }
 
-  // Parts of one split plan carry distinct `-part<n>` suffixes. Two files sharing
-  // a part number are not parts — they are two *generations*, which
-  // `extractPlanSlug` also collapses onto one slug because it strips a `^plan\d+-`
-  // prefix (`2026-04-14-plan2-engine.md`). Unioning their headings would let
-  // `--confirm-section` hash a body from the stale generation, so this is the same
-  // ambiguity the spec branch above refuses, and it gets the same answer.
+  // Two checks, because a plan slug can be ambiguous in two independent ways and
+  // either one lets `view.section` resolve a heading to prose the operator never
+  // approved — the failure `--confirm-section` must never record.
+  //
+  // First: every match must belong to one generation. `extractPlanSlug` strips
+  // both the date prefix and a `plan<n>-` prefix, so two generations collapse onto
+  // one slug even when their part numbers do not overlap.
+  const stems = [...new Set(matches.map(generationStem))];
+  if (stems.length > 1) {
+    return {
+      status: 'rejected',
+      reason:
+        `${kind} slug '${opts.slug}' matches ${stems.length} generations ` +
+        `(${stems.sort().join(', ')}) — name one with --spec`,
+    };
+  }
+
+  // Second: within one generation, parts must be distinct. A part-less file is
+  // part 1, so `<slug>.md` alongside `<slug>-part1.md` is a duplicate, not a pair.
   const byPart = new Map<number, string[]>();
   for (const name of matches) {
     const n = partNumber(name);
