@@ -893,7 +893,7 @@ Test: `src/core/__tests__/noldor-cli.test.ts` (extend existing if present, else 
   }
   ```
   Add a unit test beside the existing doctor-runners tests asserting the stub check returns `missing` with that detail when `NOLDOR_BINARY='1'` (set/restore env in the test).
-- [ ] **Step 7: Run to verify PASS.** `pnpm vitest run src/core src/autonomous src/dashboard` — Expected: all pass. Then `pnpm typecheck` — Expected: exit 0. Then `pnpm test:contract` — if it FAILS on new tarball entries (`dist/binary/asset-root.js`, `dist/binary/asset-pack.js`, `dist/binary/bun-floor.js`), update the recorded packed-entry snapshot per the failing assertion's message and re-run to green; include the snapshot file in the commit below.
+- [ ] **Step 7: Run to verify PASS.** `pnpm vitest run src/core src/autonomous src/dashboard` — Expected: all pass. Then `pnpm typecheck` — Expected: exit 0. Then `pnpm test:contract` — Expected: green as-is: the harness derives expected tarball entries live from `expectedOutputs()` in `bin/build-manifest.mjs` (no recorded snapshot exists), so the new `dist/binary/*.js` files join the expectation automatically; a red means a real packaging breakage, not a stale fixture.
 - [ ] **Step 8: Commit.** Write `/tmp/msg-selfexec.txt`:
   ```
   feat(binary): self-exec seam — launchers converge on noldorCliCommand

@@ -31,7 +31,7 @@
 
 **Files:**
 Create: `src/binary/entry.ts`, `src/binary/ambient.d.ts`
-Modify: `src/cli/commands/init.ts`
+Modify: `src/cli/commands/init.ts`, `bin/build-manifest.mjs`
 Test: `src/cli/__tests__/` (existing init test file if present; else assertion via the adopt guard unit below)
 
 - [ ] **Step 1: Write the failing adopt-refusal test.** Locate the init command tests (`ls src/cli/__tests__/ | grep -i init`); add to the matching file (or create `src/cli/__tests__/init-adopt-guard.test.ts`):
@@ -128,8 +128,14 @@ Test: `src/cli/__tests__/` (existing init test file if present; else assertion v
 
   await import('../cli/index.js');
   ```
-- [ ] **Step 5: Verify compile + inert path.** Run `pnpm typecheck` — Expected: exit 0 (ambient decls satisfy the entry). Run `pnpm build` — Expected: build succeeds; `dist/binary/entry.js` and `dist/binary/asset-root.js` exist. Run the full suite `pnpm test` — Expected: green (nothing imports the entry under Node; seams inert).
-- [ ] **Step 6: Update the tarball contract snapshot.** Run `pnpm test:contract` — if it FAILS on new tarball entries (`dist/binary/*`), update the recorded snapshot per the failing assertion's message (the packed-entry list fixture), re-run, and confirm green. Expected final output: contract suite passes with the `dist/binary/entry.js` + `dist/binary/pack-list.js` (Task 2) recorded as inert additions; Part 1 already recorded the library entries.
+- [ ] **Step 5: Teach the build manifest that declaration files emit nothing.** `bin/build-manifest.mjs`'s `expectedOutputs()` maps every compiled input `src/**/*.ts → dist/**/*.js` — `src/binary/ambient.d.ts` would therefore demand a phantom `dist/binary/ambient.d.js` and fail the build's own output check (tsc emits nothing for a `.d.ts`). In `expectedOutputs()`, filter declaration files out of the compiled mapping (keep them in `compiledInputs`/`digestInputs` so type-only edits still invalidate the build stamp):
+  ```js
+  const compiled = compiledInputs(root)
+    // .d.ts files are digest inputs but produce no dist output.
+    .filter((rel) => !rel.endsWith('.d.ts'))
+    .map((rel) => rel.replace(/^src\//, '').replace(/\.ts$/, '.js'));
+  ```
+- [ ] **Step 6: Verify compile + inert path + contract.** Run `pnpm typecheck` — Expected: exit 0 (ambient decls satisfy the entry). Run `pnpm build` — Expected: build succeeds; `dist/binary/entry.js` exists and NO `dist/binary/ambient.d.js` is demanded. Run `pnpm test` — Expected: green (nothing imports the entry under Node; seams inert). Run `pnpm test:contract` — Expected: green as-is: the harness derives its expected tarball entries live from `expectedOutputs()` (there is no recorded snapshot file), so new `src/binary/*.ts` files join the expectation automatically; a red here means a real breakage (most likely the `.d.ts` mapping this task just fixed), not a stale fixture.
 - [ ] **Step 7: Commit.** Write `/tmp/msg-entry.txt`:
   ```
   feat(binary): compile entrypoint, ambient decls, adopt refusal
@@ -142,7 +148,7 @@ Test: `src/cli/__tests__/` (existing init test file if present; else assertion v
   Noldor-FD: single-static-binary-distribution
   ```
   ```bash
-  git add src/binary/entry.ts src/binary/ambient.d.ts src/cli/commands/init-adopt-guard.ts src/cli/commands/init.ts src/cli/__tests__ src/testing && git commit -F /tmp/msg-entry.txt
+  git add src/binary/entry.ts src/binary/ambient.d.ts src/cli/commands/init-adopt-guard.ts src/cli/commands/init.ts src/cli/__tests__ bin/build-manifest.mjs && git commit -F /tmp/msg-entry.txt
   ```
   (Include whichever snapshot file Step 6 touched; `git status --short` first if unsure.)
 
