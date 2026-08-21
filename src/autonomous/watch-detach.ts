@@ -1,8 +1,7 @@
 import { spawn as nodeSpawn } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
-import { noldorCliCommand } from '../core/noldor-cli.js';
 import { liveLockPid } from './drain-lock.js';
 
 /** Pidfile written by the `--detach` launcher so operators can `kill $(cat …)`. */
@@ -16,13 +15,19 @@ export function stripDetach(args: readonly string[]): string[] {
 }
 
 /**
- * Command tuple for the detached child: re-invoke the same CLI subcommand sans
- * `--detach`. Routed through `noldorCliCommand` so the launcher is correct on
- * both channels — `bin/noldor.mjs` under Node, direct self-exec under the
- * compiled binary (spec Unit 3b).
+ * Absolute path to the package's `bin/noldor.mjs` entrypoint, resolved relative
+ * to this module (`src/autonomous/watch-detach.ts` → `../../bin/noldor.mjs`).
+ * Stable across self-host and consumer installs — the package layout is fixed,
+ * so the detached child re-enters through the same tsx-registering shim the
+ * parent did rather than trying to run the bare `.ts` file under plain node.
  */
-export function detachChildCommand(args: readonly string[]): [string, string[]] {
-  return noldorCliCommand(['autonomous', 'watch', ...stripDetach(args)]);
+export function binPathFrom(moduleDir: string): string {
+  return resolve(moduleDir, '../../bin/noldor.mjs');
+}
+
+/** argv for the detached child: re-invoke the same CLI subcommand sans `--detach`. */
+export function detachChildArgv(moduleDir: string, args: readonly string[]): string[] {
+  return [binPathFrom(moduleDir), 'autonomous', 'watch', ...stripDetach(args)];
 }
 
 export type DetachResult =
@@ -46,10 +51,13 @@ interface DetachDeps {
  * points at a dead process. Surfacing the live pid is the honest outcome.
  *
  * @param cwd - Repo root (the watcher's main workspace).
+ * @param moduleDir - This module's directory (`import.meta.dirname`), used to
+ *   resolve the package bin for the re-invocation.
  * @param args - The original `process.argv` tail (still carrying `--detach`).
  */
 export function detachWatch(
   cwd: string,
+  moduleDir: string,
   args: readonly string[],
   deps: DetachDeps = { spawn: nodeSpawn },
 ): DetachResult {
@@ -65,8 +73,7 @@ export function detachWatch(
 
   // Append (not truncate): preserve prior cycle logs across relaunches.
   const fd = openSync(logPath, 'a');
-  const [detachCmd, detachArgs] = detachChildCommand(args);
-  const child = deps.spawn(detachCmd, detachArgs, {
+  const child = deps.spawn(process.execPath, detachChildArgv(moduleDir, args), {
     cwd,
     detached: true,
     stdio: ['ignore', fd, fd],

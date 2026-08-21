@@ -2,8 +2,6 @@ import { readdirSync, statSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { assetRoot } from '../binary/asset-root.js';
-
 // Package-asset resolution: TEMPLATES_ROOT is computed from this module's own
 // on-disk location, never from process.cwd(). Works identically whether the
 // package is consumed via `workspace:*` (this file lives under the consumer
@@ -11,14 +9,7 @@ import { assetRoot } from '../binary/asset-root.js';
 // `node_modules/noldor/` (then under the pkg's `dist/` or `src/`). The 2-level
 // walk reaches the pkg root, where `templates/` lives.
 const here = dirname(fileURLToPath(import.meta.url));
-// Binary channel: NOLDOR_ASSET_ROOT points at the extracted package tree
-// (spec Unit 3); unset (every npm-channel run) resolves module-relative as
-// before. installedFrameworkVersion() reads package.json through this same
-// root, so version reads ride the seam too.
-const seamRoot = assetRoot();
-export const TEMPLATES_ROOT = seamRoot
-  ? join(seamRoot, 'templates')
-  : join(here, '..', '..', 'templates');
+export const TEMPLATES_ROOT = join(here, '..', '..', 'templates');
 
 /**
  * Templates that are STARTERS, not synced twins: `init` copies them only when

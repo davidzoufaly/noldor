@@ -50,20 +50,4 @@ describe('checkRunners', () => {
     const checks = checkRunners(cfg, () => null);
     expect(checks.every((c) => c.status === 'missing')).toBe(true);
   });
-
-  it('stub reports unavailable on the binary channel without probing', () => {
-    const stubCfg = agentsConfigSchema.parse({ default: 'stub' });
-    process.env.NOLDOR_BINARY = '1';
-    try {
-      const checks = checkRunners(stubCfg, () => '99.0.0');
-      expect(checks.find((c) => c.runner === 'stub')).toEqual({
-        runner: 'stub',
-        status: 'missing',
-        detail:
-          'stub runner requires the npm channel (bin/noldor-stub-gate.mjs not shipped in the binary)',
-      });
-    } finally {
-      delete process.env.NOLDOR_BINARY;
-    }
-  });
 });

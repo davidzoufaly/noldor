@@ -1,5 +1,6 @@
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { loadConfigSync } from '../core/config.js';
 import { runDrain, type DrainDeps, type DrainResult } from './drain-loop.js';
@@ -134,7 +135,8 @@ async function main(): Promise<void> {
   // detached child re-enters here without --detach and acquires the lock below.
   // Kept BEFORE acquireLock so the launcher never holds the lock the child needs.
   if (parsed.detach) {
-    const r = detachWatch(cwd, args);
+    const moduleDir = dirname(fileURLToPath(import.meta.url));
+    const r = detachWatch(cwd, moduleDir, args);
     if (!r.ok) {
       process.stderr.write(`watch --detach: ${r.reason}\n`);
       process.exit(1);

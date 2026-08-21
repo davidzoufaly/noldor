@@ -92,11 +92,6 @@ export function loadCorpus(cwd: string, includeTests: boolean): Map<string, stri
   const files = new Map<string, string>();
   for (const root of scanRoots(cwd)) {
     for (const abs of walkCodeFiles(join(cwd, root), { includeTests })) {
-      // Generated single-source files (`*.gen.ts`) carry structural repetition
-      // by construction — a lookup table of near-identical rows is not clone
-      // debt, and its consistency is owned by its generator plus a sync test,
-      // not by deduplication.
-      if (abs.endsWith('.gen.ts')) continue;
       try {
         files.set(abs.slice(cwd.length + 1), readFileSync(abs, 'utf8'));
       } catch {

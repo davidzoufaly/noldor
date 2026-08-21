@@ -1,9 +1,9 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
-// @ts-expect-error — plain .mjs sibling in bin/, no type declarations by design
+// @ts-expect-error — plain .mjs siblings in bin/, no type declarations by design
 import { auditImportGraph } from '../../bin/import-graph.mjs';
-// Typed via bin/build-manifest.d.mts (added for the binary pack-list builder).
+// @ts-expect-error — same
 import { expectedOutputs } from '../../bin/build-manifest.mjs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join, dirname, isAbsolute } from 'node:path';

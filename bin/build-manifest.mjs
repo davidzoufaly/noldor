@@ -116,12 +116,9 @@ export function digestInputs(root) {
  * @returns Sorted dist-relative POSIX paths.
  */
 export function expectedOutputs(root) {
-  const compiled = compiledInputs(root)
-    // .d.ts files are digest inputs but produce no dist output — tsc emits
-    // nothing for a declaration file, so mapping one would demand a phantom
-    // dist twin and fail the build's own output check.
-    .filter((rel) => !rel.endsWith('.d.ts'))
-    .map((rel) => rel.replace(/^src\//, '').replace(/\.ts$/, '.js'));
+  const compiled = compiledInputs(root).map((rel) =>
+    rel.replace(/^src\//, '').replace(/\.ts$/, '.js'),
+  );
   // Mirrors digestInputs: only assets present in src are expected in dist, so
   // removing one drops it from both the digest and the prune's keep-set.
   const assets = RUNTIME_ASSETS.filter((rel) => existsSync(join(root, rel))).map((rel) =>

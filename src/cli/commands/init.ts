@@ -17,7 +17,6 @@ import {
   SCAFFOLD_ONLY_TEMPLATES,
 } from '../../templates/manifest.js';
 import { copyTemplate, adoptTemplate } from '../../templates/copy.js';
-import { assertAdoptAllowed } from './init-adopt-guard.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
 import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 import { RUNNER_NAMES, type RunnerName } from '../../core/agent-runner/types.js';
@@ -56,12 +55,6 @@ function parseAgents(): RunnerName[] {
 }
 
 if (adopt) {
-  try {
-    assertAdoptAllowed();
-  } catch (error) {
-    console.error((error as Error).message);
-    process.exit(1);
-  }
   // Adopt snapshots pkg templates from the live consumer — it must see the
   // full unfiltered manifest regardless of agent targets. Scaffold-only
   // starters are excluded: the live file holds consumer-specific values that
