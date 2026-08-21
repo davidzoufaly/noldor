@@ -1,5 +1,5 @@
 // @tests: de-superpowers-vendor-spec-plan-and-worktree-flows
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -206,6 +206,16 @@ describe('locateArtifact — override', () => {
     symlinkSync(outside, join(cwd, 'docs', 'design', 'specs', 'link.md'));
     const r = locateArtifact(cwd, { slug: SLUG, override: 'docs/design/specs/link.md' });
     expect(r.status === 'rejected' && r.reason).toMatch(/outside/);
+  });
+
+  it('rejects an unreadable regular file rather than promising found', () => {
+    const cwd = repo();
+    const p = spec(cwd, `2026-08-21-${SLUG}-design.md`);
+    chmodSync(p, 0o000);
+    const r = locateArtifact(cwd, { slug: SLUG });
+    chmodSync(p, 0o644);
+    expect(r.status).toBe('rejected');
+    expect(r.status === 'rejected' && r.reason).toMatch(/not a readable file/);
   });
 
   it('rejects a directory named like a markdown file', () => {

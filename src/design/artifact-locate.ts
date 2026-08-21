@@ -9,7 +9,7 @@
 // is the wrong anchor inside a worktree and inside a test.
 
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { accessSync, constants, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { resolveExisting } from '../core/branch-added.js';
@@ -80,7 +80,14 @@ function contained(candidate: string, root: string): boolean {
   return candidate === root || candidate.startsWith(root + sep);
 }
 
-/** A readable regular `.md` file inside `root`, or the reason it is not. */
+/**
+ * A readable regular `.md` file inside `root`, or the reason it is not.
+ *
+ * Readability is probed, not assumed: `statSync` says a path is a regular file
+ * without saying the process may open it, and `locateArtifact` promises `found`
+ * means readable. `readArtifact` would catch it a moment later, but then the
+ * exported contract would be the thing that lied.
+ */
 function vet(
   path: string,
   root: string,
@@ -89,6 +96,7 @@ function vet(
   const real = resolveExisting(path);
   try {
     if (!statSync(real).isFile()) return { ok: false, reason: `${path}: not a readable file` };
+    accessSync(real, constants.R_OK);
   } catch {
     return { ok: false, reason: `${path}: not a readable file` };
   }

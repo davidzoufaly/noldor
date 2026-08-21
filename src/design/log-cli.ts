@@ -230,6 +230,13 @@ export function applyLog(
     const name = normalize(args.unconfirmSection);
     next.confirmed = next.confirmed.filter((c) => c.name !== name);
   }
+  if (args.confirmSection !== undefined && confirmDigest === undefined) {
+    // The caller promised a digest for every `--confirm-section`. Silently
+    // dropping the approval would be the same silent-loss class this module
+    // refuses everywhere else (the unparsed-section write refusal, the
+    // no-such-heading hard error), so a broken caller gets told.
+    return { error: '--confirm-section: no body digest supplied (internal contract violation)' };
+  }
   if (args.confirmSection !== undefined && confirmDigest !== undefined) {
     const name = normalize(args.confirmSection);
     // Replace *in place*: re-confirming after an edit refreshes a stale approval,

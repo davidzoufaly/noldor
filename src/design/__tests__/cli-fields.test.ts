@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { digestBody } from '../artifact-locate.js';
+import { applyLog } from '../log-cli.js';
+import { emptyLedger } from '../ledger.js';
 import { runContext } from '../context-cli.js';
 import { parseLogArgs, runLog } from '../log-cli.js';
 
@@ -182,6 +184,21 @@ describe('design log — confirmation', () => {
     expect(log(cwd, '--unconfirm-section', 'Design').code).toBe(0);
     expect(ledger(cwd)).not.toContain('## Confirmed');
     expect(log(cwd, '--unconfirm-section', 'Design').code).toBe(0);
+  });
+});
+
+describe('applyLog contract', () => {
+  it('errors rather than silently dropping a confirmation with no digest', () => {
+    const r = applyLog(emptyLedger(), {
+      slug: SLUG,
+      decide: [],
+      open: [],
+      resolve: [],
+      support: [],
+      kind: 'spec',
+      confirmSection: 'Design',
+    });
+    expect('error' in r && r.error).toMatch(/no body digest supplied/);
   });
 });
 
