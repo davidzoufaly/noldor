@@ -80,20 +80,36 @@ returning a verdict and nothing else — no printing, no exiting. It must be pla
 `.mjs` because it runs before any TypeScript is loadable.
 
 ```js
-// verdict shape
-{ runtime: 'dist' | 'source' | 'error',
-  reason: 'forced-dist' | 'forced-dist-stale' | 'forced-source'
-        | 'no-source-tree' | 'digest-match' | 'digest-mismatch'
-        | 'missing-output' | 'no-stamp' | 'bad-stamp' | 'build-in-progress'
-        | 'bad-override' | 'no-dist' | 'no-tsx',
-  stale: boolean }
+// verdict shape — `stale` is always a boolean, false on every error verdict
+{ runtime: 'dist' | 'source' | 'error', reason: <Reason>, stale: boolean }
 ```
 
-`bin/noldor.mjs` owns every side effect: it maps `runtime: 'error'` to an exit
-code and message, prints the one-line stderr notice for `forced-dist-stale`,
-sets `NOLDOR_RUNTIME_ACTIVE` / `NOLDOR_RUNTIME_REASON`, appends a line to
-`$NOLDOR_RUNTIME_TRACE` when that variable names a file, and then imports the
-entry. That split is what makes the selector unit-testable without spawning.
+| `reason` | `runtime` | Caller behaviour |
+| --- | --- | --- |
+| `digest-match` | `dist` | run dist |
+| `no-source-tree` | `dist` | run dist (installed package) |
+| `digest-mismatch`, `missing-output`, `no-stamp`, `bad-stamp`, `build-in-progress` | `source` | run source, `stale: true` |
+| `forced-dist` | `dist` | run dist |
+| `forced-dist-stale` | `dist` | run dist after one stderr line naming the reason it was stale |
+| `forced-source` | `source` | run source |
+| `bad-override` | `error` | exit 2, name the variable and the accepted values |
+| `forced-dist-absent` | `error` | exit 1, name `pnpm build` |
+| `forced-source-no-src` | `error` | exit 1, "no `src/` in this install" |
+| `forced-source-no-tsx` | `error` | exit 1, "`tsx` is a devDependency and is not installed" |
+
+The mapping is exhaustive by construction: a `reason` the caller does not know is
+itself an internal error, exit 70.
+
+Every side effect lives in one place: `bin/boot.mjs` exports
+`boot(packageRoot, { distEntry, sourceEntry })`, which calls the selector, maps
+the verdict per the table above, prints the `forced-dist-stale` notice, sets
+`NOLDOR_RUNTIME_ACTIVE` / `NOLDOR_RUNTIME_REASON`, appends a trace record when
+`NOLDOR_RUNTIME_TRACE` names a file, and imports the chosen entry. Both
+`bin/noldor.mjs` and `bin/noldor-stub-gate.mjs` are thin callers of it, so
+neither can drift in how it reports or fails. The selector itself performs **no**
+filesystem writes at all — notably it never unlinks a lock, because a read-only
+CLI invocation deleting a concurrent builder's lock on a pid-reuse false negative
+would be far worse than one slow boot.
 
 An unset **or empty** `NOLDOR_RUNTIME` means "no override" — a wrapper that
 clears the variable must not hard-fail every invocation.
@@ -134,64 +150,110 @@ fixture is carried by U3 and exercised by U8.
 
 ### U2 — Freshness by content digest
 
-Freshness is content-based, not timestamp-based. `bin/build-inputs.mjs` is the
-**single** enumerator both the build and the selector use: it derives the
-compiled input set from `tsconfig.json` (`include: src/**/*.ts` minus
-`src/**/__tests__/**`, `src/**/*.test.ts`, `src/fixtures/**`), appends U3's
-runtime-asset manifest, and returns sorted absolute paths. One enumerator is the
-point — two drifting enumerations would make the digest never match and silently
-strip the fast path away while every other criterion stayed green.
+Freshness is content-based, not timestamp-based, and every path it records is
+**repo-relative** — an absolute path would leak the publisher's filesystem
+layout into the shipped stamp and would make two checkouts of the same content
+disagree.
 
-`pnpm build` then:
+`bin/build-manifest.mjs` is the single owner of "what the build is made of". It
+exports:
 
-1. Acquires `dist/.build-lock` by `open(..., 'wx')` — an atomic exclusive
-   create — writing its pid. A second builder finding a live pid exits 0 with
-   "build already in progress"; a lock whose pid is not alive is a crashed
-   build, so it is removed and the build proceeds. Liveness is a fresh process
-   probe, never a timeout. `try/finally` plus `SIGINT`/`SIGTERM` handlers release
-   it.
-2. Runs `tsc`.
-3. Prunes orphans: every `.js` under `dist` with no corresponding entry in the
-   enumerator's compiled set is deleted, because `tsc` leaves the output of a
-   deleted input behind and `files: dist` would ship it.
-4. Copies U3's assets.
-5. Atomically writes `dist/.build-stamp` (temp file + rename) recording the
-   `inputsDigest` — a SHA-256 over each enumerated path and its content — and
-   the `outputs` list: every path the build emitted or copied.
+- `compiledInputs(root)` — the input set derived from `tsconfig.json`
+  (`include: src/**/*.ts` minus `src/**/__tests__/**`, `src/**/*.test.ts`,
+  `src/fixtures/**`);
+- `RUNTIME_ASSETS` — the asset list U3 copies;
+- `digestInputs(root)` — `compiledInputs` ∪ `RUNTIME_ASSETS` ∪
+  `['tsconfig.json']`, sorted;
+- `expectedOutputs(root)` — the `dist` path each digest input must produce: one
+  `.js` per compiled input, one copy per asset.
 
-`selectRuntime` answers `dist` only when the stamp parses, its `inputsDigest`
-equals a freshly computed digest, and every `outputs` entry exists. Otherwise
-the reason names which check failed and the verdict is `source`. A missing,
-truncated or malformed stamp is `no-stamp` / `bad-stamp`, never current. A live
-`dist/.build-lock` is `build-in-progress`, so an invocation landing mid-build
-takes the source path rather than reading a half-rewritten tree.
+`tsconfig.json` is an explicit member because compiler options change emission
+without changing the file set — editing `target` or `outDir` must invalidate a
+build. `expectedOutputs` is derived, never observed: recording "what `tsc` wrote"
+would omit files an incremental no-op left untouched, which are still required
+outputs.
 
-Measured on this tree: enumerating and hashing 683 compiled inputs (2.4 MB)
-costs 10–12ms, against the 0.35s transpile it avoids. Content hashing is what
-makes the digest immune to `mtime` behaviour entirely — backdated writes, equal
-timestamps, and `git checkout` rewriting every source timestamp all stop
-mattering.
+One module owns all of this so the copier, the digest and the prune cannot drift
+by a single path. Divergence there would be silent: the digest would never match
+and `dist` would simply never be selected, with every acceptance criterion but
+the first still green.
+
+`pnpm build`:
+
+1. `mkdir -p dist` (a fresh clone or a `prepare` after `rm -rf dist` has no
+   directory to lock in), then **deletes `dist/.build-stamp`**. From here until
+   step 6 there is no stamp, so any interruption or failure leaves the tree
+   reading stale rather than blessed by a stale-but-valid stamp.
+2. Acquires `dist/.build-lock` by `open(..., 'wx')`, an atomic exclusive create,
+   writing its pid. A second builder finding a live pid exits **non-zero** —
+   exiting 0 would let a packaging or test step proceed against a tree that is
+   still being written, or that the first builder later fails to finish. A lock
+   whose pid is not alive is a crashed build: only `pnpm build` reclaims it, by
+   unlinking and continuing. Liveness is a fresh process probe, never a timeout.
+   `try/finally` plus `SIGINT` / `SIGTERM` handlers release the lock.
+3. Computes `digestStart` over `digestInputs`.
+4. Runs `tsc`, then copies U3's assets, then deletes every file under `dist`
+   that is not in `expectedOutputs` — not just orphaned `.js`. A renamed or
+   removed `.json` / `.md` asset must not survive in a tree that `files` ships
+   whole.
+5. Recomputes the digest. A mismatch with `digestStart` means the tree changed
+   mid-build, so **no stamp is written** and the build exits non-zero telling the
+   operator to re-run; the emitted output may not correspond to any single
+   revision.
+6. Atomically writes `dist/.build-stamp` (temp file + rename).
+
+The stamp is versioned JSON so two implementations cannot disagree about
+framing:
+
+```json
+{ "version": 1, "algo": "sha256", "digest": "<hex>",
+  "outputs": ["cli/index.js", "cr/cr-record.schema.json", "..."] }
+```
+
+`outputs` entries are relative to `dist/` and are rejected if they escape it. An
+unreadable input aborts the build rather than being hashed as empty.
+
+`selectRuntime` answers `dist` only when the stamp parses at a known `version`,
+its `digest` equals a freshly computed digest, and every `outputs` entry exists.
+Any other state names itself: `no-stamp`, `bad-stamp`, `digest-mismatch`,
+`missing-output`, or `build-in-progress` when a lock is present — the selector
+reads the lock but never removes it.
+
+Measured on this tree: hashing the 683 digest inputs (2.4 MB) costs 10–12ms and
+stat-ing the 367 expected outputs costs 1.3ms, against the 0.35s transpile
+avoided. Content hashing is what makes the verdict immune to `mtime` behaviour
+entirely — backdated writes, equal timestamps, and `git checkout` rewriting every
+source timestamp all stop mattering.
 
 `tsconfig.json` carries no `extends` and no `references` today, so enumerating
-from it is exact. A test asserts that stays true; if either appears, the
+from it is exact. A test asserts that stays true; if either appears the
 enumerator must follow it before the digest can be trusted, so the assertion
 fails closed rather than silently under-hashing.
 
-The residual window is a source edit landing between the digest computation and
-the entry import. It is inherent to any check-then-run design and bounded to the
-invocation that raced: the edit is visible to the digest on the next boot.
+Two bounds are accepted rather than closed. The presence check does not detect an
+output that was truncated in place, because hashing `dist` as well would roughly
+double the per-boot cost for a failure mode no observed workflow produces. And a
+source edit landing between the digest and the entry import is served by the
+preceding build, then picked up on the next invocation; closing that would mean
+holding a lock across every command.
 
 ### U3 — Runtime asset copy
 
-`bin/copy-runtime-assets.mjs`, run by `pnpm build` after `tsc`, copies **exactly
-the entries in its manifest** — never a glob, so `src/fixtures/**` (17 files)
-and test fixtures can never leak into `dist` or the tarball. It exits non-zero
-when a manifest entry is missing from `src`, and when a file matching its
-extensions appears in a manifested directory without being listed, so a new
-runtime asset is a deliberate edit rather than a silent inclusion or a runtime
-404.
+`bin/copy-runtime-assets.mjs` copies **exactly** `RUNTIME_ASSETS` from
+`bin/build-manifest.mjs` — the same module the digest and the prune read, never a
+second list, and never a glob, so `src/fixtures/**` (17 files) and test fixtures
+cannot leak into `dist` or the tarball.
 
-The manifest is six files:
+It fails non-zero in both directions:
+
+- a manifest entry missing from `src`;
+- any file under `src/` that is not `*.ts`, not under `src/**/__tests__/**`, not
+  `*.test.ts`, not under `src/fixtures/**`, and not in `RUNTIME_ASSETS`. The
+  scan walks the whole `src` tree, so an asset introduced under a new directory
+  or with a new extension trips it too — the earlier "matching its extensions in
+  a manifested directory" rule could not see either.
+
+`RUNTIME_ASSETS` is six files:
 
 - `src/cr/cr-record.schema.json`
 - `src/dashboard/static/dist/agents.js`
@@ -200,11 +262,12 @@ The manifest is six files:
 - `src/cr/standalone-prompt.md`
 - `src/cr/lanes/escalate-prompt.md`
 
-`src/dashboard/static/tsconfig.json` is build-time-only and excluded.
-`src/invariants/.dependency-cruiser.cjs` is excluded too: it has no reader —
-[`boundaries.ts:4`](../../../src/invariants/boundaries.ts) builds `cruise()`
-options in code, and nothing in the repo references the file — so shipping it
-would pin a dead file into `dist` forever.
+`src/dashboard/static/tsconfig.json` is build-time only and excluded — it is
+listed in the scan's ignore set with that reason, so the fail-closed rule does
+not trip on it. `src/invariants/.dependency-cruiser.cjs` is excluded too: it has
+no reader — [`boundaries.ts:4`](../../../src/invariants/boundaries.ts) builds
+`cruise()` options in code and nothing in the repo references the file — so
+shipping it would pin a dead file into `dist` forever.
 
 ### U4 — Extension translation in `dispatch()`
 
@@ -218,11 +281,17 @@ resolves `SubCmd.src` on disk.
 
 ### U5 — Packaging
 
-`files` becomes `dist` (whole tree, so U3's assets travel), `bin`, `templates`,
-minus `dist/**/*.d.ts`, `dist/**/*.d.ts.map` and `dist/**/*.map` via negated
-patterns, and minus `src` entirely. Measured `dist` classes: 1.88 MB `.js`,
-1.37 MB `.js.map`, 0.72 MB `.d.ts`, 0.25 MB `.d.ts.map`; no consumer can reach
-declarations through an `exports` map limited to `./templates/*`.
+`tsconfig.json` stops emitting what no consumer can reach: `declaration`,
+`declarationMap` and `sourceMap` go false and `composite` with them (it requires
+`declaration`, and the repo has no project references — `incremental` alone keeps
+builds fast). Verified: the lean emit is 361 files / 2.6 MB against today's 1444
+files / 7.9 MB, and it is what brings the selector's output-presence check from
+9.4ms to 1.3ms. `exports` exposes only `./templates/*`, so the declarations were
+unreachable regardless.
+
+`files` becomes `dist`, `bin`, `templates` — no negated patterns needed once the
+build stops emitting the classes that would have needed excluding, and `src`
+gone entirely. Projected tarball: roughly 440 entries against today's 2258.
 
 `tsx` moves to `devDependencies`. `prepare` changes from bare `tsc` to the same
 stamped build path as `pnpm build` — otherwise a plain `pnpm install` in a
@@ -265,10 +334,14 @@ vocabulary is the enum in U1, so the row is an exact contract rather than prose.
 No other command prints a runtime line.
 
 Because every process derives its own verdict, a *chain* of processes needs a
-durable record. When `NOLDOR_RUNTIME_TRACE` names a file, `bin/noldor.mjs`
-appends one `<pid> <runtime> <reason> <argv-tail>` line per invocation. That is
-the observable AC 11 asserts against; it is off unless the variable is set, so
-normal output is untouched.
+durable record. When `NOLDOR_RUNTIME_TRACE` names a file, `bin/boot.mjs` appends
+one JSON object per line — `{"pid":123,"runtime":"dist","reason":"digest-match"}`
+— using a single `appendFile` call, which concurrent hook jobs can interleave
+safely at this size. Argv is deliberately absent: command arguments can carry
+secrets, and a space-delimited tail would not survive arguments containing
+spaces or newlines. An append failure is ignored; tracing must never break the
+command it observes. Off unless the variable is set, so normal output is
+untouched.
 
 ### U8 — Packed-consumer verification
 
@@ -291,75 +364,90 @@ and installs into a fixture. It gains, in that packed fixture:
 ## Acceptance criteria
 
 1. With a current build, an invocation runs the compiled entry and `doctor`
-   reports `dist (digest-match)`; changing the content of any compiled input or
-   runtime asset makes the next invocation take the source path and still
-   succeed.
+   reports `dist (digest-match)`; changing the content of any digest input makes
+   the next invocation take the source path and still succeed.
 2. Touching a file without changing its bytes — a no-op reformat, a `git
-   checkout` that rewrites timestamps — leaves the build current.
+   checkout` that rewrites timestamps — leaves the build current. So does an
+   identical build performed in a different directory: the stamp records
+   repo-relative paths, so two checkouts of the same content agree.
 3. Editing a file `tsconfig.json` excludes (a test, anything under
    `src/fixtures/`) leaves the build current.
-4. Adding or deleting a compiled input, or editing `tsconfig.json`, makes the
-   build stale; after the rebuild, the deleted input's emitted `.js` is gone from
-   `dist`.
-5. Deleting any file listed in the stamp's `outputs` makes the build stale
-   (`missing-output`) even though the input digest still matches.
-6. A `dist/.build-lock` held by a live process forces the source path; a lock
-   whose pid is dead is removed and the build treated as stale; a second
-   concurrent `pnpm build` exits 0 without touching `dist`.
-7. A missing, truncated or malformed stamp reads as stale.
-8. `NOLDOR_RUNTIME=dist` runs dist silently with a current build and after a
-   stderr notice with a stale one; with no `dist` it exits non-zero naming the
-   build command. `NOLDOR_RUNTIME=source` with no `src` or no `tsx` exits
-   non-zero naming which is absent. Unset and empty both mean no override; any
-   other value is a usage error.
-9. `selectRuntime` is pure: unit tests drive every reason in the enum through it
-   without spawning a process, and it neither prints nor exits.
-10. Every subcommand in `flattenManifest()` resolves to an existing module under
+4. Editing `tsconfig.json` itself — including options that change emission
+   without changing the input set, such as `target` or `outDir` — makes the
+   build stale.
+5. Adding or deleting a compiled input makes the build stale; after the rebuild,
+   the deleted input's `.js` is gone from `dist`. Removing an entry from
+   `RUNTIME_ASSETS` likewise removes its copy, so no non-`.js` orphan survives
+   into the tarball.
+6. Deleting any file listed in the stamp's `outputs` makes the build stale
+   (`missing-output`) even though the digest still matches.
+7. An interrupted or failed build leaves no stamp, so the next invocation reads
+   stale rather than trusting the previous stamp. A build whose inputs change
+   while it runs writes no stamp and exits non-zero.
+8. A `dist/.build-lock` held by a live process makes the selector report
+   `build-in-progress` and take the source path without removing the lock; a
+   second concurrent `pnpm build` exits non-zero without touching `dist`; a
+   `pnpm build` finding a dead-pid lock reclaims it and proceeds.
+9. `pnpm build` succeeds on a tree with no `dist` directory at all.
+10. A missing, truncated, or unknown-`version` stamp reads as stale. An
+    `outputs` entry that escapes `dist/` is rejected.
+11. Every `reason` in the enum maps to exactly one documented caller behaviour;
+    `NOLDOR_RUNTIME` unset and empty both mean no override; any other value exits
+    2 naming the accepted values.
+12. `selectRuntime` is pure: unit tests drive every reason through it without
+    spawning a process, and it neither prints, exits, nor writes to the
+    filesystem.
+13. Every subcommand in `flattenManifest()` resolves to an existing module under
     both runtimes, iterated rather than sampled.
-11. Every asset in U3's manifest exists under `dist/` after `pnpm build`; the
-    build fails non-zero when a manifest entry is missing from `src` or an
-    unlisted asset appears in a manifested directory.
-12. `npm pack --dry-run --json` lists no `src/`, no `.d.ts`, no `.map`, every U3
-    asset, and both entry count and unpacked size below today's 2258 / 8.75 MB.
-13. In the packed fixture with no `tsx` installed and `NOLDOR_RUNTIME*` scrubbed:
+14. `pnpm build` fails non-zero when a `RUNTIME_ASSETS` entry is missing from
+    `src`, and when any unlisted non-TypeScript file appears anywhere under
+    `src/` outside the test and fixture exclusions — including under a new
+    directory or with a new extension.
+15. `npm pack --dry-run --json` lists no `src/`, no `.d.ts`, no `.map`, every
+    `RUNTIME_ASSETS` entry, and both entry count and unpacked size below today's
+    2258 / 8.75 MB.
+16. In the packed fixture with no `tsx` installed and `NOLDOR_RUNTIME*` scrubbed:
     `doctor` reports `dist (no-source-tree)`; `--help` exits 0 for every
     subcommand; the dashboard answers 200 for `/static/agents.js` and
     `/static/drag.js`; the schema, canned-fixture and prompt reads all succeed;
     and `bin/noldor-stub-gate.mjs` completes a canned run.
-14. A commit exercising the hook chain with `NOLDOR_RUNTIME_TRACE` set builds
-    once, and the trace shows `dist` for every subsequent invocation in that
+17. A commit exercising the hook chain with `NOLDOR_RUNTIME_TRACE` set builds
+    once, and the trace records `dist` for every subsequent invocation in that
     chain when `fmt` changed no bytes.
-15. `selectRuntime` costs ≤25ms on this repo's tree — median of five warm runs,
-    measured by the plan's benchmark script and recorded in the plan.
-16. `prerequisites.ts` no longer asserts a tsx-only runtime, and its two template
+18. The full verdict path — digest plus output-presence check — costs ≤25ms on
+    this repo's tree, median of five warm runs, measured by the plan's benchmark
+    script and recorded in the plan. Measured today: 10–12ms hashing plus 1.3ms
+    stat-ing.
+19. `prerequisites.ts` no longer asserts a tsx-only runtime, and its two template
     twins (`templates/docs/noldor/adoption-guide.md:16`,
     `templates/docs/noldor/versioning.md:199`) carry the dist-first wording, so
     `checks template-sync` stays green.
-17. `pnpm verify` passes with `NOLDOR_RUNTIME` unset, forced to `dist`, and
+20. `pnpm verify` passes with `NOLDOR_RUNTIME` unset, forced to `dist`, and
     forced to `source`. `pnpm test:contract` passes unset and forced to `dist`;
     forced `source` is not applicable in the packed fixture, which by design
     carries neither `src` nor `tsx`.
 
 ## Risks / trade-offs
 
-- **Content hashing costs 10–12ms per invocation** where the timestamp design
-  cost 5.6ms. It buys immunity to every `mtime` pathology — backdated writes,
-  equal timestamps, `git checkout` rewriting the tree — and it is what makes the
-  only available hook slot usable.
-- **The check-then-import window remains.** A source edit landing between the
-  digest and the import is served by the build that preceded it, and is picked up
-  on the next invocation. Closing it would require holding a lock across the
-  whole command.
-- **Two boot paths to maintain.** Criterion 17 runs the suite under each, and the
+- **The verdict costs 11–13ms per invocation** where the timestamp design cost
+  5.6ms. It buys immunity to every `mtime` pathology and is what makes the only
+  available hook slot usable.
+- **Presence, not content, is checked for outputs.** An output truncated in place
+  passes. Hashing `dist` too would roughly double per-boot cost for a failure
+  mode no observed workflow produces.
+- **The check-then-import window remains.** An edit landing between the digest
+  and the import is served by the preceding build and picked up next invocation.
+- **Two boot paths to maintain.** Criterion 20 runs the suite under each, and the
   override makes both directly selectable.
 - **`fmt` reformatting a file mid-chain drops the rest of that commit to
-  source.** Correct — the tree really did change — and it only happens on commits
-  where the author had not already formatted.
-- **U3's manifest can go stale** when someone adds a runtime asset. Criterion 11
-  turns that into a red build instead of a runtime 404, in both directions.
-- **Stack traces move to compiled positions** once maps leave the tarball.
-  `NOLDOR_RUNTIME=source` is the answer in a checkout; a consumer bug report
-  cites dist positions.
+  source** — correct, since the tree really changed, and only on commits where
+  the author had not already formatted.
+- **`RUNTIME_ASSETS` can go stale** when someone adds a runtime asset. Criterion
+  14's whole-tree fail-closed scan turns that into a red build rather than a
+  runtime 404.
+- **Dropping declaration and map emit means compiled stack traces** and no `.d.ts`
+  anywhere. Nothing can import them through `exports` today; if a public API is
+  ever added, that build setting comes back with it.
 - **The build job adds 0.15–0.21s** per commit and pays for the eight boots
   behind it.
 
@@ -440,8 +528,25 @@ pnpm noldor doctor
    without invalidating the build would serve a stale copy from `dist` with no
    TypeScript involved (D9).
 
-10. *Who enumerates the compiled input set?*
-    → **One shared `bin/build-inputs.mjs`, used by both the stamp writer and the
-    selector.** Two enumerations drifting by a single path would make the digest
-    never match, silently removing the fast path while every criterion except
-    the first stayed green (D10).
+10. *Who owns the input set, the asset list and the expected outputs?*
+    → **One `bin/build-manifest.mjs`, consumed by the copier, the digest, the
+    prune and the selector.** Any second list drifting by a single path would
+    make the digest never match, silently removing the fast path while every
+    criterion except the first stayed green (D10).
+
+11. *Should `dist` keep emitting declarations and sourcemaps?*
+    → **No — stop emitting them, rather than excluding them at pack time.**
+    `exports` makes them unreachable, and the lean emit (361 files / 2.6 MB
+    against 1444 / 7.9 MB) is what brings the selector's output check from 9.4ms
+    to 1.3ms, so the acceptance budget holds without narrowing what `outputs`
+    records (D11).
+
+12. *May the selector clean up a dead-pid build lock?*
+    → **No. Only `pnpm build` reclaims one.** The selector runs in every
+    read-only CLI invocation, and a pid-reuse false negative would have it delete
+    a live builder's lock — a far worse outcome than one slow boot (D12).
+
+13. *What happens if the tree changes while a build runs?*
+    → **No stamp is written and the build exits non-zero.** The emitted output
+    may not correspond to any single revision, so blessing it would be exactly
+    the stale-serve the design exists to prevent (D13).
