@@ -28,7 +28,7 @@ links:
 name: UI-Design Review Lane
 packages:
   - package.json
-phase: in-progress
+phase: done
 since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
@@ -66,6 +66,32 @@ Sink: `.noldor/cr/<slug>-code-ui-reviewer.json`. Read `verdict` before `blockers
 Under `advisory` a `fail` lands as `low` suggestions rather than blockers; under `blocking` it blocks with the severities the reviewer assigned. A design file that changes during its own review (`reason: pen-modified`) blocks in both modes.
 
 The lane is code-only — passing it at `--kind spec` or `--kind plan` is rejected at entry — and it is excluded from the empty-diff short-circuit, so it re-runs on every code round instead of inheriting a prior green.
+
+**Render-compare (mechanical sibling, Q-0146 enhancement).** The `render-compare` lane boots the app and pixel-diffs each affected surface's real route against the surface's selected `FINAL:` page — deterministic, no dispatched judgment (its one agent role, `render-compare`, only exports the design to PNG through pencil MCP). Declare a per-surface recipe and opt in:
+
+```json
+{
+  "consumer": {
+    "uiSurfaces": { "dashboard": ["src/dashboard/**"] },
+    "verifyCommands": {
+      "dashboard": { "command": "pnpm dev --port {port}", "kind": "server", "healthPath": "/" }
+    },
+    "uiBoot": {
+      "dashboard": {
+        "verifyCommand": "dashboard",
+        "route": "/",
+        "page": "overview",
+        "screenshotCommand": "pnpm exec playwright screenshot --viewport-size={width},{height} {url} {out}",
+        "maxDiffRatio": 0.25
+      }
+    }
+  },
+  "crLanes": { "code": ["reviewer", "render-compare"] },
+  "autonomous": { "renderCompareMode": "advisory" }
+}
+```
+
+Sink: `.noldor/cr/<slug>-code-render-compare.json`. Every affected surface gets its own outcome row (a recipe-less surface is `no-boot-recipe`, so partial coverage never reads `pass`); the top verdict is the worst by `fail` > `cannot-review` > `pass`, and `reason` is the headline class. A surface fails when `diffRatio > maxDiffRatio` (severity `high` past 2×). On a `fail`, open the persisted images under `.noldor/cr/render-compare/<slug>/` before arguing with the ratio. `renderCompareMode` mirrors `uiReviewMode` (advisory default, `pen-modified` reds in both modes); when the `verifier` lane shares the round, render-compare starts only after it resolves. The export path needs a running VS Code window with the Pencil extension, so headless CI degrades to `cannot-review` (`export-failed`) honestly.
 
 ## PRs
 
