@@ -9,7 +9,6 @@ export const MICRO_CHORE_GLOBS = [
   'templates/.claude/**', // template twins of `.claude/**` skills — template-sync forces editing both, so the twin must share the micro-chore lane
   'templates/docs/**/*.md', // template twins of `docs/**` pages — check-template-sync forces mirroring both, so the twin must share the micro-chore lane
   '.noldor/rollout-marker', // arming commit: the marker must be committable through the wall it arms
-  '.noldor/summary-body-rollout.json', // same reason: the summary-body activation snapshot must be committable through the gate it arms
 ] as const;
 
 /**
@@ -114,8 +113,8 @@ export const CODE_EXCLUDE_GLOBS = [
  *
  * An empty set returns `false`, for every caller: each asks "is this set
  * entirely X?", and an empty set proves nothing either way. Callers decide what
- * emptiness means for them (the summary-body check passes on it; `composeBody`
- * never sees it, since `pr-flow` exits when no commits are ahead of base).
+ * emptiness means for them (`composeBody` never sees one, since `pr-flow` exits
+ * when no commits are ahead of base).
  *
  * Shared because the four allowlist predicates below differed only in which glob
  * list they consulted, which the clone detector eventually noticed.
@@ -126,13 +125,13 @@ function everyPathMatches(paths: string[], globs: readonly string[]): boolean {
 }
 
 /**
- * Returns true when EVERY path is framework bookkeeping — a commit with no
- * behaviour to explain, exempt from the summary-body contract.
+ * Returns true when EVERY path is framework bookkeeping — a change with no
+ * behaviour to explain, exempt from the Why/How/What contract.
  *
  * An empty set returns `false`: the question is "is this set entirely
  * bookkeeping?", and an empty set proves nothing. Callers decide what emptiness
- * means for them (the commit-msg validator passes on it; `composeBody` never
- * sees it, since `pr-flow` exits when no commits are ahead of base).
+ * means for them (`composeBody` never sees one, since `pr-flow` exits when no
+ * commits are ahead of base).
  */
 export function isBookkeepingOnly(paths: string[]): boolean {
   return everyPathMatches(paths, BOOKKEEPING_GLOBS);

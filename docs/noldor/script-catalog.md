@@ -43,14 +43,6 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** automatic gate on every commit that touches framework pages.
 - **Source:** [`src/core/validate-noldor-scope.ts`](../../src/core/validate-noldor-scope.ts)
 
-### `validate:summary-body`
-
-- **Trigger:** `pnpm noldor validate summary-body <commit-msg-file>`. Runs in `commit-msg` (`summary-body-advisory` job), after `noldor-validate-trailer`. Also runnable by hand against `.git/COMMIT_EDITMSG`.
-- **Inputs:** commit message file path; staged file list (`git diff --cached --name-only -z`, no `--diff-filter`, so deletions count); the summary-body activation snapshot.
-- **Outputs:** **always exit 0.** Advisory only: it prints a warning when a likely code commit lacks a `Why —`, `How —` or `What —` section of at least 24 characters, names a missing or corrupt activation snapshot, and stays silent otherwise. It reads a provisional message and the current index, neither of which is what git will store, so it makes no enforcement claim — `hooks pre-push` does.
-- **When to use:** early feedback while the fix is still a three-line amend.
-- **Source:** [`src/core/validate-summary-body.ts`](../../src/core/validate-summary-body.ts)
-
 ### `validate:skill-catalog`
 
 - **Trigger:** `pnpm noldor validate skill-catalog`.
@@ -158,9 +150,9 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 ### `hook:noldor:pre-push`
 
 - **Trigger:** `pnpm noldor hooks pre-push`. Runs in `pre-push` (`noldor-pre-push` job).
-- **Inputs:** the push ref lines (stdin), remote name, env; the summary-body activation snapshot; the outgoing commit objects themselves.
-- **Outputs:** two decisions, in order. First, blocks any direct push to `origin/main` — all paths must land via PR through the gate end-of-flow; bypass for the release script only via `NOLDOR_RELEASE_PUSH=1`. Second, for every allowed push including non-origin remotes, validates the Why/How/What body of each commit newly reachable through an updated ref (minus the activation snapshot's closure and every `refs/remotes/**` tip). A release override permits the destination but does not exempt the bodies, and the release receipt is written only after validation passes. Exit 1 on a policy rejection listing every offending SHA, exit 2 on malformed ref input or a corrupt snapshot, exit 0 with a notice when the snapshot is absent.
-- **Source:** [`src/hooks/noldor-pre-push.ts`](../../src/hooks/noldor-pre-push.ts), [`src/hooks/validate-pushed-summaries.ts`](../../src/hooks/validate-pushed-summaries.ts)
+- **Inputs:** the push ref lines (stdin), remote name, env; the outgoing commit objects (for the docs/adr/ append-only scan).
+- **Outputs:** two decisions, in order. First, blocks any direct push to `origin/main` — all paths must land via PR through the gate end-of-flow; bypass for the release script only via `NOLDOR_RELEASE_PUSH=1` (the release receipt is written only after every check passes). Second, enforces the docs/adr/ append-only contract over the outgoing range. Commit bodies are free-form here — the Why/How/What contract is enforced at the PR seam by `validatePrSummary` in `src/core/pr-flow.ts`. Exit 1 on a policy rejection, exit 2 on malformed ref input.
+- **Source:** [`src/hooks/noldor-pre-push.ts`](../../src/hooks/noldor-pre-push.ts), [`src/hooks/pre-push-range.ts`](../../src/hooks/pre-push-range.ts)
 
 ### `hook:noldor:pre-edit-guard`
 

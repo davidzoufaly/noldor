@@ -1,17 +1,15 @@
 // scripts/hooks/noldor-pre-push.ts
 // pre-push stage: blocks direct pushes to origin/main, enforcing the Noldor PR
-// flow, and validates that every outgoing commit object explains itself.
+// flow, and enforces the docs/adr/ append-only contract. Commit bodies are
+// free-form — the Why/How/What contract is enforced at the PR seam
+// (`validatePrSummary` in src/core/pr-flow.ts), not per commit.
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 
+import { createGitRunner } from './pre-push-range.js';
 import { renderAdrViolations, validatePushedAdrs } from './validate-pushed-adrs.js';
-import {
-  createGitRunner,
-  renderViolations,
-  validatePushedSummaries,
-} from './validate-pushed-summaries.js';
 
 export interface PrePushInput {
   remoteName: string;
@@ -101,24 +99,9 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  // Every allowed push, including non-origin remotes. A release override permits
-  // the destination; it does not exempt the bodies. Release commits pass on
-  // their own `Noldor-Path` trailer instead, which is a claim git stored rather
-  // than an environment variable the invoking shell set.
-  const scan = validatePushedSummaries({ git: createGitRunner(process.cwd()), refLines });
-  if (scan.kind === 'inactive') {
-    process.stderr.write(`${scan.notice}\n`);
-  } else if (scan.kind === 'infra') {
-    process.stderr.write(`${scan.message}\n`);
-    return 2;
-  } else if (scan.kind === 'violations') {
-    process.stderr.write(`${renderViolations(scan.violations, scan.negatives)}\n`);
-    return 1;
-  }
-
-  // Append-only gate for docs/adr/ — same every-allowed-push scope as the
-  // summary scan above. A repair push (NOLDOR_ADR_REPAIR=1) proceeds but is
-  // receipted, the same audited-bypass idiom as the release override below.
+  // Append-only gate for docs/adr/ — every allowed push, including non-origin
+  // remotes. A repair push (NOLDOR_ADR_REPAIR=1) proceeds but is receipted, the
+  // same audited-bypass idiom as the release override below.
   const adrScan = validatePushedAdrs({
     git: createGitRunner(process.cwd()),
     refLines,
@@ -196,8 +179,7 @@ export function readStdinWithTimeout(
 // `pathToFileURL`, not a `file://` template: a repo path needing percent-encoding
 // (a space is enough) makes the naive comparison false, `main` never runs, the
 // process exits 0, and every push passes with no diagnostic — a silently disabled
-// gate, in the one hook that now owns the blocking body decision. Same form as
-// `src/cli/index.ts` and `src/core/validate-summary-body.ts`.
+// gate. Same form as `src/cli/index.ts`.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   void main().then((code) => process.exit(code));
 }

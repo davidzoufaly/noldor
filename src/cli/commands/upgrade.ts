@@ -2,7 +2,7 @@
 // installed one through ordered codemods. Pure core (`runUpgrade`) is unit
 // tested; the CLI tail parses argv and maps the result to stdout + exit code.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import {
   loadConsumerConfig,
@@ -12,11 +12,6 @@ import {
 } from '../../core/consumer-config.js';
 import { isAnchorLagging } from '../../core/framework-skew.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
-import {
-  FILE as SUMMARY_BODY_ROLLOUT_FILE,
-  ensureSummaryBodyRolloutSnapshot,
-  snapshotPath,
-} from '../../core/summary-body-rollout.js';
 import { MIGRATIONS } from '../../migrations/registry.js';
 import { resolveChain, runChain, renderSteps } from '../../migrations/chain.js';
 import type { Migration } from '../../migrations/types.js';
@@ -60,44 +55,6 @@ function loadConfigTolerant(cwd: string): ConsumerConfig {
   }
 }
 
-/**
- * Create the summary-body activation snapshot if this consumer has none.
- *
- * Deliberately outside the semver migration chain: the snapshot arms a *runtime*
- * gate rather than transforming files, so keying it to a version gap would mean
- * inventing a migration whose only job is to run a side effect — and would strand
- * every consumer whose chain happens to be empty at upgrade time. Both chain
- * paths call this instead.
- *
- * Creating it observes the same clean-tree preflight as any other upgrade write:
- * the file must be committed to take effect, and writing it into a dirty tree
- * invites it being swept into an unrelated commit. Returns a report line, or null
- * when there was nothing to do.
- */
-function snapshotNeeded(cwd: string): boolean {
-  return !existsSync(snapshotPath(cwd));
-}
-
-/**
- * Write the snapshot. The caller owns the clean-tree preflight, because it must
- * run BEFORE any migration writes — checking dirtiness here would fail every
- * non-empty chain, since `runChain` has by then made the tree dirty itself.
- */
-function snapshotStep(input: UpgradeInput): string | null {
-  if (!snapshotNeeded(input.cwd)) return null;
-  if (input.dryRun) {
-    return `[DRY RUN] would create ${SUMMARY_BODY_ROLLOUT_FILE} (grandfathering all current commit-ref tips)`;
-  }
-  const status = ensureSummaryBodyRolloutSnapshot(input.cwd);
-  if (status === 'skipped-no-git') {
-    return `skipped ${SUMMARY_BODY_ROLLOUT_FILE} (no commit-bearing ref yet — the summary-body gate stays advisory-only; re-run after the first commit)`;
-  }
-  if (status === 'created') {
-    return `created ${SUMMARY_BODY_ROLLOUT_FILE} — pre-push enforces the Why/How/What body from here. Commit it with this upgrade; until it is committed, a fresh clone stays advisory-only.`;
-  }
-  return null;
-}
-
 /** Resolve + run the chain. Pure w.r.t. process state; throws on guard failures. */
 export function runUpgrade(input: UpgradeInput): UpgradeResult {
   const config = loadConfigTolerant(input.cwd);
@@ -127,16 +84,6 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
     // `doctor`, which needs the same three-way answer to word its skew warning.
     const lagging = isAnchorLagging(onDiskAnchor, input.installed);
     const applied = lagging && !input.dryRun;
-    // The chain path gets its clean-tree preflight below; this branch has none,
-    // so guard the snapshot write here — and before the anchor write, so a
-    // refusal cannot leave the anchor advanced past an activation that never
-    // happened.
-    if (!input.dryRun && !input.force && snapshotNeeded(input.cwd) && isDirty(input.cwd)) {
-      throw new Error(
-        `refusing to write ${SUMMARY_BODY_ROLLOUT_FILE} on a dirty git tree — commit/stash first, ideally on a fresh branch (\`git switch -c chore/noldor-upgrade\`)`,
-      );
-    }
-    const snapshot = snapshotStep(input);
     if (applied) writeFrameworkVersion(input.cwd, input.installed);
     const dry = input.dryRun ? '[DRY RUN] ' : '';
     const base = !lagging
@@ -149,7 +96,7 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
       to: input.installed,
       steps: 0,
       applied,
-      report: snapshot === null ? base : `${base}\n${snapshot}`,
+      report: base,
     };
   }
   if (!input.dryRun && !input.force && isDirty(input.cwd)) {
@@ -165,8 +112,6 @@ export function runUpgrade(input: UpgradeInput): UpgradeResult {
     stepCount += r.steps.length;
     lines.push(r.steps.length ? renderSteps(r.steps) : '  (no file changes)');
   }
-  const snapshot = snapshotStep(input);
-  if (snapshot !== null) lines.push(`\n${snapshot}`);
   if (!input.dryRun) writeFrameworkVersion(input.cwd, input.installed);
   return {
     from,

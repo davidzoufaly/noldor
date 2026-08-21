@@ -1,6 +1,6 @@
 // @fd: architecture-decision-record-surface
 import { parseAdrFrontmatter } from '../docs/adr-schema.js';
-import { parseRefLines, type GitRunner } from './validate-pushed-summaries.js';
+import { parseRefLines, type GitRunner } from './pre-push-range.js';
 
 /** Git's all-zero object ID, matched by shape so SHA-256 repos work too. */
 const ZERO_SHA_RE = /^0+$/;
@@ -24,9 +24,8 @@ export type AdrScanResult =
  *
  * Per pushed ref the checked range is `<remote sha>..<local sha>`; a zero
  * remote sha (new branch) falls back to the merge-base with `origin/main` —
- * the summary-body gate's range contract, replayable author-side via the gate
- * preflight recipe. Runs on every allowed push regardless of remote, mirroring
- * `validatePushedSummaries`.
+ * replayable author-side via the gate preflight recipe. Runs on every allowed
+ * push regardless of remote.
  *
  * Allowed changes: adding a record, and the supersede flip — a modification
  * whose base `status` was `accepted`, whose body is byte-identical, and whose

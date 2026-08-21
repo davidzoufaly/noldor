@@ -21,6 +21,7 @@ phase: done
 noldor-tier: full
 introduced: 0.2.0
 ---
+
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
@@ -83,6 +84,9 @@ The framework is now lifted into a dedicated `packages/noldor` workspace package
 - **Tests:**
   - [`src/checks/__tests__/check-lefthook-wiring.test.ts`](../../src/checks/__tests__/check-lefthook-wiring.test.ts)
   - [`src/cli/__tests__/cli.test.ts`](../../src/cli/__tests__/cli.test.ts)
+  - [`src/cli/__tests__/dist-import-graph.test.ts`](../../src/cli/__tests__/dist-import-graph.test.ts)
+  - [`src/cli/__tests__/runtime-parity.test.ts`](../../src/cli/__tests__/runtime-parity.test.ts)
+  - [`src/cli/__tests__/runtime-select.test.ts`](../../src/cli/__tests__/runtime-select.test.ts)
   - [`src/templates/__tests__/templates.test.ts`](../../src/templates/__tests__/templates.test.ts)
 
 <!-- /generated: resources -->
