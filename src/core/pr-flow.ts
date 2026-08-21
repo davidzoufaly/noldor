@@ -493,7 +493,9 @@ export async function pollAutoMerge(opts: {
       };
       if (data.mergedAt) return { mergedAt: data.mergedAt };
       if (data.state === 'CLOSED') throw new PrClosedWithoutMergeError(opts.prUrl);
-      if (data.state === 'BEHIND' && !behindObserved) {
+      // BEHIND lives in mergeStateStatus — `state` is only OPEN/CLOSED/MERGED,
+      // so comparing it there left the extended deadline unreachable.
+      if (data.mergeStateStatus === 'BEHIND' && !behindObserved) {
         behindObserved = true;
         // Absolute ceiling from poll start — not from when BEHIND was first seen
         extendedDeadline = BEHIND_TIMEOUT_MS;

@@ -564,12 +564,15 @@ describe('pollAutoMerge', () => {
     ).rejects.toThrow(PrClosedWithoutMergeError);
   });
 
-  it('extends timeout when state BEHIND observed', async () => {
+  it('extends timeout when mergeStateStatus BEHIND observed', async () => {
     let pollCount = 0;
     const spawn: SpawnFn = vi.fn(async () => {
       pollCount++;
       if (pollCount < 10)
-        return { stdout: JSON.stringify({ mergedAt: null, state: 'BEHIND' }), exitCode: 0 };
+        return {
+          stdout: JSON.stringify({ mergedAt: null, state: 'OPEN', mergeStateStatus: 'BEHIND' }),
+          exitCode: 0,
+        };
       return {
         stdout: JSON.stringify({ mergedAt: '2026-05-15T10:15:00Z', state: 'MERGED' }),
         exitCode: 0,
