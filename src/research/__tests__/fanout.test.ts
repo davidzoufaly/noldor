@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadTasks, parseArgs, run, type SpawnAgentLike } from '../fanout';
+import { loadTasks, parseArgs, run, type SpawnAgentLike } from '../fanout.js';
 
 let cwd: string;
 beforeEach(() => {

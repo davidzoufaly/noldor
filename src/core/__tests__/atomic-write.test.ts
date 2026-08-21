@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { atomicWriteFileSync } from '../atomic-write';
+import { atomicWriteFileSync } from '../atomic-write.js';
 
 describe('atomicWriteFileSync', () => {
   it('writes content to the target', () => {

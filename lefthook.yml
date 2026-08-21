@@ -3,3 +3,19 @@
 # Project-specific hooks may be appended below the extends.
 extends:
   - ./lefthook/noldor.yml
+
+# Self-host only: refresh the compiled runtime once, so the framework jobs behind
+# this one execute dist instead of each transpiling src through tsx. Lefthook
+# concatenates root-config jobs ahead of extended ones and offers no ordering
+# field, so this necessarily runs first — which is why freshness is a content
+# digest rather than a timestamp: a formatter job rewriting a file later in the
+# chain only invalidates the build if it actually changed bytes.
+#
+# This lives here, not in lefthook/noldor.yml, because that file is a
+# template-sync-enforced consumer twin: a build job there would either red
+# `checks shared-files` or make every consumer run `pnpm build` over a src tree
+# they do not ship.
+pre-commit:
+  jobs:
+    - name: build
+      run: node bin/build.mjs

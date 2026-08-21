@@ -1,6 +1,6 @@
 // @tests: code-clone-detector
 import { describe, expect, it } from 'vitest';
-import { invokedDirectly } from '../cli-entry';
+import { invokedDirectly } from '../cli-entry.js';
 
 describe('invokedDirectly', () => {
   it('matches the module by stem across source and build extensions', () => {

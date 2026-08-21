@@ -2,9 +2,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildConsumerFixture, type ConsumerFixture } from '../consumer-fixture';
-import { loadConsumerConfig } from '../../core/consumer-config';
-import { loadAgentsConfig } from '../../core/agent-runner/registry';
+import { buildConsumerFixture, type ConsumerFixture } from '../consumer-fixture.js';
+import { loadConsumerConfig } from '../../core/consumer-config.js';
+import { loadAgentsConfig } from '../../core/agent-runner/registry.js';
 
 let fx: ConsumerFixture | null = null;
 afterEach(() => fx?.cleanup());

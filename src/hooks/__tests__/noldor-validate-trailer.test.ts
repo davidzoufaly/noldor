@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validateTrailer } from '../noldor-validate-trailer';
+import { validateTrailer } from '../noldor-validate-trailer.js';
 
 function setupRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'qfvt-'));

@@ -2,11 +2,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { RUNNER_NAMES } from '../../core/agent-runner/types';
-import { CAPABILITIES } from '../../core/agent-runner/capabilities';
-import { STUB_BIN, buildStubArgv } from '../../core/agent-runner/runners/stub';
-import { buildConsumerFixture, type ConsumerFixture } from '../consumer-fixture';
-import { applyStubGate } from '../stub-gate';
+import { RUNNER_NAMES } from '../../core/agent-runner/types.js';
+import { CAPABILITIES } from '../../core/agent-runner/capabilities.js';
+import { STUB_BIN, buildStubArgv } from '../../core/agent-runner/runners/stub.js';
+import { buildConsumerFixture, type ConsumerFixture } from '../consumer-fixture.js';
+import { applyStubGate } from '../stub-gate.js';
 
 describe('stub runner', () => {
   it('is a registered runner name', () => {

@@ -1,6 +1,6 @@
 // @tests: code-clone-detector
 import { describe, expect, it } from 'vitest';
-import { tokenize } from '../tokenize';
+import { tokenize } from '../tokenize.js';
 
 describe('tokenize', () => {
   it('skips comments and collapses string/template literals to one LIT', () => {

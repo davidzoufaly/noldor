@@ -3,8 +3,8 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createBatchDir, renderIndex } from '../staging';
-import type { ResearchManifest } from '../types';
+import { createBatchDir, renderIndex } from '../staging.js';
+import type { ResearchManifest } from '../types.js';
 
 let cwd: string;
 beforeEach(() => {

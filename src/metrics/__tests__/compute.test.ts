@@ -1,7 +1,7 @@
 // @tests: outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it } from 'vitest';
-import { COLLECTORS } from '../compute';
-import { emptyFacts } from './fixtures';
+import { COLLECTORS } from '../compute.js';
+import { emptyFacts } from './fixtures.js';
 
 describe('honesty rail', () => {
   it('every collector emits non-empty formula and blindSpots, even on empty facts', () => {

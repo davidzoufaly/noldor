@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadCorpus, parseClonesArgs, runClones, validateAgainstRef } from '../clones-cli';
+import { loadCorpus, parseClonesArgs, runClones, validateAgainstRef } from '../clones-cli.js';
 
 const fn = (name: string): string =>
   [

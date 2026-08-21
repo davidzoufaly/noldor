@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { detectSkillCodeDrift } from '../skill-code-drift';
+import { detectSkillCodeDrift } from '../skill-code-drift.js';
 
 /** Scaffold a fixture repo: package.json with the given scripts + one skill file. */
 function fixtureRepo(opts: {

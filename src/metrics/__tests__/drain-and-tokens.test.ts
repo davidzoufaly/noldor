@@ -1,10 +1,10 @@
 // @tests: agent-events-phase-tracking-run-ids-and-agents-dashboard-page, outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it } from 'vitest';
-import { collectDrainReliability } from '../collect/drain-reliability';
-import { collectTokensPerFeature } from '../collect/tokens-per-feature';
-import { emptyFacts } from './fixtures';
-import type { AgentEvent } from '../../core/agent-events';
-import type { EscalationRow } from '../../autonomous/escalations';
+import { collectDrainReliability } from '../collect/drain-reliability.js';
+import { collectTokensPerFeature } from '../collect/tokens-per-feature.js';
+import { emptyFacts } from './fixtures.js';
+import type { AgentEvent } from '../../core/agent-events.js';
+import type { EscalationRow } from '../../autonomous/escalations.js';
 
 const EV = (over: Partial<AgentEvent>): AgentEvent => ({
   ts: '2026-06-12T00:00:00Z',

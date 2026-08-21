@@ -1,6 +1,6 @@
 // @tests: make-noldor-agent-agnostic
 import { describe, expect, it } from 'vitest';
-import { filterTemplatesByAgents } from '../agent-filter';
+import { filterTemplatesByAgents } from '../agent-filter.js';
 
 const FILES = [
   '.claude/skills/gate/SKILL.md',

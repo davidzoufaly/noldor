@@ -1,6 +1,7 @@
 import { invariants as defaultInvariants, runInvariants } from '../invariants/index.js';
 
 import type { Invariant, InvariantResult, InvariantViolation } from '../invariants/types.js';
+import { invokedDirectly } from '../core/cli-entry.js';
 
 /** A violation blocks the run unless it is explicitly `warn` severity. */
 function isBlocking(v: InvariantViolation): boolean {
@@ -128,7 +129,7 @@ function printResults(result: RunAllResult): void {
   }
 }
 
-const invokedDirect = process.argv[1] && process.argv[1].endsWith('check-invariants.ts');
+const invokedDirect = invokedDirectly('check-invariants');
 if (invokedDirect) {
   void runAll().then((r) => {
     printResults(r);

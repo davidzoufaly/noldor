@@ -31,6 +31,13 @@ import { loadFrameworkVersion } from '../../core/consumer-config.js';
 import { frameworkSkewDetail } from '../../core/framework-skew.js';
 import { installedFrameworkVersion } from '../../migrations/pkg-version.js';
 
+// Which runtime served THIS process, as decided by bin/runtime-select.mjs and
+// recorded by bin/boot.mjs. Every child re-derives its own verdict, so the row
+// always describes the process printing it.
+const runtime = process.env.NOLDOR_RUNTIME_ACTIVE ?? 'unknown';
+const runtimeReason = process.env.NOLDOR_RUNTIME_REASON ?? 'not-set';
+console.log(`${'ok'.padEnd(12)} runtime: ${runtime} (${runtimeReason})`);
+
 let prereqBad = 0;
 for (const c of [...checkBinaryPrerequisites(), ...checkConsumerScripts(process.cwd())]) {
   if (c.status === 'ok') continue;

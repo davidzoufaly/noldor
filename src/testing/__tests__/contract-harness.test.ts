@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildConsumerFixture, type ConsumerFixture } from '../consumer-fixture';
-import { runConsumerCli } from '../contract-harness';
+import { buildConsumerFixture, type ConsumerFixture } from '../consumer-fixture.js';
+import { runConsumerCli } from '../contract-harness.js';
 
 let fx: ConsumerFixture | null = null;
 afterEach(() => fx?.cleanup());

@@ -1,7 +1,7 @@
 // @tests: outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it } from 'vitest';
-import { collectCycleTime } from '../collect/cycle-time';
-import { emptyFacts, feature, commit } from './fixtures';
+import { collectCycleTime } from '../collect/cycle-time.js';
+import { emptyFacts, feature, commit } from './fixtures.js';
 
 describe('collectCycleTime', () => {
   it('computes days from intake to release-tag date, segmented by path', () => {

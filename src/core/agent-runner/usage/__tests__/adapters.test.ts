@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { claudeUsage, claudeProjectDirName } from '../claude';
-import { codexUsage } from '../codex';
-import { opencodeUsage } from '../opencode';
+import { claudeUsage, claudeProjectDirName } from '../claude.js';
+import { codexUsage } from '../codex.js';
+import { opencodeUsage } from '../opencode.js';
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), 'noldor-usage-'));

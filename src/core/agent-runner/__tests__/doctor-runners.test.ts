@@ -1,7 +1,7 @@
 // @tests: drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-agent-dispatch-for-research-jobs
 import { describe, expect, it } from 'vitest';
-import { agentsConfigSchema } from '../types';
-import { checkRunners, compareDotted, referencedRunners } from '../doctor-runners';
+import { agentsConfigSchema } from '../types.js';
+import { checkRunners, compareDotted, referencedRunners } from '../doctor-runners.js';
 
 describe('compareDotted', () => {
   it('compares numerically per segment', () => {

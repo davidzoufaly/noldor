@@ -1,6 +1,6 @@
 // @tests: rules-cascade-v1
 import { describe, expect, it } from 'vitest';
-import { runAgentRulesGuard } from '../agent-rules-guard';
+import { runAgentRulesGuard } from '../agent-rules-guard.js';
 
 function hookInput(toolName: string, toolInput: unknown): string {
   return JSON.stringify({ tool_name: toolName, tool_input: toolInput });

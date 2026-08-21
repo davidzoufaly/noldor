@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
-import { templateFiles } from '../templates/manifest';
-import { parseTrailers } from './trailers';
+import { templateFiles } from '../templates/manifest.js';
+import { parseTrailers } from './trailers.js';
 
 const execFileP = promisify(execFile);
 

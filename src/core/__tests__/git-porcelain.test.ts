@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { gitStatusPorcelain } from '../git-porcelain';
+import { gitStatusPorcelain } from '../git-porcelain.js';
 
 let dir: string;
 beforeEach(() => {

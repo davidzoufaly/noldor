@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readSession, writeSession } from '../../core/session';
-import { withReleaseSession } from '../release-session';
+import { readSession, writeSession } from '../../core/session.js';
+import { withReleaseSession } from '../release-session.js';
 
 describe('withReleaseSession', () => {
   it('writes a release-automation marker for the duration of work and clears it on success', async () => {

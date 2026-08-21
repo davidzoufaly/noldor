@@ -1,8 +1,8 @@
 // @tests: code-clone-detector
 import { describe, expect, it } from 'vitest';
-import { flaggedGroups, parseUnifiedDiffRanges, resolveChangedRanges } from '../diff-scope';
-import type { LineRange } from '../diff-scope';
-import type { CloneReport } from '../detect';
+import { flaggedGroups, parseUnifiedDiffRanges, resolveChangedRanges } from '../diff-scope.js';
+import type { LineRange } from '../diff-scope.js';
+import type { CloneReport } from '../detect.js';
 
 type GitCall = readonly string[];
 

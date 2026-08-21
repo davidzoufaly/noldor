@@ -1,7 +1,7 @@
 // @tests: outcome-telemetry-and-effectiveness-metrics
 import { describe, expect, it } from 'vitest';
-import { collectRoutingAccuracy } from '../collect/routing-accuracy';
-import { emptyFacts, feature, commit } from './fixtures';
+import { collectRoutingAccuracy } from '../collect/routing-accuracy.js';
+import { emptyFacts, feature, commit } from './fixtures.js';
 
 describe('collectRoutingAccuracy', () => {
   it('builds a suggestion×actual confusion table using sizeToPath(size, hasParent)', () => {

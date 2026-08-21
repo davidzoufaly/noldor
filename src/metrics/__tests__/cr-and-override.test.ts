@@ -1,9 +1,9 @@
 // @tests: acceptance-verify-lane, outcome-telemetry-and-effectiveness-metrics, specs-cr-gate-multi-reviewer
 import { describe, expect, it } from 'vitest';
-import { collectCrEffectiveness } from '../collect/cr-effectiveness';
-import { collectOverridePressure } from '../collect/override-pressure';
-import { emptyFacts, feature, commit } from './fixtures';
-import type { LaneFindings } from '../../cr/findings-schema';
+import { collectCrEffectiveness } from '../collect/cr-effectiveness.js';
+import { collectOverridePressure } from '../collect/override-pressure.js';
+import { emptyFacts, feature, commit } from './fixtures.js';
+import type { LaneFindings } from '../../cr/findings-schema.js';
 
 const LF: LaneFindings = {
   lane: 'subagent',

@@ -4,7 +4,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runPreEditGuard, filePathFromPayload } from '../noldor-pre-edit-guard';
+import { runPreEditGuard, filePathFromPayload } from '../noldor-pre-edit-guard.js';
 
 function setupRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'qfpeg-'));

@@ -196,9 +196,10 @@ Consumer upgrade flow is unchanged: `pnpm up @david.zoufaly/noldor && pnpm
 noldor doctor && pnpm noldor upgrade` (see
 [Version-aware upgrade](#version-aware-upgrade)).
 
-Packaging note: the published bin runs `src/` through tsx at runtime, so
-`src` must stay in the package.json `files` whitelist — dropping it breaks
-every registry install.
+Packaging note: the published bin runs compiled `dist/`, so `dist` must stay in
+the package.json `files` whitelist — dropping it breaks every registry install.
+`src` is deliberately absent from the tarball; a checkout falls back to `src`
+through tsx when its build is stale, which is a development path only.
 
 ## Who owns `introduced` / `updated`?
 

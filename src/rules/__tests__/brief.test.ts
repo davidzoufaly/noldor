@@ -1,8 +1,8 @@
 // @tests: rules-cascade-v1
 import { describe, expect, it } from 'vitest';
-import { renderBrief, unionResults } from '../brief';
-import type { ResolveResult } from '../resolve';
-import type { Rule } from '../types';
+import { renderBrief, unionResults } from '../brief.js';
+import type { ResolveResult } from '../resolve.js';
+import type { Rule } from '../types.js';
 
 const rule = (over: Partial<Rule> & { id: string }): Rule => ({
   appliesTo: ['src/**/*.ts'],

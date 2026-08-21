@@ -2,11 +2,15 @@
 // pre-commit stage: enforces micro-chore allowlist and hard-wall post-rollout session requirement.
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { readSession, isSessionStale, touchSession, type SessionMarker } from '../core/session';
-import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist';
-import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker';
-import { appendOverrideLog } from '../core/overrides-log';
-import { DEFAULT_SESSION_TTL_HOURS, loadConfigSync, resolveSessionTtlHours } from '../core/config';
+import { readSession, isSessionStale, touchSession, type SessionMarker } from '../core/session.js';
+import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist.js';
+import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
+import { appendOverrideLog } from '../core/overrides-log.js';
+import {
+  DEFAULT_SESSION_TTL_HOURS,
+  loadConfigSync,
+  resolveSessionTtlHours,
+} from '../core/config.js';
 
 export interface PreCommitResult {
   ok: boolean;

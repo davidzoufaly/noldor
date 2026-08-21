@@ -14,7 +14,6 @@
   },
   "files": [
     "dist",
-    "src",
     "bin",
     "templates"
   ],
@@ -26,7 +25,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node bin/build.mjs",
     "noldor": "node bin/noldor.mjs",
     "dashboard": "node bin/noldor.mjs dashboard server",
     "test": "vitest run",
@@ -42,8 +41,9 @@
     "graphify:enrich-docs": "node bin/noldor.mjs graphify enrich-docs graphify-out/graph.json",
     "release": "node bin/noldor.mjs release run",
     "clean": "rm -rf dist .turbo",
-    "prepare": "tsc",
-    "postinstall": "lefthook install || echo 'lefthook not found - skipping hook install (expected when installed as a dependency)'"
+    "prepare": "node bin/build.mjs",
+    "postinstall": "lefthook install || echo 'lefthook not found - skipping hook install (expected when installed as a dependency)'",
+    "bench:runtime": "node bin/bench-runtime-select.mjs"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.3",
@@ -54,7 +54,6 @@
     "marked-highlight": "^2.2.1",
     "minimatch": "^10.2.5",
     "semver": "^7.7.4",
-    "tsx": "^4.21.0",
     "yaml": "^2.8.3",
     "zod": "^3.24.0",
     "zod-to-json-schema": "^3.25.2"
@@ -66,6 +65,7 @@
     "lefthook": "^2.1.9",
     "oxfmt": "^0.52.0",
     "oxlint": "^1.67.0",
+    "tsx": "^4.21.0",
     "typescript": "^7.0.2",
     "vitest": "^3.1.0"
   },

@@ -1,6 +1,6 @@
 // @tests: code-clone-detector
 import { describe, expect, it } from 'vitest';
-import { detectClones, DEFAULT_CLONE_OPTIONS } from '../detect';
+import { detectClones, DEFAULT_CLONE_OPTIONS } from '../detect.js';
 
 /** A ~60-token, 8-line function body (unique identifiers injectable). */
 const fn = (name: string, a = 'alpha', b = 'beta'): string =>

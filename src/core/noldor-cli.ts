@@ -6,8 +6,10 @@ import { fileURLToPath } from 'node:url';
  * relative to this module so it works whether noldor runs from its own repo
  * (self-host) or as an installed dependency in a consumer repo.
  *
- * `src/core/` → package root is two levels up; `bin/noldor.mjs` is the
- * `files`-published shebang entry that boots `src/cli/index.ts` via tsx.
+ * `src/core/` → package root is two levels up, and `dist/core/` → the same
+ * place, so this resolves identically under both runtimes. `bin/noldor.mjs` is
+ * the `files`-published shebang entry; it selects `dist/cli/index.js` or, in a
+ * checkout whose build is stale, `src/cli/index.ts` through tsx.
  */
 export const NOLDOR_BIN = resolve(
   dirname(fileURLToPath(import.meta.url)),
