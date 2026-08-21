@@ -91,11 +91,13 @@ function acquireLock(attempt = 0) {
     }
   }
 
-  // Claim the stale lock by RENAME, not by remove-then-create. Rename is atomic
-  // on one inode, so of two builders that both saw the same dead pid exactly one
-  // succeeds; the loser gets ENOENT, retries, and meets the winner's fresh lock
-  // as EEXIST, where the attempt bound fails it closed. A plain rmSync here would
-  // let the loser delete the winner's LIVE lock and both would rewrite dist.
+  // Claiming a stale lock is check-then-act on a NAME, and neither unlink nor
+  // rename fixes that: rename resolves by name, never by inode, so a racer
+  // preempted here can rename away the fresh live lock the winner just created
+  // and both builders proceed. The claim therefore has to be identity-checked —
+  // rename it aside, then confirm the bytes are the same dead-pid lock we
+  // inspected. If they are not, the winner re-created it in the window: put it
+  // back and fail closed.
   const claim = `${lock}.${process.pid}`;
   try {
     renameSync(lock, claim);
@@ -103,6 +105,26 @@ function acquireLock(attempt = 0) {
     if (error.code !== 'ENOENT') throw error;
     return acquireLock(attempt + 1);
   }
+
+  let claimed;
+  try {
+    claimed = readFileSync(claim, 'utf8');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return acquireLock(attempt + 1);
+  }
+
+  if (claimed.trim() !== raw.trim()) {
+    // Not the lock we inspected — another builder owns this one.
+    try {
+      renameSync(claim, lock);
+    } catch {
+      // Restoring failed; the owner will re-create or reclaim it itself.
+    }
+    console.error(`noldor build: already in progress (${LOCK_FILE})`);
+    process.exit(1);
+  }
+
   rmSync(claim, { force: true });
   return acquireLock(attempt + 1);
 }

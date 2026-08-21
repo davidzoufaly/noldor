@@ -22,8 +22,12 @@ export interface CliResult {
  */
 function scrubbedEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
+  // Every NOLDOR_* var, not just the runtime ones: NOLDOR_STUB_SLUG in an
+  // operator's or CI's ambient environment would make the stub-gate probe run
+  // applyStubGate — writing canned files, rewriting docs/roadmap.md and
+  // committing inside the fixture — instead of stopping at argument parsing.
   for (const key of Object.keys(env)) {
-    if (key.startsWith('NOLDOR_RUNTIME')) delete env[key];
+    if (key.startsWith('NOLDOR_')) delete env[key];
   }
   return env;
 }
@@ -198,10 +202,13 @@ export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
     problems.push(`packaged cr-record schema does not resolve: ${adapter.stderr.slice(0, 300)}`);
   }
 
-  // The stub-gate entry is the one that used to import tsx statically. This
-  // proves its module graph loads from the package; it stops at the entry's own
-  // argument parsing rather than running applyStubGate, which would write to and
-  // commit in the fixture.
+  // The stub-gate entry is the one that used to import tsx statically. Two
+  // things are checked without running applyStubGate, which would write canned
+  // files, rewrite docs/roadmap.md and commit inside the fixture:
+  //   1. its module graph loads from the package;
+  //   2. the canned fixture resolves against the packaged module's own URL —
+  //      `cannedPath()` in src/testing/stub-gate.ts computes exactly this, and it
+  //      is the sibling of CR_RECORD_SCHEMA_PATH that breaks on a depth change.
   const stub = spawnSync(process.execPath, [join(pkg, 'bin/noldor-stub-gate.mjs')], {
     cwd: fixtureDir,
     encoding: 'utf8',
@@ -209,9 +216,26 @@ export function checkPackagedAssetBehaviour(fixtureDir: string): string[] {
   });
   const stubOutput = `${stub.stderr}${stub.stdout}`;
   const loadFailure =
-    /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find (?:module|package)|SyntaxError|ERR_UNSUPPORTED|ENOENT/;
+    /ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|Cannot find (?:module|package)|SyntaxError|ERR_UNSUPPORTED/;
   if (stub.status === null || loadFailure.test(stubOutput)) {
     problems.push(`packaged stub-gate entry failed to load: ${stubOutput.slice(0, 300)}`);
+  }
+
+  const canned = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `const { existsSync } = await import('node:fs');
+       const { fileURLToPath } = await import('node:url');
+       const p = fileURLToPath(new URL('./fixtures/canned/add-greeting-helper.json', process.argv[1]));
+       if (!existsSync(p)) throw new Error('canned fixture does not resolve beside stub-gate: ' + p);`,
+      pathToFileURL(join(pkg, 'dist/testing/stub-gate.js')).href,
+    ],
+    { encoding: 'utf8', env: scrubbedEnv() },
+  );
+  if (canned.status !== 0) {
+    problems.push(`packaged canned fixture does not resolve: ${canned.stderr.slice(0, 300)}`);
   }
 
   return problems;
