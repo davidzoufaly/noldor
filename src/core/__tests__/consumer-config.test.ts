@@ -264,3 +264,125 @@ describe('uiPaths + uiSurfaces', () => {
     ).toThrow();
   });
 });
+
+describe('consumer.uiBoot (render-compare recipes, spec R2/AC3)', () => {
+  const VALID_BOOT = {
+    ...MINIMAL_CONSUMER,
+    uiPaths: ['src/ui/**'],
+    uiSurfaces: { dashboard: ['src/ui/**'] },
+    verifyCommands: {
+      dashboard: { command: 'pnpm dev --port {port}', kind: 'server', healthPath: '/' },
+    },
+    uiBoot: {
+      dashboard: {
+        verifyCommand: 'dashboard',
+        route: '/',
+        page: 'overview',
+        screenshotCommand: 'cap --size={width},{height} {url} {out}',
+      },
+    },
+  };
+
+  it('parses a valid recipe and applies the documented defaults', () => {
+    const cfg = ConsumerConfigSchema.parse(VALID_BOOT);
+    expect(cfg.uiBoot?.dashboard.maxDiffRatio).toBe(0.25);
+    expect(cfg.uiBoot?.dashboard.captureTimeoutMs).toBe(60_000);
+  });
+
+  it('rejects a uiBoot key not declared in uiSurfaces', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({
+        ...VALID_BOOT,
+        uiBoot: { ...VALID_BOOT.uiBoot, settings: VALID_BOOT.uiBoot.dashboard },
+      }),
+    ).toThrow(/not declared in uiSurfaces/);
+  });
+
+  it('rejects a verifyCommand that matches no verifyCommands entry', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({
+        ...VALID_BOOT,
+        uiBoot: { dashboard: { ...VALID_BOOT.uiBoot.dashboard, verifyCommand: 'ghost' } },
+      }),
+    ).toThrow(/matches no consumer.verifyCommands entry/);
+  });
+
+  it('rejects a verifyCommand that resolves to a cli surface', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({
+        ...VALID_BOOT,
+        verifyCommands: { dashboard: { command: 'pnpm smoke', kind: 'cli' } },
+      }),
+    ).toThrow(/must reference a kind/);
+  });
+
+  it('rejects a screenshotCommand missing a placeholder or carrying an unknown one', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({
+        ...VALID_BOOT,
+        uiBoot: {
+          dashboard: { ...VALID_BOOT.uiBoot.dashboard, screenshotCommand: 'cap {url} {out}' },
+        },
+      }),
+    ).toThrow(/missing \{width\}/);
+    expect(() =>
+      ConsumerConfigSchema.parse({
+        ...VALID_BOOT,
+        uiBoot: {
+          dashboard: {
+            ...VALID_BOOT.uiBoot.dashboard,
+            screenshotCommand: 'cap {url} {out} {width} {height} {state}',
+          },
+        },
+      }),
+    ).toThrow(/unknown placeholder \{state\}/);
+  });
+
+  it('rejects routes outside the narrowed charset or without a leading slash', () => {
+    for (const route of ['relative', '/$(x)', "/a'b", '/a;b', '/a b']) {
+      expect(() =>
+        ConsumerConfigSchema.parse({
+          ...VALID_BOOT,
+          uiBoot: { dashboard: { ...VALID_BOOT.uiBoot.dashboard, route } },
+        }),
+      ).toThrow();
+    }
+  });
+
+  it('rejects out-of-contract maxDiffRatio and captureTimeoutMs, never clamps', () => {
+    for (const maxDiffRatio of [-0.1, 1.5]) {
+      expect(() =>
+        ConsumerConfigSchema.parse({
+          ...VALID_BOOT,
+          uiBoot: { dashboard: { ...VALID_BOOT.uiBoot.dashboard, maxDiffRatio } },
+        }),
+      ).toThrow();
+    }
+    for (const captureTimeoutMs of [0, 1.5, 120_001]) {
+      expect(() =>
+        ConsumerConfigSchema.parse({
+          ...VALID_BOOT,
+          uiBoot: { dashboard: { ...VALID_BOOT.uiBoot.dashboard, captureTimeoutMs } },
+        }),
+      ).toThrow();
+    }
+    // Boundary values are in contract.
+    expect(() =>
+      ConsumerConfigSchema.parse({
+        ...VALID_BOOT,
+        uiBoot: {
+          dashboard: { ...VALID_BOOT.uiBoot.dashboard, maxDiffRatio: 1, captureTimeoutMs: 120_000 },
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects unknown recipe keys (strict schema)', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({
+        ...VALID_BOOT,
+        uiBoot: { dashboard: { ...VALID_BOOT.uiBoot.dashboard, extra: true } },
+      }),
+    ).toThrow();
+  });
+});

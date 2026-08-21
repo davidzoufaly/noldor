@@ -13,7 +13,7 @@ export type LaneMode = 'blocking' | 'advisory';
 /** `key` names the autonomous-config knob this lane owns. */
 export async function loadLaneMode(
   repoRoot: string,
-  key: 'verifyMode' | 'uiReviewMode',
+  key: 'verifyMode' | 'uiReviewMode' | 'renderCompareMode',
 ): Promise<LaneMode> {
   const cfg = await loadConfig(join(repoRoot, '.noldor', 'config.json')).catch(() => null);
   return cfg?.autonomous?.[key] ?? 'advisory';

@@ -40,3 +40,11 @@ describe('inferLaneFromFilename', () => {
     expect(inferLaneFromFilename('foo-spec-manual.txt')).toBeNull();
   });
 });
+
+describe('inferLaneFromFilename — render-compare', () => {
+  it('resolves render-compare sinks without misattributing sibling lanes', () => {
+    expect(inferLaneFromFilename('s-code-render-compare.json')).toBe('render-compare');
+    expect(inferLaneFromFilename('s-code-ui-reviewer.json')).toBe('ui-reviewer');
+    expect(inferLaneFromFilename('s-code-reviewer.json')).toBe('reviewer');
+  });
+});

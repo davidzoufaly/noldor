@@ -26,6 +26,7 @@ import { laneSinkPath } from './filename.js';
 import type { OrchestrateArgs } from './orchestrate-args.js';
 import { runManual } from './lanes/manual.js';
 import { runCodex } from './lanes/codex.js';
+import { runRenderCompare } from './lanes/render-compare.js';
 import { runSubagent } from './lanes/subagent.js';
 import { runUiReview } from './lanes/ui-review.js';
 import { runVerify } from './lanes/verify.js';
@@ -58,6 +59,7 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
   reviewer: runSubagent,
   verifier: runVerify,
   'ui-reviewer': runUiReview,
+  'render-compare': runRenderCompare,
 };
 
 /**
@@ -68,7 +70,7 @@ const LANES: Record<Exclude<Lane, 'standalone'>, (input: LaneInput) => Promise<L
  * green and a synthetic OK would overwrite it with a payload carrying no `verdict`
  * at all — a lane that compared nothing then reads as reviewed.
  */
-const NO_DELTA_SHORTCIRCUIT: ReadonlySet<Lane> = new Set<Lane>(['ui-reviewer']);
+const NO_DELTA_SHORTCIRCUIT: ReadonlySet<Lane> = new Set<Lane>(['ui-reviewer', 'render-compare']);
 
 export function resolveLanes(
   args: { slug: string; kind: ArtifactKind; lanes?: Lane[]; autonomous?: boolean },
@@ -309,7 +311,7 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       "lane 'standalone' is no longer an orchestrate lane — deep review spawns via 'noldor cr escalate' (spawn-deep-review)",
     );
   }
-  for (const codeOnly of ['verifier', 'ui-reviewer'] as const) {
+  for (const codeOnly of ['verifier', 'ui-reviewer', 'render-compare'] as const) {
     if (requested.includes(codeOnly) && opts.args.kind !== 'code') {
       throw new Error(
         `lane '${codeOnly}' is code-only — remove it from --lanes / crLanes for spec/plan artifacts`,
@@ -468,17 +470,41 @@ export async function run(opts: RunOpts): Promise<RunResult> {
       ? { blockers: reviewerPrior.blockers, mode: reviewerMode }
       : undefined;
 
-  const settled = await Promise.allSettled(
-    effective.map((l) => {
-      const laneInput =
-        l === 'reviewer' && reviewerContext !== undefined
-          ? { ...dispatchInput, priorReview: reviewerContext }
-          : dispatchInput;
-      if (l === 'codex') return runCodex(laneInput);
-      // standalone can't reach here — run() rejects it at entry.
-      return LANES[l as Exclude<Lane, 'standalone'>](laneInput);
-    }),
-  );
+  // Port contention is real: `verifier` boots the same `verifyCommands` servers
+  // this lane boots, and the batch below is concurrent. When both share the
+  // round, `render-compare` starts only after the verifier lane RESOLVES —
+  // success or failure — with its own pre-boot occupancy check still guarding
+  // contention from outside the round (spec R4).
+  const launch = (l: Lane): Promise<LaneResult> => {
+    const laneInput =
+      l === 'reviewer' && reviewerContext !== undefined
+        ? { ...dispatchInput, priorReview: reviewerContext }
+        : dispatchInput;
+    if (l === 'codex') return runCodex(laneInput);
+    // standalone can't reach here — run() rejects it at entry.
+    return LANES[l as Exclude<Lane, 'standalone'>](laneInput);
+  };
+  // Two passes so the pre-dep exists before its dependent chains onto it,
+  // regardless of lane order; `promises[i]` stays index-aligned with
+  // `effective[i]` for the result mapping below.
+  const promises: Promise<LaneResult>[] = Array.from({ length: effective.length });
+  let verifierRun: Promise<LaneResult> | undefined;
+  for (let i = 0; i < effective.length; i++) {
+    if (effective[i] === 'render-compare') continue;
+    promises[i] = launch(effective[i]);
+    if (effective[i] === 'verifier') verifierRun = promises[i];
+  }
+  for (let i = 0; i < effective.length; i++) {
+    if (effective[i] !== 'render-compare') continue;
+    promises[i] =
+      verifierRun !== undefined
+        ? verifierRun.then(
+            () => launch(effective[i]),
+            () => launch(effective[i]),
+          )
+        : launch(effective[i]);
+  }
+  const settled = await Promise.allSettled(promises);
 
   for (let i = 0; i < effective.length; i++) {
     if (settled[i].status === 'fulfilled') lanesRun.push(effective[i]);
