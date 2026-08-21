@@ -30,6 +30,18 @@ const BOOLEAN_FLAGS = new Set(['--full']);
 /** Every flag this parser knows, so a known flag in a value slot reads as a missing value. */
 const VALUE_FLAGS = new Set(['--slug', '--kind', '--fd', '--section', '--spec']);
 
+/**
+ * Flags whose value is taken literally, even when it looks like a flag.
+ *
+ * These carry a heading name or a path, and `design log` accepts `--full` as a
+ * heading value because `--full` is not one of *its* flags. Applying this
+ * parser's own flag set to the value slot would make `## --full` confirmable but
+ * unfocusable, so the two halves of one loop would disagree about which headings
+ * exist. Consuming the next token unconditionally keeps the heading universe
+ * identical on both sides.
+ */
+const LITERAL_VALUE_FLAGS = new Set(['--section', '--spec']);
+
 export function parseContextArgs(argv: readonly string[]): ContextArgs | { error: string } {
   const args: ContextArgs = { slug: '', kind: 'spec', full: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -42,11 +54,11 @@ export function parseContextArgs(argv: readonly string[]): ContextArgs | { error
     }
     if (!VALUE_FLAGS.has(flag)) return { error: `unknown flag: ${flag}` };
     const value = argv[i + 1];
-    // Only a *known flag* in the value slot means the value is missing — the same
-    // rule `parseLogArgs` uses. Rejecting every `--`-leading value would make a
-    // heading literally named `--foo` confirmable by `design log` but unfocusable
-    // here, so the two halves of one loop would accept different heading universes.
-    if (value === undefined || BOOLEAN_FLAGS.has(value) || VALUE_FLAGS.has(value)) {
+    // A known flag in the value slot normally means the value is missing — the
+    // same rule `parseLogArgs` uses. The exception is a flag whose value is a
+    // heading name or path: there, only the end of argv is a missing value.
+    const literal = LITERAL_VALUE_FLAGS.has(flag);
+    if (value === undefined || (!literal && (BOOLEAN_FLAGS.has(value) || VALUE_FLAGS.has(value)))) {
       return { error: `${flag}: missing value` };
     }
     if (value.trim().length === 0) return { error: `${flag}: value must not be blank` };

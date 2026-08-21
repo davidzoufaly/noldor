@@ -282,6 +282,28 @@ describe('design context — new flags', () => {
     expect(r.out).toContain("⚠ --section '--foo' matches no heading");
   });
 
+  it('takes a --section value literally, even when it names a known flag', () => {
+    // `design log --confirm-section --full` confirms a `## --full` heading, so
+    // this side must be able to focus it or the two halves of one loop disagree.
+    const cwd = repo();
+    const r = context(cwd, '--section', '--full');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("⚠ --section '--full' matches no heading");
+  });
+
+  it('still reports a missing value at the end of argv', () => {
+    const cwd = repo();
+    let err = '';
+    const code = runContext(
+      ['--slug', SLUG, '--section'],
+      cwd,
+      () => {},
+      (x) => (err += x),
+    );
+    expect(code).toBe(1);
+    expect(err).toMatch(/--section: missing value/);
+  });
+
   it('rejects a blank value, matching design log', () => {
     const cwd = repo();
     const r = context(cwd, '--section', '   ');
