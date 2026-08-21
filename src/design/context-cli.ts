@@ -4,8 +4,8 @@
 // immediately above every design question.
 
 import { runIfDirect } from '../core/cli-entry.js';
-import { locateArtifact, readArtifact, type ArtifactKind } from './artifact-locate.js';
-import { loadScope, normalize, readLedger, validateSlug } from './ledger.js';
+import { locateForDialogue, readArtifact, type ArtifactKind } from './artifact-locate.js';
+import { loadScope, readLedger, validateHeadingName, validateSlugs } from './ledger.js';
 import { renderContext, type RenderHeading } from './render.js';
 
 export interface ContextArgs {
@@ -87,14 +87,9 @@ export function parseContextArgs(argv: readonly string[]): ContextArgs | { error
     }
   }
   if (args.slug === '') return { error: '--slug is required' };
-  // Same normalize-stability rule as `design log`: a `--section` the writer would
-  // rewrite could never match what the writer stored.
-  if (args.section !== undefined && normalize(args.section) !== args.section) {
-    return {
-      error:
-        `--section: heading names must contain no line break and no '~~' run ` +
-        `(got '${args.section}')`,
-    };
+  if (args.section !== undefined) {
+    const problem = validateHeadingName(args.section, '--section');
+    if (problem) return { error: problem };
   }
   return args;
 }
@@ -124,23 +119,16 @@ export function runContext(
     return 1;
   }
 
-  for (const [flag, value] of [
+  const badSlug = validateSlugs([
     ['--slug', parsed.slug],
     ['--fd', parsed.fd],
-  ] as const) {
-    if (value === undefined) continue;
-    const problem = validateSlug(value, flag);
-    if (problem) {
-      err(`${problem}\n`);
-      return 1;
-    }
+  ]);
+  if (badSlug) {
+    err(`${badSlug}\n`);
+    return 1;
   }
 
-  const located = locateArtifact(cwd, {
-    slug: parsed.slug,
-    kind: parsed.kind,
-    ...(parsed.spec === undefined ? {} : { override: parsed.spec }),
-  });
+  const located = locateForDialogue(cwd, parsed);
   if (located.status === 'rejected') {
     err(`design context: ${located.reason}\n`);
     return 1;

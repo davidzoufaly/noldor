@@ -321,3 +321,20 @@ export function readArtifact(paths: readonly string[]): ReadResult {
     },
   };
 }
+
+/**
+ * Locate the artifact for a dialogue from parsed CLI arguments.
+ *
+ * A thin wrapper over {@link locateArtifact} that owns the `--spec`-to-`override`
+ * mapping, so both CLIs cannot drift on how an absent override is spelled.
+ */
+export function locateForDialogue(
+  cwd: string,
+  args: { slug: string; kind: ArtifactKind; spec?: string },
+): LocateResult {
+  return locateArtifact(cwd, {
+    slug: args.slug,
+    kind: args.kind,
+    ...(args.spec === undefined ? {} : { override: args.spec }),
+  });
+}

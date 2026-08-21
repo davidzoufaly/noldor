@@ -130,6 +130,52 @@ export function validateSlug(value: string, flag: string): string | null {
   return null;
 }
 
+/**
+ * Validate several slug-shaped CLI inputs at once, skipping absent ones.
+ *
+ * Shared by both CLIs: they validate the same pair of flags in the same order,
+ * and two copies of the loop would eventually disagree about which inputs are
+ * path components.
+ *
+ * @returns The first error message, or `null` when every present value is valid.
+ */
+export function validateSlugs(
+  pairs: readonly (readonly [flag: string, value: string | undefined])[],
+): string | null {
+  for (const [flag, value] of pairs) {
+    if (value === undefined) continue;
+    const problem = validateSlug(value, flag);
+    if (problem) return problem;
+  }
+  return null;
+}
+
+/**
+ * Validate a heading-name CLI input — `--section`, `--confirm-section`,
+ * `--unconfirm-section`.
+ *
+ * A heading name is used two ways that must agree: looked up in the artifact
+ * *raw*, and stored in the ledger *normalized*. {@link normalize} collapses `~~`
+ * runs and every line terminator, so a name it would rewrite confirms against the
+ * artifact and then stores under a different key — the checklist marker never
+ * appears and `⚠ … matches no heading` sticks forever with nothing to diagnose
+ * from. Requiring the value to be normalize-stable makes the two keys identical
+ * by construction, and leaves `normalize`'s forgery guarantees untouched.
+ *
+ * Shared by both CLIs deliberately: the reader and the writer must accept exactly
+ * the same heading universe, and two copies of this rule would eventually not.
+ *
+ * @returns An error message, or `null` when the value is usable as a heading key.
+ */
+export function validateHeadingName(value: string, flag: string): string | null {
+  const stable = normalize(value);
+  if (stable === value) return null;
+  return (
+    `${flag}: heading names must contain no line break and no '~~' run ` +
+    `(got '${value}', which would be stored as '${stable}')`
+  );
+}
+
 /** Absolute path of a dialogue's ledger. */
 export function ledgerPath(cwd: string, slug: string): string {
   return join(cwd, '.noldor', 'design', `${slug}.md`);

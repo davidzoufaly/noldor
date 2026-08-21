@@ -1,3 +1,4 @@
+import { tally } from '../utils/tally.js';
 import { normalize, type Decision, type LedgerState, type OpenThread } from './ledger.js';
 
 /** One addressable artifact heading, with the digest of its current body. */
@@ -291,9 +292,7 @@ function collectWarnings(
     }
   }
 
-  const counts = new Map<string, number>();
-  for (const h of headings) counts.set(h.name, (counts.get(h.name) ?? 0) + 1);
-  for (const [name, n] of counts) {
+  for (const [name, n] of tally(headings.map((h) => h.name))) {
     if (n > 1) out.push(`⚠ heading '${name}' appears ${n} times — using the first`);
   }
 

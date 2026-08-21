@@ -3,12 +3,18 @@
 // (context-cli.ts) is the reader.
 
 import { runIfDirect } from '../core/cli-entry.js';
-import { digestBody, locateArtifact, readArtifact, type ArtifactKind } from './artifact-locate.js';
+import {
+  digestBody,
+  locateForDialogue,
+  readArtifact,
+  type ArtifactKind,
+} from './artifact-locate.js';
 import {
   normalize,
   nextId,
   readLedger,
-  validateSlug,
+  validateHeadingName,
+  validateSlugs,
   writeLedger,
   ledgerPath,
   type Decision,
@@ -128,27 +134,14 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
     }
   }
   if (args.slug === '') return { error: '--slug is required' };
-  // A heading name is used two ways that must agree: looked up in the artifact
-  // *raw*, and stored in the ledger *normalized*. `normalize` collapses `~~` runs
-  // and every line terminator, so a name it would rewrite confirms against the
-  // artifact and then stores under a different key — the checklist marker never
-  // appears and `⚠ … matches no heading` sticks forever. Requiring the value to
-  // be normalize-stable makes the two keys identical by construction, and keeps
-  // `normalize`'s forgery guarantees untouched (a spec Non-goal).
   for (const [flag, value] of [
     ['--section', args.section],
     ['--confirm-section', args.confirmSection],
     ['--unconfirm-section', args.unconfirmSection],
   ] as const) {
     if (value === undefined) continue;
-    const stable = normalize(value);
-    if (stable !== value) {
-      return {
-        error:
-          `${flag}: heading names must contain no line break and no '~~' run ` +
-          `(got '${value}', which would be stored as '${stable}')`,
-      };
-    }
+    const problem = validateHeadingName(value, flag);
+    if (problem) return { error: problem };
   }
   // `--decide` is repeatable, so a rationale in the same invocation has no
   // unambiguous owner unless there is exactly one decision to own it. Guessing
@@ -279,16 +272,13 @@ export function runLog(
     return 1;
   }
 
-  for (const [flag, value] of [
+  const badSlug = validateSlugs([
     ['--slug', parsed.slug],
     ['--entry', parsed.entry],
-  ] as const) {
-    if (value === undefined) continue;
-    const problem = validateSlug(value, flag);
-    if (problem) {
-      err(`${problem}\n`);
-      return 1;
-    }
+  ]);
+  if (badSlug) {
+    err(`${badSlug}\n`);
+    return 1;
   }
 
   const state = readLedger(cwd, parsed.slug);
@@ -311,11 +301,7 @@ export function runLog(
     // The only write that reads the artifact. An approval needs the bytes it
     // approved, so a heading that cannot be found is a hard error rather than a
     // record with no digest — which the ledger grammar could not even serialize.
-    const located = locateArtifact(cwd, {
-      slug: parsed.slug,
-      kind: parsed.kind,
-      ...(parsed.spec === undefined ? {} : { override: parsed.spec }),
-    });
+    const located = locateForDialogue(cwd, parsed);
     if (located.status === 'rejected') {
       err(`design log: ${located.reason}\n`);
       return 1;
