@@ -3,6 +3,8 @@ import { createServer } from 'node:http';
 import { resolve as resolvePath, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { assetRoot } from '../binary/asset-root.js';
+
 import { handleDemote, handleMove, handlePromote, handleRemove } from './api/blocks.js';
 import {
   getBacklogPath,
@@ -391,7 +393,10 @@ async function handleApiRemove(
  * serves the assets shipped inside the noldor package regardless of where
  * the dashboard process was launched from.
  */
-const STATIC_ROOT = fileURLToPath(new URL('./static/dist', import.meta.url));
+const staticSeamRoot = assetRoot();
+const STATIC_ROOT = staticSeamRoot
+  ? resolvePath(staticSeamRoot, 'dist/dashboard/static/dist')
+  : fileURLToPath(new URL('./static/dist', import.meta.url));
 
 /**
  * Reject any `/static/<anything>` request whose filename portion did not

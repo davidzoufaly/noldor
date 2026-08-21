@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, openSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+
+import { noldorCliCommand } from '../core/noldor-cli.js';
 
 import { resolveBindHost, healthUrl } from './host.js';
 import {
@@ -89,10 +90,14 @@ export function spawnDetachedServer(port: number): void {
   const root = resolveMainRoot();
   mkdirSync(resolve(root, '.noldor'), { recursive: true });
   const log = openSync(resolve(root, DASHBOARD_LOG_PATH), 'a');
-  const here = dirname(fileURLToPath(import.meta.url));
-  // `src/dashboard/` (or `dist/dashboard/`) → package root is two levels up.
-  const launcher = resolve(here, '../../bin/noldor.mjs');
-  const child = spawn(process.execPath, [launcher, 'dashboard', 'server'], {
+  // Routed through noldorCliCommand so the launcher is correct on both
+  // channels — bin/noldor.mjs under Node, direct self-exec under the compiled
+  // binary (spec Unit 3b).
+  // Port rides argv, not env: bun's detached spawn does not reliably deliver
+  // an env override to the re-exec'd binary child, and an explicit flag is
+  // channel-independent anyway. env PORT stays for any external supervisor.
+  const [cliCmd, cliArgs] = noldorCliCommand(['dashboard', 'server', '--port', String(port)]);
+  const child = spawn(cliCmd, cliArgs, {
     cwd: root,
     detached: true,
     stdio: ['ignore', log, log],

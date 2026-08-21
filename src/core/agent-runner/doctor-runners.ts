@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { isBinaryChannel } from '../../binary/asset-root.js';
 import { CLAUDE_BIN } from './runners/claude.js';
 import { CODEX_BIN } from './runners/codex.js';
 import { OPENCODE_BIN } from './runners/opencode.js';
@@ -65,6 +66,17 @@ function defaultProbe(bin: string): string | null {
  */
 export function checkRunners(cfg: AgentsConfig, probe: VersionProbe = defaultProbe): RunnerCheck[] {
   return referencedRunners(cfg).map((runner) => {
+    // The stub runner's gate entry (bin/noldor-stub-gate.mjs) is a separate
+    // script the compiled binary cannot exec — probing STUB_BIN would pass
+    // (it IS the binary), so short-circuit honestly (spec Unit 3b).
+    if (runner === 'stub' && isBinaryChannel()) {
+      return {
+        runner,
+        status: 'missing' as const,
+        detail:
+          'stub runner requires the npm channel (bin/noldor-stub-gate.mjs not shipped in the binary)',
+      };
+    }
     const version = probe(BINS[runner]);
     if (version === null) {
       return { runner, status: 'missing' as const, detail: `'${BINS[runner]}' not found on PATH` };

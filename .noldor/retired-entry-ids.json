@@ -118,6 +118,10 @@
     "retiredInto": "noldor-package-lift",
     "retiredAt": "2026-08-21"
   },
+  "Q-0133": {
+    "slug": "single-static-binary-distribution",
+    "retiredAt": "2026-08-21"
+  },
   "Q-0092": {
     "slug": "spec-brainstorming-depth-parity",
     "retiredInto": "de-superpowers-vendor-spec-plan-and-worktree-flows",

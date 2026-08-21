@@ -71,3 +71,6 @@ metrics.json
 # worktree start dirty and `pr-flow` preflight refuse to ship. Anchored: only the
 # tree-root stamp, never a consumer's own nested `apps/*/.env.local`.
 /.env.local
+assets.pack
+out/
+THIRD_PARTY_NOTICES.txt

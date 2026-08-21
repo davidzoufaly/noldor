@@ -43,7 +43,8 @@
     "clean": "rm -rf dist .turbo",
     "prepare": "node bin/build.mjs",
     "postinstall": "lefthook install || echo 'lefthook not found - skipping hook install (expected when installed as a dependency)'",
-    "bench:runtime": "node bin/bench-runtime-select.mjs"
+    "bench:runtime": "node bin/bench-runtime-select.mjs",
+    "build:binary": "node bin/build-binary.mjs"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.3",
