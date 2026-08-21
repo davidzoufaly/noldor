@@ -17,6 +17,7 @@ import { loadDocRoots } from '../core/doc-roots.js';
 import { extractPlanSlug, extractSpecSlug } from '../core/fd-load.js';
 import { extractSection, listHeadings } from '../utils/markdown-sections.js';
 
+/** Which contract the dialogue is working against, and therefore which doc root. */
 export type ArtifactKind = 'spec' | 'plan';
 
 /**
@@ -33,7 +34,9 @@ export type LocateResult =
   | { status: 'none' }
   | { status: 'rejected'; reason: string };
 
+/** Inputs to {@link locateArtifact}. */
 export interface LocateOpts {
+  /** Dialogue slug — the feature slug, or `<parent>-<enhancement>` on attach paths. */
   slug: string;
   /** Defaults to `'spec'`, matching `design context --kind`. */
   kind?: ArtifactKind;
@@ -94,6 +97,25 @@ function vet(
 }
 
 /**
+ * Every part of the split plan `path` belongs to, in part-number order.
+ *
+ * Returns just `[path]` when the file is not part of a cohort, so the caller can
+ * treat one-element and many-element results identically.
+ */
+function generationSiblings(path: string, root: string): string[] {
+  const self = path.slice(root.length + 1);
+  const stem = generationStem(self);
+  let names: string[];
+  try {
+    names = readdirSync(root);
+  } catch {
+    return [path];
+  }
+  const cohort = names.filter((n) => n.endsWith('.md') && generationStem(n) === stem);
+  return cohort.sort((a, b) => partNumber(a) - partNumber(b)).map((n) => join(root, n));
+}
+
+/**
  * Resolve the artifact for a dialogue.
  *
  * An `override` wins when it vets; otherwise the kind's root is scanned for files
@@ -114,14 +136,19 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
   const root = resolveExisting(kind === 'spec' ? roots.specs : roots.plans);
 
   if (opts.override !== undefined) {
-    // One override names one file, deliberately — including for a split plan. The
-    // operator asking for a specific part is the escape hatch from the ambiguity
-    // rules below, so honouring it literally is the point.
     const abs = isAbsolute(opts.override) ? opts.override : resolve(cwd, opts.override);
     const vetted = vet(abs, root);
-    return vetted.ok
-      ? { status: 'found', paths: [vetted.path] }
-      : { status: 'rejected', reason: vetted.reason };
+    if (!vetted.ok) return { status: 'rejected', reason: vetted.reason };
+    // An override that names one part of a split plan expands to its whole
+    // generation. Honouring it literally would hand the caller a subset, and a
+    // subset is exactly what the all-or-nothing approval invariant forbids: a
+    // heading present in a sibling part would read as absent, and
+    // `--confirm-section` would digest a partial plan.
+    if (kind === 'plan') {
+      const cohort = generationSiblings(vetted.path, root);
+      if (cohort.length > 1) return { status: 'found', paths: cohort };
+    }
+    return { status: 'found', paths: [vetted.path] };
   }
 
   let names: string[];

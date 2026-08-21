@@ -96,6 +96,23 @@ describe('design log — decision fields', () => {
     expect('error' in r && r.error).toMatch(/same heading/);
   });
 
+  it('rejects a heading name the writer would rewrite', () => {
+    // normalize collapses `~~` runs and line terminators, so such a name would be
+    // looked up raw in the artifact and stored under a different key — the marker
+    // never appears and the stale-tag warning sticks forever.
+    for (const bad of ['Drop ~~old~~ path', 'two\nlines']) {
+      for (const flag of ['--section', '--confirm-section', '--unconfirm-section']) {
+        const r = parseLogArgs(['--slug', SLUG, '--decide', 'a', flag, bad]);
+        expect('error' in r && r.error).toMatch(/heading names must contain/);
+      }
+    }
+  });
+
+  it('accepts a heading name that is already normalize-stable', () => {
+    const r = parseLogArgs(['--slug', SLUG, '--decide', 'a', '--section', 'Unit 3 — location']);
+    expect('error' in r).toBe(false);
+  });
+
   it('stores an unknown --section without complaint', () => {
     const cwd = repo();
     expect(log(cwd, '--decide', 'a', '--section', 'Nope').code).toBe(0);
@@ -215,6 +232,34 @@ describe('design context — new flags', () => {
     expect(r.code).toBe(0);
     expect(r.out).toContain('Only — current draft');
     expect(r.out).toContain('    body');
+  });
+
+  it('rejects a --section the writer would rewrite', () => {
+    const cwd = repo();
+    const r = context(cwd, '--section', 'Drop ~~old~~ path');
+    expect(r.code).toBe(1);
+    expect(r.err).toMatch(/heading names must contain/);
+  });
+
+  it('accepts a --`--`-leading value, matching design log', () => {
+    // A heading literally named `--foo` is confirmable via design log, so it must
+    // be focusable here too or the two halves of one loop disagree.
+    const cwd = repo();
+    const r = context(cwd, '--section', '--foo');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("⚠ --section '--foo' matches no heading");
+  });
+
+  it('rejects a blank value, matching design log', () => {
+    const cwd = repo();
+    const r = context(cwd, '--section', '   ');
+    expect(r.code).toBe(1);
+    expect(r.err).toMatch(/must not be blank/);
+  });
+
+  it('rejects an unknown flag', () => {
+    const cwd = repo();
+    expect(context(cwd, '--nope', 'x').code).toBe(1);
   });
 
   it('marks a confirmed heading stale after its body changes', () => {

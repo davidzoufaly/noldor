@@ -5,7 +5,7 @@
 
 import { runIfDirect } from '../core/cli-entry.js';
 import { locateArtifact, readArtifact, type ArtifactKind } from './artifact-locate.js';
-import { loadScope, readLedger, validateSlug } from './ledger.js';
+import { loadScope, normalize, readLedger, validateSlug } from './ledger.js';
 import { renderContext, type RenderHeading } from './render.js';
 
 export interface ContextArgs {
@@ -27,6 +27,9 @@ const USAGE =
 /** Flags that take no value. Checked before the value lookup below. */
 const BOOLEAN_FLAGS = new Set(['--full']);
 
+/** Every flag this parser knows, so a known flag in a value slot reads as a missing value. */
+const VALUE_FLAGS = new Set(['--slug', '--kind', '--fd', '--section', '--spec']);
+
 export function parseContextArgs(argv: readonly string[]): ContextArgs | { error: string } {
   const args: ContextArgs = { slug: '', kind: 'spec', full: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -37,8 +40,16 @@ export function parseContextArgs(argv: readonly string[]): ContextArgs | { error
       args.full = true;
       continue;
     }
+    if (!VALUE_FLAGS.has(flag)) return { error: `unknown flag: ${flag}` };
     const value = argv[i + 1];
-    if (value === undefined || value.startsWith('--')) return { error: `${flag}: missing value` };
+    // Only a *known flag* in the value slot means the value is missing — the same
+    // rule `parseLogArgs` uses. Rejecting every `--`-leading value would make a
+    // heading literally named `--foo` confirmable by `design log` but unfocusable
+    // here, so the two halves of one loop would accept different heading universes.
+    if (value === undefined || BOOLEAN_FLAGS.has(value) || VALUE_FLAGS.has(value)) {
+      return { error: `${flag}: missing value` };
+    }
+    if (value.trim().length === 0) return { error: `${flag}: value must not be blank` };
     i += 1;
     switch (flag) {
       case '--slug':
@@ -57,11 +68,22 @@ export function parseContextArgs(argv: readonly string[]): ContextArgs | { error
       case '--spec':
         args.spec = value;
         break;
+      // Unreachable while VALUE_FLAGS and this switch agree; kept so a flag added
+      // to one and not the other fails loudly instead of being silently ignored.
       default:
         return { error: `unknown flag: ${flag}` };
     }
   }
   if (args.slug === '') return { error: '--slug is required' };
+  // Same normalize-stability rule as `design log`: a `--section` the writer would
+  // rewrite could never match what the writer stored.
+  if (args.section !== undefined && normalize(args.section) !== args.section) {
+    return {
+      error:
+        `--section: heading names must contain no line break and no '~~' run ` +
+        `(got '${args.section}')`,
+    };
+  }
   return args;
 }
 

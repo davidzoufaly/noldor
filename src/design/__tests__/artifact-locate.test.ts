@@ -215,6 +215,31 @@ describe('locateArtifact — override', () => {
     expect(r.status === 'rejected' && r.reason).toMatch(/not a readable file/);
   });
 
+  it('expands a plan override to its whole generation cohort', () => {
+    // Honouring the override literally would hand back a subset, and confirming
+    // against a subset is what the all-or-nothing invariant forbids.
+    const cwd = repo();
+    plan(cwd, `2026-08-21-${SLUG}-part1.md`);
+    plan(cwd, `2026-08-21-${SLUG}-part2.md`);
+    const r = locateArtifact(cwd, {
+      slug: SLUG,
+      kind: 'plan',
+      override: `docs/design/plans/2026-08-21-${SLUG}-part2.md`,
+    });
+    expect(r.status).toBe('found');
+    expect(r.status === 'found' && r.paths.map((p) => p.split('/').pop())).toEqual([
+      `2026-08-21-${SLUG}-part1.md`,
+      `2026-08-21-${SLUG}-part2.md`,
+    ]);
+  });
+
+  it('leaves a spec override as the single file named', () => {
+    const cwd = repo();
+    const p = spec(cwd, `2026-08-21-${SLUG}-design.md`);
+    const r = locateArtifact(cwd, { slug: SLUG, override: p });
+    expect(r.status === 'found' && r.paths).toHaveLength(1);
+  });
+
   it('checks an override against the plan root when kind is plan', () => {
     const cwd = repo();
     const s = spec(cwd, `2026-08-21-${SLUG}-design.md`);

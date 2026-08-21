@@ -128,6 +128,28 @@ export function parseLogArgs(argv: readonly string[]): LogArgs | { error: string
     }
   }
   if (args.slug === '') return { error: '--slug is required' };
+  // A heading name is used two ways that must agree: looked up in the artifact
+  // *raw*, and stored in the ledger *normalized*. `normalize` collapses `~~` runs
+  // and every line terminator, so a name it would rewrite confirms against the
+  // artifact and then stores under a different key — the checklist marker never
+  // appears and `⚠ … matches no heading` sticks forever. Requiring the value to
+  // be normalize-stable makes the two keys identical by construction, and keeps
+  // `normalize`'s forgery guarantees untouched (a spec Non-goal).
+  for (const [flag, value] of [
+    ['--section', args.section],
+    ['--confirm-section', args.confirmSection],
+    ['--unconfirm-section', args.unconfirmSection],
+  ] as const) {
+    if (value === undefined) continue;
+    const stable = normalize(value);
+    if (stable !== value) {
+      return {
+        error:
+          `${flag}: heading names must contain no line break and no '~~' run ` +
+          `(got '${value}', which would be stored as '${stable}')`,
+      };
+    }
+  }
   // `--decide` is repeatable, so a rationale in the same invocation has no
   // unambiguous owner unless there is exactly one decision to own it. Guessing
   // (first? all?) would silently attach a reason to the wrong answer, and
