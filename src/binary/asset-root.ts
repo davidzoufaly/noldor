@@ -44,12 +44,23 @@ export function resolveAssetCachePath(
   }
   if (platform === 'darwin') {
     const home = env.HOME;
-    if (!home) throw new Error('cannot resolve cache dir: HOME is unset');
+    if (!home || !isAbsolute(home)) {
+      throw new Error(
+        `cannot resolve cache dir: HOME must be an absolute path (got '${home ?? ''}')`,
+      );
+    }
     return join(home, 'Library', 'Caches', 'noldor', version, 'pkg');
   }
   const xdg = env.XDG_CACHE_HOME;
-  if (xdg) return join(xdg, 'noldor', version, 'pkg');
+  if (xdg) {
+    if (!isAbsolute(xdg)) {
+      throw new Error(`cannot resolve cache dir: XDG_CACHE_HOME must be absolute (got '${xdg}')`);
+    }
+    return join(xdg, 'noldor', version, 'pkg');
+  }
   const home = env.HOME;
-  if (!home) throw new Error('cannot resolve cache dir: HOME and XDG_CACHE_HOME are unset');
+  if (!home || !isAbsolute(home)) {
+    throw new Error('cannot resolve cache dir: HOME and XDG_CACHE_HOME are unset or relative');
+  }
   return join(home, '.cache', 'noldor', version, 'pkg');
 }

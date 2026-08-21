@@ -33,8 +33,14 @@ interface IndexEntry {
 
 function assertSafePath(path: string): void {
   if (path.startsWith('/')) throw new Error(`pack path must not be absolute: ${path}`);
-  if (path.split('/').includes('..')) throw new Error(`pack path must not contain ..: ${path}`);
   if (path === '') throw new Error('pack path must not be empty');
+  // Segment-level rules kill alias forms ('./a', 'a//b', 'a/') that would pass
+  // literal duplicate detection yet resolve to the same extraction target.
+  const segments = path.split('/');
+  for (const seg of segments) {
+    if (seg === '..') throw new Error(`pack path must not contain ..: ${path}`);
+    if (seg === '' || seg === '.') throw new Error(`pack path must be normalized: ${path}`);
+  }
 }
 
 function assertMode(mode: number, path: string): void {
@@ -185,7 +191,12 @@ export function extractAssets(
       try {
         fs.renameSync(dest, aside);
         fs.renameSync(temp, dest);
-        fs.rmSync(aside, { recursive: true, force: true });
+        try {
+          fs.rmSync(aside, { recursive: true, force: true });
+        } catch {
+          // Best-effort: the fresh tree is already published; a lingering
+          // aside dir is litter, never a failed extraction.
+        }
         return { extracted: true };
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
