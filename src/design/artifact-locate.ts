@@ -10,7 +10,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, isAbsolute, join, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { resolveExisting } from '../core/branch-added.js';
 import { loadDocRoots } from '../core/doc-roots.js';
@@ -108,8 +108,9 @@ function vet(
  * diverge from the discovery path again.
  */
 function assembleCohort(
-  root: string,
+  dir: string,
   names: readonly string[],
+  root: string,
   kind: ArtifactKind,
   label: string,
 ): LocateResult {
@@ -144,7 +145,10 @@ function assembleCohort(
 
   const paths: string[] = [];
   for (const name of [...names].sort((a, b) => partNumber(a) - partNumber(b))) {
-    const vetted = vet(join(root, name), root);
+    // Names are joined onto the directory they were listed from, but containment
+    // is still checked against the kind's root, so a cohort in a subdirectory is
+    // allowed while an escape from the root is not.
+    const vetted = vet(join(dir, name), root);
     if (!vetted.ok) return { status: 'rejected', reason: vetted.reason };
     paths.push(vetted.path);
   }
@@ -203,11 +207,15 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
     // all-or-nothing approval rule forbids, since a heading living in a sibling
     // part would read as absent and `--confirm-section` would digest a fragment.
     if (kind !== 'plan') return { status: 'found', paths: [vetted.path] };
-    const listed = listRoot(root);
+    // Siblings live beside the override, which is not necessarily the root itself
+    // — a plan under `plans/archive/` has its cohort in `archive/`. Listing the
+    // root would find nothing and report the generation as absent.
+    const dir = dirname(vetted.path);
+    const listed = listRoot(dir);
     if (!listed.ok) return listed.result;
     const stem = generationStem(basename(vetted.path));
     const cohort = listed.names.filter((n) => n.endsWith('.md') && generationStem(n) === stem);
-    return assembleCohort(root, cohort, kind, `override '${opts.override}'`);
+    return assembleCohort(dir, cohort, root, kind, `override '${opts.override}'`);
   }
 
   const listed = listRoot(root);
@@ -226,7 +234,7 @@ export function locateArtifact(cwd: string, opts: LocateOpts): LocateResult {
     };
   }
 
-  return assembleCohort(root, matches, kind, `slug '${opts.slug}'`);
+  return assembleCohort(root, matches, root, kind, `slug '${opts.slug}'`);
 }
 
 /**

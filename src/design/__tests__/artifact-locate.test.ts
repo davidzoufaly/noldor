@@ -263,6 +263,24 @@ describe('locateArtifact — override', () => {
     expect(r.status === 'rejected' && r.reason).toMatch(/part number/);
   });
 
+  it('finds a plan cohort that lives in a subdirectory of the root', () => {
+    const cwd = repo();
+    mkdirSync(join(cwd, 'docs', 'design', 'plans', 'archive'), { recursive: true });
+    for (const n of [1, 2]) {
+      writeFileSync(
+        join(cwd, 'docs', 'design', 'plans', 'archive', `2026-08-21-${SLUG}-part${n}.md`),
+        `## Task ${n}\nx\n`,
+      );
+    }
+    const r = locateArtifact(cwd, {
+      slug: SLUG,
+      kind: 'plan',
+      override: `docs/design/plans/archive/2026-08-21-${SLUG}-part2.md`,
+    });
+    expect(r.status).toBe('found');
+    expect(r.status === 'found' && r.paths).toHaveLength(2);
+  });
+
   it('leaves a spec override as the single file named', () => {
     const cwd = repo();
     const p = spec(cwd, `2026-08-21-${SLUG}-design.md`);

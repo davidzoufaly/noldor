@@ -134,6 +134,21 @@ describe('design log — confirmation', () => {
     expect(ledger(cwd).match(/- Design · /g)).toHaveLength(1);
   });
 
+  it('keeps confirmation order when a heading is re-confirmed', () => {
+    // Filter-and-append would move the re-confirmed heading to the end, and the
+    // on-disk order is the confirmation order.
+    const cwd = repo();
+    log(cwd, '--confirm-section', 'Problem');
+    log(cwd, '--confirm-section', 'Design');
+    writeFileSync(
+      join(cwd, 'docs', 'design', 'specs', `2026-08-21-${SLUG}-design.md`),
+      SPEC.replace('the problem', 'edited problem'),
+    );
+    log(cwd, '--confirm-section', 'Problem');
+    const names = [...ledger(cwd).matchAll(/^- (\S.*?) · [0-9a-f]{8}$/gm)].map((m) => m[1]);
+    expect(names).toEqual(['Problem', 'Design']);
+  });
+
   it('replaces the digest after an edit', () => {
     const cwd = repo();
     log(cwd, '--confirm-section', 'Design');

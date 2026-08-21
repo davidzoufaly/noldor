@@ -232,13 +232,15 @@ export function applyLog(
   }
   if (args.confirmSection !== undefined && confirmDigest !== undefined) {
     const name = normalize(args.confirmSection);
-    // Replace rather than append: re-confirming after an edit is the documented
-    // way to refresh a stale approval, and two records for one heading would make
-    // the same heading read as both fresh and stale.
-    next.confirmed = [
-      ...next.confirmed.filter((c) => c.name !== name),
-      { name, digest: confirmDigest },
-    ];
+    // Replace *in place*: re-confirming after an edit refreshes a stale approval,
+    // and two records for one heading would make it read as both fresh and stale.
+    // Filtering and appending would also reorder the section on every re-confirm,
+    // and the on-disk order is the confirmation order.
+    const at = next.confirmed.findIndex((c) => c.name === name);
+    next.confirmed =
+      at === -1
+        ? [...next.confirmed, { name, digest: confirmDigest }]
+        : next.confirmed.map((c, i) => (i === at ? { name, digest: confirmDigest } : c));
   }
 
   const target = mintedDecisions[0] ?? '(resolved)';
