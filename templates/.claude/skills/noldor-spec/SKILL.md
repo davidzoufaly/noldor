@@ -19,26 +19,36 @@ Turn an idea into a reviewed design document through collaborative dialogue. No 
    - **Editor unavailable:** stop for an explicit operator waiver — record it in the session marker (`uiWaiver: { reason, at }`) and in spec prose; never write the FD `design:` field. A waived session produces no `.pen` and no `links.design`.
    The `.pen` commits WITH the spec at gate Step 2.5 (same commit). The approved artifact is never edited afterwards; as-built drift lands in the baseline at gate Step 4.
 2. **Scope check.** If the request spans multiple independent subsystems, say so before refining details and help decompose; spec the first sub-project only.
-3. **Clarify — with the design state rendered inline every time.** Ask questions ONE per message, multiple-choice preferred. Stop when purpose, constraints, and success criteria are clear. Don't re-ask what the roadmap entry or FD body already answers — confirm it instead.
+2.5. **Draft-first — write the strawman before you ask anything.** Run `pnpm noldor prep format spec` and write a first-pass skeleton to the real spec path (`docs/design/specs/YYYY-MM-DD-<slug>-design.md`, attach paths `YYYY-MM-DD-<parent>-<enhancement>-design.md`) with **every** contract section present, each one a short honest paragraph that names its own unknowns inline. Use H3 unit headings inside `## Design` — that H2 is fixed by the contract and is where most decisions land, so its H3s are what questions actually address.
+
+   Say plainly that it is a strawman, every time you present it. It is expected to be partly wrong; it exists so the operator reacts to prose instead of ratifying a one-line answer. An operator who reads it as a claim will spend the dialogue correcting it, which is slower than asking nothing.
+3. **Clarify — every question beneath the draft it concerns.** Ask questions ONE per message, multiple-choice preferred. Stop when purpose, constraints, and success criteria are clear. Don't re-ask what the roadmap entry or FD body already answers — confirm it instead.
 
    The operator must never answer blind. Run this loop for every question:
    - **Seed once, before question 1** (dialogue slug = the feature slug on `*-new`, `<parent>-<enhancement>` on `*-attach` — the same key that names the spec file). One `--support` per anchor you found while grounding; `--entry` only when the roadmap entry slug differs from the dialogue slug (attach paths):
      `pnpm noldor design log --slug <dialogue-slug> --entry <roadmap-slug> --support "src/foo.ts:12 — already does X"`
-   - **Before every question**, render the state and paste stdout verbatim, inside a fenced code block, immediately above the question — so the question is the last thing read:
-     `pnpm noldor design context --slug <dialogue-slug>`
-   - **After every answer**, record it before asking the next thing (repeatable flags; one call can resolve a thread and record the decision it became):
-     `pnpm noldor design log --slug <dialogue-slug> --resolve O2 --decide "chose X because Y" --open "new thread this raised"`
+   - **Before every question**, name the heading the question is about and render the state for it, pasting stdout verbatim inside a fenced code block immediately above the question — so the question is the last thing read:
+     `pnpm noldor design context --slug <dialogue-slug> --section "<H2 or H3 name>"`
+   - **After every answer**, record it with its reasoning before asking the next thing:
+     `pnpm noldor design log --slug <dialogue-slug> --resolve O2 --decide "chose X" --because "<why X beats the alternatives>" --instead-of "<what was rejected and why not>" --section "<heading>" --open "new thread this raised"`
+   - **Then update the drafted section on disk** to reflect the answer, so the next question renders against prose that already carries it.
 
-   Flag names are exact — `--support`, not `--existing-support`. The block renders Scope, Decided, Open, Existing support, uncapped. Never hand-edit the ledger at `.noldor/design/<slug>.md`: the writer fails closed on a file it cannot parse.
+   The block is a digest, not a dump: the heading under discussion renders its current draft in full plus the decisions bound to it with their reasoning, and everything else collapses to one line with a `(+why)` / `(+2 more)` marker naming what was withheld. `--full` expands the lot; `--spec <path>` names the artifact when the slug does not resolve to one file; `--kind plan` switches contracts. A `⚠` line flags any tag or confirmation that no longer matches a heading. Flag names are exact — `--support`, not `--existing-support`; `--because` takes exactly one `--decide`. Never hand-edit the ledger at `.noldor/design/<slug>.md`: the writer fails closed on a file it cannot parse.
 4. **Approaches.** Present 2-3 approaches with trade-offs. Lead with your recommendation and why.
-5. **Design in sections.** Write each section into the spec file on disk as it stabilizes (don't hold the draft only in chat) and give the operator a clickable markdown link to the file with every section check-in; after each section ask whether it looks right before continuing. Cover architecture, units (one purpose each, clear interfaces, independently testable), data flow, error handling, testing. YAGNI ruthlessly.
-6. **Write the spec.** Run `pnpm noldor prep format spec` and structure the document exactly per the printed contract. Save to `docs/design/specs/YYYY-MM-DD-<slug>-design.md` (attach paths: `YYYY-MM-DD-<parent>-<enhancement>-design.md`).
+5. **Section-by-section confirmation.** Walk the contract sections in order. For each one, bring its prose up to **one to two paragraphs** that say how the thing will actually work — the product and technical choices, named, while they are still cheap to change — then give the operator a clickable markdown link to the spec file and ask whether that section is right. A one-line section gives the operator nothing to judge; that is the failure this step exists to prevent.
+
+   On the operator's yes: `pnpm noldor design log --slug <dialogue-slug> --confirm-section "<heading>"`. That records the heading with a digest of the body they approved, so the checklist marks it `✓` and re-marks it `✎` if the prose changes afterwards — which survives a context compaction, unlike a yes in chat. Re-run `--confirm-section` after an edit to re-confirm, `--unconfirm-section` to withdraw. Nothing is gated on it: a section can be confirmed in one line when it genuinely is one line, and the operator can always say "skip the rest, write it".
+
+   Cover architecture, units (one purpose each, clear interfaces, independently testable), data flow, error handling, testing. YAGNI ruthlessly.
+6. **Finish the spec.** The file already exists from step 2.5; bring it fully in line with the `pnpm noldor prep format spec` contract and make sure every confirmed section still reads the way the operator approved it.
 7. **Self-review, fix inline:** placeholder scan (TBD/TODO/vague requirements), internal contradictions, scope (single implementation plan's worth?), ambiguity (a requirement readable two ways → pick one, state it).
 8. **Report the artifact path as a clickable markdown link and stop.** Re-link the spec in every later prompt or summary that references it. The gate owns what happens next (Step 2.5: lint → commit → CR lanes → continue dialog). Do not chain into planning or implementation.
 
 ## Rules
 
 - One question per message — never a wall of questions.
+- Every question declares the heading it is about, and renders that heading's current draft above itself. A question with no `--section` is a question the operator answers blind.
+- Record the reasoning with the decision, not just the answer. `--decide` without `--because` produces exactly the un-auditable one-liner this loop exists to replace.
 - Acceptance criteria pin behavior, not phrasing — state observable outcomes (exit code, file written, signal emitted), never exact wording of messages or prose structure, which turns every reword into a drift finding.
 - Budget ~12 acceptance criteria. More usually means the spec bundles concerns or pins details; collapse per-detail criteria into behavior-level ones or split the scope (the gate's `split-check --spec` flags >20).
 - Never write review-history meta-narrative into the artifact — no "as flagged in round N", no reviewer-dialogue recaps, no self-references to the spec's own revision process. Pure liability surface that later rounds re-flag.
