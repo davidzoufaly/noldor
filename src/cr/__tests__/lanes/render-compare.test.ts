@@ -186,6 +186,7 @@ function seams(
   const log: SeamLog = { boots: [], captures: [] };
   setRenderCompareDeps({
     resolvePort: async () => 4001,
+    routeProbeBudgetMs: 100,
     boot: async (surface, port) => {
       log.boots.push(surface.command);
       return {
@@ -214,6 +215,7 @@ beforeEach(() => {
   // booting a real server.
   setRenderCompareDeps({
     resolvePort: async () => 4001,
+    routeProbeBudgetMs: 100,
     boot: async () => {
       throw new Error('boot seam not configured');
     },

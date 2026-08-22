@@ -64,7 +64,12 @@ export function sanitizationIssues(names: readonly string[]): string[] {
 
 /**
  * Template problems `validate noldor-config` rejects: a missing required
- * placeholder, or any `{token}` outside the four the lane substitutes.
+ * placeholder, any `{token}` outside the four the lane substitutes, or ANY
+ * single quote. The lane wraps every substituted value in single quotes, so a
+ * consumer-quoted placeholder (`cap '{url}' …`) would produce `''…''` — the
+ * value lands OUTSIDE the quoting and its permitted `&` could split the
+ * command. Write templates with bare placeholders; static arguments that need
+ * quoting use double quotes.
  */
 export function screenshotTemplateIssues(template: string): string[] {
   const issues: string[] = [];
@@ -75,6 +80,11 @@ export function screenshotTemplateIssues(template: string): string[] {
     if (!(SCREENSHOT_PLACEHOLDERS as readonly string[]).includes(m[1])) {
       issues.push(`screenshotCommand carries unknown placeholder {${m[1]}}`);
     }
+  }
+  if (template.includes("'")) {
+    issues.push(
+      'screenshotCommand may not contain single quotes — the lane single-quotes every substituted placeholder itself; use double quotes for static arguments',
+    );
   }
   return issues;
 }

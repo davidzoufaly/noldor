@@ -125,6 +125,8 @@ interface RenderCompareDeps {
   capture: typeof runCapture;
   fetchImpl: typeof fetch;
   resolvePort: typeof resolvePort;
+  /** Total retry budget for the route probe (cold dev routes compile on demand). */
+  routeProbeBudgetMs: number;
 }
 
 let deps: RenderCompareDeps = {
@@ -132,6 +134,7 @@ let deps: RenderCompareDeps = {
   capture: runCapture,
   fetchImpl: fetch,
   resolvePort,
+  routeProbeBudgetMs: 15_000,
 };
 
 /** Test seam — production code never calls this. */
@@ -433,22 +436,40 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           const url = `http://127.0.0.1:${port}${job.recipe.route}`;
           // Route probe: keeps a 404/500 route from producing a confident pixel
           // verdict against an error page. Redirects are followed; the FINAL
-          // status must be 2xx.
+          // status must be 2xx. RETRIED under a small budget because dev
+          // servers compile routes on demand — the first hit on a cold route
+          // routinely outlives one 2s fetch even after the health path
+          // answered. Any HTTP status is a real answer and ends the loop;
+          // only no-response shapes (timeout, refused) retry.
           let status: number | null = null;
-          try {
-            const res = await deps.fetchImpl(url, {
-              signal: AbortSignal.timeout(ROUTE_PROBE_TIMEOUT_MS),
-              redirect: 'follow',
-            });
-            status = res.status;
-            // Release the connection: an unconsumed body keeps the socket busy
-            // until timeout/GC, which the capture right behind it competes with.
-            await res.body?.cancel().catch(() => {
-              /* already consumed or closed */
-            });
-          } catch (err) {
+          let probeErr = '';
+          const probeDeadline = Date.now() + deps.routeProbeBudgetMs;
+          for (;;) {
+            try {
+              const res = await deps.fetchImpl(url, {
+                signal: AbortSignal.timeout(ROUTE_PROBE_TIMEOUT_MS),
+                redirect: 'follow',
+              });
+              status = res.status;
+              // Release the connection: an unconsumed body keeps the socket busy
+              // until timeout/GC, which the capture right behind it competes with.
+              await res.body?.cancel().catch(() => {
+                /* already consumed or closed */
+              });
+              break;
+            } catch (err) {
+              probeErr = errMessage(err);
+              if (Date.now() >= probeDeadline) break;
+              await new Promise((r) => setTimeout(r, 250));
+            }
+          }
+          if (status === null) {
             outcomes.push(
-              cannot(job.surface, 'route-unreachable', `GET ${url} failed: ${errMessage(err)}`),
+              cannot(
+                job.surface,
+                'route-unreachable',
+                `GET ${url} got no response within ${deps.routeProbeBudgetMs}ms: ${probeErr}`,
+              ),
             );
             continue;
           }
@@ -611,13 +632,15 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
         /* stale trash is disk cost only; the fresh set is already in place */
       });
     } catch (err) {
-      // The round downgrades to cannot-review below; nothing on disk may
-      // mislead, and nothing may accumulate: the final set, the staged temp,
-      // and any stranded trash from a failed restore are all removed
-      // (unique-per-round names would otherwise pile up across failed rounds).
+      // The round downgrades to cannot-review below. Only the per-round temp
+      // and trash dirs are removed (unique names would pile up across failed
+      // rounds) — NEVER finalDir: whatever it holds is a complete coherent set
+      // (the untouched prior round, or the one the inner catch just restored),
+      // and deleting a restore we deliberately performed would be a
+      // contradiction. This round's sink references no image either way.
       persistFailure = errMessage(err);
       notes.push(`artifact persist failed: ${persistFailure}`);
-      for (const leftover of [finalDir, tmpDir, trashDir]) {
+      for (const leftover of [tmpDir, trashDir]) {
         await rm(leftover, { recursive: true, force: true }).catch(() => {
           /* best-effort */
         });

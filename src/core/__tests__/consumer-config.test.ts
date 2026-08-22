@@ -386,3 +386,25 @@ describe('consumer.uiBoot (render-compare recipes, spec R2/AC3)', () => {
     ).toThrow();
   });
 });
+
+describe('screenshotCommand quoting rule', () => {
+  it('rejects templates containing single quotes (the lane owns placeholder quoting)', () => {
+    expect(() =>
+      ConsumerConfigSchema.parse({
+        ...MINIMAL_CONSUMER,
+        uiPaths: ['src/ui/**'],
+        uiSurfaces: { dashboard: ['src/ui/**'] },
+        verifyCommands: {
+          dashboard: { command: 'pnpm dev --port {port}', kind: 'server' },
+        },
+        uiBoot: {
+          dashboard: {
+            verifyCommand: 'dashboard',
+            route: '/',
+            screenshotCommand: "cap '{url}' {out} {width} {height}",
+          },
+        },
+      }),
+    ).toThrow(/may not contain single quotes/);
+  });
+});
