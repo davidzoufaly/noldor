@@ -89,7 +89,13 @@ export async function bootServer(
   const deadline = Date.now() + readyMs;
   let ok = false;
   try {
-    ok = await Promise.race([waitForHttp200(url, deadline, fetchImpl), spawnFailed]);
+    // The stop flag ends the losing probe loop when the failure branch wins
+    // the race — otherwise it would keep fetching until the deadline and could
+    // even probe a later server that reuses the port.
+    ok = await Promise.race([
+      waitForHttp200(url, deadline, fetchImpl, () => spawnError !== null || earlyExit !== null),
+      spawnFailed,
+    ]);
   } finally {
     if (!ok) kill();
   }

@@ -12,8 +12,12 @@ export async function waitForHttp200(
   url: string,
   deadlineMs: number,
   fetchImpl: typeof fetch = fetch,
+  /** Polled each iteration; lets a caller that raced this probe against a
+   *  failure signal stop the loop instead of leaving it fetching until the
+   *  deadline (where it could even probe a later server reusing the port). */
+  shouldStop: () => boolean = () => false,
 ): Promise<boolean> {
-  while (Date.now() < deadlineMs) {
+  while (Date.now() < deadlineMs && !shouldStop()) {
     try {
       const res = await fetchImpl(url, { signal: AbortSignal.timeout(PROBE_FETCH_TIMEOUT_MS) });
       if (res.status === 200) return true;

@@ -43,6 +43,13 @@ const LANE = 'render-compare' as const;
 /** Bounds the route probe — same cap the health check's probe fetches use. */
 const ROUTE_PROBE_TIMEOUT_MS = 2000;
 const STDERR_TAIL_CAP = 2000;
+/**
+ * Aggregate wall-clock ceiling across every boot in one round — the same
+ * posture as smoke's total cap: a `readyTimeoutMs` the schema does not bound
+ * must not let N boot groups stack into an unbounded round. Captures are
+ * already bounded per surface by `captureTimeoutMs` (≤ 120s, schema-enforced).
+ */
+const TOTAL_BOOT_BUDGET_MS = 300_000;
 
 /**
  * Ratio formatting for findings and notes: six decimals so a boundary failure
@@ -363,6 +370,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     for (const job of jobs) {
       groups.set(job.recipe.verifyCommand, [...(groups.get(job.recipe.verifyCommand) ?? []), job]);
     }
+    const bootDeadline = Date.now() + TOTAL_BOOT_BUDGET_MS;
     for (const [cmdName, groupJobs] of groups) {
       const entry = verifyCommands[cmdName];
       // noldor:cut — unreachable under a schema-valid config (the superRefine
@@ -394,7 +402,20 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       // rows, never escape the round without per-surface outcomes (AC11).
       let boot: Awaited<ReturnType<typeof deps.boot>>;
       try {
-        boot = await deps.boot(entry, port, input.repoRoot, deps.fetchImpl);
+        const remaining = bootDeadline - Date.now();
+        if (remaining <= 0) {
+          for (const job of groupJobs) {
+            outcomes.push(
+              cannot(
+                job.surface,
+                'boot-failed',
+                `round boot budget (${TOTAL_BOOT_BUDGET_MS}ms) exhausted before this group booted`,
+              ),
+            );
+          }
+          continue;
+        }
+        boot = await deps.boot(entry, port, input.repoRoot, deps.fetchImpl, remaining);
       } catch (err) {
         for (const job of groupJobs) {
           outcomes.push(cannot(job.surface, 'boot-failed', `boot threw: ${errMessage(err)}`));
@@ -568,6 +589,11 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       // Swap without a delete-then-rename window: the prior round moves ASIDE
       // first, so a failure between the two renames still leaves one complete
       // evidence set on disk (restored below on failure, deleted on success).
+      // noldor:cut — spec R6's contract is "a crashed round never leaves a
+      // MIXED set", which this satisfies; a hard crash exactly between the two
+      // renames can leave finalDir absent-with-trash-intact, and closing that
+      // window would need an atomic directory exchange Node does not expose.
+      // Absent-but-recoverable beats mixed-and-wrong.
       try {
         await rename(finalDir, trashDir);
       } catch (err) {
