@@ -120,6 +120,20 @@ export function decodePng(buf: Buffer): { png: PNG; detail: '' } | { png: null; 
       detail: `raster file is ${buf.byteLength} bytes (cap ${MAX_RASTER_BYTES}) — refusing to decode`,
     };
   }
+  // Dimensions come straight from the IHDR (fixed offsets 16/20 after the
+  // 8-byte signature and chunk header) and are checked BEFORE PNG.sync.read —
+  // the decoder allocates width×height×4 from these header fields, so a tiny
+  // malformed file must not be able to request a huge buffer.
+  if (buf.byteLength >= 24) {
+    const width = buf.readUInt32BE(16);
+    const height = buf.readUInt32BE(20);
+    if (width > MAX_RASTER_SIDE || height > MAX_RASTER_SIDE) {
+      return {
+        png: null,
+        detail: `raster declares ${width}x${height} (per-side cap ${MAX_RASTER_SIDE})`,
+      };
+    }
+  }
   try {
     const png = PNG.sync.read(buf);
     if (png.width <= 0 || png.height <= 0) {

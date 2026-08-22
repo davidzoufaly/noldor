@@ -83,7 +83,16 @@ export function screenshotTemplateIssues(template: string): string[] {
   }
   if (template.includes("'")) {
     issues.push(
-      'screenshotCommand may not contain single quotes — the lane single-quotes every substituted placeholder itself; use double quotes for static arguments',
+      'screenshotCommand may not contain single quotes — the lane single-quotes every substituted placeholder itself',
+    );
+  }
+  // Double quotes are rejected too: a placeholder inside them ("{url}") would
+  // make the lane's inserted single quotes LITERAL characters while $ and
+  // backticks stay live — the quoting contract only holds for bare
+  // placeholders in an otherwise quote-free template.
+  if (template.includes('"')) {
+    issues.push(
+      'screenshotCommand may not contain double quotes — write bare placeholders; the lane owns all quoting',
     );
   }
   return issues;

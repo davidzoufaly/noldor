@@ -8,6 +8,7 @@
 // round — outcomes aggregate by `fail` > `cannot-review` > `pass` (spec R7).
 
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -183,14 +184,17 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
   // keys ⊆ uiSurfaces, verifyCommand → kind "server") hold for exactly the
   // values used below. The scratch dir is already staged, so this failure path
   // must release it too.
-  let uiBoot: Record<string, UiBootRecipe>;
+  // Maps, not raw records: Object.entries copies OWN keys only, so a surface
+  // named like an inherited property ('constructor') cannot alias prototype
+  // members in lookups.
+  let recipes: Map<string, UiBootRecipe>;
   let declaredSurfaces: string[];
-  let verifyCommands: ReturnType<typeof loadConsumerConfig>['verifyCommands'];
+  let verifyCommands: Map<string, ReturnType<typeof loadConsumerConfig>['verifyCommands'][string]>;
   try {
     const consumer = loadConsumerConfig(input.repoRoot);
-    uiBoot = consumer.uiBoot ?? {};
+    recipes = new Map(Object.entries(consumer.uiBoot ?? {}));
     declaredSurfaces = Object.keys(consumer.uiSurfaces ?? {});
-    verifyCommands = consumer.verifyCommands;
+    verifyCommands = new Map(Object.entries(consumer.verifyCommands));
   } catch (err) {
     // pen-modified precedence is absolute (spec R7) — checked even on this
     // pre-pipeline terminal, since the reference hash already exists.
@@ -225,7 +229,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       // The union of DECLARED surfaces and recipe keys, not recipes alone: a
       // declared surface without a recipe must still land as a no-boot-recipe
       // row, or partial coverage would silently read as a whole-design pass.
-      surfaces = [...new Set([...declaredSurfaces, ...Object.keys(uiBoot)])].sort();
+      surfaces = [...new Set([...declaredSurfaces, ...recipes.keys()])].sort();
       if (surfaces.length === 0) {
         // pen-modified precedence holds on this terminal too (spec R7).
         const integrity = await designChanged();
@@ -248,9 +252,9 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     // R3 addition: an affected surface with no recipe is a full per-surface
     // outcome, so a round with an unconfigured affected surface never
     // aggregates to `pass`.
-    const withRecipe = surfaces.filter((s) => uiBoot[s] !== undefined);
+    const withRecipe = surfaces.filter((s) => recipes.has(s));
     for (const s of surfaces) {
-      if (uiBoot[s] === undefined) {
+      if (!recipes.has(s)) {
         outcomes.push(cannot(s, 'no-boot-recipe', `surface '${s}' has no consumer.uiBoot recipe`));
       }
     }
@@ -265,7 +269,9 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     if (withRecipe.length > 0) {
       const requests = withRecipe.map((surface) => ({
         surface,
-        ...(uiBoot[surface].page !== undefined ? { pageSelector: uiBoot[surface].page } : {}),
+        ...(recipes.get(surface)?.page !== undefined
+          ? { pageSelector: recipes.get(surface)?.page }
+          : {}),
         outPath: join(exportDir, `${sanitizeSurfaceName(surface)}.design.png`),
       }));
       let raw: string | null = null;
@@ -365,7 +371,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           jobs.push({
             surface: r.surface,
             sanitized: sanitizeSurfaceName(r.surface),
-            recipe: uiBoot[r.surface],
+            recipe: recipes.get(r.surface) as UiBootRecipe,
             designBuf: buf,
             designPng: decoded.png,
           });
@@ -380,7 +386,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     }
     const bootDeadline = Date.now() + TOTAL_BOOT_BUDGET_MS;
     for (const [cmdName, groupJobs] of groups) {
-      const entry = verifyCommands[cmdName];
+      const entry = verifyCommands.get(cmdName);
       // noldor:cut — unreachable under a schema-valid config (the superRefine
       // guarantees the reference resolves to a server entry); kept because the
       // Record index type is honest about `undefined` and a boot against a
@@ -658,8 +664,14 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
         // contradiction. This round's sink references no image either way.
         persistFailure = errMessage(err);
         notes.push(`artifact persist failed: ${persistFailure}`);
-        for (const leftover of [tmpDir, trashDir]) {
-          await rm(leftover, { recursive: true, force: true }).catch(() => {
+        await rm(tmpDir, { recursive: true, force: true }).catch(() => {
+          /* best-effort */
+        });
+        // trashDir may be the ONLY surviving evidence set when both renames
+        // failed (restore included) — remove it only when finalDir still holds
+        // a set, otherwise leave it as the recoverable copy.
+        if (existsSync(finalDir)) {
+          await rm(trashDir, { recursive: true, force: true }).catch(() => {
             /* best-effort */
           });
         }

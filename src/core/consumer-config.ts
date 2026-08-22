@@ -241,14 +241,16 @@ export const ConsumerConfigSchema = z
     }
     if (cfg.uiBoot === undefined) return;
     for (const [surface, recipe] of Object.entries(cfg.uiBoot)) {
-      if (!(surface in (cfg.uiSurfaces ?? {}))) {
+      if (!Object.hasOwn(cfg.uiSurfaces ?? {}, surface)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['uiBoot', surface],
           message: `uiBoot surface '${surface}' is not declared in uiSurfaces`,
         });
       }
-      const target = cfg.verifyCommands[recipe.verifyCommand];
+      const target = Object.hasOwn(cfg.verifyCommands, recipe.verifyCommand)
+        ? cfg.verifyCommands[recipe.verifyCommand]
+        : undefined;
       if (target === undefined || target.kind !== 'server') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
