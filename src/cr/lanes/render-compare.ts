@@ -173,7 +173,13 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     uiBoot = consumer.uiBoot ?? {};
     verifyCommands = consumer.verifyCommands;
   } catch (err) {
+    // pen-modified precedence is absolute (spec R7) — checked even on this
+    // pre-pipeline terminal, since the reference hash already exists.
+    const integrity = await designChanged();
     await cleanupPenScratch(scratchDir, 'render-compare');
+    if (integrity.changed) {
+      return writePenModified(write, design.repoRelPath, integrity.detail, notes);
+    }
     return writeTerminal(
       { verdict: 'cannot-review', reason: 'config-unreadable', detail: errMessage(err) },
       notes,
@@ -199,6 +205,9 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     if (surfaces.length === 0) {
       surfaces = Object.keys(uiBoot).sort();
       if (surfaces.length === 0) {
+        // pen-modified precedence holds on this terminal too (spec R7).
+        const integrity = await designChanged();
+        if (integrity.changed) return penModified(integrity.detail, []);
         return writeTerminal(
           {
             verdict: 'cannot-review',
@@ -574,21 +583,15 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     const sorted = [...outcomes].sort((a, b) =>
       a.surface < b.surface ? -1 : a.surface > b.surface ? 1 : 0,
     );
+    // Findings may reference image paths unconditionally: a persist failure
+    // never reaches the fail write — it terminates as cannot-review above.
     const failFindings: Finding[] = sorted
       .filter((o): o is Extract<SurfaceOutcome, { kind: 'fail' }> => o.kind === 'fail')
-      .map((o) =>
-        persistFailure === null
-          ? {
-              file: o.diffPath,
-              severity: o.severity,
-              message: `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} > ${o.threshold} — design=${o.designPath} shot=${o.shotPath}`,
-            }
-          : {
-              file: input.artifact,
-              severity: o.severity,
-              message: `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} > ${o.threshold} — evidence images unavailable (artifact persist failed)`,
-            },
-      );
+      .map((o) => ({
+        file: o.diffPath,
+        severity: o.severity,
+        message: `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} > ${o.threshold} — design=${o.designPath} shot=${o.shotPath}`,
+      }));
     const rowNotes: string[] = sorted.map((o) =>
       o.kind === 'pass'
         ? `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} ≤ ${o.threshold}`
@@ -600,6 +603,21 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     // ---- pen-modified precedence: global, absolute (spec R7) ----
     const integrity = await designChanged();
     if (integrity.changed) return penModified(integrity.detail, rowNotes);
+
+    // Persisting the evidence set is part of the round's contract (spec R6):
+    // a verdict whose images could not be written is not auditable, so it must
+    // not read as a clean `pass`/`fail` — blocking consumers red on it, and the
+    // per-surface rows stay in `notes` as the record of what WAS computed.
+    if (persistFailure !== null) {
+      return writeTerminal(
+        {
+          verdict: 'cannot-review',
+          reason: 'dispatch-failed',
+          detail: `artifact persist failed — evidence images unavailable: ${persistFailure}`,
+        },
+        [...notes, ...rowNotes],
+      );
+    }
 
     // ---- R7: aggregate + mode matrix ----
     const agg = aggregateOutcomes(outcomes);

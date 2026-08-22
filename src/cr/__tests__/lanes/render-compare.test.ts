@@ -635,3 +635,20 @@ describe('runRenderCompare — zero affected surfaces (design: required override
     expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'no-boot-recipe' });
   });
 });
+
+describe('runRenderCompare — evidence persistence is part of the contract', () => {
+  it('a persist failure downgrades the round to cannot-review, rows kept as notes', async () => {
+    exporterWriting(DESIGN_PNG);
+    seams(DESIGN_PNG);
+    const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
+    // Occupy the artifact root with a FILE so the staging mkdir fails.
+    mkdirSync(join(cwd, '.noldor', 'cr'), { recursive: true });
+    writeFileSync(join(cwd, '.noldor', 'cr', 'render-compare'), 'not a directory');
+    const r = await runRenderCompare(input);
+    expect(r.ok).toBe(true); // advisory default
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'dispatch-failed' });
+    expect(String(s.notes)).toContain('artifact persist failed');
+    expect(String(s.notes)).toContain('[dashboard] diffRatio 0.0000');
+  });
+});

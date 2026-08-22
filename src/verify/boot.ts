@@ -61,12 +61,19 @@ export async function bootServer(
   // Own process group so cleanup kills the whole boot tree (pnpm → node → …).
   const child = spawn('/bin/sh', ['-c', command], { cwd, detached: true, stdio: 'ignore' });
   // A spawn failure emits an async 'error' event; without a listener it would
-  // crash the process instead of reading as a failed boot. Racing it against
-  // the health probe also spares the caller the full readyTimeoutMs wait.
+  // crash the process instead of reading as a failed boot. An EARLY EXIT (an
+  // invalid command exits 127 immediately, no error event) would otherwise
+  // keep the health poll running for the whole readyTimeoutMs — race both
+  // against the probe so the caller fails fast either way.
   let spawnError: Error | null = null;
+  let earlyExit: number | null = null;
   const spawnFailed = new Promise<false>((resolveErr) => {
     child.once('error', (err) => {
       spawnError = err;
+      resolveErr(false);
+    });
+    child.once('exit', (code) => {
+      earlyExit = code ?? 1;
       resolveErr(false);
     });
   });
@@ -94,6 +101,8 @@ export async function bootServer(
     observed:
       spawnError !== null
         ? `boot spawn failed: ${(spawnError as Error).message}`
-        : `GET ${url} → no HTTP 200 within ${readyMs}ms`,
+        : earlyExit !== null
+          ? `boot exited with code ${earlyExit} before answering ${url}`
+          : `GET ${url} → no HTTP 200 within ${readyMs}ms`,
   };
 }
