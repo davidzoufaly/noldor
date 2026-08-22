@@ -162,7 +162,7 @@ function exporterWriting(bytes: Buffer | ((surface: string) => Buffer)): {
     return report({
       surfaces: input.requests.map((r) => ({
         surface: r.surface,
-        outcome: 'exported',
+
         candidates: ['overview'],
       })),
     });
@@ -289,7 +289,7 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
       report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-          outcome: 'page-ambiguous',
+
           candidates: ['default', 'expanded'],
         })),
       }),
@@ -308,7 +308,7 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
       return report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-          outcome: 'exported',
+
           candidates: ['overview'],
         })),
       });
@@ -341,7 +341,7 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
       return report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-          outcome: 'exported',
+
           candidates: ['overview', 'expanded'],
         })),
       });
@@ -359,7 +359,7 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
       return report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-          outcome: 'exported',
+
           candidates: ['overview', 'expanded'],
         })),
       });
@@ -588,7 +588,7 @@ describe('runRenderCompare — pen-modified precedence (AC6, AC9)', () => {
       return report({
         surfaces: input.requests.map((r) => ({
           surface: r.surface,
-          outcome: 'exported',
+
           candidates: ['overview'],
         })),
       });
@@ -598,5 +598,40 @@ describe('runRenderCompare — pen-modified precedence (AC6, AC9)', () => {
     const r = await runRenderCompare(input);
     expect(r.ok).toBe(true);
     expect(sink(cwd)).toMatchObject({ verdict: 'pass' });
+  });
+});
+
+describe('runRenderCompare — zero affected surfaces (design: required override)', () => {
+  const requiredFd = (cwd: string): void => {
+    writeFileSync(
+      join(cwd, 'docs', 'features', `${SLUG}.md`),
+      `---\ndesign: required\n---\n\n## Summary\n\nUI.\n`,
+    );
+    git(cwd, ['add', '-A']);
+    git(cwd, ['commit', '-qm', 'fd required']);
+  };
+
+  it('falls back to every configured uiBoot surface instead of a "0 surfaces" pass', async () => {
+    exporterWriting(DESIGN_PNG);
+    seams(DESIGN_PNG);
+    const { cwd, input } = repo({
+      changed: { 'src/core/not-ui.ts': 'export const x = 1;\n' },
+      uiBoot: DEFAULT_BOOT,
+    });
+    requiredFd(cwd);
+    await runRenderCompare({ ...input, artifactSha: git(cwd, ['rev-parse', 'HEAD']) });
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'pass' });
+    expect(String(s.notes)).toContain('reviewing every configured uiBoot surface: dashboard');
+    expect(String(s.notes)).toContain('[dashboard] diffRatio');
+  });
+
+  it('is cannot-review, never pass, when no uiBoot recipe exists to fall back to', async () => {
+    seams(DESIGN_PNG);
+    const { cwd, input } = repo({ changed: { 'src/core/not-ui.ts': 'export const x = 1;\n' } });
+    requiredFd(cwd);
+    const r = await runRenderCompare({ ...input, artifactSha: git(cwd, ['rev-parse', 'HEAD']) });
+    expect(r.ok).toBe(true); // advisory default
+    expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'no-boot-recipe' });
   });
 });

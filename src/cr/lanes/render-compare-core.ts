@@ -44,6 +44,7 @@ export function substituteScreenshotCommand(
 /** One `FINAL:<surface>: <name>` page name, already stripped to its `<name>` segment. */
 export type PageName = string;
 
+/** Result of {@link selectFinalPage}: the selected page, or why none resolved. */
 export type PageSelection = { ok: true; page: PageName } | { ok: false; detail: string };
 
 /**
@@ -95,6 +96,7 @@ export function severityForRatio(diffRatio: number, maxDiffRatio: number): Sever
   return diffRatio > 2 * maxDiffRatio ? 'high' : 'med';
 }
 
+/** What comparing one raster pair produced: a ratio, or why no ratio exists. */
 export type DiffOutcome =
   | { kind: 'diff'; diffRatio: number; width: number; height: number; diffPng: Buffer }
   | { kind: 'dimension-mismatch'; detail: string }

@@ -30,15 +30,14 @@ export interface RenderExportInput {
 }
 
 /**
- * Per-surface child outcome. `exported` is verified against the file on disk
- * (exists + pngjs-decodes with positive dimensions — anything else is
- * `export-failed` regardless of what the report claims); `page-ambiguous`
- * carries the candidates found so the sink message can name them.
+ * Per-surface child report row: the page ENUMERATION only. The lane re-derives
+ * the selection from `candidates` itself and trusts files for the export — so
+ * the contract deliberately carries no outcome/verdict field for the child to
+ * be wrong in.
  */
 export const exportOutcomeSchema = z
   .object({
     surface: z.string().min(1),
-    outcome: z.enum(['exported', 'page-ambiguous']),
     /** `FINAL:<surface>:` page names found, `<name>` segment only. */
     candidates: z.array(z.string()).default([]),
   })
@@ -67,17 +66,16 @@ Export jobs (one selected page per surface):
 ${jobs}
 
 For each surface:
-1. Enumerate the design's top-level pages named \`FINAL:<surface>: <name>\` for that surface (exact surface segment). Collect the trimmed \`<name>\` segments as the candidates.
-2. Select the page: with a page selector, the candidate exactly equal to it (trimmed, case-sensitive); without one, the single candidate if there is exactly one. Zero candidates, several candidates without a selector, a selector matching none, or two candidates with identical names — all are outcome \`page-ambiguous\`; list the candidates and do NOT export that surface.
+1. Enumerate the design's top-level pages named \`FINAL:<surface>: <name>\` for that surface (exact surface segment). Collect the trimmed \`<name>\` segments as the candidates — report them ALL, verbatim, even when zero or ambiguous.
+2. Select the page: with a page selector, the candidate exactly equal to it (trimmed, case-sensitive); without one, the single candidate if there is exactly one. Zero candidates, several candidates without a selector, a selector matching none, or two candidates with identical names — do NOT export that surface (the parent recomputes the same rule from your candidates and classifies it).
 3. Export the selected page's node: \`Export(["<nodeId>"], "png", "<outputDir>", { scale: 1 })\`. IMPORTANT: the third argument is a DIRECTORY — the file lands at \`<outputDir>/<nodeId>.png\`. Pass \`scale: 1\` explicitly (the default is 2). Then move/rename that file to the surface's exact output path listed above.
-4. A surface whose PNG landed at its output path is outcome \`exported\`.
 
 Do not create, modify, or save anything in the design; do not write any file except the listed output paths (and the exporter's intermediate \`<nodeId>.png\`, which you move).
 
-Report one entry per surface, exactly this shape and nothing else:
+Report one entry per surface — the candidates are the report; there is no verdict field:
 
 ${fencedJsonInstruction(
-  `{"surfaces": [{"surface": "dashboard", "outcome": "exported", "candidates": ["overview"]}, {"surface": "settings", "outcome": "page-ambiguous", "candidates": ["default", "expanded"]}]}`,
+  `{"surfaces": [{"surface": "dashboard", "candidates": ["overview"]}, {"surface": "settings", "candidates": ["default", "expanded"]}]}`,
 )}`;
 }
 

@@ -9,7 +9,6 @@
 
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { StringDecoder } from 'node:string_decoder';
 import { copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -53,6 +52,7 @@ const sha256 = async (path: string): Promise<string> =>
     .update(await readFile(path))
     .digest('hex');
 
+/** What a `screenshotCommand` run produced: exit code, cap status, stderr tail. */
 export interface CaptureResult {
   code: number;
   timedOut: boolean;
@@ -70,12 +70,13 @@ function runCapture(command: string, cwd: string, timeoutMs: number): Promise<Ca
       detached: true,
       stdio: ['ignore', 'ignore', 'pipe'],
     });
-    // StringDecoder: a multibyte character split across chunk boundaries must
-    // not mojibake the diagnostic tail.
-    const decoder = new StringDecoder('utf8');
-    let stderr = '';
+    // Byte tail, decoded ONCE at the end: per-chunk decoding plus a UTF-16
+    // slice can still split characters at the tail seam. A byte-boundary
+    // partial at the very head of the tail decodes to one replacement char —
+    // acceptable for diagnostic text.
+    let stderrTail = Buffer.alloc(0);
     child.stderr?.on('data', (chunk: Buffer) => {
-      stderr = (stderr + decoder.write(chunk)).slice(-STDERR_TAIL_CAP);
+      stderrTail = Buffer.concat([stderrTail, chunk]).subarray(-STDERR_TAIL_CAP);
     });
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -88,13 +89,27 @@ function runCapture(command: string, cwd: string, timeoutMs: number): Promise<Ca
         }
       }
     }, timeoutMs);
+    // Group-kill on EVERY exit path, not only timeout: a capture command that
+    // exits while a spawned descendant (a browser, a daemonized helper) lives
+    // on would otherwise leak it past the round.
+    const reapGroup = (): void => {
+      if (child.pid !== undefined) {
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+        } catch {
+          /* group already gone */
+        }
+      }
+    };
     child.on('error', (err) => {
       clearTimeout(timer);
+      reapGroup();
       resolve({ code: 1, timedOut: false, stderrTail: errMessage(err) });
     });
     child.on('close', (code) => {
       clearTimeout(timer);
-      resolve({ code: code ?? 1, timedOut, stderrTail: stderr.trim() });
+      reapGroup();
+      resolve({ code: code ?? 1, timedOut, stderrTail: stderrTail.toString('utf8').trim() });
     });
   });
 }
@@ -222,11 +237,35 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     const rel = (sanitized: string, kind: 'design' | 'shot' | 'diff'): string =>
       `${artifactRelDir}/${sanitized}.${kind}.png`;
 
+    // Zero AFFECTED surfaces (an FD `design: required` override with no changed
+    // path matching `uiPaths`) must not aggregate to a "0 surfaces" pass —
+    // that would be a blocking-mode bypass for exactly the operator-forced
+    // sessions. Mirror the sibling lane's whole-design posture: review every
+    // configured recipe; with none configured there is nothing honest to boot.
+    let surfaces = design.surfaces;
+    if (surfaces.length === 0) {
+      surfaces = Object.keys(uiBoot).sort();
+      if (surfaces.length === 0) {
+        return writeTerminal(
+          {
+            verdict: 'cannot-review',
+            reason: 'no-boot-recipe',
+            detail:
+              'zero affected surfaces resolved (FD design override with no matching changed paths) and no consumer.uiBoot recipe to fall back to',
+          },
+          notes,
+        );
+      }
+      notes.push(
+        `zero affected surfaces resolved — reviewing every configured uiBoot surface: ${surfaces.join(', ')}`,
+      );
+    }
+
     // R3 addition: an affected surface with no recipe is a full per-surface
     // outcome, so a round with an unconfigured affected surface never
     // aggregates to `pass`.
-    const withRecipe = design.surfaces.filter((s) => uiBoot[s] !== undefined);
-    for (const s of design.surfaces) {
+    const withRecipe = surfaces.filter((s) => uiBoot[s] !== undefined);
+    for (const s of surfaces) {
       if (uiBoot[s] === undefined) {
         outcomes.push(cannot(s, 'no-boot-recipe', `surface '${s}' has no consumer.uiBoot recipe`));
       }
@@ -340,6 +379,10 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     }
     for (const [cmdName, groupJobs] of groups) {
       const entry = verifyCommands[cmdName];
+      // noldor:cut — unreachable under a schema-valid config (the superRefine
+      // guarantees the reference resolves to a server entry); kept because the
+      // Record index type is honest about `undefined` and a boot against a
+      // missing entry must degrade to rows, never throw.
       if (entry === undefined || entry.kind !== 'server') {
         for (const job of groupJobs) {
           outcomes.push(
@@ -391,6 +434,11 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
               redirect: 'follow',
             });
             status = res.status;
+            // Release the connection: an unconsumed body keeps the socket busy
+            // until timeout/GC, which the capture right behind it competes with.
+            await res.body?.cancel().catch(() => {
+              /* already consumed or closed */
+            });
           } catch (err) {
             outcomes.push(
               cannot(job.surface, 'route-unreachable', `GET ${url} failed: ${errMessage(err)}`),
@@ -495,14 +543,19 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           }
         }
       } finally {
+        // Fire-and-forget SIGKILL is sufficient here: every group boots on its
+        // own fresh ephemeral port (resolvePort binds :0 per group), so a
+        // dying predecessor cannot contend with the next boot, and bootServer's
+        // pre-boot occupancy check is the backstop for anything external.
         boot.kill();
       }
     }
 
     // ---- R6: persist artifacts, atomically per round ----
+    const artifactRoot = join(input.repoRoot, '.noldor', 'cr', 'render-compare');
+    const finalDir = join(artifactRoot, input.slug);
+    let persistFailure: string | null = null;
     try {
-      const artifactRoot = join(input.repoRoot, '.noldor', 'cr', 'render-compare');
-      const finalDir = join(artifactRoot, input.slug);
       const unique = `${input.slug}-${process.pid}-${Date.now()}`;
       const tmpDir = join(artifactRoot, `.tmp-${unique}`);
       const trashDir = join(artifactRoot, `.trash-${unique}`);
@@ -536,9 +589,15 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
         /* stale trash is disk cost only; the fresh set is already in place */
       });
     } catch (err) {
-      // Losing evidence images costs diagnosis, not honesty — the sink rows
-      // still carry the ratios; say what happened and keep going.
-      notes.push(`artifact persist failed: ${errMessage(err)}`);
+      // Losing evidence images costs diagnosis, not honesty — but findings
+      // must not reference images from another round: whatever set the rollback
+      // left (a PRIOR round's, or none) is removed, and the fail rows below
+      // anchor to the artifact instead of image paths.
+      persistFailure = errMessage(err);
+      notes.push(`artifact persist failed: ${persistFailure}`);
+      await rm(finalDir, { recursive: true, force: true }).catch(() => {
+        /* nothing on disk to mislead with */
+      });
     }
 
     // ---- rows (per-surface record, deterministic order) ----
@@ -547,11 +606,19 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     );
     const failFindings: Finding[] = sorted
       .filter((o): o is Extract<SurfaceOutcome, { kind: 'fail' }> => o.kind === 'fail')
-      .map((o) => ({
-        file: o.diffPath,
-        severity: o.severity,
-        message: `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} > ${o.threshold} — design=${o.designPath} shot=${o.shotPath}`,
-      }));
+      .map((o) =>
+        persistFailure === null
+          ? {
+              file: o.diffPath,
+              severity: o.severity,
+              message: `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} > ${o.threshold} — design=${o.designPath} shot=${o.shotPath}`,
+            }
+          : {
+              file: input.artifact,
+              severity: o.severity,
+              message: `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} > ${o.threshold} — evidence images unavailable (artifact persist failed)`,
+            },
+      );
     const rowNotes: string[] = sorted.map((o) =>
       o.kind === 'pass'
         ? `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} ≤ ${o.threshold}`

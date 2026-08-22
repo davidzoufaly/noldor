@@ -6,6 +6,7 @@
 
 /** Placeholders a `screenshotCommand` template must carry — all four, no others. */
 export const SCREENSHOT_PLACEHOLDERS = ['url', 'out', 'width', 'height'] as const;
+/** One of the four `screenshotCommand` placeholder names. */
 export type ScreenshotPlaceholder = (typeof SCREENSHOT_PLACEHOLDERS)[number];
 
 /**
