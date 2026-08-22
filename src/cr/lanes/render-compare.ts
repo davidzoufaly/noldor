@@ -8,9 +8,7 @@
 // round — outcomes aggregate by `fail` > `cannot-review` > `pass` (spec R7).
 
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { PNG } from 'pngjs';
@@ -22,9 +20,8 @@ import { sanitizeSurfaceName } from '../../core/ui-boot.js';
 import { bootServer } from '../../verify/boot.js';
 import { resolvePort } from '../../verify/port.js';
 import type { Finding, LaneReasonCode } from '../findings-schema.js';
-import { loadLaneMode } from '../lane-mode.js';
-import { openLaneSink } from '../lane-sink.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
+import { cleanupPenScratch, openDesignReviewRound } from './pen-scratch.js';
 import {
   aggregateOutcomes,
   decodePng,
@@ -39,18 +36,13 @@ import {
   dispatchRenderExport,
   parseRenderExportReport,
 } from './render-export-dispatch.js';
-import { resolveUiReviewTarget, type Terminal } from './ui-design-resolve.js';
+import { writeFailByMode, writePenModified } from './ui-design-resolve.js';
 
 const LANE = 'render-compare' as const;
 
 /** Bounds the route probe — same cap the health check's probe fetches use. */
 const ROUTE_PROBE_TIMEOUT_MS = 2000;
 const STDERR_TAIL_CAP = 2000;
-
-const sha256 = async (path: string): Promise<string> =>
-  createHash('sha256')
-    .update(await readFile(path))
-    .digest('hex');
 
 /** What a `screenshotCommand` run produced: exit code, cap status, stderr tail. */
 export interface CaptureResult {
@@ -154,43 +146,26 @@ const cannot = (surface: string, reason: LaneReasonCode, detail: string): Surfac
 });
 
 export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
-  const { write } = openLaneSink(input, LANE);
-  const mode = await loadLaneMode(input.repoRoot, 'renderCompareMode');
+  const opened = await openDesignReviewRound(
+    input,
+    LANE,
+    'renderCompareMode',
+    'noldor-render-compare',
+  );
+  if (opened.kind === 'done') return opened.result;
+  const { mode } = opened;
+  const { write, writeTerminal, design, notes } = opened.ctx;
 
-  /** Whole-round terminal writer — identical posture to the ui-reviewer lane. */
-  const writeTerminal = (
-    { verdict, reason, detail }: Terminal,
-    extraNotes: string[] = [],
-  ): Promise<LaneResult> => {
-    const reds = mode === 'blocking' && verdict === 'cannot-review';
-    return write(
-      {
-        verdict,
-        reason,
-        blockers: reds
-          ? [{ file: input.artifact, severity: 'high', message: `${reason}: ${detail}` }]
-          : [],
-        suggestions: [],
-        summary: `${verdict}: ${reason}`,
-        notes: [...extraNotes, detail],
-      },
-      !reds,
-    );
-  };
-
-  const resolution = await resolveUiReviewTarget(input);
-  if (resolution.kind === 'terminal') return writeTerminal(resolution.at);
-  const { design } = resolution;
-
-  const notes: string[] =
-    design.unmappedPaths.length > 0
-      ? [`changed UI paths outside every declared surface: ${design.unmappedPaths.join(', ')}`]
-      : [];
+  // Scratch roles, explicit per spec R5: the REPO file's hash is the only
+  // `pen-modified` trigger; the scratch copy is expendable — the exporter may
+  // touch it, and no hash is taken of it.
+  const { dir: scratchDir, penPath: scratchPen, designChanged } = opened.ctx.scratch;
 
   // One config parse for the whole round: `uiBoot` and `verifyCommands` come
   // from the same validated object, so the superRefine cross-checks (recipe
   // keys ⊆ uiSurfaces, verifyCommand → kind "server") hold for exactly the
-  // values used below.
+  // values used below. The scratch dir is already staged, so this failure path
+  // must release it too.
   let uiBoot: Record<string, UiBootRecipe>;
   let verifyCommands: ReturnType<typeof loadConsumerConfig>['verifyCommands'];
   try {
@@ -198,38 +173,16 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     uiBoot = consumer.uiBoot ?? {};
     verifyCommands = consumer.verifyCommands;
   } catch (err) {
+    await cleanupPenScratch(scratchDir, 'render-compare');
     return writeTerminal(
       { verdict: 'cannot-review', reason: 'config-unreadable', detail: errMessage(err) },
       notes,
     );
   }
 
-  // Scratch COPY discipline reused from ui-review.ts, roles explicit (spec R5):
-  // the REPO file's hash is the only `pen-modified` trigger; the scratch copy
-  // is expendable — the exporter may touch it, and no hash is taken of it.
-  let scratchDir: string | null = null;
-  let scratchPen: string;
-  let hashBefore: string;
-  try {
-    hashBefore = await sha256(design.absPath);
-    scratchDir = await mkdtemp(join(tmpdir(), 'noldor-render-compare-'));
-    scratchPen = join(scratchDir, `${input.slug}.pen`);
-    await copyFile(design.absPath, scratchPen);
-  } catch (err) {
-    if (scratchDir !== null) {
-      await rm(scratchDir, { recursive: true, force: true }).catch((e: unknown) => {
-        console.error(`render-compare: scratch cleanup failed: ${errMessage(e)}`);
-      });
-    }
-    return writeTerminal(
-      {
-        verdict: 'cannot-review',
-        reason: 'scratch-unavailable',
-        detail: `could not stage a design copy: ${errMessage(err)}`,
-      },
-      notes,
-    );
-  }
+  /** The one absolute red (spec R7): the shared shape, with per-surface rows as forensics. */
+  const penModified = (detail: string, rowNotes: string[]): Promise<LaneResult> =>
+    writePenModified(write, design.repoRelPath, detail, [...notes, ...rowNotes]);
 
   try {
     const outcomes: SurfaceOutcome[] = [];
@@ -315,8 +268,25 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           );
         }
       } else {
+        // Duplicate rows for one surface are CONFLICTING enumerations from an
+        // untrusted child — collapsing them (last row wins) could route a wrong
+        // candidate list past the selection rule. Refuse the surface instead.
+        const rowCounts = new Map<string, number>();
+        for (const s of report.surfaces) {
+          rowCounts.set(s.surface, (rowCounts.get(s.surface) ?? 0) + 1);
+        }
         const bySurface = new Map(report.surfaces.map((s) => [s.surface, s]));
         for (const r of requests) {
+          if ((rowCounts.get(r.surface) ?? 0) > 1) {
+            outcomes.push(
+              cannot(
+                r.surface,
+                'export-failed',
+                `exporter report carries ${rowCounts.get(r.surface)} conflicting rows for surface '${r.surface}'`,
+              ),
+            );
+            continue;
+          }
           const reported = bySurface.get(r.surface);
           if (reported === undefined) {
             outcomes.push(
@@ -628,33 +598,8 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     );
 
     // ---- pen-modified precedence: global, absolute (spec R7) ----
-    let integrityDetail = '';
-    let integrityChanged = false;
-    try {
-      integrityChanged = (await sha256(design.absPath)) !== hashBefore;
-    } catch (err) {
-      integrityChanged = true;
-      integrityDetail = `design unreadable after review: ${errMessage(err)}`;
-    }
-    if (integrityChanged) {
-      return write(
-        {
-          verdict: 'fail',
-          reason: 'pen-modified',
-          blockers: [
-            {
-              file: design.repoRelPath,
-              severity: 'high',
-              message: `pen-modified: the design changed during review — the verdict cannot be trusted${integrityDetail ? ` (${integrityDetail})` : ''}`,
-            },
-          ],
-          suggestions: [],
-          summary: 'fail: pen-modified',
-          notes: [...notes, ...rowNotes],
-        },
-        false,
-      );
-    }
+    const integrity = await designChanged();
+    if (integrity.changed) return penModified(integrity.detail, rowNotes);
 
     // ---- R7: aggregate + mode matrix ----
     const agg = aggregateOutcomes(outcomes);
@@ -693,32 +638,27 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       );
     }
     // agg.verdict === 'fail'
-    return mode === 'blocking'
-      ? write(
-          {
-            verdict: 'fail',
-            blockers: failFindings,
-            suggestions: [],
-            summary: 'rendered routes drift past their design diff thresholds',
-            notes: [...notes, ...rowNotes],
-          },
-          false,
-        )
-      : write(
-          {
-            verdict: 'fail',
-            blockers: [],
-            suggestions: failFindings.map((f) => ({ ...f, severity: 'low' as const })),
-            summary:
-              'ADVISORY: rendered routes drift past their design diff thresholds (advisory mode)',
-            notes: [...notes, ...rowNotes],
-          },
-          true,
-        );
+    return writeFailByMode(
+      write,
+      mode,
+      failFindings,
+      'rendered routes drift past their design diff thresholds',
+      [...notes, ...rowNotes],
+    );
   } catch (err) {
     // Backstop for anything the per-stage handling above did not classify: a
-    // round must never terminate without its sink (AC11), and an unexpected
-    // throw is an infrastructure failure, not a review outcome.
+    // round must never terminate without its sink (AC11). `pen-modified`
+    // precedence is absolute even here — an unexpected throw that coincides
+    // with a design change must red as pen-modified, not hide behind an
+    // infrastructure reason. `dispatch-failed` is the shared lane vocabulary's
+    // infra-failure class (same set the resolver's terminals draw from).
+    const integrity = await designChanged();
+    if (integrity.changed) {
+      return penModified(
+        integrity.detail || `during unexpected pipeline failure: ${errMessage(err)}`,
+        [],
+      );
+    }
     return writeTerminal(
       {
         verdict: 'cannot-review',
@@ -728,8 +668,6 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       notes,
     );
   } finally {
-    await rm(scratchDir, { recursive: true, force: true }).catch((err: unknown) => {
-      console.error(`render-compare: scratch cleanup failed for ${scratchDir}: ${errMessage(err)}`);
-    });
+    await cleanupPenScratch(scratchDir, 'render-compare');
   }
 }
