@@ -624,7 +624,7 @@ describe('runRenderCompare — zero affected surfaces (design: required override
     await runRenderCompare({ ...input, artifactSha: git(cwd, ['rev-parse', 'HEAD']) });
     const s = sink(cwd);
     expect(s).toMatchObject({ verdict: 'pass' });
-    expect(String(s.notes)).toContain('reviewing every configured uiBoot surface: dashboard');
+    expect(String(s.notes)).toContain('reviewing every declared surface: dashboard');
     expect(String(s.notes)).toContain('[dashboard] diffRatio');
   });
 
@@ -652,5 +652,45 @@ describe('runRenderCompare — evidence persistence is part of the contract', ()
     expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'dispatch-failed' });
     expect(String(s.notes)).toContain('artifact persist failed');
     expect(String(s.notes)).toContain('[dashboard] diffRatio 0.000000');
+  });
+});
+
+describe('runRenderCompare — coverage cannot silently shrink', () => {
+  it('zero-affected fallback includes DECLARED surfaces without recipes (no partial pass)', async () => {
+    exporterWriting(DESIGN_PNG);
+    seams(DESIGN_PNG);
+    const { cwd, input } = repo({
+      changed: { 'src/core/not-ui.ts': 'export const x = 1;\n' },
+      surfaces: { dashboard: ['src/ui/dash/**'], settings: ['src/ui/settings/**'] },
+      uiBoot: DEFAULT_BOOT, // recipe for dashboard only
+    });
+    writeFileSync(
+      join(cwd, 'docs', 'features', `${SLUG}.md`),
+      `---\ndesign: required\n---\n\n## Summary\n\nUI.\n`,
+    );
+    git(cwd, ['add', '-A']);
+    git(cwd, ['commit', '-qm', 'fd required']);
+    await runRenderCompare({ ...input, artifactSha: git(cwd, ['rev-parse', 'HEAD']) });
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'no-boot-recipe' });
+    expect(String(s.notes)).toContain('[settings] no-boot-recipe');
+    expect(String(s.notes)).toContain('[dashboard] diffRatio');
+  });
+
+  it('a round with zero rasters leaves the prior evidence set untouched', async () => {
+    exporterWriting(DESIGN_PNG);
+    seams(DESIGN_PNG);
+    const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
+    // Seed a "prior round" evidence set.
+    const dir = join(cwd, '.noldor', 'cr', 'render-compare', SLUG);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'dashboard.design.png'), DESIGN_PNG);
+    // This round produces no rasters at all.
+    setRenderExportDispatcher(async () => {
+      throw new Error('bridge down');
+    });
+    await runRenderCompare(input);
+    expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'export-failed' });
+    expect(existsSync(join(dir, 'dashboard.design.png'))).toBe(true);
   });
 });

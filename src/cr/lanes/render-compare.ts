@@ -184,10 +184,12 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
   // values used below. The scratch dir is already staged, so this failure path
   // must release it too.
   let uiBoot: Record<string, UiBootRecipe>;
+  let declaredSurfaces: string[];
   let verifyCommands: ReturnType<typeof loadConsumerConfig>['verifyCommands'];
   try {
     const consumer = loadConsumerConfig(input.repoRoot);
     uiBoot = consumer.uiBoot ?? {};
+    declaredSurfaces = Object.keys(consumer.uiSurfaces ?? {});
     verifyCommands = consumer.verifyCommands;
   } catch (err) {
     // pen-modified precedence is absolute (spec R7) — checked even on this
@@ -220,7 +222,10 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     // configured recipe; with none configured there is nothing honest to boot.
     let surfaces = design.surfaces;
     if (surfaces.length === 0) {
-      surfaces = Object.keys(uiBoot).sort();
+      // The union of DECLARED surfaces and recipe keys, not recipes alone: a
+      // declared surface without a recipe must still land as a no-boot-recipe
+      // row, or partial coverage would silently read as a whole-design pass.
+      surfaces = [...new Set([...declaredSurfaces, ...Object.keys(uiBoot)])].sort();
       if (surfaces.length === 0) {
         // pen-modified precedence holds on this terminal too (spec R7).
         const integrity = await designChanged();
@@ -236,7 +241,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
         );
       }
       notes.push(
-        `zero affected surfaces resolved — reviewing every configured uiBoot surface: ${surfaces.join(', ')}`,
+        `zero affected surfaces resolved — reviewing every declared surface: ${surfaces.join(', ')}`,
       );
     }
 
@@ -590,13 +595,17 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     }
 
     // ---- R6: persist artifacts, atomically per round ----
+    // Skipped entirely when the round produced NO rasters (exporter dispatch
+    // failed, every surface no-boot-recipe/export-failed): swapping in an
+    // empty directory would destroy the prior round's evidence to record
+    // nothing. The prior set stays put; this round's sink references no image.
     const artifactRoot = join(input.repoRoot, '.noldor', 'cr', 'render-compare');
     const finalDir = join(artifactRoot, input.slug);
     const unique = `${input.slug}-${process.pid}-${Date.now()}`;
     const tmpDir = join(artifactRoot, `.tmp-${unique}`);
     const trashDir = join(artifactRoot, `.trash-${unique}`);
     let persistFailure: string | null = null;
-    try {
+    const persistJobs = async (): Promise<void> => {
       await mkdir(tmpDir, { recursive: true });
       for (const job of jobs) {
         await writeFile(join(tmpDir, `${job.sanitized}.design.png`), job.designBuf);
@@ -631,19 +640,24 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       await rm(trashDir, { recursive: true, force: true }).catch(() => {
         /* stale trash is disk cost only; the fresh set is already in place */
       });
-    } catch (err) {
-      // The round downgrades to cannot-review below. Only the per-round temp
-      // and trash dirs are removed (unique names would pile up across failed
-      // rounds) — NEVER finalDir: whatever it holds is a complete coherent set
-      // (the untouched prior round, or the one the inner catch just restored),
-      // and deleting a restore we deliberately performed would be a
-      // contradiction. This round's sink references no image either way.
-      persistFailure = errMessage(err);
-      notes.push(`artifact persist failed: ${persistFailure}`);
-      for (const leftover of [tmpDir, trashDir]) {
-        await rm(leftover, { recursive: true, force: true }).catch(() => {
-          /* best-effort */
-        });
+    };
+    if (jobs.length > 0) {
+      try {
+        await persistJobs();
+      } catch (err) {
+        // The round downgrades to cannot-review below. Only the per-round temp
+        // and trash dirs are removed (unique names would pile up across failed
+        // rounds) — NEVER finalDir: whatever it holds is a complete coherent set
+        // (the untouched prior round, or the one the inner catch just restored),
+        // and deleting a restore we deliberately performed would be a
+        // contradiction. This round's sink references no image either way.
+        persistFailure = errMessage(err);
+        notes.push(`artifact persist failed: ${persistFailure}`);
+        for (const leftover of [tmpDir, trashDir]) {
+          await rm(leftover, { recursive: true, force: true }).catch(() => {
+            /* best-effort */
+          });
+        }
       }
     }
 
