@@ -12,6 +12,7 @@ links:
     - src/cr/lanes/render-compare.ts
     - src/cr/lanes/render-compare-core.ts
     - src/cr/lanes/render-export-dispatch.ts
+    - src/cr/lanes/pen-scratch.ts
     - src/cr/lanes/prompt-parts.ts
     - src/cr/lane-spawn.ts
     - src/cr/lane-mode.ts
@@ -127,6 +128,7 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/lanes/render-compare.ts`](../../src/cr/lanes/render-compare.ts)
   - [`src/cr/lanes/render-compare-core.ts`](../../src/cr/lanes/render-compare-core.ts)
   - [`src/cr/lanes/render-export-dispatch.ts`](../../src/cr/lanes/render-export-dispatch.ts)
+  - [`src/cr/lanes/pen-scratch.ts`](../../src/cr/lanes/pen-scratch.ts)
   - [`src/cr/lanes/prompt-parts.ts`](../../src/cr/lanes/prompt-parts.ts)
   - [`src/cr/lane-spawn.ts`](../../src/cr/lane-spawn.ts)
   - [`src/cr/lane-mode.ts`](../../src/cr/lane-mode.ts)
