@@ -117,15 +117,31 @@ function runCapture(command: string, cwd: string, timeoutMs: number): Promise<Ca
         }
       }
     };
+    let settled = false;
+    const finish = (code: number): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reapGroup();
+      resolve({ code, timedOut, stderrTail: stderrTail.toString('utf8').trim() });
+    };
     child.on('error', (err) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       reapGroup();
       resolve({ code: 1, timedOut: false, stderrTail: errMessage(err) });
     });
+    // Resolve on 'exit' + a short stderr-drain grace rather than waiting for
+    // 'close': 'close' fires only when stdio drains, and a daemonized
+    // descendant holding the inherited stderr pipe would otherwise hold the
+    // capture "running" until the timeout kills it — turning a written,
+    // perfectly good screenshot into screenshot-failed.
+    child.on('exit', (code) => {
+      setTimeout(() => finish(code ?? 1), 200);
+    });
     child.on('close', (code) => {
-      clearTimeout(timer);
-      reapGroup();
-      resolve({ code: code ?? 1, timedOut, stderrTail: stderrTail.toString('utf8').trim() });
+      finish(code ?? 1);
     });
   });
 }

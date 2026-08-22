@@ -1,8 +1,8 @@
 {
-  "duplicatedTokens": 27655,
-  "duplicationPct": 9.830162657111984,
-  "totalTokens": 281328,
-  "groups": 280,
+  "duplicatedTokens": 27657,
+  "duplicationPct": 9.800426644743835,
+  "totalTokens": 282202,
+  "groups": 282,
   "filesScanned": 370,
   "options": {
     "minTokens": 50,
@@ -10,5 +10,5 @@
     "gapTokens": 10,
     "includeTests": false
   },
-  "recordedAt": "2026-08-22T06:49:10.571Z"
+  "recordedAt": "2026-08-22T09:24:49.230Z"
 }
