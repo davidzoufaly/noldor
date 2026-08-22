@@ -649,7 +649,7 @@ describe('runRenderCompare — evidence persistence is part of the contract', ()
     const r = await runRenderCompare(input);
     expect(r.ok).toBe(true); // advisory default
     const s = sink(cwd);
-    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'dispatch-failed' });
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'persist-failed' });
     expect(String(s.notes)).toContain('artifact persist failed');
     expect(String(s.notes)).toContain('[dashboard] diffRatio 0.000000');
   });

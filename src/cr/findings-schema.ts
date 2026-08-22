@@ -89,6 +89,9 @@ export const laneReasonCodeSchema = z.enum([
   'screenshot-failed',
   'export-failed',
   'dimension-mismatch',
+  // The round computed its verdicts but could not persist the evidence images
+  // that make them auditable — its own class, not a dispatch problem.
+  'persist-failed',
   // integrity
   'pen-modified',
 ]);

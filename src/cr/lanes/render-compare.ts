@@ -9,7 +9,7 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { PNG } from 'pngjs';
@@ -24,6 +24,7 @@ import type { Finding, LaneReasonCode } from '../findings-schema.js';
 import type { LaneInput, LaneResult } from '../lane-types.js';
 import { cleanupPenScratch, openDesignReviewRound } from './pen-scratch.js';
 import {
+  MAX_RASTER_BYTES,
   aggregateOutcomes,
   decodePng,
   diffDecoded,
@@ -45,12 +46,14 @@ const LANE = 'render-compare' as const;
 const ROUTE_PROBE_TIMEOUT_MS = 2000;
 const STDERR_TAIL_CAP = 2000;
 /**
- * Aggregate wall-clock ceiling across every boot in one round — the same
- * posture as smoke's total cap: a `readyTimeoutMs` the schema does not bound
- * must not let N boot groups stack into an unbounded round. Captures are
- * already bounded per surface by `captureTimeoutMs` (≤ 120s, schema-enforced).
+ * Aggregate wall-clock ceiling across the whole group loop — the same posture
+ * as smoke's total cap. Everything the loop does consumes it: boots (whose
+ * `readyTimeoutMs` the schema does not bound), route probes, and captures —
+ * the deadline is fixed once, so a slow early group shrinks what later groups
+ * may spend booting. Captures additionally carry their own per-surface
+ * `captureTimeoutMs` (≤ 120s, schema-enforced).
  */
-const TOTAL_BOOT_BUDGET_MS = 300_000;
+const TOTAL_ROUND_BUDGET_MS = 300_000;
 
 /**
  * Ratio formatting for findings and notes: six decimals so a boundary failure
@@ -350,10 +353,24 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           if (unreviewed.length > 0) {
             notes.push(`[${r.surface}] unreviewed FINAL: pages: ${unreviewed.join(', ')}`);
           }
-          // Trusted evidence: the file itself. Exists + decodes + positive dims,
-          // or the surface is `export-failed` regardless of the report.
+          // Trusted evidence: the file itself. Exists + bounded + decodes +
+          // positive dims, or the surface is `export-failed` regardless of the
+          // report. Size is checked via stat BEFORE the read — a runaway
+          // exporter must not get multi-gigabyte bytes into memory just to be
+          // rejected by the decoder's cap.
           let buf: Buffer;
           try {
+            const size = (await stat(r.outPath)).size;
+            if (size > MAX_RASTER_BYTES) {
+              outcomes.push(
+                cannot(
+                  r.surface,
+                  'export-failed',
+                  `export is ${size} bytes (cap ${MAX_RASTER_BYTES}) — refusing to read`,
+                ),
+              );
+              continue;
+            }
             buf = await readFile(r.outPath);
           } catch (err) {
             outcomes.push(
@@ -384,7 +401,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     for (const job of jobs) {
       groups.set(job.recipe.verifyCommand, [...(groups.get(job.recipe.verifyCommand) ?? []), job]);
     }
-    const bootDeadline = Date.now() + TOTAL_BOOT_BUDGET_MS;
+    const roundDeadline = Date.now() + TOTAL_ROUND_BUDGET_MS;
     for (const [cmdName, groupJobs] of groups) {
       const entry = verifyCommands.get(cmdName);
       // noldor:cut — unreachable under a schema-valid config (the superRefine
@@ -416,14 +433,14 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       // rows, never escape the round without per-surface outcomes (AC11).
       let boot: Awaited<ReturnType<typeof deps.boot>>;
       try {
-        const remaining = bootDeadline - Date.now();
+        const remaining = roundDeadline - Date.now();
         if (remaining <= 0) {
           for (const job of groupJobs) {
             outcomes.push(
               cannot(
                 job.surface,
                 'boot-failed',
-                `round boot budget (${TOTAL_BOOT_BUDGET_MS}ms) exhausted before this group booted`,
+                `round budget (${TOTAL_ROUND_BUDGET_MS}ms) exhausted before this group booted`,
               ),
             );
           }
@@ -542,6 +559,18 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           }
           let shotBuf: Buffer;
           try {
+            const size = (await stat(outAbs)).size;
+            if (size > MAX_RASTER_BYTES) {
+              noteStderr();
+              outcomes.push(
+                cannot(
+                  job.surface,
+                  'screenshot-failed',
+                  `capture output is ${size} bytes (cap ${MAX_RASTER_BYTES}) — refusing to read`,
+                ),
+              );
+              continue;
+            }
             shotBuf = await readFile(outAbs);
           } catch (err) {
             noteStderr();
@@ -711,7 +740,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       return writeTerminal(
         {
           verdict: 'cannot-review',
-          reason: 'dispatch-failed',
+          reason: 'persist-failed',
           detail: `artifact persist failed — evidence images unavailable: ${persistFailure}`,
         },
         [...notes, ...rowNotes],

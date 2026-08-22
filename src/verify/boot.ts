@@ -61,10 +61,13 @@ export async function bootServer(
   // Own process group so cleanup kills the whole boot tree (pnpm → node → …).
   const child = spawn('/bin/sh', ['-c', command], { cwd, detached: true, stdio: 'ignore' });
   // A spawn failure emits an async 'error' event; without a listener it would
-  // crash the process instead of reading as a failed boot. An EARLY EXIT (an
-  // invalid command exits 127 immediately, no error event) would otherwise
-  // keep the health poll running for the whole readyTimeoutMs — race both
-  // against the probe so the caller fails fast either way.
+  // crash the process instead of reading as a failed boot. An early NON-ZERO
+  // exit (an invalid command exits 127 immediately, no error event) would
+  // otherwise keep the health poll running for the whole readyTimeoutMs —
+  // race both against the probe so the caller fails fast either way. An exit
+  // code 0 is NOT a failure signal: a `kind: "server"` command may legitimately
+  // daemonize (fork and exit 0), and the poll must keep waiting for the 200
+  // exactly as runSmoke always did.
   let spawnError: Error | null = null;
   let earlyExit: number | null = null;
   const spawnFailed = new Promise<false>((resolveErr) => {
@@ -73,8 +76,10 @@ export async function bootServer(
       resolveErr(false);
     });
     child.once('exit', (code) => {
-      earlyExit = code ?? 1;
-      resolveErr(false);
+      if (code !== null && code !== 0) {
+        earlyExit = code;
+        resolveErr(false);
+      }
     });
   });
   const kill = (): void => {
