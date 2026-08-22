@@ -109,7 +109,16 @@ export type DiffOutcome =
  * screenshot outputs are external-boundary data, and pngjs decompresses
  * synchronously into memory. */
 export const MAX_RASTER_BYTES = 32 * 1024 * 1024;
-/** Per-side pixel ceiling; RGBA at 8192² is already a 256MB buffer. */
+/**
+ * Per-side pixel ceiling; RGBA at 8192² is a 256MB buffer.
+ *
+ * noldor:cut — a round holding several cap-sized rasters can still be heavy
+ * (design + shot + diff per surface), and that is accepted: surfaces are the
+ * consumer's own declared config reviewing their own outputs on their own
+ * machine, real UI rasters are ~1–2MB decoded, and the caps exist to stop a
+ * MALFORMED file from requesting absurd allocations — not to budget the
+ * legitimate working set.
+ */
 export const MAX_RASTER_SIDE = 8192;
 
 /** Decode helper: pngjs strict decode, bounded and positive dimensions required. */

@@ -50,8 +50,14 @@ const STDERR_TAIL_CAP = 2000;
  * as smoke's total cap. Everything the loop does consumes it: boots (whose
  * `readyTimeoutMs` the schema does not bound), route probes, and captures —
  * the deadline is fixed once, so a slow early group shrinks what later groups
- * may spend booting. Captures additionally carry their own per-surface
- * `captureTimeoutMs` (≤ 120s, schema-enforced).
+ * may spend booting.
+ *
+ * noldor:cut — enforcement is deliberately at BOOT ADMISSION only (once per
+ * group): every step inside a group is already individually bounded (route
+ * probe ≤ 15s, capture ≤ `captureTimeoutMs` ≤ 120s, both schema/constant
+ * enforced), and the surface count is the consumer's declared config, so the
+ * only unbounded quantity the budget must cap is boot time. Checking mid-group
+ * would abandon surfaces whose own caps were about to hold anyway.
  */
 const TOTAL_ROUND_BUDGET_MS = 300_000;
 
