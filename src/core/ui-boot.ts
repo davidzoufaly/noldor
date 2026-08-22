@@ -34,6 +34,11 @@ export function sanitizeSurfaceName(name: string): string {
  * Config-level guard for the sanitizer's non-injectivity: names that sanitize
  * to the same string, or to nothing, are a config error caught at validate
  * time — never a silent artifact overwrite. Returns one message per problem.
+ *
+ * noldor:cut — on today's domain this cannot fire: every `uiSurfaces`/`uiBoot`
+ * key already matches `SURFACE_NAME_RE`, whose language the sanitizer maps to
+ * itself. Kept deliberately as the spec-R6/AC3 pin so a future loosening of
+ * the surface-name rule cannot silently reintroduce artifact collisions.
  */
 export function sanitizationIssues(names: readonly string[]): string[] {
   const bySanitized = new Map<string, string[]>();

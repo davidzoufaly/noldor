@@ -128,7 +128,16 @@ export const UiBootRecipeSchema = z
         message:
           'route may only contain [A-Za-z0-9-._~/?=&%] — shell metacharacters are unrepresentable by design',
       }),
-    page: z.string().min(1).optional(),
+    // Backtick and newline are excluded because the selector is interpolated
+    // into the exporter prompt inside a backtick span; matching itself is
+    // exact string equality, so the restriction costs no expressiveness.
+    page: z
+      .string()
+      .min(1)
+      .refine((p) => !/[`\n\r]/.test(p), {
+        message: 'page selector may not contain backticks or newlines',
+      })
+      .optional(),
     screenshotCommand: z
       .string()
       .min(1)
@@ -359,18 +368,6 @@ export function loadVerifyCommands(cwd: string = process.cwd()): Record<string, 
   } catch {
     return {};
   }
-}
-
-/**
- * The consumer's render-compare boot recipes, keyed by surface (`{}` when the
- * block is absent). Deliberately NOT tolerant of an invalid config, unlike
- * {@link loadVerifyCommands}: the render-compare lane must report a broken
- * config as `config-unreadable`, not silently run with zero recipes — that
- * would turn every affected surface into `no-boot-recipe` and misattribute the
- * failure.
- */
-export function loadUiBoot(cwd: string = process.cwd()): Record<string, UiBootRecipe> {
-  return loadConsumerConfig(cwd).uiBoot ?? {};
 }
 
 /** Load the `consumer.dev` block, or null when absent. */

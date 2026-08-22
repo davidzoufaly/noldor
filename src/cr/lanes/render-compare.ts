@@ -9,12 +9,15 @@
 
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { StringDecoder } from 'node:string_decoder';
 import { copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { PNG } from 'pngjs';
+
 import { errMessage } from '../../core/err-message.js';
-import { loadUiBoot, loadVerifyCommands } from '../../core/consumer-config.js';
+import { loadConsumerConfig } from '../../core/consumer-config.js';
 import type { UiBootRecipe } from '../../core/consumer-config.js';
 import { sanitizeSurfaceName } from '../../core/ui-boot.js';
 import { bootServer } from '../../verify/boot.js';
@@ -26,7 +29,8 @@ import type { LaneInput, LaneResult } from '../lane-types.js';
 import {
   aggregateOutcomes,
   decodePng,
-  diffRasters,
+  diffDecoded,
+  selectFinalPage,
   severityForRatio,
   substituteScreenshotCommand,
 } from './render-compare-core.js';
@@ -66,9 +70,12 @@ function runCapture(command: string, cwd: string, timeoutMs: number): Promise<Ca
       detached: true,
       stdio: ['ignore', 'ignore', 'pipe'],
     });
+    // StringDecoder: a multibyte character split across chunk boundaries must
+    // not mojibake the diagnostic tail.
+    const decoder = new StringDecoder('utf8');
     let stderr = '';
     child.stderr?.on('data', (chunk: Buffer) => {
-      stderr = (stderr + chunk.toString()).slice(-STDERR_TAIL_CAP);
+      stderr = (stderr + decoder.write(chunk)).slice(-STDERR_TAIL_CAP);
     });
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -116,9 +123,10 @@ interface SurfaceJob {
   surface: string;
   sanitized: string;
   recipe: UiBootRecipe;
+  /** Raw bytes, persisted as the design artifact. */
   designBuf: Buffer;
-  width: number;
-  height: number;
+  /** Decoded once at export validation; feeds {width}/{height} and the diff. */
+  designPng: PNG;
   shotBuf?: Buffer;
   diffBuf?: Buffer;
 }
@@ -138,14 +146,15 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
   const writeTerminal = (
     { verdict, reason, detail }: Terminal,
     extraNotes: string[] = [],
-    file: string = input.artifact,
   ): Promise<LaneResult> => {
     const reds = mode === 'blocking' && verdict === 'cannot-review';
     return write(
       {
         verdict,
         reason,
-        blockers: reds ? [{ file, severity: 'high', message: `${reason}: ${detail}` }] : [],
+        blockers: reds
+          ? [{ file: input.artifact, severity: 'high', message: `${reason}: ${detail}` }]
+          : [],
         suggestions: [],
         summary: `${verdict}: ${reason}`,
         notes: [...extraNotes, detail],
@@ -163,9 +172,16 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       ? [`changed UI paths outside every declared surface: ${design.unmappedPaths.join(', ')}`]
       : [];
 
+  // One config parse for the whole round: `uiBoot` and `verifyCommands` come
+  // from the same validated object, so the superRefine cross-checks (recipe
+  // keys ⊆ uiSurfaces, verifyCommand → kind "server") hold for exactly the
+  // values used below.
   let uiBoot: Record<string, UiBootRecipe>;
+  let verifyCommands: ReturnType<typeof loadConsumerConfig>['verifyCommands'];
   try {
-    uiBoot = loadUiBoot(input.repoRoot);
+    const consumer = loadConsumerConfig(input.repoRoot);
+    uiBoot = consumer.uiBoot ?? {};
+    verifyCommands = consumer.verifyCommands;
   } catch (err) {
     return writeTerminal(
       { verdict: 'cannot-review', reason: 'config-unreadable', detail: errMessage(err) },
@@ -243,27 +259,50 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
             ? err.message
             : `exporter dispatch failed: ${errMessage(err)}`;
       }
+      const report = exportFailure === null ? parseRenderExportReport(raw ?? '') : null;
       if (exportFailure !== null) {
         for (const r of requests) outcomes.push(cannot(r.surface, 'export-failed', exportFailure));
-      } else {
-        const report = parseRenderExportReport(raw ?? '');
-        if (report === null) {
-          notes.push('exporter report unparseable — trusting output files only');
+      } else if (report === null) {
+        // Without a parseable report there is no trustworthy page enumeration,
+        // so a PNG on disk could be a raster of the WRONG page — fail closed
+        // rather than pass a comparison whose selection nobody verified.
+        for (const r of requests) {
+          outcomes.push(
+            cannot(
+              r.surface,
+              'export-failed',
+              'exporter report unparseable — no trustworthy FINAL: page enumeration',
+            ),
+          );
         }
-        const bySurface = new Map(report?.surfaces.map((s) => [s.surface, s]) ?? []);
+      } else {
+        const bySurface = new Map(report.surfaces.map((s) => [s.surface, s]));
         for (const r of requests) {
           const reported = bySurface.get(r.surface);
-          if (reported?.outcome === 'page-ambiguous') {
-            const candidates =
-              reported.candidates.length > 0 ? reported.candidates.join(', ') : 'none';
+          if (reported === undefined) {
             outcomes.push(
               cannot(
                 r.surface,
-                'page-ambiguous',
-                `surface '${r.surface}' FINAL: page selection unresolvable (candidates: ${candidates})`,
+                'export-failed',
+                `exporter report omits surface '${r.surface}' — no page enumeration to validate`,
               ),
             );
             continue;
+          }
+          // The child ENUMERATES, Node SELECTS: the selection rule runs here,
+          // over the reported candidates, so the child's own judgment (and the
+          // prompt's prose copy of the rule) never decides which page was
+          // compared. A file for an unresolvable selection is not evidence.
+          const selection = selectFinalPage(r.surface, reported.candidates, r.pageSelector);
+          if (!selection.ok) {
+            outcomes.push(cannot(r.surface, 'page-ambiguous', selection.detail));
+            continue;
+          }
+          const unreviewed = reported.candidates
+            .map((c) => c.trim())
+            .filter((c) => c !== selection.page);
+          if (unreviewed.length > 0) {
+            notes.push(`[${r.surface}] unreviewed FINAL: pages: ${unreviewed.join(', ')}`);
           }
           // Trusted evidence: the file itself. Exists + decodes + positive dims,
           // or the surface is `export-failed` regardless of the report.
@@ -288,15 +327,13 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
             sanitized: sanitizeSurfaceName(r.surface),
             recipe: uiBoot[r.surface],
             designBuf: buf,
-            width: decoded.png.width,
-            height: decoded.png.height,
+            designPng: decoded.png,
           });
         }
       }
     }
 
     // ---- R4: boot per verifyCommand group, probe + capture per surface ----
-    const verifyCommands = loadVerifyCommands(input.repoRoot);
     const groups = new Map<string, SurfaceJob[]>();
     for (const job of jobs) {
       groups.set(job.recipe.verifyCommand, [...(groups.get(job.recipe.verifyCommand) ?? []), job]);
@@ -324,7 +361,17 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
         }
         continue;
       }
-      const boot = await deps.boot(entry, port, input.repoRoot, deps.fetchImpl);
+      // An injected/edge boot rejection must land as this group's boot-failed
+      // rows, never escape the round without per-surface outcomes (AC11).
+      let boot: Awaited<ReturnType<typeof deps.boot>>;
+      try {
+        boot = await deps.boot(entry, port, input.repoRoot, deps.fetchImpl);
+      } catch (err) {
+        for (const job of groupJobs) {
+          outcomes.push(cannot(job.surface, 'boot-failed', `boot threw: ${errMessage(err)}`));
+        }
+        continue;
+      }
       if (!boot.ok) {
         for (const job of groupJobs) {
           outcomes.push(cannot(job.surface, 'boot-failed', boot.observed));
@@ -360,8 +407,8 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           const command = substituteScreenshotCommand(job.recipe.screenshotCommand, {
             url,
             out: outAbs,
-            width: String(job.width),
-            height: String(job.height),
+            width: String(job.designPng.width),
+            height: String(job.designPng.height),
           });
           if (command === null) {
             outcomes.push(
@@ -373,7 +420,15 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
             );
             continue;
           }
-          const cap = await deps.capture(command, input.repoRoot, job.recipe.captureTimeoutMs);
+          let cap: CaptureResult;
+          try {
+            cap = await deps.capture(command, input.repoRoot, job.recipe.captureTimeoutMs);
+          } catch (err) {
+            outcomes.push(
+              cannot(job.surface, 'screenshot-failed', `capture threw: ${errMessage(err)}`),
+            );
+            continue;
+          }
           if (cap.timedOut) {
             outcomes.push(
               cannot(
@@ -404,15 +459,11 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
             continue;
           }
           job.shotBuf = shotBuf;
-          // ---- R6: the diff engine ----
-          const diff = diffRasters(job.designBuf, shotBuf);
+          // ---- R6: the diff engine (design already decoded at export time) ----
+          const diff = diffDecoded(job.designPng, shotBuf);
           if (diff.kind === 'undecodable') {
             outcomes.push(
-              cannot(
-                job.surface,
-                diff.which === 'shot' ? 'screenshot-failed' : 'export-failed',
-                `${diff.which} raster undecodable: ${diff.detail}`,
-              ),
+              cannot(job.surface, 'screenshot-failed', `shot raster undecodable: ${diff.detail}`),
             );
             continue;
           }
@@ -452,7 +503,9 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     try {
       const artifactRoot = join(input.repoRoot, '.noldor', 'cr', 'render-compare');
       const finalDir = join(artifactRoot, input.slug);
-      const tmpDir = join(artifactRoot, `.tmp-${input.slug}-${process.pid}-${Date.now()}`);
+      const unique = `${input.slug}-${process.pid}-${Date.now()}`;
+      const tmpDir = join(artifactRoot, `.tmp-${unique}`);
+      const trashDir = join(artifactRoot, `.trash-${unique}`);
       await mkdir(tmpDir, { recursive: true });
       for (const job of jobs) {
         await writeFile(join(tmpDir, `${job.sanitized}.design.png`), job.designBuf);
@@ -463,8 +516,25 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           await writeFile(join(tmpDir, `${job.sanitized}.diff.png`), job.diffBuf);
         }
       }
-      await rm(finalDir, { recursive: true, force: true });
-      await rename(tmpDir, finalDir);
+      // Swap without a delete-then-rename window: the prior round moves ASIDE
+      // first, so a failure between the two renames still leaves one complete
+      // evidence set on disk (restored below on failure, deleted on success).
+      try {
+        await rename(finalDir, trashDir);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      }
+      try {
+        await rename(tmpDir, finalDir);
+      } catch (err) {
+        await rename(trashDir, finalDir).catch(() => {
+          /* no prior round to restore */
+        });
+        throw err;
+      }
+      await rm(trashDir, { recursive: true, force: true }).catch(() => {
+        /* stale trash is disk cost only; the fresh set is already in place */
+      });
     } catch (err) {
       // Losing evidence images costs diagnosis, not honesty — the sink rows
       // still carry the ratios; say what happened and keep going.
@@ -578,6 +648,18 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           },
           true,
         );
+  } catch (err) {
+    // Backstop for anything the per-stage handling above did not classify: a
+    // round must never terminate without its sink (AC11), and an unexpected
+    // throw is an infrastructure failure, not a review outcome.
+    return writeTerminal(
+      {
+        verdict: 'cannot-review',
+        reason: 'dispatch-failed',
+        detail: `unexpected pipeline failure: ${errMessage(err)}`,
+      },
+      notes,
+    );
   } finally {
     await rm(scratchDir, { recursive: true, force: true }).catch((err: unknown) => {
       console.error(`render-compare: scratch cleanup failed for ${scratchDir}: ${errMessage(err)}`);

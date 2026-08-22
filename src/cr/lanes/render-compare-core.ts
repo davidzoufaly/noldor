@@ -123,17 +123,28 @@ export function decodePng(buf: Buffer): { png: PNG; detail: '' } | { png: null; 
 export function diffRasters(designBuf: Buffer, shotBuf: Buffer): DiffOutcome {
   const design = decodePng(designBuf);
   if (design.png === null) return { kind: 'undecodable', which: 'design', detail: design.detail };
+  return diffDecoded(design.png, shotBuf);
+}
+
+/**
+ * The lane's entry point: the design raster was already decoded once during
+ * export validation, so only the screenshot decodes here.
+ */
+export function diffDecoded(
+  design: PNG,
+  shotBuf: Buffer,
+): Exclude<DiffOutcome, { which: 'design' }> {
   const shot = decodePng(shotBuf);
   if (shot.png === null) return { kind: 'undecodable', which: 'shot', detail: shot.detail };
-  if (design.png.width !== shot.png.width || design.png.height !== shot.png.height) {
+  if (design.width !== shot.png.width || design.height !== shot.png.height) {
     return {
       kind: 'dimension-mismatch',
-      detail: `design is ${design.png.width}x${design.png.height}, screenshot is ${shot.png.width}x${shot.png.height} — pin your screenshot tool's device scale factor to 1`,
+      detail: `design is ${design.width}x${design.height}, screenshot is ${shot.png.width}x${shot.png.height} — pin your screenshot tool's device scale factor to 1`,
     };
   }
-  const { width, height } = design.png;
+  const { width, height } = design;
   const diff = new PNG({ width, height });
-  const differing = pixelmatch(design.png.data, shot.png.data, diff.data, width, height, {
+  const differing = pixelmatch(design.data, shot.png.data, diff.data, width, height, {
     threshold: PIXELMATCH_THRESHOLD,
     includeAA: PIXELMATCH_INCLUDE_AA,
   });

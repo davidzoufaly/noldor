@@ -306,12 +306,73 @@ describe('runRenderCompare — per-surface cannot-review classes', () => {
     setRenderExportDispatcher(async (input: RenderExportInput) => {
       for (const r of input.requests) writeFileSync(r.outPath, 'not a png');
       return report({
-        surfaces: input.requests.map((r) => ({ surface: r.surface, outcome: 'exported' })),
+        surfaces: input.requests.map((r) => ({
+          surface: r.surface,
+          outcome: 'exported',
+          candidates: ['overview'],
+        })),
       });
     });
     const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
     await runRenderCompare(input);
     expect(sink(cwd)).toMatchObject({ verdict: 'cannot-review', reason: 'export-failed' });
+  });
+
+  it('an unparseable exporter report is export-failed — no trustworthy page enumeration', async () => {
+    seams(DESIGN_PNG);
+    setRenderExportDispatcher(async (input: RenderExportInput) => {
+      // Files exist and decode, but nothing trustworthy says which page they show.
+      for (const r of input.requests) writeFileSync(r.outPath, DESIGN_PNG);
+      return 'no fenced json here';
+    });
+    const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
+    await runRenderCompare(input);
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'export-failed' });
+    expect(String(s.notes)).toContain('no trustworthy FINAL: page enumeration');
+  });
+
+  it('Node re-derives the page selection from the reported candidates (child cannot mis-select)', async () => {
+    // Child claims `exported` but enumerates TWO candidates while the recipe
+    // declares no selector — Node's selectFinalPage overrules the claim.
+    seams(DESIGN_PNG);
+    setRenderExportDispatcher(async (input: RenderExportInput) => {
+      for (const r of input.requests) writeFileSync(r.outPath, DESIGN_PNG);
+      return report({
+        surfaces: input.requests.map((r) => ({
+          surface: r.surface,
+          outcome: 'exported',
+          candidates: ['overview', 'expanded'],
+        })),
+      });
+    });
+    const { cwd, input } = repo({ uiBoot: DEFAULT_BOOT });
+    await runRenderCompare(input);
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'page-ambiguous' });
+    expect(String(s.notes)).toContain('overview, expanded');
+  });
+
+  it('non-selected FINAL: pages ride notes as unreviewed, never silently dropped', async () => {
+    setRenderExportDispatcher(async (input: RenderExportInput) => {
+      for (const r of input.requests) writeFileSync(r.outPath, DESIGN_PNG);
+      return report({
+        surfaces: input.requests.map((r) => ({
+          surface: r.surface,
+          outcome: 'exported',
+          candidates: ['overview', 'expanded'],
+        })),
+      });
+    });
+    seams(DESIGN_PNG);
+    const { cwd, input } = repo({
+      uiBoot: { dashboard: { ...DEFAULT_BOOT.dashboard, page: 'overview' } },
+    });
+    const r = await runRenderCompare(input);
+    expect(r.ok).toBe(true);
+    const s = sink(cwd);
+    expect(s).toMatchObject({ verdict: 'pass' });
+    expect(String(s.notes)).toContain('[dashboard] unreviewed FINAL: pages: expanded');
   });
 
   it('boot failure fails its whole group as boot-failed', async () => {
@@ -525,7 +586,11 @@ describe('runRenderCompare — pen-modified precedence (AC6, AC9)', () => {
       appendFileSync(input.penPath, 'EXPORTER-TOUCH\n');
       for (const r of input.requests) writeFileSync(r.outPath, DESIGN_PNG);
       return report({
-        surfaces: input.requests.map((r) => ({ surface: r.surface, outcome: 'exported' })),
+        surfaces: input.requests.map((r) => ({
+          surface: r.surface,
+          outcome: 'exported',
+          candidates: ['overview'],
+        })),
       });
     });
     seams(DESIGN_PNG);

@@ -9,6 +9,9 @@ links:
     - src/cr/lanes/ui-review.ts
     - src/cr/lanes/ui-review-dispatch.ts
     - src/cr/lanes/ui-design-resolve.ts
+    - src/cr/lanes/render-compare.ts
+    - src/cr/lanes/render-compare-core.ts
+    - src/cr/lanes/render-export-dispatch.ts
     - src/cr/lanes/prompt-parts.ts
     - src/cr/lane-spawn.ts
     - src/cr/lane-mode.ts
@@ -19,6 +22,9 @@ links:
     - src/core/lanes.ts
     - src/core/agent-runner/types.ts
     - src/core/config.ts
+    - src/core/consumer-config.ts
+    - src/core/ui-boot.ts
+    - src/verify/boot.ts
   tests:
     - src/core/__tests__/err-message.test.ts
     - src/cr/__tests__/lanes/render-compare-core.test.ts
@@ -33,6 +39,7 @@ since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
 ---
+
 ## Summary
 
 Second slice of Q-0144 (pen.dev UI Design Phase, shipped in PR #342): a code-stage CR lane, `ui-reviewer`, that checks the implemented UI against the feature's committed `.pen` design. It mirrors the `reviewer` lane's dispatch shape — the lane resolves the `.pen` path and the affected surfaces, and the dispatched child opens the design itself through pencil MCP (Node cannot read an encrypted `.pen`), compares it against the diff, and returns a verdict the lane writes into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses, recomputed from the real diff; non-UI and waived sessions get an explicit `not-applicable` sink, and a session whose design cannot be read gets `cannot-review` rather than a green. Advisory by default, blocking behind one config knob. Mechanical render-compare (screenshot diff against a running app) is out of scope — tracked as Q-0146.
@@ -117,6 +124,9 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/lanes/ui-review.ts`](../../src/cr/lanes/ui-review.ts)
   - [`src/cr/lanes/ui-review-dispatch.ts`](../../src/cr/lanes/ui-review-dispatch.ts)
   - [`src/cr/lanes/ui-design-resolve.ts`](../../src/cr/lanes/ui-design-resolve.ts)
+  - [`src/cr/lanes/render-compare.ts`](../../src/cr/lanes/render-compare.ts)
+  - [`src/cr/lanes/render-compare-core.ts`](../../src/cr/lanes/render-compare-core.ts)
+  - [`src/cr/lanes/render-export-dispatch.ts`](../../src/cr/lanes/render-export-dispatch.ts)
   - [`src/cr/lanes/prompt-parts.ts`](../../src/cr/lanes/prompt-parts.ts)
   - [`src/cr/lane-spawn.ts`](../../src/cr/lane-spawn.ts)
   - [`src/cr/lane-mode.ts`](../../src/cr/lane-mode.ts)
@@ -127,8 +137,13 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/core/lanes.ts`](../../src/core/lanes.ts)
   - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
   - [`src/core/config.ts`](../../src/core/config.ts)
+  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
+  - [`src/core/ui-boot.ts`](../../src/core/ui-boot.ts)
+  - [`src/verify/boot.ts`](../../src/verify/boot.ts)
 - **Tests:**
   - [`src/core/__tests__/err-message.test.ts`](../../src/core/__tests__/err-message.test.ts)
+  - [`src/cr/__tests__/lanes/render-compare-core.test.ts`](../../src/cr/__tests__/lanes/render-compare-core.test.ts)
+  - [`src/cr/__tests__/lanes/render-compare.test.ts`](../../src/cr/__tests__/lanes/render-compare.test.ts)
   - [`src/cr/__tests__/lanes/ui-review-dispatch.test.ts`](../../src/cr/__tests__/lanes/ui-review-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/ui-review.test.ts`](../../src/cr/__tests__/lanes/ui-review.test.ts)
 
