@@ -9,6 +9,10 @@ links:
     - src/cr/lanes/ui-review.ts
     - src/cr/lanes/ui-review-dispatch.ts
     - src/cr/lanes/ui-design-resolve.ts
+    - src/cr/lanes/render-compare.ts
+    - src/cr/lanes/render-compare-core.ts
+    - src/cr/lanes/render-export-dispatch.ts
+    - src/cr/lanes/pen-scratch.ts
     - src/cr/lanes/prompt-parts.ts
     - src/cr/lane-spawn.ts
     - src/cr/lane-mode.ts
@@ -19,8 +23,13 @@ links:
     - src/core/lanes.ts
     - src/core/agent-runner/types.ts
     - src/core/config.ts
+    - src/core/consumer-config.ts
+    - src/core/ui-boot.ts
+    - src/verify/boot.ts
   tests:
     - src/core/__tests__/err-message.test.ts
+    - src/cr/__tests__/lanes/render-compare-core.test.ts
+    - src/cr/__tests__/lanes/render-compare.test.ts
     - src/cr/__tests__/lanes/ui-review-dispatch.test.ts
     - src/cr/__tests__/lanes/ui-review.test.ts
 name: UI-Design Review Lane
@@ -31,9 +40,10 @@ since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
 ---
+
 ## Summary
 
-Second slice of Q-0144 (pen.dev UI Design Phase, shipped in PR #342): a code-stage CR lane, `ui-reviewer`, that checks the implemented UI against the feature's committed `.pen` design. It mirrors the `reviewer` lane's dispatch shape — the lane resolves the `.pen` path and the affected surfaces, and the dispatched child opens the design itself through pencil MCP (Node cannot read an encrypted `.pen`), compares it against the diff, and returns a verdict the lane writes into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses, recomputed from the real diff; non-UI and waived sessions get an explicit `not-applicable` sink, and a session whose design cannot be read gets `cannot-review` rather than a green. Advisory by default, blocking behind one config knob. Mechanical render-compare (screenshot diff against a running app) is out of scope — tracked as Q-0146.
+Second slice of Q-0144 (pen.dev UI Design Phase, shipped in PR #342): a code-stage CR lane, `ui-reviewer`, that checks the implemented UI against the feature's committed `.pen` design. It mirrors the `reviewer` lane's dispatch shape — the lane resolves the `.pen` path and the affected surfaces, and the dispatched child opens the design itself through pencil MCP (Node cannot read an encrypted `.pen`), compares it against the diff, and returns a verdict the lane writes into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses, recomputed from the real diff; non-UI and waived sessions get an explicit `not-applicable` sink, and a session whose design cannot be read gets `cannot-review` rather than a green. Advisory by default, blocking behind one config knob. Mechanical render-compare (screenshot diff against a running app) ships as the sibling `render-compare` lane — the Q-0146 enhancement described under Usage.
 
 ## User Story
 
@@ -65,6 +75,32 @@ Under `advisory` a `fail` lands as `low` suggestions rather than blockers; under
 
 The lane is code-only — passing it at `--kind spec` or `--kind plan` is rejected at entry — and it is excluded from the empty-diff short-circuit, so it re-runs on every code round instead of inheriting a prior green.
 
+**Render-compare (mechanical sibling, Q-0146 enhancement).** The `render-compare` lane boots the app and pixel-diffs each affected surface's real route against the surface's selected `FINAL:` page — deterministic, no dispatched judgment (its one agent role, `render-compare`, only exports the design to PNG through pencil MCP). Declare a per-surface recipe and opt in:
+
+```json
+{
+  "consumer": {
+    "uiSurfaces": { "dashboard": ["src/dashboard/**"] },
+    "verifyCommands": {
+      "dashboard": { "command": "pnpm dev --port {port}", "kind": "server", "healthPath": "/" }
+    },
+    "uiBoot": {
+      "dashboard": {
+        "verifyCommand": "dashboard",
+        "route": "/",
+        "page": "overview",
+        "screenshotCommand": "pnpm exec playwright screenshot --viewport-size={width},{height} {url} {out}",
+        "maxDiffRatio": 0.25
+      }
+    }
+  },
+  "crLanes": { "code": ["reviewer", "render-compare"] },
+  "autonomous": { "renderCompareMode": "advisory" }
+}
+```
+
+Sink: `.noldor/cr/<slug>-code-render-compare.json`. Every affected surface gets its own outcome row (a recipe-less surface is `no-boot-recipe`, so partial coverage never reads `pass`); the top verdict is the worst by `fail` > `cannot-review` > `pass`, and `reason` is the headline class. A surface fails when `diffRatio > maxDiffRatio` (severity `high` past 2×). On a `fail`, open the persisted images under `.noldor/cr/render-compare/<slug>/` before arguing with the ratio. `renderCompareMode` mirrors `uiReviewMode` (advisory default, `pen-modified` reds in both modes); when the `verifier` lane shares the round, render-compare starts only after it resolves. The export path needs a running VS Code window with the Pencil extension, so headless CI degrades to `cannot-review` (`export-failed`) honestly.
+
 ## PRs
 
 <!-- @prs-since-last-release: ui-design-review-lane -->
@@ -89,6 +125,10 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/cr/lanes/ui-review.ts`](../../src/cr/lanes/ui-review.ts)
   - [`src/cr/lanes/ui-review-dispatch.ts`](../../src/cr/lanes/ui-review-dispatch.ts)
   - [`src/cr/lanes/ui-design-resolve.ts`](../../src/cr/lanes/ui-design-resolve.ts)
+  - [`src/cr/lanes/render-compare.ts`](../../src/cr/lanes/render-compare.ts)
+  - [`src/cr/lanes/render-compare-core.ts`](../../src/cr/lanes/render-compare-core.ts)
+  - [`src/cr/lanes/render-export-dispatch.ts`](../../src/cr/lanes/render-export-dispatch.ts)
+  - [`src/cr/lanes/pen-scratch.ts`](../../src/cr/lanes/pen-scratch.ts)
   - [`src/cr/lanes/prompt-parts.ts`](../../src/cr/lanes/prompt-parts.ts)
   - [`src/cr/lane-spawn.ts`](../../src/cr/lane-spawn.ts)
   - [`src/cr/lane-mode.ts`](../../src/cr/lane-mode.ts)
@@ -99,8 +139,13 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/core/lanes.ts`](../../src/core/lanes.ts)
   - [`src/core/agent-runner/types.ts`](../../src/core/agent-runner/types.ts)
   - [`src/core/config.ts`](../../src/core/config.ts)
+  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
+  - [`src/core/ui-boot.ts`](../../src/core/ui-boot.ts)
+  - [`src/verify/boot.ts`](../../src/verify/boot.ts)
 - **Tests:**
   - [`src/core/__tests__/err-message.test.ts`](../../src/core/__tests__/err-message.test.ts)
+  - [`src/cr/__tests__/lanes/render-compare-core.test.ts`](../../src/cr/__tests__/lanes/render-compare-core.test.ts)
+  - [`src/cr/__tests__/lanes/render-compare.test.ts`](../../src/cr/__tests__/lanes/render-compare.test.ts)
   - [`src/cr/__tests__/lanes/ui-review-dispatch.test.ts`](../../src/cr/__tests__/lanes/ui-review-dispatch.test.ts)
   - [`src/cr/__tests__/lanes/ui-review.test.ts`](../../src/cr/__tests__/lanes/ui-review.test.ts)
 

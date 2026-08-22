@@ -336,15 +336,112 @@ outside the knob.
 
 What it does NOT judge: pixel geometry, spacing, color, type, motion and
 interactivity are unpinned until the design stage defines a marking convention;
-mechanical render-compare (screenshot diff against a booted app) is a separate
-roadmap entry. Every finding must name both sides it compared — the design page
-and element, and the code file.
+mechanical render-compare (screenshot diff against a booted app) is the sibling
+`render-compare` lane below. Every finding must name both sides it compared —
+the design page and element, and the code file.
 
 Opt in via `crLanes.code: ["reviewer", "ui-reviewer"]`, and route the role to a
 pencil-capable runner when `reviewer` is mapped elsewhere:
 `agents.roles: { "ui-reviewer": { "runner": "claude" } }`. The lane is excluded
 from the delta short-circuit, so it re-runs on every code round rather than
 inheriting a synthetic OK from an unchanged `--artifact` path.
+
+## Render-compare lane
+
+The `render-compare` lane (code artifacts only) is the mechanical half the
+structural lane deliberately leaves out: it boots the consumer's app from a
+declared recipe, captures what each affected surface's real route renders, and
+**pixel-diffs** it against a raster of the surface's selected `FINAL:` design
+page. The verdict is computed by a diff algorithm — the one dispatched agent is
+the design EXPORTER (`role: render-compare`), which opens a scratch copy of the
+`.pen` through pencil MCP and exports pages to PNG; its words never decide a
+verdict, its output files do (each expected PNG must exist and decode, or the
+surface is `export-failed`).
+
+How it runs:
+
+- **Firing and design resolution** are identical to `ui-reviewer` (same
+  `resolveUiReviewTarget` — same predicate, waiver, ownership gate, and terminal
+  vocabulary), so both lanes agree about whether a round is UI-bearing.
+- **Recipes** live in `consumer.uiBoot`, keyed by surface name:
+  `verifyCommand` (references a `kind: "server"` entry in
+  `consumer.verifyCommands` — boot/health are not respecified), `route` (leading
+  `/`, narrow charset — shell metacharacters are unrepresentable), optional
+  `page` (selects among several `FINAL:<surface>: <name>` pages), a
+  `screenshotCommand` template carrying exactly the placeholders `{url}` `{out}`
+  `{width}` `{height}` (every value substitutes as a single-quoted shell token),
+  `maxDiffRatio` (default `0.25`, in `[0, 1]`), and `captureTimeoutMs` (default
+  `60000`, integer in `[1, 120000]`). `validate noldor-config` rejects a recipe
+  for an undeclared surface, a non-server `verifyCommand`, template placeholder
+  drift, and any surface-name set whose artifact-name sanitization collides.
+- **Boot** groups surfaces by `verifyCommand`; each group boots once on a fresh
+  port (pre-boot occupancy check, own process group, SIGKILL on every exit
+  path). When `verifier` shares the round, render-compare starts only after it
+  resolves — the two lanes boot the same servers. A failed boot marks only its
+  group's surfaces `boot-failed`; the round continues.
+- **Per surface**: a route probe (final status must be 2xx — a 404/500 route is
+  `route-unreachable`, never a confident pixel verdict against an error page),
+  then the capture command under its timeout, then the diff: `pixelmatch` +
+  `pngjs` with pinned constants (`threshold: 0.2`, `includeAA: false`),
+  `diffRatio > maxDiffRatio` fails (ratios exactly at the threshold pass),
+  severity `high` past `2×` the threshold, else `med`. A size-mismatched pair is
+  `dimension-mismatch` naming both sizes (pin your screenshot tool's device
+  scale factor to 1). Design raster, screenshot, and diff image persist under
+  `.noldor/cr/render-compare/<slug>/` (inside the gitignored `.noldor/cr/`),
+  rebuilt atomically per round.
+- **Verdicts** land in `.noldor/cr/<slug>-code-render-compare.json`. Every
+  affected surface gets its own outcome — a recipe-less affected surface is a
+  full `no-boot-recipe` outcome, so such a round can never aggregate to `pass` —
+  and the single verdict is the worst by `fail` > `cannot-review` > `pass`, the
+  headline `reason` from the highest-precedence failure (ties by surface name).
+  The repo `.pen`'s sha256 across the round is the sole `pen-modified` trigger,
+  and it overrides everything: `verdict: fail`, one high blocker, `ok: false`
+  in **both** modes.
+
+Policy: `autonomous.renderCompareMode: "blocking" | "advisory"` (default
+`advisory`) — deliberately separate from `uiReviewMode`, since confidence in
+structural review and in a booted-app pixel pipeline diverge. Advisory maps
+fail findings to `low` suggestions and greens `cannot-review`; blocking reds
+both.
+
+Known limits (accepted, not bugs): two rendering engines never match
+pixel-perfectly, so the default threshold is a coarse drift detector — literal
+copy and element inventory stay the structural lane's job; a blank render
+diffed against a mostly-blank design page passes here (the structural lane's
+inventory review is the guard); live data behind a route inflates ratios (the
+per-surface `maxDiffRatio` override is the interim remedy). The export path
+requires a running VS Code window with the Pencil extension and an open `.pen`
+(the exporter child recovers a down bridge with `code <scratch>.pen`), so in
+headless CI the lane degrades to `cannot-review` (`export-failed`) — honestly,
+and advisory by default.
+
+Opt in per consumer:
+
+```json
+{
+  "consumer": {
+    "uiSurfaces": { "dashboard": ["src/dashboard/**"] },
+    "verifyCommands": {
+      "dashboard": { "command": "pnpm dev --port {port}", "kind": "server", "healthPath": "/" }
+    },
+    "uiBoot": {
+      "dashboard": {
+        "verifyCommand": "dashboard",
+        "route": "/",
+        "page": "overview",
+        "screenshotCommand": "pnpm exec playwright screenshot --viewport-size={width},{height} {url} {out}",
+        "maxDiffRatio": 0.25
+      }
+    }
+  },
+  "crLanes": { "code": ["reviewer", "render-compare"] },
+  "autonomous": { "renderCompareMode": "advisory" }
+}
+```
+
+The lane is opt-in (never in the defaults), code-only, and excluded from the
+delta short-circuit for the same reason `ui-reviewer` is. On a `fail`, open the
+persisted diff image before arguing with the ratio.
 
 ## Deferred (post-MVP)
 

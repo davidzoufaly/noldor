@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { ROUTE_CHARSET_RE, sanitizationIssues, screenshotTemplateIssues } from './ui-boot.js';
 
 // Boundary rules mirror dependency-cruiser's forbidden-rule shape.
 // `from.path` / `to.path` are REGEX STRINGS consumed by dep-cruiser, not
@@ -108,6 +109,51 @@ const UiGlobSchema = z
 /** Baseline surface names become `docs/design/ui/baseline/<name>.pen` — keep them slug-shaped. */
 const SURFACE_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/**
+ * One render-compare boot recipe (spec R2), keyed by surface name in
+ * `consumer.uiBoot`. `verifyCommand` references a `consumer.verifyCommands`
+ * entry of `kind: "server"` (boot/health are not respecified); `route` is the
+ * path that renders the surface; `page` selects among several
+ * `FINAL:<surface>: <name>` design pages; `screenshotCommand` is the
+ * consumer-owned capture template — the lane substitutes every placeholder as
+ * a single-quoted shell token.
+ */
+export const UiBootRecipeSchema = z
+  .object({
+    verifyCommand: z.string().min(1),
+    route: z
+      .string()
+      .refine((r) => r.startsWith('/'), { message: 'route must start with /' })
+      .refine((r) => ROUTE_CHARSET_RE.test(r), {
+        message:
+          'route may only contain [A-Za-z0-9-._~/?=&%] — shell metacharacters are unrepresentable by design',
+      }),
+    // Backtick and newline are excluded because the selector is interpolated
+    // into the exporter prompt inside a backtick span; matching itself is
+    // exact string equality, so the restriction costs no expressiveness.
+    page: z
+      .string()
+      .min(1)
+      .refine((p) => !/[`\n\r]/.test(p), {
+        message: 'page selector may not contain backticks or newlines',
+      })
+      .optional(),
+    screenshotCommand: z
+      .string()
+      .min(1)
+      .superRefine((tpl, ctx) => {
+        for (const issue of screenshotTemplateIssues(tpl)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+        }
+      }),
+    maxDiffRatio: z.number().finite().min(0).max(1).default(0.25),
+    // Rejected at validate when out of contract, never clamped (spec R2).
+    captureTimeoutMs: z.number().int().min(1).max(120_000).default(60_000),
+  })
+  .strict();
+
+export type UiBootRecipe = z.infer<typeof UiBootRecipeSchema>;
+
 export const ConsumerConfigSchema = z
   .object({
     name: z.string().min(1),
@@ -164,6 +210,12 @@ export const ConsumerConfigSchema = z
       .record(z.string().regex(SURFACE_NAME_RE), z.array(UiGlobSchema).min(1))
       .optional(),
     /**
+     * Per-surface boot recipes for the render-compare CR lane (spec R2). Keys
+     * must be declared in `uiSurfaces`; cross-checks live in the schema-level
+     * superRefine below so `validate noldor-config` rejects a drifted block.
+     */
+    uiBoot: z.record(z.string().regex(SURFACE_NAME_RE), UiBootRecipeSchema).optional(),
+    /**
      * Framework version this consumer tree was last migrated to. Written by
      * `init` (fresh scaffold = current) and `noldor upgrade` (after a chain).
      * Absent on a tree scaffolded before the upgrade feature; `upgrade --from`
@@ -174,7 +226,43 @@ export const ConsumerConfigSchema = z
       .regex(/^\d+\.\d+\.\d+/)
       .optional(),
   })
-  .strict();
+  .strict()
+  // Cross-field checks for `uiBoot` (spec R2/AC3): a recipe key must be a
+  // declared surface, its `verifyCommand` must resolve to a `kind: "server"`
+  // entry, and the surface-name set must survive artifact-name sanitization
+  // without collisions. Schema-level so every loadConsumerConfig caller —
+  // `validate noldor-config` included — rejects a drifted block at parse time.
+  .superRefine((cfg, ctx) => {
+    const surfaceNames = [
+      ...new Set([...Object.keys(cfg.uiSurfaces ?? {}), ...Object.keys(cfg.uiBoot ?? {})]),
+    ];
+    for (const issue of sanitizationIssues(surfaceNames)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['uiSurfaces'], message: issue });
+    }
+    if (cfg.uiBoot === undefined) return;
+    for (const [surface, recipe] of Object.entries(cfg.uiBoot)) {
+      if (!Object.hasOwn(cfg.uiSurfaces ?? {}, surface)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['uiBoot', surface],
+          message: `uiBoot surface '${surface}' is not declared in uiSurfaces`,
+        });
+      }
+      const target = Object.hasOwn(cfg.verifyCommands, recipe.verifyCommand)
+        ? cfg.verifyCommands[recipe.verifyCommand]
+        : undefined;
+      if (target === undefined || target.kind !== 'server') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['uiBoot', surface, 'verifyCommand'],
+          message:
+            target === undefined
+              ? `uiBoot.${surface}.verifyCommand '${recipe.verifyCommand}' matches no consumer.verifyCommands entry`
+              : `uiBoot.${surface}.verifyCommand '${recipe.verifyCommand}' must reference a kind: "server" entry (found kind: "${target.kind}")`,
+        });
+      }
+    }
+  });
 
 export type ConsumerConfig = z.infer<typeof ConsumerConfigSchema>;
 export type BoundaryRule = z.infer<typeof BoundaryRuleSchema>;

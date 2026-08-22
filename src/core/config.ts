@@ -66,6 +66,11 @@ export const autonomousConfigSchema = z.object({
   // (`pen-modified`) reds in BOTH modes; the knob is about review outcomes, not
   // about trusting a design file that changed under the reviewer.
   uiReviewMode: z.enum(['blocking', 'advisory']).default('advisory'),
+  // Governs the render-compare lane's review outcomes only — a separate knob
+  // from uiReviewMode because an adopter's confidence in structural review and
+  // in a booted-app pixel pipeline diverge (spec D6). Same posture otherwise:
+  // advisory default, `pen-modified` reds in BOTH modes.
+  renderCompareMode: z.enum(['blocking', 'advisory']).default('advisory'),
   // Wall-clock cap per item is the existing --iteration-timeout flag (30 min default), not a
   // duplicate rail here. Token-budget rail deliberately omitted: no token accounting exists yet.
   watch: watchConfigSchema.optional(),

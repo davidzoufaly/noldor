@@ -7,6 +7,10 @@ export const AGENT_ROLES = [
   'polish',
   'verifier',
   'ui-reviewer',
+  // The render-compare lane's design exporter — opens the scratch `.pen`
+  // through pencil MCP and exports pages to PNG; no judgment, no findings.
+  // Exists so a consumer can pin it to a pencil-capable runner.
+  'render-compare',
   'researcher',
 ] as const;
 export type AgentRole = (typeof AGENT_ROLES)[number];

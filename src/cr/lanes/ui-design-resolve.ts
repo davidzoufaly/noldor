@@ -23,8 +23,10 @@ import { loadDocRoots } from '../../core/doc-roots.js';
 import { readSession } from '../../core/session.js';
 import { sessionUiVerdict, type UiFrontmatter } from '../../core/ui-predicate.js';
 import { dialogueKeyFromSession } from '../../design/archive-resolve.js';
-import type { LaneReasonCode } from '../findings-schema.js';
-import type { LaneInput } from '../lane-types.js';
+import type { Finding, LaneReasonCode } from '../findings-schema.js';
+import type { LaneMode } from '../lane-mode.js';
+import type { LaneSink } from '../lane-sink.js';
+import type { LaneInput, LaneResult } from '../lane-types.js';
 import { readFdSummary } from '../read-fd-summary.js';
 
 /** Sentinel summary for a session whose FD does not exist (fast-track ships none). */
@@ -76,6 +78,97 @@ const terminal = (
   reason: LaneReasonCode,
   detail: string,
 ): Resolution => ({ kind: 'terminal', at: { verdict, reason, detail } });
+
+/**
+ * The one writer for every outcome that performed no comparison, shared by both
+ * design lanes: a round that had nothing to review is green in both modes; one
+ * that had something and could not perform it reds only under `blocking`.
+ * `file` is the artifact unless the failure is about the design file itself.
+ */
+export function makeTerminalWriter(
+  write: LaneSink['write'],
+  mode: LaneMode,
+  artifact: string,
+): (at: Terminal, extraNotes?: string[], file?: string) => Promise<LaneResult> {
+  return ({ verdict, reason, detail }, extraNotes = [], file = artifact) => {
+    const reds = mode === 'blocking' && verdict === 'cannot-review';
+    return write(
+      {
+        verdict,
+        reason,
+        blockers: reds ? [{ file, severity: 'high', message: `${reason}: ${detail}` }] : [],
+        suggestions: [],
+        summary: `${verdict}: ${reason}`,
+        notes: [...extraNotes, detail],
+      },
+      !reds,
+    );
+  };
+}
+
+/** The config-gap note both lanes surface for changed UI paths no surface owns. */
+export function unmappedPathNotes(design: ResolvedDesign): string[] {
+  return design.unmappedPaths.length > 0
+    ? [`changed UI paths outside every declared surface: ${design.unmappedPaths.join(', ')}`]
+    : [];
+}
+
+/**
+ * The mode matrix's `fail` row, shared by both design lanes: blocking keeps
+ * the findings as blockers and reds; advisory downgrades them to `low`
+ * suggestions and stays green, with the summary saying so.
+ */
+export function writeFailByMode(
+  write: LaneSink['write'],
+  mode: LaneMode,
+  findings: Finding[],
+  summary: string,
+  notes: string[],
+): Promise<LaneResult> {
+  const noteField = notes.length > 0 ? { notes } : {};
+  return mode === 'blocking'
+    ? write({ verdict: 'fail', blockers: findings, suggestions: [], summary, ...noteField }, false)
+    : write(
+        {
+          verdict: 'fail',
+          blockers: [],
+          suggestions: findings.map((f) => ({ ...f, severity: 'low' as const })),
+          summary: `ADVISORY: ${summary} (advisory mode)`,
+          ...noteField,
+        },
+        true,
+      );
+}
+
+/**
+ * The one `fail` that carries a `reason`, in the exact shape both lanes pin:
+ * a design that changed during its own review invalidates the round in BOTH
+ * modes — the mode knob governs review outcomes, not artifact integrity.
+ */
+export function writePenModified(
+  write: LaneSink['write'],
+  designRepoRelPath: string,
+  detail: string,
+  notes: string[],
+): Promise<LaneResult> {
+  return write(
+    {
+      verdict: 'fail',
+      reason: 'pen-modified',
+      blockers: [
+        {
+          file: designRepoRelPath,
+          severity: 'high',
+          message: `pen-modified: the design changed during review — the verdict cannot be trusted${detail ? ` (${detail})` : ''}`,
+        },
+      ],
+      suggestions: [],
+      summary: 'fail: pen-modified',
+      ...(notes.length > 0 ? { notes } : {}),
+    },
+    false,
+  );
+}
 
 /**
  * FD frontmatter slice the predicate needs, plus its `## Summary`.

@@ -79,6 +79,19 @@ export const laneReasonCodeSchema = z.enum([
   'range-unresolvable',
   'fd-unreadable',
   'design-dir-unreadable',
+  // cannot-review classes owned by the render-compare lane (spec R7). Each is a
+  // distinct pipeline stage so an operator can tell "configure a recipe" from
+  // "your app did not boot" from "the capture tool broke".
+  'no-boot-recipe',
+  'page-ambiguous',
+  'boot-failed',
+  'route-unreachable',
+  'screenshot-failed',
+  'export-failed',
+  'dimension-mismatch',
+  // The round computed its verdicts but could not persist the evidence images
+  // that make them auditable — its own class, not a dispatch problem.
+  'persist-failed',
   // integrity
   'pen-modified',
 ]);

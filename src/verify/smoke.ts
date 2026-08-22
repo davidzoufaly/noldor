@@ -1,8 +1,8 @@
 // @tests: acceptance-verify-lane
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { loadVerifyCommands } from '../core/consumer-config.js';
 import type { VerifySurface } from '../core/consumer-config.js';
-import { waitForHttp200 } from './health.js';
+import { bootServer } from './boot.js';
 
 export interface SmokeSurfaceResult {
   name: string;
@@ -30,10 +30,6 @@ const OBSERVED_CAP = 2000;
 // start, and an in-flight surface's own timeout is clamped to the remaining
 // budget (overshoot bounded by one probe fetch, not one surface).
 const DEFAULT_TOTAL_TIMEOUT_MS = 300_000;
-// Bounds every probe fetch — a half-open stale server (accepts the
-// connection, never responds) must not hang the lane past its caps.
-const PROBE_FETCH_TIMEOUT_MS = 2000;
-
 const SHELL_TIMEOUT_MS = 120_000;
 
 function runShell(
@@ -61,54 +57,14 @@ async function probeServer(
   fetchImpl: typeof fetch,
   budgetMs: number = Number.MAX_SAFE_INTEGER,
 ): Promise<SmokeSurfaceResult> {
-  // The aggregate cap is a hard ceiling: an in-flight surface gets only the
-  // remaining budget, not its full readyTimeoutMs.
-  const readyMs = Math.max(1, Math.min(surface.readyTimeoutMs, budgetMs));
-  const command = surface.command.replaceAll('{port}', String(port));
-  const url = `http://127.0.0.1:${port}${surface.healthPath}`;
-  // Pre-boot occupancy check: a fixed .env.local PORT may already carry a
-  // stale or concurrent server. Booting anyway would EADDRINUSE-kill our
-  // child while the probe false-greens against the pre-existing process (and
-  // cleanup would never touch it). Fail the surface honestly instead.
-  const occupied = await fetchImpl(url, {
-    signal: AbortSignal.timeout(PROBE_FETCH_TIMEOUT_MS),
-  }).then(
-    () => true,
-    () => false,
-  );
-  if (occupied) {
-    return {
-      name,
-      ok: false,
-      evidence: {
-        command,
-        observed: `port ${port} already in use before boot — stale process or concurrent dev server; free it or fix the per-tree PORT`,
-      },
-    };
+  // Boot machinery shared with the render-compare lane (verify/boot.ts). Smoke
+  // only probes, so a successful boot is killed immediately.
+  const boot = await bootServer(surface, port, cwd, fetchImpl, budgetMs);
+  if (!boot.ok) {
+    return { name, ok: false, evidence: { command: boot.command, observed: boot.observed } };
   }
-  // Own process group so cleanup kills the whole boot tree (pnpm → node → …).
-  const child = spawn('/bin/sh', ['-c', command], { cwd, detached: true, stdio: 'ignore' });
-  const deadline = Date.now() + readyMs;
-  try {
-    const ok = await waitForHttp200(url, deadline, fetchImpl);
-    if (ok) return { name, ok: true, evidence: { command, observed: `GET ${url} → 200` } };
-    return {
-      name,
-      ok: false,
-      evidence: {
-        command,
-        observed: `GET ${url} → no HTTP 200 within ${readyMs}ms`,
-      },
-    };
-  } finally {
-    if (child.pid !== undefined) {
-      try {
-        process.kill(-child.pid, 'SIGKILL');
-      } catch {
-        /* already exited */
-      }
-    }
-  }
+  boot.kill();
+  return { name, ok: true, evidence: { command: boot.command, observed: `GET ${boot.url} → 200` } };
 }
 
 /**

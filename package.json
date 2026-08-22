@@ -53,6 +53,8 @@
     "marked": "^18.0.3",
     "marked-highlight": "^2.2.1",
     "minimatch": "^10.2.5",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "semver": "^7.7.4",
     "yaml": "^2.8.3",
     "zod": "^3.24.0",
@@ -61,6 +63,7 @@
   "devDependencies": {
     "@swc/core": "^1.16.1",
     "@types/node": "^22.0.0",
+    "@types/pngjs": "^6.0.5",
     "@types/semver": "^7.7.1",
     "lefthook": "^2.1.9",
     "oxfmt": "^0.52.0",

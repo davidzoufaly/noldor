@@ -19,6 +19,10 @@ const CANONICAL_LANES = [
   'standalone',
   'verifier',
   'ui-reviewer',
+  // Code-only mechanical sibling of `ui-reviewer`: boots the consumer's app and
+  // pixel-diffs real routes against the session's `.pen` (no dispatched judgment
+  // in the verdict; its one agent role is the MCP-mediated design exporter).
+  'render-compare',
 ] as const;
 
 /** The canonical lane names as a plain array (the preprocess-wrapped `laneSchema`

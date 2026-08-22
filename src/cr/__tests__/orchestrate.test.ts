@@ -14,7 +14,11 @@ vi.mock('../lanes/codex.js', () => ({
 vi.mock('../lanes/subagent.js', () => ({
   runSubagent: vi.fn(async () => ({ lane: 'reviewer', sinkPath: 's', ok: true })),
 }));
+vi.mock('../lanes/render-compare.js', () => ({
+  runRenderCompare: vi.fn(async () => ({ lane: 'render-compare', sinkPath: 'rc', ok: true })),
+}));
 import { resolveLanes, run } from '../orchestrate.js';
+import { runRenderCompare } from '../lanes/render-compare.js';
 import { setSmokeRunner } from '../lanes/verify.js';
 import { setVerifyDispatcher } from '../lanes/verify-dispatch.js';
 
@@ -644,5 +648,113 @@ describe('--profile arg', () => {
   it('leaves profile undefined when absent', () => {
     const a = parseArgs(['node', 'x', '--slug', 's', '--artifact', 'a', '--kind', 'code']);
     expect(a.profile).toBeUndefined();
+  });
+});
+
+describe('render-compare lane wiring', () => {
+  it('rejects render-compare for non-code kinds at entry', async () => {
+    for (const kind of ['spec', 'plan'] as const) {
+      await expect(
+        run({
+          args: {
+            slug: 's',
+            artifact: 'spec.md',
+            kind,
+            lanes: ['render-compare'],
+            fullReview: false,
+            autonomous: true,
+          },
+          cwd: mkdtempSync(join(tmpdir(), 'noldor-orch-rc-')),
+        }),
+      ).rejects.toThrow(/code-only/);
+    }
+  });
+
+  it('never mints a synthetic OK for render-compare on an empty artifact diff', async () => {
+    // Same rationale as ui-reviewer: the review object is the booted app + a
+    // design raster, not the --artifact label (AC2).
+    const cwd = mkdtempSync(join(tmpdir(), 'noldor-orch-rc-delta-'));
+    mkdirSync(join(cwd, '.noldor', 'cr'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.noldor', 'cr', 's-code-render-compare.json'),
+      JSON.stringify({
+        lane: 'render-compare',
+        artifact: 'a.ts',
+        kind: 'code',
+        slug: 's',
+        blockers: [],
+        suggestions: [],
+        summary: 'cannot-review: boot-failed',
+        verdict: 'cannot-review',
+        reason: 'boot-failed',
+        startedAt: new Date().toISOString(),
+      }),
+    );
+    const result = await run({
+      args: {
+        slug: 's',
+        artifact: 'a.ts',
+        kind: 'code',
+        lanes: ['render-compare'],
+        baseSha: 'base',
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd,
+      isEmptyDiff: async () => true,
+    });
+    expect(result.syntheticOks).not.toContain('render-compare');
+    expect(vi.mocked(runRenderCompare)).toHaveBeenCalled();
+  });
+
+  it('starts only after the verifier lane resolves when both share the round (AC5)', async () => {
+    const events: string[] = [];
+    setSmokeRunner(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+      events.push('verifier-smoke-done');
+      return {
+        ok: false,
+        surfaces: [{ name: 'doctor', ok: false, evidence: { command: 'x', observed: 'boom' } }],
+        notes: [],
+      };
+    });
+    vi.mocked(runRenderCompare).mockImplementationOnce(async () => {
+      events.push('render-compare-start');
+      return { lane: 'render-compare', sinkPath: 'rc', ok: true };
+    });
+    const cwd = mkdtempSync(join(tmpdir(), 'noldor-orch-rc-predep-'));
+    mkdirSync(join(cwd, '.noldor'), { recursive: true });
+    // render-compare listed FIRST — the pre-dep must hold regardless of order.
+    await run({
+      args: {
+        slug: 's',
+        artifact: 'a.ts',
+        kind: 'code',
+        lanes: ['render-compare', 'verifier'],
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd,
+    });
+    expect(events).toEqual(['verifier-smoke-done', 'render-compare-start']);
+  });
+
+  it('starts immediately when verifier is absent from the round', async () => {
+    vi.mocked(runRenderCompare).mockClear();
+    const cwd = mkdtempSync(join(tmpdir(), 'noldor-orch-rc-solo-'));
+    mkdirSync(join(cwd, '.noldor'), { recursive: true });
+    const result = await run({
+      args: {
+        slug: 's',
+        artifact: 'a.ts',
+        kind: 'code',
+        lanes: ['render-compare'],
+        fullReview: false,
+        autonomous: true,
+      },
+      cwd,
+    });
+    expect(vi.mocked(runRenderCompare)).toHaveBeenCalledTimes(1);
+    expect(result.lanesRun).toContain('render-compare');
   });
 });
