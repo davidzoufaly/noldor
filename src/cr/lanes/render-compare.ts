@@ -599,6 +599,11 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     // failed, every surface no-boot-recipe/export-failed): swapping in an
     // empty directory would destroy the prior round's evidence to record
     // nothing. The prior set stays put; this round's sink references no image.
+    // noldor:cut — deliberate arbitration between two review rounds that asked
+    // for opposite behaviors here (round 8: never delete prior evidence on a
+    // no-raster round; round 9: rebuild unconditionally). Evidence-preserving
+    // wins: images are only ever interpreted through the sink that references
+    // them, and a zero-raster round's sink references none.
     const artifactRoot = join(input.repoRoot, '.noldor', 'cr', 'render-compare');
     const finalDir = join(artifactRoot, input.slug);
     const unique = `${input.slug}-${process.pid}-${Date.now()}`;

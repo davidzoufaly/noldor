@@ -105,12 +105,31 @@ export type DiffOutcome =
   | { kind: 'undecodable'; which: 'design'; detail: string }
   | { kind: 'undecodable'; which: 'shot'; detail: string };
 
-/** Decode helper: pngjs strict decode, positive dimensions required. */
+/** Byte ceiling for a raster file before decode is attempted — exporter and
+ * screenshot outputs are external-boundary data, and pngjs decompresses
+ * synchronously into memory. */
+export const MAX_RASTER_BYTES = 32 * 1024 * 1024;
+/** Per-side pixel ceiling; RGBA at 8192² is already a 256MB buffer. */
+export const MAX_RASTER_SIDE = 8192;
+
+/** Decode helper: pngjs strict decode, bounded and positive dimensions required. */
 export function decodePng(buf: Buffer): { png: PNG; detail: '' } | { png: null; detail: string } {
+  if (buf.byteLength > MAX_RASTER_BYTES) {
+    return {
+      png: null,
+      detail: `raster file is ${buf.byteLength} bytes (cap ${MAX_RASTER_BYTES}) — refusing to decode`,
+    };
+  }
   try {
     const png = PNG.sync.read(buf);
     if (png.width <= 0 || png.height <= 0) {
       return { png: null, detail: `decoded to non-positive dimensions ${png.width}x${png.height}` };
+    }
+    if (png.width > MAX_RASTER_SIDE || png.height > MAX_RASTER_SIDE) {
+      return {
+        png: null,
+        detail: `raster is ${png.width}x${png.height} (per-side cap ${MAX_RASTER_SIDE})`,
+      };
     }
     return { png, detail: '' };
   } catch (err) {
