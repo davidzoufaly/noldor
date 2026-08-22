@@ -44,6 +44,13 @@ const LANE = 'render-compare' as const;
 const ROUTE_PROBE_TIMEOUT_MS = 2000;
 const STDERR_TAIL_CAP = 2000;
 
+/**
+ * Ratio formatting for findings and notes: six decimals so a boundary failure
+ * like 0.250001 > 0.25 stays visibly consistent with the strict comparison —
+ * four would render it as an apparent tie.
+ */
+const fmtRatio = (r: number): string => r.toFixed(6);
+
 /** What a `screenshotCommand` run produced: exit code, cap status, stderr tail. */
 export interface CaptureResult {
   code: number;
@@ -456,7 +463,16 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
             );
             continue;
           }
+          // The stderr tail rides `notes` for EVERY failed-capture class (spec
+          // R4) — a timeout or an undecodable output needs the diagnosis at
+          // least as much as a non-zero exit does.
+          const noteStderr = (): void => {
+            if (cap.stderrTail !== '') {
+              notes.push(`[${job.surface}] capture stderr: ${cap.stderrTail}`);
+            }
+          };
           if (cap.timedOut) {
+            noteStderr();
             outcomes.push(
               cannot(
                 job.surface,
@@ -467,8 +483,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
             continue;
           }
           if (cap.code !== 0) {
-            if (cap.stderrTail !== '')
-              notes.push(`[${job.surface}] capture stderr: ${cap.stderrTail}`);
+            noteStderr();
             outcomes.push(cannot(job.surface, 'screenshot-failed', `capture exited ${cap.code}`));
             continue;
           }
@@ -476,6 +491,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           try {
             shotBuf = await readFile(outAbs);
           } catch (err) {
+            noteStderr();
             outcomes.push(
               cannot(
                 job.surface,
@@ -489,6 +505,7 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
           // ---- R6: the diff engine (design already decoded at export time) ----
           const diff = diffDecoded(job.designPng, shotBuf);
           if (diff.kind === 'undecodable') {
+            noteStderr();
             outcomes.push(
               cannot(job.surface, 'screenshot-failed', `shot raster undecodable: ${diff.detail}`),
             );
@@ -533,11 +550,11 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
     // ---- R6: persist artifacts, atomically per round ----
     const artifactRoot = join(input.repoRoot, '.noldor', 'cr', 'render-compare');
     const finalDir = join(artifactRoot, input.slug);
+    const unique = `${input.slug}-${process.pid}-${Date.now()}`;
+    const tmpDir = join(artifactRoot, `.tmp-${unique}`);
+    const trashDir = join(artifactRoot, `.trash-${unique}`);
     let persistFailure: string | null = null;
     try {
-      const unique = `${input.slug}-${process.pid}-${Date.now()}`;
-      const tmpDir = join(artifactRoot, `.tmp-${unique}`);
-      const trashDir = join(artifactRoot, `.trash-${unique}`);
       await mkdir(tmpDir, { recursive: true });
       for (const job of jobs) {
         await writeFile(join(tmpDir, `${job.sanitized}.design.png`), job.designBuf);
@@ -568,15 +585,17 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
         /* stale trash is disk cost only; the fresh set is already in place */
       });
     } catch (err) {
-      // Losing evidence images costs diagnosis, not honesty — but findings
-      // must not reference images from another round: whatever set the rollback
-      // left (a PRIOR round's, or none) is removed, and the fail rows below
-      // anchor to the artifact instead of image paths.
+      // The round downgrades to cannot-review below; nothing on disk may
+      // mislead, and nothing may accumulate: the final set, the staged temp,
+      // and any stranded trash from a failed restore are all removed
+      // (unique-per-round names would otherwise pile up across failed rounds).
       persistFailure = errMessage(err);
       notes.push(`artifact persist failed: ${persistFailure}`);
-      await rm(finalDir, { recursive: true, force: true }).catch(() => {
-        /* nothing on disk to mislead with */
-      });
+      for (const leftover of [finalDir, tmpDir, trashDir]) {
+        await rm(leftover, { recursive: true, force: true }).catch(() => {
+          /* best-effort */
+        });
+      }
     }
 
     // ---- rows (per-surface record, deterministic order) ----
@@ -590,13 +609,13 @@ export async function runRenderCompare(input: LaneInput): Promise<LaneResult> {
       .map((o) => ({
         file: o.diffPath,
         severity: o.severity,
-        message: `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} > ${o.threshold} — design=${o.designPath} shot=${o.shotPath}`,
+        message: `[${o.surface}] diffRatio ${fmtRatio(o.diffRatio)} > ${o.threshold} — design=${o.designPath} shot=${o.shotPath}`,
       }));
     const rowNotes: string[] = sorted.map((o) =>
       o.kind === 'pass'
-        ? `[${o.surface}] diffRatio ${o.diffRatio.toFixed(4)} ≤ ${o.threshold}`
+        ? `[${o.surface}] diffRatio ${fmtRatio(o.diffRatio)} ≤ ${o.threshold}`
         : o.kind === 'fail'
-          ? `[${o.surface}] fail: diffRatio ${o.diffRatio.toFixed(4)} > ${o.threshold}`
+          ? `[${o.surface}] fail: diffRatio ${fmtRatio(o.diffRatio)} > ${o.threshold}`
           : `[${o.surface}] ${o.reason}: ${o.detail}`,
     );
 

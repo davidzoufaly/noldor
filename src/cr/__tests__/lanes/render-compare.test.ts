@@ -451,7 +451,7 @@ describe('runRenderCompare — the diff verdict', () => {
     const s = sink(cwd);
     expect(s).toMatchObject({ verdict: 'pass' });
     expect(s.reason).toBeUndefined();
-    expect(String(s.notes)).toContain('[dashboard] diffRatio 0.0000 ≤ 0.25');
+    expect(String(s.notes)).toContain('[dashboard] diffRatio 0.000000 ≤ 0.25');
     // {width}/{height} substituted from the decoded design raster.
     expect(log.captures[0]).toContain("'16' '16'");
     const dir = join(cwd, '.noldor', 'cr', 'render-compare', SLUG);
@@ -486,7 +486,7 @@ describe('runRenderCompare — the diff verdict', () => {
     expect(blockers).toHaveLength(1);
     expect(blockers[0].severity).toBe('high'); // 0.625 > 2 × 0.25
     expect(blockers[0].file).toBe(`.noldor/cr/render-compare/${SLUG}/dashboard.diff.png`);
-    expect(String(blockers[0].message)).toContain('[dashboard] diffRatio 0.6250 > 0.25');
+    expect(String(blockers[0].message)).toContain('[dashboard] diffRatio 0.625000 > 0.25');
     expect(String(blockers[0].message)).toContain('design=');
     expect(String(blockers[0].message)).toContain('shot=');
   });
@@ -550,7 +550,7 @@ describe('runRenderCompare — multi-surface aggregation (AC10)', () => {
     // dashboard passed, settings could not boot → worst is cannot-review.
     expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'boot-failed' });
     const notes = String(s.notes);
-    expect(notes).toContain('[dashboard] diffRatio 0.0000');
+    expect(notes).toContain('[dashboard] diffRatio 0.000000');
     expect(notes).toContain('[settings] boot-failed');
   });
 });
@@ -649,6 +649,6 @@ describe('runRenderCompare — evidence persistence is part of the contract', ()
     const s = sink(cwd);
     expect(s).toMatchObject({ verdict: 'cannot-review', reason: 'dispatch-failed' });
     expect(String(s.notes)).toContain('artifact persist failed');
-    expect(String(s.notes)).toContain('[dashboard] diffRatio 0.0000');
+    expect(String(s.notes)).toContain('[dashboard] diffRatio 0.000000');
   });
 });

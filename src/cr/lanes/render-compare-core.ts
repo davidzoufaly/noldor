@@ -96,11 +96,14 @@ export function severityForRatio(diffRatio: number, maxDiffRatio: number): Sever
   return diffRatio > 2 * maxDiffRatio ? 'high' : 'med';
 }
 
-/** What comparing one raster pair produced: a ratio, or why no ratio exists. */
+/** What comparing one raster pair produced: a ratio, or why no ratio exists.
+ * The two undecodable sides are separate union members so `Exclude` on
+ * `which` genuinely narrows (a `'design' | 'shot'` field would survive it). */
 export type DiffOutcome =
   | { kind: 'diff'; diffRatio: number; width: number; height: number; diffPng: Buffer }
   | { kind: 'dimension-mismatch'; detail: string }
-  | { kind: 'undecodable'; which: 'design' | 'shot'; detail: string };
+  | { kind: 'undecodable'; which: 'design'; detail: string }
+  | { kind: 'undecodable'; which: 'shot'; detail: string };
 
 /** Decode helper: pngjs strict decode, positive dimensions required. */
 export function decodePng(buf: Buffer): { png: PNG; detail: '' } | { png: null; detail: string } {
