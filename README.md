@@ -19,7 +19,7 @@ pnpm add -D @david.zoufaly/noldor
 - 🤖 **Autonomous drain.** Queue fast-track work and let a headless daemon ship it — fresh gate run per entry, salvage on conflict, escalation inbox for anything it can't finish alone.
 - 🔍 **Unsupervised code review.** Spec / plan / code lanes with configurable review profiles (effort × dimensions), a verify lane, and a red-CI merge guard.
 - 📊 **Live dashboard.** Roadmap, feature phases, WIP age & hot zones, worktree health, agent-run timelines, delivery/quality/autonomy metrics, and a blocked-by dependency graph.
-- 🩺 **Doctor + upgrade.** `doctor` probes the prerequisite floor and template skew; `upgrade` walks a versioned migration chain.
+- 🩺 **Doctor + upgrade.** `doctor` probes the prerequisite floor, template skew, hook wiring and which runtime is executing; `upgrade` walks a versioned migration chain.
 - 🌳 **Per-feature worktrees.** Isolated worktrees per task so parallel work never collides.
 - 🧹 **Doc gardening.** Detectors surface stale plans, unused backlog, rule-pair contradictions, code clones, and command rot.
 - 🔗 **Knowledge graphs.** `graphify` turns the codebase into a clustered knowledge graph feeding refactor and release sweeps.
@@ -62,12 +62,12 @@ pnpm noldor dashboard server --port 4321 --root .
 pnpm add -D @david.zoufaly/noldor            # monorepo: add -w  ·  CI: npm ci resolves from public npm, no token
 pnpm noldor init              # scaffold docs/noldor, hooks, .noldor/config.json, rollout marker
 pnpm noldor init --adopt      # OR reverse-bootstrap an existing repo into the layout
-pnpm noldor doctor            # prerequisite + template-skew health check → green
+pnpm noldor doctor            # prerequisites, template skew, hooks, runtime → green
 ```
 
 `init` drops the rule pages, lefthook config, skill bundle, a starter `.noldor/config.json`, and `.noldor/rollout-marker` (arms the gate — **commit it**). Once tracked, the pre-edit guard arms and the next edit to a tracked file requires a `/noldor-gate` session. Re-pull templates with `--update`; pick driver shims with `--agents claude,codex,opencode`.
 
-**Prerequisites (non-negotiable pre-1.0):** Node ≥ 20, pnpm ≥ 9, git ≥ 2.30, gh CLI ≥ 2, lefthook ≥ 1, plus `lint` / `fmt` / `fmt:check` / `test` scripts. `pnpm noldor doctor` probes every row. Full table: the [adoption guide](docs/noldor/adoption-guide.md).
+**Prerequisites (non-negotiable):** Node ≥ 20, pnpm ≥ 9, git ≥ 2.30, gh CLI ≥ 2, lefthook ≥ 1, plus `lint` / `fmt` / `fmt:check` / `test` scripts. `pnpm noldor doctor` probes every row, plus template sync, hook wiring, configured runners, which runtime is executing (compiled `dist` or the `tsx` stale-build fallback) and framework-version skew. Full table: the [adoption guide](docs/noldor/adoption-guide.md).
 
 ---
 
@@ -120,7 +120,7 @@ Eight optional top-level blocks unlock extra behaviour, all defaulting sanely: `
 | Group | What it does |
 | --- | --- |
 | `init` | Scaffold or adopt Noldor into a repo |
-| `doctor` | Prerequisite + template-skew health check |
+| `doctor` | Prerequisites, template skew, hook wiring, runtime + version skew |
 | `dashboard` | Serve the product/framework dashboard |
 | `autonomous` | Queue-drain / watch daemon / escalation inbox |
 | `upgrade` | Apply version migrations |
