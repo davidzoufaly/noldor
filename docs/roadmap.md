@@ -16,6 +16,19 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Gate Drain-Mode Force-Recreate Can Destroy Finished Work
+
+- id: Q-0157
+- area: tooling
+- type: fix
+- since: 2026-08-23
+- size: S
+- impact: high
+- confidence: high
+- parent: gate-flow-rework
+
+`/noldor-gate --drain <slug>` invoked by hand (no supervisor) carries no `--finish` signal, yet the drain-mode Step 1 override tells the gate to force-recreate `fast/<slug>` and delete it on the remote as "abandoned work safe to discard". On Q-0107 that branch held 7 commits with green tests from a prior child that never opened a PR — obeying the override literally would have destroyed finished work, unrecoverably on the remote side. The finish-vs-rebuild decision lives only in the supervisor (which knows whether the prior child exited 0), so an interactively-invoked drain has no way to know it. Gate should derive the branch state itself before destroying anything: `git log origin/main..fast/<slug>` non-empty plus a clean worktree ⇒ finish mode (deliver), empty or dirty ⇒ rebuild. Deletion test: a hand-invoked drain on a slug whose `fast/` branch carries unpushed green commits delivers them instead of recreating the branch. (absorbed from a lesson, surfaced shipping Q-0107, PR #317)
+
 ### Plan Split Guidance Permits A Part That Ships Nothing
 
 - id: Q-0150
@@ -168,3 +181,27 @@ Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-
 - The confirmed symptom: queue parsing and docs-link checking implement an incomplete fenced-code grammar, recognizing triple backticks but not CommonMark/GFM tilde fences or varying fence lengths. A roadmap holding a tilde-fenced block that contains `### Phantom` plus `- area: tooling`, followed by a real entry, parses as two entries; a markdown link inside that same tilde fence is extracted as a live internal link by `docs-check`. This can fabricate queue entries and dependencies, make writers remove or reorder example text, and produce false broken-link failures. Because `parseRoadmap`, `parseEntries`, `pushEmptyGroupIssues` and `stripCodeRegions` each toggle independently on a triple-backtick prefix, patching one leaves semantic drift. One fence scanner must understand marker character, opening length, up-to-three-space indentation, info strings and a closing fence of sufficient length. Paired fixtures: backticks and tildes, three- and four-character fences, embedded shorter runs, indented fences, unclosed fences. (confirmed by pure-function runtime probe)
 
 (architecture candidate, Worth exploring from the read-only audit 2026-08-12)
+
+### Kind-Less `cr aggregate` Re-Reds on a Stale Addressed Spec Sink
+
+- id: Q-0154
+- area: tooling
+- type: fix
+- since: 2026-08-23
+- size: XS
+- impact: med
+- confidence: high
+
+Gate Step 4's "wait for in-flight" `cr aggregate --slug <slug>` (no `--kind`) re-reds on a stale addressed spec sink: fix-and-proceed at the re-round cap leaves the artifact-stage sink red by design (no re-dispatch), so the kind-less aggregate exits 1 on findings already fixed in commits and the controller has to recognise the staleness by hand and proceed on the Q-0069 precedent (code-stage green earns the receipt). Hit on Q-0131 and again on Q-0092. Either kind-scope the wait step to the running/standalone lanes, or have fix-and-proceed archive or annotate the sink it consciously leaves red. Deletion test: a session that fix-and-proceeds at the spec-stage cap reaches Step 4 without a manual override. (absorbed from a lesson, surfaced shipping Q-0131 attach, PR #331)
+
+### Size-Aware `--iteration-timeout` for the Drain Runner
+
+- id: Q-0156
+- area: tooling
+- type: fix
+- since: 2026-08-23
+- size: XS
+- impact: med
+- confidence: high
+
+`--iteration-timeout` should scale with `size:` the way routing already does — XS entries finish in ~15 min while S entries with real CR rounds want 45-60, so a batch of S entries on the 30-minute default systematically burns one retry each (Q-0107 was killed mid-CR with 4 commits and green tests already produced). The operator workaround is documented in [`autonomy.md`](noldor/autonomy.md); the fix is a size-aware cap derived from the same `size:` field [`sizeToPath()`](../src/core/size-routing.ts) already reads. Deletion test: a drain batch of S entries completes without a timeout-induced retry at the default. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)

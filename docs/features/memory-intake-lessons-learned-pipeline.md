@@ -4,8 +4,10 @@ category: Tooling
 deps: []
 entry-id: Q-0026
 links:
-  code: []
-  tests: []
+  code:
+    - .claude/skills/noldor-absorb/SKILL.md
+  tests:
+    - n/a
   spec: >-
     docs/design/specs/archive/2026-07-13-memory-intake-lessons-learned-pipeline-design.md
 name: Memory-Intake / Lessons-Learned Pipeline
@@ -47,5 +49,8 @@ As an operator or agent, I want to drop a hard-won lesson under `## Lessons` in 
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-07-13-memory-intake-lessons-learned-pipeline-design.md`](../../docs/design/specs/archive/2026-07-13-memory-intake-lessons-learned-pipeline-design.md)
+- **Code:**
+  - [`.claude/skills/noldor-absorb/SKILL.md`](../../.claude/skills/noldor-absorb/SKILL.md)
+- **Tests:** _n/a (opt-out)_
 
 <!-- /generated: resources -->

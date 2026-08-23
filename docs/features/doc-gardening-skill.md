@@ -15,6 +15,7 @@ links:
     - src/sync/sync-doc-links.ts
     - src/sync/sync-fd-resources.ts
     - src/triage/triage-list-untriaged.ts
+    - src/fixtures/docs-check/target.ts
   tests:
     - src/core/__tests__/branch-added.test.ts
     - src/design/__tests__/archive-cli.test.ts
@@ -68,6 +69,7 @@ The skill runs `pnpm garden:detect`, presents a unified checklist grouped by sig
   - [`src/sync/sync-doc-links.ts`](../../src/sync/sync-doc-links.ts)
   - [`src/sync/sync-fd-resources.ts`](../../src/sync/sync-fd-resources.ts)
   - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
+  - [`src/fixtures/docs-check/target.ts`](../../src/fixtures/docs-check/target.ts)
 - **Tests:**
   - [`src/core/__tests__/branch-added.test.ts`](../../src/core/__tests__/branch-added.test.ts)
   - [`src/design/__tests__/archive-cli.test.ts`](../../src/design/__tests__/archive-cli.test.ts)

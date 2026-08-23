@@ -16,6 +16,7 @@ links:
     - src/invariants/public-api-tsdoc.ts
     - src/invariants/rule-conflicts.ts
     - src/invariants/types.ts
+    - src/invariants/rule-pairs.ts
   tests:
     - src/checks/__tests__/check-invariants.test.ts
     - src/checks/__tests__/invariants-boundaries.test.ts
@@ -70,6 +71,7 @@ Adding a new invariant:
   - [`src/invariants/public-api-tsdoc.ts`](../../src/invariants/public-api-tsdoc.ts)
   - [`src/invariants/rule-conflicts.ts`](../../src/invariants/rule-conflicts.ts)
   - [`src/invariants/types.ts`](../../src/invariants/types.ts)
+  - [`src/invariants/rule-pairs.ts`](../../src/invariants/rule-pairs.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-invariants.test.ts`](../../src/checks/__tests__/check-invariants.test.ts)
   - [`src/checks/__tests__/invariants-boundaries.test.ts`](../../src/checks/__tests__/invariants-boundaries.test.ts)

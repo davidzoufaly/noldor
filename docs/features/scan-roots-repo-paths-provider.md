@@ -35,9 +35,9 @@ As a Noldor consumer on a non-Charuy layout (standalone `src/` repo, self-host i
 No new CLI surface — existing commands gain correct behavior on non-Charuy layouts:
 
 1. Configure once (optional): set `consumer.scanPaths` in `.noldor/config.json` (e.g. `["src"]`). Unset → 4-dir union fallback.
-2. `pnpm noldor fill-links-code-gaps --auto-high` (or the interactive `--dry-run`/`--apply` flow) — now walks `scanRoots()`.
+2. `pnpm noldor features fill-links-code-gaps --auto-high` (or the interactive `--dry-run`/`--apply` flow) — now walks `scanRoots()`.
 3. Dashboard (`http://localhost:4321`) gap panel — now matches `pnpm sdd:report` output on any layout.
-4. `pnpm noldor propose-pointers` — roots align with graph-freshness receipts; no `['src']` surprise on unconfigured monorepos.
+4. `pnpm noldor features propose-pointers` — roots align with graph-freshness receipts; no `['src']` surprise on unconfigured monorepos.
 
 Agent API: import `scanRoots()` / `actualPackageNames()` from `src/core/repo-paths.ts` for any new repo-walking feature; never hardcode layout dirs.
 

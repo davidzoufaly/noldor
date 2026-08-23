@@ -4,7 +4,9 @@ category: Tooling
 deps: []
 entry-id: Q-0040
 links:
-  code: []
+  code:
+    - src/core/state-file.ts
+    - src/core/atomic-write.ts
   tests:
     - src/core/__tests__/atomic-write.test.ts
     - src/core/__tests__/rollout-marker.test.ts
@@ -60,6 +62,9 @@ No new day-to-day commands — enforcement, drain, and edit-gating behave identi
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-07-14-state-file-fail-open-hardening-design.md`](../../docs/design/specs/archive/2026-07-14-state-file-fail-open-hardening-design.md)
+- **Code:**
+  - [`src/core/state-file.ts`](../../src/core/state-file.ts)
+  - [`src/core/atomic-write.ts`](../../src/core/atomic-write.ts)
 - **Tests:**
   - [`src/core/__tests__/atomic-write.test.ts`](../../src/core/__tests__/atomic-write.test.ts)
   - [`src/core/__tests__/rollout-marker.test.ts`](../../src/core/__tests__/rollout-marker.test.ts)

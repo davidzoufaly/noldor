@@ -52,6 +52,21 @@ links:
     - .claude/skills/noldor-gate/SKILL.md
     - .claude/skills/noldor-promote/SKILL.md
     - docs/noldor/pr-flow.md
+    - src/cli/command-registry.ts
+    - src/core/cli-entry.ts
+    - src/core/commit-cli.ts
+    - src/core/commit-wrapper.ts
+    - src/core/fmt-guard.ts
+    - src/core/fmt-guard-cli.ts
+    - src/core/init-gitignore.ts
+    - src/core/prerequisites.ts
+    - src/core/slug.ts
+    - src/hooks/pre-push-range.ts
+    - src/checks/check-feature-slug-scope.ts
+    - src/core/extract-touches.ts
+    - src/features/fill-links-code-gaps.ts
+    - src/sync/sync-spec-links.ts
+    - src/triage/has-block-cli.ts
   tests:
     - src/cli/__tests__/command-registry.test.ts
     - src/core/__tests__/changelog.test.ts
@@ -265,6 +280,21 @@ _none — operates through git, lefthook, and `pnpm` scripts; no
   - [`.claude/skills/noldor-gate/SKILL.md`](../../.claude/skills/noldor-gate/SKILL.md)
   - [`.claude/skills/noldor-promote/SKILL.md`](../../.claude/skills/noldor-promote/SKILL.md)
   - [`docs/noldor/pr-flow.md`](../../docs/noldor/pr-flow.md)
+  - [`src/cli/command-registry.ts`](../../src/cli/command-registry.ts)
+  - [`src/core/cli-entry.ts`](../../src/core/cli-entry.ts)
+  - [`src/core/commit-cli.ts`](../../src/core/commit-cli.ts)
+  - [`src/core/commit-wrapper.ts`](../../src/core/commit-wrapper.ts)
+  - [`src/core/fmt-guard.ts`](../../src/core/fmt-guard.ts)
+  - [`src/core/fmt-guard-cli.ts`](../../src/core/fmt-guard-cli.ts)
+  - [`src/core/init-gitignore.ts`](../../src/core/init-gitignore.ts)
+  - [`src/core/prerequisites.ts`](../../src/core/prerequisites.ts)
+  - [`src/core/slug.ts`](../../src/core/slug.ts)
+  - [`src/hooks/pre-push-range.ts`](../../src/hooks/pre-push-range.ts)
+  - [`src/checks/check-feature-slug-scope.ts`](../../src/checks/check-feature-slug-scope.ts)
+  - [`src/core/extract-touches.ts`](../../src/core/extract-touches.ts)
+  - [`src/features/fill-links-code-gaps.ts`](../../src/features/fill-links-code-gaps.ts)
+  - [`src/sync/sync-spec-links.ts`](../../src/sync/sync-spec-links.ts)
+  - [`src/triage/has-block-cli.ts`](../../src/triage/has-block-cli.ts)
 - **Tests:**
   - [`src/cli/__tests__/command-registry.test.ts`](../../src/cli/__tests__/command-registry.test.ts)
   - [`src/core/__tests__/changelog.test.ts`](../../src/core/__tests__/changelog.test.ts)

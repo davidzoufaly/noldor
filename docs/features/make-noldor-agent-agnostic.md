@@ -3,6 +3,8 @@ area: tooling
 category: Agents
 deps: []
 links:
+  docs:
+    - docs/noldor/agent-runtimes.md
   code:
     - src/core/agent-runner/
     - src/core/agent-events.ts
@@ -19,7 +21,6 @@ links:
     - templates/.opencode/
     - templates/AGENTS.md
     - templates/opencode.json
-    - docs/noldor/agent-runtimes.md
   tests:
     - src/autonomous/__tests__/drain-reconcile.test.ts
     - src/autonomous/__tests__/merge-classify.test.ts
@@ -116,7 +117,6 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
   - [`templates/.opencode/`](../../templates/.opencode/)
   - [`templates/AGENTS.md`](../../templates/AGENTS.md)
   - [`templates/opencode.json`](../../templates/opencode.json)
-  - [`docs/noldor/agent-runtimes.md`](../../docs/noldor/agent-runtimes.md)
 - **Tests:**
   - [`src/autonomous/__tests__/drain-reconcile.test.ts`](../../src/autonomous/__tests__/drain-reconcile.test.ts)
   - [`src/autonomous/__tests__/merge-classify.test.ts`](../../src/autonomous/__tests__/merge-classify.test.ts)
@@ -140,5 +140,7 @@ As a Noldor consumer (human operator or autonomous agent), I want every framewor
   - [`src/templates/__tests__/shim-inventory.test.ts`](../../src/templates/__tests__/shim-inventory.test.ts)
   - [`src/testing/__tests__/consumer-fixture.test.ts`](../../src/testing/__tests__/consumer-fixture.test.ts)
   - [`src/testing/__tests__/stub-runner.test.ts`](../../src/testing/__tests__/stub-runner.test.ts)
+- **Docs:**
+  - [`docs/noldor/agent-runtimes.md`](../../docs/noldor/agent-runtimes.md)
 
 <!-- /generated: resources -->

@@ -3,8 +3,11 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
-  tests: []
+  code:
+    - src/garden/detectors/trailer-scope-mismatch.ts
+    - src/core/consumer-config.ts
+  tests:
+    - src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts
 name: Trailer Scope-Alias Map
 packages:
   - scripts
@@ -12,6 +15,7 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.3.0
 ---
+
 ## Summary
 
 `src/garden/detectors/trailer-scope-mismatch.ts` rejects commits where the Conventional Commits scope doesn't equal (or end with `:`) the `Noldor-FD:` slug. v0.4.0 release surfaced 24 such mismatches: `feat(sdd):` commits tagged to FD `sdd-co-tag-detector`, `feat(cr):` commits tagged to FD `noldor`, etc. — the team has informally adopted shorter scope tokens. Required `RELEASE_SKIP_GATE_COMPLIANCE=1` bypass. Fix: add a config-driven alias map (`scope-aliases.json` or detector frontmatter) where `sdd → sdd-co-tag-detector`, `cr → noldor`, etc., so the detector accepts the team's actual usage instead of demanding artificial scope expansion.
@@ -45,3 +49,15 @@ _No UI, keyboard shortcut, or agent API — this is release-gate configuration._
 <!-- @prs-since-last-release: trailer-scope-alias-map -->
 
 ## Changelog
+
+<!-- generated: resources -->
+
+## Resources
+
+- **Code:**
+  - [`src/garden/detectors/trailer-scope-mismatch.ts`](../../src/garden/detectors/trailer-scope-mismatch.ts)
+  - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
+- **Tests:**
+  - [`src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts`](../../src/garden/detectors/__tests__/trailer-scope-mismatch.test.ts)
+
+<!-- /generated: resources -->

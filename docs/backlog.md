@@ -125,6 +125,8 @@ Milestones (`docs/milestones/<slug>.md`) currently live independent of the queue
 
 Residue from the Q-0075 ship (PR #276, CR rounds 9–16): (a) `DecideResult.baseSha` doc overstates its invariant — it is empty on ANY decline with git unreachable, not only `no-base-sha`; say "non-empty whenever verdict is auto-fix". (b) `no-base-sha` fires before `next` is known, so a MIXED round with git unreachable declines to operator even though `apply-then-stop` never needs a base-sha — forfeits an applicable mechanical subset on an unrelated failure. (c) `round: 3/2` prints on the round-cap decline (`priorRounds.length + 1` unconditionally) — clamp or relabel. (d) `prior-deferred` scanning every round leaves the seam dead for the rest of the session after one MIXED round, including the operator's own full-review follow-up where the laundering path cannot occur; the only reset is session end — deliberate, but say so in the docs or narrow it. (e) drain-mode/SKILL twins mention `record` without naming the exit-2 `--deferred` cross-check. All in `src/cr/autofix.ts` / `autofix-cli.ts`.
 
+- `cr autofix record --since` rejects a ref that `cr orchestrate --base-sha` accepts: `--since origin/main` exits 2 with `--since must be a hex sha (4-40 chars)`. The gate skill says to pass "the printed base-sha", so the asymmetry only bites a controller re-deriving the value — but then every caller needs `$(git rev-parse origin/main)` for one command and not the other. Accept any `git rev-parse`-able ref in `record` (resolve it, store the sha). (absorbed from a lesson, surfaced shipping Q-0107, PR #317)
+
 ### Upgrade Empty-Chain Dirty-Tree Guard
 
 - id: Q-0085
@@ -272,3 +274,15 @@ Implement the four DORA metrics over the data Noldor already accumulates, surfac
 - confidence: high
 
 Nine hand-rolled fenced-code scanners live in the repo and every one of them recognizes a literal triple backtick and nothing else: `stripCodeRegions` in `src/docs/docs-check.ts:39`, `src/utils/parse-blocks.ts:144`, `src/utils/write-blocks.ts:36`, `src/prep/scaffold.ts:24`, `src/garden/backlog-demote.ts:85`, `src/garden/detectors/skill-code-drift.ts:227`, `src/triage/validate-triage.ts:159`, `src/core/lint-plan-snippets.ts:25` (`parseOpenFence`/`isCloseFence`) and `src/triage/entry-id.ts:133` (three `startsWith('```')` toggle sites). None handles a tilde fence, a run longer than three, up-to-three-space indentation, or an info-string rule, so a CommonMark-legal document can fabricate a queue entry, hide a real one, or produce a false broken-link failure — the roadmap's schema-C grammar entry documents that failure class concretely. `src/utils/markdown-sections.ts` now holds one capable scanner with all four rules and a test matrix; converge the incumbents onto it. **Two things make this bigger than a mechanical swap.** First, `lint-plan-snippets` treats an unclosed fence as ending at its opening line while the capable scanner runs it to end of input, so its convergence is a deliberate behaviour change and needs its own fixtures. Second, the incumbents do not share one shape — some strip regions, some toggle a boolean mid-loop, some need the fence's info string — so the capable module probably has to export a lower-level line-classifier alongside `listHeadings`/`extractSection` before the call sites can move. Do the classifier extraction first, then convert one call site per commit with paired backtick/tilde fixtures, and expect the `parse-blocks`/`write-blocks` pair to move together since the parser and writer must agree.
+
+### Autonomous Park CLI and Operator-Hold Escalation Reason
+
+- id: Q-0155
+- area: tooling
+- type: feat
+- since: 2026-08-23
+- size: XS
+- impact: low
+- confidence: med
+
+`autonomous` has an `unpark` CLI but no `park` counterpart, and no `operator-hold` EscalationReason: parking a slug means hand-editing `.noldor/drain-park.json`, and borrowing `run-aborted` for a scope hold makes `autonomous inbox` read as repo-level failures for the whole batch. The original driver — the park map being the only working selection filter for a subset drain — is gone: Q-0121 (`queue-drain-selection-and-staleness-guards`, retired 2026-08-20) shipped the `--only <slug,…>` / `--size` narrowing, so a subset drain no longer needs the hack. What remains is honest reporting for a deliberate hold, which is why the park half survives and the selection half does not. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)

@@ -17,6 +17,7 @@ links:
     - src/release/release-fd-changelog.ts
     - src/release/release-fd-commits.ts
     - src/release/release-notes.ts
+    - src/release/release-commits.ts
   tests:
     - src/dashboard/__tests__/dashboard-data.test.ts
     - src/dashboard/__tests__/dashboard-doc-surfaces.test.ts
@@ -87,6 +88,7 @@ As a developer or agent reading an FD detail page, I want to see every commit at
   - [`src/release/release-fd-changelog.ts`](../../src/release/release-fd-changelog.ts)
   - [`src/release/release-fd-commits.ts`](../../src/release/release-fd-commits.ts)
   - [`src/release/release-notes.ts`](../../src/release/release-notes.ts)
+  - [`src/release/release-commits.ts`](../../src/release/release-commits.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/dashboard-data.test.ts`](../../src/dashboard/__tests__/dashboard-data.test.ts)
   - [`src/dashboard/__tests__/dashboard-doc-surfaces.test.ts`](../../src/dashboard/__tests__/dashboard-doc-surfaces.test.ts)

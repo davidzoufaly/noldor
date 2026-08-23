@@ -4,7 +4,9 @@ category: Tooling
 deps: []
 entry-id: Q-0027
 links:
-  code: []
+  code:
+    - src/dashboard/server.ts
+    - src/core/agent-runner/registry.ts
   tests:
     - src/core/agent-runner/__tests__/registry-logsink.test.ts
     - src/dashboard/__tests__/route-sweep.test.ts
@@ -52,6 +54,9 @@ As an operator running an autonomous drain, I want the dashboard's `/agents` pag
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-07-11-dashboard-broken-pages-audit-design.md`](../../docs/design/specs/archive/2026-07-11-dashboard-broken-pages-audit-design.md)
+- **Code:**
+  - [`src/dashboard/server.ts`](../../src/dashboard/server.ts)
+  - [`src/core/agent-runner/registry.ts`](../../src/core/agent-runner/registry.ts)
 - **Tests:**
   - [`src/core/agent-runner/__tests__/registry-logsink.test.ts`](../../src/core/agent-runner/__tests__/registry-logsink.test.ts)
   - [`src/dashboard/__tests__/route-sweep.test.ts`](../../src/dashboard/__tests__/route-sweep.test.ts)

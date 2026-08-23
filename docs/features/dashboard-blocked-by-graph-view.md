@@ -4,7 +4,9 @@ category: Tooling
 deps: []
 entry-id: Q-0018
 links:
-  code: []
+  code:
+    - src/dashboard/data.ts
+    - src/dashboard/views.ts
   tests:
     - src/dashboard/__tests__/blocked-by.test.ts
   spec: >-
@@ -50,6 +52,9 @@ As an operator triaging the queue, I want the roadmap+backlog blocked-by graph r
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-07-13-dashboard-blocked-by-graph-view-design.md`](../../docs/design/specs/archive/2026-07-13-dashboard-blocked-by-graph-view-design.md)
+- **Code:**
+  - [`src/dashboard/data.ts`](../../src/dashboard/data.ts)
+  - [`src/dashboard/views.ts`](../../src/dashboard/views.ts)
 - **Tests:**
   - [`src/dashboard/__tests__/blocked-by.test.ts`](../../src/dashboard/__tests__/blocked-by.test.ts)
 

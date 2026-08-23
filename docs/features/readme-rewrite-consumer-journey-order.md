@@ -4,8 +4,10 @@ category: Tooling
 deps: []
 entry-id: Q-0043
 links:
-  code: []
-  tests: []
+  code:
+    - n/a
+  tests:
+    - n/a
   spec: >-
     docs/design/specs/archive/2026-07-14-readme-rewrite-consumer-journey-order-design.md
 name: README Rewrite — Consumer-Journey Order
@@ -40,5 +42,7 @@ Read `README.md` top-to-bottom. A new consumer follows the journey order: Prereq
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-07-14-readme-rewrite-consumer-journey-order-design.md`](../../docs/design/specs/archive/2026-07-14-readme-rewrite-consumer-journey-order-design.md)
+- **Code:** _n/a (opt-out)_
+- **Tests:** _n/a (opt-out)_
 
 <!-- /generated: resources -->

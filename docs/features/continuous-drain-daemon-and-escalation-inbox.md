@@ -5,6 +5,8 @@ deps:
   - agent-events-log-and-agents-dashboard-page
   - acceptance-verify-lane
 links:
+  docs:
+    - docs/noldor/autonomy.md
   code:
     - src/autonomous/watch.ts
     - src/autonomous/salvage.ts
@@ -18,7 +20,6 @@ links:
     - src/core/agent-events.ts
     - src/core/config.ts
     - src/cli/manifest.ts
-    - docs/noldor/autonomy.md
   tests:
     - src/autonomous/__tests__/build-pool.test.ts
     - src/autonomous/__tests__/decide-next.test.ts
@@ -116,7 +117,6 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
   - [`src/core/agent-events.ts`](../../src/core/agent-events.ts)
   - [`src/core/config.ts`](../../src/core/config.ts)
   - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
-  - [`docs/noldor/autonomy.md`](../../docs/noldor/autonomy.md)
 - **Tests:**
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)
@@ -132,5 +132,7 @@ touch .noldor/drain-stop                # one-shot stop (exit 130), cleared at n
   - [`src/autonomous/__tests__/watch-state.test.ts`](../../src/autonomous/__tests__/watch-state.test.ts)
   - [`src/core/__tests__/agent-events.test.ts`](../../src/core/__tests__/agent-events.test.ts)
   - [`src/core/__tests__/config.test.ts`](../../src/core/__tests__/config.test.ts)
+- **Docs:**
+  - [`docs/noldor/autonomy.md`](../../docs/noldor/autonomy.md)
 
 <!-- /generated: resources -->

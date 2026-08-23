@@ -4,8 +4,10 @@ category: Tooling
 deps: []
 entry-id: Q-0044
 links:
-  code: []
-  tests: []
+  code:
+    - .claude/skills/noldor-debug/SKILL.md
+  tests:
+    - n/a
   spec: >-
     docs/design/specs/archive/2026-07-14-vendored-systematic-debugging-discipline-design.md
 name: Vendored Systematic-Debugging Discipline
@@ -42,5 +44,8 @@ As an agent (or human) fixing a bug in a Noldor consumer repo without the superp
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-07-14-vendored-systematic-debugging-discipline-design.md`](../../docs/design/specs/archive/2026-07-14-vendored-systematic-debugging-discipline-design.md)
+- **Code:**
+  - [`.claude/skills/noldor-debug/SKILL.md`](../../.claude/skills/noldor-debug/SKILL.md)
+- **Tests:** _n/a (opt-out)_
 
 <!-- /generated: resources -->

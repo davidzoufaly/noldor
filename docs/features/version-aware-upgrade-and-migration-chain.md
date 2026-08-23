@@ -12,6 +12,7 @@ links:
     - src/core/consumer-config.ts
     - docs/noldor/adoption-guide.md
     - docs/noldor/versioning.md
+    - src/core/framework-skew.ts
   docs: []
   tests:
     - src/cli/commands/__tests__/upgrade.test.ts
@@ -116,6 +117,7 @@ Added semver parse and compare helpers (#104).
   - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`docs/noldor/adoption-guide.md`](../../docs/noldor/adoption-guide.md)
   - [`docs/noldor/versioning.md`](../../docs/noldor/versioning.md)
+  - [`src/core/framework-skew.ts`](../../src/core/framework-skew.ts)
 - **Tests:**
   - [`src/cli/commands/__tests__/upgrade.test.ts`](../../src/cli/commands/__tests__/upgrade.test.ts)
   - [`src/core/__tests__/consumer-config.test.ts`](../../src/core/__tests__/consumer-config.test.ts)
