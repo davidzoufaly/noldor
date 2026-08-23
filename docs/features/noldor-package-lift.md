@@ -22,8 +22,8 @@ packages:
 phase: done
 noldor-tier: full
 introduced: 0.2.0
+updated: 1.5.0
 ---
-
 ## Summary
 
 <!-- TODO 1-3 sentences. What the feature is. -->
@@ -65,6 +65,16 @@ the product, and any other repo can adopt it through `noldor init`.
 <!-- @prs-since-last-release: noldor-package-lift -->
 
 ## Changelog
+
+### 1.5.0
+
+#### Summary
+
+Execute compiled dist, falling back to tsx only when the build is stale (#359).
+
+#### PRs
+
+- #359: execute compiled dist, falling back to tsx only when the build is stale ([link](https://github.com/davidzoufaly/noldor/pull/359))
 
 ### Initial Release (v0.2.0)
 

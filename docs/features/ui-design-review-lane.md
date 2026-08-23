@@ -40,8 +40,8 @@ phase: done
 since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
+updated: 1.5.0
 ---
-
 ## Summary
 
 Second slice of Q-0144 (pen.dev UI Design Phase, shipped in PR #342): a code-stage CR lane, `ui-reviewer`, that checks the implemented UI against the feature's committed `.pen` design. It mirrors the `reviewer` lane's dispatch shape — the lane resolves the `.pen` path and the affected surfaces, and the dispatched child opens the design itself through pencil MCP (Node cannot read an encrypted `.pen`), compares it against the diff, and returns a verdict the lane writes into a standard lane sink beside the codex and verifier lanes. Fires on the same `consumer.uiPaths` predicate the design stage uses, recomputed from the real diff; non-UI and waived sessions get an explicit `not-applicable` sink, and a session whose design cannot be read gets `cannot-review` rather than a green. Advisory by default, blocking behind one config knob. Mechanical render-compare (screenshot diff against a running app) ships as the sibling `render-compare` lane — the Q-0146 enhancement described under Usage.
@@ -107,6 +107,16 @@ Sink: `.noldor/cr/<slug>-code-render-compare.json`. Every affected surface gets 
 <!-- @prs-since-last-release: ui-design-review-lane -->
 
 ## Changelog
+
+### 1.5.0
+
+#### Summary
+
+This release adds the render-compare lane, which boots the app and pixel-diffs routes against the session's .pen (#366).
+
+#### PRs
+
+- #366: add the render-compare lane — boot the app and pixel-diff routes against the session's .pen ([link](https://github.com/davidzoufaly/noldor/pull/366))
 
 ### Initial Release (v1.4.0)
 

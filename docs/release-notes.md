@@ -1,5 +1,27 @@
 # Release Notes
 
+## v1.5.0 — 2026-08-23
+
+### Tooling
+
+#### De-Superpowers: Vendor Spec, Plan and Worktree Flows *(updated)*
+
+Draft-first dialogues with a decision-context digest (#362).
+
+[Feature page](/features/de-superpowers-vendor-spec-plan-and-worktree-flows)
+
+#### Noldor Package Lift *(updated)*
+
+Execute compiled dist, falling back to tsx only when the build is stale (#359).
+
+[Feature page](/features/noldor-package-lift)
+
+#### UI-Design Review Lane *(updated)*
+
+This release adds the render-compare lane, which boots the app and pixel-diffs routes against the session's .pen (#366).
+
+[Feature page](/features/ui-design-review-lane)
+
 ## v1.4.0 — 2026-08-20
 
 ### Tooling

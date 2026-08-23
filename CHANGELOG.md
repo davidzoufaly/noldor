@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.5.0 — 2026-08-23
+
+### Features
+
+- feat(cr): add the render-compare lane — boot the app and pixel-diff routes against the session's .pen (#366) ([c488b25](https://github.com/davidzoufaly/noldor/commit/c488b25f6bd60e113cfeddad39d539a4fd1dbcbf)) ([#366](https://github.com/davidzoufaly/noldor/pull/366))
+- feat(checks): validate README commands on the shared resolver (#365) ([77620df](https://github.com/davidzoufaly/noldor/commit/77620df585817aefec2a224687908df54b2fb767)) ([#365](https://github.com/davidzoufaly/noldor/pull/365))
+- feat(binary): record spike-verified bun floor (#363) ([51ac63d](https://github.com/davidzoufaly/noldor/commit/51ac63dd2dd2d25d2e38fa59f8637f5d2f95243b)) ([#363](https://github.com/davidzoufaly/noldor/pull/363))
+- feat(design): draft-first dialogues with a decision-context digest (#362) ([fd05534](https://github.com/davidzoufaly/noldor/commit/fd05534c345f1bbbbda5041500a2367a3d498c88)) ([#362](https://github.com/davidzoufaly/noldor/pull/362))
+- feat(pr-flow): enforce Why/How/What at the PR seam, free commit bodies (#361) ([17e26a3](https://github.com/davidzoufaly/noldor/commit/17e26a3c498b130004e267460bdc6d9232dd716b)) ([#361](https://github.com/davidzoufaly/noldor/pull/361))
+- feat(cli): execute compiled dist, falling back to tsx only when the build is stale (#359) ([6549d4e](https://github.com/davidzoufaly/noldor/commit/6549d4e872d4f0645079c668a20a8a4b4111b3c7)) ([#359](https://github.com/davidzoufaly/noldor/pull/359))
+
+### Fixes
+
+- fix(build): let the runtime-asset scan ignore generated trees git ignores (#360) ([b34c2e7](https://github.com/davidzoufaly/noldor/commit/b34c2e7cb835ad1930c8325f01186e85e1b62954)) ([#360](https://github.com/davidzoufaly/noldor/pull/360))
+
+### Other changes
+
+- chore(release): converge sdd-report on the pre-release override row (#370) ([50339a1](https://github.com/davidzoufaly/noldor/commit/50339a15091e44932fd989769db9922979a84901)) ([#370](https://github.com/davidzoufaly/noldor/pull/370))
+- chore(release): clear the 1.5.0 preflight — README drift, revert exemption, sweep findings (#369) ([58e9539](https://github.com/davidzoufaly/noldor/commit/58e9539d7e07df3a17a422a9352d249e6179b801)) ([#369](https://github.com/davidzoufaly/noldor/pull/369))
+- chore(release-sweep): pre-empt sdd:report drift (#368) ([4c1f680](https://github.com/davidzoufaly/noldor/commit/4c1f6804b2d12d7239030ac3216f47667fbc0012)) ([#368](https://github.com/davidzoufaly/noldor/pull/368))
+- docs(garden): close 65 of 67 SDD gaps before the 1.5.0 release (#367) ([57134eb](https://github.com/davidzoufaly/noldor/commit/57134ebf514f45978e3286d08465b3d5ffd2c6f8)) ([#367](https://github.com/davidzoufaly/noldor/pull/367))
+- Revert "feat(binary): record spike-verified bun floor (#363)" (#364) ([c36ad34](https://github.com/davidzoufaly/noldor/commit/c36ad34a36ddaec5719caff185da51e763ab917d)) ([#364](https://github.com/davidzoufaly/noldor/pull/364))
+- chore(deps): move to typescript 7 native compiler (#358) ([2ab5570](https://github.com/davidzoufaly/noldor/commit/2ab55709a56b6d28e2c351ed78ea94ffc8839183)) ([#358](https://github.com/davidzoufaly/noldor/pull/358))
+
 ## v1.4.0 — 2026-08-20
 
 ### Features
