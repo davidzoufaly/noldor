@@ -51,8 +51,8 @@ As the maintainer (or an agent) triaging work, I want the priority of a roadmap 
 
 **Validator**
 
-- `pnpm validate:triage` — default mode. Roadmap requires `size` + `impact` (errors when missing). Backlog keeps them as advisories until backfill completes.
-- `pnpm validate:triage --strict` — promotes the remaining backlog `size`/`impact` advisories to errors. Flip the pre-commit hook to `--strict` once `docs/backlog.md` is fully backfilled.
+- `pnpm noldor validate triage` — default mode. Roadmap requires `size` + `impact` (errors when missing). Backlog keeps them as advisories until backfill completes.
+- `pnpm noldor validate triage --strict` — promotes the remaining backlog `size`/`impact` advisories to errors. Flip the pre-commit hook to `--strict` once `docs/backlog.md` is fully backfilled.
 
 **Pre-commit hook**
 
@@ -68,7 +68,7 @@ As the maintainer (or an agent) triaging work, I want the priority of a roadmap 
 
 #### Summary
 
-This release tightens the schema discipline across the roadmap and backlog pipeline: roadmap entries now require size + impact while backlog stays advisory, and a new validate:triage CLI (defaulting to advisory mode) enforces this. The dashboard was refactored to delegate to the shared parseRoadmap, which now handles H3-category + H4-entry nesting, while parseBacklog assigns priority and reads size/impact bullets. To support this, priority, level, category, size, and impact fields were added to BacklogEntry.
+This release tightens the schema discipline across the roadmap and backlog pipeline: roadmap entries now require size + impact while backlog stays advisory, and a new `validate triage` CLI (defaulting to advisory mode) enforces this. The dashboard was refactored to delegate to the shared parseRoadmap, which now handles H3-category + H4-entry nesting, while parseBacklog assigns priority and reads size/impact bullets. To support this, priority, level, category, size, and impact fields were added to BacklogEntry.
 
 <!-- generated: resources -->
 

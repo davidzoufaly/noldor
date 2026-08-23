@@ -4,7 +4,8 @@ category: Tooling
 deps: []
 entry-id: Q-0030
 links:
-  code: []
+  code:
+    - src/garden/detectors/skill-code-drift.ts
   tests:
     - src/garden/detectors/__tests__/skill-code-drift.test.ts
   spec: docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md
@@ -45,6 +46,8 @@ As a framework maintainer, I want `garden detect` to flag skill bodies whose `pn
 ## Resources
 
 - **Spec:** [`docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md`](../../docs/design/specs/archive/2026-07-13-skill-vs-code-drift-detector-design.md)
+- **Code:**
+  - [`src/garden/detectors/skill-code-drift.ts`](../../src/garden/detectors/skill-code-drift.ts)
 - **Tests:**
   - [`src/garden/detectors/__tests__/skill-code-drift.test.ts`](../../src/garden/detectors/__tests__/skill-code-drift.test.ts)
 

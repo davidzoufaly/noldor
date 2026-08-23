@@ -3,7 +3,9 @@ area: tooling
 category: Tooling
 deps: []
 links:
-  code: []
+  code:
+    - src/checks/check-lefthook-wiring.ts
+    - src/cli/manifest.ts
   tests:
     - src/checks/__tests__/check-lefthook-wiring.test.ts
     - src/cli/__tests__/cli.test.ts
@@ -81,6 +83,9 @@ The framework is now lifted into a dedicated `packages/noldor` workspace package
 - **Spec:** [`docs/design/specs/archive/2026-05-26-noldor-package-lift-design.md`](../../docs/design/specs/archive/2026-05-26-noldor-package-lift-design.md)
 - **Plan:**
   - [`docs/design/plans/archive/2026-05-26-noldor-package-lift.md`](../../docs/design/plans/archive/2026-05-26-noldor-package-lift.md)
+- **Code:**
+  - [`src/checks/check-lefthook-wiring.ts`](../../src/checks/check-lefthook-wiring.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
 - **Tests:**
   - [`src/checks/__tests__/check-lefthook-wiring.test.ts`](../../src/checks/__tests__/check-lefthook-wiring.test.ts)
   - [`src/cli/__tests__/cli.test.ts`](../../src/cli/__tests__/cli.test.ts)

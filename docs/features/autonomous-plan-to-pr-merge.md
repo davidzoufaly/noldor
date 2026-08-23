@@ -44,7 +44,7 @@ As an agentic operator running `/noldor-gate` on a specs-only or full feature, I
 /noldor-gate                                              # interactive path picker (or --resume <slug>)
 # ... brainstorming/spec/plan flow per path ...
 # At plan-stage Step 2.5 continue-dialog, pick `proceed-autonomous`
-# → runs `pnpm noldor:set-autonomous` (sets `session.autonomous = true` in `.noldor/session.json`)
+# → runs `pnpm noldor noldor set-autonomous` (sets `session.autonomous = true` in `.noldor/session.json`)
 # Gate controller executes plan tasks inline, runs end-of-flow, opens PR, auto-merges, cleans up.
 ```
 

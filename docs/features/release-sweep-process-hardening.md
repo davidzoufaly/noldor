@@ -13,6 +13,12 @@ links:
     - src/core/allowlist.ts
     - src/core/session.ts
     - src/release/index.ts
+    - src/release/preflight.ts
+    - src/release/preflight-fix.ts
+    - src/release/preflight-probes.ts
+    - src/release/preflight-render.ts
+    - src/release/preflight-types.ts
+    - src/release/clean-tree.ts
   plan:
     - lost-pre-extraction
     - lost-pre-extraction
@@ -101,6 +107,12 @@ As an operator preparing a release, I want `/noldor-release-sweep` to run end-to
   - [`src/core/allowlist.ts`](../../src/core/allowlist.ts)
   - [`src/core/session.ts`](../../src/core/session.ts)
   - [`src/release/index.ts`](../../src/release/index.ts)
+  - [`src/release/preflight.ts`](../../src/release/preflight.ts)
+  - [`src/release/preflight-fix.ts`](../../src/release/preflight-fix.ts)
+  - [`src/release/preflight-probes.ts`](../../src/release/preflight-probes.ts)
+  - [`src/release/preflight-render.ts`](../../src/release/preflight-render.ts)
+  - [`src/release/preflight-types.ts`](../../src/release/preflight-types.ts)
+  - [`src/release/clean-tree.ts`](../../src/release/clean-tree.ts)
 - **Tests:**
   - [`src/core/__tests__/allowlist.test.ts`](../../src/core/__tests__/allowlist.test.ts)
   - [`src/core/__tests__/pr-flow-cli.test.ts`](../../src/core/__tests__/pr-flow-cli.test.ts)

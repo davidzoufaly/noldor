@@ -14,6 +14,7 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 - **Trigger:** `/noldor-promote <slug>`. Manual at work-start.
 - **Inputs:** kebab-case slug matching a `### <heading>` block in `docs/roadmap.md` (preferred) or `docs/backlog.md`.
 - **Outputs:** scaffolded `docs/features/<slug>.md` with `phase: in-progress`; residue check runs before source-block deletion (scans body for sub-items beyond the FD scope — alt implementation paths, scope-named bullets, nested sub-headings — operator disposes per-item via fold-into-FD / write-back-as-sibling / drop); source block removed. No roadmap-side tracker is added — the FD's `phase: in-progress` frontmatter is the canonical in-progress signal. In attach-to-parent mode (source block carries `parent: <fd-slug>` or LLM finds a strong semantic match): no new FD scaffolded; residue check still runs before source-block deletion.
+- **Oversize check:** step 1.7 runs `pnpm noldor noldor split-check --entry <slug>` (plus `--fd <parent> --add <path>` on the attach branch) and, on signals, offers split-first as the canonical remedy. Promote is the boundary between queue-shaped and FD-shaped work, so it owns scope decomposition for the whole pipeline — `/noldor-spec`, `/noldor-plan` and gate Step 2.5 bounce back to this same sibling shape. See [`complexity-gating.md`](complexity-gating.md#which-phase-owns-the-split).
 - **When to use:** any non-trivial implementation already in `docs/roadmap.md` or `docs/backlog.md`. See [`complexity-gating.md`](complexity-gating.md) for which work qualifies. Always after brainstorming for the `brainstorm-first` tier. For features not present in either source, use `/noldor-new-feature` instead.
 
 ## /noldor-triage
@@ -49,6 +50,8 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 - **Trigger:** `/noldor-gate`. Mandatory before any code edit.
 - **Inputs:** interactive path selection (one of 6 paths: `micro-chore`, `fast-track`, `specs-only-new`, `specs-only-attach`, `full-new`, `full-attach`); optional `--resume <slug>` to re-establish session for an existing in-progress FD.
 - **Outputs:** session marker written to `.noldor/session.json`; path-appropriate artifact scaffold (FD, worktree, brainstorm, spec, plan); end-of-flow review wiring. See [`complexity-gating.md`](complexity-gating.md) for the 6-path model.
+- **Review bounds:** the `codex` lane is forced into spec- and code-stage rounds on `specs-only-*` / `full-*` paths (entry size M/L/XL), so no M+ feature ships reviewed by one model family. Re-rounds are capped at 2 per artifact kind per session (auto-fix and operator rounds combined) and only `[design]` blockers earn one — an all-mechanical round is fix-and-proceed.
+- **UI stages:** on a feature carrying a `.pen` surface the gate runs the UI-design stage and an advisory `pnpm noldor checks ui-design-freshness` after the phase-flip commit; the blocking enforcement point is release preflight, never `pr-flow`.
 - **When to use:** single mandatory entry for all change types. Run before any Edit/Write to tracked files. Pre-edit guard enforces this via Claude PreToolUse hook.
 
 ## /noldor-milestone
@@ -70,6 +73,7 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 - **Trigger:** `/noldor-spec <slug>`, or the gate's spec stage on every `specs-only-*` / `full-*` path.
 - **Inputs:** kebab-case slug; roadmap entry / FD body for grounding; `docs/vision.md`; the real code the idea touches; the format contract via `pnpm noldor prep format spec`.
 - **Outputs:** self-reviewed spec at `docs/design/specs/YYYY-MM-DD-<slug>-design.md` (attach naming: `<parent>-<enhancement>`); reports the path and stops — `/noldor-gate` Step 2.5 owns commit + CR. Never commits.
+- **Dialogue shape:** draft-first — a strawman section lands on disk before the question about it, so the operator answers against prose rather than blind. `pnpm noldor design context --slug <slug> --section "<heading>"` renders a decision-context digest (current draft in full, bound decisions with reasoning, everything else collapsed to one `(+why)` line); `design log --confirm-section` records a digest of the approved body so the checklist re-flags `✎` when the prose changes underneath. Never hand-edit `.noldor/design/<slug>.md`.
 - **When to use:** the spec stage of any gated feature, or standalone design exploration. Vendored replacement for the third-party brainstorming flow — no plugin required.
 
 ## /noldor-plan
@@ -77,6 +81,7 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 - **Trigger:** `/noldor-plan <slug>`, or the gate's plan stage on `full-*` paths after spec approval.
 - **Inputs:** approved spec at `docs/design/specs/*-<slug>-design.md`; every file the spec names; the format contract via `pnpm noldor prep format plan`.
 - **Outputs:** bite-size TDD plan at `docs/design/plans/YYYY-MM-DD-<slug>.md` — complete code, exact commands, expected output per step; reports the path and stops — `/noldor-gate` Step 2.5 (`--kind plan`) owns commit + CR. Never commits.
+- **Dialogue shape:** the same draft-first beat as `/noldor-spec` — a plan skeleton lands first so `--section` has real headings to render against, and each answer updates the section on disk before the next question. `design log` needs `--kind plan` explicitly (it defaults to `spec`), or the sign-off digest is taken from the wrong artifact and the heading reads `✎` forever.
 - **When to use:** the plan stage of `full-*` paths, or any multi-step work with a written spec. Vendored replacement for the third-party writing-plans flow — no plugin required.
 
 ## /noldor-research
@@ -85,8 +90,6 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 - **Inputs:** independent research questions; optionally a `tasks.json` (`id`/`question`/`scope`/`context`/`expects` per task).
 - **Outputs:** a `.noldor/research/<stamp>/` batch — per-task `<id>.findings.md`, `INDEX.md`, `manifest.json`, optional `SYNTHESIS.md` (`--synthesize`). Read-only: researcher children return via stdout; the CLI is the only writer. See [`research-fanout.md`](research-fanout.md).
 - **When to use:** codebase research, multi-subsystem investigation, cross-file audits, "understand X before we spec it" — whenever the questions don't depend on each other. Never for write-work (that's the drain's job).
-
-
 
 ## /noldor-refactor
 
@@ -99,7 +102,7 @@ Noldor ships 15 user-invocable skills, each owned by a single concern. This page
 
 - **Trigger:** `/noldor-release-sweep`. Run when the user signals they're ready to release.
 - **Inputs:** must start on `main` with a clean tree and a passing `pnpm verify`. Sweep stages call `/graphify`, `pnpm toon`, and `/noldor-refactor` in turn.
-- **Outputs:** fresh `graphify-out/` (graph.json, GRAPH_REPORT.md, toon files) twice — pre-refactor and post-refactor; possible README drift edits; a single `chore(release): pre-release graphify + refactor sweep` commit; final `pnpm verify` pass. Stops at an explicit `release now` confirmation gate before invoking `pnpm release`.
+- **Outputs:** fresh `graphify-out/` (graph.json, GRAPH_REPORT.md, toon files) twice — pre-refactor and post-refactor; a pre-empted `pnpm noldor garden sdd-report --release` regen; a `/noldor-garden` pass that stamps `.noldor/garden-receipt`; noted README drift (never committed on the sweep branch — `README.md` is outside `RELEASE_SWEEP_GLOBS`); a single `chore(release): pre-release graphify + refactor sweep` commit; final `pnpm verify` pass. Then `pnpm noldor pr-flow` opens and auto-merges the sweep PR, and `pnpm release --preflight` reports every release state gate at once before the explicit `release now` confirmation.
 - **When to use:** the moment between "feature merged to main" and "tag the release". Never runs `pnpm release` without the explicit confirmation. Don't use mid-feature, for routine graph rebuilds, or for one-line hotfixes where structural drift is impossible.
 
 ## /noldor-verify

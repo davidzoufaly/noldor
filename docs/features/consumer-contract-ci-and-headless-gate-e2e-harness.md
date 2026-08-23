@@ -11,6 +11,7 @@ links:
     - src/autonomous/
     - docs/noldor/testing-principles.md
     - docs/noldor/script-catalog.md
+    - src/testing/stub-gate-cli.ts
   docs: []
   tests:
     - src/autonomous/__tests__/build-pool.test.ts
@@ -131,6 +132,7 @@ Hermetic stub runner now register in agent registry (#99).
   - [`src/autonomous/`](../../src/autonomous/)
   - [`docs/noldor/testing-principles.md`](../../docs/noldor/testing-principles.md)
   - [`docs/noldor/script-catalog.md`](../../docs/noldor/script-catalog.md)
+  - [`src/testing/stub-gate-cli.ts`](../../src/testing/stub-gate-cli.ts)
 - **Tests:**
   - [`src/autonomous/__tests__/build-pool.test.ts`](../../src/autonomous/__tests__/build-pool.test.ts)
   - [`src/autonomous/__tests__/decide-next.test.ts`](../../src/autonomous/__tests__/decide-next.test.ts)

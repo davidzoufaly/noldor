@@ -7,7 +7,9 @@ packages:
   - scripts
 deps: []
 links:
-  code: []
+  code:
+    - src/triage/triage-list-untriaged.ts
+    - src/cli/manifest.ts
   tests:
     - src/triage/__tests__/triage-list-untriaged.test.ts
   spec: lost-pre-extraction
@@ -36,6 +38,9 @@ The reorganization is structural — no end-user surface. Internal tools and pnp
 ## Resources
 
 - **Spec:** _lost-pre-extraction_
+- **Code:**
+  - [`src/triage/triage-list-untriaged.ts`](../../src/triage/triage-list-untriaged.ts)
+  - [`src/cli/manifest.ts`](../../src/cli/manifest.ts)
 - **Tests:**
   - [`src/triage/__tests__/triage-list-untriaged.test.ts`](../../src/triage/__tests__/triage-list-untriaged.test.ts)
 

@@ -30,7 +30,7 @@ User-visible touch points after this lands:
 - `/noldor-gate` and `/noldor-new-feature` ask `"FD creation depth — specs-only (no brainstorm) or full (spec + brainstorm)?"` instead of the prior `plan-only (no spec)` wording.
 - Path identifiers on commits, sessions, and `.noldor/session.json` become `specs-only-new` and `specs-only-attach`.
 - FD frontmatter `noldor-tier:` accepts `specs-only` or `full`; `plan-only` is no longer a valid value (`pnpm validate:features` rejects it).
-- No migration is needed for existing FDs — the one-shot script `src/core/rename-plan-only-tier.ts` (run as `pnpm noldor:rename-plan-only-tier`) rewrites all 28 historical FD frontmatters in one pass during this PR.
+- No migration is needed for existing FDs — the one-shot script `src/core/rename-plan-only-tier.ts` (run as `pnpm noldor noldor rename-plan-only-tier`) rewrites all 28 historical FD frontmatters in one pass during this PR.
 
 ## Follow-up
 

@@ -42,7 +42,7 @@ Milestone tracking is optional — the framework validates green without any act
 **Validation**
 
 ```bash
-pnpm validate:milestones    # snapshot schema + single-active + vision-slug-resolves
+pnpm noldor validate milestones   # snapshot schema + single-active + vision-slug-resolves
 ```
 
 Runs automatically via pre-commit hook on changes to `docs/milestones/**` or `docs/vision.md`.

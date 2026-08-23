@@ -26,6 +26,7 @@ links:
     - src/core/consumer-config.ts
     - src/core/ui-boot.ts
     - src/verify/boot.ts
+    - src/core/err-message.ts
   tests:
     - src/core/__tests__/err-message.test.ts
     - src/cr/__tests__/lanes/render-compare-core.test.ts
@@ -142,6 +143,7 @@ This release adds the ui-reviewer lane, a design-fidelity review that checks wor
   - [`src/core/consumer-config.ts`](../../src/core/consumer-config.ts)
   - [`src/core/ui-boot.ts`](../../src/core/ui-boot.ts)
   - [`src/verify/boot.ts`](../../src/verify/boot.ts)
+  - [`src/core/err-message.ts`](../../src/core/err-message.ts)
 - **Tests:**
   - [`src/core/__tests__/err-message.test.ts`](../../src/core/__tests__/err-message.test.ts)
   - [`src/cr/__tests__/lanes/render-compare-core.test.ts`](../../src/cr/__tests__/lanes/render-compare-core.test.ts)
