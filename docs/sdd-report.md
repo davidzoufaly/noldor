@@ -33,6 +33,7 @@ Bump `MIN_ENFORCED_VERSION` in `scripts/garden/sdd-report.ts` once backfill is d
 
 ### Override usage (last 30 days)
 
+- `58e9539` — micro-chore lane omits `.noldor/config.json`, and the CR-gate exemption this release needs can only live there. Diff is README + ideas + one config entry; zero source files.
 - `57134eb` — micro-chore lane rejects `.noldor/id-counter.json` — `MICRO_CHORE_GLOBS` omits the counter that `triage mint-id` bumps, so the framework bookkeeping this commit carries cannot land through its own lane (precedent: #346, #335). Diff is docs + queue bookkeeping only, zero source files.
 - `c488b25` — code CR arbitrated after 12 rounds — verifier green, all 12 reviewer findings fixed (final one in this commit), codex mandate ran 12x with ~17 findings fixed and its last 3 blockers oscillating against its own round-4 demands; full sink record in .noldor/cr and rationale at each noldor:cut site
 - `51ac63d` — codex-tail-at-cap — reviewer and verifier lanes green on rounds 1+2; codex regenerated finer-grain findings each round (legit subset applied, remainder declined with rationale in session); operator-approved override
