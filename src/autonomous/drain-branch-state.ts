@@ -12,12 +12,17 @@
  * commits with green tests, and the remote delete is unrecoverable.
  *
  * This module recomputes the decision from git instead of trusting an absent
- * flag: commits ahead of `origin/main` (local ref or `origin/<branch>` — the
- * pushed-but-no-PR case) plus a clean checkout means deliver; nothing ahead
- * means rebuild. A dirty checkout also reads as rebuild, matching the finish
+ * flag, mirroring both legs of the supervisor's own finish gate
+ * (`drain-loop.ts`): commits ahead of `origin/main` (local ref or
+ * `origin/<branch>` — the pushed-but-no-PR case), no PR a human closed unmerged,
+ * and a clean checkout means deliver; nothing ahead means rebuild. A branch whose
+ * PR was closed unmerged rebuilds — that work was rejected, not undelivered. A
+ * checkout with tracked uncommitted changes also rebuilds, matching the finish
  * path's trust rule (a half-done tree is not deliverable) — the verdict's
  * `reason` names the dirty path and the range to read so the caller can surface
  * what a force-recreate is about to discard rather than deleting silently.
+ * Untracked files are deliberately not dirt (`status -uno`): a stray scratch file
+ * must not authorize deleting committed work.
  *
  * Fail-closed where the evidence is missing: when `git fetch origin` fails there
  * is no way to prove the remote carries no undelivered work, so the verdict is
@@ -25,10 +30,17 @@
  * {@link branchHasUnshippedWork}'s (which errs toward rebuilding): that probe
  * runs inside the supervisor, where a wrong answer costs one rebuild of work the
  * supervisor can re-derive; here a wrong answer is a deletion.
+ *
+ * // noldor:cut reuses branchHasUnshippedWork, whose fail-open maps ANY `rev-list`
+ * failure to "no work" — a non-semantic git failure on both refs therefore reads
+ * as `rebuild` despite this module's fail-closed bias. Fine while both refs
+ * normally resolve; upgrade path is a probe that distinguishes "ref absent" from
+ * "git failed" and routes the latter to `unknown`.
  */
 
+import { parseWorktrees } from './drain-reconcile.js';
 import { branchHasUnshippedWork } from './drain-io.js';
-import { spawnRunner, type GitRunner } from './salvage.js';
+import { hasClosedUnmergedPr, spawnRunner, type GitRunner } from './salvage.js';
 import { runIfDirect } from '../core/cli-entry.js';
 
 /** `finish` = deliver the existing branch; `rebuild` = safe to force-recreate; `unknown` = stop. */
@@ -40,8 +52,10 @@ export interface DrainBranchState {
   readonly verdict: DrainBranchVerdict;
   /** Commits exist ahead of `origin/main` on the local branch or on `origin/<branch>`. */
   readonly hasWork: boolean;
-  /** Path of the branch's checkout when it holds uncommitted changes, else null. */
+  /** Path of the branch's checkout when it holds tracked uncommitted changes, else null. */
   readonly dirtyWorktree: string | null;
+  /** A human closed this branch's PR without merging — the work was rejected. */
+  readonly rejectedPr: boolean;
   /** False when `git fetch origin` failed — remote evidence is stale. */
   readonly remoteFetched: boolean;
   /** Operator-facing one-liner: what was found and what it implies. */
@@ -57,24 +71,38 @@ export const VERDICT_EXIT: Record<DrainBranchVerdict, number> = {
 
 /**
  * Path of the worktree that has `branch` checked out, or null when the branch is
- * checked out nowhere. Parses `git worktree list --porcelain`, whose records are
- * blank-line separated `worktree <path>` … `branch <ref>` blocks.
+ * checked out nowhere. Porcelain parsing is {@link parseWorktrees}'s (same
+ * directory, already strips `refs/heads/`).
  */
 export function worktreeFor(run: GitRunner, branch: string): string | null {
   const r = run('git', ['worktree', 'list', '--porcelain']);
   if (!r.ok) return null;
-  let path: string | null = null;
-  for (const line of r.stdout.split('\n')) {
-    if (line.startsWith('worktree ')) path = line.slice('worktree '.length).trim();
-    if (line.trim() === `branch refs/heads/${branch}`) return path;
-  }
-  return null;
+  return parseWorktrees(r.stdout).find((e) => e.branch === branch)?.path ?? null;
 }
 
-/** Uncommitted changes (tracked or untracked) in `path`. A failed probe reads as clean. */
+/**
+ * Tracked uncommitted changes in `path` — `-uno`, so an untracked scratch file
+ * cannot authorize the destruction of committed work. A failed probe reads as
+ * clean: a dirt verdict here only ever routes toward rebuild, so guessing
+ * "dirty" on a failed probe would be the deletion-side error.
+ */
 function isDirty(run: GitRunner, path: string): boolean {
-  const r = run('git', ['-C', path, 'status', '--porcelain']);
+  const r = run('git', ['-C', path, 'status', '--porcelain', '-uno']);
   return r.ok && r.stdout.trim() !== '';
+}
+
+/**
+ * Did a human close this branch's PR without merging? `'unknown'` when `gh`
+ * failed: {@link hasClosedUnmergedPr} is fail-closed by throwing, and both of the
+ * answers it could have given change the verdict (deliver vs delete), so the
+ * caller must stop rather than pick one.
+ */
+function closedUnmergedPr(run: GitRunner, branch: string): boolean | 'unknown' {
+  try {
+    return hasClosedUnmergedPr(run, branch);
+  } catch {
+    return 'unknown';
+  }
 }
 
 /**
@@ -88,8 +116,30 @@ export function classifyDrainBranch(run: GitRunner, slug: string): DrainBranchSt
   const hasWork = branchHasUnshippedWork(run, slug, branch);
   const worktree = worktreeFor(run, branch);
   const dirtyWorktree = worktree !== null && isDirty(run, worktree) ? worktree : null;
-  const base = { slug, branch, hasWork, dirtyWorktree, remoteFetched };
+  const rejected = hasWork ? closedUnmergedPr(run, branch) : false;
+  const base = {
+    slug,
+    branch,
+    hasWork,
+    dirtyWorktree,
+    rejectedPr: rejected === true,
+    remoteFetched,
+  };
 
+  if (hasWork && rejected === 'unknown') {
+    return {
+      ...base,
+      verdict: 'unknown',
+      reason: `${branch} carries commits but \`gh\` could not say whether a human closed its PR unmerged — refusing to guess between delivering rejected work and deleting good work`,
+    };
+  }
+  if (hasWork && rejected === true) {
+    return {
+      ...base,
+      verdict: 'rebuild',
+      reason: `${branch} carries commits but a human closed its PR without merging — the work was rejected, so rebuild rather than re-delivering it`,
+    };
+  }
   if (hasWork && dirtyWorktree === null) {
     return {
       ...base,
@@ -118,7 +168,7 @@ export function classifyDrainBranch(run: GitRunner, slug: string): DrainBranchSt
   };
 }
 
-export function formatState(s: DrainBranchState): string {
+function formatState(s: DrainBranchState): string {
   return `verdict: ${s.verdict}\n${s.reason}\n`;
 }
 

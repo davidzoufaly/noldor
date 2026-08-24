@@ -3,14 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { classifyDrainBranch, worktreeFor } from '../drain-branch-state.js';
 import type { GitRunner } from '../salvage.js';
 
-/** Scripted runner: maps "cmd arg arg" prefixes to results. Unmatched → ok:true, ''. */
+/**
+ * Scripted runner: maps "cmd arg arg" prefixes to results. `gh pr list` answers
+ * "no closed PR" unless a case overrides it; other unmatched keys → ok:true, ''.
+ */
 function runner(script: Record<string, { ok: boolean; stdout: string }>): GitRunner {
   return (cmd, args) => {
     const key = [cmd, ...args].join(' ');
     for (const [prefix, res] of Object.entries(script)) {
       if (key.startsWith(prefix)) return res;
     }
-    return { ok: true, stdout: '' };
+    return key.startsWith('gh pr list') ? { ok: true, stdout: '[]' } : { ok: true, stdout: '' };
   };
 }
 
@@ -105,6 +108,50 @@ describe('classifyDrainBranch', () => {
       'x',
     );
     expect(s.verdict).toBe('finish');
+  });
+
+  it('rebuilds a branch whose PR a human closed unmerged — rejected, not undelivered', () => {
+    const s = classifyDrainBranch(
+      runner({
+        'git fetch origin': { ok: true, stdout: '' },
+        'git rev-list --count origin/main..fast/x': { ok: true, stdout: '5\n' },
+        'git worktree list': { ok: true, stdout: WORKTREE_LIST },
+        'git -C /repo/.worktrees/x status': { ok: true, stdout: '' },
+        'gh pr list': { ok: true, stdout: '[{"mergedAt":null}]' },
+      }),
+      'x',
+    );
+    expect(s.verdict).toBe('rebuild');
+    expect(s.rejectedPr).toBe(true);
+  });
+
+  it('stops when gh cannot say whether the PR was closed unmerged', () => {
+    const s = classifyDrainBranch(
+      runner({
+        'git fetch origin': { ok: true, stdout: '' },
+        'git rev-list --count origin/main..fast/x': { ok: true, stdout: '5\n' },
+        'git worktree list': { ok: true, stdout: WORKTREE_LIST },
+        'git -C /repo/.worktrees/x status': { ok: true, stdout: '' },
+        'gh pr list': { ok: false, stdout: '' },
+      }),
+      'x',
+    );
+    expect(s.verdict).toBe('unknown');
+  });
+
+  it('an untracked scratch file does not authorize deleting committed work', () => {
+    const s = classifyDrainBranch(
+      runner({
+        'git fetch origin': { ok: true, stdout: '' },
+        'git rev-list --count origin/main..fast/x': { ok: true, stdout: '7\n' },
+        'git worktree list': { ok: true, stdout: WORKTREE_LIST },
+        // `-uno` is what makes this clean: the probe never sees the untracked file.
+        'git -C /repo/.worktrees/x status --porcelain -uno': { ok: true, stdout: '' },
+      }),
+      'x',
+    );
+    expect(s.verdict).toBe('finish');
+    expect(s.dirtyWorktree).toBeNull();
   });
 });
 

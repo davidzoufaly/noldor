@@ -46,13 +46,20 @@ dependency, so the prompt stays a thin pointer.
 - **Earn the right to destroy it first.** Before any delete, run
   `pnpm noldor autonomous branch-state <slug>` and branch on its exit code:
   - **0** (`rebuild`) — nothing ahead of `origin/main` on `fast/<slug>` or
-    `origin/fast/<slug>`: force-recreate as below.
-  - **10** (`finish`) — the branch carries commits and its checkout is clean:
-    delete nothing and follow the [Finish path](#finish-path-undelivered-work-on-fastslug)
-    instead.
-  - **1** (`unknown`) — the classifier could not prove the branch is empty
-    (typically `git fetch origin` failed). Echo its `reason` and exit non-zero;
-    never force-recreate on an unproven branch.
+    `origin/fast/<slug>`, or a human closed the branch's PR unmerged (rejected
+    work, not undelivered work): force-recreate as below.
+  - **10** (`finish`) — the branch carries commits, no PR of its was closed
+    unmerged, and its checkout is clean: delete nothing and follow the
+    [Finish path](#finish-path-undelivered-work-on-fastslug) instead.
+  - **1** (`unknown`) — the classifier could not prove the branch is safe to
+    discard: `git fetch origin` failed, or `gh` could not say whether the PR was
+    closed unmerged. Echo its `reason` and exit non-zero; never force-recreate on
+    an unproven branch.
+
+  The verdict mirrors both legs of the supervisor's own finish gate (unshipped
+  work AND no closed-unmerged PR), substituting a clean checkout for the prior
+  child's clean exit. Untracked files are deliberately not dirt — a stray scratch
+  file must not authorize deleting committed work.
 
   A supervisor-spawned child usually gets `rebuild` here, because the supervisor
   already sends the finish variant for undelivered work. A drain invoked by hand
@@ -62,9 +69,10 @@ dependency, so the prompt stays a thin pointer.
   branch first (`git worktree remove --force <dir>`, if present), then
   `git branch -D fast/<slug>` and `git push origin --delete fast/<slug>`
   (each only when it exists). A `rebuild` verdict on a branch that *does* carry
-  commits means its checkout was dirty — a half-done tree is not deliverable, so
-  the rebuild is right, but echo the verdict's `reason` (it names the dirty path
-  and the `git log origin/main..fast/<slug>` range) before discarding. This
+  commits means its checkout had tracked uncommitted changes (a half-done tree is
+  not deliverable) or its PR was closed unmerged — the rebuild is right either
+  way, but echo the verdict's `reason` (it names the dirty path and the
+  `git log origin/main..fast/<slug>` range) before discarding. This
   per-slug removal is the only worktree a drain child deletes.
 - Do the work on that branch and run every noldor command from inside its
   checkout/worktree.
