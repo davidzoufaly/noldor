@@ -137,6 +137,26 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   on `Unexpected token '>'` while the exit code stays 0 — the crash names the
   payload, not the wrapper. Call `node bin/noldor.mjs <cmd> --json` instead,
   or strip leading non-JSON lines.
+- **`clones` `diffScope` push gate is independent of the ratchet.** The
+  pre-push `noldor-clones` step reds on any clone group the change touches
+  even when total duplicated tokens FALL below the recorded baseline —
+  `clones baseline` cannot clear it, and import blocks count (two files whose
+  `import` lists share ~50 tokens are a group). Fixes that work, in order of
+  value: extract the shared helper the detector points at, or split a file so
+  its import block drops under the floor. Perturbation (hoisting a
+  conditional spread out of an object literal) is honest only for a
+  coincidental token match between unrelated code. Standalone
+  `pnpm noldor clones check` can exit 0 while the hook reds on the same tree —
+  replay the hook, not the CLI. (Q-0145)
+- **TypeScript 7 removed the in-process JS compiler API.** The `typescript`
+  package exports only `version` plus `unstable/*` (parsing there means
+  spawning the tsgo API server against a real tsconfig project) — anything
+  that did `ts.createSourceFile` on loose text has no in-process replacement;
+  a hand-rolled scan is usually right for doc-lints. Separately,
+  `dependency-cruiser` accepts `typescript >=2 <6` only, so under TS7 it
+  silently extracts **zero** dependencies from a `.ts` tree — a false green,
+  not an error. `@swc/core` restores its parsing; the boundaries invariant
+  fails loudly via `allExtensions` when neither parser is installed. (PR #358)
 
 ## Release & publish
 
