@@ -41,6 +41,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'autonomous/unpark-cli.ts',
         desc: 'Resolve an escalation: unpark <slug> [--source <id>]',
       },
+      'branch-state': {
+        src: 'autonomous/drain-branch-state.ts',
+        desc: "Finish-vs-rebuild verdict for a drain entry's fast/<slug> branch (exit 0 rebuild, 10 finish, 1 stop)",
+      },
       status: {
         src: 'autonomous/status-cli.ts',
         desc: 'Runner liveness (lock pid + kill -0) plus shipped/skip/in-flight from drain-state (--json)',

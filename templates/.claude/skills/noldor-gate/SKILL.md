@@ -466,13 +466,39 @@ loop / retry / skip / lock; each gate run only ships its one entry. Step overrid
   On exit 1 (checker infra error), continue — never block a drain on checker infra.
 - **Steps 1 / 1.5:** skip path-pick + path-confirm. Force `fast-track`, carrying `entry.slug`. Name
   the branch **`fast/<slug>`** (deterministic — vs ordinary fast-track's `fast/<short-desc>`) so the
-  supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly. Before `git worktree add`,
-  **force-recreate** the branch (a prior interrupted run may have left it): `git branch -D fast/<slug>`
-  + `git push origin --delete fast/<slug>` (when each exists). Reaching this point means the supervisor
-  found no open PR for the slug, so any existing `fast/<slug>` is abandoned work safe to discard
-  (also `git worktree remove --force` its stale worktree dir first, if present, so `git branch -D`
-  won't fail on a checked-out branch). This per-slug removal is the only worktree the drain deletes —
-  the supervisor's `syncMainCleanState` never blanket-wipes `.worktrees/*`.
+  supervisor's `openPrExistsFor(slug)` can map slug → branch → PR exactly.
+
+  **Earn the right to destroy the branch first.** Before any `git branch -D` / `git push origin
+  --delete`, run `pnpm noldor autonomous branch-state <slug>` and branch on its exit code:
+  - **0** (`rebuild`) — nothing is ahead of `origin/main` on `fast/<slug>` or `origin/fast/<slug>`, or
+    a human closed the branch's PR unmerged (rejected work, not undelivered work): force-recreate as
+    below.
+  - **10** (`finish`) — the branch carries commits, none of its PRs was closed unmerged, and its checkout
+    is clean: **do not delete anything.** Switch to the **Finish mode** sub-section below and deliver
+    the existing work, exactly as a supervisor-sent `--finish` run would.
+  - **1** (`unknown`) — the classifier could not prove the branch is safe to discard: `git fetch
+    origin` failed, or `gh` could not say whether the PR was closed unmerged. Echo its `reason` and
+    exit non-zero; never force-recreate on an unproven branch.
+
+  The verdict mirrors both legs of the supervisor's own finish gate in `drain-loop.ts` (unshipped work
+  AND no closed-unmerged PR), substituting a clean checkout for the prior child's clean exit. Untracked
+  files are deliberately not dirt — a stray scratch file must not authorize deleting committed work.
+
+  The check exists because the finish-vs-rebuild decision otherwise lives only in the supervisor,
+  which knows whether the prior child exited 0 — a hand-invoked `/noldor-gate --drain <slug>` carries
+  no `--finish` signal and would read finished work as abandoned. On Q-0107 that branch held 7 commits
+  with green tests, and the remote-side delete is unrecoverable. A supervisor-spawned child runs the
+  same check harmlessly: the supervisor already sends `--finish` for that state, so the verdict agrees.
+
+  On verdict `rebuild`, **force-recreate** the branch (a prior interrupted run may have left it):
+  `git branch -D fast/<slug>` + `git push origin --delete fast/<slug>` (when each exists). A `rebuild`
+  verdict on a branch that *does* carry commits means its checkout had tracked uncommitted changes (a
+  half-done tree is not deliverable) or its PR was closed unmerged — the rebuild is right either way,
+  but echo the verdict's `reason` (it names the dirty path and the `git log origin/main..fast/<slug>`
+  range) before discarding. Also `git worktree remove --force`
+  its stale worktree dir first, if present, so `git branch -D` won't fail on a checked-out branch. This
+  per-slug removal is the only worktree the drain deletes — the supervisor's `syncMainCleanState` never
+  blanket-wipes `.worktrees/*`.
 - **Step 2:** the existing **Roadmap-entry retirement** sequence (above) runs unchanged — implement
   the entry, `removeBlock` the roadmap block on the branch. `cd` into the worktree first; the session
   marker, `set-autonomous`, and `pr-flow` all operate from there.
@@ -502,7 +528,12 @@ left `fast/<slug>` with commits ahead of `origin/main` — the assertion above h
 clean exit is what makes the work trustworthy: a child killed by the per-entry timeout may be
 half-done, so the supervisor rebuilds that one instead of sending it here. The work exists; only
 delivery is missing. Rebuilding it costs ~13 minutes and ~170k tokens for nothing, so this run
-delivers instead:
+delivers instead.
+
+A hand-invoked drain reaches this same mode without the flag: `pnpm noldor autonomous branch-state
+<slug>` exiting 10 at Step 1 is the equivalent verdict, derived from the branch instead of from the
+supervisor's knowledge of the prior child. It substitutes a clean checkout for the clean-exit signal —
+a dirty tree reads as half-done and routes to rebuild, matching what the supervisor would have done.
 
 - **Do NOT force-recreate the branch** and do NOT `git push origin --delete` it. Those steps exist to
   discard *abandoned* state; here they would destroy the commits being finished. Reuse the existing

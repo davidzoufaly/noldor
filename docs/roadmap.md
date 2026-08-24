@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Gate Drain-Mode Force-Recreate Can Destroy Finished Work
-
-- id: Q-0157
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: S
-- impact: high
-- confidence: high
-- parent: gate-flow-rework
-
-`/noldor-gate --drain <slug>` invoked by hand (no supervisor) carries no `--finish` signal, yet the drain-mode Step 1 override tells the gate to force-recreate `fast/<slug>` and delete it on the remote as "abandoned work safe to discard". On Q-0107 that branch held 7 commits with green tests from a prior child that never opened a PR — obeying the override literally would have destroyed finished work, unrecoverably on the remote side. The finish-vs-rebuild decision lives only in the supervisor (which knows whether the prior child exited 0), so an interactively-invoked drain has no way to know it. Gate should derive the branch state itself before destroying anything: `git log origin/main..fast/<slug>` non-empty plus a clean worktree ⇒ finish mode (deliver), empty or dirty ⇒ rebuild. Deletion test: a hand-invoked drain on a slug whose `fast/` branch carries unpushed green commits delivers them instead of recreating the branch. (absorbed from a lesson, surfaced shipping Q-0107, PR #317)
-
 ### Drain Prune Can Delete a Live Backlog Worktree
 
 - id: Q-0158
