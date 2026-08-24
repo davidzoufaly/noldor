@@ -1,4 +1,4 @@
-// `noldor doctor` — three phases:
+// `noldor doctor` — five phases:
 // 1. presence + version-floor check for every declared stack prerequisite
 //    (binaries + consumer package scripts the hooks invoke).
 // 2. diff every template-managed file (under the pkg's `templates/` asset
@@ -8,7 +8,11 @@
 // 4. structural wiring assertion on the consumer's root `lefthook.yml` — the
 //    one adopted surface phases 2-3 cannot see, because it is scaffold-only
 //    and so exempt from drift.
-// Exit 1 on any prerequisite, drift, runner, or wiring problem; exit 0 with counts on clean.
+// 5. lockfile-vs-installed-modules freshness, so a pulled dependency change
+//    that was never installed reports itself instead of surfacing later as a
+//    typecheck failure that reads like a code bug.
+// Exit 1 on any prerequisite, drift, runner, wiring, or install-freshness problem;
+// exit 0 with counts on clean.
 // Wired into `pnpm verify` at the consumer side (per spec).
 import {
   TEMPLATES_ROOT,
@@ -17,6 +21,7 @@ import {
 } from '../../templates/manifest.js';
 import { computeDrift } from '../../templates/diff.js';
 import { checkLefthookWiring } from '../../checks/check-lefthook-wiring.js';
+import { REPAIR, checkInstallFreshness } from '../../checks/check-install-freshness.js';
 import { loadUiConfig } from '../../core/consumer-config.js';
 import { evaluateUiDesignFreshness } from '../../release/ui-design-freshness.js';
 import { filterTemplatesByAgents } from '../../templates/agent-filter.js';
@@ -83,6 +88,21 @@ if (wiring.status !== 'ok') {
   }
 }
 
+// Install freshness: node_modules must have been installed from the lockfile
+// currently on disk. Blocking, because a stale tree makes every other signal in
+// the repo — typecheck, tests, this doctor run — describe dependencies nobody
+// is actually working with. `advisory` results are the check declining to look
+// (no readable marker), which is not evidence of staleness and must not fail.
+const freshness = checkInstallFreshness(process.cwd());
+let freshnessBad = 0;
+if (freshness.status !== 'ok' && freshness.status !== 'no-lockfile') {
+  if (freshness.advisory) console.log(`${'warn'.padEnd(12)} install: ${freshness.detail}`);
+  else {
+    freshnessBad++;
+    console.log(`${'stale'.padEnd(12)} install: ${freshness.detail}`);
+  }
+}
+
 // Framework-version skew: advisory only (does NOT affect exit code). A consumer
 // with synced templates but an un-migrated tree should still pass `doctor`
 // green after running `noldor upgrade`.
@@ -102,9 +122,9 @@ if (uiConfig !== null) {
   }
 }
 
-if (prereqBad === 0 && bad === 0 && runnerBad === 0 && wiringBad === 0) {
+if (prereqBad === 0 && bad === 0 && runnerBad === 0 && wiringBad === 0 && freshnessBad === 0) {
   console.log(
-    `OK — prerequisites healthy, ${files.length} template files in sync, ${checks.length} runner(s) healthy, hooks wired`,
+    `OK — prerequisites healthy, ${files.length} template files in sync, ${checks.length} runner(s) healthy, hooks wired, install fresh`,
   );
   process.exit(0);
 }
@@ -120,6 +140,11 @@ if (bad > 0) {
 if (runnerBad > 0) {
   console.error(
     `${runnerBad} runner problem(s). Install the missing CLI or fix agents.versionFloors.`,
+  );
+}
+if (freshnessBad > 0) {
+  console.error(
+    `\nnode_modules does not match the lockfile, so typecheck/test results here describe a stale dependency tree. Run '${REPAIR}' before trusting any red above.`,
   );
 }
 if (wiringBad > 0) {

@@ -41,6 +41,12 @@ re-syncs templates, so a stale `lefthook/noldor.yml` survives it and every
 commit dies on a hook job naming a subcommand the new version removed. See
 [versioning.md](versioning.md#version-aware-upgrade).
 
+A `stale install:` row means `node_modules` was installed from a different
+`pnpm-lock.yaml` than the one on disk — typically a `git pull` that landed a
+dependency change with no install after it. Every downstream red (typecheck,
+tests, this doctor run) then describes the old tree rather than your code. The
+repair is one command: `pnpm install --frozen-lockfile`.
+
 > **CI / deploy.** Any pipeline that runs `npm ci` / `pnpm install` — build, test, or a Pages/deploy job — resolves `noldor` from public npm with no extra auth: no `.npmrc`, no secret.
 
 > **First commit & gotchas.** The scaffolded lefthook jobs shell out to your `lint` / `fmt` / `fmt:check` / `test` scripts and to `lefthook` itself — add any you lack (`pnpm add -D lefthook`; add the four package scripts if missing) so the first commit's hooks don't fail with "missing script". The bootstrap commit stages `docs/noldor/**`, but the `noldor-scope` hook allowlists the `init` scaffold set, so it lands clean (no `(noldor)` scope required). Once those files are tracked, the pre-edit guard arms: the **next** edit to a tracked file needs a `/noldor-gate` session. Adopting the lint floor (`oxlint --deny-warnings`) on a repo that already has warnings will block that first commit — fix them, or stage an oxlint ignore ramp before adopting.
