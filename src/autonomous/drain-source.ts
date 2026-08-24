@@ -115,6 +115,22 @@ export interface DrainSource {
    * feature docs, deliberately omits it and {@link selectionNotAtRef} then no-ops.
    */
   parseAllAtRef?(ref: string): string[] | null;
+  /**
+   * Slugs a `/noldor-gate` session in this source's branch namespace can be working on
+   * that {@link parseAll} does not list — the prune's extra non-orphan evidence.
+   *
+   * `parseAll` doubles as the success oracle (absence === shipped), so it must stay the
+   * source's own document. But `pruneShippedWorktrees` reads that same absence as "this
+   * worktree is a shipped leftover", and the gate accepts a **backlog** slug for a
+   * fast-track too: a live `.worktrees/<backlog-slug>` on `fast/<backlog-slug>` is absent
+   * from `docs/roadmap.md` from birth, so it reads as an orphan and gets
+   * `git worktree remove --force` + `git branch -D` taken to it. Widening the prune's
+   * universe here — rather than `parseAll`'s — keeps the oracle's meaning intact.
+   *
+   * Optional: a source with no second document omits it and the prune falls back to
+   * `parseAll` alone.
+   */
+  fastTrackableElsewhere?(): string[];
 }
 
 /**
@@ -254,6 +270,14 @@ export function roadmapSource(cwd: string, selection?: SelectionFilter): DrainSo
       // (absence === shipped) and the reconcile prune's in-flight set. A filtered universe
       // would read every out-of-selection entry as already shipped and prune live worktrees.
       return parseRoadmap(read()).map((e) => e.slug);
+    },
+    fastTrackableElsewhere() {
+      // The gate's Step 0 pick and its `roadmap remove-block` both accept a backlog slug,
+      // so a backlog entry can be under way on `fast/<slug>` while never appearing in
+      // `docs/roadmap.md`. Missing file → no extra evidence, not an error.
+      const p = loadDocRoots(cwd).backlog;
+      if (!existsSync(p)) return [];
+      return parseBacklog(readFileSync(p, 'utf8')).map((e) => e.slug);
     },
     parseAllAtRef(ref) {
       const rel = relative(cwd, loadDocRoots(cwd).roadmap);

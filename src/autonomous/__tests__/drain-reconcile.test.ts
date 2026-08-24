@@ -1,7 +1,13 @@
 // @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-drain, parallel-drain-roadmapmd-conflict-auto-resolution, plan-runner
 import { describe, expect, it, vi } from 'vitest';
 
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import {
+  makeReconcileDeps,
   parseWorktrees,
   reapOrphanAgents,
   reconcileOpenPrs,
@@ -27,16 +33,18 @@ function deps(over: Partial<ReconcileDeps> = {}): ReconcileDeps {
     mergePr: vi.fn(async () => 'merged' as const),
     closePr: vi.fn(),
     listWorktrees: () => [],
+    isWorktreeDirty: () => false,
     removeWorktree: vi.fn(),
     ...over,
   };
 }
 
-function source(prefix: 'fast/' | 'feat/', universe: string[]): DrainSource {
+function source(prefix: 'fast/' | 'feat/', universe: string[], elsewhere?: string[]): DrainSource {
   return {
     id: prefix === 'fast/' ? 'roadmap' : 'plans',
     nextItem: () => null,
     parseAll: () => universe,
+    ...(elsewhere !== undefined ? { fastTrackableElsewhere: () => elsewhere } : {}),
     gatePrompt: (s) => s,
     branchFor: (s) => `${prefix}${s}`,
   };
@@ -272,6 +280,53 @@ describe('pruneShippedWorktrees', () => {
     expect(pruned).toEqual([]);
   });
 
+  it('keeps a live worktree whose slug is in the backlog, not the roadmap', () => {
+    const removeWorktree = vi.fn();
+    const pruned = pruneShippedWorktrees(
+      deps({
+        listWorktrees: () => [
+          { path: '/repo/.worktrees/from-backlog', branch: 'fast/from-backlog' },
+        ],
+        removeWorktree,
+      }),
+      // roadmap universe empty; the slug is being fast-tracked from docs/backlog.md.
+      source('fast/', [], ['from-backlog']),
+    );
+    expect(removeWorktree).not.toHaveBeenCalled();
+    expect(pruned).toEqual([]);
+  });
+
+  it('keeps an out-of-universe worktree whose checkout has uncommitted changes', () => {
+    const removeWorktree = vi.fn();
+    const isWorktreeDirty = vi.fn((p: string) => p === '/repo/.worktrees/in-use');
+    const pruned = pruneShippedWorktrees(
+      deps({
+        listWorktrees: () => [
+          { path: '/repo/.worktrees/in-use', branch: 'fast/in-use' },
+          { path: '/repo/.worktrees/shipped', branch: 'fast/shipped' },
+        ],
+        isWorktreeDirty,
+        removeWorktree,
+      }),
+      source('fast/', []),
+    );
+    expect(removeWorktree).toHaveBeenCalledTimes(1);
+    expect(removeWorktree).toHaveBeenCalledWith('shipped', 'fast/shipped');
+    expect(pruned).toEqual(['shipped']);
+  });
+
+  it('dry-run still spares a dirty worktree (the plan must match the action)', () => {
+    const pruned = pruneShippedWorktrees(
+      deps({
+        listWorktrees: () => [{ path: '/repo/.worktrees/in-use', branch: 'fast/in-use' }],
+        isWorktreeDirty: () => true,
+      }),
+      source('fast/', []),
+      true,
+    );
+    expect(pruned).toEqual([]);
+  });
+
   it('never touches a non-drain branch or a non-.worktrees path', () => {
     const removeWorktree = vi.fn();
     const pruned = pruneShippedWorktrees(
@@ -356,5 +411,52 @@ describe('assertQueueSourceSynced', () => {
 
   it('passes silently when in sync (count 0)', () => {
     expect(() => assertQueueSourceSynced(runner('0\n'))).not.toThrow();
+  });
+});
+
+describe('makeReconcileDeps isWorktreeDirty', () => {
+  // The production binding is where the fail-safe directions are chosen, so it is
+  // exercised against real git checkouts rather than asserted from the docstring.
+  const git = (cwd: string, ...args: string[]): void => {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
+  };
+  const bind = (cwd: string): ReconcileDeps =>
+    makeReconcileDeps(
+      cwd,
+      source('fast/', []),
+      () => {},
+      () => {},
+    );
+
+  it('reads a clean checkout as free, and an untracked-only one as in use', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reconcile-deps-'));
+    try {
+      git(dir, 'init', '-q');
+      git(dir, 'config', 'user.email', 't@example.com');
+      git(dir, 'config', 'user.name', 't');
+      writeFileSync(join(dir, 'tracked.txt'), 'x', 'utf8');
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-q', '-m', 'seed', '--no-verify');
+      const d = bind(dir);
+      expect(d.isWorktreeDirty(dir)).toBe(false);
+      // `git worktree remove --force` would delete this file with no reflog copy.
+      writeFileSync(join(dir, 'NEW.md'), 'unsaved work', 'utf8');
+      expect(d.isWorktreeDirty(dir)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('spares a checkout git cannot answer for, but not a vanished one', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reconcile-deps-'));
+    try {
+      // Not a git checkout at all → `git status` fails → 'unknown' → fail-closed.
+      const d = bind(dir);
+      expect(d.isWorktreeDirty(dir)).toBe(true);
+      expect(d.isWorktreeDirty(join(dir, 'gone'))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

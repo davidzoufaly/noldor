@@ -64,6 +64,44 @@ export function hasClosedUnmergedPr(run: GitRunner, branch: string): boolean {
 }
 
 /**
+ * State of the checkout at `path` for the "is someone working here" question.
+ *
+ * Both axes are the caller's to choose, because the two callers want opposite
+ * things from the same probe:
+ *
+ * - `'unknown'` is its own answer rather than a guess. For `classifyDrainBranch`
+ *   dirt routes toward rebuild, so an unanswerable probe must not read as dirty;
+ *   for `pruneShippedWorktrees` dirt is the only thing left sparing the worktree
+ *   by the time it asks, so an unanswerable probe must not read as clean.
+ * - `countUntracked` (`-unormal` vs the default `-uno`). A scratch file must not
+ *   block a rebuild of work git still holds, so `classifyDrainBranch` leaves it
+ *   off. But the prune's action is `git worktree remove --force`, which bypasses
+ *   git's own refusal to delete a checkout carrying untracked files — and an
+ *   untracked file has never entered the object store, so nothing recovers it.
+ *   That caller turns it on.
+ *
+ * Collapsing either axis here would hand one caller the deletion-side error.
+ */
+export function checkoutDirtState(
+  run: GitRunner,
+  path: string,
+  opts: { countUntracked?: boolean } = {},
+): 'dirty' | 'clean' | 'unknown' {
+  const untracked = opts.countUntracked === true ? '-unormal' : '-uno';
+  const r = run('git', ['-C', path, 'status', '--porcelain', untracked]);
+  if (!r.ok) return 'unknown';
+  return r.stdout.trim() === '' ? 'clean' : 'dirty';
+}
+
+/**
+ * {@link checkoutDirtState} collapsed toward "not dirty", ignoring untracked files —
+ * the read for a caller whose dirt verdict routes toward discarding work.
+ */
+export function checkoutIsDirty(run: GitRunner, path: string): boolean {
+  return checkoutDirtState(run, path) === 'dirty';
+}
+
+/**
  * Clean room for one slug: worktree dir, local branch, remote branch — each
  * best-effort (already-gone is fine). Closed PRs are left as history.
  * Branch is always the drain's own `fast/<slug>` namespace (see autonomy.md

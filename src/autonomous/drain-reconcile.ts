@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { isAlive } from './drain-lock.js';
 import { classifyMergeView, mergePr, type MergeOutcome } from './drain-io.js';
+import { checkoutDirtState, spawnRunner } from './salvage.js';
 import type { DrainSource } from './drain-source.js';
 import type { DrainState } from './drain-state.js';
 
@@ -61,6 +62,14 @@ export interface ReconcileDeps {
   closePr: (branch: string) => void;
   /** All git worktrees (porcelain-parsed). */
   listWorktrees: () => WorktreeEntry[];
+  /**
+   * Is this checkout NOT provably empty of uncommitted work — tracked or untracked?
+   * Fail-closed: an unanswerable probe reads as in-use, because by the time the
+   * prune asks, this is the only guard left between a live worktree and
+   * `remove --force`. A checkout whose directory is gone is not unanswerable — it
+   * holds nothing, so it reads as not-in-use and stays prunable.
+   */
+  isWorktreeDirty: (path: string) => boolean;
   /** Remove a drain worktree dir + delete its local branch. */
   removeWorktree: (slug: string, branch: string) => void;
 }
@@ -164,9 +173,34 @@ export async function reconcileOpenPrs(
 /**
  * GC the prior run's orphaned worktrees: a `.worktrees/<slug>` on the source's
  * branch namespace whose slug is no longer in the universe (already shipped /
- * retired). Two guards keep it from touching anything else — the branch must be
- * in the drain namespace AND the path must be the drain's own `.worktrees/<slug>`
- * (so a human's `.claude/worktrees/*` or an unrelated branch is never removed).
+ * retired). Four guards keep it from touching anything else:
+ *
+ * - the branch must be in the drain namespace, AND
+ * - the path must be the drain's own `.worktrees/<slug>` (so a human's
+ *   `.claude/worktrees/*` or an unrelated branch is never removed), AND
+ * - the slug must be absent from EVERY document the gate can fast-track from —
+ *   `parseAll` plus {@link DrainSource.fastTrackableElsewhere}, because a backlog
+ *   entry being fast-tracked is a normal gate flow yet is absent from
+ *   `docs/roadmap.md` from birth, AND
+ * - the checkout must be PROVABLY empty of uncommitted work, tracked or untracked
+ *   — either is positive proof the worktree is not an orphan, and an unanswerable
+ *   probe is not proof of the opposite.
+ *
+ * The last two are separate guards rather than alternatives because neither is
+ * sufficient. A wider universe still cannot see an ad-hoc `/noldor-gate`
+ * fast-track (its `fast/<short-desc>` never appears in any document), and the dirt
+ * probe alone cannot tell shipped from in-flight (after a squash-merge the branch's
+ * commits are not ancestors of `main`, so "has commits" never clears). What the
+ * dirt probe adds is the unrecoverable case: `removeWorktree` shells
+ * `git worktree remove --force` + `git branch -D`, and while committed work
+ * survives in the reflog, neither a staged-but-uncommitted tree nor an untracked
+ * file ever entered the object store. `--force` is precisely what bypasses git's
+ * own refusal to remove such a checkout, so the probe counts untracked files back
+ * in (see {@link checkoutDirtState}'s `countUntracked`).
+ *
+ * The prune stays effective under both guards: it only ever fires for a slug whose
+ * PR already merged (that is what removes the roadmap block from `main`), and such
+ * a worktree's work is committed and merged, so it is clean.
  */
 export function pruneShippedWorktrees(
   deps: ReconcileDeps,
@@ -174,7 +208,7 @@ export function pruneShippedWorktrees(
   dryRun = false,
 ): string[] {
   const prefix = source.branchFor('');
-  const universe = new Set(source.parseAll());
+  const universe = new Set([...source.parseAll(), ...(source.fastTrackableElsewhere?.() ?? [])]);
   const pruned: string[] = [];
   for (const wt of deps.listWorktrees()) {
     if (!wt.branch.startsWith(prefix)) continue; // not a drain branch
@@ -183,6 +217,7 @@ export function pruneShippedWorktrees(
       wt.path === `.worktrees/${slug}` || wt.path.endsWith(`/.worktrees/${slug}`);
     if (!isDrainWorktreePath) continue; // a human worktree on a same-prefix branch — leave it
     if (universe.has(slug)) continue; // still in-universe (in-flight / to-ship) — leave it
+    if (deps.isWorktreeDirty(wt.path)) continue; // in use, or unprovable — not an orphan
     if (!dryRun) deps.removeWorktree(slug, wt.branch);
     pruned.push(slug);
   }
@@ -276,6 +311,7 @@ export function makeReconcileDeps(
   syncMain: () => void,
   assertSynced: () => void,
 ): ReconcileDeps {
+  const run = spawnRunner(cwd);
   return {
     readDrainState: () => {
       const p = join(cwd, '.noldor/drain-state.json');
@@ -322,6 +358,12 @@ export function makeReconcileDeps(
       });
       return parseWorktrees(out);
     },
+    // A missing directory is not an unanswerable probe — it is a worktree with
+    // nothing left to lose, and the registration + local branch leak forever if
+    // the prune spares it. `existsSync` first, so only a checkout that actually
+    // exists gets the fail-closed `!== 'clean'` read.
+    isWorktreeDirty: (path) =>
+      existsSync(path) && checkoutDirtState(run, path, { countUntracked: true }) !== 'clean',
     removeWorktree: (slug, branch) => {
       spawnSync('git', ['worktree', 'remove', '--force', `.worktrees/${slug}`], { cwd });
       spawnSync('git', ['branch', '-D', branch], { cwd });
