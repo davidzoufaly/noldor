@@ -54,19 +54,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 The `Stale backlog entries (>90 days)` SDD gap (`detectStaleBacklogEntries`, `src/garden/sdd-report.ts:190`) reads only `since` — it never looks at `phase`. `pnpm noldor garden demote-stale` exists to answer exactly this finding by writing `- phase: later` into the block, yet the gap keeps firing afterwards, so the demotion is a no-op for the report it was built to clear. Q-0005 (Real-Codex Integration Smoke Test, since 2026-05-10) has therefore been an uncloseable row for 105 days: the only ways to clear it are dropping the entry or backdating `since`, and the second is a lie. Either exempt `phase: later` from the staleness gap, or drop `demote-stale` and say plainly that the gap can only be closed by a disposition. Deletion test: a demoted entry stops appearing in the SDD report. (found 2026-08-23 closing SDD gaps before the 1.5.0 release)
 
-### Anchor-vs-Installed Drift Breaks Consumer Hooks
-
-- id: Q-0177
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: S
-- impact: high
-- confidence: high
-- parent: version-aware-upgrade-and-migration-chain
-
-Consumer report (bumbu, 2026-08-23): commits in the repo were broken — the framework anchor said 1.3.0 while the installed package was 1.5.0, and the stale `lefthook/noldor.yml` still called `noldor validate summary-body`, which 1.5.0 removed (the per-commit gate moved to the PR seam in #361), so every commit died on a nonexistent subcommand. A `package.json` bump alone is not enough; the working recovery was `noldor upgrade` + `noldor init --update`, and nothing in the framework says so at the point of failure. Wanted: detect anchor-vs-installed drift instead of letting hooks die on removed subcommands — a `doctor` row and/or a hook-level preflight comparing the anchored framework version to the installed package version, failing with the exact remedy (`noldor upgrade` + `init --update`); consider also a soft-fail message when a hook invokes a `noldor` subcommand that no longer exists, since a stale hook file is precisely the state that cannot self-diagnose. Deletion test: a consumer whose installed package is newer than its anchor gets a named upgrade instruction from the first failing hook or `doctor`, not a broken-commit error. (consumer feedback from bumbu, 2026-08-23)
-
 ### Plan Split Guidance Permits A Part That Ships Nothing
 
 - id: Q-0150

@@ -147,5 +147,9 @@
   "Q-0160": {
     "slug": "mint-id-must-floor-the-counter-at-the-live-corpus-max",
     "retiredAt": "2026-08-24"
+  },
+  "Q-0177": {
+    "slug": "anchor-vs-installed-drift-breaks-consumer-hooks",
+    "retiredAt": "2026-08-24"
   }
 }
