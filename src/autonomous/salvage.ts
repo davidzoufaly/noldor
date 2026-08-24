@@ -64,20 +64,27 @@ export function hasClosedUnmergedPr(run: GitRunner, branch: string): boolean {
 }
 
 /**
- * Tracked uncommitted changes in the checkout at `path` — the "someone is working
- * here" probe. `-uno`, so an untracked scratch file cannot decide the fate of
- * committed work; the recoverability asymmetry the callers act on is about the
- * index and tracked edits, which no reflog holds.
+ * State of the checkout at `path` for the "is someone working here" question.
+ * `-uno`, so an untracked scratch file cannot decide the fate of committed work;
+ * the recoverability asymmetry the callers act on is about the index and tracked
+ * edits, which no reflog holds.
  *
- * A failed probe reads as clean. That is the honest default for
- * `classifyDrainBranch`, where dirt routes toward rebuild, but it is the unsafe
- * direction for `pruneShippedWorktrees`, where dirt is what spares a worktree — so
- * the prune pairs it with a universe test rather than resting the whole decision
- * on it.
+ * `'unknown'` is its own answer rather than a guess, because the two callers need
+ * opposite fail-safe directions from the same probe: for `classifyDrainBranch`
+ * dirt routes toward rebuild, so an unanswerable probe must not read as dirty;
+ * for `pruneShippedWorktrees` dirt is the only thing left sparing the worktree by
+ * the time it asks, so an unanswerable probe must not read as clean. Collapsing
+ * it here would hand one of them the deletion-side error.
  */
-export function checkoutIsDirty(run: GitRunner, path: string): boolean {
+export function checkoutDirtState(run: GitRunner, path: string): 'dirty' | 'clean' | 'unknown' {
   const r = run('git', ['-C', path, 'status', '--porcelain', '-uno']);
-  return r.ok && r.stdout.trim() !== '';
+  if (!r.ok) return 'unknown';
+  return r.stdout.trim() === '' ? 'clean' : 'dirty';
+}
+
+/** {@link checkoutDirtState} collapsed toward "not dirty" — the fail-open read. */
+export function checkoutIsDirty(run: GitRunner, path: string): boolean {
+  return checkoutDirtState(run, path) === 'dirty';
 }
 
 /**

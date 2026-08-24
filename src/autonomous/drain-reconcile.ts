@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { isAlive } from './drain-lock.js';
 import { classifyMergeView, mergePr, type MergeOutcome } from './drain-io.js';
-import { checkoutIsDirty, spawnRunner } from './salvage.js';
+import { checkoutDirtState, spawnRunner } from './salvage.js';
 import type { DrainSource } from './drain-source.js';
 import type { DrainState } from './drain-state.js';
 
@@ -62,7 +62,11 @@ export interface ReconcileDeps {
   closePr: (branch: string) => void;
   /** All git worktrees (porcelain-parsed). */
   listWorktrees: () => WorktreeEntry[];
-  /** Tracked uncommitted changes in a checkout ({@link checkoutIsDirty} in production). */
+  /**
+   * Is this checkout NOT provably free of tracked uncommitted changes? Fail-closed:
+   * an unanswerable probe reads as in-use, because by the time the prune asks, this
+   * is the only guard left between a live worktree and `remove --force`.
+   */
   isWorktreeDirty: (path: string) => boolean;
   /** Remove a drain worktree dir + delete its local branch. */
   removeWorktree: (slug: string, branch: string) => void;
@@ -176,8 +180,9 @@ export async function reconcileOpenPrs(
  *   `parseAll` plus {@link DrainSource.fastTrackableElsewhere}, because a backlog
  *   entry being fast-tracked is a normal gate flow yet is absent from
  *   `docs/roadmap.md` from birth, AND
- * - the checkout must hold no tracked uncommitted changes — a dirty index is
- *   positive proof the worktree is not an orphan.
+ * - the checkout must be PROVABLY free of tracked uncommitted changes — a dirty
+ *   index is positive proof the worktree is not an orphan, and an unanswerable
+ *   probe is not proof of the opposite.
  *
  * The last two are separate guards rather than alternatives because neither is
  * sufficient. A wider universe still cannot see an ad-hoc `/noldor-gate`
@@ -207,7 +212,7 @@ export function pruneShippedWorktrees(
       wt.path === `.worktrees/${slug}` || wt.path.endsWith(`/.worktrees/${slug}`);
     if (!isDrainWorktreePath) continue; // a human worktree on a same-prefix branch — leave it
     if (universe.has(slug)) continue; // still in-universe (in-flight / to-ship) — leave it
-    if (deps.isWorktreeDirty(wt.path)) continue; // someone is working here — not an orphan
+    if (deps.isWorktreeDirty(wt.path)) continue; // in use, or unprovable — not an orphan
     if (!dryRun) deps.removeWorktree(slug, wt.branch);
     pruned.push(slug);
   }
@@ -301,6 +306,7 @@ export function makeReconcileDeps(
   syncMain: () => void,
   assertSynced: () => void,
 ): ReconcileDeps {
+  const run = spawnRunner(cwd);
   return {
     readDrainState: () => {
       const p = join(cwd, '.noldor/drain-state.json');
@@ -347,7 +353,7 @@ export function makeReconcileDeps(
       });
       return parseWorktrees(out);
     },
-    isWorktreeDirty: (path) => checkoutIsDirty(spawnRunner(cwd), path),
+    isWorktreeDirty: (path) => checkoutDirtState(run, path) !== 'clean',
     removeWorktree: (slug, branch) => {
       spawnSync('git', ['worktree', 'remove', '--force', `.worktrees/${slug}`], { cwd });
       spawnSync('git', ['branch', '-D', branch], { cwd });

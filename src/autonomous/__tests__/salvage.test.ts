@@ -1,6 +1,7 @@
 // @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, parallel-drain-roadmapmd-conflict-auto-resolution
 import { describe, expect, it } from 'vitest';
 import {
+  checkoutDirtState,
   checkoutIsDirty,
   detectStale,
   hasClosedUnmergedPr,
@@ -161,5 +162,23 @@ describe('checkoutIsDirty', () => {
     };
     checkoutIsDirty(run, '/wt');
     expect(seen).toEqual(['git -C /wt status --porcelain -uno']);
+  });
+});
+
+describe('checkoutDirtState', () => {
+  it('separates dirty, clean, and an unanswerable probe', () => {
+    const at = (res: { ok: boolean; stdout: string }): 'dirty' | 'clean' | 'unknown' =>
+      checkoutDirtState(runner({ 'git -C /wt status': res }), '/wt');
+    expect(at({ ok: true, stdout: ' M src/a.ts\n' })).toBe('dirty');
+    expect(at({ ok: true, stdout: '' })).toBe('clean');
+    expect(at({ ok: false, stdout: '' })).toBe('unknown');
+  });
+
+  it("leaves both fail-safe directions available: 'unknown' is neither dirty nor clean", () => {
+    const run = runner({ 'git -C /wt status': { ok: false, stdout: '' } });
+    // classifyDrainBranch's read (dirt → rebuild) must not see dirt...
+    expect(checkoutIsDirty(run, '/wt')).toBe(false);
+    // ...while the prune's read (clean → delete) must not see clean.
+    expect(checkoutDirtState(run, '/wt') !== 'clean').toBe(true);
   });
 });
