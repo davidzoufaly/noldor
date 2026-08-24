@@ -38,6 +38,36 @@ async function dispatch(srcRelative: string, argsAfterModulePath: string[]): Pro
   await import(pathToFileURL(modPath).href);
 }
 
+/**
+ * Print `Unknown command`/`Unknown subcommand` and exit 1, appending the
+ * framework-skew diagnosis when the consumer's anchor and the installed package
+ * disagree.
+ *
+ * The skew modules are imported dynamically, not at the top of this router: this
+ * is the CLI's front door, every `noldor` invocation pays for its static
+ * imports, and the diagnosis is only ever needed on the error path. `main` is
+ * already async, so the await costs nothing here.
+ */
+async function failUnknown(what: string): Promise<never> {
+  console.error(what);
+  try {
+    const [{ missingCommandSkewHint }, { loadFrameworkVersion }] = await Promise.all([
+      import('../core/framework-skew.js'),
+      import('../core/consumer-config.js'),
+    ]);
+    const hint = missingCommandSkewHint(
+      loadFrameworkVersion(process.cwd()),
+      installedFrameworkVersion(),
+    );
+    if (hint !== null) console.error(`\n${hint}`);
+  } catch {
+    // A version we cannot read is not a reason to swallow the real error: the
+    // `Unknown command` line above is already out, so degrade to it silently
+    // rather than burying it under a diagnostic's own stack trace.
+  }
+  process.exit(1);
+}
+
 async function main(): Promise<void> {
   const [, , group, sub, ...rest] = process.argv;
 
@@ -53,8 +83,8 @@ async function main(): Promise<void> {
 
   const g = MANIFEST[group];
   if (!g) {
-    console.error(`Unknown command: ${group}`);
-    process.exit(1);
+    await failUnknown(`Unknown command: ${group}`);
+    return;
   }
 
   // Leaf command (declares a single '' subcommand, e.g. init/doctor/next-priority
@@ -81,8 +111,8 @@ async function main(): Promise<void> {
 
   const subCmd = g.subs[sub];
   if (subCmd === undefined) {
-    console.error(`Unknown subcommand: ${group} ${sub}`);
-    process.exit(1);
+    await failUnknown(`Unknown subcommand: ${group} ${sub}`);
+    return;
   }
 
   // A `--help`/`-h` anywhere in a subcommand's own args prints usage and exits 0

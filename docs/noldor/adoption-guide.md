@@ -34,7 +34,11 @@ Swappability is out of scope here by design — abstraction decisions (other pac
 After pulling a newer framework version, run `pnpm noldor doctor` — a
 `framework skew` warning means the consumer's tree is anchored to an older
 schema version. Run `pnpm noldor upgrade --dry-run` to review the migration
-diffs, then `pnpm noldor upgrade` on a clean branch to apply them. See
+diffs, then `pnpm noldor upgrade` on a clean branch to apply them, **then
+`pnpm noldor init --update`** to re-pull the template-managed files. Both halves
+are required: `upgrade` applies codemods and advances the anchor but never
+re-syncs templates, so a stale `lefthook/noldor.yml` survives it and every
+commit dies on a hook job naming a subcommand the new version removed. See
 [versioning.md](versioning.md#version-aware-upgrade).
 
 > **CI / deploy.** Any pipeline that runs `npm ci` / `pnpm install` — build, test, or a Pages/deploy job — resolves `noldor` from public npm with no extra auth: no `.npmrc`, no secret.
