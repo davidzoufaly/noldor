@@ -28,19 +28,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 
 `noldor-plan` step 6 requires each `-part<N>` file to be "independently shippable software", but the P1 signal it reacts to is a row count, and the obvious way to halve a row count is a horizontal cut along the task list — which yields a first part of pure library units that ship no capability at all. Q-0139 hit this twice: the monolith tripped P1 at 1336 rows, the horizontal cut left part one at 1081 and still over, and a second horizontal cut would have produced exactly such a part. The working split was vertical — part one shipped the doc-surface check end to end including its CLI, part two extended the same command — which took two extra restructuring passes to discover because nothing in the guidance says so. Wanted: state the vertical rule explicitly (each part must move a user-visible capability, so cut along capability, never along the unit list), and give the P1 remedy prose a worked example of both cuts so the wrong one is visibly wrong. Consider also whether the checker can say anything useful here — a part whose tasks touch no entry-point or CLI file is a candidate signal, though a false-positive-prone one. Deletion test: a plan split into parts where part one registers no runnable surface is flagged or documented as wrong. (found 2026-08-20 splitting the Q-0139 plan)
 
-### Verify Lane Fail-Closes on Its Own Malformed Output
-
-- id: Q-0137
-- area: tooling
-- type: fix
-- since: 2026-08-17
-- size: S
-- impact: med
-- confidence: high
-- parent: acceptance-verify-lane
-
-Three separate code-stage rounds on Q-0093 returned `verify lane errored: malformed verifier output` wrapping payloads that began "Verified all clauses through real CLI/HTTP/API" and "Verified end-to-end" — the verification had passed and only the serialization broke. In blocking mode the aggregate reads that as red, so `cr orchestrate` withholds the `Noldor-Reviewed-Subagent` receipt and the branch cannot pass its own pre-push gate. A green verification must never block a ship on a formatting failure. Two candidate fixes, not exclusive: have the lane re-request a structured payload once before giving up, and treat a malformed payload whose prose clearly reports success as `warn` rather than `error` so it degrades instead of blocking. Whichever is chosen, the sink should keep the raw payload — the current message truncates the very evidence needed to tell a real failure from a serialization one. (found 2026-08-17 shipping Q-0093, PR #333)
-
 ### Release CR Gate Glob Union for Sweep Squashes
 
 - id: Q-0164

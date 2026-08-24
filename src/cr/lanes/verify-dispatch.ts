@@ -22,7 +22,23 @@ export interface VerifyDispatchInput {
   port: number;
   /** Wall-clock cap; {@link DEFAULT_DISPATCH_TIMEOUT_MS} when the caller omits it. */
   timeoutMs?: number;
+  /**
+   * The child's previous, unparseable prose. Present only on the ONE repair
+   * re-request `runVerify` makes: the verification already ran, so that round
+   * transcribes its conclusion instead of re-running anything. Its presence is
+   * what routes the dispatch to {@link buildVerifyRepairPrompt}.
+   */
+  repairOf?: string;
 }
+
+/**
+ * The verdict shape both prompts show the child. One constant because the
+ * repair round must ask for exactly the shape {@link verifyVerdictSchema}
+ * accepts — a second, drifting copy is how a repair round starts failing to
+ * parse for a new reason.
+ */
+const VERDICT_SHAPE =
+  '{"verdict": "pass" | "fail" | "cannot-verify", "evidence": [{"command": "...", "observed": "..."}], "mismatches": ["..."], "reason": "only for cannot-verify"}';
 
 export function buildVerifyPrompt(input: VerifyDispatchInput): string {
   const surfaceLines =
@@ -50,16 +66,42 @@ Hard rules:
 3. Kill every process you start.
 4. \`cannot-verify\` is an honest outcome when no boot path reaches the behavior — use it with a reason instead of guessing.
 
-${fencedJsonInstruction(
-  `{"verdict": "pass" | "fail" | "cannot-verify", "evidence": [{"command": "...", "observed": "..."}], "mismatches": ["..."], "reason": "only for cannot-verify"}`,
-)}`;
+${fencedJsonInstruction(VERDICT_SHAPE)}`;
+}
+
+/**
+ * The repair round's prompt: a transcription task, not a verification one.
+ *
+ * A child that ran the whole verification and then failed to fence its JSON has
+ * produced a real verdict — discarding it costs a full re-verification (or, in
+ * blocking mode, blocks the ship on a formatting failure). So this round is
+ * given the prose and asked only to restate it in the schema. It must never
+ * boot anything, judge the change, or upgrade a hedged report into `pass`; the
+ * honest outcome when the prose states no verdict is `cannot-verify`.
+ */
+export function buildVerifyRepairPrompt(prose: string): string {
+  return `A previous Acceptance Verifier finished its work but did not emit a parseable verdict. Its full output follows. Your ONLY job is to transcribe that output into the verdict schema — do not re-verify, do not boot anything, do not judge the change yourself.
+
+Previous verifier output:
+${prose}
+
+Transcription rules:
+1. Report the verdict that output actually states. Never upgrade a partial, hedged, or ambiguous report into \`pass\`.
+2. Carry over only evidence that appears above — each entry is a command it says it ran plus what it says that printed. Invent nothing.
+3. If the output does not clearly state one of the three verdicts, emit \`cannot-verify\` with a reason saying exactly that.
+
+${fencedJsonInstruction(VERDICT_SHAPE)}`;
 }
 
 /** Last fenced ```json block wins; null on absence or schema mismatch. */
 export const parseVerifyVerdict = (md: string): VerifyVerdict | null =>
   parseFencedJson(md, verifyVerdictSchema);
 
-const seam = createDispatcherSeam<VerifyDispatchInput>(buildVerifyPrompt, {
+/** Primary verification, or the repair transcription when `repairOf` is set. */
+const buildPrompt = (input: VerifyDispatchInput): string =>
+  input.repairOf === undefined ? buildVerifyPrompt(input) : buildVerifyRepairPrompt(input.repairOf);
+
+const seam = createDispatcherSeam<VerifyDispatchInput>(buildPrompt, {
   role: 'verifier',
   site: 'cr.verify-dispatch',
   onFailure: (f) => {

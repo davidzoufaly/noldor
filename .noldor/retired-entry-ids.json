@@ -167,5 +167,9 @@
   "Q-0163": {
     "slug": "stale-backlog-sdd-gap-ignores-phase-later",
     "retiredAt": "2026-08-24"
+  },
+  "Q-0137": {
+    "slug": "verify-lane-fail-closes-on-its-own-malformed-output",
+    "retiredAt": "2026-08-24"
   }
 }
