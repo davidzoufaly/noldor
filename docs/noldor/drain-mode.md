@@ -43,13 +43,29 @@ dependency, so the prompt stays a thin pointer.
 
 - The branch name is deterministic: `fast/<slug>` — the supervisor maps
   slug → branch → PR to detect shipped work.
-- **Force-recreate before starting:** remove a stale worktree for the branch
-  first (`git worktree remove --force <dir>`, if present), then
+- **Earn the right to destroy it first.** Before any delete, run
+  `pnpm noldor autonomous branch-state <slug>` and branch on its exit code:
+  - **0** (`rebuild`) — nothing ahead of `origin/main` on `fast/<slug>` or
+    `origin/fast/<slug>`: force-recreate as below.
+  - **10** (`finish`) — the branch carries commits and its checkout is clean:
+    delete nothing and follow the [Finish path](#finish-path-undelivered-work-on-fastslug)
+    instead.
+  - **1** (`unknown`) — the classifier could not prove the branch is empty
+    (typically `git fetch origin` failed). Echo its `reason` and exit non-zero;
+    never force-recreate on an unproven branch.
+
+  A supervisor-spawned child usually gets `rebuild` here, because the supervisor
+  already sends the finish variant for undelivered work. A drain invoked by hand
+  carries no such signal, and the delete is unrecoverable on the remote side — so
+  the branch itself, not an absent flag, is what authorizes the deletion.
+- **Force-recreate on the `rebuild` verdict:** remove a stale worktree for the
+  branch first (`git worktree remove --force <dir>`, if present), then
   `git branch -D fast/<slug>` and `git push origin --delete fast/<slug>`
-  (each only when it exists). Reaching this point means the supervisor found
-  no open PR for the slug, so leftover `fast/<slug>` state is abandoned work,
-  safe to discard. This per-slug removal is the only worktree a drain child
-  deletes.
+  (each only when it exists). A `rebuild` verdict on a branch that *does* carry
+  commits means its checkout was dirty — a half-done tree is not deliverable, so
+  the rebuild is right, but echo the verdict's `reason` (it names the dirty path
+  and the `git log origin/main..fast/<slug>` range) before discarding. This
+  per-slug removal is the only worktree a drain child deletes.
 - Do the work on that branch and run every noldor command from inside its
   checkout/worktree.
 
@@ -152,6 +168,12 @@ The supervisor sends this variant when a prior child for the same slug exited
 delivery assertion above having been skipped. The work exists; only delivery is
 missing, so a rebuild would burn ~13 minutes and ~170k tokens for nothing. Both
 the prompt directive and `NOLDOR_DRAIN_FINISH=1` mark such a run.
+
+A hand-invoked drain reaches this path without either marker: `branch-state`
+exiting 10 in the branch-discipline check above is the same verdict, derived from
+the branch rather than from the supervisor's knowledge of the prior child. It
+substitutes a clean checkout for the clean-exit signal — a dirty tree reads as
+half-done and routes to rebuild, as the supervisor would.
 
 - **Do NOT force-recreate or delete the branch** (local or remote). Those steps
   discard *abandoned* state; here they would destroy the commits being

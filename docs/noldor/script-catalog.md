@@ -382,6 +382,7 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 | `pnpm noldor autonomous inbox`  | [`src/autonomous/inbox-cli.ts`](../../src/autonomous/inbox-cli.ts)       | List open escalations (parked slugs) with evidence + suggested action.              |
 | `pnpm noldor autonomous unpark` | [`src/autonomous/unpark-cli.ts`](../../src/autonomous/unpark-cli.ts)     | Resolve an escalation: `unpark <slug> [--source <id>]`.                             |
 | `pnpm noldor autonomous status` | [`src/autonomous/status-cli.ts`](../../src/autonomous/status-cli.ts)     | Runner liveness (lock pid + `kill -0`) plus shipped/skip/in-flight (`--json`).      |
+| `pnpm noldor autonomous branch-state` | [`src/autonomous/drain-branch-state.ts`](../../src/autonomous/drain-branch-state.ts) | Finish-vs-rebuild verdict for a drain entry's `fast/<slug>` branch before any delete (exit 0 rebuild, 10 finish, 1 stop). |
 
 ## Utilities
 
