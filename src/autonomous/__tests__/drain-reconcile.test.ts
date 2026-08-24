@@ -1,7 +1,12 @@
 // @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-drain, parallel-drain-roadmapmd-conflict-auto-resolution, plan-runner
 import { describe, expect, it, vi } from 'vitest';
 
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import {
+  makeReconcileDeps,
   parseWorktrees,
   reapOrphanAgents,
   reconcileOpenPrs,
@@ -405,5 +410,28 @@ describe('assertQueueSourceSynced', () => {
 
   it('passes silently when in sync (count 0)', () => {
     expect(() => assertQueueSourceSynced(runner('0\n'))).not.toThrow();
+  });
+});
+
+describe('makeReconcileDeps isWorktreeDirty', () => {
+  // The production binding is where the two fail-safe directions are chosen, so it
+  // is exercised against a real filesystem rather than asserted from the docstring.
+  it('spares an existing checkout git cannot answer for, but not a vanished one', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reconcile-deps-'));
+    try {
+      // A plain directory is not a git checkout, so `git -C <dir> status` fails →
+      // 'unknown' → fail-closed to in-use.
+      writeFileSync(join(dir, 'keep.txt'), 'x', 'utf8');
+      const d = makeReconcileDeps(
+        dir,
+        source('fast/', []),
+        () => {},
+        () => {},
+      );
+      expect(d.isWorktreeDirty(dir)).toBe(true);
+      expect(d.isWorktreeDirty(join(dir, 'gone'))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

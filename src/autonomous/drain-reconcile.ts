@@ -65,7 +65,9 @@ export interface ReconcileDeps {
   /**
    * Is this checkout NOT provably free of tracked uncommitted changes? Fail-closed:
    * an unanswerable probe reads as in-use, because by the time the prune asks, this
-   * is the only guard left between a live worktree and `remove --force`.
+   * is the only guard left between a live worktree and `remove --force`. A checkout
+   * whose directory is gone is not unanswerable — it holds nothing, so it reads as
+   * not-in-use and stays prunable.
    */
   isWorktreeDirty: (path: string) => boolean;
   /** Remove a drain worktree dir + delete its local branch. */
@@ -353,7 +355,11 @@ export function makeReconcileDeps(
       });
       return parseWorktrees(out);
     },
-    isWorktreeDirty: (path) => checkoutDirtState(run, path) !== 'clean',
+    // A missing directory is not an unanswerable probe — it is a worktree with
+    // nothing left to lose, and the registration + local branch leak forever if
+    // the prune spares it. `existsSync` first, so only a checkout that actually
+    // exists gets the fail-closed `!== 'clean'` read.
+    isWorktreeDirty: (path) => existsSync(path) && checkoutDirtState(run, path) !== 'clean',
     removeWorktree: (slug, branch) => {
       spawnSync('git', ['worktree', 'remove', '--force', `.worktrees/${slug}`], { cwd });
       spawnSync('git', ['branch', '-D', branch], { cwd });
