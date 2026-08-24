@@ -131,5 +131,9 @@
     "slug": "ui-render-compare-lane",
     "retiredInto": "ui-design-review-lane",
     "retiredAt": "2026-08-21"
+  },
+  "Q-0157": {
+    "slug": "gate-drain-mode-force-recreate-can-destroy-finished-work",
+    "retiredAt": "2026-08-24"
   }
 }
