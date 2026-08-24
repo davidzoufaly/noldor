@@ -88,9 +88,11 @@ The pre-commit hook enforces that `micro-chore` diffs match this set of globs on
 - `docs/**/*.md`
 - `.claude/**` and its template twins `templates/.claude/**`
 - Root `*.md` (e.g. `ideas.md`, `README.md`, `CLAUDE.md`)
+- `docs/**` template twins `templates/docs/**/*.md`
 - `lefthook.yml`, `.gitignore`, `.noldor/rollout-marker` (framework config edits)
+- `.noldor/id-counter.json`, `.noldor/retired-entry-ids.json` (triage bookkeeping the gate writes: `triage mint-id` bumps the counter into the same commit as the roadmap block, and `roadmap remove-block` records the retired ID)
 
-Any diff that escapes the allowlist must use a heavier path (`fast-track` at minimum).
+Any diff that escapes the allowlist must use a heavier path (`fast-track` at minimum). The rejection names only the offending paths, not the whole staged set.
 
 ## Override
 

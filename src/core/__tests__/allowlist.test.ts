@@ -5,7 +5,9 @@ import {
   isMicroChoreAllowed,
   isReleaseSweepAllowed,
   isRetirementOnly,
+  microChoreOffenders,
   MICRO_CHORE_GLOBS,
+  releaseSweepOffenders,
   RELEASE_SWEEP_GLOBS,
   touchesCode,
 } from '../allowlist';
@@ -65,6 +67,58 @@ describe('micro-chore allowlist', () => {
   });
   it('rejects non-md files under templates/docs', () => {
     expect(isMicroChoreAllowed(['templates/docs/noldor/diagram.svg'])).toBe(false);
+  });
+  it('accepts the triage bookkeeping counters the gate writes', () => {
+    expect(isMicroChoreAllowed(['.noldor/id-counter.json'])).toBe(true);
+    expect(isMicroChoreAllowed(['.noldor/retired-entry-ids.json'])).toBe(true);
+  });
+  it('accepts a triage commit: roadmap + ideas + both counters', () => {
+    expect(
+      isMicroChoreAllowed([
+        'docs/roadmap.md',
+        'ideas.md',
+        '.noldor/id-counter.json',
+        '.noldor/retired-entry-ids.json',
+      ]),
+    ).toBe(true);
+  });
+  it('rejects other .noldor json (only the two counters are admitted)', () => {
+    expect(isMicroChoreAllowed(['.noldor/config.json'])).toBe(false);
+    expect(isMicroChoreAllowed(['.noldor/session.json'])).toBe(false);
+  });
+});
+
+describe('microChoreOffenders', () => {
+  it('names only the paths outside the allowlist', () => {
+    expect(
+      microChoreOffenders([
+        'docs/foo.md',
+        'src/core/allowlist.ts',
+        'docs/bar.md',
+        'bin/noldor.mjs',
+      ]),
+    ).toEqual(['src/core/allowlist.ts', 'bin/noldor.mjs']);
+  });
+  it('returns an empty list when every path is allowed', () => {
+    expect(microChoreOffenders(['docs/foo.md', '.noldor/id-counter.json'])).toEqual([]);
+  });
+  it('returns an empty list for an empty set', () => {
+    expect(microChoreOffenders([])).toEqual([]);
+  });
+  it('agrees with isMicroChoreAllowed on a non-empty set', () => {
+    const paths = ['docs/foo.md', 'src/core/allowlist.ts'];
+    expect(microChoreOffenders(paths).length === 0).toBe(isMicroChoreAllowed(paths));
+  });
+});
+
+describe('releaseSweepOffenders', () => {
+  it('names only the paths outside the sweep allowlist', () => {
+    expect(releaseSweepOffenders(['CHANGELOG.md', 'src/core/allowlist.ts'])).toEqual([
+      'src/core/allowlist.ts',
+    ]);
+  });
+  it('returns an empty list when every path is allowed', () => {
+    expect(releaseSweepOffenders(['CHANGELOG.md', 'docs/sdd-report.md'])).toEqual([]);
   });
 });
 

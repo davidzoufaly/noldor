@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Micro-Chore Globs Omit Triage Bookkeeping Files
-
-- id: Q-0161
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: XS
-- impact: med
-- confidence: high
-- parent: gate-flow-rework
-
-`MICRO_CHORE_GLOBS` (`src/core/allowlist.ts:3`) omits `.noldor/id-counter.json`, so a triage commit — the framework's own bookkeeping — cannot land through the micro-chore lane. `BOOKKEEPING_GLOBS` lists the counter and its docstring says outright that "`triage mint-id` bumps the counter into the same commit as a freshly scaffolded FD", so the intent is on record; only the lane allowlist disagrees. The pre-commit failure is also hard to read: `isMicroChoreAllowed` is all-or-nothing and the rejection message prints every staged path rather than the offenders, so a 37-file doc commit reports 37 violations for one. Two fixes, both cheap: add `.noldor/id-counter.json` (and `.noldor/retired-entry-ids.json`, same class) to `MICRO_CHORE_GLOBS`, and have the message print `paths.filter(p => !matches(p))`. Until then every triage commit needs a `Noldor-Path-Override`, which is how #346 and #335 landed. (found 2026-08-23 committing the pre-1.5.0 gap closure)
-
 ### Doctor Probe: Lockfile vs Installed Modules Freshness
 
 - id: Q-0162

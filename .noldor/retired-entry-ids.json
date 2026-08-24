@@ -151,5 +151,9 @@
   "Q-0177": {
     "slug": "anchor-vs-installed-drift-breaks-consumer-hooks",
     "retiredAt": "2026-08-24"
+  },
+  "Q-0161": {
+    "slug": "micro-chore-globs-omit-triage-bookkeeping-files",
+    "retiredAt": "2026-08-24"
   }
 }

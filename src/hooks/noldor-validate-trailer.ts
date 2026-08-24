@@ -9,7 +9,12 @@ import { ARCHIVE_DIR } from '../core/design-artifact-names.js';
 import { renameDestExists, toRepoRelative } from '../core/branch-added.js';
 import { loadDocRoots } from '../core/doc-roots.js';
 import { PATHS, sessionMarkerExists } from '../core/session.js';
-import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist.js';
+import {
+  isMicroChoreAllowed,
+  isReleaseSweepAllowed,
+  microChoreOffenders,
+  releaseSweepOffenders,
+} from '../core/allowlist.js';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
@@ -160,7 +165,10 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     });
     const staged = (r.stdout ?? '').split('\n').filter(Boolean);
     if (!isMicroChoreAllowed(staged)) {
-      return { ok: false, reason: `micro-chore diff escapes allowlist: ${staged.join(', ')}` };
+      return {
+        ok: false,
+        reason: `micro-chore diff escapes allowlist: ${microChoreOffenders(staged).join(', ')}`,
+      };
     }
     return { ok: true };
   }
@@ -174,7 +182,10 @@ export function validateTrailer(opts: ValidateOptions): ValidationResult {
     });
     const staged = (r.stdout ?? '').split('\n').filter(Boolean);
     if (!isReleaseSweepAllowed(staged)) {
-      return { ok: false, reason: `release-sweep diff escapes allowlist: ${staged.join(', ')}` };
+      return {
+        ok: false,
+        reason: `release-sweep diff escapes allowlist: ${releaseSweepOffenders(staged).join(', ')}`,
+      };
     }
     return { ok: true };
   }

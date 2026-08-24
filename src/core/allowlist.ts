@@ -9,6 +9,12 @@ export const MICRO_CHORE_GLOBS = [
   'templates/.claude/**', // template twins of `.claude/**` skills — template-sync forces editing both, so the twin must share the micro-chore lane
   'templates/docs/**/*.md', // template twins of `docs/**` pages — check-template-sync forces mirroring both, so the twin must share the micro-chore lane
   '.noldor/rollout-marker', // arming commit: the marker must be committable through the wall it arms
+  // Triage bookkeeping the gate itself writes: `triage mint-id` bumps the counter into the
+  // same commit as the roadmap block, and `roadmap remove-block` records the retired ID.
+  // Both are listed in BOOKKEEPING_GLOBS; without them here a triage commit — the framework's
+  // own paperwork — can only land through a `Noldor-Path-Override`.
+  '.noldor/id-counter.json',
+  '.noldor/retired-entry-ids.json',
 ] as const;
 
 /**
@@ -125,6 +131,18 @@ function everyPathMatches(paths: string[], globs: readonly string[]): boolean {
 }
 
 /**
+ * The subset of `paths` matching none of `globs` — order-preserving.
+ *
+ * The complement of {@link everyPathMatches}, minus its empty-set convention: an
+ * empty set has no offenders, so this returns `[]` where the predicate returns
+ * `false`. Callers use it to name the files that actually failed, rather than
+ * reprinting the whole staged set and leaving the operator to diff it by eye.
+ */
+function pathsOutside(paths: string[], globs: readonly string[]): string[] {
+  return paths.filter((p) => !globs.some((g) => minimatch(p, g, { dot: true })));
+}
+
+/**
  * Returns true when EVERY path is framework bookkeeping — a change with no
  * behaviour to explain, exempt from the Why/How/What contract.
  *
@@ -166,10 +184,26 @@ export function isMicroChoreAllowed(paths: string[]): boolean {
 }
 
 /**
+ * The paths that put {@link isMicroChoreAllowed} at `false` — the rejection's
+ * actual offenders, for the operator-facing message.
+ */
+export function microChoreOffenders(paths: string[]): string[] {
+  return pathsOutside(paths, MICRO_CHORE_GLOBS);
+}
+
+/**
  * Returns true if ALL paths are covered by the release-sweep allowlist.
  * A single file outside the allowlist taints the entire set — the sweep
  * cannot launder a source-code edit by piggy-backing on a graphify regen.
  */
 export function isReleaseSweepAllowed(paths: string[]): boolean {
   return everyPathMatches(paths, RELEASE_SWEEP_GLOBS);
+}
+
+/**
+ * The paths that put {@link isReleaseSweepAllowed} at `false` — the rejection's
+ * actual offenders, for the operator-facing message.
+ */
+export function releaseSweepOffenders(paths: string[]): string[] {
+  return pathsOutside(paths, RELEASE_SWEEP_GLOBS);
 }
