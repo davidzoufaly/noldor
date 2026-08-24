@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Drain `--only` Passes Validation on Parked Slugs
-
-- id: Q-0159
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: XS
-- impact: med
-- confidence: high
-- parent: autonomous-queue-drain-runner
-
-`assertOnlyResolves` (`src/autonomous/queue-drain.ts`, shipped in #348) resolves `--only` against the raw source's `parseAll()`, but `parkAwareSource` wraps the source only afterwards — so the assert sees parked slugs as resolvable: `--only <parked-slug>` passes validation, `nextItem` never yields it, and the run ships 0 entries and exits 0, precisely the "reads as a drained queue" false-green the assert was added to prevent. Decide the wanted behaviour — hard-error naming the slug as parked, or proceed with a warning that lists the park reason — and resolve `--only` against the same park-aware view the loop consumes so validation and iteration cannot disagree. Deletion test: `--only` on a parked slug either fails loudly or explains itself, and never exits 0 having shipped nothing. (found 2026-08-20 by the Q-0116 code-stage reviewer, which saw #348's diff through a merge range)
-
 ### mint-id Must Floor the Counter at the Live Corpus Max
 
 - id: Q-0160

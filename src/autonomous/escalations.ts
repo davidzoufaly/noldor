@@ -316,14 +316,22 @@ export function unparkSlug(
 export function parkAwareSource(inner: DrainSource, getParked: () => ParkMap): DrainSource {
   const finishPrompt = inner.finishPrompt?.bind(inner);
   const parseAllAtRef = inner.parseAllAtRef?.bind(inner);
+  // One derivation, two readers: the skip set `nextItem` builds and the map `parkedSlugs`
+  // reports are the same query, so a validator written against the map cannot disagree with
+  // what the loop actually excludes. Recomputed per call — the park file is rewritten by
+  // `applyCycleVerdict` between cycles, so a captured snapshot would go stale.
+  const parkedForSource = (): Map<string, string> =>
+    new Map(
+      Object.entries(getParked())
+        .filter(([k]) => k.startsWith(`${inner.id}:`))
+        .map(([k, v]) => [k.split(':').slice(1).join(':'), v.reason]),
+    );
   return {
     id: inner.id,
     nextItem(skip) {
-      const parkedSlugs = Object.keys(getParked())
-        .filter((k) => k.startsWith(`${inner.id}:`))
-        .map((k) => k.split(':').slice(1).join(':'));
-      return inner.nextItem(new Set([...skip, ...parkedSlugs]));
+      return inner.nextItem(new Set([...skip, ...parkedForSource().keys()]));
     },
+    parkedSlugs: parkedForSource,
     parseAll: () => inner.parseAll(),
     gatePrompt: (slug) => inner.gatePrompt(slug),
     ...(finishPrompt !== undefined ? { finishPrompt } : {}),

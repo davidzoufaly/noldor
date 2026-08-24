@@ -139,5 +139,9 @@
   "Q-0158": {
     "slug": "drain-prune-can-delete-a-live-backlog-worktree",
     "retiredAt": "2026-08-24"
+  },
+  "Q-0159": {
+    "slug": "drain-only-passes-validation-on-parked-slugs",
+    "retiredAt": "2026-08-24"
   }
 }

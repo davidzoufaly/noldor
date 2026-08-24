@@ -171,10 +171,25 @@ export function assertConfig(cfg: Partial<NoldorConfig>): void {
 }
 
 /**
- * Throw when `--only` names a slug the queue does not hold. A typo'd slug would otherwise
- * narrow the run to nothing and exit 0 having shipped nothing, which reads as a drained
- * queue. Compared against the unfiltered universe (`parseAll`), so an entry that is merely
- * ineligible still resolves and reports its own reason through the skip log.
+ * Throw when `--only` names a slug the run would not attempt. A slug that resolves to
+ * nothing narrows the run to nothing and exits 0 having shipped nothing, which reads as a
+ * drained queue — the false green this guard exists to prevent. Two ways to resolve to
+ * nothing, so two checks:
+ *
+ * - **Not in the queue at all** (a typo). Compared against the unfiltered universe
+ *   (`parseAll`), so an entry that is merely *ineligible* still resolves and reports its
+ *   own reason through the skip log.
+ * - **Parked.** `parseAll` still lists a parked slug (it is the success oracle: absence
+ *   === shipped, and a parked entry has not shipped), so the universe check passes it
+ *   while `nextItem` — reading the same park — never yields it. Resolving `--only` against
+ *   {@link DrainSource.parkedSlugs}, the set the loop itself excludes, is what keeps
+ *   validation and iteration from disagreeing. Pass a park-aware source or this half
+ *   cannot fire: a source that omits `parkedSlugs` cannot answer, and admits.
+ *
+ * A parked slug is a hard error rather than a warning, and it fires even when other
+ * `--only` slugs are drainable — same posture as the typo above. The operator named this
+ * entry explicitly; the park has an explicit remedy (`unpark`), so silently dropping it
+ * would be the one outcome with no signal attached.
  */
 export function assertOnlyResolves(
   selection: SelectionFilter | undefined,
@@ -187,6 +202,19 @@ export function assertOnlyResolves(
   if (unknown.length > 0) {
     throw new Error(
       `--only names ${unknown.length} slug(s) not in the queue: ${unknown.join(', ')}`,
+    );
+  }
+  const parked = source.parkedSlugs?.() ?? new Map<string, string>();
+  const blocked = [...only].filter((s) => parked.has(s));
+  if (blocked.length > 0) {
+    // One `unpark` line per slug, not one command naming them all: `unpark-cli` takes a
+    // single slug, so a joined hint would be a command the operator cannot run.
+    const named = blocked.map((s) => `  - ${s} (${parked.get(s) ?? 'unknown'})`).join('\n');
+    const remedy = blocked.map((s) => `  noldor autonomous unpark ${s}`).join('\n');
+    throw new Error(
+      `--only names ${blocked.length} parked slug(s):\n${named}\n` +
+        `a parked entry is never selected, so the run would ship nothing and exit 0 — ` +
+        `unpark first:\n${remedy}`,
     );
   }
 }
@@ -205,14 +233,21 @@ async function main(): Promise<void> {
   const cwd = process.cwd();
   let parsed: ParsedArgs;
   let source: DrainSource;
+  let drainSource: DrainSource;
   try {
     parsed = parseArgs(args);
     assertConfig(loadConfigSync() ?? {});
     source = buildSource(parsed.source, cwd, parsed.selection); // --source specs throws here → exit 1
+    // The park-aware view is what the loop consumes, so it is also what `--only` is
+    // validated against — built here rather than after the reconcile below so validation
+    // and iteration read one source. The wrapper is lazy (it calls `loadPark` per query),
+    // so constructing it early costs nothing; a corrupt park file throws from the assert
+    // and lands on the same exit-1 path as any other startup rejection.
+    drainSource = parkAwareSource(source, () => loadPark(cwd));
     // `--size` is validated against an enum for the same reason `--only` needs the queue:
     // a value that matches nothing reads as an empty queue, and "drained cleanly, shipped
     // 0" is indistinguishable from success. Slugs can only be checked once a source exists.
-    assertOnlyResolves(parsed.selection, source);
+    assertOnlyResolves(parsed.selection, drainSource);
   } catch (e) {
     process.stderr.write(`${(e as Error).message}\n`);
     process.exit(1);
@@ -271,8 +306,6 @@ async function main(): Promise<void> {
     process.stderr.write(`${(e as Error).message}\n`);
     process.exit(1);
   }
-
-  const drainSource = parkAwareSource(source, () => loadPark(cwd));
 
   // Uncommitted-triage guard: children branch from `origin/main`, so a block that exists
   // only in this working tree is invisible to them while the eligibility read above (the

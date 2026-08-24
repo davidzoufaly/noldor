@@ -117,9 +117,12 @@ pnpm noldor autonomous unpark <slug>    # resolve; --source <id> when parked und
 
 ### The park map as a subset-drain filter
 
-There is no `--only <slug,…>` / `--size` flag yet, and no `autonomous park` command to pair
-with `unpark` — but the park map is a working **selection filter** for draining a chosen
-subset, and a better one than a `.noldor/drain-stop` sentinel. Hand-write
+`--only <slug,…>` / `--size` now exist (see the FD), so the positive form of "drain exactly
+these" no longer needs this trick — but there is still no `autonomous park` command to pair
+with `unpark`, and the park map remains a working **inverse selection filter** for excluding
+a chosen subset, and a better one than a `.noldor/drain-stop` sentinel. The two do not
+compose: `--only` on a parked slug is a hard error naming the park reason, since the loop
+would never select it. Hand-write
 `.noldor/drain-park.json` with a `"roadmap:<slug>"` key per unwanted-but-eligible entry;
 `parkAwareSource` then hides them, so `--max-features N` cannot overshoot even when an entry
 burns its retries and the loop advances — there is nothing else eligible to advance to. This
