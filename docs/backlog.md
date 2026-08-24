@@ -99,19 +99,6 @@ Add end-to-end test support to the framework. Fuzzy one-liner — needs a spike 
 
 Extend the project's unit-testing rules beyond what `docs/noldor/testing-principles.md` and the Tests section of `.claude/engineering-rules.md` cover today, using the review discussion on `gooddata/gdc-mastercard-panther#2542` as the source material. Fuzzy one-liner — the linked PR sits in a private repo and has not been read, so the actual delta is unknown. Trigger: read the PR and extract the concrete rules before promoting; without that, there is nothing to implement.
 
-### Milestone-Queue Linking
-
-- id: Q-0083
-- area: tooling
-- type: feat
-- since: 2026-08-10
-- size: M
-- impact: med
-- confidence: low
-- parent: decouple-milestones-from-semver
-
-Milestones (`docs/milestones/<slug>.md`) currently live independent of the queue — no way to say which roadmap/backlog entries belong to which milestone, or see milestone progress from the queue side. Link entries to a milestone (e.g. add a `milestone:` field to the schema-C parser — feature-MD frontmatter has one, but `BacklogEntry` in `src/utils/parse-blocks.ts` does not — or have the milestone doc list entry IDs) and add the reverse roll-up: dashboard/status compute milestone completion from its tasks.
-
 ### CR-Autofix Polish Residue
 
 - id: Q-0084
@@ -286,3 +273,16 @@ Nine hand-rolled fenced-code scanners live in the repo and every one of them rec
 - confidence: med
 
 `autonomous` has an `unpark` CLI but no `park` counterpart, and no `operator-hold` EscalationReason: parking a slug means hand-editing `.noldor/drain-park.json`, and borrowing `run-aborted` for a scope hold makes `autonomous inbox` read as repo-level failures for the whole batch. The original driver — the park map being the only working selection filter for a subset drain — is gone: Q-0121 (`queue-drain-selection-and-staleness-guards`, retired 2026-08-20) shipped the `--only <slug,…>` / `--size` narrowing, so a subset drain no longer needs the hack. What remains is honest reporting for a deliberate hold, which is why the park half survives and the selection half does not. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)
+
+### Cross-Family Mandatory Review Lane
+
+- id: Q-0176
+- area: tooling
+- type: refactor
+- since: 2026-08-23
+- size: M
+- impact: med
+- confidence: med
+- parent: make-noldor-agent-agnostic
+
+The M/L/XL mandatory codex round (Q-0091, PR #341) hardcodes `codex` as the second model family, which is wrong the moment the *driving runner* is not claude: in a setup where codex runs the whole noldor flow (implementer + reviewer), a "mandatory codex round" reviews codex with codex — the mandate should instead force a mandatory **claude** review there. And opencode as the driving runner is a completely different use case again. Generalize the mandate from "force lane `codex`" to "force at least one review lane whose model family differs from the session's driving runner" — the runner registry (`agents` config, three-runner runtime from PR #71) already knows who is driving, so `withMandatoryCodex` should become runner-aware (e.g. `withMandatoryCrossFamilyReview`) and pick the forced lane from that, not from a constant. Parked: claude is the only driving runner in practice today — pick up when a non-claude driving runner is real. (raised 2026-08-20 from an untriaged ideas bullet)

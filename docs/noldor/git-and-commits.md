@@ -146,6 +146,15 @@ Per-path `commit-msg` validation (what the hook actually checks):
 - `specs-only-attach` / `full-attach` — require `Noldor-Enhancement` and a spec file on disk at `docs/design/specs/<date>-<parent>-<enhancement>-design.md`. A `Noldor-Phase-Revert: 1` commit bypasses both (the revert scaffold commits before the spec exists).
 - `release-automation` — validated separately (release pipeline commits).
 
+**Attach-path commit order.** Because the spec-existence check runs on every
+commit, no plain commit can land on an attach path while the spec is absent
+from its live `docs/design/specs/` path. Two consequences (Q-0132): fold the
+roadmap-retirement edit into the `Noldor-Phase-Revert: 1` scaffold commit (it
+carries the bypass — a separate retirement commit before the spec exists is
+refused), and a staged `design archive` move reds any later commit — to commit
+after archiving, restore the spec to its live path, commit, then re-archive
+and flip.
+
 Overrides (emergency bypass — both append to an audit log surfaced by `/noldor-garden`):
 
 ```

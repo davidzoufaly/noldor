@@ -475,8 +475,20 @@ persisted diff image before arguing with the ratio.
 - **`cr orchestrate --autonomous` with a missing `crLanes.<kind>` does NOT
   hard-error.** Despite the gate skill's claim, it silently falls back to the
   reviewer lane. Set `crLanes.<kind>` explicitly if you want a specific lane set.
+- **`cr autofix record --deferred` validates against the sink's
+  classification, not what you did.** Applying an untagged (`design`-read)
+  blocker by hand still records as deferred, or `record` exits 2
+  ("N design + 0 unapplied mechanical"). Codex blockers are always untagged,
+  so a round mixing reviewer-mechanical with codex findings records as
+  `--applied <mechanical> --deferred <codex>` even when every finding was
+  fixed. (Q-0145)
+- **A fast-track "verified" can be a no-op.** The verify lane returns
+  `cannot-verify: no acceptance text (no FD, empty commit prose)` and the
+  aggregate still reports `ok=true` — fast-track carries no FD, so the lane
+  degrades silently and the reviewer lane is the whole review. (2026-08-20
+  XS drain)
 
-Two more sink/receipt traps:
+More sink/receipt traps:
 
 - **Transient verify-lane `verify dispatch failed: exit -1`.** The verify lane
   occasionally dies on spawn rather than on substance — re-run the lane once
@@ -487,6 +499,14 @@ Two more sink/receipt traps:
   (`rm .noldor/cr/<slug>-code-*.json`) and re-run
   `cr orchestrate --kind code --base-sha origin/main` to review the new tree
   and mint a fresh receipt on the tip.
+- **`cr escalate` `override-with-trailer` stamps nothing.** It prints
+  `escalate outcome: override` and exits — the receipt hook exempts only on a
+  `Noldor-Path-Override` trailer on the TIP commit
+  (`noldor-enforce-review-receipt.ts` reads tip trailers only; an override on
+  an earlier commit does nothing). Amend it yourself:
+  `git commit --amend --no-edit --trailer "Noldor-Path-Override: <reason>"`.
+  A red round at the re-round cap therefore has exactly two exits: one more
+  delta round, or that amend. (Q-0132, Q-0145)
 
 Two traps in how a round's result is read:
 
@@ -497,7 +517,11 @@ Two traps in how a round's result is read:
   the loop felt productive; what it signalled was a design forcing case-by-case
   repairs. After ~3 rounds on one artifact, ask whether the findings are
   independent or each one repairs the last — if the latter, stop and question
-  the design instead of running another round.
+  the design instead of running another round. Q-0145 repeated the pattern
+  (rounds 3–4 flagged only the prior rounds' fixes — an `errMessage` helper
+  added in round 3 was itself flagged in round 4); at the re-round cap,
+  budget for closing with a `Noldor-Path-Override` recording the arbitration
+  rather than expecting convergence.
 - **A green `verifier` lane is not a second opinion on correctness.** It
   returned `pass` with 0 blockers on all 8 rounds of Q-0124 while `reviewer`
   found 15 real defects, including a forgeable `Merge branch 'fake'` bypass.
