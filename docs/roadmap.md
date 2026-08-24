@@ -41,20 +41,6 @@ The `Stale backlog entries (>90 days)` SDD gap (`detectStaleBacklogEntries`, `sr
 
 `noldor-plan` step 6 requires each `-part<N>` file to be "independently shippable software", but the P1 signal it reacts to is a row count, and the obvious way to halve a row count is a horizontal cut along the task list — which yields a first part of pure library units that ship no capability at all. Q-0139 hit this twice: the monolith tripped P1 at 1336 rows, the horizontal cut left part one at 1081 and still over, and a second horizontal cut would have produced exactly such a part. The working split was vertical — part one shipped the doc-surface check end to end including its CLI, part two extended the same command — which took two extra restructuring passes to discover because nothing in the guidance says so. Wanted: state the vertical rule explicitly (each part must move a user-visible capability, so cut along capability, never along the unit list), and give the P1 remedy prose a worked example of both cuts so the wrong one is visibly wrong. Consider also whether the checker can say anything useful here — a part whose tasks touch no entry-point or CLI file is a candidate signal, though a false-positive-prone one. Deletion test: a plan split into parts where part one registers no runnable surface is flagged or documented as wrong. (found 2026-08-20 splitting the Q-0139 plan)
 
-### Manifest Aliases Escape Both CLI Documentation Gates
-
-- id: Q-0147
-- area: tooling
-- type: fix
-- since: 2026-08-20
-- size: S
-- impact: med
-- confidence: high
-- split-from: Q-0139
-- recovered: 2026-08-20
-
-A subcommand added to an existing `MANIFEST` group and pointed at an already-catalogued entrypoint is checked by nothing. `validate script-catalog` (`src/cli/validate-script-catalog.ts`) joins the manifest against `docs/noldor/script-catalog.md` on the `src` path, and `manifestSrcSet`'s own docstring (`src/cli/validate-script-catalog.ts:26-31`) states that aliases sharing an entrypoint collapse so "documenting that source once satisfies every alias" — so `missingFromCatalog` stays empty. Q-0139's README check runs README → registry only (its `## CLI reference` section declares itself a non-exhaustive journey-critical subset), so it does not fire either. The live example is `autonomous run` and `autonomous queue-drain`, which share `autonomous/queue-drain.ts`: a third alias on that entrypoint would be invisible to both gates. Q-0139's FD deletion test read "adding a CLI subcommand or a doc surface without touching the README fails a check that names the missing section"; the doc-surface half ships there, and this entry is the CLI half. Wanted: make the catalog diff join on the leaf `command` as well as `src`, so every `<group> <sub>` needs a mention even when its entrypoint is already documented — deciding first whether an alias deserves its own catalog row or a shared row that must name every alias it covers. Deletion test: add an alias to an existing entrypoint and `validate script-catalog` names it. (found 2026-08-20 at Q-0139 spec review, where it was recorded as a risk rather than claimed as covered)
-
 ### Verify Lane Fail-Closes on Its Own Malformed Output
 
 - id: Q-0137

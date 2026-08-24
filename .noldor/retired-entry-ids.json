@@ -159,5 +159,9 @@
   "Q-0162": {
     "slug": "doctor-probe-lockfile-vs-installed-modules-freshness",
     "retiredAt": "2026-08-24"
+  },
+  "Q-0147": {
+    "slug": "manifest-aliases-escape-both-cli-documentation-gates",
+    "retiredAt": "2026-08-24"
   }
 }
