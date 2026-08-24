@@ -35,23 +35,49 @@ describe(mintEntryIds, () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it('starts at Q-0001 when the counter file is missing and persists the bump', () => {
-    expect(mintEntryIds(3, counter)).toEqual(['Q-0001', 'Q-0002', 'Q-0003']);
+    expect(mintEntryIds(3, { counterPath: counter, liveMax: 0 })).toEqual([
+      'Q-0001',
+      'Q-0002',
+      'Q-0003',
+    ]);
     expect(JSON.parse(readFileSync(counter, 'utf8'))).toEqual({ next: 4 });
   });
 
   it('resumes from the persisted counter', () => {
     writeFileSync(counter, JSON.stringify({ next: 10 }));
-    expect(mintEntryIds(2, counter)).toEqual(['Q-0010', 'Q-0011']);
+    expect(mintEntryIds(2, { counterPath: counter, liveMax: 0 })).toEqual(['Q-0010', 'Q-0011']);
     expect(JSON.parse(readFileSync(counter, 'utf8'))).toEqual({ next: 12 });
   });
 
   it('throws on a corrupt counter rather than silently resetting', () => {
     writeFileSync(counter, JSON.stringify({ next: 'oops' }));
-    expect(() => mintEntryIds(1, counter)).toThrow(/corrupt counter/);
+    expect(() => mintEntryIds(1, { counterPath: counter, liveMax: 0 })).toThrow(/corrupt counter/);
   });
 
   it('rejects a non-positive count', () => {
-    expect(() => mintEntryIds(0, counter)).toThrow();
+    expect(() => mintEntryIds(0, { counterPath: counter, liveMax: 0 })).toThrow();
+  });
+
+  it('floors a counter that drifted behind the live corpus max', () => {
+    // The Q-0160 collision: counter says 153 while Q-0153 is already live.
+    writeFileSync(counter, JSON.stringify({ next: 153 }));
+    expect(mintEntryIds(2, { counterPath: counter, liveMax: 153 })).toEqual(['Q-0154', 'Q-0155']);
+    expect(JSON.parse(readFileSync(counter, 'utf8'))).toEqual({ next: 156 });
+  });
+
+  it('leaves a counter that runs ahead of the corpus alone (gaps are legal)', () => {
+    writeFileSync(counter, JSON.stringify({ next: 200 }));
+    expect(mintEntryIds(1, { counterPath: counter, liveMax: 153 })).toEqual(['Q-0200']);
+    expect(JSON.parse(readFileSync(counter, 'utf8'))).toEqual({ next: 201 });
+  });
+
+  it('starts past the corpus max when the counter file is missing entirely', () => {
+    expect(mintEntryIds(1, { counterPath: counter, liveMax: 42 })).toEqual(['Q-0043']);
+    expect(JSON.parse(readFileSync(counter, 'utf8'))).toEqual({ next: 44 });
+  });
+
+  it('rejects a negative liveMax rather than minting below the sequence', () => {
+    expect(() => mintEntryIds(1, { counterPath: counter, liveMax: -1 })).toThrow(/liveMax/);
   });
 });
 

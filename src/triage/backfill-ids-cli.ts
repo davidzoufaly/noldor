@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { COUNTER_PATH_DEFAULT, mintEntryIds, stampMissingIds } from './entry-id.js';
+import { liveMaxEntryId } from './live-max-entry-id.js';
 
 const ROADMAP = 'docs/roadmap.md';
 const BACKLOG = 'docs/backlog.md';
@@ -15,12 +16,17 @@ const BACKLOG = 'docs/backlog.md';
  * minted lazily (one at a time) so no gap is burned when a file has no missing
  * entries. Returns the per-file minted counts.
  *
+ * The corpus floor is read once, before any stamping: the first mint raises the
+ * counter past it, so re-scanning per block would only re-read the docs this
+ * function is midway through rewriting.
+ *
  * @param cwd - Repo root (roadmap/backlog resolved relative to it).
  */
 export function backfillIds(cwd: string = process.cwd()): { roadmap: number; backlog: number } {
   const counterPath = `${cwd}/${COUNTER_PATH_DEFAULT}`;
+  const liveMax = liveMaxEntryId(cwd);
   // Lazy minter: pull exactly one ID per id-less block, in file order.
-  const mint = (): string => mintEntryIds(1, counterPath)[0]!;
+  const mint = (): string => mintEntryIds(1, { counterPath, liveMax })[0]!;
 
   const roadmapPath = `${cwd}/${ROADMAP}`;
   const roadmapRaw = readFileSync(roadmapPath, 'utf8');
