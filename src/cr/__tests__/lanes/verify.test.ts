@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setVerifyDispatcher } from '../../lanes/verify-dispatch.js';
-import { reapPort, runVerify, setSmokeRunner } from '../../lanes/verify.js';
+import { proseReportsSuccess, reapPort, runVerify, setSmokeRunner } from '../../lanes/verify.js';
 import type { LaneInput } from '../../lane-types.js';
 
 const GREEN_SMOKE = {
@@ -166,6 +166,82 @@ describe('runVerify', () => {
     expect((readSink(cwd).blockers as Array<{ message: string }>)[0].message).toContain(
       'spawn-failed',
     );
+  });
+
+  it('repair round recovers a verdict when only the JSON fence was missing', async () => {
+    const seen: Array<string | undefined> = [];
+    setVerifyDispatcher(async (i) => {
+      seen.push(i.repairOf);
+      return i.repairOf === undefined
+        ? 'Verified end-to-end. I forgot the fence.'
+        : '```json\n{"verdict":"pass","evidence":[{"command":"curl /x","observed":"{}"}],"mismatches":[]}\n```';
+    });
+    const { cwd, input } = repo('blocking');
+    const r = await runVerify(input);
+    expect(r.ok).toBe(true);
+    const sink = readSink(cwd);
+    expect(sink.verdict).toBe('pass');
+    expect((sink.evidence as unknown[]).length).toBe(1);
+    expect(JSON.stringify(sink.notes)).toContain('repair round');
+    // Exactly one repair, and it carried the first answer's prose to transcribe.
+    expect(seen).toEqual([undefined, 'Verified end-to-end. I forgot the fence.']);
+  });
+
+  it('repair round is not attempted when the dispatch itself failed', async () => {
+    let calls = 0;
+    setVerifyDispatcher(async () => {
+      calls++;
+      throw new Error('verify dispatch failed: exit 1 (timeout)');
+    });
+    const { cwd, input } = repo('blocking');
+    expect((await runVerify(input)).ok).toBe(false);
+    expect(calls).toBe(1);
+    expect(readSink(cwd).reason).toBe('dispatch-failed');
+  });
+
+  it('unparseable prose that plainly reports success degrades to cannot-verify, even in blocking mode', async () => {
+    const prose =
+      'Verified all clauses through real CLI/HTTP/API. Booted the dashboard on the assigned port and observed HTTP 200 for /x with an object body.';
+    setVerifyDispatcher(async () => prose);
+    for (const mode of ['blocking', 'advisory']) {
+      const { cwd, input } = repo(mode);
+      const r = await runVerify(input);
+      expect(r.ok).toBe(true);
+      const sink = readSink(cwd);
+      expect(sink.verdict).toBe('cannot-verify');
+      expect(sink.reason).toBe('malformed-output');
+      expect(sink.blockers).toEqual([]);
+      expect(String(sink.summary)).toContain('prose reports success');
+    }
+  });
+
+  it('keeps the unparseable payload verbatim in the sink, not truncated to 200 chars', async () => {
+    const prose = `${'boot log line. '.repeat(40)}THE-TAIL-THAT-MATTERS: mismatch on /x`;
+    expect(prose.length).toBeGreaterThan(200);
+    setVerifyDispatcher(async () => prose);
+    const { cwd, input } = repo('blocking');
+    // Failure-shaped prose stays fail-closed — the raw payload is what changes.
+    expect((await runVerify(input)).ok).toBe(false);
+    const sink = readSink(cwd);
+    expect(JSON.stringify(sink.notes)).toContain('THE-TAIL-THAT-MATTERS');
+    expect(JSON.stringify(sink.notes)).toContain('repair round');
+    expect(sink.reason).toBe('malformed-output');
+  });
+});
+
+describe('proseReportsSuccess', () => {
+  it('matches the phrasings a verifier actually opens a successful report with', () => {
+    expect(proseReportsSuccess('Verified all clauses through real CLI/HTTP/API.')).toBe(true);
+    expect(proseReportsSuccess('Verified end-to-end.')).toBe(true);
+    expect(proseReportsSuccess('All acceptance criteria pass.')).toBe(true);
+  });
+
+  it('lets any failure-shaped word veto, and needs a success claim to match at all', () => {
+    expect(proseReportsSuccess('Verified end-to-end, but /y is missing.')).toBe(false);
+    expect(proseReportsSuccess('Verified the CLI; the HTTP surface failed.')).toBe(false);
+    expect(proseReportsSuccess('Verified /x. I cannot reach /y.')).toBe(false);
+    expect(proseReportsSuccess('I am confused and emit no JSON')).toBe(false);
+    expect(proseReportsSuccess('')).toBe(false);
   });
 });
 

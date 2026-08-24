@@ -286,6 +286,21 @@ never blocks. Spawn failure, timeout, or malformed verifier output is one
 "no trustworthy verdict" class: fail-closed blocker in blocking mode,
 `cannot-verify` note in advisory.
 
+Malformed output gets two chances before it is read as that class. A child that
+answered but emitted no parseable verdict has already run the verification —
+only the serialization broke — so the lane makes ONE repair re-request that hands
+the prose back and asks for the schema. That round is a transcription, never a
+second verification: it boots nothing and may not upgrade a hedged report into
+`pass`. A verdict it recovers is stamped with a `repair round` note. When the
+repair fails too, prose that plainly reports success and says nothing
+failure-shaped degrades to `cannot-verify` — which never blocks — instead of a
+fail-closed blocker, because a green verification must not be blocked by a
+formatting failure. It is still not a `pass`: nothing parsed. Every unrecovered
+round stamps `reason` (`malformed-output`, or `dispatch-failed` when the spawn
+itself failed) and keeps the child's raw payload verbatim in `notes` (bounded at
+20k chars) — that payload is the only evidence that separates a real failure
+from a serialization one.
+
 Opt in via `crLanes.code: ["reviewer", "verifier"]`; drain and watch inherit it
 from config. The noldor repo itself runs `verifyMode: "blocking"` (flipped
 after the advisory bake-in period); the schema default stays `advisory` so new

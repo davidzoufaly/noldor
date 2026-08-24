@@ -7,6 +7,7 @@ vi.mock('../../../core/agent-runner/registry.js', () => ({
 
 import {
   buildVerifyPrompt,
+  buildVerifyRepairPrompt,
   dispatchVerify,
   parseVerifyVerdict,
 } from '../../lanes/verify-dispatch.js';
@@ -48,6 +49,19 @@ describe('buildVerifyPrompt', () => {
   });
 });
 
+describe('buildVerifyRepairPrompt', () => {
+  it('asks for a transcription of the prose, never a second verification', () => {
+    const p = buildVerifyRepairPrompt('Verified end-to-end. I forgot the fence.');
+    expect(p).toContain('Verified end-to-end. I forgot the fence.');
+    expect(p).toMatch(/do not re-verify/i);
+    expect(p).toMatch(/never upgrade/i);
+    expect(p).toContain('```json');
+    // The boot surfaces and the no-source-reading rule belong to the primary
+    // prompt only — this round runs nothing.
+    expect(p).not.toContain('Boot surfaces');
+  });
+});
+
 describe('parseVerifyVerdict', () => {
   it('parses a fenced JSON verdict', () => {
     const md =
@@ -81,6 +95,16 @@ describe('default dispatcher timeout', () => {
     spawnAgent.mockClear();
     await dispatchVerify(dispatchBase);
     expect(spawnAgent.mock.calls[0][1].timeoutMs).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
+  });
+
+  it('routes a repairOf input to the repair prompt instead of the primary one', async () => {
+    const spawnAgent = await spawnMock();
+    spawnAgent.mockClear();
+    await dispatchVerify({ ...dispatchBase, repairOf: 'Verified end-to-end, no fence.' });
+    const prompt = String(spawnAgent.mock.calls[0][0]);
+    expect(prompt).toMatch(/do not re-verify/i);
+    expect(prompt).toContain('Verified end-to-end, no fence.');
+    expect(prompt).not.toContain('Boot surfaces');
   });
 
   it('honors an explicit timeoutMs from the lane', async () => {
