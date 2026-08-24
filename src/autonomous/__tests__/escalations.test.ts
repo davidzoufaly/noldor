@@ -381,4 +381,31 @@ describe('parkAwareSource', () => {
     };
     expect(parkAwareSource(inner, () => ({})).finishPrompt).toBeUndefined();
   });
+
+  it('exposes the same parked slugs it excludes, keyed by source, with the park reason', () => {
+    const inner: DrainSource = {
+      id: 'roadmap',
+      nextItem: () => null,
+      parseAll: () => ['a', 'b'],
+      gatePrompt: () => '/gate',
+      branchFor: (s) => `fast/${s}`,
+    };
+    const parked: ParkMap = {
+      'roadmap:a': { reason: 'merge-conflict', ts: 't' },
+      'plans:b': { reason: 'retries-exhausted', ts: 't' },
+    };
+    const exposed = parkAwareSource(inner, () => parked).parkedSlugs?.();
+    expect(exposed && [...exposed.entries()]).toEqual([['a', 'merge-conflict']]);
+  });
+
+  it('exposes nothing when the park is empty — an unparked queue must not read as parked', () => {
+    const inner: DrainSource = {
+      id: 'roadmap',
+      nextItem: () => null,
+      parseAll: () => ['a'],
+      gatePrompt: () => '/gate',
+      branchFor: (s) => `fast/${s}`,
+    };
+    expect(parkAwareSource(inner, () => ({})).parkedSlugs?.().size).toBe(0);
+  });
 });

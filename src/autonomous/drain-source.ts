@@ -131,6 +131,22 @@ export interface DrainSource {
    * `parseAll` alone.
    */
   fastTrackableElsewhere?(): string[];
+  /**
+   * The slugs this source currently EXCLUDES because they are parked, mapped to the park
+   * reason — the same set `nextItem` folds into its skip set, exposed so a validator can
+   * see it. Present only on a park-aware source (`parkAwareSource`); a bare source omits
+   * it, and a reader must treat that absence as "cannot answer", not as "nothing parked".
+   *
+   * `parseAll` deliberately still lists a parked slug (it is the success oracle: absence
+   * === shipped, and a parked entry has NOT shipped), so a check written against the
+   * universe alone cannot tell a parked slug from a drainable one. That is the exact
+   * disagreement {@link assertOnlyResolves} closes.
+   *
+   * The reason is a plain string rather than `EscalationReason`: the park vocabulary lives
+   * in `escalations.ts`, which already imports this module, and a type-only round trip
+   * would make the two files circular.
+   */
+  parkedSlugs?(): ReadonlyMap<string, string>;
 }
 
 /**

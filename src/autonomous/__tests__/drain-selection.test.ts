@@ -172,6 +172,21 @@ const cand = (slug: string, eligible: boolean): DrainCandidate => ({
   eligible,
 });
 
+/** A park-aware stub: `parked` maps slug → park reason, exactly as the wrapper exposes it. */
+function parkedSource(
+  items: readonly DrainCandidate[],
+  parked: Record<string, string>,
+): DrainSource {
+  return {
+    ...stubSource(items, null),
+    // Mirrors `parkAwareSource`: `parseAll` still lists the parked slug; only `nextItem`
+    // (and now `parkedSlugs`) know it is excluded.
+    nextItem: (skip) =>
+      items.find((i) => !skip.has(i.slug) && parked[i.slug] === undefined) ?? null,
+    parkedSlugs: () => new Map(Object.entries(parked)),
+  };
+}
+
 describe('selectionNotAtRef', () => {
   it('names an eligible entry the ref does not carry', () => {
     const src = stubSource(
@@ -241,5 +256,37 @@ describe('assertOnlyResolves', () => {
   it('is a no-op without --only', () => {
     expect(() => assertOnlyResolves(undefined, src)).not.toThrow();
     expect(() => assertOnlyResolves({ sizes: new Set(['XS']) }, src)).not.toThrow();
+  });
+
+  it('throws on a parked slug, naming the reason and the unpark remedy', () => {
+    // `parseAll` still lists a parked slug, so the queue check alone passes it — and
+    // `nextItem` then never yields it: the run would ship 0 and exit 0, the false green.
+    const parked = parkedSource([cand('parked-slug', true)], { 'parked-slug': 'merge-conflict' });
+    expect(() => assertOnlyResolves({ only: new Set(['parked-slug']) }, parked)).toThrow(
+      /parked-slug \(merge-conflict\)/,
+    );
+    expect(() => assertOnlyResolves({ only: new Set(['parked-slug']) }, parked)).toThrow(
+      /noldor autonomous unpark/,
+    );
+  });
+
+  it('admits an unparked slug while a sibling entry is parked', () => {
+    const parked = parkedSource([cand('live', true), cand('dead', true)], {
+      dead: 'retries-exhausted',
+    });
+    expect(() => assertOnlyResolves({ only: new Set(['live']) }, parked)).not.toThrow();
+  });
+
+  it('reports an unknown slug ahead of a parked one — a typo is not a park', () => {
+    const parked = parkedSource([cand('dead', true)], { dead: 'merge-timeout' });
+    expect(() => assertOnlyResolves({ only: new Set(['typo', 'dead']) }, parked)).toThrow(
+      /not in the queue: typo/,
+    );
+  });
+
+  it('is a no-op on a source that cannot report parks', () => {
+    // `parkedSlugs` is optional: a bare source must not read as "nothing is parked" ... it
+    // reads as "cannot answer", which is the same admit, but for the honest reason.
+    expect(() => assertOnlyResolves({ only: new Set(['real-slug']) }, src)).not.toThrow();
   });
 });
