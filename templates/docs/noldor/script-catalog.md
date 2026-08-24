@@ -7,13 +7,13 @@ introduced: 0.4.0
 
 Noldor ships its implementation under `src/<group>/`, surfaced through the `noldor` CLI (`pnpm noldor <group> <subcommand>`) that backs the framework's pre-commit hooks, garden audits, and release pipeline. This page is the canonical reference — one section per command, grouped by concern. Source paths are cited per command. Flat `pnpm <alias>` forms shown below are consumer-defined conveniences; the framework only guarantees the `noldor` CLI.
 
-> **Note.** The `validate:script-catalog` drift gate is live — it runs in `pre-commit` (`validate.script-catalog` job) and fails the commit when a manifest leaf command's source is undocumented here, parallel to `validate:skill-catalog`. It joins on the **Source** `src/…` path each entry cites (not the display name), so keep every command's Source link accurate; aliases that share an entrypoint are covered by documenting that source once.
+> **Note.** The `validate:script-catalog` drift gate is live — it runs in `pre-commit` (`validate.script-catalog` job) and fails the commit when a manifest leaf command is undocumented here, parallel to `validate:skill-catalog`. It runs two joins. The **source** join matches the `src/…` path each entry cites (not the display name), so keep every Source link accurate. The **command** join matches the literal `pnpm noldor <group> <sub>` string, so an alias pointed at an already-documented entrypoint is *not* covered for free — name it, either in the entry that owns its source (the convention here: `(alias: …)` on the Trigger line, or a second form in a table's Command cell) or in an entry of its own.
 
 ## Validation
 
 ### `validate:features`
 
-- **Trigger:** `pnpm noldor validate features`. Runs in `pre-commit` (`validate.features` job).
+- **Trigger:** `pnpm noldor validate features` (alias: `pnpm noldor features validate`). Runs in `pre-commit` (`validate.features` job).
 - **Inputs:** every `docs/features/*.md` (frontmatter via gray-matter, body via raw read).
 - **Outputs:** exit 0 when all FDs satisfy `FeatureFrontmatterSchema` (Zod) + cross-checks (`packages` matches `links.code`, `category` is one of `consumer.categories` in `.noldor/config.json`, `phase: in-progress` carries no `introduced`); also checks tier-vs-spec drift (`noldor-tier == full` but `links.spec` empty surfaces as a warning); exit 1 + per-file error list otherwise.
 - **When to use:** automatically on every commit. Run by hand after bulk-editing FDs to fail fast before staging.
@@ -21,7 +21,7 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 ### `validate:feature-slug-scope`
 
-- **Trigger:** `pnpm noldor validate feature-slug-scope <commit-msg-file>`. Runs in `commit-msg` (`feature-slug-scope` job).
+- **Trigger:** `pnpm noldor validate feature-slug-scope <commit-msg-file>` (alias: `pnpm noldor checks feature-slug-scope`). Runs in `commit-msg` (`feature-slug-scope` job).
 - **Inputs:** commit message file path; `docs/features/*.md` filenames for the slug allowlist.
 - **Outputs:** exit 0 when scope is empty, lacks `:`, or carries a known FD slug (`type(area:slug)`); exit 1 with the offending scope when the slug is unknown.
 - **When to use:** automatic gate on every commit. Prevents typos from orphaning live commit attribution.
@@ -55,13 +55,13 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 - **Trigger:** `pnpm noldor validate script-catalog`. Runs in `pre-commit` (`validate.script-catalog` job, `glob: '{src/cli/manifest.ts,docs/noldor/script-catalog.md}'`).
 - **Inputs:** the CLI manifest ([`flattenManifest`](../../src/cli/manifest.ts) over `MANIFEST`) for the leaf-command `src` set; this page's `src/…` Source links.
-- **Outputs:** exit 0 when every manifest leaf command's entrypoint `src` is cited by a Source link here; exit 1 listing the undocumented sources otherwise. Joins on the `src/…` path, so alias commands sharing an entrypoint (e.g. `autonomous run` + `autonomous queue-drain`) are satisfied by one Source link, and non-manifest sources (pnpm composites, helpers) are advisory-only.
+- **Outputs:** exit 0 when every manifest leaf command's entrypoint `src` is cited by a Source link here **and** every leaf's `<group> <sub>` name appears verbatim in the page; exit 1 listing the undocumented sources and the unnamed commands under separate headings. The source join collapses aliases sharing an entrypoint (e.g. `autonomous run` + `autonomous queue-drain`), which is why the command join exists — it is what makes a new alias on an already-documented entrypoint fail the gate. Non-manifest sources (pnpm composites, helpers) stay advisory-only; the command join is one-way (manifest → catalog) and reports no extras, since the page legitimately cites forms that are not manifest leaves.
 - **When to use:** automatic gate when the manifest or this page changes. Mirror of `validate:skill-catalog`. See [`garden-and-drift.md`](garden-and-drift.md).
 - **Source:** [`src/cli/validate-script-catalog.ts`](../../src/cli/validate-script-catalog.ts)
 
 ### `check:invariants`
 
-- **Trigger:** `pnpm noldor checks invariants`. Runs in `pre-commit` (`validate.invariants` job).
+- **Trigger:** `pnpm noldor checks invariants` (alias: `pnpm noldor invariants run`). Runs in `pre-commit` (`validate.invariants` job).
 - **Inputs:** rule definitions in `src/invariants/`.
 - **Outputs:** exit 0 when every invariant passes (rule conflicts, public-API tsdoc coverage, package boundaries); exit 1 with the violating rule named.
 - **When to use:** automatic on every commit. Fast (~1s).
@@ -112,8 +112,8 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 | Command                              | Source                                                            | Purpose                                                                    |
 | ------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `pnpm noldor validate noldor-config` | [`src/validate/noldor-config.ts`](../../src/validate/noldor-config.ts) | Validate `.noldor/config.json` shape (categories, scanPaths, crLanes, …).  |
-| `pnpm noldor validate milestones`    | [`src/milestones/validate-milestones.ts`](../../src/milestones/validate-milestones.ts) | Validate `docs/milestones/*.md` + vision's `current-milestone:` pointer.   |
-| `pnpm noldor validate triage`        | [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts) | Validate roadmap/backlog schema-C blocks.                                  |
+| `pnpm noldor validate milestones` (alias: `pnpm noldor milestones validate`) | [`src/milestones/validate-milestones.ts`](../../src/milestones/validate-milestones.ts) | Validate `docs/milestones/*.md` + vision's `current-milestone:` pointer.   |
+| `pnpm noldor validate triage` (alias: `pnpm noldor triage validate`) | [`src/triage/validate-triage.ts`](../../src/triage/validate-triage.ts) | Validate roadmap/backlog schema-C blocks.                                  |
 
 ## Gate hooks
 
@@ -343,7 +343,7 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 
 ### `release`
 
-- **Trigger:** `pnpm release` — **explicit user confirmation only** (irreversible: pushes a `v*` tag and creates a public GitHub Release). `--resume` finishes an interrupted release; `--preflight` reports the gates and exits without releasing; `--preflight --fix` also applies the safe remedies. `--preflight` and `--resume` are mutually exclusive (resume skips every precondition, so there is nothing for the aggregate to report).
+- **Trigger:** `pnpm release`, i.e. `pnpm noldor release run` — **explicit user confirmation only** (irreversible: pushes a `v*` tag and creates a public GitHub Release). `--resume` finishes an interrupted release; `--preflight` reports the gates and exits without releasing; `--preflight --fix` also applies the safe remedies. `--preflight` and `--resume` are mutually exclusive (resume skips every precondition, so there is nothing for the aggregate to report).
 - **Inputs:** previous tag (`findPreviousTag`), new version (semver bump or operator-supplied), origin remote URL, commits since previous tag, `docs/features/*.md` for FD attribution, `graphify-out/graph.json` for freshness gating, the working tree (must be clean).
 - **Outputs:** writes per-FD `### <version> > #### Summary` blocks (auto-polished via `claude -p`, see [`feature-md-schema.md`](feature-md-schema.md)); prepends a `## v<version>` block to `docs/release-notes.md`; writes a `## v<version>` `CHANGELOG.md` entry; bumps `package.json` versions; runs the release pipeline (build, tag, push, create GH Release).
 - **When to use:** end of milestone or when a user explicitly confirms a release. Run `pnpm release --preflight` first — it reports every failing gate at once instead of one per re-run. The pre-release sweep (`/graphify` → `/noldor-refactor` → README check → `/graphify` again) is non-negotiable; see project root `CLAUDE.md`.
@@ -367,7 +367,7 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 
 ### `noldor:changelog`
 
-- **Trigger:** `pnpm noldor changelog`.
+- **Trigger:** `pnpm noldor changelog` (alias: `pnpm noldor noldor changelog`).
 - **Inputs:** git log filtered to commits whose scope is `noldor` or `noldor:<slug>`.
 - **Outputs:** stdout markdown changelog, grouped by page.
 - **When to use:** ad hoc to inspect framework-rule churn over a release window.
@@ -377,7 +377,7 @@ Subagent / codex / standalone review lane orchestration. Full pipeline in [`cr-p
 
 | Command                         | Source                                                                 | Purpose                                                                          |
 | ------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `pnpm noldor autonomous run`    | [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)   | One-shot queue drain (`--source roadmap\|plans`, `--max-features`, `--dry-run`).    |
+| `pnpm noldor autonomous run` / `pnpm noldor autonomous queue-drain` | [`src/autonomous/queue-drain.ts`](../../src/autonomous/queue-drain.ts)   | One-shot queue drain (`--source roadmap\|plans`, `--max-features`, `--dry-run`). The `queue-drain` alias is the same entrypoint, defaulting `--source roadmap`. |
 | `pnpm noldor autonomous watch`  | [`src/autonomous/watch.ts`](../../src/autonomous/watch.ts)               | Continuous drain daemon; `--once` = cron mode, `--detach` = unattended. See [`autonomy.md`](autonomy.md).    |
 | `pnpm noldor autonomous inbox`  | [`src/autonomous/inbox-cli.ts`](../../src/autonomous/inbox-cli.ts)       | List open escalations (parked slugs) with evidence + suggested action.              |
 | `pnpm noldor autonomous unpark` | [`src/autonomous/unpark-cli.ts`](../../src/autonomous/unpark-cli.ts)     | Resolve an escalation: `unpark <slug> [--source <id>]`.                             |
@@ -565,7 +565,7 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 
 ### `dashboard`
 
-- **Trigger:** `pnpm dashboard`. Long-running watch server.
+- **Trigger:** `pnpm dashboard`, i.e. `pnpm noldor dashboard server`. Long-running watch server.
 - **Inputs:** `docs/features/*.md`, `docs/roadmap.md`, `docs/backlog.md`, `git log` (per-FD scope filter), `graphify-out/graph.json` when present.
 - **Outputs:** local HTTP server rendering FD pages, release-notes preview, per-feature live commit lists, untriaged-ideas count. Routes: `/features/<slug>`, `/release-notes`, `/`, plus `/health` (plain `OK`) and `/identity` (JSON `{root, name, pid}` naming the project it serves).
 - **When to use:** local browsing of the framework state during dev. Not part of any hook or release pipeline.
@@ -575,7 +575,7 @@ FD phase + pointer maintenance used by `/noldor-gate` Step 4 and `/noldor-draft-
 
 ### `toon`
 
-- **Trigger:** `pnpm toon`.
+- **Trigger:** `pnpm toon`, i.e. `pnpm noldor graphify graph-to-toon`.
 - **Inputs:** `graphify-out/graph.json` (produced by `/graphify` skill).
 - **Outputs:** stdout TOON-formatted graph view (compact textual graph for context-window inclusion).
 - **When to use:** ad hoc when feeding the project graph to an agent. The `/graphify` skill itself is documented in [`skill-catalog.md`](skill-catalog.md); `src/graphify/` only hosts this post-processor.
