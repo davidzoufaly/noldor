@@ -207,11 +207,14 @@ export function assertOnlyResolves(
   const parked = source.parkedSlugs?.() ?? new Map<string, string>();
   const blocked = [...only].filter((s) => parked.has(s));
   if (blocked.length > 0) {
-    const named = blocked.map((s) => `${s} (${parked.get(s) ?? 'unknown'})`).join(', ');
+    // One `unpark` line per slug, not one command naming them all: `unpark-cli` takes a
+    // single slug, so a joined hint would be a command the operator cannot run.
+    const named = blocked.map((s) => `  - ${s} (${parked.get(s) ?? 'unknown'})`).join('\n');
+    const remedy = blocked.map((s) => `  noldor autonomous unpark ${s}`).join('\n');
     throw new Error(
-      `--only names ${blocked.length} parked slug(s): ${named}\n` +
+      `--only names ${blocked.length} parked slug(s):\n${named}\n` +
         `a parked entry is never selected, so the run would ship nothing and exit 0 — ` +
-        `unpark it first: noldor autonomous unpark ${blocked[0] ?? '<slug>'}`,
+        `unpark first:\n${remedy}`,
     );
   }
 }

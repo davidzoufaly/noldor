@@ -270,6 +270,18 @@ describe('assertOnlyResolves', () => {
     );
   });
 
+  it('gives one runnable unpark command per parked slug — unpark takes a single slug', () => {
+    const parked = parkedSource([cand('a', true), cand('b', true)], {
+      a: 'merge-conflict',
+      b: 'retries-exhausted',
+    });
+    const run = (): void => {
+      assertOnlyResolves({ only: new Set(['a', 'b']) }, parked);
+    };
+    expect(run).toThrow(/noldor autonomous unpark a/);
+    expect(run).toThrow(/noldor autonomous unpark b/);
+  });
+
   it('admits an unparked slug while a sibling entry is parked', () => {
     const parked = parkedSource([cand('live', true), cand('dead', true)], {
       dead: 'retries-exhausted',
