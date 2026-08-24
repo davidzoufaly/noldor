@@ -245,6 +245,36 @@ describe(detectStaleBacklog, () => {
     ];
     expect(detectStaleBacklog(entries, 90, today)).toStrictEqual([]);
   });
+
+  it('exempts demoted entries so garden demote-stale closes the row', () => {
+    const today = new Date('2026-04-27');
+    const entries: BacklogEntry[] = [
+      {
+        area: 'persistence',
+        description: 'x',
+        name: 'Demoted',
+        phase: 'later',
+        slug: 'demoted',
+        since: '2026-01-01',
+      },
+    ];
+    expect(detectStaleBacklog(entries, 90, today)).toStrictEqual([]);
+  });
+
+  it('still flags a stale entry carrying a non-later phase', () => {
+    const today = new Date('2026-04-27');
+    const entries: BacklogEntry[] = [
+      {
+        area: 'persistence',
+        description: 'x',
+        name: 'Active',
+        phase: 'now',
+        slug: 'active',
+        since: '2026-01-01',
+      },
+    ];
+    expect(detectStaleBacklog(entries, 90, today).map((g) => g.itemId)).toStrictEqual(['Active']);
+  });
 });
 
 describe(detectSpecsWithoutFeatures, () => {
