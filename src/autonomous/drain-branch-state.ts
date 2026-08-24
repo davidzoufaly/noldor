@@ -24,9 +24,11 @@
  * Untracked files are deliberately not dirt (`status -uno`): a stray scratch file
  * must not authorize deleting committed work.
  *
- * Fail-closed where the evidence is missing: when `git fetch origin` fails there
- * is no way to prove the remote carries no undelivered work, so the verdict is
- * `unknown` and the caller must stop. This is the opposite bias to
+ * Fail-closed where the evidence is missing: on the no-work path a failed
+ * `git fetch origin` leaves no way to prove the remote carries no undelivered
+ * work, so the verdict is `unknown` and the caller must stop. (With local commits
+ * in hand the remote's freshness no longer decides, so that leg does not consult
+ * it; an unanswerable `gh` closed-PR probe is the fail-closed stop there.) This is the opposite bias to
  * {@link branchHasUnshippedWork}'s (which errs toward rebuilding): that probe
  * runs inside the supervisor, where a wrong answer costs one rebuild of work the
  * supervisor can re-derive; here a wrong answer is a deletion.
@@ -137,7 +139,7 @@ export function classifyDrainBranch(run: GitRunner, slug: string): DrainBranchSt
     return {
       ...base,
       verdict: 'rebuild',
-      reason: `${branch} carries commits but a human closed its PR without merging — the work was rejected, so rebuild rather than re-delivering it`,
+      reason: `${branch} carries commits but a human closed its PR without merging — the work was rejected, so rebuild rather than re-delivering it; read \`git log origin/main..${branch}\` if you need to know what it held`,
     };
   }
   if (hasWork && dirtyWorktree === null) {
