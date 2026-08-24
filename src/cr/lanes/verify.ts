@@ -54,15 +54,20 @@ function keepRaw(raw: string): string {
  * Deliberately asymmetric: the success half is a narrow allowlist of the
  * phrasings a verifier actually opens with ("Verified all clauses through real
  * CLI/HTTP/API", "Verified end-to-end"), while ANY failure-shaped word vetoes.
- * A false negative costs nothing — the round falls back to today's fail-closed
- * blocker — whereas a false positive would wave through a payload that was
- * hiding a mismatch. It is not evidence of a pass either way: the caller maps a
- * match to `cannot-verify`, which never blocks, not to `pass`.
+ * A false negative costs nothing — the round falls back to the fail-closed
+ * blocker — whereas a false positive would wave a payload that was hiding a
+ * mismatch through as non-blocking. So the veto half matches STEMS (`fail\w*`
+ * catches `failing`, `error\w*` catches `errored`) rather than a list of exact
+ * inflections, and a 4xx/5xx status anywhere in the prose vetoes on its own.
+ *
+ * This predicate is the safety valve, not the recovery path: the repair round
+ * above is what actually rescues a green verification, and anything the valve
+ * misses still lands on `cannot-verify`, never on `pass`.
  */
 const PROSE_SUCCESS_RE =
   /\bverifi(?:ed|cation (?:passed|succeeded|is green))\b|\ball (?:acceptance )?(?:clauses|criteria|checks) (?:pass|passed|verified)\b/i;
 const PROSE_FAILURE_RE =
-  /\b(?:fail|fails|failed|failure|failures|mismatch|mismatches|unable|cannot|could not|couldn't|did not|didn't|does not|doesn't|missing|error|errors|unverified)\b/i;
+  /\b(?:fail\w*|error\w*|mismatch\w*|regress\w*|broke|broken|missing|unverified|unable|cannot|can't|could\s?n[o']?t|did\s?n[o']?t|does\s?n[o']?t|time[ds]?\s?out\w*|crash\w*|hang\w*|reject\w*|refus\w*|wrong|unexpected)\b|\b[45]\d\d\b/i;
 
 export function proseReportsSuccess(raw: string): boolean {
   return PROSE_SUCCESS_RE.test(raw) && !PROSE_FAILURE_RE.test(raw);

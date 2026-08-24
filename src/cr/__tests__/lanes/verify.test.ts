@@ -243,6 +243,18 @@ describe('proseReportsSuccess', () => {
     expect(proseReportsSuccess('I am confused and emit no JSON')).toBe(false);
     expect(proseReportsSuccess('')).toBe(false);
   });
+
+  it('vetoes on INFLECTED failure words, not just the exact forms', () => {
+    // A list of exact inflections let `errored`/`failing`/`broke` through the
+    // veto, degrading a real mismatch to a non-blocking `cannot-verify`.
+    expect(proseReportsSuccess('Verified the CLI; the dashboard errored on boot.')).toBe(false);
+    expect(proseReportsSuccess('Verified /x. /y is failing.')).toBe(false);
+    expect(proseReportsSuccess('Verified /x, but /y broke.')).toBe(false);
+    expect(proseReportsSuccess('Verified /x; /y regressed.')).toBe(false);
+    expect(proseReportsSuccess('Verified /x. The route returns a 500.')).toBe(false);
+    expect(proseReportsSuccess('Verified /x. The boot timed out.')).toBe(false);
+    expect(proseReportsSuccess('Verified /x. The server crashed.')).toBe(false);
+  });
 });
 
 describe('reapPort', () => {
