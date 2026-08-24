@@ -1,10 +1,11 @@
 // @fd: stable-entry-ids-for-roadmap-backlog
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
+import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { parseBacklog, parseRoadmap } from '../utils/parse-blocks.js';
 
 /**
@@ -40,22 +41,74 @@ function readNext(counterPath: string): number {
   return next;
 }
 
+export interface MintEntryIdsOptions {
+  /** Where the persisted counter lives. Defaults to {@link COUNTER_PATH_DEFAULT}. */
+  counterPath?: string;
+  /**
+   * Highest sequence number already taken in the live corpus — the floor the
+   * counter is raised to when it has drifted behind. Required rather than
+   * defaulted: a caller that cannot say what is already taken is the exact
+   * caller that mints a collision, so the type system asks. Compute it with
+   * `liveMaxEntryId(repoRoot)` from `live-max-entry-id.ts`; pass 0 only when
+   * there is provably no corpus (tests over a bare tmpdir).
+   */
+  liveMax: number;
+}
+
 /**
  * Mint `count` sequential entry IDs and persist the bumped counter. Synchronous
  * FS, mirroring `resolveIsShipped`'s style in `score.ts`. Concurrency is handled
  * out-of-band: `.noldor/id-counter.json` is a real merge conflict under parallel
  * branches and `duplicate-entry-id` is the pre-commit backstop (see the spec's
- * Risks section) — no file lock here.
+ * Risks section) — no file lock here. The write goes through
+ * {@link atomicWriteFileSync} so an interrupted mint cannot leave a torn
+ * counter that the next `readNext` rejects as corrupt.
+ *
+ * The sequence starts at `max(counter, liveMax + 1)`: nothing reads the corpus
+ * when the counter is bumped, so it drifts behind and its first number collides
+ * with a live entry (Q-0160 — `mint-id --count 4` re-emitted `Q-0153`). Taking
+ * the floor from the corpus makes the drift self-healing: the bumped counter is
+ * persisted past the corpus, so the repair holds for later mints too. A counter
+ * that runs *ahead* is left alone — gaps are legal and burning one is harmless.
  */
-export function mintEntryIds(count: number, counterPath: string = COUNTER_PATH_DEFAULT): string[] {
+export function mintEntryIds(count: number, opts: MintEntryIdsOptions): string[] {
   if (!Number.isInteger(count) || count < 1) {
     throw new Error(`mintEntryIds: count must be a positive integer, got ${count}`);
   }
-  const next = readNext(counterPath);
+  if (!Number.isInteger(opts.liveMax) || opts.liveMax < 0) {
+    throw new Error(
+      `mintEntryIds: liveMax must be a non-negative integer, got ${opts.liveMax} — ` +
+        `a bad floor mints IDs that are already taken`,
+    );
+  }
+  const counterPath = opts.counterPath ?? COUNTER_PATH_DEFAULT;
+  const next = Math.max(readNext(counterPath), opts.liveMax + 1);
   const ids: string[] = [];
   for (let i = 0; i < count; i++) ids.push(formatEntryId(next + i));
-  writeFileSync(counterPath, `${JSON.stringify({ next: next + count }, null, 2)}\n`, 'utf8');
+  atomicWriteFileSync(counterPath, `${JSON.stringify({ next: next + count }, null, 2)}\n`);
   return ids;
+}
+
+/**
+ * Every feature MD's `entry-id:` frontmatter value, paired with its slug (the
+ * file stem). A missing directory yields nothing — an adopting repo may have no
+ * `docs/features/` yet. `id` stays `unknown`: frontmatter is untrusted text, so
+ * each caller decides what a non-conforming value means (a ref lookup misses,
+ * a max scan contributes 0).
+ *
+ * Shared by {@link resolveEntryRef} and `liveMaxEntryId` — both ask "which IDs
+ * have already come to rest in an FD?", and a scan that drifts between them
+ * would make an ID resolvable but not counted as taken, or the reverse.
+ */
+export function* featureEntryIds(featuresDir: string): Generator<{ slug: string; id: unknown }> {
+  if (!existsSync(featuresDir)) return;
+  for (const file of readdirSync(featuresDir)) {
+    if (!file.endsWith('.md')) continue;
+    const data = matter(readFileSync(join(featuresDir, file), 'utf8')).data as {
+      'entry-id'?: unknown;
+    };
+    yield { slug: file.slice(0, -3), id: data['entry-id'] };
+  }
 }
 
 export interface ResolveEntryRefPaths {
@@ -82,14 +135,8 @@ export function resolveEntryRef(ref: string, paths: ResolveEntryRefPaths): strin
     if (hit) return hit.slug;
   }
 
-  if (existsSync(paths.featuresDir)) {
-    for (const file of readdirSync(paths.featuresDir)) {
-      if (!file.endsWith('.md')) continue;
-      const parsed = matter(readFileSync(join(paths.featuresDir, file), 'utf8'));
-      if ((parsed.data as { 'entry-id'?: unknown })['entry-id'] === ref) {
-        return file.slice(0, -3);
-      }
-    }
+  for (const fd of featureEntryIds(paths.featuresDir)) {
+    if (fd.id === ref) return fd.slug;
   }
 
   return ref;

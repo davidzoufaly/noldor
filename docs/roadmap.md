@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### mint-id Must Floor the Counter at the Live Corpus Max
-
-- id: Q-0160
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: XS
-- impact: med
-- confidence: high
-- parent: stable-entry-ids-for-roadmap-backlog
-
-`pnpm noldor triage mint-id --count 4` handed out `Q-0153`, which was already live on a backlog entry (Fence-Scanner Convergence, since 2026-08-21) — `.noldor/id-counter.json` sat at 153 while the highest live ID was 153, so the mint collided on its first number. Nothing at mint time reads the live corpus; the collision only surfaced afterwards, from `validate:triage`'s `duplicate-entry-id`, once the block was already written and had to be hand-repaired. `mint-id` should floor the counter at `max(live id) + 1` (the corpus is already enumerable — `triage merge-candidates` walks it), or at minimum refuse to emit an ID that resolves to an existing entry. Deletion test: minting against a counter that has drifted behind the corpus still returns a free ID. (found 2026-08-23 triaging the pre-1.5.0 ideas batch)
-
 ### Micro-Chore Globs Omit Triage Bookkeeping Files
 
 - id: Q-0161
