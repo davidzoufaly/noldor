@@ -256,7 +256,7 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 - **Trigger:** `pnpm noldor garden demote-stale` (`--days N` staleness window, `--dry-run`, `--json`).
 - **Inputs:** `docs/backlog.md` schema-C blocks + their git-history age.
 - **Outputs:** auto-demotes backlog entries untouched past the window to `phase: later`; `--dry-run`/`--json` preview without writing.
-- **When to use:** periodic backlog hygiene; surfaced by `/noldor-garden`.
+- **When to use:** periodic backlog hygiene; surfaced by `/noldor-garden`. Also the disposition that clears a `Stale backlog entries (>N days)` row in the SDD report — demoted entries are exempt from that gap. The window defaults to 180 days while the report flags at `SDD_STALE_DAYS` (90), so pass `--days 90` to reach an entry the report is already flagging.
 - **Source:** [`src/garden/backlog-demote.ts`](../../src/garden/backlog-demote.ts)
 
 ### Other triage commands

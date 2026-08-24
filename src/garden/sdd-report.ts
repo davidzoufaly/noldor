@@ -180,7 +180,22 @@ export function detectUntriagedIdeas(ideasMd: string): Gap[] {
 
 /**
  * Flag backlog entries whose `since` predates `now` by more than
- * `thresholdDays`. Entries without `since` are skipped.
+ * `thresholdDays`. Entries without `since` are skipped, and so are entries
+ * already demoted to `phase: later`.
+ *
+ * The demotion exemption is what makes the row closeable. `pnpm noldor garden
+ * demote-stale` writes `- phase: later` precisely to answer this finding; with
+ * no exemption the gap kept firing afterwards, leaving drop-the-entry or
+ * backdate-`since` as the only ways to clear a release-blocking report row.
+ * Note the demotion must use a `--days` window at or below `SDD_STALE_DAYS`
+ * (90) to reach an entry this gap is already flagging — its own default is 180.
+ *
+ * Deliberately the opposite of `detectUnusedBacklog` in `garden-detect.ts`,
+ * which does NOT exempt demoted entries: that one drives an interactive
+ * gardening pass where a parked-but-still-aging entry is exactly what the
+ * operator wants re-surfaced for an eventual drop decision. This one feeds a
+ * report that gates releases, so every row it emits must have a disposition
+ * that clears it.
  *
  * @param entries - Parsed backlog entries
  * @param thresholdDays - Age in days beyond which an entry is "stale"
@@ -194,7 +209,7 @@ export function detectStaleBacklog(
   const gaps: Gap[] = [];
   const dayMs = 24 * 60 * 60 * 1000;
   for (const e of entries) {
-    if (!e.since) {
+    if (!e.since || e.phase === 'later') {
       continue;
     }
     const sinceDate = new Date(`${e.since}T00:00:00Z`);
