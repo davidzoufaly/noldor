@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Stale-Backlog SDD Gap Ignores `phase: later`
-
-- id: Q-0163
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: XS
-- impact: med
-- confidence: high
-- parent: doc-gardening-skill
-
-The `Stale backlog entries (>90 days)` SDD gap (`detectStaleBacklogEntries`, `src/garden/sdd-report.ts:190`) reads only `since` — it never looks at `phase`. `pnpm noldor garden demote-stale` exists to answer exactly this finding by writing `- phase: later` into the block, yet the gap keeps firing afterwards, so the demotion is a no-op for the report it was built to clear. Q-0005 (Real-Codex Integration Smoke Test, since 2026-05-10) has therefore been an uncloseable row for 105 days: the only ways to clear it are dropping the entry or backdating `since`, and the second is a lie. Either exempt `phase: later` from the staleness gap, or drop `demote-stale` and say plainly that the gap can only be closed by a disposition. Deletion test: a demoted entry stops appearing in the SDD report. (found 2026-08-23 closing SDD gaps before the 1.5.0 release)
-
 ### Plan Split Guidance Permits A Part That Ships Nothing
 
 - id: Q-0150

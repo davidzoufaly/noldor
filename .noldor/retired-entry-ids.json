@@ -163,5 +163,9 @@
   "Q-0147": {
     "slug": "manifest-aliases-escape-both-cli-documentation-gates",
     "retiredAt": "2026-08-24"
+  },
+  "Q-0163": {
+    "slug": "stale-backlog-sdd-gap-ignores-phase-later",
+    "retiredAt": "2026-08-24"
   }
 }
