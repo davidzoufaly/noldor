@@ -68,6 +68,7 @@ links:
     - src/sync/sync-spec-links.ts
     - src/triage/has-block-cli.ts
   tests:
+    - src/checks/__tests__/check-install-freshness.test.ts
     - src/cli/__tests__/command-registry.test.ts
     - src/core/__tests__/changelog.test.ts
     - src/core/__tests__/commit-wrapper.test.ts
