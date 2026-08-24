@@ -1,6 +1,12 @@
 // @tests: version-aware-upgrade-and-migration-chain
 import { describe, it, expect } from 'vitest';
-import { frameworkSkewDetail, isAnchorLagging } from '../framework-skew.js';
+import {
+  BEHIND_ANCHOR_REMEDY,
+  frameworkSkew,
+  frameworkSkewDetail,
+  isAnchorLagging,
+  missingCommandSkewHint,
+} from '../framework-skew.js';
 
 describe('isAnchorLagging', () => {
   it('treats an older anchor as lagging', () => {
@@ -29,21 +35,30 @@ describe('frameworkSkewDetail', () => {
     expect(frameworkSkewDetail('1.2.0', '1.2.0')).toBeNull();
   });
 
-  it('points a lagging anchor at `noldor upgrade`', () => {
+  it('points a lagging anchor at both halves of the recovery', () => {
     expect(frameworkSkewDetail('1.1.0', '1.2.0')).toBe(
-      "anchored 1.1.0 ≠ installed 1.2.0 — run 'noldor upgrade'",
+      "anchored 1.1.0 ≠ installed 1.2.0 — run 'noldor upgrade' then 'noldor init --update'",
     );
   });
 
-  it('renders an unset anchor as `(unset)` and still points at `noldor upgrade`', () => {
+  it('names `init --update` too, since `upgrade` alone leaves the hook block stale', () => {
+    // The consumer whose commits were broken had run the package bump only; the
+    // working recovery was both commands, in this order.
+    const detail = frameworkSkewDetail('1.1.0', '1.2.0');
+    expect(detail).toContain('noldor upgrade');
+    expect(detail).toContain('noldor init --update');
+    expect(detail?.indexOf('upgrade')).toBeLessThan(detail?.indexOf('init --update') ?? -1);
+  });
+
+  it('renders an unset anchor as `(unset)` and still points at the recovery', () => {
     expect(frameworkSkewDetail(null, '1.2.0')).toBe(
-      "anchored (unset) ≠ installed 1.2.0 — run 'noldor upgrade'",
+      "anchored (unset) ≠ installed 1.2.0 — run 'noldor upgrade' then 'noldor init --update'",
     );
   });
 
-  it('points an unparseable anchor at `noldor upgrade`', () => {
+  it('points an unparseable anchor at the recovery', () => {
     expect(frameworkSkewDetail('not-a-version', '1.2.0')).toBe(
-      "anchored not-a-version ≠ installed 1.2.0 — run 'noldor upgrade'",
+      "anchored not-a-version ≠ installed 1.2.0 — run 'noldor upgrade' then 'noldor init --update'",
     );
   });
 
@@ -65,7 +80,53 @@ describe('frameworkSkewDetail', () => {
 
   it('treats a prerelease anchor below installed as lagging', () => {
     expect(frameworkSkewDetail('1.2.0-rc.1', '1.2.0')).toBe(
-      "anchored 1.2.0-rc.1 ≠ installed 1.2.0 — run 'noldor upgrade'",
+      "anchored 1.2.0-rc.1 ≠ installed 1.2.0 — run 'noldor upgrade' then 'noldor init --update'",
     );
+  });
+});
+
+describe('frameworkSkew', () => {
+  it('classifies an older anchor as behind', () => {
+    expect(frameworkSkew('1.1.0', '1.2.0')).toBe('anchor-behind');
+  });
+
+  it('classifies an unset anchor as behind (replacing it is the only way out)', () => {
+    expect(frameworkSkew(null, '1.2.0')).toBe('anchor-behind');
+  });
+
+  it('classifies a newer anchor as ahead', () => {
+    expect(frameworkSkew('1.3.0', '1.2.0')).toBe('anchor-ahead');
+  });
+
+  it('classifies a semver-equal but textually-different anchor as in sync', () => {
+    expect(frameworkSkew('v1.2.0', '1.2.0')).toBe('in-sync');
+    expect(frameworkSkew('1.2.0+build.7', '1.2.0')).toBe('in-sync');
+  });
+});
+
+describe('missingCommandSkewHint', () => {
+  it('stays silent when the versions agree — an unknown command is then a real typo', () => {
+    expect(missingCommandSkewHint('1.2.0', '1.2.0')).toBeNull();
+    expect(missingCommandSkewHint('v1.2.0', '1.2.0')).toBeNull();
+  });
+
+  it('blames the stale scaffolded hook and names both recovery commands when behind', () => {
+    const hint = missingCommandSkewHint('1.3.0', '1.5.0');
+    expect(hint).toContain('1.3.0');
+    expect(hint).toContain('1.5.0');
+    expect(hint).toContain('lefthook/noldor.yml');
+    expect(hint).toContain(BEHIND_ANCHOR_REMEDY);
+  });
+
+  it('renders an unset anchor without printing `null` at the consumer', () => {
+    const hint = missingCommandSkewHint(null, '1.5.0');
+    expect(hint).toContain('(unset)');
+    expect(hint).not.toContain('null');
+  });
+
+  it('points an ahead anchor at the install, never at a command that cannot help', () => {
+    const hint = missingCommandSkewHint('1.6.0', '1.5.0');
+    expect(hint).toContain('update the installed noldor package');
+    expect(hint).not.toContain('noldor upgrade');
   });
 });

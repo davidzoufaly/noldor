@@ -231,6 +231,13 @@ each migration as a pure file transform:
 - Re-running is a no-op once the anchor equals the installed version.
 - `noldor upgrade --from <version>` bootstraps a tree scaffolded before the
   anchor existed.
+- **`noldor upgrade` does not re-sync templates.** It rewrites consumer files
+  through codemods and advances the anchor; the template-managed files
+  (`lefthook/noldor.yml`, `docs/noldor/**`, the skill bundle) are re-pulled by
+  `noldor init --update`. Run it after every upgrade — a stale hook block calls
+  subcommands the new version may have removed, and the first symptom is a
+  commit dying on `Unknown subcommand`, not a drift report. Both the `doctor`
+  skew row and that `Unknown subcommand` error name the pair.
 
 **Downgrade is unsupported** — `installed < anchored` errors out. Reverting
 framework versions is a git operation, not a codemod concern.

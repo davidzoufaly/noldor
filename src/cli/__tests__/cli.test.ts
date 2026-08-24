@@ -12,6 +12,30 @@ function run(args: string[], cwd?: string): string {
   return execFileSync('node', [BIN, ...args], { encoding: 'utf8', cwd });
 }
 
+/** Run an invocation expected to fail, returning its exit code + stderr. */
+function runFail(args: string[], cwd?: string): { status: number; stderr: string } {
+  try {
+    execFileSync('node', [BIN, ...args], { encoding: 'utf8', cwd, stdio: 'pipe' });
+  } catch (e) {
+    const err = e as { status?: number; stderr?: string };
+    return { status: err.status ?? -1, stderr: err.stderr ?? '' };
+  }
+  throw new Error(`expected 'noldor ${args.join(' ')}' to exit non-zero`);
+}
+
+/** A consumer repo whose only interesting property is its framework anchor. */
+function anchoredConsumer(anchor: string | null): string {
+  const dir = mkdtempSync(join(tmpdir(), 'noldor-skew-'));
+  mkdirSync(join(dir, '.noldor'), { recursive: true });
+  writeFileSync(
+    join(dir, '.noldor/config.json'),
+    JSON.stringify({
+      consumer: anchor === null ? { name: 'x' } : { name: 'x', frameworkVersion: anchor },
+    }),
+  );
+  return dir;
+}
+
 describe('noldor CLI', () => {
   it('prints the package.json version on --version', () => {
     const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../../package.json'), 'utf8')) as {
@@ -32,6 +56,63 @@ describe('noldor CLI', () => {
 
   it('unknown group exits non-zero', () => {
     expect(() => run(['no-such-group'])).toThrow();
+  });
+
+  // A stale scaffolded hook naming a removed subcommand is the state that cannot
+  // self-diagnose: the consumer sees a commit die on `Unknown subcommand`, which
+  // reads as a framework bug. These assert the diagnosis lands at that exact
+  // point, since nothing routes such a consumer to `doctor`.
+  it('diagnoses a behind anchor on an unknown subcommand and names both recovery commands', () => {
+    const dir = anchoredConsumer('1.3.0');
+    try {
+      const { status, stderr } = runFail(['validate', 'no-such-sub'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('Unknown subcommand: validate no-such-sub');
+      expect(stderr).toContain('framework version skew');
+      expect(stderr).toContain('1.3.0');
+      expect(stderr).toContain('noldor upgrade');
+      expect(stderr).toContain('noldor init --update');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('diagnoses a behind anchor on an unknown group too', () => {
+    const dir = anchoredConsumer('1.3.0');
+    try {
+      const { stderr } = runFail(['no-such-group'], dir);
+      expect(stderr).toContain('Unknown command: no-such-group');
+      expect(stderr).toContain('framework version skew');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('stays quiet about skew when the anchor matches the installed version', () => {
+    const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../../package.json'), 'utf8')) as {
+      version: string;
+    };
+    const dir = anchoredConsumer(pkg.version);
+    try {
+      const { stderr } = runFail(['validate', 'no-such-sub'], dir);
+      expect(stderr).toContain('Unknown subcommand: validate no-such-sub');
+      expect(stderr).not.toContain('framework version skew');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('still reports the unknown command when there is no consumer config to read', () => {
+    // No `.noldor/config.json` at all: the anchor reads as unset, which is a
+    // skew, but the `Unknown subcommand` line must survive regardless.
+    const dir = mkdtempSync(join(tmpdir(), 'noldor-skew-bare-'));
+    try {
+      const { status, stderr } = runFail(['validate', 'no-such-sub'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('Unknown subcommand: validate no-such-sub');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('garden --help shows garden subcommands', () => {

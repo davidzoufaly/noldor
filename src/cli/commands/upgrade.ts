@@ -148,6 +148,17 @@ function main(): void {
           (dryRun ? ' — re-run without --dry-run to apply' : `; anchor advanced to ${result.to}`),
       );
     }
+    // `upgrade` applies codemods and the anchor; it never re-pulls the
+    // template-managed files, so a stale `lefthook/noldor.yml` survives it and
+    // the hooks keep dying on subcommands this version removed. Naming the
+    // second half here is the only place the consumer learns it before the next
+    // failing commit (bumbu, 2026-08-23).
+    if (result.applied || (dryRun && result.steps > 0)) {
+      console.log(
+        `\n${dryRun ? '[DRY RUN] next: ' : 'Next: '}run 'noldor init --update' to re-sync ` +
+          'template-managed files (hook block, docs) from the new package version.',
+      );
+    }
     process.exit(0);
   } catch (err) {
     console.error(`upgrade failed: ${(err as Error).message}`);
