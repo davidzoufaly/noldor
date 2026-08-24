@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Drain Prune Can Delete a Live Backlog Worktree
-
-- id: Q-0158
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: S
-- impact: high
-- confidence: high
-- parent: drain-startup-reconciliation-of-a-prior-dead-run
-
-`pruneShippedWorktrees` (`src/autonomous/drain-reconcile.ts:171`) deletes a LIVE worktree and its branch when the slug came from the backlog: its orphan test is "slug absent from `source.parseAll()`", but `roadmapSource.parseAll()` reads `docs/roadmap.md` only, so a backlog entry being fast-tracked (a normal `/noldor-gate` flow — the gate accepts a backlog slug) reads as an orphan from a prior run. Reproduced 2026-08-20: `queue-drain --dry-run` reported `pruned 1 worktree(s) [design-artifact-detector-module]` while a concurrent session was actively committing in that worktree with a dirty index; a real run would have taken `git worktree remove` + `git branch -D` to it — committed work survives in the reflog, staged-but-uncommitted work does not. The universe the prune consults must cover every document the drain's own gate can fast-track from (roadmap **and** backlog), or the prune must additionally require the worktree to be untouched — a dirty index is proof it is not an orphan. Deletion test: a live worktree on a backlog slug survives a drain startup. (found 2026-08-20 draining the XS batch)
-
 ### Drain `--only` Passes Validation on Parked Slugs
 
 - id: Q-0159

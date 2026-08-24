@@ -135,5 +135,9 @@
   "Q-0157": {
     "slug": "gate-drain-mode-force-recreate-can-destroy-finished-work",
     "retiredAt": "2026-08-24"
+  },
+  "Q-0158": {
+    "slug": "drain-prune-can-delete-a-live-backlog-worktree",
+    "retiredAt": "2026-08-24"
   }
 }
