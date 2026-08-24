@@ -30,7 +30,7 @@ As a Noldor maintainer (human or agent), I want a pre-commit gate that fails whe
 
 **CLI**
 
-- `pnpm noldor validate script-catalog` — check-only. Exit 0 when every manifest leaf command's entrypoint `src` is cited by a Source link in `docs/noldor/script-catalog.md`; exit 1 listing the undocumented sources otherwise. Joins on the `src/…` path, so alias commands sharing an entrypoint are satisfied by one Source link and non-manifest sources (pnpm composites, helpers) are advisory-only.
+- `pnpm noldor validate script-catalog` — check-only. Exit 0 when every manifest leaf command's entrypoint `src` is cited by a Source link in `docs/noldor/script-catalog.md` **and** every leaf's `<group> <sub>` name appears verbatim on the page; exit 1 listing the undocumented sources and the unnamed commands under separate headings. Two joins, because one is not enough: the `src/…` join collapses alias commands that share an entrypoint, so a second alias on an already-documented source would otherwise be checked by nothing — the command-name join is what catches it. Non-manifest sources (pnpm composites, helpers) remain advisory-only, and the command join is one-way (manifest → catalog) with no extras side, since the page legitimately cites non-leaf forms.
 
 **Pre-commit gate**
 
