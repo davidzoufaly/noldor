@@ -119,6 +119,27 @@ describe('roadmapSource', () => {
     }
   });
 
+  it('fastTrackableElsewhere lists backlog slugs (the prune must not read them as orphans)', () => {
+    const dir = tmpRepo(block('alpha', 'XS'));
+    try {
+      writeFileSync(join(dir, 'docs', 'backlog.md'), block('parked', 'S'), 'utf8');
+      const s = roadmapSource(dir);
+      expect(s.parseAll()).toEqual(['alpha']); // the success oracle is untouched
+      expect(s.fastTrackableElsewhere?.()).toEqual(['parked']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('fastTrackableElsewhere is empty when there is no backlog document', () => {
+    const dir = tmpRepo(block('alpha', 'XS'));
+    try {
+      expect(roadmapSource(dir).fastTrackableElsewhere?.()).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('parseAll returns every roadmap slug; gatePrompt is /noldor-gate --drain <slug>; branchFor is fast/<slug>', () => {
     const dir = tmpRepo(block('alpha', 'XS') + block('beta', 'L'));
     try {

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { isAlive } from './drain-lock.js';
 import { classifyMergeView, mergePr, type MergeOutcome } from './drain-io.js';
+import { checkoutIsDirty, spawnRunner } from './salvage.js';
 import type { DrainSource } from './drain-source.js';
 import type { DrainState } from './drain-state.js';
 
@@ -61,6 +62,8 @@ export interface ReconcileDeps {
   closePr: (branch: string) => void;
   /** All git worktrees (porcelain-parsed). */
   listWorktrees: () => WorktreeEntry[];
+  /** Tracked uncommitted changes in a checkout ({@link checkoutIsDirty} in production). */
+  isWorktreeDirty: (path: string) => boolean;
   /** Remove a drain worktree dir + delete its local branch. */
   removeWorktree: (slug: string, branch: string) => void;
 }
@@ -164,9 +167,30 @@ export async function reconcileOpenPrs(
 /**
  * GC the prior run's orphaned worktrees: a `.worktrees/<slug>` on the source's
  * branch namespace whose slug is no longer in the universe (already shipped /
- * retired). Two guards keep it from touching anything else — the branch must be
- * in the drain namespace AND the path must be the drain's own `.worktrees/<slug>`
- * (so a human's `.claude/worktrees/*` or an unrelated branch is never removed).
+ * retired). Four guards keep it from touching anything else:
+ *
+ * - the branch must be in the drain namespace, AND
+ * - the path must be the drain's own `.worktrees/<slug>` (so a human's
+ *   `.claude/worktrees/*` or an unrelated branch is never removed), AND
+ * - the slug must be absent from EVERY document the gate can fast-track from —
+ *   `parseAll` plus {@link DrainSource.fastTrackableElsewhere}, because a backlog
+ *   entry being fast-tracked is a normal gate flow yet is absent from
+ *   `docs/roadmap.md` from birth, AND
+ * - the checkout must hold no tracked uncommitted changes — a dirty index is
+ *   positive proof the worktree is not an orphan.
+ *
+ * The last two are separate guards rather than alternatives because neither is
+ * sufficient. A wider universe still cannot see an ad-hoc `/noldor-gate`
+ * fast-track (its `fast/<short-desc>` never appears in any document), and the dirt
+ * probe alone cannot tell shipped from in-flight (after a squash-merge the branch's
+ * commits are not ancestors of `main`, so "has commits" never clears). What the
+ * dirt probe adds is confined to the unrecoverable case: `removeWorktree` shells
+ * `git worktree remove --force` + `git branch -D`, and committed work survives in
+ * the reflog while a staged-but-uncommitted tree does not.
+ *
+ * The prune stays effective under both guards: it only ever fires for a slug whose
+ * PR already merged (that is what removes the roadmap block from `main`), and such
+ * a worktree's work is committed and merged, so it is clean.
  */
 export function pruneShippedWorktrees(
   deps: ReconcileDeps,
@@ -174,7 +198,7 @@ export function pruneShippedWorktrees(
   dryRun = false,
 ): string[] {
   const prefix = source.branchFor('');
-  const universe = new Set(source.parseAll());
+  const universe = new Set([...source.parseAll(), ...(source.fastTrackableElsewhere?.() ?? [])]);
   const pruned: string[] = [];
   for (const wt of deps.listWorktrees()) {
     if (!wt.branch.startsWith(prefix)) continue; // not a drain branch
@@ -183,6 +207,7 @@ export function pruneShippedWorktrees(
       wt.path === `.worktrees/${slug}` || wt.path.endsWith(`/.worktrees/${slug}`);
     if (!isDrainWorktreePath) continue; // a human worktree on a same-prefix branch — leave it
     if (universe.has(slug)) continue; // still in-universe (in-flight / to-ship) — leave it
+    if (deps.isWorktreeDirty(wt.path)) continue; // someone is working here — not an orphan
     if (!dryRun) deps.removeWorktree(slug, wt.branch);
     pruned.push(slug);
   }
@@ -322,6 +347,7 @@ export function makeReconcileDeps(
       });
       return parseWorktrees(out);
     },
+    isWorktreeDirty: (path) => checkoutIsDirty(spawnRunner(cwd), path),
     removeWorktree: (slug, branch) => {
       spawnSync('git', ['worktree', 'remove', '--force', `.worktrees/${slug}`], { cwd });
       spawnSync('git', ['branch', '-D', branch], { cwd });

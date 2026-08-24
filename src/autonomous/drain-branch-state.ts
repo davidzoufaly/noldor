@@ -42,7 +42,7 @@
 
 import { parseWorktrees } from './drain-reconcile.js';
 import { branchHasUnshippedWork } from './drain-io.js';
-import { hasClosedUnmergedPr, spawnRunner, type GitRunner } from './salvage.js';
+import { checkoutIsDirty, hasClosedUnmergedPr, spawnRunner, type GitRunner } from './salvage.js';
 import { runIfDirect } from '../core/cli-entry.js';
 
 /** `finish` = deliver the existing branch; `rebuild` = safe to force-recreate; `unknown` = stop. */
@@ -83,17 +83,6 @@ export function worktreeFor(run: GitRunner, branch: string): string | null {
 }
 
 /**
- * Tracked uncommitted changes in `path` — `-uno`, so an untracked scratch file
- * cannot authorize the destruction of committed work. A failed probe reads as
- * clean: a dirt verdict here only ever routes toward rebuild, so guessing
- * "dirty" on a failed probe would be the deletion-side error.
- */
-function isDirty(run: GitRunner, path: string): boolean {
-  const r = run('git', ['-C', path, 'status', '--porcelain', '-uno']);
-  return r.ok && r.stdout.trim() !== '';
-}
-
-/**
  * Did a human close this branch's PR without merging? `'unknown'` when `gh`
  * failed: {@link hasClosedUnmergedPr} is fail-closed by throwing, and both of the
  * answers it could have given change the verdict (deliver vs delete), so the
@@ -117,7 +106,7 @@ export function classifyDrainBranch(run: GitRunner, slug: string): DrainBranchSt
   const remoteFetched = run('git', ['fetch', 'origin']).ok;
   const hasWork = branchHasUnshippedWork(run, slug, branch);
   const worktree = worktreeFor(run, branch);
-  const dirtyWorktree = worktree !== null && isDirty(run, worktree) ? worktree : null;
+  const dirtyWorktree = worktree !== null && checkoutIsDirty(run, worktree) ? worktree : null;
   const rejected = hasWork ? closedUnmergedPr(run, branch) : false;
   const base = {
     slug,

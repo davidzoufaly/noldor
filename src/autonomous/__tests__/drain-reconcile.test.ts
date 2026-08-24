@@ -27,16 +27,18 @@ function deps(over: Partial<ReconcileDeps> = {}): ReconcileDeps {
     mergePr: vi.fn(async () => 'merged' as const),
     closePr: vi.fn(),
     listWorktrees: () => [],
+    isWorktreeDirty: () => false,
     removeWorktree: vi.fn(),
     ...over,
   };
 }
 
-function source(prefix: 'fast/' | 'feat/', universe: string[]): DrainSource {
+function source(prefix: 'fast/' | 'feat/', universe: string[], elsewhere?: string[]): DrainSource {
   return {
     id: prefix === 'fast/' ? 'roadmap' : 'plans',
     nextItem: () => null,
     parseAll: () => universe,
+    ...(elsewhere !== undefined ? { fastTrackableElsewhere: () => elsewhere } : {}),
     gatePrompt: (s) => s,
     branchFor: (s) => `${prefix}${s}`,
   };
@@ -269,6 +271,53 @@ describe('pruneShippedWorktrees', () => {
       source('fast/', ['live']),
     );
     expect(removeWorktree).not.toHaveBeenCalled();
+    expect(pruned).toEqual([]);
+  });
+
+  it('keeps a live worktree whose slug is in the backlog, not the roadmap', () => {
+    const removeWorktree = vi.fn();
+    const pruned = pruneShippedWorktrees(
+      deps({
+        listWorktrees: () => [
+          { path: '/repo/.worktrees/from-backlog', branch: 'fast/from-backlog' },
+        ],
+        removeWorktree,
+      }),
+      // roadmap universe empty; the slug is being fast-tracked from docs/backlog.md.
+      source('fast/', [], ['from-backlog']),
+    );
+    expect(removeWorktree).not.toHaveBeenCalled();
+    expect(pruned).toEqual([]);
+  });
+
+  it('keeps an out-of-universe worktree whose checkout has uncommitted changes', () => {
+    const removeWorktree = vi.fn();
+    const isWorktreeDirty = vi.fn((p: string) => p === '/repo/.worktrees/in-use');
+    const pruned = pruneShippedWorktrees(
+      deps({
+        listWorktrees: () => [
+          { path: '/repo/.worktrees/in-use', branch: 'fast/in-use' },
+          { path: '/repo/.worktrees/shipped', branch: 'fast/shipped' },
+        ],
+        isWorktreeDirty,
+        removeWorktree,
+      }),
+      source('fast/', []),
+    );
+    expect(removeWorktree).toHaveBeenCalledTimes(1);
+    expect(removeWorktree).toHaveBeenCalledWith('shipped', 'fast/shipped');
+    expect(pruned).toEqual(['shipped']);
+  });
+
+  it('dry-run still spares a dirty worktree (the plan must match the action)', () => {
+    const pruned = pruneShippedWorktrees(
+      deps({
+        listWorktrees: () => [{ path: '/repo/.worktrees/in-use', branch: 'fast/in-use' }],
+        isWorktreeDirty: () => true,
+      }),
+      source('fast/', []),
+      true,
+    );
     expect(pruned).toEqual([]);
   });
 

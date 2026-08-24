@@ -64,6 +64,23 @@ export function hasClosedUnmergedPr(run: GitRunner, branch: string): boolean {
 }
 
 /**
+ * Tracked uncommitted changes in the checkout at `path` — the "someone is working
+ * here" probe. `-uno`, so an untracked scratch file cannot decide the fate of
+ * committed work; the recoverability asymmetry the callers act on is about the
+ * index and tracked edits, which no reflog holds.
+ *
+ * A failed probe reads as clean. That is the honest default for
+ * `classifyDrainBranch`, where dirt routes toward rebuild, but it is the unsafe
+ * direction for `pruneShippedWorktrees`, where dirt is what spares a worktree — so
+ * the prune pairs it with a universe test rather than resting the whole decision
+ * on it.
+ */
+export function checkoutIsDirty(run: GitRunner, path: string): boolean {
+  const r = run('git', ['-C', path, 'status', '--porcelain', '-uno']);
+  return r.ok && r.stdout.trim() !== '';
+}
+
+/**
  * Clean room for one slug: worktree dir, local branch, remote branch — each
  * best-effort (already-gone is fine). Closed PRs are left as history.
  * Branch is always the drain's own `fast/<slug>` namespace (see autonomy.md

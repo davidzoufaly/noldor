@@ -17,7 +17,10 @@ and escalates the rest to a structured inbox instead of dying or blocking.
    run — including between cycles — is live operator intent and is honored, never cleared).
 3. Cycle: pause check → daily-cap check → **cycle-start reconciliation** (same pass as
    `run`'s startup: reap orphan agents from a dead prior cycle/run, sync + local-ahead
-   divergence pre-flight, heal open PRs, prune shipped worktrees). A reconcile failure
+   divergence pre-flight, heal open PRs, prune shipped worktrees). The prune only takes
+   a `.worktrees/<slug>` whose slug is absent from **every** document the gate can
+   fast-track from (roadmap *and* backlog) and whose checkout holds no tracked
+   uncommitted changes — a live worktree is never destroyed to tidy up. A reconcile failure
    always writes a `reconcile-failed` escalation + notify; a local-ahead **divergence**
    (persistent operator condition) or a full `maxConsecutiveFailures` streak trips —
    `drain.pause` + exit 1 — while any other throw (transient gh/network) just bumps the

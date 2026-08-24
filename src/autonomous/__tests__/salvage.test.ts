@@ -1,6 +1,12 @@
 // @tests: acceptance-verify-lane, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, parallel-drain-roadmapmd-conflict-auto-resolution
 import { describe, expect, it } from 'vitest';
-import { detectStale, hasClosedUnmergedPr, repair, type GitRunner } from '../salvage.js';
+import {
+  checkoutIsDirty,
+  detectStale,
+  hasClosedUnmergedPr,
+  repair,
+  type GitRunner,
+} from '../salvage.js';
 
 /** Scripted runner: maps "cmd arg arg" prefixes to results. Unmatched → ok:true, ''. */
 function runner(script: Record<string, { ok: boolean; stdout: string }>): GitRunner {
@@ -129,5 +135,31 @@ describe('hasClosedUnmergedPr', () => {
 
   it('throws fail-closed on a gh failure rather than guessing "no closed PR"', () => {
     expect(() => hasClosedUnmergedPr(ghOnly([], false), 'fast/a')).toThrow(/gh pr list failed/);
+  });
+});
+
+describe('checkoutIsDirty', () => {
+  it('reports tracked uncommitted changes in the named checkout', () => {
+    const run = runner({
+      'git -C /wt status --porcelain -uno': { ok: true, stdout: ' M src/a.ts\n' },
+    });
+    expect(checkoutIsDirty(run, '/wt')).toBe(true);
+  });
+
+  it('reads a clean checkout, and a failed probe, as not dirty', () => {
+    expect(checkoutIsDirty(runner({}), '/wt')).toBe(false);
+    expect(checkoutIsDirty(runner({ 'git -C /wt status': { ok: false, stdout: '' } }), '/wt')).toBe(
+      false,
+    );
+  });
+
+  it('asks git to ignore untracked files, so a scratch file is never dirt', () => {
+    const seen: string[] = [];
+    const run: GitRunner = (cmd, args) => {
+      seen.push([cmd, ...args].join(' '));
+      return { ok: true, stdout: '' };
+    };
+    checkoutIsDirty(run, '/wt');
+    expect(seen).toEqual(['git -C /wt status --porcelain -uno']);
   });
 });
