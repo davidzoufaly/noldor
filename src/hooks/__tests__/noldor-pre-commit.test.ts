@@ -68,6 +68,43 @@ describe('noldor pre-commit', () => {
     expect(r.reason).toMatch(/allowlist/);
   });
 
+  it('names only the offending paths, not every staged path', () => {
+    const dir = setupRepo();
+    writeFileSync(
+      join(dir, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'micro-chore', startedAt: 'x' }),
+    );
+    writeFileSync(join(dir, 'README.md'), 'x');
+    mkdirSync(join(dir, 'docs'), { recursive: true });
+    writeFileSync(join(dir, 'docs', 'roadmap.md'), 'x');
+    mkdirSync(join(dir, 'packages', 'web', 'src'), { recursive: true });
+    writeFileSync(join(dir, 'packages', 'web', 'src', 'foo.ts'), 'x');
+    execSync('git add README.md docs/roadmap.md packages/web/src/foo.ts', { cwd: dir });
+    const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain('packages/web/src/foo.ts');
+    expect(r.reason).not.toContain('README.md');
+    expect(r.reason).not.toContain('docs/roadmap.md');
+  });
+
+  it('admits a triage commit staging the roadmap, ideas and both .noldor counters', () => {
+    const dir = setupRepo();
+    writeFileSync(
+      join(dir, '.noldor', 'session.json'),
+      JSON.stringify({ path: 'micro-chore', startedAt: 'x' }),
+    );
+    mkdirSync(join(dir, 'docs'), { recursive: true });
+    writeFileSync(join(dir, 'docs', 'roadmap.md'), 'x');
+    writeFileSync(join(dir, 'ideas.md'), 'x');
+    writeFileSync(join(dir, '.noldor', 'id-counter.json'), '{"next":1}');
+    writeFileSync(join(dir, '.noldor', 'retired-entry-ids.json'), '{}');
+    execSync(
+      'git add docs/roadmap.md ideas.md .noldor/id-counter.json .noldor/retired-entry-ids.json',
+      { cwd: dir },
+    );
+    expect(runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL }).ok).toBe(true);
+  });
+
   it('fails post-rollout when no session and diff includes code (hard wall)', () => {
     const dir = setupRepo();
     // Simulate post-rollout: write a marker pointing at a real commit, then make HEAD a descendant.
@@ -132,6 +169,8 @@ describe('noldor pre-commit', () => {
     const r = runPreCommit({ cwd: dir, nowMs: NOW, ttlHours: TTL });
     expect(r.ok).toBe(false);
     expect(r.reason).toContain('release-sweep diff includes files outside allowlist');
+    expect(r.reason).toContain('packages/engine/src/foo.ts');
+    expect(r.reason).not.toContain('graphify-out/graph.json');
   });
 
   it('admits release-automation session post-rollout when staged paths are the real release-commit spread', () => {

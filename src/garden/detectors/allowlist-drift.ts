@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 
-import { isMicroChoreAllowed } from '../../core/allowlist.js';
+import { isMicroChoreAllowed, microChoreOffenders } from '../../core/allowlist.js';
 import { readRolloutMarker } from '../../core/rollout-marker.js';
 import { parseTrailers } from '../../core/trailers.js';
 
@@ -84,7 +84,7 @@ export async function detectAllowlistDrift(opts: {
     if (files.length === 0) continue;
 
     if (!isMicroChoreAllowed(files)) {
-      const offendingFiles = files.filter((f) => !isMicroChoreAllowed([f]));
+      const offendingFiles = microChoreOffenders(files);
       findings.push({
         sha,
         subject,

@@ -123,7 +123,7 @@ These scripts implement the hook stack for the 6-path gate model. They run autom
 
 - **Trigger:** `pnpm noldor hooks pre-commit`. Runs in `pre-commit` (`noldor-pre-commit` job).
 - **Inputs:** `.noldor/session.json` (session marker); staged diff.
-- **Outputs:** If session path is `micro-chore`, validates the staged diff matches the allowlist (`docs/**/*.md`, `.claude/**`, root `*.md`); rejects if any diff escapes. Other paths: no diff-level check at this stage. Rejects commits that lack a session marker when edits touch non-allowlisted files.
+- **Outputs:** If session path is `micro-chore`, validates the staged diff matches the allowlist (`docs/**/*.md`, `.claude/**`, root `*.md`, the `.noldor` triage counters — full list in `MICRO_CHORE_GLOBS`); rejects if any diff escapes, naming only the offending paths. Other paths: no diff-level check at this stage. Rejects commits that lack a session marker when edits touch non-allowlisted files.
 - **Source:** [`src/hooks/noldor-pre-commit.ts`](../../src/hooks/noldor-pre-commit.ts)
 
 ### `hook:noldor:inject-trailers`

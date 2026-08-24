@@ -3,7 +3,12 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readSession, isSessionStale, touchSession, type SessionMarker } from '../core/session.js';
-import { isMicroChoreAllowed, isReleaseSweepAllowed } from '../core/allowlist.js';
+import {
+  isMicroChoreAllowed,
+  isReleaseSweepAllowed,
+  microChoreOffenders,
+  releaseSweepOffenders,
+} from '../core/allowlist.js';
 import { rolloutMarkerExists, isPostRollout } from '../core/rollout-marker.js';
 import { appendOverrideLog } from '../core/overrides-log.js';
 import {
@@ -86,7 +91,7 @@ export function runPreCommit(opts: {
     if (!isMicroChoreAllowed(staged)) {
       return {
         ok: false,
-        reason: `micro-chore diff includes files outside allowlist: ${staged.join(', ')}`,
+        reason: `micro-chore diff includes files outside allowlist: ${microChoreOffenders(staged).join(', ')}`,
       };
     }
     return { ok: true };
@@ -98,7 +103,7 @@ export function runPreCommit(opts: {
     if (!isReleaseSweepAllowed(staged)) {
       return {
         ok: false,
-        reason: `release-sweep diff includes files outside allowlist: ${staged.join(', ')}`,
+        reason: `release-sweep diff includes files outside allowlist: ${releaseSweepOffenders(staged).join(', ')}`,
       };
     }
     return { ok: true, refreshSession: true };
