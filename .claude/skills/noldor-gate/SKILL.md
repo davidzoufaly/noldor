@@ -473,7 +473,7 @@ loop / retry / skip / lock; each gate run only ships its one entry. Step overrid
   - **0** (`rebuild`) — nothing is ahead of `origin/main` on `fast/<slug>` or `origin/fast/<slug>`, or
     a human closed the branch's PR unmerged (rejected work, not undelivered work): force-recreate as
     below.
-  - **10** (`finish`) — the branch carries commits, no PR of its was closed unmerged, and its checkout
+  - **10** (`finish`) — the branch carries commits, none of its PRs was closed unmerged, and its checkout
     is clean: **do not delete anything.** Switch to the **Finish mode** sub-section below and deliver
     the existing work, exactly as a supervisor-sent `--finish` run would.
   - **1** (`unknown`) — the classifier could not prove the branch is safe to discard: `git fetch

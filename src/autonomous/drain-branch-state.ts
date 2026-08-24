@@ -164,7 +164,10 @@ export function classifyDrainBranch(run: GitRunner, slug: string): DrainBranchSt
   return {
     ...base,
     verdict: 'rebuild',
-    reason: `no commits ahead of origin/main on ${branch} or origin/${branch} — nothing to lose, safe to force-recreate`,
+    reason:
+      dirtyWorktree === null
+        ? `no commits ahead of origin/main on ${branch} or origin/${branch} — nothing to lose, safe to force-recreate`
+        : `no commits ahead of origin/main on ${branch} or origin/${branch}, so nothing committed is at risk — but ${dirtyWorktree} has uncommitted tracked changes that the force-recreate will discard; read them first`,
   };
 }
 

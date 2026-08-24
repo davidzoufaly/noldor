@@ -140,18 +140,35 @@ describe('classifyDrainBranch', () => {
   });
 
   it('an untracked scratch file does not authorize deleting committed work', () => {
+    const base = runner({
+      'git fetch origin': { ok: true, stdout: '' },
+      'git rev-list --count origin/main..fast/x': { ok: true, stdout: '7\n' },
+      'git worktree list': { ok: true, stdout: WORKTREE_LIST },
+    });
+    // The worktree holds ONE untracked file: `-uno` sees nothing, plain `--porcelain` sees it.
+    // Scripted this way, a regression to git's default `-unormal` reds this test.
+    const run: GitRunner = (cmd, args) =>
+      args[2] === 'status'
+        ? { ok: true, stdout: args.includes('-uno') ? '' : '?? scratch.log\n' }
+        : base(cmd, args);
+    const s = classifyDrainBranch(run, 'x');
+    expect(s.verdict).toBe('finish');
+    expect(s.dirtyWorktree).toBeNull();
+  });
+
+  it('warns about uncommitted tracked work even when nothing is committed to lose', () => {
     const s = classifyDrainBranch(
       runner({
         'git fetch origin': { ok: true, stdout: '' },
-        'git rev-list --count origin/main..fast/x': { ok: true, stdout: '7\n' },
+        'git rev-list --count': { ok: true, stdout: '0\n' },
         'git worktree list': { ok: true, stdout: WORKTREE_LIST },
-        // `-uno` is what makes this clean: the probe never sees the untracked file.
-        'git -C /repo/.worktrees/x status --porcelain -uno': { ok: true, stdout: '' },
+        'git -C /repo/.worktrees/x status': { ok: true, stdout: ' M src/a.ts\n' },
       }),
       'x',
     );
-    expect(s.verdict).toBe('finish');
-    expect(s.dirtyWorktree).toBeNull();
+    expect(s.verdict).toBe('rebuild');
+    expect(s.reason).not.toContain('nothing to lose');
+    expect(s.reason).toContain('/repo/.worktrees/x');
   });
 });
 
