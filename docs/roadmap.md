@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Doctor Probe: Lockfile vs Installed Modules Freshness
-
-- id: Q-0162
-- area: tooling
-- type: feat
-- since: 2026-08-23
-- size: XS
-- impact: med
-- confidence: high
-
-`pnpm verify` was red on a clean, freshly-pulled `main`: three `TS2307 Cannot find module 'pngjs' / 'pixelmatch'` errors, because #366 declared and locked both deps but no install had run since. `pnpm install --frozen-lockfile` fixed it in one command. Nothing in `noldor doctor` or `release --preflight` notices that `pnpm-lock.yaml` is newer than `node_modules`, so the first symptom is a typecheck failure that reads like a code bug in the render-compare lane. A lockfile-vs-install freshness probe belongs beside the other `doctor` rows. (found 2026-08-23 running the pre-1.5.0 sweep)
-
 ### Stale-Backlog SDD Gap Ignores `phase: later`
 
 - id: Q-0163
