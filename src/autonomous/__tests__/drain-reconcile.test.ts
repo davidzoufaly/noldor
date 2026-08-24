@@ -1,6 +1,7 @@
 // @tests: acceptance-verify-lane, autonomous-queue-drain-runner, consumer-contract-ci-and-headless-gate-e2e-harness, continuous-drain-daemon-and-escalation-inbox, drain-startup-reconciliation-of-a-prior-dead-run, make-noldor-agent-agnostic, parallel-drain, parallel-drain-roadmapmd-conflict-auto-resolution, plan-runner
 import { describe, expect, it, vi } from 'vitest';
 
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -414,20 +415,44 @@ describe('assertQueueSourceSynced', () => {
 });
 
 describe('makeReconcileDeps isWorktreeDirty', () => {
-  // The production binding is where the two fail-safe directions are chosen, so it
-  // is exercised against a real filesystem rather than asserted from the docstring.
-  it('spares an existing checkout git cannot answer for, but not a vanished one', () => {
+  // The production binding is where the fail-safe directions are chosen, so it is
+  // exercised against real git checkouts rather than asserted from the docstring.
+  const git = (cwd: string, ...args: string[]): void => {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
+  };
+  const bind = (cwd: string): ReconcileDeps =>
+    makeReconcileDeps(
+      cwd,
+      source('fast/', []),
+      () => {},
+      () => {},
+    );
+
+  it('reads a clean checkout as free, and an untracked-only one as in use', () => {
     const dir = mkdtempSync(join(tmpdir(), 'reconcile-deps-'));
     try {
-      // A plain directory is not a git checkout, so `git -C <dir> status` fails →
-      // 'unknown' → fail-closed to in-use.
-      writeFileSync(join(dir, 'keep.txt'), 'x', 'utf8');
-      const d = makeReconcileDeps(
-        dir,
-        source('fast/', []),
-        () => {},
-        () => {},
-      );
+      git(dir, 'init', '-q');
+      git(dir, 'config', 'user.email', 't@example.com');
+      git(dir, 'config', 'user.name', 't');
+      writeFileSync(join(dir, 'tracked.txt'), 'x', 'utf8');
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-q', '-m', 'seed', '--no-verify');
+      const d = bind(dir);
+      expect(d.isWorktreeDirty(dir)).toBe(false);
+      // `git worktree remove --force` would delete this file with no reflog copy.
+      writeFileSync(join(dir, 'NEW.md'), 'unsaved work', 'utf8');
+      expect(d.isWorktreeDirty(dir)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('spares a checkout git cannot answer for, but not a vanished one', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'reconcile-deps-'));
+    try {
+      // Not a git checkout at all → `git status` fails → 'unknown' → fail-closed.
+      const d = bind(dir);
       expect(d.isWorktreeDirty(dir)).toBe(true);
       expect(d.isWorktreeDirty(join(dir, 'gone'))).toBe(false);
     } finally {

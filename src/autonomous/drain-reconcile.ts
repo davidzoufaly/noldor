@@ -63,11 +63,11 @@ export interface ReconcileDeps {
   /** All git worktrees (porcelain-parsed). */
   listWorktrees: () => WorktreeEntry[];
   /**
-   * Is this checkout NOT provably free of tracked uncommitted changes? Fail-closed:
-   * an unanswerable probe reads as in-use, because by the time the prune asks, this
-   * is the only guard left between a live worktree and `remove --force`. A checkout
-   * whose directory is gone is not unanswerable — it holds nothing, so it reads as
-   * not-in-use and stays prunable.
+   * Is this checkout NOT provably empty of uncommitted work — tracked or untracked?
+   * Fail-closed: an unanswerable probe reads as in-use, because by the time the
+   * prune asks, this is the only guard left between a live worktree and
+   * `remove --force`. A checkout whose directory is gone is not unanswerable — it
+   * holds nothing, so it reads as not-in-use and stays prunable.
    */
   isWorktreeDirty: (path: string) => boolean;
   /** Remove a drain worktree dir + delete its local branch. */
@@ -182,8 +182,8 @@ export async function reconcileOpenPrs(
  *   `parseAll` plus {@link DrainSource.fastTrackableElsewhere}, because a backlog
  *   entry being fast-tracked is a normal gate flow yet is absent from
  *   `docs/roadmap.md` from birth, AND
- * - the checkout must be PROVABLY free of tracked uncommitted changes — a dirty
- *   index is positive proof the worktree is not an orphan, and an unanswerable
+ * - the checkout must be PROVABLY empty of uncommitted work, tracked or untracked
+ *   — either is positive proof the worktree is not an orphan, and an unanswerable
  *   probe is not proof of the opposite.
  *
  * The last two are separate guards rather than alternatives because neither is
@@ -191,9 +191,12 @@ export async function reconcileOpenPrs(
  * fast-track (its `fast/<short-desc>` never appears in any document), and the dirt
  * probe alone cannot tell shipped from in-flight (after a squash-merge the branch's
  * commits are not ancestors of `main`, so "has commits" never clears). What the
- * dirt probe adds is confined to the unrecoverable case: `removeWorktree` shells
- * `git worktree remove --force` + `git branch -D`, and committed work survives in
- * the reflog while a staged-but-uncommitted tree does not.
+ * dirt probe adds is the unrecoverable case: `removeWorktree` shells
+ * `git worktree remove --force` + `git branch -D`, and while committed work
+ * survives in the reflog, neither a staged-but-uncommitted tree nor an untracked
+ * file ever entered the object store. `--force` is precisely what bypasses git's
+ * own refusal to remove such a checkout, so the probe counts untracked files back
+ * in (see {@link checkoutDirtState}'s `countUntracked`).
  *
  * The prune stays effective under both guards: it only ever fires for a slug whose
  * PR already merged (that is what removes the roadmap block from `main`), and such
@@ -359,7 +362,8 @@ export function makeReconcileDeps(
     // nothing left to lose, and the registration + local branch leak forever if
     // the prune spares it. `existsSync` first, so only a checkout that actually
     // exists gets the fail-closed `!== 'clean'` read.
-    isWorktreeDirty: (path) => existsSync(path) && checkoutDirtState(run, path) !== 'clean',
+    isWorktreeDirty: (path) =>
+      existsSync(path) && checkoutDirtState(run, path, { countUntracked: true }) !== 'clean',
     removeWorktree: (slug, branch) => {
       spawnSync('git', ['worktree', 'remove', '--force', `.worktrees/${slug}`], { cwd });
       spawnSync('git', ['branch', '-D', branch], { cwd });

@@ -174,6 +174,21 @@ describe('checkoutDirtState', () => {
     expect(at({ ok: false, stdout: '' })).toBe('unknown');
   });
 
+  it('counts untracked files only when asked, and says so in the git argv', () => {
+    const seen: string[] = [];
+    const run: GitRunner = (cmd, args) => {
+      seen.push([cmd, ...args].join(' '));
+      // `-uno` would print nothing here; `-unormal` prints the untracked file.
+      return { ok: true, stdout: args.includes('-unormal') ? '?? NEW.md\n' : '' };
+    };
+    expect(checkoutDirtState(run, '/wt')).toBe('clean');
+    expect(checkoutDirtState(run, '/wt', { countUntracked: true })).toBe('dirty');
+    expect(seen).toEqual([
+      'git -C /wt status --porcelain -uno',
+      'git -C /wt status --porcelain -unormal',
+    ]);
+  });
+
   it("leaves both fail-safe directions available: 'unknown' is neither dirty nor clean", () => {
     const run = runner({ 'git -C /wt status': { ok: false, stdout: '' } });
     // classifyDrainBranch's read (dirt → rebuild) must not see dirt...
