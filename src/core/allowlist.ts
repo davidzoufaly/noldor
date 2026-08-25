@@ -192,6 +192,36 @@ export function microChoreOffenders(paths: string[]): string[] {
 }
 
 /**
+ * Union of the two lanes that land a change with no review receipt.
+ *
+ * Not a widening of either lane: `isMicroChoreAllowed` and
+ * `isReleaseSweepAllowed` still gate their own commits at pre-commit, and
+ * neither list grows. This list exists for the release-time audit, which asks a
+ * different question — "did this diff need a review at all?" — of a squash
+ * commit that can carry BOTH lanes at once.
+ */
+export const NO_REVIEW_LANE_GLOBS = [...MICRO_CHORE_GLOBS, ...RELEASE_SWEEP_GLOBS] as const;
+
+/**
+ * Returns true when EVERY path belongs to some no-review lane — micro-chore or
+ * release-sweep, in any mixture.
+ *
+ * Deliberately a union of the glob sets, not an `isMicroChoreAllowed(paths) ||
+ * isReleaseSweepAllowed(paths)`: GitHub squashes a sweep PR's commits into one
+ * commit, so its diff carries `ideas.md` (micro-chore-only) beside
+ * `graphify-out/**` (sweep-only), and each half fails the other predicate — the
+ * `||` reds a diff containing zero code. That was the v1.4.0 release (sweep PR
+ * #354), whose only way through was a per-SHA `release.crGateExemptCommits`
+ * waiver.
+ *
+ * Still per-file, so a source edit riding along taints the whole set exactly as
+ * it does in each lane on its own.
+ */
+export function isNoReviewLaneAllowed(paths: string[]): boolean {
+  return everyPathMatches(paths, NO_REVIEW_LANE_GLOBS);
+}
+
+/**
  * Returns true if ALL paths are covered by the release-sweep allowlist.
  * A single file outside the allowlist taints the entire set — the sweep
  * cannot launder a source-code edit by piggy-backing on a graphify regen.

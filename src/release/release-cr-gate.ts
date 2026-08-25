@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { isMicroChoreAllowed } from '../core/allowlist.js';
+import { isNoReviewLaneAllowed } from '../core/allowlist.js';
 
 export interface CrGateOffender {
   sha: string;
@@ -65,7 +65,8 @@ export interface CrGateInput {
  * or when the commit is exempt by construction:
  *   - `Noldor-Path: release-automation` / `release-sweep` (allowlist-guarded
  *     no-review paths)
- *   - a diff fully inside the micro-chore allowlist (doc/policy-only)
+ *   - a diff fully inside a no-review lane's allowlist — micro-chore or
+ *     release-sweep, in any mixture, since a squash commit can carry both
  *   - a configured per-SHA exemption (`input.exemptions`, sourced from
  *     `release.crGateExemptCommits`) — skipped AND reported in `exempted`
  */
@@ -110,7 +111,7 @@ export function checkCrGate(input: CrGateInput): CrGateResult {
       .filter(Boolean);
 
     if (files.length === 0) continue;
-    if (isMicroChoreAllowed(files)) continue;
+    if (isNoReviewLaneAllowed(files)) continue;
 
     const reviewed = REVIEW_RECEIPT_KEYS.some((k) => hasNonEmpty(t, k));
     const overridden = OVERRIDE_KEYS.some((k) => hasNonEmpty(t, k));
