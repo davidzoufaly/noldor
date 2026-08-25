@@ -286,3 +286,15 @@ Nine hand-rolled fenced-code scanners live in the repo and every one of them rec
 - parent: make-noldor-agent-agnostic
 
 The M/L/XL mandatory codex round (Q-0091, PR #341) hardcodes `codex` as the second model family, which is wrong the moment the *driving runner* is not claude: in a setup where codex runs the whole noldor flow (implementer + reviewer), a "mandatory codex round" reviews codex with codex — the mandate should instead force a mandatory **claude** review there. And opencode as the driving runner is a completely different use case again. Generalize the mandate from "force lane `codex`" to "force at least one review lane whose model family differs from the session's driving runner" — the runner registry (`agents` config, three-runner runtime from PR #71) already knows who is driving, so `withMandatoryCodex` should become runner-aware (e.g. `withMandatoryCrossFamilyReview`) and pick the forced lane from that, not from a constant. Parked: claude is the only driving runner in practice today — pick up when a non-claude driving runner is real. (raised 2026-08-20 from an untriaged ideas bullet)
+
+### Doc Text Duplication and Text Imports
+
+- id: Q-0191
+- area: docs
+- type: refactor
+- since: 2026-08-25
+- size: M
+- impact: med
+- confidence: low
+
+PR #372 carried the same prose in several places at once — the skill, its `templates/` twin, the runner-neutral `docs/noldor/` page, and the FD — so one edit has four homes and three of them go stale silently. The twin-copy rule makes this structural rather than accidental: `doctor` reds when a skill and its template diverge, which enforces that the duplication STAYS in sync but does nothing about the fact that it exists. Worth deciding what the framework's answer is: a text-import/transclusion mechanism with a generated-file marker (the `sync` projections already establish the generated-from-source pattern), a single canonical page every twin links to instead of restating, or an accepted duplication with a stronger mechanical diff than `doctor`'s presence check. Parked rather than roadmapped because the answer changes the shape of every skill file — it wants a spike before a size. Deletion test: correcting a sentence about a rule touches exactly one file. (found 2026-08-25 reviewing PR #372)
