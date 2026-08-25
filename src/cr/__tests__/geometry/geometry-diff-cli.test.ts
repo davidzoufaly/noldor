@@ -28,7 +28,7 @@ describe('runGeometryDiff', () => {
     const out: string[] = [];
     const code = await runGeometryDiff([a, b, '--surface', 'dashboard'], (s) => out.push(s));
     expect(code).toBe(0);
-    expect(out.join('\n')).toContain('edges: 0 unmatched');
+    expect(out.join('\n')).toContain('edgesX: 0 unmatched');
   });
 
   it('exits 1 and names the unmatched value on drift', async () => {

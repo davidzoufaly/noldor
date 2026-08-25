@@ -68,7 +68,7 @@ describe('compareGeometry', () => {
     const d = doc([card(24), card(24)]);
     const r = compareGeometry(d, d, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('pass');
-    expect(r.families.edges.unmatched).toBe(0);
+    expect(r.families.edgesX.unmatched).toBe(0);
   });
 
   it('fails the edges family when one card sits past the tolerance', () => {
@@ -76,7 +76,7 @@ describe('compareGeometry', () => {
     const impl = doc([card(24), card(24), card(30)]);
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('fail');
-    expect(r.families.edges.implOnly).toContain(30);
+    expect(r.families.edgesX.implOnly).toContain(30);
   });
 
   it('counts spacing one-directionally: an impl margin satisfies a design gap', () => {
@@ -110,12 +110,12 @@ describe('compareGeometry', () => {
     const impl = doc([card(24), card(40), card(60)]);
     const lenient = compareGeometry(design, impl, DEFAULT_TOLERANCE, {
       ...DEFAULT_BUDGET,
-      edges: 4,
+      edgesX: 4,
     });
     expect(lenient.verdict).toBe('pass');
     const strict = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(strict.verdict).toBe('fail');
-    expect(strict.families.edges.unmatched).toBeGreaterThanOrEqual(3);
+    expect(strict.families.edgesX.unmatched).toBeGreaterThanOrEqual(3);
   });
 
   it('adds no unmatched value for a wrapper that shares its child box', () => {
@@ -125,7 +125,7 @@ describe('compareGeometry', () => {
     const impl = doc([card(24), card(24), card(24)]);
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('pass');
-    expect(r.families.edges.unmatched).toBe(0);
+    expect(r.families.edgesX.unmatched).toBe(0);
   });
 
   it('compares every family even when one side has none of it', () => {
@@ -180,7 +180,7 @@ describe('drift past the tolerance is never hidden', () => {
     const impl = doc([card(24), card(26.5)]);
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('fail');
-    expect(r.families.edges.implOnly).toContain(26.5);
+    expect(r.families.edgesX.implOnly).toContain(26.5);
   });
 
   it('fails the case an intermediate value would have bridged', () => {
@@ -188,7 +188,7 @@ describe('drift past the tolerance is never hidden', () => {
     const impl = doc([card(24), card(26), card(28)]);
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('fail');
-    expect(r.families.edges.implOnly).toContain(28);
+    expect(r.families.edgesX.implOnly).toContain(28);
   });
 
   it('fails the case two clustered representatives would have matched', () => {
@@ -197,7 +197,7 @@ describe('drift past the tolerance is never hidden', () => {
     const impl = doc([{ kind: 'shape', box: { x: 2.5, y: 0, w: 1, h: 0 } }]);
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('fail');
-    expect(r.families.edges.designOnly).toContain(0);
+    expect(r.families.edgesX.designOnly).toContain(0);
   });
 
   it('still passes a sub-pixel difference', () => {

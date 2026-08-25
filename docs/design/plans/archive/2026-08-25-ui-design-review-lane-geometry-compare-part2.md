@@ -2,6 +2,15 @@
 
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
+> **Superseded in implementation.** This plan prescribes clustering plus one-to-one optimal
+> matching for the comparison. That shape was abandoned during execution — closest-pair greedy
+> and exact-first pairing each lost cardinality, an edit-distance DP allocated an n-by-m table
+> over untrusted documents, and clustering-then-matching composed two tolerances so drift up to
+> 1.5x the tolerance passed. The shipped engine is a covering test (`unmatchedValues`): a value
+> is unmatched when nothing on the opposite side sits within tolerance of it. Read
+> `src/cr/geometry/geometry-compare-core.ts` and the archived spec's D6, not this plan's Task
+> code, if you are re-deriving the algorithm.
+
 **Goal:** Ship the comparison engine as a runnable capability: `pnpm noldor design geometry-diff <design.json> <impl.json> --surface <name>` compares two conformant geometry documents and reports per-family unmatched values. No pen, no browser, no CR round required.
 **Architecture:** One pure module (`geometry-compare-core.ts`: families, clustering, optimal matching, verdict) over part 1's document contract, plus a thin CLI entrypoint. Part 3 wires the lane that feeds it from pencil MCP and a booted app.
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), zod 3, vitest.

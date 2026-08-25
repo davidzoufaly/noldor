@@ -1,27 +1,39 @@
 // @tests: ui-design-review-lane
-// The `geometry-compare` lane's pure half (spec D5/D6): pull three value
-// families out of a normalized document, cluster each side's values, match the
-// clusters optimally, and turn what is left over into a per-surface verdict.
-// No IO and no process state, so every rule the spec pins is testable without
-// pencil MCP or a booted app.
+// The `geometry-compare` lane's pure half (spec D5/D6): pull value families out
+// of a normalized document, then ask of each value whether the opposite side
+// declares anything within tolerance of it, and turn what nothing explains into
+// a per-surface verdict. No IO and no process state, so every rule the spec pins
+// is testable without pencil MCP or a booted app.
 
 import type { GeometryDoc } from './geometry-doc.js';
 
-/** The three families. These are also the keys the parked lane's per-surface
- * `geometryTolerance`/`geometryBudget` recipe fields will carry (Q-0180); today
- * the two commands compare at the defaults below. */
-export const GEOMETRY_FAMILIES = ['edges', 'fontSize', 'spacing'] as const;
+/** The families a surface is compared on. Edges are split by axis all the way
+ * through — an unmatched value is only actionable if the operator knows whether
+ * it is an x or a y coordinate. These are also the keys the parked lane's
+ * per-surface `geometryTolerance`/`geometryBudget` recipe fields will carry
+ * (Q-0180); today the two commands compare at the defaults below. */
+export const GEOMETRY_FAMILIES = ['edgesX', 'edgesY', 'fontSize', 'spacing'] as const;
 /** One of the three families a surface is compared on. */
 export type GeometryFamily = (typeof GEOMETRY_FAMILIES)[number];
 
 /** Per-family numbers, keyed identically in config and in outcomes. */
 export type FamilyRecord<T> = Record<GeometryFamily, T>;
 
-/** Clustering tolerance in CSS px per family, overridable per `uiBoot` recipe. */
-export const DEFAULT_TOLERANCE: FamilyRecord<number> = { edges: 2, fontSize: 1, spacing: 1 };
+/** Covering tolerance in CSS px per family, overridable per `uiBoot` recipe. */
+export const DEFAULT_TOLERANCE: FamilyRecord<number> = {
+  edgesX: 2,
+  edgesY: 2,
+  fontSize: 1,
+  spacing: 1,
+};
 /** Unmatched values a family tolerates before it fails — zero, since the
  * document rules remove the systematic noise at its source. */
-export const DEFAULT_BUDGET: FamilyRecord<number> = { edges: 0, fontSize: 0, spacing: 0 };
+export const DEFAULT_BUDGET: FamilyRecord<number> = {
+  edgesX: 0,
+  edgesY: 0,
+  fontSize: 0,
+  spacing: 0,
+};
 
 /** Raw values per family. `edges` splits by axis — a 24px left edge and a 24px
  * top edge are unrelated quantities that must not match each other — while both
@@ -133,9 +145,11 @@ export function compareGeometry(
 ): GeometryComparison {
   const d = extractFamilies(design);
   const i = extractFamilies(impl);
-  // Each family is a two-way covering test at its own tolerance. The whole
-  // tolerance applies to the single comparison that decides a value's fate, so
-  // the guarantee is exact rather than composed across stages.
+  // Each family is a two-way covering test at its own tolerance, and the two
+  // edge axes stay separate families rather than one merged list: a bare
+  // coordinate is not actionable unless the operator knows which axis it is on.
+  // The whole tolerance applies to the single comparison that decides a value's
+  // fate, so the guarantee is exact rather than composed across stages.
   const outcome = (
     family: GeometryFamily,
     designOnly: number[],
@@ -148,16 +162,15 @@ export function compareGeometry(
     implOnly,
   });
   const families: FamilyRecord<FamilyOutcome> = {
-    edges: outcome(
-      'edges',
-      [
-        ...unmatchedValues(d.edgesX, i.edgesX, tolerance.edges),
-        ...unmatchedValues(d.edgesY, i.edgesY, tolerance.edges),
-      ],
-      [
-        ...unmatchedValues(i.edgesX, d.edgesX, tolerance.edges),
-        ...unmatchedValues(i.edgesY, d.edgesY, tolerance.edges),
-      ],
+    edgesX: outcome(
+      'edgesX',
+      unmatchedValues(d.edgesX, i.edgesX, tolerance.edgesX),
+      unmatchedValues(i.edgesX, d.edgesX, tolerance.edgesX),
+    ),
+    edgesY: outcome(
+      'edgesY',
+      unmatchedValues(d.edgesY, i.edgesY, tolerance.edgesY),
+      unmatchedValues(i.edgesY, d.edgesY, tolerance.edgesY),
     ),
     fontSize: outcome(
       'fontSize',

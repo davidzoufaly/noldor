@@ -2,6 +2,15 @@
 
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
+> **Superseded in implementation.** This plan prescribes clustering plus one-to-one optimal
+> matching for the comparison. That shape was abandoned during execution — closest-pair greedy
+> and exact-first pairing each lost cardinality, an edit-distance DP allocated an n-by-m table
+> over untrusted documents, and clustering-then-matching composed two tolerances so drift up to
+> 1.5x the tolerance passed. The shipped engine is a covering test (`unmatchedValues`): a value
+> is unmatched when nothing on the opposite side sits within tolerance of it. Read
+> `src/cr/geometry/geometry-compare-core.ts` and the archived spec's D6, not this plan's Task
+> code, if you are re-deriving the algorithm.
+
 **Goal:** Ship the normalized geometry document as a usable contract: `pnpm noldor design geometry-validate <doc.json> --side design|impl --surface <name>` tells a consumer whether their capture output is STRUCTURALLY conformant — the schema's shape and invariants — before any comparison engine exists. It cannot judge the producer semantics parts 3 and 4 own (capture root, origin, inclusion rules); a document can pass this and still measure the wrong thing, which is what `design geometry-diff` and `design geometry-review` are for.
 **Architecture:** One pure schema module under `src/cr/geometry/` plus a thin CLI entrypoint. This part pins the document's *shape and invariants* only — the producer-side semantics (capture root and origin subtraction, scroll and transform handling, node inclusion, pen's gap/padding normalization) belong to the producers and are pinned in part 3 (the capture script) and part 4 (the extraction prompt), per the spec's D3 and D4. Part 2 adds the comparison engine over these documents.
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), zod 3, vitest.
