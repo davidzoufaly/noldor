@@ -145,9 +145,14 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   value: extract the shared helper the detector points at, or split a file so
   its import block drops under the floor. Perturbation (hoisting a
   conditional spread out of an object literal) is honest only for a
-  coincidental token match between unrelated code. Standalone
-  `pnpm noldor clones check` can exit 0 while the hook reds on the same tree —
-  replay the hook, not the CLI. (Q-0145)
+  coincidental token match between unrelated code. A standalone
+  `pnpm noldor clones check` can also disagree with the hook on the same tree:
+  the diff-scoped verdict resolves its base as "upstream if set, else
+  `origin/HEAD`", so the range it judges depends on whether the branch has been
+  pushed yet. Preflight with `pnpm noldor checks push-gates`, which replays the
+  hook itself. Read its verdicts from the HEAD of the output, not the tail —
+  the three verdicts are independent and a green line prints after a red one.
+  (Q-0145, Q-0165)
 - **TypeScript 7 removed the in-process JS compiler API.** The `typescript`
   package exports only `version` plus `unstable/*` (parsing there means
   spawning the tsgo API server against a real tsconfig project) — anything

@@ -83,6 +83,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** automatic on commit and push. See [`rules.md`](rules.md) § Template sync.
 - **Source:** [`src/checks/check-template-sync.ts`](../../src/checks/check-template-sync.ts)
 
+### `check:push-gates`
+
+- **Trigger:** `pnpm noldor checks push-gates`. Run by `/noldor-gate` Step 4 as the push-range preflight, before the code-stage review earns the `Noldor-Reviewed-Subagent` receipt.
+- **Inputs:** the current branch, `HEAD`, and the branch's remote-tracking ref — zeros when the remote has none, which is what git itself sends for a new ref — synthesized into the pre-push stdin line; plus the `pre-push` job list in [`lefthook/noldor.yml`](../../lefthook/noldor.yml), executed by lefthook itself.
+- **Outputs:** lefthook's own per-job output for every `pre-push` job except `noldor-enforce-review-receipt`, excluded via `LEFTHOOK_EXCLUDE` because that receipt is earned by the review which runs *after* this preflight. Exit 0 = the push will be accepted, 1 = a gate refuses this tree, 3 = the replay could not run (detached HEAD, no lefthook) — never reported as green, and it prints the jobs to run by hand.
+- **When to use:** author-side, before the code-stage CR. A gate that refuses the push after the reviewer went green costs a fix commit whose tree change invalidates the receipt, then a whole re-earn dispatch of zero review value. It replays rather than enumerates, so a job added to the hook block is preflighted with no prose change.
+- **Source:** [`src/checks/check-push-gates.ts`](../../src/checks/check-push-gates.ts)
+
 ### `design:ui-sync`
 
 - **Trigger:** `pnpm noldor design ui-sync [--surface <name>]`. Run in a pencil-capable interactive session whenever `checks ui-design-freshness` reports `stale` or `uninitialized`.

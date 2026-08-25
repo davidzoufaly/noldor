@@ -255,18 +255,19 @@ This pause is the cheapest place to catch architectural drift, missing edge case
 
   Polls up to 2.5 minutes for unresolved lanes. Exit 0 = artifact-stage clean; exit 1 = blockers surfaced (loop back to Step 2.5 `address-blockers`).
 
-- **Preflight the push-range gates (before any code-stage review).** `pr-flow`'s push fires the pre-push chain (main-push block + docs/adr/ append-only scan, `template-sync`, `noldor-clones`) only after the review receipt is earned — so a gate failure at push time forces a fix commit, the tree changes, the `Noldor-Reviewed-Subagent` receipt invalidates, and a full code-stage dispatch runs purely to re-earn it (Q-0112: 2 of 6 code-stage dispatches plus 3 failed pushes were this class — zero review value). Run the same checks author-side first, while no receipt exists to lose:
+- **Preflight the push-range gates (before any code-stage review).** `pr-flow`'s push fires the pre-push chain (main-push block + docs/adr/ append-only scan, `template-sync`, `noldor-clones`) only after the review receipt is earned — so a gate failure at push time forces a fix commit, the tree changes, the `Noldor-Reviewed-Subagent` receipt invalidates, and a full code-stage dispatch runs purely to re-earn it (Q-0112: 2 of 6 code-stage dispatches plus 3 failed pushes were this class — zero review value). Replay the real hook author-side first, while no receipt exists to lose:
 
   ```
-  pnpm noldor checks template-sync
-  pnpm noldor clones check
-  printf 'refs/heads/%s %s refs/heads/%s %s\n' \
-    "$(git branch --show-current)" "$(git rev-parse HEAD)" \
-    "$(git branch --show-current)" "$(git rev-parse origin/main)" \
-    | pnpm noldor hooks pre-push origin
+  pnpm noldor checks push-gates
   ```
 
-  The `printf` line replays the blocking pre-push chain over exactly the `origin/main..HEAD` commit range the real push will carry. Separately, confirm the first substantive commit's body carries `Why — / How — / What —` sections (24+ non-whitespace chars each): `pr-flow` composes the PR Summary from it and `validatePrSummary` refuses delivery without them — cheaper to check now than at PR-open. Fix any red (mirror a template twin, re-record a clones baseline alongside the change that moved it, reword a commit body via rebase/amend) and land the fixes as ordinary commits, then re-run until all three exit 0. A mechanical fix landed here costs one commit; the same fix landed after a green review also costs a receipt re-earn dispatch. `enforce-review-receipt` is deliberately not preflighted — the receipt is earned by the review below, so before it runs the check can only be red.
+  That one command hands the hook to **lefthook itself** — it synthesizes the pre-push stdin line git will send (the branch, `HEAD`, and the branch's remote-tracking sha, or zeros when the remote has no such branch yet) and runs `lefthook run pre-push origin` over it, with `LEFTHOOK_EXCLUDE=noldor-enforce-review-receipt`. So every blocking `pre-push` job runs exactly as the push will run it, and a job later added to `lefthook/noldor.yml` is preflighted with no edit to this prose. `enforce-review-receipt` is the one deliberate exclusion — the receipt is earned by the review below, so before it runs that job can only be red.
+
+  This replaces an earlier three-command enumeration (`checks template-sync`, `clones check`, a hand-`printf`-ed `hooks pre-push`), which is why the preflight could pass while the push was refused (Q-0165): an enumeration reproduces neither lefthook's job list nor its skip/exit semantics, and it silently omits whatever the block gained since it was written.
+
+  Exit 0 = the push will be accepted. Exit 1 = a gate refuses this tree — fix it now (mirror a template twin, re-record a clones baseline alongside the change that moved it) and land the fix as an ordinary commit, then re-run until green. Exit 3 = the replay could not run at all (detached HEAD, or no lefthook on PATH or in `node_modules/.bin`); it prints the jobs to run by hand and is never a pass. A mechanical fix landed here costs one commit; the same fix landed after a green review also costs a receipt re-earn dispatch.
+
+  Separately, confirm the first substantive commit's body carries `Why — / How — / What —` sections (24+ non-whitespace chars each): `pr-flow` composes the PR Summary from it and `validatePrSummary` refuses delivery without them — cheaper to reword now (rebase/amend) than at PR-open.
 
 - **Code-stage orchestrate.** Run the worktree-code lane (default `reviewer`; config `crLanes.code` can override, e.g. `['reviewer', 'codex']` to opt codex back in — and on `specs-only-*` / `full-*` paths orchestrate forces `codex` into the set regardless, so an M/L/XL feature never ships reviewed by one model family):
 
