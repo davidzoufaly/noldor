@@ -294,6 +294,12 @@ fall in adjacent buckets and read as unmatched despite a 0.2px difference, while
 Sub-pixel values are the norm on the implementation side (`getBoundingClientRect`, `rem` and `clamp`
 font sizes), so that artifact would fire routinely.
 
+The tolerance is a budget spent ONCE across the two stages, not per stage: clustering to width W puts
+a member up to W/2 from its representative on each side and matching then allows another M, so
+spending the full tolerance twice lets roughly double it pass silently. Half goes to the permitted
+cluster width and half to the match, which yields the stated guarantee — a difference above the
+tolerance can never pair, one at or under half of it always pairs.
+
 A family fails when its unmatched count exceeds its budget, and **every budget defaults to 0**: with
 D4's zero-exclusion and text-node rules removing the systematic noise, the tolerance absorbing
 sub-pixel jitter, and spacing counting one direction only, a leftover value is a real difference.
@@ -503,9 +509,11 @@ unmatched value — open it before arguing with a count.
    optional, with a recipe having to carry at least one capture command (D2), and `render-compare`
    reporting `no-boot-recipe` for a surface that omits it. Forcing a screenshot tool on a consumer who
    does not run the pixel lane is config theatre.
-8. *Does clustering + greedy matching need a stable tie-break?* -> Yes, and it is specified (D6):
-   candidate pairs are taken in ascending order of representative difference, ties broken by the lower
-   representative. Without it two runs over the same documents could report different unmatched sets.
+8. *Does the matching need a stable tie-break?* -> It needs no tie-break at all, because it is not a
+   choice among candidate pairs: the two representative lists are sorted and matching is
+   order-preserving, so a single forward scan is deterministic and already maximum-cardinality
+   optimal. Selecting pairs by ascending difference — an earlier answer here — is the closest-pair
+   greedy that loses cardinality outright.
 9. *One budget per edge axis, or one for both?* -> One `edges` budget covering both axes (D5). Axes
    cluster separately because a left edge and a top edge are unrelated quantities, but "how many
    unexplained alignment values does this surface have" is a single question, and per-axis keys were

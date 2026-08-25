@@ -191,8 +191,18 @@ export function compareGeometry(
 ): GeometryComparison {
   const d = extractFamilies(design);
   const i = extractFamilies(impl);
-  const match = (dv: readonly number[], iv: readonly number[], tol: number): ClusterMatch =>
-    matchClusters(clusterValues(dv, tol), clusterValues(iv, tol), tol);
+  // The tolerance is a budget spent ONCE across both stages, not per stage.
+  // Clustering to width W puts a member up to W/2 from its representative on
+  // each side, and matching then allows another M, so two values can differ by
+  // W + M and still pair. Spending the whole tolerance in each stage therefore
+  // lets ~2x the tolerance pass silently — a 24 clustered with a 26 reports 25,
+  // which then matches a design 24 at tolerance 2 even though the 26 is 2 past
+  // it. Splitting the budget in half gives the guarantee the docs state: a
+  // difference above the tolerance can never pair.
+  const match = (dv: readonly number[], iv: readonly number[], tol: number): ClusterMatch => {
+    const half = tol / 2;
+    return matchClusters(clusterValues(dv, half), clusterValues(iv, half), half);
+  };
 
   const x = match(d.edgesX, i.edgesX, tolerance.edges);
   const y = match(d.edgesY, i.edgesY, tolerance.edges);

@@ -22,6 +22,7 @@ export const geometryBoxSchema = z
   .refine((b) => Number.isFinite(b.x + b.w) && Number.isFinite(b.y + b.h), {
     message: 'box edges overflow to a non-finite value (x + w, y + h)',
   });
+/** A node box, validated including its derived right and bottom edges. */
 export type GeometryBox = z.infer<typeof geometryBoxSchema>;
 
 /**
@@ -39,6 +40,7 @@ export const geometrySpacingSchema = z
     margin: z.tuple([finite, finite, finite, finite]).optional(),
   })
   .strict();
+/** Declared spacing on one node; zero sides are kept, and excluded from the population later. */
 export type GeometrySpacing = z.infer<typeof geometrySpacingSchema>;
 
 /** Fields every node carries, whatever its kind. `text` is NOT among them —
@@ -67,6 +69,7 @@ export const geometryTextNodeSchema = z
     text: z.string().min(1),
   })
   .strict();
+/** A validated text-bearing node: `fontSize` and `text` are both present. */
 export type GeometryTextNode = z.infer<typeof geometryTextNodeSchema>;
 
 /** A node with element children but no direct text of its own. */
@@ -85,6 +88,7 @@ export const geometryNodeSchema = z.discriminatedUnion('kind', [
   geometryContainerNodeSchema,
   geometryShapeNodeSchema,
 ]);
+/** A validated node of any kind. */
 export type GeometryNode = z.infer<typeof geometryNodeSchema>;
 /** `'text' | 'container' | 'shape'`, derived from the union rather than restated. */
 export type GeometryNodeKind = GeometryNode['kind'];
@@ -97,6 +101,7 @@ export const geometryDocSchema = z
     nodes: z.array(geometryNodeSchema),
   })
   .strict();
+/** One surface's validated document. */
 export type GeometryDoc = z.infer<typeof geometryDocSchema>;
 
 /** Which producer wrote the document — the design side may not carry margin. */

@@ -227,3 +227,21 @@ describe('matchClusters keeps cardinality where a pre-pass would lose it', () =>
     expect(m.implOnly).toEqual([]);
   });
 });
+
+describe('the tolerance is spent once across clustering and matching', () => {
+  it('fails a drift of twice the tolerance that per-stage spending would pass', () => {
+    // Clustering 24 with 26 reports 25, which would then match a design 24 at
+    // tolerance 2 — hiding an edge 2px past the tolerance.
+    const design = doc([card(24)]);
+    const impl = doc([card(24), card(26)]);
+    const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.verdict).toBe('fail');
+    expect(r.families.edges.implOnly).toContain(26);
+  });
+
+  it('still passes a sub-pixel difference', () => {
+    const design = doc([{ kind: 'shape', box: { x: 24, y: 48, w: 100, h: 40 } }]);
+    const impl = doc([{ kind: 'shape', box: { x: 24.4, y: 48.4, w: 100, h: 40 } }]);
+    expect(compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET).verdict).toBe('pass');
+  });
+});
