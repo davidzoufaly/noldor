@@ -57,6 +57,11 @@ export type PenBridgePlan = { kind: 'open'; path: string } | { kind: 'bootstrap'
  * Pick the file that wakes the bridge. `preferred` (a caller's own `.pen`, e.g.
  * a lane's scratch copy) short-circuits the ranking; otherwise the best
  * candidate wins, and an empty repo falls through to bootstrap.
+ *
+ * Pure, so existence is the caller's job: every path passed here must already
+ * be on disk. A missing file wakes nothing, and an `open` plan naming one would
+ * report a retry that can never succeed — see `trackedPenFiles` and the `--pen`
+ * validation in `pen-bridge-cli.ts`, which own that check at the FS boundary.
  */
 export function planPenBridge(paths: readonly string[], preferred?: string): PenBridgePlan {
   if (preferred !== undefined && preferred.endsWith('.pen')) {

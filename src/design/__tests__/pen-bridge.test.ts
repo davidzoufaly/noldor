@@ -1,5 +1,10 @@
 // @tests: pendev-ui-design-phase
-import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   BRIDGE_BOOTSTRAP_PATH,
@@ -8,7 +13,7 @@ import {
   planPenBridge,
   rankPenCandidates,
 } from '../pen-bridge.js';
-import { renderPlan } from '../pen-bridge-cli.js';
+import { main, renderPlan, trackedPenFiles } from '../pen-bridge-cli.js';
 
 describe('rankPenCandidates', () => {
   it('prefers a feature design over a baseline over anything else', () => {
@@ -85,5 +90,47 @@ describe('renderPlan', () => {
     const out = renderPlan({ kind: 'bootstrap', path: BRIDGE_BOOTSTRAP_PATH });
     expect(out).toContain(BRIDGE_BOOTSTRAP_PATH);
     expect(out).toContain('encrypted');
+  });
+});
+
+describe('trackedPenFiles', () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(join(tmpdir(), 'pen-bridge-'));
+    execFileSync('git', ['init', '-q'], { cwd: repo });
+    writeFileSync(join(repo, 'kept.pen'), 'x');
+    writeFileSync(join(repo, 'gone.pen'), 'x');
+    execFileSync('git', ['add', 'kept.pen', 'gone.pen'], { cwd: repo });
+  });
+
+  afterEach(() => rmSync(repo, { recursive: true, force: true }));
+
+  it('drops an indexed .pen that is missing from the worktree', () => {
+    rmSync(join(repo, 'gone.pen'));
+    expect(trackedPenFiles(repo)).toEqual(['kept.pen']);
+  });
+
+  it('reports no candidates outside a git repo', () => {
+    const bare = mkdtempSync(join(tmpdir(), 'pen-bridge-bare-'));
+    try {
+      expect(trackedPenFiles(bare)).toEqual([]);
+    } finally {
+      rmSync(bare, { recursive: true, force: true });
+    }
+  });
+
+  it('bootstraps rather than opening when every indexed .pen is deleted', async () => {
+    rmSync(join(repo, 'kept.pen'));
+    rmSync(join(repo, 'gone.pen'));
+    await expect(main(['--print-only'], repo)).resolves.toBe(1);
+  });
+
+  it('rejects a --pen path that is not on disk', async () => {
+    await expect(main(['--pen', 'nope.pen', '--print-only'], repo)).resolves.toBe(2);
+  });
+
+  it('accepts a --pen path that exists', async () => {
+    await expect(main(['--pen', 'kept.pen', '--print-only'], repo)).resolves.toBe(0);
   });
 });

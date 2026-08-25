@@ -6,6 +6,8 @@
 // pencil MCP can prove that, in-session, by retrying a call.
 
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 
 import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
 
@@ -16,11 +18,20 @@ import {
   type PenBridgePlan,
 } from './pen-bridge.js';
 
-/** Tracked `.pen` files, newest-listed-first order left to the ranking. */
+/**
+ * Tracked `.pen` files that are actually on disk, ordering left to the ranking.
+ * `git ls-files` reports the INDEX, so a file deleted in the worktree is still
+ * listed — handing one to the editor would open an empty buffer the Pencil
+ * extension cannot load while this command reported a wake, so the existence
+ * filter is what lets an all-deleted set fall through to `bootstrap`.
+ */
 export function trackedPenFiles(cwd: string): string[] {
   try {
     const out = execFileSync('git', ['ls-files', '--', '*.pen'], { cwd, encoding: 'utf8' });
-    return out.split('\n').filter((l) => l.trim().length > 0);
+    return out
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && existsSync(join(cwd, l)));
   } catch {
     // Not a repo, or git unavailable: the bootstrap branch still applies.
     return [];
@@ -59,14 +70,21 @@ export function renderPlan(plan: PenBridgePlan, launch = true): string {
 }
 
 export async function main(argv: string[], cwd: string = process.cwd()): Promise<number> {
-  // One usage-error exit for both ways `--pen` can be wrong: absent value, or
-  // a value that is not a `.pen` (the bridge only wakes on a design file).
+  // One usage-error exit for every way `--pen` can be wrong: absent value, a
+  // value that is not a `.pen` (the bridge only wakes on a design file), or a
+  // path that does not exist — opening a missing file wakes nothing, so it must
+  // never reach the `open` branch and report a retry.
   const pen = optionalFlag(argv, '--pen', 'pen-bridge');
-  const wrongExt = pen.ok && pen.value !== undefined && !pen.value.endsWith('.pen');
-  if (!pen.ok || wrongExt) {
-    console.error(
-      pen.ok ? `pen-bridge: --pen must name a .pen file (got '${pen.value ?? ''}')` : pen.error,
-    );
+  const badPen =
+    pen.ok && pen.value !== undefined
+      ? !pen.value.endsWith('.pen')
+        ? `pen-bridge: --pen must name a .pen file (got '${pen.value}')`
+        : !existsSync(isAbsolute(pen.value) ? pen.value : join(cwd, pen.value))
+          ? `pen-bridge: --pen names no file on disk (got '${pen.value}')`
+          : undefined
+      : undefined;
+  if (!pen.ok || badPen !== undefined) {
+    console.error(badPen ?? (pen.ok ? '' : pen.error));
     return 2;
   }
   const preferred = pen.value;
