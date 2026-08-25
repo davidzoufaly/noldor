@@ -106,6 +106,24 @@ The lane is code-only — passing it at `--kind spec` or `--kind plan` is reject
 
 Sink: `.noldor/cr/<slug>-code-render-compare.json`. Every affected surface gets its own outcome row (a recipe-less surface is `no-boot-recipe`, so partial coverage never reads `pass`); the top verdict is the worst by `fail` > `cannot-review` > `pass`, and `reason` is the headline class. A surface fails when `diffRatio > maxDiffRatio` (severity `high` past 2×). On a `fail`, open the persisted images under `.noldor/cr/render-compare/<slug>/` before arguing with the ratio. `renderCompareMode` mirrors `uiReviewMode` (advisory default, `pen-modified` reds in both modes); when the `verifier` lane shares the round, render-compare starts only after it resolves. The export path needs a running VS Code window with the Pencil extension, so headless CI degrades to `cannot-review` (`export-failed`) honestly.
 
+**Geometry compare (layout, Q-0180 enhancement).** Pixel-diff is the wrong instrument whenever the design cannot express what the implementation renders — SVG-driven effects, shaders, generated artwork, platform text — because a faithful implementation then reads as a large `diffRatio` and no `maxDiffRatio` setting separates that from a real regression. What survives the mismatch is layout, so two commands compare *layout values* instead of paint:
+
+```bash
+# Does my capture script emit a conformant document?
+pnpm noldor design geometry-validate impl.json --side impl --surface dashboard
+
+# What drifted between the design and the implementation?
+pnpm noldor design geometry-diff design.json impl.json --surface dashboard
+```
+
+Both take normalized geometry documents (`geometryDocSchema` in [`src/cr/geometry/geometry-doc.ts`](../../src/cr/geometry/geometry-doc.ts)) — no pen, no browser, no lane involved. Three families are compared, each clustered by single linkage at its own tolerance (`edges` 2px, `fontSize` 1px, `spacing` 1px) and matched by an order-preserving DP that maximizes pairs then minimizes total difference; closest-pair greedy is not sufficient, since design `{0,3}` against impl `{2,5}` at tolerance 2 matches fully but greedy invents two unmatched values. What is left over is the verdict, against a per-family budget defaulting to 0:
+
+- **`edges`** — every box's `x`/`x+w` clustered on one axis and `y`/`y+h` on the other. One card two pixels off its siblings shows up here and nowhere else.
+- **`fontSize`** — values from text-bearing nodes only, so an inherited wrapper `font-size` never enters the population.
+- **`spacing`** — declared `rowGap`/`columnGap`/`padding`, compared **design-only**: an implementation `margin: 16` can satisfy a design `gap: 16` (pen has no margin property), while UA-stylesheet margins on `h1`/`p`/`ul` and negative gutters cannot fail anything.
+
+Exit 0 within budget, 1 on drift, 2 when a document could not be read or parsed. The blind spot is deliberate and worth knowing: a node that relocates onto an alignment value the surface already uses moves no value into or out of either set, so moving a card between two columns of the same grid is invisible while moving it two pixels off one is caught. The lane that runs this per surface against a booted app is parked as roadmap entry `Q-0180`; the design of record for it is `docs/design/specs/2026-08-25-ui-design-review-lane-geometry-compare-design.md`.
+
 ## PRs
 
 <!-- @prs-since-last-release: ui-design-review-lane -->
