@@ -190,8 +190,6 @@ export interface FamilyOutcome {
 export interface GeometryComparison {
   verdict: 'pass' | 'fail';
   families: FamilyRecord<FamilyOutcome>;
-  /** Families over budget, in `GEOMETRY_FAMILIES` order — one finding each. */
-  failed: FamilyOutcome[];
 }
 
 /** Ratio-free, count-derived severity (spec D6): `2x budget` degenerates at budget 0. */
@@ -246,6 +244,10 @@ export function compareGeometry(
     // never a source of failure.
     spacing: outcome('spacing', space.designOnly, []),
   };
-  const failed = GEOMETRY_FAMILIES.map((f) => families[f]).filter((o) => o.unmatched > o.budget);
-  return { verdict: failed.length > 0 ? 'fail' : 'pass', families, failed };
+  // The failing set is recomputed by callers that need it (one filter over
+  // `families`) rather than carried here: `verdict === 'fail'` already encodes
+  // the same predicate, and a second derived view is one more thing to keep
+  // consistent for no reader.
+  const anyOverBudget = GEOMETRY_FAMILIES.some((f) => families[f].unmatched > families[f].budget);
+  return { verdict: anyOverBudget ? 'fail' : 'pass', families };
 }
