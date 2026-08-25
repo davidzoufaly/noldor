@@ -51,79 +51,11 @@ describe('extractFamilies', () => {
   });
 });
 
-import { clusterValues } from '../../geometry/geometry-compare-core.js';
-
-describe('clusterValues', () => {
-  it('collapses exact duplicates and clusters within tolerance', () => {
-    expect(clusterValues([24, 24, 25, 40], 2)).toEqual([24.5, 40]);
-  });
-
-  it('starts a new cluster only past the tolerance', () => {
-    expect(clusterValues([10, 12, 14.1], 2)).toEqual([11, 14.1]);
-  });
-
-  it('bounds a cluster by its own width so linkage cannot chain', () => {
-    // Single linkage would make 24, 26, 28 one cluster with representative 26,
-    // which then matches a design edge at 24 and hides the 28.
-    expect(clusterValues([24, 26, 28], 2)).toEqual([25, 28]);
-  });
-
-  it('uses the arithmetic mean as the representative for an even-sized cluster', () => {
-    expect(clusterValues([10, 11], 2)[0]).toBe(10.5);
-  });
-
-  it('sorts negatives correctly and handles the empty list', () => {
-    expect(clusterValues([-4, 8, -4], 1)).toEqual([-4, 8]);
-    expect(clusterValues([], 2)).toEqual([]);
-  });
-});
-
-import { matchClusters } from '../../geometry/geometry-compare-core.js';
-
-const cl = (reps: number[]): number[] => reps;
-
-describe('matchClusters', () => {
-  it('finds the full matching greedy would miss', () => {
-    // Closest-pair greedy takes 3->2 first and leaves 0 and 5 unmatched.
-    const m = matchClusters(cl([0, 3]), cl([2, 5]), 2);
-    expect(m.designOnly).toEqual([]);
-    expect(m.implOnly).toEqual([]);
-    expect(m.pairs).toEqual([
-      [0, 2],
-      [3, 5],
-    ]);
-  });
-
-  it('leaves out-of-tolerance clusters unmatched on both sides', () => {
-    const m = matchClusters(cl([24]), cl([24, 26.5]), 2);
-    expect(m.designOnly).toEqual([]);
-    expect(m.implOnly).toEqual([26.5]);
-  });
-
-  it('reports a design-only cluster when the implementation renders nothing near it', () => {
-    const m = matchClusters(cl([14, 32]), cl([14]), 1);
-    expect(m.designOnly).toEqual([32]);
-    expect(m.implOnly).toEqual([]);
-  });
-
-  it('minimizes total difference among maximizing matchings', () => {
-    const m = matchClusters(cl([10, 11]), cl([10, 11]), 2);
-    expect(m.pairs).toEqual([
-      [10, 10],
-      [11, 11],
-    ]);
-  });
-
-  it('handles either side being empty', () => {
-    expect(matchClusters(cl([1]), [], 2).designOnly).toEqual([1]);
-    expect(matchClusters([], cl([1]), 2).implOnly).toEqual([1]);
-  });
-});
-
 import {
   compareGeometry,
   DEFAULT_BUDGET,
   DEFAULT_TOLERANCE,
+  unmatchedValues,
 } from '../../geometry/geometry-compare-core.js';
 
 const card = (x: number): GeometryDoc['nodes'][number] => ({
@@ -208,35 +140,64 @@ describe('compareGeometry', () => {
   });
 });
 
-describe('drift beyond the tolerance is never hidden by clustering', () => {
-  it('reports an edge 4px off even when an intermediate edge bridges it', () => {
+describe('unmatchedValues', () => {
+  it('reports a value with no counterpart within tolerance', () => {
+    expect(unmatchedValues([24, 30], [24], 2)).toEqual([30]);
+  });
+
+  it('explains a value by any counterpart within tolerance, including duplicates', () => {
+    expect(unmatchedValues([24, 24.4, 25.9], [24], 2)).toEqual([]);
+  });
+
+  it('is exact at the boundary: at the tolerance is covered, past it is not', () => {
+    expect(unmatchedValues([26], [24], 2)).toEqual([]);
+    expect(unmatchedValues([26.5], [24], 2)).toEqual([26.5]);
+  });
+
+  it('does not compose tolerances across neighbouring values', () => {
+    // A chain 24, 26, 28 does not let 28 borrow 26's proximity to 24.
+    expect(unmatchedValues([24, 26, 28], [24], 2)).toEqual([28]);
+  });
+
+  it('finds the nearest counterpart on either side of a value', () => {
+    expect(unmatchedValues([10], [4, 12], 2)).toEqual([]);
+    expect(unmatchedValues([10], [4, 16], 2)).toEqual([10]);
+  });
+
+  it('reports everything when the other side is empty, and nothing for an empty side', () => {
+    expect(unmatchedValues([1, 2], [], 2)).toEqual([1, 2]);
+    expect(unmatchedValues([], [1], 2)).toEqual([]);
+  });
+
+  it('handles negatives and collapses exact duplicates', () => {
+    expect(unmatchedValues([-4, -4, 8], [-4], 1)).toEqual([8]);
+  });
+});
+
+describe('drift past the tolerance is never hidden', () => {
+  it('fails an edge 2.5px off at the 2px default', () => {
+    const design = doc([card(24)]);
+    const impl = doc([card(24), card(26.5)]);
+    const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.verdict).toBe('fail');
+    expect(r.families.edges.implOnly).toContain(26.5);
+  });
+
+  it('fails the case an intermediate value would have bridged', () => {
     const design = doc([card(24)]);
     const impl = doc([card(24), card(26), card(28)]);
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('fail');
     expect(r.families.edges.implOnly).toContain(28);
   });
-});
 
-describe('matchClusters keeps cardinality where a pre-pass would lose it', () => {
-  it('matches both pairs where consuming the exact value first would strand two', () => {
-    // Pairing 2.5 with 2.5 first leaves 1 and 4, three apart at tolerance 2.
-    const m = matchClusters([1, 2.5], [2.5, 4], 2);
-    expect(m.pairs).toHaveLength(2);
-    expect(m.designOnly).toEqual([]);
-    expect(m.implOnly).toEqual([]);
-  });
-});
-
-describe('the tolerance is spent once across clustering and matching', () => {
-  it('fails a drift of twice the tolerance that per-stage spending would pass', () => {
-    // Clustering 24 with 26 reports 25, which would then match a design 24 at
-    // tolerance 2 — hiding an edge 2px past the tolerance.
-    const design = doc([card(24)]);
-    const impl = doc([card(24), card(26)]);
+  it('fails the case two clustered representatives would have matched', () => {
+    // design {0,2} vs impl {2.5,3.5}: design 0 is 2.5 from its nearest.
+    const design = doc([{ kind: 'shape', box: { x: 0, y: 0, w: 2, h: 0 } }]);
+    const impl = doc([{ kind: 'shape', box: { x: 2.5, y: 0, w: 1, h: 0 } }]);
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('fail');
-    expect(r.families.edges.implOnly).toContain(26);
+    expect(r.families.edges.designOnly).toContain(0);
   });
 
   it('still passes a sub-pixel difference', () => {

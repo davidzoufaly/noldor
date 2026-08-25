@@ -59,100 +59,42 @@ export function extractFamilies(doc: GeometryDoc): FamilyValues {
 }
 
 /**
- * Cluster near-duplicate values into representatives (spec D6 stage 1): exact
- * duplicates collapse, the list sorts ascending, and a cluster admits a value
- * only while the cluster's own WIDTH stays within the tolerance. The
- * representative is the arithmetic mean — named explicitly because "median" is
- * ambiguous for an even-sized cluster, and at a 1px tolerance that ambiguity
- * flips match outcomes.
+ * The values in `side` that no value in `other` explains: a value is UNMATCHED
+ * when nothing on the opposite side sits within `tolerance` of it. Linear over
+ * two sorted lists, and exact — a value farther than the tolerance from every
+ * counterpart is reported, one within the tolerance of any counterpart is not.
  *
- * The width bound is what makes the result sound. Single-linkage (compare
- * against the PREVIOUS value instead of the cluster's first) chains: at
- * tolerance 2, implementation edges 24, 26 and 28 would form one cluster with
- * representative 26, which then matches a design edge at 24 — so a 28px edge
- * sitting 4px off the design reports nothing at all. Bounding the width caps how
- * far a representative can drift from every member it speaks for.
+ * This is a covering test, not a matching, and that distinction is the lesson of
+ * the earlier attempts here. Pairing values one-to-one raised questions a
+ * covering has no reason to ask: closest-pair greedy lost cardinality (design
+ * {0,3} against {2,5}); pre-pairing exact values lost it differently (design
+ * {1,2.5} against {2.5,4}); an edit-distance DP fixed cardinality but allocated
+ * an (n+1)x(m+1) table over untrusted documents; and clustering-then-matching
+ * composed two tolerances, so drift up to 1.5x the tolerance passed while the
+ * docs claimed a hard bound. None of it served the question the spec asks —
+ * whether a layout value one side declares appears on the other at all.
+ * Near-duplicates, which clustering existed to absorb, are covered here by
+ * construction: a wrapper stack repeating its child's edge is explained by
+ * whatever design value the child's edge is.
  */
-export function clusterValues(values: readonly number[], tolerance: number): number[] {
-  const sorted = [...new Set(values)].sort((a, b) => a - b);
-  const out: number[] = [];
-  let current: number[] = [];
-  for (const v of sorted) {
-    if (current.length > 0 && v - current[0] > tolerance) {
-      out.push(mean(current));
-      current = [];
-    }
-    current.push(v);
-  }
-  if (current.length > 0) out.push(mean(current));
-  return out;
-}
-
-const mean = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
-
-/** What matching one family's two cluster lists produced. */
-export interface ClusterMatch {
-  /** `[designRep, implRep]` per matched pair, in ascending design order. */
-  pairs: [number, number][];
-  designOnly: number[];
-  implOnly: number[];
-}
-
-/**
- * Match the two sides' representatives (spec D6 stage 2). Both lists are sorted
- * and matching must be order-preserving, so a single forward scan is
- * maximum-cardinality optimal: pair the two heads when they are within
- * tolerance, otherwise drop the smaller head, which can never match anything
- * further along the other side because everything ahead of it is larger. Linear
- * time, and nothing allocated beyond the outputs — which matters for documents
- * this module treats as untrusted, since an edit-distance dynamic program would
- * build an (n+1)x(m+1) table and a long-page capture with a couple of thousand
- * distinct values per side turns that into millions of cells.
- *
- * CLOSEST-PAIR greedy is what fails on cardinality: taking the globally
- * smallest difference first turns design {0,3} against implementation {2,5} at
- * tolerance 2 into one pair (3-2) plus two unmatched values, inventing drift.
- * Pre-pairing EXACT values first fails the same way, less obviously — design
- * {1, 2.5} against implementation {2.5, 4} at tolerance 2 has a full matching
- * (1-2.5 and 2.5-4), but consuming 2.5-2.5 first strands 1 and 4 three apart.
- *
- * Known reporting caveat, deliberately not fixed here. The COUNT of unmatched
- * values is exact and is what the verdict rests on, but when several values sit
- * within tolerance of each other the leftover this scan NAMES can be a
- * neighbour of the true intruder: design [3] against implementation [1, 3]
- * pairs 3 with 1 and names an implementation-only 3, when 1 is the value with
- * no counterpart. Both are within tolerance of 3, so either answer is a
- * defensible partner; only the label is arguable. A post-pass that swapped
- * labels was tried and removed — it cost two review rounds and an O(pairs x
- * leftovers) scan to improve a cosmetic field, and the evidence artifact lists
- * every value on both sides anyway.
- */
-export function matchClusters(
-  design: readonly number[],
-  impl: readonly number[],
+export function unmatchedValues(
+  side: readonly number[],
+  other: readonly number[],
   tolerance: number,
-): ClusterMatch {
-  const pairs: [number, number][] = [];
-  const designOnly: number[] = [];
-  const implOnly: number[] = [];
-  let i = 0;
+): number[] {
+  const sorted = [...new Set(side)].sort((a, b) => a - b);
+  if (other.length === 0) return sorted;
+  const others = [...new Set(other)].sort((a, b) => a - b);
+  const out: number[] = [];
   let j = 0;
-  while (i < design.length && j < impl.length) {
-    if (Math.abs(design[i] - impl[j]) <= tolerance) {
-      pairs.push([design[i], impl[j]]);
-      i++;
-      j++;
-    } else if (design[i] < impl[j]) {
-      designOnly.push(design[i]);
-      i++;
-    } else {
-      implOnly.push(impl[j]);
-      j++;
-    }
+  for (const v of sorted) {
+    // `others` and `sorted` both ascend, so this pointer only moves forward:
+    // advance while the NEXT counterpart is still no farther than the current
+    // one, leaving `others[j]` as the nearest.
+    while (j + 1 < others.length && Math.abs(others[j + 1] - v) <= Math.abs(others[j] - v)) j++;
+    if (Math.abs(others[j] - v) > tolerance) out.push(v);
   }
-  for (; i < design.length; i++) designOnly.push(design[i]);
-  for (; j < impl.length; j++) implOnly.push(impl[j]);
-  return { pairs, designOnly, implOnly };
+  return out;
 }
 
 /** One family's comparison result. `implOnly` is always empty for `spacing`.
@@ -191,44 +133,43 @@ export function compareGeometry(
 ): GeometryComparison {
   const d = extractFamilies(design);
   const i = extractFamilies(impl);
-  // The tolerance is a budget spent ONCE across both stages, not per stage.
-  // Clustering to width W puts a member up to W/2 from its representative on
-  // each side, and matching then allows another M, so two values can differ by
-  // W + M and still pair. Spending the whole tolerance in each stage therefore
-  // lets ~2x the tolerance pass silently — a 24 clustered with a 26 reports 25,
-  // which then matches a design 24 at tolerance 2 even though the 26 is 2 past
-  // it. Splitting the budget in half gives the guarantee the docs state: a
-  // difference above the tolerance can never pair.
-  const match = (dv: readonly number[], iv: readonly number[], tol: number): ClusterMatch => {
-    const half = tol / 2;
-    return matchClusters(clusterValues(dv, half), clusterValues(iv, half), half);
-  };
-
-  const x = match(d.edgesX, i.edgesX, tolerance.edges);
-  const y = match(d.edgesY, i.edgesY, tolerance.edges);
-  const font = match(d.fontSize, i.fontSize, tolerance.fontSize);
-  const space = match(d.spacing, i.spacing, tolerance.spacing);
-
+  // Each family is a two-way covering test at its own tolerance. The whole
+  // tolerance applies to the single comparison that decides a value's fate, so
+  // the guarantee is exact rather than composed across stages.
   const outcome = (
     family: GeometryFamily,
     designOnly: number[],
     implOnly: number[],
-  ): FamilyOutcome => {
-    const unmatched = designOnly.length + implOnly.length;
-    return { family, unmatched, budget: budget[family], designOnly, implOnly };
-  };
-
+  ): FamilyOutcome => ({
+    family,
+    unmatched: designOnly.length + implOnly.length,
+    budget: budget[family],
+    designOnly,
+    implOnly,
+  });
   const families: FamilyRecord<FamilyOutcome> = {
-    edges: outcome('edges', [...x.designOnly, ...y.designOnly], [...x.implOnly, ...y.implOnly]),
-    fontSize: outcome('fontSize', font.designOnly, font.implOnly),
-    // One-directional: the implementation's spacing values are a matching pool,
-    // never a source of failure.
-    spacing: outcome('spacing', space.designOnly, []),
+    edges: outcome(
+      'edges',
+      [
+        ...unmatchedValues(d.edgesX, i.edgesX, tolerance.edges),
+        ...unmatchedValues(d.edgesY, i.edgesY, tolerance.edges),
+      ],
+      [
+        ...unmatchedValues(i.edgesX, d.edgesX, tolerance.edges),
+        ...unmatchedValues(i.edgesY, d.edgesY, tolerance.edges),
+      ],
+    ),
+    fontSize: outcome(
+      'fontSize',
+      unmatchedValues(d.fontSize, i.fontSize, tolerance.fontSize),
+      unmatchedValues(i.fontSize, d.fontSize, tolerance.fontSize),
+    ),
+    // One-directional: an implementation spacing value can only ever EXPLAIN a
+    // design value, never fail on its own — UA-stylesheet margins on h1/p/ul and
+    // negative gutters are unrepresentable in pen, so counting them would fail
+    // real UI deterministically.
+    spacing: outcome('spacing', unmatchedValues(d.spacing, i.spacing, tolerance.spacing), []),
   };
-  // The failing set is recomputed by callers that need it (one filter over
-  // `families`) rather than carried here: `verdict === 'fail'` already encodes
-  // the same predicate, and a second derived view is one more thing to keep
-  // consistent for no reader.
   const anyOverBudget = GEOMETRY_FAMILIES.some((f) => families[f].unmatched > families[f].budget);
   return { verdict: anyOverBudget ? 'fail' : 'pass', families };
 }

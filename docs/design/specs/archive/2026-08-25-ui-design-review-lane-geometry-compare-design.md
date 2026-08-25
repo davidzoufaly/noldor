@@ -260,45 +260,26 @@ none of those quantities appear in the document at all.
 
 ### D6 — Comparison and tolerances
 
-Comparison is a two-stage rule per surface and per family, specified to the point where two
-implementations produce identical unmatched sets:
+Comparison is a **covering** test per surface and per family, run in both directions: a value counts
+as unmatched when no value on the opposite side sits within the family's tolerance of it (defaults 2px
+for edges, 1px for font size, 1px for spacing — consumer-overridable per recipe). Edge values are
+collected per axis, since a left edge and a top edge are unrelated quantities. The guarantee is exact:
+a value at or under the tolerance from any counterpart is explained, a value past it is reported, and
+neighbouring values cannot compose their tolerances to bridge a larger gap.
 
-1. **Cluster** each side's values independently. Deduplicate exact repeats, sort ascending, then admit
-   a value into the open cluster only while the cluster's own WIDTH stays within the family's
-   tolerance. Comparing against the PREVIOUS value instead (single linkage) chains: at tolerance 2,
-   implementation edges 24, 26 and 28 become one cluster represented by 26, which then matches a
-   design edge at 24 — hiding an edge 4px off. A cluster's representative is the **arithmetic mean** of its values —
-   named because "median" is ambiguous for an even-sized cluster, and at a 1px tolerance that ambiguity
-   flips match outcomes. Defaults: `edges` 2px, `fontSize` 1px, `spacing` 1px, consumer-overridable per
-   recipe.
-2. **Match** the two representative lists with a single order-preserving forward scan, which on
-   sorted lists is already maximum-cardinality optimal: pair the two heads when they are within
-   tolerance, otherwise drop the smaller head, since everything ahead of it on the other side is
-   larger still. CLOSEST-PAIR greedy is what fails — at tolerance 2, design `{0, 3}` against
-   implementation `{2, 5}` has the full matching `0→2, 3→5`, but taking the smallest difference first
-   pairs `3→2` and leaves two unmatched, inventing drift out of the algorithm. The forward scan also
-   allocates nothing beyond its outputs, which matters for documents this contract treats as
-   untrusted: an edit-distance dynamic program would build an (n+1)x(m+1) table, and a long-page
-   capture with a couple of thousand distinct values per side turns that into millions of cells.
+An earlier draft of this section specified clustering plus one-to-one matching instead, and the
+implementation worked through why that is the wrong shape for the question. Closest-pair greedy loses
+cardinality (design {0,3} against implementation {2,5} at tolerance 2 has a full matching, but the
+smallest difference first strands two values); pre-pairing exact values loses it differently (design
+{1,2.5} against {2.5,4}); an edit-distance dynamic program restores cardinality but allocates an
+(n+1)x(m+1) table over documents this contract treats as untrusted; and clustering-then-matching
+composes two tolerances, so drift up to 1.5x the tolerance passes while the prose claims a hard bound.
+The covering test asks the question the families were defined to answer — does a layout value one side
+declares appear on the other at all — in linear time with no such qualifications. Near-duplicates,
+which clustering existed to absorb, are covered by construction.
 
-Whatever is left unmatched is the family's count: implementation-only means the implementation
-introduced a layout value the design does not have, design-only means a specified value the
-implementation never renders. `edges` and `fontSize` count both directions; `spacing` counts design-only
-leftovers alone (D5). The primary case — one card two pixels off while its siblings stay put — appears
-only as an implementation-only edge cluster, since the design's own 24px value is still matched by the
-other two cards.
-
-Matching on representatives within a tolerance, rather than on shared indices of a fixed grid, is what
-removes the boundary artifact: under bucketing a design edge at 23.9 and an implementation edge at 24.1
-fall in adjacent buckets and read as unmatched despite a 0.2px difference, while 24.0 and 25.9 match.
-Sub-pixel values are the norm on the implementation side (`getBoundingClientRect`, `rem` and `clamp`
-font sizes), so that artifact would fire routinely.
-
-The tolerance is a budget spent ONCE across the two stages, not per stage: clustering to width W puts
-a member up to W/2 from its representative on each side and matching then allows another M, so
-spending the full tolerance twice lets roughly double it pass silently. Half goes to the permitted
-cluster width and half to the match, which yields the stated guarantee — a difference above the
-tolerance can never pair, one at or under half of it always pairs.
+Both directions count for `edges` and `fontSize`; `spacing` counts design-only values alone, because
+UA-stylesheet margins and negative gutters are unrepresentable in pen (see D5).
 
 A family fails when its unmatched count exceeds its budget, and **every budget defaults to 0**: with
 D4's zero-exclusion and text-node rules removing the systematic noise, the tolerance absorbing
