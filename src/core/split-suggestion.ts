@@ -115,7 +115,8 @@ export function assessFdBreadth(
  * (Q-0150, hit twice splitting the Q-0139 plan). Row count is the trigger, but
  * capability — not row count — is the seam. The entry point may be an existing
  * one: read literally the rule manufactures public API, which is how one split
- * minted four throwaway `design geometry-*` commands (see `noldor-plan` step 6).
+ * minted four `design geometry-*` commands, half of them unwanted (see
+ * `noldor-plan` step 6).
  */
 export function assessPlanSplit(planMd: string): SplitSignal[] {
   const rows = planMd.split('\n').length;
