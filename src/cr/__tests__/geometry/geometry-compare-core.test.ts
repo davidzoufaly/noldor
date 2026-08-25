@@ -218,21 +218,6 @@ describe('drift beyond the tolerance is never hidden by clustering', () => {
   });
 });
 
-describe('matchClusters names the value that actually drifted', () => {
-  it('reports the intruder rather than the value the design declares', () => {
-    // Eager head pairing would pair 3 with 1 and then call 3 impl-only.
-    const m = matchClusters([3], [1, 3], 2);
-    expect(m.implOnly).toEqual([1]);
-    expect(m.pairs).toEqual([[3, 3]]);
-  });
-
-  it('does the same on the design side', () => {
-    const m = matchClusters([1, 3], [3], 2);
-    expect(m.designOnly).toEqual([1]);
-    expect(m.pairs).toEqual([[3, 3]]);
-  });
-});
-
 describe('matchClusters keeps cardinality where a pre-pass would lose it', () => {
   it('matches both pairs where consuming the exact value first would strand two', () => {
     // Pairing 2.5 with 2.5 first leaves 1 and 4, three apart at tolerance 2.

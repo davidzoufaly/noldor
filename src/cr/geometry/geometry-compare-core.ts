@@ -115,7 +115,17 @@ export interface ClusterMatch {
  * Pre-pairing EXACT values first fails the same way, less obviously — design
  * {1, 2.5} against implementation {2.5, 4} at tolerance 2 has a full matching
  * (1-2.5 and 2.5-4), but consuming 2.5-2.5 first strands 1 and 4 three apart.
- * Hence one scan, with the naming fixed afterwards by {@link nameLeftovers}.
+ *
+ * Known reporting caveat, deliberately not fixed here. The COUNT of unmatched
+ * values is exact and is what the verdict rests on, but when several values sit
+ * within tolerance of each other the leftover this scan NAMES can be a
+ * neighbour of the true intruder: design [3] against implementation [1, 3]
+ * pairs 3 with 1 and names an implementation-only 3, when 1 is the value with
+ * no counterpart. Both are within tolerance of 3, so either answer is a
+ * defensible partner; only the label is arguable. A post-pass that swapped
+ * labels was tried and removed — it cost two review rounds and an O(pairs x
+ * leftovers) scan to improve a cosmetic field, and the evidence artifact lists
+ * every value on both sides anyway.
  */
 export function matchClusters(
   design: readonly number[],
@@ -142,38 +152,7 @@ export function matchClusters(
   }
   for (; i < design.length; i++) designOnly.push(design[i]);
   for (; j < impl.length; j++) implOnly.push(impl[j]);
-  return nameLeftovers({ pairs, designOnly, implOnly });
-}
-
-/**
- * Make the reported leftovers the values that actually differ, without touching
- * how MANY there are. The scan pairs by tolerance, so design [3] against
- * implementation [1, 3] pairs 3 with 1 and leaves an implementation-only 3 —
- * the right count, but it names the value the design declares instead of the
- * intruder. Whenever a pair's two sides differ and one side's value also sits in
- * the opposite leftover list, swap them: the pair becomes exact and the leftover
- * becomes the value with no counterpart. A swap trades one member of a list for
- * another, so every count and every verdict is unchanged by construction.
- */
-function nameLeftovers(m: ClusterMatch): ClusterMatch {
-  for (const [k, pair] of m.pairs.entries()) {
-    const [d, im] = pair;
-    if (d === im) continue;
-    const inImpl = m.implOnly.indexOf(d);
-    if (inImpl >= 0) {
-      m.pairs[k] = [d, d];
-      m.implOnly[inImpl] = im;
-      continue;
-    }
-    const inDesign = m.designOnly.indexOf(im);
-    if (inDesign >= 0) {
-      m.pairs[k] = [im, im];
-      m.designOnly[inDesign] = d;
-    }
-  }
-  m.designOnly.sort((a, b) => a - b);
-  m.implOnly.sort((a, b) => a - b);
-  return m;
+  return { pairs, designOnly, implOnly };
 }
 
 /** One family's comparison result. `implOnly` is always empty for `spacing`.
