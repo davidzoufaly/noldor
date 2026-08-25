@@ -108,6 +108,12 @@ export function assessFdBreadth(
  * P1 — plan bulk. A "row" is a raw markdown line (`split('\n').length`), per
  * the roadmap entry's ~1000-rows framing (spec D4); one part ≈ 1000 rows, so
  * the suggested part count is `ceil(rows / threshold)`.
+ *
+ * The message names the *vertical* cut on purpose. "Each independently shippable"
+ * alone reads as satisfiable by halving the task list, and the obvious horizontal
+ * cut yields a first part of pure library units that ships no capability at all
+ * (Q-0150, hit twice splitting the Q-0139 plan). Row count is the trigger, but
+ * capability — not row count — is the seam.
  */
 export function assessPlanSplit(planMd: string): SplitSignal[] {
   const rows = planMd.split('\n').length;
@@ -120,8 +126,9 @@ export function assessPlanSplit(planMd: string): SplitSignal[] {
       threshold: PLAN_ROW_THRESHOLD,
       message:
         `plan is ${rows} rows (threshold ${PLAN_ROW_THRESHOLD}) — restructure into ${parts} ` +
-        `part files (docs/design/plans/YYYY-MM-DD-<slug>-part<N>.md), each independently ` +
-        `shippable.`,
+        `part files (docs/design/plans/YYYY-MM-DD-<slug>-part<N>.md). Cut along capability, ` +
+        `never along the task list: each part must move one user-visible capability end to ` +
+        `end, entry point included.`,
     },
   ];
 }
