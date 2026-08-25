@@ -113,7 +113,9 @@ export function assessFdBreadth(
  * alone reads as satisfiable by halving the task list, and the obvious horizontal
  * cut yields a first part of pure library units that ships no capability at all
  * (Q-0150, hit twice splitting the Q-0139 plan). Row count is the trigger, but
- * capability — not row count — is the seam.
+ * capability — not row count — is the seam. The entry point may be an existing
+ * one: read literally the rule manufactures public API, which is how one split
+ * minted four throwaway `design geometry-*` commands (see `noldor-plan` step 6).
  */
 export function assessPlanSplit(planMd: string): SplitSignal[] {
   const rows = planMd.split('\n').length;
@@ -128,7 +130,7 @@ export function assessPlanSplit(planMd: string): SplitSignal[] {
         `plan is ${rows} rows (threshold ${PLAN_ROW_THRESHOLD}) — restructure into ${parts} ` +
         `part files (docs/design/plans/YYYY-MM-DD-<slug>-part<N>.md). Cut along capability, ` +
         `never along the task list: each part must move one user-visible capability end to ` +
-        `end, entry point included.`,
+        `end, through a new or existing entry point.`,
     },
   ];
 }
