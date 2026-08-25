@@ -179,5 +179,9 @@
   "Q-0150": {
     "slug": "plan-split-guidance-permits-a-part-that-ships-nothing",
     "retiredAt": "2026-08-25"
+  },
+  "Q-0164": {
+    "slug": "release-cr-gate-glob-union-for-sweep-squashes",
+    "retiredAt": "2026-08-25"
   }
 }

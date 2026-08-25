@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Release CR Gate Glob Union for Sweep Squashes
-
-- id: Q-0164
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: S
-- impact: med
-- confidence: high
-- parent: release-bypass-retirement
-
-The release CR gate makes `release.crGateExemptCommits` grow one entry per release. `checkCrGate` (`src/release/release-cr-gate.ts`) exempts a squash by path only when EVERY embedded `Noldor-Path` is exempt (correct — it stops a mixed squash laundering a feature commit), and its file fallback consults `isMicroChoreAllowed(files)` alone, never a sweep equivalent. But `ideas.md` sits in `BOOKKEEPING_GLOBS` and `MICRO_CHORE_GLOBS` while `graphify-out/**` sits only in `RELEASE_SWEEP_GLOBS` — so a sweep squash that carries any `ideas.md` capture alongside sweep output matches neither allowlist wholly and reds the gate. Hit on 2026-08-20 releasing v1.4.0: the sweep PR #354 squashed one micro-chore `ideas.md` commit with three release-sweep commits, and the only way through was a per-SHA waiver for a diff containing zero code. An `isMicroChoreAllowed(files) || isReleaseSweepAllowed(files)` OR does NOT fix it (each half of the diff fails the other predicate) — the fix is a union of the two glob sets for the fallback, or adding `ideas.md` to `RELEASE_SWEEP_GLOBS`. Deletion test: a sweep squash whose diff is entirely bookkeeping passes the gate without a config entry. (found 2026-08-20 by the CR reviewer on the waiver commit itself)
-
 ### Push-Gate Preflight Must Replay the Real Hook
 
 - id: Q-0165
