@@ -151,38 +151,32 @@ export function compareGeometry(
   // coordinate is not actionable unless the operator knows which axis it is on.
   // The whole tolerance applies to the single comparison that decides a value's
   // fate, so the guarantee is exact rather than composed across stages.
-  const outcome = (
-    family: GeometryFamily,
-    designOnly: number[],
-    implOnly: number[],
-  ): FamilyOutcome => ({
-    unmatched: designOnly.length + implOnly.length,
-    budget: budget[family],
-    designOnly,
-    implOnly,
-  });
-  const families: FamilyRecord<FamilyOutcome> = {
-    edgesX: outcome(
-      'edgesX',
-      unmatchedValues(d.edgesX, i.edgesX, tolerance.edgesX),
-      unmatchedValues(i.edgesX, d.edgesX, tolerance.edgesX),
-    ),
-    edgesY: outcome(
-      'edgesY',
-      unmatchedValues(d.edgesY, i.edgesY, tolerance.edgesY),
-      unmatchedValues(i.edgesY, d.edgesY, tolerance.edgesY),
-    ),
-    fontSize: outcome(
-      'fontSize',
-      unmatchedValues(d.fontSize, i.fontSize, tolerance.fontSize),
-      unmatchedValues(i.fontSize, d.fontSize, tolerance.fontSize),
-    ),
-    // One-directional: an implementation spacing value can only ever EXPLAIN a
-    // design value, never fail on its own — UA-stylesheet margins on h1/p/ul and
-    // negative gutters are unrepresentable in pen, so counting them would fail
-    // real UI deterministically.
-    spacing: outcome('spacing', unmatchedValues(d.spacing, i.spacing, tolerance.spacing), []),
+  // Both directions for every family EXCEPT spacing: an implementation spacing
+  // value can only ever EXPLAIN a design value, never fail on its own —
+  // UA-stylesheet margins on h1/p/ul and negative gutters are unrepresentable in
+  // pen, so counting them would fail real UI deterministically.
+  const sides: FamilyRecord<{ design: number[]; impl: number[]; twoWay: boolean }> = {
+    edgesX: { design: d.edgesX, impl: i.edgesX, twoWay: true },
+    edgesY: { design: d.edgesY, impl: i.edgesY, twoWay: true },
+    fontSize: { design: d.fontSize, impl: i.fontSize, twoWay: true },
+    spacing: { design: d.spacing, impl: i.spacing, twoWay: false },
   };
+  const families = Object.fromEntries(
+    GEOMETRY_FAMILIES.map((family) => {
+      const { design: dv, impl: iv, twoWay } = sides[family];
+      const designOnly = unmatchedValues(dv, iv, tolerance[family]);
+      const implOnly = twoWay ? unmatchedValues(iv, dv, tolerance[family]) : [];
+      return [
+        family,
+        {
+          unmatched: designOnly.length + implOnly.length,
+          budget: budget[family],
+          designOnly,
+          implOnly,
+        },
+      ];
+    }),
+  ) as FamilyRecord<FamilyOutcome>;
   const anyOverBudget = GEOMETRY_FAMILIES.some((f) => families[f].unmatched > families[f].budget);
   return { verdict: anyOverBudget ? 'fail' : 'pass', families };
 }

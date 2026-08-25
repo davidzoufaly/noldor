@@ -9,6 +9,7 @@ import { readFile } from 'node:fs/promises';
 
 import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
+import { stdoutEmit, type Emit } from './geometry-cli-emit.js';
 import { parseGeometryDoc, type GeometrySide } from './geometry-doc.js';
 
 const LABEL = 'geometry-validate';
@@ -26,7 +27,7 @@ const VALUE_FLAGS = ['--side', '--surface'] as const;
  */
 export async function runGeometryValidate(
   argv: readonly string[],
-  emit: (line: string) => void = (l) => process.stdout.write(`${l}\n`),
+  emit: Emit = stdoutEmit,
 ): Promise<number> {
   const read = readValueFlags(argv, VALUE_FLAGS, LABEL);
   if (!read.ok) {

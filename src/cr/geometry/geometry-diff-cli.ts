@@ -8,6 +8,7 @@ import { readFile } from 'node:fs/promises';
 
 import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
+import { stdoutEmit, type Emit } from './geometry-cli-emit.js';
 import {
   compareGeometry,
   DEFAULT_BUDGET,
@@ -30,7 +31,7 @@ const list = (xs: readonly number[]): string => xs.map((v) => v.toFixed(2)).join
  */
 export async function runGeometryDiff(
   argv: readonly string[],
-  emit: (line: string) => void = (l) => process.stdout.write(`${l}\n`),
+  emit: Emit = stdoutEmit,
 ): Promise<number> {
   const read = readValueFlags(argv, ['--surface'], LABEL);
   if (!read.ok) {
