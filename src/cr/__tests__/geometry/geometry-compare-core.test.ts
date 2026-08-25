@@ -50,3 +50,27 @@ describe('extractFamilies', () => {
     expect(f).toEqual({ edgesX: [], edgesY: [], fontSize: [], spacing: [] });
   });
 });
+
+import { clusterValues } from '../../geometry/geometry-compare-core.js';
+
+describe('clusterValues', () => {
+  it('collapses exact duplicates and clusters within tolerance', () => {
+    expect(clusterValues([24, 24, 25, 40], 2)).toEqual([
+      { rep: 24.5, values: [24, 25] },
+      { rep: 40, values: [40] },
+    ]);
+  });
+
+  it('starts a new cluster only past the tolerance', () => {
+    expect(clusterValues([10, 12, 14.1], 2).map((c) => c.values)).toEqual([[10, 12], [14.1]]);
+  });
+
+  it('uses the arithmetic mean as the representative for an even-sized cluster', () => {
+    expect(clusterValues([10, 11], 2)[0].rep).toBe(10.5);
+  });
+
+  it('sorts negatives correctly and handles the empty list', () => {
+    expect(clusterValues([-4, 8, -4], 1).map((c) => c.rep)).toEqual([-4, 8]);
+    expect(clusterValues([], 2)).toEqual([]);
+  });
+});

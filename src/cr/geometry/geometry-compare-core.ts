@@ -51,3 +51,34 @@ export function extractFamilies(doc: GeometryDoc): FamilyValues {
   }
   return out;
 }
+
+/** One cluster of within-tolerance values and its representative. */
+export interface Cluster {
+  rep: number;
+  values: number[];
+}
+
+/**
+ * Single-linkage clustering (spec D6 stage 1): exact duplicates collapse, the
+ * list sorts ascending, and a new cluster starts whenever the next value
+ * exceeds the previous one by MORE than the tolerance. The representative is
+ * the arithmetic mean — named explicitly because "median" is ambiguous for an
+ * even-sized cluster, and at a 1px tolerance that ambiguity flips match
+ * outcomes.
+ */
+export function clusterValues(values: readonly number[], tolerance: number): Cluster[] {
+  const sorted = [...new Set(values)].sort((a, b) => a - b);
+  const out: Cluster[] = [];
+  let current: number[] = [];
+  for (const v of sorted) {
+    if (current.length > 0 && v - current[current.length - 1] > tolerance) {
+      out.push({ rep: mean(current), values: current });
+      current = [];
+    }
+    current.push(v);
+  }
+  if (current.length > 0) out.push({ rep: mean(current), values: current });
+  return out;
+}
+
+const mean = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
