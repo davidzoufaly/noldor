@@ -24,10 +24,12 @@ signal-to-noise is worst on real UI.
 ## Goals
 
 - A second mechanical comparison lane, `geometry-compare`, that reports layout drift between the
-  session's `.pen` design and the booted implementation: element alignment, font sizes, and
-  spacing (margins/paddings/gaps).
+  session's `.pen` design and the booted implementation: element alignment, font sizes, and declared
+  spacing (gap/padding, plus margin on the implementation side).
 - Deterministic and unpaintable: the verdict must not move when colors, effects, images, or
-  antialiasing change, and must move when a box shifts or text resizes.
+  antialiasing change, and must move when the *population of layout values* drifts — a new alignment
+  value, a changed font size, a spacing value the design never declared. It is explicitly not a
+  per-element position check; see the localization limit in Risks.
 - Reuses the design-lane skeleton already in place — `openDesignReviewRound`, `pen-scratch`
   integrity, `bootServer`/`resolvePort`, `writeFailByMode`, the closed `LaneReasonCode` vocabulary —
   so it is a sibling of `render-compare`, not a second framework.
@@ -75,110 +77,182 @@ The lane needs, per surface, the same boot information `render-compare` needs pl
 capture command, so it extends the existing `UiBootRecipeSchema` in
 [`src/core/consumer-config.ts`](../../../src/core/consumer-config.ts) rather than adding a parallel
 `consumer.uiGeometry` block: an optional `geometryCommand` template (placeholders `{url}`, `{out}`,
-`{width}`, `{height}`, validated by the same `screenshotTemplateIssues` quoting contract in
-[`src/core/ui-boot.ts`](../../../src/core/ui-boot.ts)) plus optional per-family `geometryTolerance`
-and `geometryBudget` objects. One recipe per surface then serves both lanes — `route`,
-`verifyCommand`, and `page` are identical inputs, and a consumer opting into both should not restate
-them. A surface with a recipe but no `geometryCommand` is `no-geometry-recipe`, never a pass.
+`{width}`, `{height}`) plus optional per-family `geometryTolerance` and `geometryBudget` objects. One
+recipe per surface then serves both lanes — `route`, `verifyCommand`, and the optional `page`
+selector are identical inputs, and a consumer opting into both should not restate them.
+
+Two existing-schema consequences follow, and both are in scope. First, `screenshotCommand` becomes
+**optional**: a consumer running only `geometry-compare` has no screenshot tool to name, and the
+schema must not force one. The recipe instead has to carry at least one capture command, and
+`render-compare` reports `no-boot-recipe` for a surface whose recipe omits `screenshotCommand` — the
+same row it already emits for a surface with no recipe at all, for the same reason (nothing to
+capture with). Symmetrically, a recipe without `geometryCommand` is `no-geometry-recipe` for this
+lane, never a pass. Second, template validation reuses `screenshotTemplateIssues` in
+[`src/core/ui-boot.ts`](../../../src/core/ui-boot.ts) — the quoting contract is identical — but all
+six of its messages hardcode the string `screenshotCommand`, so the helper takes the field label as a
+parameter. Reusing it as-is would reject a bad `geometryCommand` while naming the wrong config key.
 
 The command's contract is: render the route in the consumer's own browser tool and write a
-`geometryDocSchema` document to `{out}` (D4). Satisfying that schema by hand is a real ask — visibility
-filtering, device pixel ratio 1, computed `gap`/`padding` — so unlike `screenshotCommand`, the
-framework ships a reference producer: `templates/scripts/geometry-capture.mjs`, a documented
-Playwright walk that `init` lands at the consumer's `scripts/geometry-capture.mjs`. It is a
-**scaffold-only** template (`SCAFFOLD_ONLY_TEMPLATES` in
-[`src/templates/manifest.ts`](../../../src/templates/manifest.ts)), not a synced twin, because every
-real app needs its own waits and auth steps there and a synced twin would turn each of those into a
-`template-sync` red. The browser dependency stays entirely in the consumer's `package.json`.
+`geometryDocSchema` document to `{out}` (D4). Satisfying that schema by hand is a real ask — the
+capture root, the visibility filter, device pixel ratio 1, computed `gap`/`padding`/`margin`
+normalization — so unlike `screenshotCommand`, the framework ships a reference producer:
+`templates/scripts/geometry-capture.mjs`, a documented Playwright walk that `init` lands at the
+consumer's `scripts/geometry-capture.mjs`. It is a **scaffold-only** template
+(`SCAFFOLD_ONLY_TEMPLATES` in [`src/templates/manifest.ts`](../../../src/templates/manifest.ts)), not
+a synced twin, because every real app needs its own waits and auth steps there and a synced twin
+would turn each of those into a `template-sync` red. The browser dependency stays entirely in the
+consumer's `package.json`.
 
 ### D3 — Design-side geometry extraction
 
 Pencil `.pen` files are encrypted and pencil MCP is the only reader, so the design side is a
 dispatched child exactly like `render-export-dispatch.ts`: a new
 `src/cr/lanes/geometry-extract-dispatch.ts` built on `createDispatcherSeam`, reusing
-`penBridgeRecipe` for the bridge-wake recipe and the same "child ENUMERATES, Node SELECTS" split.
-The child opens the scratch copy, resolves each surface's `FINAL:` page via the candidates it
-reports (`selectFinalPage` re-runs Node-side), and reads geometry with one visitor pass:
-`Get(pageId, (n, c) => ({ id: n.id, name: n.name, type: n.type, b: c.bounds, fs: n.fontSize,
-gap: n.gap, pad: n.padding }), { resolveVariables: true })`.
+`penBridgeRecipe` for the bridge-wake recipe and the same "child ENUMERATES, Node SELECTS" split for
+`FINAL:` page resolution (`selectFinalPage` re-runs Node-side over the child's reported candidates).
 
-The pencil API supports this directly, and a raw schema read would not have: per
+The pencil API supports the read directly, and a raw schema read would not have: per
 `read_skill('pen-schema.md')`, an entity's own `x`/`y` are ignored when its parent uses flex layout
-and `width`/`height` may be `fit_content`, `fill_container`, or a `$variable` — so declared position
-and size are not geometry. What is geometry is the visitor context: `read_skill('execute.md')`
-documents `Ctx.bounds` as the *resolved* bounds in the parent's coordinate space, with `Ctx.parentCtx`
-walkable for the absolute frame, `Ctx.depth`/`Ctx.index` for structure, and `Ctx.problems`
-(`"partially clipped" | "fully clipped"`) as pen's own overflow verdict. `resolveVariables: true`
-turns `$`-bound font sizes and gaps into numbers. Spacing on the design side is `gap` and `padding`
-only — pen has no `margin` property at all — which is why D5 treats observed gaps, not box-model
-values, as the comparable quantity.
+and `width`/`height` may be `fit_content`, `fill_container`, or a `$variable` — declared position and
+size are not geometry. What is geometry is the visitor context: `read_skill('execute.md')` documents
+`Ctx.bounds` as the *resolved* bounds **in the parent's coordinate space**, so absolutization is the
+visitor's job and has to happen inside the callback — the returned records carry no parent handle, so
+nothing downstream could do it:
+
+```js
+const abs = (c) => { let x = 0, y = 0; for (let k = c; k; k = k.parentCtx) { x += k.bounds.x; y += k.bounds.y; } return { x, y }; };
+Get(pageId, (n, c) => { const o = abs(c); return { id: n.id, name: n.name, type: n.type,
+  x: o.x, y: o.y, w: c.bounds.width, h: c.bounds.height,
+  fontSize: n.fontSize, layout: n.layout, gap: n.gap, padding: n.padding }; }, { resolveVariables: true })
+```
+
+The accumulated origin is canvas-absolute, so the child subtracts the `FINAL:` page node's own
+accumulated origin from every node, making all boxes **page-relative** — the same origin the
+implementation side reports (D4). The page node's own `width`/`height` become the document's viewport
+and the `{width}`/`{height}` substituted into `geometryCommand`, mirroring how `render-compare` sizes
+a screenshot from the exported design raster. `resolveVariables: true` turns `$`-bound font sizes and
+gaps into numbers; `Ctx.problems` (`"partially clipped" | "fully clipped"`) rides along as a `notes`
+line, since a clipped design node means the design itself is broken and its box is not a target worth
+matching.
 
 ### D4 — The normalized geometry document
 
 One zod schema, `geometryDocSchema`, shared by both sides and validated at both boundaries (untrusted
-child output; untrusted consumer-command output). Per surface: a viewport `{width, height}` and a flat
-array of nodes, each `{name?, kind, box: {x, y, w, h}, fontSize?, text?}` in CSS pixels with the
-surface's top-left as origin. The design side fills it from the `Get` visitor pass in D3 — `ctx.bounds`
-is parent-relative, so the child walks `ctx.parentCtx` to absolutize before reporting — and the
-implementation side fills it from the consumer's browser command. Two measurement engines, one
-contract; the design side is pen's own resolved layout, with nothing translating it on the way to the
-verdict. `name` is carried because pen supplies it per node, which is what keeps the per-element
-pairing upgrade (D5's deferred half) open without a schema change.
+child output; untrusted consumer-command output):
+
+```ts
+{ surface: string,
+  viewport: { width: number, height: number },
+  families: { edges: boolean, fontSize: boolean, spacing: boolean },   // what this side could supply
+  nodes: Array<{
+    name?: string,
+    kind: 'text' | 'container' | 'shape',
+    box: { x: number, y: number, w: number, h: number },              // page-relative CSS px, dpr 1
+    fontSize?: number,                                                // kind 'text' only
+    text?: string,
+    spacing?: { rowGap?: number, columnGap?: number,
+                padding?: [number, number, number, number],           // top right bottom left
+                margin?: [number, number, number, number] } }> }      // implementation side only
+```
+
+`spacing` is what the earlier draft omitted, which made D5's spacing family unbuildable; it is
+carried per node and normalized identically on both sides so the two quantize the same quantity. Pen
+declares `gap` on the main axis only, so it maps to `rowGap` under `layout: "vertical"` and
+`columnGap` under `layout: "horizontal"`; pen `padding` arrives as a number, `[v, h]`, or
+`[t, r, b, l]` and always lands as the four-tuple. On the implementation side `row-gap`/`column-gap`
+of `normal` are omitted, the four padding and margin sides are read individually, and negative
+margins are kept signed. **Zero values are omitted on both sides, never recorded as `0`** — otherwise
+`getComputedStyle`'s ubiquitous `0px` would put a `0` spacing value in every implementation document
+and none in any design document. For the same reason `fontSize` is carried only on `kind: 'text'`
+nodes (design: pen `type: "text"`; implementation: an element with a direct non-whitespace text
+child), so an inherited root font-size on wrapper elements never enters the population.
+
+`families` is how a side declares what it *could* supply, which is what makes AC 11's family-skip
+representable: a design with no text nodes reports `fontSize: false`, distinguishable from a design
+that has text but happens to use one size. `viewport` must match between the two documents within 1px
+or the surface is `viewport-mismatch` — comparing a 1440-wide design against a 1280-wide capture
+produces edge drift that is entirely an artifact of the mismatch.
 
 Flat, not a tree: the comparison in D6 is population-based, so parentage buys nothing and a tree
-invites the two sides to disagree about nesting that neither renders. Both sides must agree on scale
-(device pixel ratio 1). What they cannot agree on is node count — a DOM carries wrappers and text
-spans that have no design counterpart, so the implementation side reports an order of magnitude more
-nodes than the design side. That asymmetry is why D5 compares derived feature populations rather than
-nodes, and why the impl-side filtering rule (exclude zero-area, `visibility:hidden`, and
-`display:contents` elements at minimum) is a boundary rule the schema documents rather than a
-heuristic the consumer improvises.
+invites the two sides to disagree about nesting that neither renders. What the two sides cannot agree
+on is node count — a DOM carries wrappers and text spans with no design counterpart — so the
+implementation-side capture contract is a boundary rule the schema documents rather than a heuristic
+the producer improvises: capture root is the element the route renders into; exclude zero-area,
+`visibility: hidden`, `display: contents`, and `aria-hidden` subtrees; include SVG root elements but
+not their internal geometry (paths are paint, not layout); exclude pseudo-elements; report boxes from
+`getBoundingClientRect` **after** transforms, since that is what the viewer sees; and record the
+un-scrolled position by adding current scroll offsets back.
 
 ### D5 — Feature families, not element pairs
 
-From one geometry document the lane derives three quantized multisets, and the comparison in D6
+From one geometry document the lane derives three families of *values*, and the comparison in D6
 operates only on these. Each family uses the instrument that carries its signal most directly rather
 than deriving all three from one source:
 
-- **Alignment edges** — from resolved boxes: the multiset of left edges (`x`), right edges (`x + w`),
-  and the `y`/`y + h` equivalents, each quantized to a tolerance bucket. A design with three
-  left-aligned cards has one left-edge value; an implementation whose third card sits two pixels over
-  has two. Nothing else catches that — a mispositioned element declares no property to compare.
-- **Font sizes** — the multiset of distinct `fontSize` values over nodes that carry one. Both sides
-  report this natively (pen's `TextStyle.fontSize` with `resolveVariables`, `getComputedStyle`'s
-  `font-size`).
-- **Spacing** — from *declared* properties, not observed gaps: pen frames carry `gap` and `padding`,
-  while the DOM side reads `gap`, `padding` **and `margin`** off `getComputedStyle`. Pen has no
-  `margin` property at all, so an implementation that spaces two cards with `margin: 16px` where the
-  design declared `gap: 16` would otherwise show an unmatched bucket for a visually identical result.
-  Folding margin into the same population fixes that precisely because the comparison is over *values*,
-  not owners: the value 16 lands in both multisets regardless of which property carried it. An observed
-  sibling gap, by contrast, would conflate padding, margin, and wrapper boxes, and a DOM wrapper with
-  no design counterpart would invent buckets that read as drift.
+- **Alignment edges** — from resolved boxes, clustered **per axis** (a 24px left edge and a 24px top
+  edge are unrelated quantities): the x-axis family collects every node's `x` and `x + w`, the y-axis
+  family every `y` and `y + h`. A design with three left-aligned cards contributes one x value there;
+  an implementation whose third card sits two pixels over contributes a second. Nothing else catches
+  that — a mispositioned element declares no property to compare.
+- **Font sizes** — every `fontSize` on a `kind: 'text'` node. Both sides report this natively (pen's
+  `TextStyle.fontSize` with `resolveVariables`, `getComputedStyle`'s `font-size`), and D4's
+  text-node-only rule is what keeps inherited wrapper values out.
+- **Spacing** — from *declared* properties: `rowGap`, `columnGap`, and the four `padding` sides on
+  both sides, plus the four `margin` sides on the implementation side. Pen has no `margin` property
+  at all, so an implementation that spaces two cards with `margin: 16px` where the design declared
+  `gap: 16` would otherwise read as drift for a visually identical result. Folding margin into the
+  same population fixes that precisely because the comparison is over *values*, not owners: 16 lands
+  in both populations regardless of which property carried it. An observed sibling gap, by contrast,
+  would conflate padding, margin, and wrapper boxes, and a DOM wrapper with no design counterpart
+  would invent values that read as drift.
 
-This is the load-bearing choice of the whole spec: it produces a verdict with no element pairing, so
-it cannot mis-pair, and it is invariant to everything the design cannot paint — colors, effects,
-shaders, generated SVG. Its cost is localization: the lane reports "the implementation introduces a
-left edge at 26px that the design does not have", not "the third card is misaligned". The evidence
-artifact (D8) is what closes that gap, by listing the nodes sitting in each drifted bucket.
+Comparison is over the **set of distinct values** each side declares, never over how many nodes
+carry each one. That is forced by D4's node-count asymmetry: any count-sensitive comparison would
+mark nearly every value unmatched, because a DOM wrapper stack reuses its child's edges. It is also
+the load-bearing choice of the whole spec — a value-set verdict cannot mis-pair elements, and it is
+invariant to everything the design cannot paint (colors, effects, shaders, generated SVG), because
+none of those quantities appear in the document at all.
 
 ### D6 — Comparison and tolerances
 
-Per surface and per family: quantize both sides' values into buckets of the family's tolerance
-(defaults 2px for edges, 1px for font size, 1px for declared spacing — consumer-overridable per
-recipe), then compare the two bucket sets in both directions. An impl-only bucket and a design-only
-bucket both count as unmatched, and neither direction is droppable: the primary case — one card two
-pixels off while its siblings stay aligned — appears *only* as an impl-only edge bucket (the design's
-own 24px bucket is still matched by the other two cards), while a design-only bucket is how a
-specified value that the implementation never renders surfaces at all.
+Comparison is a two-stage rule per surface and per family, defined exactly so two implementations
+cannot disagree near a boundary:
 
-The surface fails when a family's unmatched-bucket count exceeds that family's budget, and the
-budgets differ because the noise floors do: `fontSize` and declared spacing default to **0** — both
-are small enumerable sets, so any unmatched value is real drift — while edges default to **2**, because
-dynamic content legitimately introduces edges the design never had (text wrap, a scrollbar,
-truncation). Severity comes from the unmatched count itself, `1-2` → `med` and `3+` → `high`, rather
-than from a multiple of the budget the way `severityForRatio` does it: at a budget of 0 the `2x` form
-degenerates to always-high.
+1. **Cluster** each side's values independently. Sort ascending, then start a new cluster whenever the
+   next value exceeds the previous value by more than the family's tolerance (single-linkage); a
+   cluster's representative is its median. Defaults: 2px for each edge axis, 1px for font size, 1px
+   for spacing — consumer-overridable per recipe. Negative values (margins) sort and cluster like any
+   other number.
+2. **Match** design clusters against implementation clusters greedily: consider all pairs whose
+   representatives differ by at most the tolerance, take them in ascending order of that difference
+   (ties broken by the lower representative), and consume each cluster at most once. Whatever is left
+   on either side is **unmatched** — impl-only means the implementation introduced a layout value the
+   design does not have, design-only means a specified value the implementation never renders. Both
+   directions count; the primary case (one card two pixels off while its siblings stay put) appears
+   *only* as an impl-only cluster, since the design's own 24px value is still matched by the other
+   two cards.
+
+Matching on representatives rather than on shared bucket indices is what removes the boundary
+artifact of a fixed grid: under bucketing, a design edge at 23.9 and an implementation edge at 24.1
+fall in adjacent buckets and read as two unmatched values despite a 0.2px difference, while 24.0 and
+25.9 match. Sub-pixel values are the norm on the implementation side (`getBoundingClientRect`, `rem`
+and `clamp` font sizes), so that artifact would fire routinely.
+
+A family fails when its unmatched count exceeds its budget, and **every budget defaults to 0**: with
+D4's zero-value and text-node rules removing the systematic noise, and the tolerance absorbing
+sub-pixel jitter, a leftover value is a real difference. Genuinely noisy surfaces raise the family's
+`geometryBudget` explicitly — an opt-in that says "this surface tolerates N unexplained layout
+values", which is a claim an operator should have to make rather than inherit as a default. Severity
+per failing family comes from its unmatched count, `1-2` → `med` and `3+` → `high` (the `med`/`high`
+spelling is `severitySchema`'s in
+[`src/cr/findings-schema.ts`](../../../src/cr/findings-schema.ts)), rather than from a multiple of the
+budget the way `severityForRatio` does it — at a budget of 0 the `2x` form degenerates to always-high.
+
+A family is **skipped**, not compared, when either side reports `families.<name>: false` — the side
+cannot supply it at all (a design with no text nodes has no font-size population). A skip is a `notes`
+line and takes no part in the verdict; the remaining families still decide it. An *empty* population
+from a side that declares the family supplied is not a skip: it means the values genuinely went away,
+and the other side's values land as unmatched.
 
 ### D7 — Per-surface outcomes and aggregation
 
@@ -194,80 +268,105 @@ The opening sequence is `openDesignReviewRound` from
 the mode key, so sink/mode/target-resolution/scratch-staging behavior cannot drift between the three
 design lanes.
 
-Five reason codes join `laneReasonCodeSchema`, one per pipeline stage that can decline:
-`no-geometry-recipe` (surface has no `geometryCommand`), `geometry-extract-failed` (the design-side MCP
-child), `geometry-capture-failed` (the consumer command — non-zero exit, timeout, or no output file),
-`geometry-unparseable` (either side's JSON failed `geometryDocSchema`), and `geometry-empty` (a side
-reported zero nodes, so no honest comparison exists). Existing codes carry over unchanged:
-`boot-failed`, `route-unreachable`, `page-ambiguous`, `config-unreadable`, `scratch-unavailable`,
-`persist-failed`, `dispatch-failed`, `pen-modified`.
+An ordinary layout mismatch carries **no reason code** — it is a `fail` verdict whose findings name
+the family, the unmatched values, and the evidence path, exactly as `render-compare` reports a
+`diffRatio` fail. A surface with several failing families emits one finding per family, and the whole
+round goes through `writeFailByMode`: blocking mode puts them in `blockers`, advisory mode in
+`suggestions` with a passing exit, which is the same matrix the two sibling lanes use. Reason codes
+exist only for rounds that could not compare, and six join `laneReasonCodeSchema`, one per stage that
+can decline: `no-geometry-recipe` (no `geometryCommand`), `geometry-extract-failed` (the design-side
+MCP child), `geometry-capture-failed` (the consumer command — non-zero exit, timeout, or no output
+file), `geometry-unparseable` (either side's JSON failed `geometryDocSchema`), `geometry-empty`
+(**either** side reported zero nodes, so there is nothing to compare against), and
+`viewport-mismatch`. Existing codes carry over unchanged: `boot-failed`, `route-unreachable`,
+`page-ambiguous`, `config-unreadable`, `scratch-unavailable`, `persist-failed`, `dispatch-failed`,
+`pen-modified`.
 
 ### D8 — Evidence artifacts
 
-Per round, `.noldor/cr/geometry-compare/<slug>/<surface>.design.json` and `<surface>.impl.json` hold
-both normalized documents, and `<surface>.report.json` holds the per-family bucket comparison:
-for every unmatched bucket, its family, its value, which side it came from, and the nodes sitting in
-it (`name`, `kind`, box, and text where present). That node list is the substitute for element
-pairing — a bucket count is only actionable if the operator can see which nodes produced it, and the
-design side supplies pen's own layer names, which is usually enough to recognise the component.
+Per round, `.noldor/cr/geometry-compare/<slug>/<sanitized>.design.json` and `<sanitized>.impl.json`
+hold both normalized documents, and `<sanitized>.report.json` holds the per-family comparison: every
+cluster on both sides with its representative and members, and for each unmatched cluster its family,
+its representative, which side it came from, and the nodes that produced it (`name`, `kind`, box, and
+text where present). `<sanitized>` is `sanitizeSurfaceName` from
+[`src/core/ui-boot.ts`](../../../src/core/ui-boot.ts), the same helper `render-compare` joins with
+(`render-compare.ts` artifact paths) and the reason its collision check exists: surface names are
+consumer-config record keys, so an unsanitized join would let a `/` or `..` in a key write outside the
+round's directory.
 
-Persistence reuses `render-compare`'s atomic tmp/trash swap and its rule that a round producing no
-documents must leave the prior round's evidence in place: the images-vs-JSON difference does not change
-either property. A round whose evidence could not be persisted terminates `persist-failed` rather than
-reading as a clean verdict, for the same reason — an unauditable verdict is not a verdict.
+That node list is the substitute for element pairing — an unmatched-value count is only actionable if
+the operator can see which nodes produced it, and the design side supplies pen's own layer names,
+which is usually enough to recognise the component. Persistence reuses `render-compare`'s atomic
+tmp/trash swap and its rule that a round producing no documents must leave the prior round's evidence
+in place; a round whose evidence could not be persisted terminates `persist-failed` rather than
+reading as a clean verdict, since an unauditable verdict is not a verdict.
 
 ## Acceptance criteria
 
-1. `geometry-compare` is a valid `crLanes.code` lane and its sink lands at
+1. `geometry-compare` is a valid `crLanes.code` lane, `geometryCompareMode` reads `blocking |
+   advisory` with a fail-soft `advisory` default, and the sink lands at
    `.noldor/cr/<slug>-code-geometry-compare.json` in the standard `LaneFindings` shape.
-2. `geometryCompareMode` reads `blocking | advisory` with the same fail-soft `advisory` default as the
-   sibling knobs, and `pnpm noldor validate noldor-config` accepts/rejects it accordingly.
-3. A `geometryCommand` template missing a required placeholder, or containing a quote, is rejected at
-   `validate noldor-config` time; a recipe without `geometryCommand` yields a `no-geometry-recipe` row
-   and the round never aggregates to `pass` on it.
-4. The design side reports resolved absolute boxes: a node inside a `layout: vertical` frame — whose
-   own `x`/`y` pen ignores — still lands with the box `ctx.bounds` resolved for it.
-5. Either side's output failing `geometryDocSchema` yields `geometry-unparseable` for that surface, and
-   both sides reporting zero nodes yields `geometry-empty` — never a comparison against a partial
-   document, never a `pass`.
-6. Two documents differing only in colors, effects, and image content compare `pass`.
-7. Moving one node's left edge past the edge tolerance while its siblings stay put produces a `fail`
-   naming that impl-only edge bucket and the nodes in it.
-8. A design-only bucket (a specified value the implementation never renders) also counts as unmatched
-   and can fail its family.
-9. Per-family budgets hold: one unmatched `fontSize` or declared-spacing bucket fails, while two
-   unmatched edge buckets do not.
-10. Severity derives from the unmatched count — `1-2` → `med`, `3+` → `high` — including when a
-    family's budget is 0.
-11. A family the design side cannot supply is skipped for that surface with a `notes` line, and the
-    remaining families still decide the verdict.
-12. The design file's hash changing during the round yields `pen-modified` regardless of every other
-    outcome, and a round that produced no geometry documents leaves the prior round's evidence intact.
+2. A `geometryCommand` template missing a required placeholder, or containing a quote, is rejected by
+   `validate noldor-config` **naming `geometryCommand`**; a recipe with neither capture command is
+   rejected; a recipe with only `geometryCommand` validates, and `render-compare` reports
+   `no-boot-recipe` for that surface while a recipe with only `screenshotCommand` yields
+   `no-geometry-recipe` here.
+3. The design side reports resolved, page-relative boxes: a node inside a `layout: vertical` frame —
+   whose own `x`/`y` pen ignores — lands with its `ctx.bounds` accumulated up the ancestor chain and
+   the page origin subtracted.
+4. Normalization holds on both sides: pen `gap` under a vertical layout becomes `rowGap`, pen
+   `padding: 8` becomes `[8,8,8,8]`, computed `row-gap: normal` is omitted, and a zero padding side is
+   omitted rather than recorded as `0`.
+5. `fontSize` is carried only for text-bearing nodes, so a wrapper element's inherited computed
+   `font-size` never enters the font-size family.
+6. Either side failing `geometryDocSchema` yields `geometry-unparseable`; either side reporting zero
+   nodes yields `geometry-empty`; viewports differing by more than 1px yield `viewport-mismatch` —
+   each a `cannot-review`, never a comparison and never a `pass`.
+7. Clustering and matching are exact: values 23.9 and 24.1 match at tolerance 2 (representatives
+   within tolerance), while 24.0 and 26.5 do not, and each cluster is consumed at most once.
+8. Moving one node's left edge past the edge tolerance while its siblings stay put fails the x-edge
+   family at the default budget of 0, and the finding names the unmatched representative and the nodes
+   in it.
+9. A design-only value (a declared font size the implementation never renders) also counts as
+   unmatched and fails its family.
+10. A surface whose recipe sets `geometryBudget.edges` to 2 passes with two unmatched edge clusters and
+    fails with three, and severity is `med` at one or two unmatched and `high` at three or more.
+11. A family a side reports as `families.<name>: false` is skipped with a `notes` line and takes no
+    part in the verdict, while an empty population from a side that declares the family supplied
+    leaves the other side's values unmatched.
+12. Adding a wrapper element that shares its child's box introduces no unmatched value; the design
+    file's hash changing during the round yields `pen-modified` regardless of every other outcome; and
+    a round that produced no documents leaves the prior round's evidence intact.
 
 ## Risks / trade-offs
 
-Population comparison trades localization for robustness. An operator reading a fail sees which layout
-value drifted, not which component owns it; D8's per-bucket node listing is a partial substitute, and
-the full fix — per-element pairing — needs a naming convention on the implementation side that this
-spec deliberately defers. The upgrade path is already open: the design document carries pen's layer
-names, so pairing becomes a comparison rule rather than a schema change.
+Value-set comparison has a blind spot, and it is the direct price of needing no element pairing: a
+node that relocates onto an alignment value the surface already uses moves no value into or out of
+either set, so the verdict does not change. Moving a card from the left column to the right column of
+the same grid is invisible; moving it two pixels off that column is caught. The lane therefore claims
+drift in the *population of layout values*, not per-element position — which is why the Goals say so
+explicitly rather than promising that any box shift moves the verdict. The upgrade that closes it is
+per-element pairing, and it is already half-built: the document carries pen's layer names, so pairing
+becomes a comparison rule plus an implementation-side tagging convention, not a schema change.
+
+Localization is the second cost. An operator reading a fail sees which layout value drifted, not which
+component owns it; D8's per-cluster node listing (names, boxes, text) is the substitute.
 
 Declared spacing is the family most exposed to a modeling mismatch. Folding `margin` into the
-implementation side neutralizes the pen-has-no-margin asymmetry for equal values, but a design that
-declares `gap: 16` against an implementation that produces the same visual rhythm from `gap: 8` plus
-`padding: 8` still reads as two unmatched buckets. That is a true report of a real difference in how
-the spacing is composed, and an operator who does not care can raise the family's budget — but it will
-be the most common source of arguable fails.
+implementation side neutralizes the pen-has-no-margin asymmetry for equal values, but a design
+declaring `gap: 16` against an implementation composing the same rhythm from `gap: 8` plus
+`padding: 8` still reads as unmatched. That is a true report of a real difference in how the spacing is
+composed, and an operator who does not care raises that family's budget — but it will be the most
+common source of arguable fails.
 
 Two mechanical design lanes both boot the app, so a consumer running `render-compare` and
-`geometry-compare` together pays two boot cycles per round. Sharing one boot across lanes needs
-orchestrate-level coordination the lane API does not have today; the cost is accepted and named.
+`geometry-compare` together pays two boot cycles per round. Sharing one boot needs orchestrate-level
+coordination the lane API does not have today; the cost is accepted and named.
 
 The reference capture script is scaffold-only, so a consumer's copy drifts from the framework's as
-soon as they add their waits — by design, but it means a later schema change to `geometryDocSchema`
-cannot be delivered by `init --update`. Schema evolution therefore has to stay additive, and the
-boundary validation is what turns a stale producer into an explicit `geometry-unparseable` rather than
-a wrong comparison.
+soon as they add their waits — by design, but a later `geometryDocSchema` change cannot be delivered
+by `init --update`. Schema evolution therefore stays additive, and the boundary validation is what
+turns a stale producer into an explicit `geometry-unparseable` rather than a wrong comparison.
 
 ## User Story
 
@@ -277,31 +376,36 @@ implementation, so that I get a real layout-drift signal instead of a pixel-diff
 
 ## Usage
 
-Opt in per repo, alongside or instead of `render-compare`:
+Opt in per repo, alongside or instead of `render-compare` (this example runs geometry only, so it
+declares no `screenshotCommand`):
 
 ```jsonc
 {
   "crLanes": { "code": ["reviewer", "geometry-compare"] },
   "autonomous": { "geometryCompareMode": "advisory" },
   "consumer": {
+    "uiPaths": ["src/app/**", "src/components/**"],
+    "uiSurfaces": { "dashboard": ["src/app/dashboard/**"] },
     "uiBoot": {
       "dashboard": {
         "verifyCommand": "dev",
         "route": "/dashboard",
-        "screenshotCommand": "pnpm shot {url} {out} {width} {height}",
+        "page": "overview",
         "geometryCommand": "node scripts/geometry-capture.mjs {url} {out} {width} {height}",
-        "geometryTolerance": { "edges": 2, "fontSize": 1, "spacing": 1 },
-        "geometryBudget": { "edges": 2, "fontSize": 0, "spacing": 0 }
+        "geometryTolerance": { "edgesX": 2, "edgesY": 2, "fontSize": 1, "spacing": 1 },
+        "geometryBudget": { "edgesX": 0, "edgesY": 0, "fontSize": 0, "spacing": 0 }
       }
     }
   }
 }
 ```
 
-`scripts/geometry-capture.mjs` is scaffolded by `noldor init` and is yours to edit — add the waits and
-auth your app needs. Sink: `.noldor/cr/<slug>-code-geometry-compare.json`. Evidence:
-`.noldor/cr/geometry-compare/<slug>/<surface>.report.json`, which lists the nodes sitting in each
-unmatched bucket — open it before arguing with a bucket count.
+`uiSurfaces` is what makes the surface affected by a diff, `page` selects among several
+`FINAL:dashboard: <name>` design pages, and `scripts/geometry-capture.mjs` is scaffolded by
+`noldor init` and yours to edit — add the waits and auth your app needs. Sink:
+`.noldor/cr/<slug>-code-geometry-compare.json`. Evidence:
+`.noldor/cr/geometry-compare/<slug>/<surface>.report.json`, which lists the nodes behind every
+unmatched value — open it before arguing with a count.
 
 ## Open questions (resolved)
 
@@ -314,10 +418,12 @@ unmatched bucket — open it before arguing with a bucket count.
 2. *Is the population comparison of D5 enough, or does the lane need element pairing?* -> Population
    first, pairing deferred. Pairing needs a naming convention on both sides and cannot be added
    honestly without it.
-3. *Count-based or ratio-based failure predicate?* -> A per-family unmatched-bucket count with
-   per-family budgets (D6). A count is legible in a sink line; a ratio needs the design's bucket count
-   to interpret and hair-triggers on small designs. One uniform budget is rejected separately: the
-   three families have different noise floors.
+3. *Count-based or ratio-based failure predicate?* -> A per-family unmatched-cluster count against a
+   per-family budget, every budget defaulting to 0 (D6). A count is legible in a sink line; a ratio
+   needs the design's own cluster count to interpret and hair-triggers on small designs. The budgets
+   default to 0 rather than to a noise allowance because D4's zero-value and text-node rules remove the
+   systematic noise at the source — an allowance would instead have to be large enough to swallow
+   `getComputedStyle`'s `0px` and inherited font sizes, which is large enough to swallow real drift.
 4. *Does the lane share `render-compare`'s boot when both run?* -> No. Accepted double boot; sharing
    needs orchestrate-level coordination outside this scope.
 5. *Lane name — `geometry-compare` or `layout-compare`?* -> `geometry-compare`, because the compared
@@ -329,3 +435,10 @@ unmatched bucket — open it before arguing with a bucket count.
    implementation tagged, which no export format supplies. The symmetric option therefore buys one
    measurement engine in exchange for an unproven pen-to-HTML translation between the design and its
    own verdict, plus a static server for the export.
+7. *`screenshotCommand` is required today — what happens to a geometry-only consumer?* -> It becomes
+   optional, with a recipe having to carry at least one capture command (D2), and `render-compare`
+   reporting `no-boot-recipe` for a surface that omits it. Forcing a screenshot tool on a consumer who
+   does not run the pixel lane is config theatre.
+8. *Does clustering + greedy matching need a stable tie-break?* -> Yes, and it is specified (D6):
+   candidate pairs are taken in ascending order of representative difference, ties broken by the lower
+   representative. Without it two runs over the same documents could report different unmatched sets.
