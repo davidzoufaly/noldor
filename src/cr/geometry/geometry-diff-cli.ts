@@ -6,7 +6,7 @@
 
 import { readFile } from 'node:fs/promises';
 
-import { optionalFlag, runIfDirect } from '../../core/cli-entry.js';
+import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
 import {
   compareGeometry,
@@ -29,28 +29,13 @@ export async function runGeometryDiff(
   argv: readonly string[],
   emit: (line: string) => void = (l) => process.stdout.write(`${l}\n`),
 ): Promise<number> {
-  const read = optionalFlag(argv, '--surface', LABEL);
+  const read = readValueFlags(argv, ['--surface'], LABEL);
   if (!read.ok) {
-    emit(read.error);
+    emit(`${read.error}\n${USAGE}`);
     return 2;
   }
-  // `optionalFlag` does not check the value's SHAPE, so a forgotten value
-  // (`--surface --zoom`) would otherwise be accepted as the surface name.
-  if (read.value !== undefined && read.value.startsWith('--')) {
-    emit(`${LABEL}: --surface requires a value\n${USAGE}`);
-    return 2;
-  }
-  // Positionals by INDEX, not by value — part 1's suite pins that rule.
-  const consumedIdx = new Set<number>();
-  const flagIdx = argv.indexOf('--surface');
-  if (flagIdx >= 0) consumedIdx.add(flagIdx).add(flagIdx + 1);
-  const positional = argv.filter((a, i) => !consumedIdx.has(i));
-  const unknownFlag = positional.find((a) => a.startsWith('--'));
-  if (unknownFlag !== undefined) {
-    emit(`${LABEL}: unknown flag ${unknownFlag}\n${USAGE}`);
-    return 2;
-  }
-  const surface = read.value;
+  const { positional } = read;
+  const surface = read.values.get('--surface');
   // Required: defaulting it to a document's own claim self-satisfies the check.
   if (positional.length !== 2 || surface === undefined) {
     emit(USAGE);

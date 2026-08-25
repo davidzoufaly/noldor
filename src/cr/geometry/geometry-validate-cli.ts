@@ -7,7 +7,7 @@
 
 import { readFile } from 'node:fs/promises';
 
-import { optionalFlag, runIfDirect } from '../../core/cli-entry.js';
+import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
 import { parseGeometryDoc, type GeometrySide } from './geometry-doc.js';
 
@@ -28,35 +28,12 @@ export async function runGeometryValidate(
   argv: readonly string[],
   emit: (line: string) => void = (l) => process.stdout.write(`${l}\n`),
 ): Promise<number> {
-  const values = new Map<string, string>();
-  for (const flag of VALUE_FLAGS) {
-    const read = optionalFlag(argv, flag, LABEL);
-    if (!read.ok) {
-      emit(read.error);
-      return 2;
-    }
-    // `optionalFlag` deliberately does not check the value's shape, so a
-    // forgotten value (`--surface --side impl`) would otherwise swallow the
-    // NEXT FLAG's name as the surface. Reject flag-shaped values here.
-    if (read.value !== undefined && read.value.startsWith('--')) {
-      emit(`${LABEL}: ${flag} requires a value\n${USAGE}`);
-      return 2;
-    }
-    if (read.value !== undefined) values.set(flag, read.value);
-  }
-  // Positionals are found by INDEX, not by value: a path whose text equals a
-  // flag's value must not be swallowed as that value's twin.
-  const consumedIdx = new Set<number>();
-  for (const flag of VALUE_FLAGS) {
-    const i = argv.indexOf(flag);
-    if (i >= 0) consumedIdx.add(i).add(i + 1);
-  }
-  const positional = argv.filter((a, i) => !consumedIdx.has(i));
-  const unknownFlag = positional.find((a) => a.startsWith('--'));
-  if (unknownFlag !== undefined) {
-    emit(`${LABEL}: unknown flag ${unknownFlag}\n${USAGE}`);
+  const read = readValueFlags(argv, VALUE_FLAGS, LABEL);
+  if (!read.ok) {
+    emit(`${read.error}\n${USAGE}`);
     return 2;
   }
+  const { values, positional } = read;
   const side = values.get('--side');
   const surface = values.get('--surface');
   // `--surface` is REQUIRED: defaulting it to whatever the document claims would
