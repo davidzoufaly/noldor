@@ -40,7 +40,7 @@ links:
 name: UI-Design Review Lane
 packages:
   - package.json
-phase: in-progress
+phase: done
 since: 2026-08-19T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
@@ -122,7 +122,7 @@ Both take normalized geometry documents (`geometryDocSchema` in [`src/cr/geometr
 - **`fontSize`** — values from text-bearing nodes only, so an inherited wrapper `font-size` never enters the population.
 - **`spacing`** — declared `rowGap`/`columnGap`/`padding`, compared **design-only**: an implementation `margin: 16` can satisfy a design `gap: 16` (pen has no margin property), while UA-stylesheet margins on `h1`/`p`/`ul` and negative gutters cannot fail anything.
 
-Exit 0 within budget, 1 on drift, 2 when a document could not be read or parsed. The blind spot is deliberate and worth knowing: a node that relocates onto an alignment value the surface already uses moves no value into or out of either set, so moving a card between two columns of the same grid is invisible while moving it two pixels off one is caught. The lane that runs this per surface against a booted app is parked as roadmap entry `Q-0180`; the design of record for it is `docs/design/specs/2026-08-25-ui-design-review-lane-geometry-compare-design.md`.
+Exit 0 within budget, 1 on drift, 2 when a document could not be read or parsed. The blind spot is deliberate and worth knowing: a node that relocates onto an alignment value the surface already uses moves no value into or out of either set, so moving a card between two columns of the same grid is invisible while moving it two pixels off one is caught. The lane that runs this per surface against a booted app is parked as roadmap entry `Q-0180`; the design of record for it is `docs/design/specs/archive/2026-08-25-ui-design-review-lane-geometry-compare-design.md`.
 
 ## PRs
 
