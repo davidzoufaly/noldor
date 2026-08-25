@@ -82,3 +82,96 @@ export function clusterValues(values: readonly number[], tolerance: number): Clu
 }
 
 const mean = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+/** What matching one family's two cluster lists produced. */
+export interface ClusterMatch {
+  /** `[designRep, implRep]` per matched pair, in ascending design order. */
+  pairs: [number, number][];
+  designOnly: number[];
+  implOnly: number[];
+}
+
+/**
+ * Optimal matching (spec D6 stage 2). Both sides are sorted one-dimensional
+ * sequences, so the optimum is order-preserving and an edit-distance-shaped DP
+ * finds it: maximize the number of within-tolerance pairs, and among the
+ * maximizing matchings minimize the total absolute difference.
+ *
+ * Closest-pair greedy is NOT sufficient and the difference is not academic: at
+ * tolerance 2, design {0,3} against implementation {2,5} has the full matching
+ * 0->2, 3->5, but greedy takes 3->2 first and reports two unmatched clusters —
+ * inventing drift out of the algorithm.
+ *
+ * noldor:cut O(n*m) time and memory, fine for the hundreds of clusters a real
+ * surface produces — a full assignment solver would be needed only if families
+ * ever compared unordered multi-dimensional keys.
+ */
+export function matchClusters(
+  design: readonly Cluster[],
+  impl: readonly Cluster[],
+  tolerance: number,
+): ClusterMatch {
+  const n = design.length;
+  const m = impl.length;
+  // best[i][j] = optimum over design[i..n) x impl[j..m); walked backwards so the
+  // forward reconstruction below prefers the lowest representatives on a tie.
+  const best: { pairs: number; cost: number }[][] = Array.from({ length: n + 1 }, () =>
+    Array.from({ length: m + 1 }, () => ({ pairs: 0, cost: 0 })),
+  );
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      let pick = best[i + 1][j];
+      const skipImpl = best[i][j + 1];
+      if (better(skipImpl, pick)) pick = skipImpl;
+      const diff = Math.abs(design[i].rep - impl[j].rep);
+      if (diff <= tolerance) {
+        const withPair = {
+          pairs: best[i + 1][j + 1].pairs + 1,
+          cost: best[i + 1][j + 1].cost + diff,
+        };
+        if (better(withPair, pick)) pick = withPair;
+      }
+      best[i][j] = pick;
+    }
+  }
+  const pairs: [number, number][] = [];
+  const designOnly: number[] = [];
+  const implOnly: number[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    const diff = Math.abs(design[i].rep - impl[j].rep);
+    const matched =
+      diff <= tolerance &&
+      best[i][j].pairs === best[i + 1][j + 1].pairs + 1 &&
+      best[i][j].cost === best[i + 1][j + 1].cost + diff;
+    if (matched) {
+      pairs.push([design[i].rep, impl[j].rep]);
+      i++;
+      j++;
+      continue;
+    }
+    // Drop whichever side the optimum drops; on a tie drop the lower
+    // representative first, which keeps the walk deterministic.
+    if (best[i + 1][j].pairs > best[i][j + 1].pairs) {
+      designOnly.push(design[i].rep);
+      i++;
+    } else if (best[i + 1][j].pairs < best[i][j + 1].pairs) {
+      implOnly.push(impl[j].rep);
+      j++;
+    } else if (design[i].rep <= impl[j].rep) {
+      designOnly.push(design[i].rep);
+      i++;
+    } else {
+      implOnly.push(impl[j].rep);
+      j++;
+    }
+  }
+  for (; i < n; i++) designOnly.push(design[i].rep);
+  for (; j < m; j++) implOnly.push(impl[j].rep);
+  return { pairs, designOnly, implOnly };
+}
+
+/** More pairs wins; equal pairs, lower total difference wins. */
+const better = (a: { pairs: number; cost: number }, b: { pairs: number; cost: number }): boolean =>
+  a.pairs > b.pairs || (a.pairs === b.pairs && a.cost < b.cost);

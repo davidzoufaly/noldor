@@ -74,3 +74,46 @@ describe('clusterValues', () => {
     expect(clusterValues([], 2)).toEqual([]);
   });
 });
+
+import { matchClusters } from '../../geometry/geometry-compare-core.js';
+
+const cl = (reps: number[]): { rep: number; values: number[] }[] =>
+  reps.map((rep) => ({ rep, values: [rep] }));
+
+describe('matchClusters', () => {
+  it('finds the full matching greedy would miss', () => {
+    // Closest-pair greedy takes 3->2 first and leaves 0 and 5 unmatched.
+    const m = matchClusters(cl([0, 3]), cl([2, 5]), 2);
+    expect(m.designOnly).toEqual([]);
+    expect(m.implOnly).toEqual([]);
+    expect(m.pairs).toEqual([
+      [0, 2],
+      [3, 5],
+    ]);
+  });
+
+  it('leaves out-of-tolerance clusters unmatched on both sides', () => {
+    const m = matchClusters(cl([24]), cl([24, 26.5]), 2);
+    expect(m.designOnly).toEqual([]);
+    expect(m.implOnly).toEqual([26.5]);
+  });
+
+  it('reports a design-only cluster when the implementation renders nothing near it', () => {
+    const m = matchClusters(cl([14, 32]), cl([14]), 1);
+    expect(m.designOnly).toEqual([32]);
+    expect(m.implOnly).toEqual([]);
+  });
+
+  it('minimizes total difference among maximizing matchings', () => {
+    const m = matchClusters(cl([10, 11]), cl([10, 11]), 2);
+    expect(m.pairs).toEqual([
+      [10, 10],
+      [11, 11],
+    ]);
+  });
+
+  it('handles either side being empty', () => {
+    expect(matchClusters(cl([1]), [], 2).designOnly).toEqual([1]);
+    expect(matchClusters([], cl([1]), 2).implOnly).toEqual([1]);
+  });
+});
