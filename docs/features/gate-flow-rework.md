@@ -9,6 +9,7 @@ links:
     - docs/noldor/lifecycle.md
     - src/core/next-priority.ts
   tests:
+    - src/checks/__tests__/check-push-gates.test.ts
     - src/core/__tests__/next-priority.test.ts
 name: Gate Flow Rework
 packages:
@@ -17,7 +18,6 @@ phase: done
 noldor-tier: specs-only
 introduced: 0.5.0
 ---
-
 ## Summary
 
 Three-part rework of `/noldor-gate` flow combining tightly coupled changes to the gate-step ordering. (1) Step 0 priority pickup checks in-progress FDs first (FDs with `phase: in-progress` in frontmatter); if none, surface a structured suggestion set: 3 top-of-roadmap entries + 2 small×high-impact entries (XS/S size, high/critical impact) + 1 milestone-aligned high-impact entry (matches `docs/milestones/<active>.md` gate criteria) + an explicit "other" / free-form option. Today Step 0 surfaces only the single top-of-roadmap entry, which biases against quick wins and milestone alignment. (2) Every non-`micro-chore` path requires explicit confirmation after the path picker (today `AskUserQuestion` selection is implicit OK — operator sees no "are you sure?" beat before the heavy scaffolding starts; `full-new` in particular kicks off `/noldor-promote` + worktree + spec brainstorm in sequence and is expensive to abort). (3) Move worktree creation BEFORE FD scaffold (today `/noldor-promote` or `/noldor-new-feature` runs first inside `/noldor-gate` Step 2, then the worktree — an aborted gate leaves an orphaned FD on main with no worktree to host follow-up work). Bundled into one FD because all three changes touch the same gate-step ordering and a single PR is cheaper than three independent reviews.

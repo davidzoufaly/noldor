@@ -107,6 +107,8 @@ You lose the composed PR body (CR result table, scope block, spec/plan links) bu
 3. Verify the result via `gh pr view --json mergedAt,state,headRefName` rather than trusting the direct-merge exit code: gh can still emit a non-zero exit from a post-merge local step even though the merge succeeded server-side.
 4. If `gh pr view` reports `state: MERGED`, return `mergedAt`. If still `OPEN`, throw with both exit codes for diagnostic context.
 
+- **In the noldor repo itself, auto-merge is disabled**, so step 1 always fails (`Auto merge is not allowed for this repository (enablePullRequestAutoMerge)`) and the direct squash-merge in step 2 is the only path that ever runs. The ship is fine and the stderr line is expected — it is not a symptom to diagnose. Either enable auto-merge in repo settings or read the `--auto` attempt here as dead code. (2026-08-24)
+
 The fallback prints `pr-flow: gh pr merge --auto failed; falling back to direct squash-merge.` to stderr so the operator can tell which path ran. To make the auto path active, follow the "GitHub branch protection" step in [One-time operator setup](#one-time-operator-setup) above and enable auto-merge in repo settings.
 
 ## Failure runbook

@@ -523,6 +523,34 @@ More sink/receipt traps:
   A red round at the re-round cap therefore has exactly two exits: one more
   delta round, or that amend. (Q-0132, Q-0145)
 
+- **`--lanes reviewer` silently under-runs a configured `crLanes.code`.** The
+  gate's Step 4 examples hardcode `--lanes reviewer`, but a repo whose
+  `.noldor/config.json` sets `crLanes.code: ['reviewer', 'verifier']` then runs
+  only half its own review posture — the verifier lane never dispatches and the
+  aggregate still reads green, so nothing marks the gap. Prefer `--autonomous`
+  with no `--lanes` (orchestrate reads `crLanes.<kind>`) over the hardcoded
+  example, or check the config before passing an explicit lane list. Note this
+  is the mirror of the fallback trap above: an ABSENT `crLanes.<kind>` degrades
+  to reviewer-only, and an explicit `--lanes` overrides a PRESENT one — both
+  land on reviewer-only, neither says so. (2026-08-24, Q-0158)
+- **Re-running `cr orchestrate` over an existing sink without `--autonomous`
+  dies instantly in any non-TTY runner.** `guardLaneOverwrite` fires an
+  interactive prompt, which throws
+  `ExitPromptError: User force closed the prompt` under the Claude Code Bash
+  tool and every other headless runner — indistinguishable from a real
+  dispatch failure. The delta-re-earn recipe shows the command without the
+  flag, so it is a trap on the second pass by construction: always add
+  `--autonomous` (it defaults the overwrite guard to `archive-and-overwrite`
+  and the standalone-in-progress guard to `drop-lane`) when re-running.
+  (2026-08-24, Q-0158)
+- **Budget a whole extra dispatch to re-earn the receipt after a cap-round
+  fix.** The re-round cap governs *arbitration* rounds; the
+  `Noldor-Reviewed-Subagent` receipt is separately bound to `HEAD^{tree}`, so
+  the commit that fixes the final round's blocker strips it. Q-0158 needed a
+  4th dispatch that found nothing, purely to mint a receipt on the new tip.
+  This is not a cap violation — the cap and the receipt count different things
+  — but it is invisible when planning the round budget. (2026-08-24, Q-0158)
+
 Two traps in how a round's result is read:
 
 - **Rounds that keep finding real defects are not evidence of converging
