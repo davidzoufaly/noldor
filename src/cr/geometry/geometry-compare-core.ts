@@ -5,10 +5,11 @@
 // No IO and no process state, so every rule the spec pins is testable without
 // pencil MCP or a booted app.
 
-import type { Severity } from '../findings-schema.js';
 import type { GeometryDoc } from './geometry-doc.js';
 
-/** The three families, and the exact keys `geometryTolerance`/`geometryBudget` use. */
+/** The three families. These are also the keys the parked lane's per-surface
+ * `geometryTolerance`/`geometryBudget` recipe fields will carry (Q-0180); today
+ * the two commands compare at the defaults below. */
 export const GEOMETRY_FAMILIES = ['edges', 'fontSize', 'spacing'] as const;
 /** One of the three families a surface is compared on. */
 export type GeometryFamily = (typeof GEOMETRY_FAMILIES)[number];
@@ -98,55 +99,83 @@ export interface ClusterMatch {
 }
 
 /**
- * Match the two sides' representatives (spec D6 stage 2). Both lists are sorted
- * and matching must be order-preserving, so a single forward scan is already
- * maximum-cardinality optimal: pair the two heads when they are within
- * tolerance, otherwise drop whichever head is smaller — it can never match
- * anything further along the other list, since everything ahead is larger.
+ * Match the two sides' representatives (spec D6 stage 2): exact values first,
+ * then a forward scan within tolerance over what is left. Both passes are
+ * linear and allocate nothing beyond their outputs, which matters for documents
+ * this module treats as untrusted — an edit-distance dynamic program would
+ * build an (n+1)x(m+1) table, and a long-page capture with a couple of thousand
+ * distinct values per side turns that into millions of cells.
  *
  * CLOSEST-PAIR greedy is what fails here, and the distinction matters: taking
  * the globally smallest difference first turns design {0,3} against
  * implementation {2,5} at tolerance 2 into one pair (3-2) plus two unmatched
- * values, inventing drift. The forward scan pairs 0-2 and 3-5.
- *
- * It also runs in O(n+m) with no allocation beyond the outputs. The earlier
- * dynamic program built an (n+1)x(m+1) matrix of objects, which a long-page
- * capture with a couple of thousand distinct values per side turns into millions
- * of cells — unacceptable for documents this module treats as untrusted.
+ * values, inventing drift. The scan pairs 0-2 and 3-5.
  */
 export function matchClusters(
   design: readonly number[],
   impl: readonly number[],
   tolerance: number,
 ): ClusterMatch {
+  // Pass 1 — exact equality. Pairing the heads by tolerance alone gets the COUNT
+  // right but can name the wrong leftover: design [3] against impl [1, 3] would
+  // pair 3 with 1 and then report an implementation-only 3, when 3 is exactly
+  // what the design declares and 1 is the intruder. Consuming identical values
+  // first never costs a pair — swapping an exact pair into any maximum matching
+  // leaves its size unchanged — and it makes the reported leftovers the values
+  // that actually differ.
   const pairs: [number, number][] = [];
+  const designRest: number[] = [];
+  const implRest: number[] = [];
+  let a = 0;
+  let b = 0;
+  while (a < design.length && b < impl.length) {
+    if (design[a] === impl[b]) {
+      pairs.push([design[a], impl[b]]);
+      a++;
+      b++;
+    } else if (design[a] < impl[b]) {
+      designRest.push(design[a]);
+      a++;
+    } else {
+      implRest.push(impl[b]);
+      b++;
+    }
+  }
+  for (; a < design.length; a++) designRest.push(design[a]);
+  for (; b < impl.length; b++) implRest.push(impl[b]);
+
+  // Pass 2 — within tolerance, over what is left. Both lists are still sorted
+  // and matching must be order-preserving, so this forward scan is already
+  // maximum-cardinality optimal: pair the heads when they are within tolerance,
+  // otherwise drop the smaller head, which can never match anything further
+  // along the other side because everything ahead of it is larger.
   const designOnly: number[] = [];
   const implOnly: number[] = [];
   let i = 0;
   let j = 0;
-  while (i < design.length && j < impl.length) {
-    if (Math.abs(design[i] - impl[j]) <= tolerance) {
-      pairs.push([design[i], impl[j]]);
+  while (i < designRest.length && j < implRest.length) {
+    if (Math.abs(designRest[i] - implRest[j]) <= tolerance) {
+      pairs.push([designRest[i], implRest[j]]);
       i++;
       j++;
-    } else if (design[i] < impl[j]) {
-      designOnly.push(design[i]);
+    } else if (designRest[i] < implRest[j]) {
+      designOnly.push(designRest[i]);
       i++;
     } else {
-      implOnly.push(impl[j]);
+      implOnly.push(implRest[j]);
       j++;
     }
   }
-  for (; i < design.length; i++) designOnly.push(design[i]);
-  for (; j < impl.length; j++) implOnly.push(impl[j]);
+  for (; i < designRest.length; i++) designOnly.push(designRest[i]);
+  for (; j < implRest.length; j++) implOnly.push(implRest[j]);
   return { pairs, designOnly, implOnly };
 }
 
 /** One family's comparison result. `implOnly` is always empty for `spacing`.
- * Severity is deliberately NOT a field: it is a pure function of `unmatched`
- * that ignores `budget`, so storing it would put a `med` on a family with zero
- * unmatched values. Callers that report findings call
- * {@link severityForUnmatched} at the point of use. */
+ * Severity is deliberately absent: it is a pure function of `unmatched` that
+ * ignores `budget`, so storing it would put a `med` on a family with zero
+ * unmatched values. Whichever caller reports findings derives it there — the
+ * parked lane (Q-0180) is the first that will need to. */
 export interface FamilyOutcome {
   family: GeometryFamily;
   unmatched: number;
@@ -160,10 +189,6 @@ export interface GeometryComparison {
   verdict: 'pass' | 'fail';
   families: FamilyRecord<FamilyOutcome>;
 }
-
-/** Ratio-free, count-derived severity (spec D6): `2x budget` degenerates at budget 0. */
-export const severityForUnmatched = (unmatched: number): Severity =>
-  unmatched >= 3 ? 'high' : 'med';
 
 /**
  * Compare two documents family by family (spec D5/D6). `edges` and `fontSize`

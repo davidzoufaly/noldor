@@ -10,8 +10,18 @@ import { z } from 'zod';
 const finite = z.number().finite();
 const nonNeg = finite.min(0);
 
-/** Origin-relative box in CSS pixels at device pixel ratio 1. */
-export const geometryBoxSchema = z.object({ x: finite, y: finite, w: nonNeg, h: nonNeg }).strict();
+/**
+ * Origin-relative box in CSS pixels at device pixel ratio 1. The DERIVED edges
+ * are checked too, not just the fields: `x` and `w` can each be finite while
+ * `x + w` overflows to `Infinity`, and the comparison then evaluates
+ * `Infinity - Infinity` as `NaN` and reports drift between identical documents.
+ */
+export const geometryBoxSchema = z
+  .object({ x: finite, y: finite, w: nonNeg, h: nonNeg })
+  .strict()
+  .refine((b) => Number.isFinite(b.x + b.w) && Number.isFinite(b.y + b.h), {
+    message: 'box edges overflow to a non-finite value (x + w, y + h)',
+  });
 export type GeometryBox = z.infer<typeof geometryBoxSchema>;
 
 /**

@@ -124,7 +124,6 @@ import {
   compareGeometry,
   DEFAULT_BUDGET,
   DEFAULT_TOLERANCE,
-  severityForUnmatched,
 } from '../../geometry/geometry-compare-core.js';
 
 const card = (x: number): GeometryDoc['nodes'][number] => ({
@@ -184,7 +183,7 @@ describe('compareGeometry', () => {
     expect(lenient.verdict).toBe('pass');
     const strict = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(strict.verdict).toBe('fail');
-    expect(severityForUnmatched(strict.families.edges.unmatched)).toBe('high');
+    expect(strict.families.edges.unmatched).toBeGreaterThanOrEqual(3);
   });
 
   it('adds no unmatched value for a wrapper that shares its child box', () => {
@@ -216,5 +215,20 @@ describe('drift beyond the tolerance is never hidden by clustering', () => {
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('fail');
     expect(r.families.edges.implOnly).toContain(28);
+  });
+});
+
+describe('matchClusters names the value that actually drifted', () => {
+  it('reports the intruder rather than the value the design declares', () => {
+    // Eager head pairing would pair 3 with 1 and then call 3 impl-only.
+    const m = matchClusters([3], [1, 3], 2);
+    expect(m.implOnly).toEqual([1]);
+    expect(m.pairs).toEqual([[3, 3]]);
+  });
+
+  it('does the same on the design side', () => {
+    const m = matchClusters([1, 3], [3], 2);
+    expect(m.designOnly).toEqual([1]);
+    expect(m.pairs).toEqual([[3, 3]]);
   });
 });
