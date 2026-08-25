@@ -91,6 +91,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/log-cli.ts',
         desc: 'Record a decision / open thread / resolution / support anchor in the ledger',
       },
+      'geometry-diff': {
+        src: 'cr/geometry/geometry-diff-cli.ts',
+        desc: 'Compare two normalized geometry documents (design vs implementation) by hand',
+      },
       'geometry-validate': {
         src: 'cr/geometry/geometry-validate-cli.ts',
         desc: 'Validate a normalized geometry document against geometryDocSchema (--side design|impl)',
