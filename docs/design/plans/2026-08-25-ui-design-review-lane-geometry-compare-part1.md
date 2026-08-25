@@ -3,7 +3,7 @@
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
 **Goal:** Ship the normalized geometry document as a usable contract: `pnpm noldor design geometry-validate <doc.json> --side design|impl --surface <name>` tells a consumer whether their capture output conforms, before any comparison engine exists.
-**Architecture:** One pure schema module under `src/cr/geometry/` plus a thin CLI entrypoint. Part 2 adds the comparison engine over these documents; part 3 wires the lane that produces them.
+**Architecture:** One pure schema module under `src/cr/geometry/` plus a thin CLI entrypoint. This part pins the document's *shape and invariants* only — the producer-side semantics (capture root and origin subtraction, scroll and transform handling, node inclusion, pen's gap/padding normalization) belong to the producers and are pinned in part 3 (the capture script) and part 4 (the extraction prompt), per the spec's D3 and D4. Part 2 adds the comparison engine over these documents.
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), zod 3, vitest.
 
 ---
@@ -65,6 +65,15 @@ describe('parseGeometryDoc', () => {
   it('rejects fontSize on a non-text node', () => {
     const r = parseGeometryDoc(
       doc({ nodes: [{ kind: 'container', box: { x: 0, y: 0, w: 1, h: 1 }, fontSize: 14 }] }),
+      'impl',
+      'dashboard',
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it('rejects a non-positive fontSize', () => {
+    const r = parseGeometryDoc(
+      doc({ nodes: [{ kind: 'text', box: { x: 0, y: 0, w: 1, h: 1 }, fontSize: 0 }] }),
       'impl',
       'dashboard',
     );
@@ -155,37 +164,44 @@ export const geometrySpacingSchema = z
   .strict();
 export type GeometrySpacing = z.infer<typeof geometrySpacingSchema>;
 
-export const geometryNodeKindSchema = z.enum(['text', 'container', 'shape']);
-export type GeometryNodeKind = z.infer<typeof geometryNodeKindSchema>;
+/** Fields every node carries, whatever its kind. */
+const nodeCommon = {
+  name: z.string().optional(),
+  box: geometryBoxSchema,
+  text: z.string().optional(),
+  spacing: geometrySpacingSchema.optional(),
+};
 
 /**
- * `fontSize` is coupled to `kind: 'text'` in BOTH directions: required on a
- * text node, forbidden elsewhere. That is what keeps `getComputedStyle`'s
- * inherited wrapper font-size out of the font-size family at the boundary
- * instead of relying on the producer's discipline.
+ * A text-bearing node: `fontSize` is REQUIRED here and absent from every other
+ * kind. A discriminated union rather than one object plus a refinement, so the
+ * coupling holds in the TYPE as well as at runtime — downstream code reading
+ * `n.fontSize` after narrowing on `kind` gets a `number`, not `number |
+ * undefined`, and a producer document with an inherited wrapper font-size
+ * cannot type-check its way past the boundary.
  */
-export const geometryNodeSchema = z
-  .object({
-    name: z.string().optional(),
-    kind: geometryNodeKindSchema,
-    box: geometryBoxSchema,
-    fontSize: finite.positive().optional(),
-    text: z.string().optional(),
-    spacing: geometrySpacingSchema.optional(),
-  })
-  .strict()
-  .superRefine((n, ctx) => {
-    if (n.kind === 'text' && n.fontSize === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "a 'text' node must carry fontSize" });
-    }
-    if (n.kind !== 'text' && n.fontSize !== undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `fontSize is carried only on text nodes (kind '${n.kind}')`,
-      });
-    }
-  });
+export const geometryTextNodeSchema = z
+  .object({ ...nodeCommon, kind: z.literal('text'), fontSize: finite.positive() })
+  .strict();
+export type GeometryTextNode = z.infer<typeof geometryTextNodeSchema>;
+
+/** A node with element children but no direct text of its own. */
+export const geometryContainerNodeSchema = z
+  .object({ ...nodeCommon, kind: z.literal('container') })
+  .strict();
+
+/** Anything else with a box: leaf shapes, images, SVG roots. */
+export const geometryShapeNodeSchema = z
+  .object({ ...nodeCommon, kind: z.literal('shape') })
+  .strict();
+
+export const geometryNodeSchema = z.discriminatedUnion('kind', [
+  geometryTextNodeSchema,
+  geometryContainerNodeSchema,
+  geometryShapeNodeSchema,
+]);
 export type GeometryNode = z.infer<typeof geometryNodeSchema>;
+export type GeometryNodeKind = GeometryNode['kind'];
 
 export const geometryDocSchema = z
   .object({
@@ -245,7 +261,7 @@ export function parseGeometryDoc(
 pnpm vitest run src/cr/__tests__/geometry/geometry-doc.test.ts
 ```
 
-Expected output: `Test Files 1 passed`, `Tests 8 passed`.
+Expected output: `Test Files 1 passed`, `Tests 9 passed`.
 
 - [ ] **Step 5: Commit.**
 
@@ -269,9 +285,9 @@ must carry fontSize while a non-text node must not, and a design-side document
 may not carry margin at all, since pen has no margin property and one appearing
 there means the producer invented it.
 
-What — src/cr/geometry/geometry-doc.ts with geometryDocSchema,
-parseGeometryDoc, and the exported node/box/spacing types, plus eight boundary
-tests covering each rejection class.
+What — src/cr/geometry/geometry-doc.ts with geometryDocSchema as a
+discriminated union on kind, parseGeometryDoc, and the exported node, box and
+spacing types, plus nine boundary tests covering each rejection class.
 
 Noldor-FD: ui-design-review-lane
 MSG
@@ -330,12 +346,28 @@ describe('runGeometryValidate', () => {
     expect(out.join('\n')).toContain('fontSize');
   });
 
-  it('exits 1 when the surface does not match and 2 on bad usage', async () => {
+  it('exits 1 when the surface does not match', async () => {
+    const p = await write('impl.json', doc([{ kind: 'shape', box: { x: 0, y: 0, w: 1, h: 1 } }]));
+    const out: string[] = [];
+    expect(
+      await runGeometryValidate([p, '--side', 'impl', '--surface', 'settings'], (s) => out.push(s)),
+    ).toBe(1);
+  });
+
+  it('exits 2 on a bad side, a missing --surface, an unknown flag, and no path', async () => {
     const p = await write('impl.json', doc([]));
     const out: string[] = [];
-    expect(await runGeometryValidate([p, '--side', 'impl', '--surface', 'settings'], (s) => out.push(s))).toBe(1);
-    expect(await runGeometryValidate([p, '--side', 'nonsense'], (s) => out.push(s))).toBe(2);
-    expect(await runGeometryValidate([], (s) => out.push(s))).toBe(2);
+    expect(await runGeometryValidate([p, '--side', 'nonsense', '--surface', 'x'], (s) => out.push(s))).toBe(2);
+    expect(await runGeometryValidate([p, '--side', 'impl'], (s) => out.push(s))).toBe(2);
+    expect(await runGeometryValidate([p, '--side', 'impl', '--surface', 'x', '--zoom'], (s) => out.push(s))).toBe(2);
+    expect(await runGeometryValidate(['--side', 'impl', '--surface', 'x'], (s) => out.push(s))).toBe(2);
+  });
+
+  it('does not mistake a path that reads like a flag value for one', async () => {
+    const p = await write('impl.json', doc([{ kind: 'shape', box: { x: 0, y: 0, w: 1, h: 1 } }]));
+    const out: string[] = [];
+    // The surface is literally the same string as the path's basename stem.
+    expect(await runGeometryValidate([p, '--side', 'impl', '--surface', 'impl'], (s) => out.push(s))).toBe(1);
   });
 });
 ```
@@ -360,14 +392,17 @@ Expected output: collection error — `Failed to resolve import "../../geometry/
 
 import { readFile } from 'node:fs/promises';
 
-import { runIfDirect } from '../../core/cli-entry.js';
+import { optionalFlag, runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
 import { parseGeometryDoc, type GeometrySide } from './geometry-doc.js';
 
-const USAGE =
-  'usage: noldor design geometry-validate <doc.json> --side design|impl [--surface <name>]';
+const LABEL = 'geometry-validate';
+const USAGE = `usage: noldor design ${LABEL} <doc.json> --side design|impl --surface <name>`;
 
-const SIDES: readonly GeometrySide[] = ['design', 'impl'];
+/** `.has` over an array scan: oxlint's `unicorn/prefer-set-has` requires it. */
+const SIDES: ReadonlySet<string> = new Set<string>(['design', 'impl']);
+/** Every flag this command takes a value for — an unknown flag is user error. */
+const VALUE_FLAGS = ['--side', '--surface'] as const;
 
 /**
  * Exit 0 = conformant, 1 = the document violates the contract, 2 = usage error
@@ -378,48 +413,62 @@ export async function runGeometryValidate(
   argv: readonly string[],
   emit: (line: string) => void = (l) => process.stdout.write(`${l}\n`),
 ): Promise<number> {
-  const positional = argv.filter((a) => !a.startsWith('--'));
-  const flagValue = (name: string): string | undefined => {
-    const i = argv.indexOf(name);
-    if (i < 0) return undefined;
-    const v = argv[i + 1];
-    return v === undefined || v.startsWith('--') ? undefined : v;
-  };
-  const side = flagValue('--side');
-  // A positional consumed by --side/--surface must not double as the path.
-  const consumed = new Set([flagValue('--side'), flagValue('--surface')]);
-  const path = positional.find((p) => !consumed.has(p));
-  if (path === undefined || side === undefined || !SIDES.includes(side as GeometrySide)) {
+  const values = new Map<string, string>();
+  for (const flag of VALUE_FLAGS) {
+    const read = optionalFlag(argv, flag, LABEL);
+    if (!read.ok) {
+      emit(read.error);
+      return 2;
+    }
+    if (read.value !== undefined) values.set(flag, read.value);
+  }
+  // Positionals are found by INDEX, not by value: a path that happens to read
+  // `impl` must not be swallowed as the --side value's twin.
+  const consumedIdx = new Set<number>();
+  for (const flag of VALUE_FLAGS) {
+    const i = argv.indexOf(flag);
+    if (i >= 0) consumedIdx.add(i).add(i + 1);
+  }
+  const positional = argv.filter((a, i) => !consumedIdx.has(i));
+  const unknownFlag = positional.find((a) => a.startsWith('--'));
+  if (unknownFlag !== undefined) {
+    emit(`${LABEL}: unknown flag ${unknownFlag}\n${USAGE}`);
+    return 2;
+  }
+  const side = values.get('--side');
+  const surface = values.get('--surface');
+  // `--surface` is REQUIRED: defaulting it to whatever the document claims would
+  // make the surface-equality check self-satisfying, and that check is the whole
+  // point of passing a side and a surface separately.
+  if (positional.length !== 1 || side === undefined || surface === undefined || !SIDES.has(side)) {
     emit(USAGE);
     return 2;
   }
   let raw: unknown;
   try {
-    raw = JSON.parse(await readFile(path, 'utf8'));
+    raw = JSON.parse(await readFile(positional[0], 'utf8'));
   } catch (err) {
-    emit(`geometry-validate: could not read ${path}: ${errMessage(err)}`);
+    emit(`${LABEL}: could not read ${positional[0]}: ${errMessage(err)}`);
     return 2;
   }
-  const expected =
-    flagValue('--surface') ??
-    (typeof (raw as { surface?: unknown }).surface === 'string'
-      ? (raw as { surface: string }).surface
-      : '');
-  const parsed = parseGeometryDoc(raw, side as GeometrySide, expected);
+  // `side` is narrowed by the SIDES membership check above, not asserted: this is
+  // an external-input boundary, and a cast here would be a claim rather than a
+  // check.
+  const parsed = parseGeometryDoc(raw, side === 'design' ? 'design' : 'impl', surface);
   if (!parsed.ok) {
-    emit(`geometry-validate: ${parsed.detail}`);
+    emit(`${LABEL}: ${parsed.detail}`);
     return 1;
   }
   emit(
-    `geometry-validate: ${path} is a valid ${side} document for surface '${expected}' — ${parsed.doc.nodes.length} node(s), viewport ${parsed.doc.viewport.width}x${parsed.doc.viewport.height}`,
+    `${LABEL}: ${positional[0]} is a valid ${side} document for surface '${surface}' — ${parsed.doc.nodes.length} node(s), viewport ${parsed.doc.viewport.width}x${parsed.doc.viewport.height}`,
   );
   return 0;
 }
 
-await runIfDirect(import.meta.url, async () => {
-  process.exitCode = await runGeometryValidate(process.argv.slice(2));
-});
+runIfDirect('geometry-validate-cli', `design ${LABEL}`, (argv) => runGeometryValidate(argv));
 ```
+
+`GeometrySide` is imported for the signature of `parseGeometryDoc`'s call above; the narrowing expression is deliberate — see the comment.
 
 - [ ] **Step 4: Run it and verify PASS.**
 
@@ -427,7 +476,7 @@ await runIfDirect(import.meta.url, async () => {
 pnpm vitest run src/cr/__tests__/geometry/geometry-validate-cli.test.ts
 ```
 
-Expected output: `Test Files 1 passed`, `Tests 3 passed`.
+Expected output: `Test Files 1 passed`, `Tests 5 passed`.
 
 - [ ] **Step 5: Register the subcommand.** In `src/cli/manifest.ts`, inside the `design` group's `subs`, add after the `log` entry:
 
@@ -444,15 +493,15 @@ Expected output: `Test Files 1 passed`, `Tests 3 passed`.
 node bin/noldor.mjs design geometry-validate
 ```
 
-Expected output: `usage: noldor design geometry-validate <doc.json> --side design|impl [--surface <name>]`.
+Expected output: `usage: noldor design geometry-validate <doc.json> --side design|impl --surface <name>`.
 
 - [ ] **Step 7: Add the catalog entry, twinned.** Append to `docs/noldor/script-catalog.md` immediately after the `design:pen-bridge` section, then copy the identical block into `templates/docs/noldor/script-catalog.md` at the same position:
 
 ```markdown
 ### `design:geometry-validate`
 
-- **Trigger:** `pnpm noldor design geometry-validate <doc.json> --side design|impl [--surface <name>]`. Run while writing or debugging a `geometryCommand` capture script.
-- **Inputs:** one normalized geometry document, the side that produced it, and the surface it should report (defaults to whatever the document claims).
+- **Trigger:** `pnpm noldor design geometry-validate <doc.json> --side design|impl --surface <name>`. Run while writing or debugging a `geometryCommand` capture script.
+- **Inputs:** one normalized geometry document, the side that produced it, and the surface it must report. All three are required — defaulting the surface to whatever the document claims would make the surface check self-satisfying.
 - **Outputs:** the node count and viewport on success, or the first contract violation. Exit 0 = conformant, 1 = violates the contract, 2 = usage error or unreadable file.
 - **When to use:** before wiring `geometryCommand` into `consumer.uiBoot` — the same parse runs inside the `geometry-compare` lane, where a violation lands as `geometry-unparseable`.
 - **Source:** [`src/cr/geometry/geometry-validate-cli.ts`](../../src/cr/geometry/geometry-validate-cli.ts)
@@ -461,10 +510,10 @@ Expected output: `usage: noldor design geometry-validate <doc.json> --side desig
 - [ ] **Step 8: Verify the gates.**
 
 ```bash
-pnpm noldor validate script-catalog && pnpm noldor checks template-sync && pnpm typecheck && pnpm lint
+pnpm noldor validate script-catalog && pnpm noldor checks template-sync && pnpm verify
 ```
 
-Expected output: all four exit 0.
+Expected output: all three exit 0 — `pnpm verify` is the repo's own gate chain (lint, `fmt:check`, typecheck, tests, triage refs), so a formatting drift fails here rather than at the pre-push hook.
 
 - [ ] **Step 9: Commit.**
 

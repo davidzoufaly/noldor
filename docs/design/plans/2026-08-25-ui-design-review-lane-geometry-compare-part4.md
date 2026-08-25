@@ -404,7 +404,7 @@ Expected output: collection error — `Failed to resolve import "../../geometry/
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 
-import { runIfDirect } from '../../core/cli-entry.js';
+import { optionalFlag, runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
 import {
   dispatchGeometryExtract,
@@ -414,8 +414,10 @@ import {
 import { selectFinalPage } from '../lanes/render-compare-core.js';
 import { parseGeometryDoc } from './geometry-doc.js';
 
-const USAGE =
-  'usage: noldor design geometry-export --pen <file.pen> --surface <name> --out <doc.json> [--page <name>]';
+const LABEL = 'geometry-export';
+const USAGE = `usage: noldor design ${LABEL} --pen <file.pen> --surface <name> --out <doc.json> [--page <name>]`;
+/** Every flag this command reads a value for; anything else is user error. */
+const VALUE_FLAGS = ['--pen', '--surface', '--out', '--page'] as const;
 
 /**
  * Exit 0 = a conformant document was written, 1 = the design could not be read
@@ -428,16 +430,31 @@ export async function runGeometryExport(
   argv: readonly string[],
   emit: (line: string) => void = (l) => process.stdout.write(`${l}\n`),
 ): Promise<number> {
-  const flag = (name: string): string | undefined => {
-    const i = argv.indexOf(name);
-    if (i < 0) return undefined;
-    const v = argv[i + 1];
-    return v === undefined || v.startsWith('--') ? undefined : v;
-  };
-  const penPath = flag('--pen');
-  const surface = flag('--surface');
-  const outPath = flag('--out');
-  const pageSelector = flag('--page');
+  // The shared reader, not a fourth hand-rolled closure: `optionalFlag` exists
+  // because the clone gate flagged exactly this copy in two other design CLIs.
+  const values = new Map<string, string>();
+  for (const flag of VALUE_FLAGS) {
+    const read = optionalFlag(argv, flag, LABEL);
+    if (!read.ok) {
+      emit(read.error);
+      return 2;
+    }
+    if (read.value !== undefined) values.set(flag, read.value);
+  }
+  const consumedIdx = new Set<number>();
+  for (const flag of VALUE_FLAGS) {
+    const i = argv.indexOf(flag);
+    if (i >= 0) consumedIdx.add(i).add(i + 1);
+  }
+  const stray = argv.find((a, i) => !consumedIdx.has(i));
+  if (stray !== undefined) {
+    emit(`${LABEL}: unexpected argument ${stray}\n${USAGE}`);
+    return 2;
+  }
+  const penPath = values.get('--pen');
+  const surface = values.get('--surface');
+  const outPath = values.get('--out');
+  const pageSelector = values.get('--page');
   if (penPath === undefined || surface === undefined || outPath === undefined) {
     emit(USAGE);
     return 2;
@@ -499,9 +516,7 @@ export async function runGeometryExport(
   return 0;
 }
 
-await runIfDirect(import.meta.url, async () => {
-  process.exitCode = await runGeometryExport(process.argv.slice(2));
-});
+runIfDirect('geometry-export-cli', `design ${LABEL}`, (argv) => runGeometryExport(argv));
 ```
 
 - [ ] **Step 4: Run it and verify PASS.**
@@ -536,10 +551,10 @@ Expected output: `Test Files 1 passed`, `Tests 4 passed`.
 - [ ] **Step 7: Verify the gates.**
 
 ```bash
-pnpm noldor validate script-catalog && pnpm noldor checks template-sync && pnpm typecheck && pnpm lint
+pnpm noldor validate script-catalog && pnpm noldor checks template-sync && pnpm verify
 ```
 
-Expected output: all four exit 0.
+Expected output: all three exit 0 — `pnpm verify` runs the repo's own chain (lint, `fmt:check`, typecheck, tests, triage refs).
 
 - [ ] **Step 8: Commit.**
 

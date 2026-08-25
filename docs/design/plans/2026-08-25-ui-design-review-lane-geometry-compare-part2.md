@@ -139,7 +139,9 @@ export function extractFamilies(doc: GeometryDoc): FamilyValues {
   for (const n of doc.nodes) {
     out.edgesX.push(n.box.x, n.box.x + n.box.w);
     out.edgesY.push(n.box.y, n.box.y + n.box.h);
-    if (n.kind === 'text' && n.fontSize !== undefined) out.fontSize.push(n.fontSize);
+    // Narrowing on the discriminant, not an undefined check: the union's text
+    // member types fontSize as a required number.
+    if (n.kind === 'text') out.fontSize.push(n.fontSize);
     spacing(n.spacing?.rowGap);
     spacing(n.spacing?.columnGap);
     for (const side of n.spacing?.padding ?? []) spacing(side);
@@ -786,13 +788,22 @@ describe('runGeometryDiff', () => {
     expect(out.join('\n')).toContain('impl-only');
   });
 
-  it('exits 2 on an unparseable document and on a missing argument', async () => {
+  it('exits 2 on an unparseable document', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'geo-diff-'));
     const a = await write(dir, 'design.json', doc([{ kind: 'text', box: { x: 0, y: 0, w: 1, h: 1 } }]));
     const b = await write(dir, 'impl.json', doc([card(24)]));
     const out: string[] = [];
     expect(await runGeometryDiff([a, b, '--surface', 'dashboard'], (s) => out.push(s))).toBe(2);
-    expect(await runGeometryDiff([a], (s) => out.push(s))).toBe(2);
+  });
+
+  it('exits 2 on a missing path, a missing --surface, and an unknown flag', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'geo-diff-'));
+    const a = await write(dir, 'design.json', doc([card(24)]));
+    const b = await write(dir, 'impl.json', doc([card(24)]));
+    const out: string[] = [];
+    expect(await runGeometryDiff([a, '--surface', 'dashboard'], (s) => out.push(s))).toBe(2);
+    expect(await runGeometryDiff([a, b], (s) => out.push(s))).toBe(2);
+    expect(await runGeometryDiff([a, b, '--surface', 'dashboard', '--zoom'], (s) => out.push(s))).toBe(2);
   });
 });
 ```
@@ -817,7 +828,7 @@ Expected output: collection error — `Failed to resolve import "../../geometry/
 
 import { readFile } from 'node:fs/promises';
 
-import { runIfDirect } from '../../core/cli-entry.js';
+import { optionalFlag, runIfDirect } from '../../core/cli-entry.js';
 import { errMessage } from '../../core/err-message.js';
 import {
   compareGeometry,
@@ -827,8 +838,8 @@ import {
 } from './geometry-compare-core.js';
 import { parseGeometryDoc } from './geometry-doc.js';
 
-const USAGE =
-  'usage: noldor design geometry-diff <design.json> <impl.json> [--surface <name>]';
+const LABEL = 'geometry-diff';
+const USAGE = `usage: noldor design ${LABEL} <design.json> <impl.json> --surface <name>`;
 
 const list = (xs: readonly number[]): string => xs.map((v) => v.toFixed(2)).join(', ');
 
@@ -841,14 +852,26 @@ export async function runGeometryDiff(
   argv: readonly string[],
   emit: (line: string) => void = (l) => process.stdout.write(`${l}\n`),
 ): Promise<number> {
-  const positional = argv.filter((a) => !a.startsWith('--'));
-  if (positional.length < 2) {
-    emit(USAGE);
+  const read = optionalFlag(argv, '--surface', LABEL);
+  if (!read.ok) {
+    emit(read.error);
     return 2;
   }
-  const si = argv.indexOf('--surface');
-  const surface = si >= 0 ? argv[si + 1] : undefined;
-  if (si >= 0 && (surface === undefined || surface.startsWith('--'))) {
+  // Positionals are found by INDEX: a path whose text equals the surface name
+  // must not be swallowed as the flag's value.
+  const consumedIdx = new Set<number>();
+  const flagIdx = argv.indexOf('--surface');
+  if (flagIdx >= 0) consumedIdx.add(flagIdx).add(flagIdx + 1);
+  const positional = argv.filter((a, i) => !consumedIdx.has(i));
+  const unknownFlag = positional.find((a) => a.startsWith('--'));
+  if (unknownFlag !== undefined) {
+    emit(`${LABEL}: unknown flag ${unknownFlag}\n${USAGE}`);
+    return 2;
+  }
+  const surface = read.value;
+  // `--surface` is REQUIRED: defaulting it to whatever the design document claims
+  // would make the surface-equality check self-satisfying on both sides at once.
+  if (positional.length !== 2 || surface === undefined) {
     emit(USAGE);
     return 2;
   }
@@ -858,25 +881,18 @@ export async function runGeometryDiff(
     rawDesign = JSON.parse(await readFile(positional[0], 'utf8'));
     rawImpl = JSON.parse(await readFile(positional[1], 'utf8'));
   } catch (err) {
-    emit(`geometry-diff: could not read both documents: ${errMessage(err)}`);
+    emit(`${LABEL}: could not read both documents: ${errMessage(err)}`);
     return 2;
   }
-  // The surface defaults to whatever the design document claims: this is a
-  // by-hand tool, and requiring the flag would just make the common case noisy.
-  const expected =
-    surface ??
-    (typeof (rawDesign as { surface?: unknown }).surface === 'string'
-      ? ((rawDesign as { surface: string }).surface)
-      : '');
-  const design = parseGeometryDoc(rawDesign, 'design', expected);
-  const impl = parseGeometryDoc(rawImpl, 'impl', expected);
+  const design = parseGeometryDoc(rawDesign, 'design', surface);
+  const impl = parseGeometryDoc(rawImpl, 'impl', surface);
   if (!design.ok || !impl.ok) {
-    if (!design.ok) emit(`geometry-diff: ${design.detail}`);
-    if (!impl.ok) emit(`geometry-diff: ${impl.detail}`);
+    if (!design.ok) emit(`${LABEL}: ${design.detail}`);
+    if (!impl.ok) emit(`${LABEL}: ${impl.detail}`);
     return 2;
   }
   const cmp = compareGeometry(design.doc, impl.doc, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
-  emit(`surface '${expected}' — ${cmp.verdict}`);
+  emit(`surface '${surface}' — ${cmp.verdict}`);
   for (const family of GEOMETRY_FAMILIES) {
     const o = cmp.families[family];
     emit(
@@ -888,9 +904,7 @@ export async function runGeometryDiff(
   return cmp.verdict === 'fail' ? 1 : 0;
 }
 
-await runIfDirect(import.meta.url, async () => {
-  process.exitCode = await runGeometryDiff(process.argv.slice(2));
-});
+runIfDirect('geometry-diff-cli', `design ${LABEL}`, (argv) => runGeometryDiff(argv));
 ```
 
 - [ ] **Step 4: Run it and verify PASS.**
@@ -899,7 +913,7 @@ await runIfDirect(import.meta.url, async () => {
 pnpm vitest run src/cr/__tests__/geometry/geometry-diff-cli.test.ts
 ```
 
-Expected output: `Test Files 1 passed`, `Tests 3 passed`.
+Expected output: `Test Files 1 passed`, `Tests 4 passed`.
 
 - [ ] **Step 5: Register the subcommand.** In `src/cli/manifest.ts`, inside the `design` group's `subs`, add after the `log` entry:
 
@@ -916,15 +930,15 @@ Expected output: `Test Files 1 passed`, `Tests 3 passed`.
 node bin/noldor.mjs design geometry-diff
 ```
 
-Expected output: `usage: noldor design geometry-diff <design.json> <impl.json> [--surface <name>]` and exit code 2.
+Expected output: `usage: noldor design geometry-diff <design.json> <impl.json> --surface <name>` and exit code 2.
 
 - [ ] **Step 7: Add the catalog entry, twinned.** Append to `docs/noldor/script-catalog.md` immediately after the `design:pen-bridge` section, then copy the identical block into `templates/docs/noldor/script-catalog.md` at the same position:
 
 ```markdown
 ### `design:geometry-diff`
 
-- **Trigger:** `pnpm noldor design geometry-diff <design.json> <impl.json> [--surface <name>]`. Run by hand while writing or debugging a `geometryCommand` capture script, or over a failing `geometry-compare` round's evidence files.
-- **Inputs:** two normalized geometry documents (`geometryDocSchema`). `--surface` names the surface both documents must report; it defaults to whatever the design document claims.
+- **Trigger:** `pnpm noldor design geometry-diff <design.json> <impl.json> --surface <name>`. Run by hand while writing or debugging a `geometryCommand` capture script, or over a failing `geometry-compare` round's evidence files.
+- **Inputs:** two normalized geometry documents (`geometryDocSchema`) and the surface both must report — required, since defaulting it to a document's own claim would make the surface check self-satisfying.
 - **Outputs:** one line per family — unmatched count, budget, and the design-only and implementation-only representatives. Exit 0 = every family within budget, 1 = drift, 2 = usage error or either document failing the boundary parse.
 - **When to use:** validating that a capture script produces a conformant document, and reading a round's evidence without booting the app.
 - **Source:** [`src/cr/geometry/geometry-diff-cli.ts`](../../src/cr/geometry/geometry-diff-cli.ts)
@@ -941,10 +955,10 @@ Expected output: both exit 0 — the catalog lists every manifest row, and no te
 - [ ] **Step 9: Full verification.**
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm vitest run src/cr/__tests__/geometry
+pnpm verify
 ```
 
-Expected output: typecheck clean, lint clean, `Test Files 2 passed`, `Tests 23 passed`.
+Expected output: exit 0 — `pnpm verify` is the repo's own chain (lint, `fmt:check`, typecheck, the full test run, triage refs), so a formatting drift fails here rather than at the pre-push hook.
 
 - [ ] **Step 10: Commit.**
 

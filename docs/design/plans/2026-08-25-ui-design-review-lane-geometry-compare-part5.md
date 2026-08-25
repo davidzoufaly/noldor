@@ -764,29 +764,49 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { runIfDirect } from '../../core/cli-entry.js';
+import { optionalFlag, runIfDirect } from '../../core/cli-entry.js';
 import { GEOMETRY_FAMILIES } from './geometry-compare-core.js';
 import { reviewSurfaceGeometry } from './geometry-review.js';
 
-const USAGE =
-  'usage: noldor design geometry-review --pen <file.pen> --surface <name> --url <url> --capture <template> [--page <name>]';
+const LABEL = 'geometry-review';
+const USAGE = `usage: noldor design ${LABEL} --pen <file.pen> --surface <name> --url <url> --capture <template> [--page <name>]`;
+const VALUE_FLAGS = ['--pen', '--surface', '--url', '--capture', '--page'] as const;
 
 /** Exit 0 = every family within budget, 1 = drift, 2 = declined or usage error. */
 export async function runGeometryReview(
   argv: readonly string[],
   emit: (line: string) => void = (l) => process.stdout.write(`${l}\n`),
 ): Promise<number> {
-  const flag = (name: string): string | undefined => {
-    const i = argv.indexOf(name);
-    if (i < 0) return undefined;
-    const v = argv[i + 1];
-    return v === undefined || v.startsWith('--') ? undefined : v;
-  };
-  const penPath = flag('--pen');
-  const surface = flag('--surface');
-  const url = flag('--url');
-  const geometryCommand = flag('--capture');
-  if (penPath === undefined || surface === undefined || url === undefined || geometryCommand === undefined) {
+  const values = new Map<string, string>();
+  for (const flag of VALUE_FLAGS) {
+    const read = optionalFlag(argv, flag, LABEL);
+    if (!read.ok) {
+      emit(read.error);
+      return 2;
+    }
+    if (read.value !== undefined) values.set(flag, read.value);
+  }
+  const consumedIdx = new Set<number>();
+  for (const flag of VALUE_FLAGS) {
+    const i = argv.indexOf(flag);
+    if (i >= 0) consumedIdx.add(i).add(i + 1);
+  }
+  const stray = argv.find((a, i) => !consumedIdx.has(i));
+  if (stray !== undefined) {
+    emit(`${LABEL}: unexpected argument ${stray}\n${USAGE}`);
+    return 2;
+  }
+  const penPath = values.get('--pen');
+  const surface = values.get('--surface');
+  const url = values.get('--url');
+  const geometryCommand = values.get('--capture');
+  const pageSelector = values.get('--page');
+  if (
+    penPath === undefined ||
+    surface === undefined ||
+    url === undefined ||
+    geometryCommand === undefined
+  ) {
     emit(USAGE);
     return 2;
   }
@@ -794,7 +814,7 @@ export async function runGeometryReview(
   const result = await reviewSurfaceGeometry({
     penPath,
     surface,
-    ...(flag('--page') !== undefined ? { pageSelector: flag('--page') as string } : {}),
+    ...(pageSelector !== undefined ? { pageSelector } : {}),
     url,
     geometryCommand,
     outDir: dir,
@@ -821,9 +841,7 @@ export async function runGeometryReview(
   return result.comparison.verdict === 'fail' ? 1 : 0;
 }
 
-await runIfDirect(import.meta.url, async () => {
-  process.exitCode = await runGeometryReview(process.argv.slice(2));
-});
+runIfDirect('geometry-review-cli', `design ${LABEL}`, (argv) => runGeometryReview(argv));
 ```
 
 - [ ] **Step 7: Register it and document it.** Add the manifest row under the `design` group:
@@ -850,10 +868,10 @@ Then append this block to `docs/noldor/script-catalog.md` after `design:geometry
 - [ ] **Step 8: Verify the gates.**
 
 ```bash
-pnpm noldor validate script-catalog && pnpm noldor checks template-sync && pnpm typecheck && pnpm lint && pnpm noldor clones check | head -20
+pnpm noldor validate script-catalog && pnpm noldor checks template-sync && pnpm lint && pnpm fmt:check && pnpm noldor clones check | head -20
 ```
 
-Expected output: the catalog and template gates exit 0, typecheck reports only the orchestrate exhaustiveness error from Task 1, lint is clean, and the clones ratchet reports no new duplicated group.
+Expected output: the catalog, template, lint and format gates exit 0, and the clones ratchet reports no new duplicated group. `pnpm verify` is deliberately NOT run yet — it includes typecheck, which still carries the orchestrate exhaustiveness error Task 1 introduced and part 6 Task 2 resolves.
 
 - [ ] **Step 9: Commit.**
 

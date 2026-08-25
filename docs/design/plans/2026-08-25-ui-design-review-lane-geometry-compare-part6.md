@@ -807,10 +807,10 @@ Expected output: only `docs/features/ui-design-review-lane.md` changed. If any o
 - [ ] **Step 5: Verify the whole surface.**
 
 ```bash
-pnpm test && pnpm typecheck && pnpm lint && pnpm noldor doctor
+pnpm verify && pnpm noldor doctor
 ```
 
-Expected output: the suite passes, typecheck and lint are clean, and `doctor` reports no new red (a missing `gh` binary is the one pre-existing exception).
+Expected output: `pnpm verify` exits 0 — it is the repo's own chain (lint, `fmt:check`, typecheck, the full test run, triage refs) — and `doctor` reports no new red (a missing `gh` binary is the one pre-existing exception).
 
 - [ ] **Step 6: Commit.**
 
