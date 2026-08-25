@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 
+import { penBridgeRecipe } from '../../design/pen-bridge.js';
 import { parseFencedJson } from '../extract-json.js';
 import { createDispatcherSeam } from '../lane-spawn.js';
 import { fencedJsonInstruction } from './prompt-parts.js';
@@ -60,7 +61,7 @@ export function buildRenderExportPrompt(input: RenderExportInput): string {
 
 The design is a scratch COPY at \`${input.penPath}\`. It is encrypted — the ONLY reader is pencil MCP: call \`get_app_state\` (with \`include_schema\` and \`include_canvas_design\`) once for the SCHEMA AND API DOCS ONLY, then do ALL reading and exporting via \`execute({ filePath: "${input.penPath}", input: ... })\`. get_app_state describes whatever file the editor has active — which may be a DIFFERENT design — so page names and node ids taken from it are invalid: enumerate pages exclusively through \`execute\` against the filePath above (e.g. a snippet over the document's top-level children). Never open a \`.pen\` with a file-reading tool, and never touch any design file under the repository.
 
-If every pencil MCP call fails with "A file needs to be open in the editor", the bridge is down: run \`code ${input.penPath}\` in a shell, wait a few seconds, and retry — once any \`.pen\` is open in a running VS Code Pencil tab, \`execute\` reaches the scratch copy by \`filePath\`.
+${penBridgeRecipe(input.penPath)}
 
 Export jobs (one selected page per surface):
 ${jobs}

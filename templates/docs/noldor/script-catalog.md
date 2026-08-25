@@ -91,6 +91,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** repairing baseline drift (stale) or bootstrapping a new surface (uninitialized). See `check:ui-design-freshness`.
 - **Source:** [`src/design/ui-sync-cli.ts`](../../src/design/ui-sync-cli.ts)
 
+### `design:pen-bridge`
+
+- **Trigger:** `pnpm noldor design pen-bridge [--pen <path>] [--print-only]`. Run when a pencil MCP call fails with `A file needs to be open in the editor` — before waiving a UI-design step.
+- **Inputs:** `--pen` (a caller's own `.pen`, e.g. a lane's scratch copy) when given, else the tracked `.pen` set from `git ls-files`, ranked feature design → baseline → anything else.
+- **Outputs:** the resolved path plus the retry instruction, and launches the default editor (`code <path>`) on it. Exit 0 = a `.pen` was resolved and opened (or resolved only, under `--print-only`), 1 = the repo tracks no `.pen` so the editor must author one (Node cannot: `.pen` is encrypted), 2 = usage error or no `code` on PATH — in which case the pencil desktop app is the manual fallback. It never claims the bridge is live: only a retried pencil MCP call proves that.
+- **When to use:** waking the bridge before `design ui-sync`, the spec skill's UI-design step, the gate's baseline write-back, or a `ui-reviewer` / `render-compare` lane child that reports `pen-unreadable`.
+- **Source:** [`src/design/pen-bridge-cli.ts`](../../src/design/pen-bridge-cli.ts)
+
 ### `check:ui-design-freshness`
 
 - **Trigger:** `pnpm noldor checks ui-design-freshness`. Run by `/noldor-gate` Step 4 (advisory, after the flip commit) and release preflight (blocking on `stale`).
