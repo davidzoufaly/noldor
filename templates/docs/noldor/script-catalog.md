@@ -99,6 +99,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** waking the bridge before `design ui-sync`, the spec skill's UI-design step, the gate's baseline write-back, or a `ui-reviewer` / `render-compare` lane child that reports `pen-unreadable`.
 - **Source:** [`src/design/pen-bridge-cli.ts`](../../src/design/pen-bridge-cli.ts)
 
+### `design:geometry-validate`
+
+- **Trigger:** `pnpm noldor design geometry-validate <doc.json> --side design|impl --surface <name>`. Run while writing or debugging a `geometryCommand` capture script.
+- **Inputs:** one normalized geometry document, the side that produced it, and the surface it must report. All three are required — defaulting the surface to whatever the document claims would make the surface check self-satisfying.
+- **Outputs:** the node count and viewport on success, or the first contract violation. Exit 0 = conformant, 1 = violates the contract, 2 = usage error or a file that is unreadable or not JSON.
+- **When to use:** before wiring `geometryCommand` into `consumer.uiBoot` — the same parse runs inside the `geometry-compare` lane, where a violation lands as `geometry-unparseable`.
+- **Source:** [`src/cr/geometry/geometry-validate-cli.ts`](../../src/cr/geometry/geometry-validate-cli.ts)
+
 ### `check:ui-design-freshness`
 
 - **Trigger:** `pnpm noldor checks ui-design-freshness`. Run by `/noldor-gate` Step 4 (advisory, after the flip commit) and release preflight (blocking on `stale`).
