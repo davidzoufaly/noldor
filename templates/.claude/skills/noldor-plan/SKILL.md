@@ -30,7 +30,22 @@ Write an implementation plan for an engineer with zero context for this codebase
 6. **Save + split check.** Save to `docs/design/plans/YYYY-MM-DD-<slug>.md`, then run `pnpm noldor noldor split-check --plan <path>` and capture stdout + exit code. Exit 0 → continue. Exit 1 = infra error → note it and continue; never block on checker infra. Exit 2 → report the P1 signal verbatim, then **diagnose before restructuring** — a P1 trip has two different causes and only one of them is a plan problem:
 
    - **(i) The scope is oversized.** The plan is long because the work is. Restructuring the document just spreads too much work across more files. The remedy is a *scope split*, which belongs upstream: carve the excess back to `docs/roadmap.md` as sibling entries via the gate's Step 2.5 `split-back` (`address-blockers` → `split-back`), narrow the plan to the first slice, and continue.
-   - **(ii) The scope is right; the plan is verbose.** Restructure into `docs/design/plans/YYYY-MM-DD-<slug>-part<N>.md` parts — each part independently shippable software (same bar as step 1's one-plan-per-subsystem rule) — delete the monolith file, and re-run the split check on each part before continuing.
+   - **(ii) The scope is right; the plan is verbose.** Restructure into `docs/design/plans/YYYY-MM-DD-<slug>-part<N>.md` parts — each part moving **one user-visible capability end to end**, which is what step 1's one-plan-per-subsystem rule means by "independently shippable" — delete the monolith file, and re-run the split check on each part before continuing.
+
+   **Cut along capability, never along the task list.** P1 reacts to a *row count*, and the obvious way to halve a row count is a horizontal cut — take the first half of the tasks. That is almost always wrong: plans are written bottom-up (types, then pure helpers, then the wiring, then the surface), so the first half is pure library units and part one ships nothing observable. Cut vertically instead: every part repeats the whole stack for its own slice — its own types, its own helpers, its own wiring, its own surface, its own tests.
+
+   Worked example — a 1336-row plan for a doc-surface check with two commands (`check` and `--fix`):
+
+   | Cut | Part one | Part two | Verdict |
+   | --- | --- | --- | --- |
+   | **Horizontal** (halve the task list) | parser, types, glob resolver, comparison helpers | the check itself, its CLI, `--fix`, tests | ✗ part one ships nothing runnable — merged, it changes no observable behaviour |
+   | **Vertical** (halve the capability) | the `check` command end to end: parser + resolver + comparison + CLI registration + tests | `--fix` extending the same command: the writer + its flag + tests | ✓ part one merges as a working `check`; part two extends it |
+
+   The horizontal cut is also the one that *looks* balanced by row count, which is why P1 alone will not catch it. Sanity check before you commit to a split: **if part one merged on its own, what could a user do that they could not do before?** No answer means the cut is horizontal — redo it.
+
+   **The entry point may be an existing one — never mint a command to pass this rule.** "End to end" asks that the slice be *reachable*, not that it be new public API. A part that ships an internal capability behind an entry point that already exists clears the bar, and so does one that adds a flag to an existing command. Read literally the rule manufactures API: the `geometry-compare` plan grew `design geometry-validate`, `geometry-diff`, `geometry-export` and `geometry-review` — four commands, four manifest rows, four twinned catalog entries — purely so each part registered a runnable surface, and only two turned out worth having. Before a split mints a command, ask **is this command worth owning forever?** If the answer is no, route the slice through an existing surface or accept a larger part — and if that larger part still trips P1, the plan was oversized rather than verbose, so go back to (i). API surface is permanent; a part boundary is not.
+
+   A capability may legitimately be too small to halve. If no vertical cut exists, the plan is not verbose — it is oversized, and the answer is (i), not more parts.
 
    **Ask (i) first.** A thousand-row plan is more often too much work than too many words. `-part<N>` is a *document* split — it moves no scope out of the FD — which is why it stays local instead of producing queue siblings like every scope split does. See [complexity-gating.md → Which phase owns the split](../../../docs/noldor/complexity-gating.md#which-phase-owns-the-split).
 7. **Report** the saved path(s) and stop. The gate owns sequencing (Step 2.5 `--kind plan`: lint → commit → CR lanes).

@@ -143,6 +143,13 @@ describe('assessPlanSplit', () => {
     expect(signals[0].message).toContain('2 part');
   });
 
+  it('names the vertical cut in the P1 message, not a bare "independently shippable"', () => {
+    const md = Array.from({ length: PLAN_ROW_THRESHOLD + 1 }, () => 'row').join('\n');
+    const { message } = assessPlanSplit(md)[0];
+    expect(message).toContain('capability');
+    expect(message).toContain('never along the task list');
+  });
+
   it('suggests 3 parts for a plan just over twice the threshold', () => {
     const md = Array.from({ length: PLAN_ROW_THRESHOLD * 2 + 1 }, () => 'row').join('\n');
     expect(assessPlanSplit(md)[0].message).toContain('3 part');

@@ -66,6 +66,8 @@ Measuring in five places without saying where the split *belongs* let an oversiz
 
 **Scope split vs document split.** A *scope split* moves scope out of the FD and produces queue siblings. A *document split* moves no scope: `-part<N>` plan files reorganize one FD's plan and stay local. `-part<N>` is therefore not an exception to the single-product rule — it is a different operation. On a `P1` trip, diagnose which one applies before restructuring; a thousand-row plan is more often too much work than too many words.
 
+**A document split cuts along capability, never along the task list.** `P1` reacts to a row count, and halving one horizontally hands part one the plan's pure library units — nothing a user can observe. The check is: *if part one merged alone, what could a user do that they could not before?* No answer means the cut was horizontal. If no vertical cut exists, the plan was never verbose — it is oversized, and the remedy is the scope split above. `noldor-plan` step 6 carries the worked example of both cuts, and the rule that the entry point may be an existing one rather than a freshly minted command.
+
 The table below is role-only. Which rules fire where is the "Surfaces at" column above, and restating it here would make this page its own drift source.
 
 | Phase                    | Role                     | On trip                                                     |
