@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { runIfDirect } from '../core/cli-entry.js';
+import { optionalFlag, runIfDirect } from '../core/cli-entry.js';
 import { loadUiConfig } from '../core/consumer-config.js';
 import {
   BASELINE_DIR,
@@ -66,12 +66,12 @@ export function isStaged(cwd: string, repoRelPath: string): boolean {
 }
 
 export async function main(argv: string[], cwd: string = process.cwd()): Promise<number> {
-  const flagIdx = argv.indexOf('--surface');
-  if (flagIdx !== -1 && argv[flagIdx + 1] === undefined) {
-    console.error('ui-sync: --surface requires a value');
+  const surface = optionalFlag(argv, '--surface', 'ui-sync');
+  if (!surface.ok) {
+    console.error(surface.error);
     return 2;
   }
-  const surfaceFlag = flagIdx === -1 ? undefined : argv[flagIdx + 1];
+  const surfaceFlag = surface.value;
   const ui = loadUiConfig(cwd);
   if (ui === null) {
     console.log('ui-sync: nothing to do (no consumer config)');

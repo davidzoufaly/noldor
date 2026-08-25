@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 
+import { penBridgeRecipe } from '../../design/pen-bridge.js';
 import { parseFencedJson } from '../extract-json.js';
 import { createDispatcherSeam } from '../lane-spawn.js';
 import { fencedJsonInstruction } from './prompt-parts.js';
@@ -88,6 +89,8 @@ export function buildUiReviewPrompt(input: UiDispatchInput): string {
 
 The design is a Pencil \`.pen\` file at \`${input.penPath}\`. It is encrypted — the ONLY way to read it is pencil MCP: call \`get_app_state\` (with \`include_schema\` and \`include_canvas_design\`) for the schema, then \`execute({ filePath: "${input.penPath}" })\` with a snippet that reads the pages. Never open it with a file-reading tool. ${scope}
 
+${penBridgeRecipe(input.penPath)}
+
 That path is a scratch COPY. Do not edit it, and do not open or edit anything under the repository's own design directories.
 
 The code is at \`${input.repoRoot}\` — read the diff yourself with git over the range above.
@@ -103,7 +106,7 @@ ${NOT_NORMATIVE.map((n) => `- ${n}`).join('\n')}
 
 Every finding must name both sides it compared: the design page and the element or label (\`designPage\`, \`designElement\`), plus the code file. A finding you cannot ground on both sides is not actionable — drop it. Judge conformance to what the design pins, never whether the design itself is good.
 
-If you cannot read the design at all, report \`cannot-review\` with reason \`pen-unreadable\`. If you can read the file but it holds no \`FINAL:\` page for the scope above, report \`cannot-review\` with reason \`no-final-pages\`. Both are honest outcomes — never guess a verdict from the code alone.
+If you cannot read the design at all — after the bridge-wake step above, not before it — report \`cannot-review\` with reason \`pen-unreadable\`. If you can read the file but it holds no \`FINAL:\` page for the scope above, report \`cannot-review\` with reason \`no-final-pages\`. Both are honest outcomes — never guess a verdict from the code alone.
 
 Report in exactly one of three shapes, with NO other keys:
 - pass: \`verdict\` "pass" and an empty \`findings\` array.

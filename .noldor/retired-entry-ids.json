@@ -171,5 +171,9 @@
   "Q-0137": {
     "slug": "verify-lane-fail-closes-on-its-own-malformed-output",
     "retiredAt": "2026-08-24"
+  },
+  "Q-0179": {
+    "slug": "pencil-bridge-editor-default-and-auto-open",
+    "retiredAt": "2026-08-25"
   }
 }

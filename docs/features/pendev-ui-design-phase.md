@@ -22,6 +22,7 @@ links:
     - src/checks/__tests__/check-ui-design-freshness.test.ts
     - src/core/__tests__/design-artifact-names.test.ts
     - src/core/__tests__/ui-predicate.test.ts
+    - src/design/__tests__/pen-bridge.test.ts
     - src/design/__tests__/ui-sync.test.ts
     - src/release/__tests__/ui-design-freshness.test.ts
 name: pen.dev UI Design Phase

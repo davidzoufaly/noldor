@@ -44,3 +44,29 @@ export function runIfDirect(stem: string, label: string, main: CliMain): void {
       process.exit(1);
     });
 }
+
+/**
+ * An optional string flag's value, as a result rather than a throw: a missing
+ * value is user error at a trust boundary, and every `*-cli.ts` reporting it
+ * wants the same exit-2-with-a-message shape rather than a stack.
+ */
+export type OptionalFlag = { ok: true; value: string | undefined } | { ok: false; error: string };
+
+/**
+ * Read `--<flag> <value>` out of `argv`. Absent flag ⇒ `{ ok: true, value:
+ * undefined }`; flag present as the last token ⇒ an error naming `label` (the
+ * command, so the line reads `ui-sync: --surface requires a value`).
+ *
+ * Extracted when the clone gate flagged the copies in `design/ui-sync-cli.ts`
+ * and `design/pen-bridge-cli.ts`. The `--flag=value` form is deliberately not
+ * handled: no Noldor CLI accepts it today, and inventing support here would
+ * make the two forms disagree per command.
+ */
+export function optionalFlag(argv: readonly string[], flag: string, label: string): OptionalFlag {
+  const idx = argv.indexOf(flag);
+  if (idx === -1) return { ok: true, value: undefined };
+  const value = argv[idx + 1];
+  return value === undefined
+    ? { ok: false, error: `${label}: ${flag} requires a value` }
+    : { ok: true, value };
+}

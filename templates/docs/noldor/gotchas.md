@@ -158,6 +158,24 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   not an error. `@swc/core` restores its parsing; the boundaries invariant
   fails loudly via `allExtensions` when neither parser is installed. (PR #358)
 
+## Pencil / UI design
+
+- **"A file needs to be open in the editor" is a bridge-liveness gate, not a
+  per-file lock.** `.pen` is encrypted, so pencil MCP is the only reader, and
+  every call fails with that message until *some* `.pen` is open in a running
+  VS Code Pencil tab (extension `highagency.pencildev`). Once any file is open,
+  `execute` routes to any `.pen` by `filePath` — including a scratch copy that
+  was never opened. So the fix is to open a file, not to change the path you
+  asked for: `pnpm noldor design pen-bridge` finds and opens one (exit 1 = the
+  repo tracks no `.pen` and the editor must author it, since Node cannot).
+- **The VS Code extension is the default editor; the desktop app is the
+  fallback.** Both satisfy pencil MCP equally — the extension wins only because
+  `code <file>.pen` is scriptable, so an agent can wake the bridge unattended.
+  Without a `code` on PATH the desktop app has to be opened by hand.
+- **Waive the UI-design step only after a wake attempt.** A closed editor and
+  an absent editor look identical from Node, and recording `uiWaiver` for the
+  first one buys permanent baseline debt for a fixable five-second problem.
+
 ## Release & publish
 
 - **A worktree regen of `docs/sdd-report.md` commits empty metrics — cosmetic
