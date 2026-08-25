@@ -173,6 +173,13 @@ child output; untrusted consumer-command output):
                 margin?: [number, number, number, number] } }> }       // implementation documents only
 ```
 
+`text` is required on a text node and forbidden on every other kind, which is stricter than an
+earlier draft of this section left it: `kind: 'text'` means text-bearing, so a producer that cannot
+say what the text is has mis-classified the node. The shipped schema expresses the whole per-kind
+contract as a discriminated union on `kind`, so the coupling holds in the type as well as at runtime —
+and the extraction child (D3) must emit `text`, or every text-bearing surface lands
+`geometry-unparseable`.
+
 Those invariants are enforced, not just described: a non-finite coordinate, a negative dimension, a
 `fontSize` on a non-text node or missing from a text node, a design-side document carrying `margin`, or
 a `surface` that is not the one under review all fail validation and land the surface as

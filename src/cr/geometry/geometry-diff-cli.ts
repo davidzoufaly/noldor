@@ -19,6 +19,9 @@ import { parseGeometryDoc } from './geometry-doc.js';
 const LABEL = 'geometry-diff';
 const USAGE = `usage: noldor design ${LABEL} <design.json> <impl.json> --surface <name>`;
 
+/** Viewports may differ by less than a pixel (rounding), never more (spec D4). */
+const VIEWPORT_EPSILON = 1;
+
 const list = (xs: readonly number[]): string => xs.map((v) => v.toFixed(2)).join(', ');
 
 /**
@@ -55,6 +58,28 @@ export async function runGeometryDiff(
   if (!design.ok || !impl.ok) {
     if (!design.ok) emit(`${LABEL}: ${design.detail}`);
     if (!impl.ok) emit(`${LABEL}: ${impl.detail}`);
+    return 2;
+  }
+  // Comparability preconditions, before any verdict: the lane reports these as
+  // `geometry-empty` and `viewport-mismatch` cannot-review rows, and this
+  // command must not turn either into a green. Two empty documents agree about
+  // nothing, and a design measured at one viewport against a capture at another
+  // makes every edge drift by a constant.
+  if (design.doc.nodes.length === 0 || impl.doc.nodes.length === 0) {
+    emit(
+      `${LABEL}: geometry-empty — ${design.doc.nodes.length === 0 ? 'design' : 'impl'} document reports zero nodes, so there is nothing to compare`,
+    );
+    return 2;
+  }
+  const dv = design.doc.viewport;
+  const iv = impl.doc.viewport;
+  if (
+    Math.abs(dv.width - iv.width) > VIEWPORT_EPSILON ||
+    Math.abs(dv.height - iv.height) > VIEWPORT_EPSILON
+  ) {
+    emit(
+      `${LABEL}: viewport-mismatch — design is ${dv.width}x${dv.height}, impl is ${iv.width}x${iv.height}`,
+    );
     return 2;
   }
   const cmp = compareGeometry(design.doc, impl.doc, DEFAULT_TOLERANCE, DEFAULT_BUDGET);

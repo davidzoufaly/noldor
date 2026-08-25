@@ -53,32 +53,33 @@ export function extractFamilies(doc: GeometryDoc): FamilyValues {
   return out;
 }
 
-/** One cluster of within-tolerance values and its representative. */
-export interface Cluster {
-  rep: number;
-  values: number[];
-}
-
 /**
- * Single-linkage clustering (spec D6 stage 1): exact duplicates collapse, the
- * list sorts ascending, and a new cluster starts whenever the next value
- * exceeds the previous one by MORE than the tolerance. The representative is
- * the arithmetic mean — named explicitly because "median" is ambiguous for an
- * even-sized cluster, and at a 1px tolerance that ambiguity flips match
- * outcomes.
+ * Cluster near-duplicate values into representatives (spec D6 stage 1): exact
+ * duplicates collapse, the list sorts ascending, and a cluster admits a value
+ * only while the cluster's own WIDTH stays within the tolerance. The
+ * representative is the arithmetic mean — named explicitly because "median" is
+ * ambiguous for an even-sized cluster, and at a 1px tolerance that ambiguity
+ * flips match outcomes.
+ *
+ * The width bound is what makes the result sound. Single-linkage (compare
+ * against the PREVIOUS value instead of the cluster's first) chains: at
+ * tolerance 2, implementation edges 24, 26 and 28 would form one cluster with
+ * representative 26, which then matches a design edge at 24 — so a 28px edge
+ * sitting 4px off the design reports nothing at all. Bounding the width caps how
+ * far a representative can drift from every member it speaks for.
  */
-export function clusterValues(values: readonly number[], tolerance: number): Cluster[] {
+export function clusterValues(values: readonly number[], tolerance: number): number[] {
   const sorted = [...new Set(values)].sort((a, b) => a - b);
-  const out: Cluster[] = [];
+  const out: number[] = [];
   let current: number[] = [];
   for (const v of sorted) {
-    if (current.length > 0 && v - current[current.length - 1] > tolerance) {
-      out.push({ rep: mean(current), values: current });
+    if (current.length > 0 && v - current[0] > tolerance) {
+      out.push(mean(current));
       current = [];
     }
     current.push(v);
   }
-  if (current.length > 0) out.push({ rep: mean(current), values: current });
+  if (current.length > 0) out.push(mean(current));
   return out;
 }
 
@@ -108,8 +109,8 @@ export interface ClusterMatch {
  * ever compared unordered multi-dimensional keys.
  */
 export function matchClusters(
-  design: readonly Cluster[],
-  impl: readonly Cluster[],
+  design: readonly number[],
+  impl: readonly number[],
   tolerance: number,
 ): ClusterMatch {
   const n = design.length;
@@ -124,7 +125,7 @@ export function matchClusters(
       let pick = best[i + 1][j];
       const skipImpl = best[i][j + 1];
       if (better(skipImpl, pick)) pick = skipImpl;
-      const diff = Math.abs(design[i].rep - impl[j].rep);
+      const diff = Math.abs(design[i] - impl[j]);
       if (diff <= tolerance) {
         const withPair = {
           pairs: best[i + 1][j + 1].pairs + 1,
@@ -141,13 +142,13 @@ export function matchClusters(
   let i = 0;
   let j = 0;
   while (i < n && j < m) {
-    const diff = Math.abs(design[i].rep - impl[j].rep);
+    const diff = Math.abs(design[i] - impl[j]);
     const matched =
       diff <= tolerance &&
       best[i][j].pairs === best[i + 1][j + 1].pairs + 1 &&
       best[i][j].cost === best[i + 1][j + 1].cost + diff;
     if (matched) {
-      pairs.push([design[i].rep, impl[j].rep]);
+      pairs.push([design[i], impl[j]]);
       i++;
       j++;
       continue;
@@ -155,21 +156,21 @@ export function matchClusters(
     // Drop whichever side the optimum drops; on a tie drop the lower
     // representative first, which keeps the walk deterministic.
     if (best[i + 1][j].pairs > best[i][j + 1].pairs) {
-      designOnly.push(design[i].rep);
+      designOnly.push(design[i]);
       i++;
     } else if (best[i + 1][j].pairs < best[i][j + 1].pairs) {
-      implOnly.push(impl[j].rep);
+      implOnly.push(impl[j]);
       j++;
-    } else if (design[i].rep <= impl[j].rep) {
-      designOnly.push(design[i].rep);
+    } else if (design[i] <= impl[j]) {
+      designOnly.push(design[i]);
       i++;
     } else {
-      implOnly.push(impl[j].rep);
+      implOnly.push(impl[j]);
       j++;
     }
   }
-  for (; i < n; i++) designOnly.push(design[i].rep);
-  for (; j < m; j++) implOnly.push(impl[j].rep);
+  for (; i < n; i++) designOnly.push(design[i]);
+  for (; j < m; j++) implOnly.push(impl[j]);
   return { pairs, designOnly, implOnly };
 }
 
@@ -177,14 +178,17 @@ export function matchClusters(
 const better = (a: { pairs: number; cost: number }, b: { pairs: number; cost: number }): boolean =>
   a.pairs > b.pairs || (a.pairs === b.pairs && a.cost < b.cost);
 
-/** One family's comparison result. `implOnly` is always empty for `spacing`. */
+/** One family's comparison result. `implOnly` is always empty for `spacing`.
+ * Severity is deliberately NOT a field: it is a pure function of `unmatched`
+ * that ignores `budget`, so storing it would put a `med` on a family with zero
+ * unmatched values. Callers that report findings call
+ * {@link severityForUnmatched} at the point of use. */
 export interface FamilyOutcome {
   family: GeometryFamily;
   unmatched: number;
   budget: number;
   designOnly: number[];
   implOnly: number[];
-  severity: Severity;
 }
 
 export interface GeometryComparison {
@@ -227,14 +231,7 @@ export function compareGeometry(
     implOnly: number[],
   ): FamilyOutcome => {
     const unmatched = designOnly.length + implOnly.length;
-    return {
-      family,
-      unmatched,
-      budget: budget[family],
-      designOnly,
-      implOnly,
-      severity: severityForUnmatched(unmatched),
-    };
+    return { family, unmatched, budget: budget[family], designOnly, implOnly };
   };
 
   const families: FamilyRecord<FamilyOutcome> = {

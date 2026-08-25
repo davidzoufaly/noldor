@@ -55,30 +55,32 @@ import { clusterValues } from '../../geometry/geometry-compare-core.js';
 
 describe('clusterValues', () => {
   it('collapses exact duplicates and clusters within tolerance', () => {
-    expect(clusterValues([24, 24, 25, 40], 2)).toEqual([
-      { rep: 24.5, values: [24, 25] },
-      { rep: 40, values: [40] },
-    ]);
+    expect(clusterValues([24, 24, 25, 40], 2)).toEqual([24.5, 40]);
   });
 
   it('starts a new cluster only past the tolerance', () => {
-    expect(clusterValues([10, 12, 14.1], 2).map((c) => c.values)).toEqual([[10, 12], [14.1]]);
+    expect(clusterValues([10, 12, 14.1], 2)).toEqual([11, 14.1]);
+  });
+
+  it('bounds a cluster by its own width so linkage cannot chain', () => {
+    // Single linkage would make 24, 26, 28 one cluster with representative 26,
+    // which then matches a design edge at 24 and hides the 28.
+    expect(clusterValues([24, 26, 28], 2)).toEqual([25, 28]);
   });
 
   it('uses the arithmetic mean as the representative for an even-sized cluster', () => {
-    expect(clusterValues([10, 11], 2)[0].rep).toBe(10.5);
+    expect(clusterValues([10, 11], 2)[0]).toBe(10.5);
   });
 
   it('sorts negatives correctly and handles the empty list', () => {
-    expect(clusterValues([-4, 8, -4], 1).map((c) => c.rep)).toEqual([-4, 8]);
+    expect(clusterValues([-4, 8, -4], 1)).toEqual([-4, 8]);
     expect(clusterValues([], 2)).toEqual([]);
   });
 });
 
 import { matchClusters } from '../../geometry/geometry-compare-core.js';
 
-const cl = (reps: number[]): { rep: number; values: number[] }[] =>
-  reps.map((rep) => ({ rep, values: [rep] }));
+const cl = (reps: number[]): number[] => reps;
 
 describe('matchClusters', () => {
   it('finds the full matching greedy would miss', () => {
@@ -122,6 +124,7 @@ import {
   compareGeometry,
   DEFAULT_BUDGET,
   DEFAULT_TOLERANCE,
+  severityForUnmatched,
 } from '../../geometry/geometry-compare-core.js';
 
 const card = (x: number): GeometryDoc['nodes'][number] => ({
@@ -143,7 +146,6 @@ describe('compareGeometry', () => {
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.verdict).toBe('fail');
     expect(r.families.edges.implOnly).toContain(30);
-    expect(r.families.edges.severity).toBe('med');
   });
 
   it('counts spacing one-directionally: an impl margin satisfies a design gap', () => {
@@ -181,7 +183,8 @@ describe('compareGeometry', () => {
     });
     expect(lenient.verdict).toBe('pass');
     const strict = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
-    expect(strict.families.edges.severity).toBe('high');
+    expect(strict.verdict).toBe('fail');
+    expect(severityForUnmatched(strict.families.edges.unmatched)).toBe('high');
   });
 
   it('adds no unmatched value for a wrapper that shares its child box', () => {
@@ -203,5 +206,15 @@ describe('compareGeometry', () => {
     const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
     expect(r.families.fontSize.implOnly).toEqual([13]);
     expect(r.verdict).toBe('fail');
+  });
+});
+
+describe('drift beyond the tolerance is never hidden by clustering', () => {
+  it('reports an edge 4px off even when an intermediate edge bridges it', () => {
+    const design = doc([card(24)]);
+    const impl = doc([card(24), card(26), card(28)]);
+    const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.verdict).toBe('fail');
+    expect(r.families.edges.implOnly).toContain(28);
   });
 });

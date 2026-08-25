@@ -53,6 +53,28 @@ describe('runGeometryDiff', () => {
     expect(await runGeometryDiff([a, b, '--surface', 'dashboard'], (s) => out.push(s))).toBe(2);
   });
 
+  it('exits 2 rather than green on two empty documents', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'geo-diff-'));
+    const a = await write(dir, 'design.json', doc([]));
+    const b = await write(dir, 'impl.json', doc([]));
+    const out: string[] = [];
+    expect(await runGeometryDiff([a, b, '--surface', 'dashboard'], (s) => out.push(s))).toBe(2);
+    expect(out.join('\n')).toContain('geometry-empty');
+  });
+
+  it('exits 2 on a viewport mismatch instead of comparing mismatched boxes', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'geo-diff-'));
+    const a = await write(dir, 'design.json', doc([card(24)]));
+    const b = await write(dir, 'impl.json', {
+      surface: 'dashboard',
+      viewport: { width: 1280, height: 900 },
+      nodes: [card(24)],
+    });
+    const out: string[] = [];
+    expect(await runGeometryDiff([a, b, '--surface', 'dashboard'], (s) => out.push(s))).toBe(2);
+    expect(out.join('\n')).toContain('viewport-mismatch');
+  });
+
   it('exits 2 on a missing path, a missing --surface, an unknown flag, and a value-less flag', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'geo-diff-'));
     const a = await write(dir, 'design.json', doc([card(24)]));
