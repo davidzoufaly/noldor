@@ -35,6 +35,7 @@
 - [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/lanes/geometry-registration.test.ts`:
 
 ```ts
+// @tests: ui-design-review-lane
 import { describe, expect, it } from 'vitest';
 
 import { autonomousConfigSchema } from '../../../core/config.js';
@@ -159,6 +160,7 @@ git commit -F /tmp/geo-p5t1.msg
 - [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/lanes/round-artifacts.test.ts`:
 
 ```ts
+// @tests: ui-design-review-lane
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -401,6 +403,7 @@ Expected output: every existing lane suite still passes and typecheck is clean a
 - [ ] **Step 2: Write the failing test.** Create `src/cr/__tests__/geometry/geometry-review.test.ts`:
 
 ```ts
+// @tests: ui-design-review-lane
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

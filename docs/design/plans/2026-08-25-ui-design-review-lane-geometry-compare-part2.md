@@ -28,6 +28,7 @@
 - [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/geometry/geometry-compare-core.test.ts`:
 
 ```ts
+// @tests: ui-design-review-lane
 import { describe, expect, it } from 'vitest';
 
 import { extractFamilies } from '../../geometry/geometry-compare-core.js';
@@ -111,11 +112,9 @@ export type FamilyRecord<T> = Record<GeometryFamily, T>;
 export const DEFAULT_TOLERANCE: FamilyRecord<number> = { edges: 2, fontSize: 1, spacing: 1 };
 export const DEFAULT_BUDGET: FamilyRecord<number> = { edges: 0, fontSize: 0, spacing: 0 };
 
-/**
- * Raw values per family. `edges` splits by axis because a 24px left edge and a
- * 24px top edge are unrelated quantities that must not match each other; the
- * two axes still share one tolerance and one budget (spec D5).
- */
+/** Raw values per family. `edges` splits by axis — a 24px left edge and a 24px
+ * top edge are unrelated quantities that must not match each other — while both
+ * axes still share one tolerance and one budget (spec D5). */
 export interface FamilyValues {
   edgesX: number[];
   edgesY: number[];
@@ -744,6 +743,7 @@ git commit -F /tmp/geo-t5.msg
 - [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/geometry/geometry-diff-cli.test.ts`:
 
 ```ts
+// @tests: ui-design-review-lane
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

@@ -30,6 +30,7 @@
 - [ ] **Step 1: Write the failing test.** Add to `src/core/__tests__/ui-boot.test.ts` (create the file with this content if it does not exist):
 
 ```ts
+// @tests: ui-design-review-lane
 import { describe, expect, it } from 'vitest';
 
 import { screenshotTemplateIssues } from '../ui-boot.js';
@@ -367,6 +368,7 @@ git commit -F /tmp/geo-p3t2.msg
 - [ ] **Step 1: Write the failing test.** Add to `src/core/__tests__/templates-manifest.test.ts` (create it with this content if absent):
 
 ```ts
+// @tests: ui-design-review-lane
 import { describe, expect, it } from 'vitest';
 
 import { SCAFFOLD_ONLY_TEMPLATES, templateFiles } from '../../templates/manifest.js';

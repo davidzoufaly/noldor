@@ -28,6 +28,7 @@
 - [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/geometry/geometry-doc.test.ts`:
 
 ```ts
+// @tests: ui-design-review-lane
 import { describe, expect, it } from 'vitest';
 
 import { parseGeometryDoc } from '../../geometry/geometry-doc.js';
@@ -318,6 +319,7 @@ git commit -F /tmp/geo-t1.msg
 - [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/geometry/geometry-validate-cli.test.ts`:
 
 ```ts
+// @tests: ui-design-review-lane
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

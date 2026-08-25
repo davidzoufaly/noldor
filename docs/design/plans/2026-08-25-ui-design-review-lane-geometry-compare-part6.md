@@ -29,6 +29,7 @@
 - [ ] **Step 1: Write the failing test.** Create `src/cr/__tests__/lanes/geometry-compare.test.ts`:
 
 ```ts
+// @tests: ui-design-review-lane
 import { describe, expect, it } from 'vitest';
 
 import { planSurfaceJobs, roundFindings, roundRows } from '../../lanes/geometry-compare.js';
