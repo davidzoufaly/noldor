@@ -519,13 +519,21 @@ try {
   'scripts/geometry-capture.mjs',
 ```
 
+- [ ] **Step F: Format what the plan dictated.**
+
+```bash
+pnpm fmt && git diff --stat
+```
+
+Expected output: `oxfmt` reflows the blocks this plan pasted (the code here is written for reading, not to `oxfmt`'s exact column choices) and prints the files it touched. Run this BEFORE the gate below — `pnpm verify` includes `fmt:check`, which fails on an unformatted block before it ever reaches the tests.
+
 - [ ] **Step 5: Run it and verify PASS.**
 
 ```bash
-pnpm vitest run src/core/__tests__/templates-manifest.test.ts && pnpm noldor checks template-sync
+pnpm vitest run src/core/__tests__/templates-manifest.test.ts && pnpm noldor checks template-sync && pnpm verify
 ```
 
-Expected output: the suite passes and `template-sync` exits 0 — a scaffold-only template is never compared against a consumer copy.
+Expected output: the suite passes, `template-sync` exits 0 (a scaffold-only template is never compared against a consumer copy), and `pnpm verify` exits 0.
 
 - [ ] **Step 6: Verify the script's shape without a browser.**
 

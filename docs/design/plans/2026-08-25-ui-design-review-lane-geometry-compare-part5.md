@@ -784,6 +784,12 @@ export async function runGeometryReview(
       emit(read.error);
       return 2;
     }
+    // `optionalFlag` does not check the value's SHAPE, so a forgotten value
+    // (`--surface --out doc.json`) would otherwise swallow the NEXT FLAG's name.
+    if (read.value !== undefined && read.value.startsWith('--')) {
+      emit(`${LABEL}: ${flag} requires a value\n${USAGE}`);
+      return 2;
+    }
     if (read.value !== undefined) values.set(flag, read.value);
   }
   const consumedIdx = new Set<number>();
@@ -864,6 +870,14 @@ Then append this block to `docs/noldor/script-catalog.md` after `design:geometry
 - **When to use:** reproducing a `geometry-compare` lane row by hand, or checking a surface before wiring the lane at all.
 - **Source:** [`src/cr/geometry/geometry-review-cli.ts`](../../src/cr/geometry/geometry-review-cli.ts)
 ```
+
+- [ ] **Step F: Format what the plan dictated.**
+
+```bash
+pnpm fmt && git diff --stat
+```
+
+Expected output: `oxfmt` reflows the blocks this plan pasted (the code here is written for reading, not to `oxfmt`'s exact column choices) and prints the files it touched. Run this BEFORE the gate below — `pnpm verify` includes `fmt:check`, which fails on an unformatted block before it ever reaches the tests.
 
 - [ ] **Step 8: Verify the gates.**
 

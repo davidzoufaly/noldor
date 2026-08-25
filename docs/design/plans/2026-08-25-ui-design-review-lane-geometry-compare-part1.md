@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
-**Goal:** Ship the normalized geometry document as a usable contract: `pnpm noldor design geometry-validate <doc.json> --side design|impl --surface <name>` tells a consumer whether their capture output conforms, before any comparison engine exists.
+**Goal:** Ship the normalized geometry document as a usable contract: `pnpm noldor design geometry-validate <doc.json> --side design|impl --surface <name>` tells a consumer whether their capture output is STRUCTURALLY conformant — the schema's shape and invariants — before any comparison engine exists. It cannot judge the producer semantics parts 3 and 4 own (capture root, origin, inclusion rules); a document can pass this and still measure the wrong thing, which is what `design geometry-diff` and `design geometry-review` are for.
 **Architecture:** One pure schema module under `src/cr/geometry/` plus a thin CLI entrypoint. This part pins the document's *shape and invariants* only — the producer-side semantics (capture root and origin subtraction, scroll and transform handling, node inclusion, pen's gap/padding normalization) belong to the producers and are pinned in part 3 (the capture script) and part 4 (the extraction prompt), per the spec's D3 and D4. Part 2 adds the comparison engine over these documents.
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), zod 3, vitest.
 
@@ -43,7 +43,9 @@ describe('parseGeometryDoc', () => {
   it('accepts a well-formed design document', () => {
     const r = parseGeometryDoc(doc(), 'design', 'dashboard');
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.doc.nodes[0].fontSize).toBe(14);
+    // Narrow on the discriminant before reading fontSize — the union is what
+    // makes the un-narrowed read a type error.
+    if (r.ok && r.doc.nodes[0].kind === 'text') expect(r.doc.nodes[0].fontSize).toBe(14);
   });
 
   it('rejects a surface that is not the one under review', () => {
@@ -164,11 +166,11 @@ export const geometrySpacingSchema = z
   .strict();
 export type GeometrySpacing = z.infer<typeof geometrySpacingSchema>;
 
-/** Fields every node carries, whatever its kind. */
+/** Fields every node carries, whatever its kind. `text` is NOT among them —
+ * see the per-kind members: a text node must carry it and no other kind may. */
 const nodeCommon = {
   name: z.string().optional(),
   box: geometryBoxSchema,
-  text: z.string().optional(),
   spacing: geometrySpacingSchema.optional(),
 };
 
@@ -181,7 +183,14 @@ const nodeCommon = {
  * cannot type-check its way past the boundary.
  */
 export const geometryTextNodeSchema = z
-  .object({ ...nodeCommon, kind: z.literal('text'), fontSize: finite.positive() })
+  .object({
+    ...nodeCommon,
+    kind: z.literal('text'),
+    fontSize: finite.positive(),
+    /** The rendered text, required here: `kind: 'text'` means text-bearing, and
+     * a producer that cannot say what the text is has mis-classified the node. */
+    text: z.string().min(1),
+  })
   .strict();
 export type GeometryTextNode = z.infer<typeof geometryTextNodeSchema>;
 
@@ -261,7 +270,7 @@ export function parseGeometryDoc(
 pnpm vitest run src/cr/__tests__/geometry/geometry-doc.test.ts
 ```
 
-Expected output: `Test Files 1 passed`, `Tests 9 passed`.
+Expected output: `Test Files 1 passed`, `Tests 8 passed`.
 
 - [ ] **Step 5: Commit.**
 
@@ -363,11 +372,34 @@ describe('runGeometryValidate', () => {
     expect(await runGeometryValidate(['--side', 'impl', '--surface', 'x'], (s) => out.push(s))).toBe(2);
   });
 
-  it('does not mistake a path that reads like a flag value for one', async () => {
-    const p = await write('impl.json', doc([{ kind: 'shape', box: { x: 0, y: 0, w: 1, h: 1 } }]));
+  it('does not mistake a path whose text equals a flag value for that value', async () => {
+    // The positional is string-equal to the --surface value, which is what the
+    // old by-value filter dropped; index-based filtering keeps it.
+    const dir = await mkdtemp(join(tmpdir(), 'geo-val-'));
+    const rel = 'surface-doc';
+    await writeFile(join(dir, rel), JSON.stringify({
+      surface: rel,
+      viewport: { width: 10, height: 10 },
+      nodes: [{ kind: 'shape', box: { x: 0, y: 0, w: 1, h: 1 } }],
+    }), 'utf8');
     const out: string[] = [];
-    // The surface is literally the same string as the path's basename stem.
-    expect(await runGeometryValidate([p, '--side', 'impl', '--surface', 'impl'], (s) => out.push(s))).toBe(1);
+    const cwd = process.cwd();
+    process.chdir(dir);
+    try {
+      expect(await runGeometryValidate([rel, '--side', 'impl', '--surface', rel], (s) => out.push(s))).toBe(0);
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+
+  it('exits 2 on malformed JSON and on a value-less flag that would swallow the next', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'geo-val-'));
+    const bad = join(dir, 'bad.json');
+    await writeFile(bad, '{not json', 'utf8');
+    const out: string[] = [];
+    expect(await runGeometryValidate([bad, '--side', 'impl', '--surface', 'x'], (s) => out.push(s))).toBe(2);
+    const good = await write('ok.json', doc([]));
+    expect(await runGeometryValidate([good, '--side', 'impl', '--surface', '--zoom'], (s) => out.push(s))).toBe(2);
   });
 });
 ```
@@ -399,8 +431,8 @@ import { parseGeometryDoc, type GeometrySide } from './geometry-doc.js';
 const LABEL = 'geometry-validate';
 const USAGE = `usage: noldor design ${LABEL} <doc.json> --side design|impl --surface <name>`;
 
-/** `.has` over an array scan: oxlint's `unicorn/prefer-set-has` requires it. */
-const SIDES: ReadonlySet<string> = new Set<string>(['design', 'impl']);
+/** Narrowing predicate, not a cast: `side` arrives as untrusted argv text. */
+const isSide = (s: string): s is GeometrySide => s === 'design' || s === 'impl';
 /** Every flag this command takes a value for — an unknown flag is user error. */
 const VALUE_FLAGS = ['--side', '--surface'] as const;
 
@@ -420,10 +452,17 @@ export async function runGeometryValidate(
       emit(read.error);
       return 2;
     }
+    // `optionalFlag` deliberately does not check the value's shape, so a
+    // forgotten value (`--surface --out doc.json`) would otherwise swallow the
+    // NEXT FLAG's name as the surface. Reject flag-shaped values here.
+    if (read.value !== undefined && read.value.startsWith('--')) {
+      emit(`${LABEL}: ${flag} requires a value\n${USAGE}`);
+      return 2;
+    }
     if (read.value !== undefined) values.set(flag, read.value);
   }
-  // Positionals are found by INDEX, not by value: a path that happens to read
-  // `impl` must not be swallowed as the --side value's twin.
+  // Positionals are found by INDEX, not by value: a path whose text equals a
+  // flag's value must not be swallowed as that value's twin.
   const consumedIdx = new Set<number>();
   for (const flag of VALUE_FLAGS) {
     const i = argv.indexOf(flag);
@@ -440,21 +479,24 @@ export async function runGeometryValidate(
   // `--surface` is REQUIRED: defaulting it to whatever the document claims would
   // make the surface-equality check self-satisfying, and that check is the whole
   // point of passing a side and a surface separately.
-  if (positional.length !== 1 || side === undefined || surface === undefined || !SIDES.has(side)) {
+  if (positional.length !== 1 || side === undefined || surface === undefined || !isSide(side)) {
     emit(USAGE);
     return 2;
   }
   let raw: unknown;
   try {
+    // Exit 2 covers "there is no document to judge" — the file is unreadable OR
+    // its bytes are not JSON. Exit 1 is reserved for a document that parsed and
+    // then violated the contract, which is the only case where the tool has an
+    // answer ABOUT a document.
     raw = JSON.parse(await readFile(positional[0], 'utf8'));
   } catch (err) {
-    emit(`${LABEL}: could not read ${positional[0]}: ${errMessage(err)}`);
+    emit(`${LABEL}: could not read ${positional[0]} as JSON: ${errMessage(err)}`);
     return 2;
   }
-  // `side` is narrowed by the SIDES membership check above, not asserted: this is
-  // an external-input boundary, and a cast here would be a claim rather than a
-  // check.
-  const parsed = parseGeometryDoc(raw, side === 'design' ? 'design' : 'impl', surface);
+  // `side` is narrowed by `isSide`, never asserted: this is an external-input
+  // boundary, and a cast would be a claim rather than a check.
+  const parsed = parseGeometryDoc(raw, side, surface);
   if (!parsed.ok) {
     emit(`${LABEL}: ${parsed.detail}`);
     return 1;
@@ -468,15 +510,13 @@ export async function runGeometryValidate(
 runIfDirect('geometry-validate-cli', `design ${LABEL}`, (argv) => runGeometryValidate(argv));
 ```
 
-`GeometrySide` is imported for the signature of `parseGeometryDoc`'s call above; the narrowing expression is deliberate — see the comment.
-
 - [ ] **Step 4: Run it and verify PASS.**
 
 ```bash
 pnpm vitest run src/cr/__tests__/geometry/geometry-validate-cli.test.ts
 ```
 
-Expected output: `Test Files 1 passed`, `Tests 5 passed`.
+Expected output: `Test Files 1 passed`, `Tests 6 passed`.
 
 - [ ] **Step 5: Register the subcommand.** In `src/cli/manifest.ts`, inside the `design` group's `subs`, add after the `log` entry:
 
@@ -506,6 +546,14 @@ Expected output: `usage: noldor design geometry-validate <doc.json> --side desig
 - **When to use:** before wiring `geometryCommand` into `consumer.uiBoot` — the same parse runs inside the `geometry-compare` lane, where a violation lands as `geometry-unparseable`.
 - **Source:** [`src/cr/geometry/geometry-validate-cli.ts`](../../src/cr/geometry/geometry-validate-cli.ts)
 ```
+
+- [ ] **Step F: Format what the plan dictated.**
+
+```bash
+pnpm fmt && git diff --stat
+```
+
+Expected output: `oxfmt` reflows the blocks this plan pasted (the code here is written for reading, not to `oxfmt`'s exact column choices) and prints the files it touched. Run this BEFORE the gate below — `pnpm verify` includes `fmt:check`, which fails on an unformatted block before it ever reaches the tests.
 
 - [ ] **Step 8: Verify the gates.**
 

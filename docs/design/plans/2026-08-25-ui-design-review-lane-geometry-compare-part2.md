@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Execute this plan task-by-task inline — read each task, use your normal file-edit and shell tools, follow the TDD step order exactly, commit at each task's Commit step, tick `- [ ] → - [x]` as you go. Do not delegate execution to a sub-skill or separate executor.
 
-**Goal:** Ship the comparison engine as a runnable capability: `pnpm noldor design geometry-diff <design.json> <impl.json>` compares two conformant geometry documents and reports per-family unmatched values. No pen, no browser, no CR round required.
+**Goal:** Ship the comparison engine as a runnable capability: `pnpm noldor design geometry-diff <design.json> <impl.json> --surface <name>` compares two conformant geometry documents and reports per-family unmatched values. No pen, no browser, no CR round required.
 **Architecture:** One pure module (`geometry-compare-core.ts`: families, clustering, optimal matching, verdict) over part 1's document contract, plus a thin CLI entrypoint. Part 3 wires the lane that feeds it from pencil MCP and a booted app.
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), zod 3, vitest.
 
@@ -14,10 +14,8 @@
 
 - `src/cr/geometry/geometry-compare-core.ts` — family extraction, clustering, optimal matching, per-family outcomes and severity. Pure: no IO, no process state.
 - `src/cr/geometry/geometry-diff-cli.ts` — `noldor design geometry-diff`: read two documents, print per-family rows, exit 0 clean / 1 drift / 2 usage-or-parse.
-- `src/cli/manifest.ts` — one `design.subs['geometry-diff']` row (Modify).
-- `docs/noldor/script-catalog.md` + `templates/docs/noldor/script-catalog.md` — the catalog entry, twinned (Modify).
-- `src/cr/__tests__/geometry/geometry-compare-core.test.ts` — extraction, clustering, matching, verdict tests.
-- `src/cr/__tests__/geometry/geometry-diff-cli.test.ts` — CLI exit-code + output tests.
+- `src/cli/manifest.ts` + `docs/noldor/script-catalog.md` + `templates/docs/noldor/script-catalog.md` — the command's row and its twinned catalog entry (Modify).
+- `src/cr/__tests__/geometry/geometry-compare-core.test.ts`, `src/cr/__tests__/geometry/geometry-diff-cli.test.ts` — engine and CLI tests.
 
 ---
 
@@ -796,7 +794,7 @@ describe('runGeometryDiff', () => {
     expect(await runGeometryDiff([a, b, '--surface', 'dashboard'], (s) => out.push(s))).toBe(2);
   });
 
-  it('exits 2 on a missing path, a missing --surface, and an unknown flag', async () => {
+  it('exits 2 on a missing path, a missing --surface, an unknown flag, and a value-less flag', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'geo-diff-'));
     const a = await write(dir, 'design.json', doc([card(24)]));
     const b = await write(dir, 'impl.json', doc([card(24)]));
@@ -804,6 +802,7 @@ describe('runGeometryDiff', () => {
     expect(await runGeometryDiff([a, '--surface', 'dashboard'], (s) => out.push(s))).toBe(2);
     expect(await runGeometryDiff([a, b], (s) => out.push(s))).toBe(2);
     expect(await runGeometryDiff([a, b, '--surface', 'dashboard', '--zoom'], (s) => out.push(s))).toBe(2);
+    expect(await runGeometryDiff([a, b, '--surface', '--zoom'], (s) => out.push(s))).toBe(2);
   });
 });
 ```
@@ -821,10 +820,9 @@ Expected output: collection error — `Failed to resolve import "../../geometry/
 ```ts
 // @tests: ui-design-review-lane
 // noldor design geometry-diff — compare two normalized geometry documents by
-// hand. The `geometry-compare` lane produces these documents from pencil MCP
-// and a booted app; this entrypoint exists so a consumer can validate a capture
-// script's output, and an operator can re-read a failing round's evidence,
-// without booting anything.
+// hand. The lane produces them from pencil MCP and a booted app; this exists so
+// a consumer can check a capture script's output, and an operator can re-read a
+// failing round's evidence, without booting anything.
 
 import { readFile } from 'node:fs/promises';
 
@@ -844,9 +842,8 @@ const USAGE = `usage: noldor design ${LABEL} <design.json> <impl.json> --surface
 const list = (xs: readonly number[]): string => xs.map((v) => v.toFixed(2)).join(', ');
 
 /**
- * Exit 0 = every family within budget, 1 = drift, 2 = usage error or either
- * document failing the boundary parse. Writes through the injected `emit` so
- * the tests read output instead of capturing a stream.
+ * Exit 0 = within budget, 1 = drift, 2 = usage error or a document that could
+ * not be read or parsed. `emit` is injected so tests read lines, not a stream.
  */
 export async function runGeometryDiff(
   argv: readonly string[],
@@ -857,8 +854,13 @@ export async function runGeometryDiff(
     emit(read.error);
     return 2;
   }
-  // Positionals are found by INDEX: a path whose text equals the surface name
-  // must not be swallowed as the flag's value.
+  // `optionalFlag` does not check the value's SHAPE, so a forgotten value
+  // (`--surface --zoom`) would otherwise be accepted as the surface name.
+  if (read.value !== undefined && read.value.startsWith('--')) {
+    emit(`${LABEL}: --surface requires a value\n${USAGE}`);
+    return 2;
+  }
+  // Positionals by INDEX, not by value — part 1's suite pins that rule.
   const consumedIdx = new Set<number>();
   const flagIdx = argv.indexOf('--surface');
   if (flagIdx >= 0) consumedIdx.add(flagIdx).add(flagIdx + 1);
@@ -869,8 +871,7 @@ export async function runGeometryDiff(
     return 2;
   }
   const surface = read.value;
-  // `--surface` is REQUIRED: defaulting it to whatever the design document claims
-  // would make the surface-equality check self-satisfying on both sides at once.
+  // Required: defaulting it to a document's own claim self-satisfies the check.
   if (positional.length !== 2 || surface === undefined) {
     emit(USAGE);
     return 2;
@@ -952,6 +953,14 @@ pnpm noldor validate script-catalog && pnpm noldor checks template-sync
 
 Expected output: both exit 0 — the catalog lists every manifest row, and no templated file differs from its `templates/` copy.
 
+- [ ] **Step F: Format what the plan dictated.**
+
+```bash
+pnpm fmt && git diff --stat
+```
+
+Expected output: `oxfmt` reflows the blocks this plan pasted (the code here is written for reading, not to `oxfmt`'s exact column choices) and prints the files it touched. Run this BEFORE the gate below — `pnpm verify` includes `fmt:check`, which fails on an unformatted block before it ever reaches the tests.
+
 - [ ] **Step 9: Full verification.**
 
 ```bash
@@ -969,8 +978,7 @@ feat(cli): add design geometry-diff to compare two geometry documents
 Why — the comparison engine is only trustworthy if a consumer can see what it
 says about their own capture output, and the lane that will feed it needs pencil
 MCP plus a booted app to run at all. Without a hand-runnable surface, writing a
-geometryCommand script would mean debugging it through a full CR round, and
-reading a failing round's evidence would mean re-running one.
+capture script would mean debugging it through a full CR round.
 
 How — a thin entrypoint that reads both documents, runs them through the same
 boundary parse the lane uses, compares them with the default tolerances and

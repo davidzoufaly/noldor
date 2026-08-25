@@ -804,6 +804,14 @@ git diff --stat docs/features/
 
 Expected output: only `docs/features/ui-design-review-lane.md` changed. If any other FD appears in the diff, revert those files (`git checkout -- docs/features/<other>.md`) — the sync is repo-wide and has previously dropped hand-listed links on unrelated FDs.
 
+- [ ] **Step F: Format what the plan dictated.**
+
+```bash
+pnpm fmt && git diff --stat
+```
+
+Expected output: `oxfmt` reflows the blocks this plan pasted (the code here is written for reading, not to `oxfmt`'s exact column choices) and prints the files it touched. Run this BEFORE the gate below — `pnpm verify` includes `fmt:check`, which fails on an unformatted block before it ever reaches the tests.
+
 - [ ] **Step 5: Verify the whole surface.**
 
 ```bash

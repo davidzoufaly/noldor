@@ -439,6 +439,12 @@ export async function runGeometryExport(
       emit(read.error);
       return 2;
     }
+    // `optionalFlag` does not check the value's SHAPE, so a forgotten value
+    // (`--surface --out doc.json`) would otherwise swallow the NEXT FLAG's name.
+    if (read.value !== undefined && read.value.startsWith('--')) {
+      emit(`${LABEL}: ${flag} requires a value\n${USAGE}`);
+      return 2;
+    }
     if (read.value !== undefined) values.set(flag, read.value);
   }
   const consumedIdx = new Set<number>();
@@ -547,6 +553,14 @@ Expected output: `Test Files 1 passed`, `Tests 4 passed`.
 - **When to use:** producing the design half of a comparison by hand — pair it with a captured implementation document and `pnpm noldor design geometry-diff`.
 - **Source:** [`src/cr/geometry/geometry-export-cli.ts`](../../src/cr/geometry/geometry-export-cli.ts)
 ```
+
+- [ ] **Step F: Format what the plan dictated.**
+
+```bash
+pnpm fmt && git diff --stat
+```
+
+Expected output: `oxfmt` reflows the blocks this plan pasted (the code here is written for reading, not to `oxfmt`'s exact column choices) and prints the files it touched. Run this BEFORE the gate below — `pnpm verify` includes `fmt:check`, which fails on an unformatted block before it ever reaches the tests.
 
 - [ ] **Step 7: Verify the gates.**
 
