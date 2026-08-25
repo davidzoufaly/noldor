@@ -183,5 +183,9 @@
   "Q-0164": {
     "slug": "release-cr-gate-glob-union-for-sweep-squashes",
     "retiredAt": "2026-08-25"
+  },
+  "Q-0165": {
+    "slug": "push-gate-preflight-must-replay-the-real-hook",
+    "retiredAt": "2026-08-25"
   }
 }

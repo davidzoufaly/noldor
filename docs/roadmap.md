@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Push-Gate Preflight Must Replay the Real Hook
-
-- id: Q-0165
-- area: tooling
-- type: fix
-- since: 2026-08-23
-- size: S
-- impact: med
-- confidence: high
-- parent: gate-flow-rework
-
-The author-side push-gate preflight (gate Step 4, added by Q-0129 to stop receipt churn) does not actually replay the gate that fails. It prescribes `pnpm noldor clones check`, which exits 0 while lefthook's `noldor-clones` pre-push step reds on the same tree: standalone reports "N group(s) duplicated in this change" as information, the hook treats it as a failure. Cost it twice on 2026-08-20 (Q-0119, Q-0134): preflight green → review green → receipt earned → push refused → fix commit → receipt invalidated → re-earn dispatch, which is precisely the sequence Q-0129 exists to prevent. The preflight should invoke the hook step itself (as it already does for `summary-body` via the `printf … | noldor hooks pre-push` replay) rather than a differently-behaving CLI sibling — or `clones check` should grow a `--as-gate` exit contract so the two cannot disagree. Deletion test: a change that the pre-push clones step will refuse is refused author-side, before the review round. (found 2026-08-20 draining the XS batch)
-
 ### pr-flow Cannot Reuse an Existing Open PR
 
 - id: Q-0166
