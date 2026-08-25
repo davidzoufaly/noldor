@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Pencil Bridge Editor Default and Auto-Open
-
-- id: Q-0179
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: med
-- parent: pendev-ui-design-phase
-
-The UI-design surface never states which pencil editor it drives, and the recipe for bringing the bridge up lives in exactly one prompt string. `.pen` files are only readable through pencil MCP, which needs a live editor: the VS Code pen.dev extension and the standalone desktop app both satisfy it, but only the extension is scriptable from an agent shell (`code <file>.pen`), so it should be the declared default with the desktop app as the fallback. Today [`src/cr/lanes/render-export-dispatch.ts`](../src/cr/lanes/render-export-dispatch.ts) is the only place that knows the recovery step, while `/noldor-spec`'s UI-design stage routes "editor unavailable" straight to an operator waiver (`uiWaiver`) — so a bridge that is merely *closed* is recorded as baseline debt rather than opened. Wanted: state the VS Code-extension-first ordering once, and give the agent a locate-or-create step it can run before waiving — find an existing `.pen` (the session's feature file, a `docs/design/ui/baseline/<surface>.pen`, any `.pen` in the repo), `code` it to wake the bridge, and create a blank one when none exists. Deletion test: an agent that hits "A file needs to be open in the editor" opens a `.pen` and retries instead of asking for a waiver.
-
 ### Plan Split Guidance Permits A Part That Ships Nothing
 
 - id: Q-0150
