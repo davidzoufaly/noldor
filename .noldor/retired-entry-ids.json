@@ -175,5 +175,9 @@
   "Q-0179": {
     "slug": "pencil-bridge-editor-default-and-auto-open",
     "retiredAt": "2026-08-25"
+  },
+  "Q-0150": {
+    "slug": "plan-split-guidance-permits-a-part-that-ships-nothing",
+    "retiredAt": "2026-08-25"
   }
 }
