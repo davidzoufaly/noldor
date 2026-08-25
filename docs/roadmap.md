@@ -333,6 +333,21 @@ Gate Step 4's "wait for in-flight" `cr aggregate --slug <slug>` (no `--kind`) re
 
 Q-0093 shipped the `docs/architecture/` registry — four pages, a presence validator, an advisory staleness check and scaffold-only templates — but left the *content* contract open, so the pages drift into long narrative prose instead of the terse technical reading the surface exists to give. Wanted: prescribe the form as well as the existence — a fixed section structure per page in `templates/docs/architecture/`, stricter C4 fidelity (each page answers its own C4 level and only that level: context = system + actors + externals, containers = runnable units, modules = internal dependency direction and state ownership, flows = load-bearing runtime paths), and a prose contract that favours diagram + labelled fact over paragraphs. Consider an advisory bloat check alongside the existing staleness one (prose-to-diagram ratio, or per-page word budget) so the drift is visible without blocking a release. Deletion test: a reader answers "how is this system shaped" from the four pages without reading a single full paragraph, and a page that has grown into an essay is flagged rather than merely stale.
 
+### Geometry-Compare Lane — the Automated Half
+
+- id: Q-0180
+- area: tooling
+- type: feat
+- since: 2026-08-25
+- size: L
+- impact: low
+- confidence: high
+- split-from: Q-0145
+- parent: ui-design-review-lane
+- blocked-by: Q-0145
+
+The `geometry-compare` comparison engine shipped as two hand-runnable commands (`design geometry-validate`, `design geometry-diff`) — plain JSON in, per-family layout drift out, no pen and no browser required. Parked here is the automation around it: the `geometryCommand` recipe field with per-family tolerance and budget knobs, the scaffolded Playwright reference producer, the `geometry-extract` pencil-MCP child that reads a `FINAL:` page's resolved geometry, the `geometry-export` / `geometry-review` commands, and the lane itself with its orchestrate wiring and boot sequencing. Parked on evidence rather than doubt: neither existing UI-design review lane is enabled anywhere. This repo declares no `consumer.uiPaths` at all, and charuy declares `uiPaths` but no `uiSurfaces` and no `uiBoot`, with `crLanes.code` at `[reviewer]` — so `render-compare` (PR #366) has zero enabled installs, and `geometry-compare`'s prerequisites are strictly heavier (a boot recipe, a JSON-emitting capture script, playwright in the consumer). Unpark when a repo actually configures `uiBoot` and enables one of the two existing lanes; until then the parked half only automates a workflow the two shipped commands already perform by hand. The full spec is committed at `docs/design/specs/archive/2026-08-25-ui-design-review-lane-geometry-compare-design.md`, and the four remaining plan parts (config + capture template, the extraction child, the review function, the lane) live in git at commit `3ce77e3` — recover them with `git show 3ce77e3 -- docs/design/plans/` rather than re-planning. One contract detail to carry forward: `geometryDocSchema` requires a non-empty `text` on every `kind: 'text'` node — spec D4 and the shipped code agree on this — so the extraction child's prompt must emit it or every surface containing text lands `geometry-unparseable`. Deletion test: a consumer with a `uiBoot` recipe gets a code-stage lane that reds on real layout drift without a human running two commands. (carved 2026-08-25 after shipping parts 1-2)
+
 ### Milestone-Queue Linking
 
 - id: Q-0083

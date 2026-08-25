@@ -99,6 +99,22 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** waking the bridge before `design ui-sync`, the spec skill's UI-design step, the gate's baseline write-back, or a `ui-reviewer` / `render-compare` lane child that reports `pen-unreadable`.
 - **Source:** [`src/design/pen-bridge-cli.ts`](../../src/design/pen-bridge-cli.ts)
 
+### `design:geometry-diff`
+
+- **Trigger:** `pnpm noldor design geometry-diff <design.json> <impl.json> --surface <name>`. Run by hand while writing or debugging a `geometryCommand` capture script, or over a failing `geometry-compare` round's evidence files.
+- **Inputs:** two normalized geometry documents (`geometryDocSchema`) and the surface both must report — required, since defaulting it to a document's own claim would make the surface check self-satisfying.
+- **Outputs:** one line per family — unmatched count, budget, and the design-only and implementation-only representatives. Exit 0 = every family within budget, 1 = drift, 2 = usage error or either document failing the boundary parse.
+- **When to use:** validating that a capture script produces a conformant document, and reading a round's evidence without booting the app.
+- **Source:** [`src/cr/geometry/geometry-diff-cli.ts`](../../src/cr/geometry/geometry-diff-cli.ts)
+
+### `design:geometry-validate`
+
+- **Trigger:** `pnpm noldor design geometry-validate <doc.json> --side design|impl --surface <name>`. Run while writing or debugging a `geometryCommand` capture script.
+- **Inputs:** one normalized geometry document, the side that produced it, and the surface it must report. All three are required — defaulting the surface to whatever the document claims would make the surface check self-satisfying.
+- **Outputs:** the node count and viewport on success, or the first contract violation. Exit 0 = conformant, 1 = violates the contract, 2 = usage error or a file that is unreadable or not JSON.
+- **When to use:** before wiring `geometryCommand` into `consumer.uiBoot` — the same parse runs inside the `geometry-compare` lane, where a violation lands as `geometry-unparseable`.
+- **Source:** [`src/cr/geometry/geometry-validate-cli.ts`](../../src/cr/geometry/geometry-validate-cli.ts)
+
 ### `check:ui-design-freshness`
 
 - **Trigger:** `pnpm noldor checks ui-design-freshness`. Run by `/noldor-gate` Step 4 (advisory, after the flip commit) and release preflight (blocking on `stale`).

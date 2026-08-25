@@ -1,0 +1,71 @@
+// @tests: ui-design-review-lane
+// noldor design geometry-validate — check one normalized geometry document
+// against `geometryDocSchema` and the side-specific rules. A consumer writing a
+// `geometryCommand` capture script needs to know their output conforms BEFORE a
+// lane exists to consume it; inside a round the same parse produces the
+// `geometry-unparseable` sink, so the two can never disagree.
+
+import { readFile } from 'node:fs/promises';
+
+import { readValueFlags, runIfDirect } from '../../core/cli-entry.js';
+import { errMessage } from '../../core/err-message.js';
+import { stdoutEmit, type Emit } from './geometry-cli-emit.js';
+import { parseGeometryDoc, type GeometrySide } from './geometry-doc.js';
+
+const LABEL = 'geometry-validate';
+const USAGE = `usage: noldor design ${LABEL} <doc.json> --side design|impl --surface <name>`;
+
+/** Narrowing predicate, not a cast: `side` arrives as untrusted argv text. */
+const isSide = (s: string): s is GeometrySide => s === 'design' || s === 'impl';
+/** Every flag this command takes a value for — an unknown flag is user error. */
+const VALUE_FLAGS = ['--side', '--surface'] as const;
+
+/**
+ * Exit 0 = conformant, 1 = the document violates the contract, 2 = usage error
+ * or the file could not be read. A violation is exit 1 rather than 2 because it
+ * is the tool's real answer, not a failure to answer.
+ */
+export async function runGeometryValidate(
+  argv: readonly string[],
+  emit: Emit = stdoutEmit,
+): Promise<number> {
+  const read = readValueFlags(argv, VALUE_FLAGS, LABEL);
+  if (!read.ok) {
+    emit(`${read.error}\n${USAGE}`);
+    return 2;
+  }
+  const { values, positional } = read;
+  const side = values.get('--side');
+  const surface = values.get('--surface');
+  // `--surface` is REQUIRED: defaulting it to whatever the document claims would
+  // make the surface-equality check self-satisfying, and that check is the whole
+  // point of passing a side and a surface separately.
+  if (positional.length !== 1 || side === undefined || surface === undefined || !isSide(side)) {
+    emit(USAGE);
+    return 2;
+  }
+  let raw: unknown;
+  try {
+    // Exit 2 covers "there is no document to judge" — the file is unreadable OR
+    // its bytes are not JSON. Exit 1 is reserved for a document that parsed and
+    // then violated the contract, which is the only case where the tool has an
+    // answer ABOUT a document.
+    raw = JSON.parse(await readFile(positional[0], 'utf8'));
+  } catch (err) {
+    emit(`${LABEL}: could not read ${positional[0]} as JSON: ${errMessage(err)}`);
+    return 2;
+  }
+  // `side` is narrowed by `isSide`, never asserted: this is an external-input
+  // boundary, and a cast would be a claim rather than a check.
+  const parsed = parseGeometryDoc(raw, side, surface);
+  if (!parsed.ok) {
+    emit(`${LABEL}: ${parsed.detail}`);
+    return 1;
+  }
+  emit(
+    `${LABEL}: ${positional[0]} is a valid ${side} document for surface '${surface}' — ${parsed.doc.nodes.length} node(s), viewport ${parsed.doc.viewport.width}x${parsed.doc.viewport.height}`,
+  );
+  return 0;
+}
+
+runIfDirect('geometry-validate-cli', `design ${LABEL}`, (argv) => runGeometryValidate(argv));

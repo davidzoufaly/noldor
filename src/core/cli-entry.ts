@@ -70,3 +70,48 @@ export function optionalFlag(argv: readonly string[], flag: string, label: strin
     ? { ok: false, error: `${label}: ${flag} requires a value` }
     : { ok: true, value };
 }
+
+/** What {@link readValueFlags} produced: the flag values plus the leftovers. */
+export type ValueFlagRead =
+  | { ok: true; values: Map<string, string>; positional: string[] }
+  | { ok: false; error: string };
+
+/**
+ * Read every `--flag <value>` pair a command accepts, then hand back what is
+ * left. Three rules no single-flag reader gets right on its own, which is why
+ * this is shared rather than re-derived per CLI:
+ *
+ * - a flag-SHAPED value is rejected. {@link optionalFlag} deliberately does not
+ *   check the value, so `--surface --out doc.json` would otherwise swallow the
+ *   next flag's NAME as the surface;
+ * - positionals are found by INDEX, so a path whose text equals a flag's value
+ *   is not filtered out with it;
+ * - a leftover starting with `--` is an unknown flag, reported rather than
+ *   silently ignored.
+ *
+ * Extracted when the clone gate flagged the copies in
+ * `cr/geometry/geometry-validate-cli.ts` and `cr/geometry/geometry-diff-cli.ts`.
+ */
+export function readValueFlags(
+  argv: readonly string[],
+  flags: readonly string[],
+  label: string,
+): ValueFlagRead {
+  const values = new Map<string, string>();
+  const consumedIdx = new Set<number>();
+  for (const flag of flags) {
+    const read = optionalFlag(argv, flag, label);
+    if (!read.ok) return { ok: false, error: read.error };
+    if (read.value !== undefined && read.value.startsWith('--')) {
+      return { ok: false, error: `${label}: ${flag} requires a value` };
+    }
+    if (read.value !== undefined) values.set(flag, read.value);
+    const i = argv.indexOf(flag);
+    if (i >= 0) consumedIdx.add(i).add(i + 1);
+  }
+  const positional = argv.filter((a, i) => !consumedIdx.has(i));
+  const unknown = positional.find((a) => a.startsWith('--'));
+  return unknown === undefined
+    ? { ok: true, values, positional }
+    : { ok: false, error: `${label}: unknown flag ${unknown}` };
+}
