@@ -5,6 +5,7 @@
 // No IO and no process state, so every rule the spec pins is testable without
 // pencil MCP or a booted app.
 
+import type { Severity } from '../findings-schema.js';
 import type { GeometryDoc } from './geometry-doc.js';
 
 /** The three families, and the exact keys `geometryTolerance`/`geometryBudget` use. */
@@ -175,3 +176,76 @@ export function matchClusters(
 /** More pairs wins; equal pairs, lower total difference wins. */
 const better = (a: { pairs: number; cost: number }, b: { pairs: number; cost: number }): boolean =>
   a.pairs > b.pairs || (a.pairs === b.pairs && a.cost < b.cost);
+
+/** One family's comparison result. `implOnly` is always empty for `spacing`. */
+export interface FamilyOutcome {
+  family: GeometryFamily;
+  unmatched: number;
+  budget: number;
+  designOnly: number[];
+  implOnly: number[];
+  severity: Severity;
+}
+
+export interface GeometryComparison {
+  verdict: 'pass' | 'fail';
+  families: FamilyRecord<FamilyOutcome>;
+  /** Families over budget, in `GEOMETRY_FAMILIES` order — one finding each. */
+  failed: FamilyOutcome[];
+}
+
+/** Ratio-free, count-derived severity (spec D6): `2x budget` degenerates at budget 0. */
+export const severityForUnmatched = (unmatched: number): Severity =>
+  unmatched >= 3 ? 'high' : 'med';
+
+/**
+ * Compare two documents family by family (spec D5/D6). `edges` and `fontSize`
+ * count unmatched clusters in BOTH directions; `spacing` counts design-only
+ * leftovers alone, because UA-stylesheet margins (`h1`, `p`, `ul`) and negative
+ * gutters are unrepresentable in pen, so counting implementation-only spacing
+ * would fail real UI deterministically. Every family is always compared — there
+ * is no skip path, so an implementation that introduces type the design never
+ * specified surfaces as implementation-only font sizes rather than vanishing.
+ */
+export function compareGeometry(
+  design: GeometryDoc,
+  impl: GeometryDoc,
+  tolerance: FamilyRecord<number>,
+  budget: FamilyRecord<number>,
+): GeometryComparison {
+  const d = extractFamilies(design);
+  const i = extractFamilies(impl);
+  const match = (dv: readonly number[], iv: readonly number[], tol: number): ClusterMatch =>
+    matchClusters(clusterValues(dv, tol), clusterValues(iv, tol), tol);
+
+  const x = match(d.edgesX, i.edgesX, tolerance.edges);
+  const y = match(d.edgesY, i.edgesY, tolerance.edges);
+  const font = match(d.fontSize, i.fontSize, tolerance.fontSize);
+  const space = match(d.spacing, i.spacing, tolerance.spacing);
+
+  const outcome = (
+    family: GeometryFamily,
+    designOnly: number[],
+    implOnly: number[],
+  ): FamilyOutcome => {
+    const unmatched = designOnly.length + implOnly.length;
+    return {
+      family,
+      unmatched,
+      budget: budget[family],
+      designOnly,
+      implOnly,
+      severity: severityForUnmatched(unmatched),
+    };
+  };
+
+  const families: FamilyRecord<FamilyOutcome> = {
+    edges: outcome('edges', [...x.designOnly, ...y.designOnly], [...x.implOnly, ...y.implOnly]),
+    fontSize: outcome('fontSize', font.designOnly, font.implOnly),
+    // One-directional: the implementation's spacing values are a matching pool,
+    // never a source of failure.
+    spacing: outcome('spacing', space.designOnly, []),
+  };
+  const failed = GEOMETRY_FAMILIES.map((f) => families[f]).filter((o) => o.unmatched > o.budget);
+  return { verdict: failed.length > 0 ? 'fail' : 'pass', families, failed };
+}

@@ -117,3 +117,91 @@ describe('matchClusters', () => {
     expect(matchClusters([], cl([1]), 2).implOnly).toEqual([1]);
   });
 });
+
+import {
+  compareGeometry,
+  DEFAULT_BUDGET,
+  DEFAULT_TOLERANCE,
+} from '../../geometry/geometry-compare-core.js';
+
+const card = (x: number): GeometryDoc['nodes'][number] => ({
+  kind: 'shape',
+  box: { x, y: 0, w: 100, h: 40 },
+});
+
+describe('compareGeometry', () => {
+  it('passes two documents differing in nothing measurable', () => {
+    const d = doc([card(24), card(24)]);
+    const r = compareGeometry(d, d, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.verdict).toBe('pass');
+    expect(r.families.edges.unmatched).toBe(0);
+  });
+
+  it('fails the edges family when one card sits past the tolerance', () => {
+    const design = doc([card(24), card(24), card(24)]);
+    const impl = doc([card(24), card(24), card(30)]);
+    const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.verdict).toBe('fail');
+    expect(r.families.edges.implOnly).toContain(30);
+    expect(r.families.edges.severity).toBe('med');
+  });
+
+  it('counts spacing one-directionally: an impl margin satisfies a design gap', () => {
+    const design = doc([
+      { kind: 'container', box: { x: 0, y: 0, w: 10, h: 10 }, spacing: { rowGap: 16 } },
+    ]);
+    const impl = doc([
+      {
+        kind: 'container',
+        box: { x: 0, y: 0, w: 10, h: 10 },
+        spacing: { margin: [16, 0, 21.44, 0], padding: [40, 0, 0, 0] },
+      },
+    ]);
+    const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.families.spacing.unmatched).toBe(0);
+    expect(r.families.spacing.implOnly).toEqual([]);
+  });
+
+  it('fails spacing when a declared design value is honored nowhere', () => {
+    const design = doc([
+      { kind: 'container', box: { x: 0, y: 0, w: 10, h: 10 }, spacing: { rowGap: 16 } },
+    ]);
+    const impl = doc([{ kind: 'container', box: { x: 0, y: 0, w: 10, h: 10 } }]);
+    const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.families.spacing.designOnly).toEqual([16]);
+    expect(r.verdict).toBe('fail');
+  });
+
+  it('honors a per-family budget and escalates severity past three unmatched', () => {
+    const design = doc([card(24)]);
+    const impl = doc([card(24), card(40), card(60)]);
+    const lenient = compareGeometry(design, impl, DEFAULT_TOLERANCE, {
+      ...DEFAULT_BUDGET,
+      edges: 4,
+    });
+    expect(lenient.verdict).toBe('pass');
+    const strict = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(strict.families.edges.severity).toBe('high');
+  });
+
+  it('adds no unmatched value for a wrapper that shares its child box', () => {
+    const design = doc([card(24)]);
+    // A DOM wrapper stack reuses its child's edges — the population is a value
+    // set, so the duplicate collapses instead of reading as drift.
+    const impl = doc([card(24), card(24), card(24)]);
+    const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.verdict).toBe('pass');
+    expect(r.families.edges.unmatched).toBe(0);
+  });
+
+  it('compares every family even when one side has none of it', () => {
+    const design = doc([card(24)]);
+    const impl = doc([
+      card(24),
+      { kind: 'text', box: { x: 24, y: 0, w: 10, h: 10 }, fontSize: 13, text: 'x' },
+    ]);
+    const r = compareGeometry(design, impl, DEFAULT_TOLERANCE, DEFAULT_BUDGET);
+    expect(r.families.fontSize.implOnly).toEqual([13]);
+    expect(r.verdict).toBe('fail');
+  });
+});
