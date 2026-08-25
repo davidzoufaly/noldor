@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isBookkeepingOnly,
   isMicroChoreAllowed,
+  isNoReviewLaneAllowed,
   isReleaseSweepAllowed,
   isRetirementOnly,
   microChoreOffenders,
@@ -304,5 +305,34 @@ describe('touchesCode', () => {
 
   it('returns false for an empty set', () => {
     expect(touchesCode([])).toBe(false);
+  });
+});
+
+describe('isNoReviewLaneAllowed', () => {
+  it('accepts a diff wholly inside the micro-chore lane', () => {
+    expect(isNoReviewLaneAllowed(['docs/foo.md', 'ideas.md'])).toBe(true);
+  });
+
+  it('accepts a diff wholly inside the release-sweep lane', () => {
+    expect(isNoReviewLaneAllowed(['graphify-out/graph.json', 'docs/sdd-report.md'])).toBe(true);
+  });
+
+  // The v1.4.0 sweep squash (PR #354): one micro-chore `ideas.md` commit plus
+  // three sweep commits. Neither lane predicate covers it alone, and an `||` of
+  // the two cannot either — each half of the diff fails the other's predicate.
+  it('accepts a squash mixing both no-review lanes', () => {
+    const mixed = ['ideas.md', 'graphify-out/graph.json'];
+    expect(isMicroChoreAllowed(mixed)).toBe(false);
+    expect(isReleaseSweepAllowed(mixed)).toBe(false);
+    expect(isNoReviewLaneAllowed(mixed)).toBe(true);
+  });
+
+  it('rejects a set carrying source code', () => {
+    expect(isNoReviewLaneAllowed(['graphify-out/graph.json', 'src/core/session.ts'])).toBe(false);
+    expect(isNoReviewLaneAllowed(['ideas.md', 'templates/src/foo.ts'])).toBe(false);
+  });
+
+  it('rejects empty input', () => {
+    expect(isNoReviewLaneAllowed([])).toBe(false);
   });
 });

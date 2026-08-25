@@ -91,10 +91,6 @@
         "reason": "pre-rollout-marker CI-workflow fast-track (#117); shipped before receipt enforcement armed"
       },
       {
-        "sha": "32b851a1b70e7db0b8b0cbdff8a74aeb29bbd2d6",
-        "reason": "release-sweep squash (#354) mixed one micro-chore ideas.md capture with three release-sweep commits, so the all-paths-exempt rule did not fire; the diff is bookkeeping only (graphify-out, docs/sdd-report.md, FD Resources blocks, ideas.md) with zero code to review"
-      },
-      {
         "sha": "c36ad34a36ddaec5719caff185da51e763ab917d",
         "reason": "GitHub revert-PR of #363 (bun floor spike); the revert-PR flow generates its own message so no review receipt survives the squash, and `git diff 51ac63d^ c36ad34` is empty \u2014 the pair restores the tree exactly, so nothing unreviewed ships"
       }

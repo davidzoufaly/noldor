@@ -144,6 +144,28 @@ describe('checkCrGate', () => {
     expect(r.offenders[0].sha).toBe('s1');
   });
 
+  // v1.4.0 release, sweep PR #354: GitHub squashed one micro-chore `ideas.md`
+  // commit together with three release-sweep commits. `Noldor-Path` exemption
+  // needs EVERY embedded path exempt (micro-chore is not), so the check falls
+  // to the file allowlist — where `ideas.md` is micro-chore-only and
+  // `graphify-out/**` is sweep-only, so neither lane covers the diff and the
+  // gate reddened over a diff carrying zero code.
+  it('skips a sweep squash whose diff mixes micro-chore and sweep bookkeeping', () => {
+    const commits: Commit[] = [
+      {
+        sha: 's1',
+        tree: 't1',
+        message:
+          'chore(sweep): pre-release sweep (#354)' +
+          trailers('Noldor-Path: micro-chore', 'Noldor-Path: release-sweep'),
+        paths: ['ideas.md', 'graphify-out/graph.json', 'docs/sdd-report.md'],
+      },
+    ];
+    const r = checkCrGate({ from: 'v0', to: 'HEAD', cwd: '/tmp', runGit: makeGitFake(commits) });
+    expect(r.ok).toBe(true);
+    expect(r.offenders).toEqual([]);
+  });
+
   it('rejects a code-touching commit with no receipt and no override', () => {
     const commits: Commit[] = [
       {
