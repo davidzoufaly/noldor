@@ -29,6 +29,8 @@ links:
     - src/core/err-message.ts
   tests:
     - src/core/__tests__/err-message.test.ts
+    - src/cr/__tests__/geometry/geometry-doc.test.ts
+    - src/cr/__tests__/geometry/geometry-validate-cli.test.ts
     - src/cr/__tests__/lanes/render-compare-core.test.ts
     - src/cr/__tests__/lanes/render-compare.test.ts
     - src/cr/__tests__/lanes/ui-review-dispatch.test.ts
