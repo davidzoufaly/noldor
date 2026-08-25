@@ -99,76 +99,81 @@ export interface ClusterMatch {
 }
 
 /**
- * Match the two sides' representatives (spec D6 stage 2): exact values first,
- * then a forward scan within tolerance over what is left. Both passes are
- * linear and allocate nothing beyond their outputs, which matters for documents
- * this module treats as untrusted — an edit-distance dynamic program would
- * build an (n+1)x(m+1) table, and a long-page capture with a couple of thousand
+ * Match the two sides' representatives (spec D6 stage 2). Both lists are sorted
+ * and matching must be order-preserving, so a single forward scan is
+ * maximum-cardinality optimal: pair the two heads when they are within
+ * tolerance, otherwise drop the smaller head, which can never match anything
+ * further along the other side because everything ahead of it is larger. Linear
+ * time, and nothing allocated beyond the outputs — which matters for documents
+ * this module treats as untrusted, since an edit-distance dynamic program would
+ * build an (n+1)x(m+1) table and a long-page capture with a couple of thousand
  * distinct values per side turns that into millions of cells.
  *
- * CLOSEST-PAIR greedy is what fails here, and the distinction matters: taking
- * the globally smallest difference first turns design {0,3} against
- * implementation {2,5} at tolerance 2 into one pair (3-2) plus two unmatched
- * values, inventing drift. The scan pairs 0-2 and 3-5.
+ * CLOSEST-PAIR greedy is what fails on cardinality: taking the globally
+ * smallest difference first turns design {0,3} against implementation {2,5} at
+ * tolerance 2 into one pair (3-2) plus two unmatched values, inventing drift.
+ * Pre-pairing EXACT values first fails the same way, less obviously — design
+ * {1, 2.5} against implementation {2.5, 4} at tolerance 2 has a full matching
+ * (1-2.5 and 2.5-4), but consuming 2.5-2.5 first strands 1 and 4 three apart.
+ * Hence one scan, with the naming fixed afterwards by {@link nameLeftovers}.
  */
 export function matchClusters(
   design: readonly number[],
   impl: readonly number[],
   tolerance: number,
 ): ClusterMatch {
-  // Pass 1 — exact equality. Pairing the heads by tolerance alone gets the COUNT
-  // right but can name the wrong leftover: design [3] against impl [1, 3] would
-  // pair 3 with 1 and then report an implementation-only 3, when 3 is exactly
-  // what the design declares and 1 is the intruder. Consuming identical values
-  // first never costs a pair — swapping an exact pair into any maximum matching
-  // leaves its size unchanged — and it makes the reported leftovers the values
-  // that actually differ.
   const pairs: [number, number][] = [];
-  const designRest: number[] = [];
-  const implRest: number[] = [];
-  let a = 0;
-  let b = 0;
-  while (a < design.length && b < impl.length) {
-    if (design[a] === impl[b]) {
-      pairs.push([design[a], impl[b]]);
-      a++;
-      b++;
-    } else if (design[a] < impl[b]) {
-      designRest.push(design[a]);
-      a++;
-    } else {
-      implRest.push(impl[b]);
-      b++;
-    }
-  }
-  for (; a < design.length; a++) designRest.push(design[a]);
-  for (; b < impl.length; b++) implRest.push(impl[b]);
-
-  // Pass 2 — within tolerance, over what is left. Both lists are still sorted
-  // and matching must be order-preserving, so this forward scan is already
-  // maximum-cardinality optimal: pair the heads when they are within tolerance,
-  // otherwise drop the smaller head, which can never match anything further
-  // along the other side because everything ahead of it is larger.
   const designOnly: number[] = [];
   const implOnly: number[] = [];
   let i = 0;
   let j = 0;
-  while (i < designRest.length && j < implRest.length) {
-    if (Math.abs(designRest[i] - implRest[j]) <= tolerance) {
-      pairs.push([designRest[i], implRest[j]]);
+  while (i < design.length && j < impl.length) {
+    if (Math.abs(design[i] - impl[j]) <= tolerance) {
+      pairs.push([design[i], impl[j]]);
       i++;
       j++;
-    } else if (designRest[i] < implRest[j]) {
-      designOnly.push(designRest[i]);
+    } else if (design[i] < impl[j]) {
+      designOnly.push(design[i]);
       i++;
     } else {
-      implOnly.push(implRest[j]);
+      implOnly.push(impl[j]);
       j++;
     }
   }
-  for (; i < designRest.length; i++) designOnly.push(designRest[i]);
-  for (; j < implRest.length; j++) implOnly.push(implRest[j]);
-  return { pairs, designOnly, implOnly };
+  for (; i < design.length; i++) designOnly.push(design[i]);
+  for (; j < impl.length; j++) implOnly.push(impl[j]);
+  return nameLeftovers({ pairs, designOnly, implOnly });
+}
+
+/**
+ * Make the reported leftovers the values that actually differ, without touching
+ * how MANY there are. The scan pairs by tolerance, so design [3] against
+ * implementation [1, 3] pairs 3 with 1 and leaves an implementation-only 3 —
+ * the right count, but it names the value the design declares instead of the
+ * intruder. Whenever a pair's two sides differ and one side's value also sits in
+ * the opposite leftover list, swap them: the pair becomes exact and the leftover
+ * becomes the value with no counterpart. A swap trades one member of a list for
+ * another, so every count and every verdict is unchanged by construction.
+ */
+function nameLeftovers(m: ClusterMatch): ClusterMatch {
+  for (const [k, pair] of m.pairs.entries()) {
+    const [d, im] = pair;
+    if (d === im) continue;
+    const inImpl = m.implOnly.indexOf(d);
+    if (inImpl >= 0) {
+      m.pairs[k] = [d, d];
+      m.implOnly[inImpl] = im;
+      continue;
+    }
+    const inDesign = m.designOnly.indexOf(im);
+    if (inDesign >= 0) {
+      m.pairs[k] = [im, im];
+      m.designOnly[inDesign] = d;
+    }
+  }
+  m.designOnly.sort((a, b) => a - b);
+  m.implOnly.sort((a, b) => a - b);
+  return m;
 }
 
 /** One family's comparison result. `implOnly` is always empty for `spacing`.

@@ -232,3 +232,13 @@ describe('matchClusters names the value that actually drifted', () => {
     expect(m.pairs).toEqual([[3, 3]]);
   });
 });
+
+describe('matchClusters keeps cardinality where a pre-pass would lose it', () => {
+  it('matches both pairs where consuming the exact value first would strand two', () => {
+    // Pairing 2.5 with 2.5 first leaves 1 and 4, three apart at tolerance 2.
+    const m = matchClusters([1, 2.5], [2.5, 4], 2);
+    expect(m.pairs).toHaveLength(2);
+    expect(m.designOnly).toEqual([]);
+    expect(m.implOnly).toEqual([]);
+  });
+});
