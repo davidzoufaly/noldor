@@ -106,26 +106,37 @@ function isNoldorBlock(entry: string): boolean {
 }
 
 /**
+ * The parsed framework hook block, or `null` when it is absent, unparseable, or
+ * not a mapping.
+ *
+ * One reader for both consumers ({@link frameworkHooks} and the `pre-push`
+ * replay in `check-push-gates.ts`): an unparseable block is template-sync's
+ * finding, not either caller's, so both degrade to "cannot name the jobs"
+ * rather than masking their own result behind a second, unrelated failure.
+ */
+export function lefthookBlockDoc(cwd: string): Record<string, unknown> | null {
+  const path = join(cwd, NOLDOR_BLOCK.replace(/^\.\//, ''));
+  if (!existsSync(path)) return null;
+  let doc: unknown;
+  try {
+    doc = parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+  return doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>) : null;
+}
+
+/**
  * Hook groups the framework block defines (`pre-commit`, `commit-msg`, …),
  * each with how many jobs it carries, e.g. `pre-push (4 jobs)`. Returns `[]`
  * when the block is absent or unreadable — a wiring finding must still be
  * reportable when the thing it points at cannot be summarized.
  */
 export function frameworkHooks(cwd: string): string[] {
-  const path = join(cwd, NOLDOR_BLOCK.replace(/^\.\//, ''));
-  if (!existsSync(path)) return [];
-  let doc: unknown;
-  try {
-    doc = parse(readFileSync(path, 'utf8'));
-  } catch {
-    // An unparseable framework block is template-sync's finding, not this
-    // module's — degrade to an unnamed-hooks report rather than masking the
-    // wiring result behind a second, unrelated failure.
-    return [];
-  }
-  if (doc === null || typeof doc !== 'object') return [];
+  const doc = lefthookBlockDoc(cwd);
+  if (doc === null) return [];
   const out: string[] = [];
-  for (const [hook, body] of Object.entries(doc as Record<string, unknown>)) {
+  for (const [hook, body] of Object.entries(doc)) {
     const jobs = (body as { jobs?: unknown } | null)?.jobs;
     const count = Array.isArray(jobs) ? jobs.length : 0;
     out.push(count > 0 ? `${hook} (${count} job${count === 1 ? '' : 's'})` : hook);

@@ -102,18 +102,20 @@ dependency, so the prompt stays a thin pointer.
 - Mark the session autonomous immediately after the session marker exists:
   `pnpm noldor noldor set-autonomous` — never ask autonomous-vs-interactive.
 - Preflight the push-range gates **before** the code-stage CR, while no receipt
-  exists to lose: `pnpm noldor checks template-sync`, `pnpm noldor clones check`,
-  and replay the pre-push chain (main-push block + docs/adr/ append-only scan)
-  over the outgoing range —
-  `printf 'refs/heads/%s %s refs/heads/%s %s\n' "$(git branch --show-current)" "$(git rev-parse HEAD)" "$(git branch --show-current)" "$(git rev-parse origin/main)" | pnpm noldor hooks pre-push origin`.
+  exists to lose: `pnpm noldor checks push-gates`. It replays the real hook —
+  lefthook runs its own `pre-push` job list over the stdin ref line git will
+  send — rather than re-running the jobs' commands by hand, so the preflight
+  cannot disagree with the push or miss a job the block gained. Exit 0 = the
+  push will be accepted, 1 = a gate refuses this tree, 3 = the replay could not
+  run and is never a pass. `enforce-review-receipt` is the one excluded job:
+  before the review below it can only be red.
   Also make sure the first substantive commit's body carries `Why — / How — /
   What —` sections (24+ chars each): `pr-flow` validates the composed PR body
   (`validatePrSummary`) and refuses delivery without them.
-  Fix any red and commit until all three exit 0. A gate failure
+  Fix any red and commit until it exits 0. A gate failure
   discovered at `pr-flow` push instead lands a fix commit that invalidates the
   `Noldor-Reviewed-Subagent` receipt and burns a full code-stage dispatch
-  re-earning it. `enforce-review-receipt` is not preflighted — before the
-  review below it can only be red.
+  re-earning it.
 - Code-stage CR:
   `pnpm noldor cr orchestrate --slug <slug> --artifact . --kind code --lanes reviewer --base-sha origin/main --profile fast-track --autonomous`
   (drop `--profile fast-track` on the resume path — that profile is for
