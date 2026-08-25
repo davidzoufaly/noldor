@@ -263,20 +263,23 @@ none of those quantities appear in the document at all.
 Comparison is a two-stage rule per surface and per family, specified to the point where two
 implementations produce identical unmatched sets:
 
-1. **Cluster** each side's values independently. Deduplicate exact repeats, sort ascending, then start
-   a new cluster whenever the next value exceeds the previous value by more than the family's
-   tolerance (single-linkage). A cluster's representative is the **arithmetic mean** of its values —
+1. **Cluster** each side's values independently. Deduplicate exact repeats, sort ascending, then admit
+   a value into the open cluster only while the cluster's own WIDTH stays within the family's
+   tolerance. Comparing against the PREVIOUS value instead (single linkage) chains: at tolerance 2,
+   implementation edges 24, 26 and 28 become one cluster represented by 26, which then matches a
+   design edge at 24 — hiding an edge 4px off. A cluster's representative is the **arithmetic mean** of its values —
    named because "median" is ambiguous for an even-sized cluster, and at a 1px tolerance that ambiguity
    flips match outcomes. Defaults: `edges` 2px, `fontSize` 1px, `spacing` 1px, consumer-overridable per
    recipe.
-2. **Match** design clusters against implementation clusters **optimally**, not greedily. Both sides
-   are sorted one-dimensional sequences, so the optimum is order-preserving and a small
-   edit-distance-shaped dynamic program finds it: maximize the number of pairs whose representatives
-   differ by at most the tolerance, and among the maximizing matchings minimize the total absolute
-   difference. Closest-pair greedy is not sufficient — at tolerance 2, design `{0, 3}` against
-   implementation `{2, 5}` has the full matching `0→2, 3→5`, but greedy takes `3→2` first and leaves
-   two clusters unmatched, inventing drift out of the algorithm. Ties in the DP resolve by preferring
-   the pair with the lower design representative, then the lower implementation representative.
+2. **Match** the two representative lists with a single order-preserving forward scan, which on
+   sorted lists is already maximum-cardinality optimal: pair the two heads when they are within
+   tolerance, otherwise drop the smaller head, since everything ahead of it on the other side is
+   larger still. CLOSEST-PAIR greedy is what fails — at tolerance 2, design `{0, 3}` against
+   implementation `{2, 5}` has the full matching `0→2, 3→5`, but taking the smallest difference first
+   pairs `3→2` and leaves two unmatched, inventing drift out of the algorithm. The forward scan also
+   allocates nothing beyond its outputs, which matters for documents this contract treats as
+   untrusted: an edit-distance dynamic program would build an (n+1)x(m+1) table, and a long-page
+   capture with a couple of thousand distinct values per side turns that into millions of cells.
 
 Whatever is left unmatched is the family's count: implementation-only means the implementation
 introduced a layout value the design does not have, design-only means a specified value the

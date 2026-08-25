@@ -10,12 +10,16 @@ import type { GeometryDoc } from './geometry-doc.js';
 
 /** The three families, and the exact keys `geometryTolerance`/`geometryBudget` use. */
 export const GEOMETRY_FAMILIES = ['edges', 'fontSize', 'spacing'] as const;
+/** One of the three families a surface is compared on. */
 export type GeometryFamily = (typeof GEOMETRY_FAMILIES)[number];
 
 /** Per-family numbers, keyed identically in config and in outcomes. */
 export type FamilyRecord<T> = Record<GeometryFamily, T>;
 
+/** Clustering tolerance in CSS px per family, overridable per `uiBoot` recipe. */
 export const DEFAULT_TOLERANCE: FamilyRecord<number> = { edges: 2, fontSize: 1, spacing: 1 };
+/** Unmatched values a family tolerates before it fails — zero, since the
+ * document rules remove the systematic noise at its source. */
 export const DEFAULT_BUDGET: FamilyRecord<number> = { edges: 0, fontSize: 0, spacing: 0 };
 
 /** Raw values per family. `edges` splits by axis — a 24px left edge and a 24px
@@ -94,74 +98,38 @@ export interface ClusterMatch {
 }
 
 /**
- * Optimal matching (spec D6 stage 2). Both sides are sorted one-dimensional
- * sequences, so the optimum is order-preserving and an edit-distance-shaped DP
- * finds it: maximize the number of within-tolerance pairs, and among the
- * maximizing matchings minimize the total absolute difference.
+ * Match the two sides' representatives (spec D6 stage 2). Both lists are sorted
+ * and matching must be order-preserving, so a single forward scan is already
+ * maximum-cardinality optimal: pair the two heads when they are within
+ * tolerance, otherwise drop whichever head is smaller — it can never match
+ * anything further along the other list, since everything ahead is larger.
  *
- * Closest-pair greedy is NOT sufficient and the difference is not academic: at
- * tolerance 2, design {0,3} against implementation {2,5} has the full matching
- * 0->2, 3->5, but greedy takes 3->2 first and reports two unmatched clusters —
- * inventing drift out of the algorithm.
+ * CLOSEST-PAIR greedy is what fails here, and the distinction matters: taking
+ * the globally smallest difference first turns design {0,3} against
+ * implementation {2,5} at tolerance 2 into one pair (3-2) plus two unmatched
+ * values, inventing drift. The forward scan pairs 0-2 and 3-5.
  *
- * noldor:cut O(n*m) time and memory, fine for the hundreds of clusters a real
- * surface produces — a full assignment solver would be needed only if families
- * ever compared unordered multi-dimensional keys.
+ * It also runs in O(n+m) with no allocation beyond the outputs. The earlier
+ * dynamic program built an (n+1)x(m+1) matrix of objects, which a long-page
+ * capture with a couple of thousand distinct values per side turns into millions
+ * of cells — unacceptable for documents this module treats as untrusted.
  */
 export function matchClusters(
   design: readonly number[],
   impl: readonly number[],
   tolerance: number,
 ): ClusterMatch {
-  const n = design.length;
-  const m = impl.length;
-  // best[i][j] = optimum over design[i..n) x impl[j..m); walked backwards so the
-  // forward reconstruction below prefers the lowest representatives on a tie.
-  const best: { pairs: number; cost: number }[][] = Array.from({ length: n + 1 }, () =>
-    Array.from({ length: m + 1 }, () => ({ pairs: 0, cost: 0 })),
-  );
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      let pick = best[i + 1][j];
-      const skipImpl = best[i][j + 1];
-      if (better(skipImpl, pick)) pick = skipImpl;
-      const diff = Math.abs(design[i] - impl[j]);
-      if (diff <= tolerance) {
-        const withPair = {
-          pairs: best[i + 1][j + 1].pairs + 1,
-          cost: best[i + 1][j + 1].cost + diff,
-        };
-        if (better(withPair, pick)) pick = withPair;
-      }
-      best[i][j] = pick;
-    }
-  }
   const pairs: [number, number][] = [];
   const designOnly: number[] = [];
   const implOnly: number[] = [];
   let i = 0;
   let j = 0;
-  while (i < n && j < m) {
-    const diff = Math.abs(design[i] - impl[j]);
-    const matched =
-      diff <= tolerance &&
-      best[i][j].pairs === best[i + 1][j + 1].pairs + 1 &&
-      best[i][j].cost === best[i + 1][j + 1].cost + diff;
-    if (matched) {
+  while (i < design.length && j < impl.length) {
+    if (Math.abs(design[i] - impl[j]) <= tolerance) {
       pairs.push([design[i], impl[j]]);
       i++;
       j++;
-      continue;
-    }
-    // Drop whichever side the optimum drops; on a tie drop the lower
-    // representative first, which keeps the walk deterministic.
-    if (best[i + 1][j].pairs > best[i][j + 1].pairs) {
-      designOnly.push(design[i]);
-      i++;
-    } else if (best[i + 1][j].pairs < best[i][j + 1].pairs) {
-      implOnly.push(impl[j]);
-      j++;
-    } else if (design[i] <= impl[j]) {
+    } else if (design[i] < impl[j]) {
       designOnly.push(design[i]);
       i++;
     } else {
@@ -169,14 +137,10 @@ export function matchClusters(
       j++;
     }
   }
-  for (; i < n; i++) designOnly.push(design[i]);
-  for (; j < m; j++) implOnly.push(impl[j]);
+  for (; i < design.length; i++) designOnly.push(design[i]);
+  for (; j < impl.length; j++) implOnly.push(impl[j]);
   return { pairs, designOnly, implOnly };
 }
-
-/** More pairs wins; equal pairs, lower total difference wins. */
-const better = (a: { pairs: number; cost: number }, b: { pairs: number; cost: number }): boolean =>
-  a.pairs > b.pairs || (a.pairs === b.pairs && a.cost < b.cost);
 
 /** One family's comparison result. `implOnly` is always empty for `spacing`.
  * Severity is deliberately NOT a field: it is a pure function of `unmatched`
@@ -191,6 +155,7 @@ export interface FamilyOutcome {
   implOnly: number[];
 }
 
+/** One surface's verdict plus the per-family record behind it. */
 export interface GeometryComparison {
   verdict: 'pass' | 'fail';
   families: FamilyRecord<FamilyOutcome>;

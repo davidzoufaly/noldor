@@ -69,14 +69,17 @@ export const geometryShapeNodeSchema = z
   .object({ ...nodeCommon, kind: z.literal('shape') })
   .strict();
 
+/** Any node: the per-kind members unioned on `kind`. */
 export const geometryNodeSchema = z.discriminatedUnion('kind', [
   geometryTextNodeSchema,
   geometryContainerNodeSchema,
   geometryShapeNodeSchema,
 ]);
 export type GeometryNode = z.infer<typeof geometryNodeSchema>;
+/** `'text' | 'container' | 'shape'`, derived from the union rather than restated. */
 export type GeometryNodeKind = GeometryNode['kind'];
 
+/** One surface's whole document: viewport plus a flat node list. */
 export const geometryDocSchema = z
   .object({
     surface: z.string().min(1),
@@ -89,6 +92,7 @@ export type GeometryDoc = z.infer<typeof geometryDocSchema>;
 /** Which producer wrote the document — the design side may not carry margin. */
 export type GeometrySide = 'design' | 'impl';
 
+/** Boundary-parse result: the document, or why it was refused. */
 export type GeometryParse = { ok: true; doc: GeometryDoc } | { ok: false; detail: string };
 
 /**
