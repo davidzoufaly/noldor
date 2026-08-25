@@ -219,12 +219,12 @@ not their internal geometry (paths are paint, not layout); exclude pseudo-elemen
 
 ### D5 — Feature families, not element pairs
 
-From one geometry document the lane derives three families of *values* — `edges`, `fontSize`,
-`spacing` — and the comparison in D6 operates only on these. Each family has one tolerance and one
+From one geometry document the lane derives four families of *values* — `edgesX`, `edgesY`,
+`fontSize`, `spacing` — and the comparison in D6 operates only on these. Each family has one tolerance and one
 budget under those exact three keys; there are no per-axis knobs. Each uses the instrument that
 carries its signal most directly:
 
-- **`edges`** — from resolved boxes. Values are clustered **per axis internally** (a 24px left edge
+- **`edgesX` / `edgesY`** — from resolved boxes, one family per axis (a 24px left edge
   and a 24px top edge are unrelated quantities): the x pass collects every node's `x` and `x + w`, the
   y pass every `y` and `y + h`, and the family's unmatched count is the sum of the two passes. One
   budget covers both, because "how many unexplained alignment values does this surface have" is one
@@ -262,8 +262,7 @@ none of those quantities appear in the document at all.
 
 Comparison is a **covering** test per surface and per family, run in both directions: a value counts
 as unmatched when no value on the opposite side sits within the family's tolerance of it (defaults 2px
-for edges, 1px for font size, 1px for spacing — consumer-overridable per recipe). Edge values are
-collected per axis, since a left edge and a top edge are unrelated quantities. The guarantee is exact:
+for each edge axis, 1px for font size, 1px for spacing — consumer-overridable per recipe). The guarantee is exact:
 a value at or under the tolerance from any counterpart is explained, a value past it is reported, and
 neighbouring values cannot compose their tolerances to bridge a larger gap.
 
@@ -278,7 +277,7 @@ The covering test asks the question the families were defined to answer — does
 declares appear on the other at all — in linear time with no such qualifications. Near-duplicates,
 which clustering existed to absorb, are covered by construction.
 
-Both directions count for `edges` and `fontSize`; `spacing` counts design-only values alone, because
+Both directions count for the edge axes and `fontSize`; `spacing` counts design-only values alone, because
 UA-stylesheet margins and negative gutters are unrepresentable in pen (see D5).
 
 A family fails when its unmatched count exceeds its budget, and **every budget defaults to 0**: with
@@ -296,7 +295,7 @@ unsupplied, which conflated "cannot measure" with "measured nothing" — and a d
 then have silently skipped implementation-added text. Every family is always compared: a design with
 no font sizes against an implementation with three simply has three implementation-only values, which
 is the honest reading (the implementation introduced type the design never specified). The research
-that made the earlier draft's escape hatch unnecessary is in D3 — pen supplies all three families.
+that made the earlier draft's escape hatch unnecessary is in D3 — pen supplies every family.
 
 ### D7 — Per-surface outcomes and aggregation
 
@@ -330,8 +329,7 @@ file), `geometry-unparseable` (either side's JSON failed `geometryDocSchema`), `
 
 Per round, `.noldor/cr/geometry-compare/<slug>/<sanitized>.design.json` and `<sanitized>.impl.json`
 hold both normalized documents, and `<sanitized>.report.json` holds the per-family comparison: every
-cluster on both sides with its representative and members, and for each unmatched cluster its family,
-its representative, which side it came from, and the nodes that produced it (`name`, `kind`, box, and
+value on both sides, and for each unmatched value its family, which side it came from, and the nodes that produced it (`name`, `kind`, box, and
 text where present). `<sanitized>` is `sanitizeSurfaceName` from
 [`src/core/ui-boot.ts`](../../../src/core/ui-boot.ts), the same helper `render-compare` joins with
 (`render-compare.ts` artifact paths) and the reason its collision check exists: surface names are
@@ -372,8 +370,8 @@ reading as a clean verdict, since an unauditable verdict is not a verdict.
 7. Clustering is deterministic (exact duplicates collapsed, representative = arithmetic mean) and
    matching is optimal: design `{0, 3}` against implementation `{2, 5}` at tolerance 2 matches fully
    and reports zero unmatched, where closest-pair greedy would report two.
-8. Moving one node's left edge past the `edges` tolerance while its siblings stay put fails the `edges`
-   family at the default budget of 0, and the finding names the unmatched representative and the nodes
+8. Moving one node's left edge past the `edgesX` tolerance while its siblings stay put fails the
+   `edgesX` family at the default budget of 0, and the finding names the unmatched value and the nodes
    behind it; a `fontSize` the design declares and the implementation never renders also fails.
 9. The `spacing` family counts design-only values only: a design `gap: 16` satisfied by an
    implementation `margin: 16` passes, and UA-default margins (`h1`, `p`, `ul`) plus a negative gutter
@@ -495,10 +493,9 @@ unmatched value — open it before arguing with a count.
    order-preserving, so a single forward scan is deterministic and already maximum-cardinality
    optimal. Selecting pairs by ascending difference — an earlier answer here — is the closest-pair
    greedy that loses cardinality outright.
-9. *One budget per edge axis, or one for both?* -> One `edges` budget covering both axes (D5). Axes
-   cluster separately because a left edge and a top edge are unrelated quantities, but "how many
-   unexplained alignment values does this surface have" is a single question, and per-axis keys were
-   the source of a four-way inconsistency between the schema, the defaults, the criteria, and Usage.
+9. *One budget per edge axis, or one for both?* -> One per axis (D5). A merged list reports bare
+   coordinates the operator cannot place on an axis, which makes an unmatched value unactionable; the
+   two axes are already separate populations, so separate budgets follow.
 10. *Does a side get to declare a family unsupplied?* -> No (D6). The flag conflated "cannot measure"
    with "measured nothing", let a design with no text silently skip implementation-added text, and let
    an untrusted producer suppress comparison outright. Every family is always compared; the research in

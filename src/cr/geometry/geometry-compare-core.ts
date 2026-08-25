@@ -13,7 +13,7 @@ import type { GeometryDoc } from './geometry-doc.js';
  * per-surface `geometryTolerance`/`geometryBudget` recipe fields will carry
  * (Q-0180); today the two commands compare at the defaults below. */
 export const GEOMETRY_FAMILIES = ['edgesX', 'edgesY', 'fontSize', 'spacing'] as const;
-/** One of the three families a surface is compared on. */
+/** One of the families a surface is compared on. */
 export type GeometryFamily = (typeof GEOMETRY_FAMILIES)[number];
 
 /** Per-family numbers, keyed identically in config and in outcomes. */
@@ -35,9 +35,10 @@ export const DEFAULT_BUDGET: FamilyRecord<number> = {
   spacing: 0,
 };
 
-/** Raw values per family. `edges` splits by axis — a 24px left edge and a 24px
- * top edge are unrelated quantities that must not match each other — while both
- * axes still share one tolerance and one budget (spec D5). */
+/** Raw values per family. Edges are split by axis — a 24px left edge and a 24px
+ * top edge are unrelated quantities that must never explain each other (spec
+ * D5) — and each axis carries its own tolerance and budget so an unmatched value
+ * arrives labelled. */
 export interface FamilyValues {
   edgesX: number[];
   edgesY: number[];
@@ -115,7 +116,6 @@ export function unmatchedValues(
  * unmatched values. Whichever caller reports findings derives it there — the
  * parked lane (Q-0180) is the first that will need to. */
 export interface FamilyOutcome {
-  family: GeometryFamily;
   unmatched: number;
   budget: number;
   designOnly: number[];
@@ -129,13 +129,14 @@ export interface GeometryComparison {
 }
 
 /**
- * Compare two documents family by family (spec D5/D6). `edges` and `fontSize`
- * count unmatched clusters in BOTH directions; `spacing` counts design-only
- * leftovers alone, because UA-stylesheet margins (`h1`, `p`, `ul`) and negative
- * gutters are unrepresentable in pen, so counting implementation-only spacing
- * would fail real UI deterministically. Every family is always compared — there
- * is no skip path, so an implementation that introduces type the design never
- * specified surfaces as implementation-only font sizes rather than vanishing.
+ * Compare two documents family by family (spec D5/D6). The edge axes and
+ * `fontSize` count unmatched values in BOTH directions; `spacing` counts
+ * design-only values alone, because UA-stylesheet margins (`h1`, `p`, `ul`) and
+ * negative gutters are unrepresentable in pen, so counting implementation-only
+ * spacing would fail real UI deterministically. Every family is always compared
+ * — there is no skip path, so an implementation that introduces type the design
+ * never specified surfaces as implementation-only font sizes rather than
+ * vanishing.
  */
 export function compareGeometry(
   design: GeometryDoc,
@@ -155,7 +156,6 @@ export function compareGeometry(
     designOnly: number[],
     implOnly: number[],
   ): FamilyOutcome => ({
-    family,
     unmatched: designOnly.length + implOnly.length,
     budget: budget[family],
     designOnly,
