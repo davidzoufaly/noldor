@@ -32,7 +32,7 @@
     "test:contract": "node scripts/test-contract.mjs",
     "test:e2e:drain": "vitest run src/testing/__tests__/drain-e2e.test.ts",
     "typecheck": "tsc -p tsconfig.typecheck.json",
-    "lint": "oxlint --deny-warnings",
+    "lint": "oxlint --deny-warnings && oxlint --vitest-plugin -A all -D vitest/no-disabled-tests -D vitest/no-focused-tests -D vitest/warn-todo src",
     "lint:fix": "oxlint --fix",
     "fmt": "node bin/noldor.mjs fmt",
     "fmt:check": "node bin/noldor.mjs fmt --check",
