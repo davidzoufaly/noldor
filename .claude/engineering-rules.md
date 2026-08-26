@@ -11,7 +11,7 @@ Non-negotiable principles for all code written in a Noldor repo. Aligned with `t
 
 | Command               | Enforces                                                                              |
 | --------------------- | ------------------------------------------------------------------------------------- |
-| `pnpm lint`           | `oxlint` — correctness/suspicious/perf rules + `jsx-a11y` structural a11y rules       |
+| `pnpm lint`           | `oxlint` — correctness/suspicious/perf rules + `jsx-a11y` structural a11y rules (the framework repo appends a narrow `--vitest-plugin` pass banning disabled/focused tests, which a consumer may adopt — see `docs/noldor/testing-principles.md`) |
 | `pnpm fmt:check`      | `oxfmt` formatting (CI-safe; `pnpm fmt` to write)                                     |
 | `pnpm typecheck`      | `tsc --noEmit` across packages + `scripts/`                                           |
 | `pnpm test`           | Vitest unit + component + script tests                                                |
@@ -196,6 +196,12 @@ The six criteria 2.2 adds on top of 2.1. Two of them land squarely on surfaces t
 - **No `toHaveBeenCalledWith()` with empty args.** That asserts "called with no arguments" — use `toHaveBeenCalled()` instead.
 - **Don't test implementation.** Test the observable behavior. Private methods, internal state shapes, render counts are off-limits.
 - **Real dependencies, no mocks.** Tests hit the real domain WASM module (or other heavy local dependency), real Zod schemas, real localStorage in jsdom. Mock only at true external boundaries (network, time).
+- **The Deletion Test.** Before finishing a test, ask: if the logic under test were deleted or replaced with a trivial stub (`return []`, `return undefined`), would this test still pass? If it would, it verifies nothing — rewrite it or delete it.
+- **Expected values are independent literals**, never recomputed the way the implementation computes them. A test whose expectation restates the implementation passes against a wrong implementation too.
+- **Banned:** mock echo (asserting a mock returned what it was told to return), `toHaveBeenCalled*` as the sole assertion where observable output exists, snapshots, `.only` / `.skip` / `.todo`, and weakening an assertion to get green. A correct assertion that fails means the code or the setup is wrong — report it, never assert less.
+- **Prefer a hand-rolled fake passed as a parameter** over mocking a module. A function that is hard to test because it constructs its dependencies internally should accept them instead — difficulty testing is a design signal, not a mocking opportunity.
+
+The mocking-boundary table, the banned-pattern table, and the house patterns to copy live in `docs/noldor/testing-principles.md`.
 
 ## Error Handling
 
