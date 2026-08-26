@@ -26,19 +26,31 @@ function deps(overrides = {}) {
   };
 }
 
+/** The summary every step-taken run produces, as an independent literal. */
+const FULL_SUMMARY = {
+  treePath: '/repo/.worktrees/foo',
+  basePort: 5174,
+  editorOpened: true,
+  terminalSpawned: true,
+  surfaces: [{ name: 'web', port: 5174, url: 'http://127.0.0.1:5174/', pid: 9, ready: true }],
+};
+
 describe('upWorktree', () => {
   it('runs every step by default and returns a summary', async () => {
     const d = deps();
     const r = await upWorktree({ slug: 'foo', cwd: '/repo' }, d as never);
+    // The whole summary, not just `surfaces[0].ready` — that lone field is echo
+    // of what `bootDevSurfacesImpl` was told to return, and left `editorOpened`
+    // / `terminalSpawned` unpinned, so a run that skipped both stayed green.
+    expect(r).toEqual(FULL_SUMMARY);
     expect(d.createWorktreeImpl).toHaveBeenCalled();
     expect(d.openEditorImpl).toHaveBeenCalled();
     expect(d.launchTreeImpl).toHaveBeenCalled();
     expect(d.bootDevSurfacesImpl).toHaveBeenCalled();
-    expect(r.surfaces[0]!.ready).toBe(true);
   });
   it('honours --no-* flags', async () => {
     const d = deps();
-    await upWorktree(
+    const r = await upWorktree(
       {
         slug: 'foo',
         cwd: '/repo',
@@ -49,6 +61,15 @@ describe('upWorktree', () => {
       },
       d as never,
     );
+    // The summary is the observable contract: every skippable step reports as
+    // not-taken. The call assertions below only corroborate that no seam ran.
+    expect(r).toEqual({
+      treePath: '/repo/.worktrees/foo',
+      basePort: 5174,
+      editorOpened: false,
+      terminalSpawned: false,
+      surfaces: [],
+    });
     expect(d.createWorktreeImpl).not.toHaveBeenCalled();
     expect(d.openEditorImpl).not.toHaveBeenCalled();
     expect(d.launchTreeImpl).not.toHaveBeenCalled();
@@ -56,8 +77,11 @@ describe('upWorktree', () => {
   });
   it('reuses an existing worktree instead of creating', async () => {
     const d = deps({ existsImpl: vi.fn(() => true) });
-    await upWorktree({ slug: 'foo', cwd: '/repo' }, d as never);
+    const r = await upWorktree({ slug: 'foo', cwd: '/repo' }, d as never);
+    // Reuse is invisible in the summary — an existing tree yields the same
+    // shape a fresh one does — so the full summary pins "every other step still
+    // ran" and the call assertion carries the reuse itself.
+    expect(r).toEqual(FULL_SUMMARY);
     expect(d.createWorktreeImpl).not.toHaveBeenCalled();
-    expect(d.bootDevSurfacesImpl).toHaveBeenCalled();
   });
 });

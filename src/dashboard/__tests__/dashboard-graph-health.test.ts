@@ -1,12 +1,16 @@
 // @tests: dashboard-hot-zones-page, dashboard-roadmap-backlog-polish, dashboard-roadmap-drag-drop, dashboard-vision-surface, dashboard-wip-age-page, dashboard-worktree-health-page, dynamic-fd-changelog, framework-milestones-support-poc-mvp-100, outcome-telemetry-and-effectiveness-metrics, project-tracking-dashboard, replace-roadmap-buckets-with-flat-priority-order, roadmap-priority-ordering
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   LOW_COHESION_THRESHOLD,
   graphHealthSnapshotSchema,
   loadGraphHealth,
   parseGraphReport,
+  setDocRootsOverride,
 } from '../data.js';
 import { renderGraphHealth } from '../views.js';
 
@@ -116,9 +120,30 @@ describe('parseGraphReport', () => {
 });
 
 describe('loadGraphHealth', () => {
-  it('returns a Zod-valid snapshot (or null when no report exists)', async () => {
+  // Both branches are driven off a real temp doc root rather than the repo's
+  // own `graphify-out/`: the old single case asserted nothing whenever the
+  // report happened to be absent, so it survived `loadGraphHealth → null`.
+  afterEach(() => setDocRootsOverride(undefined));
+
+  it('parses the report at <docRoot>/graphify-out/GRAPH_REPORT.md', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'noldor-graph-health-'));
+    mkdirSync(join(root, 'graphify-out'), { recursive: true });
+    writeFileSync(join(root, 'graphify-out', 'GRAPH_REPORT.md'), FIXTURE, 'utf8');
+    setDocRootsOverride(root);
+
     const s = await loadGraphHealth();
-    if (s !== null) graphHealthSnapshotSchema.parse(s);
+
+    expect(s).not.toBeNull();
+    expect(s!.scope).toBe('src');
+    expect(s!.reportDate).toBe('2026-06-01');
+    expect(s!.nodeCount).toBe(1036);
+    expect(s!.communityCount).toBe(52);
+    expect(graphHealthSnapshotSchema.safeParse(s).success).toBe(true);
+  });
+
+  it('returns null when the doc root holds no report', async () => {
+    setDocRootsOverride(mkdtempSync(join(tmpdir(), 'noldor-graph-health-empty-')));
+    expect(await loadGraphHealth()).toBeNull();
   });
 });
 
