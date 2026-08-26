@@ -28,11 +28,43 @@ Non-negotiable principles for all code written in a Noldor repo. Aligned with `t
 | `unicorn/consistent-function-scoping` | test helpers belong inside the `describe` they serve.                                                                       |
 | `unicorn/no-array-sort`               | `.sort()` on a freshly built local array is fine, and a blanket `toSorted()` swap silently drops the result where a caller relies on the in-place mutation. |
 
-One rule is switched **on** above its category default: `eslint/no-empty` — error flow, an empty `catch` must say why it is empty. `eslint/no-async-promise-executor` already errors via `correctness`; it is listed anyway so the concurrency dimension's machine half is named in the config instead of implied by a category that could be reshuffled upstream. `require-atomic-updates` has no oxlint implementation as of 1.67, so that concurrency check stays prose-only and is a review-time dimension.
+Three rules are switched **on** above their category default:
 
-The root config and `templates/.oxlintrc.json` are kept byte-identical, so `jsx-a11y` is on in both even though this repo carries no JSX — it is what makes the a11y claim below executable in a consumer that does.
+| Rule on                 | Why                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eslint/no-empty`       | error flow — an empty `catch` must say why it is empty.                                                                                                                                                                                                                                                                                                                                        |
+| `react/rules-of-hooks`  | lives in the `pedantic` category **only**, which is off here — so enabling the `react` plugin does not enable it. Verified per category against a component calling `useState` inside an `if`: `exhaustive-deps` fired under `correctness`, `rules-of-hooks` only under `pedantic`. It is the React Compiler's precondition, so a silently-absent rules-of-hooks means the compiler quietly skips components instead of memoizing them. |
+| `react/exhaustive-deps` | already covered by `correctness`; named anyway so the contract is pinned in the config rather than implied by a category that could be reshuffled upstream — the same reason `eslint/no-async-promise-executor` is listed. A stale closure in an effect is a real bug, not a style preference. |
+
+For error flow specifically: `eslint/no-async-promise-executor` already errors via `correctness`; it is listed anyway so the concurrency dimension's machine half is named in the config instead of implied by a category that could be reshuffled upstream. `require-atomic-updates` has no oxlint implementation as of 1.67, so that concurrency check stays prose-only and is a review-time dimension.
+
+The root config and `templates/.oxlintrc.json` are kept byte-identical, so `jsx-a11y` and `react` are on in both even though this repo carries no JSX — it is what makes the a11y and React claims below executable in a consumer that does.
+
+### The toolchain floor
+
+`.oxlintrc.json` and the tsconfig are both consumer-owned, for the same reason and by two different mechanisms: `.oxlintrc.json` ships as a scaffold-only template (see `SCAFFOLD_ONLY_TEMPLATES` — `init` writes it once, template-sync never re-asserts it), and the tsconfig is not shipped at all. So template-sync cannot hold either to a standard. The `toolchain-floor` invariant does instead: it reads *this* repo's own config on every `pnpm noldor checks invariants` run — which is a pre-commit job — so the floor is live in the framework repo and in every consumer alike. What it asserts, and why each severity:
+
+| Floor id                        | Assertion                                                     | Severity  | Why that severity                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `react-plugin`                  | `react` in `plugins` when `react` is a dependency             | **error** | without it no React rule runs at all.                                                                                                    |
+| `react-hooks-rules`             | `react/rules-of-hooks` + `react/exhaustive-deps` set to error | **error** | naming a rule costs nothing, and a false positive is one `overrides` block away.                                                          |
+| `disposable-lib`                | a declared `lib` array includes `ESNext.Disposable`            | **error** | widens the type surface only — cannot break existing code (probed: 0 new errors) — and it is what makes `using` compile.                  |
+| `no-unchecked-indexed-access`   | `compilerOptions.noUncheckedIndexedAccess: true`               | warn      | a real migration on an existing tree (221 errors when first probed here). `strict` does not imply it; it is the highest-yield flag left. |
+| `exact-optional-property-types` | `compilerOptions.exactOptionalPropertyTypes: true`             | warn      | same — a migration (47 errors when probed). Blocking a commit on multi-day work only teaches people to bypass the hook.                   |
+
+The two `warn` rows are a ratchet, not decoration: they name work that is scheduled, not optional. A repo that genuinely declines a floor item records it in `.noldor/config.json` under `consumer.toolchainFloor.waivers` as `{ id, reason }` — which does not silence the finding, it downgrades it to a `warn` quoting the reason, so a deliberate exception stays visible in every run. Same idiom as `release.crGateExemptCommits`.
 
 Principles below are reviewed at code-write time; the commands above are the automated gate.
+
+Principles that apply to only some files live in the scoped rule store (`.noldor/rules/`, resolved by `noldor rules brief`) rather than here — an `enforce: true` rule there also reaches the code reviewer for the files a diff touched, which is stronger than baseline prose. Those added alongside this section:
+
+| Rule                       | Scope                | Covers                                                                                                                |
+| -------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `platform-over-dependency` | `**/*.ts(x)`         | ES2023–2025 built-ins over packages; lazy iterator helpers; non-mutating array ops; ISO/Temporal time; `RegExp.escape`  |
+| `deterministic-cleanup`    | `**/*.ts`            | `using` / `Symbol.dispose` for temp dirs, worktrees, locks, subprocesses                                               |
+| `react-19-idioms`          | `**/*.tsx`           | `ref` as prop, `<Ctx value>`, `use()` over effect-fetching, `useActionState` / `useOptimistic`, `useEffectEvent`        |
+| `web-platform-styling`     | `**/*.css`           | `@layer`, container queries, `oklch` / `light-dark()`, `popover` / `<dialog>`, `@starting-style`                        |
+| `server-boundary-trust`    | action / route globs | a server action is a public endpoint: auth + schema-parse first; serialization boundary; verify cache defaults per version |
 
 ## Principles
 
@@ -74,7 +106,7 @@ Root cause before fixes, always. **Never** propose or apply a fix for a bug, tes
 - **Validate at the boundary, never `as` cast.** All external data (API responses, file IO, user input) parsed through a Zod schema. Internal code trusts the parsed type.
 - **`safeParse` for expected failures, `parse` only when invalid = bug.** A failing `parse()` is a programmer error; reach for `safeParse` whenever the input might legitimately not match.
 - **Co-locate schema + type.** `export const fooSchema = z.object({...}); export type Foo = z.infer<typeof fooSchema>;` — single source of truth, schema name uses lowercase `fooSchema` suffix (not PascalCase).
-- **`.strict()` on object schemas.** Unknown keys are silent data corruption; reject them at the boundary.
+- **Reject unknown keys on object schemas.** Unknown keys are silent data corruption; reject them at the boundary. The spelling is version-dependent: `.strict()` on Zod 3, `z.strictObject()` on Zod 4 (where `.strict()` is deprecated). The rule is the behaviour, not the method name — check which major the project is on before copying a schema between repos.
 
 ## React
 
@@ -87,10 +119,11 @@ Root cause before fixes, always. **Never** propose or apply a fix for a bug, tes
 - **Every subscription has a cleanup.** `useEffect` returns a teardown for every event listener, observer, timer, network call.
 - **No async function passed to `useEffect`.** Define an inner async fn and call it.
 - **No `dangerouslySetInnerHTML`** without sanitization at the boundary it enters the system.
+- **React 19 spellings, not their React 18 predecessors.** `ref` is an ordinary prop (no `forwardRef`), a context is its own provider (`<Ctx value>`, not `<Ctx.Provider>`), a ref callback may return its own teardown, and a mutation with pending/error state is `useActionState` — not three `useState` calls around a `try/catch/finally`, which double-submits on a double click. Full text and the rest (`use()` over effect-fetching, `useEffectEvent`) in the `react-19-idioms` scoped rule.
 
 ## Accessibility
 
-Target: **WCAG 2.1 Level AA** across every user-facing surface. Aligned with the `jsx-a11y` plugin in `.oxlintrc.json`; lint catches structural mistakes, but contrast / live regions / shortcut conflicts need test-time + design-time discipline. Canvas / WebGL surfaces are exempt from DOM-level rules — but they need an alternative DOM surface (sidebar tree, command palette, keyboard shortcuts) that **must** stay AA-compliant.
+Target: **WCAG 2.2 Level AA** across every user-facing surface (2.2 has been the W3C Recommendation since 2023; it is 2.1 plus six criteria, listed below). Aligned with the `jsx-a11y` plugin in `.oxlintrc.json`; lint catches structural mistakes, but contrast / live regions / shortcut conflicts need test-time + design-time discipline. Canvas / WebGL surfaces are exempt from DOM-level rules — but they need an alternative DOM surface (sidebar tree, command palette, keyboard shortcuts) that **must** stay AA-compliant.
 
 ### Semantic structure
 
@@ -109,6 +142,17 @@ Target: **WCAG 2.1 Level AA** across every user-facing surface. Aligned with the
 - **Single-character shortcuts are dismissible (WCAG 2.1.4).** Single-character shortcuts (e.g. `n`, `t`, ...) are _active only when a specific surface has focus_, OR a user setting disables them globally. Never trap globally — colliding with browser screen-reader shortcuts breaks AT users.
 - **Pointer activation on pointer-up (WCAG 2.5.2).** Native `<button>` already does this. For custom canvas controls (drag handles, gizmos): commit on `pointerup` with abort-on-leave-target, never on `pointerdown`.
 - **Focus order matches visual order (WCAG 2.4.3).** Tab moves through panels in left-to-right, top-to-bottom DOM order. Don't reorder visually with `flex-direction: row-reverse` or `order:` without matching DOM.
+
+### WCAG 2.2 additions
+
+The six criteria 2.2 adds on top of 2.1. Two of them land squarely on surfaces these rules already describe (drag handles, gizmos), which is the main reason the target moved.
+
+- **Focus not obscured (WCAG 2.4.11).** A focused element is never fully hidden behind sticky chrome — a toolbar, a status bar, a floating panel. Scroll-into-view must account for overlay height, not just the scroll container.
+- **Dragging movements have a non-drag alternative (WCAG 2.5.7).** Every drag interaction — canvas gizmos, drag handles, resize grips, reorderable lists — also completes via a single-pointer path (click target then click destination, or a keyboard / numeric-input equivalent). Drag may remain the fast path; it may not be the only path.
+- **Target size ≥ 24×24 CSS px (WCAG 2.5.8).** Pointer targets meet 24×24, or are spaced so that a 24px circle centred on each does not overlap a neighbour's. Applies to icon buttons, close affordances, and canvas handles — the usual offenders.
+- **Consistent help (WCAG 3.2.6).** Where a help affordance exists (docs link, support contact, command palette entry), it sits in the same relative place on every surface that carries it.
+- **Redundant entry (WCAG 3.3.7).** Within one flow, do not ask for the same information twice — auto-populate it or offer it for selection. Re-confirmation for a genuinely destructive step is the exception.
+- **Accessible authentication (WCAG 3.3.8).** No cognitive-function test (transcribing, puzzle-solving, recalling a value) as the only way through an auth step; paste and password managers must work.
 
 ### Color & contrast
 

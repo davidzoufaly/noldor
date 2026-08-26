@@ -154,6 +154,31 @@ export const UiBootRecipeSchema = z
 
 export type UiBootRecipe = z.infer<typeof UiBootRecipeSchema>;
 
+/**
+ * A declined toolchain-floor requirement. `id` is the floor check's id (see
+ * `src/invariants/toolchain-floor.ts`); `reason` is why this repo does not meet
+ * it. A waiver does not silence the finding — it downgrades it to a `warn` that
+ * quotes the reason, so a deliberate exception stays visible in every run
+ * instead of vanishing. Same idiom as `release.crGateExemptCommits`.
+ */
+export const ToolchainWaiverSchema = z
+  .object({
+    id: z.string().min(1),
+    reason: z.string().min(20),
+  })
+  .strict();
+
+export type ToolchainWaiver = z.infer<typeof ToolchainWaiverSchema>;
+
+/** Per-consumer toolchain-floor config. Absent ⇒ nothing waived. */
+export const ToolchainFloorSchema = z
+  .object({
+    waivers: z.array(ToolchainWaiverSchema).default([]),
+  })
+  .strict();
+
+export type ToolchainFloor = z.infer<typeof ToolchainFloorSchema>;
+
 export const ConsumerConfigSchema = z
   .object({
     name: z.string().min(1),
@@ -215,6 +240,12 @@ export const ConsumerConfigSchema = z
      * superRefine below so `validate noldor-config` rejects a drifted block.
      */
     uiBoot: z.record(z.string().regex(SURFACE_NAME_RE), UiBootRecipeSchema).optional(),
+    /**
+     * Floor requirements this repo deliberately does not meet, each with a
+     * reason. Read by the `toolchain-floor` invariant. Absent ⇒ the full floor
+     * applies.
+     */
+    toolchainFloor: ToolchainFloorSchema.optional(),
     /**
      * Framework version this consumer tree was last migrated to. Written by
      * `init` (fresh scaffold = current) and `noldor upgrade` (after a chain).

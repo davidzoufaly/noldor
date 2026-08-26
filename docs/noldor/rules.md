@@ -5,10 +5,11 @@ introduced: 0.4.0
 
 # Rules Cascade
 
-Noldor resolves the engineering rules that apply to a given edit from two layers:
+Noldor resolves the engineering rules that apply to a given edit from three layers:
 
 1. **Baseline principles** — [`.claude/engineering-rules.md`](../../.claude/engineering-rules.md). Always-on, non-negotiable principles for all code in a Noldor repo (YAGNI, smallest viable diff, narrow-don't-assert, etc.). Project overlays may extend these; read both.
 2. **Scoped rule store** — `.noldor/rules/<id>.md`. File- and stage-scoped overlays resolved on demand by `noldor rules resolve`. This is the cascade.
+3. **Toolchain floor** — the `toolchain-floor` invariant ([`src/invariants/toolchain-floor.ts`](../../src/invariants/toolchain-floor.ts)). The subset of the baseline that lives in config rather than in prose, asserted mechanically. See [Toolchain floor](#toolchain-floor) below.
 
 The cascade exists so a rule only surfaces where it applies — e.g. an ESM-`.js`-specifier rule scoped to `src/**/*.ts` at the `code` stage, rather than a flat wall of rules the author has to filter mentally on every edit.
 
@@ -64,6 +65,33 @@ The toolchain is ESM … internal cross-module imports stay relative and carry a
 | `pnpm noldor rules validate`                         | Loads + validates the store; non-zero exit + per-rule errors on failure.                        |
 
 `rules validate` is the store's integrity gate — schema violations, id/filename mismatches, and parse errors all surface here.
+
+## Toolchain floor
+
+Some baseline principles are only real if a config says so — `using` does not compile without the disposable lib, and `react/rules-of-hooks` does not run unless it is named. Those configs are the two the framework deliberately does **not** own, because which rules a repo must switch off, and which strictness flags it can afford today, are properties of *its* code. Each is disowned by its own mechanism: `.oxlintrc.json` is in `SCAFFOLD_ONLY_TEMPLATES` (see [manifest.ts](../../src/templates/manifest.ts)), so `init` writes it once and template-sync never re-asserts it; the tsconfig has no template at all, so the framework never writes it. Template sync therefore holds neither to a standard.
+
+The `toolchain-floor` invariant closes that gap from the other side: instead of comparing against a template copy, it reads the repo's own config and asserts a floor. It runs under `pnpm noldor checks invariants`, a pre-commit job in [`lefthook/noldor.yml`](../../lefthook/noldor.yml), so it is live in this repo and in every consumer that installs the framework — bound to that consumer's root, reading that consumer's files.
+
+Severity tracks migration cost, not importance:
+
+- **error** — the requirement costs nothing to satisfy: `react` in `plugins`, `react/rules-of-hooks` and `react/exhaustive-deps` named as errors, `ESNext.Disposable` present in a declared `lib`. Naming a lint rule or widening a lib cannot break existing code.
+- **warn** — the requirement is a real migration: `noUncheckedIndexedAccess` (221 errors when first probed against this repo), `exactOptionalPropertyTypes` (47). These are a ratchet — scheduled work that stays visible on every run — because hard-failing a commit on multi-day work only teaches people to bypass the hook.
+
+A repo that genuinely declines a floor item declares it in `.noldor/config.json`:
+
+```jsonc
+{
+  "consumer": {
+    "toolchainFloor": {
+      "waivers": [{ "id": "disposable-lib", "reason": "deploy target has no Symbol.dispose support" }]
+    }
+  }
+}
+```
+
+A waiver does not silence the finding — it downgrades it to a `warn` quoting the reason, so the exception stays legible in every run rather than vanishing. `reason` has a 20-character floor for the same purpose. The idiom mirrors `release.crGateExemptCommits`.
+
+A config that does not parse as JSON is reported as a `warn` naming the unchecked floor, never as a pass: `toolchain-floor` uses `JSON.parse` rather than taking a JSONC dependency, precisely because adding a package to read two config files would contradict the `platform-over-dependency` rule it exists to support.
 
 ## Template sync
 
