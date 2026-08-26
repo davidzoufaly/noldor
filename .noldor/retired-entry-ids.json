@@ -187,5 +187,9 @@
   "Q-0165": {
     "slug": "push-gate-preflight-must-replay-the-real-hook",
     "retiredAt": "2026-08-25"
+  },
+  "Q-0071": {
+    "slug": "better-unit-test-rules",
+    "retiredAt": "2026-08-26"
   }
 }
