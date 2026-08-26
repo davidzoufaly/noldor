@@ -224,6 +224,12 @@ export function stripJsonc(text: string): JsoncScan {
     if (inBlockComment) {
       if (ch === '*' && next === '/') {
         inBlockComment = false;
+        // A space, not nothing: removing an inline comment with no separator
+        // left behind joins the tokens either side of it, so `1/*c*/2` became
+        // `12` and `tru/*c*/e` became `true` — a malformed config repaired into
+        // a parseable one, which is the bypass this scanner exists to prevent.
+        // JSON whitespace is insignificant, so this can never break valid input.
+        out.push(' ');
         i += 1;
       } else if (ch === '\n') {
         out.push(ch);

@@ -239,6 +239,25 @@ describe('stripJsonc', () => {
     }
   });
 
+  it('does not join the tokens either side of an inline block comment', () => {
+    // `1/*c*/2` must not become `12`: repairing malformed input into something
+    // parseable is the same bypass from the other direction.
+    for (const broken of ['{ "a": 1/*c*/2 }', '{ "a": tru/*c*/e }']) {
+      const scan = stripJsonc(broken);
+      expect(scan.ok).toBe(true);
+      expect(() => JSON.parse(scan.ok ? scan.text : '')).toThrow();
+    }
+  });
+
+  it('keeps a separator-comma between two strings in an array', () => {
+    // The shape of every real `lib` / `plugins` array — the comma after a
+    // closing quote is a separator, not a trailing comma.
+    expect(parseJsonc('{ "lib": ["ES2025", "DOM"], "plugins": ["a", "b", "c"] }')).toEqual({
+      lib: ['ES2025', 'DOM'],
+      plugins: ['a', 'b', 'c'],
+    });
+  });
+
   it('still drops a trailing comma after each kind of value', () => {
     expect(parseJsonc('{ "a": 1, "b": [2, ], "c": { "d": null, }, }')).toEqual({
       a: 1,
