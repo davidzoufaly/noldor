@@ -169,9 +169,14 @@ describe('libFloorChecks', () => {
     ).toEqual([]);
   });
 
-  it('stays silent when the config declares no lib array (it inherits one)', () => {
-    expect(libFloorChecks('tsconfig.json', { compilerOptions: { strict: true } })).toEqual([]);
-    expect(libFloorChecks('tsconfig.json', {})).toEqual([]);
+  it('reports an undeclared lib as unchecked rather than as met', () => {
+    // Absent resolves through `extends` / `target`, which this floor does not
+    // walk — but silence there let a standalone ES2023 config pass.
+    for (const cfg of [{ compilerOptions: { strict: true } }, {}]) {
+      const out = libFloorChecks('tsconfig.json', cfg);
+      expect(ids(out)).toEqual(['lib-inherited']);
+      expect(out[0]?.severity).toBe('warn');
+    }
   });
 
   it('ignores non-string lib entries rather than throwing on them', () => {
@@ -331,8 +336,13 @@ describe('collectFloorViolations', () => {
     write('tsconfig.json', COMPLIANT_TSCONFIG);
     write('package.json', { name: 'x' });
     const out = await collectFloorViolations(root);
-    // Strictness reported against the base; the compliant root lib adds nothing.
-    expect(ids(out)).toEqual(['exact-optional-property-types', 'no-unchecked-indexed-access']);
+    // Strictness reported against the base; the base declares no lib, so its
+    // lib floor is unchecked, and the compliant root lib adds nothing.
+    expect(ids(out)).toEqual([
+      'exact-optional-property-types',
+      'lib-inherited',
+      'no-unchecked-indexed-access',
+    ]);
     expect(out.every((v) => v.file === 'tsconfig.base.json')).toBeTruthy();
   });
 
@@ -343,8 +353,11 @@ describe('collectFloorViolations', () => {
     write('tsconfig.json', { compilerOptions: { lib: ['ES2023', 'DOM'] } });
     write('package.json', { name: 'x' });
     const out = await collectFloorViolations(root);
-    expect(ids(out)).toEqual(['disposable-lib', 'lib-es-builtins']);
-    expect(out.every((v) => v.file === 'tsconfig.json')).toBeTruthy();
+    expect(ids(out)).toEqual(['disposable-lib', 'lib-es-builtins', 'lib-inherited']);
+    // The base is where the unchecked-lib warn lands; both errors are the root's.
+    expect(out.filter((v) => v.severity === 'error').every((v) => v.file === 'tsconfig.json')).toBe(
+      true,
+    );
   });
 
   it('passes the monorepo split once the root config carries the disposable lib', async () => {
@@ -353,7 +366,7 @@ describe('collectFloorViolations', () => {
     });
     write('tsconfig.json', { compilerOptions: { lib: ['ESNext', 'DOM'] } });
     write('package.json', { name: 'x' });
-    expect(await collectFloorViolations(root)).toEqual([]);
+    expect(ids(await collectFloorViolations(root))).toEqual(['lib-inherited']);
   });
 
   it('finds react in a workspace package, not just the root manifest', async () => {
@@ -468,6 +481,19 @@ describe('collectFloorViolations', () => {
     const out = await collectFloorViolations(root);
     expect(ids(out)).toEqual(['oxlintrc-invalid']);
     expect(out[0]?.severity).toBe('error');
+  });
+
+  it('names a workspace manifest that failed to parse even when the root one read', async () => {
+    // "Some manifest parsed" is not "every manifest parsed": react declared only
+    // in the broken one would make the React floor silently not run.
+    write('tsconfig.json', COMPLIANT_TSCONFIG);
+    write('package.json', { name: 'root' });
+    mkdirSync(join(root, 'apps', 'web'), { recursive: true });
+    writeFileSync(join(root, 'apps', 'web', 'package.json'), '{ "dependencies": \n');
+    const out = await collectFloorViolations(root);
+    expect(ids(out)).toEqual(['manifests-unreadable']);
+    expect(out[0]?.severity).toBe('warn');
+    expect(out[0]?.message).toContain(join('apps', 'web', 'package.json'));
   });
 
   it('warns that the React floor went unchecked when no manifest validates', async () => {

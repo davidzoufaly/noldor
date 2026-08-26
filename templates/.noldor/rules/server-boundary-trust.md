@@ -8,9 +8,13 @@ links: [.claude/engineering-rules.md]
 
 A server action reads as a function call and *is* a public HTTP endpoint. Anyone can invoke it with
 any payload, in any order, regardless of which component appears to call it and regardless of what
-the client-side form allowed. So every server action and route handler authenticates and authorizes
-first, then parses its input through a schema — never trusting an argument's declared TypeScript
-type, which is erased and was never checked at the wire. The client-side check is a UX affordance;
+the client-side form allowed. So every server action and route handler authenticates the
+caller, then parses its input through a schema, then authorizes against the *validated* values —
+never trusting an argument's declared TypeScript type, which is erased and was never checked at the
+wire. That order matters and is not interchangeable: resource-level authorization needs a resource id
+it can trust, so authorizing before validation either has nothing to check or checks attacker-shaped
+input. Authentication comes first because it depends on no argument at all; a cheap
+reject-if-anonymous before parsing is fine and often right. The client-side check is a UX affordance;
 this is the security boundary. Omitting it is the single most common real vulnerability in this
 architecture.
 

@@ -419,18 +419,24 @@ export async function findPackageManifests(root: string): Promise<string[]> {
  * @returns The dependency names, and whether any manifest was readable at all —
  *   a repo whose manifests all failed to parse must not read as "no react".
  */
-async function workspaceDependencies(
-  root: string,
-): Promise<{ readonly names: Set<string>; readonly readAny: boolean }> {
+async function workspaceDependencies(root: string): Promise<{
+  readonly names: Set<string>;
+  readonly readAny: boolean;
+  readonly unreadable: readonly string[];
+}> {
   const names = new Set<string>();
+  const unreadable: string[] = [];
   let readAny = false;
   for (const rel of await findPackageManifests(root)) {
     const read = await readConfig(root, rel, PackageJsonSchema);
-    if (!read.ok) continue;
+    if (!read.ok) {
+      unreadable.push(rel);
+      continue;
+    }
     readAny = true;
     for (const name of declaredDependencies(read.value)) names.add(name);
   }
-  return { names, readAny };
+  return { names, readAny, unreadable };
 }
 
 /** Whether an oxlint rule setting denies (blocks) rather than warns or allows. */
@@ -520,7 +526,23 @@ function libYear(entry: string): number | undefined {
  */
 export function libFloorChecks(path: string, cfg: TsConfigShape): FloorViolation[] {
   const declared = cfg.compilerOptions?.lib;
-  if (declared === undefined) return [];
+  if (declared === undefined) {
+    // Absent means "inherit" — from `extends`, or from `target`'s default — and
+    // this floor does not resolve either (TypeScript 7 ships no in-process JS
+    // parser API to walk the graph with). Silence here was a hole every review
+    // round found: a standalone config with `target: ES2023` and no `lib`
+    // provides neither Explicit Resource Management nor the mandated built-ins,
+    // and passed. So report it as unchecked, the same way every other
+    // unresolvable input in this module is reported, rather than as met.
+    return [
+      {
+        id: 'lib-inherited',
+        file: path,
+        severity: 'warn',
+        message: `${path}: compilerOptions.lib is not declared, so the lib floor went unchecked — it resolves through \`extends\` or from \`target\`, and this floor reads root configs rather than the resolved graph. Declare a \`lib\` here (\`["ESNext", "DOM"]\` satisfies both halves) to make it checkable, or confirm by hand that the inherited set carries Explicit Resource Management and es${ES_BUILTINS_FLOOR_YEAR} built-ins.`,
+      },
+    ];
+  }
   if (!Array.isArray(declared)) {
     // `"lib": "ESNext"` is a plausible typo that `tsc` rejects outright. Reading
     // it as "no lib declared, therefore inherited" silently skipped both checks
@@ -657,6 +679,17 @@ export async function collectFloorViolations(root: string): Promise<FloorViolati
   }
 
   const deps = await workspaceDependencies(root);
+  if (deps.readAny && deps.unreadable.length > 0) {
+    // "Some manifest parsed" is not the same as "every manifest parsed": a root
+    // manifest that reads while `apps/web/package.json` does not would conclude
+    // react is absent and skip the React floor entirely, with nothing said.
+    out.push({
+      id: 'manifests-unreadable',
+      file: deps.unreadable[0] as string,
+      severity: 'warn',
+      message: `${deps.unreadable.length} package manifest(s) did not validate (${deps.unreadable.join(', ')}), so any dependency declared only there is invisible to this floor — including \`react\`, which is what decides whether the React half runs at all.`,
+    });
+  }
   if (!deps.readAny) {
     out.push({
       id: 'manifests-unreadable',

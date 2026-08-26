@@ -13,6 +13,15 @@ config stops at ES2023 would mandate code the compiler rejects — `Object.group
 `Promise.withResolvers`, the Set operations, the iterator helpers and `RegExp.escape` are each a
 TS2550 "change the lib option" error under `lib: ["ES2023"]`. Where a consumer waives that id, the
 APIs below it declines are off the table there and the rest of this rule still applies.
+**The type floor is not a runtime floor.** `lib` proves the compiler knows these APIs, not that the
+deployment target implements them — `Set.prototype.union` and the iterator helpers need Node 22+,
+`RegExp.escape` and `Symbol.dispose` Node 24+, with the evergreen-browser cutoffs roughly a year
+earlier. This rule assumes a current engine (Node 24+ or a browser matrix no older than that) and
+nothing checks that assumption, because a deploy target is not visible in the repo. A consumer
+shipping to an older runtime should waive `lib-es-builtins` and treat the APIs above its own floor as
+out of scope; the rest of this rule stands unchanged. Reaching for a built-in the runtime lacks is
+the one case where a polyfill or a package is the correct answer.
+
 `Object.groupBy` / `Map.groupBy` over a hand-rolled reducer or a lodash import; Set operations (`union`, `intersection`, `difference`, `isSubsetOf`, `isDisjointFrom`)
 over helper functions; `Promise.withResolvers()` over the hand-built deferred antipattern;
 `structuredClone` over a deep-copy dependency; `Array.fromAsync` over an accumulate-then-return
