@@ -436,22 +436,30 @@ export async function findPackageManifests(root: string): Promise<ManifestScan> 
 async function workspaceDependencies(root: string): Promise<{
   readonly names: Set<string>;
   readonly readAny: boolean;
-  readonly unreadable: readonly string[];
+  /** Manifests found but not parseable/validatable. */
+  readonly unreadableManifests: readonly string[];
+  /** Directories the walk could not enter, so their manifests were never seen. */
+  readonly unreadableDirs: readonly string[];
 }> {
   const names = new Set<string>();
   const scan = await findPackageManifests(root);
-  const unreadable: string[] = scan.unreadableDirs.map((dir) => `${dir}/ (unreadable directory)`);
+  const unreadableManifests: string[] = [];
   let readAny = false;
   for (const rel of scan.manifests) {
     const read = await readConfig(root, rel, PackageJsonSchema);
     if (!read.ok) {
-      unreadable.push(rel);
+      unreadableManifests.push(rel);
       continue;
     }
     readAny = true;
     for (const name of declaredDependencies(read.value)) names.add(name);
   }
-  return { names, readAny, unreadable };
+  return {
+    names,
+    readAny,
+    unreadableManifests,
+    unreadableDirs: scan.unreadableDirs,
+  };
 }
 
 /** Whether an oxlint rule setting denies (blocks) rather than warns or allows. */
@@ -715,15 +723,30 @@ export async function collectFloorViolations(root: string): Promise<FloorViolati
   }
 
   const deps = await workspaceDependencies(root);
-  if (deps.readAny && deps.unreadable.length > 0) {
-    // "Some manifest parsed" is not the same as "every manifest parsed": a root
-    // manifest that reads while `apps/web/package.json` does not would conclude
-    // react is absent and skip the React floor entirely, with nothing said.
+  // "Some manifest parsed" is not the same as "every manifest was seen": a root
+  // manifest that reads while `apps/web/package.json` does not — or while
+  // `apps/web/` itself cannot be entered — would conclude react is absent and
+  // skip the React floor entirely, with nothing said. The two causes are
+  // reported as what they are: a manifest that failed to validate is not a
+  // directory that could not be opened, and naming a directory as a manifest
+  // path sends the reader to a file that does not exist.
+  if (deps.readAny && (deps.unreadableManifests.length > 0 || deps.unreadableDirs.length > 0)) {
+    const parts: string[] = [];
+    if (deps.unreadableManifests.length > 0) {
+      parts.push(
+        `${deps.unreadableManifests.length} manifest(s) did not validate (${deps.unreadableManifests.join(', ')})`,
+      );
+    }
+    if (deps.unreadableDirs.length > 0) {
+      parts.push(
+        `${deps.unreadableDirs.length} directory/ies could not be read, so any manifest inside was never seen (${deps.unreadableDirs.join(', ')})`,
+      );
+    }
     out.push({
       id: 'manifests-unreadable',
-      file: deps.unreadable[0] as string,
+      file: deps.unreadableManifests[0] ?? PACKAGE_JSON,
       severity: 'warn',
-      message: `${deps.unreadable.length} package manifest(s) did not validate (${deps.unreadable.join(', ')}), so any dependency declared only there is invisible to this floor — including \`react\`, which is what decides whether the React half runs at all.`,
+      message: `${parts.join('; ')} — so any dependency declared only there is invisible to this floor, including \`react\`, which is what decides whether the React half runs at all.`,
     });
   }
   if (!deps.readAny) {

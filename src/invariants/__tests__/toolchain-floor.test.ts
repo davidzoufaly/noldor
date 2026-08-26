@@ -1,5 +1,5 @@
 // @tests: architecture-invariants
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -502,6 +502,26 @@ describe('collectFloorViolations', () => {
     expect(ids(out)).toEqual(['manifests-unreadable']);
     expect(out[0]?.severity).toBe('warn');
     expect(out[0]?.message).toContain(join('apps', 'web', 'package.json'));
+    expect(out[0]?.message).toContain('did not validate');
+    // The reported path must be a real file, not a synthesised label.
+    expect(out[0]?.file).toBe(join('apps', 'web', 'package.json'));
+  });
+
+  it('reports a directory it could not enter as a directory, not as a manifest', async () => {
+    write('tsconfig.json', COMPLIANT_TSCONFIG);
+    write('package.json', { name: 'root' });
+    const blocked = join(root, 'apps');
+    mkdirSync(blocked, { recursive: true });
+    chmodSync(blocked, 0o000);
+    try {
+      const out = await collectFloorViolations(root);
+      expect(ids(out)).toEqual(['manifests-unreadable']);
+      expect(out[0]?.message).toContain('could not be read');
+      expect(out[0]?.message).not.toContain('did not validate');
+      expect(out[0]?.file).toBe('package.json');
+    } finally {
+      chmodSync(blocked, 0o755);
+    }
   });
 
   it('warns that the React floor went unchecked when no manifest validates', async () => {
