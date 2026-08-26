@@ -4,6 +4,82 @@ Parking lot for items not on the roadmap. Each entry carries a `- id: Q-NNNN` bu
 
 Dependencies are declared with a `- blocked-by: <slug|Q-id, …>` bullet (the entries this work waits on); `- deps:` is the legacy alias, still accepted and unioned with `blocked-by:` during the migration window. Prefer `blocked-by:` in new entries.
 
+### Queue-Document Grammar Module
+
+- id: Q-0113
+- area: tooling
+- type: refactor
+- since: 2026-08-12
+- size: L
+- impact: med
+- confidence: med
+
+Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-blocks.ts`, the dashboard block scanners and writers, triage's `pushEmptyGroupIssues`, next-priority and route-specific description sanitization, and each implementation recognizes a slightly different subset of headings, fences, fields, categories and duplicates. Deepen one grammar that parses and serializes schema-C markdown once, owning entry and group recognition, the canonical field vocabulary, stable IDs and dependencies, exact source spans, comment and body preservation, and serialization; read adapters project roadmap and backlog models, write adapters do range-based insert, move and remove against the same parse. **Leverage:** parser and writer can no longer disagree, and every mutation runs the same strict invariant before persistence. **Deletion test:** the duplicate fence toggles, field regex construction, heading split scans, `countEntries` and `scanBlocks` structure guesses and most route sanitization all go. Preserve untouched formatting outside modified ranges — full-document pretty-printing would create noisy queue diffs and destroy locality.
+
+- The confirmed symptom: queue parsing and docs-link checking implement an incomplete fenced-code grammar, recognizing triple backticks but not CommonMark/GFM tilde fences or varying fence lengths. A roadmap holding a tilde-fenced block that contains `### Phantom` plus `- area: tooling`, followed by a real entry, parses as two entries; a markdown link inside that same tilde fence is extracted as a live internal link by `docs-check`. This can fabricate queue entries and dependencies, make writers remove or reorder example text, and produce false broken-link failures. Because `parseRoadmap`, `parseEntries`, `pushEmptyGroupIssues` and `stripCodeRegions` each toggle independently on a triple-backtick prefix, patching one leaves semantic drift. One fence scanner must understand marker character, opening length, up-to-three-space indentation, info strings and a closing fence of sufficient length. Paired fixtures: backticks and tildes, three- and four-character fences, embedded shorter runs, indented fences, unclosed fences. (confirmed by pure-function runtime probe)
+
+(architecture candidate, Worth exploring from the read-only audit 2026-08-12)
+
+### Repository Context and Snapshot Module
+
+- id: Q-0110
+- area: tooling
+- type: refactor
+- since: 2026-08-12
+- size: L
+- impact: high
+- confidence: med
+- parent: project-tracking-dashboard
+
+`src/dashboard/data.ts` is 2,533 LOC and mixes module-global override state, document paths, cwd-relative scanners, git subprocesses, graph and package discovery, parsing, and page-specific aggregation. `handleOverview` concurrently invokes loaders that reload features and rescan repository state several times, so one response can be slow and internally inconsistent even without `--docs`; the git timeout increase after hot zones blanked under load was a symptom. Deepen an immutable repository context that anchors every adapter to one resolved root and exposes a coherent snapshot of docs, configuration, scan roots, git identity and history, and traceability inputs for a request or report run. **Leverage:** mixed-root results disappear, two-dashboard execution becomes truthful, duplicate IO and git processes drop, and tests gain deterministic injected snapshots. **Deletion test:** remove `docRootsOverride`, the dashboard `process.cwd()` literals, the default-cwd milestone and git calls, the repeated `loadFeatures()` within one page, and the dashboard-specific reconstruction of SDD input. Preserve streaming and refresh behaviour with an explicit snapshot lifetime rather than an unbounded global cache.
+
+- The confirmed symptom: even reinterpreting `--docs` as a repository-root override (Q-0104) leaves the dashboard building mixed-repository views, because many loaders ignore it. `loadSddInput()` (`src/dashboard/data.ts:1124-1177`) hardcodes `docs/features`, `ideas.md`, `docs/backlog.md`, the design dirs, README, the graph path and the scan roots; `scanRoots()` and `actualPackageNames()` default to cwd; git helpers run without an override-aware `cwd`; milestone groups call `loadMilestones()` and `loadMilestoneBySlug()` with their defaults; feature-body VS Code link rewriting uses `process.cwd()`. Setting the dashboard root to `/private/tmp/not-the-cwd` and calling `loadSddInput()` still returned this checkout's 75 features, `graphify-out/graph.json` and `src` scan root. The failure mode is worse than a clean error: counts, gaps, git activity, milestone state and documents can silently describe different repositories on one page. Test with two complete fixtures whose feature counts, git histories, package layouts and milestone names are deliberately incompatible, and assert no value from fixture A appears while rendering fixture B. (confirmed by runtime probe)
+
+(architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
+
+### Repository Mutation Module
+
+- id: Q-0109
+- area: tooling
+- type: refactor
+- since: 2026-08-12
+- size: L
+- impact: high
+- confidence: med
+
+Durable read-modify-write transitions are scattered across dashboard queue routes, core state writers, CR JSON writers, milestone activation and roadmap/backlog movement, and they disagree on temp-name uniqueness, serialization, schema checks, multi-file recovery and concurrency — "atomicity" is a temp-file helper re-derived at each call site. Deepen one module that acquires repository- and file-scoped serialization, re-reads and compares expected state inside the critical section, computes the transition without side effects, validates successor invariants, persists with unique temp files, and recovers or rolls back multi-document transitions after interruption; adapters keep the domain-specific transforms for queues, milestones, sessions and review sinks. **Leverage:** the three confirmed symptoms below close through one seam. **Deletion test:** callers lose their own ETag choreography, temp naming, sequential multi-file write blocks and manual `git restore` recovery hints. **Risk:** a global lock would be shallow and would needlessly serialize independent repositories and files — scope the locking and the crash recovery deliberately. Start with queue and milestone mutations where the correctness benefit is measurable, and migrate state files only when the semantics match.
+
+- Dashboard queue writes have a reproducible lost-update race despite advertising optimistic concurrency through `If-Match`. Every mutator in `src/dashboard/api/blocks.ts` does read, sha256 and If-Match check, transform, then `atomicWriteFile`, with no critical section — so two requests read the same contents, both pass the same ETag, and both prepare different successor states. `src/dashboard/api/atomic.ts:17` makes it worse by always using a temp name of the form basename plus `.tmp.` plus the process pid, so every concurrent write in one dashboard process targets the same temporary file. Launching two `handleMove` calls concurrently with the same valid ETag ended, in all 50 trials, as one 200 plus one thrown ENOENT from `rename`, with the final file retaining a single user action. A unique temp suffix stops the ENOENT but not the stale overwrite: compare and write must become one serialized operation per target file, with the re-read and ETag recheck inside it. Regression tests need a barrier that makes two calls pass the initial read simultaneously, then assert exactly one 200, exactly one 412, no thrown filesystem error, no leftover temp file, and no silent loss. (confirmed by runtime probe)
+- Roadmap and backlog promotion/demotion can leave queue state half-applied by design. `crossSection()` (`src/dashboard/api/blocks.ts:329-357`) removes the block from the source with an atomic rename and then writes the destination; if the second write fails, the entry is already gone, the route returns 500 and logs `git restore docs/roadmap.md docs/backlog.md`, which also discards unrelated concurrent edits and is not a transactional recovery mechanism. The combined ETag stops some stale clients but does not make two renames atomic, and the lost-update race can interleave further mutations between them. Needs a recoverable multi-document transition: serialize queue mutations, precompute and schema-validate both successor files, persist enough journal or backup information to finish or roll back after any failure, and expose success only once both documents represent the same transition. Inject failures before and after each durable step, then prove an entry is never missing from both files nor duplicated in both after recovery. (confirmed by failure-path inspection)
+- Milestone activation is documented as atomic but performs three ordinary sequential writes. `activateMilestone()` (`src/milestones/lib.ts:149-167`) preflights, writes the target `status: active`, writes vision's `current-milestone`, then writes the prior active milestone as `shipped` — no temp and rename, no journal, no rollback, no post-write validation. Failing at step two leaves an active milestone invisible to vision; failing at step three leaves two active milestones. Separately, an already-active target returns at line 155 before ensuring vision points at it, so `noldor milestone activate foo` can print success while the dashboard still shows no current milestone. Model activation as a pure transition plan plus one recoverable multi-document application, and make idempotent re-activation repair all derived state. Fault-injection tests must fail each durable step, reopen the repository as a fresh process would, run recovery, and assert exactly one active file with vision pointing at it. (confirmed by code inspection and temp-consumer probe)
+
+(architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
+
+### Route Every Frontmatter Read Through readFrontmatter
+
+- id: Q-0175
+- area: tooling
+- type: refactor
+- since: 2026-08-23
+- size: M
+- impact: med
+- confidence: med
+
+`matter()` writes its cache entry *before* parsing (`node_modules/gray-matter/index.js`: `matter.cache[file.content] = file` runs ahead of `parseMatter`), so once any call throws on a given string, every later `matter(sameString)` in that process returns the cached un-parsed file — empty `data`, the whole file as `content`. Broken YAML therefore reads as *valid-but-empty* frontmatter on the second and subsequent reads, silently, and the effect crosses module boundaries because the cache is module-global. Q-0116 fixed this for the FD path by routing reads through `readFrontmatter` in `src/core/fd-load.ts`, which passes an options object to take gray-matter's uncached path. Every other direct `matter(raw)` caller still inherits it — ~25 sites across `src/release`, `src/triage`, `src/dashboard`, `src/docs`, `src/features` and `src/cr` (`grep -rn 'matter(' src --include='*.ts' | grep -v __tests__`). Route them all through `readFrontmatter` (or a doc-kind sibling for ADR/vision/milestone frontmatter) so the cache trap has exactly one place it can bite, and consider whether any caller actually benefits from the cache at all. Deletion test: a repo with one broken-YAML markdown file produces the same message from every command that reads it, no matter the order commands run in. (raised 2026-08-20 while fixing Q-0116's malformed-FD policy)
+
+### Typed Advisory and Blocking Gap Channels
+
+- id: Q-0136
+- area: tooling
+- type: refactor
+- since: 2026-08-17
+- size: M
+- impact: med
+- confidence: med
+- parent: doc-gardening-skill
+
+Routing a `Gap` into `sddGaps` blocks a release, and nothing at the push site says so. The chain is four hops: `detectAll` appends to `sddGaps`, `sddGaps` is listed in `FINDING_CATEGORIES` (`src/garden/garden-detect-runner.ts`), that list is the clean test for the release auto-restamp (`src/release/preflight-fix.ts` → `auto-restamp.ts`), and an unstamped garden receipt is a `blocking` preflight row. Q-0093 shipped a detector documented as advisory that blocked releases through exactly this path; the code-stage reviewer caught it, and the fix was a second hand-rolled `GardenFindings` key deliberately kept out of `FINDING_CATEGORIES`. That works but does not generalize — the next detector author faces the same invisible cliff, and `Gap` itself carries no signal about which channel it belongs to. Make the distinction structural: separate the advisory and blocking gap types (or tag the category), let `detectAll` route by type rather than by which array a caller happened to push into, and let `FINDING_CATEGORIES` derive from that rather than being a hand-maintained parallel list. Deletion test: a new detector cannot block a release without saying so in its type. Verify by adding a deliberately-advisory detector and asserting a release still cuts with it firing. (found 2026-08-17 shipping Q-0093, PR #333)
+
 ### Graph-Freshness / Fmt-Collision Follow-Ups
 
 - id: Q-0011
@@ -87,18 +163,6 @@ Add end-to-end test support to the framework. Fuzzy one-liner — needs a spike 
 
 - Operator framing of the same want, which widens the target past prior-art seeding: graphify integration is currently good enough for auditing an existing codebase but is not reached for while a design is being written, so the graph's community structure and export names inform nothing at spec time. Prior-art `--support` seeding is the one concrete use named so far, and the substrate it needs (community membership plus export names) is already in `graphify-out/graph.json`. Worth deciding, when this entry is spiked, whether the seam is only the seeder subcommand above or a broader "graph-at-spec-time" surface — the second is a different and larger entry, and inventing it before the seeder proves its ranking would be speculative. (raised 2026-08-17)
 
-### Better Unit-Test Rules
-
-- id: Q-0071
-- area: testing
-- type: docs
-- since: 2026-08-05
-- size: S
-- impact: low
-- confidence: low
-
-Extend the project's unit-testing rules beyond what `docs/noldor/testing-principles.md` and the Tests section of `.claude/engineering-rules.md` cover today, using the review discussion on `gooddata/gdc-mastercard-panther#2542` as the source material. Fuzzy one-liner — the linked PR sits in a private repo and has not been read, so the actual delta is unknown. Trigger: read the PR and extract the concrete rules before promoting; without that, there is nothing to implement.
-
 ### CR-Autofix Polish Residue
 
 - id: Q-0084
@@ -126,18 +190,6 @@ Residue from the Q-0075 ship (PR #276, CR rounds 9–16): (a) `DecideResult.base
 - parent: version-aware-upgrade-and-migration-chain
 
 `noldor upgrade` writes the framework anchor on the empty-chain path before the dirty-tree guard (`src/cli/commands/upgrade.ts:90` vs the `isDirty` check below it), so a dirty tree silently gets `.noldor/config.json` mutated while the non-empty-chain path refuses with `refusing to upgrade on a dirty git tree`. Pre-existing for the bootstrap case, broadened to the stale-advance case by Q-0076; deliberately left as-is because hoisting `isDirty` would make a pure `nothing to do` invocation throw on any dirty tree, and gating only the write would re-strand the very consumer Q-0076 unstrands. Decide whether the asymmetry is intended and say so in the code, or gate the write with a narrower guard. (surfaced in the code-stage CR of Q-0076, PR #270)
-
-### Skill-Surface Pruning Audit
-
-- id: Q-0086
-- area: tooling
-- type: chore
-- since: 2026-08-10
-- size: S
-- impact: low
-- confidence: low
-
-Evaluate removing vendored skills whose value is unclear — candidates raised so far: `noldor-absorb` (lessons intake; overlaps `/noldor-triage` + manual filing?) and `noldor-new-feature` (blank-FD scaffold; overlaps `/noldor-promote`?). For each: measure actual usage, list what breaks without it, and either retire the skill (+ template twins + catalog entries) or document why it stays.
 
 ### Multiagent Parallel Session Visibility
 
