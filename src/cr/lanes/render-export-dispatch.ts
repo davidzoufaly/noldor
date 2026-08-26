@@ -89,12 +89,12 @@ export const parseRenderExportReport = (md: string): RenderExportReport | null =
 
 /** Carries which reason detail the lane should record, so the sink stays specific. */
 export class RenderExportError extends Error {
-  constructor(
-    readonly reason: 'timeout' | 'dispatch-failed',
-    message: string,
-  ) {
+  readonly reason: 'timeout' | 'dispatch-failed';
+
+  constructor(reason: 'timeout' | 'dispatch-failed', message: string) {
     super(message);
     this.name = 'RenderExportError';
+    this.reason = reason;
   }
 }
 

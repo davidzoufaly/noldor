@@ -130,12 +130,12 @@ export const parseUiReviewReport = (md: string): UiReviewReport | null =>
 
 /** Carries which reason code the lane should record, so the sink stays specific. */
 export class UiDispatchError extends Error {
-  constructor(
-    readonly reason: 'timeout' | 'dispatch-failed',
-    message: string,
-  ) {
+  readonly reason: 'timeout' | 'dispatch-failed';
+
+  constructor(reason: 'timeout' | 'dispatch-failed', message: string) {
     super(message);
     this.name = 'UiDispatchError';
+    this.reason = reason;
   }
 }
 

@@ -92,8 +92,12 @@ export function compiledInputs(root) {
 /**
  * Everything whose content decides whether a build is current.
  *
- * `tsconfig.json` is a member because compiler options change emission without
- * changing the input set — editing `target` or `outDir` must invalidate a build.
+ * Both root tsconfigs are members because compiler options change emission
+ * without changing the input set — editing `target` or `outDir` must invalidate a
+ * build. `tsconfig.base.json` matters as much as `tsconfig.json` and sometimes
+ * more: `target`, `module`, `strict` and `erasableSyntaxOnly` live there, so
+ * covering only the root config would let an emission-changing edit keep a stale
+ * dist reading `digest-match`.
  *
  * @param root - Package root.
  * @returns Sorted repo-relative POSIX paths.
@@ -102,7 +106,7 @@ export function digestInputs(root) {
   // Only paths that exist: the digest covers the path LIST as well as content,
   // so a deleted input changes the digest by leaving the list. A runtime asset
   // vanishing from src is the copier's fail-closed check, not the digest's.
-  return [...compiledInputs(root), ...RUNTIME_ASSETS, 'tsconfig.json']
+  return [...compiledInputs(root), ...RUNTIME_ASSETS, 'tsconfig.json', 'tsconfig.base.json']
     .filter((rel) => existsSync(join(root, rel)))
     .sort();
 }

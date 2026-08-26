@@ -400,37 +400,48 @@ export class PrSummaryError extends Error {
 }
 
 export class MergeTimeoutError extends Error {
-  constructor(public prUrl: string) {
+  readonly prUrl: string;
+
+  constructor(prUrl: string) {
     super(`Auto-merge poll timed out for ${prUrl}; merge may still complete later.`);
     this.name = 'MergeTimeoutError';
+    this.prUrl = prUrl;
   }
 }
 
 export class PrClosedWithoutMergeError extends Error {
-  constructor(public prUrl: string) {
+  readonly prUrl: string;
+
+  constructor(prUrl: string) {
     super(`PR ${prUrl} was closed without merging.`);
     this.name = 'PrClosedWithoutMergeError';
+    this.prUrl = prUrl;
   }
 }
 
 export class ChecksFailedError extends Error {
-  constructor(
-    public prUrl: string,
-    public failing: string[],
-  ) {
+  readonly prUrl: string;
+  readonly failing: string[];
+
+  constructor(prUrl: string, failing: string[]) {
     super(
       `Refusing to merge ${prUrl}: failing status checks — ${failing.join(', ')}. Fix CI (or re-run the failed checks) and retry.`,
     );
     this.name = 'ChecksFailedError';
+    this.prUrl = prUrl;
+    this.failing = failing;
   }
 }
 
 export class ChecksPendingTimeoutError extends Error {
-  constructor(public prUrl: string) {
+  readonly prUrl: string;
+
+  constructor(prUrl: string) {
     super(
       `Status checks for ${prUrl} did not settle within the poll window; refusing direct merge with unverified CI.`,
     );
     this.name = 'ChecksPendingTimeoutError';
+    this.prUrl = prUrl;
   }
 }
 

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // @ts-expect-error — plain .mjs sibling, no type declarations by design
-import { unmanifestedAssets } from '../../../bin/build-manifest.mjs';
+import { digestInputs, unmanifestedAssets } from '../../../bin/build-manifest.mjs';
 import { MANIFEST } from '../manifest.js';
 
 const REPO_ROOT = join(import.meta.dirname, '../../..');
@@ -64,5 +64,17 @@ describe('the runtime-asset scan', () => {
     } finally {
       rmSync(repo, { force: true, recursive: true });
     }
+  });
+});
+
+describe('the build digest', () => {
+  it('covers every root tsconfig that carries compiler options', () => {
+    // Both root configs shape emission, so both must invalidate a build. When
+    // `target` / `module` / `strict` / `erasableSyntaxOnly` moved into
+    // tsconfig.base.json, a digest listing only tsconfig.json let an
+    // emission-changing edit keep a stale dist reporting `digest-match`.
+    const inputs: string[] = digestInputs(REPO_ROOT);
+    expect(inputs).toContain('tsconfig.json');
+    expect(inputs).toContain('tsconfig.base.json');
   });
 });
