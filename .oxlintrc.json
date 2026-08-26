@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "jsx-a11y"],
+  "plugins": ["typescript", "unicorn", "oxc", "jsx-a11y", "react"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -9,6 +9,8 @@
   "rules": {
     "eslint/no-empty": "error",
     "eslint/no-async-promise-executor": "error",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
     "eslint/no-await-in-loop": "off",
     "eslint/no-underscore-dangle": "off",
     "oxc/no-map-spread": "off",

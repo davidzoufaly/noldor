@@ -1,6 +1,7 @@
 import { boundaries, makeBoundariesInvariant } from './boundaries.js';
 import { makePublicApiTsdocInvariant, publicApiTsdoc } from './public-api-tsdoc.js';
 import { makeRuleConflictsInvariant, ruleConflicts } from './rule-conflicts.js';
+import { makeToolchainFloorInvariant, toolchainFloor } from './toolchain-floor.js';
 
 import type { Invariant, InvariantResult } from './types.js';
 
@@ -12,6 +13,7 @@ export const invariants: readonly Invariant[] = [
   ruleConflicts,
   publicApiTsdoc,
   boundaries,
+  toolchainFloor,
 ] as const;
 
 /**
@@ -25,6 +27,7 @@ export function makeInvariants(repoRoot: string): readonly Invariant[] {
     makeRuleConflictsInvariant(repoRoot),
     makePublicApiTsdocInvariant(repoRoot),
     makeBoundariesInvariant(repoRoot),
+    makeToolchainFloorInvariant(repoRoot),
   ] as const;
 }
 

@@ -15,6 +15,7 @@ links:
     - src/invariants/index.ts
     - src/invariants/public-api-tsdoc.ts
     - src/invariants/rule-conflicts.ts
+    - src/invariants/toolchain-floor.ts
     - src/invariants/types.ts
     - src/invariants/rule-pairs.ts
   tests:
@@ -23,20 +24,21 @@ links:
     - src/checks/__tests__/invariants-public-api-tsdoc.test.ts
     - src/checks/__tests__/invariants-rule-conflicts.test.ts
     - src/garden/__tests__/garden-detect.test.ts
+    - src/invariants/__tests__/toolchain-floor.test.ts
 introduced: 0.1.0
 updated: 0.3.0
 noldor-tier: full
 ---
-
 ## Summary
 
-Three commit-blocking architecture invariants enforced at pre-commit, with advisory mirror in `/noldor-garden`:
+Four architecture invariants enforced at pre-commit, with advisory mirror in `/noldor-garden`:
 
 - **boundaries** — forbidden imports per `consumer.boundaries` rules in `.noldor/config.json` (dependency-cruiser forbidden-rule shape, including the `{from: {}, to: {circular: true}}` no-cycle backstop).
 - **public-api-tsdoc** — every symbol re-exported from `packages/*/src/index.ts` must carry TSDoc (or `@internal`).
 - **rule-conflicts** — paired docs must agree on canonical phrasings; extends seed list in `src/invariants/rule-pairs.ts`.
+- **toolchain-floor** — the repo's own `.oxlintrc.json` and tsconfig must meet the engineering-principles floor (see [rules.md](../noldor/rules.md#toolchain-floor)). The only plugin that emits `warn` as well as `error`: the two tsconfig strictness flags are a visible ratchet rather than a commit blocker, because they are a real migration on an existing tree.
 
-Plugin pattern under `src/invariants/`. Pre-commit runner `src/checks/check-invariants.ts` runs all plugins in parallel; exit 1 on any violation. Garden runner reuses the same plugins as advisory `invariantViolations` findings.
+Plugin pattern under `src/invariants/`. Pre-commit runner `src/checks/check-invariants.ts` runs all plugins in parallel; exit 1 on any `error`-severity violation (`warn` findings print and pass). Garden runner reuses the same plugins as advisory `invariantViolations` findings.
 
 ## User Story
 
@@ -55,7 +57,7 @@ pnpm garden:detect        # advisory — emits invariantViolations as JSON
 Adding a new invariant:
 
 1. Create `src/invariants/<name>.ts` exporting an `Invariant` plugin (see `src/invariants/types.ts`).
-2. Add a unit test under `scripts/__tests__/invariants-<name>.test.ts` carrying `// @tests: architecture-invariants`.
+2. Add a unit test under `src/invariants/__tests__/<name>.test.ts` carrying `// @tests: architecture-invariants`.
 3. Register the plugin in `src/invariants/index.ts`.
 
 <!-- generated: resources -->
