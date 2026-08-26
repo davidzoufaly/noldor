@@ -6,8 +6,16 @@ enforce: true
 links: [.claude/engineering-rules.md]
 ---
 
-React 19 removed the ceremony around several patterns; the old spelling is now noise, and in two
-cases an actual bug.
+**Precondition.** This rule describes React 19, and applies only where the package that owns the
+file declares `react` at `^19` or later — `useEffectEvent` specifically is React 19.2+. On React 18
+none of these spellings exist and every one of them is a build error, so the rule does not apply
+there; the `applies-to` glob cannot express a version and the store has no version predicate, which
+is why the floor is stated here in prose. TSX that is not React at all (Solid, Preact's own
+idioms) is likewise out of scope — read the rule as scoped to React components, not to the
+extension.
+
+React 19 removed the ceremony around several patterns; the old spelling is now noise, and in one
+case it hides a real bug class.
 
 `ref` is an ordinary prop — `forwardRef` is not needed and should not be added. A context is its own
 provider: `<Ctx value={v}>`, not `<Ctx.Provider value={v}>`. A ref callback may return a teardown
@@ -19,11 +27,14 @@ to hand-roll the race guard, the abort, and the loading flag, and most implement
 one of the three wrong.
 
 A mutation with pending and error state is `useActionState` (plus `useOptimistic` where an optimistic
-echo is cheap to roll back), not three `useState` calls around a `try/catch/finally`. This is the
-rule that removes a real bug class: the hand-rolled version double-submits on a double click, and
-`useActionState` sequences that for free. Reach for `useEffectEvent` when an effect must read a
-current value without that value becoming a dependency — that is the supported form of the
-ref-holding-latest-callback workaround.
+echo is cheap to roll back), not three `useState` calls around a `try/catch/finally`. What it buys is
+the state machine — pending, error and result move together, and the pending flag it hands back is
+the one the submit control disables on. What it does **not** buy is double-submit safety: two
+activations still invoke the action twice, and sequencing them does not make a non-idempotent
+mutation safe. So a mutation that must not run twice needs the pending flag wired to the control
+*and* an idempotency key or dedup on the server — the hook is not a substitute for either. Reach for
+`useEffectEvent` when an effect must read a current value without that value becoming a dependency —
+that is the supported form of the ref-holding-latest-callback workaround.
 
 The React Compiler owns memoization: no hand-written `useMemo` / `useCallback` / `memo` unless a
 profiler proved a hot path the compiler bailed out of. Its precondition is rules-of-hooks

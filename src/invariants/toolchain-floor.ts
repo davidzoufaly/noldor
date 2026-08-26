@@ -1,6 +1,8 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 
+import { z } from 'zod';
+
 import { loadConsumerConfig } from '../core/consumer-config.js';
 
 import type { Invariant, InvariantResult, InvariantViolation } from './types.js';
@@ -31,11 +33,29 @@ const SKIPPED_DIRS = new Set(['node_modules', 'dist', '.git', '.worktrees', '.tu
 const WORKSPACE_SCAN_DEPTH = 3;
 
 /**
- * The `lib` entry that makes `using` / `await using` (Explicit Resource
- * Management, TS 5.2+) type-check. Compared case-insensitively — TypeScript
- * accepts `ESNext.Disposable` and `esnext.disposable` alike.
+ * `lib` entries that pull in every later library at once. TypeScript ships
+ * Explicit Resource Management only in `lib.esnext.disposable.d.ts`, which
+ * `lib.esnext.d.ts` includes — no `es20xx` entry carries it — so an umbrella is
+ * the only way to satisfy both halves of the lib floor with one entry.
  */
+const LIB_UMBRELLAS = new Set(['esnext', 'esnext.full']);
+
+/** The explicit `lib` entry carrying `Symbol.dispose` / `Symbol.asyncDispose`. */
 const DISPOSABLE_LIB = 'esnext.disposable';
+
+/**
+ * Lowest `es<year>` library that carries the built-ins the
+ * `platform-over-dependency` rule mandates. Set operations, iterator helpers
+ * and `RegExp.escape` land in ES2025; `Object.groupBy`, `Promise.withResolvers`
+ * and `Array.fromAsync` in ES2024. Probed against TypeScript directly: under
+ * `lib: ["ES2023"]` every one of those six is a TS2550 "change the lib option"
+ * error, so a rule that mandates them while the config stops at ES2023 mandates
+ * code the repo's own compiler rejects.
+ */
+const ES_BUILTINS_FLOOR_YEAR = 2025;
+
+/** Matches an `es<year>` lib entry, with or without a `.full` / sub-library suffix. */
+const ES_YEAR_RE = /^es(\d{4})(?:\..+)?$/;
 
 /**
  * oxlint rules that are the React Compiler's precondition, each with why it must
@@ -66,47 +86,225 @@ export interface FloorViolation {
   readonly severity: 'error' | 'warn';
 }
 
-/** The subset of a tsconfig this invariant reads. Unknown keys are ignored. */
-interface TsConfigShape {
-  readonly compilerOptions?: {
-    readonly noUncheckedIndexedAccess?: unknown;
-    readonly exactOptionalPropertyTypes?: unknown;
-    readonly lib?: unknown;
-  };
-}
-
-/** The subset of an `.oxlintrc.json` this invariant reads. */
-interface OxlintrcShape {
-  readonly plugins?: unknown;
-  readonly rules?: Readonly<Record<string, unknown>>;
-}
-
-/** The subset of a `package.json` this invariant reads. */
-interface PackageJsonShape {
-  readonly dependencies?: Readonly<Record<string, unknown>>;
-  readonly devDependencies?: Readonly<Record<string, unknown>>;
-  readonly peerDependencies?: Readonly<Record<string, unknown>>;
-}
-
-/** A parsed config file, or the reason it could not be read. */
-type ReadResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false };
-
 /**
- * Read and JSON-parse a repo file.
+ * The subset of a tsconfig this invariant reads.
  *
  * @remarks
- * Deliberately `JSON.parse`, not a JSONC parser: adding a dependency to read
- * two config files would contradict the very rule this invariant enforces
- * (`platform-over-dependency`). A config with comments therefore reads as
- * unparseable, which the caller surfaces as a `warn` — "this floor went
- * unchecked" — never as a silent pass.
+ * Validated rather than cast: the repo rule is parse-at-the-boundary, and a
+ * config file is external input however much it looks like ours. The concrete
+ * failure the cast allowed was a file containing `null` — valid JSON, so
+ * `JSON.parse` succeeded, and the first property read threw a `TypeError` out of
+ * the invariant instead of reporting a finding. Individual options stay
+ * `unknown` because the floor asserts `=== true`, not "is a boolean": a config
+ * with `"strict": "yes"` must report as unmet, not as unparseable.
  */
-async function readJson<T>(root: string, rel: string): Promise<ReadResult<T>> {
-  try {
-    return { ok: true, value: JSON.parse(await readFile(join(root, rel), 'utf8')) as T };
-  } catch {
-    return { ok: false };
+const TsConfigSchema = z
+  .object({
+    compilerOptions: z
+      .object({
+        noUncheckedIndexedAccess: z.unknown().optional(),
+        exactOptionalPropertyTypes: z.unknown().optional(),
+        lib: z.unknown().optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+
+type TsConfigShape = z.infer<typeof TsConfigSchema>;
+
+/** The subset of an `.oxlintrc.json` this invariant reads. */
+const OxlintrcSchema = z
+  .object({
+    plugins: z.unknown().optional(),
+    rules: z.record(z.unknown()).optional(),
+  })
+  .passthrough();
+
+type OxlintrcShape = z.infer<typeof OxlintrcSchema>;
+
+/** The subset of a `package.json` this invariant reads. */
+const PackageJsonSchema = z
+  .object({
+    dependencies: z.record(z.unknown()).optional(),
+    devDependencies: z.record(z.unknown()).optional(),
+    peerDependencies: z.record(z.unknown()).optional(),
+  })
+  .passthrough();
+
+type PackageJsonShape = z.infer<typeof PackageJsonSchema>;
+
+/**
+ * Why a config could not be read. The distinction drives both the message and
+ * the severity: a file that is simply absent is a different repo state from a
+ * file that exists and is broken, and reporting the second as the first sends
+ * the operator looking for a syntax error in a file they never wrote.
+ */
+type ReadFailure = 'absent' | 'invalid';
+
+/** A validated config file, or the reason it could not be read. */
+type ReadResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly failure: ReadFailure; readonly detail: string };
+
+/**
+ * Strip comments and trailing commas from a JSON-with-comments document.
+ *
+ * @remarks
+ * TypeScript accepts both in a tsconfig — `tsc --init` emits a file full of
+ * comments — and so does oxlint. Reading such a file with bare `JSON.parse`
+ * makes it *unparseable*, which is how the blocking half of this floor became
+ * bypassable: a commented tsconfig downgraded the whole check to one advisory
+ * warning, so `disposable-lib` and the ES built-ins floor never ran and
+ * pre-commit passed.
+ *
+ * Hand-rolled rather than delegated, for two reasons. A JSONC dependency to read
+ * two config files would contradict `platform-over-dependency`, the very rule
+ * this invariant exists to make enforceable. And TypeScript 7 exposes no
+ * in-process JS parser API — its root export carries `version` alone, with
+ * parsing behind the tsgo API server — so `ts.readConfigFile` is not available
+ * to call even if a dependency were acceptable.
+ *
+ * The scanner tracks string state so a `//` or `/*` inside a string literal
+ * survives, which a regex-based strip gets wrong on any config containing a URL
+ * (`"$schema": "https://…"` — present in this repo's own `.oxlintrc.json`).
+ *
+ * @param text - Raw file contents.
+ * @returns The same document with comments blanked and trailing commas removed.
+ */
+export function stripJsonc(text: string): string {
+  const out: string[] = [];
+  let inString = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i] as string;
+    const next = text[i + 1];
+
+    if (inLineComment) {
+      if (ch === '\n') {
+        inLineComment = false;
+        out.push(ch); // keep newlines so error offsets stay roughly aligned
+      }
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') {
+        inBlockComment = false;
+        i += 1;
+      } else if (ch === '\n') {
+        out.push(ch);
+      }
+      continue;
+    }
+    if (inString) {
+      out.push(ch);
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      out.push(ch);
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      inLineComment = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      inBlockComment = true;
+      i += 1;
+      continue;
+    }
+    out.push(ch);
   }
+
+  // Trailing commas: a comma whose next non-whitespace character closes the
+  // collection. Safe on the comment-stripped text, where no comma can be inside
+  // a comment and string contents were pushed verbatim above.
+  return dropTrailingCommas(out.join(''));
+}
+
+/** Remove `,` immediately preceding a `}` or `]`, ignoring whitespace between. */
+function dropTrailingCommas(text: string): string {
+  const chars = [...text];
+  let inString = false;
+  let escaped = false;
+  const drop = new Set<number>();
+  let pendingComma = -1;
+
+  for (let i = 0; i < chars.length; i += 1) {
+    const ch = chars[i] as string;
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      pendingComma = -1;
+      continue;
+    }
+    if (ch === ',') {
+      pendingComma = i;
+      continue;
+    }
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') continue;
+    if ((ch === '}' || ch === ']') && pendingComma >= 0) drop.add(pendingComma);
+    pendingComma = -1;
+  }
+
+  return chars.filter((_, i) => !drop.has(i)).join('');
+}
+
+/**
+ * Read, JSONC-tolerantly parse, and schema-validate a repo config file.
+ *
+ * @param root - Absolute repo root.
+ * @param rel - Repo-relative path of the file.
+ * @param schema - Shape the parsed value must satisfy.
+ * @returns The validated value, or whether the file was absent versus invalid.
+ */
+async function readConfig<T>(
+  root: string,
+  rel: string,
+  schema: z.ZodType<T>,
+): Promise<ReadResult<T>> {
+  let text: string;
+  try {
+    text = await readFile(join(root, rel), 'utf8');
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    return code === 'ENOENT' || code === 'EISDIR'
+      ? { ok: false, failure: 'absent', detail: 'file not present' }
+      : { ok: false, failure: 'invalid', detail: `unreadable: ${(err as Error).message}` };
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(stripJsonc(text));
+  } catch (err) {
+    return {
+      ok: false,
+      failure: 'invalid',
+      detail: `not valid JSON/JSONC: ${(err as Error).message}`,
+    };
+  }
+
+  const parsed = schema.safeParse(raw);
+  return parsed.success
+    ? { ok: true, value: parsed.data }
+    : {
+        ok: false,
+        failure: 'invalid',
+        detail: `unexpected shape: ${parsed.error.issues[0]?.message ?? 'schema mismatch'}`,
+      };
 }
 
 /** Every dependency name declared in a `package.json`, across all three ranges. */
@@ -168,7 +366,7 @@ async function workspaceDependencies(
   const names = new Set<string>();
   let readAny = false;
   for (const rel of await findPackageManifests(root)) {
-    const read = await readJson<PackageJsonShape>(root, rel);
+    const read = await readConfig(root, rel, PackageJsonSchema);
     if (!read.ok) continue;
     readAny = true;
     for (const name of declaredDependencies(read.value)) names.add(name);
@@ -192,12 +390,10 @@ export function isDenied(setting: unknown): boolean {
  * `error`, on purpose: both are real migrations on an existing tree (221 and 47
  * errors respectively when first probed against this repo), and the tsconfig is
  * consumer-owned. Blocking a commit on a multi-day migration would train people
- * to bypass the hook. `esnext.disposable` is `error` because it costs nothing —
- * it only widens the type surface, unlocking `using` for the
- * `deterministic-cleanup` rule.
+ * to bypass the hook.
  *
  * Covers the strictness flags only. `lib` is checked separately by
- * {@link disposableLibChecks}, because a monorepo splits the two across files:
+ * {@link libFloorChecks}, because a monorepo splits the two across files:
  * shared strictness in `tsconfig.base.json`, `lib` in the config that names a
  * target environment. Asserting both against one anchor would silently skip
  * whichever half lives in the other file.
@@ -230,33 +426,69 @@ export function tsconfigFloorChecks(path: string, cfg: TsConfigShape): FloorViol
   return out;
 }
 
+/** The `es<year>` a lib entry belongs to, or `undefined` if it names no year. */
+function libYear(entry: string): number | undefined {
+  const m = ES_YEAR_RE.exec(entry);
+  return m ? Number(m[1]) : undefined;
+}
+
 /**
  * The `lib` half of the tsconfig floor, checked per file.
  *
+ * Asserts the two things the enforced prose rules need from the type surface:
+ * Explicit Resource Management, without which `using` / `await using` do not
+ * compile and `deterministic-cleanup` is unenforceable; and the ES2024–2025
+ * built-ins that `platform-over-dependency` mandates by name. The second half
+ * exists because a rule requiring `Object.groupBy` while the config stops at
+ * ES2023 requires code the repo's own compiler rejects — probed directly:
+ * `Object.groupBy`, `Promise.withResolvers`, `Set.prototype.union`,
+ * `RegExp.escape` and the iterator helpers are all TS2550 under `lib: ["ES2023"]`.
+ *
+ * Both are `error`: widening `lib` only adds declarations, so it cannot break
+ * existing code — verified by raising this repo to `["ESNext", "DOM"]` with a
+ * clean `tsc --noEmit`.
+ *
  * A `lib` array absent from a config means "inherit" — from `extends`, or from
- * `target`'s default, neither of which carries the disposable types. So this
- * only asserts on a config that *declares* a `lib`, i.e. one that has taken
- * ownership of its type surface; a config without one is not the place the
- * entry belongs.
+ * `target`'s default — so this only asserts on a config that *declares* a `lib`,
+ * i.e. one that has taken ownership of its type surface. Walking the `extends`
+ * graph to compute the effective set is not available to do: TypeScript 7 ships
+ * no in-process JS parser API, so there is no `ts.parseJsonConfigFileContent` to
+ * call. Per-package configs below the root are likewise out of scope — the root
+ * anchor is the documented approximation, not a claim of completeness.
  *
  * @param path - Repo-relative path of the tsconfig that was read (for reporting).
  * @param cfg - Its parsed contents.
  */
-export function disposableLibChecks(path: string, cfg: TsConfigShape): FloorViolation[] {
-  const lib = cfg.compilerOptions?.lib;
-  if (!Array.isArray(lib)) return [];
-  const hasDisposable = lib.some(
-    (entry) => typeof entry === 'string' && entry.toLowerCase() === DISPOSABLE_LIB,
-  );
-  if (hasDisposable) return [];
-  return [
-    {
+export function libFloorChecks(path: string, cfg: TsConfigShape): FloorViolation[] {
+  const declared = cfg.compilerOptions?.lib;
+  if (!Array.isArray(declared)) return [];
+
+  const entries = declared
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.toLowerCase());
+  const umbrella = entries.some((entry) => LIB_UMBRELLAS.has(entry));
+  const out: FloorViolation[] = [];
+
+  if (!umbrella && !entries.includes(DISPOSABLE_LIB)) {
+    out.push({
       id: 'disposable-lib',
       file: path,
       severity: 'error',
-      message: `${path}: compilerOptions.lib omits "ESNext.Disposable", so \`using\` / \`await using\` do not type-check and the deterministic-cleanup rule is unenforceable. Adding it widens the type surface only — it cannot break existing code.`,
-    },
-  ];
+      message: `${path}: compilerOptions.lib provides no Explicit Resource Management — add "ESNext.Disposable", or an umbrella entry ("ESNext" / "ESNext.Full") which includes it. Without it \`using\` / \`await using\` do not type-check and the deterministic-cleanup rule is unenforceable. Widening lib only adds declarations; it cannot break existing code.`,
+    });
+  }
+
+  const bestYear = Math.max(0, ...entries.map((entry) => libYear(entry) ?? 0));
+  if (!umbrella && bestYear < ES_BUILTINS_FLOOR_YEAR) {
+    out.push({
+      id: 'lib-es-builtins',
+      file: path,
+      severity: 'error',
+      message: `${path}: compilerOptions.lib reaches ${bestYear === 0 ? 'no es<year> entry' : `es${bestYear}`}, below es${ES_BUILTINS_FLOOR_YEAR} — so the built-ins the platform-over-dependency rule mandates by name do not type-check (Object.groupBy and Promise.withResolvers need es2024; Set operations, iterator helpers and RegExp.escape need es2025). An enforced rule must not require code this config rejects: raise lib to "ESNext" (or es${ES_BUILTINS_FLOOR_YEAR}), or waive this id and stop mandating those APIs.`,
+    });
+  }
+
+  return out;
 }
 
 /**
@@ -310,45 +542,72 @@ export function reactFloorChecks(cfg: OxlintrcShape): FloorViolation[] {
  * Resolve the whole floor for a repo root, before waivers are applied.
  *
  * @param root - Absolute repo root.
- * @returns Every unmet requirement, plus a `warn` for each config that could
- *   not be parsed (an unchecked floor is reported, never assumed green).
+ * @returns Every unmet requirement. A config that is present but broken is an
+ *   `error` — the repo owns a file its own toolchain cannot read, and treating
+ *   that as advisory is what let the blocking half of the floor be bypassed. A
+ *   config that is merely absent is reported on its own terms.
  */
 export async function collectFloorViolations(root: string): Promise<FloorViolation[]> {
   const out: FloorViolation[] = [];
 
-  // Read every root candidate: the FIRST that parses is the strictness anchor,
-  // while the `lib` requirement is asserted against each one that declares a
-  // `lib` — see disposableLibChecks for why the two cannot share an anchor.
+  // Read every root candidate: the FIRST that validates is the strictness
+  // anchor, while the `lib` requirements are asserted against each one that
+  // declares a `lib` — see libFloorChecks for why the two cannot share an anchor.
   let anchored = false;
+  let sawCandidate = false;
   for (const candidate of TSCONFIG_CANDIDATES) {
-    const read = await readJson<TsConfigShape>(root, candidate);
-    if (!read.ok) continue;
+    const read = await readConfig(root, candidate, TsConfigSchema);
+    if (!read.ok) {
+      if (read.failure === 'absent') continue;
+      sawCandidate = true;
+      out.push({
+        id: 'tsconfig-invalid',
+        file: candidate,
+        severity: 'error',
+        message: `${candidate}: ${read.detail}. The TypeScript floor cannot be checked against a config the invariant cannot read — and an unchecked floor must not read as a met one, so this blocks rather than warns. Comments and trailing commas are tolerated; this is something else.`,
+      });
+      continue;
+    }
+    sawCandidate = true;
     if (!anchored) {
       out.push(...tsconfigFloorChecks(candidate, read.value));
       anchored = true;
     }
-    out.push(...disposableLibChecks(candidate, read.value));
+    out.push(...libFloorChecks(candidate, read.value));
   }
-  if (!anchored) {
+  if (!sawCandidate) {
     out.push({
-      id: 'tsconfig-unreadable',
+      id: 'tsconfig-absent',
       file: TSCONFIG_CANDIDATES[1],
       severity: 'warn',
-      message: `no root tsconfig parsed as JSON (${TSCONFIG_CANDIDATES.join(' / ')}) — the TypeScript floor went unchecked. Comments in a tsconfig are the usual cause.`,
+      message: `no root tsconfig found (${TSCONFIG_CANDIDATES.join(' / ')}) — the TypeScript floor went unchecked. A repo with no root tsconfig may be intentional (a pure-JS consumer), which is why this warns rather than blocks.`,
     });
   }
 
   const deps = await workspaceDependencies(root);
-  if (deps.readAny && deps.names.has('react')) {
-    const oxlintrc = await readJson<OxlintrcShape>(root, OXLINTRC);
+  if (!deps.readAny) {
+    out.push({
+      id: 'manifests-unreadable',
+      file: PACKAGE_JSON,
+      severity: 'warn',
+      message: `no ${PACKAGE_JSON} in this repo validated, so the React floor went unchecked — its trigger is whether \`react\` is a declared dependency, and that question has no answer here. Reported rather than assumed: "no manifest readable" must not read as "react is not a dependency".`,
+    });
+    return out;
+  }
+
+  if (deps.names.has('react')) {
+    const oxlintrc = await readConfig(root, OXLINTRC, OxlintrcSchema);
     if (oxlintrc.ok) {
       out.push(...reactFloorChecks(oxlintrc.value));
     } else {
       out.push({
-        id: 'oxlintrc-unreadable',
+        id: oxlintrc.failure === 'absent' ? 'oxlintrc-absent' : 'oxlintrc-invalid',
         file: OXLINTRC,
-        severity: 'warn',
-        message: `react is a dependency but ${OXLINTRC} did not parse as JSON — the React lint floor went unchecked.`,
+        severity: 'error',
+        message:
+          oxlintrc.failure === 'absent'
+            ? `react is a dependency but there is no ${OXLINTRC}, so no React lint rule runs at all — the same end state as a config with the plugin disabled, which this floor already blocks.`
+            : `react is a dependency but ${OXLINTRC}: ${oxlintrc.detail}. oxlint cannot read it either, so no React rule is running.`,
       });
     }
   }
@@ -356,17 +615,29 @@ export async function collectFloorViolations(root: string): Promise<FloorViolati
   return out;
 }
 
+/** Waived floor ids with their reasons, plus why the waiver block was unusable. */
+interface WaiverLoad {
+  readonly waivers: ReadonlyArray<{ id: string; reason: string }>;
+  readonly error?: string;
+}
+
 /**
  * Read the waived floor ids from `.noldor/config.json`.
  *
- * Tolerant by design, mirroring `loadScopeAliases`: a repo with no consumer
- * config waives nothing rather than throwing, so the floor still reports.
+ * @remarks
+ * Tolerant of an absent consumer config — a repo without one waives nothing
+ * rather than throwing, mirroring `loadScopeAliases`. What it is deliberately
+ * *not* tolerant of is silence: `ToolchainFloorSchema` is `.strict()`, so a
+ * single stray key inside `toolchainFloor` rejects the whole block and discards
+ * every waiver in it. Swallowing that left the operator staring at a blocking
+ * floor they had already waived, with nothing pointing at the typo — so the
+ * message is carried out and reported as a `warn`.
  */
-function loadWaivers(root: string): ReadonlyArray<{ id: string; reason: string }> {
+function loadWaivers(root: string): WaiverLoad {
   try {
-    return loadConsumerConfig(root).toolchainFloor?.waivers ?? [];
-  } catch {
-    return [];
+    return { waivers: loadConsumerConfig(root).toolchainFloor?.waivers ?? [] };
+  } catch (err) {
+    return { waivers: [], error: (err as Error).message };
   }
 }
 
@@ -397,9 +668,17 @@ export function makeToolchainFloorInvariant(repoRoot: string): Invariant {
     name: 'toolchain-floor',
     async run(): Promise<InvariantResult> {
       const start = Date.now();
-      const waivers = loadWaivers(repoRoot);
-      const waived = new Map(waivers.map((w) => [w.id, w.reason]));
+      const load = loadWaivers(repoRoot);
+      const waived = new Map(load.waivers.map((w) => [w.id, w.reason]));
       const violations: InvariantViolation[] = [];
+
+      if (load.error !== undefined) {
+        violations.push({
+          file: '.noldor/config.json',
+          severity: 'warn',
+          message: `toolchain-floor waivers could not be read, so every floor item below is reported unwaived: ${load.error}`,
+        });
+      }
 
       for (const v of await collectFloorViolations(repoRoot)) {
         const reason = waived.get(v.id);

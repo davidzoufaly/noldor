@@ -7,11 +7,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   collectFloorViolations,
-  disposableLibChecks,
   findPackageManifests,
   isDenied,
+  libFloorChecks,
   makeToolchainFloorInvariant,
   reactFloorChecks,
+  stripJsonc,
   tsconfigFloorChecks,
 } from '../toolchain-floor.js';
 
@@ -20,7 +21,7 @@ const COMPLIANT_TSCONFIG = {
   compilerOptions: {
     noUncheckedIndexedAccess: true,
     exactOptionalPropertyTypes: true,
-    lib: ['ES2023', 'DOM', 'ESNext.Disposable'],
+    lib: ['ESNext', 'DOM'],
   },
 };
 
@@ -64,13 +65,13 @@ describe('tsconfigFloorChecks', () => {
 
   it('warns rather than errors on the two migration flags', () => {
     const out = tsconfigFloorChecks('tsconfig.json', {
-      compilerOptions: { lib: ['ESNext.Disposable'] },
+      compilerOptions: { lib: ['ESNext'] },
     });
     expect(ids(out)).toEqual(['exact-optional-property-types', 'no-unchecked-indexed-access']);
     expect(out.every((v) => v.severity === 'warn')).toBeTruthy();
   });
 
-  it('leaves the lib requirement to disposableLibChecks', () => {
+  it('leaves the lib requirements to libFloorChecks', () => {
     const out = tsconfigFloorChecks('tsconfig.json', {
       compilerOptions: {
         noUncheckedIndexedAccess: true,
@@ -87,27 +88,102 @@ describe('tsconfigFloorChecks', () => {
   });
 });
 
-describe('disposableLibChecks', () => {
-  it('errors when a declared lib omits the disposable types', () => {
-    const out = disposableLibChecks('tsconfig.json', {
-      compilerOptions: { lib: ['ES2023', 'DOM'] },
-    });
-    expect(out).toHaveLength(1);
-    expect(out[0]?.id).toBe('disposable-lib');
-    expect(out[0]?.severity).toBe('error');
+describe('libFloorChecks', () => {
+  it('errors on both halves when a declared lib stops at ES2023', () => {
+    // The repo's own shipped lib before this floor existed: it carries neither
+    // Explicit Resource Management nor the ES2024/2025 built-ins that
+    // platform-over-dependency mandates by name.
+    const out = libFloorChecks('tsconfig.json', { compilerOptions: { lib: ['ES2023', 'DOM'] } });
+    expect(ids(out)).toEqual(['disposable-lib', 'lib-es-builtins']);
+    expect(out.every((v) => v.severity === 'error')).toBeTruthy();
+  });
+
+  it('accepts the ESNext umbrella, which includes the disposable types', () => {
+    // Probed against tsc directly: `lib: ["ESNext"]` compiles `using` cleanly,
+    // so an exact-match check on esnext.disposable is a false positive.
+    expect(
+      libFloorChecks('tsconfig.json', { compilerOptions: { lib: ['ESNext', 'DOM'] } }),
+    ).toEqual([]);
+  });
+
+  it('accepts the ESNext.Full umbrella too', () => {
+    expect(libFloorChecks('tsconfig.json', { compilerOptions: { lib: ['ESNext.Full'] } })).toEqual(
+      [],
+    );
   });
 
   it('accepts the entry case-insensitively', () => {
     expect(
-      disposableLibChecks('tsconfig.json', { compilerOptions: { lib: ['esnext.disposable'] } }),
+      libFloorChecks('tsconfig.json', { compilerOptions: { lib: ['esnext', 'dom'] } }),
+    ).toEqual([]);
+  });
+
+  it('accepts es2025 plus an explicit disposable entry', () => {
+    expect(
+      libFloorChecks('tsconfig.json', {
+        compilerOptions: { lib: ['ES2025', 'DOM', 'ESNext.Disposable'] },
+      }),
+    ).toEqual([]);
+  });
+
+  it('reports only the built-ins half when disposable is named but the year is short', () => {
+    const out = libFloorChecks('tsconfig.json', {
+      compilerOptions: { lib: ['ES2024', 'ESNext.Disposable'] },
+    });
+    expect(ids(out)).toEqual(['lib-es-builtins']);
+    expect(out[0]?.message).toContain('es2024');
+  });
+
+  it('reads the year out of a .full-suffixed entry', () => {
+    expect(
+      libFloorChecks('tsconfig.json', {
+        compilerOptions: { lib: ['ES2025.Full', 'ESNext.Disposable'] },
+      }),
     ).toEqual([]);
   });
 
   it('stays silent when the config declares no lib array (it inherits one)', () => {
-    expect(
-      disposableLibChecks('tsconfig.json', { compilerOptions: { strict: true } as never }),
-    ).toEqual([]);
-    expect(disposableLibChecks('tsconfig.json', {})).toEqual([]);
+    expect(libFloorChecks('tsconfig.json', { compilerOptions: { strict: true } })).toEqual([]);
+    expect(libFloorChecks('tsconfig.json', {})).toEqual([]);
+  });
+
+  it('ignores non-string lib entries rather than throwing on them', () => {
+    const out = libFloorChecks('tsconfig.json', {
+      compilerOptions: { lib: [42, null, 'ESNext'] },
+    });
+    expect(out).toEqual([]);
+  });
+});
+
+describe('stripJsonc', () => {
+  it('removes line and block comments', () => {
+    const text = '{\n  // leading\n  "a": 1, /* inline */\n  "b": 2\n}';
+    expect(JSON.parse(stripJsonc(text))).toEqual({ a: 1, b: 2 });
+  });
+
+  it('removes trailing commas in objects and arrays', () => {
+    expect(JSON.parse(stripJsonc('{ "a": [1, 2, ], }'))).toEqual({ a: [1, 2] });
+  });
+
+  it('leaves comment-like sequences inside strings alone', () => {
+    // The repo's own .oxlintrc.json carries a $schema URL; a regex-based strip
+    // eats everything after its `//`.
+    const text = '{ "$schema": "https://example.com/s.json", "a": 1 }';
+    expect(JSON.parse(stripJsonc(text))).toEqual({
+      $schema: 'https://example.com/s.json',
+      a: 1,
+    });
+  });
+
+  it('leaves an escaped quote inside a string from ending it', () => {
+    expect(JSON.parse(stripJsonc('{ "a": "sl\\"ash", "b": 1 }'))).toEqual({
+      a: 'sl"ash',
+      b: 1,
+    });
+  });
+
+  it('leaves a comma inside a string alone', () => {
+    expect(JSON.parse(stripJsonc('{ "a": "x,", "b": [1] }'))).toEqual({ a: 'x,', b: [1] });
   });
 });
 
@@ -187,15 +263,15 @@ describe('collectFloorViolations', () => {
     write('tsconfig.json', { compilerOptions: { lib: ['ES2023', 'DOM'] } });
     write('package.json', { name: 'x' });
     const out = await collectFloorViolations(root);
-    expect(ids(out)).toEqual(['disposable-lib']);
-    expect(out[0]?.file).toBe('tsconfig.json');
+    expect(ids(out)).toEqual(['disposable-lib', 'lib-es-builtins']);
+    expect(out.every((v) => v.file === 'tsconfig.json')).toBeTruthy();
   });
 
   it('passes the monorepo split once the root config carries the disposable lib', async () => {
     write('tsconfig.base.json', {
       compilerOptions: { noUncheckedIndexedAccess: true, exactOptionalPropertyTypes: true },
     });
-    write('tsconfig.json', { compilerOptions: { lib: ['ES2023', 'DOM', 'ESNext.Disposable'] } });
+    write('tsconfig.json', { compilerOptions: { lib: ['ESNext', 'DOM'] } });
     write('package.json', { name: 'x' });
     expect(await collectFloorViolations(root)).toEqual([]);
   });
@@ -242,19 +318,84 @@ describe('collectFloorViolations', () => {
     ]);
   });
 
-  it('warns that the floor went unchecked when no tsconfig parses', async () => {
+  it('warns when there is no root tsconfig at all (a pure-JS repo may be intentional)', async () => {
     write('package.json', { name: 'x' });
     const out = await collectFloorViolations(root);
-    expect(ids(out)).toEqual(['tsconfig-unreadable']);
+    expect(ids(out)).toEqual(['tsconfig-absent']);
     expect(out[0]?.severity).toBe('warn');
+    expect(out[0]?.message).toContain('no root tsconfig found');
   });
 
-  it('warns that the React floor went unchecked when the oxlintrc has comments', async () => {
+  it('reads a tsconfig carrying comments and trailing commas rather than skipping it', async () => {
+    // The bypass this closes: `tsc --init` emits a commented tsconfig, and
+    // under bare JSON.parse the whole blocking floor degraded to one warning.
+    writeFileSync(
+      join(root, 'tsconfig.json'),
+      '{\n  // strictness lives in the base config\n  "compilerOptions": {\n    "lib": ["ES2023", "DOM"],\n  },\n}\n',
+    );
+    write('package.json', { name: 'x' });
+    const out = await collectFloorViolations(root);
+    expect(ids(out)).toEqual([
+      'disposable-lib',
+      'exact-optional-property-types',
+      'lib-es-builtins',
+      'no-unchecked-indexed-access',
+    ]);
+  });
+
+  it('blocks on a tsconfig that is present but genuinely unparseable', async () => {
+    writeFileSync(join(root, 'tsconfig.json'), '{ "compilerOptions": \n');
+    write('package.json', { name: 'x' });
+    const out = await collectFloorViolations(root);
+    expect(ids(out)).toEqual(['tsconfig-invalid']);
+    expect(out[0]?.severity).toBe('error');
+  });
+
+  it('reports rather than throws on a tsconfig whose JSON is valid but not an object', async () => {
+    // `null` parses fine, so the previous cast let the first property read throw
+    // a TypeError out of the invariant instead of producing a finding.
+    writeFileSync(join(root, 'tsconfig.json'), 'null\n');
+    write('package.json', { name: 'x' });
+    const out = await collectFloorViolations(root);
+    expect(ids(out)).toEqual(['tsconfig-invalid']);
+    expect(out[0]?.severity).toBe('error');
+  });
+
+  it('reads an oxlintrc carrying comments, so its React rules are really checked', async () => {
     write('tsconfig.json', COMPLIANT_TSCONFIG);
     write('package.json', { name: 'x', dependencies: { react: '^19.0.0' } });
-    writeFileSync(join(root, '.oxlintrc.json'), '{ // a comment\n "plugins": [] }\n');
+    writeFileSync(
+      join(root, '.oxlintrc.json'),
+      '{ // the plugin set\n "plugins": ["react"], "rules": {} }\n',
+    );
     const out = await collectFloorViolations(root);
-    expect(ids(out)).toEqual(['oxlintrc-unreadable']);
+    expect(ids(out)).toEqual(['react-hooks-rules', 'react-hooks-rules']);
+  });
+
+  it('blocks when react is a dependency and there is no oxlintrc at all', async () => {
+    write('tsconfig.json', COMPLIANT_TSCONFIG);
+    write('package.json', { name: 'x', dependencies: { react: '^19.0.0' } });
+    const out = await collectFloorViolations(root);
+    expect(ids(out)).toEqual(['oxlintrc-absent']);
+    expect(out[0]?.severity).toBe('error');
+    expect(out[0]?.message).toContain('no .oxlintrc.json');
+  });
+
+  it('blocks on an oxlintrc that is present but unparseable', async () => {
+    write('tsconfig.json', COMPLIANT_TSCONFIG);
+    write('package.json', { name: 'x', dependencies: { react: '^19.0.0' } });
+    writeFileSync(join(root, '.oxlintrc.json'), '{ "plugins": [\n');
+    const out = await collectFloorViolations(root);
+    expect(ids(out)).toEqual(['oxlintrc-invalid']);
+    expect(out[0]?.severity).toBe('error');
+  });
+
+  it('warns that the React floor went unchecked when no manifest validates', async () => {
+    // "no manifest readable" must not read as "react is not a dependency".
+    write('tsconfig.json', COMPLIANT_TSCONFIG);
+    writeFileSync(join(root, 'package.json'), '{ "name": \n');
+    const out = await collectFloorViolations(root);
+    expect(ids(out)).toEqual(['manifests-unreadable']);
     expect(out[0]?.severity).toBe('warn');
   });
 });
@@ -361,6 +502,26 @@ describe('makeToolchainFloorInvariant', () => {
     expect(disposable[0]?.message).toContain('no runtime with Symbol.dispose');
   });
 
+  it('warns, rather than silently dropping every waiver, when the block is rejected', async () => {
+    // ToolchainFloorSchema is .strict(), so one stray key discards the whole
+    // block — the operator must not be left staring at a floor they waived.
+    writeConfig({
+      ...baseConsumer,
+      toolchainFloor: {
+        waivers: [{ id: 'disposable-lib', reason: 'no Symbol.dispose on our deploy target' }],
+        typo: true,
+      },
+    });
+    const result = await makeToolchainFloorInvariant(root).run();
+    const notice = result.violations.filter((v) => v.message.includes('waivers could not be read'));
+    expect(notice).toHaveLength(1);
+    expect(notice[0]?.severity).toBe('warn');
+    // and the waiver really did not apply
+    expect(
+      result.violations.some((v) => v.severity === 'error' && v.message.includes('Disposable')),
+    ).toBeTruthy();
+  });
+
   it('keeps unwaived ids blocking while another id is waived', async () => {
     writeConfig({
       ...baseConsumer,
@@ -372,11 +533,17 @@ describe('makeToolchainFloorInvariant', () => {
     });
     const result = await makeToolchainFloorInvariant(root).run();
     const blocking = result.violations.filter((v) => v.severity !== 'warn');
-    expect(blocking).not.toEqual([]);
+    // The fixture's lib is ['ES2023'], so the built-ins half blocks too — it was
+    // not waived, and only the id named in the waiver may be downgraded.
     expect(
       blocking.every(
-        (v) => v.message.includes('rules-of-hooks') || v.message.includes('exhaustive-deps'),
+        (v) =>
+          v.message.includes('rules-of-hooks') ||
+          v.message.includes('exhaustive-deps') ||
+          v.message.includes('below es2025'),
       ),
     ).toBeTruthy();
+    expect(blocking.some((v) => v.message.includes('below es2025'))).toBeTruthy();
+    expect(blocking.some((v) => v.message.includes('rules-of-hooks'))).toBeTruthy();
   });
 });

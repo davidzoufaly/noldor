@@ -16,7 +16,7 @@
     "incremental": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "lib": ["ES2023", "DOM", "ESNext.Disposable"],
+    "lib": ["ESNext", "DOM"],
     "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*.ts"],

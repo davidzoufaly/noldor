@@ -3,12 +3,17 @@ id: platform-over-dependency
 applies-to: ["**/*.ts", "**/*.tsx"]
 stage: [code]
 enforce: true
-links: [tsconfig.json, docs/noldor/rules.md]
+links: [tsconfig.json, docs/noldor/rules.md, src/invariants/toolchain-floor.ts]
 ---
 
-The toolchain targets ES2023 and runs on a current engine, so reach for the language before
-reaching for a package. `Object.groupBy` / `Map.groupBy` over a hand-rolled reducer or a lodash
-import; Set operations (`union`, `intersection`, `difference`, `isSubsetOf`, `isDisjointFrom`)
+The toolchain's `lib` reaches `ESNext` and it runs on a current engine, so reach for the language
+before reaching for a package. That floor is asserted, not assumed: the `toolchain-floor` invariant
+blocks a `lib` below es2025 (`lib-es-builtins`), because a rule mandating these APIs while the
+config stops at ES2023 would mandate code the compiler rejects — `Object.groupBy`,
+`Promise.withResolvers`, the Set operations, the iterator helpers and `RegExp.escape` are each a
+TS2550 "change the lib option" error under `lib: ["ES2023"]`. Where a consumer waives that id, the
+APIs below it declines are off the table there and the rest of this rule still applies.
+`Object.groupBy` / `Map.groupBy` over a hand-rolled reducer or a lodash import; Set operations (`union`, `intersection`, `difference`, `isSubsetOf`, `isDisjointFrom`)
 over helper functions; `Promise.withResolvers()` over the hand-built deferred antipattern;
 `structuredClone` over a deep-copy dependency; `Array.fromAsync` over an accumulate-then-return
 loop. A dependency that only wraps a built-in is deletable, and deleting it is the higher-leverage

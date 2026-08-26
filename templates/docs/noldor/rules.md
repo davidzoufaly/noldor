@@ -74,8 +74,9 @@ The `toolchain-floor` invariant closes that gap from the other side: instead of 
 
 Severity tracks migration cost, not importance:
 
-- **error** — the requirement costs nothing to satisfy: `react` in `plugins`, `react/rules-of-hooks` and `react/exhaustive-deps` named as errors, `ESNext.Disposable` present in a declared `lib`. Naming a lint rule or widening a lib cannot break existing code.
-- **warn** — the requirement is a real migration: `noUncheckedIndexedAccess` (221 errors when first probed against this repo), `exactOptionalPropertyTypes` (47). These are a ratchet — scheduled work that stays visible on every run — because hard-failing a commit on multi-day work only teaches people to bypass the hook.
+- **error** — the requirement costs nothing to satisfy: `react` in `plugins`, `react/rules-of-hooks` and `react/exhaustive-deps` named as errors, and a declared `lib` that both provides Explicit Resource Management and reaches es2025. Naming a lint rule or widening a `lib` cannot break existing code (raising this repo to `["ESNext", "DOM"]` left `tsc --noEmit` clean). The `lib` year floor is what keeps the `platform-over-dependency` rule honest: it mandates `Object.groupBy`, `Promise.withResolvers`, Set operations, iterator helpers and `RegExp.escape` by name, and every one of those is a TS2550 "change the lib option" error under `lib: ["ES2023"]` — an enforced rule must not require code the config rejects.
+- **error, also** — a config that is *present* but cannot be read (`tsconfig-invalid`, `oxlintrc-invalid`), and a React repo with no `.oxlintrc.json` at all (`oxlintrc-absent`). Reporting a broken blocking config as advisory is what made the floor bypassable in the first place; see below.
+- **warn** — the requirement is a real migration: `noUncheckedIndexedAccess` (221 errors when first probed against this repo), `exactOptionalPropertyTypes` (47). These are a ratchet — scheduled work that stays visible on every run — because hard-failing a commit on multi-day work only teaches people to bypass the hook. Also warn: `tsconfig-absent` and `manifests-unreadable`, where the floor's own inputs were not found and the honest report is "unchecked" rather than a verdict.
 
 A repo that genuinely declines a floor item declares it in `.noldor/config.json`:
 
@@ -91,7 +92,11 @@ A repo that genuinely declines a floor item declares it in `.noldor/config.json`
 
 A waiver does not silence the finding — it downgrades it to a `warn` quoting the reason, so the exception stays legible in every run rather than vanishing. `reason` has a 20-character floor for the same purpose. The idiom mirrors `release.crGateExemptCommits`.
 
-A config that does not parse as JSON is reported as a `warn` naming the unchecked floor, never as a pass: `toolchain-floor` uses `JSON.parse` rather than taking a JSONC dependency, precisely because adding a package to read two config files would contradict the `platform-over-dependency` rule it exists to support.
+**Comments and trailing commas are read, not rejected.** `tsc --init` emits a tsconfig full of comments and oxlint accepts them too, so reading these files with bare `JSON.parse` made a perfectly ordinary config *unparseable* — and while that was reported as an advisory `warn`, the blocking half of the floor silently never ran. That was a bypass, not a rough edge. `toolchain-floor` therefore strips comments and trailing commas itself, with a small string-aware scanner, before parsing; a config that still fails is an `error`, because the repo then owns a file its own toolchain cannot read either.
+
+The scanner is hand-rolled rather than delegated for two independent reasons. Taking a JSONC package to read two config files would contradict `platform-over-dependency`, the rule this invariant exists to make enforceable. And TypeScript 7 exposes no in-process JS parser API — its root export carries `version` alone, with parsing behind the tsgo API server — so `ts.readConfigFile` is not callable here even if a dependency were acceptable. The same constraint is why the floor reads root configs directly instead of resolving the `extends` graph: that approximation is documented in `libFloorChecks`, not claimed as completeness.
+
+Every value read from these files is validated with Zod before use, like any other external input. A file containing bare `null` is valid JSON, so the earlier `as`-cast let the first property read throw a `TypeError` out of the invariant — and an invariant that crashes tells the operator nothing.
 
 ## Template sync
 
