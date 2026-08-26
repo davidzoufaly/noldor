@@ -178,11 +178,14 @@ describe('libFloorChecks', () => {
     }
   });
 
-  it('ignores non-string lib entries rather than throwing on them', () => {
+  it('blocks on a non-string lib entry rather than grading what remains', () => {
+    // tsc rejects the config outright, so filtering the junk out and passing the
+    // remainder reports a config that does not compile as compliant.
     const out = libFloorChecks('tsconfig.json', {
       compilerOptions: { lib: [42, null, 'ESNext'] },
     });
-    expect(out).toEqual([]);
+    expect(ids(out)).toEqual(['lib-malformed']);
+    expect(out[0]?.severity).toBe('error');
   });
 });
 
@@ -532,7 +535,7 @@ describe('findPackageManifests', () => {
     manifest('apps', 'web');
     manifest('packages', 'engine');
     // Lexical order: 'package.json' sorts before 'packages/...' ('.' < 's').
-    expect(await findPackageManifests(root)).toEqual([
+    expect((await findPackageManifests(root)).manifests).toEqual([
       join('apps', 'web', 'package.json'),
       'package.json',
       join('packages', 'engine', 'package.json'),
@@ -544,11 +547,22 @@ describe('findPackageManifests', () => {
     manifest('node_modules', 'dep');
     manifest('dist');
     manifest('.worktrees', 'task');
-    expect(await findPackageManifests(root)).toEqual(['package.json']);
+    expect((await findPackageManifests(root)).manifests).toEqual(['package.json']);
   });
 
   it('returns an empty list for a root with no manifest', async () => {
-    expect(await findPackageManifests(root)).toEqual([]);
+    expect((await findPackageManifests(root)).manifests).toEqual([]);
+  });
+
+  it('reaches a scoped package directory', async () => {
+    // `packages/@scope/ui/package.json` sits one level deeper than the flat
+    // layouts; at the old depth a scoped monorepo read as having no React.
+    writeFileSync(join(root, 'package.json'), '{"name":"root"}\n');
+    manifest('packages', '@scope', 'ui');
+    expect((await findPackageManifests(root)).manifests).toEqual([
+      'package.json',
+      join('packages', '@scope', 'ui', 'package.json'),
+    ]);
   });
 });
 
@@ -605,6 +619,22 @@ describe('makeToolchainFloorInvariant', () => {
     expect(result.violations.some((v) => v.message.includes('waivers could not be read'))).toBe(
       false,
     );
+  });
+
+  it('keeps the original finding text alongside the waiver reason', async () => {
+    // A waiver downgrades a finding; a downgraded finding the reader cannot see
+    // is a silenced one.
+    writeConfig({
+      ...baseConsumer,
+      toolchainFloor: {
+        waivers: [{ id: 'disposable-lib', reason: 'deploy target lacks Symbol.dispose support' }],
+      },
+    });
+    const result = await makeToolchainFloorInvariant(root).run();
+    const waived = result.violations.filter((v) => v.message.includes('disposable-lib'));
+    expect(waived).toHaveLength(1);
+    expect(waived[0]?.message).toContain('deploy target lacks Symbol.dispose');
+    expect(waived[0]?.message).toContain('Explicit Resource Management');
   });
 
   it('downgrades a waived id to a warn that quotes the reason', async () => {

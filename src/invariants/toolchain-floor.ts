@@ -28,11 +28,14 @@ const SKIPPED_DIRS = new Set(['node_modules', 'dist', '.git', '.worktrees', '.tu
 
 /**
  * How deep to look for workspace `package.json` files below the repo root.
- * Depth 3 reaches `apps/<app>/package.json` and `packages/<pkg>/package.json`,
- * which is every layout in use; going deeper only buys node_modules-shaped
- * trees this walk already skips.
+ *
+ * Depth 4 is what reaches a scoped package — `packages/@scope/ui/package.json`
+ * — as well as the flat `apps/<app>/` and `packages/<pkg>/` layouts. Depth 3
+ * covered only the flat ones, so a scoped monorepo declaring `react` under
+ * `@scope` read as having no React at all and skipped the React floor. Going
+ * deeper than this only buys node_modules-shaped trees the walk already skips.
  */
-const WORKSPACE_SCAN_DEPTH = 3;
+const WORKSPACE_SCAN_DEPTH = 4;
 
 /**
  * `lib` entries that pull in every later library at once. TypeScript ships
@@ -97,6 +100,12 @@ const VALUE_TAIL_RE = /[\w.+-]/;
 
 /** Severity levels oxlint treats as "this blocks the lint run". */
 const DENYING_LEVELS = new Set(['error', 'deny']);
+
+/** What a manifest walk found, and where it could not look. */
+export interface ManifestScan {
+  readonly manifests: readonly string[];
+  readonly unreadableDirs: readonly string[];
+}
 
 /** One unmet floor requirement. `id` is the waiver key. */
 export interface FloorViolation {
@@ -386,8 +395,9 @@ function declaredDependencies(pkg: PackageJsonShape): Set<string> {
  * and yarn workspaces identically without parsing three different workspace
  * config formats, and without a glob dependency.
  */
-export async function findPackageManifests(root: string): Promise<string[]> {
+export async function findPackageManifests(root: string): Promise<ManifestScan> {
   const found: string[] = [];
+  const unreadableDirs: string[] = [];
   const queue: string[] = [root];
 
   while (queue.length > 0) {
@@ -396,7 +406,11 @@ export async function findPackageManifests(root: string): Promise<string[]> {
     try {
       entries = await readdir(dir, { withFileTypes: true });
     } catch {
-      continue; // unreadable dir — nothing to collect here
+      // Not silent: a directory the walk cannot enter may be the one holding the
+      // manifest that declares `react`, and swallowing it turns "could not look"
+      // into "looked and found nothing".
+      unreadableDirs.push(relative(root, dir) || '.');
+      continue;
     }
     for (const entry of entries) {
       if (entry.isDirectory()) {
@@ -410,7 +424,7 @@ export async function findPackageManifests(root: string): Promise<string[]> {
     }
   }
 
-  return found.toSorted();
+  return { manifests: found.toSorted(), unreadableDirs: unreadableDirs.toSorted() };
 }
 
 /**
@@ -425,9 +439,10 @@ async function workspaceDependencies(root: string): Promise<{
   readonly unreadable: readonly string[];
 }> {
   const names = new Set<string>();
-  const unreadable: string[] = [];
+  const scan = await findPackageManifests(root);
+  const unreadable: string[] = scan.unreadableDirs.map((dir) => `${dir}/ (unreadable directory)`);
   let readAny = false;
-  for (const rel of await findPackageManifests(root)) {
+  for (const rel of scan.manifests) {
     const read = await readConfig(root, rel, PackageJsonSchema);
     if (!read.ok) {
       unreadable.push(rel);
@@ -549,9 +564,20 @@ export function libFloorChecks(path: string, cfg: TsConfigShape): FloorViolation
     ];
   }
 
-  const entries = declared
-    .filter((entry): entry is string => typeof entry === 'string')
-    .map((entry) => entry.toLowerCase());
+  if (declared.some((entry) => typeof entry !== 'string')) {
+    // `tsc` rejects a non-string lib entry outright, so filtering them out and
+    // grading what remains reports a config that does not compile as compliant.
+    return [
+      {
+        id: 'lib-malformed',
+        file: path,
+        severity: 'error',
+        message: `${path}: compilerOptions.lib contains a non-string entry — \`tsc\` rejects that, and the lib floor cannot be graded against the remainder as though the config were valid.`,
+      },
+    ];
+  }
+
+  const entries = (declared as string[]).map((entry) => entry.toLowerCase());
   const umbrella = entries.some((entry) => LIB_UMBRELLAS.has(entry));
   const out: FloorViolation[] = [];
 
@@ -807,7 +833,11 @@ export function makeToolchainFloorInvariant(repoRoot: string): Invariant {
             ? { file: v.file, message: v.message, severity: v.severity }
             : {
                 file: v.file,
-                message: `[waived: ${v.id}] ${reason}`,
+                // The original message is kept, not replaced: a waiver
+                // downgrades a finding, and a downgraded finding the reader
+                // cannot see is a silenced one. It also keeps two violations
+                // sharing an id (both React hook rules) distinguishable.
+                message: `[waived: ${v.id} — ${reason}] ${v.message}`,
                 severity: 'warn',
               },
         );

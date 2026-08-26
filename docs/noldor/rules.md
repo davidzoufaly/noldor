@@ -92,7 +92,7 @@ A repo that genuinely declines a floor item declares it in `.noldor/config.json`
 }
 ```
 
-A waiver does not silence the finding — it downgrades it to a `warn` quoting the reason, so the exception stays legible in every run rather than vanishing. `reason` has a 20-character floor for the same purpose. The idiom mirrors `release.crGateExemptCommits`.
+A waiver does not silence the finding — it downgrades it to a `warn` that carries both the reason and the original message, so the exception stays legible in every run rather than vanishing, and two findings sharing an id (the two React hook rules) stay distinguishable. `reason` has a 20-character floor for the same purpose. The idiom mirrors `release.crGateExemptCommits`.
 
 **Comments and trailing commas are read, not rejected.** `tsc --init` emits a tsconfig full of comments and oxlint accepts them too, so reading these files with bare `JSON.parse` made a perfectly ordinary config *unparseable* — and while that was reported as an advisory `warn`, the blocking half of the floor silently never ran. That was a bypass, not a rough edge. `toolchain-floor` therefore strips comments and trailing commas itself, with a small string-aware scanner, before parsing; a config that still fails is an `error`, because the repo then owns a file its own toolchain cannot read either.
 
