@@ -16,6 +16,18 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Inject CR Lane Seams Instead of Mocking Them
+
+- id: Q-0195
+- area: testing
+- type: refactor
+- since: 2026-08-26
+- size: M
+- impact: med
+- confidence: high
+
+`.noldor/rules/test-mocking-boundaries.md` (enforce, shipped in #391) bans mocking a module the change itself owns, and the CR pipeline is where the repo breaks its own rule: 23 relative `vi.mock` calls across 12 test files, 11 of them under `src/cr/`. `cr/orchestrate.ts` imports `runManual` / `runCodex` / `runSubagent` / `runRenderCompare` statically at module top, so `orchestrate.test.ts`, `orchestrate.integration.test.ts`, `delta.test.ts` and `prior-review.test.ts` can only reach the dispatch logic by replacing those modules — which means those suites assert against the mock, not against lane dispatch, and a real wiring regression passes them. Seven distinct seams, all the same shape: the lane registry in `orchestrate.ts`; `core/prompt-stdin.js` (`overwrite-guard`, `escalate`, `lanes/manual`); `core/agent-runner/registry.js` (`subagent-dispatch`, `verify-dispatch`); `deep-review-spawn.js` (`escalate`); `read-fd-summary.js` + `core/branch-added.js` (`lanes/subagent`); `review-with-codex.js` + `codex-adapter.js` (`lanes/codex`); and `release/fd-prs-since-tag.js` (`dashboard-render-markdown`, the one non-CR file). The fix is the pattern already proven in this repo — an optional second parameter defaulting to the real implementations, as `upWorktree(opts, deps = defaultDeps)` does — so each call site keeps its signature and each test passes a hand-rolled fake instead of a module mock. Sized M rather than S because the seam runs through the framework's own review path: a botched lane registry breaks the gate that would catch it, so the spec must say which seams convert together and how the CR pass is re-earned mid-refactor. Deletion test: gutting a lane's dispatch (wrong lane called, `--base-sha` dropped, timeout not forwarded) reds an orchestrate test, and `grep -rn "vi\.mock(['\"]\.\.\?/" src` returns nothing outside a seam with a written justification. (found 2026-08-26)
+
 ### Graph Evidence in Specs and ADRs
 
 - id: Q-0194
@@ -28,18 +40,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 - parent: graphify-plan-of-edges-nodes-for-plans-specs
 
 [`graph-integration.md`](noldor/graph-integration.md) tells every reader to open `graph.brainstorm-summary.toon` before any codebase exploration, but the two surfaces where architecture decisions actually get written — `/noldor-spec` and `docs/adr/` — never mention the graph, so nothing records whether the structure was consulted. `/noldor-refactor` is the only stage wired to it, and by then the decision is already made. Three moving parts: (1) `/noldor-spec` gains an explicit read step on the `specs-only-*` and `full-*` paths — check freshness, regen AST-only if stale (seconds), read the summary toon before drafting `## Design`; (2) the spec contract printed by `prep format spec` and the ADR template grow a short **Structural context** unit naming the communities, god nodes, and cross-package bridges the change lands in — the same evidence `/noldor-refactor` already keys off before it touches a god node; (3) a garden detector reports a spec on a `full`/`specs-only` path, or a new ADR, whose structural-context unit is still a stub. Advisory-with-teeth like Q-0185: report it, let a `noldor:cut` marker record a deliberate skip, never block a ship. The risk to spec is stale-graph handling — reading a stale graph is worse than reading none, so the read step must reuse [`loadFreshGraphOrWarn()`](../src/garden/graph-fd-lookup.ts)'s gate rather than trusting the file's presence, and a missing graph must stay a clean skip (graphify is optional). Deletion test: a spec that reshapes a god node says so in writing, and a reader can tell from an ADR which part of the structure the decision moved. (found 2026-08-25)
-
-### Better Unit-Test Rules
-
-- id: Q-0071
-- area: testing
-- type: docs
-- since: 2026-08-05
-- size: S
-- impact: low
-- confidence: low
-
-Extend the project's unit-testing rules beyond what `docs/noldor/testing-principles.md` and the Tests section of `.claude/engineering-rules.md` cover today, using the review discussion on `gooddata/gdc-mastercard-panther#2542` as the source material. Fuzzy one-liner — the linked PR sits in a private repo and has not been read, so the actual delta is unknown. Trigger: read the PR and extract the concrete rules before promoting; without that, there is nothing to implement.
 
 ### Design Approval Step Before Implementation
 
