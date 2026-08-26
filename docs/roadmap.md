@@ -16,6 +16,137 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Graph Evidence in Specs and ADRs
+
+- id: Q-0194
+- area: docs
+- type: feat
+- since: 2026-08-25
+- size: M
+- impact: med
+- confidence: med
+- parent: graphify-plan-of-edges-nodes-for-plans-specs
+
+[`graph-integration.md`](noldor/graph-integration.md) tells every reader to open `graph.brainstorm-summary.toon` before any codebase exploration, but the two surfaces where architecture decisions actually get written — `/noldor-spec` and `docs/adr/` — never mention the graph, so nothing records whether the structure was consulted. `/noldor-refactor` is the only stage wired to it, and by then the decision is already made. Three moving parts: (1) `/noldor-spec` gains an explicit read step on the `specs-only-*` and `full-*` paths — check freshness, regen AST-only if stale (seconds), read the summary toon before drafting `## Design`; (2) the spec contract printed by `prep format spec` and the ADR template grow a short **Structural context** unit naming the communities, god nodes, and cross-package bridges the change lands in — the same evidence `/noldor-refactor` already keys off before it touches a god node; (3) a garden detector reports a spec on a `full`/`specs-only` path, or a new ADR, whose structural-context unit is still a stub. Advisory-with-teeth like Q-0185: report it, let a `noldor:cut` marker record a deliberate skip, never block a ship. The risk to spec is stale-graph handling — reading a stale graph is worse than reading none, so the read step must reuse [`loadFreshGraphOrWarn()`](../src/garden/graph-fd-lookup.ts)'s gate rather than trusting the file's presence, and a missing graph must stay a clean skip (graphify is optional). Deletion test: a spec that reshapes a god node says so in writing, and a reader can tell from an ADR which part of the structure the decision moved. (found 2026-08-25)
+
+### Better Unit-Test Rules
+
+- id: Q-0071
+- area: testing
+- type: docs
+- since: 2026-08-05
+- size: S
+- impact: low
+- confidence: low
+
+Extend the project's unit-testing rules beyond what `docs/noldor/testing-principles.md` and the Tests section of `.claude/engineering-rules.md` cover today, using the review discussion on `gooddata/gdc-mastercard-panther#2542` as the source material. Fuzzy one-liner — the linked PR sits in a private repo and has not been read, so the actual delta is unknown. Trigger: read the PR and extract the concrete rules before promoting; without that, there is nothing to implement.
+
+### Design Approval Step Before Implementation
+
+- id: Q-0186
+- area: tooling
+- type: feat
+- since: 2026-08-25
+- size: M
+- impact: med
+- confidence: low
+- parent: pendev-ui-design-phase
+
+The `.pen` lifecycle has no approval seam. The baseline half works well, but a feature's design artifact goes straight to `docs/design/ui/archive/` — archived before anyone confirmed the design was the one to build. What the flow is missing is a step inside the implementation path: the agent opens (or creates) the feature's `.pen`, edits it, and the operator confirms THAT design before code starts, with the archive move happening after the confirmation rather than instead of it. The pieces exist — `design pen-bridge` already opens a `.pen` in the declared editor (Q-0179), and the UI-design stage already computes whether a session is UI-bearing — so this is sequencing and a recorded verdict more than new machinery. Sizing is loose because the seam touches the gate's stage order; spec it before planning. Deletion test: a UI-bearing session cannot reach the code stage without a recorded design verdict, and an approved `.pen` archives with the approval attached. (found 2026-08-25)
+
+### Mandatory C4 Diagram for New Feature MDs
+
+- id: Q-0185
+- area: docs
+- type: feat
+- since: 2026-08-25
+- size: M
+- impact: med
+- confidence: med
+- parent: consumer-architecture-doc-surface
+
+A full new FD should carry a mermaid diagram at the C4 level that fits it, semi-mandatory rather than optional: prose alone is what lets an FD's shape stay implicit until a reader has to reconstruct it from `links.code`. Q-0178 prescribes form for the four `docs/architecture/` registry pages; this is the per-feature counterpart — the FD template grows a diagram section, `/noldor-new-feature` and `/noldor-promote` scaffold the fence, and a check reports an FD on a `full` path whose diagram section is still a stub. Semi-mandatory means advisory-with-teeth: report it, let a `noldor:cut` marker record a deliberate skip, do not block a ship on it. Scope the requirement by path tier (`full` earns a diagram; `fast-track` and `micro-chore` never do) so it does not tax the XS drain. Deletion test: a reader gets the shape of a newly shipped `full` feature from its FD without opening a source file. (found 2026-08-25)
+
+### UI Baseline Freshness Must Run the Capture
+
+- id: Q-0190
+- area: tooling
+- type: fix
+- since: 2026-08-25
+- size: M
+- impact: high
+- confidence: med
+- parent: pendev-ui-design-phase
+
+`design:capture-ui` had been broken for days while both the freshness check and CI reported healthy. Two capture states drove through buttons that `ai-first-ui-hide-low-level-tools-by-default` had moved behind a disclosure, so the run died on state 8 of 10; the temp-then-rename write left the committed baseline in place, describing a toolbar that no longer existed. `checks ui-design-freshness` said `fresh` throughout, because it compares commit ordering rather than content and cannot see that the generator itself fails. The block surfaced only because a UI-bearing session tried to seed from the baseline. Wanted: the freshness check runs the capture (or a cheap dry-run of its drivers) instead of trusting timestamps, or capture runs in CI on any `uiPaths` diff so the recorder breaks loudly at the commit that breaks it. Consumer-side residue worth carrying into the same fix: charuy's `scripts/design/__tests__/validate.test.ts` opens a hardcoded `/Applications/Pencil.app/...` path unguarded and fails wherever Pencil is installed elsewhere, while the capture script guards the same path — so the one test that would have covered the schema was already red and ignored. Deletion test: a UI change that breaks a capture driver reds at that commit, not at the next session that tries to read the baseline. (found 2026-08-25)
+
+### Attach-Path UI Verdict Reads Touches
+
+- id: Q-0189
+- area: tooling
+- type: fix
+- since: 2026-08-25
+- size: S
+- impact: med
+- confidence: high
+- parent: pendev-ui-design-phase
+
+On attach paths the UI verdict is computed from the parent FD's entire `links.code`, so an enhancement inherits `required` from files it does not touch. `agent-camera-control` matched six paths — `App.tsx`, `ViewportArea.tsx`, three `packages/viewport/src/*` files and `useMeshData.ts` — none of which the enhancement had to touch to add two agent verbs; the source roadmap block carried no `Touches:` clause, so `sessionUiVerdict` had nothing narrower to read. The verdict happened to be right that time (the work grew a toolbar control), but it was right by accident. On `*-attach`, take the candidate paths from the source block's `Touches:` and fall back to the parent's `links.code` only when the block has none. The step should also say that a `required` verdict with no visual delta is legitimately answered by recording that, rather than by seeding a `.pen` that documents an unchanged surface. Deletion test: an attach session whose `Touches:` names only non-UI files gets `not-required` while its parent FD stays UI-bearing. (found 2026-08-25)
+
+### Scoped Link Sync for the Projection Runners
+
+- id: Q-0182
+- area: tooling
+- type: feat
+- since: 2026-08-25
+- size: S
+- impact: med
+- confidence: high
+- parent: feature-md-links-overhaul
+
+`pnpm noldor sync code-links` is repo-wide with no scope flag, so running it inside a feature worktree to populate one FD's links also rewrites every other FD the tag scan touches. On the liquid-glass-ui ship it reordered `coordinate-frame-and-measurement-tools.md` and added six entries to it, pulling unrelated FD churn into a feature PR that had to be reverted by hand. The gap is in `parseRunOptions()` (`src/sync/projection.ts`), which parses only `--check`, `--force` and `--quiet` — so all four projection runners (`code-links`, `test-links`, `doc-links`, `spec-links`) share it. Add `--slug <slug>` (repeatable, or comma-separated) that restricts the write set to the named FDs while still scanning the repo for their tags, since the tags themselves live outside the FD. Deletion test: a `sync code-links --slug <x>` run leaves every FD but `<x>` byte-identical. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
+
+### UI-Design Step Pencil Recipe Corrections
+
+- id: Q-0188
+- area: docs
+- type: fix
+- since: 2026-08-25
+- size: S
+- impact: med
+- confidence: high
+- parent: pendev-ui-design-phase
+
+Two instructions in the UI-design step are wrong against the tool, and each cost a session before the tool was believed over the prose. **Seeding is not implementable as written**: the step says to copy the baseline's pages "via pencil MCP, naming them `BASE:<surface>: <name>`", but `execute` has no cross-file copy (`Copy(path, parent)` is within one document) and the baseline is ~1500 nodes, so `Get`-then-`Insert` is not a real option either. What works is a filesystem `cp` of the baseline followed by page renames — say that, or ship a `design ui-seed <slug>` that does it. The naming half is stale too: `capture-ui` emits `FINAL:app: <state>` (`PAGE_PREFIX`, `scripts/design/states.ts`), so a freshly captured baseline carries `FINAL:` pages that must be renamed to `BASE:` before they can seed anything — and the committed baseline carried `BASE:` names plus three hand-authored `VAR:` pages and a `FINAL:`, i.e. a file documented as generated-never-hand-edited had already been renamed and hand-edited. Reconcile who owns page prefixes between the recorder and the design step. **Fresh nodes render blank in their own call**: new `text` and `path` nodes come back invisible in a `TakeScreenshot` issued from the same `execute` (frames with a `fill` render, and `Copy` of an existing node renders immediately) — the pen skill claims the opposite ("screenshots reflect the changes made earlier in the same execute call"), so the guidance actively misleads and an agent diagnoses its own correct schema as broken. One line telling the author to verify in a FOLLOW-UP call, or to build from copies, pays for itself. Deletion test: a first-time author seeds a `.pen` from the baseline and screenshots a fresh node without a wrong conclusion in between. (found 2026-08-25)
+
+### Milestone-Queue Linking
+
+- id: Q-0083
+- area: tooling
+- type: feat
+- since: 2026-08-10
+- size: M
+- impact: med
+- confidence: low
+- parent: decouple-milestones-from-semver
+
+Milestones (`docs/milestones/<slug>.md`) currently live independent of the queue — no way to say which roadmap/backlog entries belong to which milestone, or see milestone progress from the queue side. Link entries to a milestone (e.g. add a `milestone:` field to the schema-C parser — feature-MD frontmatter has one, but `BacklogEntry` in `src/utils/parse-blocks.ts` does not — or have the milestone doc list entry IDs) and add the reverse roll-up: dashboard/status compute milestone completion from its tasks.
+
+- Provázat milestone s featurama, backlogem a roadmapou — the operator raised this again on 2026-08-24: the link must run in both directions across all three surfaces (feature MDs, `docs/backlog.md`, `docs/roadmap.md`), not just feature frontmatter, so a milestone doc can enumerate its queue and the queue can name its milestone.
+
+### Architecture Doc Prose Form and Structure
+
+- id: Q-0178
+- area: docs
+- type: docs
+- since: 2026-08-24
+- size: M
+- impact: med
+- confidence: med
+- parent: consumer-architecture-doc-surface
+
+Q-0093 shipped the `docs/architecture/` registry — four pages, a presence validator, an advisory staleness check and scaffold-only templates — but left the *content* contract open, so the pages drift into long narrative prose instead of the terse technical reading the surface exists to give. Wanted: prescribe the form as well as the existence — a fixed section structure per page in `templates/docs/architecture/`, stricter C4 fidelity (each page answers its own C4 level and only that level: context = system + actors + externals, containers = runnable units, modules = internal dependency direction and state ownership, flows = load-bearing runtime paths), and a prose contract that favours diagram + labelled fact over paragraphs. Consider an advisory bloat check alongside the existing staleness one (prose-to-diagram ratio, or per-page word budget) so the drift is visible without blocking a release. Deletion test: a reader answers "how is this system shaped" from the four pages without reading a single full paragraph, and a page that has grown into an essay is flagged rather than merely stale.
+
 ### CR Re-Round Cap Enforcement and Oscillation Detector
 
 - id: Q-0170
@@ -209,82 +340,6 @@ Hand-editing an FD's `links.code` is only safe on an FD that carries **no** `// 
 
 `pnpm noldor design log --support` (Q-0053) already captures prior art into the design ledger, but nothing enforces that it was used — a spec whose ledger renders `Existing support (0) - (none recorded)` passes silently, which means the reuse question was never asked. Spec-lint should reject an approved spec with zero support anchors unless the operator records an explicit `--support "none: <reason>"`. The side benefit is that the CR `reuse` dimension gains a falsifiable claim to check against instead of reviewing in the dark.
 
-### Typed Advisory and Blocking Gap Channels
-
-- id: Q-0136
-- area: tooling
-- type: refactor
-- since: 2026-08-17
-- size: M
-- impact: med
-- confidence: med
-- parent: doc-gardening-skill
-
-Routing a `Gap` into `sddGaps` blocks a release, and nothing at the push site says so. The chain is four hops: `detectAll` appends to `sddGaps`, `sddGaps` is listed in `FINDING_CATEGORIES` (`src/garden/garden-detect-runner.ts`), that list is the clean test for the release auto-restamp (`src/release/preflight-fix.ts` → `auto-restamp.ts`), and an unstamped garden receipt is a `blocking` preflight row. Q-0093 shipped a detector documented as advisory that blocked releases through exactly this path; the code-stage reviewer caught it, and the fix was a second hand-rolled `GardenFindings` key deliberately kept out of `FINDING_CATEGORIES`. That works but does not generalize — the next detector author faces the same invisible cliff, and `Gap` itself carries no signal about which channel it belongs to. Make the distinction structural: separate the advisory and blocking gap types (or tag the category), let `detectAll` route by type rather than by which array a caller happened to push into, and let `FINDING_CATEGORIES` derive from that rather than being a hand-maintained parallel list. Deletion test: a new detector cannot block a release without saying so in its type. Verify by adding a deliberately-advisory detector and asserting a release still cuts with it firing. (found 2026-08-17 shipping Q-0093, PR #333)
-
-### Route Every Frontmatter Read Through readFrontmatter
-
-- id: Q-0175
-- area: tooling
-- type: refactor
-- since: 2026-08-23
-- size: M
-- impact: med
-- confidence: med
-
-`matter()` writes its cache entry *before* parsing (`node_modules/gray-matter/index.js`: `matter.cache[file.content] = file` runs ahead of `parseMatter`), so once any call throws on a given string, every later `matter(sameString)` in that process returns the cached un-parsed file — empty `data`, the whole file as `content`. Broken YAML therefore reads as *valid-but-empty* frontmatter on the second and subsequent reads, silently, and the effect crosses module boundaries because the cache is module-global. Q-0116 fixed this for the FD path by routing reads through `readFrontmatter` in `src/core/fd-load.ts`, which passes an options object to take gray-matter's uncached path. Every other direct `matter(raw)` caller still inherits it — ~25 sites across `src/release`, `src/triage`, `src/dashboard`, `src/docs`, `src/features` and `src/cr` (`grep -rn 'matter(' src --include='*.ts' | grep -v __tests__`). Route them all through `readFrontmatter` (or a doc-kind sibling for ADR/vision/milestone frontmatter) so the cache trap has exactly one place it can bite, and consider whether any caller actually benefits from the cache at all. Deletion test: a repo with one broken-YAML markdown file produces the same message from every command that reads it, no matter the order commands run in. (raised 2026-08-20 while fixing Q-0116's malformed-FD policy)
-
-### Repository Mutation Module
-
-- id: Q-0109
-- area: tooling
-- type: refactor
-- since: 2026-08-12
-- size: L
-- impact: high
-- confidence: med
-
-Durable read-modify-write transitions are scattered across dashboard queue routes, core state writers, CR JSON writers, milestone activation and roadmap/backlog movement, and they disagree on temp-name uniqueness, serialization, schema checks, multi-file recovery and concurrency — "atomicity" is a temp-file helper re-derived at each call site. Deepen one module that acquires repository- and file-scoped serialization, re-reads and compares expected state inside the critical section, computes the transition without side effects, validates successor invariants, persists with unique temp files, and recovers or rolls back multi-document transitions after interruption; adapters keep the domain-specific transforms for queues, milestones, sessions and review sinks. **Leverage:** the three confirmed symptoms below close through one seam. **Deletion test:** callers lose their own ETag choreography, temp naming, sequential multi-file write blocks and manual `git restore` recovery hints. **Risk:** a global lock would be shallow and would needlessly serialize independent repositories and files — scope the locking and the crash recovery deliberately. Start with queue and milestone mutations where the correctness benefit is measurable, and migrate state files only when the semantics match.
-
-- Dashboard queue writes have a reproducible lost-update race despite advertising optimistic concurrency through `If-Match`. Every mutator in `src/dashboard/api/blocks.ts` does read, sha256 and If-Match check, transform, then `atomicWriteFile`, with no critical section — so two requests read the same contents, both pass the same ETag, and both prepare different successor states. `src/dashboard/api/atomic.ts:17` makes it worse by always using a temp name of the form basename plus `.tmp.` plus the process pid, so every concurrent write in one dashboard process targets the same temporary file. Launching two `handleMove` calls concurrently with the same valid ETag ended, in all 50 trials, as one 200 plus one thrown ENOENT from `rename`, with the final file retaining a single user action. A unique temp suffix stops the ENOENT but not the stale overwrite: compare and write must become one serialized operation per target file, with the re-read and ETag recheck inside it. Regression tests need a barrier that makes two calls pass the initial read simultaneously, then assert exactly one 200, exactly one 412, no thrown filesystem error, no leftover temp file, and no silent loss. (confirmed by runtime probe)
-- Roadmap and backlog promotion/demotion can leave queue state half-applied by design. `crossSection()` (`src/dashboard/api/blocks.ts:329-357`) removes the block from the source with an atomic rename and then writes the destination; if the second write fails, the entry is already gone, the route returns 500 and logs `git restore docs/roadmap.md docs/backlog.md`, which also discards unrelated concurrent edits and is not a transactional recovery mechanism. The combined ETag stops some stale clients but does not make two renames atomic, and the lost-update race can interleave further mutations between them. Needs a recoverable multi-document transition: serialize queue mutations, precompute and schema-validate both successor files, persist enough journal or backup information to finish or roll back after any failure, and expose success only once both documents represent the same transition. Inject failures before and after each durable step, then prove an entry is never missing from both files nor duplicated in both after recovery. (confirmed by failure-path inspection)
-- Milestone activation is documented as atomic but performs three ordinary sequential writes. `activateMilestone()` (`src/milestones/lib.ts:149-167`) preflights, writes the target `status: active`, writes vision's `current-milestone`, then writes the prior active milestone as `shipped` — no temp and rename, no journal, no rollback, no post-write validation. Failing at step two leaves an active milestone invisible to vision; failing at step three leaves two active milestones. Separately, an already-active target returns at line 155 before ensuring vision points at it, so `noldor milestone activate foo` can print success while the dashboard still shows no current milestone. Model activation as a pure transition plan plus one recoverable multi-document application, and make idempotent re-activation repair all derived state. Fault-injection tests must fail each durable step, reopen the repository as a fresh process would, run recovery, and assert exactly one active file with vision pointing at it. (confirmed by code inspection and temp-consumer probe)
-
-(architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
-
-### Repository Context and Snapshot Module
-
-- id: Q-0110
-- area: tooling
-- type: refactor
-- since: 2026-08-12
-- size: L
-- impact: high
-- confidence: med
-- parent: project-tracking-dashboard
-
-`src/dashboard/data.ts` is 2,533 LOC and mixes module-global override state, document paths, cwd-relative scanners, git subprocesses, graph and package discovery, parsing, and page-specific aggregation. `handleOverview` concurrently invokes loaders that reload features and rescan repository state several times, so one response can be slow and internally inconsistent even without `--docs`; the git timeout increase after hot zones blanked under load was a symptom. Deepen an immutable repository context that anchors every adapter to one resolved root and exposes a coherent snapshot of docs, configuration, scan roots, git identity and history, and traceability inputs for a request or report run. **Leverage:** mixed-root results disappear, two-dashboard execution becomes truthful, duplicate IO and git processes drop, and tests gain deterministic injected snapshots. **Deletion test:** remove `docRootsOverride`, the dashboard `process.cwd()` literals, the default-cwd milestone and git calls, the repeated `loadFeatures()` within one page, and the dashboard-specific reconstruction of SDD input. Preserve streaming and refresh behaviour with an explicit snapshot lifetime rather than an unbounded global cache.
-
-- The confirmed symptom: even reinterpreting `--docs` as a repository-root override (Q-0104) leaves the dashboard building mixed-repository views, because many loaders ignore it. `loadSddInput()` (`src/dashboard/data.ts:1124-1177`) hardcodes `docs/features`, `ideas.md`, `docs/backlog.md`, the design dirs, README, the graph path and the scan roots; `scanRoots()` and `actualPackageNames()` default to cwd; git helpers run without an override-aware `cwd`; milestone groups call `loadMilestones()` and `loadMilestoneBySlug()` with their defaults; feature-body VS Code link rewriting uses `process.cwd()`. Setting the dashboard root to `/private/tmp/not-the-cwd` and calling `loadSddInput()` still returned this checkout's 75 features, `graphify-out/graph.json` and `src` scan root. The failure mode is worse than a clean error: counts, gaps, git activity, milestone state and documents can silently describe different repositories on one page. Test with two complete fixtures whose feature counts, git histories, package layouts and milestone names are deliberately incompatible, and assert no value from fixture A appears while rendering fixture B. (confirmed by runtime probe)
-
-(architecture candidate, Strong recommendation from the read-only audit 2026-08-12)
-
-### Queue-Document Grammar Module
-
-- id: Q-0113
-- area: tooling
-- type: refactor
-- since: 2026-08-12
-- size: L
-- impact: med
-- confidence: med
-
-Queue semantics are spread across `src/utils/parse-blocks.ts`, `src/utils/write-blocks.ts`, the dashboard block scanners and writers, triage's `pushEmptyGroupIssues`, next-priority and route-specific description sanitization, and each implementation recognizes a slightly different subset of headings, fences, fields, categories and duplicates. Deepen one grammar that parses and serializes schema-C markdown once, owning entry and group recognition, the canonical field vocabulary, stable IDs and dependencies, exact source spans, comment and body preservation, and serialization; read adapters project roadmap and backlog models, write adapters do range-based insert, move and remove against the same parse. **Leverage:** parser and writer can no longer disagree, and every mutation runs the same strict invariant before persistence. **Deletion test:** the duplicate fence toggles, field regex construction, heading split scans, `countEntries` and `scanBlocks` structure guesses and most route sanitization all go. Preserve untouched formatting outside modified ranges — full-document pretty-printing would create noisy queue diffs and destroy locality.
-
-- The confirmed symptom: queue parsing and docs-link checking implement an incomplete fenced-code grammar, recognizing triple backticks but not CommonMark/GFM tilde fences or varying fence lengths. A roadmap holding a tilde-fenced block that contains `### Phantom` plus `- area: tooling`, followed by a real entry, parses as two entries; a markdown link inside that same tilde fence is extracted as a live internal link by `docs-check`. This can fabricate queue entries and dependencies, make writers remove or reorder example text, and produce false broken-link failures. Because `parseRoadmap`, `parseEntries`, `pushEmptyGroupIssues` and `stripCodeRegions` each toggle independently on a triple-backtick prefix, patching one leaves semantic drift. One fence scanner must understand marker character, opening length, up-to-three-space indentation, info strings and a closing fence of sufficient length. Paired fixtures: backticks and tildes, three- and four-character fences, embedded shorter runs, indented fences, unclosed fences. (confirmed by pure-function runtime probe)
-
-(architecture candidate, Worth exploring from the read-only audit 2026-08-12)
-
 ### Kind-Less `cr aggregate` Re-Reds on a Stale Addressed Spec Sink
 
 - id: Q-0154
@@ -309,19 +364,6 @@ Gate Step 4's "wait for in-flight" `cr aggregate --slug <slug>` (no `--kind`) re
 
 `--iteration-timeout` should scale with `size:` the way routing already does — XS entries finish in ~15 min while S entries with real CR rounds want 45-60, so a batch of S entries on the 30-minute default systematically burns one retry each (Q-0107 was killed mid-CR with 4 commits and green tests already produced). The operator workaround is documented in [`autonomy.md`](noldor/autonomy.md); the fix is a size-aware cap derived from the same `size:` field [`sizeToPath()`](../src/core/size-routing.ts) already reads. Deletion test: a drain batch of S entries completes without a timeout-induced retry at the default. (absorbed from a lesson, surfaced draining the 2026-08-13 S/med/fix batch, PRs #315-#319)
 
-### Architecture Doc Prose Form and Structure
-
-- id: Q-0178
-- area: docs
-- type: docs
-- since: 2026-08-24
-- size: M
-- impact: med
-- confidence: med
-- parent: consumer-architecture-doc-surface
-
-Q-0093 shipped the `docs/architecture/` registry — four pages, a presence validator, an advisory staleness check and scaffold-only templates — but left the *content* contract open, so the pages drift into long narrative prose instead of the terse technical reading the surface exists to give. Wanted: prescribe the form as well as the existence — a fixed section structure per page in `templates/docs/architecture/`, stricter C4 fidelity (each page answers its own C4 level and only that level: context = system + actors + externals, containers = runnable units, modules = internal dependency direction and state ownership, flows = load-bearing runtime paths), and a prose contract that favours diagram + labelled fact over paragraphs. Consider an advisory bloat check alongside the existing staleness one (prose-to-diagram ratio, or per-page word budget) so the drift is visible without blocking a release. Deletion test: a reader answers "how is this system shaped" from the four pages without reading a single full paragraph, and a page that has grown into an essay is flagged rather than merely stale.
-
 ### Geometry-Compare Lane — the Automated Half
 
 - id: Q-0180
@@ -339,60 +381,6 @@ The `geometry-compare` comparison engine shipped as two hand-runnable commands (
 
 - The operator restated the shape of the comparison on 2026-08-25: a SECOND verification mode alongside pixel comparison, not a replacement. Pen cannot reproduce some rendered effects (SVG filters among them), so pixel-perfect matching is the wrong instrument here and should stay reserved for cases where it holds; this lane's job is element alignment, font-size, and margins/paddings. The shipped `design geometry-validate` / `design geometry-diff` pair already reads that way — carry the framing into the lane's own prose and tolerance defaults when it unparks, so nobody re-derives it as pixel-diff with loose thresholds.
 
-### Milestone-Queue Linking
-
-- id: Q-0083
-- area: tooling
-- type: feat
-- since: 2026-08-10
-- size: M
-- impact: med
-- confidence: low
-- parent: decouple-milestones-from-semver
-
-Milestones (`docs/milestones/<slug>.md`) currently live independent of the queue — no way to say which roadmap/backlog entries belong to which milestone, or see milestone progress from the queue side. Link entries to a milestone (e.g. add a `milestone:` field to the schema-C parser — feature-MD frontmatter has one, but `BacklogEntry` in `src/utils/parse-blocks.ts` does not — or have the milestone doc list entry IDs) and add the reverse roll-up: dashboard/status compute milestone completion from its tasks.
-
-- Provázat milestone s featurama, backlogem a roadmapou — the operator raised this again on 2026-08-24: the link must run in both directions across all three surfaces (feature MDs, `docs/backlog.md`, `docs/roadmap.md`), not just feature frontmatter, so a milestone doc can enumerate its queue and the queue can name its milestone.
-
-### Scoped Link Sync for the Projection Runners
-
-- id: Q-0182
-- area: tooling
-- type: feat
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: high
-- parent: feature-md-links-overhaul
-
-`pnpm noldor sync code-links` is repo-wide with no scope flag, so running it inside a feature worktree to populate one FD's links also rewrites every other FD the tag scan touches. On the liquid-glass-ui ship it reordered `coordinate-frame-and-measurement-tools.md` and added six entries to it, pulling unrelated FD churn into a feature PR that had to be reverted by hand. The gap is in `parseRunOptions()` (`src/sync/projection.ts`), which parses only `--check`, `--force` and `--quiet` — so all four projection runners (`code-links`, `test-links`, `doc-links`, `spec-links`) share it. Add `--slug <slug>` (repeatable, or comma-separated) that restricts the write set to the named FDs while still scanning the repo for their tags, since the tags themselves live outside the FD. Deletion test: a `sync code-links --slug <x>` run leaves every FD but `<x>` byte-identical. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
-
-### UI-Design Step Pencil Recipe Corrections
-
-- id: Q-0188
-- area: docs
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: high
-- parent: pendev-ui-design-phase
-
-Two instructions in the UI-design step are wrong against the tool, and each cost a session before the tool was believed over the prose. **Seeding is not implementable as written**: the step says to copy the baseline's pages "via pencil MCP, naming them `BASE:<surface>: <name>`", but `execute` has no cross-file copy (`Copy(path, parent)` is within one document) and the baseline is ~1500 nodes, so `Get`-then-`Insert` is not a real option either. What works is a filesystem `cp` of the baseline followed by page renames — say that, or ship a `design ui-seed <slug>` that does it. The naming half is stale too: `capture-ui` emits `FINAL:app: <state>` (`PAGE_PREFIX`, `scripts/design/states.ts`), so a freshly captured baseline carries `FINAL:` pages that must be renamed to `BASE:` before they can seed anything — and the committed baseline carried `BASE:` names plus three hand-authored `VAR:` pages and a `FINAL:`, i.e. a file documented as generated-never-hand-edited had already been renamed and hand-edited. Reconcile who owns page prefixes between the recorder and the design step. **Fresh nodes render blank in their own call**: new `text` and `path` nodes come back invisible in a `TakeScreenshot` issued from the same `execute` (frames with a `fill` render, and `Copy` of an existing node renders immediately) — the pen skill claims the opposite ("screenshots reflect the changes made earlier in the same execute call"), so the guidance actively misleads and an agent diagnoses its own correct schema as broken. One line telling the author to verify in a FOLLOW-UP call, or to build from copies, pays for itself. Deletion test: a first-time author seeds a `.pen` from the baseline and screenshots a fresh node without a wrong conclusion in between. (found 2026-08-25)
-
-### Attach-Path UI Verdict Reads Touches
-
-- id: Q-0189
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: high
-- parent: pendev-ui-design-phase
-
-On attach paths the UI verdict is computed from the parent FD's entire `links.code`, so an enhancement inherits `required` from files it does not touch. `agent-camera-control` matched six paths — `App.tsx`, `ViewportArea.tsx`, three `packages/viewport/src/*` files and `useMeshData.ts` — none of which the enhancement had to touch to add two agent verbs; the source roadmap block carried no `Touches:` clause, so `sessionUiVerdict` had nothing narrower to read. The verdict happened to be right that time (the work grew a toolbar control), but it was right by accident. On `*-attach`, take the candidate paths from the source block's `Touches:` and fall back to the parent's `links.code` only when the block has none. The step should also say that a `required` verdict with no visual delta is legitimately answered by recording that, rather than by seeding a `.pen` that documents an unchanged surface. Deletion test: an attach session whose `Touches:` names only non-UI files gets `not-required` while its parent FD stays UI-bearing. (found 2026-08-25)
-
 ### Parent-Feature Opt-In Check Before Sizing
 
 - id: Q-0184
@@ -404,57 +392,6 @@ On attach paths the UI verdict is computed from the parent FD's entire `links.co
 - confidence: med
 
 Neither UI-design review lane is enabled anywhere, four days after the second one shipped: this repo declares no `consumer.uiPaths` at all, and charuy declares `uiPaths` but no `uiSurfaces`, no `uiBoot`, and `crLanes.code: [reviewer]`. Q-0144's design phase has traction (3 `.pen` files tracked in charuy) but Q-0145 `ui-reviewer` and Q-0146 `render-compare` have zero installs — which is why Q-0180, a third sibling lane, was carved back to the roadmap rather than built. The habit worth mechanising: for an entry that extends a feature, check whether the feature it extends is switched on in any known repo BEFORE sizing the work. A `pnpm noldor doctor` row or a triage-time hint reporting "the parent feature's opt-in is unset in every known consumer" turns a remembered check into a reported one. The input is already there — `- parent:` on the block, and the consumer config keys the parent feature reads. Deletion test: triaging an extension of a feature no consumer has enabled surfaces the fact in the proposal table without anyone remembering to look. (found 2026-08-25 deciding to park Q-0180)
-
-### UI Baseline Freshness Must Run the Capture
-
-- id: Q-0190
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: M
-- impact: high
-- confidence: med
-- parent: pendev-ui-design-phase
-
-`design:capture-ui` had been broken for days while both the freshness check and CI reported healthy. Two capture states drove through buttons that `ai-first-ui-hide-low-level-tools-by-default` had moved behind a disclosure, so the run died on state 8 of 10; the temp-then-rename write left the committed baseline in place, describing a toolbar that no longer existed. `checks ui-design-freshness` said `fresh` throughout, because it compares commit ordering rather than content and cannot see that the generator itself fails. The block surfaced only because a UI-bearing session tried to seed from the baseline. Wanted: the freshness check runs the capture (or a cheap dry-run of its drivers) instead of trusting timestamps, or capture runs in CI on any `uiPaths` diff so the recorder breaks loudly at the commit that breaks it. Consumer-side residue worth carrying into the same fix: charuy's `scripts/design/__tests__/validate.test.ts` opens a hardcoded `/Applications/Pencil.app/...` path unguarded and fails wherever Pencil is installed elsewhere, while the capture script guards the same path — so the one test that would have covered the schema was already red and ignored. Deletion test: a UI change that breaks a capture driver reds at that commit, not at the next session that tries to read the baseline. (found 2026-08-25)
-
-### noldor commit SIGKILLed on a Long Message Body
-
-- id: Q-0183
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: med
-- confidence: low
-
-`pnpm noldor commit` was SIGKILLed (exit 137) on a commit carrying a long multi-paragraph `-m` body, with no output at all before the kill; plain `git commit -F <file>` with the identical message succeeded and every hook ran green. The wrapper (`src/core/commit-cli.ts`) is the documented path and its failure mode is silent, so an operator reads it as a hook failure and starts debugging the wrong layer. Reproduce first — whether the kill is the wrapper OOMing on large argv, the harness truncating it, or the platform's argv limit is unknown — then either fix the handling or spool a long body through a temp file the way `-F` does. Deletion test: a commit with a multi-kilobyte body succeeds through the wrapper, or fails with a message that names the cause. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
-
-### Mandatory C4 Diagram for New Feature MDs
-
-- id: Q-0185
-- area: docs
-- type: feat
-- since: 2026-08-25
-- size: M
-- impact: med
-- confidence: med
-- parent: consumer-architecture-doc-surface
-
-A full new FD should carry a mermaid diagram at the C4 level that fits it, semi-mandatory rather than optional: prose alone is what lets an FD's shape stay implicit until a reader has to reconstruct it from `links.code`. Q-0178 prescribes form for the four `docs/architecture/` registry pages; this is the per-feature counterpart — the FD template grows a diagram section, `/noldor-new-feature` and `/noldor-promote` scaffold the fence, and a check reports an FD on a `full` path whose diagram section is still a stub. Semi-mandatory means advisory-with-teeth: report it, let a `noldor:cut` marker record a deliberate skip, do not block a ship on it. Scope the requirement by path tier (`full` earns a diagram; `fast-track` and `micro-chore` never do) so it does not tax the XS drain. Deletion test: a reader gets the shape of a newly shipped `full` feature from its FD without opening a source file. (found 2026-08-25)
-
-### Design Approval Step Before Implementation
-
-- id: Q-0186
-- area: tooling
-- type: feat
-- since: 2026-08-25
-- size: M
-- impact: med
-- confidence: low
-- parent: pendev-ui-design-phase
-
-The `.pen` lifecycle has no approval seam. The baseline half works well, but a feature's design artifact goes straight to `docs/design/ui/archive/` — archived before anyone confirmed the design was the one to build. What the flow is missing is a step inside the implementation path: the agent opens (or creates) the feature's `.pen`, edits it, and the operator confirms THAT design before code starts, with the archive move happening after the confirmation rather than instead of it. The pieces exist — `design pen-bridge` already opens a `.pen` in the declared editor (Q-0179), and the UI-design stage already computes whether a session is UI-bearing — so this is sequencing and a recorded verdict more than new machinery. Sizing is loose because the seam touches the gate's stage order; spec it before planning. Deletion test: a UI-bearing session cannot reach the code stage without a recorded design verdict, and an approved `.pen` archives with the approval attached. (found 2026-08-25)
 
 ### Clones Ratchet and Clone-Group Check Disagree on Attribution
 
@@ -481,3 +418,15 @@ The `.pen` lifecycle has no approval seam. The baseline half works well, but a f
 - parent: scope-sibling-trailer-for-doc-sync-commits
 
 A commit touching `src/**` and `docs/noldor/**` needs a `Noldor-Sibling-Scope: noldor:<page>` trailer, and the `noldor-scope` hook only says so after the commit has already been rejected. The mechanism is fully documented in [git-and-commits.md](noldor/git-and-commits.md#sibling-doc-sync-commits-noldor-sibling-scope) — this is purely about when the operator meets it: every change whose fix spans code plus its runner-neutral doc twin hits the rejection first and reads the doc second. Pre-empt it in the gate prose for mixed-diff paths, or suggest the trailer at stage time from the staged file set rather than at reject time (the hook already computes the exact line it prints). Deletion test: an operator committing a code + `docs/noldor/` change is told about the trailer before the commit is attempted. (found 2026-08-24 shipping Q-0158)
+
+### noldor commit SIGKILLed on a Long Message Body
+
+- id: Q-0183
+- area: tooling
+- type: fix
+- since: 2026-08-25
+- size: S
+- impact: med
+- confidence: low
+
+`pnpm noldor commit` was SIGKILLed (exit 137) on a commit carrying a long multi-paragraph `-m` body, with no output at all before the kill; plain `git commit -F <file>` with the identical message succeeded and every hook ran green. The wrapper (`src/core/commit-cli.ts`) is the documented path and its failure mode is silent, so an operator reads it as a hook failure and starts debugging the wrong layer. Reproduce first — whether the kill is the wrapper OOMing on large argv, the harness truncating it, or the platform's argv limit is unknown — then either fix the handling or spool a long body through a temp file the way `-F` does. Deletion test: a commit with a multi-kilobyte body succeeds through the wrapper, or fails with a message that names the cause. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
