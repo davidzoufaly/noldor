@@ -134,6 +134,33 @@ describe('libFloorChecks', () => {
     expect(out[0]?.message).toContain('es2024');
   });
 
+  it('does not count a granular sub-library as the whole annual library', () => {
+    // es2025.regexp carries RegExp.escape and nothing else — none of the Set
+    // operations or iterator helpers the floor requires.
+    const out = libFloorChecks('tsconfig.json', {
+      compilerOptions: { lib: ['ES2025.RegExp', 'ESNext.Disposable'] },
+    });
+    expect(ids(out)).toEqual(['lib-es-builtins']);
+  });
+
+  it('does not count an invented year suffix either', () => {
+    const out = libFloorChecks('tsconfig.json', {
+      compilerOptions: { lib: ['ES9999.Foo', 'ESNext.Disposable'] },
+    });
+    expect(ids(out)).toEqual(['lib-es-builtins']);
+  });
+
+  it('blocks on a lib declared as a string rather than an array', () => {
+    // A plausible typo that tsc rejects outright; reading it as "inherited"
+    // skipped both checks on a config that does not compile at all.
+    const out = libFloorChecks('tsconfig.json', {
+      compilerOptions: { lib: 'ESNext' },
+    });
+    expect(ids(out)).toEqual(['lib-malformed']);
+    expect(out[0]?.severity).toBe('error');
+    expect(out[0]?.message).toContain('a string');
+  });
+
   it('reads the year out of a .full-suffixed entry', () => {
     expect(
       libFloorChecks('tsconfig.json', {
@@ -155,35 +182,69 @@ describe('libFloorChecks', () => {
   });
 });
 
+/** Scan then parse, asserting the scan succeeded — the happy path in one step. */
+const parseJsonc = (text: string): unknown => {
+  const scan = stripJsonc(text);
+  if (!scan.ok) throw new Error(`unexpected scan failure: ${scan.detail}`);
+  return JSON.parse(scan.text);
+};
+
 describe('stripJsonc', () => {
   it('removes line and block comments', () => {
     const text = '{\n  // leading\n  "a": 1, /* inline */\n  "b": 2\n}';
-    expect(JSON.parse(stripJsonc(text))).toEqual({ a: 1, b: 2 });
+    expect(parseJsonc(text)).toEqual({ a: 1, b: 2 });
   });
 
   it('removes trailing commas in objects and arrays', () => {
-    expect(JSON.parse(stripJsonc('{ "a": [1, 2, ], }'))).toEqual({ a: [1, 2] });
+    expect(parseJsonc('{ "a": [1, 2, ], }')).toEqual({ a: [1, 2] });
   });
 
   it('leaves comment-like sequences inside strings alone', () => {
     // The repo's own .oxlintrc.json carries a $schema URL; a regex-based strip
     // eats everything after its `//`.
     const text = '{ "$schema": "https://example.com/s.json", "a": 1 }';
-    expect(JSON.parse(stripJsonc(text))).toEqual({
+    expect(parseJsonc(text)).toEqual({
       $schema: 'https://example.com/s.json',
       a: 1,
     });
   });
 
   it('leaves an escaped quote inside a string from ending it', () => {
-    expect(JSON.parse(stripJsonc('{ "a": "sl\\"ash", "b": 1 }'))).toEqual({
-      a: 'sl"ash',
-      b: 1,
-    });
+    expect(parseJsonc('{ "a": "sl\\"ash", "b": 1 }')).toEqual({ a: 'sl"ash', b: 1 });
   });
 
   it('leaves a comma inside a string alone', () => {
-    expect(JSON.parse(stripJsonc('{ "a": "x,", "b": [1] }'))).toEqual({ a: 'x,', b: [1] });
+    expect(parseJsonc('{ "a": "x,", "b": [1] }')).toEqual({ a: 'x,', b: [1] });
+  });
+
+  it('rejects an unterminated block comment instead of swallowing it', () => {
+    const scan = stripJsonc('{ "a": 1 }\n/* never closed');
+    expect(scan.ok).toBe(false);
+    expect(scan.ok === false && scan.detail).toContain('unterminated block comment');
+  });
+
+  it('rejects an unterminated string literal', () => {
+    const scan = stripJsonc('{ "a": "open');
+    expect(scan.ok).toBe(false);
+    expect(scan.ok === false && scan.detail).toContain('unterminated string');
+  });
+
+  it('does not repair a comma that follows no value', () => {
+    // `{,}` and `[,]` are invalid JSONC; dropping the comma would make them
+    // parse, so a malformed config would read as a checked one.
+    for (const broken of ['{,}', '[,]', '{ "a": [,] }']) {
+      const scan = stripJsonc(broken);
+      expect(scan.ok).toBe(true);
+      expect(() => JSON.parse(scan.ok ? scan.text : '')).toThrow();
+    }
+  });
+
+  it('still drops a trailing comma after each kind of value', () => {
+    expect(parseJsonc('{ "a": 1, "b": [2, ], "c": { "d": null, }, }')).toEqual({
+      a: 1,
+      b: [2],
+      c: { d: null },
+    });
   });
 });
 
@@ -484,6 +545,16 @@ describe('makeToolchainFloorInvariant', () => {
     expect(result.invariant).toBe('toolchain-floor');
     const blocking = result.violations.filter((v) => v.severity !== 'warn');
     expect(blocking).not.toEqual([]);
+  });
+
+  it('says nothing about waivers when there is simply no consumer config', async () => {
+    // Most repos running this floor have no toolchainFloor block at all; a
+    // "waivers could not be read" line in front of every one of them is noise
+    // that trains the reader to skip the warning channel.
+    const result = await makeToolchainFloorInvariant(root).run();
+    expect(result.violations.some((v) => v.message.includes('waivers could not be read'))).toBe(
+      false,
+    );
   });
 
   it('downgrades a waived id to a warn that quotes the reason', async () => {

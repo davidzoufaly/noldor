@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 
@@ -17,6 +18,7 @@ const TSCONFIG_CANDIDATES = ['tsconfig.base.json', 'tsconfig.json'] as const;
 
 const OXLINTRC = '.oxlintrc.json';
 const PACKAGE_JSON = 'package.json';
+const CONSUMER_CONFIG = '.noldor/config.json';
 
 /**
  * Directories never descended when collecting workspace manifests. `dist` and
@@ -54,8 +56,19 @@ const DISPOSABLE_LIB = 'esnext.disposable';
  */
 const ES_BUILTINS_FLOOR_YEAR = 2025;
 
-/** Matches an `es<year>` lib entry, with or without a `.full` / sub-library suffix. */
-const ES_YEAR_RE = /^es(\d{4})(?:\..+)?$/;
+/**
+ * Matches a lib entry that provides a whole annual library: bare `es<year>` or
+ * `es<year>.full`.
+ *
+ * A granular sub-library must NOT match. `es2025.regexp` carries `RegExp.escape`
+ * and nothing else, so counting it as "es2025" passed a config providing none of
+ * the Set operations or iterator helpers this floor exists to require. A year
+ * beyond what TypeScript actually ships (`es9999`) is accepted here by design
+ * rather than capped: a bogus lib entry is a hard `tsc` error the moment
+ * anything compiles, so it is the compiler's to report, and hard-coding a known
+ * maximum would red every repo that adopts the next annual library on time.
+ */
+const ES_YEAR_RE = /^es(\d{4})(?:\.full)?$/;
 
 /**
  * oxlint rules that are the React Compiler's precondition, each with why it must
@@ -74,6 +87,13 @@ const REACT_HOOK_RULES = [
     why: '`correctness` covers it today, but a category can be reshuffled upstream; naming it pins the machine half in the config instead of leaving it implied (same reason `eslint/no-async-promise-executor` is listed explicitly)',
   },
 ] as const;
+
+/**
+ * Characters that can end a JSON scalar — digits, `true`/`false`/`null` letters,
+ * and the numeric punctuation. Used to tell "comma after a value" (droppable
+ * when trailing) from "comma after nothing" (a malformed document).
+ */
+const VALUE_TAIL_RE = /[\w.+-]/;
 
 /** Severity levels oxlint treats as "this blocks the lint run". */
 const DENYING_LEVELS = new Set(['error', 'deny']);
@@ -142,6 +162,11 @@ type PackageJsonShape = z.infer<typeof PackageJsonSchema>;
  */
 type ReadFailure = 'absent' | 'invalid';
 
+/** The outcome of scanning a JSON-with-comments document. */
+export type JsoncScan =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly detail: string };
+
 /** A validated config file, or the reason it could not be read. */
 type ReadResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -169,10 +194,16 @@ type ReadResult<T> =
  * survives, which a regex-based strip gets wrong on any config containing a URL
  * (`"$schema": "https://…"` — present in this repo's own `.oxlintrc.json`).
  *
+ * Lexically invalid input is rejected rather than repaired: an unterminated
+ * block comment or string would otherwise be silently swallowed, and a stripper
+ * that turns a broken document into a parseable one contradicts the guarantee
+ * that a present-but-invalid config blocks.
+ *
  * @param text - Raw file contents.
- * @returns The same document with comments blanked and trailing commas removed.
+ * @returns The document with comments removed and trailing commas dropped, or
+ *   why it could not be scanned.
  */
-export function stripJsonc(text: string): string {
+export function stripJsonc(text: string): JsoncScan {
   const out: string[] = [];
   let inString = false;
   let inLineComment = false;
@@ -224,26 +255,43 @@ export function stripJsonc(text: string): string {
     out.push(ch);
   }
 
+  if (inBlockComment) return { ok: false, detail: 'unterminated block comment' };
+  if (inString) return { ok: false, detail: 'unterminated string literal' };
+
   // Trailing commas: a comma whose next non-whitespace character closes the
   // collection. Safe on the comment-stripped text, where no comma can be inside
   // a comment and string contents were pushed verbatim above.
-  return dropTrailingCommas(out.join(''));
+  return { ok: true, text: dropTrailingCommas(out.join('')) };
 }
 
-/** Remove `,` immediately preceding a `}` or `]`, ignoring whitespace between. */
+/**
+ * Remove `,` immediately preceding a `}` or `]`, ignoring whitespace between —
+ * but only where the comma actually follows a value.
+ *
+ * The distinction matters because this must not *repair* a broken document:
+ * `{,}` and `[,]` are invalid JSONC, and dropping their comma hands
+ * `JSON.parse` something that succeeds, so a malformed config would read as a
+ * checked one. A comma is therefore droppable only when the previous
+ * significant character ends a value (`}`, `]`, a closing quote, or an
+ * identifier/number character).
+ */
 function dropTrailingCommas(text: string): string {
   const chars = [...text];
   let inString = false;
   let escaped = false;
   const drop = new Set<number>();
   let pendingComma = -1;
+  let prevEndsValue = false;
 
   for (let i = 0; i < chars.length; i += 1) {
     const ch = chars[i] as string;
     if (inString) {
       if (escaped) escaped = false;
       else if (ch === '\\') escaped = true;
-      else if (ch === '"') inString = false;
+      else if (ch === '"') {
+        inString = false;
+        prevEndsValue = true;
+      }
       continue;
     }
     if (ch === '"') {
@@ -252,11 +300,13 @@ function dropTrailingCommas(text: string): string {
       continue;
     }
     if (ch === ',') {
-      pendingComma = i;
+      pendingComma = prevEndsValue ? i : -1;
+      prevEndsValue = false;
       continue;
     }
     if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') continue;
     if ((ch === '}' || ch === ']') && pendingComma >= 0) drop.add(pendingComma);
+    prevEndsValue = ch === '}' || ch === ']' || VALUE_TAIL_RE.test(ch);
     pendingComma = -1;
   }
 
@@ -286,9 +336,12 @@ async function readConfig<T>(
       : { ok: false, failure: 'invalid', detail: `unreadable: ${(err as Error).message}` };
   }
 
+  const scan = stripJsonc(text);
+  if (!scan.ok) return { ok: false, failure: 'invalid', detail: `not valid JSONC: ${scan.detail}` };
+
   let raw: unknown;
   try {
-    raw = JSON.parse(stripJsonc(text));
+    raw = JSON.parse(scan.text);
   } catch (err) {
     return {
       ok: false,
@@ -461,7 +514,20 @@ function libYear(entry: string): number | undefined {
  */
 export function libFloorChecks(path: string, cfg: TsConfigShape): FloorViolation[] {
   const declared = cfg.compilerOptions?.lib;
-  if (!Array.isArray(declared)) return [];
+  if (declared === undefined) return [];
+  if (!Array.isArray(declared)) {
+    // `"lib": "ESNext"` is a plausible typo that `tsc` rejects outright. Reading
+    // it as "no lib declared, therefore inherited" silently skipped both checks
+    // on a config that does not compile at all.
+    return [
+      {
+        id: 'lib-malformed',
+        file: path,
+        severity: 'error',
+        message: `${path}: compilerOptions.lib is ${typeof declared === 'string' ? 'a string' : `a ${typeof declared}`}, not an array — \`tsc\` rejects that, and the lib floor cannot be checked against it. Write it as an array (\`"lib": ["ESNext", "DOM"]\`).`,
+      },
+    ];
+  }
 
   const entries = declared
     .filter((entry): entry is string => typeof entry === 'string')
@@ -634,6 +700,11 @@ interface WaiverLoad {
  * message is carried out and reported as a `warn`.
  */
 function loadWaivers(root: string): WaiverLoad {
+  // An absent consumer config waives nothing and is not a problem — most repos
+  // running this floor have no `toolchainFloor` block at all. Only a config that
+  // EXISTS and could not be used is worth a warn; conflating the two put a
+  // "waivers could not be read" line in front of every consumer without one.
+  if (!existsSync(join(root, CONSUMER_CONFIG))) return { waivers: [] };
   try {
     return { waivers: loadConsumerConfig(root).toolchainFloor?.waivers ?? [] };
   } catch (err) {
@@ -674,7 +745,7 @@ export function makeToolchainFloorInvariant(repoRoot: string): Invariant {
 
       if (load.error !== undefined) {
         violations.push({
-          file: '.noldor/config.json',
+          file: CONSUMER_CONFIG,
           severity: 'warn',
           message: `toolchain-floor waivers could not be read, so every floor item below is reported unwaived: ${load.error}`,
         });
