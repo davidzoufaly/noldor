@@ -31,7 +31,7 @@
     "test": "vitest run",
     "test:contract": "node scripts/test-contract.mjs",
     "test:e2e:drain": "vitest run src/testing/__tests__/drain-e2e.test.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
     "lint": "oxlint --deny-warnings",
     "lint:fix": "oxlint --fix",
     "fmt": "node bin/noldor.mjs fmt",

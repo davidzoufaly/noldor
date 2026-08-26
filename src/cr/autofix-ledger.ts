@@ -65,12 +65,12 @@ export type AutofixLedger = z.infer<typeof autofixLedgerSchema>;
  * infra, which is a fail-open cap reset — the one direction this design refuses.
  */
 export class LedgerParseError extends Error {
-  constructor(
-    readonly path: string,
-    cause: unknown,
-  ) {
+  readonly path: string;
+
+  constructor(path: string, cause: unknown) {
     super(`autofix ledger at ${path} is malformed: ${(cause as Error)?.message ?? String(cause)}`);
     this.name = 'LedgerParseError';
+    this.path = path;
   }
 }
 
