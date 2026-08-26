@@ -526,23 +526,15 @@ function libYear(entry: string): number | undefined {
  */
 export function libFloorChecks(path: string, cfg: TsConfigShape): FloorViolation[] {
   const declared = cfg.compilerOptions?.lib;
-  if (declared === undefined) {
-    // Absent means "inherit" — from `extends`, or from `target`'s default — and
-    // this floor does not resolve either (TypeScript 7 ships no in-process JS
-    // parser API to walk the graph with). Silence here was a hole every review
-    // round found: a standalone config with `target: ES2023` and no `lib`
-    // provides neither Explicit Resource Management nor the mandated built-ins,
-    // and passed. So report it as unchecked, the same way every other
-    // unresolvable input in this module is reported, rather than as met.
-    return [
-      {
-        id: 'lib-inherited',
-        file: path,
-        severity: 'warn',
-        message: `${path}: compilerOptions.lib is not declared, so the lib floor went unchecked — it resolves through \`extends\` or from \`target\`, and this floor reads root configs rather than the resolved graph. Declare a \`lib\` here (\`["ESNext", "DOM"]\` satisfies both halves) to make it checkable, or confirm by hand that the inherited set carries Explicit Resource Management and es${ES_BUILTINS_FLOOR_YEAR} built-ins.`,
-      },
-    ];
-  }
+  // Undeclared means "inherit", and whether that leaves the floor unchecked is a
+  // question about the repo, not about this file: in the ordinary monorepo split
+  // the base config holds strictness and declares no `lib` on purpose, because
+  // the root config that extends it declares a compliant one. Warning per file
+  // would fire permanently on a repo that fully meets the floor. So the
+  // per-file answer is "nothing to say" and the repo-level decision — did ANY
+  // root candidate declare a checkable `lib`? — is made in
+  // {@link collectFloorViolations}, which is the only place that can see it.
+  if (declared === undefined) return [];
   if (!Array.isArray(declared)) {
     // `"lib": "ESNext"` is a plausible typo that `tsc` rejects outright. Reading
     // it as "no lib declared, therefore inherited" silently skipped both checks
@@ -649,6 +641,8 @@ export async function collectFloorViolations(root: string): Promise<FloorViolati
   // declares a `lib` — see libFloorChecks for why the two cannot share an anchor.
   let anchored = false;
   let sawCandidate = false;
+  let sawDeclaredLib = false;
+  let anchorPath: string = TSCONFIG_CANDIDATES[1];
   for (const candidate of TSCONFIG_CANDIDATES) {
     const read = await readConfig(root, candidate, TsConfigSchema);
     if (!read.ok) {
@@ -665,9 +659,25 @@ export async function collectFloorViolations(root: string): Promise<FloorViolati
     sawCandidate = true;
     if (!anchored) {
       out.push(...tsconfigFloorChecks(candidate, read.value));
+      anchorPath = candidate;
       anchored = true;
     }
+    if (read.value.compilerOptions?.lib !== undefined) sawDeclaredLib = true;
     out.push(...libFloorChecks(candidate, read.value));
+  }
+  if (anchored && !sawDeclaredLib) {
+    // No root candidate took ownership of its type surface, so the effective
+    // `lib` comes from `extends` or from `target` — neither of which this floor
+    // resolves, TypeScript 7 having no in-process JS parser API to walk the
+    // graph with. Reported once, against the anchor, as unchecked rather than
+    // met: a standalone `target: ES2023` config provides neither Explicit
+    // Resource Management nor the mandated built-ins and used to pass silently.
+    out.push({
+      id: 'lib-inherited',
+      file: anchorPath,
+      severity: 'warn',
+      message: `no root tsconfig declares compilerOptions.lib, so the lib floor went unchecked — it resolves through \`extends\` or from \`target\`, and this floor reads root configs rather than the resolved graph. Declare a \`lib\` in one of them (\`["ESNext", "DOM"]\` satisfies both halves), or confirm by hand that the inherited set carries Explicit Resource Management and es${ES_BUILTINS_FLOOR_YEAR} built-ins.`,
+    });
   }
   if (!sawCandidate) {
     out.push({
