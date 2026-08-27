@@ -16,18 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Inject CR Lane Seams Instead of Mocking Them
-
-- id: Q-0195
-- area: testing
-- type: refactor
-- since: 2026-08-26
-- size: M
-- impact: med
-- confidence: high
-
-`.noldor/rules/test-mocking-boundaries.md` (enforce, shipped in #391) bans mocking a module the change itself owns, and the CR pipeline is where the repo breaks its own rule: 23 relative `vi.mock` calls across 12 test files, 11 of them under `src/cr/`. `cr/orchestrate.ts` imports `runManual` / `runCodex` / `runSubagent` / `runRenderCompare` statically at module top, so `orchestrate.test.ts`, `orchestrate.integration.test.ts`, `delta.test.ts` and `prior-review.test.ts` can only reach the dispatch logic by replacing those modules — which means those suites assert against the mock, not against lane dispatch, and a real wiring regression passes them. Seven distinct seams, all the same shape: the lane registry in `orchestrate.ts`; `core/prompt-stdin.js` (`overwrite-guard`, `escalate`, `lanes/manual`); `core/agent-runner/registry.js` (`subagent-dispatch`, `verify-dispatch`); `deep-review-spawn.js` (`escalate`); `read-fd-summary.js` + `core/branch-added.js` (`lanes/subagent`); `review-with-codex.js` + `codex-adapter.js` (`lanes/codex`); and `release/fd-prs-since-tag.js` (`dashboard-render-markdown`, the one non-CR file). The fix is the pattern already proven in this repo — an optional second parameter defaulting to the real implementations, as `upWorktree(opts, deps = defaultDeps)` does — so each call site keeps its signature and each test passes a hand-rolled fake instead of a module mock. Sized M rather than S because the seam runs through the framework's own review path: a botched lane registry breaks the gate that would catch it, so the spec must say which seams convert together and how the CR pass is re-earned mid-refactor. Deletion test: gutting a lane's dispatch (wrong lane called, `--base-sha` dropped, timeout not forwarded) reds an orchestrate test, and `grep -rn "vi\.mock(['\"]\.\.\?/" src` returns nothing outside a seam with a written justification. (found 2026-08-26)
-
 ### Graph Evidence in Specs and ADRs
 
 - id: Q-0194
@@ -430,3 +418,23 @@ A commit touching `src/**` and `docs/noldor/**` needs a `Noldor-Sibling-Scope: n
 - confidence: low
 
 `pnpm noldor commit` was SIGKILLed (exit 137) on a commit carrying a long multi-paragraph `-m` body, with no output at all before the kill; plain `git commit -F <file>` with the identical message succeeded and every hook ran green. The wrapper (`src/core/commit-cli.ts`) is the documented path and its failure mode is silent, so an operator reads it as a hook failure and starts debugging the wrong layer. Reproduce first — whether the kill is the wrapper OOMing on large argv, the harness truncating it, or the platform's argv limit is unknown — then either fix the handling or spool a long body through a temp file the way `-F` does. Deletion test: a commit with a multi-kilobyte body succeeds through the wrapper, or fails with a message that names the cause. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
+
+### Inject CR Lane Seams Instead of Mocking Them
+
+- id: Q-0195
+- area: testing
+- type: refactor
+- since: 2026-08-26
+- size: M
+- impact: low
+- confidence: high
+
+`.noldor/rules/test-mocking-boundaries.md` (enforce, shipped in #391) bans mocking a module the change itself owns, and the CR pipeline is where the repo breaks its own rule: 23 relative `vi.mock` calls across 12 test files, 11 of them under `src/cr/`. `cr/orchestrate.ts` imports `runManual` / `runCodex` / `runSubagent` / `runRenderCompare` statically into its `LANES` table, so `orchestrate.test.ts`, `orchestrate.integration.test.ts`, `delta.test.ts` and `prior-review.test.ts` can only reach the dispatch logic by replacing those modules.
+
+**This is maintenance debt, not a coverage hole — measured, so nobody re-derives a false urgency.** Two real dispatch regressions were injected into `orchestrate.ts` and the four suites run against them: leaking `priorReview` onto every lane instead of only the reviewer, and dropping the `delete dispatchInput.baseSha` that a `fullReviewOverride` round depends on. Result `2 failed | 47 passed` — both caught. The mocks are inspected through `mock.calls`, which makes them scripted fakes wired via the module registry rather than via a parameter; functionally equivalent, so the suites are not blind.
+
+What the current shape actually costs: a lane file that moves or is renamed breaks the tests with no behaviour change, which is the exact failure the rule exists to prevent; `vi.mock` is file-wide, so no single file can mix a real lane with a fake one; the mock factories hoist above the `import { run }` beneath them, so the file reads in a different order than it runs; and the repo already does this properly elsewhere — `setSmokeRunner` and `setVerifyDispatcher` are injected in that same test file, and `upWorktree(opts, deps = defaultDeps)` is the parameter form. The four main lanes just never caught up.
+
+Seven seams, all the same shape: the lane registry in `orchestrate.ts`; `core/prompt-stdin.js` (`overwrite-guard`, `escalate`, `lanes/manual`); `core/agent-runner/registry.js` (`subagent-dispatch`, `verify-dispatch`); `deep-review-spawn.js` (`escalate`); `read-fd-summary.js` + `core/branch-added.js` (`lanes/subagent`); `review-with-codex.js` + `codex-adapter.js` (`lanes/codex`); and `release/fd-prs-since-tag.js` (`dashboard-render-markdown`, the one non-CR file). Fix each with an optional second parameter defaulting to the real implementations, so call sites keep their signature and each test passes a hand-rolled fake.
+
+Sized M on volume — seven seams, ~20 files — while `impact: low` reflects that nothing is broken today; the two together are why this sits low in the file rather than at the top. A cheaper route than a standalone PR is folding each seam into whatever change next touches that file, since the spec-worthy question is only sequencing: which seams convert together, and how the code-stage receipt is re-earned mid-refactor when the refactor edits the CR pipeline itself. Deletion test: after the conversion, `grep -rn "vi\.mock(['\"]\.\.\?/" src` returns nothing outside a seam carrying a written justification, and both sabotage probes above still red. (found 2026-08-26, rationale corrected 2026-08-27)
