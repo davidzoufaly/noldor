@@ -70,9 +70,9 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 ### `check:shared-files`
 
 - **Trigger:** `pnpm noldor checks shared-files`. Runs in `pre-commit` (`validate.shared-files` job).
-- **Inputs:** staged file list; the cwd; the shared-root allowlist (`CLAUDE.md`, `.claude/engineering-rules.md`, `package.json`, `pnpm-lock.yaml`, `.claude/skills/**`, `.claude/commands/**`).
-- **Outputs:** exit 0 from main worktree always; from a `.worktrees/*` tree, exit 1 listing shared files unless `NOLDOR_ALLOW_SHARED=1`.
-- **When to use:** automatic. Forces shared-file edits onto main where they are visible to other worktrees.
+- **Inputs:** staged changes (`git diff --cached --name-status -z`, so renames read as delete-old + add-new); the cwd; the shared-root allowlist (`CLAUDE.md`, `.claude/engineering-rules.md`, `package.json`, `pnpm-lock.yaml`, `.claude/skills/**`, `.claude/commands/**`); the `.pen` write-guard paths (`docs/design/ui/baseline/**`, any `**/archive/**`).
+- **Outputs:** exit 0 when nothing is refused; exit 1 listing each refused path with its reason. Shared-root files are refused only from a `.worktrees/*` tree and waived by `NOLDOR_ALLOW_SHARED=1`. A baseline `.pen` is refused from a `.worktrees/*` tree; an archived `.pen` modified or moved out of `archive/` is refused everywhere (an archive move *into* `archive/` is an add, and passes). Both `.pen` rules are waived by `NOLDOR_ALLOW_PEN_WRITE=1`, which the gate's Step 4 baseline write-back sets.
+- **When to use:** automatic. Forces shared-file edits onto main where they are visible to other worktrees, and catches a pencil MCP write that landed on the wrong open canvas (Q-0187).
 - **Source:** [`src/checks/check-shared-files.ts`](../../src/checks/check-shared-files.ts)
 
 ### `check:template-sync`
