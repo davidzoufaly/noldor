@@ -4,12 +4,17 @@ import {
   validateDocFeatureSlugs,
   validateDocTagPresence,
   validateFiles,
+  validateLinkTargets,
   validatePackagesField,
   validateTaggedSlugs,
   validateTestTagPresence,
   validateTierVsSpec,
 } from '../validate-features.js';
-import { FeatureFrontmatterSchema } from '../../core/feature-schema.js';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { FeatureFrontmatterSchema, LOST_SENTINEL } from '../../core/feature-schema.js';
 
 // @tests: feature-md-links-overhaul, framework-milestones-support-poc-mvp-100
 describe(validateFiles, () => {
@@ -224,5 +229,67 @@ describe('links.design frontmatter field', () => {
         links: { ...base.links, design: 'docs/design/ui/2026-08-19-x.pen' },
       }),
     ).not.toThrow();
+  });
+});
+
+describe(validateLinkTargets, () => {
+  const base = {
+    area: 'tooling',
+    category: 'Tooling',
+    deps: [],
+    name: 'X',
+    packages: ['package.json'],
+    phase: 'in-progress' as const,
+    'noldor-tier': 'specs-only' as const,
+  };
+
+  function fd(links: Record<string, unknown>) {
+    return { ...base, links: { code: [], docs: [], tests: [], ...links } } as never;
+  }
+
+  it('flags a links.spec pointing at the pre-archive location', () => {
+    const errors = validateLinkTargets(fd({ spec: 'docs/design/specs/2026-01-01-gone-design.md' }));
+    expect(errors).toStrictEqual([
+      'links.spec: target does not resolve: docs/design/specs/2026-01-01-gone-design.md',
+    ]);
+  });
+
+  it('resolves pointers against the injected repo root, not the cwd', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fd-link-targets-'));
+    mkdirSync(join(dir, 'docs/design/specs/archive'), { recursive: true });
+    const rel = 'docs/design/specs/archive/2026-01-01-here-design.md';
+    writeFileSync(join(dir, rel), 'spec\n');
+    expect(validateLinkTargets(fd({ spec: rel }), dir)).toStrictEqual([]);
+    // Same value, wrong root — the pointer is only resolvable relative to `dir`.
+    expect(validateLinkTargets(fd({ spec: rel }), join(dir, 'docs'))).toHaveLength(1);
+  });
+
+  it('flags every unresolvable element of a links.plan list', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fd-link-targets-'));
+    mkdirSync(join(dir, 'docs/design/plans'), { recursive: true });
+    writeFileSync(join(dir, 'docs/design/plans/2026-01-01-a.md'), 'plan\n');
+    const errors = validateLinkTargets(
+      fd({ plan: ['docs/design/plans/2026-01-01-a.md', 'docs/design/plans/2026-01-01-b.md'] }),
+      dir,
+    );
+    expect(errors).toStrictEqual([
+      'links.plan: target does not resolve: docs/design/plans/2026-01-01-b.md',
+    ]);
+  });
+
+  it('flags a dangling links.design pen pointer', () => {
+    const errors = validateLinkTargets(fd({ design: 'docs/design/ui/2026-01-01-gone.pen' }));
+    expect(errors).toStrictEqual([
+      'links.design: target does not resolve: docs/design/ui/2026-01-01-gone.pen',
+    ]);
+  });
+
+  it('skips the n/a and lost-pre-extraction sentinels and absolute URLs', () => {
+    expect(validateLinkTargets(fd({ plan: 'n/a', spec: LOST_SENTINEL }))).toStrictEqual([]);
+    expect(validateLinkTargets(fd({ spec: 'https://example.com/spec.md' }))).toStrictEqual([]);
+  });
+
+  it('returns no errors when the FD declares no design pointers', () => {
+    expect(validateLinkTargets(fd({}))).toStrictEqual([]);
   });
 });

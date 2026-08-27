@@ -7,30 +7,23 @@ import { join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { LOST_SENTINEL } from '../../core/feature-schema.js';
+import { isCheckableLinkPath } from '../../core/feature-schema.js';
 import type { Gap } from '../../core/fd-load.js';
-
-/** Link values that are deliberately not paths. */
-const SENTINELS = new Set(['n/a', LOST_SENTINEL]);
-
-function isCheckablePath(v: unknown): v is string {
-  return (
-    typeof v === 'string' && v !== '' && !SENTINELS.has(v) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v)
-  );
-}
 
 function collectTargets(links: Record<string, unknown>): Array<{ key: string; path: string }> {
   const out: Array<{ key: string; path: string }> = [];
   for (const key of ['code', 'tests', 'docs'] as const) {
     const arr = links[key];
     if (!Array.isArray(arr)) continue;
-    for (const v of arr) if (isCheckablePath(v)) out.push({ key, path: v });
+    for (const v of arr) if (isCheckableLinkPath(v)) out.push({ key, path: v });
   }
-  for (const key of ['spec', 'plan'] as const) {
+  // `design` included: the UI-design `.pen` pointer moves at archival like the
+  // spec and the plan do, so the same rot applies to it.
+  for (const key of ['spec', 'plan', 'design'] as const) {
     const v = links[key];
-    if (isCheckablePath(v)) out.push({ key, path: v });
+    if (isCheckableLinkPath(v)) out.push({ key, path: v });
     if (Array.isArray(v))
-      for (const item of v) if (isCheckablePath(item)) out.push({ key, path: item });
+      for (const item of v) if (isCheckableLinkPath(item)) out.push({ key, path: item });
   }
   return out;
 }

@@ -21,6 +21,32 @@ export type Category = string;
  */
 export const LOST_SENTINEL = 'lost-pre-extraction';
 
+/**
+ * `links.*` values that are deliberately NOT filesystem paths: `n/a` is the
+ * opt-out marker the Resources renderer prints as such, and
+ * {@link LOST_SENTINEL} names an artifact that never migrated. Neither may be
+ * stat'ed — a resolver that tried would report every opt-out as rot.
+ */
+export const LINK_SENTINELS: ReadonlySet<string> = new Set(['n/a', LOST_SENTINEL]);
+
+/**
+ * True when a `links.*` value names a repo-relative path whose existence can be
+ * checked on disk. Excludes the {@link LINK_SENTINELS} and absolute URLs
+ * (`links.docs` may carry an external reference).
+ *
+ * Lives in core because both halves of the FD-link contract need the same
+ * predicate: `features validate` errors on a dangling design-artifact pointer,
+ * and the `fd-link-rot` garden detector reports the advisory rest.
+ */
+export function isCheckableLinkPath(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value !== '' &&
+    !LINK_SENTINELS.has(value) &&
+    !/^[a-z][a-z0-9+.-]*:\/\//i.test(value)
+  );
+}
+
 const LinksSchema = z
   .object({
     code: z.array(z.string()).default([]),

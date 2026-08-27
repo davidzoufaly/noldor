@@ -17,7 +17,7 @@ import {
   resolveDefaultBase,
 } from '../core/branch-added.js';
 import { readSession } from '../core/session.js';
-import { dialogueKeyFromSession, resolveArchivePlan } from './archive-resolve.js';
+import { type ArchiveMove, dialogueKeyFromSession, resolveArchivePlan } from './archive-resolve.js';
 
 const USAGE = 'usage: noldor design archive [--dry-run] [--slug <key>]';
 
@@ -63,18 +63,40 @@ function git(cwd: string, gitArgs: readonly string[]): { ok: boolean; stderr: st
 }
 
 /**
- * Rewrite any FD whose `links.design` names the moved pen artifact to its new
- * archive path, in the same staged change as the move — the docs-link gate must
- * never see a dangling target at any commit (spec U3). Scans docs/features/
+ * The FD frontmatter `links.*` key that names an artifact of each moved kind.
+ * Every kind this command moves has one — a move whose pointer went unrewritten
+ * left the FD with a dangling link for the rest of the session.
+ */
+const LINK_KEY_BY_KIND: Record<ArchiveMove['kind'], 'design' | 'plan' | 'spec'> = {
+  pen: 'design',
+  plan: 'plan',
+  spec: 'spec',
+};
+
+/** Does this FD's `links.<key>` value name `from`? `links.plan` may be a list. */
+function declaresPath(value: unknown, from: string): boolean {
+  if (typeof value === 'string') return value === from;
+  return Array.isArray(value) && value.includes(from);
+}
+
+/**
+ * Rewrite any FD whose `links.<key>` names the moved artifact to its new archive
+ * path, in the same staged change as the move — the docs-link gate must never
+ * see a dangling target at any commit (spec U3). Scans docs/features/
  * frontmatter rather than deriving the FD from the session marker: `--slug`
  * invocations carry no session, and the scan makes attach-parent FDs work for
  * free. Returns the repo-relative FD paths rewritten (already `git add`ed).
+ *
+ * `kind` picks the frontmatter key via {@link LINK_KEY_BY_KIND}: a spec move
+ * repoints `links.spec`, a plan move `links.plan`, a pen move `links.design`.
  */
-export function rewriteDesignLinks(
+export function rewriteArtifactLinks(
   root: string,
+  kind: ArchiveMove['kind'],
   from: string,
   to: string,
 ): { rewritten: string[]; failed: string[] } {
+  const key = LINK_KEY_BY_KIND[kind];
   const featuresDir = loadDocRoots(root).features;
   let entries: string[];
   try {
@@ -89,18 +111,26 @@ export function rewriteDesignLinks(
     const abs = join(featuresDir, entry);
     const raw = readFileSync(abs, 'utf8');
     const parsed = matter(raw);
-    const links = (parsed.data as { links?: { design?: string } }).links;
-    if (links?.design !== from) continue;
+    const links = (parsed.data as { links?: Record<string, unknown> }).links;
+    if (!declaresPath(links?.[key], from)) continue;
     // Targeted line replace of the frontmatter value, not matter.stringify —
     // re-serializing the whole document would reformat unrelated frontmatter.
-    // Line-anchored on the `design:` KEY at its indentation so a comment or
-    // unrelated line merely containing the same path can never be the match;
-    // the escape keeps the path from being read as regex syntax.
-    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const next = raw.replace(
-      new RegExp(`^(\\s*design:\\s*)(["']?)${escaped}\\2(\\s*)$`, 'm'),
-      (_m, prefix: string, quote: string, tail: string) => `${prefix}${quote}${to}${quote}${tail}`,
+    // Line-anchored on the KEY at its indentation so a comment or unrelated
+    // line merely containing the same path can never be the match.
+    const escaped = RegExp.escape(from);
+    const replaceValue = (_m: string, prefix: string, quote: string, tail: string): string =>
+      `${prefix}${quote}${to}${quote}${tail}`;
+    let next = raw.replace(
+      new RegExp(`^(\\s*${key}:\\s*)(["']?)${escaped}\\2(\\s*)$`, 'm'),
+      replaceValue,
     );
+    if (next === raw && Array.isArray(links?.[key])) {
+      // Block-sequence form (`plan:` on its own line, paths as `- <path>`
+      // items). The item line carries no key, so this pass is anchored on the
+      // path itself and rewrites every matching item in the document — which is
+      // the right outcome: any list holding the moved path is now dangling.
+      next = raw.replace(new RegExp(`^(\\s*-\\s*)(["']?)${escaped}\\2(\\s*)$`, 'gm'), replaceValue);
+    }
     const rel = abs
       .slice(root.length + 1)
       .split('\\')
@@ -111,7 +141,7 @@ export function rewriteDesignLinks(
       // not happen — a silent dangling link is the exact failure this exists
       // to prevent.
       process.stderr.write(
-        `design archive: ${entry} declares links.design ${from} but its YAML form ` +
+        `design archive: ${entry} declares links.${key} ${from} but its YAML form ` +
           `could not be rewritten textually; repoint it to ${to} by hand\n`,
       );
       failed.push(rel);
@@ -121,7 +151,7 @@ export function rewriteDesignLinks(
     const add = git(root, ['add', '--', rel]);
     if (!add.ok) {
       process.stderr.write(
-        `design archive: git add failed for ${rel} after links.design rewrite — stage it by hand\n${add.stderr}`,
+        `design archive: git add failed for ${rel} after links.${key} rewrite — stage it by hand\n${add.stderr}`,
       );
       failed.push(rel);
       continue;
@@ -264,19 +294,20 @@ async function main(): Promise<number> {
     }
     moved += 1;
     process.stdout.write(`archived: ${m.from} → ${m.to}\n`);
-    if (m.kind === 'pen') {
-      const links = rewriteDesignLinks(root, m.from, m.to);
-      for (const fd of links.rewritten) {
-        process.stdout.write(`repointed links.design: ${fd}\n`);
-      }
-      if (links.failed.length > 0) {
-        // The pen moved but an FD still points at the old path: exiting 0 here
-        // would report a clean archive while the docs-link gate is now broken.
-        process.stderr.write(
-          `design archive: ${links.failed.length} FD(s) still reference ${m.from} — fix by hand before committing\n`,
-        );
-        return 1;
-      }
+    // Every kind, not just the pen: a moved spec or plan leaves `links.spec` /
+    // `links.plan` pointing at the pre-archive location otherwise, so the FD
+    // ends the session with a broken pointer that only the code-stage CR sees.
+    const links = rewriteArtifactLinks(root, m.kind, m.from, m.to);
+    for (const fd of links.rewritten) {
+      process.stdout.write(`repointed links.${LINK_KEY_BY_KIND[m.kind]}: ${fd}\n`);
+    }
+    if (links.failed.length > 0) {
+      // The artifact moved but an FD still points at the old path: exiting 0
+      // here would report a clean archive while the docs-link gate is broken.
+      process.stderr.write(
+        `design archive: ${links.failed.length} FD(s) still reference ${m.from} — fix by hand before committing\n`,
+      );
+      return 1;
     }
   }
 
