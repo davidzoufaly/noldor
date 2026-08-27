@@ -3,7 +3,11 @@ import { readFile, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import { readFrontmatter } from '../core/fd-load.js';
-import { FeatureFrontmatterSchema, type FeatureFrontmatter } from '../core/feature-schema.js';
+import {
+  FeatureFrontmatterSchema,
+  isCheckableLinkPath,
+  type FeatureFrontmatter,
+} from '../core/feature-schema.js';
 import { extractFeatureTags } from '../sync/sync-doc-links.js';
 import { extractTags } from '../sync/sync-test-links.js';
 import { loadConsumerConfig, loadCategories } from '../core/consumer-config.js';
@@ -103,6 +107,7 @@ export async function validateFiles(paths: string[]): Promise<FileError[]> {
       const tierErrors = validateTierVsSpec(result.data, slug);
       fileErrors.push(...tierErrors);
       fileErrors.push(...validateMilestoneRef(result.data));
+      fileErrors.push(...validateLinkTargets(result.data));
     }
     if (fileErrors.length > 0) {
       errors.push({ file: path, issues: fileErrors });
@@ -294,6 +299,43 @@ export function validateMilestoneRef(
     return [`milestone: "${fm.milestone}" does not resolve to an existing ${file}`];
   }
   return [];
+}
+
+/**
+ * Design-artifact pointers a moved artifact invalidates. `noldor design archive`
+ * `git mv`s all three into `archive/` and repoints them in the same staged
+ * change; this check is the assertion that it did. Deliberately NOT extended to
+ * `links.code` / `links.tests` / `links.docs`: those are projection-maintained
+ * and can legitimately name a path a rename has not caught up with yet, which
+ * the `fd-link-rot` garden detector reports advisorily. A dangling design
+ * pointer, by contrast, is always a bug — nothing but a move produces one.
+ */
+const DESIGN_LINK_KEYS = ['spec', 'plan', 'design'] as const;
+
+/**
+ * Cross-check: every `links.spec` / `links.plan` / `links.design` value must
+ * resolve to a file on disk. Sentinels (`n/a`, `lost-pre-extraction`) and URLs
+ * are skipped by {@link isCheckableLinkPath}. `links.plan` may be a list, so
+ * every element is resolved.
+ *
+ * @param fm - Feature frontmatter
+ * @param cwd - Repo root (defaults to process.cwd()); link values are repo-relative
+ * @returns One error message per unresolvable pointer (empty when all resolve)
+ */
+export function validateLinkTargets(fm: FeatureFrontmatter, cwd: string = process.cwd()): string[] {
+  const links = fm.links as Record<string, unknown> | undefined;
+  if (links === undefined) return [];
+  const errors: string[] = [];
+  for (const key of DESIGN_LINK_KEYS) {
+    const value = links[key];
+    const candidates = Array.isArray(value) ? value : [value];
+    for (const candidate of candidates) {
+      if (!isCheckableLinkPath(candidate)) continue;
+      if (existsSync(join(cwd, candidate))) continue;
+      errors.push(`links.${key}: target does not resolve: ${candidate}`);
+    }
+  }
+  return errors;
 }
 
 /**

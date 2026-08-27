@@ -150,18 +150,6 @@ Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no os
 
 - Code-stage CR does not converge on a large diff at all: ~18 `cr orchestrate --kind code` rounds on charuy's `liquid-glass-ui`, each returning exactly one NEW finding, never green — so the `Noldor-Reviewed-Subagent` receipt is never earned and `pr-flow` cannot push without an override. The findings were real (a typecheck break, three shipped sub-AA regressions, several fail-open holes in a guard), so this is not reviewer noise: the loop simply has no fixed point, because each fix is fresh surface. This is the arithmetic the cap does not close — the bounded re-round rule caps operator *arbitration* rounds at 2, while the receipt still has to be earned by a green reviewer run over the final tree, so obeying the cap means never shipping. The cap enforcement this entry asks for must therefore also say what earns a receipt when review is genuinely unbounded. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
 
-### Design Archive Leaves the Spec Link Stale
-
-- id: Q-0181
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: XS
-- impact: med
-- confidence: high
-
-`pnpm noldor design archive` repoints `links.design` to the archive path but leaves `links.spec` pointing at the pre-archive location, so every FD it touches ends the session with a broken spec link. `src/design/archive-cli.ts` rewrites only the `links.design` pointer even though the same run moves the spec and the plan. It was caught by the code-stage CR, not by `features validate` — which does not resolve link targets at all. Fix either side or both: repoint every `links.*` the command moves, and/or make `features validate` resolve declared link paths so a dangling pointer reds before review has to find it. Deletion test: `design archive` on an FD with a spec, a plan and a pen leaves all three pointers resolvable, and a hand-broken pointer reds `features validate`. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
-
 ### pr-flow Cannot Reuse an Existing Open PR
 
 - id: Q-0166

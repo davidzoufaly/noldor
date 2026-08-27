@@ -195,5 +195,9 @@
   "Q-0187": {
     "slug": "pen-write-target-guard",
     "retiredAt": "2026-08-27"
+  },
+  "Q-0181": {
+    "slug": "design-archive-leaves-the-spec-link-stale",
+    "retiredAt": "2026-08-27"
   }
 }

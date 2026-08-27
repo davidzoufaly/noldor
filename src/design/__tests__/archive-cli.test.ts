@@ -5,10 +5,11 @@
 // `docs/superpowers/*` transition window.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import matter from 'gray-matter';
 import { describe, expect, it } from 'vitest';
 
 const TSX = join(process.cwd(), 'node_modules/.bin/tsx');
@@ -36,6 +37,12 @@ interface RepoOptions {
   session?: Record<string, unknown> | null;
   /** Also create a plan alongside the spec. */
   withPlan?: boolean;
+  /**
+   * Seed `docs/features/<slug>.md` whose `links.spec` / `links.plan` /
+   * `links.design` name the live artifacts, so the repoint pass has a target.
+   * `planAsList` writes `plan:` as a YAML block sequence instead of a scalar.
+   */
+  fd?: { planAsList?: boolean; slug: string };
 }
 
 function repo(options: RepoOptions = {}): string {
@@ -50,6 +57,7 @@ function repo(options: RepoOptions = {}): string {
     },
     untrackedSpec = false,
     withPlan = false,
+    fd,
   } = options;
 
   const dir = mkdtempSync(join(tmpdir(), 'design-archive-'));
@@ -66,6 +74,27 @@ function repo(options: RepoOptions = {}): string {
   mkdirSync(join(dir, designRoot, 'plans'), { recursive: true });
   writeFileSync(join(dir, designRoot, 'specs', SPEC), 'spec body\n');
   if (withPlan) writeFileSync(join(dir, designRoot, 'plans', PLAN), 'plan body\n');
+  if (fd !== undefined) {
+    mkdirSync(join(dir, 'docs/features'), { recursive: true });
+    const planValue = fd.planAsList
+      ? `\n    - ${designRoot}/plans/${PLAN}`
+      : ` ${designRoot}/plans/${PLAN}`;
+    writeFileSync(
+      join(dir, 'docs/features', `${fd.slug}.md`),
+      [
+        '---',
+        'name: Seeded',
+        'links:',
+        `  spec: ${designRoot}/specs/${SPEC}`,
+        `  plan:${planValue}`,
+        `  design: ${designRoot}/ui/2026-08-04-${KEY}.pen`,
+        '---',
+        '',
+        'body',
+        '',
+      ].join('\n'),
+    );
+  }
   if (!untrackedSpec) {
     git(dir, ['add', '-A']);
     git(dir, ['commit', '-qm', 'add design artifacts']);
@@ -240,6 +269,54 @@ describe('noldor design archive', () => {
     const r = run(dir);
     expect(r.status).toBe(0);
     expect(r.stderr).toContain('not a git repository');
+  });
+
+  it('repoints links.spec and links.plan on the FD, staged with the moves', () => {
+    const dir = repo({ fd: { slug: 'seeded' }, withPlan: true });
+    const r = run(dir);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('repointed links.spec: docs/features/seeded.md');
+    expect(r.stdout).toContain('repointed links.plan: docs/features/seeded.md');
+
+    const fdRaw = readFileSync(join(dir, 'docs/features/seeded.md'), 'utf8');
+    expect(fdRaw).toContain(`spec: docs/design/specs/archive/${SPEC}`);
+    expect(fdRaw).toContain(`plan: docs/design/plans/archive/${PLAN}`);
+    // Every rewritten pointer resolves on disk — the whole point of the pass.
+    const links = matter(fdRaw).data.links as { plan: string; spec: string };
+    expect(existsSync(join(dir, links.spec))).toBe(true);
+    expect(existsSync(join(dir, links.plan))).toBe(true);
+    // The FD rewrite rides the same index as the moves, not a later commit.
+    expect(staged(dir).some((l) => l.endsWith('docs/features/seeded.md'))).toBe(true);
+  });
+
+  it('repoints a links.plan written as a YAML block sequence', () => {
+    const dir = repo({ fd: { planAsList: true, slug: 'seeded' }, withPlan: true });
+    const r = run(dir);
+    expect(r.status).toBe(0);
+    const fdRaw = readFileSync(join(dir, 'docs/features/seeded.md'), 'utf8');
+    const plan = (matter(fdRaw).data.links as { plan: string[] }).plan;
+    expect(plan).toStrictEqual([`docs/design/plans/archive/${PLAN}`]);
+    expect(existsSync(join(dir, plan[0]))).toBe(true);
+  });
+
+  it('leaves an FD that names no moved artifact byte-identical', () => {
+    const dir = repo({ fd: { slug: 'seeded' }, withPlan: true });
+    const foreign = join(dir, 'docs/features/foreign.md');
+    const before = [
+      '---',
+      'name: Foreign',
+      'links:',
+      '  spec: docs/design/specs/2026-01-01-foreign-design.md',
+      '---',
+      '',
+      'body',
+      '',
+    ].join('\n');
+    writeFileSync(foreign, before);
+    const r = run(dir);
+    expect(r.status).toBe(0);
+    expect(readFileSync(foreign, 'utf8')).toBe(before);
+    expect(r.stdout).not.toContain('repointed links.spec: docs/features/foreign.md');
   });
 
   it('resolves the same moves when run from a subdirectory', () => {
