@@ -5,10 +5,14 @@
 // `.pen` is encrypted, so pencil MCP is the only reader — and every MCP call
 // fails with "A file needs to be open in the editor" until SOME `.pen` is open
 // in a running VS Code Pencil tab. That is a bridge-liveness gate, not a
-// per-file lock: once any file is open, `execute` routes to any `.pen` by
-// `filePath`, including a scratch copy that was never opened. Both facts were
-// observed in the render-compare export spike (2026-08-21) and lived only in
-// that spec plus one lane prompt string; the recipe below is the shared source.
+// per-file lock: once any file is open, `execute` routes to any EXISTING `.pen`
+// by `filePath`, including a scratch copy that was never opened. A `filePath`
+// that does not exist is worse than an error — the write silently lands on the
+// canvas the app has open (Q-0187). The first two facts were observed in the
+// render-compare export spike (2026-08-21) and lived only in that spec plus one
+// lane prompt string; the recipe below is the shared source.
+
+import { UI_BASELINE_DIR } from '../core/design-artifact-names.js';
 
 /**
  * The declared default editor. The VS Code extension wins over the standalone
@@ -36,7 +40,7 @@ export const BRIDGE_BOOTSTRAP_PATH = 'docs/design/ui/bridge-scratch.pen';
  */
 export function rankPenCandidates(paths: readonly string[]): string[] {
   const rank = (p: string): number => {
-    if (p.startsWith('docs/design/ui/baseline/')) return 1;
+    if (p.startsWith(`${UI_BASELINE_DIR}/`)) return 1;
     if (p.startsWith('docs/design/ui/')) return 0;
     return 2;
   };

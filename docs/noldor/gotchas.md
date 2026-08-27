@@ -169,10 +169,24 @@ Related runbooks: [`cr-pipeline.md`](cr-pipeline.md) (CR-specific traps),
   per-file lock.** `.pen` is encrypted, so pencil MCP is the only reader, and
   every call fails with that message until *some* `.pen` is open in a running
   VS Code Pencil tab (extension `highagency.pencildev`). Once any file is open,
-  `execute` routes to any `.pen` by `filePath` — including a scratch copy that
-  was never opened. So the fix is to open a file, not to change the path you
-  asked for: `pnpm noldor design pen-bridge` finds and opens one (exit 1 = the
-  repo tracks no `.pen` and the editor must author it, since Node cannot).
+  `execute` routes to any *existing* `.pen` by `filePath` — including a scratch
+  copy that was never opened. So the fix is to open a file, not to change the
+  path you asked for: `pnpm noldor design pen-bridge` finds and opens one
+  (exit 1 = the repo tracks no `.pen` and the editor must author it, since Node
+  cannot).
+- **A `filePath` that does not exist is a silent write to the open canvas, not
+  an error.** Routing holds only while the file is there; otherwise the edit
+  lands on whatever document the app currently has open, with no diagnostic. A
+  worktree-relative path while the app held a baseline `.pen` from
+  `docs/design/ui/baseline/` deleted four pages from that baseline, and the app then auto-saved the same
+  session document over both the baseline and another feature's archived
+  `.pen`; they came out byte-identical, and `git status` in the **main**
+  workspace was the only signal — the worktree's own status stayed clean. So
+  call `get_app_state` and confirm the open document IS the target before every
+  write. `checks shared-files` rejects the class after the fact (baseline `.pen`
+  from a worktree; any archived `.pen` modified or moved out of `archive/`;
+  `NOLDOR_ALLOW_PEN_WRITE=1` waives both for the gate's one sanctioned baseline
+  write-back). (Q-0187)
 - **The VS Code extension is the default editor; the desktop app is the
   fallback.** Both satisfy pencil MCP equally — the extension wins only because
   `code <file>.pen` is scriptable, so an agent can wake the bridge unattended.

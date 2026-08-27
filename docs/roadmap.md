@@ -150,19 +150,6 @@ Q-0130's re-round cap (2, controller prose) has no tooling enforcement and no os
 
 - Code-stage CR does not converge on a large diff at all: ~18 `cr orchestrate --kind code` rounds on charuy's `liquid-glass-ui`, each returning exactly one NEW finding, never green — so the `Noldor-Reviewed-Subagent` receipt is never earned and `pr-flow` cannot push without an override. The findings were real (a typecheck break, three shipped sub-AA regressions, several fail-open holes in a guard), so this is not reviewer noise: the loop simply has no fixed point, because each fix is fresh surface. This is the arithmetic the cap does not close — the bounded re-round rule caps operator *arbitration* rounds at 2, while the receipt still has to be earned by a green reviewer run over the final tree, so obeying the cap means never shipping. The cap enforcement this entry asks for must therefore also say what earns a receipt when review is genuinely unbounded. (surfaced in charuy by the liquid-glass-ui ship, 2026-08-25)
 
-### Pen Write-Target Guard
-
-- id: Q-0187
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: S
-- impact: high
-- confidence: high
-- parent: pendev-ui-design-phase
-
-The pencil MCP ignores `filePath` and edits whatever canvas the app currently has open, and nothing in the UI-design step says to check — so a path that does not exist is a silent write to the wrong file rather than an error. Passing a worktree path while the app held `docs/design/ui/baseline/app.pen` edited the baseline instead, deleting four pages from it, and the app later auto-saved that same session document over two tracked files: the baseline and `docs/design/ui/archive/2026-08-24-liquid-glass-ui.pen`, another feature's archived artifact. They were byte-identical afterwards, which is how it was caught; `git status` in the main workspace was the only signal, and the worktree's own status stayed clean throughout. Wanted: the UI-design step opens with a `get_app_state` assertion that the active canvas IS the file about to be written (the tool already reports it), stated plainly as a silent-wrong-write hazard, plus a `.pen` write-guard in `checks shared-files` for the second half — an edit to `baseline/` or to any `archive/` `.pen` from a feature session is never intentional. Deletion test: a wrong `filePath` fails the step before any node is written, and a feature session that touches a baseline or archived `.pen` is rejected at commit time. (found 2026-08-25, gate Step 1.5 on agent-camera-control)
-
 ### Design Archive Leaves the Spec Link Stale
 
 - id: Q-0181

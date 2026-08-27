@@ -191,5 +191,9 @@
   "Q-0071": {
     "slug": "better-unit-test-rules",
     "retiredAt": "2026-08-26"
+  },
+  "Q-0187": {
+    "slug": "pen-write-target-guard",
+    "retiredAt": "2026-08-27"
   }
 }

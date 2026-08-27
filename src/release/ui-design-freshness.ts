@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 
 import { braceExpand } from 'minimatch';
 
+import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
 import { isUiBearing, type UiConfig } from '../core/ui-predicate.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from './graph-freshness.js';
 
@@ -27,7 +28,7 @@ export interface UiFreshnessVerdict {
   surfaces: UiSurfaceFreshness[];
 }
 
-export const BASELINE_DIR = 'docs/design/ui/baseline';
+export { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
 
 const REMEDIATION = 'run `pnpm noldor design ui-sync` in a pencil-capable session, then commit';
 
