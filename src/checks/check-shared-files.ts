@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
 
+import { ARCHIVE_DIR, UI_BASELINE_DIR } from '../core/design-artifact-names.js';
+
 const BLOCK_LIST: ReadonlyArray<string | RegExp> = [
   'CLAUDE.md',
   '.claude/CLAUDE.md',
@@ -10,10 +12,8 @@ const BLOCK_LIST: ReadonlyArray<string | RegExp> = [
   /^\.claude\/commands\/[^/]+/,
 ];
 
-/** The one directory a UI baseline `.pen` may live in — see `src/release/ui-design-freshness.ts`. */
-const BASELINE_PREFIX = 'docs/design/ui/baseline/';
-/** Archived design artifacts live in a sibling `archive/` dir — see `ARCHIVE_DIR` in `src/core/design-artifact-names.ts`. */
-const ARCHIVE_SEGMENT = '/archive/';
+const BASELINE_PREFIX = `${UI_BASELINE_DIR}/`;
+const ARCHIVE_SEGMENT = `/${ARCHIVE_DIR}/`;
 /** Waives both `.pen` rules. Gate Step 4's baseline write-back is the one sanctioned baseline edit. */
 const PEN_OVERRIDE = 'NOLDOR_ALLOW_PEN_WRITE';
 

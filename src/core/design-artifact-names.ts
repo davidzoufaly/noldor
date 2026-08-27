@@ -18,6 +18,17 @@ const SPEC_FILE_RE = /^\d{4}-\d{2}-\d{2}-(.+?)-design\.md$/;
 export const ARCHIVE_DIR = 'archive';
 
 /**
+ * Directory holding the per-surface UI baseline `.pen` files.
+ *
+ * Single source of truth: the freshness check reads `<dir>/<surface>.pen`,
+ * `design ui-sync` stages the same path, `design pen-bridge` ranks it, and the
+ * pre-commit `.pen` write-guard refuses edits under it from a feature worktree.
+ * Lives in core so the pre-commit path can reach it without loading the
+ * freshness engine (and its `minimatch` dependency).
+ */
+export const UI_BASELINE_DIR = 'docs/design/ui/baseline';
+
+/**
  * Derive the feature slug from a plan filename.
  *
  * @param filename - The basename, e.g. `2026-04-19-tooltips.md` or
