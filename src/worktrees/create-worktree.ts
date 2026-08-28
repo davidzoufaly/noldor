@@ -9,7 +9,38 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
-import { isSlug } from '../core/slug.js';
+import { parseSlug } from '../core/slug.js';
+import { worktreePath } from './worktree-paths.js';
+import { refusalMessage, type WorktreeRefusal } from './down-worktree.js';
+
+/**
+ * Why `createWorktree` refused.
+ *
+ * All four are expected failures of external input or repository state, so all
+ * four are result arms rather than throws — converting only the slug case would
+ * leave a direct caller with two contracts for one class of condition. The
+ * install failure below stays a throw: it is a subprocess failure, which
+ * `error-result-types` converts at the boundary with its `cause` intact.
+ */
+export type CreateRefusal =
+  | WorktreeRefusal
+  | { readonly kind: 'not-main-workspace' }
+  | { readonly kind: 'worktree-exists'; readonly slug: string }
+  | { readonly kind: 'branch-exists'; readonly branch: string };
+
+/** Human-readable reason for a {@link CreateRefusal}, for a CLI's stderr. */
+export function createRefusalMessage(error: CreateRefusal): string {
+  switch (error.kind) {
+    case 'not-main-workspace':
+      return 'worktrees create must run from the main workspace, not inside a worktree';
+    case 'worktree-exists':
+      return `worktree already exists: .worktrees/${error.slug}`;
+    case 'branch-exists':
+      return `branch already exists: ${error.branch}`;
+    default:
+      return refusalMessage(error);
+  }
+}
 import { allocatePorts, parseWorktreeList, readPort } from './worktree-status.js';
 
 const execFileP = promisify(execFile);
@@ -74,26 +105,34 @@ const defaultInstall: InstallRunner = async (cwd) => {
  * @param opts - See {@link CreateOptions}.
  * @returns Path, branch, assigned port, and any tolerated-install warning.
  */
-export async function createWorktree(opts: CreateOptions): Promise<CreateResult> {
+export async function createWorktree(
+  opts: CreateOptions,
+): Promise<{ ok: true; result: CreateResult } | { ok: false; error: CreateRefusal }> {
   const cwd = resolve(opts.cwd ?? process.cwd());
   const log = opts.log ?? (() => {});
 
-  if (!isSlug(opts.slug)) {
-    throw new Error(`invalid slug '${opts.slug}': expected kebab-case ([a-z0-9-])`);
-  }
-  const branch = opts.branch ?? `feat/${opts.slug}`;
+  // Parse before the first git call: every step below is keyed on the slug, and
+  // `git rev-parse` is already a subprocess launch from this working directory.
+  const parsed = parseSlug(opts.slug);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const tree = worktreePath(cwd, parsed.slug);
+  if (!tree.ok) return { ok: false, error: tree.error };
+
+  // Slug-derived, but a git ref rather than a path, so no builder reaches it —
+  // the parse above is what makes interpolating it safe.
+  const branch = opts.branch ?? `feat/${parsed.slug}`;
 
   const gitDir = (await execFileP('git', ['rev-parse', '--git-dir'], { cwd })).stdout.trim();
   const commonDir = (
     await execFileP('git', ['rev-parse', '--git-common-dir'], { cwd })
   ).stdout.trim();
   if (resolve(cwd, gitDir) !== resolve(cwd, commonDir)) {
-    throw new Error('worktrees create must run from the main workspace, not inside a worktree');
+    return { ok: false, error: { kind: 'not-main-workspace' } };
   }
 
-  const path = join(cwd, '.worktrees', opts.slug);
+  const path = tree.path;
   if (existsSync(path)) {
-    throw new Error(`worktree already exists: .worktrees/${opts.slug}`);
+    return { ok: false, error: { kind: 'worktree-exists', slug: parsed.slug } };
   }
   const branchExists = await execFileP(
     'git',
@@ -104,11 +143,11 @@ export async function createWorktree(opts: CreateOptions): Promise<CreateResult>
     () => false,
   );
   if (branchExists) {
-    throw new Error(`branch already exists: ${branch}`);
+    return { ok: false, error: { kind: 'branch-exists', branch } };
   }
 
   await execFileP('git', ['worktree', 'add', path, '-b', branch], { cwd });
-  log(`worktree created: .worktrees/${opts.slug} on ${branch}`);
+  log(`worktree created: .worktrees/${parsed.slug} on ${branch}`);
 
   let installWarning: string | null = null;
   if (opts.install !== false) {
@@ -139,7 +178,7 @@ export async function createWorktree(opts: CreateOptions): Promise<CreateResult>
   }
   const port = await readPort(path);
 
-  return { path, branch, port, installWarning };
+  return { ok: true, result: { path, branch, port, installWarning } };
 }
 
 function parseArgs(argv: string[]): { slug: string | null; branch?: string; install: boolean } {
@@ -164,12 +203,17 @@ async function main(): Promise<number> {
     return 2;
   }
   try {
-    const res = await createWorktree({
+    const outcome = await createWorktree({
       slug,
       ...(branch === undefined ? {} : { branch }),
       install,
       log: (l) => process.stdout.write(`${l}\n`),
     });
+    if (!outcome.ok) {
+      process.stderr.write(`${createRefusalMessage(outcome.error)}\n`);
+      return 1;
+    }
+    const res = outcome.result;
     process.stdout.write(`\nWorktree ready at ${res.path}\n`);
     process.stdout.write(`Branch: ${res.branch}${res.port ? `  Port: ${res.port}` : ''}\n`);
     process.stdout.write(

@@ -1,10 +1,21 @@
 // @tests: per-task-dev-environment-bootstrap
 import { execFile } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { promisify } from 'node:util';
 
+import { pathErrorMessage, type PathError } from '../core/slug-paths.js';
+import { parseSlug, type SlugError } from '../core/slug.js';
+import { worktreePath, worktreePidsPath } from './worktree-paths.js';
+
 const execFileP = promisify(execFile);
+
+/** Why a worktree operation refused its slug before doing anything. */
+export type WorktreeRefusal = SlugError | PathError;
+
+/** Human-readable reason for a {@link WorktreeRefusal}, for a CLI's stderr. */
+export function refusalMessage(error: WorktreeRefusal): string {
+  return error.kind === 'invalid-slug' ? error.message : pathErrorMessage(error);
+}
 
 export interface DownOptions {
   slug: string;
@@ -33,8 +44,18 @@ const defaultDeps: DownDeps = {
 export async function downWorktree(
   opts: DownOptions,
   deps: DownDeps = defaultDeps,
-): Promise<{ reaped: number }> {
-  const pidsFile = join(opts.cwd, '.noldor', `dev-${opts.slug}.pids`);
+): Promise<{ ok: true; reaped: number } | { ok: false; error: WorktreeRefusal }> {
+  // Every side effect below — the pid read, the process-group kills, the git
+  // worktree removal — is keyed on the slug, so the parse and both path builds
+  // happen before any of them run.
+  const parsed = parseSlug(opts.slug);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const pids = worktreePidsPath(opts.cwd, parsed.slug);
+  if (!pids.ok) return { ok: false, error: pids.error };
+  const tree = worktreePath(opts.cwd, parsed.slug);
+  if (!tree.ok) return { ok: false, error: tree.error };
+
+  const pidsFile = pids.path;
   let reaped = 0;
   const body = await readFile(pidsFile, 'utf8').catch(() => '');
   for (const line of body.split('\n').filter(Boolean)) {
@@ -59,11 +80,13 @@ export async function downWorktree(
   await rm(pidsFile, { force: true });
 
   if (opts.remove) {
-    const branch = opts.branch ?? `feat/${opts.slug}`;
-    await deps.gitImpl(['worktree', 'remove', '--force', join('.worktrees', opts.slug)], opts.cwd);
+    // The branch name is slug-derived but is a git ref, not a path, so no
+    // builder covers it — the parse above is what makes it safe.
+    const branch = opts.branch ?? `feat/${parsed.slug}`;
+    await deps.gitImpl(['worktree', 'remove', '--force', tree.path], opts.cwd);
     await deps.gitImpl(['branch', '-D', branch], opts.cwd).catch(() => {});
   }
-  return { reaped };
+  return { ok: true, reaped };
 }
 
 async function main(): Promise<number> {
@@ -81,6 +104,10 @@ async function main(): Promise<number> {
     remove: argv.includes('--remove'),
     ...(branch ? { branch } : {}),
   });
+  if (!r.ok) {
+    process.stderr.write(`${refusalMessage(r.error)}\n`);
+    return 1;
+  }
   process.stdout.write(`Reaped ${r.reaped} dev surface(s) for ${slug}\n`);
   return 0;
 }

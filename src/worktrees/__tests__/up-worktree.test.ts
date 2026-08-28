@@ -5,10 +5,13 @@ import { upWorktree } from '../up-worktree.js';
 function deps(overrides = {}) {
   return {
     createWorktreeImpl: vi.fn(async () => ({
-      path: '/repo/.worktrees/foo',
-      branch: 'feat/foo',
-      port: 5174,
-      installWarning: null,
+      ok: true as const,
+      result: {
+        path: '/repo/.worktrees/foo',
+        branch: 'feat/foo',
+        port: 5174,
+        installWarning: null,
+      },
     })),
     existsImpl: vi.fn(() => false),
     readPortImpl: vi.fn(async () => 5174),
@@ -27,6 +30,13 @@ function deps(overrides = {}) {
 }
 
 /** The summary every step-taken run produces, as an independent literal. */
+/** Unwrap a successful up, failing loudly on a refusal — the refusal cases
+ *  assert the error arm directly instead. */
+function unwrap<T>(r: { ok: true; summary: T } | { ok: false; error: unknown }): T {
+  if (!r.ok) throw new Error(`expected success, got refusal: ${JSON.stringify(r.error)}`);
+  return r.summary;
+}
+
 const FULL_SUMMARY = {
   treePath: '/repo/.worktrees/foo',
   basePort: 5174,
@@ -38,7 +48,7 @@ const FULL_SUMMARY = {
 describe('upWorktree', () => {
   it('runs every step by default and returns a summary', async () => {
     const d = deps();
-    const r = await upWorktree({ slug: 'foo', cwd: '/repo' }, d as never);
+    const r = unwrap(await upWorktree({ slug: 'foo', cwd: '/repo' }, d as never));
     // The whole summary, not just `surfaces[0].ready` — that lone field is echo
     // of what `bootDevSurfacesImpl` was told to return, and left `editorOpened`
     // / `terminalSpawned` unpinned, so a run that skipped both stayed green.
@@ -50,16 +60,18 @@ describe('upWorktree', () => {
   });
   it('honours --no-* flags', async () => {
     const d = deps();
-    const r = await upWorktree(
-      {
-        slug: 'foo',
-        cwd: '/repo',
-        noCreate: true,
-        noEditor: true,
-        noTerminal: true,
-        noServers: true,
-      },
-      d as never,
+    const r = unwrap(
+      await upWorktree(
+        {
+          slug: 'foo',
+          cwd: '/repo',
+          noCreate: true,
+          noEditor: true,
+          noTerminal: true,
+          noServers: true,
+        },
+        d as never,
+      ),
     );
     // The summary is the observable contract: every skippable step reports as
     // not-taken. The call assertions below only corroborate that no seam ran.
@@ -77,7 +89,7 @@ describe('upWorktree', () => {
   });
   it('reuses an existing worktree instead of creating', async () => {
     const d = deps({ existsImpl: vi.fn(() => true) });
-    const r = await upWorktree({ slug: 'foo', cwd: '/repo' }, d as never);
+    const r = unwrap(await upWorktree({ slug: 'foo', cwd: '/repo' }, d as never));
     // Reuse is invisible in the summary — an existing tree yields the same
     // shape a fresh one does — so the full summary pins "every other step still
     // ran" and the call assertion carries the reuse itself.
