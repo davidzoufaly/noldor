@@ -52,13 +52,13 @@ export interface PathDigest {
   /** absent from the graph entirely — itself structural information */
   inGraph: boolean;
   community: number | null;
-  /** most frequent co-members of that community, capped at 5 */
+  /** co-members of that community, degree desc then label asc, capped at 5 */
   coMembers: string[];
   /** FD slugs owning that community's files, via getCommunityOwners, capped at 3 */
   owners: CommunityOwnerSuggestion[];
-  /** symbols this path defines that rank in the top 20 by degree */
+  /** symbols this path defines that rank in the top 10 by degree */
   topDegreeSymbols: { label: string; degree: number; rank: number }[];
-  /** edges from this path's nodes whose target sits in another community, capped at 10 */
+  /** incident edges whose other endpoint sits in another community, capped at 10 */
   crossCommunityEdges: { from: string; to: string; relation: string; toCommunity: number }[];
 }
 
@@ -72,32 +72,45 @@ export interface GraphContextResult {
 
 export async function graphContext(opts: {
   cwd: string;
+  /** already-validated repo-relative POSIX paths; may be empty (verdict-only) */
   paths: readonly string[];
 }): Promise<GraphContextResult>;
 ```
 
 **The freshness verdict is a union of two legs**, and that union is the correction that makes this feature possible at all:
 
-- **committed leg** — `evaluateGraphFreshness(scanPaths, cwd)` from [`src/release/graph-freshness.ts`](../../../src/release/graph-freshness.ts) returns `fresh`. Commit timestamps, already dropping test-only and doc-only commits via `GRAPH_IRRELEVANT_EXCLUDES`.
-- **working-tree leg** — `graphify-out/graph.json`'s mtime is newer than every file under `scanPaths`. This is `loadFreshGraphOrWarn`'s comparison, reused for its own leg only.
+Both legs read their roots from `scanRoots(cwd)` ([`src/core/repo-paths.ts`](../../../src/core/repo-paths.ts):26), the documented single source of truth, which falls back to `DEFAULT_SCAN_ROOTS` (`['packages', 'apps', 'scripts', 'src']`) when the consumer configures none. Reading raw `loadConsumerConfig(cwd).scanPaths` instead would break both legs in opposite directions: it defaults to `[]` ([`src/core/consumer-config.ts`](../../../src/core/consumer-config.ts):187), which makes `evaluateGraphFreshness` return `skipped` so the committed leg is permanently dead, while an empty root list gives the mtime comparison no file to lose to and reports fresh vacuously.
+
+- **committed leg** — `evaluateGraphFreshness(scanRoots(cwd), cwd)` from [`src/release/graph-freshness.ts`](../../../src/release/graph-freshness.ts) returns `fresh`, **and** the on-disk `graphify-out/graph.json` matches its committed content (`git diff --quiet HEAD --`). The content guard is what keeps the verdict honest about the file the digest actually parses: without it, a working tree whose graph was replaced with older content would inherit its committed version's freshness.
+- **working-tree leg** — `graphify-out/graph.json`'s mtime is newer than every file under `scanRoots(cwd)`. This is `loadFreshGraphOrWarn`'s comparison, reused for its own leg only.
 
 `fresh` when **either** leg passes; `stale` when neither. Each leg alone is a dead end, and their failures are complementary. The committed leg cannot see an uncommitted regeneration, so on its own the stale → regen → retry loop can never clear: measured in this repo, `graphify-out/graph.json` was last committed `2026-08-23` (`4c1f680`) while `src` has commits through `2026-08-28` (`366cb50`), and `/graphify` writes an uncommitted artifact, so the verdict would stay `stale` forever and the digest path would be unreachable by construction. The working-tree leg cannot return fresh right after `git worktree add`, which stamps every file at one instant. Together: a regeneration rewrites `graph.json` and immediately satisfies the working-tree leg, while a clean tree with a committed-fresh graph satisfies the committed one. The union also removes a data-source split — the verdict and the digest now both key on the working-tree file the digest actually parses.
 
 `skipped` requires `graphify-out/graph.json` to be **both** absent from disk and untracked. Keying on tracked-ness alone would skip a consumer who gitignores `graphify-out/` but regenerates locally; keying on disk presence alone would misreport a consumer who tracks the graph but has not checked it out.
 
+**Precedence.** Resolution is ordered, not simultaneous: presence (→ `skipped`), then parse, then the freshness legs. An unreadable or unparseable `graph.json` — or one that parses but lacks the `nodes`/`links` arrays — is `stale` regardless of either leg, because a graph that cannot be read cannot be fresh. Individual malformed rows (an edge whose endpoint is missing, a node with no `community`) are dropped from the digest rather than failing the verdict; the count of dropped rows lands in `detail`.
+
+**Usage errors live at the CLI, not in the result type.** `graph-context` validates `--path` arguments — normalizing to repo-relative POSIX form, rejecting anything that escapes the repo — and exits 2 before calling `graphContext`, so `GraphContextStatus` needs no error member and a direct API caller passes already-validated paths. Zero paths is **valid**, not an error: the call returns the verdict with an empty `digests` array. That matters because the skill must always get a verdict to write an honest unit, even for a change whose candidate set is empty.
+
 **Outcomes.** `skipped` prints one line and exits 0 — a missing graph is not a failure. `stale` prints the verdict plus the exact remediation (`/graphify --ast-only`, then `pnpm toon`) and exits non-zero; the command never runs a regeneration itself, because graphify's CLI exposes no build command (extraction is the `/graphify` skill, an agent workflow), the locally installed binary is version-skewed against its own skill, and a consumer may not have it — keeping the command subprocess-free apart from `evaluateGraphFreshness`'s own `git log` also keeps it unit-testable. `fresh` prints the summary-toon path and the per-path digest, and exits 0.
 
 The summary toon is advisory **within** `fresh`, reported as `usable: false` when it is missing or older than `graph.json` rather than demoting the verdict. The digest is what the unit needs; the toon is orientation, and only `pnpm toon` regenerates it, so gating the load-bearing path on it would add a failure state carrying no independent signal.
 
-**Digest rules.** `--path` is repeatable and required (zero paths is a usage error, exit 2). Paths are normalized to repo-relative POSIX form and deduplicated; a path outside the repo, or absolute after normalization, is a usage error. A path with no `L1` node reports `inGraph: false` and null community rather than an empty digest. When a file somehow carries several `L1` nodes, the first in graph order wins and the rest are ignored — matching `getCommunityOwners`, which already reads only the file-level node. Degree is computed undirected (the graph declares `directed: false`), counting each `source`/`target` pair once so duplicate edge rows cannot inflate a rank; ties break by label ascending. Ranking population is every node in the graph, and only a path's symbols inside the top 20 are reported — the same "most connected" definition `GRAPH_REPORT.md` uses, so no threshold is invented. Every list is capped as the signature states, and an unreadable or unparseable `graph.json` is reported as `stale` with the parse error in `detail`, never thrown.
+**Digest rules.** `--path` is repeatable; paths are deduplicated after normalization. A path with no `L1` node reports `inGraph: false` and a null community rather than an empty digest. When a file carries several `L1` nodes the first in graph order wins and the rest are ignored, matching `getCommunityOwners`, which already reads only the file-level node.
+
+Degree is undirected — the graph declares `directed: false` — counting each `source`/`target` pair once so duplicate rows cannot inflate a rank, with ties broken by label ascending. The ranking population is every node in the graph and the cap is the **top 10**, which is exactly the length of `GRAPH_REPORT.md`'s "God Nodes (most connected)" list, so the cap is graphify's own and no threshold is invented. (The 20 in the summary toon is `community index (top 20 by size)` — a different list of a different thing.)
+
+Every other list is ordered before it is capped, so two implementations agree: `coMembers` by degree descending then label ascending; `owners` by `getCommunityOwners`'s existing count-descending, slug-ascending order; `crossCommunityEdges` by other-endpoint degree descending then label ascending. Cross-community traversal is undirected — every edge *incident* to one of the path's nodes whose other endpoint sits in a different community qualifies, and `from`/`to` are oriented with the path's own node first for readability, not to assert direction. An endpoint whose node carries no numeric `community` is excluded rather than coerced, which is what keeps `toCommunity: number` truthful.
 
 ### U2 — the `/noldor-spec` structural-read step
 
 A new step in both skill twins — [`.claude/skills/noldor-spec/SKILL.md`](../../../.claude/skills/noldor-spec/SKILL.md) and its `templates/` copy, which must move together or `doctor` reds — placed after the UI-verdict step 1.5 and before the step-2.5 strawman, so the reading informs `## Design` instead of decorating it afterwards. It is gated on the session marker's `path` being `specs-only-*` or `full-*`; `fast-track` and `micro-chore` never run it, mirroring Q-0185's tier scoping so the XS drain is untaxed.
 
-Candidate paths come from the session marker's `uiVerdictPaths` ([`src/core/session.ts`](../../../src/core/session.ts):32), which step 1.5 already computed and persisted from `links.code` ∪ the entry's `Touches:`. The step reads that key rather than re-deriving the same set, so the two prose copies cannot drift from each other or from the UI predicate.
+Candidate paths come from a **new** session-marker key, `candidatePaths`: the pre-filter set (`links.code` ∪ the entry's `Touches:`) that step 1.5 derives on its way to the UI verdict, persisted alongside it. The existing `uiVerdictPaths` is emphatically *not* that set — [`src/core/session.ts`](../../../src/core/session.ts):32 documents it as "the candidate paths that **matched** `uiPaths`", and `sessionUiVerdict` persists `candidatePaths.filter(...)` — so it holds the matched subset and is empty for every session in a repo where `consumer.uiPaths` is unset, as it is here. Reading it would hand `graph-context` zero paths on every run.
 
-Branching on the verdict: on `skipped`, write one line saying the repo tracks no graph and move on. On `stale`, run `/graphify --ast-only` **then `pnpm toon`** and retry exactly once — the working-tree leg is what that regeneration satisfies. If the retry still is not `fresh` (graphify absent, regeneration failed), write the unit from what is available plus a `noldor:cut` naming the staleness. On `fresh`, read the summary toon when `usable`, read the digest, and write `### Structural context`. The step may never stop a session; advisory-with-teeth applies here as much as to the detector.
+Persisting the pre-filter set costs one optional schema field and keeps one derivation feeding both consumers; the alternative, re-deriving in U2's prose, creates a second copy that can drift from step 1.5 and from the UI predicate. Because zero paths is a valid verdict-only call, a feature whose candidate set really is empty still gets a verdict and still writes an honest unit.
+
+Branching on the verdict: on `skipped`, write the unit as a `noldor:cut` recording that the repo tracks no graph — not a bare prose line, which the detector this feature introduces would itself flag as a stub. On `stale`, run `/graphify --ast-only` **then `pnpm toon`** and retry exactly once — the working-tree leg is what that regeneration satisfies. If the retry still is not `fresh` (graphify absent, regeneration failed), write the unit from what is available plus a `noldor:cut` naming the staleness. On `fresh`, read the summary toon when `usable`, read the digest, and write `### Structural context`. The step may never stop a session; advisory-with-teeth applies here as much as to the detector.
 
 ### U3 — the contract additions
 
@@ -111,11 +124,15 @@ A detector in `src/garden/detectors/structural-context.ts` reporting artifacts w
 
 The detector reads only the artifacts. It never opens the graph, so it behaves identically in a repo with no `graphify-out/` — reporting a stub there is correct, because the unit's honest content in that repo is a `noldor:cut` saying no graph is tracked.
 
-**Stub rule.** A unit is a stub when the section heading is absent, when its body falls under a non-whitespace character floor, or — ADRs only — when the body still matches `renderAdrTemplate`'s placeholder sentence verbatim. The placeholder clause is ADR-only because there is no spec scaffold: [`src/prep/scaffold.ts`](../../../src/prep/scaffold.ts) scaffolds the FD alone, and specs are agent-authored from `SPEC_FORMAT` prose, so no placeholder string exists to match. The floor reuses the rationale settled in [`src/core/summary-body-contract.ts`](../../../src/core/summary-body-contract.ts) (`MIN_SECTION_CHARS = 24` — "long enough to reject `Why — x`, short enough never to block an honest one-line reason"); the technique is borrowed, not the module, which is PR-summary-specific. Section body means everything from the heading to the next heading of the same or shallower depth; a duplicate heading takes the first occurrence; fenced code inside the section counts toward the floor like any other text.
+**Matching semantics.** The heading is the exact case-sensitive text `Structural context`, at H3 in a spec and H2 in an ADR. Fenced code regions are stripped before anything is matched, so neither a heading nor a marker inside a fence counts — otherwise this spec's own fenced examples would classify it.
+
+**Stub rule.** A unit is a stub when the section heading is absent, when its body falls under a non-whitespace character floor, or — ADRs only — when the trimmed body is *nothing but* `renderAdrTemplate`'s placeholder sentence. Requiring the body to be only the placeholder is what stops an ADR that kept the sentence and added real prose beneath it from failing. The placeholder clause is ADR-only because there is no spec scaffold: [`src/prep/scaffold.ts`](../../../src/prep/scaffold.ts) scaffolds the FD alone, and specs are agent-authored from `SPEC_FORMAT` prose, so no placeholder string exists to match. The floor reuses the rationale settled in [`src/core/summary-body-contract.ts`](../../../src/core/summary-body-contract.ts) (`MIN_SECTION_CHARS = 24` — "long enough to reject `Why — x`, short enough never to block an honest one-line reason"); the technique is borrowed, not the module, which is PR-summary-specific. Section body means everything from the heading to the next heading of the same or shallower depth; a duplicate heading takes the first occurrence; fenced code inside the section counts toward the floor like any other text.
 
 **Skip marker.** A line whose first non-whitespace token is `noldor:cut` suppresses the finding — the same bare spelling `/noldor-refactor` already greps for, so a doc marker and a code marker stay one convention. It must carry a reason: the marker line needs the character floor's worth of text after the token, so a bare `noldor:cut` is still a stub. That closes the gap between this rule and Usage, which asks for a reason and a condition.
 
-**Floor.** Specs: non-archive only, and only those whose filename date prefix — parsed with `SPEC_FILE_RE` from [`src/core/design-artifact-names.ts`](../../../src/core/design-artifact-names.ts):8, the anchor `detectStaleDesignArtifacts` already relies on — is on or after `SPEC_FLOOR_DATE`. Keying on the filename rather than the author-typed `**Date:**` line keeps a field no validator enforces out of the trust path; a filename that does not match the regex is skipped, fail-open. ADRs: only numbers strictly above `ADR_FLOOR_NUMBER`. Both are named constants stamped when this ships — `ADR_FLOOR_NUMBER` is emphatically *not* recomputed at detect time, which would make the ADR half never fire.
+**Floor.** Specs: non-archive only, and only those whose filename date prefix is on or after `SPEC_FLOOR_DATE = '2026-08-28'` — this spec's own date, so this spec is the first artifact in scope. The date is read by a new exported `specDateFromFilename()` in [`src/core/design-artifact-names.ts`](../../../src/core/design-artifact-names.ts), added because the module's `SPEC_FILE_RE` is private and captures only the slug (its exports are `ARCHIVE_DIR`, `UI_BASELINE_DIR`, and the three `*SlugFromFilename` helpers), and `detectStaleDesignArtifacts` consumes it solely through `specSlugFromFilename` and never reads a date. The new helper reuses that one regex to confirm the shape and returns the leading ten characters, so the filename contract keeps a single definition. Keying on the filename rather than the author-typed `**Date:**` line keeps a field no validator enforces out of the trust path; a filename that fails the regex is skipped, fail-open.
+
+ADRs: only numbers strictly above `ADR_FLOOR_NUMBER = '0001'`, the highest record present today. Both are literal constants stamped now — `ADR_FLOOR_NUMBER` is emphatically *not* recomputed at detect time, which would make the ADR half never fire. The three placeholder sentences the ADR clause matches are `renderAdrTemplate`'s own: "What situation and constraints made this decision necessary?", "What was decided, stated as a binding rule.", and "What this makes easier, what it makes harder, and what it rules out." — the new Structural context section adds a fourth, and that fourth is the one this detector matches.
 
 Day-one findings are therefore zero. The corpus is twelve pre-existing live specs dated 2026-06-07 through 2026-08-21 (thirteen counting this spec, which does carry the unit) and `docs/adr/0001` (2026-08-19), none of which could have complied with a contract that did not exist; flagging them yields rows clearable only by retro-authoring or by pasting markers, which trains operators to ignore the channel. This is [`docs/adr/0001`](../../adr/0001-absent-doc-surfaces-skip-release-gates.md)'s posture — opt-in is an affirmative authoring act — applied to artifacts instead of surfaces. Plans are out of scope: a plan decomposes an already-approved spec, so the evidence belongs one level up and repeating it is transcription.
 
@@ -125,23 +142,22 @@ Both `/noldor-garden` twins gate on emptiness and then enumerate named categorie
 
 ## Acceptance criteria
 
-- `graph-context` exits 0 and reports the graph is not in use only when `graphify-out/graph.json` is both absent from disk and untracked.
-- It returns `fresh` when either the committed leg or the working-tree leg passes, and `stale` only when neither does.
-- A regeneration that rewrites an uncommitted `graphify-out/graph.json` moves the verdict from `stale` to `fresh`.
-- It never invokes graphify. (It does shell `git log` — `evaluateGraphFreshness`'s own mechanism, not a regeneration.)
-- On `fresh` it reports the summary toon as unusable, rather than as stale or absent overall, when the toon is missing or older than `graph.json`.
-- On `fresh` it reports per path: community, dominant FD owners, top-20 degree symbols with rank, and cross-community edges — each capped as specified.
-- A `--path` with no `L1` node is reported as absent from the graph; zero paths, or a path outside the repo, is a usage error; an unparseable `graph.json` is reported as `stale`, never thrown.
-- The read step runs on `specs-only-*` and `full-*` and does not run on `fast-track` or `micro-chore`.
-- The read step sources its candidate paths from the session marker's `uiVerdictPaths` rather than re-deriving them.
-- The read step retries at most once after a regeneration, and falls back to writing the unit with a `noldor:cut` when the retry is still not `fresh`.
+- `graph-context` reports the graph not in use only when `graphify-out/graph.json` is both absent from disk and untracked; both freshness legs read `scanRoots()`, so a consumer configuring no `scanPaths` still gets a live verdict rather than a dead committed leg or a vacuous working-tree one.
+- The verdict is `fresh` when either leg passes and `stale` when neither does; a regeneration that rewrites an uncommitted `graph.json` moves `stale` → `fresh`, and a working tree whose `graph.json` differs from its committed content cannot pass the committed leg.
+- Presence, then parse, then freshness: an unreadable or structurally invalid `graph.json` is `stale` whichever leg would otherwise pass, and is never thrown. Individual malformed rows are dropped from the digest instead.
+- `graph-context` never invokes graphify. (It does shell `git log` and `git diff` — `evaluateGraphFreshness`'s own mechanism and the content guard, not a regeneration.)
+- On `fresh` the summary toon is reported as unusable — not as a stale or absent verdict — when it is missing or older than `graph.json`.
+- On `fresh` each path reports community, dominant FD owners, top-10 degree symbols with rank, and cross-community edges, every list deterministically ordered before it is capped, so two implementations agree on the same graph.
+- A path with no `L1` node is reported as absent from the graph; zero paths returns a verdict with no digests; a path escaping the repo exits 2 before any verdict is computed.
+- The read step runs on `specs-only-*` and `full-*`, never on `fast-track` or `micro-chore`, and sources its paths from the marker's pre-filter `candidatePaths` — so it works in a repo where `consumer.uiPaths` is unset.
+- The read step retries at most once after a regeneration, and every branch it can take — `skipped`, exhausted-retry, `fresh` — writes a unit the detector accepts, so the step can never author its own stub.
 - Both `noldor-spec` twins and both `noldor-garden` twins carry identical step text (`checks template-sync` green).
-- `pnpm noldor prep format spec` prescribes the `Structural context` unit, and `noldor adr new <slug>` writes a record containing it.
-- `checkAdr` reports no new finding against records written before this change.
-- The detector reports a spec whose unit is absent or under the floor, and an ADR whose unit still carries the template placeholder.
-- The detector reports nothing for a unit whose `noldor:cut` line carries a reason, and still reports a bare `noldor:cut`.
-- The detector reports nothing for any spec dated before `SPEC_FLOOR_DATE`, any archived spec, any plan, or any ADR numbered at or below `ADR_FLOOR_NUMBER`.
-- The detector's findings appear under `structuralContextStubs`, never in `sddGaps`, and change no release preflight verdict; it produces findings in a repo with no `graphify-out/` exactly as in one with a graph.
+- `pnpm noldor prep format spec` prescribes the unit; `noldor adr new <slug>` writes a record containing it; `checkAdr` reports no new finding against records written before this change.
+- The detector reports a spec or ADR whose unit is absent or under the floor, and an ADR whose unit is nothing but the template placeholder — but not one that keeps the placeholder and adds real prose beneath it.
+- Suppression requires a `noldor:cut` line carrying a reason past the floor; a bare marker is still a stub; and a heading or marker inside a fenced code block is ignored for both detection and suppression.
+- The detector reports nothing for a spec dated before `SPEC_FLOOR_DATE`, a filename failing the date regex, an archived spec, a plan, or an ADR numbered at or below `ADR_FLOOR_NUMBER` — so day-one findings are zero.
+- The detector never opens the graph: it produces findings in a repo with no `graphify-out/` exactly as in one with a graph.
+- Findings appear under `structuralContextStubs`, never in `sddGaps`, and change no release preflight verdict; `/noldor-garden` still surfaces them when that key is the only non-empty category.
 
 ## Risks / trade-offs
 
@@ -149,7 +165,7 @@ Both `/noldor-garden` twins gate on emptiness and then enumerate named categorie
 
 **A required section invites boilerplate.** The failure mode of any prose contract is a paragraph written to satisfy the check. The `noldor:cut` hatch is the mitigation and is deliberately cheap: an honest recorded skip is worth more than a fabricated paragraph, and the detector treats it as a full pass. The reason requirement is what stops the hatch from becoming a rubber stamp.
 
-**Two stamped constants.** `SPEC_FLOOR_DATE` and `ADR_FLOOR_NUMBER` will look arbitrary in a year. The alternatives were worse: no floor floods the channel on day one, and a git-birth floor shells git per artifact and breaks in shallow clones and fresh worktrees. Two lines, cheap to revise.
+**Two stamped constants.** `SPEC_FLOOR_DATE = '2026-08-28'` and `ADR_FLOOR_NUMBER = '0001'` will look arbitrary in a year. The alternatives were worse: no floor floods the channel on day one, and a git-birth floor shells git per artifact and breaks in shallow clones and fresh worktrees. Two lines, cheap to revise.
 
 **The ADR half is prescription without automation.** `adr new` prompts for the unit and the detector reports it unfilled, but nothing hands the author a digest. An author who ignores both writes a stub and gets one advisory row. Accepted for this slice, and stated in Non-goals rather than implied.
 
