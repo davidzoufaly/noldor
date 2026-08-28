@@ -6,8 +6,10 @@
 // carries no error member: a caller reaching the module has already-validated
 // paths, and a usage error exits 2 before any verdict is computed.
 
-import { relative, isAbsolute, resolve, sep } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 
+import { runIfDirect } from '../core/cli-entry.js';
+import { toPosixRelative } from '../core/repo-paths.js';
 import { graphContext, type GraphContextResult, type PathDigest } from './graph-context.js';
 
 /** Exit codes. `stale` is non-zero so a shell caller can branch on it. */
@@ -40,8 +42,11 @@ export function parseArgs(argv: readonly string[], cwd: string): ParsedArgs {
     }
     i += 1;
     const abs = isAbsolute(value) ? value : resolve(cwd, value);
-    const rel = relative(cwd, abs).split(sep).join('/');
-    if (rel.length === 0 || rel.startsWith('../')) {
+    const rel = toPosixRelative(cwd, abs);
+    // `rel === '..'` is the exact-parent case: it does not start with `../`, so
+    // a `startsWith` test alone accepted `--path ..` despite the exit-2
+    // contract. An empty `rel` is the repo root, which names no file.
+    if (rel.length === 0 || rel === '..' || rel.startsWith('../')) {
       return { ok: false, error: `path escapes the repository: ${value}` };
     }
     if (!paths.includes(rel)) paths.push(rel);
@@ -114,19 +119,8 @@ async function main(argv: readonly string[]): Promise<number> {
   return result.status === 'stale' ? EXIT_STALE : EXIT_OK;
 }
 
-const invokedDirect = /[\\/]graph-context-cli\.(ts|js|mjs)$/.test(process.argv[1] ?? '');
-if (invokedDirect) {
-  void main(process.argv.slice(2)).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error: unknown) => {
-      // An unexpected throw here is a bug report, not a usage error — keep the
-      // stack rather than collapsing it to a one-liner.
-      process.stderr.write(
-        `design graph-context: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
-      );
-      process.exitCode = 1;
-    },
-  );
-}
+// `runIfDirect` rather than a hand-rolled `process.argv[1]` regex: every sibling
+// design CLI uses it, and `context-cli.ts` documents why — the router hands the
+// module a raw path while `import.meta.url` is percent-encoded, so any path
+// containing a space silently ran nothing and exited 0.
+runIfDirect('graph-context-cli', 'design graph-context', main);

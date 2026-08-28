@@ -125,7 +125,10 @@ export async function graphContext(opts: GraphContextOptions): Promise<GraphCont
 
   const roots = scanRoots(cwd);
   const committed = await committedLegPasses(roots, cwd, run);
-  const worktree = worktreeLegPasses(graphAbs, cwd, roots);
+  // Short-circuit: a full recursive walk of every scan root is wasted work when
+  // the committed leg already passed, and the `fresh` detail branches on
+  // `committed.passes` alone anyway.
+  const worktree = committed.passes ? false : worktreeLegPasses(graphAbs, cwd, roots);
   if (!committed.passes && !worktree) {
     return {
       status: 'stale',
@@ -187,13 +190,32 @@ function parseGraph(graphAbs: string): ParseResult {
   } catch (err) {
     return { ok: false, error: `${GRAPH_JSON} does not parse: ${(err as Error).message}` };
   }
+  // `JSON.parse('null')` is valid JSON and yields `null`, and any scalar parses
+  // too — asserting straight to `Partial<GraphifyGraph>` and reading `.nodes`
+  // threw a TypeError instead of honouring the documented `stale` contract.
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { ok: false, error: `${GRAPH_JSON} is not a JSON object - not a graphify graph` };
+  }
   const candidate = value as Partial<GraphifyGraph>;
   if (!Array.isArray(candidate.nodes) || !Array.isArray(candidate.links)) {
     return { ok: false, error: `${GRAPH_JSON} has no nodes/links arrays - not a graphify graph` };
   }
-  const nodes = candidate.nodes.filter((n) => typeof n?.id === 'string');
+  // Endpoint existence is checked after the node set is known: a link naming a
+  // node nobody emitted would otherwise contribute degree to a phantom id and
+  // skew the ranking.
+  const nodes = candidate.nodes.filter(
+    (n) => typeof n === 'object' && n !== null && typeof n.id === 'string',
+  );
+  const ids = new Set(nodes.map((n) => n.id));
   const links = candidate.links.filter(
-    (l) => typeof l?.source === 'string' && typeof l?.target === 'string',
+    (l) =>
+      typeof l === 'object' &&
+      l !== null &&
+      typeof l.source === 'string' &&
+      typeof l.target === 'string' &&
+      typeof l.relation === 'string' &&
+      ids.has(l.source) &&
+      ids.has(l.target),
   );
   const dropped = candidate.nodes.length - nodes.length + (candidate.links.length - links.length);
   return { ok: true, graph: { nodes, links }, dropped };
@@ -286,8 +308,16 @@ function buildIndex(graph: GraphifyGraph): GraphIndex {
     if (!l1ByFile.has(n.source_file)) l1ByFile.set(n.source_file, n);
   }
 
+  // Each distinct endpoint pair + relation counts once. Counting raw rows let a
+  // duplicated edge inflate a degree and move a symbol into or out of the top
+  // ten, which contradicted this docstring rather than merely being untidy.
   const degree = new Map<string, number>();
+  const countedPairs = new Set<string>();
   for (const edge of graph.links) {
+    const [a, b] = [edge.source, edge.target].toSorted();
+    const key = `${a}\u0000${b}\u0000${edge.relation}`;
+    if (countedPairs.has(key)) continue;
+    countedPairs.add(key);
     degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1);
     degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
   }
@@ -364,8 +394,12 @@ function coMembersOf(path: string, community: number | null, index: GraphIndex):
  */
 function godNodesOf(fileId: string, index: GraphIndex): DegreeRankedSymbol[] {
   const out: DegreeRankedSymbol[] = [];
+  // A duplicated `contains` row must not list the same symbol twice.
+  const seen = new Set<string>();
   for (const edge of index.graph.links) {
     if (edge.relation !== 'contains' || edge.source !== fileId) continue;
+    if (seen.has(edge.target)) continue;
+    seen.add(edge.target);
     const rank = index.symbolRank.get(edge.target);
     if (rank === undefined || rank > GOD_NODE_CAP) continue;
     out.push({
@@ -375,6 +409,21 @@ function godNodesOf(fileId: string, index: GraphIndex): DegreeRankedSymbol[] {
     });
   }
   return out.toSorted((a, b) => a.rank - b.rank);
+}
+
+/**
+ * Every node this path owns: its file-level node plus the symbols it defines
+ * via `contains`. Cross-community traversal starts from this whole set, because
+ * a call from one of a file's own functions into another community is exactly
+ * the kind of bridge the unit should name — restricting the walk to the file
+ * node omitted it.
+ */
+function ownedNodeIds(fileId: string, index: GraphIndex): Set<string> {
+  const owned = new Set<string>([fileId]);
+  for (const edge of index.graph.links) {
+    if (edge.relation === 'contains' && edge.source === fileId) owned.add(edge.target);
+  }
+  return owned;
 }
 
 /**
@@ -393,25 +442,28 @@ function crossEdgesOf(
   index: GraphIndex,
 ): CrossCommunityEdge[] {
   if (community === null) return [];
+  const owned = ownedNodeIds(fileId, index);
   const seen = new Set<string>();
   const rows: { edge: CrossCommunityEdge; otherId: string }[] = [];
   for (const edge of index.graph.links) {
-    // `contains` is a file->symbol containment edge, so a file's OWN symbol
-    // clustered into another community would read as a bridge out of the file.
-    // Containment is structure, not a bridge.
+    // `contains` is file->symbol containment, so a file's OWN symbol clustered
+    // elsewhere would read as a bridge out of the file. Containment is
+    // structure, not a bridge.
     if (edge.relation === 'contains') continue;
-    const otherId =
-      edge.source === fileId ? edge.target : edge.target === fileId ? edge.source : null;
-    if (otherId === null) continue;
+    const fromOwned = owned.has(edge.source);
+    const toOwned = owned.has(edge.target);
+    if (fromOwned === toOwned) continue; // neither end ours, or an internal edge
+    const nearId = fromOwned ? edge.source : edge.target;
+    const otherId = fromOwned ? edge.target : edge.source;
     const other = index.byId.get(otherId);
     if (other === undefined || typeof other.community !== 'number') continue;
     if (other.community === community) continue;
-    const key = `${otherId} ${edge.relation}`;
+    const key = `${nearId}\u0000${otherId}\u0000${edge.relation}`;
     if (seen.has(key)) continue;
     seen.add(key);
     rows.push({
       edge: {
-        from: labelOf(index.byId, fileId),
+        from: labelOf(index.byId, nearId),
         to: labelOf(index.byId, otherId),
         relation: edge.relation,
         toCommunity: other.community,

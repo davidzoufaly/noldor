@@ -142,6 +142,30 @@ describe('stub rule', () => {
     expect(found[0]).toMatchObject({ rule: 'missing-section' });
   });
 
+  it('counts fenced evidence whose fence contains a heading-shaped line', async () => {
+    // The exact regression: a `#` comment inside a ```bash fence terminated the
+    // raw section, so the unstripped measure — added precisely to credit fenced
+    // evidence — saw nothing and reported a stub.
+    spec(
+      `${AFTER}-a-design.md`,
+      ['```bash', '# pnpm noldor design graph-context --path src/x.ts', REAL, '```'].join('\n'),
+    );
+    expect(await detectStructuralContextStubs(dir)).toEqual([]);
+  });
+
+  it('ignores an H3 that sits outside `## Design`', async () => {
+    const path = join(dir, 'docs', 'design', 'specs', `${AFTER}-a-design.md`);
+    writeFileSync(
+      path,
+      ['## Risks', '', '### Structural context', '', REAL, '', '## Design', '', '### U1', ''].join(
+        '\n',
+      ),
+      'utf8',
+    );
+    const found = await detectStructuralContextStubs(dir);
+    expect(found[0]).toMatchObject({ rule: 'missing-section' });
+  });
+
   it('stops the section at the next heading of the same depth', async () => {
     // `REAL` sits under U1, not under the unit, so the unit is still a stub.
     const path = join(dir, 'docs', 'design', 'specs', `${AFTER}-a-design.md`);
@@ -166,6 +190,12 @@ describe('noldor:cut suppression', () => {
 
   it('still reports a bare marker — the reason is what makes a skip a decision', async () => {
     spec(`${AFTER}-a-design.md`, 'noldor:cut');
+    const found = await detectStructuralContextStubs(dir);
+    expect(found[0]).toMatchObject({ rule: 'stub-section' });
+  });
+
+  it('rejects a marker-shaped prefix such as `noldor:cutlery`', async () => {
+    spec(`${AFTER}-a-design.md`, 'noldor:cutlery short');
     const found = await detectStructuralContextStubs(dir);
     expect(found[0]).toMatchObject({ rule: 'stub-section' });
   });

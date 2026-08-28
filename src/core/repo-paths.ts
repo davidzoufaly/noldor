@@ -112,6 +112,13 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
  * and what they do with a file, so those are the parameters; everything else is
  * one definition. An unreadable directory is skipped, never thrown: these
  * walkers run over whatever a consumer's tree happens to contain.
+ *
+ * Symlinks are FOLLOWED, via a `statSync` on any entry `withFileTypes` reports
+ * as a link. `withFileTypes` alone classifies a symlink as neither file nor
+ * directory, so an earlier revision of this helper silently skipped every
+ * symlinked source file — which let a stale graph read `fresh` on the mtime leg
+ * because the newest file under a scan root was invisible. The pre-lift walker
+ * used bare `readdirSync` + `statSync` and followed links; this restores that.
  */
 function walkDir(
   root: string,
@@ -126,10 +133,22 @@ function walkDir(
   }
   for (const entry of entries) {
     const full = join(root, entry.name);
-    if (entry.isDirectory()) {
+    let isDir = entry.isDirectory();
+    let isFile = entry.isFile();
+    if (entry.isSymbolicLink()) {
+      // Resolve through the link. A broken link stats as neither.
+      try {
+        const st = statSync(full);
+        isDir = st.isDirectory();
+        isFile = st.isFile();
+      } catch {
+        continue;
+      }
+    }
+    if (isDir) {
       if (skipDir(entry.name)) continue;
       walkDir(full, onFile, skipDir);
-    } else if (entry.isFile()) {
+    } else if (isFile) {
       onFile(full, entry.name);
     }
   }

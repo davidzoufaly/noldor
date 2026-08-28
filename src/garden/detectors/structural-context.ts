@@ -99,7 +99,7 @@ async function scanSpecs(specsDir: string): Promise<StructuralContextStub[]> {
     if (date === null || date < SPEC_FLOOR_DATE) continue;
     const body = await readText(join(specsDir, name));
     if (body === null) continue;
-    const verdict = classify(body, 3, null);
+    const verdict = classify(body, 3, null, '## Design');
     if (verdict === null) continue;
     out.push({
       file: `${relDir(specsDir)}/${name}`,
@@ -119,7 +119,7 @@ async function scanAdrs(adrDir: string): Promise<StructuralContextStub[]> {
     if (match === null || match[1] <= ADR_FLOOR_NUMBER) continue;
     const body = await readText(join(adrDir, name));
     if (body === null) continue;
-    const verdict = classify(body, 2, ADR_STRUCTURAL_CONTEXT_PLACEHOLDER);
+    const verdict = classify(body, 2, ADR_STRUCTURAL_CONTEXT_PLACEHOLDER, null);
     if (verdict === null) continue;
     out.push({
       file: `${relDir(adrDir)}/${name}`,
@@ -141,10 +141,11 @@ function classify(
   body: string,
   depth: number,
   placeholder: string | null,
+  requireAncestor: string | null,
 ): StructuralContextRule | null {
-  const scannable = stripFences(body);
-  const section = sectionAt(scannable, depth);
-  if (section === null) return 'missing-section';
+  const located = locateSection(body, depth, requireAncestor);
+  if (located === null) return 'missing-section';
+  const { scanned: section, raw } = located;
 
   // Suppression must come from THIS section, not from anywhere in the artifact:
   // a marker under an unrelated heading says nothing about this unit. A bare
@@ -157,45 +158,105 @@ function classify(
 
   if (placeholder !== null && section.trim() === placeholder) return 'placeholder-only';
 
-  // The floor measures the UNSTRIPPED body: a unit whose evidence is a fenced
-  // digest excerpt has done the work, and zeroing those characters would call
-  // it a stub. Fences are stripped for scanning only.
-  const unstripped = sectionAt(body, depth);
-  return density(unstripped ?? section) >= MIN_STRUCTURAL_CONTEXT_CHARS ? null : 'stub-section';
+  // The floor measures the RAW body — a unit whose evidence is a fenced digest
+  // excerpt has done the work. `raw` comes from the same boundaries the stripped
+  // scan found, never from a second independent scan: re-scanning unstripped
+  // text let a `#`-prefixed line inside a bash fence terminate the section
+  // early, reporting a stub for exactly the case this measure exists to serve.
+  return density(raw) >= MIN_STRUCTURAL_CONTEXT_CHARS ? null : 'stub-section';
+}
+
+/** One line of the artifact, tagged with whether it sits inside a code fence. */
+interface TaggedLine {
+  text: string;
+  fenced: boolean;
 }
 
 /**
- * Remove fenced regions so a heading or marker inside a code fence cannot
- * classify an artifact — this spec's own fenced examples would otherwise.
+ * Tag every line with its fence state in one pass.
+ *
+ * Fence state has to be computed once and carried, not recomputed by stripping:
+ * two independent scans of the same document disagree about where a section
+ * starts and ends the moment a fence contains something heading-shaped.
  */
-function stripFences(body: string): string {
-  const out: string[] = [];
+function tagLines(body: string): TaggedLine[] {
+  const out: TaggedLine[] = [];
   let inFence = false;
-  for (const line of body.split('\n')) {
-    if (/^\s*(```|~~~)/.test(line)) {
+  for (const text of body.split('\n')) {
+    if (/^\s*(```|~~~)/.test(text)) {
       inFence = !inFence;
+      // The delimiter itself belongs to no section body.
+      out.push({ text, fenced: true });
       continue;
     }
-    if (!inFence) out.push(line);
+    out.push({ text, fenced: inFence });
   }
-  return out.join('\n');
+  return out;
+}
+
+/** A located unit: the text structure is read from, and the text measured. */
+interface LocatedSection {
+  /** Fenced lines removed — what headings and markers are matched against. */
+  scanned: string;
+  /** Every line between the boundaries, fences included — what the floor measures. */
+  raw: string;
 }
 
 /**
- * The unit's body: everything after its heading up to the next heading of the
- * same or shallower depth. A duplicate heading takes the first occurrence.
+ * Find the unit and return both views of it.
+ *
+ * Only unfenced lines can open or close a section, so a heading inside a fence
+ * neither introduces a unit nor truncates one. `requireAncestor` additionally
+ * demands that the nearest preceding shallower heading be that text, so a spec's
+ * `### Structural context` counts only inside `## Design`.
  */
-function sectionAt(body: string, depth: number): string | null {
-  const lines = body.split('\n');
+function locateSection(
+  body: string,
+  depth: number,
+  requireAncestor: string | null,
+): LocatedSection | null {
+  const lines = tagLines(body);
   const open = `${'#'.repeat(depth)} ${STRUCTURAL_CONTEXT_HEADING}`;
-  const start = lines.findIndex((line) => line.trim() === open);
+  const start = lines.findIndex(
+    (l, i) => !l.fenced && l.text.trim() === open && ancestorOk(lines, i, depth, requireAncestor),
+  );
   if (start === -1) return null;
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => {
-    const m = /^(#{1,6})\s/.exec(line);
-    return m !== null && m[1].length <= depth;
-  });
-  return (end === -1 ? rest : rest.slice(0, end)).join('\n');
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const l = lines[i]!;
+    if (l.fenced) continue;
+    const m = /^(#{1,6})\s/.exec(l.text);
+    if (m !== null && m[1].length <= depth) {
+      end = i;
+      break;
+    }
+  }
+  const window = lines.slice(start + 1, end);
+  return {
+    scanned: window
+      .filter((l) => !l.fenced)
+      .map((l) => l.text)
+      .join('\n'),
+    raw: window.map((l) => l.text).join('\n'),
+  };
+}
+
+/** Is the nearest preceding shallower heading the one this unit must live under? */
+function ancestorOk(
+  lines: readonly TaggedLine[],
+  at: number,
+  depth: number,
+  requireAncestor: string | null,
+): boolean {
+  if (requireAncestor === null) return true;
+  for (let i = at - 1; i >= 0; i -= 1) {
+    const l = lines[i]!;
+    if (l.fenced) continue;
+    const m = /^(#{1,6})\s/.exec(l.text);
+    if (m === null || m[1].length >= depth) continue;
+    return l.text.trim() === requireAncestor;
+  }
+  return false;
 }
 
 /** Non-whitespace character count — the same measure the summary contract uses. */
