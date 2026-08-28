@@ -1,8 +1,7 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 
 import type { FeatureRecord, Gap } from '../core/fd-load.js';
-import { loadConsumerConfig } from '../core/consumer-config.js';
+import { newestMtimeInRoots } from '../core/repo-paths.js';
 
 /**
  * Parsed graphify graph payload. Only the fields this module relies on
@@ -78,7 +77,7 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
   }
 
   const graphMtime = statSync(graphPath).mtimeMs;
-  const newestSrcMtime = newestMtimeInRoots(srcRoots);
+  const newestSrcMtime = newestMtimeInRoots(process.cwd(), srcRoots);
 
   if (newestSrcMtime !== null && newestSrcMtime > graphMtime) {
     const graphDate = new Date(graphMtime).toISOString().slice(0, 10);
@@ -115,69 +114,6 @@ export function loadFreshGraphOrWarn(graphPath: string, srcRoots: string[]): Loa
  */
 export function isStaleGraphGap(gap: Gap): boolean {
   return gap.category === META_GAP_CATEGORY && gap.message.startsWith(STALE_GAP_MESSAGE_PREFIX);
-}
-
-/**
- * Walk every file under each root and return the largest mtime seen, or
- * `null` if nothing exists. Skips hidden directories and common
- * build-output paths.
- */
-function newestMtimeInRoots(roots: string[]): number | null {
-  const { samplesPath } = loadConsumerConfig();
-  let newest: number | null = null;
-  for (const root of roots) {
-    if (!existsSync(root)) continue;
-    walkSync(
-      root,
-      (path, mtime) => {
-        if (newest === null || mtime > newest) newest = mtime;
-      },
-      samplesPath,
-    );
-  }
-  return newest;
-}
-
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git']);
-
-function walkSync(
-  dir: string,
-  visit: (path: string, mtime: number) => void,
-  samplesPath: string,
-): void {
-  let entries;
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return;
-  }
-  for (const name of entries) {
-    if (name.startsWith('.')) continue;
-    if (SKIP_DIRS.has(name)) continue;
-    const full = join(dir, name);
-    if (isIgnoredFreshnessPath(full, samplesPath)) continue;
-    let st;
-    try {
-      st = statSync(full);
-    } catch {
-      continue;
-    }
-    if (st.isDirectory()) {
-      walkSync(full, visit, samplesPath);
-    } else {
-      visit(full, st.mtimeMs);
-    }
-  }
-}
-
-function isIgnoredFreshnessPath(path: string, samplesPath: string): boolean {
-  const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '');
-  return (
-    normalized === samplesPath ||
-    normalized.endsWith(`/${samplesPath}`) ||
-    normalized.startsWith(`${samplesPath}/`) ||
-    normalized.includes(`/${samplesPath}/`)
-  );
 }
 
 /**

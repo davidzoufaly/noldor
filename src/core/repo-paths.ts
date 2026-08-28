@@ -1,8 +1,8 @@
 // @fd: scan-roots-repo-paths-provider
 
 import { readFile, readdir } from 'node:fs/promises';
-import { readdirSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { readdirSync, statSync } from 'node:fs';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { loadConsumerConfig } from './consumer-config.js';
 
@@ -110,4 +110,83 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
   };
   walk(root);
   return out.sort();
+}
+
+/**
+ * Directories skipped by {@link newestMtimeInRoots}. Narrower than
+ * {@link WALK_EXCLUDED_DIRS}: `fixtures` is deliberately absent, because a
+ * fixture edit is a real source edit for freshness purposes.
+ */
+const MTIME_SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git']);
+
+/**
+ * Largest mtime (ms) of any file under `roots`, or `null` when nothing exists.
+ *
+ * Lifted here from `src/garden/graph-fd-lookup.ts`, where it was module-private
+ * and therefore unreachable by any second caller — `loadFreshGraphOrWarn` is the
+ * only export and it also parses the graph and returns a co-tag-flavoured `Gap`.
+ * It lives beside {@link scanRoots} because every caller pairs the two.
+ *
+ * `cwd` is explicit and every root is joined against it. The original resolved
+ * roots as bare relative paths and called `loadConsumerConfig()` with no
+ * argument, so it always walked `process.cwd()` — which silently reported on the
+ * wrong repository for any caller that injected a different root.
+ *
+ * @param cwd - Consumer root the roots are resolved against
+ * @param roots - Directory names resolved against `cwd`, typically
+ *   {@link scanRoots} output; an absolute root is used verbatim
+ * @returns Largest mtime in ms, or `null` when no root holds a file
+ */
+export function newestMtimeInRoots(cwd: string, roots: readonly string[]): number | null {
+  const { samplesPath } = loadConsumerConfig(cwd);
+  let newest: number | null = null;
+  const visit = (dir: string): void => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || MTIME_SKIP_DIRS.has(entry.name)) continue;
+      const full = join(dir, entry.name);
+      if (isSamplesPath(full, samplesPath)) continue;
+      if (entry.isDirectory()) {
+        visit(full);
+        continue;
+      }
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (newest === null || st.mtimeMs > newest) newest = st.mtimeMs;
+    }
+  };
+  // An absolute root is used as-is: `join(cwd, '/tmp/x')` yields `<cwd>/tmp/x`,
+  // which silently walks nothing. Callers pass both shapes — `scanRoots()` gives
+  // relative names, tests and any absolute-path caller give resolved ones.
+  for (const root of roots) visit(isAbsolute(root) ? root : join(cwd, root));
+  return newest;
+}
+
+/**
+ * Is this path the consumer's generated-samples dir, or inside it?
+ *
+ * Matches on the walked path rather than a cwd-relative one, and keeps all four
+ * variants, because roots arrive both relative (`apps/...`, matched by the
+ * `===` / `startsWith` pair) and absolute (`/tmp/x/apps/...`, matched only by
+ * the `endsWith` / `includes` pair). Narrowing this to a repo-relative compare
+ * silently stopped excluding samples under an absolute root — caught by
+ * `graph-fd-lookup.test.ts`'s sample-scene freshness case.
+ */
+function isSamplesPath(path: string, samplesPath: string): boolean {
+  const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '');
+  return (
+    normalized === samplesPath ||
+    normalized.endsWith(`/${samplesPath}`) ||
+    normalized.startsWith(`${samplesPath}/`) ||
+    normalized.includes(`/${samplesPath}/`)
+  );
 }
