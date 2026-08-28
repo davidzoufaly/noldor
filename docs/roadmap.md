@@ -111,19 +111,6 @@ Milestones (`docs/milestones/<slug>.md`) currently live independent of the queue
 
 - Provázat milestone s featurama, backlogem a roadmapou — the operator raised this again on 2026-08-24: the link must run in both directions across all three surfaces (feature MDs, `docs/backlog.md`, `docs/roadmap.md`), not just feature frontmatter, so a milestone doc can enumerate its queue and the queue can name its milestone.
 
-### Architecture Doc Prose Form and Structure
-
-- id: Q-0178
-- area: docs
-- type: docs
-- since: 2026-08-24
-- size: M
-- impact: med
-- confidence: med
-- parent: consumer-architecture-doc-surface
-
-Q-0093 shipped the `docs/architecture/` registry — four pages, a presence validator, an advisory staleness check and scaffold-only templates — but left the *content* contract open, so the pages drift into long narrative prose instead of the terse technical reading the surface exists to give. Wanted: prescribe the form as well as the existence — a fixed section structure per page in `templates/docs/architecture/`, stricter C4 fidelity (each page answers its own C4 level and only that level: context = system + actors + externals, containers = runnable units, modules = internal dependency direction and state ownership, flows = load-bearing runtime paths), and a prose contract that favours diagram + labelled fact over paragraphs. Consider an advisory bloat check alongside the existing staleness one (prose-to-diagram ratio, or per-page word budget) so the drift is visible without blocking a release. Deletion test: a reader answers "how is this system shaped" from the four pages without reading a single full paragraph, and a page that has grown into an essay is flagged rather than merely stale.
-
 ### CR Re-Round Cap Enforcement and Oscillation Detector
 
 - id: Q-0170

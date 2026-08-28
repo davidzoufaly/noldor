@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ARCHITECTURE_PAGES } from '../architecture-schema.js';
+import { ARCHITECTURE_PAGES, PLACEHOLDER_MARKER } from '../architecture-schema.js';
 import {
   checkArchitecture,
   fenceKinds,
@@ -233,7 +233,10 @@ describe(checkArchitecture, () => {
     );
     const report = await checkArchitecture(root);
     expect(report.status).toBe('ok');
-    expect(report.advisories.map((a) => a.module)).toStrictEqual(['src/unnamed']);
+    // Scoped to module rows: the channel is shared, and these fixture pages
+    // carry no registry sections, so they also emit section advisories.
+    const modules = report.advisories.filter((a) => a.kind === 'module').map((a) => a.module);
+    expect(modules).toStrictEqual(['src/unnamed']);
   });
 
   it('emits no module advisories when the modules page is missing', async () => {
@@ -242,7 +245,215 @@ describe(checkArchitecture, () => {
     await writePages(root, goodBody);
     await rm(join(root, 'docs', 'architecture', 'modules.md'));
     const report = await checkArchitecture(root);
-    expect(report.advisories).toStrictEqual([]);
+    expect(report.advisories.filter((a) => a.kind === 'module')).toStrictEqual([]);
     expect(report.findings.map((f) => f.rule)).toStrictEqual(['missing']);
+  });
+});
+
+describe('ARCHITECTURE_PAGES sections', () => {
+  it('carries bare section names, no "## " prefix', () => {
+    const byId = Object.fromEntries(ARCHITECTURE_PAGES.map((p) => [p.id, p.sections]));
+    expect(byId.context).toStrictEqual(['Actors', 'Externals', 'Boundary']);
+    expect(byId.containers).toStrictEqual(['Runnable units', 'Durable state', 'Topology']);
+    expect(byId.modules).toStrictEqual(['Dependency direction', 'State ownership']);
+    expect(byId.flows).toStrictEqual([]);
+  });
+
+  it('never stores a rendered heading', () => {
+    for (const page of ARCHITECTURE_PAGES) {
+      for (const section of page.sections) {
+        expect(section.startsWith('#'), `${page.id}/${section}`).toBeFalsy();
+      }
+    }
+  });
+});
+
+/** Write all four architecture pages into a fixture repo. */
+async function writeArchitecture(root: string, pages: Record<string, string>): Promise<void> {
+  const dir = join(root, 'docs', 'architecture');
+  await mkdir(dir, { recursive: true });
+  await Promise.all(
+    Object.entries(pages).map(([id, body]) => writeFile(join(dir, `${id}.md`), body, 'utf8')),
+  );
+}
+
+/** A page that satisfies every blocking rule AND every section rule. */
+function fullPage(id: string): string {
+  const page = ARCHITECTURE_PAGES.find((p) => p.id === id)!;
+  const kind = page.allowedKinds[0]!;
+  const fenceBlock =
+    kind === 'sequencediagram'
+      ? '```mermaid\nsequenceDiagram\n  actor U\n  U->>S: go\n```'
+      : `\`\`\`mermaid\n${kind} LR\n  a --> b\n\`\`\``;
+  const heads =
+    page.sections.length > 0
+      ? page.sections.map((s) => `## ${s}\n\nprose.\n`).join('\n')
+      : '## First flow\n\nprose.\n\n## Second flow\n\nprose.\n';
+  return `# ${page.title}\n\n${heads}\n${fenceBlock}\n`;
+}
+
+describe('advisory union', () => {
+  it('carries a registry page id and a repo-relative path on every row', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      context: '# Context\n\n```mermaid\nflowchart LR\n  a --> b\n```\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    const section = report.advisories.find((a) => a.kind === 'section');
+    expect(section).toMatchObject({
+      kind: 'section',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+    });
+    expect(report.status).toBe('ok');
+  });
+
+  it('leaves status untouched when only advisories fire', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      context: '# Context\n\n```mermaid\nflowchart LR\n  a --> b\n```\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings).toStrictEqual([]);
+    expect(report.status).toBe('ok');
+  });
+});
+
+describe('advisory gating', () => {
+  it('suppresses form rows on a page carrying a blocking finding', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      // No fence AND no sections: the blocking rule wins, the form rows stay silent.
+      context: '# Context\n\nprose only.\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.map((f) => f.rule)).toStrictEqual(['no-fence']);
+    expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
+  });
+
+  it('still emits module rows for a readable placeholder modules page', async () => {
+    const root = await makeRepo();
+    await mkdir(join(root, 'src', 'onlymodule'), { recursive: true });
+    await writeArchitecture(root, {
+      context: fullPage('context'),
+      containers: fullPage('containers'),
+      modules: `# Modules\n\n${PLACEHOLDER_MARKER} draw it -->\n\n\`\`\`mermaid\nflowchart TD\n  a --> b\n\`\`\`\n`,
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.some((f) => f.rule === 'placeholder')).toBe(true);
+    expect(report.advisories.some((a) => a.kind === 'module')).toBe(true);
+  });
+
+  it('emits no advisories at all for an absent surface', async () => {
+    const root = await makeRepo();
+    const report = await checkArchitecture(root);
+    expect(report.status).toBe('absent');
+    expect(report.advisories).toStrictEqual([]);
+  });
+});
+
+describe('unknown-cut advisory', () => {
+  it('reports a cut that names no section, and honours a valid one', async () => {
+    const root = await makeRepo();
+    const context =
+      '# Context\n\n## Actors\n\na\n\n## Externals\n\nb\n' +
+      '<!-- noldor:cut-section Boundary — nothing to say -->\n' +
+      '<!-- noldor:cut-section Nope — not a section -->\n' +
+      '\n```mermaid\nflowchart LR\n  a --> b\n```\n';
+    await writeArchitecture(root, {
+      context,
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.advisories.filter((a) => a.kind === 'section')).toStrictEqual([]);
+    expect(report.advisories.filter((a) => a.kind === 'unknown-cut')).toMatchObject([
+      { pageId: 'context', section: 'Nope', ordinal: 0 },
+    ]);
+    expect(report.status).toBe('ok');
+  });
+});
+
+describe('bloat advisories', () => {
+  it('reports a long paragraph without touching status', async () => {
+    const root = await makeRepo();
+    const essay = Array.from({ length: 140 }, (_, i) => `w${i}`).join(' ');
+    await writeArchitecture(root, {
+      context: `${fullPage('context')}\n${essay}\n`,
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.advisories.filter((a) => a.kind === 'long-paragraph')).toMatchObject([
+      { pageId: 'context', words: 140 },
+    ]);
+    expect(report.status).toBe('ok');
+    expect(report.findings).toStrictEqual([]);
+  });
+
+  it('stays silent on a page carrying a blocking finding', async () => {
+    const root = await makeRepo();
+    const essay = Array.from({ length: 140 }, (_, i) => `w${i}`).join(' ');
+    await writeArchitecture(root, {
+      context: `# Context\n\n${essay}\n`,
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.map((f) => f.rule)).toStrictEqual(['no-fence']);
+    expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
+  });
+});
+
+describe('page-bloat advisory', () => {
+  it('reports a page whose total prose passes the budget', async () => {
+    const root = await makeRepo();
+    // Seven 90-word paragraphs: each well under the paragraph budget, 630 words
+    // together — plus the three `prose.` words `fullPage` writes under each of
+    // context's sections, so 633 in total, over the 600 page budget.
+    const para = (n: number): string =>
+      Array.from({ length: 90 }, (_, i) => `w${n}x${i}`).join(' ');
+    const bulk = Array.from({ length: 7 }, (_, n) => para(n)).join('\n\n');
+    await writeArchitecture(root, {
+      context: `${fullPage('context')}\n${bulk}\n`,
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.advisories.filter((a) => a.kind === 'long-paragraph')).toStrictEqual([]);
+    expect(report.advisories.filter((a) => a.kind === 'page-bloat')).toMatchObject([
+      { pageId: 'context', words: 633 },
+    ]);
+    expect(report.status).toBe('ok');
+  });
+
+  it('names the delimited marker form in a missing-section message', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      context: '# Context\n\n```mermaid\nflowchart LR\n  a --> b\n```\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    const section = report.advisories.find((a) => a.kind === 'section');
+    // The templates defer to this output for the syntax, so a bare token would
+    // send a consumer to write a line the parser ignores.
+    expect(section?.message).toContain('<!-- noldor:cut-section');
+    expect(section?.message).toContain('-->');
   });
 });

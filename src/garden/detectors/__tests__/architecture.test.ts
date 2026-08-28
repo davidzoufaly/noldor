@@ -16,9 +16,69 @@ const report = (over: Partial<ArchitectureReport> = {}): ArchitectureReport => (
   ],
   advisories: [
     {
+      kind: 'module',
+      pageId: 'modules',
       page: 'docs/architecture/modules.md',
       module: 'src/unnamed',
       message: 'docs/architecture/modules.md does not name src/unnamed',
+    },
+    {
+      kind: 'section',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      section: 'Boundary',
+      message: 'docs/architecture/context.md does not name section "Boundary"',
+    },
+    {
+      // Deliberately a SECOND row on the same page: before the fix both render
+      // `context.md#undefined`, which is the collision the discriminator exists
+      // to prevent. Two rows on different pages would not collide, so a fixture
+      // without this one would let `gives every variant a distinct id` pass
+      // against the very bug it is meant to catch.
+      kind: 'section',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      section: 'Externals',
+      message: 'docs/architecture/context.md does not name section "Externals"',
+    },
+    {
+      kind: 'unknown-cut',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      section: 'Nope',
+      ordinal: 0,
+      message: 'docs/architecture/context.md declines "Nope"',
+    },
+    {
+      kind: 'unknown-cut',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      section: 'Nope',
+      ordinal: 1,
+      message: 'docs/architecture/context.md declines "Nope"',
+    },
+    {
+      kind: 'long-paragraph',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      index: 0,
+      words: 140,
+      message: 'docs/architecture/context.md has a 140-word paragraph',
+    },
+    {
+      kind: 'long-paragraph',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      index: 3,
+      words: 120,
+      message: 'docs/architecture/context.md has a 120-word paragraph',
+    },
+    {
+      kind: 'flow-headings',
+      pageId: 'flows',
+      page: 'docs/architecture/flows.md',
+      count: 0,
+      message: 'docs/architecture/flows.md names no flow as a heading',
     },
   ],
   ...over,
@@ -51,13 +111,14 @@ describe(toFindingGaps, () => {
 
 describe(toAdvisoryGaps, () => {
   it('keys a gap on the modules page and the module', () => {
-    expect(toAdvisoryGaps(report())).toStrictEqual([
-      {
-        category: 'architecture',
-        itemId: 'docs/architecture/modules.md#src/unnamed',
-        message: 'docs/architecture/modules.md does not name src/unnamed',
-      },
-    ]);
+    // `toContainEqual` rather than a whole-result `toStrictEqual`: the factory is
+    // shared by every case in this file, so a whole-result match would make each
+    // new advisory variant break an unrelated test.
+    expect(toAdvisoryGaps(report())).toContainEqual({
+      category: 'architecture',
+      itemId: 'docs/architecture/modules.md#module:src/unnamed',
+      message: 'docs/architecture/modules.md does not name src/unnamed',
+    });
   });
 
   it('cannot collide with a finding on the same page', () => {
@@ -78,5 +139,35 @@ describe(toAdvisoryGaps, () => {
     expect(
       toAdvisoryGaps(report({ status: 'absent', findings: [], advisories: [] })),
     ).toStrictEqual([]);
+  });
+});
+
+describe('advisory item ids', () => {
+  it('gives every variant a distinct id', () => {
+    const ids = toAdvisoryGaps(report()).map((g) => g.itemId);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('never renders an undefined discriminator', () => {
+    for (const gap of toAdvisoryGaps(report())) {
+      expect(gap.itemId, gap.message).not.toContain('undefined');
+    }
+  });
+
+  it('keeps the module row id stable', () => {
+    const ids = toAdvisoryGaps(report()).map((g) => g.itemId);
+    expect(ids).toContain('docs/architecture/modules.md#module:src/unnamed');
+  });
+});
+
+describe('unknown-cut ids', () => {
+  it('separates two identical unknown cuts on one page', () => {
+    const ids = toAdvisoryGaps(report())
+      .map((g) => g.itemId)
+      .filter((id) => id.includes('unknown-cut'));
+    expect(ids).toStrictEqual([
+      'docs/architecture/context.md#unknown-cut:Nope:0',
+      'docs/architecture/context.md#unknown-cut:Nope:1',
+    ]);
   });
 });

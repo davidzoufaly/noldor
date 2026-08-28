@@ -27,7 +27,7 @@ const HEADING_RE = /^ {0,3}(#{2,3}) +(.+?)(?: +#+)? *$/;
 /** Fence open/close candidate: up to three spaces, then a run of one marker char. */
 const FENCE_RE = /^ {0,3}((`{3,})|(~{3,}))(.*)$/;
 
-interface FenceState {
+export interface FenceState {
   marker: '`' | '~';
   length: number;
 }
@@ -35,10 +35,15 @@ interface FenceState {
 /**
  * Classify one line against the current fence state.
  *
+ * Exported so a caller that must interleave fence tracking with another
+ * line-spanning construct (HTML comments, say) can drive the same CommonMark
+ * rules one line at a time, rather than becoming a tenth incumbent scanner that
+ * recognizes a literal triple backtick and nothing else.
+ *
  * @returns The new fence state (`null` = outside a fence), and whether the line
  *   is *content* — i.e. can still be read as a heading.
  */
-function stepFence(line: string, open: FenceState | null): { open: FenceState | null } {
+export function stepFence(line: string, open: FenceState | null): { open: FenceState | null } {
   const m = line.match(FENCE_RE);
   if (!m) return { open };
   const run = m[2] ?? m[3]!;

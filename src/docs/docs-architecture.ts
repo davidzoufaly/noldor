@@ -4,7 +4,19 @@ import { basename, join, sep } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { scanRoots, toPosixRelative } from '../core/repo-paths.js';
-import { ARCHITECTURE_PAGES, PLACEHOLDER_MARKER, pageFilename } from './architecture-schema.js';
+import {
+  ARCH_PAGE_PROSE_WORD_THRESHOLD,
+  ARCH_PARAGRAPH_WORD_THRESHOLD,
+  SECTION_CUT_TOKEN,
+  assessPageBloat,
+  assessPageForm,
+} from './architecture-form.js';
+import {
+  ARCHITECTURE_PAGES,
+  PLACEHOLDER_MARKER,
+  pageFilename,
+  type ArchitecturePageId,
+} from './architecture-schema.js';
 
 /** Why one registry page failed. One finding per rule per page, never more. */
 export type ArchitectureRule = 'missing' | 'no-fence' | 'bad-kind' | 'placeholder' | 'unreadable';
@@ -18,21 +30,47 @@ export interface ArchitectureFinding {
 }
 
 /**
- * A module the code has but the modules page never names.
+ * Shared fields on every advisory row.
  *
- * Advisory by design: these never reach `status`, so they never reach the
- * release probe. Keeping that promise also constrains how they may be reported
- * — routing them into garden's `sddGaps` would gate the auto-restamp and block
- * a release through the receipt row, so they ride their own `GardenFindings`
- * key. See `src/garden/detectors/architecture.ts`.
+ * The page is carried twice on purpose: `pageId` is the registry id, so a
+ * construction site cannot invent a page, while `page` stays the repo-relative
+ * label the module rows already print.
  */
-export interface ModuleAdvisory {
-  /** Always the modules page. */
+interface AdvisoryBase {
+  readonly pageId: ArchitecturePageId;
+  /** Repo-relative path, POSIX separators. */
   readonly page: string;
-  /** Repo-relative directory, POSIX separators. */
-  readonly module: string;
   readonly message: string;
 }
+
+/**
+ * A non-blocking observation about a page.
+ *
+ * Advisory by design: none of these reach `status`, so none reaches the release
+ * probe. Keeping that promise also constrains how they may be reported —
+ * routing them into garden's `sddGaps` would gate the auto-restamp and block a
+ * release, so they ride their own `GardenFindings` key. See
+ * `src/garden/detectors/architecture.ts`.
+ *
+ * One discriminated channel rather than an array per class: its only consumer
+ * (`src/garden/garden-detect.ts`) reads one array today, and a second array
+ * would make every future consumer enumerate classes.
+ */
+export type ArchitectureAdvisory =
+  | (AdvisoryBase & { readonly kind: 'module'; readonly module: string })
+  | (AdvisoryBase & { readonly kind: 'section'; readonly section: string })
+  | (AdvisoryBase & {
+      readonly kind: 'unknown-cut';
+      readonly section: string;
+      readonly ordinal: number;
+    })
+  | (AdvisoryBase & { readonly kind: 'flow-headings'; readonly count: number })
+  | (AdvisoryBase & {
+      readonly kind: 'long-paragraph';
+      readonly index: number;
+      readonly words: number;
+    })
+  | (AdvisoryBase & { readonly kind: 'page-bloat'; readonly words: number });
 
 export interface ArchitectureReport {
   /**
@@ -41,7 +79,7 @@ export interface ArchitectureReport {
    */
   readonly status: 'absent' | 'ok' | 'incomplete';
   readonly findings: readonly ArchitectureFinding[];
-  readonly advisories: readonly ModuleAdvisory[];
+  readonly advisories: readonly ArchitectureAdvisory[];
 }
 
 /**
@@ -273,7 +311,11 @@ export async function checkArchitecture(cwd: string): Promise<ArchitectureReport
         rule: 'no-fence',
         message: `${label} carries no mermaid fence`,
       });
-    } else if (!kinds.some((k) => page.allowedKinds.includes(k))) {
+      // Membership is tested allowed-against-declared, not the reverse: the
+      // registry is `as const`, so `allowedKinds.includes(someString)` narrows
+      // its parameter to the page's own literal union and rejects a plain
+      // `string`. Intersecting in this direction is the same test without a cast.
+    } else if (!page.allowedKinds.some((allowed) => kinds.includes(allowed))) {
       findings.push({
         page: label,
         rule: 'bad-kind',
@@ -289,7 +331,14 @@ export async function checkArchitecture(cwd: string): Promise<ArchitectureReport
     }
   }
 
-  const advisories = await collectModuleAdvisories(cwd, reads);
+  // A page is blocked when any rule fired for it — that page's form rows stay silent.
+  const blocked = new Set(
+    reads.filter((r) => findings.some((f) => f.page === r.label)).map((r) => r.page.id),
+  );
+  const advisories = [
+    ...(await collectModuleAdvisories(cwd, reads)),
+    ...collectFormAdvisories(reads, blocked),
+  ];
   return { status: findings.length > 0 ? 'incomplete' : 'ok', findings, advisories };
 }
 
@@ -300,10 +349,101 @@ export async function checkArchitecture(cwd: string): Promise<ArchitectureReport
  * already one finding, and burying it under one advisory per module would make
  * the real problem harder to see.
  */
+/**
+ * Form advisories for the pages the blocking rules accepted.
+ *
+ * Gated deliberately: a page that is missing, unreadable, still scaffolded or
+ * undrawable produces its blocking finding and nothing else. Piling advisory
+ * rows onto a page whose real problem is that it does not exist yet is how the
+ * channel loses its reader.
+ *
+ * Module advisories are NOT gated this way and are collected separately —
+ * `collectModuleAdvisories` skips only an unreadable modules page, so a readable
+ * placeholder page emits its module rows today. That is shipped behaviour and
+ * gating it here would silently delete rows a consumer already sees.
+ */
+function collectFormAdvisories(
+  reads: readonly {
+    page: (typeof ARCHITECTURE_PAGES)[number];
+    label: string;
+    read: PageRead;
+  }[],
+  blocked: ReadonlySet<string>,
+): ArchitectureAdvisory[] {
+  const out: ArchitectureAdvisory[] = [];
+  for (const { page, label, read } of reads) {
+    if (!read.ok || blocked.has(page.id)) continue;
+    const form = assessPageForm(page, read.body);
+
+    for (const section of form.missing) {
+      out.push({
+        kind: 'section',
+        pageId: page.id,
+        page: label,
+        section,
+        message:
+          `${label} does not name section "${section}" — add a \`## ${section}\` heading, ` +
+          `or record why it does not apply: ` +
+          `\`<!-- ${SECTION_CUT_TOKEN} ${section} — <reason> -->\``,
+      });
+    }
+
+    for (const cut of form.unknownCuts) {
+      out.push({
+        kind: 'unknown-cut',
+        pageId: page.id,
+        page: label,
+        section: cut.name,
+        ordinal: cut.ordinal,
+        message:
+          `${label} declines "${cut.name}", which is not one of its sections or carries no ` +
+          `reason — a decline reads \`<!-- ${SECTION_CUT_TOKEN} <section> — <reason> -->\`.`,
+      });
+    }
+
+    const bloat = assessPageBloat(read.body);
+    for (const paragraph of bloat.longParagraphs) {
+      out.push({
+        kind: 'long-paragraph',
+        pageId: page.id,
+        page: label,
+        index: paragraph.index,
+        words: paragraph.words,
+        message:
+          `${label} has a ${paragraph.words}-word paragraph (threshold ` +
+          `${ARCH_PARAGRAPH_WORD_THRESHOLD}) at prose paragraph ${paragraph.index + 1} — split ` +
+          `it into labelled facts or a table.`,
+      });
+    }
+    if (bloat.pageWords !== null) {
+      out.push({
+        kind: 'page-bloat',
+        pageId: page.id,
+        page: label,
+        words: bloat.pageWords,
+        message:
+          `${label} carries ${bloat.pageWords} prose words (threshold ` +
+          `${ARCH_PAGE_PROSE_WORD_THRESHOLD}) — the page has grown into an essay.`,
+      });
+    }
+
+    if (form.flowHeadings !== null && form.flowHeadings < 1) {
+      out.push({
+        kind: 'flow-headings',
+        pageId: page.id,
+        page: label,
+        count: form.flowHeadings,
+        message: `${label} names no flow as a heading — give each load-bearing flow its own \`## \` section.`,
+      });
+    }
+  }
+  return out;
+}
+
 async function collectModuleAdvisories(
   cwd: string,
-  reads: readonly { page: { id: string }; label: string; read: PageRead }[],
-): Promise<ModuleAdvisory[]> {
+  reads: readonly { page: { id: ArchitecturePageId }; label: string; read: PageRead }[],
+): Promise<ArchitectureAdvisory[]> {
   const modulesPage = reads.find((r) => r.page.id === 'modules');
   if (!modulesPage?.read.ok) return [];
   const body = modulesPage.read.body;
@@ -311,6 +451,8 @@ async function collectModuleAdvisories(
   return (await listModuleDirs(cwd))
     .filter((module) => !mentionsModule(body, module))
     .map((module) => ({
+      kind: 'module' as const,
+      pageId: modulesPage.page.id,
       page: label,
       module,
       message: `${label} does not name ${module}`,

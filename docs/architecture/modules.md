@@ -4,7 +4,7 @@ Dependency direction runs one way: everything depends on `src/core`, and
 `src/core` depends on nothing else in `src`. The workflow modules sit above it,
 the enforcement surfaces sit above them, and no module below reaches back up.
 
-## The diagram
+## Dependency direction
 
 ```mermaid
 flowchart TD
@@ -74,7 +74,7 @@ flowchart TD
   autonomous --> cr
 ```
 
-## Who owns what durable state
+## State ownership
 
 | Module | Owns |
 |---|---|
