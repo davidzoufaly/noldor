@@ -30,6 +30,16 @@ export const SessionMarkerSchema = z
     uiVerdict: z.enum(['required', 'skip']).optional(),
     /** The candidate paths that matched uiPaths when the verdict was computed. */
     uiVerdictPaths: z.array(z.string().min(1)).optional(),
+    /**
+     * The PRE-filter candidate set the UI-design step derived — `links.code` ∪
+     * the entry's `Touches:` — before `uiPaths` narrowed it.
+     *
+     * Distinct from `uiVerdictPaths`, which holds only the matched subset and is
+     * therefore empty for every session in a repo where `consumer.uiPaths` is
+     * unset. The structural-read step needs the whole candidate set, so reusing
+     * that key would hand it zero paths. One derivation, two consumers.
+     */
+    candidatePaths: z.array(z.string().min(1)).optional(),
     /** Operator waiver for a required session with no editor (spec U4) — machine-readable, distinguishes waived from missing. */
     uiWaiver: z
       .object({ reason: z.string().min(1), at: z.string().min(1) })

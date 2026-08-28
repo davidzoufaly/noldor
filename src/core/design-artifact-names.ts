@@ -53,6 +53,28 @@ export function specSlugFromFilename(filename: string): string | null {
   return match?.[1] ?? null;
 }
 
+/**
+ * Derive the authored date from a spec filename.
+ *
+ * Reuses {@link SPEC_FILE_RE} to confirm the shape, then returns the leading
+ * ten characters — the regex matches the date prefix but captures only the
+ * slug, and adding a second capture group would change every existing caller's
+ * match indices.
+ *
+ * Exists because the date is the only floor a stub detector can trust: the
+ * spec body's `**Date:**` line is author-typed and no validator enforces it,
+ * whereas the filename shape is checked wherever a spec is resolved.
+ *
+ * @param filename - The basename, e.g. `2026-08-28-foo-design.md`
+ * @returns `YYYY-MM-DD`, or `null` when the filename is not a spec name. A
+ *   regex-shaped but impossible calendar date (`2026-02-31`) is returned as
+ *   written — callers comparing it lexically against a floor do not care, and
+ *   rejecting it here would silently exempt the artifact instead.
+ */
+export function specDateFromFilename(filename: string): string | null {
+  return SPEC_FILE_RE.test(filename) ? filename.slice(0, 10) : null;
+}
+
 const PEN_FILE_RE = /^\d{4}-\d{2}-\d{2}-(.+?)\.pen$/;
 
 /**

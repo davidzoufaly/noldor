@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildDraftPrompt } from '../draft.js';
 import { PLAN_FORMAT, SPEC_FORMAT } from '../formats.js';
+import { STRUCTURAL_CONTEXT_HEADING } from '../../core/structural-context-contract.js';
 import {
   MIN_SECTION_CHARS,
   SECTIONS,
@@ -21,6 +22,20 @@ const entry: PrepEntry = {
   deps: [],
   body: 'Does a thing.',
 };
+
+describe('SPEC_FORMAT structural context', () => {
+  it('prescribes the Structural context H3 inside ## Design', () => {
+    expect(SPEC_FORMAT).toContain(`### ${STRUCTURAL_CONTEXT_HEADING}`);
+  });
+
+  it('names the command that produces the evidence', () => {
+    expect(SPEC_FORMAT).toContain('design graph-context');
+  });
+
+  it('offers the recorded skip, so the section is never honestly empty', () => {
+    expect(SPEC_FORMAT).toContain('noldor:cut');
+  });
+});
 
 describe('SPEC_FORMAT', () => {
   it('carries the required section contract', () => {

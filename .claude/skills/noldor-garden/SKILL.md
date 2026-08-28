@@ -14,7 +14,7 @@ user_invocable: true
 
 ## Steps
 
-1. **Run** `pnpm --silent garden:detect`. Parse JSON. (The `--silent` flag suppresses pnpm's banner lines so stdout is pure JSON.) If all five arrays are empty, report "Garden is tidy" and stop.
+1. **Run** `pnpm --silent garden:detect`. Parse JSON. (The `--silent` flag suppresses pnpm's banner lines so stdout is pure JSON.) If **every** finding array is empty, report "Garden is tidy" and stop. Check every key the payload carries, not a fixed count — `structuralContextStubs` is a finding like any other, and a gate that enumerates a subset silently swallows whichever key it predates.
 2. **For each `contradictions` entry**, read both `pair[0]` and `pair[1]`, then:
    - Find the pattern match (or its absence) and the surrounding ~50 lines.
    - Decide: is the rule actually divergent, or are the two docs consistent in context?
@@ -52,6 +52,9 @@ Rule contradictions (M):
 SDD gaps (M):
   • <category>: <itemId> — <message>
 
+Structural context stubs (M) — advisory:
+  • <artifact> — <rule>. <message>
+
 Architecture invariant violations (M):
   • <invariant>: <file:line> — <message>
 
@@ -65,7 +68,7 @@ Confirm all auto-actions? (y/n/edit)
    - **Archive plan** (both detector-flagged and manual-sweep rows) — `mkdir -p docs/design/plans/archive` (idempotent), then `git mv <path> docs/design/plans/archive/<basename>`. On collision (target exists), abort that row, continue.
    - **Archive spec** — `mkdir -p docs/design/specs/archive` (idempotent), then `git mv <path> docs/design/specs/archive/<basename>`. Same collision behavior as plans.
    - **Drop backlog block** — read `docs/backlog.md`. Locate the level-3 heading whose slugified name matches the finding's `slug`. Remove the heading + body up to (but not including) the next `### ` or `## ` heading or EOF. Trim any trailing blank lines. Write back. If the heading isn't found, abort that row, continue. (As of the roadmap/backlog split, `docs/backlog.md` is a flat parking lot — no level-2 phase sections to preserve.)
-6. **Manual-edit**, **SDD-gap**, and **architecture invariant** rows: never auto-actioned. Print as a "Manual TODOs" section in the final report with the file paths and messages so the operator knows where to edit.
+6. **Manual-edit**, **SDD-gap**, **structural-context**, and **architecture invariant** rows: never auto-actioned. A structural-context row is advisory by design — it names a design artifact whose `Structural context` unit is unwritten, and the remedy is either `pnpm noldor design graph-context --path <file>...` plus a paragraph, or a `noldor:cut <reason>` line recording a deliberate skip. Never edit someone's artifact prose for them, and never let one of these block a ship. Print as a "Manual TODOs" section in the final report with the file paths and messages so the operator knows where to edit.
 7. **Regen chain (always, even if zero auto-actions):**
 
 ```
@@ -84,7 +87,7 @@ Each must succeed. If any fails, report the failure and the partial state. Do no
 Archived: <count> plans → docs/design/plans/archive/
 Archived: <count> specs → docs/design/specs/archive/
 Dropped: <count> backlog blocks
-Manual TODOs: <count> contradictions, <count> SDD gaps (see above)
+Manual TODOs: <count> contradictions, <count> SDD gaps, <count> structural-context stubs (see above)
 Architecture invariants: <count> violations (see above)
 Regen chain: ✓ all passed (or: ✗ <failed step>)
 

@@ -203,5 +203,10 @@
   "Q-0097": {
     "slug": "unvalidated-slug-path-traversal-across-cli-entry-points",
     "retiredAt": "2026-08-28"
+  },
+  "Q-0194": {
+    "slug": "graph-evidence-in-specs-and-adrs",
+    "retiredInto": "graphify-plan-of-edges-nodes-for-plans-specs",
+    "retiredAt": "2026-08-28"
   }
 }

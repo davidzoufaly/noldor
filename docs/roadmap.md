@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Graph Evidence in Specs and ADRs
-
-- id: Q-0194
-- area: docs
-- type: feat
-- since: 2026-08-25
-- size: M
-- impact: med
-- confidence: med
-- parent: graphify-plan-of-edges-nodes-for-plans-specs
-
-[`graph-integration.md`](noldor/graph-integration.md) tells every reader to open `graph.brainstorm-summary.toon` before any codebase exploration, but the two surfaces where architecture decisions actually get written — `/noldor-spec` and `docs/adr/` — never mention the graph, so nothing records whether the structure was consulted. `/noldor-refactor` is the only stage wired to it, and by then the decision is already made. Three moving parts: (1) `/noldor-spec` gains an explicit read step on the `specs-only-*` and `full-*` paths — check freshness, regen AST-only if stale (seconds), read the summary toon before drafting `## Design`; (2) the spec contract printed by `prep format spec` and the ADR template grow a short **Structural context** unit naming the communities, god nodes, and cross-package bridges the change lands in — the same evidence `/noldor-refactor` already keys off before it touches a god node; (3) a garden detector reports a spec on a `full`/`specs-only` path, or a new ADR, whose structural-context unit is still a stub. Advisory-with-teeth like Q-0185: report it, let a `noldor:cut` marker record a deliberate skip, never block a ship. The risk to spec is stale-graph handling — reading a stale graph is worse than reading none, so the read step must reuse [`loadFreshGraphOrWarn()`](../src/garden/graph-fd-lookup.ts)'s gate rather than trusting the file's presence, and a missing graph must stay a clean skip (graphify is optional). Deletion test: a spec that reshapes a god node says so in writing, and a reader can tell from an ADR which part of the structure the decision moved. (found 2026-08-25)
-
 ### Design Approval Step Before Implementation
 
 - id: Q-0186
