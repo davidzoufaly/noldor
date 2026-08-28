@@ -19,6 +19,7 @@ links:
     - src/design/ledger.ts
     - src/invariants/slug-path-choke-point.ts
   tests:
+    - src/core/__tests__/slug-guards.test.ts
     - src/core/__tests__/slug-paths.test.ts
     - src/core/__tests__/slug-traversal.cli.test.ts
     - src/invariants/__tests__/slug-path-choke-point.test.ts
@@ -65,7 +66,8 @@ The same refusal covers `worktrees up` (including `--no-create`, and when a dire
 
 - `parseSlug(value)` — the one trust boundary. Returns `{ ok: true, slug }` with a branded `Slug`, or `{ ok: false, error }`. Call it wherever untrusted text arrives.
 - `slugPath(anchor, relRoot, slug, { prefix, suffix })` — the one guarded join. Takes a branded `Slug`, composes the root from the anchor, and refuses `escapes-root`, `unsafe-symlink`, or `uninspectable` when it cannot `lstat` the target at all.
-- `readFileNoFollow(path)` / `writeFileNoFollow(path, body)` — the IO pair for a vetted path. They open with `O_NOFOLLOW`, so a symlink planted between the guard and the IO is refused by the kernel rather than followed.
+- `readFileNoFollow(path)` / `readFileNoFollowAsync(path)` — reads for a vetted path. They open with `O_NOFOLLOW`, so a symlink planted between the guard and the read is refused by the kernel rather than followed, and a platform that cannot offer the flag is detected rather than silently degraded.
+- Writes use the existing `atomicWriteFileSync` / `atomicWriteFile`: a temp-file-then-rename replaces a planted symlink instead of following it, and keeps the atomicity other readers of these docs depend on.
 - `featurePath(cwd, slug)` / `milestonePath(cwd, slug)` / `worktreePath(cwd, slug)` / `worktreePidsPath(cwd, slug)` — per-family builders over `slugPath`.
 - `slugSchema` — a zod schema producing the brand, used by the frontmatter fields that carry repository-authored slugs.
 
