@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs';
+import { featurePath } from '../../core/doc-roots.js';
+import { parseSlug } from '../../core/slug.js';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -47,8 +49,12 @@ export async function detectPlanWithoutFd(repo: string): Promise<PlanWithoutFdFi
     const slug = planSlug(entry);
     if (!slug) continue;
 
-    const fdPath = join(repo, 'docs/features', `${slug}.md`);
-    if (!existsSync(fdPath)) {
+    // The slug comes from a plan filename, not from an argument, so this is
+    // not an escape — but routing it through the guarded builder keeps one
+    // construction for FD paths and keeps the advisory scan clean.
+    const parsed = parseSlug(slug);
+    const built = parsed.ok ? featurePath(repo, parsed.slug) : null;
+    if (built === null || !built.ok || !existsSync(built.path)) {
       findings.push({
         slug,
         planPath: join('docs/design/plans', entry),
