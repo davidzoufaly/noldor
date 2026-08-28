@@ -71,7 +71,7 @@ This is a real reduction against the roadmap entry, which states its deletion te
 | `uiVerdict: required` + `uiWaiver`, waived **before** Seed | no | unset | no | the existing waiver note only |
 | `uiVerdict: required` + `uiWaiver`, waived **after** Seed (mid-iteration or at the verdict) | **yes** | **set** | no | the waiver note, naming the unapproved `.pen` |
 
-Every waiver after Seed behaves alike, so a bridge that dies mid-iteration is not a third case: the seeded `.pen` is kept either way. `links.design` is normally set by **Record**, which runs before the verdict and needs no MCP — and when the bridge died before Record ran, the waiver step sets it. It stays set: it names a committed-but-unapproved design, and unsetting it would strand the retained `.pen` outside the link-based flow `design archive` uses to find and repoint it (D5). The FD `design:` field is a different thing entirely — an operator override, never a verdict record, and never written by this step.
+After an interruption, which side of Seed a waiver fell on is recovered from whether the `.pen` exists on disk — Seed is what creates it — so no extra marker field is required. Every waiver after Seed behaves alike, so a bridge that dies mid-iteration is not a third case: the seeded `.pen` is kept either way. `links.design` is normally set by **Record**, which runs before the verdict and needs no MCP — and when the bridge died before Record ran, the waiver step sets it. It stays set: it names a committed-but-unapproved design, and unsetting it would strand the retained `.pen` outside the link-based flow `design archive` uses to find and repoint it (D5). The FD `design:` field is a different thing entirely — an operator override, never a verdict record, and never written by this step.
 
 A waiver is not a third verdict and not a rejection. It is the pre-existing editor-unavailable escape ([session.ts](../../../../src/core/session.ts)), and it can be taken at either of two points. Waived at **Seed**, no `.pen` was ever produced and there is nothing to approve. Waived at the **verdict** — the bridge died after iteration, which is a live risk the "Wake the bridge" bullet exists for — the `.pen` exists but was never shown: it is kept and committed like any other design artifact, and the waiver note must say it went unapproved, so a later reader does not mistake an archived `.pen` for a ratified one. Either way the session's baseline debt is recorded by the waiver itself.
 
@@ -104,7 +104,8 @@ No automated test can observe a conversational contract, so the evidence is a sc
 - **required → revise → approve** — the whole `FINAL:` set is re-presented, not just the changed surface.
 - **required → revise ×2 → approve-with-reservations** — the reservation appears in `## Design`.
 - **skip** — no prompt, no `.pen`, `## Design` unchanged in shape.
-- **waiver** — no prompt; the existing waiver note is the only trace.
+- **waiver, before Seed** — no prompt, no `.pen`, `links.design` unset; the waiver note is the only trace.
+- **waiver, after Seed** (bridge dies mid-iteration, and again at the verdict) — no prompt; the seeded `.pen` is retained and committed, `links.design` names it, `session.uiWaiver` is written, and the spec's waiver note labels the artifact unapproved.
 - **multi-surface** — one verdict covers every affected surface; no per-surface partial state appears.
 
 Criteria 8–10 are mechanical: `pnpm noldor checks template-sync` green, an empty `git diff` over both `.claude/skills/noldor-gate/SKILL.md` and `templates/.claude/skills/noldor-gate/SKILL.md`, and an empty `git diff -- src/`.
