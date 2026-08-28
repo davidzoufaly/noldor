@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ARCHITECTURE_PAGES } from '../architecture-schema.js';
+import { ARCHITECTURE_PAGES, PLACEHOLDER_MARKER } from '../architecture-schema.js';
 import {
   checkArchitecture,
   fenceKinds,
@@ -233,7 +233,10 @@ describe(checkArchitecture, () => {
     );
     const report = await checkArchitecture(root);
     expect(report.status).toBe('ok');
-    expect(report.advisories.map((a) => a.module)).toStrictEqual(['src/unnamed']);
+    // Scoped to module rows: the channel is shared, and these fixture pages
+    // carry no registry sections, so they also emit section advisories.
+    const modules = report.advisories.filter((a) => a.kind === 'module').map((a) => a.module);
+    expect(modules).toStrictEqual(['src/unnamed']);
   });
 
   it('emits no module advisories when the modules page is missing', async () => {
@@ -242,7 +245,7 @@ describe(checkArchitecture, () => {
     await writePages(root, goodBody);
     await rm(join(root, 'docs', 'architecture', 'modules.md'));
     const report = await checkArchitecture(root);
-    expect(report.advisories).toStrictEqual([]);
+    expect(report.advisories.filter((a) => a.kind === 'module')).toStrictEqual([]);
     expect(report.findings.map((f) => f.rule)).toStrictEqual(['missing']);
   });
 });
@@ -262,5 +265,99 @@ describe('ARCHITECTURE_PAGES sections', () => {
         expect(section.startsWith('#'), `${page.id}/${section}`).toBeFalsy();
       }
     }
+  });
+});
+
+/** Write all four architecture pages into a fixture repo. */
+async function writeArchitecture(root: string, pages: Record<string, string>): Promise<void> {
+  const dir = join(root, 'docs', 'architecture');
+  await mkdir(dir, { recursive: true });
+  await Promise.all(
+    Object.entries(pages).map(([id, body]) => writeFile(join(dir, `${id}.md`), body, 'utf8')),
+  );
+}
+
+/** A page that satisfies every blocking rule AND every section rule. */
+function fullPage(id: string): string {
+  const page = ARCHITECTURE_PAGES.find((p) => p.id === id)!;
+  const kind = page.allowedKinds[0]!;
+  const fenceBlock =
+    kind === 'sequencediagram'
+      ? '```mermaid\nsequenceDiagram\n  actor U\n  U->>S: go\n```'
+      : `\`\`\`mermaid\n${kind} LR\n  a --> b\n\`\`\``;
+  const heads =
+    page.sections.length > 0
+      ? page.sections.map((s) => `## ${s}\n\nprose.\n`).join('\n')
+      : '## First flow\n\nprose.\n\n## Second flow\n\nprose.\n';
+  return `# ${page.title}\n\n${heads}\n${fenceBlock}\n`;
+}
+
+describe('advisory union', () => {
+  it('carries a registry page id and a repo-relative path on every row', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      context: '# Context\n\n```mermaid\nflowchart LR\n  a --> b\n```\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    const section = report.advisories.find((a) => a.kind === 'section');
+    expect(section).toMatchObject({
+      kind: 'section',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+    });
+    expect(report.status).toBe('ok');
+  });
+
+  it('leaves status untouched when only advisories fire', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      context: '# Context\n\n```mermaid\nflowchart LR\n  a --> b\n```\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings).toStrictEqual([]);
+    expect(report.status).toBe('ok');
+  });
+});
+
+describe('advisory gating', () => {
+  it('suppresses form rows on a page carrying a blocking finding', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      // No fence AND no sections: the blocking rule wins, the form rows stay silent.
+      context: '# Context\n\nprose only.\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.map((f) => f.rule)).toStrictEqual(['no-fence']);
+    expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
+  });
+
+  it('still emits module rows for a readable placeholder modules page', async () => {
+    const root = await makeRepo();
+    await mkdir(join(root, 'src', 'onlymodule'), { recursive: true });
+    await writeArchitecture(root, {
+      context: fullPage('context'),
+      containers: fullPage('containers'),
+      modules: `# Modules\n\n${PLACEHOLDER_MARKER} draw it -->\n\n\`\`\`mermaid\nflowchart TD\n  a --> b\n\`\`\`\n`,
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.some((f) => f.rule === 'placeholder')).toBe(true);
+    expect(report.advisories.some((a) => a.kind === 'module')).toBe(true);
+  });
+
+  it('emits no advisories at all for an absent surface', async () => {
+    const root = await makeRepo();
+    const report = await checkArchitecture(root);
+    expect(report.status).toBe('absent');
+    expect(report.advisories).toStrictEqual([]);
   });
 });

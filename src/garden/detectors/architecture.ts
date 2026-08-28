@@ -1,5 +1,9 @@
 // @fd: consumer-architecture-doc-surface
-import { checkArchitecture, type ArchitectureReport } from '../../docs/docs-architecture.js';
+import {
+  checkArchitecture,
+  type ArchitectureAdvisory,
+  type ArchitectureReport,
+} from '../../docs/docs-architecture.js';
 
 import type { Gap } from '../../core/fd-load.js';
 
@@ -16,42 +20,52 @@ import type { Gap } from '../../core/fd-load.js';
  * advisory only). Routing both through one channel is what would silently make
  * a renamed directory stop a release.
  *
- * `itemId` is `<page>#<rule>` here and `<modules page>#<module>` for an
+ * `itemId` is `<page>#<rule>` here and `<page>#<kind>:<discriminator>` for an
  * advisory, so every row has a stable identity, the two classes cannot collide
- * on the modules page, and a repeated run produces no duplicates.
+ * on one page, and a repeated run produces no duplicates.
  *
  * Empty when the surface is `absent`, which covers both a repo with no
  * `docs/architecture/` and one whose scaffold is still untouched: a consumer who
  * has not opted in is not drifting.
  */
 export function toFindingGaps(report: ArchitectureReport): Gap[] {
-  return gapsFrom(report, report.findings, (f) => f.rule);
+  if (report.status === 'absent') return [];
+  return report.findings.map((finding) => ({
+    category: 'architecture',
+    itemId: `${finding.page}#${finding.rule}`,
+    message: finding.message,
+  }));
 }
 
-/** Module advisories as gaps. Never routed into `sddGaps` — see {@link toFindingGaps}. */
+/** Advisory rows as gaps. Never routed into `sddGaps` — see {@link toFindingGaps}. */
 export function toAdvisoryGaps(report: ArchitectureReport): Gap[] {
-  return gapsFrom(report, report.advisories, (a) => a.module);
+  if (report.status === 'absent') return [];
+  return report.advisories.map((advisory) => ({
+    category: 'architecture',
+    itemId: `${advisory.page}#${advisoryDiscriminator(advisory)}`,
+    message: advisory.message,
+  }));
 }
 
 /**
- * Shared projection for both classes: `<page>#<discriminator>` as the stable id,
- * and nothing at all for a surface nobody opted into.
+ * Stable per-row identity, prefixed by `kind` so two variants cannot collide on
+ * one page.
  *
- * The two classes differ only in what discriminates a row — a rule for a page
- * finding, a module path for an advisory — so they share one mapper rather than
- * two identical ones.
+ * Every variant contributes something that distinguishes it from its siblings,
+ * so a repeated run produces no duplicates — the promise this file documents.
+ * A single `(a) => a.module` discriminator cannot serve the widened union: every
+ * non-module row would render `<page>#undefined`, and two of them on one page
+ * would collapse into a single gap.
  */
-function gapsFrom<T extends { page: string; message: string }>(
-  report: ArchitectureReport,
-  items: readonly T[],
-  discriminator: (item: T) => string,
-): Gap[] {
-  if (report.status === 'absent') return [];
-  return items.map((item) => ({
-    category: 'architecture',
-    itemId: `${item.page}#${discriminator(item)}`,
-    message: item.message,
-  }));
+function advisoryDiscriminator(advisory: ArchitectureAdvisory): string {
+  switch (advisory.kind) {
+    case 'module':
+      return `module:${advisory.module}`;
+    case 'section':
+      return `section:${advisory.section}`;
+    case 'flow-headings':
+      return 'flow-headings';
+  }
 }
 
 /**
