@@ -203,5 +203,10 @@
   "Q-0097": {
     "slug": "unvalidated-slug-path-traversal-across-cli-entry-points",
     "retiredAt": "2026-08-28"
+  },
+  "Q-0178": {
+    "slug": "architecture-doc-prose-form-and-structure",
+    "retiredInto": "consumer-architecture-doc-surface",
+    "retiredAt": "2026-08-28"
   }
 }
