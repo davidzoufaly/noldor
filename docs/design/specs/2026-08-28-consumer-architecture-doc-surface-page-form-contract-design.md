@@ -80,10 +80,14 @@ registry value and not a hardcoded page id in the checker.
 
 ### D-2. The `sections` rule is advisory, with teeth
 
-`checkArchitecture` grows a fifth rule, `sections`, reported when a page carries neither one of its
-registry sections nor a written decline for it. It never reaches `status`, so it never reaches the
-release probe or the garden auto-restamp — the blocking class stays exactly the four presence rules
-Q-0093 shipped.
+`checkArchitecture` reports a page that carries neither one of its registry sections nor a written
+decline for it. That row is a variant of the advisory union described below — **never a member of
+`ArchitectureRule`**, which is the blocking union ([`docs-architecture.ts`](../../../src/docs/docs-architecture.ts),
+already five members including `unreadable`). Rows carrying an `ArchitectureRule` land in `findings`,
+and `status` is literally `findings.length > 0 ? 'incomplete' : 'ok'` — so adding `sections` there
+would red the release row and `sddGaps` for a missing `## Boundary`, the exact failure the Risks
+section names. The `status` formula is untouched by this change, and the blocking class stays exactly
+the presence rules Q-0093 shipped.
 
 Blocking outright is not available: the four pages are in `SCAFFOLD_ONLY_TEMPLATES`, so
 template-sync never demands an existing page match a changed template and no consumer gets a
@@ -110,9 +114,11 @@ cut for a name that is not one of the page's registry sections is itself an advi
 cut would otherwise silence nothing while looking like it did).
 
 The advisory channel is currently typed as `ModuleAdvisory` with a `module` field a section row has
-no value for. It widens to a discriminated `ArchitectureAdvisory` — one channel, one shape, so
-garden and the dashboard keep reading one array — rather than growing a second parallel array per
-advisory class.
+no value for. It widens to a discriminated `ArchitectureAdvisory` — one channel, one shape, so its
+consumer keeps reading one array — rather than growing a second parallel array per advisory class.
+That consumer is `src/garden/garden-detect.ts` alone: `ModuleAdvisory` has three referents, all
+inside `docs-architecture.ts`, and no dashboard route reads `architectureAdvisories` today (Q-0134
+owns the future one and is out of scope).
 
 ### D-3. Bloat is measured per paragraph, not per page
 
@@ -198,7 +204,11 @@ without them.
 
 ## Acceptance criteria
 
-- `ArchitecturePage` carries `sections`; a page id typo in a caller is a type error.
+- `ArchitecturePage` carries `sections`, and `ARCHITECTURE_PAGES` is declared
+  `as const satisfies readonly ArchitecturePage[]` so `ArchitecturePageId` is the literal union of
+  the four ids and a page-id typo in a caller is a type error. The present annotation
+  (`readonly ArchitecturePage[]` with `id: string`) widens that alias to `string`, so the criterion
+  is unmeetable without the declaration change.
 - A page missing a registry section produces an advisory, and `checkArchitecture`'s `status` is
   unchanged by it.
 - A page that declines a section with a `noldor:cut` marker naming that section produces no advisory
@@ -227,9 +237,10 @@ without them.
   someone who reads the output at all. The check does not create a reader.
 - **`flows` remains structurally special.** `sections: []` expresses the exemption honestly, but a
   contract about structure that exempts one of its four pages is a compromise, not a clean rule.
-- **Widening `ModuleAdvisory`** touches the garden detector and the dashboard, which read its
-  `module` field. The blocking/advisory split must survive that edit intact — routing a section row
-  into `sddGaps` would silently make a missing heading block a release.
+- **Widening `ModuleAdvisory`** touches the garden detector, whose `toAdvisoryGaps` reads the
+  `module` field. It is the only consumer — no dashboard route reads the channel. The
+  blocking/advisory split must survive that edit intact: routing a section row into `sddGaps` would
+  silently make a missing heading block a release.
 - **Existing consumers get no migration.** Their pages stay as they are until someone reads an
   advisory and edits them by hand. That is the intended cost of leaving consumer prose alone.
 
