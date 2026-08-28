@@ -143,15 +143,17 @@ describe('walkDir symlink policy', () => {
     return dir;
   }
 
-  it('follows a symlink to a file, so its mtime is visible', () => {
+  it('makes a symlinked file visible to the mtime walker but not to the corpus', () => {
     const dir = treeWithLinks();
     try {
       const future = new Date(Date.now() + 600_000);
       utimesSync(join(dir, 'outside', 'newest.ts'), future, future);
-      // Only reachable through `src/linked.ts`; a non-following walk saw nothing
-      // here, which let a stale graph pass the mtime freshness leg.
+      // Only reachable through `src/linked.ts`. The mtime walker follows file
+      // links, so a stale graph cannot pass freshness by hiding the newest file
+      // behind one...
       expect(newestMtimeInRoots(dir, ['src'])).toBeGreaterThan(Date.now());
-      expect(walkCodeFiles(join(dir, 'src'), { includeTests: true })).toContain(
+      // ...while the corpus does not, keeping it to git-tracked paths.
+      expect(walkCodeFiles(join(dir, 'src'), { includeTests: true })).not.toContain(
         join(dir, 'src', 'linked.ts'),
       );
     } finally {
@@ -159,7 +161,7 @@ describe('walkDir symlink policy', () => {
     }
   });
 
-  it('walks a legitimate symlinked directory, so its files stay visible', () => {
+  it('does not enter a symlinked directory, and says so consistently', () => {
     const dir = mkdtempSync(join(tmpdir(), 'walkdir-dirlink-'));
     try {
       mkdirSync(join(dir, '.noldor'), { recursive: true });
@@ -175,31 +177,60 @@ describe('walkDir symlink policy', () => {
       symlinkSync(join(dir, 'generated'), join(dir, 'src', 'generated'));
       const future = new Date(Date.now() + 600_000);
       utimesSync(join(dir, 'generated', 'gen.ts'), future, future);
-      // Skipping directory links to bound cycles moved the invisibility up a
-      // level: everything under `src/generated` vanished from the mtime leg.
-      expect(newestMtimeInRoots(dir, ['src'])).toBeGreaterThan(Date.now());
-      expect(walkCodeFiles(join(dir, 'src'), { includeTests: true })).toContain(
-        join(dir, 'src', 'generated', 'gen.ts'),
-      );
+      // Documented residual: neither caller enters a directory link, so the
+      // mtime leg cannot see `gen.ts` and the corpus never emits an alias path.
+      // Following them instead cost a cycle, a repo escape, and an
+      // enumeration-order-dependent corpus — see `walkDir`'s docstring.
+      // `gen.ts` is stamped 10 minutes ahead, so seeing it is unmistakable.
+      expect(newestMtimeInRoots(dir, ['src'])).toBeLessThan(future.getTime());
+      expect(walkCodeFiles(join(dir, 'src'), { includeTests: true })).toEqual([
+        join(dir, 'src', 'a.ts'),
+      ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('bounds a directory cycle by resolved real path', () => {
+  it('cannot cycle, because a directory link is never entered', () => {
     const dir = treeWithLinks();
     try {
       // `src/deep/loop -> src` re-walked the tree until ENAMETOOLONG when
       // directory links were followed, inflating the corpus that feeds the
       // clone detector with paths like `src/deep/loop/deep/loop/...`.
-      // `src/deep/loop -> src` resolves to a directory already visited, so the
-      // walk stops there instead of re-entering until ENAMETOOLONG.
+      // `src/deep/loop -> src` is a directory link, so it is skipped outright
+      // rather than re-entered until ENAMETOOLONG.
       const found = walkCodeFiles(join(dir, 'src'), { includeTests: true });
-      expect(found.toSorted()).toEqual(
-        [join(dir, 'src', 'a.ts'), join(dir, 'src', 'linked.ts')].toSorted(),
-      );
+      // `linked.ts` is a FILE link and `walkCodeFiles` does not follow those
+      // either — its pre-lift behaviour, and what keeps the clone corpus to
+      // git-tracked paths.
+      expect(found).toEqual([join(dir, 'src', 'a.ts')]);
+      expect(found.some((p) => p.includes('loop'))).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('emits the real path, never an alias, whatever readdir returns first', () => {
+    // Probed shape: `src/alink -> src/real` returned the alias path, and
+    // renaming the link to `zlink` changed the output for the same tree.
+    for (const linkName of ['alink', 'zlink']) {
+      const dir = mkdtempSync(join(tmpdir(), 'walkdir-alias-'));
+      try {
+        mkdirSync(join(dir, '.noldor'), { recursive: true });
+        mkdirSync(join(dir, 'src', 'real'), { recursive: true });
+        writeFileSync(
+          join(dir, '.noldor', 'config.json'),
+          JSON.stringify({ consumer: { ...MINIMAL_CONSUMER, scanPaths: ['src'] } }),
+          'utf8',
+        );
+        writeFileSync(join(dir, 'src', 'real', 'a.ts'), 'export const a = 1;\n', 'utf8');
+        symlinkSync(join(dir, 'src', 'real'), join(dir, 'src', linkName));
+        expect(walkCodeFiles(join(dir, 'src'), { includeTests: true })).toEqual([
+          join(dir, 'src', 'real', 'a.ts'),
+        ]);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     }
   });
 });
