@@ -359,11 +359,17 @@ git commit -F /tmp/arch-form-t2.msg
 
 ---
 
-## Task 3: Widen the advisory type
+## Task 3: Widen the advisory type and wire the form rules in
 
 **Files:**
 - Modify: `src/docs/docs-architecture.ts`
 - Test: `src/docs/__tests__/docs-architecture.test.ts`
+
+The type widening and the code that populates it are one task on purpose. Split
+apart, the widening lands as a commit that changes a type nothing constructs
+yet, leaving the tests it introduces red until a later task — a commit that is
+neither bisectable nor green, which is exactly what this plan's TDD shape
+forbids.
 
 - [ ] **Step 1: Write the failing test.** Append to `src/docs/__tests__/docs-architecture.test.ts`:
 
@@ -514,28 +520,179 @@ async function collectModuleAdvisories(
 }
 ```
 
-- [ ] **Step 5: Run to verify the type change compiles and module rows still work.**
+- [ ] **Step 5: Write the gating test.** Append to `src/docs/__tests__/docs-architecture.test.ts`:
 
-```bash
-pnpm typecheck && pnpm vitest run src/docs src/garden
+```ts
+describe('advisory gating', () => {
+  it('suppresses form rows on a page carrying a blocking finding', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      // No fence AND no sections: the blocking rule wins, the form rows stay silent.
+      context: '# Context\n\nprose only.\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.map((f) => f.rule)).toStrictEqual(['no-fence']);
+    expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
+  });
+
+  it('still emits module rows for a readable placeholder modules page', async () => {
+    const root = await makeRepo();
+    await mkdir(join(root, 'src', 'onlymodule'), { recursive: true });
+    await writeArchitecture(root, {
+      context: fullPage('context'),
+      containers: fullPage('containers'),
+      modules: `# Modules\n\n${PLACEHOLDER_MARKER} draw it -->\n\n\`\`\`mermaid\nflowchart TD\n  a --> b\n\`\`\`\n`,
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.some((f) => f.rule === 'placeholder')).toBe(true);
+    expect(report.advisories.some((a) => a.kind === 'module')).toBe(true);
+  });
+
+  it('emits no advisories at all for an absent surface', async () => {
+    const root = await makeRepo();
+    const report = await checkArchitecture(root);
+    expect(report.status).toBe('absent');
+    expect(report.advisories).toStrictEqual([]);
+  });
+});
 ```
 
-Expected output: typecheck clean, and `src/garden` **green**. Both are worth understanding rather than assuming: `tsconfig.json` excludes `src/**/__tests__/**` and `src/**/*.test.ts` (inherited by `tsconfig.typecheck.json`), so the garden test file's now-outdated advisory literals are never typechecked; vitest strips types rather than checking them; and `toAdvisoryGaps` still reads `.module`, which the old literal still carries. The garden file only goes red once Task 4 changes the discriminator. In `src/docs`, the `advisory union` block from Step 1 stays red until Task 5 — any *other* `src/docs` failure is a real regression, so read it before continuing.
+Import `PLACEHOLDER_MARKER` alongside `ARCHITECTURE_PAGES` at the top of the test file.
 
-- [ ] **Step 6: Commit.**
+- [ ] **Step 6: Run to verify FAIL.**
+
+```bash
+pnpm vitest run src/docs/__tests__/docs-architecture.test.ts -t 'advisory gating'
+```
+
+Expected output: the `advisory union` block from Step 1 fails with `expected undefined to match object` — `checkArchitecture` still produces only module advisories. The `advisory gating` block's first case passes trivially at this point, since there are no form rows to suppress yet; it becomes meaningful once Step 8 lands. Both blocks are green after Step 8.
+
+- [ ] **Step 7: Collect the form advisories.** In `src/docs/docs-architecture.ts`, add above `collectModuleAdvisories`:
+
+```ts
+/**
+ * Form advisories for the pages the blocking rules accepted.
+ *
+ * Gated deliberately: a page that is missing, unreadable, still scaffolded or
+ * undrawable produces its blocking finding and nothing else. Piling advisory
+ * rows onto a page whose real problem is that it does not exist yet is how the
+ * channel loses its reader.
+ *
+ * Module advisories are NOT gated this way and are collected separately —
+ * `collectModuleAdvisories` skips only an unreadable modules page, so a readable
+ * placeholder page emits its module rows today. That is shipped behaviour and
+ * gating it here would silently delete rows a consumer already sees.
+ */
+function collectFormAdvisories(
+  reads: readonly {
+    page: (typeof ARCHITECTURE_PAGES)[number];
+    label: string;
+    read: PageRead;
+  }[],
+  blocked: ReadonlySet<string>,
+): ArchitectureAdvisory[] {
+  const out: ArchitectureAdvisory[] = [];
+  for (const { page, label, read } of reads) {
+    if (!read.ok || blocked.has(page.id)) continue;
+    const form = assessPageForm(page, read.body);
+
+    for (const section of form.missing) {
+      out.push({
+        kind: 'section',
+        pageId: page.id,
+        page: label,
+        section,
+        message: `${label} does not name section "${section}" — add a \`## ${section}\` heading.`,
+      });
+    }
+
+    if (form.flowHeadings !== null && form.flowHeadings < 1) {
+      out.push({
+        kind: 'flow-headings',
+        pageId: page.id,
+        page: label,
+        count: form.flowHeadings,
+        message: `${label} names no flow as a heading — give each load-bearing flow its own \`## \` section.`,
+      });
+    }
+  }
+  return out;
+}
+```
+
+Add to the file's imports:
+
+```ts
+import { assessPageForm } from './architecture-form.js';
+```
+
+- [ ] **Step 8: Call it from `checkArchitecture`.** In `checkArchitecture`, the findings loop already builds `findings`; record which pages were blocked as it goes. Immediately after the `for (const { page, label, read } of reads) { … }` loop that fills `findings`, and before the existing `const advisories = await collectModuleAdvisories(cwd, reads);` line, insert:
+
+```ts
+  // A page is blocked when any rule fired for it — that page's form rows stay silent.
+  const blocked = new Set(
+    reads.filter((r) => findings.some((f) => f.page === r.label)).map((r) => r.page.id),
+  );
+```
+
+then change the advisories line to:
+
+```ts
+  const advisories = [
+    ...(await collectModuleAdvisories(cwd, reads)),
+    ...collectFormAdvisories(reads, blocked),
+  ];
+```
+
+- [ ] **Step 9: Run to verify PASS.**
+
+```bash
+pnpm vitest run src/docs
+```
+
+Expected output: every test in `src/docs` passes, including the `advisory union` and `advisory gating` blocks.
+
+- [ ] **Step 10: Confirm the release probe is untouched.**
+
+```bash
+pnpm vitest run src/release
+```
+
+Expected output: all passing. The `architecture` preflight row reads `status`, which no advisory reaches — this run is what proves it.
+
+- [ ] **Step 11: Commit.**
 
 ```bash
 cat > /tmp/arch-form-t3.msg <<'EOF'
-refactor(docs:consumer-architecture-doc-surface): widen ModuleAdvisory to a discriminated union
+feat(docs:consumer-architecture-doc-surface): report missing sections as advisories
 
 `ModuleAdvisory` carried a `module` field that a section or flow-heading row has
-no value for. It becomes `ArchitectureAdvisory`, discriminated on `kind`, so the
-new form rows ride the same channel its only consumer already reads rather than
-a second parallel array.
+no value for, so it becomes `ArchitectureAdvisory`, discriminated on `kind`. The
+new rows ride the same channel its only consumer already reads rather than a
+second parallel array, and every row carries `pageId` as well as `page` — the
+registry id makes an invented page a type error while the repo-relative label
+stays what gets printed.
 
-Every row now carries `pageId` as well as `page`: the registry id makes an
-invented page a type error, while the repo-relative label stays what gets
-printed. Module rows are unchanged in behaviour.
+`checkArchitecture` then reports, for every page the blocking rules accept, the
+registry sections it does not name as an H2, and a flows page that names no flow
+as a heading. Each message names the heading to add. None of it reaches
+`status`, so the release probe and the garden auto-restamp are untouched: the
+blocking class stays exactly the presence rules the surface shipped with.
+
+Form rows are suppressed for a page that already carries a blocking finding,
+while module rows keep their existing behaviour — a readable placeholder modules
+page still emits them. Declining a section in writing is part 2 and does not
+exist at this commit.
+
+None of it reaches `status`, so the release probe and the garden auto-restamp
+are untouched: the blocking class stays exactly the presence rules the surface
+shipped with. Form rows are suppressed for a page that already carries a
+blocking finding, while module rows keep their existing behaviour — a readable
+placeholder modules page still emits them.
 
 Noldor-FD: consumer-architecture-doc-surface
 EOF
@@ -714,183 +871,7 @@ git commit -F /tmp/arch-form-t4.msg
 
 ---
 
-## Task 5: Wire the form rules into the checker
-
-**Files:**
-- Modify: `src/docs/docs-architecture.ts`
-- Test: `src/docs/__tests__/docs-architecture.test.ts`
-
-- [ ] **Step 1: Write the failing test.** Append to `src/docs/__tests__/docs-architecture.test.ts`:
-
-```ts
-describe('advisory gating', () => {
-  it('suppresses form rows on a page carrying a blocking finding', async () => {
-    const root = await makeRepo();
-    await writeArchitecture(root, {
-      // No fence AND no sections: the blocking rule wins, the form rows stay silent.
-      context: '# Context\n\nprose only.\n',
-      containers: fullPage('containers'),
-      modules: fullPage('modules'),
-      flows: fullPage('flows'),
-    });
-    const report = await checkArchitecture(root);
-    expect(report.findings.map((f) => f.rule)).toStrictEqual(['no-fence']);
-    expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
-  });
-
-  it('still emits module rows for a readable placeholder modules page', async () => {
-    const root = await makeRepo();
-    await mkdir(join(root, 'src', 'onlymodule'), { recursive: true });
-    await writeArchitecture(root, {
-      context: fullPage('context'),
-      containers: fullPage('containers'),
-      modules: `# Modules\n\n${PLACEHOLDER_MARKER} draw it -->\n\n\`\`\`mermaid\nflowchart TD\n  a --> b\n\`\`\`\n`,
-      flows: fullPage('flows'),
-    });
-    const report = await checkArchitecture(root);
-    expect(report.findings.some((f) => f.rule === 'placeholder')).toBe(true);
-    expect(report.advisories.some((a) => a.kind === 'module')).toBe(true);
-  });
-
-  it('emits no advisories at all for an absent surface', async () => {
-    const root = await makeRepo();
-    const report = await checkArchitecture(root);
-    expect(report.status).toBe('absent');
-    expect(report.advisories).toStrictEqual([]);
-  });
-});
-```
-
-Import `PLACEHOLDER_MARKER` alongside `ARCHITECTURE_PAGES` at the top of the test file.
-
-- [ ] **Step 2: Run to verify FAIL.**
-
-```bash
-pnpm vitest run src/docs/__tests__/docs-architecture.test.ts -t 'advisory gating'
-```
-
-Expected output: the observable failure is the `advisory union` block authored in Task 3 Step 1 (`expected undefined to match object`). The `advisory gating` block's first case passes trivially at this point — there are no form rows to suppress yet — and becomes meaningful once Step 4 lands. Both blocks are green after Step 4.
-
-- [ ] **Step 3: Collect the form advisories.** In `src/docs/docs-architecture.ts`, add above `collectModuleAdvisories`:
-
-```ts
-/**
- * Form advisories for the pages the blocking rules accepted.
- *
- * Gated deliberately: a page that is missing, unreadable, still scaffolded or
- * undrawable produces its blocking finding and nothing else. Piling advisory
- * rows onto a page whose real problem is that it does not exist yet is how the
- * channel loses its reader.
- *
- * Module advisories are NOT gated this way and are collected separately —
- * `collectModuleAdvisories` skips only an unreadable modules page, so a readable
- * placeholder page emits its module rows today. That is shipped behaviour and
- * gating it here would silently delete rows a consumer already sees.
- */
-function collectFormAdvisories(
-  reads: readonly {
-    page: (typeof ARCHITECTURE_PAGES)[number];
-    label: string;
-    read: PageRead;
-  }[],
-  blocked: ReadonlySet<string>,
-): ArchitectureAdvisory[] {
-  const out: ArchitectureAdvisory[] = [];
-  for (const { page, label, read } of reads) {
-    if (!read.ok || blocked.has(page.id)) continue;
-    const form = assessPageForm(page, read.body);
-
-    for (const section of form.missing) {
-      out.push({
-        kind: 'section',
-        pageId: page.id,
-        page: label,
-        section,
-        message: `${label} does not name section "${section}" — add a \`## ${section}\` heading.`,
-      });
-    }
-
-    if (form.flowHeadings !== null && form.flowHeadings < 1) {
-      out.push({
-        kind: 'flow-headings',
-        pageId: page.id,
-        page: label,
-        count: form.flowHeadings,
-        message: `${label} names no flow as a heading — give each load-bearing flow its own \`## \` section.`,
-      });
-    }
-  }
-  return out;
-}
-```
-
-Add to the file's imports:
-
-```ts
-import { assessPageForm } from './architecture-form.js';
-```
-
-- [ ] **Step 4: Call it from `checkArchitecture`.** In `checkArchitecture`, the findings loop already builds `findings`; record which pages were blocked as it goes. Immediately after the `for (const { page, label, read } of reads) { … }` loop that fills `findings`, and before the existing `const advisories = await collectModuleAdvisories(cwd, reads);` line, insert:
-
-```ts
-  // A page is blocked when any rule fired for it — that page's form rows stay silent.
-  const blocked = new Set(
-    reads.filter((r) => findings.some((f) => f.page === r.label)).map((r) => r.page.id),
-  );
-```
-
-then change the advisories line to:
-
-```ts
-  const advisories = [
-    ...(await collectModuleAdvisories(cwd, reads)),
-    ...collectFormAdvisories(reads, blocked),
-  ];
-```
-
-- [ ] **Step 5: Run to verify PASS.**
-
-```bash
-pnpm vitest run src/docs
-```
-
-Expected output: every test in `src/docs` passes, including the `advisory union` and `advisory gating` blocks.
-
-- [ ] **Step 6: Confirm the release probe is untouched.**
-
-```bash
-pnpm vitest run src/release
-```
-
-Expected output: all passing. The `architecture` preflight row reads `status`, which no advisory reaches — this run is what proves it.
-
-- [ ] **Step 7: Commit.**
-
-```bash
-cat > /tmp/arch-form-t5.msg <<'EOF'
-feat(docs:consumer-architecture-doc-surface): report missing sections as advisories
-
-`checkArchitecture` now reports, for every page the blocking rules accept, the
-registry sections it does not name as an H2, and a flows page that names no flow
-as a heading. Each message names the heading to add.
-
-Declining a section in writing is part 2 and does not exist at this commit.
-
-None of it reaches `status`, so the release probe and the garden auto-restamp
-are untouched: the blocking class stays exactly the presence rules the surface
-shipped with. Form rows are suppressed for a page that already carries a
-blocking finding, while module rows keep their existing behaviour — a readable
-placeholder modules page still emits them.
-
-Noldor-FD: consumer-architecture-doc-surface
-EOF
-git add src/docs/docs-architecture.ts src/docs/__tests__/docs-architecture.test.ts
-git commit -F /tmp/arch-form-t5.msg
-```
-
----
-
-## Task 6: Dogfood this repo's pages
+## Task 5: Dogfood this repo's pages
 
 **Files:**
 - Modify: `docs/architecture/context.md`, `docs/architecture/containers.md`, `docs/architecture/modules.md`
@@ -928,7 +909,7 @@ Expected output: typecheck clean, full suite passing, features valid.
 - [ ] **Step 7: Commit.**
 
 ```bash
-cat > /tmp/arch-form-t6.msg <<'EOF'
+cat > /tmp/arch-form-t5.msg <<'EOF'
 docs(architecture): re-head the four pages to the registry sections
 
 The surface is dogfooded, so this repo's own pages adopt the contract they now
@@ -945,5 +926,5 @@ two existing headings. `flows.md` already conformed.
 Noldor-FD: consumer-architecture-doc-surface
 EOF
 git add docs/architecture
-git commit -F /tmp/arch-form-t6.msg
+git commit -F /tmp/arch-form-t5.msg
 ```
