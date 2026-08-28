@@ -18,11 +18,10 @@ links:
 name: Graphify `plan-of` edges + nodes for plans/specs
 packages:
   - scripts
-phase: done
+phase: in-progress
 noldor-tier: specs-only
 introduced: 0.4.0
 ---
-
 ## Summary
 
 Extend graphify to emit nodes for `docs/design/plans/*.md` and `docs/design/specs/*.md`, plus `plan-of` / `spec-of` relations linking them to owning FD nodes. Today's graph tracks `imports` / `imports_from` between source files only; plans/specs aren't represented. Once available, enables `src/garden/garden-detect.ts:detectStalePlans` graph-adjacency fallback (originally fallback B from release-sweep-process-hardening; deferred from that FD when audit confirmed the graph schema didn't support it).
