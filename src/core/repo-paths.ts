@@ -182,6 +182,11 @@ export function newestMtimeInRoots(cwd: string, roots: readonly string[]): numbe
  * `graph-fd-lookup.test.ts`'s sample-scene freshness case.
  */
 function isSamplesPath(path: string, samplesPath: string): boolean {
+  // An unset `samplesPath` excludes nothing. Without this guard the
+  // `startsWith(`${samplesPath}/`)` test below becomes `startsWith('/')`, which
+  // matches every absolute path — so a consumer with no samples dir would have
+  // its entire tree skipped and the caller would see no files at all.
+  if (samplesPath.length === 0) return false;
   const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '');
   return (
     normalized === samplesPath ||
