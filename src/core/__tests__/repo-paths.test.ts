@@ -2,11 +2,17 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_SCAN_ROOTS, actualPackageNames, scanRoots, walkCodeFiles } from '../repo-paths.js';
+import {
+  DEFAULT_SCAN_ROOTS,
+  actualPackageNames,
+  newestMtimeInRoots,
+  scanRoots,
+  walkCodeFiles,
+} from '../repo-paths.js';
 import { scanRoots as legacyScanRoots } from '../../sync/sync-code-links.js';
 
 const MINIMAL_CONSUMER = {
@@ -115,5 +121,57 @@ describe('walkCodeFiles', () => {
       'a/y.test.ts',
     ]);
     expect(walkCodeFiles(join(dir, 'missing'), { includeTests: false })).toEqual([]);
+  });
+});
+
+describe('walkDir symlink policy', () => {
+  /** A tree with a file symlink and a directory cycle (`src/deep/loop -> src`). */
+  function treeWithLinks(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'walkdir-links-'));
+    mkdirSync(join(dir, '.noldor'), { recursive: true });
+    mkdirSync(join(dir, 'src', 'deep'), { recursive: true });
+    mkdirSync(join(dir, 'outside'), { recursive: true });
+    writeFileSync(
+      join(dir, '.noldor', 'config.json'),
+      JSON.stringify({ consumer: { ...MINIMAL_CONSUMER, scanPaths: ['src'] } }),
+      'utf8',
+    );
+    writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n', 'utf8');
+    writeFileSync(join(dir, 'outside', 'newest.ts'), 'export const n = 1;\n', 'utf8');
+    symlinkSync(join(dir, 'outside', 'newest.ts'), join(dir, 'src', 'linked.ts'));
+    symlinkSync(join(dir, 'src'), join(dir, 'src', 'deep', 'loop'));
+    return dir;
+  }
+
+  it('follows a symlink to a file, so its mtime is visible', () => {
+    const dir = treeWithLinks();
+    try {
+      const future = new Date(Date.now() + 600_000);
+      utimesSync(join(dir, 'outside', 'newest.ts'), future, future);
+      // Only reachable through `src/linked.ts`; a non-following walk saw nothing
+      // here, which let a stale graph pass the mtime freshness leg.
+      expect(newestMtimeInRoots(dir, ['src'])).toBeGreaterThan(Date.now());
+      expect(walkCodeFiles(join(dir, 'src'), { includeTests: true })).toContain(
+        join(dir, 'src', 'linked.ts'),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('never descends a symlinked directory, so a cycle terminates', () => {
+    const dir = treeWithLinks();
+    try {
+      // `src/deep/loop -> src` re-walked the tree until ENAMETOOLONG when
+      // directory links were followed, inflating the corpus that feeds the
+      // clone detector with paths like `src/deep/loop/deep/loop/...`.
+      const found = walkCodeFiles(join(dir, 'src'), { includeTests: true });
+      expect(found.toSorted()).toEqual(
+        [join(dir, 'src', 'a.ts'), join(dir, 'src', 'linked.ts')].toSorted(),
+      );
+      expect(found.some((p) => p.includes('loop'))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

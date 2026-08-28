@@ -150,9 +150,12 @@ function classify(
   // Suppression must come from THIS section, not from anywhere in the artifact:
   // a marker under an unrelated heading says nothing about this unit. A bare
   // marker is still a stub — the reason is what makes a skip a decision.
-  const marker = section.split('\n').find((line) => line.trimStart().startsWith(CUT_MARKER));
+  // The marker must be its own token: a bare `startsWith` let `noldor:cutlery`
+  // suppress the unit, with `lery ...` counting as the reason.
+  const markerRe = new RegExp(`^${CUT_MARKER}(\\s|$)`);
+  const marker = section.split('\n').find((line) => markerRe.test(line.trim()));
   if (marker !== undefined) {
-    const reason = marker.trimStart().slice(CUT_MARKER.length);
+    const reason = marker.trim().replace(markerRe, '');
     return density(reason) >= MIN_STRUCTURAL_CONTEXT_CHARS ? null : 'stub-section';
   }
 
@@ -181,15 +184,31 @@ interface TaggedLine {
  */
 function tagLines(body: string): TaggedLine[] {
   const out: TaggedLine[] = [];
-  let inFence = false;
+  // CommonMark: a fence closes only on the SAME character, at least as long as
+  // the opener. Toggling on any ``` or ~~~ meant a three-backtick line inside a
+  // four-backtick fence — or a tilde line inside a backtick fence — closed it
+  // early, letting fenced heading-shaped content open or truncate a section.
+  let open: { char: string; len: number } | null = null;
   for (const text of body.split('\n')) {
-    if (/^\s*(```|~~~)/.test(text)) {
-      inFence = !inFence;
-      // The delimiter itself belongs to no section body.
+    const m = /^\s*(`{3,}|~{3,})/.exec(text);
+    if (m !== null) {
+      const char = m[1][0]!;
+      const len = m[1].length;
+      if (open === null) {
+        open = { char, len };
+        out.push({ text, fenced: true });
+        continue;
+      }
+      if (char === open.char && len >= open.len) {
+        open = null;
+        out.push({ text, fenced: true });
+        continue;
+      }
+      // A shorter or different-character run inside an open fence is content.
       out.push({ text, fenced: true });
       continue;
     }
-    out.push({ text, fenced: inFence });
+    out.push({ text, fenced: open !== null });
   }
   return out;
 }

@@ -287,6 +287,8 @@ interface GraphIndex {
   degree: Map<string, number>;
   /** Symbol-only degree ranking, 1-based, reproducing GRAPH_REPORT's list. */
   symbolRank: Map<string, number>;
+  /** `contains` targets per file node, so the digest never re-scans the edges. */
+  containsByFile: Map<string, Set<string>>;
 }
 
 /**
@@ -311,13 +313,21 @@ function buildIndex(graph: GraphifyGraph): GraphIndex {
   // Each distinct endpoint pair + relation counts once. Counting raw rows let a
   // duplicated edge inflate a degree and move a symbol into or out of the top
   // ten, which contradicted this docstring rather than merely being untidy.
+  // Dedup is per DIRECTED row, not per unordered pair: sorting the endpoints
+  // collapsed reciprocal edges, so `A calls B` plus `B calls A` counted once and
+  // undercounted both nodes. Only a genuinely duplicated row is dropped.
   const degree = new Map<string, number>();
-  const countedPairs = new Set<string>();
+  const countedRows = new Set<string>();
+  const containsByFile = new Map<string, Set<string>>();
   for (const edge of graph.links) {
-    const [a, b] = [edge.source, edge.target].toSorted();
-    const key = `${a}\u0000${b}\u0000${edge.relation}`;
-    if (countedPairs.has(key)) continue;
-    countedPairs.add(key);
+    if (edge.relation === 'contains') {
+      const owned = containsByFile.get(edge.source) ?? new Set<string>();
+      owned.add(edge.target);
+      containsByFile.set(edge.source, owned);
+    }
+    const key = `${edge.source}\u0000${edge.target}\u0000${edge.relation}`;
+    if (countedRows.has(key)) continue;
+    countedRows.add(key);
     degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1);
     degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
   }
@@ -328,7 +338,7 @@ function buildIndex(graph: GraphifyGraph): GraphIndex {
     .toSorted((a, b) => b[1] - a[1] || labelOf(byId, a[0]).localeCompare(labelOf(byId, b[0])))
     .forEach(([id], i) => symbolRank.set(id, i + 1));
 
-  return { graph, byId, l1ByFile, degree, symbolRank };
+  return { graph, byId, l1ByFile, degree, symbolRank, containsByFile };
 }
 
 function labelOf(byId: Map<string, GraphifyNode>, id: string): string {
@@ -394,17 +404,14 @@ function coMembersOf(path: string, community: number | null, index: GraphIndex):
  */
 function godNodesOf(fileId: string, index: GraphIndex): DegreeRankedSymbol[] {
   const out: DegreeRankedSymbol[] = [];
-  // A duplicated `contains` row must not list the same symbol twice.
-  const seen = new Set<string>();
-  for (const edge of index.graph.links) {
-    if (edge.relation !== 'contains' || edge.source !== fileId) continue;
-    if (seen.has(edge.target)) continue;
-    seen.add(edge.target);
-    const rank = index.symbolRank.get(edge.target);
+  // Reads the prebuilt index rather than re-scanning `graph.links`: a Set also
+  // means a duplicated `contains` row cannot list the same symbol twice.
+  for (const target of index.containsByFile.get(fileId) ?? new Set<string>()) {
+    const rank = index.symbolRank.get(target);
     if (rank === undefined || rank > GOD_NODE_CAP) continue;
     out.push({
-      label: labelOf(index.byId, edge.target),
-      degree: index.degree.get(edge.target) ?? 0,
+      label: labelOf(index.byId, target),
+      degree: index.degree.get(target) ?? 0,
       rank,
     });
   }
@@ -419,11 +426,7 @@ function godNodesOf(fileId: string, index: GraphIndex): DegreeRankedSymbol[] {
  * node omitted it.
  */
 function ownedNodeIds(fileId: string, index: GraphIndex): Set<string> {
-  const owned = new Set<string>([fileId]);
-  for (const edge of index.graph.links) {
-    if (edge.relation === 'contains' && edge.source === fileId) owned.add(edge.target);
-  }
-  return owned;
+  return new Set<string>([fileId, ...(index.containsByFile.get(fileId) ?? [])]);
 }
 
 /**

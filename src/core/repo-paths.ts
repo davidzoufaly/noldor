@@ -113,12 +113,15 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
  * one definition. An unreadable directory is skipped, never thrown: these
  * walkers run over whatever a consumer's tree happens to contain.
  *
- * Symlinks are FOLLOWED, via a `statSync` on any entry `withFileTypes` reports
- * as a link. `withFileTypes` alone classifies a symlink as neither file nor
- * directory, so an earlier revision of this helper silently skipped every
- * symlinked source file — which let a stale graph read `fresh` on the mtime leg
- * because the newest file under a scan root was invisible. The pre-lift walker
- * used bare `readdirSync` + `statSync` and followed links; this restores that.
+ * Symlinks to FILES are followed; symlinked directories are never entered.
+ *
+ * Both halves are deliberate. `withFileTypes` alone classifies a symlink as
+ * neither file nor directory, so a symlinked source file went invisible and a
+ * stale graph could read `fresh` on the mtime leg — hence the `statSync`.
+ * Descending directory links, however, is unbounded: `src/loop -> src` re-walks
+ * the tree until ENAMETOOLONG (measured: 16 paths for one file), which would
+ * inflate the clone corpus that `walkCodeFiles` feeds. Following files only
+ * fixes the invisibility without needing a visited set.
  */
 function walkDir(
   root: string,
@@ -136,13 +139,13 @@ function walkDir(
     let isDir = entry.isDirectory();
     let isFile = entry.isFile();
     if (entry.isSymbolicLink()) {
-      // Resolve through the link. A broken link stats as neither.
+      // Resolve the link to see whether it points at a file. A link to a
+      // directory is left alone — see the docstring: descending it can cycle.
       try {
-        const st = statSync(full);
-        isDir = st.isDirectory();
-        isFile = st.isFile();
+        isFile = statSync(full).isFile();
+        isDir = false;
       } catch {
-        continue;
+        continue; // broken link
       }
     }
     if (isDir) {

@@ -265,6 +265,21 @@ describe('graphContext parse precedence', () => {
     expect(r.digests[0]!.topDegreeSymbols).toEqual([{ label: 'godFn()', degree: 3, rank: 1 }]);
   });
 
+  it('counts reciprocal edges separately — they are two edges, not one', async () => {
+    const payload = graph() as { nodes: unknown[]; links: unknown[] };
+    // `godFn -> b` already exists; add the reverse with the same relation.
+    payload.links.push({ source: 'src_b_ts', target: 'godFn', relation: 'calls' });
+    writeFreshGraph(payload);
+    const r = await graphContext({
+      cwd: dir,
+      paths: ['src/a.ts'],
+      runGit: git2({ tracked: true }),
+    });
+    // Sorting the endpoints into the dedup key collapsed A->B with B->A and
+    // undercounted both nodes; degree rises from 3 to 4 here.
+    expect(r.digests[0]!.topDegreeSymbols).toEqual([{ label: 'godFn()', degree: 4, rank: 1 }]);
+  });
+
   it('drops malformed rows instead of failing the verdict, and counts them', async () => {
     const payload = graph() as { nodes: unknown[]; links: unknown[] };
     payload.nodes.push({ label: 'no id' });

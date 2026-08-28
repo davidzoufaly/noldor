@@ -23,6 +23,10 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+/** Prose long enough to clear the floor by itself, carrying no marker. */
+const LONG_PROSE =
+  'plus a good deal of other prose here that clears the character floor on its own';
+
 /** Real evidence — comfortably past the character floor. */
 const REAL =
   'Lands in the detectors community c17 alongside garden-detect.ts; touches no god node.';
@@ -153,6 +157,17 @@ describe('stub rule', () => {
     expect(await detectStructuralContextStubs(dir)).toEqual([]);
   });
 
+  it('does not let a shorter nested fence close an outer fence early', async () => {
+    // CommonMark: only the same character, at least as long, closes a fence. A
+    // char-agnostic toggle let the inner ``` close the outer ```` and exposed
+    // the heading-shaped line, truncating the section to nothing.
+    spec(
+      `${AFTER}-a-design.md`,
+      ['````', '```', '# Structural context', '```', REAL, '````'].join('\n'),
+    );
+    expect(await detectStructuralContextStubs(dir)).toEqual([]);
+  });
+
   it('ignores an H3 that sits outside `## Design`', async () => {
     const path = join(dir, 'docs', 'design', 'specs', `${AFTER}-a-design.md`);
     writeFileSync(
@@ -194,8 +209,19 @@ describe('noldor:cut suppression', () => {
     expect(found[0]).toMatchObject({ rule: 'stub-section' });
   });
 
-  it('rejects a marker-shaped prefix such as `noldor:cutlery`', async () => {
-    spec(`${AFTER}-a-design.md`, 'noldor:cutlery short');
+  // These two shapes are the only ones that discriminate. Both a bogus marker
+  // and a real one end in "not a stub" whenever the section is long, and both
+  // end in "stub" whenever it is short — so the tell is a section that is long
+  // overall while the marker's own reason is short.
+  it('treats a marker-shaped prefix as ordinary prose, not a skip', async () => {
+    spec(`${AFTER}-a-design.md`, ['noldor:cutlery x', LONG_PROSE].join('\n'));
+    // Not a marker, and the section clears the floor on its own. The bare-prefix
+    // bug read `lery x` as the reason and reported a stub here.
+    expect(await detectStructuralContextStubs(dir)).toEqual([]);
+  });
+
+  it('lets a real marker with a thin reason outrank surrounding prose', async () => {
+    spec(`${AFTER}-a-design.md`, ['noldor:cut x', LONG_PROSE].join('\n'));
     const found = await detectStructuralContextStubs(dir);
     expect(found[0]).toMatchObject({ rule: 'stub-section' });
   });
