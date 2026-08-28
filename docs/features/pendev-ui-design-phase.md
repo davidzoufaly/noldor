@@ -28,7 +28,7 @@ links:
 name: pen.dev UI Design Phase
 packages:
   - package.json
-phase: in-progress
+phase: done
 since: 2026-08-17T00:00:00.000Z
 noldor-tier: full
 introduced: 1.4.0
@@ -45,6 +45,7 @@ As an operator shipping a UI feature through the gate, I want the spec phase to 
 
 - Consumer setup: add `"uiPaths": ["src/dashboard/app/**"]` (optionally `"uiSurfaces": {"dashboard": ["src/dashboard/app/**"]}`) to `consumer` in `.noldor/config.json`; run `pnpm noldor design ui-sync` once per surface to bootstrap the baseline.
 - Spec phase (automatic): on a UI-bearing entry, the design step seeds `docs/design/ui/<date>-<slug>.pen` from the affected baseline surfaces, iterates variants as pages, marks one winner `FINAL:` per surface; the gate commits it with the spec.
+- Design approval (automatic, UI-bearing sessions): once one `FINAL:<surface>:` page exists per affected surface, the design step re-reads them from the `.pen` via `get_app_state`, opens that file by path (`pnpm noldor design pen-bridge --pen <the session's .pen>` — a bare invocation opens a *tracked* file and this one is untracked until the spec commit), walks each winner and alternative, then asks for one atomic approve / revise verdict over the whole set. `revise` must say what to change; after two rounds approve-with-reservations is offered too. The approval is written into the spec's `## Design`, per surface.
 - Override: set `design: required` or `design: skip` in the FD frontmatter to force either verdict (operator-only field).
 - Freshness: `pnpm noldor checks ui-design-freshness` any time; gate Step 4 and release preflight run it automatically; `pnpm noldor design ui-sync` repairs any red.
 
