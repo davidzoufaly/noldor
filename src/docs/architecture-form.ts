@@ -7,6 +7,75 @@
  * boundary and the reporting shape exactly as it does for the blocking rules.
  */
 import { listHeadings } from '../utils/markdown-sections.js';
+import { stripCodeRegions } from './docs-check.js';
+
+/**
+ * The marker that declines a registry section, deliberately NOT the bare
+ * `noldor:cut`.
+ *
+ * `CUT_MARKER_TOKEN` in `src/cr/lanes/subagent-dispatch.ts` is
+ * `noldor:cut <ceiling> — <upgrade path>`, pinned by a test against the rule
+ * file, and its second field is an upgrade path rather than a reason. Sharing
+ * the token would make an ordinary ladder cut written on an architecture page
+ * parse as a section decline naming a non-section, and emit a bogus advisory —
+ * the exact noise a written decline exists to remove.
+ */
+export const SECTION_CUT_TOKEN = 'noldor:cut-section';
+
+/** One `noldor:cut-section` marker found on a page. */
+export interface SectionCut {
+  /** Name as written, minus any `## ` the author included. Compared case-insensitively. */
+  readonly name: string;
+  /** Everything after the first em dash, trimmed. Empty when malformed. */
+  readonly reason: string;
+  /**
+   * A marker suppresses its section only when well-formed: it carries the em
+   * dash and a reason of at least one non-whitespace character. The reason is
+   * the entire point of requiring the marker, so a decline that silences a row
+   * without recording why is the pure advisory this design rejected.
+   */
+  readonly wellFormed: boolean;
+}
+
+/**
+ * `<!-- noldor:cut-section <name> [— <reason>] -->`, non-greedy to the first `-->`.
+ *
+ * The token goes through `RegExp.escape` because it reaches the pattern as a
+ * value rather than a literal — it is inert today, but a token gaining a `.` or
+ * `+` later would silently turn this into a wildcard match.
+ */
+const CUT_RE = new RegExp(`<!--\\s*${RegExp.escape(SECTION_CUT_TOKEN)}\\s+([\\s\\S]*?)-->`, 'g');
+
+/**
+ * Every section-cut marker on the page, in document order.
+ *
+ * Markers inside fenced blocks and inline code spans are skipped: the templates'
+ * example prose contains one, and reading it as a real decline would silently
+ * suppress a section advisory — the failure the unknown-cut rule exists to
+ * prevent.
+ *
+ * noldor:cut backtick fences only — `stripCodeRegions` recognizes a literal
+ * triple backtick and nothing else, matching the ceiling `fenceKinds` already
+ * declares on this surface. Route marker matching through a fully fence-aware
+ * scan if a consumer's pages adopt tilde fences.
+ *
+ * @param body - Raw markdown
+ */
+export function parseSectionCuts(body: string): SectionCut[] {
+  const out: SectionCut[] = [];
+  for (const match of stripCodeRegions(body).matchAll(CUT_RE)) {
+    const inner = match[1]!;
+    const dash = inner.indexOf('—');
+    const rawName = (dash === -1 ? inner : inner.slice(0, dash)).trim();
+    const reason = dash === -1 ? '' : inner.slice(dash + 1).trim();
+    out.push({
+      name: rawName.replace(/^#+\s*/, ''),
+      reason,
+      wellFormed: dash !== -1 && reason.length > 0,
+    });
+  }
+  return out;
+}
 
 /** The registry facts this module needs. Structural, so a test fixture need not build a whole page. */
 export interface FormPage {

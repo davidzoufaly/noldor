@@ -1,7 +1,7 @@
 // @tests: consumer-architecture-doc-surface
 import { describe, expect, it } from 'vitest';
 
-import { assessPageForm } from '../architecture-form.js';
+import { SECTION_CUT_TOKEN, assessPageForm, parseSectionCuts } from '../architecture-form.js';
 
 const CONTEXT = { id: 'context', sections: ['Actors', 'Externals', 'Boundary'] } as const;
 const FLOWS = { id: 'flows', sections: [] } as const;
@@ -47,5 +47,71 @@ describe(assessPageForm, () => {
 
   it('never reports a missing section on an empty-sections page', () => {
     expect(assessPageForm(FLOWS, 'nothing here\n').missing).toStrictEqual([]);
+  });
+});
+
+describe(parseSectionCuts, () => {
+  it('reads a well-formed marker', () => {
+    const body = '<!-- noldor:cut-section Topology — single npm package, nothing to draw -->';
+    expect(parseSectionCuts(body)).toStrictEqual([
+      { name: 'Topology', reason: 'single npm package, nothing to draw', wellFormed: true },
+    ]);
+  });
+
+  it('tolerates a "## " prefix on the name', () => {
+    expect(parseSectionCuts('<!-- noldor:cut-section ## topology — none -->')[0]).toStrictEqual({
+      name: 'topology',
+      reason: 'none',
+      wellFormed: true,
+    });
+  });
+
+  it('treats a later em dash as part of the reason', () => {
+    const body = '<!-- noldor:cut-section Topology — one unit — nothing to draw -->';
+    expect(parseSectionCuts(body)[0]!.reason).toBe('one unit — nothing to draw');
+  });
+
+  it('marks a marker with no em dash as malformed', () => {
+    expect(parseSectionCuts('<!-- noldor:cut-section Topology -->')[0]).toStrictEqual({
+      name: 'Topology',
+      reason: '',
+      wellFormed: false,
+    });
+  });
+
+  it('marks an empty reason as malformed', () => {
+    expect(parseSectionCuts('<!-- noldor:cut-section Topology —    -->')[0]!.wellFormed).toBe(
+      false,
+    );
+  });
+
+  it('ignores a marker inside a fenced block', () => {
+    const body = ['```markdown', '<!-- noldor:cut-section Topology — an example -->', '```'].join(
+      '\n',
+    );
+    expect(parseSectionCuts(body)).toStrictEqual([]);
+  });
+
+  it('ignores a marker inside an inline code span', () => {
+    const body = 'write `<!-- noldor:cut-section Topology — like this -->` on the page';
+    expect(parseSectionCuts(body)).toStrictEqual([]);
+  });
+
+  it('ignores an ordinary noldor:cut ladder marker', () => {
+    const body = '<!-- noldor:cut one diagram — split when the container count passes 12 -->';
+    expect(parseSectionCuts(body)).toStrictEqual([]);
+  });
+
+  it('finds every marker in document order', () => {
+    const body = [
+      '<!-- noldor:cut-section Topology — a -->',
+      'prose',
+      '<!-- noldor:cut-section Boundary — b -->',
+    ].join('\n');
+    expect(parseSectionCuts(body).map((c) => c.name)).toStrictEqual(['Topology', 'Boundary']);
+  });
+
+  it('exports the token it parses', () => {
+    expect(SECTION_CUT_TOKEN).toBe('noldor:cut-section');
   });
 });
