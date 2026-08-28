@@ -4,15 +4,29 @@ category: Tooling
 deps: []
 entry-id: Q-0097
 links:
-  code: []
+  code:
+    - src/core/slug.ts
+    - src/core/slug-paths.ts
+    - src/core/doc-roots.ts
+    - src/worktrees/worktree-paths.ts
+    - src/worktrees/up-worktree.ts
+    - src/worktrees/down-worktree.ts
+    - src/worktrees/create-worktree.ts
+    - src/features/phase-flip-done-cli.ts
+    - src/features/phase-revert-cli.ts
+    - src/milestones/lib.ts
+    - src/cr/filename.ts
+    - src/design/ledger.ts
+    - src/invariants/slug-path-choke-point.ts
   tests:
     - src/core/__tests__/slug-paths.test.ts
     - src/core/__tests__/slug-traversal.cli.test.ts
     - src/invariants/__tests__/slug-path-choke-point.test.ts
+    - src/worktrees/__tests__/down-worktree-traversal.test.ts
 name: Unvalidated Slug Path Traversal Across CLI Entry Points
 packages:
   - scripts
-phase: in-progress
+phase: done
 since: 2026-08-12T00:00:00.000Z
 noldor-tier: specs-only
 ---
@@ -28,11 +42,33 @@ Three command families build filesystem paths from an unchecked positional argum
 
 ## User Story
 
-<!-- TODO: As a user (human or agent), I want to <action>, so that <outcome>. -->
+As an operator or an autonomous agent running Noldor commands, I want every command that builds a path from a slug to reject a traversing value before it touches the filesystem, so that a malformed or hostile slug cannot read, rewrite, or delete files outside the repository.
 
 ## Usage
 
-<!-- TODO: UI steps, keyboard shortcut, agent API call. -->
+**CLI**
+
+Nothing new to invoke — existing commands gain a refusal. A slug that is not kebab-case, or whose path would leave the repository, is rejected before any read, write, process launch, kill, or git call:
+
+```
+$ noldor features phase-flip-done -- ../../../escape
+invalid slug '../../../escape': expected kebab-case ([a-z0-9-])
+$ echo $?
+1
+```
+
+The same refusal covers `worktrees up` (including `--no-create`, and when a directory already sits at the traversed path), `worktrees down` (with and without `--remove`), `features phase-revert`, the milestone `draft` / `activate` / load entry points, and every CLI taking a `--slug` flag.
+
+`pnpm noldor checks invariants` gains an advisory `slug-path-choke-point` row listing slug-rooted joins outside the guarded builders. It warns; it never blocks.
+
+**Programmatic API**
+
+- `parseSlug(value)` — the one trust boundary. Returns `{ ok: true, slug }` with a branded `Slug`, or `{ ok: false, error }`. Call it wherever untrusted text arrives.
+- `slugPath(anchor, relRoot, slug, { prefix, suffix })` — the one guarded join. Takes a branded `Slug`, composes the root from the anchor, and refuses `escapes-root` or `unsafe-symlink`.
+- `featurePath(cwd, slug)` / `milestonePath(cwd, slug)` / `worktreePath(cwd, slug)` / `worktreePidsPath(cwd, slug)` — per-family builders over `slugPath`.
+- `slugSchema` — a zod schema producing the brand, used by the frontmatter fields that carry repository-authored slugs.
+
+Path-building functions take `Slug`, not `string`, so passing raw argv text to one is a compile error rather than a review finding.
 
 ## PRs
 
