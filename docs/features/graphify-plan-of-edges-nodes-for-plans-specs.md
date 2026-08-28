@@ -12,8 +12,10 @@ links:
   tests:
     - src/design/__tests__/graph-context-cli.test.ts
     - src/design/__tests__/graph-context.test.ts
+    - src/docs/__tests__/adr-structural-context.test.ts
     - src/garden/__tests__/garden-detect.test.ts
     - src/garden/__tests__/plan-resolution.test.ts
+    - src/garden/detectors/__tests__/structural-context.test.ts
     - src/graphify/__tests__/enrich-doc-nodes.test.ts
   spec: >-
     docs/design/specs/archive/2026-06-14-graphify-plan-of-edges-nodes-for-plans-specs-design.md
