@@ -135,16 +135,38 @@ That unknown-name advisory is **skipped on a page whose `sections` is empty**: `
 check a name against, so no marker on it can be a typo, and firing there would make every possible
 decline on that page an advisory.
 
+A marker is well-formed when it carries the token, a name, the em dash, and a reason of at least one
+non-whitespace character; the name is everything between the token and the first em dash, and any
+later em dash belongs to the reason. A marker missing the dash or carrying an empty reason **does not
+suppress** its section — it is an `unknown-cut` advisory instead, because the reason is the entire
+point of requiring the marker, and a decline that silences a row without recording why is the pure
+advisory this design rejected. Duplicate well-formed markers for one section suppress it once and
+produce no extra row.
+
 The advisory channel is currently typed as `ModuleAdvisory` with a `module` field a section row has
 no value for. It widens to a discriminated `ArchitectureAdvisory`:
 
+    interface AdvisoryBase {
+      /** Registry page id, not a free string — a typo is a type error. */
+      readonly pageId: ArchitecturePageId;
+      /** Repo-relative path, POSIX separators, as the existing rows carry. */
+      readonly page: string;
+      readonly message: string;
+    }
+
     type ArchitectureAdvisory =
-      | { kind: 'module';        page: string; module: string;  message: string }
-      | { kind: 'section';       page: string; section: string; message: string }
-      | { kind: 'unknown-cut';   page: string; section: string; message: string }
-      | { kind: 'flow-headings'; page: string; count: number;   message: string }
-      | { kind: 'long-paragraph'; page: string; index: number; words: number; message: string }
-      | { kind: 'page-bloat';    page: string; words: number;   message: string }
+      | (AdvisoryBase & { readonly kind: 'module';         readonly module: string })
+      | (AdvisoryBase & { readonly kind: 'section';        readonly section: string })
+      | (AdvisoryBase & { readonly kind: 'unknown-cut';    readonly section: string;
+                          readonly ordinal: number })
+      | (AdvisoryBase & { readonly kind: 'flow-headings';  readonly count: number })
+      | (AdvisoryBase & { readonly kind: 'long-paragraph'; readonly index: number;
+                          readonly words: number })
+      | (AdvisoryBase & { readonly kind: 'page-bloat';     readonly words: number })
+
+Every field is `readonly`, per the repo's readonly-by-default rule, and the page is carried twice on
+purpose: `pageId` is the registry id, so a construction site cannot invent a page, while `page` stays
+the repo-relative label the existing module rows already print.
 
 One channel, one shape, so its consumer keeps reading one array rather than enumerating a new one
 per class. That consumer is [`garden-detect.ts`](../../../src/garden/garden-detect.ts) alone:
@@ -156,9 +178,10 @@ per class. That consumer is [`garden-detect.ts`](../../../src/garden/garden-dete
 `<page>#undefined` for every row that has no `module` and collides two long-paragraph rows on one
 page — breaking that file's documented promise that every row has a stable identity and a repeated
 run produces no duplicates. The discriminator becomes per-variant: `module` for a module row, the
-section name for `section` and `unknown-cut`, the literal `flow-headings`, the paragraph index for
-`long-paragraph`, and the literal `page-bloat`. All six are prefixed by `kind` so two variants cannot
-collide on one page.
+section name for `section`, the section name plus `ordinal` for `unknown-cut` (two identical
+malformed markers on one page are two rows and must not collapse into one), the literal
+`flow-headings`, the paragraph index for `long-paragraph`, and the literal `page-bloat`. All six are
+prefixed by `kind` so two variants cannot collide on one page.
 
 ### D-3. Bloat is measured per paragraph, with a page backstop
 
@@ -186,10 +209,11 @@ this repo's four pages runs 22–59 words (`context` 49/44/43/36, `containers` 5
 `modules` 51/36, `flows` 59/34/33), so 100 leaves roughly 1.7× headroom over the worst honest
 paragraph.
 
-Both counts are over **prose**: the body with mermaid fences, code fences, tables and headings
-removed. Removal replaces each block with a blank line rather than deleting it, so prose on either
-side of a diagram stays two paragraphs instead of merging into one. A paragraph is then a
-blank-line-separated run of the remainder.
+Both counts are over **prose**: the body with mermaid fences, code fences, tables, headings and HTML
+comments removed. A table row is any line whose first non-whitespace character is `|`. Removal
+replaces each block with a blank line rather than deleting it, so prose on either side of a diagram
+stays two paragraphs instead of merging into one. A paragraph is then a blank-line-separated run of
+the remainder.
 
 The entry also floats a prose-to-diagram ratio. It is rejected: a ratio has no defensible threshold
 and scores a page that honestly merits one diagram worse than one padded with three — `modules.md`
@@ -197,27 +221,55 @@ today would rate 87 against `flows.md`'s 63 while being the terser page of the t
 
 ### D-4. Reuse, and what runs when
 
-Three helpers already exist and are reused rather than re-implemented — the checker would otherwise
-hand-roll a third H2 scanner and a fourth code-region stripper, which the clone ratchet would decide
-for us:
+Existing helpers are reused rather than re-implemented — the checker would otherwise hand-roll a
+third H2 scanner and a fourth code-region stripper, which the clone ratchet would decide for us:
 
-- [`listHeadings`](../../../src/utils/markdown-sections.ts) — the repo's one fence-aware heading
-  scanner (H2/H3, tilde fences, long fence runs). Used for section presence and the `flows` count.
+- [`listHeadings`](../../../src/utils/markdown-sections.ts) — the repo's one fully fence-aware
+  heading scanner (H2/H3, tilde fences, long fence runs). Used for section presence and the `flows`
+  count.
 - [`stripCodeRegions`](../../../src/docs/docs-check.ts) — used to produce the prose body for both
   word counts and to keep cut-marker matching out of fenced blocks.
-- `countWords` ([`split-suggestion.ts`](../../../src/core/split-suggestion.ts)) — currently private;
-  exported so the two word budgets and the `E1`/`S1` entry heuristics cannot drift apart.
+- `countWords` — a three-line whitespace splitter currently private to
+  [`split-suggestion.ts`](../../../src/core/split-suggestion.ts). It **moves to `src/utils/`** rather
+  than being exported from `core`: an architecture-page prose budget and a roadmap-entry size
+  heuristic are unrelated measures with no reason to move together, and pointing `src/docs/` at the
+  split heuristics module to borrow a word count is the wrong dependency. `markdown-sections.ts` set
+  this precedent one file over — generic parsing lives in `utils`, not beside its first caller.
 
 Fence-awareness is a correctness requirement, not a nicety: this spec's own D-2 grammar block and the
 templates' example prose both contain a `## ` heading and a cut marker inside a fenced region, and a
 naive match would read them as real.
 
-**Advisories only run on a page the blocking rules already accept.** A page that is missing,
-unreadable, still carries the placeholder or has no valid fence produces its blocking finding and no
-section, paragraph or bloat rows — piling advisory noise onto a page whose real problem is that it
-does not exist yet is how the channel loses its reader. A surface whose `status` is `absent` (folder
-missing, or every page still exactly as scaffolded) produces no advisories at all, so `noldor init`
-still hands a fresh consumer a silent surface.
+**Backtick-only ceiling for marker matching.** `stripCodeRegions` is `/```[\s\S]*?```/` plus an
+inline-span pass — `markdown-sections.ts` names it among the nine incumbents that "recognize a
+literal triple backtick and nothing else", so a marker inside a tilde fence or a 4+-backtick run
+passes through and reads as a real decline, silently suppressing a section advisory. Heading matching
+does not have this problem (`listHeadings` is fully fence-aware); marker matching does, and it takes
+the same ceiling `fenceKinds` already declares on this surface:
+
+    noldor:cut backtick fences only — route marker matching through a fully
+    fence-aware scan if a consumer's pages adopt tilde fences.
+
+**HTML comments are stripped before counting.** Template prompts and cut markers are HTML comments,
+so a conforming page carries several; counting them as prose would charge an author words no reader
+sees and would move paragraph boundaries. They are blanked the same way fences are, preserving line
+structure.
+
+**The new advisories only run on a page the blocking rules already accept.** A page that is missing,
+unreadable, still carries the placeholder, carries no fence or declares a disallowed kind produces
+its blocking finding and no section, unknown-cut, flow-heading, paragraph or bloat rows — piling
+advisory noise onto a page whose real problem is that it does not exist yet is how the channel loses
+its reader.
+
+**Module advisories are deliberately not gated this way.** `collectModuleAdvisories` skips only when
+the modules page is unreadable ([`docs-architecture.ts`](../../../src/docs/docs-architecture.ts)), so
+a readable `modules.md` that still carries its placeholder emits module rows alongside the
+`placeholder` finding today. That is shipped Q-0093 behaviour and this change does not touch it —
+gating them here would silently delete rows a consumer already sees, which is a behaviour change
+nobody asked for.
+
+A surface whose `status` is `absent` (folder missing, or every page still exactly as scaffolded)
+produces no advisories of any class, so `noldor init` still hands a fresh consumer a silent surface.
 
 ### D-5. C4 fidelity is template prose, not a check
 
@@ -294,11 +346,17 @@ section sets describe pages someone already wrote without them.
 - A prose paragraph over `ARCH_PARAGRAPH_WORD_THRESHOLD` produces one `long-paragraph` advisory per
   offending paragraph; a page whose total prose exceeds `ARCH_PAGE_PROSE_WORD_THRESHOLD` produces one
   `page-bloat` advisory.
-- Word counting excludes mermaid fences, code fences, tables and headings, and a removed block leaves
-  the prose on either side of it as two paragraphs rather than one.
-- A `## ` heading or a `noldor:cut-section` marker inside a fenced block is not matched.
-- A page carrying a blocking finding (missing, unreadable, placeholder, bad or absent fence) produces
-  that finding and no advisories; a surface whose `status` is `absent` produces neither.
+- Word counting excludes mermaid fences, code fences, tables, headings and HTML comments, and a
+  removed block leaves the prose on either side of it as two paragraphs rather than one.
+- A `## ` heading inside a fenced block is not matched, including a tilde fence or a 4+-backtick run.
+  A `noldor:cut-section` marker inside a triple-backtick fence or an inline code span is not matched;
+  tilde fences are the declared ceiling for marker matching.
+- A marker with no em dash or an empty reason does not suppress its section and produces an
+  `unknown-cut` row; two identical unknown markers on one page produce two rows with distinct ids.
+- A page carrying a blocking finding (missing, unreadable, placeholder, absent fence, disallowed
+  kind) produces that finding and no section, unknown-cut, flow-heading, long-paragraph or page-bloat
+  rows. Module advisories are unchanged by this gate — a readable placeholder `modules.md` still
+  emits them, exactly as today. A surface whose `status` is `absent` produces no advisories at all.
 - Every advisory variant yields a distinct garden `itemId`, so two long-paragraph rows on one page do
   not collide and no row renders as `<page>#undefined`.
 - Advisories reach `garden detect` on the `architectureAdvisories` key, never `sddGaps`, and the
@@ -391,4 +449,11 @@ can tell how the system is shaped without reading four essays.
     consumer-owned prose is what `SCAFFOLD_ONLY_TEMPLATES` exists to prevent.
 12. *Should the spec carry the four fidelity lines and every template prompt verbatim?* -> No (D-5).
     That text is the template; drafting it here would make the spec a copy of the artifact it
-    describes, and it would then drift from the templates on the first edit.
+    describes, and it would then drift from the templates on the first edit. Raised twice in review
+    and declined both times; the constraint that stands in its place is the `TODO:`-prefix rule,
+    which is the part with a failure mode.
+13. *Is a malformed cut marker a decline?* -> No (D-2). Missing dash or empty reason yields an
+    `unknown-cut` row instead of suppression — the reason is the whole point of requiring a marker.
+14. *Does marker matching handle tilde fences?* -> No, and that is stated as a ceiling (D-4).
+    `stripCodeRegions` is backtick-only, matching the ceiling `fenceKinds` already declares on this
+    surface; heading matching is fully fence-aware because `listHeadings` is.
