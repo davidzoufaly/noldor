@@ -29,21 +29,34 @@ import type { Gap } from '../../core/fd-load.js';
  * has not opted in is not drifting.
  */
 export function toFindingGaps(report: ArchitectureReport): Gap[] {
-  if (report.status === 'absent') return [];
-  return report.findings.map((finding) => ({
-    category: 'architecture',
-    itemId: `${finding.page}#${finding.rule}`,
-    message: finding.message,
-  }));
+  return gapsFrom(report, report.findings, (f) => f.rule);
 }
 
 /** Advisory rows as gaps. Never routed into `sddGaps` — see {@link toFindingGaps}. */
 export function toAdvisoryGaps(report: ArchitectureReport): Gap[] {
+  return gapsFrom(report, report.advisories, advisoryDiscriminator);
+}
+
+/**
+ * Shared projection for both classes: `<page>#<discriminator>` as the stable id,
+ * and nothing at all for a surface nobody opted into.
+ *
+ * The two classes differ only in what discriminates a row — a rule for a page
+ * finding, a kind-prefixed field for an advisory — so they share one mapper
+ * rather than two identical ones. Inlining it into each caller reproduces the
+ * body twice and trips the clone ratchet, which is the mechanical reading of the
+ * same duplication this helper exists to avoid.
+ */
+function gapsFrom<T extends { page: string; message: string }>(
+  report: ArchitectureReport,
+  items: readonly T[],
+  discriminator: (item: T) => string,
+): Gap[] {
   if (report.status === 'absent') return [];
-  return report.advisories.map((advisory) => ({
+  return items.map((item) => ({
     category: 'architecture',
-    itemId: `${advisory.page}#${advisoryDiscriminator(advisory)}`,
-    message: advisory.message,
+    itemId: `${item.page}#${discriminator(item)}`,
+    message: item.message,
   }));
 }
 
