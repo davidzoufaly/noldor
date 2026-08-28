@@ -9,7 +9,11 @@ const FLOWS = { id: 'flows', sections: [] } as const;
 describe(assessPageForm, () => {
   it('reports nothing when every section is present', () => {
     const body = '## Actors\n\na\n\n## Externals\n\nb\n\n## Boundary\n\nc\n';
-    expect(assessPageForm(CONTEXT, body)).toStrictEqual({ missing: [], flowHeadings: null });
+    expect(assessPageForm(CONTEXT, body)).toStrictEqual({
+      missing: [],
+      unknownCuts: [],
+      flowHeadings: null,
+    });
   });
 
   it('ignores section order and extra headings', () => {
@@ -113,5 +117,46 @@ describe(parseSectionCuts, () => {
 
   it('exports the token it parses', () => {
     expect(SECTION_CUT_TOKEN).toBe('noldor:cut-section');
+  });
+});
+
+describe('assessPageForm declines', () => {
+  it('a well-formed cut suppresses its section', () => {
+    const body = '## Actors\n## Externals\n<!-- noldor:cut-section Boundary — nothing to say -->';
+    const got = assessPageForm(CONTEXT, body);
+    expect(got.missing).toStrictEqual([]);
+    expect(got.unknownCuts).toStrictEqual([]);
+  });
+
+  it('matches the declined name case-insensitively', () => {
+    const body = '## Actors\n## Externals\n<!-- noldor:cut-section boundary — none -->';
+    expect(assessPageForm(CONTEXT, body).missing).toStrictEqual([]);
+  });
+
+  it('a malformed cut does not suppress, and is reported', () => {
+    const body = '## Actors\n## Externals\n<!-- noldor:cut-section Boundary -->';
+    const got = assessPageForm(CONTEXT, body);
+    expect(got.missing).toStrictEqual(['Boundary']);
+    expect(got.unknownCuts).toStrictEqual([{ name: 'Boundary', ordinal: 0 }]);
+  });
+
+  it('a cut naming a non-section is reported, with an ordinal per occurrence', () => {
+    const body =
+      '## Actors\n## Externals\n## Boundary\n' +
+      '<!-- noldor:cut-section Nope — a -->\n<!-- noldor:cut-section Nope — b -->';
+    expect(assessPageForm(CONTEXT, body).unknownCuts).toStrictEqual([
+      { name: 'Nope', ordinal: 0 },
+      { name: 'Nope', ordinal: 1 },
+    ]);
+  });
+
+  it('a cut for a section that is also present is not an unknown cut', () => {
+    const body = '## Actors\n## Externals\n## Boundary\n<!-- noldor:cut-section Boundary — x -->';
+    expect(assessPageForm(CONTEXT, body).unknownCuts).toStrictEqual([]);
+  });
+
+  it('never reports an unknown cut on an empty-sections page', () => {
+    const body = '## A flow\n<!-- noldor:cut-section Anything — no set to check against -->';
+    expect(assessPageForm(FLOWS, body).unknownCuts).toStrictEqual([]);
   });
 });

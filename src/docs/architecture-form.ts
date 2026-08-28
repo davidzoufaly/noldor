@@ -83,10 +83,19 @@ export interface FormPage {
   readonly sections: readonly string[];
 }
 
+/** A cut marker that names nothing in the page's registry set, or that carries no reason. */
+export interface UnknownCut {
+  readonly name: string;
+  /** 0-based position among this page's unknown cuts — two identical markers are two rows. */
+  readonly ordinal: number;
+}
+
 /** What one page body violates. Nothing here is an advisory yet. */
 export interface PageForm {
-  /** Registry sections the page does not carry as an H2, in registry order. */
+  /** Registry sections neither present as an H2 nor validly declined, in registry order. */
   readonly missing: readonly string[];
+  /** Cuts that name no registry section, or that carry no reason. */
+  readonly unknownCuts: readonly UnknownCut[];
   /** H2 count, on an empty-`sections` page only. `null` elsewhere. */
   readonly flowHeadings: number | null;
 }
@@ -117,15 +126,37 @@ function h2s(body: string): string[] {
  *
  * An empty `sections` array is the `flows` sentinel: there is no set to check
  * names against, so the page is measured by heading *count* instead. That page's
- * natural shape is one section per flow, and one is a legitimate answer.
+ * natural shape is one section per flow, and one is a legitimate answer — and no
+ * marker on it can be a typo, so it reports no unknown cuts.
+ *
+ * A section is satisfied by its H2 *or* by a well-formed decline. A malformed
+ * decline, or one naming something outside the set, suppresses nothing and is
+ * reported instead: a typo'd decline would otherwise silence nothing while
+ * looking to its author like it did.
  *
  * @param page - Registry id and section set
  * @param body - Raw markdown
  */
 export function assessPageForm(page: FormPage, body: string): PageForm {
+  // The `flows` sentinel: no set to check names against, so a cut here cannot be
+  // a typo, and firing would make every possible decline on the page a row.
   if (page.sections.length === 0) {
-    return { missing: [], flowHeadings: h2s(body).length };
+    return { missing: [], unknownCuts: [], flowHeadings: h2s(body).length };
   }
+
   const present = new Set(h2s(body).map(norm));
-  return { missing: page.sections.filter((s) => !present.has(norm(s))), flowHeadings: null };
+  const known = new Set(page.sections.map(norm));
+  const declined = new Set<string>();
+  const unknownCuts: UnknownCut[] = [];
+
+  for (const cut of parseSectionCuts(body)) {
+    if (cut.wellFormed && known.has(norm(cut.name))) {
+      declined.add(norm(cut.name));
+      continue;
+    }
+    unknownCuts.push({ name: cut.name, ordinal: unknownCuts.length });
+  }
+
+  const missing = page.sections.filter((s) => !present.has(norm(s)) && !declined.has(norm(s)));
+  return { missing, unknownCuts, flowHeadings: null };
 }
