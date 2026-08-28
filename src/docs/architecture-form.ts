@@ -162,6 +162,15 @@ export function assessPageForm(page: FormPage, body: string): PageForm {
   return { missing, unknownCuts, flowHeadings: null };
 }
 
+/**
+ * ATX heading: up to three spaces, one to six hashes, then whitespace or EOL.
+ *
+ * The trailing `(\s|$)` is CommonMark's rule and is load-bearing — a bare
+ * `startsWith('#')` blanks visible prose like `#1 priority` or `#hashtag`,
+ * undercounting a page and suppressing an advisory it should have fired.
+ */
+const ATX_HEADING = /^ {0,3}#{1,6}(\s|$)/;
+
 /** Bullet or ordered list marker at up to three spaces of indent. */
 const LIST_ITEM = /^ {0,3}([-*+]|\d{1,9}[.)])\s/;
 
@@ -193,13 +202,22 @@ const LIST_ITEM = /^ {0,3}([-*+]|\d{1,9}[.)])\s/;
  * @returns Non-empty paragraphs, in document order
  */
 export function proseParagraphs(body: string): string[] {
-  const withoutComments = body.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
-  const lines = withoutComments.split(/\r\n|\r|\n/);
-  const fenced = fencedLineMask(withoutComments);
+  // Fences are located on the RAW body and blanked before comments are stripped.
+  // Stripping first lets a `<!--` inside a fence pair with a `-->` after it, and
+  // the regex then erases the closing fence and the real prose between them — a
+  // false negative that silently suppresses a budget.
+  const fenced = fencedLineMask(body);
+  const defenced = body
+    .split(/\r\n|\r|\n/)
+    .map((line, i) => (fenced[i] === true ? '' : line))
+    .join('\n');
+
   const kept: string[] = [];
-  for (const [i, line] of lines.entries()) {
+  for (const line of defenced
+    .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '))
+    .split('\n')) {
     const trimmed = line.trim();
-    if (fenced[i] === true || trimmed.startsWith('|') || trimmed.startsWith('#')) {
+    if (trimmed.startsWith('|') || ATX_HEADING.test(line)) {
       kept.push('');
       continue;
     }

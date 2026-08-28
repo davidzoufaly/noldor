@@ -250,6 +250,40 @@ describe(proseParagraphs, () => {
     expect(proseParagraphs('1. first\n2. second\n3) third')).toHaveLength(3);
   });
 
+  it('does not let a comment opener inside a fence swallow later prose', () => {
+    // Stripping comments before locating fences lets `<!--` inside a fence pair
+    // with a `-->` after it, erasing the closing fence and the prose between —
+    // a false negative that silently suppresses a budget.
+    const body = [
+      'real prose one',
+      '',
+      '```js',
+      'const x = "<!--";',
+      '```',
+      '',
+      'after fence --> still prose',
+      '',
+      'tail prose',
+    ].join('\n');
+    expect(proseParagraphs(body)).toStrictEqual([
+      'real prose one',
+      'after fence --> still prose',
+      'tail prose',
+    ]);
+  });
+
+  it('still strips a comment that sits outside any fence', () => {
+    expect(proseParagraphs('a\n\n<!-- hidden -->\n\nb')).toStrictEqual(['a', 'b']);
+  });
+
+  it('keeps prose beginning with # where no space follows', () => {
+    // CommonMark needs whitespace after the hash run; `#1 priority` is prose.
+    expect(proseParagraphs('#1 priority is shipping this')).toStrictEqual([
+      '#1 priority is shipping this',
+    ]);
+    expect(proseParagraphs('#hashtag not a heading')).toStrictEqual(['#hashtag not a heading']);
+  });
+
   it('keeps a paragraph that merely contains inline code', () => {
     expect(proseParagraphs('the `src/core` module owns it')).toStrictEqual([
       'the `src/core` module owns it',
