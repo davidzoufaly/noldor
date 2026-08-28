@@ -162,6 +162,9 @@ export function assessPageForm(page: FormPage, body: string): PageForm {
   return { missing, unknownCuts, flowHeadings: null };
 }
 
+/** Bullet or ordered list marker at up to three spaces of indent. */
+const LIST_ITEM = /^ {0,3}([-*+]|\d{1,9}[.)])\s/;
+
 /**
  * Prose paragraphs of a page body: what a reader actually reads.
  *
@@ -180,6 +183,12 @@ export function assessPageForm(page: FormPage, body: string): PageForm {
  * fence early, and the code after it would count as prose and could fire a bogus
  * bloat advisory.
  *
+ * Each list item is its own paragraph. A contiguous bullet list has no blank
+ * lines in it, so a naive blank-line split reads ten terse bullets as one long
+ * paragraph and fires the budget against exactly the labelled-fact form the
+ * advisory's own remedy asks for. A bullet's continuation lines stay attached to
+ * it, since only the marker line starts a new unit.
+ *
  * @param body - Raw markdown
  * @returns Non-empty paragraphs, in document order
  */
@@ -187,11 +196,17 @@ export function proseParagraphs(body: string): string[] {
   const withoutComments = body.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
   const lines = withoutComments.split(/\r\n|\r|\n/);
   const fenced = fencedLineMask(withoutComments);
-  const kept = lines.map((line, i) => {
+  const kept: string[] = [];
+  for (const [i, line] of lines.entries()) {
     const trimmed = line.trim();
-    if (fenced[i] === true || trimmed.startsWith('|') || trimmed.startsWith('#')) return '';
-    return line;
-  });
+    if (fenced[i] === true || trimmed.startsWith('|') || trimmed.startsWith('#')) {
+      kept.push('');
+      continue;
+    }
+    // A list marker starts a new paragraph even with no blank line before it.
+    if (LIST_ITEM.test(line) && kept.at(-1) !== '') kept.push('');
+    kept.push(line);
+  }
   return kept
     .join('\n')
     .split(/\n\s*\n/)

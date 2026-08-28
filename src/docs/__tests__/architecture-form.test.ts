@@ -231,6 +231,25 @@ describe(proseParagraphs, () => {
     expect(proseParagraphs(body)).toStrictEqual(['before', 'after']);
   });
 
+  it('treats each list item as its own paragraph', () => {
+    // A contiguous list has no blank lines, so a naive split reads ten terse
+    // bullets as one long paragraph — firing the budget against exactly the
+    // labelled-fact form the advisory's own remedy asks for.
+    const list = Array.from({ length: 10 }, (_, i) => `- item ${i} with several words`).join('\n');
+    expect(proseParagraphs(list)).toHaveLength(10);
+  });
+
+  it('keeps a list item\u2019s continuation lines attached to it', () => {
+    expect(proseParagraphs('- bullet one\n  continues here\n- bullet two')).toStrictEqual([
+      '- bullet one\n  continues here',
+      '- bullet two',
+    ]);
+  });
+
+  it('splits ordered list items too', () => {
+    expect(proseParagraphs('1. first\n2. second\n3) third')).toHaveLength(3);
+  });
+
   it('keeps a paragraph that merely contains inline code', () => {
     expect(proseParagraphs('the `src/core` module owns it')).toStrictEqual([
       'the `src/core` module owns it',

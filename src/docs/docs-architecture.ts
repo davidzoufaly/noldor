@@ -383,7 +383,8 @@ function collectFormAdvisories(
         section,
         message:
           `${label} does not name section "${section}" — add a \`## ${section}\` heading, ` +
-          `or record why it does not apply with a ${SECTION_CUT_TOKEN} marker.`,
+          `or record why it does not apply: ` +
+          `\`<!-- ${SECTION_CUT_TOKEN} ${section} — <reason> -->\``,
       });
     }
 
@@ -396,7 +397,7 @@ function collectFormAdvisories(
         ordinal: cut.ordinal,
         message:
           `${label} declines "${cut.name}", which is not one of its sections or carries no ` +
-          `reason — a decline reads \`${SECTION_CUT_TOKEN} <section> — <reason>\`.`,
+          `reason — a decline reads \`<!-- ${SECTION_CUT_TOKEN} <section> — <reason> -->\`.`,
       });
     }
 

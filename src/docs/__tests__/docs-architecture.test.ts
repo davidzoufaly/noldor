@@ -417,3 +417,43 @@ describe('bloat advisories', () => {
     expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
   });
 });
+
+describe('page-bloat advisory', () => {
+  it('reports a page whose total prose passes the budget', async () => {
+    const root = await makeRepo();
+    // Seven 90-word paragraphs: each well under the paragraph budget, 630 words
+    // together — plus the three `prose.` words `fullPage` writes under each of
+    // context's sections, so 633 in total, over the 600 page budget.
+    const para = (n: number): string =>
+      Array.from({ length: 90 }, (_, i) => `w${n}x${i}`).join(' ');
+    const bulk = Array.from({ length: 7 }, (_, n) => para(n)).join('\n\n');
+    await writeArchitecture(root, {
+      context: `${fullPage('context')}\n${bulk}\n`,
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.advisories.filter((a) => a.kind === 'long-paragraph')).toStrictEqual([]);
+    expect(report.advisories.filter((a) => a.kind === 'page-bloat')).toMatchObject([
+      { pageId: 'context', words: 633 },
+    ]);
+    expect(report.status).toBe('ok');
+  });
+
+  it('names the delimited marker form in a missing-section message', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      context: '# Context\n\n```mermaid\nflowchart LR\n  a --> b\n```\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    const section = report.advisories.find((a) => a.kind === 'section');
+    // The templates defer to this output for the syntax, so a bare token would
+    // send a consumer to write a line the parser ignores.
+    expect(section?.message).toContain('<!-- noldor:cut-section');
+    expect(section?.message).toContain('-->');
+  });
+});
