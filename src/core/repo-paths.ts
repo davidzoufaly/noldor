@@ -90,26 +90,49 @@ const WALK_EXCLUDED_DIRS = new Set([
  */
 export function walkCodeFiles(root: string, opts: { includeTests: boolean }): string[] {
   const out: string[] = [];
-  const walk = (dir: string): void => {
-    let entries;
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        if (WALK_EXCLUDED_DIRS.has(entry.name)) continue;
-        if (!opts.includeTests && entry.name === '__tests__') continue;
-        walk(join(dir, entry.name));
-      } else if (entry.isFile() && CODE_FILE_RE.test(entry.name)) {
-        if (!opts.includeTests && TEST_FILE_RE.test(entry.name)) continue;
-        out.push(join(dir, entry.name));
-      }
-    }
-  };
-  walk(root);
+  walkDir(
+    root,
+    (full, name) => {
+      if (!CODE_FILE_RE.test(name)) return;
+      if (!opts.includeTests && TEST_FILE_RE.test(name)) return;
+      out.push(full);
+    },
+    (name) => WALK_EXCLUDED_DIRS.has(name) || (!opts.includeTests && name === '__tests__'),
+  );
   return out.sort();
+}
+
+/**
+ * Depth-first descent over `root`, handing every file to `onFile` and asking
+ * `skipDir` whether to enter each directory.
+ *
+ * Extracted when the mtime walker below duplicated {@link walkCodeFiles}'s
+ * descent verbatim — same `readdirSync(withFileTypes)`, same ENOENT-swallow,
+ * same recurse-or-visit branch. The two callers differ only in what they skip
+ * and what they do with a file, so those are the parameters; everything else is
+ * one definition. An unreadable directory is skipped, never thrown: these
+ * walkers run over whatever a consumer's tree happens to contain.
+ */
+function walkDir(
+  root: string,
+  onFile: (path: string, name: string) => void,
+  skipDir: (name: string) => boolean,
+): void {
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = join(root, entry.name);
+    if (entry.isDirectory()) {
+      if (skipDir(entry.name)) continue;
+      walkDir(full, onFile, skipDir);
+    } else if (entry.isFile()) {
+      onFile(full, entry.name);
+    }
+  }
 }
 
 /**
@@ -140,34 +163,25 @@ const MTIME_SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '
 export function newestMtimeInRoots(cwd: string, roots: readonly string[]): number | null {
   const { samplesPath } = loadConsumerConfig(cwd);
   let newest: number | null = null;
-  const visit = (dir: string): void => {
-    let entries;
+  const onFile = (full: string, name: string): void => {
+    if (name.startsWith('.') || isSamplesPath(full, samplesPath)) return;
+    let st;
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      st = statSync(full);
     } catch {
       return;
     }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.') || MTIME_SKIP_DIRS.has(entry.name)) continue;
-      const full = join(dir, entry.name);
-      if (isSamplesPath(full, samplesPath)) continue;
-      if (entry.isDirectory()) {
-        visit(full);
-        continue;
-      }
-      let st;
-      try {
-        st = statSync(full);
-      } catch {
-        continue;
-      }
-      if (newest === null || st.mtimeMs > newest) newest = st.mtimeMs;
-    }
+    if (newest === null || st.mtimeMs > newest) newest = st.mtimeMs;
   };
+  const skipDir = (name: string): boolean => name.startsWith('.') || MTIME_SKIP_DIRS.has(name);
   // An absolute root is used as-is: `join(cwd, '/tmp/x')` yields `<cwd>/tmp/x`,
   // which silently walks nothing. Callers pass both shapes — `scanRoots()` gives
   // relative names, tests and any absolute-path caller give resolved ones.
-  for (const root of roots) visit(isAbsolute(root) ? root : join(cwd, root));
+  for (const root of roots) {
+    const abs = isAbsolute(root) ? root : join(cwd, root);
+    if (isSamplesPath(abs, samplesPath)) continue;
+    walkDir(abs, onFile, skipDir);
+  }
   return newest;
 }
 
