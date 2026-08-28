@@ -520,7 +520,7 @@ async function collectModuleAdvisories(
 pnpm typecheck && pnpm vitest run src/docs src/garden
 ```
 
-Expected output: typecheck clean. Test failures are expected here — `src/garden/detectors/__tests__/architecture.test.ts` builds `ModuleAdvisory` literals without `kind`/`pageId` and will fail; Task 5 fixes it. Any failure in `src/docs` other than the still-unimplemented `advisory union` block is a real regression — read it before continuing.
+Expected output: typecheck clean, and `src/garden` **green**. Both are worth understanding rather than assuming: `tsconfig.json` excludes `src/**/__tests__/**` and `src/**/*.test.ts` (inherited by `tsconfig.typecheck.json`), so the garden test file's now-outdated advisory literals are never typechecked; vitest strips types rather than checking them; and `toAdvisoryGaps` still reads `.module`, which the old literal still carries. The garden file only goes red once Task 4 changes the discriminator. In `src/docs`, the `advisory union` block from Step 1 stays red until Task 5 — any *other* `src/docs` failure is a real regression, so read it before continuing.
 
 - [ ] **Step 6: Commit.**
 
@@ -570,6 +570,18 @@ git commit -F /tmp/arch-form-t3.msg
       message: 'docs/architecture/context.md does not name section "Boundary"',
     },
     {
+      // Deliberately a SECOND row on the same page: before the fix both render
+      // `context.md#undefined`, which is the collision the discriminator exists
+      // to prevent. Two rows on different pages would not collide, so a fixture
+      // without this one would let `gives every variant a distinct id` pass
+      // against the very bug it is meant to catch.
+      kind: 'section',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      section: 'Externals',
+      message: 'docs/architecture/context.md does not name section "Externals"',
+    },
+    {
       kind: 'flow-headings',
       pageId: 'flows',
       page: 'docs/architecture/flows.md',
@@ -605,9 +617,24 @@ describe('advisory item ids', () => {
 pnpm vitest run src/garden/detectors/__tests__/architecture.test.ts
 ```
 
-Expected output: `never renders an undefined discriminator` and `gives every variant a distinct id` fail — ids read `docs/architecture/context.md#undefined` for every non-module row, so the two non-module rows also collide.
+Expected output: three cases fail. `never renders an undefined discriminator` and `gives every variant a distinct id` go red because every non-module row renders `<page>#undefined` — and the two `section` rows share `context.md`, so they collide as well as being undefined. `keeps the module row id stable` goes red because the module id is still `#src/unnamed` rather than the `#module:`-prefixed form.
 
-- [ ] **Step 3: Implement the discriminator.** In `src/garden/detectors/architecture.ts`, replace `toAdvisoryGaps` and the advisory half of `gapsFrom` with:
+- [ ] **Step 3: Update the incumbent exact-match test.** `src/garden/detectors/__tests__/architecture.test.ts` already carries `keys a gap on the modules page and the module`, a `toStrictEqual` over the *whole* `toAdvisoryGaps` result asserting one gap with id `docs/architecture/modules.md#src/unnamed`. Two things break it: the factory now returns four advisory rows instead of one, and the module id gains its `module:` prefix. Rewrite that case to assert only the module row:
+
+```ts
+  it('keys a gap on the modules page and the module', () => {
+    const gaps = toAdvisoryGaps(report());
+    expect(gaps).toContainEqual({
+      category: 'architecture',
+      itemId: 'docs/architecture/modules.md#module:src/unnamed',
+      message: 'docs/architecture/modules.md does not name src/unnamed',
+    });
+  });
+```
+
+`toContainEqual` rather than `toStrictEqual` on the array: the factory is shared by every case in the file, so a whole-result match makes each new advisory variant break an unrelated test. This is a real id-format change — `#src/unnamed` becomes `#module:src/unnamed` — so any consumer holding a stored gap id sees a new row rather than a moved one. Nothing in this repo stores them across runs (`garden detect` recomputes every time), but the commit message says it out loud.
+
+- [ ] **Step 4: Implement the discriminator.** In `src/garden/detectors/architecture.ts`, replace `toAdvisoryGaps` and the advisory half of `gapsFrom` with:
 
 ```ts
 /** Module advisories as gaps. Never routed into `sddGaps` — see {@link toFindingGaps}. */
@@ -652,15 +679,15 @@ import {
 
 Leave `toFindingGaps` and the shared `gapsFrom` alone if `toFindingGaps` still uses it; if `gapsFrom` now has exactly one caller, inline it into `toFindingGaps` rather than keeping a one-caller generic.
 
-- [ ] **Step 4: Run to verify PASS.**
+- [ ] **Step 5: Run to verify PASS.**
 
 ```bash
 pnpm vitest run src/garden/detectors/__tests__/architecture.test.ts
 ```
 
-Expected output: every case passes, including the four new ones.
+Expected output: every case passes, including the rewritten module case and the three new ones.
 
-- [ ] **Step 5: Commit.**
+- [ ] **Step 6: Commit.**
 
 ```bash
 cat > /tmp/arch-form-t4.msg <<'EOF'
@@ -673,6 +700,11 @@ promise this file documents.
 
 The discriminator is now derived per `kind` and prefixed with it, so two
 variants cannot collide on one page.
+
+This changes the module row's id format: `<page>#src/unnamed` becomes
+`<page>#module:src/unnamed`. Nothing stores these across runs — `garden detect`
+recomputes them every time — so the change is invisible in practice, but it is a
+rename rather than a no-op and the incumbent exact-match test is updated for it.
 
 Noldor-FD: consumer-architecture-doc-surface
 EOF
@@ -737,7 +769,7 @@ Import `PLACEHOLDER_MARKER` alongside `ARCHITECTURE_PAGES` at the top of the tes
 pnpm vitest run src/docs/__tests__/docs-architecture.test.ts -t 'advisory gating'
 ```
 
-Expected output: the first case fails — `expected [] to strictly equal []` passes trivially only once the rows exist, so the observable failure is in the `advisory union` block from Task 4 (`expected undefined to match object`). Both blocks go green together in Step 4.
+Expected output: the observable failure is the `advisory union` block authored in Task 3 Step 1 (`expected undefined to match object`). The `advisory gating` block's first case passes trivially at this point — there are no form rows to suppress yet — and becomes meaningful once Step 4 lands. Both blocks are green after Step 4.
 
 - [ ] **Step 3: Collect the form advisories.** In `src/docs/docs-architecture.ts`, add above `collectModuleAdvisories`:
 
@@ -839,9 +871,10 @@ cat > /tmp/arch-form-t5.msg <<'EOF'
 feat(docs:consumer-architecture-doc-surface): report missing sections as advisories
 
 `checkArchitecture` now reports, for every page the blocking rules accept, the
-registry sections it neither names nor validly declines, the cut markers that
-name nothing in its set, and a flows page that names no flow as a heading. Each
-message carries its own fix.
+registry sections it does not name as an H2, and a flows page that names no flow
+as a heading. Each message names the heading to add.
+
+Declining a section in writing is part 2 and does not exist at this commit.
 
 None of it reaches `status`, so the release probe and the garden auto-restamp
 are untouched: the blocking class stays exactly the presence rules the surface
