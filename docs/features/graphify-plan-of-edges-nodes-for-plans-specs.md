@@ -10,6 +10,8 @@ links:
     - src/cli/manifest.ts
   docs: []
   tests:
+    - src/design/__tests__/graph-context-cli.test.ts
+    - src/design/__tests__/graph-context.test.ts
     - src/garden/__tests__/garden-detect.test.ts
     - src/garden/__tests__/plan-resolution.test.ts
     - src/graphify/__tests__/enrich-doc-nodes.test.ts

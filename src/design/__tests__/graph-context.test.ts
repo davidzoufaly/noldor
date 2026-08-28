@@ -86,7 +86,9 @@ function graph(): unknown {
         source_location: 'L1',
         community: 2,
       },
-      { id: 'godFn', label: 'godFn()', source_location: 'L4', community: 1 },
+      // Community 3 deliberately: a symbol clustered AWAY from its own file is
+      // the only case where the containment-exclusion rule is load-bearing.
+      { id: 'godFn', label: 'godFn()', source_location: 'L4', community: 3 },
     ],
     links: [
       { source: 'src_a_ts', target: 'godFn', relation: 'contains' },
