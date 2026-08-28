@@ -97,11 +97,9 @@ export async function upWorktree(opts: UpOptions, deps: UpDeps = defaultDeps): P
   if (!opts.noServers && basePort !== null) {
     surfaces = await deps.bootDevSurfacesImpl({
       treePath,
-      slug: resolved.slug,
       pidsFile: resolved.pids,
       surfaces: devConfig?.surfaces ?? {},
       basePort,
-      cwd: opts.cwd,
     });
   }
 

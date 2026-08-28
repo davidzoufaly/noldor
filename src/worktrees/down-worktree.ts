@@ -1,9 +1,13 @@
 // @tests: per-task-dev-environment-bootstrap
 import { execFile } from 'node:child_process';
-import { readFile, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
-import { resolveErrorMessage, type ResolveError } from '../core/slug-paths.js';
+import {
+  readFileNoFollowAsync,
+  resolveErrorMessage,
+  type ResolveError,
+} from '../core/slug-paths.js';
 import { resolveWorktree } from './worktree-paths.js';
 
 const execFileP = promisify(execFile);
@@ -47,7 +51,10 @@ export async function downWorktree(
 
   const pidsFile = resolved.pids;
   let reaped = 0;
-  const body = await readFile(pidsFile, 'utf8').catch(() => '');
+  // No-follow: this read's second column is passed to process.kill(-pid), so a
+  // symlink swapped in after the guard would hand a foreign file's contents to
+  // a process-group signal. An absent or unreadable pid file is still benign.
+  const body = await readFileNoFollowAsync(pidsFile).catch(() => '');
   for (const line of body.split('\n').filter(Boolean)) {
     const pid = Number(line.split(/\s+/)[1]);
     if (!Number.isFinite(pid)) continue;

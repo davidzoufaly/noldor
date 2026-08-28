@@ -1,10 +1,10 @@
 // @tests: per-task-dev-environment-bootstrap
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+import { atomicWriteFile } from '../core/atomic-write.js';
 import type { DevSurface } from '../core/consumer-config.js';
-import type { Slug } from '../core/slug.js';
 import { waitForHttp200 } from '../verify/health.js';
 import { deriveSurfacePort } from './worktree-status.js';
 
@@ -22,15 +22,14 @@ export interface BootedSurface {
 
 export interface BootOptions {
   treePath: string;
-  slug: Slug;
   surfaces: Record<string, DevSurface>;
   basePort: number;
   /** Guarded absolute path of the pids file, built by the caller's slug guard.
    *  Handed in rather than re-derived: this is the write twin of the read
-   *  `downWorktree` performs, and a second construction site is how they drift. */
+   *  `downWorktree` performs, and a second construction site is how they drift.
+   *  It replaced the `slug` + `cwd` pair this interface used to carry, which
+   *  existed only to re-derive it. */
   pidsFile: string;
-  /** The main workspace root. */
-  cwd: string;
   spawnImpl?: typeof spawn;
   fetchImpl?: typeof fetch;
 }
@@ -93,7 +92,10 @@ export async function bootDevSurfaces(opts: BootOptions): Promise<BootedSurface[
     // construction site is how the two drift apart.
     await mkdir(dirname(opts.pidsFile), { recursive: true });
     const body = live.map((r) => `${r.name} ${r.pid} ${r.port}`).join('\n');
-    await writeFile(opts.pidsFile, `${body}\n`);
+    // Atomic rather than in-place: `up` validated this path, but the boot loop
+    // above takes seconds, and a rename replaces a symlink planted in that
+    // window instead of writing through it.
+    await atomicWriteFile(opts.pidsFile, `${body}\n`);
   }
   return results;
 }

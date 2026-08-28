@@ -99,3 +99,22 @@ export function parseSlugList(value: string): Slug[] {
       return parsed.slug;
     });
 }
+
+/**
+ * The value of a flag that requires one.
+ *
+ * Coalescing a missing value to `''` makes a list parser return `[]`, so a
+ * trailing `--slugs` reads as "no filter requested" instead of a malformed
+ * command — a silent difference in what the command then does.
+ *
+ * @param value - `argv[++i]`, possibly `undefined`.
+ * @param flag - Flag name, for the diagnostic.
+ * @returns The value.
+ * @throws When the flag was given without one.
+ */
+export function requireFlagValue(value: string | undefined, flag: string): string {
+  if (value === undefined || value.startsWith('--')) {
+    throw new Error(`${flag} requires a value`);
+  }
+  return value;
+}

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { parseSlugList } from '../core/slug.js';
+import { parseSlugList, requireFlagValue } from '../core/slug.js';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -52,7 +52,7 @@ function parseArgs(argv: readonly string[]): PromoteArgs {
     else if (a === '--ship') ship = true;
     else if (a === '--json') json = true;
     else if (a === '--date') date = argv[++i];
-    else if (a === '--slugs') slugs = parseSlugList(argv[++i] ?? '');
+    else if (a === '--slugs') slugs = parseSlugList(requireFlagValue(argv[++i], '--slugs'));
     else throw new Error(`unknown flag: ${a}`);
   }
   return {

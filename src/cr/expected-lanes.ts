@@ -1,5 +1,10 @@
-import { mkdir, readFile } from 'node:fs/promises';
-import { slugPath } from '../core/slug-paths.js';
+import { mkdir } from 'node:fs/promises';
+import {
+  pathErrorMessage,
+  readFileNoFollowAsync,
+  slugPath,
+  type SlugPathResult,
+} from '../core/slug-paths.js';
 import { slugSchema, type Slug } from '../core/slug.js';
 import { dirname } from 'node:path';
 import { z } from 'zod';
@@ -23,10 +28,8 @@ export const expectedLanesSchema = z.object({
 });
 export type ExpectedLanes = z.infer<typeof expectedLanesSchema>;
 
-export function expectedLanesPath(cwd: string, slug: Slug, kind: ArtifactKind): string {
-  const built = slugPath(cwd, ['.noldor', 'cr', 'expected'], slug, { suffix: `-${kind}.json` });
-  if (!built.ok) throw new Error(`cannot resolve expected-lanes sink: ${built.error.kind}`);
-  return built.path;
+export function expectedLanesPath(cwd: string, slug: Slug, kind: ArtifactKind): SlugPathResult {
+  return slugPath(cwd, ['.noldor', 'cr', 'expected'], slug, { suffix: `-${kind}.json` });
 }
 
 export async function writeExpectedLanes(
@@ -35,9 +38,14 @@ export async function writeExpectedLanes(
   kind: ArtifactKind,
   lanes: Lane[],
 ): Promise<void> {
-  const path = expectedLanesPath(cwd, slug, kind);
-  await mkdir(dirname(path), { recursive: true });
-  await writeJsonAtomic(path, { slug, kind, lanes } satisfies ExpectedLanes);
+  const resolved = expectedLanesPath(cwd, slug, kind);
+  // The writer has no error channel and a refusal here means the sink dir is
+  // tampered with, so it fails loudly rather than skipping the record — a
+  // missing expectation is exactly the fail-open this file exists to close.
+  if (!resolved.ok)
+    throw new Error(`cannot write expected-lanes: ${pathErrorMessage(resolved.error)}`);
+  await mkdir(dirname(resolved.path), { recursive: true });
+  await writeJsonAtomic(resolved.path, { slug, kind, lanes } satisfies ExpectedLanes);
 }
 
 export interface ReadExpectedResult {
@@ -63,10 +71,22 @@ export async function readExpectedLanes(
   const lanes = new Set<Lane>();
   const errors: ReadExpectedResult['errors'] = [];
   for (const k of kinds) {
-    const file = expectedLanesPath(cwd, slug, k);
+    // A symlinked or permission-locked `.noldor/cr/expected/` is an
+    // environmental failure, and this loop's whole contract is to report those
+    // rather than escape as a throw — an uncaught one here would leave
+    // `aggregate()` fail-open on the very record that closes that hole.
+    const resolved = expectedLanesPath(cwd, slug, k);
+    if (!resolved.ok) {
+      errors.push({
+        file: resolved.error.path,
+        message: `expected-lanes sink unusable: ${pathErrorMessage(resolved.error)}`,
+      });
+      continue;
+    }
+    const file = resolved.path;
     let raw: string;
     try {
-      raw = await readFile(file, 'utf8');
+      raw = await readFileNoFollowAsync(file);
     } catch (err) {
       // Only ENOENT means "no expectation recorded". Any other read failure
       // (EACCES, EIO) is an existing record that could not be trusted —

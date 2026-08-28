@@ -91,7 +91,13 @@ The rule is a separate check: `slugPath` `lstat`s the composed final segment and
 
 **An `lstat` that cannot see its target refuses.** Only `ENOENT` means "not there", which is how a prospective path stays legal; `EACCES`, `ELOOP`, `EIO` and a non-traversable parent are failures of the security check itself and return `uninspectable`. Treating them as absence would wave through exactly the paths the guard is least able to vouch for.
 
-**The check alone is check-then-use, so the IO closes the window.** `lstat` followed by an ordinary pathname read or write is two syscalls with a gap, and a symlink swapped in during that gap defeats the check. `readFileNoFollow` / `writeFileNoFollow` open with `O_NOFOLLOW`, moving the refusal into the syscall where there is no gap to race, and every slug-path read and write goes through them. The pair is tested by planting the link *after* a successful guard call — the race itself — and asserting the IO still refuses.
+**The check alone is check-then-use, so the IO closes the window** — and reads and writes close it differently.
+
+Reads go through `readFileNoFollow` / `readFileNoFollowAsync`, which open with `O_NOFOLLOW` so the refusal happens inside the syscall, where there is no gap to race. A platform that does not expose the flag is detected rather than silently degraded: a bitwise OR swallows an undefined flag (`1 | undefined === 1`), which would produce an ordinary symlink-following open while the code still read as guarded, so its absence throws instead.
+
+Writes need no no-follow twin, and adding one was a mistake worth naming: `atomicWriteFileSync` already defeats the same race, because it writes a sibling temp file and `rename`s it over the target — a planted symlink is *replaced*, not followed, verified directly (victim byte-identical, the link entry now a regular file). It also gives the temp-then-rename atomicity that `concurrency-write-discipline` requires for files other readers see, which an in-place `O_WRONLY|O_TRUNC` writer gives up. Every slug-path write therefore uses the existing helper, and there is one writer rather than two.
+
+The rule covers the read that matters most: `downWorktree`'s pid file, whose second column becomes a `process.kill(-pid)` argument.
 
 ### Unit 2 — Existing owners validate; no root is re-homed
 

@@ -4,7 +4,8 @@
 import { existsSync } from 'node:fs';
 
 import { featurePath } from '../core/doc-roots.js';
-import { pathErrorMessage, readFileNoFollow, writeFileNoFollow } from '../core/slug-paths.js';
+import { atomicWriteFileSync } from '../core/atomic-write.js';
+import { pathErrorMessage, readFileNoFollow } from '../core/slug-paths.js';
 import { parseSlug } from '../core/slug.js';
 import { revertPhaseForAttach } from '../core/phase-revert.js';
 
@@ -37,7 +38,7 @@ function main(): void {
     process.stdout.write(`phase-revert: ${slug} unchanged (phase is not done)\n`);
     return;
   }
-  writeFileNoFollow(path, out);
+  atomicWriteFileSync(path, out);
   process.stdout.write(`phase-revert: ${slug} → in-progress\n`);
 }
 

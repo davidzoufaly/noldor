@@ -1,4 +1,5 @@
-import { closeSync, constants, lstatSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, constants, lstatSync, openSync, readFileSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 
 import { resolveExisting } from './branch-added.js';
@@ -146,20 +147,38 @@ export function resolveSlugPath(
 }
 
 /**
+ * `O_NOFOLLOW`, or the reason this platform cannot offer it.
+ *
+ * A bitwise OR silently swallows an undefined flag — `1 | undefined` is `1` —
+ * so a platform without `O_NOFOLLOW` would produce an ordinary
+ * symlink-following open while the code still read as if it were guarded. That
+ * is the worst kind of degradation, so the absence is detected instead.
+ */
+const O_NOFOLLOW: number | null =
+  typeof constants.O_NOFOLLOW === 'number' && constants.O_NOFOLLOW !== 0
+    ? constants.O_NOFOLLOW
+    : null;
+
+/**
  * Read a guarded path, refusing to follow a symlink at the final segment.
  *
  * The `lstat` in {@link slugPath} is a check-then-use: between it returning and
  * an ordinary pathname read, the segment can be replaced with a symlink. Kernel
  * `O_NOFOLLOW` closes that window because the refusal happens *in* the open —
- * there is no gap to race. This is what the guard's promise is worth without
- * it, so the two belong together.
+ * there is no gap to race.
+ *
+ * Writes do not need a twin of this: {@link atomicWriteFileSync} writes a
+ * sibling temp file and `rename`s it over the target, which replaces a planted
+ * symlink rather than following it, and satisfies the atomicity the
+ * `concurrency-write-discipline` rule requires for files other readers see.
  *
  * @param path - A path already vetted by {@link slugPath}.
  * @returns The file contents.
- * @throws `ELOOP` when the final segment is a symlink, plus the usual IO errors.
+ * @throws When the final segment is a symlink, when the platform cannot offer
+ *   `O_NOFOLLOW` at all, plus the usual IO errors.
  */
 export function readFileNoFollow(path: string): string {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const fd = openSync(path, readOnlyNoFollowFlags());
   try {
     return readFileSync(fd, 'utf8');
   } finally {
@@ -167,25 +186,22 @@ export function readFileNoFollow(path: string): string {
   }
 }
 
-/**
- * Write a guarded path, refusing to follow a symlink at the final segment.
- *
- * The read twin's reasoning applies: a pathname write after an `lstat` is
- * racy, and `O_NOFOLLOW` moves the refusal into the syscall.
- *
- * @param path - A path already vetted by {@link slugPath}.
- * @param body - Contents to write.
- * @throws `ELOOP` when the final segment is a symlink, plus the usual IO errors.
- */
-export function writeFileNoFollow(path: string, body: string): void {
-  const fd = openSync(
-    path,
-    constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
-    0o644,
-  );
+/** Async twin of {@link readFileNoFollow}, for the pid read on the async path. */
+export async function readFileNoFollowAsync(path: string): Promise<string> {
+  const handle = await open(path, readOnlyNoFollowFlags());
   try {
-    writeFileSync(fd, body, 'utf8');
+    return await handle.readFile('utf8');
   } finally {
-    closeSync(fd);
+    await handle.close();
   }
+}
+
+/** Open flags for a no-follow read, or a throw when the platform cannot. */
+function readOnlyNoFollowFlags(): number {
+  if (O_NOFOLLOW === null) {
+    throw new Error(
+      'refusing a guarded read: this platform does not expose O_NOFOLLOW, so a symlink swapped in after the check could not be refused',
+    );
+  }
+  return constants.O_RDONLY | O_NOFOLLOW;
 }

@@ -8,6 +8,14 @@ import { parseSlug, type Slug } from '../core/slug.js';
  * argument injection. Branding `DrainSource.gatePrompt` would cascade through
  * the whole supervisor for a string-rendering concern, so the check lives here,
  * at the point the value becomes a command.
+ *
+ * A throw here is a programmer error, not external input, and that is only
+ * true because the one reachable bad value is filtered upstream: the roadmap
+ * parser deliberately emits `''` for an all-punctuation heading
+ * (`createSlugTracker`, `src/utils/parse-blocks.ts`), and `roadmapSource`
+ * now marks such an entry ineligible at selection. Without that filter this
+ * would abort a whole drain run, since the loop's catch treats anything but a
+ * per-entry timeout as systemic.
  */
 function requireSlug(slug: string): Slug {
   const parsed = parseSlug(slug);

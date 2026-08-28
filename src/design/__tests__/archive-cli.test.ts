@@ -12,6 +12,8 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 import { describe, expect, it } from 'vitest';
 
+import { parseArchiveArgs } from '../archive-cli.js';
+
 const TSX = join(process.cwd(), 'node_modules/.bin/tsx');
 const CLI = join(process.cwd(), 'src/design/archive-cli.ts');
 
@@ -324,5 +326,19 @@ describe('noldor design archive', () => {
     const r = run(join(dir, 'docs', 'design', 'specs'));
     expect(r.status).toBe(0);
     expect(existsSync(join(dir, 'docs/design/specs/archive', SPEC))).toBe(true);
+  });
+});
+
+describe('parseArchiveArgs — slug guard', () => {
+  it('refuses a --slug that is not a slug, before anything resolves', () => {
+    // The key names artifacts on disk, so it is a path component. Before this
+    // guard the parser accepted any non-empty string, and the refusal (if any)
+    // came from whatever the resolver later did with it.
+    const r = parseArchiveArgs(['--slug', '../../../escape']);
+    expect('error' in r && /invalid slug/.test(r.error)).toBe(true);
+  });
+
+  it('accepts a well-formed slug', () => {
+    expect(parseArchiveArgs(['--slug', 'cloud-sync'])).toMatchObject({ slug: 'cloud-sync' });
   });
 });

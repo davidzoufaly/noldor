@@ -1,6 +1,7 @@
 // @tests: unvalidated-slug-path-traversal-across-cli-entry-points
 import {
   chmodSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -13,7 +14,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { parseSlug, type Slug } from '../slug.js';
-import { pathErrorMessage, readFileNoFollow, slugPath, writeFileNoFollow } from '../slug-paths.js';
+import { atomicWriteFileSync } from '../atomic-write.js';
+import { pathErrorMessage, readFileNoFollow, slugPath } from '../slug-paths.js';
 
 /** Parse or fail the test — keeps every case reading as a slug, not a cast. */
 function slug(value: string): Slug {
@@ -127,21 +129,28 @@ describe('the no-follow IO pair closes the check-then-use window', () => {
     expect(() => readFileNoFollow(target)).toThrow();
   });
 
-  it('refuses to WRITE through a symlink planted after the check', () => {
+  it('does not WRITE through a symlink planted after the check', () => {
+    // Writes use the repo's atomic helper rather than a no-follow open: it
+    // writes a sibling temp file and renames it over the target, so a planted
+    // link is REPLACED rather than followed. That also keeps the temp-then-
+    // rename atomicity `concurrency-write-discipline` requires, which a second
+    // in-place writer would have given up.
     mkdirSync(join(anchor, 'docs'));
     const target = join(anchor, 'docs', 'cloud-sync.md');
     const victim = join(outside, 'victim.md');
     writeFileSync(victim, 'ORIGINAL\n');
     symlinkSync(victim, target);
 
-    expect(() => writeFileNoFollow(target, 'OVERWRITTEN\n')).toThrow();
+    atomicWriteFileSync(target, 'OVERWRITTEN\n');
+
     expect(readFileSync(victim, 'utf8')).toBe('ORIGINAL\n');
+    expect(lstatSync(target).isSymbolicLink()).toBe(false);
   });
 
-  it('reads and writes a regular file normally', () => {
+  it('reads a regular file normally', () => {
     mkdirSync(join(anchor, 'docs'));
     const target = join(anchor, 'docs', 'cloud-sync.md');
-    writeFileNoFollow(target, 'BODY\n');
+    atomicWriteFileSync(target, 'BODY\n');
     expect(readFileNoFollow(target)).toBe('BODY\n');
   });
 });

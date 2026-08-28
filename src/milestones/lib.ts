@@ -1,13 +1,13 @@
-import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
+import { atomicWriteFileSync } from '../core/atomic-write.js';
 import {
   readFileNoFollow,
   resolveErrorMessage,
   resolveSlugPath,
-  writeFileNoFollow,
   type ResolveError,
 } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
@@ -128,7 +128,7 @@ export function draftMilestone(
   const body = `\n## Gate\n\n<!-- TODO: paragraph describing the strategic gate -->\n\n## Success Criteria\n\n<!-- TODO: bulleted list of measurable ship conditions -->\n\n## Out of Scope\n\n<!-- TODO: deliberate exclusions -->\n`;
   const fm: MilestoneFrontmatter = { name: slug, status: 'draft' };
   if (description) fm.description = description;
-  writeFileNoFollow(path, stringifyMilestone(body, fm));
+  atomicWriteFileSync(path, stringifyMilestone(body, fm));
   return { ok: true };
 }
 
@@ -222,12 +222,15 @@ export function activateMilestone(slug: string, cwd: string = process.cwd()): Mi
   const previousWritten = previousActive ? serializeMilestone(previousActive, 'shipped') : null;
   const visionUpdated = setFrontmatterField(visionRaw, 'current-milestone', slug);
 
-  writeFileNoFollow(resolved.path, targetWritten);
-  writeFileSync(join(cwd, 'docs/vision.md'), visionUpdated, 'utf8');
+  atomicWriteFileSync(resolved.path, targetWritten);
+  atomicWriteFileSync(join(cwd, 'docs/vision.md'), visionUpdated);
   if (previousActive && previousWritten) {
     // previousActive.slug is a basename() stem of a file already inside the
     // milestones dir, not external input, so it needs no parse of its own.
-    writeFileSync(join(cwd, MILESTONES_DIR, `${previousActive.slug}.md`), previousWritten, 'utf8');
+    // previousActive.slug is a basename() stem from inside the milestones dir,
+    // not external input — but the write still goes through the atomic helper,
+    // which replaces a planted symlink instead of following it.
+    atomicWriteFileSync(join(cwd, MILESTONES_DIR, `${previousActive.slug}.md`), previousWritten);
   }
   return { ok: true };
 }
