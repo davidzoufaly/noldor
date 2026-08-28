@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { parseSlug, type Slug } from '../../core/slug.js';
-import { readExpectedLanes } from '../expected-lanes.js';
+import { readExpectedLanes, writeExpectedLanes } from '../expected-lanes.js';
 
 function slug(value: string): Slug {
   const parsed = parseSlug(value);
@@ -48,5 +48,21 @@ describe('readExpectedLanes with an unusable sink', () => {
   it('reports no error when the sink is simply absent', async () => {
     const r = await readExpectedLanes(cwd, slug('never-written'), 'spec');
     expect(r.errors).toEqual([]);
+  });
+});
+
+describe('writeExpectedLanes with an unusable sink', () => {
+  it('fails loudly rather than skipping the record', async () => {
+    // A missing expectation is exactly the fail-open this file closes, so the
+    // writer must not degrade to "recorded nothing" when the sink is tampered.
+    writeFileSync(join(outside, 'stolen.json'), '{}');
+    symlinkSync(
+      join(outside, 'stolen.json'),
+      join(cwd, '.noldor', 'cr', 'expected', 'demo-code.json'),
+    );
+
+    await expect(writeExpectedLanes(cwd, slug('demo'), 'code', ['reviewer'])).rejects.toThrow(
+      /cannot write expected-lanes/,
+    );
   });
 });

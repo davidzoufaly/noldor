@@ -5,7 +5,7 @@ import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 
 import { loadDocRoots, milestonePath } from './doc-roots.js';
-import { isSlug, parseSlug } from './slug.js';
+import { parseSlug } from './slug.js';
 import { sizeToPath, type GatePath } from './size-routing.js';
 import { FeatureFrontmatterSchema } from './feature-schema.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
@@ -230,11 +230,21 @@ export function loadInProgressFds(cwd: string): InProgressFd[] {
     if (tier === undefined) continue;
     // The stem becomes a branch name, a worktree directory and a rendered
     // command, so an FD filename that is not a slug cannot be worked on by
-    // slug at all. Skipping it here covers every reader of this list — the
-    // drain's plans source has no filter of its own, and a throw deeper in
-    // would abort a whole drain run rather than skip one entry.
+    // slug at all. It is excluded here — which covers every reader of this
+    // list, including the drain's plans source, and avoids a throw deeper in
+    // that would abort a whole drain run rather than skip one entry.
+    //
+    // Excluded LOUDLY: dropping it silently would show an operator an
+    // incomplete in-progress queue with no hint that the repository holds a
+    // malformed FD, which is the corrupt state they most need to see.
     const stem = filename.replace(/\.md$/, '');
-    if (!isSlug(stem)) continue;
+    const parsedStem = parseSlug(stem);
+    if (!parsedStem.ok) {
+      process.stderr.write(
+        `next-priority: skipping docs/features/${filename} — ${parsedStem.error.message}\n`,
+      );
+      continue;
+    }
     out.push({
       slug: stem,
       name: parsed.data.name,

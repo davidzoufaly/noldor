@@ -22,6 +22,7 @@ links:
     - src/core/__tests__/slug-guards.test.ts
     - src/core/__tests__/slug-paths.test.ts
     - src/core/__tests__/slug-traversal.cli.test.ts
+    - src/cr/__tests__/expected-lanes-guard.test.ts
     - src/invariants/__tests__/slug-path-choke-point.test.ts
     - src/worktrees/__tests__/down-worktree-traversal.test.ts
 name: Unvalidated Slug Path Traversal Across CLI Entry Points

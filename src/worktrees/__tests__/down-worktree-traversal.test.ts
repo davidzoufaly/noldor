@@ -1,5 +1,5 @@
 // @tests: unvalidated-slug-path-traversal-across-cli-entry-points
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,5 +58,64 @@ describe('downWorktree refuses a traversing slug', () => {
 
     expect(r).toEqual({ ok: true, reaped: 2 });
     expect(killImpl).toHaveBeenCalled();
+  });
+});
+
+describe('downWorktree refuses a pid file it cannot read safely', () => {
+  it('refuses a symlinked pids file at the path guard, before the read', async () => {
+    const outside = join(base, 'outside');
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, 'foreign.pids'), 'web 424242\n');
+    symlinkSync(join(outside, 'foreign.pids'), join(repo, '.noldor', 'dev-real-feature.pids'));
+
+    const killImpl = vi.fn();
+    const gitImpl = vi.fn(async () => {});
+    const r = await downWorktree(
+      { slug: 'real-feature', cwd: repo, remove: true },
+      { killImpl, gitImpl },
+    );
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    // The path guard sees it first, so the read never runs at all.
+    expect(r.error.kind).toBe('unsafe-symlink');
+    expect(killImpl).not.toHaveBeenCalled();
+    expect(gitImpl).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unreadable pids file rather than reaping nothing silently', async () => {
+    // Reaches the READ branch: lstat sees a regular file, the open then fails
+    // with EACCES. Folding that into "no pids" is fail-safe for the kill but
+    // NOT for --remove, which would tear the worktree down while its servers
+    // keep running, with "0 reaped" as the only signal.
+    const pids = join(repo, '.noldor', 'dev-real-feature.pids');
+    writeFileSync(pids, 'web 424242\n');
+    chmodSync(pids, 0o000);
+
+    const killImpl = vi.fn();
+    const gitImpl = vi.fn(async () => {});
+    try {
+      const r = await downWorktree(
+        { slug: 'real-feature', cwd: repo, remove: true },
+        { killImpl, gitImpl },
+      );
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.kind).toBe('uninspectable');
+      expect(killImpl).not.toHaveBeenCalled();
+      expect(gitImpl).not.toHaveBeenCalled();
+    } finally {
+      chmodSync(pids, 0o644);
+    }
+  });
+
+  it('still treats a simply-absent pids file as nothing to reap', async () => {
+    const gitImpl = vi.fn(async () => {});
+    const r = await downWorktree(
+      { slug: 'never-booted', cwd: repo, remove: true },
+      { killImpl: vi.fn(), gitImpl },
+    );
+    expect(r).toEqual({ ok: true, reaped: 0 });
+    expect(gitImpl).toHaveBeenCalled(); // ENOENT is benign — removal proceeds
   });
 });
