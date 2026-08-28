@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 
 import { loadDocRoots, milestonePath } from './doc-roots.js';
+import { pathErrorMessage, readFileNoFollow } from './slug-paths.js';
 import { parseSlug } from './slug.js';
 import { sizeToPath, type GatePath } from './size-routing.js';
 import { FeatureFrontmatterSchema } from './feature-schema.js';
@@ -274,12 +275,23 @@ export function loadMilestoneGate(cwd: string): string {
   // This reader casts vision's frontmatter rather than parsing it with
   // visionFrontmatterSchema, so no schema tightening binds here — the guarded
   // builder is the only thing standing between a hand-edited value and a read.
+  // A refusal is NOT "no gate configured": malformed frontmatter or a tampered
+  // path would otherwise be indistinguishable from an unset milestone, which is
+  // a fail-open on the field that decides gating. Report, then degrade.
   const parsed = parseSlug(slug);
-  if (!parsed.ok) return '';
+  if (!parsed.ok) {
+    process.stderr.write(`next-priority: ignoring current-milestone — ${parsed.error.message}\n`);
+    return '';
+  }
   const built = milestonePath(cwd, parsed.slug);
-  if (!built.ok) return '';
+  if (!built.ok) {
+    process.stderr.write(
+      `next-priority: ignoring current-milestone — ${pathErrorMessage(built.error)}\n`,
+    );
+    return '';
+  }
   if (!existsSync(built.path)) return '';
-  const body = matter(readFileSync(built.path, 'utf8')).content;
+  const body = matter(readFileNoFollow(built.path)).content;
   const match = body.match(/##\s+Gate\s*\n+([\s\S]*?)(?=\n##\s|$)/);
   if (match === null) return '';
   return (

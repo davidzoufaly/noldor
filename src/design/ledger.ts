@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { slugPath } from '../core/slug-paths.js';
+import { readFileNoFollow, slugPath } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
-import { parseSlug } from '../core/slug.js';
-import { dirname, join } from 'node:path';
+import { isSlug, parseSlug } from '../core/slug.js';
+import { featurePath } from '../core/doc-roots.js';
+import { dirname } from 'node:path';
 
 import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { loadDocRoots } from '../core/doc-roots.js';
@@ -482,7 +483,7 @@ export function serializeLedger(slug: string, state: LedgerState): string {
 export function readLedger(cwd: string, slug: Slug): LedgerState {
   const p = ledgerPath(cwd, slug);
   if (!existsSync(p)) return emptyLedger();
-  return parseLedger(readFileSync(p, 'utf8'));
+  return parseLedger(readFileNoFollow(p));
 }
 
 export function writeLedger(cwd: string, slug: Slug, state: LedgerState): void {
@@ -554,13 +555,17 @@ export function loadScope(
       ? markerParent
       : null;
   const fdSlug = opts.fdSlug ?? attachParent ?? opts.slug;
-  const fdPath = join(roots.features, `${fdSlug}.md`);
-  if (existsSync(fdPath)) {
+  // Built through the guarded builder rather than joined inline: this is a
+  // slug-named path like every other, and an inline join is exactly the second
+  // construction site the choke point exists to remove.
+  const fdBuilt = isSlug(fdSlug) ? featurePath(cwd, fdSlug) : null;
+  const fdPath = fdBuilt?.ok === true ? fdBuilt.path : null;
+  if (fdPath !== null && existsSync(fdPath)) {
     // Reuse the core helper rather than a fourth copy of the Summary regex
     // (`design → core` is an allowed edge — see the other core imports above).
     // A missing or empty `## Summary` yields `''`, which is no scope at all, so
     // fall through instead of rendering a blank Scope line.
-    const summary = normalize(extractSummary(readFileSync(fdPath, 'utf8')));
+    const summary = normalize(extractSummary(readFileNoFollow(fdPath)));
     if (summary.length > 0) return summary;
   }
 

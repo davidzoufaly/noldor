@@ -83,31 +83,37 @@ describe('downWorktree refuses a pid file it cannot read safely', () => {
     expect(gitImpl).not.toHaveBeenCalled();
   });
 
-  it('refuses an unreadable pids file rather than reaping nothing silently', async () => {
-    // Reaches the READ branch: lstat sees a regular file, the open then fails
-    // with EACCES. Folding that into "no pids" is fail-safe for the kill but
-    // NOT for --remove, which would tear the worktree down while its servers
-    // keep running, with "0 reaped" as the only signal.
-    const pids = join(repo, '.noldor', 'dev-real-feature.pids');
-    writeFileSync(pids, 'web 424242\n');
-    chmodSync(pids, 0o000);
+  // chmod 000 does not produce EACCES for root, so this asserts nothing in a
+  // root CI container — it would go falsely red. Same house pattern as
+  // `src/dashboard/__tests__/dashboard-data.test.ts`.
+  it.skipIf(process.getuid?.() === 0)(
+    'refuses an unreadable pids file rather than reaping nothing silently',
+    async () => {
+      // Reaches the READ branch: lstat sees a regular file, the open then fails
+      // with EACCES. Folding that into "no pids" is fail-safe for the kill but
+      // NOT for --remove, which would tear the worktree down while its servers
+      // keep running, with "0 reaped" as the only signal.
+      const pids = join(repo, '.noldor', 'dev-real-feature.pids');
+      writeFileSync(pids, 'web 424242\n');
+      chmodSync(pids, 0o000);
 
-    const killImpl = vi.fn();
-    const gitImpl = vi.fn(async () => {});
-    try {
-      const r = await downWorktree(
-        { slug: 'real-feature', cwd: repo, remove: true },
-        { killImpl, gitImpl },
-      );
-      expect(r.ok).toBe(false);
-      if (r.ok) return;
-      expect(r.error.kind).toBe('uninspectable');
-      expect(killImpl).not.toHaveBeenCalled();
-      expect(gitImpl).not.toHaveBeenCalled();
-    } finally {
-      chmodSync(pids, 0o644);
-    }
-  });
+      const killImpl = vi.fn();
+      const gitImpl = vi.fn(async () => {});
+      try {
+        const r = await downWorktree(
+          { slug: 'real-feature', cwd: repo, remove: true },
+          { killImpl, gitImpl },
+        );
+        expect(r.ok).toBe(false);
+        if (r.ok) return;
+        expect(r.error.kind).toBe('uninspectable');
+        expect(killImpl).not.toHaveBeenCalled();
+        expect(gitImpl).not.toHaveBeenCalled();
+      } finally {
+        chmodSync(pids, 0o644);
+      }
+    },
+  );
 
   it('still treats a simply-absent pids file as nothing to reap', async () => {
     const gitImpl = vi.fn(async () => {});

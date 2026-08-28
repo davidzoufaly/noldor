@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { slugPath } from '../core/slug-paths.js';
+import { readFileNoFollowAsync, slugPath } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
-import { mkdir, readFile, rename } from 'node:fs/promises';
+import { mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 
@@ -152,7 +152,7 @@ export async function readLedger(
   const path = ledgerPath(cwd, slug, kind);
   let raw: string;
   try {
-    raw = await readFile(path, 'utf8');
+    raw = await readFileNoFollowAsync(path);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw err; // EACCES / EIO / … — NOT a parse failure, so no quarantine upstream

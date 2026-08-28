@@ -14,7 +14,12 @@ import { escapeHtml } from './layout.js';
 import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { loadCategories, loadConsumerConfig } from '../core/consumer-config.js';
 import { areaToCategory } from '../lib/area-category.js';
-import { loadMilestoneBySlug, loadMilestones, type Milestone } from '../milestones/lib.js';
+import {
+  loadMilestoneBySlug,
+  loadMilestones,
+  milestoneRefusalMessage,
+  type Milestone,
+} from '../milestones/lib.js';
 import { slugSchema } from '../core/slug.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
 import { docPresenceRoots, listDocMds, loadDocRoots } from '../core/doc-roots.js';
@@ -806,8 +811,19 @@ export async function loadActiveMilestone(vision: Vision): Promise<ActiveMilesto
   if (!slug) return null;
   // `slug` is repository-authored (vision frontmatter), which is why this call
   // can now refuse: a hand-edited non-slug used to reach the path builder.
+  //
+  // A refusal is reported rather than folded into `null`. Collapsing it would
+  // throw away the distinction the result type was introduced to carry — an
+  // absent milestone and an unsafe or uninspectable path would render
+  // identically, and the dashboard would show "no active milestone" for a
+  // tampered one.
   const loaded = loadMilestoneBySlug(slug);
-  if (!loaded.ok) return null;
+  if (!loaded.ok) {
+    process.stderr.write(
+      `dashboard: current-milestone unusable — ${milestoneRefusalMessage(loaded.error)}\n`,
+    );
+    return null;
+  }
   const m = loaded.milestone;
   if (!m) return null;
   return {

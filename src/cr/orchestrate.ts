@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
+import { readFileNoFollowAsync } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
-import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { writeExpectedLanes } from './expected-lanes.js';
@@ -203,7 +204,7 @@ async function readPriorSinkDefault(
   const path = await findExistingSink(cwd, slug, kind, lane);
   if (path === null) return null;
   try {
-    const parsed = laneFindingsSchema.safeParse(JSON.parse(await readFile(path, 'utf8')));
+    const parsed = laneFindingsSchema.safeParse(JSON.parse(await readFileNoFollowAsync(path)));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;

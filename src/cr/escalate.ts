@@ -4,7 +4,7 @@
 // test run goes red, `escalate()` decides whether to spawn the deep-review
 // standalone lane, prompt the operator, or abort — controlled by the
 // `autonomous` flag and the `onFailure` policy.
-import { writeFile } from 'node:fs/promises';
+import { atomicWriteFile } from '../core/atomic-write.js';
 import { slugPath } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
 import type { LaneInput } from './lane-types.js';
@@ -43,7 +43,7 @@ async function writeContext(
   // between a red CR and a silent one, so it fails loudly rather than quietly.
   if (!built.ok) throw new Error(`cannot write escalation context: ${built.error.kind}`);
   const body = `# Escalation context\n\nslug: ${slug}\nreason: ${reason}\n\n## Detail\n\n${context}\n`;
-  await writeFile(built.path, body, 'utf8');
+  await atomicWriteFile(built.path, body);
 }
 
 async function spawnDeepReview(input: EscalateInput): Promise<EscalateResult> {
