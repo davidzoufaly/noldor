@@ -302,3 +302,20 @@ describe('assertOnlyResolves', () => {
     expect(() => assertOnlyResolves({ only: new Set(['real-slug']) }, src)).not.toThrow();
   });
 });
+
+describe('roadmapSource refuses a heading that is not a slug', () => {
+  it('marks it ineligible instead of letting it reach a branch name or a prompt', () => {
+    // `createSlugTracker` emits '' for an all-punctuation heading by design. It
+    // cannot name `fast/<slug>`, `.worktrees/<slug>`, or a rendered drain
+    // command, and the drain loop's catch treats a throw as systemic — so an
+    // unfiltered one aborts the entire run rather than skipping one entry.
+    const dir = tmpRepo(block('!!! ???', 'XS'));
+    try {
+      const first = roadmapSource(dir).nextItem(new Set()) as DrainCandidate;
+      expect(first.eligible).toBe(false);
+      expect(first.reason).toContain('not a slug');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

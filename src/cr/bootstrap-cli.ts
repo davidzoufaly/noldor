@@ -1,4 +1,5 @@
 import { injectBootstrapOverrides } from './bootstrap-immunity.js';
+import { parseSlug } from '../core/slug.js';
 
 /**
  * `pnpm noldor cr bootstrap --slug <slug> [--range origin/main..HEAD] [--autonomous]`
@@ -19,8 +20,13 @@ export function runBootstrapCli(argv: readonly string[], cwd: string): number {
     process.stderr.write('cr bootstrap: --slug <slug> is required\n');
     return 1;
   }
+  const parsed = parseSlug(slug);
+  if (!parsed.ok) {
+    process.stderr.write(`${parsed.error.message}\n`);
+    return 1;
+  }
   const range = flag(argv, '--range');
-  const result = injectBootstrapOverrides({ cwd, slug, ...(range ? { range } : {}) });
+  const result = injectBootstrapOverrides({ cwd, slug: parsed.slug, ...(range ? { range } : {}) });
   if (!result.gate) {
     process.stdout.write('no introduces-gate — skipped\n');
     return 0;

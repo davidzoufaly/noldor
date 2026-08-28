@@ -6,6 +6,7 @@
 // lane body carries verdicts rather than plumbing.
 
 import { mkdir } from 'node:fs/promises';
+import type { Slug } from '../core/slug.js';
 import { dirname } from 'node:path';
 
 import { writeJsonAtomic } from './atomic-write.js';
@@ -24,7 +25,7 @@ export interface LaneSink {
 }
 
 export function openLaneSink(
-  input: { repoRoot: string; slug: string; kind: ArtifactKind; artifact: string },
+  input: { repoRoot: string; slug: Slug; kind: ArtifactKind; artifact: string },
   lane: Lane,
 ): LaneSink {
   const { sinkPath, startedAt } = openLane(input, lane);

@@ -12,6 +12,8 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 import { describe, expect, it } from 'vitest';
 
+import { parseArchiveArgs } from '../archive-cli.js';
+
 const TSX = join(process.cwd(), 'node_modules/.bin/tsx');
 const CLI = join(process.cwd(), 'src/design/archive-cli.ts');
 
@@ -324,5 +326,18 @@ describe('noldor design archive', () => {
     const r = run(join(dir, 'docs', 'design', 'specs'));
     expect(r.status).toBe(0);
     expect(existsSync(join(dir, 'docs/design/specs/archive', SPEC))).toBe(true);
+  });
+});
+
+describe('parseArchiveArgs — the key is not a path', () => {
+  it('accepts a key that is not kebab-case', () => {
+    // `archive-resolve` equality-matches this value against filename stems and
+    // never joins it, so slug-parsing it would be a backward-incompatible
+    // restriction with no safety gain — the design spec names it out of scope.
+    expect(parseArchiveArgs(['--slug', 'Legacy_Key'])).toMatchObject({ slug: 'Legacy_Key' });
+  });
+
+  it('still refuses an empty key, which would match nothing and read as success', () => {
+    expect(parseArchiveArgs(['--slug', '   '])).toMatchObject({ error: expect.any(String) });
   });
 });

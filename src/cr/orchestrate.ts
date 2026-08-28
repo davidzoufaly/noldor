@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { readFileNoFollowAsync } from '../core/slug-paths.js';
+import type { Slug } from '../core/slug.js';
+import { copyFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { writeJsonAtomic } from './atomic-write.js';
 import { writeExpectedLanes } from './expected-lanes.js';
@@ -140,7 +142,7 @@ async function writeSyntheticOk(input: LaneInput, lane: Lane): Promise<LaneResul
 }
 
 interface GuardCtx {
-  slug: string;
+  slug: Slug;
   kind: ArtifactKind;
   cwd: string;
   /** True when this round mandates the codex lane (see codexIsMandatory). */
@@ -152,9 +154,14 @@ interface GuardOpts {
 }
 
 /** Canonical sink path + any legacy-named path a pre-0.7.0 run may have written. */
-function sinkCandidatePaths(cwd: string, slug: string, kind: ArtifactKind, lane: Lane): string[] {
+function sinkCandidatePaths(cwd: string, slug: Slug, kind: ArtifactKind, lane: Lane): string[] {
   const names = [lane, ...(lane in LEGACY_BY_CANONICAL ? [LEGACY_BY_CANONICAL[lane]] : [])];
-  return names.map((n) => laneSinkPath(cwd, slug, kind, n));
+  // This is a probe list, so a refused candidate is simply not a candidate —
+  // a path the guard will not build is one no run can have written.
+  return names
+    .map((n) => laneSinkPath(cwd, slug, kind, n))
+    .filter((r) => r.ok)
+    .map((r) => r.path);
 }
 
 /**
@@ -165,7 +172,7 @@ function sinkCandidatePaths(cwd: string, slug: string, kind: ArtifactKind, lane:
  */
 async function findExistingSink(
   cwd: string,
-  slug: string,
+  slug: Slug,
   kind: ArtifactKind,
   lane: Lane,
 ): Promise<string | null> {
@@ -190,14 +197,14 @@ async function findExistingSink(
  */
 async function readPriorSinkDefault(
   cwd: string,
-  slug: string,
+  slug: Slug,
   kind: ArtifactKind,
   lane: Lane,
 ): Promise<LaneFindings | null> {
   const path = await findExistingSink(cwd, slug, kind, lane);
   if (path === null) return null;
   try {
-    const parsed = laneFindingsSchema.safeParse(JSON.parse(await readFile(path, 'utf8')));
+    const parsed = laneFindingsSchema.safeParse(JSON.parse(await readFileNoFollowAsync(path)));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;

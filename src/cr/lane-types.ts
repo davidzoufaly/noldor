@@ -1,3 +1,4 @@
+import type { Slug } from '../core/slug.js';
 // scripts/cr/lane-types.ts
 import type { ArtifactKind, Finding, Lane, LaneFindings } from './findings-schema.js';
 import type { ReviewProfile } from '../core/review-profile.js';
@@ -14,7 +15,8 @@ export interface PriorReview {
 }
 
 export interface LaneInput {
-  slug: string;
+  /** Branded: the sink path is built from it, so it arrives already parsed. */
+  slug: Slug;
   artifact: string;
   kind: ArtifactKind;
   fdPath: string;

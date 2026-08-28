@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 import { walkRepo } from './fd-load.js';
+import { slugPath, type SlugPathResult } from './slug-paths.js';
+import type { Slug } from './slug.js';
 
 export interface DocRoots {
   adr: string;
@@ -130,4 +132,31 @@ export async function listDocMds(roots: string[], cwd: string = process.cwd()): 
     .filter((f) => f.endsWith('.md'))
     .map((f) => relative(cwd, f))
     .toSorted();
+}
+
+/**
+ * Absolute path of a slug-named markdown doc beneath `cwd`, guarded.
+ *
+ * The `relRoot` mirrors {@link loadDocRoots}'s entry rather than reading it
+ * back, because {@link slugPath} composes the root from the anchor on purpose —
+ * handing it a ready-made root is what lets a relocated or symlinked directory
+ * define its own legality.
+ *
+ * @param cwd - Consumer root, the containment anchor.
+ * @param relRoot - Directory segments beneath the anchor.
+ * @param slug - An already-parsed slug.
+ * @returns The absolute path, or the reason it was refused.
+ */
+function docSlugPath(cwd: string, relRoot: readonly string[], slug: Slug): SlugPathResult {
+  return slugPath(cwd, relRoot, slug, { suffix: '.md' });
+}
+
+/** Absolute path of a feature MD, guarded. See {@link docSlugPath}. */
+export function featurePath(cwd: string, slug: Slug): SlugPathResult {
+  return docSlugPath(cwd, ['docs', 'features'], slug);
+}
+
+/** Absolute path of a milestone MD, guarded. See {@link docSlugPath}. */
+export function milestonePath(cwd: string, slug: Slug): SlugPathResult {
+  return docSlugPath(cwd, ['docs', 'milestones'], slug);
 }

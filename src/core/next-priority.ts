@@ -4,7 +4,9 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { loadDocRoots } from './doc-roots.js';
+import { loadDocRoots, milestonePath } from './doc-roots.js';
+import { pathErrorMessage, readFileNoFollow } from './slug-paths.js';
+import { parseSlug } from './slug.js';
 import { sizeToPath, type GatePath } from './size-routing.js';
 import { FeatureFrontmatterSchema } from './feature-schema.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
@@ -227,8 +229,25 @@ export function loadInProgressFds(cwd: string): InProgressFd[] {
     if (parsed.data.phase !== 'in-progress') continue;
     const tier = parsed.data['noldor-tier'];
     if (tier === undefined) continue;
+    // The stem becomes a branch name, a worktree directory and a rendered
+    // command, so an FD filename that is not a slug cannot be worked on by
+    // slug at all. It is excluded here — which covers every reader of this
+    // list, including the drain's plans source, and avoids a throw deeper in
+    // that would abort a whole drain run rather than skip one entry.
+    //
+    // Excluded LOUDLY: dropping it silently would show an operator an
+    // incomplete in-progress queue with no hint that the repository holds a
+    // malformed FD, which is the corrupt state they most need to see.
+    const stem = filename.replace(/\.md$/, '');
+    const parsedStem = parseSlug(stem);
+    if (!parsedStem.ok) {
+      process.stderr.write(
+        `next-priority: skipping docs/features/${filename} — ${parsedStem.error.message}\n`,
+      );
+      continue;
+    }
     out.push({
-      slug: filename.replace(/\.md$/, ''),
+      slug: stem,
       name: parsed.data.name,
       tier,
       deps: parsed.data.deps,
@@ -253,9 +272,26 @@ export function loadMilestoneGate(cwd: string): string {
   };
   const slug = visionFm['current-milestone'];
   if (slug === undefined || slug === '') return '';
-  const milestonePath = join(loadDocRoots(cwd).milestones, `${slug}.md`);
-  if (!existsSync(milestonePath)) return '';
-  const body = matter(readFileSync(milestonePath, 'utf8')).content;
+  // This reader casts vision's frontmatter rather than parsing it with
+  // visionFrontmatterSchema, so no schema tightening binds here — the guarded
+  // builder is the only thing standing between a hand-edited value and a read.
+  // A refusal is NOT "no gate configured": malformed frontmatter or a tampered
+  // path would otherwise be indistinguishable from an unset milestone, which is
+  // a fail-open on the field that decides gating. Report, then degrade.
+  const parsed = parseSlug(slug);
+  if (!parsed.ok) {
+    process.stderr.write(`next-priority: ignoring current-milestone — ${parsed.error.message}\n`);
+    return '';
+  }
+  const built = milestonePath(cwd, parsed.slug);
+  if (!built.ok) {
+    process.stderr.write(
+      `next-priority: ignoring current-milestone — ${pathErrorMessage(built.error)}\n`,
+    );
+    return '';
+  }
+  if (!existsSync(built.path)) return '';
+  const body = matter(readFileNoFollow(built.path)).content;
   const match = body.match(/##\s+Gate\s*\n+([\s\S]*?)(?=\n##\s|$)/);
   if (match === null) return '';
   return (

@@ -41,3 +41,33 @@ export interface Invariant {
   readonly description: string;
   run(): Promise<InvariantResult>;
 }
+
+/**
+ * Build an {@link Invariant} from just its identity and a scan.
+ *
+ * Every plugin repeats the same four statements — stamp a start time, collect
+ * violations, return `{ invariant, violations, durationMs }` — and that shape is
+ * bookkeeping, not policy. Wrapping it lets a new plugin be its scan and
+ * nothing else. Existing plugins keep their hand-rolled form; this is offered,
+ * not imposed.
+ *
+ * @param name - Invariant id, as reported.
+ * @param description - One-line summary for the runner's listing.
+ * @param scan - Produces the violations. Pure: no `process.exit`, no logging.
+ * @returns A plugin whose `run` handles the timing and the result envelope.
+ */
+export function defineInvariant(
+  name: string,
+  description: string,
+  scan: () => Promise<readonly InvariantViolation[]>,
+): Invariant {
+  return {
+    name,
+    description,
+    async run(): Promise<InvariantResult> {
+      const start = Date.now();
+      const violations = await scan();
+      return { invariant: name, violations, durationMs: Date.now() - start };
+    },
+  };
+}

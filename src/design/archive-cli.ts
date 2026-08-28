@@ -42,6 +42,10 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
       // do" line — invalid input must not read as success.
       if (value.trim().length === 0) return { error: 'empty value: --slug' };
       // Trim what we store too: a padded key would silently match nothing.
+      // NOT slug-parsed: `archive-resolve` matches this value for equality
+      // against filename stems and never joins it into a path, so requiring
+      // kebab-case here would reject existing keys for no safety gain. See the
+      // out-of-scope note in the design spec.
       args.slug = value.trim();
       i += 1;
       continue;

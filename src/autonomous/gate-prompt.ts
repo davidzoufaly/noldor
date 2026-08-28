@@ -1,3 +1,28 @@
+import { parseSlug, type Slug } from '../core/slug.js';
+
+/**
+ * Parse a slug destined for a rendered command line.
+ *
+ * Not a path build, so no builder covers it — but the value is interpolated
+ * into a command a headless child then executes, so an unchecked one is
+ * argument injection. Branding `DrainSource.gatePrompt` would cascade through
+ * the whole supervisor for a string-rendering concern, so the check lives here,
+ * at the point the value becomes a command.
+ *
+ * A throw here is a programmer error, not external input, and that is only
+ * true because the one reachable bad value is filtered upstream: the roadmap
+ * parser deliberately emits `''` for an all-punctuation heading
+ * (`createSlugTracker`, `src/utils/parse-blocks.ts`), and `roadmapSource`
+ * now marks such an entry ineligible at selection. Without that filter this
+ * would abort a whole drain run, since the loop's catch treats anything but a
+ * per-entry timeout as systemic.
+ */
+function requireSlug(slug: string): Slug {
+  const parsed = parseSlug(slug);
+  if (!parsed.ok) throw new Error(parsed.error.message);
+  return parsed.slug;
+}
+
 // @fd: portable-gate-entrypoint-for-non-claude-runners
 
 /**
@@ -21,7 +46,7 @@ export type PromptDispatch = 'slash-command' | 'prose';
  * runner-neutral page `docs/noldor/drain-mode.md` carries a third, prose rendering — keep it in sync
  * by hand; there is no code seam between a TS literal and a Markdown page.
  */
-function fastTrackCrCommand(slug: string): string {
+function fastTrackCrCommand(slug: Slug): string {
   return `(\`pnpm noldor cr orchestrate --slug ${slug} --artifact . --kind code --profile fast-track --autonomous\`),`;
 }
 
@@ -31,7 +56,8 @@ function fastTrackCrCommand(slug: string): string {
  * interactive Step 0 — a headless model ignores an env-var-only signal, so
  * the assigned slug must ride the prompt itself.
  */
-export function buildDrainGatePrompt(slug: string, dispatch: PromptDispatch): string {
+export function buildDrainGatePrompt(rawSlug: string, dispatch: PromptDispatch): string {
+  const slug = requireSlug(rawSlug);
   if (dispatch === 'slash-command') return `/noldor-gate --drain ${slug}`;
   return [
     'Autonomous Noldor drain run. Read docs/noldor/drain-mode.md and follow it exactly.',
@@ -62,7 +88,8 @@ export function buildDrainGatePrompt(slug: string, dispatch: PromptDispatch): st
  * never end the turn before `pr-flow` printed the PR URL — the child-side
  * assertion that closes the false-retry loop at its source.
  */
-export function buildFinishGatePrompt(slug: string, dispatch: PromptDispatch): string {
+export function buildFinishGatePrompt(rawSlug: string, dispatch: PromptDispatch): string {
+  const slug = requireSlug(rawSlug);
   const shared = [
     `Branch 'fast/${slug}' ALREADY carries committed work for roadmap entry '${slug}' from a`,
     'prior child that ended without opening a PR. Do NOT force-recreate or delete the branch,',

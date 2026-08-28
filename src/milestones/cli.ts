@@ -1,4 +1,10 @@
-import { draftMilestone, activateMilestone, listMilestones, type Milestone } from './lib.js';
+import {
+  draftMilestone,
+  activateMilestone,
+  listMilestones,
+  milestoneRefusalMessage,
+  type Milestone,
+} from './lib.js';
 
 function fmtGroup(label: string, ms: Milestone[]): string {
   if (ms.length === 0) return `${label}:\n  (none)\n`;
@@ -32,14 +38,22 @@ try {
       const slug = rest[0];
       if (!slug) usage();
       const description = rest.slice(1).join(' ') || undefined;
-      draftMilestone(slug, description);
+      const drafted = draftMilestone(slug, description);
+      if (!drafted.ok) {
+        console.error(milestoneRefusalMessage(drafted.error));
+        process.exit(1);
+      }
       console.log(`Drafted docs/milestones/${slug}.md`);
       break;
     }
     case 'activate': {
       const slug = rest[0];
       if (!slug) usage();
-      activateMilestone(slug);
+      const activated = activateMilestone(slug);
+      if (!activated.ok) {
+        console.error(milestoneRefusalMessage(activated.error));
+        process.exit(1);
+      }
       console.log(`Activated ${slug}; vision.md updated`);
       break;
     }

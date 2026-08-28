@@ -1,4 +1,5 @@
-import { join } from 'node:path';
+import { slugPath, type PathError } from '../core/slug-paths.js';
+import type { Slug } from '../core/slug.js';
 import { LANE_ALIASES, LANE_NAMES } from '../core/lanes.js';
 import type { ArtifactKind, Lane } from './findings-schema.js';
 
@@ -10,8 +11,13 @@ import type { ArtifactKind, Lane } from './findings-schema.js';
  * `lane` is a plain string rather than {@link Lane} because orchestrate also renders legacy
  * pre-0.7.0 names through it when probing for sinks an older run may have written.
  */
-export function laneSinkPath(root: string, slug: string, kind: ArtifactKind, lane: string): string {
-  return join(root, '.noldor', 'cr', `${slug}-${kind}-${lane}.json`);
+export function laneSinkPath(
+  root: string,
+  slug: Slug,
+  kind: ArtifactKind,
+  lane: string,
+): { ok: true; path: string } | { ok: false; error: PathError } {
+  return slugPath(root, ['.noldor', 'cr'], slug, { suffix: `-${kind}-${lane}.json` });
 }
 
 /**
@@ -22,13 +28,16 @@ export function laneSinkPath(root: string, slug: string, kind: ArtifactKind, lan
  * lane" one call instead of a convention each lane re-implements.
  */
 export function openLane(
-  input: { repoRoot: string; slug: string; kind: ArtifactKind },
+  input: { repoRoot: string; slug: Slug; kind: ArtifactKind },
   lane: string,
 ): { sinkPath: string; startedAt: string } {
-  return {
-    sinkPath: laneSinkPath(input.repoRoot, input.slug, input.kind, lane),
-    startedAt: new Date().toISOString(),
-  };
+  const built = laneSinkPath(input.repoRoot, input.slug, input.kind, lane);
+  // A refusal here is not external input going wrong — the slug is already
+  // branded, so the only reachable arm is a symlink or a relocated root inside
+  // `.noldor/cr`, which is repository tampering rather than a bad argument.
+  // Opening a lane has no result channel to report it on, so it throws.
+  if (!built.ok) throw new Error(`cannot open lane '${lane}': ${built.error.kind}`);
+  return { sinkPath: built.path, startedAt: new Date().toISOString() };
 }
 
 /**

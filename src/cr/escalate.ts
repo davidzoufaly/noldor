@@ -4,8 +4,9 @@
 // test run goes red, `escalate()` decides whether to spawn the deep-review
 // standalone lane, prompt the operator, or abort — controlled by the
 // `autonomous` flag and the `onFailure` policy.
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { atomicWriteFile } from '../core/atomic-write.js';
+import { slugPath } from '../core/slug-paths.js';
+import type { Slug } from '../core/slug.js';
 import type { LaneInput } from './lane-types.js';
 import { runStandalone } from './deep-review-spawn.js';
 import { promptSelect } from '../core/prompt-stdin.js';
@@ -14,7 +15,8 @@ export type EscalateReason = 'test-red' | 'cr-red';
 export type OnFailure = 'prompt' | 'spawn-deep-review' | 'abort';
 
 export interface EscalateInput {
-  slug: string;
+  /** Branded: it names the escalation-context path. */
+  slug: Slug;
   reason: EscalateReason;
   context: string;
   cwd: string;
@@ -31,13 +33,17 @@ export interface EscalateResult {
 
 async function writeContext(
   cwd: string,
-  slug: string,
+  slug: Slug,
   reason: EscalateReason,
   context: string,
 ): Promise<void> {
-  const path = join(cwd, '.noldor', 'cr', `${slug}-escalation-context.md`);
+  const built = slugPath(cwd, ['.noldor', 'cr'], slug, { suffix: '-escalation-context.md' });
+  // Branded slug in, so the only reachable refusal is repository tampering
+  // inside `.noldor/cr` — and writing the context is the last thing standing
+  // between a red CR and a silent one, so it fails loudly rather than quietly.
+  if (!built.ok) throw new Error(`cannot write escalation context: ${built.error.kind}`);
   const body = `# Escalation context\n\nslug: ${slug}\nreason: ${reason}\n\n## Detail\n\n${context}\n`;
-  await writeFile(path, body, 'utf8');
+  await atomicWriteFile(built.path, body);
 }
 
 async function spawnDeepReview(input: EscalateInput): Promise<EscalateResult> {

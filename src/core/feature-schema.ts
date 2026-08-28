@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { slugSchema } from './slug.js';
 
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
 
@@ -112,7 +113,7 @@ export const FeatureFrontmatterSchema = z
      *  file (filename stem == milestone frontmatter `name`). Absent by default;
      *  the framework never requires a milestone. Cross-checked against the
      *  milestones dir by validate-features (dangling reference = error). */
-    milestone: z.string().min(1).optional(),
+    milestone: slugSchema.optional(),
     /** Optional: the feature introduces a release-time gate its own commits
      *  cannot satisfy (the enforcement code didn't exist when they were authored).
      *  Value is a gate-registry key (src/cr/gate-registry.ts), e.g. `codex-cr`.

@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { isSlug } from '../core/slug.js';
 import { spawnSync } from 'node:child_process';
 import { relative } from 'node:path';
 
@@ -248,6 +249,19 @@ export function roadmapSource(cwd: string, selection?: SelectionFilter): DrainSo
       );
       const top = sugg.topPriority[0];
       if (top === undefined) return null;
+      // A heading that slugifies to nothing (all punctuation) yields `''` by
+      // design — `createSlugTracker` in parse-blocks.ts. It cannot name a
+      // branch, a worktree or a prompt, so it is filtered here at selection
+      // rather than left to fail deeper: the loop's catch treats a throw as
+      // systemic and would abort the whole drain over one bad heading.
+      if (!isSlug(top.slug)) {
+        return {
+          slug: top.slug,
+          description: top.description ?? '',
+          eligible: false,
+          reason: 'entry heading is not a slug',
+        };
+      }
       const description = top.description ?? '';
       const fastTrack = top.suggestedPath === 'fast-track';
       const drainOk = isDrainEligible(description);

@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadDevConfig } from '../core/consumer-config.js';
-import { createWorktree } from './create-worktree.js';
+import { createRefusalMessage, createWorktree, type CreateRefusal } from './create-worktree.js';
+import { resolveWorktree } from './worktree-paths.js';
 import { bootDevSurfaces, type BootedSurface } from './dev-surfaces.js';
 import { launchTree, resolveAgentInvocation } from './launch-worktrees.js';
 import { openEditor } from './open-editor.js';
@@ -51,18 +52,29 @@ const defaultDeps: UpDeps = {
     readFile(join(cwd, '.claude/launch-prompt.md'), 'utf8').catch(() => ''),
 };
 
+/** Outcome of bringing a worktree up. */
+export type UpResult = { ok: true; summary: UpSummary } | { ok: false; error: CreateRefusal };
+
 /**
  * From "branch checked out" (or not) to a usable dev surface: create the
  * worktree, open the IDE, spawn the agent terminal (the configured
  * `agents.default` runner), and boot every consumer-declared dev surface on
  * its per-tree port. Each step is skippable.
  */
-export async function upWorktree(opts: UpOptions, deps: UpDeps = defaultDeps): Promise<UpSummary> {
-  const treePath = join(opts.cwd, '.worktrees', opts.slug);
-  const branch = opts.branch ?? `feat/${opts.slug}`;
+export async function upWorktree(opts: UpOptions, deps: UpDeps = defaultDeps): Promise<UpResult> {
+  // The old order built treePath first and only validated inside
+  // createWorktree, so `--no-create` or an existing directory skipped the sole
+  // guard — after which the editor, the agent and every dev surface booted at
+  // an attacker-chosen path. Parse and build before any of that can happen.
+  const resolved = resolveWorktree(opts.cwd, opts.slug);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+
+  const treePath = resolved.tree;
+  const branch = opts.branch ?? `feat/${resolved.slug}`;
 
   if (!opts.noCreate && !deps.existsImpl(treePath)) {
-    await deps.createWorktreeImpl({ slug: opts.slug, branch, cwd: opts.cwd });
+    const created = await deps.createWorktreeImpl({ slug: opts.slug, branch, cwd: opts.cwd });
+    if (!created.ok) return { ok: false, error: created.error };
   }
 
   const basePort = await deps.readPortImpl(treePath);
@@ -85,14 +97,13 @@ export async function upWorktree(opts: UpOptions, deps: UpDeps = defaultDeps): P
   if (!opts.noServers && basePort !== null) {
     surfaces = await deps.bootDevSurfacesImpl({
       treePath,
-      slug: opts.slug,
+      pidsFile: resolved.pids,
       surfaces: devConfig?.surfaces ?? {},
       basePort,
-      cwd: opts.cwd,
     });
   }
 
-  return { treePath, basePort, editorOpened, terminalSpawned, surfaces };
+  return { ok: true, summary: { treePath, basePort, editorOpened, terminalSpawned, surfaces } };
 }
 
 function parseArgs(argv: string[]): UpOptions & { ok: boolean } {
@@ -125,7 +136,12 @@ async function main(): Promise<number> {
     );
     return 2;
   }
-  const s = await upWorktree(opts);
+  const outcome = await upWorktree(opts);
+  if (!outcome.ok) {
+    process.stderr.write(`${createRefusalMessage(outcome.error)}\n`);
+    return 1;
+  }
+  const s = outcome.summary;
   process.stdout.write(`Worktree: ${s.treePath}  base port: ${s.basePort ?? 'none'}\n`);
   process.stdout.write(
     `Editor: ${s.editorOpened ? 'opened' : 'skipped'}  Terminal: ${s.terminalSpawned ? 'spawned' : 'skipped'}\n`,

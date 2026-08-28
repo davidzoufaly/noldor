@@ -1,10 +1,19 @@
 // @tests: per-task-dev-environment-bootstrap
 import { execFile } from 'node:child_process';
-import { readFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
+import {
+  readFileNoFollowAsync,
+  resolveErrorMessage,
+  type ResolveError,
+} from '../core/slug-paths.js';
+import { resolveWorktree } from './worktree-paths.js';
+
 const execFileP = promisify(execFile);
+
+/** Outcome of reaping a worktree's dev surfaces. */
+export type DownResult = { ok: true; reaped: number } | { ok: false; error: ResolveError };
 
 export interface DownOptions {
   slug: string;
@@ -33,10 +42,33 @@ const defaultDeps: DownDeps = {
 export async function downWorktree(
   opts: DownOptions,
   deps: DownDeps = defaultDeps,
-): Promise<{ reaped: number }> {
-  const pidsFile = join(opts.cwd, '.noldor', `dev-${opts.slug}.pids`);
+): Promise<DownResult> {
+  // Every side effect below — the pid read, the process-group kills, the git
+  // worktree removal — is keyed on the slug, so the parse and both path builds
+  // happen before any of them run.
+  const resolved = resolveWorktree(opts.cwd, opts.slug);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+
+  const pidsFile = resolved.pids;
   let reaped = 0;
-  const body = await readFile(pidsFile, 'utf8').catch(() => '');
+  // No-follow: this read's second column is passed to process.kill(-pid), so a
+  // symlink swapped in after the guard would hand a foreign file's contents to
+  // a process-group signal.
+  //
+  // Only ENOENT is benign — no surfaces were booted, so there is nothing to
+  // reap. Every other failure (ELOOP from a planted link, EACCES, or the
+  // platform lacking O_NOFOLLOW) means a pid file may exist and be unreadable,
+  // so reaping nothing would leave dev servers running while `--remove` still
+  // tore the worktree down. Those are reported, not swallowed.
+  let body: string;
+  try {
+    body = await readFileNoFollowAsync(pidsFile);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      return { ok: false, error: { kind: 'uninspectable', path: pidsFile, reason: String(err) } };
+    }
+    body = '';
+  }
   for (const line of body.split('\n').filter(Boolean)) {
     const pid = Number(line.split(/\s+/)[1]);
     if (!Number.isFinite(pid)) continue;
@@ -59,11 +91,13 @@ export async function downWorktree(
   await rm(pidsFile, { force: true });
 
   if (opts.remove) {
-    const branch = opts.branch ?? `feat/${opts.slug}`;
-    await deps.gitImpl(['worktree', 'remove', '--force', join('.worktrees', opts.slug)], opts.cwd);
+    // The branch name is slug-derived but is a git ref, not a path, so no
+    // builder covers it — the parse above is what makes it safe.
+    const branch = opts.branch ?? `feat/${resolved.slug}`;
+    await deps.gitImpl(['worktree', 'remove', '--force', resolved.tree], opts.cwd);
     await deps.gitImpl(['branch', '-D', branch], opts.cwd).catch(() => {});
   }
-  return { reaped };
+  return { ok: true, reaped };
 }
 
 async function main(): Promise<number> {
@@ -81,6 +115,10 @@ async function main(): Promise<number> {
     remove: argv.includes('--remove'),
     ...(branch ? { branch } : {}),
   });
+  if (!r.ok) {
+    process.stderr.write(`${resolveErrorMessage(r.error)}\n`);
+    return 1;
+  }
   process.stdout.write(`Reaped ${r.reaped} dev surface(s) for ${slug}\n`);
   return 0;
 }

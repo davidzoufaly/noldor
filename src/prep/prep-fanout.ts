@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { parseSlugList, requireFlagValue } from '../core/slug.js';
 import { join } from 'node:path';
 
 import { runWithConcurrency } from '../core/concurrency.js';
@@ -45,10 +46,7 @@ function parseArgs(argv: readonly string[]): FanoutArgs {
     else if (a === '--date') date = argv[++i];
     else if (a === '--slugs')
       // Mirror `prep promote --slugs`: comma-separated, trimmed, empties dropped.
-      slugs = (argv[++i] ?? '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      slugs = parseSlugList(requireFlagValue(argv[++i], '--slugs'));
     else throw new Error(`unknown flag: ${a}`);
   }
   return {

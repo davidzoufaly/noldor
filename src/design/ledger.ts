@@ -1,5 +1,9 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readFileNoFollow, slugPath } from '../core/slug-paths.js';
+import type { Slug } from '../core/slug.js';
+import { isSlug, parseSlug } from '../core/slug.js';
+import { featurePath } from '../core/doc-roots.js';
+import { dirname } from 'node:path';
 
 import { atomicWriteFileSync } from '../core/atomic-write.js';
 import { loadDocRoots } from '../core/doc-roots.js';
@@ -118,16 +122,23 @@ export function normalize(text: string): string {
  * `design context` read an arbitrary file; `--entry` is only an equality key but
  * is validated too, for one uniform error.
  *
+ * The accept/reject decision is {@link parseSlug}'s, not a second one: this
+ * wrapper only adds the corrected-value suggestion, which is worth keeping
+ * because a typo is the common case at a CLI flag. One rule, two messages —
+ * what must not diverge is which values are legal.
+ *
+ * @param value - Untrusted flag text.
+ * @param flag - Flag name, for the diagnostic.
  * @returns An error message, or `null` when the value is a valid slug.
  */
 export function validateSlug(value: string, flag: string): string | null {
   if (value.length === 0) return `${flag}: must not be empty`;
-  const slug = slugify(value);
-  if (slug.length === 0) {
+  if (parseSlug(value).ok) return null;
+  const suggestion = slugify(value);
+  if (suggestion.length === 0) {
     return `${flag}: '${value}' has no slug-safe characters (expected lowercase [a-z0-9-])`;
   }
-  if (slug !== value) return `${flag}: '${value}' is not a slug (expected '${slug}')`;
-  return null;
+  return `${flag}: '${value}' is not a slug (expected '${suggestion}')`;
 }
 
 /**
@@ -176,9 +187,17 @@ export function validateHeadingName(value: string, flag: string): string | null 
   );
 }
 
-/** Absolute path of a dialogue's ledger. */
-export function ledgerPath(cwd: string, slug: string): string {
-  return join(cwd, '.noldor', 'design', `${slug}.md`);
+/**
+ * Absolute path of a dialogue's ledger.
+ *
+ * The slug is branded, so the only reachable refusal is repository tampering
+ * inside `.noldor/design` — a symlink or a relocated root. Reading or writing a
+ * ledger has no result channel of its own, so that fails loudly.
+ */
+export function ledgerPath(cwd: string, slug: Slug): string {
+  const built = slugPath(cwd, ['.noldor', 'design'], slug, { suffix: '.md' });
+  if (!built.ok) throw new Error(`cannot resolve design ledger: ${built.error.kind}`);
+  return built.path;
 }
 
 /** A ledger with every heading present and no content — the first-write shape. */
@@ -461,13 +480,13 @@ export function serializeLedger(slug: string, state: LedgerState): string {
 }
 
 /** Read a ledger from disk, or an empty state when the file does not exist. */
-export function readLedger(cwd: string, slug: string): LedgerState {
+export function readLedger(cwd: string, slug: Slug): LedgerState {
   const p = ledgerPath(cwd, slug);
   if (!existsSync(p)) return emptyLedger();
-  return parseLedger(readFileSync(p, 'utf8'));
+  return parseLedger(readFileNoFollow(p));
 }
 
-export function writeLedger(cwd: string, slug: string, state: LedgerState): void {
+export function writeLedger(cwd: string, slug: Slug, state: LedgerState): void {
   const p = ledgerPath(cwd, slug);
   mkdirSync(dirname(p), { recursive: true });
   atomicWriteFileSync(p, serializeLedger(slug, state));
@@ -536,13 +555,17 @@ export function loadScope(
       ? markerParent
       : null;
   const fdSlug = opts.fdSlug ?? attachParent ?? opts.slug;
-  const fdPath = join(roots.features, `${fdSlug}.md`);
-  if (existsSync(fdPath)) {
+  // Built through the guarded builder rather than joined inline: this is a
+  // slug-named path like every other, and an inline join is exactly the second
+  // construction site the choke point exists to remove.
+  const fdBuilt = isSlug(fdSlug) ? featurePath(cwd, fdSlug) : null;
+  const fdPath = fdBuilt?.ok === true ? fdBuilt.path : null;
+  if (fdPath !== null && existsSync(fdPath)) {
     // Reuse the core helper rather than a fourth copy of the Summary regex
     // (`design → core` is an allowed edge — see the other core imports above).
     // A missing or empty `## Summary` yields `''`, which is no scope at all, so
     // fall through instead of rendering a blank Scope line.
-    const summary = normalize(extractSummary(readFileSync(fdPath, 'utf8')));
+    const summary = normalize(extractSummary(readFileNoFollow(fdPath)));
     if (summary.length > 0) return summary;
   }
 

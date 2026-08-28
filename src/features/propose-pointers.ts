@@ -1,6 +1,7 @@
 // @fd: dynamic-fd-file-pointers-via-frontmatter
 
 import { basename } from 'node:path';
+import { parseSlug } from '../core/slug.js';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { scanRoots } from '../core/repo-paths.js';
@@ -111,6 +112,12 @@ async function main(): Promise<void> {
   const slug = slugIdx >= 0 ? process.argv[slugIdx + 1] : undefined;
   if (!slug) {
     console.error('Usage: noldor features propose-pointers --slug <slug>');
+    process.exitCode = 1;
+    return;
+  }
+  const parsed = parseSlug(slug);
+  if (!parsed.ok) {
+    console.error(parsed.error.message);
     process.exitCode = 1;
     return;
   }

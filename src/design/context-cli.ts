@@ -4,6 +4,7 @@
 // immediately above every design question.
 
 import { runIfDirect } from '../core/cli-entry.js';
+import { isSlug, slugErrorMessage } from '../core/slug.js';
 import { locateForDialogue, readArtifact, type ArtifactKind } from './artifact-locate.js';
 import { loadScope, readLedger, validateHeadingName, validateSlugs } from './ledger.js';
 import { renderContext, type RenderHeading } from './render.js';
@@ -125,6 +126,14 @@ export function runContext(
   ]);
   if (badSlug) {
     err(`${badSlug}\n`);
+    return 1;
+  }
+
+  // `validateSlugs` decides legality (it delegates to `parseSlug`); this
+  // restates it as a narrowing so the ledger builders below receive the branded
+  // type they require. Same rule, expressed to the type system.
+  if (!isSlug(parsed.slug)) {
+    err(`${slugErrorMessage(parsed.slug)}\n`);
     return 1;
   }
 
