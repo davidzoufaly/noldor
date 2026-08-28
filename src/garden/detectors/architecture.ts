@@ -63,6 +63,8 @@ function advisoryDiscriminator(advisory: ArchitectureAdvisory): string {
       return `module:${advisory.module}`;
     case 'section':
       return `section:${advisory.section}`;
+    case 'unknown-cut':
+      return `unknown-cut:${advisory.section}:${advisory.ordinal}`;
     case 'flow-headings':
       return 'flow-headings';
   }

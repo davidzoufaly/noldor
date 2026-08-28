@@ -42,6 +42,22 @@ const report = (over: Partial<ArchitectureReport> = {}): ArchitectureReport => (
       message: 'docs/architecture/context.md does not name section "Externals"',
     },
     {
+      kind: 'unknown-cut',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      section: 'Nope',
+      ordinal: 0,
+      message: 'docs/architecture/context.md declines "Nope"',
+    },
+    {
+      kind: 'unknown-cut',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      section: 'Nope',
+      ordinal: 1,
+      message: 'docs/architecture/context.md declines "Nope"',
+    },
+    {
       kind: 'flow-headings',
       pageId: 'flows',
       page: 'docs/architecture/flows.md',
@@ -125,5 +141,17 @@ describe('advisory item ids', () => {
   it('keeps the module row id stable', () => {
     const ids = toAdvisoryGaps(report()).map((g) => g.itemId);
     expect(ids).toContain('docs/architecture/modules.md#module:src/unnamed');
+  });
+});
+
+describe('unknown-cut ids', () => {
+  it('separates two identical unknown cuts on one page', () => {
+    const ids = toAdvisoryGaps(report())
+      .map((g) => g.itemId)
+      .filter((id) => id.includes('unknown-cut'));
+    expect(ids).toStrictEqual([
+      'docs/architecture/context.md#unknown-cut:Nope:0',
+      'docs/architecture/context.md#unknown-cut:Nope:1',
+    ]);
   });
 });

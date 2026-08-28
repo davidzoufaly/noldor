@@ -4,7 +4,7 @@ import { basename, join, sep } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { scanRoots, toPosixRelative } from '../core/repo-paths.js';
-import { assessPageForm } from './architecture-form.js';
+import { SECTION_CUT_TOKEN, assessPageForm } from './architecture-form.js';
 import {
   ARCHITECTURE_PAGES,
   PLACEHOLDER_MARKER,
@@ -53,6 +53,11 @@ interface AdvisoryBase {
 export type ArchitectureAdvisory =
   | (AdvisoryBase & { readonly kind: 'module'; readonly module: string })
   | (AdvisoryBase & { readonly kind: 'section'; readonly section: string })
+  | (AdvisoryBase & {
+      readonly kind: 'unknown-cut';
+      readonly section: string;
+      readonly ordinal: number;
+    })
   | (AdvisoryBase & { readonly kind: 'flow-headings'; readonly count: number });
 
 export interface ArchitectureReport {
@@ -364,7 +369,22 @@ function collectFormAdvisories(
         pageId: page.id,
         page: label,
         section,
-        message: `${label} does not name section "${section}" — add a \`## ${section}\` heading.`,
+        message:
+          `${label} does not name section "${section}" — add a \`## ${section}\` heading, ` +
+          `or record why it does not apply with a ${SECTION_CUT_TOKEN} marker.`,
+      });
+    }
+
+    for (const cut of form.unknownCuts) {
+      out.push({
+        kind: 'unknown-cut',
+        pageId: page.id,
+        page: label,
+        section: cut.name,
+        ordinal: cut.ordinal,
+        message:
+          `${label} declines "${cut.name}", which is not one of its sections or carries no ` +
+          `reason — a decline reads \`${SECTION_CUT_TOKEN} <section> — <reason>\`.`,
       });
     }
 

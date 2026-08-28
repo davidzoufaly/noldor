@@ -361,3 +361,26 @@ describe('advisory gating', () => {
     expect(report.advisories).toStrictEqual([]);
   });
 });
+
+describe('unknown-cut advisory', () => {
+  it('reports a cut that names no section, and honours a valid one', async () => {
+    const root = await makeRepo();
+    const context =
+      '# Context\n\n## Actors\n\na\n\n## Externals\n\nb\n' +
+      '<!-- noldor:cut-section Boundary — nothing to say -->\n' +
+      '<!-- noldor:cut-section Nope — not a section -->\n' +
+      '\n```mermaid\nflowchart LR\n  a --> b\n```\n';
+    await writeArchitecture(root, {
+      context,
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.advisories.filter((a) => a.kind === 'section')).toStrictEqual([]);
+    expect(report.advisories.filter((a) => a.kind === 'unknown-cut')).toMatchObject([
+      { pageId: 'context', section: 'Nope', ordinal: 0 },
+    ]);
+    expect(report.status).toBe('ok');
+  });
+});
