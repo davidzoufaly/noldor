@@ -16,32 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Graph Evidence in Specs and ADRs
-
-- id: Q-0194
-- area: docs
-- type: feat
-- since: 2026-08-25
-- size: M
-- impact: med
-- confidence: med
-- parent: graphify-plan-of-edges-nodes-for-plans-specs
-
-[`graph-integration.md`](noldor/graph-integration.md) tells every reader to open `graph.brainstorm-summary.toon` before any codebase exploration, but the two surfaces where architecture decisions actually get written — `/noldor-spec` and `docs/adr/` — never mention the graph, so nothing records whether the structure was consulted. `/noldor-refactor` is the only stage wired to it, and by then the decision is already made. Three moving parts: (1) `/noldor-spec` gains an explicit read step on the `specs-only-*` and `full-*` paths — check freshness, regen AST-only if stale (seconds), read the summary toon before drafting `## Design`; (2) the spec contract printed by `prep format spec` and the ADR template grow a short **Structural context** unit naming the communities, god nodes, and cross-package bridges the change lands in — the same evidence `/noldor-refactor` already keys off before it touches a god node; (3) a garden detector reports a spec on a `full`/`specs-only` path, or a new ADR, whose structural-context unit is still a stub. Advisory-with-teeth like Q-0185: report it, let a `noldor:cut` marker record a deliberate skip, never block a ship. The risk to spec is stale-graph handling — reading a stale graph is worse than reading none, so the read step must reuse [`loadFreshGraphOrWarn()`](../src/garden/graph-fd-lookup.ts)'s gate rather than trusting the file's presence, and a missing graph must stay a clean skip (graphify is optional). Deletion test: a spec that reshapes a god node says so in writing, and a reader can tell from an ADR which part of the structure the decision moved. (found 2026-08-25)
-
-### Design Approval Step Before Implementation
-
-- id: Q-0186
-- area: tooling
-- type: feat
-- since: 2026-08-25
-- size: M
-- impact: med
-- confidence: low
-- parent: pendev-ui-design-phase
-
-The `.pen` lifecycle has no approval seam. The baseline half works well, but a feature's design artifact goes straight to `docs/design/ui/archive/` — archived before anyone confirmed the design was the one to build. What the flow is missing is a step inside the implementation path: the agent opens (or creates) the feature's `.pen`, edits it, and the operator confirms THAT design before code starts, with the archive move happening after the confirmation rather than instead of it. The pieces exist — `design pen-bridge` already opens a `.pen` in the declared editor (Q-0179), and the UI-design stage already computes whether a session is UI-bearing — so this is sequencing and a recorded verdict more than new machinery. Sizing is loose because the seam touches the gate's stage order; spec it before planning. Deletion test: a UI-bearing session cannot reach the code stage without a recorded design verdict, and an approved `.pen` archives with the approval attached. (found 2026-08-25)
-
 ### Mandatory C4 Diagram for New Feature MDs
 
 - id: Q-0185
@@ -106,6 +80,21 @@ On attach paths the UI verdict is computed from the parent FD's entire `links.co
 - parent: pendev-ui-design-phase
 
 Two instructions in the UI-design step are wrong against the tool, and each cost a session before the tool was believed over the prose. **Seeding is not implementable as written**: the step says to copy the baseline's pages "via pencil MCP, naming them `BASE:<surface>: <name>`", but `execute` has no cross-file copy (`Copy(path, parent)` is within one document) and the baseline is ~1500 nodes, so `Get`-then-`Insert` is not a real option either. What works is a filesystem `cp` of the baseline followed by page renames — say that, or ship a `design ui-seed <slug>` that does it. The naming half is stale too: `capture-ui` emits `FINAL:app: <state>` (`PAGE_PREFIX`, `scripts/design/states.ts`), so a freshly captured baseline carries `FINAL:` pages that must be renamed to `BASE:` before they can seed anything — and the committed baseline carried `BASE:` names plus three hand-authored `VAR:` pages and a `FINAL:`, i.e. a file documented as generated-never-hand-edited had already been renamed and hand-edited. Reconcile who owns page prefixes between the recorder and the design step. **Fresh nodes render blank in their own call**: new `text` and `path` nodes come back invisible in a `TakeScreenshot` issued from the same `execute` (frames with a `fill` render, and `Copy` of an existing node renders immediately) — the pen skill claims the opposite ("screenshots reflect the changes made earlier in the same execute call"), so the guidance actively misleads and an agent diagnoses its own correct schema as broken. One line telling the author to verify in a FOLLOW-UP call, or to build from copies, pays for itself. Deletion test: a first-time author seeds a `.pen` from the baseline and screenshots a fresh node without a wrong conclusion in between. (found 2026-08-25)
+
+### Enforceable Design-Approval Signal
+
+- id: Q-0196
+- area: tooling
+- type: feat
+- since: 2026-08-28
+- size: M
+- impact: med
+- confidence: low
+- split-from: Q-0186
+- recovered: 2026-08-28
+- parent: pendev-ui-design-phase
+
+Q-0186 shipped the operator verdict as `/noldor-spec` step 1.5 prose — the design is opened by path, its `FINAL:` pages are walked, an atomic approve/revise is taken, and an approval sentence lands in the spec's `## Design`. What it deliberately did not ship is the entry's own deletion test: "a UI-bearing session **cannot** reach the code stage without a recorded design verdict". The verdict is chat-only, so nothing on disk distinguishes an approved design from an unapproved one and no gate can read it; the shipped spec states that reduction outright rather than implying a gate. The open question is whether an enforceable signal is worth its cost, and what it should be — the rejected candidates were a `<stem>.approval.json` sidecar beside the `.pen` (a new artifact kind for `resolveArchivePlan` and garden to learn), a `Noldor-Design-Approved` commit trailer (lives in history rather than beside the archived artifact, and re-earns on every amend), and an FD frontmatter field (the FD never travels into `archive/`). Any of them would let a `checks design-approval` job join the pre-push chain. Weigh that against the framework's advisory-with-teeth posture and against the fact that the realistic cost of a skipped verdict is one wasted implementation pass. Deletion test: a UI-bearing session with no recorded verdict is refused by a gate rather than merely un-asked. (carved from Q-0186 at ship, 2026-08-28)
 
 ### Milestone-Queue Linking
 

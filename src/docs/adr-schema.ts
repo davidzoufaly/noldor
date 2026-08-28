@@ -2,6 +2,11 @@
 import matter from 'gray-matter';
 import { z } from 'zod';
 
+import {
+  ADR_STRUCTURAL_CONTEXT_PLACEHOLDER,
+  STRUCTURAL_CONTEXT_HEADING,
+} from '../core/structural-context-contract.js';
+
 /**
  * Filename contract for a decision record: `NNNN-<slug>.md` — four digits,
  * zero-padded, then a kebab-case slug. Numbers are unique across the folder;
@@ -137,6 +142,10 @@ ${supersedesLine}---
 ## Context
 
 What situation and constraints made this decision necessary?
+
+## ${STRUCTURAL_CONTEXT_HEADING}
+
+${ADR_STRUCTURAL_CONTEXT_PLACEHOLDER}
 
 ## Decision
 

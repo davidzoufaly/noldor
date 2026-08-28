@@ -1,14 +1,14 @@
 {
-  "duplicatedTokens": 28069,
-  "duplicationPct": 9.351221332338323,
-  "totalTokens": 300164,
-  "groups": 287,
-  "filesScanned": 387,
+  "duplicatedTokens": 28031,
+  "duplicationPct": 9.181340565469172,
+  "totalTokens": 305304,
+  "groups": 284,
+  "filesScanned": 391,
   "options": {
     "minTokens": 50,
     "minLines": 5,
     "gapTokens": 10,
     "includeTests": false
   },
-  "recordedAt": "2026-08-28T22:40:19.223Z"
+  "recordedAt": "2026-08-28T22:51:45.878Z"
 }

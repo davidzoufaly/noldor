@@ -11,9 +11,10 @@ links:
     - src/hooks/validate-pushed-adrs.ts
     - src/garden/detectors/adr.ts
   tests:
+    - src/docs/__tests__/adr-structural-context.test.ts
     - src/docs/__tests__/docs-adr.test.ts
-    - src/hooks/__tests__/validate-pushed-adrs.test.ts
     - src/garden/detectors/__tests__/adr.test.ts
+    - src/hooks/__tests__/validate-pushed-adrs.test.ts
 name: Architecture Decision Record Surface
 packages:
   - package.json

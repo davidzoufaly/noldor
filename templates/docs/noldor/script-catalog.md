@@ -474,6 +474,14 @@ The ledger lives at `.noldor/design/<slug>.md` (untracked scratch, gitignored);
 - **When to use:** driven by the skills; run by hand to see the current design state of a dialogue.
 - **Source:** [`src/design/context-cli.ts`](../../src/design/context-cli.ts)
 
+### `design:graph-context`
+
+- **Trigger:** `pnpm noldor design graph-context [--path <file>]... [--json]`. Run by `/noldor-spec`'s structural-read step on `specs-only-*` / `full-*` paths, after the UI verdict and before the strawman is drafted.
+- **Inputs:** `graphify-out/graph.json` (the digest's only data source), `graphify-out/graph.brainstorm-summary.toon` (advisory), `scanRoots()` — consumer `scanPaths` else `DEFAULT_SCAN_ROOTS` — and git: `log` (via `evaluateGraphFreshness`), `status --porcelain` for the committed leg's content guard, and `ls-files --error-unmatch` for tracked-ness.
+- **Outputs:** a verdict plus, when fresh, a per-path digest — community, its co-members, the FD slugs owning that community, god nodes the file defines with their degree rank, and cross-community edges. Freshness is a **union**: fresh when the committed leg passes (graph postdates the latest graph-relevant commit AND is clean vs `HEAD`) **or** the working-tree leg does (graph mtime newer than every file under the scan roots). Each leg alone is a dead end — the committed one cannot see an uncommitted regeneration, the working-tree one cannot pass right after `git worktree add`. Exit 0 fresh or skipped (graph neither on disk nor tracked — graphify is optional), 1 stale (prints the `/graphify --ast-only` + `pnpm toon` remediation), 2 usage error (unknown argument, or a `--path` escaping the repo). Zero paths is valid: verdict only. Never runs graphify.
+- **When to use:** driven by the spec skill; run by hand when authoring a decision record under `docs/adr/`, which has no automated read.
+- **Source:** [`src/design/graph-context-cli.ts`](../../src/design/graph-context-cli.ts)
+
 ### `design:archive`
 
 - **Trigger:** `pnpm noldor design archive [--dry-run] [--slug <key>]`. Run by `/noldor-gate` Step 4 on FD-carrying paths, immediately before the `phase: done` flip.

@@ -29,6 +29,10 @@ import { detectMilestoneShippedIncomplete } from './detectors/milestone-shipped-
 import { detectCircularBlockedBy } from './detectors/circular-blocked-by.js';
 import { detectSkillCodeDrift } from './detectors/skill-code-drift.js';
 import { detectArchitectureAdvisories } from './detectors/architecture.js';
+import {
+  detectStructuralContextStubs,
+  type StructuralContextStub,
+} from './detectors/structural-context.js';
 import { codeAdapter } from '../sync/adapters/code.js';
 import { docsAdapter } from '../sync/adapters/docs.js';
 import { testsAdapter } from '../sync/adapters/tests.js';
@@ -585,6 +589,16 @@ export interface GardenFindings {
    * report instead.
    */
   readonly architectureAdvisories: readonly SddGap[];
+  /**
+   * Design artifacts whose `Structural context` unit is still a stub.
+   *
+   * Its own key rather than an `sddGaps` entry, and deliberately absent from
+   * `FINDING_CATEGORIES` in `garden-detect-runner.ts`, for the same reason as
+   * {@link architectureAdvisories}: that list gates the auto-restamp and an
+   * unstamped receipt is a blocking release row. An unwritten paragraph must
+   * never stop a ship.
+   */
+  readonly structuralContextStubs: readonly StructuralContextStub[];
 }
 
 /**
@@ -800,6 +814,10 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
   // block a release. They ride their own key below. The blocking half arrives
   // through loadSddGaps, since the sdd-report loader runs the same check.
   const architectureAdvisories = await detectArchitectureAdvisories(repo);
+  // Same posture, same reason: advisory-with-teeth, so its own key rather than
+  // sddGaps. Reads only the artifacts, never graphify-out, so a repo with no
+  // graph behaves identically.
+  const structuralContextStubs = await detectStructuralContextStubs(repo);
   const overrideAudit = auditOverrides({ cwd: repo, ...(await loadOverrideAuditOptions(repo)) });
   const codexCrOverrideAudit = auditCodexCrOverrides({ cwd: repo });
   const bootstrapOverrideAudit = detectBootstrapOverrideAudit({ cwd: repo });
@@ -827,6 +845,7 @@ export async function detectAll(repo: string): Promise<GardenFindings> {
     circularBlockedBy,
     skillDrift,
     architectureAdvisories,
+    structuralContextStubs,
   };
 }
 

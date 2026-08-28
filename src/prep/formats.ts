@@ -6,6 +6,7 @@
  */
 
 import { MIN_SECTION_CHARS, sectionMarkers } from '../core/summary-body-contract.js';
+import { STRUCTURAL_CONTEXT_HEADING } from '../core/structural-context-contract.js';
 
 export const SPEC_FORMAT = [
   'SPEC FORMAT (mirror the modern Noldor convention):',
@@ -13,6 +14,7 @@ export const SPEC_FORMAT = [
   '- metadata block (bold lines) after H1: **Slug:**, **FD:** docs/features/<slug>.md, **Date:** <today>, **Tier:** <tier>, **Deps:** if any',
   '- ## Problem / ## Goals / ## Non-goals',
   '- ## Design (named units; reference the REAL files/functions you read — no hand-waving)',
+  `- ## Design opens with a \`### ${STRUCTURAL_CONTEXT_HEADING}\` H3 naming the communities, god nodes and cross-community edges the change lands in — run \`pnpm noldor design graph-context --path <file>...\` and write it from the digest. A deliberate skip is a \`noldor:cut <reason>\` line inside that section; either way the section is never left empty.`,
   '- ## Acceptance criteria (testable bullets) / ## Risks / trade-offs',
   '- ## User Story (REQUIRED — "As a <user/agent>, I want <action>, so that <outcome>." The promote step lifts this verbatim into the FD.)',
   '- ## Usage (REQUIRED — CLI steps / agent API / keyboard surface. Lifted into the FD too.)',

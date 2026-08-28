@@ -125,3 +125,54 @@ describe('runGardenDetectViaCli', () => {
     expect(r.findings).toEqual([]);
   });
 });
+
+describe('structuralContextStubs stays non-blocking', () => {
+  // The whole safety property of this advisory channel: `FINDING_CATEGORIES`
+  // gates the garden auto-restamp, and an unstamped receipt is a blocking
+  // release row — so a key harvested from that list blocks a ship. An
+  // unwritten paragraph must never do that.
+  it('is not harvested as a gating finding, however many stubs exist', async () => {
+    const spawnMock = vi.fn().mockReturnValue({
+      status: 0,
+      stdout: pnpmStdout(
+        emptyGarden({
+          structuralContextStubs: [
+            {
+              file: 'docs/design/specs/2026-08-29-a-design.md',
+              artifactKind: 'spec',
+              rule: 'stub-section',
+              message: 'thin',
+            },
+            {
+              file: 'docs/adr/0002-b.md',
+              artifactKind: 'adr',
+              rule: 'missing-section',
+              message: 'absent',
+            },
+          ],
+        }),
+      ),
+      stderr: '',
+    });
+    const result = await runGardenDetectViaCli({
+      cwd: '/tmp/repo',
+      spawnSync: spawnMock as never,
+    });
+    expect(result.findings.filter((f) => f.kind === 'structuralContextStubs')).toEqual([]);
+  });
+
+  it('still gates on a category that IS blocking, proving the harness works', async () => {
+    const spawnMock = vi.fn().mockReturnValue({
+      status: 0,
+      stdout: pnpmStdout(
+        emptyGarden({ staleSpecs: [{ path: 'docs/design/specs/x-design.md', reason: 'age' }] }),
+      ),
+      stderr: '',
+    });
+    const result = await runGardenDetectViaCli({
+      cwd: '/tmp/repo',
+      spawnSync: spawnMock as never,
+    });
+    expect(result.findings.some((f) => f.kind === 'staleSpecs')).toBe(true);
+  });
+});

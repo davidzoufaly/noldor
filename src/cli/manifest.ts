@@ -87,6 +87,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/context-cli.ts',
         desc: 'Print the design-context block (Scope/Decided/Open/Support) for a dialogue',
       },
+      'graph-context': {
+        src: 'design/graph-context-cli.ts',
+        desc: 'Graph freshness verdict + per-path structural digest for a design artifact',
+      },
       log: {
         src: 'design/log-cli.ts',
         desc: 'Record a decision / open thread / resolution / support anchor in the ledger',
