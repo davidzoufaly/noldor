@@ -4,7 +4,13 @@ import { basename, join, sep } from 'node:path';
 
 import { loadDocRoots } from '../core/doc-roots.js';
 import { scanRoots, toPosixRelative } from '../core/repo-paths.js';
-import { SECTION_CUT_TOKEN, assessPageForm } from './architecture-form.js';
+import {
+  ARCH_PAGE_PROSE_WORD_THRESHOLD,
+  ARCH_PARAGRAPH_WORD_THRESHOLD,
+  SECTION_CUT_TOKEN,
+  assessPageBloat,
+  assessPageForm,
+} from './architecture-form.js';
 import {
   ARCHITECTURE_PAGES,
   PLACEHOLDER_MARKER,
@@ -58,7 +64,13 @@ export type ArchitectureAdvisory =
       readonly section: string;
       readonly ordinal: number;
     })
-  | (AdvisoryBase & { readonly kind: 'flow-headings'; readonly count: number });
+  | (AdvisoryBase & { readonly kind: 'flow-headings'; readonly count: number })
+  | (AdvisoryBase & {
+      readonly kind: 'long-paragraph';
+      readonly index: number;
+      readonly words: number;
+    })
+  | (AdvisoryBase & { readonly kind: 'page-bloat'; readonly words: number });
 
 export interface ArchitectureReport {
   /**
@@ -385,6 +397,32 @@ function collectFormAdvisories(
         message:
           `${label} declines "${cut.name}", which is not one of its sections or carries no ` +
           `reason — a decline reads \`${SECTION_CUT_TOKEN} <section> — <reason>\`.`,
+      });
+    }
+
+    const bloat = assessPageBloat(read.body);
+    for (const paragraph of bloat.longParagraphs) {
+      out.push({
+        kind: 'long-paragraph',
+        pageId: page.id,
+        page: label,
+        index: paragraph.index,
+        words: paragraph.words,
+        message:
+          `${label} has a ${paragraph.words}-word paragraph (threshold ` +
+          `${ARCH_PARAGRAPH_WORD_THRESHOLD}) at prose paragraph ${paragraph.index + 1} — split ` +
+          `it into labelled facts or a table.`,
+      });
+    }
+    if (bloat.pageWords !== null) {
+      out.push({
+        kind: 'page-bloat',
+        pageId: page.id,
+        page: label,
+        words: bloat.pageWords,
+        message:
+          `${label} carries ${bloat.pageWords} prose words (threshold ` +
+          `${ARCH_PAGE_PROSE_WORD_THRESHOLD}) — the page has grown into an essay.`,
       });
     }
 

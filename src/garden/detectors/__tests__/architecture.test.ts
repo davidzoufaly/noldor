@@ -58,6 +58,22 @@ const report = (over: Partial<ArchitectureReport> = {}): ArchitectureReport => (
       message: 'docs/architecture/context.md declines "Nope"',
     },
     {
+      kind: 'long-paragraph',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      index: 0,
+      words: 140,
+      message: 'docs/architecture/context.md has a 140-word paragraph',
+    },
+    {
+      kind: 'long-paragraph',
+      pageId: 'context',
+      page: 'docs/architecture/context.md',
+      index: 3,
+      words: 120,
+      message: 'docs/architecture/context.md has a 120-word paragraph',
+    },
+    {
       kind: 'flow-headings',
       pageId: 'flows',
       page: 'docs/architecture/flows.md',

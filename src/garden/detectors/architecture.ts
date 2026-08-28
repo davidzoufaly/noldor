@@ -67,6 +67,10 @@ function advisoryDiscriminator(advisory: ArchitectureAdvisory): string {
       return `unknown-cut:${advisory.section}:${advisory.ordinal}`;
     case 'flow-headings':
       return 'flow-headings';
+    case 'long-paragraph':
+      return `long-paragraph:${advisory.index}`;
+    case 'page-bloat':
+      return 'page-bloat';
   }
 }
 

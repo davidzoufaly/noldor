@@ -384,3 +384,36 @@ describe('unknown-cut advisory', () => {
     expect(report.status).toBe('ok');
   });
 });
+
+describe('bloat advisories', () => {
+  it('reports a long paragraph without touching status', async () => {
+    const root = await makeRepo();
+    const essay = Array.from({ length: 140 }, (_, i) => `w${i}`).join(' ');
+    await writeArchitecture(root, {
+      context: `${fullPage('context')}\n${essay}\n`,
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.advisories.filter((a) => a.kind === 'long-paragraph')).toMatchObject([
+      { pageId: 'context', words: 140 },
+    ]);
+    expect(report.status).toBe('ok');
+    expect(report.findings).toStrictEqual([]);
+  });
+
+  it('stays silent on a page carrying a blocking finding', async () => {
+    const root = await makeRepo();
+    const essay = Array.from({ length: 140 }, (_, i) => `w${i}`).join(' ');
+    await writeArchitecture(root, {
+      context: `# Context\n\n${essay}\n`,
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.map((f) => f.rule)).toStrictEqual(['no-fence']);
+    expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
+  });
+});
