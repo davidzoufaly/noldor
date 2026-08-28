@@ -14,6 +14,7 @@
  * they fire only on genuine outliers, and tuning is a one-line diff here.
  */
 import type { BacklogEntry } from '../utils/parse-blocks.js';
+import { countWords } from '../utils/word-count.js';
 import { extractTouches } from './extract-touches.js';
 
 export interface SplitSignal {
@@ -32,12 +33,6 @@ export const SPEC_WORD_THRESHOLD = 6000;
 export const SPEC_CRITERIA_THRESHOLD = 20;
 
 const SCOPE_BULLET_RE = /^\s*-\s+/;
-
-/** Whitespace-token word count, empty-safe. Shared by E1 and S1 so the two cannot drift. */
-function countWords(text: string): number {
-  const trimmed = text.trim();
-  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
-}
 
 /**
  * E1/E2/E3 heuristics over a roadmap/backlog entry body — the free-text
