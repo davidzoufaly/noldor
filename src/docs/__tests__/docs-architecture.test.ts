@@ -246,3 +246,21 @@ describe(checkArchitecture, () => {
     expect(report.findings.map((f) => f.rule)).toStrictEqual(['missing']);
   });
 });
+
+describe('ARCHITECTURE_PAGES sections', () => {
+  it('carries bare section names, no "## " prefix', () => {
+    const byId = Object.fromEntries(ARCHITECTURE_PAGES.map((p) => [p.id, p.sections]));
+    expect(byId.context).toStrictEqual(['Actors', 'Externals', 'Boundary']);
+    expect(byId.containers).toStrictEqual(['Runnable units', 'Durable state', 'Topology']);
+    expect(byId.modules).toStrictEqual(['Dependency direction', 'State ownership']);
+    expect(byId.flows).toStrictEqual([]);
+  });
+
+  it('never stores a rendered heading', () => {
+    for (const page of ARCHITECTURE_PAGES) {
+      for (const section of page.sections) {
+        expect(section.startsWith('#'), `${page.id}/${section}`).toBeFalsy();
+      }
+    }
+  });
+});

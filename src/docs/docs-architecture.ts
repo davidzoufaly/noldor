@@ -273,7 +273,11 @@ export async function checkArchitecture(cwd: string): Promise<ArchitectureReport
         rule: 'no-fence',
         message: `${label} carries no mermaid fence`,
       });
-    } else if (!kinds.some((k) => page.allowedKinds.includes(k))) {
+      // Membership is tested allowed-against-declared, not the reverse: the
+      // registry is `as const`, so `allowedKinds.includes(someString)` narrows
+      // its parameter to the page's own literal union and rejects a plain
+      // `string`. Intersecting in this direction is the same test without a cast.
+    } else if (!page.allowedKinds.some((allowed) => kinds.includes(allowed))) {
       findings.push({
         page: label,
         rule: 'bad-kind',
