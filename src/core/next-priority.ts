@@ -4,7 +4,8 @@ import { basename, join } from 'node:path';
 
 import matter from 'gray-matter';
 
-import { loadDocRoots } from './doc-roots.js';
+import { loadDocRoots, milestonePath } from './doc-roots.js';
+import { parseSlug } from './slug.js';
 import { sizeToPath, type GatePath } from './size-routing.js';
 import { FeatureFrontmatterSchema } from './feature-schema.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
@@ -253,9 +254,15 @@ export function loadMilestoneGate(cwd: string): string {
   };
   const slug = visionFm['current-milestone'];
   if (slug === undefined || slug === '') return '';
-  const milestonePath = join(loadDocRoots(cwd).milestones, `${slug}.md`);
-  if (!existsSync(milestonePath)) return '';
-  const body = matter(readFileSync(milestonePath, 'utf8')).content;
+  // This reader casts vision's frontmatter rather than parsing it with
+  // visionFrontmatterSchema, so no schema tightening binds here — the guarded
+  // builder is the only thing standing between a hand-edited value and a read.
+  const parsed = parseSlug(slug);
+  if (!parsed.ok) return '';
+  const built = milestonePath(cwd, parsed.slug);
+  if (!built.ok) return '';
+  if (!existsSync(built.path)) return '';
+  const body = matter(readFileSync(built.path, 'utf8')).content;
   const match = body.match(/##\s+Gate\s*\n+([\s\S]*?)(?=\n##\s|$)/);
   if (match === null) return '';
   return (

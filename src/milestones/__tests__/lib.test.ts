@@ -92,12 +92,21 @@ describe('loadMilestones', () => {
 describe('loadMilestoneBySlug', () => {
   it('returns parsed milestone for existing slug', () => {
     writeFileSync(join(tmp, 'docs/milestones/foo.md'), `---\nname: foo\nstatus: draft\n---\n`);
-    const m = loadMilestoneBySlug('foo', tmp);
-    expect(m?.frontmatter.name).toBe('foo');
+    const r = loadMilestoneBySlug('foo', tmp);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.milestone?.frontmatter.name).toBe('foo');
   });
 
-  it('returns null for missing slug', () => {
-    expect(loadMilestoneBySlug('missing', tmp)).toBeNull();
+  it('returns a null milestone for a well-formed but absent slug', () => {
+    expect(loadMilestoneBySlug('missing', tmp)).toEqual({ ok: true, milestone: null });
+  });
+
+  it('distinguishes a refused slug from an absent milestone, and reads nothing', () => {
+    const r = loadMilestoneBySlug('../../../escape', tmp);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.kind).toBe('invalid-slug');
   });
 });
 
@@ -173,14 +182,34 @@ describe('draftMilestone', () => {
     });
   }
 
+  // A milestone's slug is its filename and must be kebab-case, so an arbitrary
+  // `name` is not reachable through `draftMilestone` — it is reachable by a
+  // human editing `name:` in the file, after which `activateMilestone`
+  // re-serializes it through the same writer. Routing these through activate
+  // therefore covers both halves (serialize + parse) on the surface that can
+  // actually carry the value, instead of the draft path that cannot.
   for (const [label, value] of trickyScalars.filter(([, v]) => !v.includes('\n'))) {
-    it(`round-trips name with ${label}`, () => {
-      // slug doubles as the filename, so only newline-free values apply here
-      draftMilestone(value, undefined, tmp);
-      const m = readMilestone(join(tmp, `docs/milestones/${value}.md`));
+    it(`round-trips a hand-authored name with ${label}`, () => {
+      writeVision(tmp, undefined);
+      const path = join(tmp, 'docs/milestones/tricky.md');
+      writeFileSync(path, `---\nname: ${JSON.stringify(value)}\nstatus: draft\n---\n\nbody\n`);
+
+      const activated = activateMilestone('tricky', tmp);
+      expect(activated.ok).toBe(true);
+
+      const m = readMilestone(path);
       expect(m.frontmatter.name).toBe(value);
+      expect(m.frontmatter.status).toBe('active');
     });
   }
+
+  it('refuses a non-kebab slug and writes nothing', () => {
+    const r = draftMilestone('Not A Slug', undefined, tmp);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.kind).toBe('invalid-slug');
+    expect(existsSync(join(tmp, 'docs/milestones/Not A Slug.md'))).toBe(false);
+  });
 
   it('newline in description cannot inject extra frontmatter keys', () => {
     draftMilestone('inject', 'benign\nstatus: shipped\nextra: field', tmp);

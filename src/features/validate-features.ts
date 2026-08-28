@@ -15,8 +15,10 @@ import {
   docPresenceRoots,
   docProjectionRoots,
   listDocMds,
-  loadDocRoots,
+  milestonePath,
 } from '../core/doc-roots.js';
+import { pathErrorMessage } from '../core/slug-paths.js';
+import { parseSlug } from '../core/slug.js';
 import { TEST_FILE_RE, scanRoots } from '../core/repo-paths.js';
 
 /** Per-file validation result: file path plus list of human-readable issues. */
@@ -294,7 +296,14 @@ export function validateMilestoneRef(
   cwd: string = process.cwd(),
 ): string[] {
   if (fm.milestone === undefined) return [];
-  const file = join(loadDocRoots(cwd).milestones, `${fm.milestone}.md`);
+  // `fm.milestone` is repository-authored, so it reaches a path build the same
+  // way vision's `current-milestone` does; the schema rejects a non-slug, and
+  // this builder is the defence for a value that got in before it.
+  const parsed = parseSlug(fm.milestone);
+  if (!parsed.ok) return [parsed.error.message];
+  const built = milestonePath(cwd, parsed.slug);
+  if (!built.ok) return [pathErrorMessage(built.error)];
+  const file = built.path;
   if (!existsSync(file)) {
     return [`milestone: "${fm.milestone}" does not resolve to an existing ${file}`];
   }

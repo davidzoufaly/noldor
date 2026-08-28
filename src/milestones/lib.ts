@@ -3,6 +3,10 @@ import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
+import { milestonePath } from '../core/doc-roots.js';
+import { pathErrorMessage, type PathError } from '../core/slug-paths.js';
+import { parseSlug, type Slug, type SlugError } from '../core/slug.js';
+
 export const milestoneStatusSchema = z.enum(['draft', 'active', 'shipped']);
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
 
@@ -23,6 +27,33 @@ export interface Milestone {
 }
 
 const MILESTONES_DIR = 'docs/milestones';
+
+/**
+ * Why a milestone operation refused its slug before touching the filesystem.
+ *
+ * Only the slug/containment refusals are results. The repository-state throws
+ * below (`shipped is terminal`, multiple active, missing vision) predate this
+ * change and stay throws — the CLI's own try/catch already renders them, and
+ * converting them is out of this change's scope.
+ */
+export type MilestoneRefusal = SlugError | PathError;
+
+/** Human-readable reason for a {@link MilestoneRefusal}, for a CLI's stderr. */
+export function milestoneRefusalMessage(error: MilestoneRefusal): string {
+  return error.kind === 'invalid-slug' ? error.message : pathErrorMessage(error);
+}
+
+/** Parse untrusted text and build its guarded milestone path in one step. */
+function resolveMilestone(
+  slug: string,
+  cwd: string,
+): { ok: true; slug: Slug; path: string } | { ok: false; error: MilestoneRefusal } {
+  const parsed = parseSlug(slug);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const built = milestonePath(cwd, parsed.slug);
+  if (!built.ok) return { ok: false, error: built.error };
+  return { ok: true, slug: parsed.slug, path: built.path };
+}
 
 /** Serialize a milestone file through gray-matter's YAML engine — the same
  *  serializer/parser pair every other frontmatter writer uses. Hand-rolled
@@ -54,11 +85,26 @@ export function loadMilestones(cwd: string = process.cwd()): Milestone[] {
     .map((f) => readMilestone(join(dir, f)));
 }
 
-/** Load a single milestone by slug, or `null` if not found. */
-export function loadMilestoneBySlug(slug: string, cwd: string = process.cwd()): Milestone | null {
-  const path = join(cwd, MILESTONES_DIR, `${slug}.md`);
-  if (!existsSync(path)) return null;
-  return readMilestone(path);
+/**
+ * Load a single milestone by slug.
+ *
+ * The result distinguishes a refused slug from an absent file: the old
+ * `Milestone | null` collapsed both into `null`, so a caller passing a
+ * repository-authored value — `src/dashboard/data.ts` passes vision's
+ * `current-milestone` — could not tell a typo from a traversal attempt.
+ *
+ * @param slug - Untrusted slug text.
+ * @param cwd - Consumer root, the containment anchor.
+ * @returns The milestone (or `null` when absent), or the reason it was refused.
+ */
+export function loadMilestoneBySlug(
+  slug: string,
+  cwd: string = process.cwd(),
+): { ok: true; milestone: Milestone | null } | { ok: false; error: MilestoneRefusal } {
+  const resolved = resolveMilestone(slug, cwd);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+  if (!existsSync(resolved.path)) return { ok: true, milestone: null };
+  return { ok: true, milestone: readMilestone(resolved.path) };
 }
 
 /** Create a new draft milestone file at `<cwd>/docs/milestones/<slug>.md`. */
@@ -66,10 +112,14 @@ export function draftMilestone(
   slug: string,
   description: string | undefined,
   cwd: string = process.cwd(),
-): void {
+): { ok: true } | { ok: false; error: MilestoneRefusal } {
+  // Resolve before mkdir: an unguarded slug let `draft` create a file outside
+  // the repository wherever its parent directory happened to exist.
+  const resolved = resolveMilestone(slug, cwd);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
   const dir = join(cwd, MILESTONES_DIR);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const path = join(dir, `${slug}.md`);
+  const path = resolved.path;
   if (existsSync(path)) {
     throw new Error(`Milestone "${slug}" already exists at ${path}`);
   }
@@ -77,6 +127,7 @@ export function draftMilestone(
   const fm: MilestoneFrontmatter = { name: slug, status: 'draft' };
   if (description) fm.description = description;
   writeFileSync(path, stringifyMilestone(body, fm), 'utf8');
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -90,12 +141,11 @@ interface PreflightResult {
   visionRaw: string;
 }
 
-function preflightActivate(slug: string, cwd: string): PreflightResult {
+function preflightActivate(slug: Slug, targetPath: string, cwd: string): PreflightResult {
   const milestonesDir = join(cwd, MILESTONES_DIR);
   if (!existsSync(milestonesDir)) {
     throw new Error(`docs/milestones directory not found at ${milestonesDir}`);
   }
-  const targetPath = join(milestonesDir, `${slug}.md`);
   if (!existsSync(targetPath)) {
     throw new Error(`Milestone "${slug}" not found at ${targetPath}`);
   }
@@ -151,22 +201,36 @@ function serializeMilestone(m: Milestone, statusOverride?: MilestoneStatus): str
 /** Atomically promote `slug` to active, ship the previous active (if any), and
  *  update `docs/vision.md`'s `current-milestone` field. All preflight checks
  *  run before any file is written. */
-export function activateMilestone(slug: string, cwd: string = process.cwd()): void {
-  const { target, previousActive, visionRaw } = preflightActivate(slug, cwd);
+export function activateMilestone(
+  slug: string,
+  cwd: string = process.cwd(),
+): { ok: true } | { ok: false; error: MilestoneRefusal } {
+  // Resolve before the preflight reads: `activate` could otherwise read and
+  // rewrite any outside file carrying milestone-shaped frontmatter.
+  const resolved = resolveMilestone(slug, cwd);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
+  const { target, previousActive, visionRaw } = preflightActivate(
+    resolved.slug,
+    resolved.path,
+    cwd,
+  );
 
   if (target.frontmatter.status === 'active') {
-    return;
+    return { ok: true };
   }
 
   const targetWritten = serializeMilestone(target, 'active');
   const previousWritten = previousActive ? serializeMilestone(previousActive, 'shipped') : null;
   const visionUpdated = setFrontmatterField(visionRaw, 'current-milestone', slug);
 
-  writeFileSync(join(cwd, MILESTONES_DIR, `${slug}.md`), targetWritten, 'utf8');
+  writeFileSync(resolved.path, targetWritten, 'utf8');
   writeFileSync(join(cwd, 'docs/vision.md'), visionUpdated, 'utf8');
   if (previousActive && previousWritten) {
+    // previousActive.slug is a basename() stem of a file already inside the
+    // milestones dir, not external input, so it needs no parse of its own.
     writeFileSync(join(cwd, MILESTONES_DIR, `${previousActive.slug}.md`), previousWritten, 'utf8');
   }
+  return { ok: true };
 }
 
 export interface ListResult {

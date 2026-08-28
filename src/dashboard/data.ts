@@ -801,7 +801,11 @@ export interface ActiveMilestonePayload {
 export async function loadActiveMilestone(vision: Vision): Promise<ActiveMilestonePayload | null> {
   const slug = vision.frontmatter['current-milestone'];
   if (!slug) return null;
-  const m = loadMilestoneBySlug(slug);
+  // `slug` is repository-authored (vision frontmatter), which is why this call
+  // can now refuse: a hand-edited non-slug used to reach the path builder.
+  const loaded = loadMilestoneBySlug(slug);
+  if (!loaded.ok) return null;
+  const m = loaded.milestone;
   if (!m) return null;
   return {
     slug: m.slug,

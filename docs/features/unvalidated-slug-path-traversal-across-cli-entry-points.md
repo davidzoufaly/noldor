@@ -5,15 +5,15 @@ deps: []
 entry-id: Q-0097
 links:
   code: []
-  tests: []
+  tests:
+    - src/core/__tests__/slug-paths.test.ts
 name: Unvalidated Slug Path Traversal Across CLI Entry Points
 packages:
   - scripts
 phase: in-progress
-since: 2026-08-12
+since: 2026-08-12T00:00:00.000Z
 noldor-tier: specs-only
 ---
-
 ## Summary
 
 Three command families build filesystem paths from an unchecked positional argument, giving a local path-traversal read/write primitive in commands that automated gate flows invoke routinely. `src/core/slug.ts` already states that every external path-building entry point must use the canonical validator; these call sites do not. Validate at the start of each exported library function — not only in argv parsing — before any `exists`, read, process launch, kill, or git call, and return the same invalid-slug diagnostic worktree creation already uses. Then audit every other CLI that forms a path from argv, so the fix is not a three-call-site patch around a shared policy failure. Subprocess tests: slash, dot-dot, leading/trailing/doubled hyphens, uppercase, Unicode — assert no read or write spy fires and an outside sentinel file stays byte-identical.
