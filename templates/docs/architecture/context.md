@@ -1,16 +1,24 @@
 # Context
 
-The system, its actors, and the externals it talks to. One level above the code:
-who uses this, and what it depends on that you do not control.
+The system, its actors, and the externals it talks to — and only that. Runnable
+units belong on `containers.md`; internal structure belongs on `modules.md`.
 
-Replace the diagram below, then write a paragraph naming each actor and external
-in prose — a reader or agent consuming this file without rendering mermaid needs
-the same information the picture carries.
-
-<!-- TODO: draw the real context diagram and delete this line -->
+<!-- TODO: draw the real context diagram, fill in the sections, and delete this line -->
 
 ```mermaid
 flowchart LR
   user[Someone who uses this] --> system[This system]
   system --> external[Something it depends on]
 ```
+
+## Actors
+
+<!-- what belongs here: who drives this system — people and other systems. One line each. -->
+
+## Externals
+
+<!-- what belongs here: what it depends on and does not control. One line each. -->
+
+## Boundary
+
+<!-- what belongs here: what this system deliberately does not do or own. -->
