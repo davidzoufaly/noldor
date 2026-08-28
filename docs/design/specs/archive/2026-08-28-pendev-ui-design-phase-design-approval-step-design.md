@@ -26,6 +26,7 @@ One premise in the roadmap entry does not survive contact with the code. The ent
 - Any persisted **machine-readable** approval artifact — no sidecar file, no commit trailer, no FD frontmatter field. The approval sentence D1 requires is a record, but it is prose inside an artifact that already exists, not a new thing to parse.
 - Any machine-checkable enforcement of the verdict (see D3 for what that costs).
 - Any edit to `/noldor-gate`, `design archive`, `checks ui-design-freshness`, or the `ui-reviewer` lane.
+- Porting the verdict to the prose-dispatch runners. The bullet lands in the Claude skill and its twin only, so a codex/opencode implementer driving the CLI-backed workflow docs does not present it. That gap is not specific to this step — it is how every step 1.5 bullet reaches those runtimes — and closing it means a runner-neutral twin of the design step, which is its own piece of work.
 - Verifying the design's *content*. Node cannot read `.pen`; comparing implemented UI to the design is already `ui-reviewer` (Q-0145) and render-compare (Q-0146).
 
 ## Design
@@ -77,7 +78,7 @@ A waiver is not a third verdict and not a rejection. It is the pre-existing edit
 
 ### D5 — Archival is untouched
 
-`design archive` already runs at gate Step 4 and already moves the feature `.pen` into `docs/design/ui/archive/` alongside the spec, repointing `links.design` ([archive-cli.ts](../../../../src/design/archive-cli.ts)). Because the approval sentence lives in the spec body, and the spec archives in the same staged change as the `.pen`, the approval is attached to the archived design for free. No code changes here.
+`design archive` already runs at gate Step 4 and already moves the feature `.pen` into `docs/design/ui/archive/` alongside the spec, repointing `links.design` ([archive-cli.ts](../../../../src/design/archive-cli.ts)). Because the approval sentence lives in the spec body, and the spec archives in the same staged change as the `.pen`, the approval is attached to the archived design for free. No code changes here. Note that `resolveArchivePlan` locates the `.pen` by filename dialogue key under the `branchAdded` gate rather than through `links.design`; the pointer matters for the repoint pass, not for whether the artifact is archived.
 
 ### D6 — Surfaces changed
 
