@@ -272,6 +272,16 @@ describe(proseParagraphs, () => {
     ]);
   });
 
+  it('does not let a fence run inside a comment swallow later prose', () => {
+    // The mirror of the case above. Fences and comments can each contain the
+    // other's opener, so a two-pass scan fixes one direction by breaking the
+    // other; both are silent under-reports that suppress a budget.
+    const body = ['<!--', '```', '-->', '', 'real prose after comment', '', 'more prose'].join(
+      '\n',
+    );
+    expect(proseParagraphs(body)).toStrictEqual(['real prose after comment', 'more prose']);
+  });
+
   it('still strips a comment that sits outside any fence', () => {
     expect(proseParagraphs('a\n\n<!-- hidden -->\n\nb')).toStrictEqual(['a', 'b']);
   });

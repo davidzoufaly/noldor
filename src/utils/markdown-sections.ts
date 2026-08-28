@@ -27,7 +27,7 @@ const HEADING_RE = /^ {0,3}(#{2,3}) +(.+?)(?: +#+)? *$/;
 /** Fence open/close candidate: up to three spaces, then a run of one marker char. */
 const FENCE_RE = /^ {0,3}((`{3,})|(~{3,}))(.*)$/;
 
-interface FenceState {
+export interface FenceState {
   marker: '`' | '~';
   length: number;
 }
@@ -35,10 +35,15 @@ interface FenceState {
 /**
  * Classify one line against the current fence state.
  *
+ * Exported so a caller that must interleave fence tracking with another
+ * line-spanning construct (HTML comments, say) can drive the same CommonMark
+ * rules one line at a time, rather than becoming a tenth incumbent scanner that
+ * recognizes a literal triple backtick and nothing else.
+ *
  * @returns The new fence state (`null` = outside a fence), and whether the line
  *   is *content* — i.e. can still be read as a heading.
  */
-function stepFence(line: string, open: FenceState | null): { open: FenceState | null } {
+export function stepFence(line: string, open: FenceState | null): { open: FenceState | null } {
   const m = line.match(FENCE_RE);
   if (!m) return { open };
   const run = m[2] ?? m[3]!;
@@ -80,30 +85,6 @@ export function listHeadings(md: string): Heading[] {
     if (before !== null || open !== null) continue;
     const h = line.match(HEADING_RE);
     if (h) out.push({ name: h[2]!.trim(), depth: h[1]!.length as 2 | 3 });
-  }
-  return out;
-}
-
-/**
- * Per-line mask: `true` where the line is a fence delimiter or sits inside one.
- *
- * Exposes this module's fence tracking to callers that need to *remove* fenced
- * regions rather than address headings — the same CommonMark rules
- * `listHeadings` applies, so a caller does not become a tenth incumbent
- * scanner that recognizes a literal triple backtick and nothing else. Closing
- * requires the opener's marker char and at least its run length, which is what
- * keeps a ``` line inside a ```` block from ending it early.
- *
- * @param md - Raw markdown
- * @returns One boolean per line, in document order
- */
-export function fencedLineMask(md: string): boolean[] {
-  const out: boolean[] = [];
-  let open: FenceState | null = null;
-  for (const line of lines(md)) {
-    const before = open;
-    ({ open } = stepFence(line, open));
-    out.push(before !== null || open !== null);
   }
   return out;
 }

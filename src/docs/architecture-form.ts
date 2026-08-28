@@ -6,7 +6,7 @@
  * only "what does this body violate", so `docs-architecture.ts` owns the IO
  * boundary and the reporting shape exactly as it does for the blocking rules.
  */
-import { fencedLineMask, listHeadings } from '../utils/markdown-sections.js';
+import { listHeadings, stepFence, type FenceState } from '../utils/markdown-sections.js';
 import { countWords } from '../utils/word-count.js';
 import { stripCodeRegions } from './docs-check.js';
 
@@ -178,53 +178,91 @@ const LIST_ITEM = /^ {0,3}([-*+]|\d{1,9}[.)])\s/;
  * Prose paragraphs of a page body: what a reader actually reads.
  *
  * Mermaid fences, code fences, table rows, headings and HTML comments are
- * blanked — a page may be long in diagram and table and still be terse in
- * prose, which is the form the contract exists to produce, and template prompts
- * and cut markers are comments a reader never sees.
+ * removed — a page may be long in diagram and table and still be terse in prose,
+ * which is the form the contract exists to produce, and template prompts and cut
+ * markers are comments a reader never sees.
  *
- * Blanking replaces each removed line with an empty one rather than deleting it,
- * so prose on either side of a diagram stays two paragraphs instead of merging
- * into one and reading as a single oversized block.
+ * Removal blanks each line rather than deleting it, so prose on either side of a
+ * diagram stays two paragraphs instead of merging into one and reading as a
+ * single oversized block. Each list item is its own paragraph too: a contiguous
+ * bullet list carries no blank lines, so a plain blank-line split would read ten
+ * terse bullets as one long paragraph and fire the budget against exactly the
+ * labelled-fact form the advisory's remedy asks for.
  *
- * Fence tracking comes from `fencedLineMask`, which applies CommonMark's
- * marker-and-length closing rule. A blind open/close toggle gets this wrong in
- * the *over*-reporting direction: a ``` line inside a ```` block would end the
- * fence early, and the code after it would count as prose and could fire a bogus
- * bloat advisory.
- *
- * Each list item is its own paragraph. A contiguous bullet list has no blank
- * lines in it, so a naive blank-line split reads ten terse bullets as one long
- * paragraph and fires the budget against exactly the labelled-fact form the
- * advisory's own remedy asks for. A bullet's continuation lines stay attached to
- * it, since only the marker line starts a new unit.
+ * **Fences and comments are tracked in one interleaved pass**, because they can
+ * each contain the other's opener and CommonMark gives the document-order winner
+ * precedence. Two passes cannot express that: locating comments first lets a
+ * `<!--` inside a fence pair with a `-->` after it and swallow the prose
+ * between, and locating fences first lets a fence run inside a multi-line
+ * comment hijack fence state and swallow everything after it. Both directions
+ * are silent under-reports, which is the failure that suppresses a budget rather
+ * than firing a spurious one.
  *
  * @param body - Raw markdown
  * @returns Non-empty paragraphs, in document order
  */
 export function proseParagraphs(body: string): string[] {
-  // Fences are located on the RAW body and blanked before comments are stripped.
-  // Stripping first lets a `<!--` inside a fence pair with a `-->` after it, and
-  // the regex then erases the closing fence and the real prose between them — a
-  // false negative that silently suppresses a budget.
-  const fenced = fencedLineMask(body);
-  const defenced = body
-    .split(/\r\n|\r|\n/)
-    .map((line, i) => (fenced[i] === true ? '' : line))
-    .join('\n');
-
   const kept: string[] = [];
-  for (const line of defenced
-    .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '))
-    .split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('|') || ATX_HEADING.test(line)) {
+  let fence: FenceState | null = null;
+  let inComment = false;
+
+  /** Blank a removable line, else keep it — starting a new paragraph at a list marker. */
+  const classify = (text: string): void => {
+    const trimmed = text.trim();
+    if (trimmed === '' || trimmed.startsWith('|') || ATX_HEADING.test(text)) {
+      kept.push('');
+      return;
+    }
+    if (LIST_ITEM.test(text) && kept.at(-1) !== '') kept.push('');
+    kept.push(text);
+  };
+
+  for (const raw of body.split(/\r\n|\r|\n/)) {
+    if (inComment) {
+      const close = raw.indexOf('-->');
+      if (close === -1) {
+        kept.push('');
+        continue;
+      }
+      inComment = false;
+      // A fence opener must begin its line, so the tail after `-->` cannot open one.
+      classify(raw.slice(close + 3));
+      continue;
+    }
+
+    if (fence !== null) {
+      ({ open: fence } = stepFence(raw, fence));
       kept.push('');
       continue;
     }
-    // A list marker starts a new paragraph even with no blank line before it.
-    if (LIST_ITEM.test(line) && kept.at(-1) !== '') kept.push('');
-    kept.push(line);
+
+    // A fence delimiter is line-initial, so it precedes any `<!--` on the line.
+    const opened = stepFence(raw, null).open;
+    if (opened !== null) {
+      fence = opened;
+      kept.push('');
+      continue;
+    }
+
+    let rest = raw;
+    let live = '';
+    for (;;) {
+      const open = rest.indexOf('<!--');
+      if (open === -1) {
+        live += rest;
+        break;
+      }
+      live += rest.slice(0, open);
+      const close = rest.indexOf('-->', open + 4);
+      if (close === -1) {
+        inComment = true;
+        break;
+      }
+      rest = rest.slice(close + 3);
+    }
+    classify(live);
   }
+
   return kept
     .join('\n')
     .split(/\n\s*\n/)
