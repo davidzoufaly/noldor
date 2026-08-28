@@ -16,19 +16,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
-### Design Approval Step Before Implementation
-
-- id: Q-0186
-- area: tooling
-- type: feat
-- since: 2026-08-25
-- size: M
-- impact: med
-- confidence: low
-- parent: pendev-ui-design-phase
-
-The `.pen` lifecycle has no approval seam. The baseline half works well, but a feature's design artifact goes straight to `docs/design/ui/archive/` — archived before anyone confirmed the design was the one to build. What the flow is missing is a step inside the implementation path: the agent opens (or creates) the feature's `.pen`, edits it, and the operator confirms THAT design before code starts, with the archive move happening after the confirmation rather than instead of it. The pieces exist — `design pen-bridge` already opens a `.pen` in the declared editor (Q-0179), and the UI-design stage already computes whether a session is UI-bearing — so this is sequencing and a recorded verdict more than new machinery. Sizing is loose because the seam touches the gate's stage order; spec it before planning. Deletion test: a UI-bearing session cannot reach the code stage without a recorded design verdict, and an approved `.pen` archives with the approval attached. (found 2026-08-25)
-
 ### Mandatory C4 Diagram for New Feature MDs
 
 - id: Q-0185
