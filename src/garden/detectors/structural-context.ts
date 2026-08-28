@@ -40,6 +40,16 @@ export const SPEC_FLOOR_DATE = '2026-08-28';
  */
 export const ADR_FLOOR_NUMBER = '0001';
 
+/**
+ * The skip marker as its own token, escaped and built once.
+ *
+ * `RegExp.escape` because the pattern interpolates a value rather than a
+ * literal — `platform-over-dependency` binds that. `noldor:cut` carries no
+ * metacharacter today, which is exactly why the guard belongs here: a later edit
+ * to the constant would otherwise turn this into a silent matcher bug.
+ */
+const CUT_MARKER_RE = new RegExp(`^${RegExp.escape(CUT_MARKER)}(\\s|$)`);
+
 /** Why one artifact was reported. */
 export type StructuralContextRule = 'missing-section' | 'stub-section' | 'placeholder-only';
 
@@ -152,10 +162,9 @@ function classify(
   // marker is still a stub — the reason is what makes a skip a decision.
   // The marker must be its own token: a bare `startsWith` let `noldor:cutlery`
   // suppress the unit, with `lery ...` counting as the reason.
-  const markerRe = new RegExp(`^${CUT_MARKER}(\\s|$)`);
-  const marker = section.split('\n').find((line) => markerRe.test(line.trim()));
+  const marker = section.split('\n').find((line) => CUT_MARKER_RE.test(line.trim()));
   if (marker !== undefined) {
-    const reason = marker.trim().replace(markerRe, '');
+    const reason = marker.trim().replace(CUT_MARKER_RE, '');
     return density(reason) >= MIN_STRUCTURAL_CONTEXT_CHARS ? null : 'stub-section';
   }
 
@@ -190,21 +199,23 @@ function tagLines(body: string): TaggedLine[] {
   // early, letting fenced heading-shaped content open or truncate a section.
   let open: { char: string; len: number } | null = null;
   for (const text of body.split('\n')) {
-    const m = /^\s*(`{3,}|~{3,})/.exec(text);
+    // A closing fence may carry ONLY the delimiter plus trailing whitespace
+    // (CommonMark); an info string like ```js can open a fence but never close
+    // one. Accepting any same-character run let ```js inside an open fence close
+    // it and expose heading-shaped content to the section scanner.
+    const m = /^\s*(`{3,}|~{3,})(.*)$/.exec(text);
     if (m !== null) {
       const char = m[1][0]!;
       const len = m[1].length;
+      const bare = m[2].trim().length === 0;
       if (open === null) {
-        open = { char, len };
-        out.push({ text, fenced: true });
-        continue;
-      }
-      if (char === open.char && len >= open.len) {
+        // An opener may carry an info string, but backticks forbid a backtick
+        // in it.
+        if (char !== '`' || !m[2].includes('`')) open = { char, len };
+      } else if (bare && char === open.char && len >= open.len) {
         open = null;
-        out.push({ text, fenced: true });
-        continue;
       }
-      // A shorter or different-character run inside an open fence is content.
+      // Delimiter lines belong to no section body either way.
       out.push({ text, fenced: true });
       continue;
     }

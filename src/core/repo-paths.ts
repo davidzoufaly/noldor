@@ -1,7 +1,7 @@
 // @fd: scan-roots-repo-paths-provider
 
 import { readFile, readdir } from 'node:fs/promises';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { loadConsumerConfig } from './consumer-config.js';
@@ -113,21 +113,37 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
  * one definition. An unreadable directory is skipped, never thrown: these
  * walkers run over whatever a consumer's tree happens to contain.
  *
- * Symlinks to FILES are followed; symlinked directories are never entered.
+ * Symlinks are followed — to files and to directories — with a `realpathSync`
+ * visited set bounding the walk.
  *
- * Both halves are deliberate. `withFileTypes` alone classifies a symlink as
- * neither file nor directory, so a symlinked source file went invisible and a
- * stale graph could read `fresh` on the mtime leg — hence the `statSync`.
- * Descending directory links, however, is unbounded: `src/loop -> src` re-walks
- * the tree until ENAMETOOLONG (measured: 16 paths for one file), which would
- * inflate the clone corpus that `walkCodeFiles` feeds. Following files only
- * fixes the invisibility without needing a visited set.
+ * Two failures sit on either side of this and the visited set is what avoids
+ * both. Not following links at all makes a symlinked source file invisible, so a
+ * stale graph reads `fresh` on the mtime leg. Following directory links without
+ * a visited set is unbounded: `src/loop -> src` re-walks the tree until
+ * ENAMETOOLONG (measured: 16 paths for one file), inflating the clone corpus
+ * `walkCodeFiles` feeds. Skipping directory links instead simply moves the
+ * invisibility up a level — `src/generated -> ../generated` then hides every
+ * file beneath it.
+ *
+ * Keying on the resolved real path means a directory is walked exactly once
+ * however many links reach it, so a cycle terminates and a legitimate link is
+ * still seen.
  */
 function walkDir(
   root: string,
   onFile: (path: string, name: string) => void,
   skipDir: (name: string) => boolean,
+  visited: Set<string> = new Set(),
 ): void {
+  // Identity is the resolved path, so two links to one directory walk it once.
+  let real: string;
+  try {
+    real = realpathSync(root);
+  } catch {
+    return;
+  }
+  if (visited.has(real)) return;
+  visited.add(real);
   let entries;
   try {
     entries = readdirSync(root, { withFileTypes: true });
@@ -139,18 +155,18 @@ function walkDir(
     let isDir = entry.isDirectory();
     let isFile = entry.isFile();
     if (entry.isSymbolicLink()) {
-      // Resolve the link to see whether it points at a file. A link to a
-      // directory is left alone — see the docstring: descending it can cycle.
+      // `withFileTypes` calls a link neither file nor directory; resolve it.
       try {
-        isFile = statSync(full).isFile();
-        isDir = false;
+        const st = statSync(full);
+        isDir = st.isDirectory();
+        isFile = st.isFile();
       } catch {
         continue; // broken link
       }
     }
     if (isDir) {
       if (skipDir(entry.name)) continue;
-      walkDir(full, onFile, skipDir);
+      walkDir(full, onFile, skipDir, visited);
     } else if (isFile) {
       onFile(full, entry.name);
     }

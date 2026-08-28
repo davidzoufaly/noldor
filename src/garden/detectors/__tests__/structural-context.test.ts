@@ -168,6 +168,14 @@ describe('stub rule', () => {
     expect(await detectStructuralContextStubs(dir)).toEqual([]);
   });
 
+  it('does not let an info-string fence line close an open fence', async () => {
+    // CommonMark: a closing fence carries only the delimiter plus whitespace, so
+    // ```js opens but never closes. Accepting any same-character run let it
+    // close the outer fence and expose the heading-shaped line.
+    spec(`${AFTER}-a-design.md`, ['```', '```js', '# Structural context', '```', REAL].join('\n'));
+    expect(await detectStructuralContextStubs(dir)).toEqual([]);
+  });
+
   it('ignores an H3 that sits outside `## Design`', async () => {
     const path = join(dir, 'docs', 'design', 'specs', `${AFTER}-a-design.md`);
     writeFileSync(

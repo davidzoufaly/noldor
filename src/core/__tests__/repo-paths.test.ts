@@ -159,17 +159,45 @@ describe('walkDir symlink policy', () => {
     }
   });
 
-  it('never descends a symlinked directory, so a cycle terminates', () => {
+  it('walks a legitimate symlinked directory, so its files stay visible', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'walkdir-dirlink-'));
+    try {
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      mkdirSync(join(dir, 'generated'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor', 'config.json'),
+        JSON.stringify({ consumer: { ...MINIMAL_CONSUMER, scanPaths: ['src'] } }),
+        'utf8',
+      );
+      writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n', 'utf8');
+      writeFileSync(join(dir, 'generated', 'gen.ts'), 'export const g = 1;\n', 'utf8');
+      symlinkSync(join(dir, 'generated'), join(dir, 'src', 'generated'));
+      const future = new Date(Date.now() + 600_000);
+      utimesSync(join(dir, 'generated', 'gen.ts'), future, future);
+      // Skipping directory links to bound cycles moved the invisibility up a
+      // level: everything under `src/generated` vanished from the mtime leg.
+      expect(newestMtimeInRoots(dir, ['src'])).toBeGreaterThan(Date.now());
+      expect(walkCodeFiles(join(dir, 'src'), { includeTests: true })).toContain(
+        join(dir, 'src', 'generated', 'gen.ts'),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('bounds a directory cycle by resolved real path', () => {
     const dir = treeWithLinks();
     try {
       // `src/deep/loop -> src` re-walked the tree until ENAMETOOLONG when
       // directory links were followed, inflating the corpus that feeds the
       // clone detector with paths like `src/deep/loop/deep/loop/...`.
+      // `src/deep/loop -> src` resolves to a directory already visited, so the
+      // walk stops there instead of re-entering until ENAMETOOLONG.
       const found = walkCodeFiles(join(dir, 'src'), { includeTests: true });
       expect(found.toSorted()).toEqual(
         [join(dir, 'src', 'a.ts'), join(dir, 'src', 'linked.ts')].toSorted(),
       );
-      expect(found.some((p) => p.includes('loop'))).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
