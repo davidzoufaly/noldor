@@ -3,9 +3,8 @@ import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
-import { milestonePath } from '../core/doc-roots.js';
-import { pathErrorMessage, type PathError } from '../core/slug-paths.js';
-import { parseSlug, type Slug, type SlugError } from '../core/slug.js';
+import { pathErrorMessage, resolveSlugPath, type PathError } from '../core/slug-paths.js';
+import type { Slug, SlugError } from '../core/slug.js';
 
 export const milestoneStatusSchema = z.enum(['draft', 'active', 'shipped']);
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
@@ -48,11 +47,7 @@ function resolveMilestone(
   slug: string,
   cwd: string,
 ): { ok: true; slug: Slug; path: string } | { ok: false; error: MilestoneRefusal } {
-  const parsed = parseSlug(slug);
-  if (!parsed.ok) return { ok: false, error: parsed.error };
-  const built = milestonePath(cwd, parsed.slug);
-  if (!built.ok) return { ok: false, error: built.error };
-  return { ok: true, slug: parsed.slug, path: built.path };
+  return resolveSlugPath(cwd, ['docs', 'milestones'], slug, { suffix: '.md' });
 }
 
 /** Serialize a milestone file through gray-matter's YAML engine — the same

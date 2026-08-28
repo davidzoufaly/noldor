@@ -4,8 +4,8 @@ import { readFile, rm } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 import { pathErrorMessage, type PathError } from '../core/slug-paths.js';
-import { parseSlug, type SlugError } from '../core/slug.js';
-import { worktreePath, worktreePidsPath } from './worktree-paths.js';
+import type { SlugError } from '../core/slug.js';
+import { resolveWorktree } from './worktree-paths.js';
 
 const execFileP = promisify(execFile);
 
@@ -48,14 +48,10 @@ export async function downWorktree(
   // Every side effect below — the pid read, the process-group kills, the git
   // worktree removal — is keyed on the slug, so the parse and both path builds
   // happen before any of them run.
-  const parsed = parseSlug(opts.slug);
-  if (!parsed.ok) return { ok: false, error: parsed.error };
-  const pids = worktreePidsPath(opts.cwd, parsed.slug);
-  if (!pids.ok) return { ok: false, error: pids.error };
-  const tree = worktreePath(opts.cwd, parsed.slug);
-  if (!tree.ok) return { ok: false, error: tree.error };
+  const resolved = resolveWorktree(opts.cwd, opts.slug);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
 
-  const pidsFile = pids.path;
+  const pidsFile = resolved.pids;
   let reaped = 0;
   const body = await readFile(pidsFile, 'utf8').catch(() => '');
   for (const line of body.split('\n').filter(Boolean)) {
@@ -82,8 +78,8 @@ export async function downWorktree(
   if (opts.remove) {
     // The branch name is slug-derived but is a git ref, not a path, so no
     // builder covers it — the parse above is what makes it safe.
-    const branch = opts.branch ?? `feat/${parsed.slug}`;
-    await deps.gitImpl(['worktree', 'remove', '--force', tree.path], opts.cwd);
+    const branch = opts.branch ?? `feat/${resolved.slug}`;
+    await deps.gitImpl(['worktree', 'remove', '--force', resolved.tree], opts.cwd);
     await deps.gitImpl(['branch', '-D', branch], opts.cwd).catch(() => {});
   }
   return { ok: true, reaped };

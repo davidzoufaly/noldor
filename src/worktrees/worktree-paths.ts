@@ -1,5 +1,10 @@
 // @tests: unvalidated-slug-path-traversal-across-cli-entry-points
-import { slugPath, type PathError } from '../core/slug-paths.js';
+import {
+  resolveSlugPath,
+  slugPath,
+  type PathError,
+  type ResolveError,
+} from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
 
 /** Result shape shared by both worktree path builders. */
@@ -30,4 +35,24 @@ export function worktreePath(cwd: string, slug: Slug): WorktreePathResult {
  */
 export function worktreePidsPath(cwd: string, slug: Slug): WorktreePathResult {
   return slugPath(cwd, ['.noldor'], slug, { prefix: 'dev-', suffix: '.pids' });
+}
+
+/**
+ * Parse a slug and build every worktree path keyed on it, in one step.
+ *
+ * `up` and `down` both need this before their first side effect.
+ *
+ * @param cwd - Main workspace root, the containment anchor.
+ * @param slug - Untrusted slug text.
+ * @returns The branded slug and both paths, or the reason it was refused.
+ */
+export function resolveWorktree(
+  cwd: string,
+  slug: string,
+): { ok: true; slug: Slug; tree: string; pids: string } | { ok: false; error: ResolveError } {
+  const tree = resolveSlugPath(cwd, ['.worktrees'], slug);
+  if (!tree.ok) return { ok: false, error: tree.error };
+  const pids = worktreePidsPath(cwd, tree.slug);
+  if (!pids.ok) return { ok: false, error: pids.error };
+  return { ok: true, slug: tree.slug, tree: tree.path, pids: pids.path };
 }

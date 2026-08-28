@@ -4,8 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadDevConfig } from '../core/consumer-config.js';
 import { createRefusalMessage, createWorktree, type CreateRefusal } from './create-worktree.js';
-import { parseSlug } from '../core/slug.js';
-import { worktreePath } from './worktree-paths.js';
+import { resolveWorktree } from './worktree-paths.js';
 import { bootDevSurfaces, type BootedSurface } from './dev-surfaces.js';
 import { launchTree, resolveAgentInvocation } from './launch-worktrees.js';
 import { openEditor } from './open-editor.js';
@@ -67,13 +66,11 @@ export async function upWorktree(
   // createWorktree, so `--no-create` or an existing directory skipped the sole
   // guard — after which the editor, the agent and every dev surface booted at
   // an attacker-chosen path. Parse and build before any of that can happen.
-  const parsed = parseSlug(opts.slug);
-  if (!parsed.ok) return { ok: false, error: parsed.error };
-  const tree = worktreePath(opts.cwd, parsed.slug);
-  if (!tree.ok) return { ok: false, error: tree.error };
+  const resolved = resolveWorktree(opts.cwd, opts.slug);
+  if (!resolved.ok) return { ok: false, error: resolved.error };
 
-  const treePath = tree.path;
-  const branch = opts.branch ?? `feat/${parsed.slug}`;
+  const treePath = resolved.tree;
+  const branch = opts.branch ?? `feat/${resolved.slug}`;
 
   if (!opts.noCreate && !deps.existsImpl(treePath)) {
     const created = await deps.createWorktreeImpl({ slug: opts.slug, branch, cwd: opts.cwd });

@@ -2,7 +2,7 @@ import { lstatSync } from 'node:fs';
 import { join, sep } from 'node:path';
 
 import { resolveExisting } from './branch-added.js';
-import type { Slug } from './slug.js';
+import { parseSlug, type Slug, type SlugError } from './slug.js';
 
 /**
  * True when `candidate` is the anchor or sits beneath it.
@@ -86,4 +86,39 @@ function isSymlink(path: string): boolean {
   } catch {
     return false; // absent: a prospective path is legal, and any real IO error resurfaces at use
   }
+}
+
+/** Why a slug-rooted path could not be resolved from untrusted text. */
+export type ResolveError = SlugError | PathError;
+
+/** Human-readable reason for a {@link ResolveError}, for a CLI's stderr. */
+export function resolveErrorMessage(error: ResolveError): string {
+  return error.kind === 'invalid-slug' ? error.message : pathErrorMessage(error);
+}
+
+/**
+ * Parse untrusted text and build its guarded path in one step.
+ *
+ * Every family needs exactly this pair before its first side effect, and doing
+ * it as a hand-repeated two-block preamble is how one call site ends up
+ * checking less than the rest — the same failure {@link parseSlug} exists to
+ * prevent, one level up.
+ *
+ * @param anchor - Repository root; the boundary containment is judged against.
+ * @param relRoot - Directory segments beneath the anchor.
+ * @param slug - Untrusted slug text.
+ * @param seg - Literal text wrapped around the slug within its own segment.
+ * @returns The branded slug and its path, or the reason it was refused.
+ */
+export function resolveSlugPath(
+  anchor: string,
+  relRoot: readonly string[],
+  slug: string,
+  seg: SlugSegment = {},
+): { ok: true; slug: Slug; path: string } | { ok: false; error: ResolveError } {
+  const parsed = parseSlug(slug);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const built = slugPath(anchor, relRoot, parsed.slug, seg);
+  if (!built.ok) return { ok: false, error: built.error };
+  return { ok: true, slug: parsed.slug, path: built.path };
 }

@@ -134,35 +134,32 @@ export async function listDocMds(roots: string[], cwd: string = process.cwd()): 
     .toSorted();
 }
 
-/**
- * Absolute path of a feature MD, guarded.
- *
- * The `relRoot` mirrors {@link loadDocRoots}'s `features` entry rather than
- * reading it back, because {@link slugPath} composes the root from the anchor
- * on purpose — handing it a ready-made root is what lets a relocated or
- * symlinked directory define its own legality.
- *
- * @param cwd - Consumer root, the containment anchor.
- * @param slug - An already-parsed slug.
- * @returns The absolute path, or the reason it was refused.
- */
-export function featurePath(
-  cwd: string,
-  slug: Slug,
-): { ok: true; path: string } | { ok: false; error: PathError } {
-  return slugPath(cwd, ['docs', 'features'], slug, { suffix: '.md' });
-}
+/** A guarded slug-rooted doc path, or the reason it was refused. */
+export type DocPathResult = { ok: true; path: string } | { ok: false; error: PathError };
 
 /**
- * Absolute path of a milestone MD, guarded.
+ * Absolute path of a slug-named markdown doc beneath `cwd`, guarded.
+ *
+ * The `relRoot` mirrors {@link loadDocRoots}'s entry rather than reading it
+ * back, because {@link slugPath} composes the root from the anchor on purpose —
+ * handing it a ready-made root is what lets a relocated or symlinked directory
+ * define its own legality.
  *
  * @param cwd - Consumer root, the containment anchor.
+ * @param relRoot - Directory segments beneath the anchor.
  * @param slug - An already-parsed slug.
  * @returns The absolute path, or the reason it was refused.
  */
-export function milestonePath(
-  cwd: string,
-  slug: Slug,
-): { ok: true; path: string } | { ok: false; error: PathError } {
-  return slugPath(cwd, ['docs', 'milestones'], slug, { suffix: '.md' });
+function docSlugPath(cwd: string, relRoot: readonly string[], slug: Slug): DocPathResult {
+  return slugPath(cwd, relRoot, slug, { suffix: '.md' });
+}
+
+/** Absolute path of a feature MD, guarded. See {@link docSlugPath}. */
+export function featurePath(cwd: string, slug: Slug): DocPathResult {
+  return docSlugPath(cwd, ['docs', 'features'], slug);
+}
+
+/** Absolute path of a milestone MD, guarded. See {@link docSlugPath}. */
+export function milestonePath(cwd: string, slug: Slug): DocPathResult {
+  return docSlugPath(cwd, ['docs', 'milestones'], slug);
 }
