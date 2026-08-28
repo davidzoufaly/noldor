@@ -85,6 +85,30 @@ export function listHeadings(md: string): Heading[] {
 }
 
 /**
+ * Per-line mask: `true` where the line is a fence delimiter or sits inside one.
+ *
+ * Exposes this module's fence tracking to callers that need to *remove* fenced
+ * regions rather than address headings — the same CommonMark rules
+ * `listHeadings` applies, so a caller does not become a tenth incumbent
+ * scanner that recognizes a literal triple backtick and nothing else. Closing
+ * requires the opener's marker char and at least its run length, which is what
+ * keeps a ``` line inside a ```` block from ending it early.
+ *
+ * @param md - Raw markdown
+ * @returns One boolean per line, in document order
+ */
+export function fencedLineMask(md: string): boolean[] {
+  const out: boolean[] = [];
+  let open: FenceState | null = null;
+  for (const line of lines(md)) {
+    const before = open;
+    ({ open } = stepFence(line, open));
+    out.push(before !== null || open !== null);
+  }
+  return out;
+}
+
+/**
  * Body of the first heading named `name`.
  *
  * The body runs to the next heading of equal or shallower depth, so an H2's body

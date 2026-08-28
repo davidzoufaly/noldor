@@ -208,6 +208,29 @@ describe(proseParagraphs, () => {
     expect(proseParagraphs(body)).toStrictEqual(['before', 'after']);
   });
 
+  it('does not end a long fence on a shorter inner run', () => {
+    // CommonMark: a ``` line inside a ```` block is fence content, not a close.
+    // A blind open/close toggle ends the fence early and counts the inner code as
+    // prose — an OVER-report that can fire a bogus bloat advisory.
+    const body = [
+      'real prose here',
+      '',
+      '````markdown',
+      '```',
+      'inner code that is NOT prose',
+      '```',
+      '````',
+      '',
+      'trailing prose',
+    ].join('\n');
+    expect(proseParagraphs(body)).toStrictEqual(['real prose here', 'trailing prose']);
+  });
+
+  it('does not end a backtick fence on a tilde line', () => {
+    const body = ['before', '', '```js', '~~~', 'still code', '```', '', 'after'].join('\n');
+    expect(proseParagraphs(body)).toStrictEqual(['before', 'after']);
+  });
+
   it('keeps a paragraph that merely contains inline code', () => {
     expect(proseParagraphs('the `src/core` module owns it')).toStrictEqual([
       'the `src/core` module owns it',

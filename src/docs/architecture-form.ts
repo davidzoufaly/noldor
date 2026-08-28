@@ -6,7 +6,7 @@
  * only "what does this body violate", so `docs-architecture.ts` owns the IO
  * boundary and the reporting shape exactly as it does for the blocking rules.
  */
-import { listHeadings } from '../utils/markdown-sections.js';
+import { fencedLineMask, listHeadings } from '../utils/markdown-sections.js';
 import { countWords } from '../utils/word-count.js';
 import { stripCodeRegions } from './docs-check.js';
 
@@ -162,9 +162,6 @@ export function assessPageForm(page: FormPage, body: string): PageForm {
   return { missing, unknownCuts, flowHeadings: null };
 }
 
-/** Line opening or closing a fence: three or more backticks or tildes at up to three spaces of indent. */
-const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})/;
-
 /**
  * Prose paragraphs of a page body: what a reader actually reads.
  *
@@ -177,31 +174,24 @@ const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})/;
  * so prose on either side of a diagram stays two paragraphs instead of merging
  * into one and reading as a single oversized block.
  *
- * noldor:cut open/close fence toggle, no marker-and-length matching — a
- * mismatched fence run blanks more prose than it should, which under-reports a
- * budget rather than over-reporting it, and a quiet advisory is the safe
- * direction. Route through `listHeadings`' fence state if that stops holding.
+ * Fence tracking comes from `fencedLineMask`, which applies CommonMark's
+ * marker-and-length closing rule. A blind open/close toggle gets this wrong in
+ * the *over*-reporting direction: a ``` line inside a ```` block would end the
+ * fence early, and the code after it would count as prose and could fire a bogus
+ * bloat advisory.
  *
  * @param body - Raw markdown
  * @returns Non-empty paragraphs, in document order
  */
 export function proseParagraphs(body: string): string[] {
   const withoutComments = body.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
-  const kept: string[] = [];
-  let inFence = false;
-  for (const line of withoutComments.split(/\r\n|\r|\n/)) {
-    if (FENCE_LINE.test(line)) {
-      inFence = !inFence;
-      kept.push('');
-      continue;
-    }
+  const lines = withoutComments.split(/\r\n|\r|\n/);
+  const fenced = fencedLineMask(withoutComments);
+  const kept = lines.map((line, i) => {
     const trimmed = line.trim();
-    if (inFence || trimmed.startsWith('|') || trimmed.startsWith('#')) {
-      kept.push('');
-      continue;
-    }
-    kept.push(line);
-  }
+    if (fenced[i] === true || trimmed.startsWith('|') || trimmed.startsWith('#')) return '';
+    return line;
+  });
   return kept
     .join('\n')
     .split(/\n\s*\n/)
