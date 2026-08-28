@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { loadConfig } from '../core/config.js';
 import { readSession } from '../core/session.js';
 import { isSha } from '../core/sha.js';
-import { isSlug } from '../core/slug.js';
+import { isSlug, type Slug } from '../core/slug.js';
 import { aggregate } from './aggregate.js';
 import type { LaneBlocker } from './aggregate.js';
 import { decide, splitByClass } from './autofix.js';
@@ -87,8 +87,10 @@ usage:
  * prefix-match is immune to that, which is why this is the first CR path where
  * the check has to exist.
  */
-function requireTarget(a: Args): { slug: string; kind: ArtifactKind } {
+function requireTarget(a: Args): { slug: Slug; kind: ArtifactKind } {
   if (!a.slug) usage('--slug is required');
+  // `isSlug` narrows to the branded type, which is what lets the ledger path
+  // builders below demand proof rather than trust.
   if (!isSlug(a.slug)) usage(`--slug must be kebab-case ([a-z0-9-]), got ${a.slug}`);
   const kind = artifactKindSchema.safeParse(a.kind);
   if (!kind.success) usage(`--kind must be one of spec|plan|code (got ${a.kind ?? '<unset>'})`);

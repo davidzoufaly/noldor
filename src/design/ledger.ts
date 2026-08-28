@@ -1,4 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { slugPath } from '../core/slug-paths.js';
+import type { Slug } from '../core/slug.js';
 import { parseSlug } from '../core/slug.js';
 import { dirname, join } from 'node:path';
 
@@ -184,9 +186,17 @@ export function validateHeadingName(value: string, flag: string): string | null 
   );
 }
 
-/** Absolute path of a dialogue's ledger. */
-export function ledgerPath(cwd: string, slug: string): string {
-  return join(cwd, '.noldor', 'design', `${slug}.md`);
+/**
+ * Absolute path of a dialogue's ledger.
+ *
+ * The slug is branded, so the only reachable refusal is repository tampering
+ * inside `.noldor/design` — a symlink or a relocated root. Reading or writing a
+ * ledger has no result channel of its own, so that fails loudly.
+ */
+export function ledgerPath(cwd: string, slug: Slug): string {
+  const built = slugPath(cwd, ['.noldor', 'design'], slug, { suffix: '.md' });
+  if (!built.ok) throw new Error(`cannot resolve design ledger: ${built.error.kind}`);
+  return built.path;
 }
 
 /** A ledger with every heading present and no content — the first-write shape. */
@@ -469,13 +479,13 @@ export function serializeLedger(slug: string, state: LedgerState): string {
 }
 
 /** Read a ledger from disk, or an empty state when the file does not exist. */
-export function readLedger(cwd: string, slug: string): LedgerState {
+export function readLedger(cwd: string, slug: Slug): LedgerState {
   const p = ledgerPath(cwd, slug);
   if (!existsSync(p)) return emptyLedger();
   return parseLedger(readFileSync(p, 'utf8'));
 }
 
-export function writeLedger(cwd: string, slug: string, state: LedgerState): void {
+export function writeLedger(cwd: string, slug: Slug, state: LedgerState): void {
   const p = ledgerPath(cwd, slug);
   mkdirSync(dirname(p), { recursive: true });
   atomicWriteFileSync(p, serializeLedger(slug, state));

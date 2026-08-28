@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { slugPath } from '../core/slug-paths.js';
+import type { Slug } from '../core/slug.js';
 import { mkdir, readFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -89,13 +91,20 @@ export function ledgerDir(cwd: string): string {
   return join(cwd, '.noldor', 'cr', 'autofix');
 }
 
-/** Ledger path for a `slug`+`kind` pair. */
-export function ledgerPath(cwd: string, slug: string, kind: ArtifactKind): string {
-  return join(ledgerDir(cwd), `${slug}-${kind}.json`);
+/**
+ * Ledger path for a `slug`+`kind` pair.
+ *
+ * Branded slug in, so a refusal here means a symlink or relocated root under
+ * `.noldor/cr/autofix` — repository tampering, not a bad argument.
+ */
+export function ledgerPath(cwd: string, slug: Slug, kind: ArtifactKind): string {
+  const built = slugPath(cwd, ['.noldor', 'cr', 'autofix'], slug, { suffix: `-${kind}.json` });
+  if (!built.ok) throw new Error(`cannot resolve autofix ledger: ${built.error.kind}`);
+  return built.path;
 }
 
 /** Quarantine path a malformed ledger is renamed to. */
-export function quarantinePath(cwd: string, slug: string, kind: ArtifactKind): string {
+export function quarantinePath(cwd: string, slug: Slug, kind: ArtifactKind): string {
   return `${ledgerPath(cwd, slug, kind)}.bad`;
 }
 
@@ -136,7 +145,7 @@ export function fingerprintBlockers(blockers: readonly Finding[]): string {
  */
 export async function readLedger(
   cwd: string,
-  slug: string,
+  slug: Slug,
   kind: ArtifactKind,
   sessionStartedAt: string,
 ): Promise<AutofixLedger | null> {
@@ -181,7 +190,7 @@ export async function readLedger(
  */
 export async function appendRound(
   cwd: string,
-  slug: string,
+  slug: Slug,
   kind: ArtifactKind,
   sessionStartedAt: string,
   round: Omit<AutofixRound, 'round'>,
@@ -212,7 +221,7 @@ export async function appendRound(
  */
 export async function quarantineLedger(
   cwd: string,
-  slug: string,
+  slug: Slug,
   kind: ArtifactKind,
 ): Promise<string | null> {
   const dest = quarantinePath(cwd, slug, kind);

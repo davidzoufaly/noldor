@@ -3,6 +3,7 @@
 // (context-cli.ts) is the reader.
 
 import { runIfDirect } from '../core/cli-entry.js';
+import { isSlug, slugErrorMessage } from '../core/slug.js';
 import {
   digestBody,
   locateForDialogue,
@@ -278,6 +279,14 @@ export function runLog(
   ]);
   if (badSlug) {
     err(`${badSlug}\n`);
+    return 1;
+  }
+
+  // `validateSlugs` decides legality (it delegates to `parseSlug`); this
+  // restates it as a narrowing so the ledger builders below receive the branded
+  // type they require. Same rule, expressed to the type system.
+  if (!isSlug(parsed.slug)) {
+    err(`${slugErrorMessage(parsed.slug)}\n`);
     return 1;
   }
 
