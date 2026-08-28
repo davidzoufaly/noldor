@@ -23,7 +23,7 @@ One premise in the roadmap entry does not survive contact with the code. The ent
 
 ## Non-goals
 
-- Any persisted approval record — no sidecar file, no commit trailer, no FD frontmatter field.
+- Any persisted **machine-readable** approval artifact — no sidecar file, no commit trailer, no FD frontmatter field. The approval sentence D1 requires is a record, but it is prose inside an artifact that already exists, not a new thing to parse.
 - Any machine-checkable enforcement of the verdict (see D3 for what that costs).
 - Any edit to `/noldor-gate`, `design archive`, `checks ui-design-freshness`, or the `ui-reviewer` lane.
 - Verifying the design's *content*. Node cannot read `.pen`; comparing implemented UI to the design is already `ui-reviewer` (Q-0145) and render-compare (Q-0146).
@@ -44,13 +44,16 @@ That branch currently carries seven bullets — Zero affected surfaces / Assert 
 
 The bullet's contract, in order:
 
-1. **Re-read, don't recall.** Confirm via `get_app_state` that exactly one `FINAL:<surface>:` page exists per affected surface, reading the `.pen` rather than session memory.
-2. **Show the pages, not their names.** Open the `.pen` in the editor (`pnpm noldor design pen-bridge`) so the operator sees the winner and the alternatives rendered. Listing page names in chat does not satisfy this — it would recreate the unwitnessed-selection problem in new clothing.
-3. **Take one atomic verdict** over the whole `FINAL:` set — approve / revise. Approval is not per surface: a multi-surface feature is approved as one design or not at all, which keeps the state space at two values and avoids a partial-approval state the prose would then have to track per surface.
-4. **`revise`** reopens the iteration loop and re-presents the entire set when it settles again.
-5. **Bounded at two revise rounds**, mirroring `AUTOFIX_ROUND_CAP = 2` and the gate's bounded re-round rule. At the cap the operator may **approve with reservations**, recorded in `## Design` alongside the reservation — an operator loop with no ceiling self-feeds, and every other operator loop in this framework is bounded for that reason.
+1. **Re-read, don't recall.** Via `get_app_state`, confirm exactly one `FINAL:<surface>:` page per affected surface, reading the `.pen` rather than session memory. A surface with no `FINAL:` page, or with more than one, is an unfinished iteration, not a failed approval: return to **Iterate**, resolve it, and come back. That return does not consume a revise round. A `FINAL:` page naming a surface outside the verdict's `affectedSurfaces` is a config gap already owned by the branch's first bullet (`unmappedPaths`).
+2. **Show the pages, not their names.** Open the session's own `.pen` and **navigate to each page in turn** — every `FINAL:<surface>:` winner and every alternative it beat — naming each as it is shown. Opening the file is not sufficient: a multi-page document sitting on an arbitrary page displays nothing in particular, and listing page names in chat would recreate the unwitnessed-selection problem in new clothing.
 
-Gate Step 2.5 was considered as a second surface and rejected. Its detailed spec summary is gated on `specs-only-*` ([`.claude/skills/noldor-gate/SKILL.md:150`](../../../.claude/skills/noldor-gate/SKILL.md)), so `full-*` would get no surface at all; and "withhold `proceed` when the design is unnamed" has no legal exit, since adding a prompt is out of scope and `address-blockers` has no lane finding to fix — leaving `abort` as the only move, against the same skill's own invariant that `proceed` stays available at every point. Dropping it also halves the change surface, which is R2's stated risk.
+   Name the file explicitly: `pnpm noldor design pen-bridge --pen docs/design/ui/<date>-<dialogue-key>.pen`, or `code <that file>`. **A bare `pnpm noldor design pen-bridge` opens the wrong document here.** Its candidate set comes from `trackedPenFiles` ([pen-bridge-cli.ts](../../../src/design/pen-bridge-cli.ts)), which shells `git ls-files -- '*.pen'` and therefore sees only the index — and this session's `.pen` is still untracked at step 1.5, since it commits with the spec at gate Step 2.5. The ranking would hand the editor some other tracked design and the operator would approve while looking at a stale artifact. The CLI's `--pen` flag exists for exactly this and validates that the path is a `.pen` that is on disk.
+3. **Take one atomic verdict** over the whole `FINAL:` set — approve / revise. Approval is not per surface: a multi-surface feature is approved as one design or not at all, which keeps the state space small and avoids a partial-approval state the prose would have to track per surface.
+4. **`revise` carries direction.** The operator says what should change; a bare "revise" with no direction is re-asked rather than acted on, and does not consume a round — an unactionable verdict is not a revision.
+5. **Write the approval after taking it.** The verdict bullet, not **Record**, writes the D1 approval sentence into `## Design`. Record runs three bullets earlier and cannot truthfully assert an approval that has not happened yet; it keeps its existing job of naming the chosen variant and alternatives, and the verdict bullet adds the sentence that says the operator ratified them.
+6. **The revise bound is soft, and governs the agent.** After two revise rounds the agent must additionally offer **approve with reservations** — the reservation recorded in `## Design` beside the approval. It does not cap the operator: revising a third time stays legal. A hard cap here would wedge a dissenting operator exactly the way the rejected gate-side "withhold `proceed`" would have, since there is no third terminal answer to fall back on.
+
+Gate Step 2.5 was considered as a second surface and rejected. Its detailed spec summary is gated on `specs-only-*` ([`.claude/skills/noldor-gate/SKILL.md:150`](../../../.claude/skills/noldor-gate/SKILL.md)), so `full-*` would get no surface at all; and "withhold `proceed` when the design is unnamed" has no legal exit, since adding a prompt is out of scope and `address-blockers` has no lane finding to fix — leaving `abort` as the only move, against the same skill's own invariant that `proceed` stays available at every point.
 
 ### D3 — Enforcement: what "cannot reach the code stage" means
 
@@ -66,9 +69,10 @@ This is a real reduction against the roadmap entry, which states its deletion te
 | --- | --- | --- | --- |
 | `uiVerdict: skip` | no | no | no |
 | `uiVerdict: required`, no waiver | yes | **yes** | **yes** — approval sentence per surface |
-| `uiVerdict: required` + `uiWaiver` | no | no | the existing waiver note only |
+| `uiVerdict: required` + `uiWaiver`, waived at Seed | no | no | the existing waiver note only |
+| `uiVerdict: required` + `uiWaiver`, waived at the verdict | **yes** | no | the waiver note, naming the unapproved `.pen` |
 
-A waiver is not a third verdict and not a rejection. It is the pre-existing editor-unavailable escape ([session.ts](../../../src/core/session.ts)): no `.pen` was produced, so there is nothing to approve, and the session's baseline debt is already recorded by the waiver itself.
+A waiver is not a third verdict and not a rejection. It is the pre-existing editor-unavailable escape ([session.ts](../../../src/core/session.ts)), and it can be taken at either of two points. Waived at **Seed**, no `.pen` was ever produced and there is nothing to approve. Waived at the **verdict** — the bridge died after iteration, which is a live risk the "Wake the bridge" bullet exists for — the `.pen` exists but was never shown: it is kept and committed like any other design artifact, and the waiver note must say it went unapproved, so a later reader does not mistake an archived `.pen` for a ratified one. Either way the session's baseline debt is recorded by the waiver itself.
 
 ### D5 — Archival is untouched
 
@@ -80,15 +84,16 @@ Prose only, in two files: `.claude/skills/noldor-spec/SKILL.md` (step 1.5, the a
 
 ## Acceptance criteria
 
-1. On a `uiVerdict: required` session with no `uiWaiver`, step 1.5 re-reads the `FINAL:<surface>:` pages from the `.pen` via `get_app_state` and opens the file in the editor before asking, and does not conclude until the operator answers approve or revise.
-2. The verdict is atomic over the whole `FINAL:` set; `revise` reopens the iteration loop and re-presents every affected surface.
-3. After two revise rounds the operator can approve with reservations, and the reservation is written into `## Design`.
-4. `## Design` states, per affected surface, that the operator approved the named final variant over the named alternatives.
-5. On a `uiVerdict: skip` session, step 1.5 asks nothing new and writes nothing new.
-6. A session carrying `uiWaiver` is exempt even though its `uiVerdict` is `required`.
-7. `/noldor-gate` is unchanged — no new prompt, no new assertion, no diff to either its live file or its twin.
-8. `.claude/skills/noldor-spec/SKILL.md` stays byte-identical to its `templates/` twin (`pnpm noldor checks template-sync` green).
-9. No file under `src/` changes, and no new CLI subcommand or check is registered.
+1. On a `uiVerdict: required` session with no `uiWaiver`, step 1.5 re-reads the `FINAL:<surface>:` pages from the `.pen` via `get_app_state`, opens **that file by path** and navigates to each winner and alternative before asking, and does not conclude until the operator answers approve or revise.
+2. A surface with zero or with multiple `FINAL:` pages routes back to Iterate without consuming a revise round.
+3. The verdict is atomic over the whole `FINAL:` set; a `revise` carrying direction reopens the iteration loop and re-presents every affected surface, and a `revise` carrying none is re-asked without consuming a round.
+4. After two revise rounds the agent offers approve-with-reservations, the reservation is written into `## Design`, and revising again remains legal.
+5. The approval sentence is written by the verdict step, after the verdict — `## Design` states, per affected surface, that the operator approved the named final variant over the named alternatives.
+6. On a `uiVerdict: skip` session, step 1.5 asks nothing new and writes nothing new.
+7. A session carrying `uiWaiver` is exempt even though its `uiVerdict` is `required`; when the waiver was taken after the `.pen` existed, the waiver note names it as unapproved.
+8. `/noldor-gate` is unchanged — no new prompt, no new assertion, no diff to either its live file or its twin.
+9. `.claude/skills/noldor-spec/SKILL.md` stays byte-identical to its `templates/` twin (`pnpm noldor checks template-sync` green).
+10. No file under `src/` changes, and no new CLI subcommand or check is registered.
 
 ## Verification
 
@@ -101,23 +106,23 @@ No automated test can observe a conversational contract, so the evidence is a sc
 - **waiver** — no prompt; the existing waiver note is the only trace.
 - **multi-surface** — one verdict covers every affected surface; no per-surface partial state appears.
 
-`checks template-sync` green and an empty `git diff` on `.claude/skills/noldor-gate/SKILL.md` cover criteria 7–9 mechanically.
+Criteria 8–10 are mechanical: `pnpm noldor checks template-sync` green, an empty `git diff` over both `.claude/skills/noldor-gate/SKILL.md` and `templates/.claude/skills/noldor-gate/SKILL.md`, and an empty `git diff -- src/`.
 
 ## Risks / trade-offs
 
 - **R1 — Unenforceable by construction.** The roadmap entry's deletion test asks for an impossibility; this ships a question and a prose requirement. A controller that skips the step leaves nothing behind that anything looks for. Accepted deliberately (D1, D3); the honest scope is "the operator is asked", not "the operator cannot be bypassed".
-- **R2 — Prose in the framework's busiest design surface.** `/noldor-spec` step 1.5 is already the longest branch in the skill, and every added paragraph competes for controller attention. Mitigated by appending one bullet to one skill after dropping the gate-side edit — half the surface originally drafted.
+- **R2 — Prose in the framework's busiest design surface.** `/noldor-spec` step 1.5 is already the longest branch in the skill, and every added paragraph competes for controller attention. Mitigated by confining the change to one appended bullet in one skill.
 - **R3 — No exercise in self-host.** Noldor declares no `consumer.uiPaths` and has no `docs/design/ui/`, so every session here resolves to `skip` and the new bullet never fires. First real exercise is a consumer (charuy); the Verification scenarios above have to run there.
 - **R4 — The verdict is a look, not a fact.** The cheap half is closed: D2 requires the pages to be re-read from the `.pen` and opened in the editor, so what is shown is what the file holds. The expensive half remains — nothing verifies that the spec's named variant matches the approved page, and the operator is still approving what the agent renders rather than pixels a check compared.
 
 ## User Story
 
-As an operator shipping a UI-bearing feature through the gate, I want to see the chosen `.pen` design opened in the editor and be asked to approve it while its variants are still on screen, so that implementation never starts against a design nobody agreed to and the archived spec records that I approved that variant over the alternatives.
+As an operator shipping a UI-bearing feature through the gate, I want to see the chosen `.pen` design opened in the editor and be asked to approve it while its variants are still on screen, so that I am asked before implementation begins rather than after, and the archived spec records that I approved that variant over the alternatives.
 
 ## Usage
 
-- Automatic, on UI-bearing sessions only: at `/noldor-spec` step 1.5, once one `FINAL:<surface>:` page is marked per affected surface, the skill re-reads the pages, opens the `.pen` in the editor and asks approve / revise.
-- `revise` reopens the variant loop; after two rounds, approve-with-reservations is available and the reservation is recorded.
+- Automatic, on UI-bearing sessions only: at `/noldor-spec` step 1.5, once one `FINAL:<surface>:` page is marked per affected surface, the skill re-reads the pages, opens that `.pen` by path (`pnpm noldor design pen-bridge --pen <the session's .pen>` — a bare invocation opens a *tracked* file, and this one is not tracked yet), navigates each winner and alternative, and asks approve / revise.
+- `revise` must say what to change; after two rounds approve-with-reservations is offered as well, and revising again stays legal.
 - The approval, the chosen variant and its alternatives are written into the spec's `## Design` section, which commits with the spec at gate Step 2.5 and archives beside the `.pen` at Step 4.
 - Nothing to run, configure or check. A repo with no `consumer.uiPaths` never sees the step.
 
