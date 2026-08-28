@@ -36,9 +36,13 @@ Both mechanical homes are closed anyway: `.noldor/session.json` and `.noldor/des
 
 ### D2 — Where the seam sits in the flow
 
-`/noldor-spec` step 1.5 gains a fourth bullet after **Record**: once exactly one `FINAL:<surface>:` page exists per affected surface, present the winner and the alternatives and take an explicit verdict — approve / revise. `revise` returns to the iteration loop and re-presents; there is no third state, because a design that is neither approved nor being revised is just an unanswered question. The question sits here rather than later for one reason: this is the only point in the flow where the variants are actually on screen.
+`/noldor-spec` step 1.5's `required` branch currently carries seven bullets — Zero affected surfaces / Assert the write target / Seed / Iterate / Record / Wake the bridge / Editor unavailable — of which **Record is the fifth**. The verdict bullet is appended as the **eighth and last**, after **Editor unavailable**, not inserted after Record: the final two bullets are cross-cutting fallbacks rather than sequential steps, so appending keeps the sequential Seed → Iterate → Record → Approve reading intact and puts the verdict below the waiver bullet that exempts a session from ever reaching it.
 
-Gate Step 2.5 gains **no new prompt**. Its existing detailed-spec-summary bullet — the one that already renders Scope / Files touched / Acceptance criteria / Deferred risks before the continue-dialog on `specs-only-*` — grows one line: on a session whose `uiVerdict` is `required`, the summary must name the approved design, and `proceed` must not advance while it cannot. Step 2.5 is already the most prompt-dense seam in the gate; an assertion inside prose the controller already prints costs nothing and still gives the gate something to refuse on.
+The bullet reads: once exactly one `FINAL:<surface>:` page exists per affected surface, re-read the pages from the file via `get_app_state` rather than from session memory, confirm exactly one `FINAL:<surface>:` per affected surface, then present the winner and the alternatives and take an explicit verdict — approve / revise. `revise` returns to the iteration loop and re-presents; there is no third state, because a design that is neither approved nor being revised is just an unanswered question. The question sits here rather than later for one reason: this is the only point in the flow where the variants are actually on screen.
+
+Gate Step 2.5 gains **no new prompt**. Its existing detailed-spec-summary bullet — the one that already renders Scope / Files touched / Acceptance criteria / Deferred risks before the continue-dialog on `specs-only-*` — grows one line: on a session whose `uiVerdict` is `required` **and which carries no `uiWaiver`**, the summary must name the approved design.
+
+The waiver term in that predicate is load-bearing, not defensive. Step 1.5 writes `uiVerdict` *before* the `required` branch runs, so a waived session carries **both** `uiVerdict: required` and `uiWaiver` — which is exactly why [`ui-design-resolve.ts`](../../../src/cr/lanes/ui-design-resolve.ts) tests `session.uiWaiver` first. Keying on the verdict alone would leave every waived UI session facing a summary that can never name a design. Step 2.5 is already the most prompt-dense seam in the gate; an assertion inside prose the controller already prints costs nothing and still gives the gate something to refuse on.
 
 The waiver path is unchanged and is not a third verdict: a session that waived the design step under `uiWaiver` ([session.ts](../../../src/core/session.ts)) has no `.pen` to approve, so there is nothing to ask about.
 
@@ -58,12 +62,13 @@ Prose only, in four files: `.claude/skills/noldor-spec/SKILL.md` (step 1.5, the 
 
 ## Acceptance criteria
 
-1. On a `uiVerdict: required` session, `/noldor-spec` step 1.5 does not conclude until the operator has answered approve or revise on the marked `FINAL:` pages.
+1. On a `uiVerdict: required` session with no `uiWaiver`, `/noldor-spec` step 1.5 re-reads the `FINAL:<surface>:` pages from the `.pen` via `get_app_state` before presenting them, and does not conclude until the operator has answered approve or revise.
 2. `revise` returns to the variant-iteration loop and the question is re-asked; it does not advance the spec.
 3. The approved variant and the alternatives considered are named in the spec's `## Design` section before the spec is committed.
 4. On a `uiVerdict: skip` session, step 1.5 asks nothing new and writes nothing new.
 5. On a session carrying `uiWaiver`, step 1.5 asks nothing new — there is no `.pen` to approve.
-6. Gate Step 2.5's detailed spec summary names the approved design on a `uiVerdict: required` session, and withholds `proceed` while it cannot.
+6. Gate Step 2.5's detailed spec summary names the approved design on a session whose `uiVerdict` is `required` and which carries no `uiWaiver`.
+6a. A session carrying `uiWaiver` is exempt from criterion 6 even though its `uiVerdict` is `required`.
 7. Gate Step 2.5 fires no additional `AskUserQuestion` on any path.
 8. `.claude/skills/noldor-spec/SKILL.md` and `.claude/skills/noldor-gate/SKILL.md` remain byte-identical to their `templates/` twins (`pnpm noldor checks template-sync` green).
 9. No file under `src/` changes, and no new CLI subcommand or check is registered.
@@ -73,7 +78,7 @@ Prose only, in four files: `.claude/skills/noldor-spec/SKILL.md` (step 1.5, the 
 - **R1 — Unenforceable by construction.** The roadmap entry's deletion test asks for an impossibility; this ships a question and a prose requirement. A controller that skips the step leaves nothing behind that anything looks for. Accepted deliberately (D1, D3); the honest scope is "the operator is asked", not "the operator cannot be bypassed".
 - **R2 — Prose in the two hottest skills.** `/noldor-spec` and `/noldor-gate` are the framework's highest-traffic instruction surfaces, and every added paragraph competes for controller attention with everything already there. Mitigated by adding one bullet and one line rather than a section, and by putting no new prompt on Step 2.5.
 - **R3 — No exercise in self-host.** Noldor declares no `consumer.uiPaths` and has no `docs/design/ui/`, so every session here resolves to `skip` and the new bullet never fires. First real exercise is a consumer (charuy). Same exposure Q-0144 already carries; there is no unit test to write for a prose change.
-- **R4 — The verdict is a look, not a fact.** Nothing verifies that the `FINAL:` pages presented are the ones that exist, or that the spec's named variant matches the `.pen`. The operator is approving what the agent describes.
+- **R4 — The verdict is a look, not a fact.** The cheap half is closed: D2 requires the pages to be re-read from the `.pen` via `get_app_state` before presentation, so what is shown is what the file holds rather than what session memory recalls. The expensive half remains — nothing verifies that the spec's named variant matches the approved page, and the operator is still approving what the agent describes rather than pixels it rendered.
 
 ## User Story
 
