@@ -23,7 +23,7 @@ Repository-authored references feed non-slugs into the same readers, through two
 ## Goals
 
 - Every path built from an externally-supplied or repository-authored slug is validated and containment-checked before any slug-derived protected operation — any `exists`, read, write, process launch, kill, or git call keyed on that slug.
-- The guarantee is enforced by the compiler rather than by reviewer attention, so a call site that skips the guard does not build.
+- Slug-rooted path construction has exactly one implementation, and the compiler refuses a raw `string` reaching it. **This does not make omission impossible** — a new call site can still `join` a raw argv value and compile. What the type system buys is that using the sanctioned builder is the path of least resistance and misusing it is a build error; what it cannot buy is detecting a call site that ignores the builder entirely. That residue is reported, not prevented (Unit 3), and this spec claims nothing stronger.
 - One accept/reject rule for slugs across the whole repo, replacing the three that exist today.
 - The slug shape is encoded in the schemas that carry repository-authored references, so invalid state fails to load rather than flowing into readers.
 
@@ -46,8 +46,13 @@ export type Slug = string & { readonly __slug: unique symbol };
 export type SlugError = { kind: 'invalid-slug'; value: string; message: string };
 
 export function parseSlug(value: string): { ok: true; slug: Slug } | { ok: false; error: SlugError };
-export function isSlug(value: string): value is Slug;   // predicate, unchanged shape
+export function isSlug(value: string): value is Slug;   // narrowing predicate
+export const slugSchema: z.ZodType<Slug>;               // regex + transform, so it infers Slug
 ```
+
+`slugSchema` is `z.string().regex(SLUG_RE, …).transform((v) => v as Slug)` rather than a bare regex schema: a plain `z.string().regex(...)` infers `string`, which would not satisfy a builder demanding a `Slug`, so the brand has to be produced at the parse boundary.
+
+**Where `string` becomes `Slug`.** Exactly one class of place: an entry point that receives untrusted text — a CLI argv parser, or an exported library function that a consumer may call with a plain string (`createWorktree`, `upWorktree`, `downWorktree`, `draftMilestone`, `loadMilestoneBySlug`, `activateMilestone`). Each takes `string` in its public signature, calls `parseSlug` as its first statement, and passes `Slug` inward. Everything below that line — `preflightActivate`, the builders, the path owners — takes `Slug` and cannot fail slug validation. That is why the acceptance criteria can call `createWorktree` and `loadMilestoneBySlug` with invalid strings: those are the parse boundaries.
 
 `Slug` is a branded string. Branding is what makes the goal enforceable: `parseSlug` is the only function that produces one, so a raw `string` from argv cannot reach a path builder without passing through it, and the failure is a compile error rather than a review finding. This reverses the earlier decision to defer branding — deferral assumed a static check could carry the enforcement instead, and Unit 3 shows it cannot.
 
@@ -56,16 +61,33 @@ export function isSlug(value: string): value is Slug;   // predicate, unchanged 
 A new `src/core/slug-paths.ts` holds exactly one function, the guarded join:
 
 ```ts
-export type PathError = SlugError | { kind: 'escapes-root'; path: string; root: string };
-export function slugPath(root: string, slug: Slug, suffix?: string):
-  { ok: true; path: string } | { ok: false; error: PathError };
+export type PathError =
+  | { kind: 'escapes-root'; path: string; anchor: string }
+  | { kind: 'unsafe-symlink'; path: string };
+
+export function slugPath(
+  anchor: string,                       // repo root; containment is judged against this
+  relRoot: readonly string[],           // root segments beneath the anchor, e.g. ['docs','features']
+  slug: Slug,
+  seg?: { prefix?: string; suffix?: string },
+): { ok: true; path: string } | { ok: false; error: PathError };
 ```
 
-It joins `root` with `slug + (suffix ?? '')`, then resolves **both** the joined path and `root` with `resolveExisting` (`src/core/branch-added.ts:197`) and compares them with `contained()` — currently private at `src/design/artifact-locate.ts:80` and lifted here. `contained()` does no realpath of its own; it is a pure `candidate === root || candidate.startsWith(root + sep)`, and `vet()` applies `resolveExisting` to each side separately at `:96` and `:207`. Resolving both sides is required, not defensive: the `branch-added.ts` docstring notes that same-form-on-both-sides is mandatory, else a `/var` versus `/private/var` cwd rejects every legal path.
+Three things follow from this shape, each fixing a defect the earlier draft had:
 
-`resolveExisting` also settles the prospective-path case — a worktree directory or milestone draft that does not exist yet. It resolves the deepest existing ancestor and re-appends the unresolved tail, so a not-yet-created target normalizes without an ENOENT, and a broken symlink resolves to the dangling target's normalized form rather than throwing. A `root` that itself resolves outside the repository is a misconfiguration, not an attack, and `slugPath` fails closed on it with `escapes-root` rather than silently accepting a relocated root.
+**`SlugError` is not an arm.** `slugPath` takes an already-branded `Slug`, so slug validation cannot fail here; the only failures are containment ones. An unreachable error arm is a contract that lies.
 
-`slugPath` takes a `root` rather than a `cwd` precisely so it composes with the owners below instead of replacing them.
+**The guarded segment carries a prefix as well as a suffix.** The path is `join(anchor, ...relRoot, prefix + slug + suffix)`. This is what `dev-<slug>.pids` needs: `src/worktrees/down-worktree.ts:37` builds `join(opts.cwd, '.noldor', \`dev-${opts.slug}.pids\`)` — one segment with the slug in the middle, and that prefixed segment is exactly the escape the Problem section names. A suffix-only signature could not express it. Because `SLUG_RE` admits no separator and `prefix`/`suffix` are literals owned by the builder, the composed segment is always a single path component.
+
+**Containment is judged against the anchor, not against `relRoot`.** The root is composed *from* the anchor rather than passed in ready-made, so a relocated or symlinked root cannot define its own legality. Resolving a passed-in root and comparing the candidate to it — the earlier draft's rule — accepts a symlinked root pointing outside the repository, because both sides resolve under the same outside location and the comparison succeeds. Anchoring on the repo root closes that: `resolveExisting(join(anchor, ...relRoot, seg))` must be contained in `resolveExisting(anchor)`.
+
+Both sides are resolved with `resolveExisting` (`src/core/branch-added.ts:197`) and compared with `contained()` — currently private at `src/design/artifact-locate.ts:80` and lifted here. `contained()` does no realpath of its own; it is a pure `candidate === root || candidate.startsWith(root + sep)`, and `vet()` applies `resolveExisting` to each side separately at `:96` and `:207`. Resolving both sides is required, not defensive: the `branch-added.ts` docstring notes that same-form-on-both-sides is mandatory, else a `/var` versus `/private/var` cwd rejects every legal path.
+
+`resolveExisting` settles the prospective-path case — a worktree directory or milestone draft that does not exist yet. It resolves the deepest existing ancestor and re-appends the unresolved tail, so a not-yet-created target normalizes without an ENOENT.
+
+**A dangling symlink at the final segment is refused explicitly, because resolution does not cover it.** `realpathSync` throws on a link whose target does not exist, so `resolveExisting` falls back to resolving the *parent* and re-appending `basename` — returning the link's own path, not the target's. Verified directly: a symlink at `<root>/dangling` pointing at a nonexistent path resolves to `<root>/dangling`, which is inside the root and passes `contained()`; the next `mkdirSync` or `writeFileSync` then follows the link and lands outside. Containment alone therefore cannot cover this case, whatever it resolves.
+
+The rule is a separate check: `slugPath` `lstat`s the composed final segment and returns `unsafe-symlink` when it is a symbolic link, regardless of where the link points. No legitimate Noldor path has a symlink at its slug segment — a worktree directory, a feature MD, a milestone MD, a lane sink and a pid file are all created by the framework itself — so refusing the whole category is correct rather than merely conservative, and it needs no target resolution. Write sites additionally open with `O_NOFOLLOW` where the platform supports it, closing the window between the check and the open.
 
 ### Unit 2 — Existing owners validate; no root is re-homed
 
@@ -73,23 +95,25 @@ Path roots already have single owners, and this change does not move them. `src/
 
 So each existing owner calls `slugPath` and returns a result:
 
-| Owner | Root passed to `slugPath` | Suffix |
-|---|---|---|
-| `laneSinkPath` (`src/cr/filename.ts:13`) | `join(root, '.noldor', 'cr')` | `-<kind>-<lane>.json` |
-| `ledgerPath` (`src/design/ledger.ts:180`) | `join(cwd, '.noldor', 'design')` | `.md` |
-| escalation path (`src/cr/escalate.ts:38`) | `join(cwd, '.noldor', 'cr')` | `-escalation-context.md` |
-| new `featurePath(cwd, slug)` | `loadDocRoots(cwd).features` | `.md` |
-| new `milestonePath(cwd, slug)` | `loadDocRoots(cwd).milestones` | `.md` |
-| new `worktreePath(cwd, slug)` | `join(cwd, '.worktrees')` | — |
-| new `worktreePidsPath(cwd, slug)` | `join(cwd, '.noldor')` | — (prefix `dev-`, suffix `.pids`) |
+| Owner | `relRoot` | `prefix` | `suffix` |
+|---|---|---|---|
+| `laneSinkPath` (`src/cr/filename.ts:13`) | `['.noldor','cr']` | — | `-<kind>-<lane>.json` |
+| `ledgerPath` (`src/design/ledger.ts:180`) | `['.noldor','design']` | — | `.md` |
+| escalation path (`src/cr/escalate.ts:38`) | `['.noldor','cr']` | — | `-escalation-context.md` |
+| new `featurePath` | `['docs','features']` | — | `.md` |
+| new `milestonePath` | `['docs','milestones']` | — | `.md` |
+| new `worktreePath` | `['.worktrees']` | — | — |
+| new `worktreePidsPath` | `['.noldor']` | `dev-` | `.pids` |
 
-`featurePath` and `milestonePath` live beside `loadDocRoots` in `src/core/doc-roots.ts`; the two worktree builders live in `src/worktrees/`. The `dev-<slug>.pids` family is named explicitly because it is a slug-rooted path with a *prefix*, which a suffix-only builder would miss — `slugPath` takes the prefix as part of `root`'s sibling handling by joining `dev-` into the suffix argument's counterpart, so the builder passes `dev-` + slug + `.pids` as one guarded segment.
+Each owner keeps its own arity and passes its `anchor` through — `laneSinkPath(root, slug, kind, lane)` forwards `root`, `ledgerPath(cwd, slug)` forwards `cwd`. `featurePath` and `milestonePath` live beside `loadDocRoots` in `src/core/doc-roots.ts` and take their `relRoot` from the same constants `loadDocRoots` uses, so there is still one definition of where features and milestones live. The two worktree builders live in `src/worktrees/`.
+
+**Signatures.** Every builder is `(anchor, slug: Slug, …) => { ok: true; path: string } | { ok: false; error: PathError }`. The result is not ceremony: with a `Slug` in hand `escapes-root` is reachable only through a relocated or symlinked root, but `unsafe-symlink` is reachable on *every* call, since anyone can drop a symlink at the target. `ledgerPath` has 31 call sites and `laneSinkPath` two, so this is the largest mechanical cost in the change — accepted because the alternative, a total builder plus a separate `assertSafe` at each read/write, restores exactly the forgettable second step this design exists to remove.
 
 **Call-site conversion.** `upWorktree()`, `downWorktree()`, `createWorktree()`, the two phase CLIs, and the milestone exports each build their path through the matching builder and handle the failure branch before any side effect. The milestone exports are `draftMilestone` (`src/milestones/lib.ts:65`), `loadMilestoneBySlug` (`:58`) and `activateMilestone` (`:154`) — the last is what `src/milestones/cli.ts:42` calls; `preflightActivate` (`:90`) is private and is reached only through it, so it takes an already-parsed `Slug` and needs no result of its own.
 
 Blast radius is small and measured: `upWorktree` and `downWorktree` have no non-test callers outside their own `main()`; the milestone functions have four (`src/milestones/cli.ts` ×2, `src/dashboard/data.ts` ×2). `activateMilestone` returns a result; `loadMilestoneBySlug` already returns `Milestone | null` and widens to a result so an invalid slug is distinguishable from an absent file.
 
-**`createWorktree` converts too.** It validates today but throws, which would leave two contracts for one condition — a direct library caller gets an exception where every sibling gets a result. It returns the same result type and builds its path through `worktreePath`, and `upWorktree` propagates. This is a reversal of the earlier position that it should keep throwing.
+**`createWorktree` converts, and so do its other refusals.** It validates today but throws, which would leave two contracts for one condition. Converting only the slug throw would not fix that: `src/worktrees/create-worktree.ts` throws at `:82` (invalid slug), `:91` (not the main workspace), `:96` (worktree exists) and `:107` (branch exists), and all four are *expected* failures of external input or repository state, not programmer errors. All four become arms of one result union; `:124` (pnpm install failed) stays a throw, being a subprocess failure the boundary converts with `cause` per `error-result-types`. `upWorktree` propagates, and the self-call at `:167` is updated with it.
 
 **Repository-authored slugs that already reach a path.** Three cases exist today:
 
@@ -105,7 +129,9 @@ All three adopt `milestonePath`. Unit 4 closes the first and third at the schema
 
 ### Unit 3 — What enforces the policy, and what only reports it
 
-The compiler is the enforcement. Once every builder demands a `Slug`, a call site that joins a raw argv string is a type error, and that covers every construction — `join`, `resolve`, template literal, concatenation, a root read from a const or from `loadDocRoots`. No static-analysis pass is needed for the enforced half, which is the half that matters.
+The compiler enforces *correct use of the builders*, and nothing more. Once every builder demands a `Slug`, passing a raw argv string to one is a type error. What the compiler cannot see is a call site that never calls a builder at all: `join(cwd, 'docs', 'features', argvSlug + '.md')` type-checks perfectly, because `join` takes strings. Any claim that omission "does not build" would be false, and the Goals section states the weaker property that is actually true.
+
+This is the honest ceiling, and it is worth naming why it is not raised further. Raising it would need a static pass over every path-forming expression — and that pass is unavailable here.
 
 A static check cannot carry this load in this repo, and the reason is concrete: **TypeScript 7 dropped the in-process JS compiler API**, as `src/invariants/public-api-tsdoc.ts:6-12` records, so `ts.createSourceFile` is unavailable to an invariant plugin. The one existing AST-capable invariant, `boundaries`, runs on dependency-cruiser, which accepts `typescript >=2 <6` or `@swc/core` — and `boundaries.ts:119` reports that it currently goes **unchecked** for exactly this reason. An AST-based slug invariant would have to first solve a parser problem that already defeats a shipped invariant.
 
@@ -123,7 +149,23 @@ Migration cost here is nil — `docs/milestones/` holds no files, no FD carries 
 
 Two layers, split by what each can observe. A subprocess cannot see a read; an in-process call never runs `main()`.
 
-**Subprocess layer** — `node bin/noldor.mjs …` against a real `mkdtemp` root, following `src/cr/__tests__/autofix-cli.test.ts:27` (which also covers the router's argv reshaping). One process accepts one slug, so the spawn count is stated rather than hand-waved: the full hostile matrix — slash, `..`, leading, trailing and doubled hyphen, uppercase, Unicode, seven values — runs against one representative entry point (`features phase-flip-done`), and one canonical traversal value runs against each of the other entry points. That is 7 + 6 = **13 spawns**. Payloads are command-specific, not generic: each is constructed so that, with the guard removed, it resolves onto a purpose-built sentinel whose content the unguarded code would actually rewrite — a phase-shaped sentinel for the phase commands, a milestone-frontmatter sentinel for `activate`. A generic `../../../escape` does not reach a sentinel once the builder appends `.md` or a `dev-` prefix.
+**Subprocess layer** — against a real `mkdtemp` root, following `src/cr/__tests__/autofix-cli.test.ts:27` (which also covers the router's argv reshaping).
+
+Two invocation forms are needed, because the milestone commands are not `noldor` routes. `src/cli/manifest.ts:237` registers `milestones validate` and nothing else — `node bin/noldor.mjs milestones` prints `validate` alone — while `.claude/skills/noldor-milestone/SKILL.md:20,26` invokes `tsx src/milestones/cli.ts draft|activate`. The tests drive each entry point the way it is actually reached: `node bin/noldor.mjs …` for the worktree and phase commands, `tsx src/milestones/cli.ts …` for the milestone ones. Registering the milestone subcommands in the manifest would be an improvement but is a different change, and this spec does not assume it.
+
+One process accepts one slug, so the count is enumerated rather than asserted:
+
+| Case | Spawns |
+|---|---|
+| `features phase-flip-done` × full hostile matrix (slash, `..`, leading/trailing/doubled hyphen, uppercase, Unicode) | 7 |
+| `features phase-revert`, `tsx milestones/cli.ts draft`, `tsx milestones/cli.ts activate` × canonical traversal value | 3 |
+| `worktrees up` × canonical value, in three modes: default, `--no-create`, and with a directory already at the traversed path (AC3) | 3 |
+| `worktrees down` × canonical value, with and without `--remove` (AC4) | 2 |
+| **Total** | **15** |
+
+AC8's fifteen `--slug` CLIs are **not** in this layer. Their guard is a `parseSlug` call inside two shared parsers plus thirteen thin ones, and spawning fifteen processes to prove fifteen copies of one line is cost without signal; they are covered in-process by calling each parser with an invalid value and asserting the usage-error result. The layer split is stated here so the criterion is not read as promising subprocess coverage it does not have.
+
+Payloads are command-specific, not generic: each is constructed so that, with the guard removed, it resolves onto a purpose-built sentinel whose content the unguarded code would actually rewrite — a phase-shaped sentinel for the phase commands, a milestone-frontmatter sentinel for `activate`, a pid-shaped one for `down`. A generic `../../../escape` does not reach a sentinel once the builder appends `.md` or a `dev-` prefix. A slug value beginning with `-` is passed after `--`.
 
 **In-process layer** — exported functions called directly with hand-rolled fakes passed through the existing `UpDeps` / `DownDeps` seams, never `vi.mock`. This layer proves the ordering the goal states: `readFileSync` / `existsSync` are instrumented with a spy asserting **zero calls whose argument lies under the traversal target**, which is what "rejected before any slug-derived protected operation" means operationally. Instrumenting to prove a call did *not* happen is not mocking a collaborator — the real implementation still runs. The containment metadata reads that `resolveExisting` performs on the *root* are explicitly exempt; they are the guard, not the guarded operation.
 
@@ -134,21 +176,22 @@ Both layers use the real filesystem per `test-mocking-boundaries`. The Deletion 
 ## Acceptance criteria
 
 1. `parseSlug` returns `{ ok: false, error }` for any value failing `SLUG_RE` and a branded `Slug` otherwise; `validateSlug` accepts and rejects exactly the same values.
-2. `slugPath` refuses an invalid slug, and refuses a joined path that resolves outside its root — including through a symlinked target, a symlinked root, and a path whose final segment does not yet exist.
+2. `slugPath` returns `escapes-root` for a path resolving outside the anchor — including when `relRoot` itself is a symlink pointing outside — and `unsafe-symlink` when the composed final segment is a symbolic link, whether its target exists or dangles. A final segment that simply does not exist yet succeeds.
 3. `worktrees up <bad-slug>` exits non-zero, creates no directory, opens no editor and launches no agent — with `--no-create`, and with a directory already present at the traversed path.
 4. `worktrees down <bad-slug>` exits non-zero and invokes neither the kill seam nor the git seam — both with and without `--remove`.
 5. `features phase-flip-done <bad-slug>` and `features phase-revert <bad-slug>` exit non-zero and write no file.
 6. `milestones draft|activate <bad-slug>` and a direct `loadMilestoneBySlug(<bad-slug>)` each fail without creating, reading or rewriting a file, and an invalid slug is distinguishable from an absent milestone.
-7. A direct `createWorktree({ slug: <bad-slug> })` returns a failure result rather than throwing, and runs no git command.
+7. A direct `createWorktree({ slug: <bad-slug> })` returns a failure result rather than throwing, and runs no git command; its not-main-workspace, worktree-exists and branch-exists refusals return arms of the same union.
 8. Every CLI accepting a `--slug` flag exits non-zero on an invalid value before any slug-derived protected operation; a missing flag value remains a usage error with its own exit code.
 9. For each entry point in criteria 3–7, an instrumented `readFileSync`/`existsSync` records zero calls under the traversal target.
 10. A purpose-built sentinel outside the repo root — phase-shaped for the phase commands, milestone-shaped for `activate` — is byte-identical after every case in criteria 3–8.
-11. An FD `milestone` field or a vision `current-milestone` whose value is not a slug fails validation; an absent value stays legal.
+11. `pnpm noldor validate features` reports an error for an FD whose `milestone` value is not a slug, and `visionFrontmatterSchema` rejects a non-slug `current-milestone` at dashboard load; an absent value stays legal in both. `src/core/next-priority.ts:252` is knowingly outside this criterion — it casts rather than parses — and is covered by `milestonePath` instead.
 12. Valid slugs continue to work end-to-end: the existing worktree, phase, milestone, cr and design suites pass unchanged.
 
 ## Risks / trade-offs
 
-- **Brand plumbing.** Threading `Slug` through call chains is the cost of compiler enforcement, and it touches signatures that a text-scan approach would have left alone. It is accepted because the alternative control is unavailable: TS7 has no in-process compiler API, and the one AST-capable invariant in the repo is already dark for that reason. If the brand proves too invasive at implementation time, the fallback is not "weaken the brand" but "narrow the sweep" — the guarantee is the point.
+- **The guarantee has a real ceiling.** The brand makes builder *misuse* a build error; it does not make builder *omission* one. A future call site that joins a raw slug compiles, and only the advisory scan may notice — and only if the literal is visible to it. This is the strongest property available in this repo today, and stating it plainly is preferable to a stronger claim the code cannot honour. Raising the ceiling means restoring an AST-capable parser (installing `@swc/core` would do it, and would also revive `boundaries`), which is a separate entry.
+- **Brand plumbing and result churn.** Threading `Slug` through call chains touches signatures a text-scan approach would have left alone, and moving builders to result types touches their callers: `ledgerPath` has 31 call sites, `laneSinkPath` two. This is the largest mechanical cost in the change. If it proves too invasive at implementation time, the fallback is to narrow the sweep rather than to weaken the guard.
 - **A warn-level invariant may be ignored.** That is the honest cost of a check that cannot see split literals. It is mitigated by not resting any claim or criterion on it; the type system carries the guarantee, and the scan only shortens the feedback loop for the shapes it can see.
 - **Size.** The source entry is labelled `M`; the sweep across ~21 files plus brand plumbing reads closer to `L`. The file count overstates it — two shared `--slug` parsers cover four CLIs, and most remaining edits are a single validate-at-parse line — but the brand threading is genuinely new work relative to the original estimate.
 - **Containment cost.** `resolveExisting` walks ancestors on each build. Negligible at CLI cadence, named so it is a decision rather than an accident.
