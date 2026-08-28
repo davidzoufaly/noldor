@@ -1,4 +1,5 @@
 import { artifactKindSchema } from './findings-schema.js';
+import { parseSlug } from '../core/slug.js';
 import { aggregate } from './aggregate.js';
 
 interface Args {
@@ -16,6 +17,10 @@ function parseArgs(argv: string[]): Args {
     else if (t === '--wait-ms') a.waitMs = Number(argv[++i]);
   }
   if (!a.slug) throw new Error('--slug required');
+  // The value reaches `.noldor/cr/<slug>-<kind>-<lane>.json` sink paths.
+  const parsed = parseSlug(a.slug);
+  if (!parsed.ok) throw new Error(parsed.error.message);
+  a.slug = parsed.slug;
   return a as Args;
 }
 

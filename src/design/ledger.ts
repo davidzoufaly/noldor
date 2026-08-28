@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { parseSlug } from '../core/slug.js';
 import { dirname, join } from 'node:path';
 
 import { atomicWriteFileSync } from '../core/atomic-write.js';
@@ -118,16 +119,23 @@ export function normalize(text: string): string {
  * `design context` read an arbitrary file; `--entry` is only an equality key but
  * is validated too, for one uniform error.
  *
+ * The accept/reject decision is {@link parseSlug}'s, not a second one: this
+ * wrapper only adds the corrected-value suggestion, which is worth keeping
+ * because a typo is the common case at a CLI flag. One rule, two messages —
+ * what must not diverge is which values are legal.
+ *
+ * @param value - Untrusted flag text.
+ * @param flag - Flag name, for the diagnostic.
  * @returns An error message, or `null` when the value is a valid slug.
  */
 export function validateSlug(value: string, flag: string): string | null {
   if (value.length === 0) return `${flag}: must not be empty`;
-  const slug = slugify(value);
-  if (slug.length === 0) {
+  if (parseSlug(value).ok) return null;
+  const suggestion = slugify(value);
+  if (suggestion.length === 0) {
     return `${flag}: '${value}' has no slug-safe characters (expected lowercase [a-z0-9-])`;
   }
-  if (slug !== value) return `${flag}: '${value}' is not a slug (expected '${slug}')`;
-  return null;
+  return `${flag}: '${value}' is not a slug (expected '${suggestion}')`;
 }
 
 /**

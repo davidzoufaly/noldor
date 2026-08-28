@@ -1,4 +1,5 @@
 import type { Lane } from './context.js';
+import { parseSlug } from '../core/slug.js';
 
 export interface ArtifactReview {
   kind: 'plan' | 'spec' | 'code';
@@ -70,7 +71,13 @@ export function parseCliArgs(argv: readonly string[]): Invocation {
       reviewKind = a.slice(2) as 'plan' | 'spec' | 'code';
       artifact = requireValue(a, argv[++i]);
     } else if (a === '--slug') {
-      slug = requireValue('--slug', argv[++i]);
+      // Parse at the flag, not at the path build: this value reaches
+      // `.noldor/cr/<slug>-…` sinks and a lane dispatch, and one guard at the
+      // entry point is what the builders downstream are entitled to assume.
+      const raw = requireValue('--slug', argv[++i]);
+      const parsed = parseSlug(raw);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      slug = parsed.slug;
     } else if (a === '--base-sha') {
       baseSha = requireValue('--base-sha', argv[++i]);
       if (!REV_RE.test(baseSha)) throw new Error(`Invalid --base-sha: ${baseSha}`);

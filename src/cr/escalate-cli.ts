@@ -1,5 +1,6 @@
 // scripts/cr/escalate-cli.ts
 import { readFile } from 'node:fs/promises';
+import { parseSlug } from '../core/slug.js';
 import { loadConfig } from '../core/config.js';
 import { escalate } from './escalate.js';
 import type { EscalateInput } from './escalate.js';
@@ -20,8 +21,14 @@ async function main() {
     console.error('escalate-cli requires --slug --reason --context-file');
     process.exit(2);
   }
+  // The value reaches `.noldor/cr/<slug>-escalation-context.md`.
+  const parsedSlug = parseSlug(args.slug);
+  if (!parsedSlug.ok) {
+    console.error(parsedSlug.error.message);
+    process.exit(1);
+  }
   const r = await escalate({
-    slug: args.slug,
+    slug: parsedSlug.slug,
     reason: args.reason,
     context: args.context,
     cwd: args.cwd!,

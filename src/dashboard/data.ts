@@ -15,6 +15,7 @@ import { FeatureFrontmatterSchema } from '../core/feature-schema.js';
 import { loadCategories, loadConsumerConfig } from '../core/consumer-config.js';
 import { areaToCategory } from '../lib/area-category.js';
 import { loadMilestoneBySlug, loadMilestones, type Milestone } from '../milestones/lib.js';
+import { slugSchema } from '../core/slug.js';
 import { parseBacklog, parseRoadmap as parseRoadmapBlocks } from '../utils/parse-blocks.js';
 import { docPresenceRoots, listDocMds, loadDocRoots } from '../core/doc-roots.js';
 import {
@@ -767,7 +768,9 @@ export function rewriteDocLinks(html: string, sourceDir: string): string {
 
 export const visionFrontmatterSchema = z
   .object({
-    'current-milestone': z.string().min(1).optional(),
+    // A slug, not free text: this value is joined into docs/milestones/<slug>.md
+    // by loadActiveMilestone below and by next-priority's loadMilestoneGate.
+    'current-milestone': slugSchema.optional(),
   })
   .strict();
 

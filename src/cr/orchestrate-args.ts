@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { slugSchema } from '../core/slug.js';
 import { artifactKindSchema, laneSchema } from './findings-schema.js';
 
 export const orchestrateArgsSchema = z.object({
-  slug: z.string().min(1),
+  slug: slugSchema,
   artifact: z.string().min(1),
   kind: artifactKindSchema,
   lanes: z.array(laneSchema).optional(),
