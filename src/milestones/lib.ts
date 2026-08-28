@@ -37,6 +37,9 @@ const MILESTONES_DIR = 'docs/milestones';
  */
 export type MilestoneRefusal = SlugError | PathError;
 
+/** Outcome of a milestone write that can only fail by refusing its slug. */
+export type MilestoneWriteResult = { ok: true } | { ok: false; error: MilestoneRefusal };
+
 /** Human-readable reason for a {@link MilestoneRefusal}, for a CLI's stderr. */
 export function milestoneRefusalMessage(error: MilestoneRefusal): string {
   return error.kind === 'invalid-slug' ? error.message : pathErrorMessage(error);
@@ -107,7 +110,7 @@ export function draftMilestone(
   slug: string,
   description: string | undefined,
   cwd: string = process.cwd(),
-): { ok: true } | { ok: false; error: MilestoneRefusal } {
+): MilestoneWriteResult {
   // Resolve before mkdir: an unguarded slug let `draft` create a file outside
   // the repository wherever its parent directory happened to exist.
   const resolved = resolveMilestone(slug, cwd);
@@ -196,10 +199,7 @@ function serializeMilestone(m: Milestone, statusOverride?: MilestoneStatus): str
 /** Atomically promote `slug` to active, ship the previous active (if any), and
  *  update `docs/vision.md`'s `current-milestone` field. All preflight checks
  *  run before any file is written. */
-export function activateMilestone(
-  slug: string,
-  cwd: string = process.cwd(),
-): { ok: true } | { ok: false; error: MilestoneRefusal } {
+export function activateMilestone(slug: string, cwd: string = process.cwd()): MilestoneWriteResult {
   // Resolve before the preflight reads: `activate` could otherwise read and
   // rewrite any outside file carrying milestone-shaped frontmatter.
   const resolved = resolveMilestone(slug, cwd);

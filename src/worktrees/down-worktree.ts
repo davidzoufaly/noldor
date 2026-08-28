@@ -12,6 +12,9 @@ const execFileP = promisify(execFile);
 /** Why a worktree operation refused its slug before doing anything. */
 export type WorktreeRefusal = SlugError | PathError;
 
+/** Outcome of reaping a worktree's dev surfaces. */
+export type DownResult = { ok: true; reaped: number } | { ok: false; error: WorktreeRefusal };
+
 /** Human-readable reason for a {@link WorktreeRefusal}, for a CLI's stderr. */
 export function refusalMessage(error: WorktreeRefusal): string {
   return error.kind === 'invalid-slug' ? error.message : pathErrorMessage(error);
@@ -44,7 +47,7 @@ const defaultDeps: DownDeps = {
 export async function downWorktree(
   opts: DownOptions,
   deps: DownDeps = defaultDeps,
-): Promise<{ ok: true; reaped: number } | { ok: false; error: WorktreeRefusal }> {
+): Promise<DownResult> {
   // Every side effect below — the pid read, the process-group kills, the git
   // worktree removal — is keyed on the slug, so the parse and both path builds
   // happen before any of them run.

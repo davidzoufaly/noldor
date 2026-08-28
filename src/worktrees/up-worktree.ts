@@ -58,10 +58,10 @@ const defaultDeps: UpDeps = {
  * `agents.default` runner), and boot every consumer-declared dev surface on
  * its per-tree port. Each step is skippable.
  */
-export async function upWorktree(
-  opts: UpOptions,
-  deps: UpDeps = defaultDeps,
-): Promise<{ ok: true; summary: UpSummary } | { ok: false; error: CreateRefusal }> {
+/** Outcome of bringing a worktree up. */
+export type UpResult = { ok: true; summary: UpSummary } | { ok: false; error: CreateRefusal };
+
+export async function upWorktree(opts: UpOptions, deps: UpDeps = defaultDeps): Promise<UpResult> {
   // The old order built treePath first and only validated inside
   // createWorktree, so `--no-create` or an existing directory skipped the sole
   // guard — after which the editor, the agent and every dev surface booted at
