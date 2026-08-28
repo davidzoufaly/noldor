@@ -17,7 +17,7 @@ links:
 name: Consumer Architecture Doc Surface
 packages:
   - noldor
-phase: in-progress
+phase: done
 since: 2026-08-11T00:00:00.000Z
 noldor-tier: specs-only
 introduced: 1.4.0
@@ -42,37 +42,67 @@ traversing archived design artifacts.
 **CLI**
 
 1. `noldor init` scaffolds `docs/architecture/{context,containers,modules,flows}.md`
-   into a repo that has none. The scaffold is inert: until you edit a page, the
-   surface reports as absent everywhere and blocks nothing.
-2. Replace each page's placeholder mermaid fence with a real diagram, and delete
-   the `<!-- TODO:` line. Write a prose paragraph beside each diagram — it is the
-   textual equivalent for readers and agents that do not render mermaid.
+   into a repo that has none. Each page arrives with its C4 fidelity line, its
+   required H2 sections and a one-line prompt under each. The scaffold is inert:
+   until you edit a page, the surface reports as absent everywhere and blocks
+   nothing.
+2. Replace each page's placeholder mermaid fence with a real diagram, fill in the
+   sections, and delete the `<!-- TODO:` line. Write a prose paragraph beside each
+   diagram — it is the textual equivalent for readers and agents that do not
+   render mermaid. The per-heading `<!-- what belongs here:` prompts are not
+   placeholders and never block anything.
 3. `noldor docs architecture --check` (or the bare `noldor docs architecture`)
    reports what is missing. Exit 0 when the pages are complete or the surface is
    absent; exit 1 when a page is missing, carries no mermaid fence, declares a
    diagram kind outside the registry's `allowedKinds`, still holds a placeholder,
    or cannot be read.
-4. Module advisories print alongside, naming any directory one level inside a
-   scan root that `modules.md` never mentions. They never change the exit code.
+4. Advisories print alongside and never change the exit code: modules the code
+   has that `modules.md` never names; registry sections a page neither carries as
+   an H2 nor declines; a `flows.md` that names no flow as a heading; prose
+   paragraphs over 100 words; and a page whose total prose passes 600 words.
+5. Decline a section that genuinely does not apply, rather than deleting its
+   heading — `<!-- noldor:cut-section Topology — single npm package, nothing to
+   deploy -->`. The reason is required: a marker without one suppresses nothing
+   and is reported instead, as is one naming a section the page does not have.
+
+**Page form contract**
+
+- `context` answers Actors / Externals / Boundary; `containers` answers Runnable
+  units / Durable state / Topology; `modules` answers Dependency direction /
+  State ownership. `flows` names its own flows, so it is checked for at least one
+  H2 instead of a fixed set.
+- Presence is heading-presence: section order is not checked, extra headings pass,
+  and nothing inspects what was written beneath a heading.
 
 **Agent/Programmatic API**
 
 - `checkArchitecture(cwd)` → `{ status: 'absent' | 'ok' | 'incomplete', findings, advisories }`.
   Every filesystem failure is caught and returned as a finding, so it never throws.
+- `advisories` is `ArchitectureAdvisory[]`, a union discriminated on `kind`:
+  `module`, `section`, `unknown-cut`, `flow-headings`, `long-paragraph`,
+  `page-bloat`. Every row carries the registry `pageId` and the repo-relative
+  `page`. None of them reaches `status`.
+- `assessPageForm(page, body)` → `{ missing, unknownCuts, flowHeadings }` and
+  `assessPageBloat(body)` → `{ longParagraphs, pageWords }` are the pure rules
+  behind those rows; `parseSectionCuts(body)` and `proseParagraphs(body)` are the
+  parsers beneath them.
 - `listModuleDirs(cwd)` → sorted repo-relative module paths, one level inside each
   existing scan root.
 - `fenceKinds(body)` and `mentionsModule(body, modulePath)` are the pure helpers
-  behind the two checks.
+  behind the two original checks.
 - `detectArchitectureFindings(repo)` → `Gap[]` for the blocking class, run inside
   `collectGaps` so it reaches `docs/sdd-report.md`, `garden detect` and the
   dashboard alike.
-- `detectArchitectureAdvisories(repo)` → `Gap[]` for the module advisories, which
-  ride garden's own `architectureAdvisories` key and never gate a release.
+- `detectArchitectureAdvisories(repo)` → `Gap[]` for every advisory row, which
+  ride garden's own `architectureAdvisories` key and never gate a release. Each
+  row's `itemId` is `<page>#<kind>:<discriminator>`, so two rows on one page
+  cannot collide.
 
 **Release**
 
 - `pnpm release` reports an `architecture` preflight row: `skipped` when the
-  surface is absent, `blocking` when incomplete, `ok` when complete.
+  surface is absent, `blocking` when incomplete, `ok` when complete. No advisory
+  affects that row.
 - `RELEASE_SKIP_ARCHITECTURE=1` forces that row to `skipped` and records the
   override in the audit log.
 
