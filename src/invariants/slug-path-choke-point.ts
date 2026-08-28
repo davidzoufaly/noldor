@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 import { walkRepo } from '../core/fd-load.js';
-import type { Invariant, InvariantResult, InvariantViolation } from './types.js';
+import { defineInvariant } from './types.js';
+import type { Invariant, InvariantViolation } from './types.js';
 
 // ADVISORY ON PURPOSE — this reports, it does not enforce.
 //
@@ -139,12 +140,10 @@ export function scanSource(relPath: string, text: string): InvariantViolation[] 
  * @returns A plugin instance bound to that root.
  */
 export function makeSlugPathChokePointInvariant(repoRoot: string): Invariant {
-  return {
-    name: 'slug-path-choke-point',
-    description:
-      'reports slug-rooted path joins outside the guarded builders (advisory — the brand is the enforcement)',
-    async run(): Promise<InvariantResult> {
-      const start = Date.now();
+  return defineInvariant(
+    'slug-path-choke-point',
+    'reports slug-rooted path joins outside the guarded builders (advisory — the brand is the enforcement)',
+    async () => {
       const violations: InvariantViolation[] = [];
       const files: string[] = [];
       await walkRepo(join(repoRoot, 'src'), files);
@@ -152,9 +151,9 @@ export function makeSlugPathChokePointInvariant(repoRoot: string): Invariant {
         if (!abs.endsWith('.ts')) continue;
         violations.push(...scanSource(relative(repoRoot, abs), await readFile(abs, 'utf8')));
       }
-      return { invariant: 'slug-path-choke-point', violations, durationMs: Date.now() - start };
+      return violations;
     },
-  };
+  );
 }
 
 /** Pre-built singleton using `process.cwd()` as repo root. */
