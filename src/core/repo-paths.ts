@@ -2,7 +2,7 @@
 
 import { readFile, readdir } from 'node:fs/promises';
 import { readdirSync, realpathSync, statSync } from 'node:fs';
-import { basename, isAbsolute, join, relative, sep } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { loadConsumerConfig } from './consumer-config.js';
 
@@ -143,13 +143,22 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
  * entered once however many links reach it, so a cycle terminates and a
  * legitimate `src/generated -> ../generated` stays visible.
  *
- * Following is additionally repository-bounded, which pre-lift never was: a
- * directory is entered only when its RESOLVED path stays inside `containWithin`
- * (the caller's repo root, realpathed) and its resolved basename passes
- * `skipDir`. Without those two checks — both nearly free, since the realpath is
- * already in hand — `src/root -> /` walks the host filesystem and
- * `src/vendor -> ../node_modules` re-admits an excluded tree under another
- * name, polluting the mtime aggregate into a perpetual false-stale.
+ * Following is additionally repository-bounded, which pre-lift never was. A
+ * directory is DESCENDED into only when its resolved path stays inside
+ * `containWithin` (the caller's repo root, realpathed) and every path segment of
+ * the resolved location under that bound passes `skipDir` — segment-wise, not
+ * basename-only, because `src/lib -> node_modules/dep` resolves to basename
+ * `dep` and would otherwise re-admit the excluded `node_modules` subtree
+ * (probed: a future-stamped file behind such a link polluted the aggregate into
+ * a perpetual false-stale). A followed FILE link is bounded the same way. The
+ * walk ROOT itself is exempt from the segment check: pre-lift walkers never
+ * name-checked the root, and a scan root resolving to a dot-prefixed real
+ * location would otherwise silently vanish, letting a stale graph read fresh.
+ *
+ * noldor:cut a RELATIVE scan root that is itself a symlink pointing outside the
+ * repo re-anchors the bound to its resolved tree (same policy as an absolute
+ * root) — deliberate: the root list is the operator's own config, not untrusted
+ * input; revisit if consumer configs ever carry third-party roots.
  *
  * Exported for its tests only: bounded-vs-exhausted traversal is
  * indistinguishable through `newestMtimeInRoots` (an ENAMETOOLONG-exhausted
@@ -162,6 +171,7 @@ export function walkDir(
   followLinks: boolean,
   containWithin?: string,
   visited: Set<string> = new Set(),
+  isRoot = true,
 ): void {
   if (followLinks) {
     // Identity is the resolved path, so two links to one directory walk it
@@ -174,13 +184,7 @@ export function walkDir(
     }
     if (visited.has(real)) return;
     visited.add(real);
-    // Repository bound + exclusion on the RESOLVED name — the alias name was
-    // already checked at descent, but `src/vendor -> ../node_modules` passes
-    // that check and must fail this one.
-    if (containWithin !== undefined) {
-      if (real !== containWithin && !real.startsWith(containWithin + sep)) return;
-    }
-    if (skipDir(basename(real))) return;
+    if (!resolvedPathAllowed(real, skipDir, containWithin, isRoot)) return;
   }
   let entries;
   try {
@@ -200,13 +204,18 @@ export function walkDir(
         const st = statSync(full);
         isDir = st.isDirectory();
         isFile = st.isFile();
+        // A followed FILE link is bounded like a directory: `src/host.ts ->
+        // /tmp/host.ts` must not contribute an external mtime.
+        if (isFile && !resolvedPathAllowed(realpathSync(full), skipDir, containWithin, false)) {
+          continue;
+        }
       } catch {
         continue; // broken link
       }
     }
     if (isDir) {
       if (skipDir(entry.name)) continue;
-      walkDir(full, onFile, skipDir, followLinks, containWithin, visited);
+      walkDir(full, onFile, skipDir, followLinks, containWithin, visited, false);
     } else if (isFile) {
       onFile(full, entry.name);
     }
@@ -219,6 +228,31 @@ export function walkDir(
  * fixture edit is a real source edit for freshness purposes.
  */
 const MTIME_SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', 'coverage', '.git']);
+
+/**
+ * May this resolved location be visited?
+ *
+ * Bound check first (`containWithin` unset means unbounded — the corpus path
+ * never resolves links at all, and a root outside the repo is self-bounded by
+ * its caller). Then the exclusion check runs over EVERY segment of the resolved
+ * location under the bound, so a link into a descendant of an excluded tree
+ * (`src/lib -> node_modules/dep`) fails on the `node_modules` segment even
+ * though its basename is `dep`. The walk root is exempt from the segment check
+ * — its placement is the caller's explicit choice.
+ */
+function resolvedPathAllowed(
+  real: string,
+  skipDir: (name: string) => boolean,
+  containWithin: string | undefined,
+  isRoot: boolean,
+): boolean {
+  if (containWithin === undefined) return true;
+  if (real !== containWithin && !real.startsWith(containWithin + sep)) return false;
+  if (isRoot) return true;
+  return !relative(containWithin, real)
+    .split(sep)
+    .some((segment) => segment.length > 0 && skipDir(segment));
+}
 
 /**
  * Largest mtime (ms) of any file under `roots`, or `null` when nothing exists.

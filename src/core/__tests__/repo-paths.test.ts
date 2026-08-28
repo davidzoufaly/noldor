@@ -248,6 +248,74 @@ describe('walkDir symlink policy', () => {
     }
   });
 
+  it('excludes a link INTO a descendant of an excluded dir, segment-wise', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'walkdir-into-excluded-'));
+    try {
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      mkdirSync(join(dir, 'node_modules', 'dep'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor', 'config.json'),
+        JSON.stringify({ consumer: { ...MINIMAL_CONSUMER, scanPaths: ['src'] } }),
+        'utf8',
+      );
+      writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n', 'utf8');
+      const future = new Date(Date.now() + 600_000);
+      writeFileSync(join(dir, 'node_modules', 'dep', 'd.ts'), 'x', 'utf8');
+      utimesSync(join(dir, 'node_modules', 'dep', 'd.ts'), future, future);
+      // Resolves to basename `dep`, so a basename-only check re-admitted the
+      // excluded subtree; the `node_modules` SEGMENT is what must fail it.
+      symlinkSync(join(dir, 'node_modules', 'dep'), join(dir, 'src', 'lib'));
+      expect(newestMtimeInRoots(dir, ['src'])).toBeLessThan(future.getTime());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not name-check the walk root itself', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'walkdir-dotroot-'));
+    try {
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      mkdirSync(join(dir, '.real-src'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor', 'config.json'),
+        JSON.stringify({ consumer: { ...MINIMAL_CONSUMER, scanPaths: ['src'] } }),
+        'utf8',
+      );
+      writeFileSync(join(dir, '.real-src', 'a.ts'), 'export const a = 1;\n', 'utf8');
+      symlinkSync(join(dir, '.real-src'), join(dir, 'src'));
+      // A root resolving to a dot-prefixed location vanishing entirely means a
+      // null mtime, and a null mtime makes the freshness gate pass — a stale
+      // graph reading fresh, the inverse this walker exists to prevent.
+      expect(newestMtimeInRoots(dir, ['src'])).not.toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('bounds a followed FILE link, not only directories', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'walkdir-filelink-'));
+    const outside = mkdtempSync(join(tmpdir(), 'walkdir-fileout-'));
+    try {
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor', 'config.json'),
+        JSON.stringify({ consumer: { ...MINIMAL_CONSUMER, scanPaths: ['src'] } }),
+        'utf8',
+      );
+      writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n', 'utf8');
+      const future = new Date(Date.now() + 600_000);
+      writeFileSync(join(outside, 'host.ts'), 'x', 'utf8');
+      utimesSync(join(outside, 'host.ts'), future, future);
+      symlinkSync(join(outside, 'host.ts'), join(dir, 'src', 'host.ts'));
+      expect(newestMtimeInRoots(dir, ['src'])).toBeLessThan(future.getTime());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
   it('never escapes the repo or re-admits an excluded dir through a link', () => {
     const dir = mkdtempSync(join(tmpdir(), 'walkdir-escape-'));
     const outside = mkdtempSync(join(tmpdir(), 'walkdir-outside-'));
