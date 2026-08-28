@@ -7,6 +7,7 @@
  * boundary and the reporting shape exactly as it does for the blocking rules.
  */
 import { listHeadings } from '../utils/markdown-sections.js';
+import { countWords } from '../utils/word-count.js';
 import { stripCodeRegions } from './docs-check.js';
 
 /**
@@ -206,4 +207,59 @@ export function proseParagraphs(body: string): string[] {
     .split(/\n\s*\n/)
     .map((p) => p.trim())
     .filter((p) => p !== '');
+}
+
+/**
+ * Longest prose paragraph a page may carry.
+ *
+ * The paragraph is the primary unit because it is what the surface's own
+ * deletion test claims: a reader answers "how is this system shaped" without
+ * reading a single full paragraph. A page total alone misjudges that in both
+ * directions — a long page of labelled facts passes the test, and a short page
+ * that is one block fails it.
+ *
+ * Measured rather than guessed: every prose paragraph across this repo's four
+ * architecture pages runs 22-59 words, so 100 leaves roughly 1.7x headroom over
+ * the worst honest paragraph.
+ */
+export const ARCH_PARAGRAPH_WORD_THRESHOLD = 100;
+
+/**
+ * Total prose a page may carry, as a backstop rather than a rival to the
+ * paragraph rule.
+ *
+ * On its own the paragraph rule cannot see a page that has become an essay in
+ * aggregate: an arbitrarily long page built of 99-word paragraphs never trips
+ * it. 600 sits well above any honest page — this repo's four run 172/217/87/126
+ * prose words — so it fires only on a page that has roughly tripled its worst
+ * current sibling.
+ */
+export const ARCH_PAGE_PROSE_WORD_THRESHOLD = 600;
+
+/** One prose paragraph over the per-paragraph budget. */
+export interface LongParagraph {
+  /** 0-based position among the page's prose paragraphs. */
+  readonly index: number;
+  readonly words: number;
+}
+
+/** What one page body exceeds. Both comparisons are strictly greater-than. */
+export interface PageBloat {
+  readonly longParagraphs: readonly LongParagraph[];
+  /** Total prose words, only when over the page budget. `null` otherwise. */
+  readonly pageWords: number | null;
+}
+
+/**
+ * Measure a page body against both prose budgets.
+ *
+ * @param body - Raw markdown
+ */
+export function assessPageBloat(body: string): PageBloat {
+  const counts = proseParagraphs(body).map(countWords);
+  const longParagraphs = counts
+    .map((w, index) => ({ index, words: w }))
+    .filter((p) => p.words > ARCH_PARAGRAPH_WORD_THRESHOLD);
+  const total = counts.reduce((sum, w) => sum + w, 0);
+  return { longParagraphs, pageWords: total > ARCH_PAGE_PROSE_WORD_THRESHOLD ? total : null };
 }

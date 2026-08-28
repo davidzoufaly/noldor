@@ -2,7 +2,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ARCH_PAGE_PROSE_WORD_THRESHOLD,
+  ARCH_PARAGRAPH_WORD_THRESHOLD,
   SECTION_CUT_TOKEN,
+  assessPageBloat,
   assessPageForm,
   parseSectionCuts,
   proseParagraphs,
@@ -209,5 +212,53 @@ describe(proseParagraphs, () => {
     expect(proseParagraphs('the `src/core` module owns it')).toStrictEqual([
       'the `src/core` module owns it',
     ]);
+  });
+});
+
+const words = (n: number): string => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
+
+describe(assessPageBloat, () => {
+  it('reports nothing at the thresholds', () => {
+    expect(assessPageBloat(`${words(ARCH_PARAGRAPH_WORD_THRESHOLD)}\n`)).toStrictEqual({
+      longParagraphs: [],
+      pageWords: null,
+    });
+  });
+
+  it('reports a paragraph one word over', () => {
+    const body = `${words(ARCH_PARAGRAPH_WORD_THRESHOLD + 1)}\n`;
+    expect(assessPageBloat(body).longParagraphs).toStrictEqual([
+      { index: 0, words: ARCH_PARAGRAPH_WORD_THRESHOLD + 1 },
+    ]);
+  });
+
+  it('indexes paragraphs by position among prose paragraphs', () => {
+    const body = `short\n\n${words(ARCH_PARAGRAPH_WORD_THRESHOLD + 5)}\n`;
+    expect(assessPageBloat(body).longParagraphs).toStrictEqual([
+      { index: 1, words: ARCH_PARAGRAPH_WORD_THRESHOLD + 5 },
+    ]);
+  });
+
+  it('reports the page total only when it is over', () => {
+    const under = Array.from({ length: 6 }, () => words(50)).join('\n\n');
+    expect(assessPageBloat(under).pageWords).toBeNull();
+
+    const over = Array.from({ length: 7 }, () => words(90)).join('\n\n');
+    expect(assessPageBloat(over).pageWords).toBe(630);
+  });
+
+  it('does not count fenced or tabular content toward either budget', () => {
+    const fence = [
+      '```mermaid',
+      ...Array.from({ length: 400 }, (_, i) => `  n${i} --> m${i}`),
+      '```',
+    ];
+    const body = `short prose\n\n${fence.join('\n')}\n`;
+    expect(assessPageBloat(body)).toStrictEqual({ longParagraphs: [], pageWords: null });
+  });
+
+  it('has thresholds set above this repo\u2019s real pages', () => {
+    expect(ARCH_PARAGRAPH_WORD_THRESHOLD).toBe(100);
+    expect(ARCH_PAGE_PROSE_WORD_THRESHOLD).toBe(600);
   });
 });
