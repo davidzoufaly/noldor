@@ -1,7 +1,7 @@
 // @fd: scan-roots-repo-paths-provider
 
 import { readFile, readdir } from 'node:fs/promises';
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { loadConsumerConfig } from './consumer-config.js';
@@ -116,41 +116,51 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
  * one definition. An unreadable directory is skipped, never thrown: these
  * walkers run over whatever a consumer's tree happens to contain.
  *
- * `followFileLinks` decides whether a symlink pointing at a FILE is visited.
- * Directory symlinks are never entered, by either caller.
- *
- * The two callers have always had different symlink policies, and the flag keeps
- * them apart rather than averaging them:
+ * `followLinks` decides whether symlinks are resolved and traversed at all.
+ * The two callers have always had different symlink policies, and the flag
+ * keeps them apart rather than averaging them:
  *
  * - {@link walkCodeFiles} passes `false` — its exact pre-lift behaviour
  *   (`withFileTypes` + `isDirectory()/isFile()`, which classifies a link as
- *   neither). Its output is a corpus for the clone detector and code-link sync,
- *   which need git-tracked paths; emitting whichever alias `readdir` returned
- *   first would also make that corpus enumeration-order dependent.
- * - {@link newestMtimeInRoots} passes `true`, because a symlinked source file
- *   going invisible is a real defect there: the newest file under a scan root
- *   would be missed and a stale graph would read `fresh`.
+ *   neither, so links of every kind are skipped). Its output is a corpus for
+ *   the clone detector and code-link sync, which need git-tracked paths;
+ *   emitting whichever alias `readdir` returned first would also make that
+ *   corpus enumeration-order dependent.
+ * - {@link newestMtimeInRoots} passes `true` — the pre-lift `walkSync` used
+ *   bare `readdirSync` + `statSync` and followed links to files AND to
+ *   directories. Both halves are load-bearing for freshness: a symlinked
+ *   source file or a symlinked source DIRECTORY going invisible makes the
+ *   newest file under a scan root unseen, and a stale graph reads `fresh` —
+ *   the dangerous inverse of the leg's documented false-stale mode. A
+ *   max-mtime aggregation is also immune to the alias-shadowing problem that
+ *   rules link-following out for the corpus: whichever alias is visited first,
+ *   the same files contribute the same mtimes.
  *
- * Refusing to ENTER directory links is what removes the whole class of problems
- * that following them created — an unbounded cycle (`src/loop -> src` re-walks
- * until ENAMETOOLONG, measured at 16 paths for one file), a resolved target
- * escaping the repository or aliasing an excluded directory such as
- * `node_modules` under another name, and a real directory being shadowed by
- * whichever alias enumerated first. No visited set is needed, because a tree
- * that is never re-entered cannot cycle.
- *
- * Residual, and deliberate: the mtime leg does not see through a symlinked
- * DIRECTORY, which the pre-lift walker did. Freshness is an advisory heuristic
- * that already documents a false-stale mode, so under-reporting is its cheap
- * failure — and the alternative costs a containment check, an exclusion check on
- * the resolved name, and a visited set, for a shape not present in this repo.
+ * The `visited` set (resolved real paths, allocated per walk, used only on the
+ * following path) is what bounds the pre-lift behaviour that was never safe:
+ * `src/loop -> src` re-walked the tree until ENAMETOOLONG. A directory is
+ * entered once however many links reach it, so a cycle terminates and a
+ * legitimate `src/generated -> ../generated` stays visible.
  */
 function walkDir(
   root: string,
   onFile: (path: string, name: string) => void,
   skipDir: (name: string) => boolean,
-  followFileLinks: boolean,
+  followLinks: boolean,
+  visited: Set<string> = new Set(),
 ): void {
+  if (followLinks) {
+    // Identity is the resolved path, so two links to one directory walk it
+    // once and a cycle terminates.
+    let real: string;
+    try {
+      real = realpathSync(root);
+    } catch {
+      return;
+    }
+    if (visited.has(real)) return;
+    visited.add(real);
+  }
   let entries;
   try {
     entries = readdirSync(root, { withFileTypes: true });
@@ -162,19 +172,20 @@ function walkDir(
     let isDir = entry.isDirectory();
     let isFile = entry.isFile();
     if (entry.isSymbolicLink()) {
-      // `withFileTypes` calls a link neither file nor directory. Resolve it only
-      // to answer "is this a file?" — a link to a directory is never entered.
-      if (!followFileLinks) continue;
+      // `withFileTypes` calls a link neither file nor directory; resolve it —
+      // or, on the corpus path, skip it outright (pre-lift behaviour).
+      if (!followLinks) continue;
       try {
-        isFile = statSync(full).isFile();
-        isDir = false;
+        const st = statSync(full);
+        isDir = st.isDirectory();
+        isFile = st.isFile();
       } catch {
         continue; // broken link
       }
     }
     if (isDir) {
       if (skipDir(entry.name)) continue;
-      walkDir(full, onFile, skipDir, followFileLinks);
+      walkDir(full, onFile, skipDir, followLinks, visited);
     } else if (isFile) {
       onFile(full, entry.name);
     }

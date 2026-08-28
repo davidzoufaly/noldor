@@ -161,7 +161,7 @@ describe('walkDir symlink policy', () => {
     }
   });
 
-  it('does not enter a symlinked directory, and says so consistently', () => {
+  it('sees through a symlinked directory on the mtime path but not the corpus', () => {
     const dir = mkdtempSync(join(tmpdir(), 'walkdir-dirlink-'));
     try {
       mkdirSync(join(dir, '.noldor'), { recursive: true });
@@ -177,12 +177,12 @@ describe('walkDir symlink policy', () => {
       symlinkSync(join(dir, 'generated'), join(dir, 'src', 'generated'));
       const future = new Date(Date.now() + 600_000);
       utimesSync(join(dir, 'generated', 'gen.ts'), future, future);
-      // Documented residual: neither caller enters a directory link, so the
-      // mtime leg cannot see `gen.ts` and the corpus never emits an alias path.
-      // Following them instead cost a cycle, a repo escape, and an
-      // enumeration-order-dependent corpus — see `walkDir`'s docstring.
+      // The mtime leg follows directory links (pre-lift parity): a changed file
+      // behind `src/generated -> ../generated` must stale the graph, or a stale
+      // graph reads fresh — the dangerous inverse of the leg's false-stale mode.
       // `gen.ts` is stamped 10 minutes ahead, so seeing it is unmistakable.
-      expect(newestMtimeInRoots(dir, ['src'])).toBeLessThan(future.getTime());
+      expect(newestMtimeInRoots(dir, ['src'])).toBe(future.getTime());
+      // The corpus still skips links of every kind — git-tracked paths only.
       expect(walkCodeFiles(join(dir, 'src'), { includeTests: true })).toEqual([
         join(dir, 'src', 'a.ts'),
       ]);
@@ -191,20 +191,20 @@ describe('walkDir symlink policy', () => {
     }
   });
 
-  it('cannot cycle, because a directory link is never entered', () => {
+  it('bounds a directory-link cycle on both paths', () => {
     const dir = treeWithLinks();
     try {
       // `src/deep/loop -> src` re-walked the tree until ENAMETOOLONG when
       // directory links were followed, inflating the corpus that feeds the
       // clone detector with paths like `src/deep/loop/deep/loop/...`.
-      // `src/deep/loop -> src` is a directory link, so it is skipped outright
-      // rather than re-entered until ENAMETOOLONG.
+      // Corpus: links skipped outright, so `src/deep/loop -> src` cannot recurse
+      // and `linked.ts` (a file link) is not emitted — pre-lift behaviour.
       const found = walkCodeFiles(join(dir, 'src'), { includeTests: true });
-      // `linked.ts` is a FILE link and `walkCodeFiles` does not follow those
-      // either — its pre-lift behaviour, and what keeps the clone corpus to
-      // git-tracked paths.
       expect(found).toEqual([join(dir, 'src', 'a.ts')]);
       expect(found.some((p) => p.includes('loop'))).toBe(false);
+      // Mtime: follows links, so the cycle relies on the realpath visited set to
+      // terminate — pre-lift walkSync re-entered until ENAMETOOLONG here.
+      expect(newestMtimeInRoots(dir, ['src'])).not.toBeNull();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
