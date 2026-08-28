@@ -57,14 +57,15 @@ $ echo $?
 1
 ```
 
-The same refusal covers `worktrees up` (including `--no-create`, and when a directory already sits at the traversed path), `worktrees down` (with and without `--remove`), `features phase-revert`, the milestone `draft` / `activate` / load entry points, and every CLI taking a `--slug` flag.
+The same refusal covers `worktrees up` (including `--no-create`, and when a directory already sits at the traversed path), `worktrees down` (with and without `--remove`), `features phase-revert`, the milestone `draft` / `activate` / load entry points, and every CLI taking a `--slug` or `--slugs` flag. Commands that accept a slug without building a path from it — `design archive`'s resolver matches it as an equality key, `prep discover` filters a set with it — are deliberately out of scope.
 
 `pnpm noldor checks invariants` gains an advisory `slug-path-choke-point` row listing slug-rooted joins outside the guarded builders. It warns; it never blocks.
 
 **Programmatic API**
 
 - `parseSlug(value)` — the one trust boundary. Returns `{ ok: true, slug }` with a branded `Slug`, or `{ ok: false, error }`. Call it wherever untrusted text arrives.
-- `slugPath(anchor, relRoot, slug, { prefix, suffix })` — the one guarded join. Takes a branded `Slug`, composes the root from the anchor, and refuses `escapes-root` or `unsafe-symlink`.
+- `slugPath(anchor, relRoot, slug, { prefix, suffix })` — the one guarded join. Takes a branded `Slug`, composes the root from the anchor, and refuses `escapes-root`, `unsafe-symlink`, or `uninspectable` when it cannot `lstat` the target at all.
+- `readFileNoFollow(path)` / `writeFileNoFollow(path, body)` — the IO pair for a vetted path. They open with `O_NOFOLLOW`, so a symlink planted between the guard and the IO is refused by the kernel rather than followed.
 - `featurePath(cwd, slug)` / `milestonePath(cwd, slug)` / `worktreePath(cwd, slug)` / `worktreePidsPath(cwd, slug)` — per-family builders over `slugPath`.
 - `slugSchema` — a zod schema producing the brand, used by the frontmatter fields that carry repository-authored slugs.
 

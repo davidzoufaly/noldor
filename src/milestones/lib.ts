@@ -3,7 +3,13 @@ import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
-import { resolveErrorMessage, resolveSlugPath, type ResolveError } from '../core/slug-paths.js';
+import {
+  readFileNoFollow,
+  resolveErrorMessage,
+  resolveSlugPath,
+  writeFileNoFollow,
+  type ResolveError,
+} from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
 
 export const milestoneStatusSchema = z.enum(['draft', 'active', 'shipped']);
@@ -65,7 +71,7 @@ function stringifyMilestone(body: string, fm: MilestoneFrontmatter): string {
 
 /** Parse a milestone markdown file at `absPath` into a `Milestone`. */
 export function readMilestone(absPath: string): Milestone {
-  const raw = readFileSync(absPath, 'utf8');
+  const raw = readFileNoFollow(absPath);
   const parsed = matter(raw);
   const frontmatter = milestoneFrontmatterSchema.parse(parsed.data);
   const slug = basename(absPath, '.md');
@@ -122,7 +128,7 @@ export function draftMilestone(
   const body = `\n## Gate\n\n<!-- TODO: paragraph describing the strategic gate -->\n\n## Success Criteria\n\n<!-- TODO: bulleted list of measurable ship conditions -->\n\n## Out of Scope\n\n<!-- TODO: deliberate exclusions -->\n`;
   const fm: MilestoneFrontmatter = { name: slug, status: 'draft' };
   if (description) fm.description = description;
-  writeFileSync(path, stringifyMilestone(body, fm), 'utf8');
+  writeFileNoFollow(path, stringifyMilestone(body, fm));
   return { ok: true };
 }
 
@@ -216,7 +222,7 @@ export function activateMilestone(slug: string, cwd: string = process.cwd()): Mi
   const previousWritten = previousActive ? serializeMilestone(previousActive, 'shipped') : null;
   const visionUpdated = setFrontmatterField(visionRaw, 'current-milestone', slug);
 
-  writeFileSync(resolved.path, targetWritten, 'utf8');
+  writeFileNoFollow(resolved.path, targetWritten);
   writeFileSync(join(cwd, 'docs/vision.md'), visionUpdated, 'utf8');
   if (previousActive && previousWritten) {
     // previousActive.slug is a basename() stem of a file already inside the

@@ -75,3 +75,27 @@ export const slugSchema: z.ZodType<Slug, z.ZodTypeDef, string> = z
   .string()
   .regex(SLUG_RE, 'expected kebab-case ([a-z0-9-])')
   .transform((v) => v as Slug);
+
+/**
+ * Parse a comma-separated slug list from a CLI flag.
+ *
+ * Each member names artifacts on disk, so each is a path component and each is
+ * parsed — a list flag that validated only its first entry would be the same
+ * per-call-site drift {@link parseSlug} exists to prevent.
+ *
+ * @param value - Raw flag text, e.g. `a-b, c-d`.
+ * @returns The parsed slugs.
+ * @throws When any member is not a slug — these are argv parsers, whose
+ *   surrounding convention is to throw on a malformed flag.
+ */
+export function parseSlugList(value: string): Slug[] {
+  return value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((raw) => {
+      const parsed = parseSlug(raw);
+      if (!parsed.ok) throw new Error(parsed.error.message);
+      return parsed.slug;
+    });
+}
