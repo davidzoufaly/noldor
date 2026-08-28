@@ -13,7 +13,7 @@
 - `src/docs/architecture-schema.ts` — MODIFY: add `sections` to `ArchitecturePage`; re-declare `ARCHITECTURE_PAGES` `as const satisfies readonly ArchitecturePage[]` so `ArchitecturePageId` narrows to the four literals.
 - `src/docs/architecture-form.ts` — CREATE: pure form rules over a page body — section presence and flow heading count. No filesystem, no advisory shape. Part 2 adds cut parsing here.
 - `src/docs/docs-architecture.ts` — MODIFY: widen the advisory type; call the form module for accepted pages; print the new rows with their fix.
-- `src/garden/detectors/architecture.ts` — MODIFY: per-variant `itemId` so two advisory rows on one page cannot collide.
+- `src/garden/detectors/architecture.ts` — MODIFY: per-variant `itemId` so two advisory rows on one page cannot collide. Changes in the same commit as the union it reads — `(a) => a.module` is a src-level type error the moment the union widens.
 - `docs/architecture/context.md` — MODIFY: dogfood re-heading.
 - `docs/architecture/containers.md` — MODIFY: dogfood re-heading.
 - `docs/architecture/modules.md` — MODIFY: dogfood re-heading.
@@ -359,17 +359,21 @@ git commit -F /tmp/arch-form-t2.msg
 
 ---
 
-## Task 3: Widen the advisory type and wire the form rules in
+## Task 3: Widen the advisory type and every reader of it
 
 **Files:**
-- Modify: `src/docs/docs-architecture.ts`
-- Test: `src/docs/__tests__/docs-architecture.test.ts`
+- Modify: `src/docs/docs-architecture.ts`, `src/garden/detectors/architecture.ts`
+- Test: `src/docs/__tests__/docs-architecture.test.ts`, `src/garden/detectors/__tests__/architecture.test.ts`
 
-The type widening and the code that populates it are one task on purpose. Split
-apart, the widening lands as a commit that changes a type nothing constructs
-yet, leaving the tests it introduces red until a later task — a commit that is
-neither bisectable nor green, which is exactly what this plan's TDD shape
-forbids.
+The type widening, the code that populates it and the code that consumes it are
+one task on purpose. `ArchitectureAdvisory` has exactly two readers —
+`checkArchitecture` itself and `toAdvisoryGaps` — and the moment the union gains
+a member without a `module` field, `toAdvisoryGaps`' `(a) => a.module`
+discriminator is a `TS2339` at src level, which `tsconfig.typecheck.json`
+includes (only `__tests__` and `*.test.ts` are excluded). Splitting the widening
+from either reader therefore lands a commit that does not compile — worse than
+the red-test version, because a broken build is invisible until the next full
+check.
 
 - [ ] **Step 1: Write the failing test.** Append to `src/docs/__tests__/docs-architecture.test.ts`:
 
@@ -436,279 +440,7 @@ function fullPage(id: string): string {
 }
 ```
 
-- [ ] **Step 2: Run to verify FAIL.**
-
-```bash
-pnpm vitest run src/docs/__tests__/docs-architecture.test.ts -t 'advisory union'
-```
-
-Expected output: the first case fails — `expected undefined to match object { kind: 'section', ... }`, because `checkArchitecture` still produces only module advisories.
-
-- [ ] **Step 3: Replace the advisory type.** In `src/docs/docs-architecture.ts`, replace the whole `export interface ModuleAdvisory { … }` block with:
-
-```ts
-/**
- * Shared fields on every advisory row.
- *
- * The page is carried twice on purpose: `pageId` is the registry id, so a
- * construction site cannot invent a page, while `page` stays the repo-relative
- * label the module rows already print.
- */
-interface AdvisoryBase {
-  readonly pageId: ArchitecturePageId;
-  /** Repo-relative path, POSIX separators. */
-  readonly page: string;
-  readonly message: string;
-}
-
-/**
- * A non-blocking observation about a page.
- *
- * Advisory by design: none of these reach `status`, so none reaches the release
- * probe. Keeping that promise also constrains how they may be reported —
- * routing them into garden's `sddGaps` would gate the auto-restamp and block a
- * release, so they ride their own `GardenFindings` key. See
- * `src/garden/detectors/architecture.ts`.
- *
- * One discriminated channel rather than an array per class: its only consumer
- * (`src/garden/garden-detect.ts`) reads one array today, and a second array
- * would make every future consumer enumerate classes.
- */
-export type ArchitectureAdvisory =
-  | (AdvisoryBase & { readonly kind: 'module'; readonly module: string })
-  | (AdvisoryBase & { readonly kind: 'section'; readonly section: string })
-  | (AdvisoryBase & { readonly kind: 'flow-headings'; readonly count: number });
-```
-
-Add `ArchitecturePageId` to the schema import at the top of the file:
-
-```ts
-import {
-  ARCHITECTURE_PAGES,
-  PLACEHOLDER_MARKER,
-  pageFilename,
-  type ArchitecturePageId,
-} from './architecture-schema.js';
-```
-
-and change `ArchitectureReport`'s advisory field to:
-
-```ts
-  readonly advisories: readonly ArchitectureAdvisory[];
-```
-
-- [ ] **Step 4: Give the module rows their new fields.** In `collectModuleAdvisories`, the `reads` parameter type must carry the page id, so change its signature and mapper:
-
-```ts
-async function collectModuleAdvisories(
-  cwd: string,
-  reads: readonly { page: { id: ArchitecturePageId }; label: string; read: PageRead }[],
-): Promise<ArchitectureAdvisory[]> {
-  const modulesPage = reads.find((r) => r.page.id === 'modules');
-  if (!modulesPage?.read.ok) return [];
-  const body = modulesPage.read.body;
-  const label = modulesPage.label;
-  return (await listModuleDirs(cwd))
-    .filter((module) => !mentionsModule(body, module))
-    .map((module) => ({
-      kind: 'module' as const,
-      pageId: modulesPage.page.id,
-      page: label,
-      module,
-      message: `${label} does not name ${module}`,
-    }));
-}
-```
-
-- [ ] **Step 5: Write the gating test.** Append to `src/docs/__tests__/docs-architecture.test.ts`:
-
-```ts
-describe('advisory gating', () => {
-  it('suppresses form rows on a page carrying a blocking finding', async () => {
-    const root = await makeRepo();
-    await writeArchitecture(root, {
-      // No fence AND no sections: the blocking rule wins, the form rows stay silent.
-      context: '# Context\n\nprose only.\n',
-      containers: fullPage('containers'),
-      modules: fullPage('modules'),
-      flows: fullPage('flows'),
-    });
-    const report = await checkArchitecture(root);
-    expect(report.findings.map((f) => f.rule)).toStrictEqual(['no-fence']);
-    expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
-  });
-
-  it('still emits module rows for a readable placeholder modules page', async () => {
-    const root = await makeRepo();
-    await mkdir(join(root, 'src', 'onlymodule'), { recursive: true });
-    await writeArchitecture(root, {
-      context: fullPage('context'),
-      containers: fullPage('containers'),
-      modules: `# Modules\n\n${PLACEHOLDER_MARKER} draw it -->\n\n\`\`\`mermaid\nflowchart TD\n  a --> b\n\`\`\`\n`,
-      flows: fullPage('flows'),
-    });
-    const report = await checkArchitecture(root);
-    expect(report.findings.some((f) => f.rule === 'placeholder')).toBe(true);
-    expect(report.advisories.some((a) => a.kind === 'module')).toBe(true);
-  });
-
-  it('emits no advisories at all for an absent surface', async () => {
-    const root = await makeRepo();
-    const report = await checkArchitecture(root);
-    expect(report.status).toBe('absent');
-    expect(report.advisories).toStrictEqual([]);
-  });
-});
-```
-
-Import `PLACEHOLDER_MARKER` alongside `ARCHITECTURE_PAGES` at the top of the test file.
-
-- [ ] **Step 6: Run to verify FAIL.**
-
-```bash
-pnpm vitest run src/docs/__tests__/docs-architecture.test.ts -t 'advisory gating'
-```
-
-Expected output: the `advisory union` block from Step 1 fails with `expected undefined to match object` — `checkArchitecture` still produces only module advisories. The `advisory gating` block's first case passes trivially at this point, since there are no form rows to suppress yet; it becomes meaningful once Step 8 lands. Both blocks are green after Step 8.
-
-- [ ] **Step 7: Collect the form advisories.** In `src/docs/docs-architecture.ts`, add above `collectModuleAdvisories`:
-
-```ts
-/**
- * Form advisories for the pages the blocking rules accepted.
- *
- * Gated deliberately: a page that is missing, unreadable, still scaffolded or
- * undrawable produces its blocking finding and nothing else. Piling advisory
- * rows onto a page whose real problem is that it does not exist yet is how the
- * channel loses its reader.
- *
- * Module advisories are NOT gated this way and are collected separately —
- * `collectModuleAdvisories` skips only an unreadable modules page, so a readable
- * placeholder page emits its module rows today. That is shipped behaviour and
- * gating it here would silently delete rows a consumer already sees.
- */
-function collectFormAdvisories(
-  reads: readonly {
-    page: (typeof ARCHITECTURE_PAGES)[number];
-    label: string;
-    read: PageRead;
-  }[],
-  blocked: ReadonlySet<string>,
-): ArchitectureAdvisory[] {
-  const out: ArchitectureAdvisory[] = [];
-  for (const { page, label, read } of reads) {
-    if (!read.ok || blocked.has(page.id)) continue;
-    const form = assessPageForm(page, read.body);
-
-    for (const section of form.missing) {
-      out.push({
-        kind: 'section',
-        pageId: page.id,
-        page: label,
-        section,
-        message: `${label} does not name section "${section}" — add a \`## ${section}\` heading.`,
-      });
-    }
-
-    if (form.flowHeadings !== null && form.flowHeadings < 1) {
-      out.push({
-        kind: 'flow-headings',
-        pageId: page.id,
-        page: label,
-        count: form.flowHeadings,
-        message: `${label} names no flow as a heading — give each load-bearing flow its own \`## \` section.`,
-      });
-    }
-  }
-  return out;
-}
-```
-
-Add to the file's imports:
-
-```ts
-import { assessPageForm } from './architecture-form.js';
-```
-
-- [ ] **Step 8: Call it from `checkArchitecture`.** In `checkArchitecture`, the findings loop already builds `findings`; record which pages were blocked as it goes. Immediately after the `for (const { page, label, read } of reads) { … }` loop that fills `findings`, and before the existing `const advisories = await collectModuleAdvisories(cwd, reads);` line, insert:
-
-```ts
-  // A page is blocked when any rule fired for it — that page's form rows stay silent.
-  const blocked = new Set(
-    reads.filter((r) => findings.some((f) => f.page === r.label)).map((r) => r.page.id),
-  );
-```
-
-then change the advisories line to:
-
-```ts
-  const advisories = [
-    ...(await collectModuleAdvisories(cwd, reads)),
-    ...collectFormAdvisories(reads, blocked),
-  ];
-```
-
-- [ ] **Step 9: Run to verify PASS.**
-
-```bash
-pnpm vitest run src/docs
-```
-
-Expected output: every test in `src/docs` passes, including the `advisory union` and `advisory gating` blocks.
-
-- [ ] **Step 10: Confirm the release probe is untouched.**
-
-```bash
-pnpm vitest run src/release
-```
-
-Expected output: all passing. The `architecture` preflight row reads `status`, which no advisory reaches — this run is what proves it.
-
-- [ ] **Step 11: Commit.**
-
-```bash
-cat > /tmp/arch-form-t3.msg <<'EOF'
-feat(docs:consumer-architecture-doc-surface): report missing sections as advisories
-
-`ModuleAdvisory` carried a `module` field that a section or flow-heading row has
-no value for, so it becomes `ArchitectureAdvisory`, discriminated on `kind`. The
-new rows ride the same channel its only consumer already reads rather than a
-second parallel array, and every row carries `pageId` as well as `page` — the
-registry id makes an invented page a type error while the repo-relative label
-stays what gets printed.
-
-`checkArchitecture` then reports, for every page the blocking rules accept, the
-registry sections it does not name as an H2, and a flows page that names no flow
-as a heading. Each message names the heading to add. None of it reaches
-`status`, so the release probe and the garden auto-restamp are untouched: the
-blocking class stays exactly the presence rules the surface shipped with.
-
-Form rows are suppressed for a page that already carries a blocking finding,
-while module rows keep their existing behaviour — a readable placeholder modules
-page still emits them. Declining a section in writing is part 2 and does not
-exist at this commit.
-
-None of it reaches `status`, so the release probe and the garden auto-restamp
-are untouched: the blocking class stays exactly the presence rules the surface
-shipped with. Form rows are suppressed for a page that already carries a
-blocking finding, while module rows keep their existing behaviour — a readable
-placeholder modules page still emits them.
-
-Noldor-FD: consumer-architecture-doc-surface
-EOF
-git add src/docs/docs-architecture.ts src/docs/__tests__/docs-architecture.test.ts
-git commit -F /tmp/arch-form-t3.msg
-```
-
----
-
-## Task 4: Garden per-variant item ids
-
-**Files:**
-- Modify: `src/garden/detectors/architecture.ts`
-- Test: `src/garden/detectors/__tests__/architecture.test.ts`
-
-- [ ] **Step 1: Write the failing test.** In `src/garden/detectors/__tests__/architecture.test.ts`, replace the `advisories` array in the `report` factory with one row of each kind, and add a new block:
+- [ ] **Step 2: Write the garden id tests.** In `src/garden/detectors/__tests__/architecture.test.ts`, replace the `advisories` array in the `report()` factory with one row per variant, two of them on the same page:
 
 ```ts
   advisories: [
@@ -768,15 +500,99 @@ describe('advisory item ids', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify FAIL.**
+
+- [ ] **Step 3: Run to verify FAIL.**
 
 ```bash
-pnpm vitest run src/garden/detectors/__tests__/architecture.test.ts
+pnpm vitest run src/docs/__tests__/docs-architecture.test.ts src/garden/detectors/__tests__/architecture.test.ts
 ```
 
-Expected output: three cases fail. `never renders an undefined discriminator` and `gives every variant a distinct id` go red because every non-module row renders `<page>#undefined` — and the two `section` rows share `context.md`, so they collide as well as being undefined. `keeps the module row id stable` goes red because the module id is still `#src/unnamed` rather than the `#module:`-prefixed form.
+Expected output: **five** failures. In the docs file, the `advisory union` block's first case fails with `expected undefined to match object` — `checkArchitecture` still produces only module advisories. In the garden file, four cases fail:
 
-- [ ] **Step 3: Update the incumbent exact-match test.** `src/garden/detectors/__tests__/architecture.test.ts` already carries `keys a gap on the modules page and the module`, a `toStrictEqual` over the *whole* `toAdvisoryGaps` result asserting one gap with id `docs/architecture/modules.md#src/unnamed`. Two things break it: the factory now returns four advisory rows instead of one, and the module id gains its `module:` prefix. Rewrite that case to assert only the module row:
+- `never renders an undefined discriminator` — every non-module row renders `<page>#undefined`.
+- `gives every variant a distinct id` — the two `section` rows share `context.md`, so their undefined ids collide.
+- `keeps the module row id stable` — the module id is still `#src/unnamed`, not the `#module:`-prefixed form.
+- `keys a gap on the modules page and the module` — an incumbent `toStrictEqual` over the whole result, which the four-row factory breaks regardless of ids.
+
+`cannot collide with a finding on the same page` also fails for the same collision reason if it asserts over a Set of ids; treat six as acceptable here and read each one rather than counting.
+
+- [ ] **Step 4: Replace the advisory type.** In `src/docs/docs-architecture.ts`, replace the whole `export interface ModuleAdvisory { … }` block with:
+
+```ts
+/**
+ * Shared fields on every advisory row.
+ *
+ * The page is carried twice on purpose: `pageId` is the registry id, so a
+ * construction site cannot invent a page, while `page` stays the repo-relative
+ * label the module rows already print.
+ */
+interface AdvisoryBase {
+  readonly pageId: ArchitecturePageId;
+  /** Repo-relative path, POSIX separators. */
+  readonly page: string;
+  readonly message: string;
+}
+
+/**
+ * A non-blocking observation about a page.
+ *
+ * Advisory by design: none of these reach `status`, so none reaches the release
+ * probe. Keeping that promise also constrains how they may be reported —
+ * routing them into garden's `sddGaps` would gate the auto-restamp and block a
+ * release, so they ride their own `GardenFindings` key. See
+ * `src/garden/detectors/architecture.ts`.
+ *
+ * One discriminated channel rather than an array per class: its only consumer
+ * (`src/garden/garden-detect.ts`) reads one array today, and a second array
+ * would make every future consumer enumerate classes.
+ */
+export type ArchitectureAdvisory =
+  | (AdvisoryBase & { readonly kind: 'module'; readonly module: string })
+  | (AdvisoryBase & { readonly kind: 'section'; readonly section: string })
+  | (AdvisoryBase & { readonly kind: 'flow-headings'; readonly count: number });
+```
+
+Add `ArchitecturePageId` to the schema import at the top of the file:
+
+```ts
+import {
+  ARCHITECTURE_PAGES,
+  PLACEHOLDER_MARKER,
+  pageFilename,
+  type ArchitecturePageId,
+} from './architecture-schema.js';
+```
+
+and change `ArchitectureReport`'s advisory field to:
+
+```ts
+  readonly advisories: readonly ArchitectureAdvisory[];
+```
+
+- [ ] **Step 5: Give the module rows their new fields.** In `collectModuleAdvisories`, the `reads` parameter type must carry the page id, so change its signature and mapper:
+
+```ts
+async function collectModuleAdvisories(
+  cwd: string,
+  reads: readonly { page: { id: ArchitecturePageId }; label: string; read: PageRead }[],
+): Promise<ArchitectureAdvisory[]> {
+  const modulesPage = reads.find((r) => r.page.id === 'modules');
+  if (!modulesPage?.read.ok) return [];
+  const body = modulesPage.read.body;
+  const label = modulesPage.label;
+  return (await listModuleDirs(cwd))
+    .filter((module) => !mentionsModule(body, module))
+    .map((module) => ({
+      kind: 'module' as const,
+      pageId: modulesPage.page.id,
+      page: label,
+      module,
+      message: `${label} does not name ${module}`,
+    }));
+}
+```
+
+- [ ] **Step 6: Update the incumbent exact-match test.** `src/garden/detectors/__tests__/architecture.test.ts` already carries `keys a gap on the modules page and the module`, a `toStrictEqual` over the *whole* `toAdvisoryGaps` result asserting one gap with id `docs/architecture/modules.md#src/unnamed`. Two things break it: the factory now returns four advisory rows instead of one, and the module id gains its `module:` prefix. Rewrite that case to assert only the module row:
 
 ```ts
   it('keys a gap on the modules page and the module', () => {
@@ -791,7 +607,7 @@ Expected output: three cases fail. `never renders an undefined discriminator` an
 
 `toContainEqual` rather than `toStrictEqual` on the array: the factory is shared by every case in the file, so a whole-result match makes each new advisory variant break an unrelated test. This is a real id-format change — `#src/unnamed` becomes `#module:src/unnamed` — so any consumer holding a stored gap id sees a new row rather than a moved one. Nothing in this repo stores them across runs (`garden detect` recomputes every time), but the commit message says it out loud.
 
-- [ ] **Step 4: Implement the discriminator.** In `src/garden/detectors/architecture.ts`, replace `toAdvisoryGaps` and the advisory half of `gapsFrom` with:
+- [ ] **Step 7: Implement the discriminator.** In `src/garden/detectors/architecture.ts`, replace `toAdvisoryGaps` and the advisory half of `gapsFrom` with:
 
 ```ts
 /** Module advisories as gaps. Never routed into `sddGaps` — see {@link toFindingGaps}. */
@@ -836,42 +652,196 @@ import {
 
 Leave `toFindingGaps` and the shared `gapsFrom` alone if `toFindingGaps` still uses it; if `gapsFrom` now has exactly one caller, inline it into `toFindingGaps` rather than keeping a one-caller generic.
 
-- [ ] **Step 5: Run to verify PASS.**
+- [ ] **Step 8: Run to verify the build is green and the garden tests pass.**
 
 ```bash
-pnpm vitest run src/garden/detectors/__tests__/architecture.test.ts
+pnpm typecheck && pnpm vitest run src/garden
 ```
 
-Expected output: every case passes, including the rewritten module case and the three new ones.
+Expected output: typecheck clean and every `src/garden` test passing. Typecheck is the step that matters here: it is what proves the widened union has no reader left holding `.module` unconditionally.
 
-- [ ] **Step 6: Commit.**
+- [ ] **Step 9: Write the gating test.** Append to `src/docs/__tests__/docs-architecture.test.ts`:
+
+```ts
+describe('advisory gating', () => {
+  it('suppresses form rows on a page carrying a blocking finding', async () => {
+    const root = await makeRepo();
+    await writeArchitecture(root, {
+      // No fence AND no sections: the blocking rule wins, the form rows stay silent.
+      context: '# Context\n\nprose only.\n',
+      containers: fullPage('containers'),
+      modules: fullPage('modules'),
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.map((f) => f.rule)).toStrictEqual(['no-fence']);
+    expect(report.advisories.filter((a) => a.page.endsWith('context.md'))).toStrictEqual([]);
+  });
+
+  it('still emits module rows for a readable placeholder modules page', async () => {
+    const root = await makeRepo();
+    await mkdir(join(root, 'src', 'onlymodule'), { recursive: true });
+    await writeArchitecture(root, {
+      context: fullPage('context'),
+      containers: fullPage('containers'),
+      modules: `# Modules\n\n${PLACEHOLDER_MARKER} draw it -->\n\n\`\`\`mermaid\nflowchart TD\n  a --> b\n\`\`\`\n`,
+      flows: fullPage('flows'),
+    });
+    const report = await checkArchitecture(root);
+    expect(report.findings.some((f) => f.rule === 'placeholder')).toBe(true);
+    expect(report.advisories.some((a) => a.kind === 'module')).toBe(true);
+  });
+
+  it('emits no advisories at all for an absent surface', async () => {
+    const root = await makeRepo();
+    const report = await checkArchitecture(root);
+    expect(report.status).toBe('absent');
+    expect(report.advisories).toStrictEqual([]);
+  });
+});
+```
+
+Import `PLACEHOLDER_MARKER` alongside `ARCHITECTURE_PAGES` at the top of the test file.
+
+- [ ] **Step 10: Run to verify FAIL.**
 
 ```bash
-cat > /tmp/arch-form-t4.msg <<'EOF'
-fix(garden): derive architecture advisory ids per variant
+pnpm vitest run src/docs/__tests__/docs-architecture.test.ts
+```
 
-`toAdvisoryGaps` keyed `itemId` on `a.module`, which every non-module row lacks
-— so a section or flow-heading row rendered as `<page>#undefined`, and two such
-rows on one page collapsed into a single gap. That breaks the stable-identity
-promise this file documents.
+Run the whole file rather than filtering: the observable failure is the `advisory union` block from Step 1, and a `-t 'advisory gating'` filter would exclude exactly that. All three gating cases pass at this point — the first trivially, since there are no form rows to suppress yet, and the other two because they exercise already-shipped behaviour.
 
-The discriminator is now derived per `kind` and prefixed with it, so two
-variants cannot collide on one page.
+- [ ] **Step 11: Collect the form advisories.** In `src/docs/docs-architecture.ts`, add above `collectModuleAdvisories`:
 
-This changes the module row's id format: `<page>#src/unnamed` becomes
-`<page>#module:src/unnamed`. Nothing stores these across runs — `garden detect`
-recomputes them every time — so the change is invisible in practice, but it is a
-rename rather than a no-op and the incumbent exact-match test is updated for it.
+```ts
+/**
+ * Form advisories for the pages the blocking rules accepted.
+ *
+ * Gated deliberately: a page that is missing, unreadable, still scaffolded or
+ * undrawable produces its blocking finding and nothing else. Piling advisory
+ * rows onto a page whose real problem is that it does not exist yet is how the
+ * channel loses its reader.
+ *
+ * Module advisories are NOT gated this way and are collected separately —
+ * `collectModuleAdvisories` skips only an unreadable modules page, so a readable
+ * placeholder page emits its module rows today. That is shipped behaviour and
+ * gating it here would silently delete rows a consumer already sees.
+ */
+function collectFormAdvisories(
+  reads: readonly {
+    page: (typeof ARCHITECTURE_PAGES)[number];
+    label: string;
+    read: PageRead;
+  }[],
+  blocked: ReadonlySet<string>,
+): ArchitectureAdvisory[] {
+  const out: ArchitectureAdvisory[] = [];
+  for (const { page, label, read } of reads) {
+    if (!read.ok || blocked.has(page.id)) continue;
+    const form = assessPageForm(page, read.body);
+
+    for (const section of form.missing) {
+      out.push({
+        kind: 'section',
+        pageId: page.id,
+        page: label,
+        section,
+        message: `${label} does not name section "${section}" — add a \`## ${section}\` heading.`,
+      });
+    }
+
+    if (form.flowHeadings !== null && form.flowHeadings < 1) {
+      out.push({
+        kind: 'flow-headings',
+        pageId: page.id,
+        page: label,
+        count: form.flowHeadings,
+        message: `${label} names no flow as a heading — give each load-bearing flow its own \`## \` section.`,
+      });
+    }
+  }
+  return out;
+}
+```
+
+Add to the file's imports:
+
+```ts
+import { assessPageForm } from './architecture-form.js';
+```
+
+- [ ] **Step 12: Call it from `checkArchitecture`.** In `checkArchitecture`, the findings loop already builds `findings`; record which pages were blocked as it goes. Immediately after the `for (const { page, label, read } of reads) { … }` loop that fills `findings`, and before the existing `const advisories = await collectModuleAdvisories(cwd, reads);` line, insert:
+
+```ts
+  // A page is blocked when any rule fired for it — that page's form rows stay silent.
+  const blocked = new Set(
+    reads.filter((r) => findings.some((f) => f.page === r.label)).map((r) => r.page.id),
+  );
+```
+
+then change the advisories line to:
+
+```ts
+  const advisories = [
+    ...(await collectModuleAdvisories(cwd, reads)),
+    ...collectFormAdvisories(reads, blocked),
+  ];
+```
+
+- [ ] **Step 13: Run to verify PASS.**
+
+```bash
+pnpm typecheck && pnpm vitest run src/docs src/garden
+```
+
+Expected output: typecheck clean; every test in `src/docs` and `src/garden` passing, including the `advisory union` and `advisory gating` blocks.
+
+- [ ] **Step 14: Confirm the release probe is untouched.**
+
+```bash
+pnpm vitest run src/release
+```
+
+Expected output: all passing. The `architecture` preflight row reads `status`, which no advisory reaches — this run is what proves it.
+
+- [ ] **Step 15: Commit.**
+
+```bash
+cat > /tmp/arch-form-t3.msg <<'EOF'
+feat(docs:consumer-architecture-doc-surface): report missing sections as advisories
+
+Why — `docs/architecture/` checks that its four pages exist, carry a mermaid
+fence and use an allowed diagram kind, but nothing describes what belongs inside
+a page. Pages drift into narrative prose and across C4 levels while passing every
+check, so the surface stops being the terse reading it exists to give.
+
+How — `ModuleAdvisory` carried a `module` field that a section or flow-heading
+row has no value for, so it becomes `ArchitectureAdvisory`, discriminated on
+`kind`. The new rows ride the channel its only consumer already reads rather than
+a second parallel array, and every row carries `pageId` as well as `page` — the
+registry id makes an invented page a type error while the repo-relative label
+stays what gets printed. `checkArchitecture` then reports, for every page the
+blocking rules accept, the registry sections it does not name as an H2 and a
+flows page that names no flow as a heading.
+
+What — the widened union, `collectFormAdvisories` and its gate, and the garden
+discriminator derived per `kind` so two variants cannot collide on one page.
+Nothing reaches `status`, so the release probe and the garden auto-restamp are
+untouched. Form rows are suppressed for a page that already carries a blocking
+finding, while module rows keep their existing behaviour. This does change the
+module row's id format — `<page>#src/unnamed` becomes `<page>#module:src/unnamed`
+— which nothing stores across runs, but it is a rename rather than a no-op.
+Declining a section in writing is part 2 and does not exist at this commit.
 
 Noldor-FD: consumer-architecture-doc-surface
 EOF
-git add src/garden/detectors/architecture.ts src/garden/detectors/__tests__/architecture.test.ts
-git commit -F /tmp/arch-form-t4.msg
+git add src/docs/docs-architecture.ts src/garden/detectors/architecture.ts src/docs/__tests__/docs-architecture.test.ts src/garden/detectors/__tests__/architecture.test.ts
+git commit -F /tmp/arch-form-t3.msg
 ```
 
 ---
 
-## Task 5: Dogfood this repo's pages
+## Task 4: Dogfood this repo's pages
 
 **Files:**
 - Modify: `docs/architecture/context.md`, `docs/architecture/containers.md`, `docs/architecture/modules.md`
@@ -909,7 +879,7 @@ Expected output: typecheck clean, full suite passing, features valid.
 - [ ] **Step 7: Commit.**
 
 ```bash
-cat > /tmp/arch-form-t5.msg <<'EOF'
+cat > /tmp/arch-form-t4.msg <<'EOF'
 docs(architecture): re-head the four pages to the registry sections
 
 The surface is dogfooded, so this repo's own pages adopt the contract they now
@@ -926,5 +896,5 @@ two existing headings. `flows.md` already conformed.
 Noldor-FD: consumer-architecture-doc-surface
 EOF
 git add docs/architecture
-git commit -F /tmp/arch-form-t5.msg
+git commit -F /tmp/arch-form-t4.msg
 ```
