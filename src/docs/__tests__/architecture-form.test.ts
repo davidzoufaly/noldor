@@ -282,6 +282,23 @@ describe(proseParagraphs, () => {
     expect(proseParagraphs(body)).toStrictEqual(['real prose after comment', 'more prose']);
   });
 
+  it('re-scans the tail after a comment closes mid-line', () => {
+    // Classifying the tail directly instead of continuing the scan leaves a
+    // second `<!--` unopened, so the comment body counts toward the budget —
+    // the over-report direction.
+    const body = ['<!--', 'c', '--> live <!-- open', 'hidden line', '-->', '', 'tail'].join('\n');
+    expect(proseParagraphs(body)).toStrictEqual(['live', 'tail']);
+  });
+
+  it('keeps a comment span from shifting later text into heading position', () => {
+    // Concatenating around a removed comment moves `## real prose` to column
+    // zero, where the heading rule blanks it. Blanking to spaces preserves the
+    // column, and the surviving run still counts as its own words.
+    expect(proseParagraphs('<!-- hidden -->## visible prose')).toStrictEqual(['## visible prose']);
+    const [only] = proseParagraphs('visible <!-- hidden words here --> tail');
+    expect(only!.split(/\s+/)).toStrictEqual(['visible', 'tail']);
+  });
+
   it('still strips a comment that sits outside any fence', () => {
     expect(proseParagraphs('a\n\n<!-- hidden -->\n\nb')).toStrictEqual(['a', 'b']);
   });

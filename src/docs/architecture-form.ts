@@ -198,6 +198,12 @@ const LIST_ITEM = /^ {0,3}([-*+]|\d{1,9}[.)])\s/;
  * are silent under-reports, which is the failure that suppresses a budget rather
  * than firing a spurious one.
  *
+ * Within a line the scan continues past each comment close, so a second `<!--`
+ * on the same line cannot leak its body into the prose, and every comment span
+ * is replaced by spaces rather than removed so that surviving text keeps its
+ * column — otherwise `<!-- x -->## real prose` arrives at column zero and is
+ * blanked as a heading.
+ *
  * @param body - Raw markdown
  * @returns Non-empty paragraphs, in document order
  */
@@ -218,49 +224,52 @@ export function proseParagraphs(body: string): string[] {
   };
 
   for (const raw of body.split(/\r\n|\r|\n/)) {
-    if (inComment) {
-      const close = raw.indexOf('-->');
-      if (close === -1) {
+    // A fence delimiter is line-initial, so it is decided before any comment on
+    // the line — but only when the line does not begin inside a comment, where
+    // markdown is inert.
+    if (!inComment) {
+      if (fence !== null) {
+        ({ open: fence } = stepFence(raw, fence));
         kept.push('');
         continue;
       }
-      inComment = false;
-      // A fence opener must begin its line, so the tail after `-->` cannot open one.
-      classify(raw.slice(close + 3));
-      continue;
+      const opened = stepFence(raw, null).open;
+      if (opened !== null) {
+        fence = opened;
+        kept.push('');
+        continue;
+      }
     }
 
-    if (fence !== null) {
-      ({ open: fence } = stepFence(raw, fence));
-      kept.push('');
-      continue;
-    }
-
-    // A fence delimiter is line-initial, so it precedes any `<!--` on the line.
-    const opened = stepFence(raw, null).open;
-    if (opened !== null) {
-      fence = opened;
-      kept.push('');
-      continue;
-    }
-
-    let rest = raw;
-    let live = '';
+    // Walk the whole line, blanking every comment span. Comment runs are replaced
+    // by spaces rather than removed: concatenating the text around a comment
+    // shifts later text left, and `<!-- x -->## real prose` would arrive at column
+    // zero and be blanked as a heading. Looping rather than handling one span
+    // keeps a second `<!--` after a close from leaking its body into the prose.
+    let out = '';
+    let i = 0;
     for (;;) {
-      const open = rest.indexOf('<!--');
+      if (inComment) {
+        const close = raw.indexOf('-->', i);
+        if (close === -1) {
+          out += ' '.repeat(Math.max(0, raw.length - i));
+          break;
+        }
+        out += ' '.repeat(close + 3 - i);
+        i = close + 3;
+        inComment = false;
+        continue;
+      }
+      const open = raw.indexOf('<!--', i);
       if (open === -1) {
-        live += rest;
+        out += raw.slice(i);
         break;
       }
-      live += rest.slice(0, open);
-      const close = rest.indexOf('-->', open + 4);
-      if (close === -1) {
-        inComment = true;
-        break;
-      }
-      rest = rest.slice(close + 3);
+      out += raw.slice(i, open);
+      i = open;
+      inComment = true;
     }
-    classify(live);
+    classify(out);
   }
 
   return kept
