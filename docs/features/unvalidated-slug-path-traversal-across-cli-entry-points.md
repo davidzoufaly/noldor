@@ -7,6 +7,8 @@ links:
   code: []
   tests:
     - src/core/__tests__/slug-paths.test.ts
+    - src/core/__tests__/slug-traversal.cli.test.ts
+    - src/invariants/__tests__/slug-path-choke-point.test.ts
 name: Unvalidated Slug Path Traversal Across CLI Entry Points
 packages:
   - scripts
