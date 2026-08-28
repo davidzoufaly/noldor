@@ -160,3 +160,50 @@ export function assessPageForm(page: FormPage, body: string): PageForm {
   const missing = page.sections.filter((s) => !present.has(norm(s)) && !declined.has(norm(s)));
   return { missing, unknownCuts, flowHeadings: null };
 }
+
+/** Line opening or closing a fence: three or more backticks or tildes at up to three spaces of indent. */
+const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})/;
+
+/**
+ * Prose paragraphs of a page body: what a reader actually reads.
+ *
+ * Mermaid fences, code fences, table rows, headings and HTML comments are
+ * blanked — a page may be long in diagram and table and still be terse in
+ * prose, which is the form the contract exists to produce, and template prompts
+ * and cut markers are comments a reader never sees.
+ *
+ * Blanking replaces each removed line with an empty one rather than deleting it,
+ * so prose on either side of a diagram stays two paragraphs instead of merging
+ * into one and reading as a single oversized block.
+ *
+ * noldor:cut open/close fence toggle, no marker-and-length matching — a
+ * mismatched fence run blanks more prose than it should, which under-reports a
+ * budget rather than over-reporting it, and a quiet advisory is the safe
+ * direction. Route through `listHeadings`' fence state if that stops holding.
+ *
+ * @param body - Raw markdown
+ * @returns Non-empty paragraphs, in document order
+ */
+export function proseParagraphs(body: string): string[] {
+  const withoutComments = body.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
+  const kept: string[] = [];
+  let inFence = false;
+  for (const line of withoutComments.split(/\r\n|\r|\n/)) {
+    if (FENCE_LINE.test(line)) {
+      inFence = !inFence;
+      kept.push('');
+      continue;
+    }
+    const trimmed = line.trim();
+    if (inFence || trimmed.startsWith('|') || trimmed.startsWith('#')) {
+      kept.push('');
+      continue;
+    }
+    kept.push(line);
+  }
+  return kept
+    .join('\n')
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p !== '');
+}

@@ -1,7 +1,12 @@
 // @tests: consumer-architecture-doc-surface
 import { describe, expect, it } from 'vitest';
 
-import { SECTION_CUT_TOKEN, assessPageForm, parseSectionCuts } from '../architecture-form.js';
+import {
+  SECTION_CUT_TOKEN,
+  assessPageForm,
+  parseSectionCuts,
+  proseParagraphs,
+} from '../architecture-form.js';
 
 const CONTEXT = { id: 'context', sections: ['Actors', 'Externals', 'Boundary'] } as const;
 const FLOWS = { id: 'flows', sections: [] } as const;
@@ -158,5 +163,51 @@ describe('assessPageForm declines', () => {
   it('never reports an unknown cut on an empty-sections page', () => {
     const body = '## A flow\n<!-- noldor:cut-section Anything — no set to check against -->';
     expect(assessPageForm(FLOWS, body).unknownCuts).toStrictEqual([]);
+  });
+});
+
+describe(proseParagraphs, () => {
+  it('splits on blank lines', () => {
+    expect(proseParagraphs('one two\n\nthree four five')).toStrictEqual([
+      'one two',
+      'three four five',
+    ]);
+  });
+
+  it('drops headings', () => {
+    expect(proseParagraphs('## Actors\n\nreal prose')).toStrictEqual(['real prose']);
+  });
+
+  it('drops fenced blocks and does not merge the prose around them', () => {
+    const body = 'before\n\n```mermaid\nflowchart LR\n  a --> b\n```\n\nafter';
+    expect(proseParagraphs(body)).toStrictEqual(['before', 'after']);
+  });
+
+  it('drops tilde fences too', () => {
+    expect(proseParagraphs('before\n\n~~~js\nconst a = 1;\n~~~\n\nafter')).toStrictEqual([
+      'before',
+      'after',
+    ]);
+  });
+
+  it('drops table rows', () => {
+    const body = 'before\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nafter';
+    expect(proseParagraphs(body)).toStrictEqual(['before', 'after']);
+  });
+
+  it('drops HTML comments', () => {
+    const body = 'before\n\n<!-- what belongs here: a prompt nobody reads -->\n\nafter';
+    expect(proseParagraphs(body)).toStrictEqual(['before', 'after']);
+  });
+
+  it('drops a multi-line HTML comment', () => {
+    const body = 'before\n\n<!-- one\ntwo\nthree -->\n\nafter';
+    expect(proseParagraphs(body)).toStrictEqual(['before', 'after']);
+  });
+
+  it('keeps a paragraph that merely contains inline code', () => {
+    expect(proseParagraphs('the `src/core` module owns it')).toStrictEqual([
+      'the `src/core` module owns it',
+    ]);
   });
 });
