@@ -208,5 +208,10 @@
     "slug": "graph-evidence-in-specs-and-adrs",
     "retiredInto": "graphify-plan-of-edges-nodes-for-plans-specs",
     "retiredAt": "2026-08-28"
+  },
+  "Q-0186": {
+    "slug": "design-approval-step-before-implementation",
+    "retiredInto": "pendev-ui-design-phase",
+    "retiredAt": "2026-08-28"
   }
 }
