@@ -2,7 +2,7 @@
 
 import { readFile, readdir } from 'node:fs/promises';
 import { readdirSync, realpathSync, statSync } from 'node:fs';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 
 import { loadConsumerConfig } from './consumer-config.js';
 
@@ -101,6 +101,7 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
     // Never follow links: this corpus feeds the clone detector and code-link
     // sync, which need git-tracked, enumeration-order-independent paths.
     false,
+    undefined,
   );
   return out.sort();
 }
@@ -141,12 +142,25 @@ export function walkCodeFiles(root: string, opts: { includeTests: boolean }): st
  * `src/loop -> src` re-walked the tree until ENAMETOOLONG. A directory is
  * entered once however many links reach it, so a cycle terminates and a
  * legitimate `src/generated -> ../generated` stays visible.
+ *
+ * Following is additionally repository-bounded, which pre-lift never was: a
+ * directory is entered only when its RESOLVED path stays inside `containWithin`
+ * (the caller's repo root, realpathed) and its resolved basename passes
+ * `skipDir`. Without those two checks — both nearly free, since the realpath is
+ * already in hand — `src/root -> /` walks the host filesystem and
+ * `src/vendor -> ../node_modules` re-admits an excluded tree under another
+ * name, polluting the mtime aggregate into a perpetual false-stale.
+ *
+ * Exported for its tests only: bounded-vs-exhausted traversal is
+ * indistinguishable through `newestMtimeInRoots` (an ENAMETOOLONG-exhausted
+ * walk still returns the right max), so the test observes `onFile` directly.
  */
-function walkDir(
+export function walkDir(
   root: string,
   onFile: (path: string, name: string) => void,
   skipDir: (name: string) => boolean,
   followLinks: boolean,
+  containWithin?: string,
   visited: Set<string> = new Set(),
 ): void {
   if (followLinks) {
@@ -160,6 +174,13 @@ function walkDir(
     }
     if (visited.has(real)) return;
     visited.add(real);
+    // Repository bound + exclusion on the RESOLVED name — the alias name was
+    // already checked at descent, but `src/vendor -> ../node_modules` passes
+    // that check and must fail this one.
+    if (containWithin !== undefined) {
+      if (real !== containWithin && !real.startsWith(containWithin + sep)) return;
+    }
+    if (skipDir(basename(real))) return;
   }
   let entries;
   try {
@@ -185,7 +206,7 @@ function walkDir(
     }
     if (isDir) {
       if (skipDir(entry.name)) continue;
-      walkDir(full, onFile, skipDir, followLinks, visited);
+      walkDir(full, onFile, skipDir, followLinks, containWithin, visited);
     } else if (isFile) {
       onFile(full, entry.name);
     }
@@ -231,14 +252,38 @@ export function newestMtimeInRoots(cwd: string, roots: readonly string[]): numbe
     if (newest === null || st.mtimeMs > newest) newest = st.mtimeMs;
   };
   const skipDir = (name: string): boolean => name.startsWith('.') || MTIME_SKIP_DIRS.has(name);
+  // Bound link-following, whatever a link points at. The bound is the repo when
+  // the root lives inside it — so a legitimate `src/generated -> ../generated`
+  // stays visible — and the root itself otherwise: callers (and this module's
+  // tests) legitimately pass absolute roots outside `cwd`, and bounding those to
+  // the repo would silently walk nothing.
+  let repoReal: string | undefined;
+  try {
+    repoReal = realpathSync(cwd);
+  } catch {
+    repoReal = undefined;
+  }
+  const boundFor = (abs: string): string | undefined => {
+    let rootReal: string;
+    try {
+      rootReal = realpathSync(abs);
+    } catch {
+      return undefined;
+    }
+    if (repoReal !== undefined && (rootReal === repoReal || rootReal.startsWith(repoReal + sep))) {
+      return repoReal;
+    }
+    return rootReal;
+  };
   // An absolute root is used as-is: `join(cwd, '/tmp/x')` yields `<cwd>/tmp/x`,
   // which silently walks nothing. Callers pass both shapes — `scanRoots()` gives
   // relative names, tests and any absolute-path caller give resolved ones.
   for (const root of roots) {
     const abs = isAbsolute(root) ? root : join(cwd, root);
     if (isSamplesPath(abs, samplesPath)) continue;
-    // Follow file links: a symlinked source file is exactly what went invisible.
-    walkDir(abs, onFile, skipDir, true);
+    // Follow links: a symlinked source file or directory is exactly what went
+    // invisible — bounded per root by `boundFor`.
+    walkDir(abs, onFile, skipDir, true, boundFor(abs));
   }
   return newest;
 }

@@ -12,7 +12,9 @@ import {
   newestMtimeInRoots,
   scanRoots,
   walkCodeFiles,
+  walkDir,
 } from '../repo-paths.js';
+import { realpathSync } from 'node:fs';
 import { scanRoots as legacyScanRoots } from '../../sync/sync-code-links.js';
 
 const MINIMAL_CONSUMER = {
@@ -203,8 +205,20 @@ describe('walkDir symlink policy', () => {
       expect(found).toEqual([join(dir, 'src', 'a.ts')]);
       expect(found.some((p) => p.includes('loop'))).toBe(false);
       // Mtime: follows links, so the cycle relies on the realpath visited set to
-      // terminate — pre-lift walkSync re-entered until ENAMETOOLONG here.
-      expect(newestMtimeInRoots(dir, ['src'])).not.toBeNull();
+      // terminate. Asserted on walkDir directly, because through
+      // newestMtimeInRoots an ENAMETOOLONG-exhausted walk (the pre-lift failure)
+      // returns the same non-null max and is indistinguishable from bounding —
+      // observing onFile is what discriminates: exhaustion re-visits `a.ts` at
+      // every nesting depth, bounding visits it exactly once.
+      const seen: string[] = [];
+      walkDir(
+        join(dir, 'src'),
+        (full) => seen.push(full),
+        () => false,
+        true,
+        realpathSync(dir),
+      );
+      expect(seen.filter((p) => p.endsWith('a.ts'))).toHaveLength(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -231,6 +245,36 @@ describe('walkDir symlink policy', () => {
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
+    }
+  });
+
+  it('never escapes the repo or re-admits an excluded dir through a link', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'walkdir-escape-'));
+    const outside = mkdtempSync(join(tmpdir(), 'walkdir-outside-'));
+    try {
+      mkdirSync(join(dir, '.noldor'), { recursive: true });
+      mkdirSync(join(dir, 'src'), { recursive: true });
+      mkdirSync(join(dir, 'node_modules', 'dep'), { recursive: true });
+      writeFileSync(
+        join(dir, '.noldor', 'config.json'),
+        JSON.stringify({ consumer: { ...MINIMAL_CONSUMER, scanPaths: ['src'] } }),
+        'utf8',
+      );
+      writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n', 'utf8');
+      const future = new Date(Date.now() + 600_000);
+      // Outside the repo: must stay invisible however new.
+      writeFileSync(join(outside, 'host.ts'), 'x', 'utf8');
+      utimesSync(join(outside, 'host.ts'), future, future);
+      symlinkSync(outside, join(dir, 'src', 'root'));
+      // Excluded tree re-admitted under another name: must stay excluded, or the
+      // mtime aggregate turns into a perpetual false-stale.
+      writeFileSync(join(dir, 'node_modules', 'dep', 'dep.ts'), 'x', 'utf8');
+      utimesSync(join(dir, 'node_modules', 'dep', 'dep.ts'), future, future);
+      symlinkSync(join(dir, 'node_modules'), join(dir, 'src', 'vendor'));
+      expect(newestMtimeInRoots(dir, ['src'])).toBeLessThan(future.getTime());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
     }
   });
 });
