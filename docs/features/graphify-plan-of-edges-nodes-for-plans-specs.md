@@ -22,7 +22,7 @@ links:
 name: Graphify `plan-of` edges + nodes for plans/specs
 packages:
   - scripts
-phase: in-progress
+phase: done
 noldor-tier: specs-only
 introduced: 0.4.0
 ---
@@ -54,6 +54,39 @@ pnpm garden:detect                 # detectStalePlans/Specs use graph-adjacency 
 
 Agent API: `resolveByGraphAdjacency({ repo, docPath, relation: 'plan-of' | 'spec-of' })`
 in `src/garden/plan-resolution.ts` returns `ResolvedOwner | null`.
+
+**Structural evidence in design artifacts**
+
+```bash
+# Freshness verdict + per-path structural digest. Run by /noldor-spec step 1.7 on
+# specs-only-* / full-* paths, before ## Design is drafted.
+pnpm noldor design graph-context --path src/foo.ts --path src/bar.ts
+
+#   exit 0  "skipped"  -> repo tracks no graph; record a noldor:cut and continue
+#   exit 1  "stale"    -> /graphify --ast-only && pnpm toon, then retry ONCE
+#   exit 0  digest     -> write ### Structural context from it
+#   exit 2             -> usage error (unknown arg, or a --path escaping the repo)
+
+# Zero paths is valid — verdict only, no digest:
+pnpm noldor design graph-context
+
+# Same command by hand when authoring a decision record (no automated read there):
+pnpm noldor adr new my-decision
+
+# Advisory report of artifacts whose unit is still a stub — never blocking:
+pnpm noldor garden detect          # structuralContextStubs key
+```
+
+A deliberate skip is recorded inside the unit itself, and needs a reason:
+
+```
+noldor:cut graph not consulted — <reason> · <what would change the answer>
+```
+
+Agent API: `graphContext({ cwd, paths })` in `src/design/graph-context.ts` returns
+`{ status: 'skipped' | 'stale' | 'fresh', detail, summaryToon, digests }`;
+`detectStructuralContextStubs(repo)` in `src/garden/detectors/structural-context.ts`
+returns one `StructuralContextStub` per unfilled artifact.
 
 ## PRs
 
