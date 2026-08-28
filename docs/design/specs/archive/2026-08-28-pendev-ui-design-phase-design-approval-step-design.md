@@ -64,12 +64,14 @@ This is a real reduction against the roadmap entry, which states its deletion te
 
 `uiVerdict` and `uiWaiver` are independent fields and **do coexist**: step 1.5 writes the verdict before the `required` branch runs, which is why [`ui-design-resolve.ts`](../../../../src/cr/lanes/ui-design-resolve.ts) tests `session.uiWaiver` first. The verdict bullet keys on `uiVerdict === 'required' && !uiWaiver`.
 
-| Session state | `.pen` exists | Approval asked | Trace required in `## Design` |
-| --- | --- | --- | --- |
-| `uiVerdict: skip` | no | no | no |
-| `uiVerdict: required`, no waiver | yes | **yes** | **yes** — approval sentence per surface |
-| `uiVerdict: required` + `uiWaiver`, waived at Seed | no | no | the existing waiver note only |
-| `uiVerdict: required` + `uiWaiver`, waived at the verdict | **yes** | no | the waiver note, naming the unapproved `.pen` |
+| Session state | `.pen` exists | `links.design` | Approval asked | Trace required in `## Design` |
+| --- | --- | --- | --- | --- |
+| `uiVerdict: skip` | no | unset | no | no |
+| `uiVerdict: required`, no waiver | yes | set | **yes** | **yes** — approval sentence per surface |
+| `uiVerdict: required` + `uiWaiver`, waived at Seed | no | unset | no | the existing waiver note only |
+| `uiVerdict: required` + `uiWaiver`, waived at the verdict | **yes** | **set** | no | the waiver note, naming the unapproved `.pen` |
+
+`links.design` is set by **Record**, which runs before the verdict and needs no MCP — so a verdict-time waiver inherits it. It stays set: it names a committed-but-unapproved design, and unsetting it would strand the retained `.pen` outside the link-based flow `design archive` uses to find and repoint it (D5). The FD `design:` field is a different thing entirely — an operator override, never a verdict record, and never written by this step.
 
 A waiver is not a third verdict and not a rejection. It is the pre-existing editor-unavailable escape ([session.ts](../../../../src/core/session.ts)), and it can be taken at either of two points. Waived at **Seed**, no `.pen` was ever produced and there is nothing to approve. Waived at the **verdict** — the bridge died after iteration, which is a live risk the "Wake the bridge" bullet exists for — the `.pen` exists but was never shown: it is kept and committed like any other design artifact, and the waiver note must say it went unapproved, so a later reader does not mistake an archived `.pen` for a ratified one. Either way the session's baseline debt is recorded by the waiver itself.
 
