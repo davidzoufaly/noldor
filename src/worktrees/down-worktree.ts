@@ -53,8 +53,22 @@ export async function downWorktree(
   let reaped = 0;
   // No-follow: this read's second column is passed to process.kill(-pid), so a
   // symlink swapped in after the guard would hand a foreign file's contents to
-  // a process-group signal. An absent or unreadable pid file is still benign.
-  const body = await readFileNoFollowAsync(pidsFile).catch(() => '');
+  // a process-group signal.
+  //
+  // Only ENOENT is benign — no surfaces were booted, so there is nothing to
+  // reap. Every other failure (ELOOP from a planted link, EACCES, or the
+  // platform lacking O_NOFOLLOW) means a pid file may exist and be unreadable,
+  // so reaping nothing would leave dev servers running while `--remove` still
+  // tore the worktree down. Those are reported, not swallowed.
+  let body: string;
+  try {
+    body = await readFileNoFollowAsync(pidsFile);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      return { ok: false, error: { kind: 'uninspectable', path: pidsFile, reason: String(err) } };
+    }
+    body = '';
+  }
   for (const line of body.split('\n').filter(Boolean)) {
     const pid = Number(line.split(/\s+/)[1]);
     if (!Number.isFinite(pid)) continue;

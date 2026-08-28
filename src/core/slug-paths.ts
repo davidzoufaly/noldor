@@ -164,8 +164,16 @@ const O_NOFOLLOW: number | null =
  *
  * The `lstat` in {@link slugPath} is a check-then-use: between it returning and
  * an ordinary pathname read, the segment can be replaced with a symlink. Kernel
- * `O_NOFOLLOW` closes that window because the refusal happens *in* the open —
- * there is no gap to race.
+ * `O_NOFOLLOW` closes that window for the FINAL component, because the refusal
+ * happens *in* the open — there is no gap to race there.
+ *
+ * It does **not** cover an intermediate directory swapped for a symlink after
+ * validation: `O_NOFOLLOW` constrains only the last component, and closing the
+ * whole chain needs per-component `openat` (or `resolveBeneath`), which Node
+ * does not expose. What remains uncovered is therefore stated rather than
+ * implied — an attacker who can rewrite a directory inside the repository
+ * already has write access to it, which is a strictly stronger position than
+ * the argument-supplied traversal this feature exists to stop.
  *
  * Writes do not need a twin of this: {@link atomicWriteFileSync} writes a
  * sibling temp file and `rename`s it over the target, which replaces a planted

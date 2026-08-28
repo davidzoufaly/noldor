@@ -329,16 +329,15 @@ describe('noldor design archive', () => {
   });
 });
 
-describe('parseArchiveArgs — slug guard', () => {
-  it('refuses a --slug that is not a slug, before anything resolves', () => {
-    // The key names artifacts on disk, so it is a path component. Before this
-    // guard the parser accepted any non-empty string, and the refusal (if any)
-    // came from whatever the resolver later did with it.
-    const r = parseArchiveArgs(['--slug', '../../../escape']);
-    expect('error' in r && /invalid slug/.test(r.error)).toBe(true);
+describe('parseArchiveArgs — the key is not a path', () => {
+  it('accepts a key that is not kebab-case', () => {
+    // `archive-resolve` equality-matches this value against filename stems and
+    // never joins it, so slug-parsing it would be a backward-incompatible
+    // restriction with no safety gain — the design spec names it out of scope.
+    expect(parseArchiveArgs(['--slug', 'Legacy_Key'])).toMatchObject({ slug: 'Legacy_Key' });
   });
 
-  it('accepts a well-formed slug', () => {
-    expect(parseArchiveArgs(['--slug', 'cloud-sync'])).toMatchObject({ slug: 'cloud-sync' });
+  it('still refuses an empty key, which would match nothing and read as success', () => {
+    expect(parseArchiveArgs(['--slug', '   '])).toMatchObject({ error: expect.any(String) });
   });
 });

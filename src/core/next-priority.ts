@@ -5,7 +5,7 @@ import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 
 import { loadDocRoots, milestonePath } from './doc-roots.js';
-import { parseSlug } from './slug.js';
+import { isSlug, parseSlug } from './slug.js';
 import { sizeToPath, type GatePath } from './size-routing.js';
 import { FeatureFrontmatterSchema } from './feature-schema.js';
 import { parseRoadmap, type BacklogEntry } from '../utils/parse-blocks.js';
@@ -228,8 +228,15 @@ export function loadInProgressFds(cwd: string): InProgressFd[] {
     if (parsed.data.phase !== 'in-progress') continue;
     const tier = parsed.data['noldor-tier'];
     if (tier === undefined) continue;
+    // The stem becomes a branch name, a worktree directory and a rendered
+    // command, so an FD filename that is not a slug cannot be worked on by
+    // slug at all. Skipping it here covers every reader of this list — the
+    // drain's plans source has no filter of its own, and a throw deeper in
+    // would abort a whole drain run rather than skip one entry.
+    const stem = filename.replace(/\.md$/, '');
+    if (!isSlug(stem)) continue;
     out.push({
-      slug: filename.replace(/\.md$/, ''),
+      slug: stem,
       name: parsed.data.name,
       tier,
       deps: parsed.data.deps,

@@ -2,7 +2,6 @@
 // `noldor design archive` — move THIS session's spec/plan into their sibling
 // archive/ dir and leave the moves staged, so the gate's phase-flip commit
 // carries them. Portable CLI: consumer repos have no ./src/ tree to import from,
-import { parseSlug } from '../core/slug.js';
 // and prose-dispatch runners (codex/opencode) shell CLIs rather than run skills.
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -43,10 +42,11 @@ export function parseArchiveArgs(argv: readonly string[]): ArchiveArgs | { error
       // do" line — invalid input must not read as success.
       if (value.trim().length === 0) return { error: 'empty value: --slug' };
       // Trim what we store too: a padded key would silently match nothing.
-      // Parse it: the key names artifacts on disk, so it is a path component.
-      const parsed = parseSlug(value.trim());
-      if (!parsed.ok) return { error: parsed.error.message };
-      args.slug = parsed.slug;
+      // NOT slug-parsed: `archive-resolve` matches this value for equality
+      // against filename stems and never joins it into a path, so requiring
+      // kebab-case here would reject existing keys for no safety gain. See the
+      // out-of-scope note in the design spec.
+      args.slug = value.trim();
       i += 1;
       continue;
     }
