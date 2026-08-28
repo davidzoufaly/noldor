@@ -3,22 +3,13 @@ import { execFile } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
-import { pathErrorMessage, type PathError } from '../core/slug-paths.js';
-import type { SlugError } from '../core/slug.js';
+import { resolveErrorMessage, type ResolveError } from '../core/slug-paths.js';
 import { resolveWorktree } from './worktree-paths.js';
 
 const execFileP = promisify(execFile);
 
-/** Why a worktree operation refused its slug before doing anything. */
-export type WorktreeRefusal = SlugError | PathError;
-
 /** Outcome of reaping a worktree's dev surfaces. */
-export type DownResult = { ok: true; reaped: number } | { ok: false; error: WorktreeRefusal };
-
-/** Human-readable reason for a {@link WorktreeRefusal}, for a CLI's stderr. */
-export function refusalMessage(error: WorktreeRefusal): string {
-  return error.kind === 'invalid-slug' ? error.message : pathErrorMessage(error);
-}
+export type DownResult = { ok: true; reaped: number } | { ok: false; error: ResolveError };
 
 export interface DownOptions {
   slug: string;
@@ -104,7 +95,7 @@ async function main(): Promise<number> {
     ...(branch ? { branch } : {}),
   });
   if (!r.ok) {
-    process.stderr.write(`${refusalMessage(r.error)}\n`);
+    process.stderr.write(`${resolveErrorMessage(r.error)}\n`);
     return 1;
   }
   process.stdout.write(`Reaped ${r.reaped} dev surface(s) for ${slug}\n`);

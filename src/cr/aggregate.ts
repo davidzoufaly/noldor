@@ -1,4 +1,5 @@
 import { readFile, readdir } from 'node:fs/promises';
+import type { Slug } from '../core/slug.js';
 import { join } from 'node:path';
 import type { ArtifactKind, Finding, Lane } from './findings-schema.js';
 import { laneFindingsSchema } from './findings-schema.js';
@@ -29,7 +30,7 @@ export interface AggregateOpts {
 const CR_SUBDIR = '.noldor/cr';
 
 export async function aggregate(
-  slug: string,
+  slug: Slug,
   kind?: ArtifactKind,
   opts: AggregateOpts = {},
 ): Promise<AggregateResult> {

@@ -20,6 +20,9 @@ export type PathError =
   | { readonly kind: 'escapes-root'; readonly path: string; readonly anchor: string }
   | { readonly kind: 'unsafe-symlink'; readonly path: string };
 
+/** A guarded path, or the reason it was refused. */
+export type SlugPathResult = { ok: true; path: string } | { ok: false; error: PathError };
+
 /** Literal text wrapped around the slug inside its single path segment. */
 export interface SlugSegment {
   readonly prefix?: string;
@@ -57,7 +60,7 @@ export function slugPath(
   relRoot: readonly string[],
   slug: Slug,
   seg: SlugSegment = {},
-): { ok: true; path: string } | { ok: false; error: PathError } {
+): SlugPathResult {
   const path = join(anchor, ...relRoot, `${seg.prefix ?? ''}${slug}${seg.suffix ?? ''}`);
 
   // Symlink first, so every symlinked slug segment reports one kind regardless

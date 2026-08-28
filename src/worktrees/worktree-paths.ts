@@ -2,13 +2,10 @@
 import {
   resolveSlugPath,
   slugPath,
-  type PathError,
   type ResolveError,
+  type SlugPathResult,
 } from '../core/slug-paths.js';
 import type { Slug } from '../core/slug.js';
-
-/** Result shape shared by both worktree path builders. */
-export type WorktreePathResult = { ok: true; path: string } | { ok: false; error: PathError };
 
 /**
  * Absolute path of a worktree directory, guarded.
@@ -17,7 +14,7 @@ export type WorktreePathResult = { ok: true; path: string } | { ok: false; error
  * @param slug - An already-parsed slug.
  * @returns The absolute path, or the reason it was refused.
  */
-export function worktreePath(cwd: string, slug: Slug): WorktreePathResult {
+export function worktreePath(cwd: string, slug: Slug): SlugPathResult {
   return slugPath(cwd, ['.worktrees'], slug);
 }
 
@@ -33,7 +30,7 @@ export function worktreePath(cwd: string, slug: Slug): WorktreePathResult {
  * @param slug - An already-parsed slug.
  * @returns The absolute path, or the reason it was refused.
  */
-export function worktreePidsPath(cwd: string, slug: Slug): WorktreePathResult {
+export function worktreePidsPath(cwd: string, slug: Slug): SlugPathResult {
   return slugPath(cwd, ['.noldor'], slug, { prefix: 'dev-', suffix: '.pids' });
 }
 

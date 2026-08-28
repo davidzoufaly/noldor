@@ -52,15 +52,15 @@ const defaultDeps: UpDeps = {
     readFile(join(cwd, '.claude/launch-prompt.md'), 'utf8').catch(() => ''),
 };
 
+/** Outcome of bringing a worktree up. */
+export type UpResult = { ok: true; summary: UpSummary } | { ok: false; error: CreateRefusal };
+
 /**
  * From "branch checked out" (or not) to a usable dev surface: create the
  * worktree, open the IDE, spawn the agent terminal (the configured
  * `agents.default` runner), and boot every consumer-declared dev surface on
  * its per-tree port. Each step is skippable.
  */
-/** Outcome of bringing a worktree up. */
-export type UpResult = { ok: true; summary: UpSummary } | { ok: false; error: CreateRefusal };
-
 export async function upWorktree(opts: UpOptions, deps: UpDeps = defaultDeps): Promise<UpResult> {
   // The old order built treePath first and only validated inside
   // createWorktree, so `--no-create` or an existing directory skipped the sole
@@ -97,7 +97,8 @@ export async function upWorktree(opts: UpOptions, deps: UpDeps = defaultDeps): P
   if (!opts.noServers && basePort !== null) {
     surfaces = await deps.bootDevSurfacesImpl({
       treePath,
-      slug: opts.slug,
+      slug: resolved.slug,
+      pidsFile: resolved.pids,
       surfaces: devConfig?.surfaces ?? {},
       basePort,
       cwd: opts.cwd,

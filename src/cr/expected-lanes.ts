@@ -1,5 +1,7 @@
 import { mkdir, readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { slugPath } from '../core/slug-paths.js';
+import { slugSchema, type Slug } from '../core/slug.js';
+import { dirname } from 'node:path';
 import { z } from 'zod';
 import { artifactKindSchema, laneSchema } from './findings-schema.js';
 import type { ArtifactKind, Lane } from './findings-schema.js';
@@ -15,21 +17,21 @@ import { writeJsonAtomic } from './atomic-write.js';
  * aggregator's `<slug>-<kind>-*.json` sink scan never picks it up as a sink.
  */
 export const expectedLanesSchema = z.object({
-  slug: z.string().min(1),
+  slug: slugSchema,
   kind: artifactKindSchema,
   lanes: z.array(laneSchema),
 });
 export type ExpectedLanes = z.infer<typeof expectedLanesSchema>;
 
-const EXPECTED_SUBDIR = join('.noldor', 'cr', 'expected');
-
-export function expectedLanesPath(cwd: string, slug: string, kind: ArtifactKind): string {
-  return join(cwd, EXPECTED_SUBDIR, `${slug}-${kind}.json`);
+export function expectedLanesPath(cwd: string, slug: Slug, kind: ArtifactKind): string {
+  const built = slugPath(cwd, ['.noldor', 'cr', 'expected'], slug, { suffix: `-${kind}.json` });
+  if (!built.ok) throw new Error(`cannot resolve expected-lanes sink: ${built.error.kind}`);
+  return built.path;
 }
 
 export async function writeExpectedLanes(
   cwd: string,
-  slug: string,
+  slug: Slug,
   kind: ArtifactKind,
   lanes: Lane[],
 ): Promise<void> {
@@ -54,7 +56,7 @@ export interface ReadExpectedResult {
  */
 export async function readExpectedLanes(
   cwd: string,
-  slug: string,
+  slug: Slug,
   kind?: ArtifactKind,
 ): Promise<ReadExpectedResult> {
   const kinds: ArtifactKind[] = kind ? [kind] : [...artifactKindSchema.options];

@@ -1,24 +1,27 @@
 import { artifactKindSchema } from './findings-schema.js';
-import { parseSlug } from '../core/slug.js';
+import { parseSlug, type Slug } from '../core/slug.js';
 import { aggregate } from './aggregate.js';
 
 interface Args {
-  slug: string;
+  /** Branded: it names the sink paths this command reads. */
+  slug: Slug;
   kind?: 'spec' | 'plan' | 'code';
   waitMs?: number;
 }
 
 function parseArgs(argv: string[]): Args {
   const a: Partial<Args> = {};
+  // Collected raw and branded below — `Args.slug` is a parsed Slug.
+  let rawSlug: string | undefined;
   for (let i = 2; i < argv.length; i++) {
     const t = argv[i];
-    if (t === '--slug') a.slug = argv[++i];
+    if (t === '--slug') rawSlug = argv[++i];
     else if (t === '--kind') a.kind = artifactKindSchema.parse(argv[++i]);
     else if (t === '--wait-ms') a.waitMs = Number(argv[++i]);
   }
-  if (!a.slug) throw new Error('--slug required');
+  if (!rawSlug) throw new Error('--slug required');
   // The value reaches `.noldor/cr/<slug>-<kind>-<lane>.json` sink paths.
-  const parsed = parseSlug(a.slug);
+  const parsed = parseSlug(rawSlug);
   if (!parsed.ok) throw new Error(parsed.error.message);
   a.slug = parsed.slug;
   return a as Args;

@@ -3,8 +3,8 @@ import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { z } from 'zod';
 
-import { pathErrorMessage, resolveSlugPath, type PathError } from '../core/slug-paths.js';
-import type { Slug, SlugError } from '../core/slug.js';
+import { resolveErrorMessage, resolveSlugPath, type ResolveError } from '../core/slug-paths.js';
+import type { Slug } from '../core/slug.js';
 
 export const milestoneStatusSchema = z.enum(['draft', 'active', 'shipped']);
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
@@ -35,15 +35,13 @@ const MILESTONES_DIR = 'docs/milestones';
  * change and stay throws — the CLI's own try/catch already renders them, and
  * converting them is out of this change's scope.
  */
-export type MilestoneRefusal = SlugError | PathError;
+export type MilestoneRefusal = ResolveError;
 
 /** Outcome of a milestone write that can only fail by refusing its slug. */
 export type MilestoneWriteResult = { ok: true } | { ok: false; error: MilestoneRefusal };
 
 /** Human-readable reason for a {@link MilestoneRefusal}, for a CLI's stderr. */
-export function milestoneRefusalMessage(error: MilestoneRefusal): string {
-  return error.kind === 'invalid-slug' ? error.message : pathErrorMessage(error);
-}
+export const milestoneRefusalMessage = resolveErrorMessage;
 
 /** Parse untrusted text and build its guarded milestone path in one step. */
 function resolveMilestone(

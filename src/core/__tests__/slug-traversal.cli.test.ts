@@ -176,8 +176,15 @@ describe('payloads that land on a real file — the escape itself', () => {
   });
 
   it('milestones activate cannot rewrite a milestone-shaped file outside the repo', () => {
+    // `activate` preflights docs/vision.md before it writes, so without one the
+    // command dies for an unrelated reason and this case passes with the guard
+    // gutted — a false green the CR probe caught. The fixture supplies vision.md
+    // so the refusal has to come from the guard, and the REFUSED matcher pins
+    // which refusal it was.
+    writeFileSync(join(repo, 'docs', 'vision.md'), '---\n---\n\n# Vision\n');
     const r = runMilestone(['activate', CANONICAL]);
     expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(REFUSED);
     expect(readFileSync(join(base, 'a', 'sentinel-target.md'), 'utf8')).toBe(SENTINEL_BODY);
   });
 });

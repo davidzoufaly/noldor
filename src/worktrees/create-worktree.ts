@@ -11,7 +11,7 @@ import { promisify } from 'node:util';
 
 import { parseSlug } from '../core/slug.js';
 import { worktreePath } from './worktree-paths.js';
-import { refusalMessage, type WorktreeRefusal } from './down-worktree.js';
+import { resolveErrorMessage, type ResolveError } from '../core/slug-paths.js';
 
 /**
  * Why `createWorktree` refused.
@@ -23,7 +23,7 @@ import { refusalMessage, type WorktreeRefusal } from './down-worktree.js';
  * `error-result-types` converts at the boundary with its `cause` intact.
  */
 export type CreateRefusal =
-  | WorktreeRefusal
+  | ResolveError
   | { readonly kind: 'not-main-workspace' }
   | { readonly kind: 'worktree-exists'; readonly slug: string }
   | { readonly kind: 'branch-exists'; readonly branch: string };
@@ -38,7 +38,7 @@ export function createRefusalMessage(error: CreateRefusal): string {
     case 'branch-exists':
       return `branch already exists: ${error.branch}`;
     default:
-      return refusalMessage(error);
+      return resolveErrorMessage(error);
   }
 }
 import { allocatePorts, parseWorktreeList, readPort } from './worktree-status.js';

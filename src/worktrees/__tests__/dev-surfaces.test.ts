@@ -1,8 +1,11 @@
 // @tests: de-superpowers-vendor-spec-plan-and-worktree-flows
-import { describe, it, expect, vi } from 'vitest';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { describe, it, expect, vi } from 'vitest';
+
+import type { Slug } from '../../core/slug.js';
 import { bootDevSurfaces } from '../dev-surfaces.js';
 
 function fakeChild(pid: number) {
@@ -26,7 +29,8 @@ describe('bootDevSurfaces', () => {
 
     const booted = await bootDevSurfaces({
       treePath: '/tmp/wt',
-      slug: 'demo',
+      slug: 'demo' as Slug,
+      pidsFile: join(cwd, '.noldor', 'dev-demo.pids'),
       surfaces: {
         web: {
           command: 'pnpm dev --port {port}',
@@ -69,7 +73,8 @@ describe('bootDevSurfaces', () => {
     const fetchImpl = (async () => ({ status: 200 }) as Response) as unknown as typeof fetch;
     const booted = await bootDevSurfaces({
       treePath: '/tmp/wt',
-      slug: 'demo',
+      slug: 'demo' as Slug,
+      pidsFile: join(cwd, '.noldor', 'dev-demo.pids'),
       surfaces: {
         web: { command: 'x --port {port}', healthPath: '/', readyTimeoutMs: 500, portOffset: 0 },
       },
