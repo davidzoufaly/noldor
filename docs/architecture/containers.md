@@ -4,6 +4,8 @@ Noldor has no server and no database. Its runnable units are a CLI, a set of git
 hook jobs that shell into that CLI, and a local dashboard — and its durable
 state is a directory of JSON and markdown files committed alongside the code.
 
+## Runnable units
+
 **The CLI** (`bin/noldor.mjs` → `src/cli/index.ts`) is the only entry point.
 Every capability is a `noldor <group> <subcommand>` resolved through
 `src/cli/manifest.ts`. It runs TypeScript directly through `tsx` rather than a
@@ -17,6 +19,8 @@ the commit-body contract, template parity and the clone ratchet.
 
 **The dashboard** (`src/dashboard/`) is a read-only local web view of the same
 files — a development convenience, never a source of truth.
+
+## Durable state
 
 **`.noldor/`** is the durable state. It is deliberately plain files: a session
 marker naming the active gate path, review sinks per lane, an ID counter, the
@@ -49,6 +53,8 @@ flowchart TD
   cli --> rules
   cli --> docs
 ```
+
+## Topology
 
 There is no deployment topology to draw: a release publishes the CLI as an npm
 package, and a consumer installs it as a dev dependency.
