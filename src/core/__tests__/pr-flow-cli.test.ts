@@ -283,6 +283,18 @@ describe('parseCommitFileLists', () => {
 });
 
 describe('pickSummarySha', () => {
+  it('skips a regenerated-graph commit in favour of the feature commit', () => {
+    // `design graph-context` makes a session regenerate a stale graph before it
+    // writes anything, so this commit ordering is the norm on a feature branch.
+    // Composing the Summary from it would explain graph regeneration.
+    const sha = pickSummarySha([
+      { sha: 'aaa', files: ['docs/roadmap.md'] },
+      { sha: 'bbb', files: ['graphify-out/graph.json', 'graphify-out/GRAPH_REPORT.md'] },
+      { sha: 'ccc', files: ['src/release/ui-design-freshness.ts'] },
+    ]);
+    expect(sha).toBe('ccc');
+  });
+
   it('skips a roadmap-retirement commit and picks the substantive one', () => {
     // The gate retires the roadmap block BEFORE implementing, so the oldest
     // commit on a drained fast-track branch is bookkeeping.
