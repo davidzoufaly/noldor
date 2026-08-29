@@ -254,21 +254,87 @@ export function visibleProse(scanned: string): string {
  * cut, nor count as prose — while still slicing the ORIGINAL lines by
  * {@link LocatedSection.startLine} when it needs to see what a comment said.
  *
- * An unterminated `<!--` blanks the remainder of the text. That is the safe
- * direction: the section measures as empty and reports a stub rather than being
- * cleared by content nothing renders.
+ * **Fenced regions are literal.** A `<!--` inside a code fence is example text,
+ * not a comment, and treating it as one was a real bug: an unterminated `<!--`
+ * in a fenced markdown sample blanked the remainder of the document, so a real
+ * section below it disappeared and its artifact fell silently out of scope.
+ * Specs and feature MDs both routinely quote this framework's own scaffolds, so
+ * that shape is ordinary rather than exotic. Fence state is tracked with the
+ * same CommonMark rules {@link tagLines} uses, in one interleaved pass:
+ * whichever of a fence or a comment opens first owns the text until it closes.
  *
- * A comment ends at the FIRST `-->`, exactly as HTML does, and that is load
+ * An unterminated `<!--` opened OUTSIDE a fence still blanks the remainder. That
+ * is the safe direction: the section measures as empty and reports a stub rather
+ * than being cleared by content nothing renders.
+ *
+ * A comment closes at the FIRST `-->`, exactly as HTML does, and that is load
  * bearing rather than incidental: a mermaid flowchart arrow IS `-->`, so
  * commenting out a `flowchart` fence does not hide it — the comment closes on
- * the first edge and the rest of the fence is visible text again. Fences are not
- * treated as comment-proof, deliberately: the rule this serves is that hidden
- * content can never clear a section, and giving fences precedence would carve
- * out the one hiding place that rule exists to close.
+ * the first edge and the rest of the fence is visible text again. A fence that
+ * is already open is never entered by a comment, but a comment opened first is
+ * not stopped by fence characters, because the rule being served is that hidden
+ * content can never clear a section.
  */
 export function blankComments(text: string): string {
-  const blank = (run: string): string => run.replaceAll(/[^\n]/gu, ' ');
-  const closed = text.replaceAll(/<!--[\s\S]*?-->/gu, blank);
-  const dangling = closed.indexOf('<!--');
-  return dangling === -1 ? closed : closed.slice(0, dangling) + blank(closed.slice(dangling));
+  const blank = (run: string): string => ' '.repeat(run.length);
+  const out: string[] = [];
+  let fence: { char: string; len: number } | null = null;
+  let inComment = false;
+
+  for (const line of text.split('\n')) {
+    if (inComment) {
+      const close = line.indexOf('-->');
+      if (close === -1) {
+        out.push(blank(line));
+        continue;
+      }
+      const end = close + '-->'.length;
+      inComment = false;
+      out.push(blank(line.slice(0, end)) + blankOutsideFence(line.slice(end)));
+      continue;
+    }
+
+    if (fence !== null) {
+      out.push(line);
+      const close = /^\s*(`{3,}|~{3,})\s*$/.exec(line);
+      if (close !== null && close[1][0] === fence.char && close[1].length >= fence.len)
+        fence = null;
+      continue;
+    }
+
+    // A fence opener sits at the start of its line, so nothing can precede it —
+    // no need to compare positions with a `<!--` on the same line.
+    const opener = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
+    if (opener !== null && (opener[1][0] !== '`' || !opener[2].includes('`'))) {
+      fence = { char: opener[1][0]!, len: opener[1].length };
+      out.push(line);
+      continue;
+    }
+
+    out.push(blankOutsideFence(line));
+  }
+
+  return out.join('\n');
+
+  /** Blank every comment span in a line known to start outside a fence. */
+  function blankOutsideFence(rest: string): string {
+    let open = rest.indexOf('<!--');
+    if (open === -1) return rest;
+    let acc = rest.slice(0, open);
+    let tail = rest.slice(open);
+    for (;;) {
+      const close = tail.indexOf('-->');
+      if (close === -1) {
+        inComment = true;
+        return acc + blank(tail);
+      }
+      const end = close + '-->'.length;
+      acc += blank(tail.slice(0, end));
+      tail = tail.slice(end);
+      open = tail.indexOf('<!--');
+      if (open === -1) return acc + tail;
+      acc += tail.slice(0, open);
+      tail = tail.slice(open);
+    }
+  }
 }

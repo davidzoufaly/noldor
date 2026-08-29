@@ -265,6 +265,37 @@ describe('detectFdDiagramStubs', () => {
     expect(await detectFdDiagramStubs(repo)).toEqual([]);
   });
 
+  it('is not blinded by an unterminated comment inside a fenced example', async () => {
+    // An FD that quotes the scaffold in a fenced sample must still be scanned:
+    // treating that `<!--` as a real comment blanked the rest of the file and
+    // silently dropped the FD out of scope.
+    const doc = [
+      '---',
+      'name: X',
+      '---',
+      '',
+      '## Summary',
+      '',
+      'The scaffold looks like this:',
+      '',
+      '```markdown',
+      '<!-- TODO: an example the author never closed',
+      '```',
+      '',
+      '## Diagram',
+      '',
+      FD_DIAGRAM_PLACEHOLDER,
+      '',
+      '## Usage',
+      '',
+      'Run it.',
+      '',
+    ].join('\n');
+    const repo = await repoWith({ quoting: doc });
+    const rows = await detectFdDiagramStubs(repo);
+    expect(rows.map((r) => r.rule)).toEqual(['placeholder-only']);
+  });
+
   it('lets a well-formed cut win even when a bare marker precedes it', async () => {
     const section = [
       'noldor:cut',

@@ -42,6 +42,25 @@ describe('blankComments', () => {
     expect(blankComments('a\n<!-- forever\nb').trim()).toBe('a');
   });
 
+  it('leaves a comment marker inside a code fence alone', () => {
+    // Example text, not a comment. Treating it as one let an unterminated `<!--`
+    // in a fenced sample blank the rest of the document.
+    const doc = ['```markdown', '<!-- TODO: never closed', '```', '', '## Real', '', 'body'].join(
+      '\n',
+    );
+    const out = blankComments(doc);
+    expect(out).toContain('<!-- TODO: never closed');
+    expect(out).toContain('## Real');
+    expect(out).toContain('body');
+  });
+
+  it('still blanks to the end when a comment opens outside a fence and never closes', () => {
+    const doc = ['before', '<!-- open forever', '```', 'x', '```', '## Real'].join('\n');
+    const out = blankComments(doc);
+    expect(out).toContain('before');
+    expect(out).not.toContain('## Real');
+  });
+
   it('closes at the first --> exactly as HTML does, so a mermaid arrow ends it', () => {
     // Load-bearing for feature-MD diagrams: `<!--` around a flowchart does not
     // hide it, because the first edge closes the comment.
