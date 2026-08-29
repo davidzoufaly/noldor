@@ -142,9 +142,21 @@ Every writer emits exactly this, verbatim:
 The marker is `PLACEHOLDER_MARKER` from `src/docs/architecture-schema.ts` — the literal
 `<!-- TODO:` the architecture surface already uses for the same purpose, reused rather
 than re-declared so the two scaffolds cannot drift into two spellings of "untouched".
-Detection is **substring**, not exact-block matching: the wording above is prose that
-will be reworded, and an exact match would silently stop recognising the placeholder the
-first time someone improved it.
+**The detector imports it, not the contract module:** nothing under `src/core` imports
+`src/docs` today (the edge runs the other way, `docs-architecture.ts` → `core/doc-roots`),
+and `core-is-foundation` in `.noldor/config.json` does not list `docs`, so an inverted
+import would ship unflagged by dependency-cruiser. `src/garden/detectors/` already imports
+from `src/docs` (`structural-context.ts` → `docs/adr-schema.js`), so the detector is the
+right altitude for that edge.
+
+Detection is **substring on the marker**, not exact-block matching against
+`FD_DIAGRAM_PLACEHOLDER`. The block's wording is prose that will be improved, and an exact
+match would stop recognising the placeholder the first time someone reworded it. The
+constant is therefore the authority for what `scaffoldFd` *writes*, and the marker is the
+authority for what the detector *reads* — two jobs, deliberately not one. Nothing verifies
+that the three Markdown twins equal the TypeScript constant character-for-character;
+`doctor` keeps the twins equal to each other, and a test asserts `FD_DIAGRAM_PLACEHOLDER`
+contains `PLACEHOLDER_MARKER`, which is the only property either side actually depends on.
 
 Because the block is an HTML comment it contributes nothing to prose density (below), so
 a scaffolded-but-untouched section measures as empty — which is what makes
@@ -156,8 +168,8 @@ then abandoned.
 Two conditions, both required, mirroring the parent surface's own doctrine that a
 diagram without prose beside it is not a documented shape:
 
-1. **`hasFence`** — the section carries at least one mermaid fence whose declared kind is
-   non-empty, read with `fenceKinds` from `src/docs/docs-architecture.ts` (it already
+1. **`hasFence`** — the comment-stripped section carries at least one mermaid fence whose
+   declared kind is non-empty, read with `fenceKinds` from `src/docs/docs-architecture.ts` (it already
    handles YAML front-matter blocks, `%%` comments and unterminated fences). Several
    fences satisfy it as one: `fenceKinds` returns every kind it finds and the test is
    that the list is non-empty, so a page may carry extra diagrams — the same rule
@@ -165,16 +177,28 @@ diagram without prose beside it is not a documented shape:
 2. **`density ≥ MIN_FD_DIAGRAM_PROSE_CHARS`** — prose beside the diagram, at 24
    non-whitespace characters (D9).
 
-**What `density` counts.** Exactly the section body with four things removed, in this
-order: fenced regions (via `stripCodeRegions`), any line matching the cut grammar below,
-HTML comments (`<!--` … `-->`, non-greedy, which removes the scaffolded placeholder),
-and heading lines. What remains is the visible textual equivalent a non-rendering reader
-gets, and nothing else — a hidden comment must not be able to satisfy a requirement that
-exists to produce visible prose. The count is then non-whitespace characters, so 23
-characters is a stub and 24 is clean.
+**The comment strip runs first, and governs every test.** HTML comments are removed from
+the section body *before* `hasFence`, the cut scan and `density` are computed — not just
+before `density`. A `noldor:cut` line or a whole ```` ```mermaid ```` fence can sit inside
+a multiline `<!-- … -->`, render as nothing, and would otherwise clear the section. An
+unterminated `<!--` swallows the remainder of the section, which is the safe direction: it
+measures as empty and reports a stub.
 
-**Cut grammar.** Same as `structural-context.ts`: a line, outside any fence, inside this
-section, whose trimmed text is `noldor:cut` followed by whitespace or end-of-line. Not an
+**What `density` counts.** The comment-stripped section with three further things removed:
+fenced regions, any line matching the cut grammar below, and heading lines. What remains
+is counted in non-whitespace characters — 23 is a stub, 24 is clean.
+
+Fence removal comes from `locateSection`'s existing `scanned` view, **not** from
+`stripCodeRegions`. `src/docs/docs-check.ts` also blanks *inline code spans*
+(`` /`[^`\n]+`/ ``) and uses a naive tilde-blind `` /```[\s\S]*?```/ ``, so ordinary FD
+prose — ``the `supervisor` spawns a `child` per entry`` — would lose most of its
+characters to backticks and report a false `stub-section` on exactly the writing style
+this repo uses. `scanned` also comes from the same single pass that found the section
+boundaries, which `structural-context.ts:225-231` warns is the only safe way to read
+them.
+
+**Cut grammar.** Same as `structural-context.ts`: a line, outside any fence and outside
+any HTML comment, inside this section, whose trimmed text is `noldor:cut` followed by whitespace or end-of-line. Not an
 HTML comment — a decline should be visible in the rendered FD. The reason is the
 remainder of the line and must itself reach 24 non-whitespace characters, so a bare
 marker declines nothing. When several markers appear, the first well-formed one wins; if
@@ -205,8 +229,11 @@ same character at least as long as the opener, an info string can open a fence b
 close one, and only unfenced lines may open or close a section. This detector needs all
 of it and differs only in the arguments it would pass.
 
-So `tagLines`, `locateSection`, `ancestorOk` and `density` move to a shared `src/core`
-module and both detectors import them (D4). The move is behaviour-preserving: the two
+So `tagLines`, `locateSection`, `ancestorOk`, `density` — and the two private file
+helpers `listMd` and `readText`, which this detector needs verbatim for discovery — move
+to a shared `src/core` module and both detectors import them (D4). Leaving the last two
+behind would re-copy them into `fd-diagram.ts`, which is the fork this lift exists to
+avoid and which `clones check` would flag anyway. The move is behaviour-preserving: the two
 call sites differ only in the parameters `locateSection` already takes — depth 3 with
 `requireAncestor: '## Design'` for a spec's unit, depth 2 with no ancestor for an FD's
 `## Diagram`. `structural-context.ts`'s existing tests are the regression proof and must
@@ -219,7 +246,7 @@ The cost is deliberate: this is a docs feature editing a detector that shipped
 ### The detector
 
 `src/garden/detectors/fd-diagram.ts`, exporting `detectFdDiagramStubs(repo)` →
-`FdDiagramStub[]` and `toGaps()`, structurally parallel to
+`FdDiagramStub[]`, structurally parallel to
 `detectStructuralContextStubs` and importing the same scanner (D4). Rules:
 `placeholder-only` / `no-fence` / `stub-section`.
 
@@ -261,19 +288,15 @@ export interface FdDiagramStub {
 }
 
 export function detectFdDiagramStubs(repo: string): Promise<FdDiagramStub[]>;
-export function toGaps(stubs: readonly FdDiagramStub[]): Gap[];
 ```
 
-`repo` is an absolute repository root, as every sibling detector takes. `toGaps` always
-takes its argument; the parameterless spelling that appeared in an earlier draft was a
-typo. Gap identity is `` `${file}#${rule}` `` — the same `<file>#<rule>` shape
-`structural-context.ts` uses, which is stable across runs and cannot collide, since the
-table yields at most one rule per file.
+`repo` is an absolute repository root, as every sibling detector takes.
 
-`GardenFindings.fdDiagramStubs` carries the **raw `FdDiagramStub[]`**, not converted
-gaps — matching `structuralContextStubs`, whose key is typed `readonly
-StructuralContextStub[]`. `toGaps` exists for callers that want the report shape and is
-not applied on the way into the payload.
+**No `toGaps`.** `GardenFindings.fdDiagramStubs` carries the raw `FdDiagramStub[]`,
+matching `structuralContextStubs`, so a `Gap` projection would have no caller — and
+`structural-context.ts`'s own exported `toGaps` is already dead code today, which is the
+mistake worth not repeating. Add one when a consumer exists; the `<file>#<rule>` itemId
+shape is recorded here so that consumer has a stable identity to adopt.
 
 The key is deliberately absent from `FINDING_CATEGORIES` in `garden-detect-runner.ts`
 for the reason its siblings document: that list gates the garden auto-restamp, an
@@ -306,7 +329,7 @@ O2 — it currently rewrites only `User Story` and `Usage`.
 7. A `noldor:cut <reason>` line inside the section suppresses the row; a bare marker with no reason does not.
 8. A `## Diagram` heading inside a fenced code block neither opens nor closes the section.
 9. Running the detector over `docs/features/` as it stands today yields zero rows.
-10. `garden detect --json` carries `fdDiagramStubs`; `FINDING_CATEGORIES` does not, so a stub never fails the runner and never blocks a release.
+10. `garden detect`'s JSON payload carries `fdDiagramStubs`; `FINDING_CATEGORIES` does not, so a stub never fails the runner and never blocks a release.
 11. `structural-context.ts`'s existing test suite passes unchanged after the scanner moves to its shared module.
 12. A mermaid fence declaring any kind satisfies the fence condition, and two fences satisfy it as one; the detector never rejects a kind.
 13. Each of the four writers — `scaffoldFd`, both skill templates and the schema doc — emits the section, and `pnpm noldor doctor` is green across all three `templates/` twins.
@@ -316,6 +339,12 @@ O2 — it currently rewrites only `User Story` and `Usage`.
 
 ## Risks / trade-offs
 
+- **An unreadable FD reports clean.** Discovery skips a file it cannot read rather than
+  reporting it, matching `structural-context.ts`. On an advisory channel that is a false
+  negative, not a false alarm: an enrolled FD whose permissions broke silently leaves the
+  set. Accepted because the alternative — a row naming a file the detector could not open
+  — is one no author can clear, and because the failure is loud everywhere else in the
+  toolchain that reads `docs/features/`.
 - **A deleted heading is an invisible escape.** Presence-gating buys a floor-free,
   git-free, zero-retro scope rule at the price of the `missing-section` rule. An author
   who removes the scaffolded section is indistinguishable from an FD that predates the
@@ -368,7 +397,7 @@ which without reconstructing it from `links.code`.
 **Agent/Programmatic API**
 
 - `detectFdDiagramStubs(repo)` → `FdDiagramStub[]` — `{ file, rule, message }`.
-- `toGaps(stubs)` → `Gap[]` for callers that want the report shape.
+- No `Gap` projection ships until a consumer needs one; see *The detector*.
 
 ## Open questions (resolved)
 
