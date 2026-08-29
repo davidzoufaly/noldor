@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../codex.js';
 import { findingSchema } from '../findings-schema.js';
+import { buildContext } from '../context.js';
+import { sh } from '../review-with-codex.js';
 
 function makeRepo(): string {
   const cwd = mkdtempSync(join(tmpdir(), 'cr-codex-cli-'));
@@ -509,5 +511,75 @@ describe('runCli — engineering-rules fallback', () => {
     const prompt = await capturePrompt(cwd);
     expect(prompt).toContain('CLAUDE-RULES-MARKER');
     expect(prompt).not.toContain('AGENTS-RULES-MARKER');
+  });
+});
+
+describe('sh — the codex lane git seam', () => {
+  it("reads a diff larger than node's 1MB default buffer", () => {
+    // `execFileSync`'s default maxBuffer is 1MB and this seam reads whole
+    // diffs, so a branch carrying a regenerated graph, a lockfile, or any large
+    // generated artifact overruns it. The lane turns the resulting ENOBUFS into
+    // a blocking `code review failed` finding — a big diff reading as bad code,
+    // on the one lane that is mandatory for every M/L/XL session.
+    const cwd = makeRepo();
+    writeFileSync(join(cwd, 'big.txt'), `${'x'.repeat(64)}\n`.repeat(40_000));
+    spawnSync('git', ['add', '-A'], { cwd });
+    spawnSync('git', ['commit', '-q', '-m', 'big'], { cwd });
+
+    expect(sh(cwd, ['show', '--format=', 'HEAD']).length).toBeGreaterThan(1024 * 1024);
+  });
+});
+
+describe('buildContext — generated output', () => {
+  it('excludes build output but keeps source, against real git', () => {
+    // The other cases script a fake git keyed on argv, so a wrong pathspec
+    // magic — `:(exclude)` without `glob`, a typo, or git reading an
+    // exclude-only pathspec as "matches nothing" — would empty EVERY review
+    // diff and let every lane approve on no content, with the suite green.
+    const cwd = makeRepo();
+    mkdirSync(join(cwd, 'src'), { recursive: true });
+    mkdirSync(join(cwd, 'graphify-out'), { recursive: true });
+    writeFileSync(join(cwd, 'src', 'real.ts'), 'export const REVIEWABLE = 1;\n');
+    writeFileSync(join(cwd, 'graphify-out', 'graph.json'), '{"GENERATED":true}\n');
+    writeFileSync(join(cwd, 'pnpm-lock.yaml'), 'lockfileVersion: LOCK_MARKER\n');
+    spawnSync('git', ['add', '-A'], { cwd });
+    spawnSync('git', ['commit', '-q', '-m', 'work'], { cwd });
+
+    const ctx = buildContext({
+      lane: { kind: 'range', from: 'HEAD~1', to: 'HEAD' },
+      runGit: (args) => sh(cwd, args),
+      featureMd: '',
+      rules: '',
+    });
+
+    expect(ctx.diff).toContain('REVIEWABLE');
+    expect(ctx.diff).not.toContain('GENERATED');
+    // Lockfiles stay reviewable: a dependency-only change lives entirely here.
+    expect(ctx.diff).toContain('LOCK_MARKER');
+  });
+
+  it('keeps regenerated graph output out of the review diff', () => {
+    // Not a size optimisation: the codex lane caps input at 1MB, and one
+    // branch's regenerated `graphify-out/` alone was ~5MB, so the entire review
+    // failed on content no reviewer reads.
+    const asked: string[][] = [];
+    const ctx = buildContext({
+      lane: { kind: 'range', from: 'BASE', to: 'HEAD' },
+      runGit: (args) => {
+        asked.push(args);
+        return 'DIFF';
+      },
+      featureMd: '',
+      rules: '',
+    });
+
+    expect(ctx.diff).toBe('DIFF');
+    const args = asked[0];
+    expect(args).toContain(':(exclude,glob)graphify-out/**');
+    // Tests, markdown and lockfiles ARE reviewable — the graph-freshness
+    // exclusion list is deliberately not reused here.
+    expect(args.some((a) => a.includes('lock'))).toBe(false);
+    expect(args.some((a) => a.includes('*.test.ts'))).toBe(false);
+    expect(args.some((a) => a.includes('*.md'))).toBe(false);
   });
 });

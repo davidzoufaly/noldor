@@ -116,7 +116,7 @@ const uiConfig = loadUiConfig(process.cwd());
 if (uiConfig !== null) {
   const uiVerdict = await evaluateUiDesignFreshness(process.cwd(), uiConfig);
   for (const s of uiVerdict.surfaces) {
-    if (s.status === 'stale' || s.status === 'uninitialized') {
+    if (s.status === 'stale' || s.status === 'uninitialized' || s.status === 'unverified') {
       console.log(`warn         ui-design: ${s.surface} ${s.status} — ${s.detail}`);
     }
   }

@@ -16,6 +16,7 @@ import {
   BASELINE_DIR,
   evaluateUiDesignFreshness,
   type UiSurfaceFreshness,
+  captureRemediation,
 } from '../release/ui-design-freshness.js';
 
 /** The freshness engine's synthetic config-gap row — not a real baseline file. */
@@ -27,12 +28,19 @@ export function renderSurfaceReport(s: UiSurfaceFreshness): string {
     return `${s.surface}: ${s.status}\n  ${s.detail}\n  → extend consumer.uiSurfaces in .noldor/config.json to cover the listed paths, then re-run`;
   }
   const file = `${BASELINE_DIR}/${s.surface}.pen`;
+  // `remediation` decides, not `status`: a `stale` surface with a capture
+  // receipt is repaired by re-capturing, while one still on the legacy read has
+  // no capture wired up and is repaired by hand. `unverified` is only ever the
+  // former, and reporting it as `no action` would make this command — the one
+  // the freshness detail points operators at — announce nothing to do.
   const action =
-    s.status === 'uninitialized'
-      ? `create ${file} in a pencil-capable session (bootstrap)`
-      : s.status === 'stale'
-        ? `edit ${file} in a pencil-capable session to match the code at ${s.uiCommit?.slice(0, 8) ?? 'HEAD'}`
-        : 'no action';
+    s.remediation === 'capture'
+      ? captureRemediation(s.surface)
+      : s.status === 'uninitialized'
+        ? `create ${file} in a pencil-capable session (bootstrap)`
+        : s.status === 'stale'
+          ? `edit ${file} in a pencil-capable session to match the code at ${s.uiCommit?.slice(0, 8) ?? 'HEAD'}`
+          : 'no action';
   return `${s.surface}: ${s.status}\n  ${s.detail}\n  → ${action}`;
 }
 
@@ -94,6 +102,13 @@ export async function main(argv: string[], cwd: string = process.cwd()): Promise
     console.log(renderSurfaceReport(s));
     if (s.surface === UNMAPPED_SURFACE) {
       // Config gap — no baseline file to stage or validate.
+      pending += 1;
+      continue;
+    }
+    if (s.remediation === 'capture') {
+      // Nothing for this command to stage: the baseline itself may be perfectly
+      // good, and what is missing is a capture receipt only `design capture`
+      // can produce. Pending, so the command cannot exit 0 announcing clean.
       pending += 1;
       continue;
     }

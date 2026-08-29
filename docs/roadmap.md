@@ -16,6 +16,18 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 >
 > Encoded once in [`sizeToPath()`](../src/core/size-routing.ts); `/noldor-gate` Step 0 surfaces the verdict as each entry's `suggestedPath`. Full matrix in [complexity-gating.md](noldor/complexity-gating.md).
 
+### Indeterminate Freshness Rows Are Masked By Fresh Ones
+
+- id: Q-0197
+- area: tooling
+- type: fix
+- since: 2026-08-29
+- size: S
+- impact: med
+- parent: pendev-ui-design-phase
+
+`RANK` in `src/release/ui-design-freshness.ts` puts `skipped` at 0, below `fresh`, and every git-failure branch in the evaluator degrades to `skipped` — an unreadable receipt, a failed `merge-base`, a failed `cat-file`, a failed `rev-parse`. In a multi-surface repo one healthy surface therefore masks another whose verdict could not be computed, and release preflight reports "all UI baselines fresh" while a surface went unchecked. Pre-existing: the ordering is unchanged from before the capture-receipt work, which only narrowed it for the synthetic `(unmapped)` coverage row by giving that one `unverified` (rank 2). The general fix needs `skipped` split into the two meanings that currently share it — *not applicable* (shallow clone, no commit touches the surface), which stays at 0, and *indeterminate* (a git call failed), which must outrank `fresh` while staying non-blocking, since a git failure may never mint a red. Carving that status is a design change, which is why it is an entry rather than a late edit to the shipping PR. Residue from the same review: `existsAtHead` + `showAtHead`, and `existsAtHead` + `rev-parse`, each answer one question with two subprocesses, so the evaluator spends 8 git spawns per surface where 6 would do, on a path four callers run. Deletion test: a repo with one fresh surface and one whose receipt is corrupt does not report `fresh` overall. (found 2026-08-29, from the ui-baseline-capture-verification code review)
+
 ### Mandatory C4 Diagram for New Feature MDs
 
 - id: Q-0185
@@ -28,19 +40,6 @@ An entry may declare dependencies with a `- blocked-by: <slug|Q-id, …>` bullet
 - parent: consumer-architecture-doc-surface
 
 A full new FD should carry a mermaid diagram at the C4 level that fits it, semi-mandatory rather than optional: prose alone is what lets an FD's shape stay implicit until a reader has to reconstruct it from `links.code`. Q-0178 prescribes form for the four `docs/architecture/` registry pages; this is the per-feature counterpart — the FD template grows a diagram section, `/noldor-new-feature` and `/noldor-promote` scaffold the fence, and a check reports an FD on a `full` path whose diagram section is still a stub. Semi-mandatory means advisory-with-teeth: report it, let a `noldor:cut` marker record a deliberate skip, do not block a ship on it. Scope the requirement by path tier (`full` earns a diagram; `fast-track` and `micro-chore` never do) so it does not tax the XS drain. Deletion test: a reader gets the shape of a newly shipped `full` feature from its FD without opening a source file. (found 2026-08-25)
-
-### UI Baseline Freshness Must Run the Capture
-
-- id: Q-0190
-- area: tooling
-- type: fix
-- since: 2026-08-25
-- size: M
-- impact: high
-- confidence: med
-- parent: pendev-ui-design-phase
-
-`design:capture-ui` had been broken for days while both the freshness check and CI reported healthy. Two capture states drove through buttons that `ai-first-ui-hide-low-level-tools-by-default` had moved behind a disclosure, so the run died on state 8 of 10; the temp-then-rename write left the committed baseline in place, describing a toolbar that no longer existed. `checks ui-design-freshness` said `fresh` throughout, because it compares commit ordering rather than content and cannot see that the generator itself fails. The block surfaced only because a UI-bearing session tried to seed from the baseline. Wanted: the freshness check runs the capture (or a cheap dry-run of its drivers) instead of trusting timestamps, or capture runs in CI on any `uiPaths` diff so the recorder breaks loudly at the commit that breaks it. Consumer-side residue worth carrying into the same fix: charuy's `scripts/design/__tests__/validate.test.ts` opens a hardcoded `/Applications/Pencil.app/...` path unguarded and fails wherever Pencil is installed elsewhere, while the capture script guards the same path — so the one test that would have covered the schema was already red and ignored. Deletion test: a UI change that breaks a capture driver reds at that commit, not at the next session that tries to read the baseline. (found 2026-08-25)
 
 ### Attach-Path UI Verdict Reads Touches
 

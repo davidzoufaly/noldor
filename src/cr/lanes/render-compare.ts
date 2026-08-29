@@ -7,7 +7,6 @@
 // writes exactly one sink (Q-0100), and a per-surface failure never aborts the
 // round — outcomes aggregate by `fail` > `cannot-review` > `pass` (spec R7).
 
-import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -17,6 +16,8 @@ import type { PNG } from 'pngjs';
 import { errMessage } from '../../core/err-message.js';
 import { loadConsumerConfig } from '../../core/consumer-config.js';
 import type { UiBootRecipe } from '../../core/consumer-config.js';
+import { runCapture } from '../../core/run-capture.js';
+import type { CaptureResult } from '../../core/run-capture.js';
 import { sanitizeSurfaceName } from '../../core/ui-boot.js';
 import { bootServer } from '../../verify/boot.js';
 import { resolvePort } from '../../verify/port.js';
@@ -44,7 +45,6 @@ const LANE = 'render-compare' as const;
 
 /** Bounds the route probe — same cap the health check's probe fetches use. */
 const ROUTE_PROBE_TIMEOUT_MS = 2000;
-const STDERR_TAIL_CAP = 2000;
 /**
  * Aggregate wall-clock ceiling across the whole group loop — the same posture
  * as smoke's total cap. Everything the loop does consumes it: boots (whose
@@ -67,84 +67,6 @@ const TOTAL_ROUND_BUDGET_MS = 300_000;
  * four would render it as an apparent tie.
  */
 const fmtRatio = (r: number): string => r.toFixed(6);
-
-/** What a `screenshotCommand` run produced: exit code, cap status, stderr tail. */
-export interface CaptureResult {
-  code: number;
-  timedOut: boolean;
-  stderrTail: string;
-}
-
-/**
- * Run the substituted `screenshotCommand` under its cap: own process group so a
- * timeout SIGKILLs the whole capture tree, cwd = repo root, env inherited.
- */
-function runCapture(command: string, cwd: string, timeoutMs: number): Promise<CaptureResult> {
-  return new Promise((resolve) => {
-    const child = spawn('/bin/sh', ['-c', command], {
-      cwd,
-      detached: true,
-      stdio: ['ignore', 'ignore', 'pipe'],
-    });
-    // Byte tail, decoded ONCE at the end: per-chunk decoding plus a UTF-16
-    // slice can still split characters at the tail seam. A byte-boundary
-    // partial at the very head of the tail decodes to one replacement char —
-    // acceptable for diagnostic text.
-    let stderrTail = Buffer.alloc(0);
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderrTail = Buffer.concat([stderrTail, chunk]).subarray(-STDERR_TAIL_CAP);
-    });
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      if (child.pid !== undefined) {
-        try {
-          process.kill(-child.pid, 'SIGKILL');
-        } catch {
-          /* already exited */
-        }
-      }
-    }, timeoutMs);
-    // Group-kill on EVERY exit path, not only timeout: a capture command that
-    // exits while a spawned descendant (a browser, a daemonized helper) lives
-    // on would otherwise leak it past the round.
-    const reapGroup = (): void => {
-      if (child.pid !== undefined) {
-        try {
-          process.kill(-child.pid, 'SIGKILL');
-        } catch {
-          /* group already gone */
-        }
-      }
-    };
-    let settled = false;
-    const finish = (code: number): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reapGroup();
-      resolve({ code, timedOut, stderrTail: stderrTail.toString('utf8').trim() });
-    };
-    child.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reapGroup();
-      resolve({ code: 1, timedOut: false, stderrTail: errMessage(err) });
-    });
-    // Resolve on 'exit' + a short stderr-drain grace rather than waiting for
-    // 'close': 'close' fires only when stdio drains, and a daemonized
-    // descendant holding the inherited stderr pipe would otherwise hold the
-    // capture "running" until the timeout kills it — turning a written,
-    // perfectly good screenshot into screenshot-failed.
-    child.on('exit', (code) => {
-      setTimeout(() => finish(code ?? 1), 200);
-    });
-    child.on('close', (code) => {
-      finish(code ?? 1);
-    });
-  });
-}
 
 interface RenderCompareDeps {
   boot: typeof bootServer;

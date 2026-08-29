@@ -18,10 +18,39 @@ export interface PromptContext {
   rules: string;
 }
 
+/**
+ * Build output, excluded from every review diff.
+ *
+ * Not a size optimisation — a correctness one. These files are machine-written
+ * from sources that ARE in the diff, so a reviewer judges the generator rather
+ * than its output, and they are large enough to crowd out the code under
+ * review: one branch's regenerated `graphify-out/` was 97.5% of a 5.2MB diff,
+ * past the codex lane's 1MB input cap, so the whole review failed on content
+ * nobody reads.
+ *
+ * The list is deliberately narrow — one entry, for the one directory this
+ * framework itself regenerates and tracks. `dist/**` was tried and removed: it
+ * is not guaranteed to be build output in every consumer repo, and a tracked
+ * dist-only change would then reach the mandatory lane as an empty diff.
+ * **Lockfiles are NOT excluded** either: a
+ * dependency-only change lives entirely in the lock, and the security-relevant
+ * half of it — a new transitive package, a changed `resolution:` URL, an
+ * altered integrity hash — has no other representation in the diff. Dropping
+ * them would let a lockfile-only commit reach the mandatory lane as an empty
+ * diff and pass unreviewed. Nor is this the graph-freshness exclusion list,
+ * which drops tests and markdown a reviewer must see.
+ *
+ * `:(exclude,glob)` magic: `glob` makes the double-star cross directory
+ * boundaries so the pattern matches at any depth, including the repo root.
+ */
+export const REVIEW_IRRELEVANT_EXCLUDES: readonly string[] = [':(exclude,glob)graphify-out/**'];
+
 export function buildContext(input: BuildContextInput): PromptContext {
   const baseArgs = diffArgs(input.lane);
-  const args =
-    input.paths && input.paths.length > 0 ? [...baseArgs, '--', ...input.paths] : baseArgs;
+  // The pathspec separator carries the excludes even when the caller named no
+  // paths of its own — an empty positive pathspec set plus excludes means
+  // "everything except these", which is exactly the intent.
+  const args = [...baseArgs, '--', ...(input.paths ?? []), ...REVIEW_IRRELEVANT_EXCLUDES];
   const diff = input.runGit(args);
   return { diff, featureMd: input.featureMd, rules: input.rules };
 }

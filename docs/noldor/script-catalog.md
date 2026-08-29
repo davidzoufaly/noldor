@@ -99,6 +99,14 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 - **When to use:** repairing baseline drift (stale) or bootstrapping a new surface (uninitialized). See `check:ui-design-freshness`.
 - **Source:** [`src/design/ui-sync-cli.ts`](../../src/design/ui-sync-cli.ts)
 
+### `design:capture`
+
+- **Trigger:** `pnpm noldor design capture [--surface <name>] [--vouch-only]`. `--vouch-only` requires `--surface`. Run instead of a consumer's own capture script — repoint that script at this command (`"design:capture-ui": "noldor design capture"`).
+- **Inputs:** `consumer.uiCapture` (per surface: `command`, `timeoutMs`) plus `consumer.uiPaths` / `consumer.uiSurfaces` for the surface set.
+- **Outputs:** runs each surface's command via `/bin/sh -c` in its own process group under `timeoutMs`, and writes `.noldor/ui-capture/<surface>.json` **only** when the command exits 0 and produced a baseline — the receipt records `capturedAt`, the baseline's git blob id (`git hash-object`, not a content hash — the comparison is against the blob git stored, so eol conversion and clean filters apply to both sides), and the command. A timeout, a non-zero exit and a spawn error are all failed captures and leave the receipt untouched. Surfaces run sequentially and a failure does not stop the run. Exit 0 = every targeted surface vouched for, 1 = at least one failed or declares no command, 2 = usage error / unknown surface / no consumer config. Never commits.
+- **When to use:** regenerating a UI baseline. The receipt is what `check:ui-design-freshness` reads, so a capture that fails can no longer leave the surface reading `fresh`. Add `--vouch-only` after a sanctioned hand edit to the baseline (the gate's Step 4 write-back): it records a receipt for the file on disk without re-running the command, which would otherwise overwrite that edit. See `design:ui-sync` for the by-hand path when no capture command exists.
+- **Source:** [`src/design/ui-capture-cli.ts`](../../src/design/ui-capture-cli.ts)
+
 ### `design:pen-bridge`
 
 - **Trigger:** `pnpm noldor design pen-bridge [--pen <path>] [--print-only]`. Run when a pencil MCP call fails with `A file needs to be open in the editor` — before waiving a UI-design step.
@@ -127,8 +135,8 @@ Noldor ships its implementation under `src/<group>/`, surfaced through the `nold
 
 - **Trigger:** `pnpm noldor checks ui-design-freshness`. Run by `/noldor-gate` Step 4 (advisory, after the flip commit) and release preflight (blocking on `stale`).
 - **Inputs:** `consumer.uiPaths` / `consumer.uiSurfaces` from `.noldor/config.json` + git history of the surface globs and `docs/design/ui/baseline/<surface>.pen` files.
-- **Outputs:** per-surface freshness rows (`fresh` / `stale` / `uninitialized` / `skipped`, ancestry-based). Exit 0 on fresh/skipped, exit 1 on stale/uninitialized — callers choose whether that blocks.
-- **When to use:** any time you want to know whether the UI design baseline still reflects the shipped UI. Remediate reds with `pnpm noldor design ui-sync`.
+- **Outputs:** per-surface freshness rows (`fresh` / `stale` / `uninitialized` / `unverified` / `skipped`, ancestry-based). Ancestry is read against the surface's capture receipt (`.noldor/ui-capture/<surface>.json`), which only a successful `design capture` advances; a surface that has never had one falls back to the baseline file's own commit, reporting a legacy `stale` as `stale` and a legacy `fresh` as `unverified`. Exit 0 on fresh/skipped/unverified, exit 1 on stale/uninitialized — callers choose whether that blocks.
+- **When to use:** any time you want to know whether the UI design baseline still reflects the shipped UI. Remediation depends on the row: `unverified` and a receipt-backed `stale` are cleared by `pnpm noldor design capture`, which is the only command that advances the receipt; `uninitialized`, and a surface still on the pre-receipt read, are repaired by hand with `pnpm noldor design ui-sync`. The report names the right one per surface.
 - **Source:** [`src/checks/check-ui-design-freshness.ts`](../../src/checks/check-ui-design-freshness.ts)
 
 ### `check:readme`

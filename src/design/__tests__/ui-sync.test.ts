@@ -30,6 +30,33 @@ describe('renderSurfaceReport', () => {
   });
 });
 
+describe('renderSurfaceReport — capture remediation', () => {
+  it('points a capture-remediated row at design capture, never at "no action"', () => {
+    // This command is what the freshness detail tells operators to run, so a
+    // row it reports as `no action` is a dead end.
+    const out = renderSurfaceReport({
+      surface: 'app',
+      status: 'unverified',
+      remediation: 'capture',
+      detail: 'baseline at/after UI but no capture has vouched for it',
+    });
+    expect(out).toContain('design capture --surface app');
+    expect(out).not.toContain('no action');
+  });
+
+  it('keeps the by-hand pencil instruction for a legacy stale row', () => {
+    const out = renderSurfaceReport({
+      surface: 'app',
+      status: 'stale',
+      remediation: 'ui-sync',
+      uiCommit: 'abcdef1234',
+      detail: 'UI newer than baseline',
+    });
+    expect(out).toContain('pencil-capable session');
+    expect(out).not.toContain('design capture');
+  });
+});
+
 describe('validateBaselineFile', () => {
   let tmpDir: string;
 

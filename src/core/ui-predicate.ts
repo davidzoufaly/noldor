@@ -28,7 +28,19 @@ export interface UiConfig {
 }
 
 const GLOB_META_RE = /[*?[{]/;
-const IMPLICIT_SURFACE = 'app';
+/** The single surface a `uiPaths`-only consumer has when `uiSurfaces` is absent. */
+export const IMPLICIT_SURFACE = 'app';
+
+/**
+ * The repo's surface set: name → globs. One implementation, because a surface
+ * that is capturable but unchecked (or checked with no way to capture it) is
+ * the failure mode two independent copies of this rule produce.
+ */
+export function surfaceMap(config: UiConfig): Record<string, string[]> {
+  const uiPaths = config.uiPaths ?? [];
+  if (uiPaths.length === 0) return {};
+  return config.uiSurfaces ?? { [IMPLICIT_SURFACE]: uiPaths };
+}
 
 const matches = (path: string, glob: string): boolean => minimatch(path, glob, { dot: true });
 

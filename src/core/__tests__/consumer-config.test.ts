@@ -407,4 +407,59 @@ describe('screenshotCommand quoting rule', () => {
       }),
     ).toThrow(/may not contain single quotes/);
   });
+
+  describe('uiCapture reachability', () => {
+    it('rejects a uiCapture block when nothing is UI-bearing', () => {
+      // Such a config parses today but `design capture` refuses every surface, so
+      // the declared command could never run — a config that validates while
+      // being permanently unreachable is worse than one that fails to parse.
+      const r = ConsumerConfigSchema.safeParse({
+        name: 'x',
+        repoUrl: 'https://example.com/x',
+        lockstepPackages: ['x'],
+        e2ePrefix: 'e2e',
+        samplesPath: 'samples',
+        packagePrefix: '@x/',
+        appPathPrefix: 'apps/',
+        uiCapture: { app: { command: 'capture' } },
+      });
+      expect(r.success).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues.some((i) => i.message.includes('nothing is UI-bearing'))).toBe(true);
+      }
+    });
+
+    it('rejects a blank capture command, which would exit 0 having run nothing', () => {
+      // `/bin/sh -c '   '` exits successfully, so a whitespace-only command would
+      // advance the receipt with no capture having happened — the false-fresh the
+      // whole feature exists to remove, reintroduced through config.
+      const r = ConsumerConfigSchema.safeParse({
+        name: 'x',
+        repoUrl: 'https://example.com/x',
+        lockstepPackages: ['x'],
+        e2ePrefix: 'e2e',
+        samplesPath: 'samples',
+        packagePrefix: '@x/',
+        appPathPrefix: 'apps/',
+        uiPaths: ['src/**'],
+        uiCapture: { app: { command: '   ' } },
+      });
+      expect(r.success).toBe(false);
+    });
+
+    it('accepts the same block once uiPaths declares a surface', () => {
+      const r = ConsumerConfigSchema.safeParse({
+        name: 'x',
+        repoUrl: 'https://example.com/x',
+        lockstepPackages: ['x'],
+        e2ePrefix: 'e2e',
+        samplesPath: 'samples',
+        packagePrefix: '@x/',
+        appPathPrefix: 'apps/',
+        uiPaths: ['src/**'],
+        uiCapture: { app: { command: 'capture' } },
+      });
+      expect(r.success).toBe(true);
+    });
+  });
 });

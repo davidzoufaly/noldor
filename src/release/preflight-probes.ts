@@ -26,7 +26,8 @@ import {
 import { loadUiConfig } from '../core/consumer-config.js';
 import { inspectTreeState, type TreeState } from './clean-tree.js';
 import { evaluateGraphFreshness } from './graph-freshness.js';
-import { evaluateUiDesignFreshness } from './ui-design-freshness.js';
+import { captureRemediation, evaluateUiDesignFreshness } from './ui-design-freshness.js';
+import type { UiFreshnessVerdict, UiSurfaceFreshness } from './ui-design-freshness.js';
 import { readPkgIdentity } from './release-publish.js';
 import { checkCrGate } from './release-cr-gate.js';
 import { readReleaseState } from './release-state.js';
@@ -98,6 +99,24 @@ export function makeProbeContext(base: {
     // resolve against process.cwd() instead of the repo we were handed.
     config: () => (cfg ??= { v: loadConfigSync(join(base.cwd, '.noldor/config.json')) }).v,
   };
+}
+
+/** The first surface needing a capture, so the advice can name a concrete `--surface`. */
+function captureSurfaceName(verdict: UiFreshnessVerdict): string | undefined {
+  return verdict.surfaces.find((s) => s.remediation === 'capture')?.surface;
+}
+
+const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Comma-joined surface names carrying `status`, for a freshness detail line. */
+function namesWithStatus(
+  verdict: UiFreshnessVerdict,
+  status: UiSurfaceFreshness['status'],
+): string {
+  return verdict.surfaces
+    .filter((s) => s.status === status)
+    .map((s) => s.surface)
+    .join(', ');
 }
 
 /** Run one probe by id. Any unexpected throw becomes a blocking row, never a crash. */
@@ -363,25 +382,57 @@ const PROBES: Record<PreflightRowId, (ctx: ProbeContext) => Promise<PreflightRow
     if (verdict.overall === 'fresh') {
       return { id: 'ui-design-freshness', status: 'ok', detail: 'all UI baselines fresh' };
     }
-    if (verdict.overall === 'uninitialized') {
-      // v1: adoption must not brick releases — advisory only.
+    // Both non-blocking verdicts are advisory for the same reason — adoption
+    // must not brick a release — and both must be EXPLICIT branches, because
+    // the fall-through below is `blocking` with `detail` filtered to `stale`,
+    // so any status that reaches it blocks with an empty reason.
+    if (verdict.overall === 'unverified' || verdict.overall === 'uninitialized') {
       return {
         id: 'ui-design-freshness',
         status: 'warn',
-        detail: `uninitialized baseline surface(s): ${verdict.surfaces
-          .filter((s) => s.status === 'uninitialized')
-          .map((s) => s.surface)
-          .join(', ')}`,
+        detail: `${verdict.overall} baseline surface(s): ${namesWithStatus(verdict, verdict.overall)}`,
+        // Derived, not assumed: an `unverified` overall can also be the
+        // synthetic `(unmapped)` row, whose problem is a failed git probe and
+        // which carries no `remediation` — telling that operator to declare a
+        // capture for a surface named `(unmapped)` is advice for a different
+        // problem entirely.
+        ...(verdict.surfaces.some(
+          (s) => s.status === verdict.overall && s.remediation === 'capture',
+        )
+          ? { fix: capitalize(captureRemediation(captureSurfaceName(verdict))) }
+          : {}),
       };
     }
+    // Exhaustive by construction. The fall-through below renders `blocking`
+    // with a `stale`-filtered detail, so a status that reaches it unhandled
+    // blocks every consumer with an empty reason. Naming `stale` explicitly and
+    // asserting `never` on the rest makes a sixth status a typecheck error here
+    // instead of a silent release block.
+    if (verdict.overall !== 'stale') {
+      const never: never = verdict.overall;
+      return never;
+    }
+
+    // The fix line is DERIVED from the blocking rows, not fixed text: `stale`
+    // no longer implies one remedy. A surface whose receipt is behind its UI is
+    // repaired by re-capturing, and `design ui-sync` explicitly refuses those
+    // rows — it stages nothing and exits 1 — so a hardcoded ui-sync line would
+    // send the operator to a command that cannot clear the block.
+    const blocking = verdict.surfaces.filter((s) => s.status === 'stale');
+    const needsCapture = blocking.some((s) => s.remediation === 'capture');
+    const needsSync = blocking.some((s) => s.remediation !== 'capture');
     return {
       id: 'ui-design-freshness',
       status: 'blocking',
-      detail: verdict.surfaces
-        .filter((s) => s.status === 'stale')
-        .map((s) => `${s.surface}: ${s.detail}`)
-        .join('; '),
-      fix: 'Run `pnpm noldor design ui-sync` in a pencil-capable session and commit the baseline. Not auto-fixable — baseline editing is an agent skill.',
+      detail: blocking.map((s) => `${s.surface}: ${s.detail}`).join('; '),
+      fix: [
+        needsCapture ? capitalize(captureRemediation(captureSurfaceName(verdict))) : '',
+        needsSync
+          ? 'Run `pnpm noldor design ui-sync` in a pencil-capable session and commit the baseline — not auto-fixable, baseline editing is an agent skill.'
+          : '',
+      ]
+        .filter((line) => line.length > 0)
+        .join(' '),
     };
   },
 

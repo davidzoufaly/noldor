@@ -58,6 +58,14 @@ export const BOOKKEEPING_GLOBS = [
   '.noldor/retired-entry-ids.json',
   '.noldor/id-counter.json',
   '.noldor/design/**',
+  // Regenerated graph output. `design graph-context` asks a session to run
+  // `/graphify` when the tracked graph is stale, so a feature branch routinely
+  // carries a regeneration commit BEFORE its first real one — and
+  // `pickSummarySha` would then compose the PR Summary from a body explaining
+  // graph regeneration rather than the feature. Generated output is not the
+  // change a PR explains. Already treated as generated bookkeeping by
+  // RELEASE_SWEEP_GLOBS above.
+  'graphify-out/**',
 ] as const;
 
 /**

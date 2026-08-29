@@ -79,6 +79,10 @@ export const MANIFEST: Record<string, Group> = {
         src: 'design/ui-sync-cli.ts',
         desc: 'Report + validate UI baseline sync per surface; staged-never-committed',
       },
+      capture: {
+        src: 'design/ui-capture-cli.ts',
+        desc: "Run each surface's consumer-declared UI capture; writes its receipt only on exit 0",
+      },
       'pen-bridge': {
         src: 'design/pen-bridge-cli.ts',
         desc: 'Open a .pen in the default editor so pencil MCP answers (bridge wake)',
