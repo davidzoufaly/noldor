@@ -6,6 +6,7 @@ entry-id: Q-0144
 links:
   code:
     - src/core/ui-predicate.ts
+    - src/core/run-capture.ts
     - src/core/consumer-config.ts
     - src/core/design-artifact-names.ts
     - src/core/doc-roots.ts
@@ -13,6 +14,8 @@ links:
     - src/core/feature-schema.ts
     - src/release/ui-design-freshness.ts
     - src/checks/check-ui-design-freshness.ts
+    - src/design/ui-capture.ts
+    - src/design/ui-capture-cli.ts
     - src/design/ui-sync-cli.ts
     - src/design/archive-resolve.ts
     - src/design/archive-cli.ts

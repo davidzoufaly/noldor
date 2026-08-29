@@ -1,5 +1,6 @@
 // @tests: pendev-ui-design-phase
 import { execFileSync } from 'node:child_process';
+import { existsSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,12 +18,28 @@ import { blobIdOfWorktreeFile, readReceipt, receiptPath, receiptRelPath } from '
  * everything on this side of it is real (real temp dirs, the real receipt
  * writer, the real schema).
  */
-function scriptedRunner(script: Record<string, Partial<CaptureResult>>) {
+/** Module-level so two runners in one test never write identical bytes. */
+let captureSeq = 0;
+
+function scriptedRunner(script: Record<string, Partial<CaptureResult>>, cwd?: () => string) {
   const ran: string[] = [];
   const run = async (command: string): Promise<CaptureResult> => {
     ran.push(command);
     const hit = Object.entries(script).find(([prefix]) => command.startsWith(prefix));
-    return { code: 0, timedOut: false, stderrTail: '', ...hit?.[1] };
+    const result = { code: 0, timedOut: false, stderrTail: '', ...hit?.[1] };
+    // A real capture rewrites the surface's baseline, and the wrapper now
+    // refuses to vouch when the file is byte-identical to what it was before —
+    // a command that exits 0 having written nothing is a failed capture. The
+    // fake has to model that or every success case reads as one.
+    if (result.code === 0 && !result.timedOut && cwd) {
+      const surface = command.replace(/^capture-/, '');
+      const abs = join(cwd(), 'docs/design/ui/baseline', `${surface}.pen`);
+      if (existsSync(abs)) {
+        captureSeq += 1;
+        writeFileSync(abs, `CAPTURED-${surface}-${captureSeq}`);
+      }
+    }
+    return result;
   };
   return { run, ran };
 }
@@ -94,7 +111,7 @@ describe('design capture', () => {
   }
 
   const deps = (script: Record<string, Partial<CaptureResult>>) => {
-    const s = scriptedRunner(script);
+    const s = scriptedRunner(script, () => cwd);
     return { deps: { run: s.run, now: () => '2026-08-29T00:00:00.000Z' }, ran: s.ran };
   };
 
@@ -139,6 +156,23 @@ describe('design capture', () => {
 
     expect(await captureMain([], cwd, d)).toBe(1);
     expect(readReceipt(cwd, 'app')).toBeNull();
+  });
+
+  it('refuses to vouch when the command exits 0 but left the baseline untouched', async () => {
+    // Exit 0 alone proves nothing. A misconfigured command can succeed without
+    // writing, and an old baseline already on disk would then satisfy the
+    // existence check and advance the receipt — the false-fresh, restored.
+    await writeConfig({ uiPaths: ['src/**'], uiCapture: { app: { command: 'noop-cmd' } } });
+    await writeBaseline('app', 'STALE-FROM-LAST-TIME');
+    // `noop-cmd` does not match the runner's `capture-` prefix, so it writes
+    // nothing — exactly the broken-command shape.
+    const { deps: d } = deps({});
+
+    expect(await captureMain([], cwd, d)).toBe(1);
+    expect(readReceipt(cwd, 'app')).toBeNull();
+    expect(await readFile(join(cwd, 'docs/design/ui/baseline/app.pen'), 'utf8')).toBe(
+      'STALE-FROM-LAST-TIME',
+    );
   });
 
   it('refuses to vouch when the command exits 0 but produced no baseline', async () => {

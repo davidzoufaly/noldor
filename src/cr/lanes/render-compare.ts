@@ -68,8 +68,6 @@ const TOTAL_ROUND_BUDGET_MS = 300_000;
  */
 const fmtRatio = (r: number): string => r.toFixed(6);
 
-export type { CaptureResult } from '../../core/run-capture.js';
-
 interface RenderCompareDeps {
   boot: typeof bootServer;
   capture: typeof runCapture;

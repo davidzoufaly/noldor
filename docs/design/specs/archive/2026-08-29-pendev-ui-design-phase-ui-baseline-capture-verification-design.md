@@ -239,20 +239,20 @@ Evaluated in order; the first match wins.
 | 5 | receipt absent from HEAD **and** its path has no history | legacy fallback (U3) |
 | 6 | receipt absent from HEAD **but** its path has history | `stale` — the proof was withdrawn |
 | 7 | receipt unreadable or its content invalid | `skipped` |
-| 8 | `baselineBlob` ≠ sha256 of the `.pen` at HEAD | `stale` — receipt committed without its baseline |
+| 8 | `baselineBlob` ≠ `git rev-parse HEAD:<baseline>` | `stale` — receipt committed without its baseline |
 | 9 | receipt commit unresolvable, or either ancestry probe errors | `skipped` |
 | 10 | otherwise | `classifyAncestry(uiCommit, receiptCommit)` |
 
 Rows 1–4 and 9–10 are today's branches with one input renamed; 4b and 5–8 are new. Row 4b exists for the same reason as row 6: withdrawing *either* file must not soften a verdict, or an adopted surface sitting at a blocking `stale` could be un-blocked by deleting its `.pen`. Existence is read **at
 HEAD** throughout, as `existsAtHead` already does — the working tree is never consulted, so an
-uncommitted or untracked receipt does not change a verdict, and the row-8 digest is taken over the
-`.pen` blob at HEAD rather than the file on disk. Row 7 sits above row 8 because the digest comparison
+uncommitted or untracked receipt does not change a verdict, and the row-8 comparison is against the
+`.pen` blob id at HEAD rather than the file on disk. Row 7 sits above row 8 because the digest comparison
 needs parsed content: an unreadable receipt cannot mint a red, only an indeterminate.
 
 ## Acceptance criteria
 
 1. A capture exiting non-zero leaves the surface's receipt file untouched.
-2. A capture exiting 0 writes the receipt with the produced baseline's sha256 in `baselineBlob`.
+2. A capture exiting 0 writes the receipt with the produced baseline's git blob id in `baselineBlob`, and a command that exits 0 without modifying the baseline is a failed capture.
 3. With a receipt present, a UI commit later than the receipt's commit reports `stale`.
 4. With a receipt present, a receipt commit that is the UI commit or a descendant of it reports `fresh`.
 5. Evaluated from a fresh clone of a branch squash-merged into `main`, a surface that was `fresh` before the merge is still `fresh` after it.

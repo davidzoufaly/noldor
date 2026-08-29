@@ -11,7 +11,7 @@ import { braceExpand } from 'minimatch';
 
 import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
 import { parseReceiptBytes, receiptRelPath } from '../design/ui-capture.js';
-import { IMPLICIT_SURFACE, isUiBearing, type UiConfig } from '../core/ui-predicate.js';
+import { isUiBearing, surfaceMap, type UiConfig } from '../core/ui-predicate.js';
 import { GRAPH_IRRELEVANT_EXCLUDES } from './graph-freshness.js';
 
 const execFileAsync = promisify(execFile);
@@ -298,12 +298,10 @@ export async function evaluateUiDesignFreshness(
     };
   }
 
-  const surfaceMap: Record<string, string[]> = config.uiSurfaces ?? { [IMPLICIT_SURFACE]: uiPaths };
+  const surfaces_ = surfaceMap(config);
   const surfaces: UiSurfaceFreshness[] = [];
 
-  for (const [surface, globs] of Object.entries(surfaceMap).sort(([a], [b]) =>
-    a.localeCompare(b),
-  )) {
+  for (const [surface, globs] of Object.entries(surfaces_).sort(([a], [b]) => a.localeCompare(b))) {
     const baselineFile = `${BASELINE_DIR}/${surface}.pen`;
     // `:(glob)` magic: surface globs are minimatch patterns (predicate side);
     // plain git pathspecs use wildmatch where `*` crosses `/` and `**`

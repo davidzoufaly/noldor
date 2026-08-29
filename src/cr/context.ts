@@ -28,7 +28,11 @@ export interface PromptContext {
  * past the codex lane's 1MB input cap, so the whole review failed on content
  * nobody reads.
  *
- * The list is deliberately narrow. **Lockfiles are NOT excluded**: a
+ * The list is deliberately narrow — one entry, for the one directory this
+ * framework itself regenerates and tracks. `dist/**` was tried and removed: it
+ * is not guaranteed to be build output in every consumer repo, and a tracked
+ * dist-only change would then reach the mandatory lane as an empty diff.
+ * **Lockfiles are NOT excluded** either: a
  * dependency-only change lives entirely in the lock, and the security-relevant
  * half of it — a new transitive package, a changed `resolution:` URL, an
  * altered integrity hash — has no other representation in the diff. Dropping
@@ -39,10 +43,7 @@ export interface PromptContext {
  * `:(exclude,glob)` magic: `glob` makes the double-star cross directory
  * boundaries so the pattern matches at any depth, including the repo root.
  */
-export const REVIEW_IRRELEVANT_EXCLUDES: readonly string[] = [
-  ':(exclude,glob)graphify-out/**',
-  ':(exclude,glob)dist/**',
-];
+export const REVIEW_IRRELEVANT_EXCLUDES: readonly string[] = [':(exclude,glob)graphify-out/**'];
 
 export function buildContext(input: BuildContextInput): PromptContext {
   const baseArgs = diffArgs(input.lane);

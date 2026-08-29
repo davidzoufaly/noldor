@@ -19,7 +19,7 @@ import type { UiCaptureRecipe } from '../core/consumer-config.js';
 import { UI_BASELINE_DIR as BASELINE_DIR } from '../core/design-artifact-names.js';
 import { runCapture } from '../core/run-capture.js';
 import type { CaptureResult } from '../core/run-capture.js';
-import { IMPLICIT_SURFACE } from '../core/ui-predicate.js';
+import { surfaceMap } from '../core/ui-predicate.js';
 import { blobIdOfWorktreeFile, receiptRelPath, writeReceipt } from './ui-capture.js';
 
 /** One surface's outcome, so the aggregate exit code is derived, not maintained. */
@@ -39,10 +39,7 @@ export function declaredSurfaces(ui: {
   uiPaths?: string[];
   uiSurfaces?: Record<string, string[]>;
 }): string[] {
-  if ((ui.uiPaths ?? []).length === 0) return [];
-  return ui.uiSurfaces === undefined
-    ? [IMPLICIT_SURFACE]
-    : Object.keys(ui.uiSurfaces).sort((a, b) => a.localeCompare(b));
+  return Object.keys(surfaceMap(ui)).sort((a, b) => a.localeCompare(b));
 }
 
 /** Injected so tests drive real behaviour without spawning a shell. */
@@ -71,6 +68,12 @@ export async function captureSurface(
   // re-running the consumer's capture command to clear it would overwrite the
   // very edit that was just made. Vouching for what is on disk is the only
   // move that keeps a hand write-back and a green check compatible.
+  const rel = `${BASELINE_DIR}/${surface}.pen`;
+  // What the baseline was BEFORE the command ran. Exit 0 alone proves nothing:
+  // a misconfigured command can succeed without writing anything, and an old
+  // baseline sitting on disk would then satisfy the existence check and advance
+  // the receipt — the false-fresh, restored.
+  const before = vouchOnly ? null : blobIdOfWorktreeFile(cwd, rel);
   const result = vouchOnly
     ? { code: 0, timedOut: false, stderrTail: '' }
     : await run(recipe.command, cwd, recipe.timeoutMs);
@@ -99,8 +102,18 @@ export async function captureSurface(
       detail: `capture exited 0 but ${BASELINE_DIR}/${surface}.pen does not exist — receipt unchanged`,
     };
   }
-  const rel = `${BASELINE_DIR}/${surface}.pen`;
   const blob = blobIdOfWorktreeFile(cwd, rel);
+  if (!vouchOnly && before !== null && before === blob) {
+    // The file predates the run and is byte-identical, so this command did not
+    // produce it. Reporting success would vouch for a baseline nothing
+    // regenerated. A capture that legitimately reproduces identical bytes lands
+    // here too; `--vouch-only` is the deliberate way to say so.
+    return {
+      surface,
+      ok: false,
+      detail: `capture exited 0 but left ${rel} unchanged — nothing was regenerated, so the receipt is unchanged; use --vouch-only to vouch for the file on disk deliberately`,
+    };
+  }
   if (blob === null) {
     // No id means no binding proof, and a receipt without one would vouch for a
     // baseline nothing can check. Refuse rather than write a weaker receipt.
