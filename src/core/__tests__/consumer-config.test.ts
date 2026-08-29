@@ -429,6 +429,24 @@ describe('screenshotCommand quoting rule', () => {
       }
     });
 
+    it('rejects a blank capture command, which would exit 0 having run nothing', () => {
+      // `/bin/sh -c '   '` exits successfully, so a whitespace-only command would
+      // advance the receipt with no capture having happened — the false-fresh the
+      // whole feature exists to remove, reintroduced through config.
+      const r = ConsumerConfigSchema.safeParse({
+        name: 'x',
+        repoUrl: 'https://example.com/x',
+        lockstepPackages: ['x'],
+        e2ePrefix: 'e2e',
+        samplesPath: 'samples',
+        packagePrefix: '@x/',
+        appPathPrefix: 'apps/',
+        uiPaths: ['src/**'],
+        uiCapture: { app: { command: '   ' } },
+      });
+      expect(r.success).toBe(false);
+    });
+
     it('accepts the same block once uiPaths declares a surface', () => {
       const r = ConsumerConfigSchema.safeParse({
         name: 'x',

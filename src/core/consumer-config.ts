@@ -167,7 +167,12 @@ export type UiBootRecipe = z.infer<typeof UiBootRecipeSchema>;
  */
 export const uiCaptureRecipeSchema = z
   .object({
-    command: z.string().min(1),
+    // Non-blank, not merely non-empty: `/bin/sh -c '   '` exits 0, so a
+    // whitespace-only command would advance the receipt without any capture
+    // having run — the exact false-fresh this feature exists to remove.
+    command: z.string().refine((c) => c.trim().length > 0, {
+      message: 'uiCapture command must not be blank',
+    }),
     // Rejected at validate when out of contract, never clamped — same posture
     // as `UiBootRecipeSchema.captureTimeoutMs`.
     timeoutMs: z.number().int().min(1).max(600_000).default(300_000),

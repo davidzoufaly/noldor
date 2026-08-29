@@ -228,6 +228,21 @@ describe('design capture', () => {
     );
   });
 
+  it('does not resolve a surface named after an Object prototype key', async () => {
+    // SURFACE_NAME_RE admits `constructor`, and a plain index would resolve it
+    // to `Object` rather than undefined — spawning `/bin/sh -c undefined` with
+    // an undefined timeout.
+    await writeConfig({
+      uiPaths: ['src/**'],
+      uiSurfaces: { constructor: ['src/**'] },
+      uiCapture: {},
+    });
+    const { deps: d, ran } = deps({});
+
+    expect(await captureMain([], cwd, d)).toBe(1);
+    expect(ran).toEqual([]);
+  });
+
   it('refuses a bare --vouch-only, which would green untouched surfaces', async () => {
     await writeConfig({
       uiPaths: ['src/a/**', 'src/b/**'],

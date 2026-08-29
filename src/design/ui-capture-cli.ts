@@ -188,7 +188,11 @@ export async function main(
   // the same build output. Each success writes its own file as it happens, so a
   // failure part-way leaves the surfaces that worked vouched for.
   for (const surface of targets) {
-    const recipe = capture[surface] ?? (vouchOnly ? VOUCH_ONLY_RECIPE : undefined);
+    // `Object.hasOwn`, matching the guards above: SURFACE_NAME_RE admits
+    // `constructor`, and a plain index would resolve it to `Object` rather than
+    // undefined — spawning `/bin/sh -c undefined` with an undefined timeout.
+    const declared = Object.hasOwn(capture, surface) ? capture[surface] : undefined;
+    const recipe = declared ?? (vouchOnly ? VOUCH_ONLY_RECIPE : undefined);
     if (recipe === undefined) continue;
     const outcome = await captureSurface(cwd, surface, recipe, deps.run, deps.now, vouchOnly);
     outcomes.push(outcome);
